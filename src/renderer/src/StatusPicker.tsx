@@ -7,7 +7,9 @@ const MIXED = ''
 
 /**
  * Pop-up button for the open note's status, or for several notes' (`mixed`:
- * they differ, and it reads Mixed until one is picked).
+ * they differ, and it reads Mixed until one is picked). With no status it
+ * reads Status, in grey. A native select lies over it, unseen, so the
+ * keyboard and VoiceOver work it as before.
  */
 export function StatusPicker(props: {
   value: NoteStatus
@@ -17,6 +19,13 @@ export function StatusPicker(props: {
   return (
     <label className={`popup status-${props.mixed ? 'none' : props.value}`}>
       <span className="status-dot" aria-hidden="true" />
+      <span className="popup-value" aria-hidden="true">
+        {props.mixed
+          ? t('status.mixed')
+          : props.value === 'none'
+            ? t('note.statusLabel')
+            : t(`status.${props.value}`)}
+      </span>
       <select
         aria-label={t('note.statusLabel')}
         value={props.mixed ? MIXED : props.value}
@@ -35,7 +44,7 @@ export function StatusPicker(props: {
           </option>
         ))}
       </select>
-      <Icon name="popup" size="sm" />
+      <Icon name="popup.chevron" size="sm" />
     </label>
   )
 }

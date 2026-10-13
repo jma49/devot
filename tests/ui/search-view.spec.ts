@@ -61,7 +61,7 @@ test('Shift+Cmd+F searches the current view; Shift+Opt+Cmd+F searches every note
   await noteRows(page).first().click()
   await page.keyboard.press('Meta+Shift+KeyF')
   await expect(search(page)).toBeFocused()
-  await expect(search(page)).toHaveAttribute('placeholder', 'Search in Work')
+  await expect(search(page)).toHaveAttribute('placeholder', 'Filter')
   await page.keyboard.type('plan')
   await expect(header(page)).toHaveText('Search Results')
   await expect(caption(page)).toHaveText('In Work · 1 note')
@@ -92,7 +92,7 @@ test('Shift+Cmd+F searches the current view; Shift+Opt+Cmd+F searches every note
   await search(page).press('Escape')
   await expect(search(page)).toHaveValue('')
   await expect(header(page)).toHaveText('Work')
-  await expect(search(page)).toHaveAttribute('placeholder', 'Search')
+  await expect(search(page)).toHaveAttribute('placeholder', 'Filter')
 })
 
 test('searching a filter narrows within it', async ({ page }) => {
@@ -105,7 +105,7 @@ test('searching a filter narrows within it', async ({ page }) => {
   await expect(header(page)).toHaveText('Active')
 
   await page.keyboard.press('Meta+Shift+KeyF')
-  await expect(search(page)).toHaveAttribute('placeholder', 'Search in Active')
+  await expect(search(page)).toHaveAttribute('placeholder', 'Filter')
   await page.keyboard.type('plan')
   await expect(caption(page)).toHaveText('In Active · 1 note')
   await expect(noteRows(page)).toHaveText([/^Active plan/])
@@ -116,7 +116,7 @@ test('the view a search narrows is named as typed', async ({ page }) => {
   await createBook(page, 'Make $$ $&')
   await createNote(page, 'Kit plan')
   await page.keyboard.press('Meta+Shift+KeyF')
-  await expect(search(page)).toHaveAttribute('placeholder', 'Search in Make $$ $&')
+  await expect(search(page)).toHaveAttribute('placeholder', 'Filter')
   await page.keyboard.type('plan')
   await expect(caption(page)).toHaveText('In Make $$ $& · 1 note')
 })
@@ -132,7 +132,7 @@ test('/ in the note list focuses the search field for the current view', async (
   await expect(search(page)).toBeFocused()
   // The key only moves the focus; nothing is typed.
   await expect(search(page)).toHaveValue('')
-  await expect(search(page)).toHaveAttribute('placeholder', 'Search in Work')
+  await expect(search(page)).toHaveAttribute('placeholder', 'Filter')
   await page.keyboard.type('alp')
   await expect(noteRows(page)).toHaveText([/^Alpha/])
 
@@ -184,7 +184,7 @@ test('matched words are highlighted in titles and body excerpts', async ({ page 
   await search(page).fill('title:design')
   await expect(noteRows(page)).toHaveCount(1)
   await expect(design.locator('mark')).toHaveText(['design'])
-  await expect(design.locator('.row-excerpt')).toHaveCount(0)
+  await expect(design.locator('.row-excerpt mark')).toHaveCount(0)
 
   // Excluded words are not marked, even where the exclusion does not look:
   // WebSocket is in an excerpt and Bold in a title of rows still found.
@@ -239,7 +239,7 @@ test('excerpts read as text: no front matter and no Markdown markers', async ({ 
   await search(page).fill('q4')
   await expect(header(page)).toHaveText('Search Results')
   await expect(noteRows(page)).toHaveCount(1)
-  await expect(row.locator('.row-excerpt')).toHaveCount(0)
+  await expect(row.locator('.row-excerpt mark')).toHaveCount(0)
 })
 
 test('searching every note shows nothing in the sidebar as selected until it is cleared', async ({
@@ -301,7 +301,7 @@ test('searching every note shows nothing in the sidebar as selected until it is 
   await active.click()
   await expect(header(page)).toHaveText('Active')
   await expect(active).toHaveAttribute('aria-pressed', 'true')
-  await search(page).click()
+  await page.keyboard.press('Meta+Alt+Shift+KeyF')
   await page.keyboard.type('plan')
   await expect(caption(page)).toHaveText('2 notes')
   await expect(active).toHaveAttribute('aria-pressed', 'false')
@@ -312,13 +312,15 @@ test('searching every note shows nothing in the sidebar as selected until it is 
 
   // A sidebar row pressed during such a search shows that view, without
   // the filter that did not show as pressed.
-  await search(page).fill('plan')
+  await page.keyboard.press('Meta+Alt+Shift+KeyF')
+  await page.keyboard.type('plan')
   await expect(caption(page)).toHaveText('2 notes')
   await active.click()
   await expect(header(page)).toHaveText('Active')
   await expect(search(page)).toHaveValue('')
   await expect(active).toHaveAttribute('aria-pressed', 'true')
-  await search(page).fill('plan')
+  await page.keyboard.press('Meta+Alt+Shift+KeyF')
+  await page.keyboard.type('plan')
   await expect(caption(page)).toHaveText('2 notes')
   await book(page, 'Work').locator('> .book-row').click()
   await expect(header(page)).toHaveText('Work')
@@ -340,9 +342,9 @@ test('a filter pressed while searching every note leaves the hidden notebook', a
   await status.selectOption({ label: 'Active' })
   await expect(header(page)).toHaveText('Work')
 
-  // Typing in the field searches every note: the notebook no longer looks
+  // Shift+Opt+Cmd+F searches every note: the notebook no longer looks
   // selected, so a filter pressed now covers every note.
-  await search(page).click()
+  await page.keyboard.press('Meta+Alt+Shift+KeyF')
   await page.keyboard.type('plan')
   await expect(caption(page)).toHaveText('2 notes')
   await expect(book(page, 'Work')).toHaveAttribute('aria-selected', 'false')

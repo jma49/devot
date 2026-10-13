@@ -79,6 +79,7 @@ import { TagEditor } from './TagEditor'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, stopCore, type Core } from './core-client'
+import { welcomeContent } from './welcome/content'
 import { currentFocusStore, currentSidebarStore, keyboardIsFree } from './focus'
 import { useFocusRescue } from './focusRescue'
 import { currentLastStateStore, restorePlan, type LastState, type NoteState } from './lastState'
@@ -116,7 +117,7 @@ import {
   type NoteMenuAction,
   type TrashAction,
 } from './noteMenu'
-import { applyOrder, orderLabel, sortLocales, sortView, useListOrder } from './noteSort'
+import { applyOrder, orderChip, orderLabel, sortLocales, sortView, useListOrder } from './noteSort'
 import { LivePreview } from './preview/Preview'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
@@ -138,6 +139,10 @@ const SEARCH_SETTLED_MS = 1000
 
 /** View > Command Palette… in the menu bar; App re-sends the Tauri event as this. */
 export const SHOW_PALETTE = 'devot:show-palette'
+
+/** View > Toggle Editor and Preview, and View > Show Editor and Preview. */
+export const TOGGLE_PREVIEW = 'devot:toggle-preview'
+export const SHOW_SPLIT = 'devot:show-split'
 
 /** How many untitled notes the palette looks up the first line of (the newest). */
 const PALETTE_HEADLINES = 500
@@ -226,6 +231,11 @@ export function App() {
     () => (core ? (ids: string[]) => core.headlines(ids) : undefined),
     [core],
   )
+  // The body excerpts under the rows' titles (see NoteService.excerpts).
+  const loadExcerpts = useMemo(
+    () => (core ? (ids: string[]) => core.excerpts(ids) : undefined),
+    [core],
+  )
   // The lists have loaded once (the last state is restored then).
   const [listsLoaded, setListsLoaded] = useState(false)
   const [notes, setNotes] = useState<NoteSummary[]>([])
@@ -245,9 +255,12 @@ export function App() {
   const recentTemplates = useMemo(() => currentRecentTemplates(), [])
   const [query, setQuery] = useState('')
   // Where the query looks: every note, or the notes of the current view.
-  const [searchIn, setSearchIn] = useState<'all' | 'view'>('all')
+  const [searchIn, setSearchIn] = useState<'all' | 'view'>('view')
   // The latest results, with the search they answer.
-  const [results, setResults] = useState<{ found: NoteSummary[]; search: Search }>()
+  const [results, setResults] = useState<{
+    found: NoteSummary[]
+    search: Search
+  }>()
   const searchField = useRef<HTMLInputElement>(null)
   const runSearch = useRef<(search: Search) => void>(undefined)
   const latestSearch = useRef<Search>({ query: '', scope: undefined })
@@ -267,7 +280,10 @@ export function App() {
   // Several notes selected in the list (see listSelection.ts); the open
   // note stays open among them, and the editor pane shows a summary.
   // It belongs to the view it was made in (see `listView`).
-  const [multi, setMultiIn] = useState<{ view: string; selection: ListSelection }>()
+  const [multi, setMultiIn] = useState<{
+    view: string
+    selection: ListSelection
+  }>()
   // How many notes the last batch change could not change (a notice).
   const [batchFailed, setBatchFailed] = useState<number>()
   const [title, setTitle] = useState('')
@@ -337,7 +353,10 @@ export function App() {
   const [changeNotice, setChangeNotice] = useState<string>()
   // The codes of pasted or dropped images that could not be stored, shown in a notice.
   const [imageNotice, setImageNotice] = useState<string[]>()
-  const [exportNotice, setExportNotice] = useState<{ failure: ExportFailure; code: string }>()
+  const [exportNotice, setExportNotice] = useState<{
+    failure: ExportFailure
+    code: string
+  }>()
   // Notes the core could not save yet; it keeps their changes and tries
   // again (saving.ts). Their notice shows unless dismissed since the last
   // new failure; the first quit after they failed is held.
@@ -494,7 +513,12 @@ export function App() {
       return
     }
     const { scan } = job
-    setImportState({ kind: 'running', name: scan.name, done: 0, total: scan.files.length })
+    setImportState({
+      kind: 'running',
+      name: scan.name,
+      done: 0,
+      total: scan.files.length,
+    })
     const progress = (done: number, total: number) =>
       setImportState((s) => (s?.kind === 'running' ? { ...s, done, total } : s))
     void (async () => {
@@ -513,7 +537,12 @@ export function App() {
         if (report?.bookId) {
           showLibraryRef.current?.({ kind: 'book', id: report.bookId }, { clearFilter: true })
         }
-        setImportState({ kind: 'done', name: scan.name, report, skipped: scan.skipped })
+        setImportState({
+          kind: 'done',
+          name: scan.name,
+          report,
+          skipped: scan.skipped,
+        })
       } catch (e) {
         console.warn('W_IMPORT_FAILED', errorCode(e))
         await refresh(c).catch(() => {})
@@ -600,6 +629,7 @@ export function App() {
   const sortButton = useMemo(
     () => ({
       label: format(t('sort.current'), { order: orderLabel(order) }),
+      chip: orderChip(order),
       onOpen: (anchor: HTMLElement) => void showOrder(anchor),
     }),
     [order, showOrder],
@@ -608,7 +638,10 @@ export function App() {
     () =>
       noteGroups(
         applyOrder(
-          filterNotes(notes, books, { bookId: libraryBook?.id ?? null, by: activeFilter }),
+          filterNotes(notes, books, {
+            bookId: libraryBook?.id ?? null,
+            by: activeFilter,
+          }),
           order,
           locales,
         ),
@@ -647,7 +680,10 @@ export function App() {
   // The view a search can narrow (the Trash is never searched).
   const viewName =
     filterLabel !== undefined && libraryBook
-      ? format(t('search.filterInBook'), { filter: filterLabel, book: libraryBook.name })
+      ? format(t('search.filterInBook'), {
+          filter: filterLabel,
+          book: libraryBook.name,
+        })
       : (filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes'))
   const inView = searchIn === 'view' && !inTrash && !inTemplates
   // A search over every note shows nothing in the sidebar as selected; the
@@ -692,7 +728,10 @@ export function App() {
   const resultsQuery = results?.search.query ?? ''
   const highlight = useMemo(() => {
     const terms = highlightTerms(parseSearch(resultsQuery))
-    return { title: searchPattern(terms.title), body: searchPattern(terms.body) }
+    return {
+      title: searchPattern(terms.title),
+      body: searchPattern(terms.body),
+    }
   }, [resultsQuery])
 
   // The notes the list shows, in its order, for the next and previous note.
@@ -745,6 +784,13 @@ export function App() {
         if (!alive) return
         setCore(() => c)
         coreRef.current = c
+        // A library that has never held anything starts with a few notes. The
+        // UI tests' libraries start empty, unless a test asks for the notes.
+        if (!DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome) {
+          await c.seedWelcome(welcomeContent()).catch((e: unknown) => {
+            console.warn('W_WELCOME_FAILED', errorCode(e))
+          })
+        }
         await refresh(c)
         setListsLoaded(true)
         // Folders picked before the core was ready.
@@ -773,7 +819,10 @@ export function App() {
   useEffect(() => {
     if (!core) return
     runSearch.current = latestOnly(
-      async (search: Search) => ({ found: await core.search(search.query, search.scope), search }),
+      async (search: Search) => ({
+        found: await core.search(search.query, search.scope),
+        search,
+      }),
       // Results that did not change keep their objects (and their rows their render).
       (next) =>
         setResults((shown) =>
@@ -824,7 +873,7 @@ export function App() {
   }
   function clearSearch() {
     setQuery('')
-    setSearchIn('all')
+    setSearchIn('view')
   }
   // The search shortcuts focus the field from anywhere: Shift+Cmd+F (or /
   // in the list) searches the current view, Shift+Opt+Cmd+F every note.
@@ -890,7 +939,10 @@ export function App() {
       nextSheet()
     }
     const failed = (e: Event) => {
-      importJobs.current.push({ kind: 'failed', code: errorCode((e as CustomEvent).detail) })
+      importJobs.current.push({
+        kind: 'failed',
+        code: errorCode((e as CustomEvent).detail),
+      })
       nextSheet()
     }
     window.addEventListener(IMPORT_READY, ready)
@@ -965,7 +1017,10 @@ export function App() {
     await restoreBackup(
       id,
       core
-        ? { hold: () => core.holdCompaction(), resume: () => core.resumeCompaction() }
+        ? {
+            hold: () => core.holdCompaction(),
+            resume: () => core.resumeCompaction(),
+          }
         : undefined,
     )
     // Folders picked meanwhile were never imported: close their sessions.
@@ -1027,7 +1082,11 @@ export function App() {
       keyboard = false,
       fromTrail = false,
       keepSelection = false,
-    }: { keyboard?: boolean; fromTrail?: boolean; keepSelection?: boolean } = {},
+    }: {
+      keyboard?: boolean
+      fromTrail?: boolean
+      keepSelection?: boolean
+    } = {},
   ): Promise<boolean> => {
     if (!core) return false
     // Opening a note shows it alone, unless the selection itself moved the
@@ -1142,7 +1201,10 @@ export function App() {
   const previewScrolled = (top: number) => {
     if (selected === undefined) return
     const known = noteState.current?.id === selected ? noteState.current : undefined
-    noteState.current = { ...(known ?? { id: selected, keyboard: false }), previewTop: top }
+    noteState.current = {
+      ...(known ?? { id: selected, keyboard: false }),
+      previewTop: top,
+    }
     saveSoon()
   }
   // The view and filter the window started with: a view picked while it
@@ -1213,11 +1275,6 @@ export function App() {
     return pending && pending.id === selected ? pending.top : undefined
   }
 
-  const trashNote = async (id: string) => {
-    await changeBooks((c) => c.trash(id))
-    if (selected === id) setSelected(undefined)
-  }
-
   /** Puts a trashed note back where it was. */
   const restoreTrashed = async (id: string) => {
     await changeBooks((c) => c.restore(id))
@@ -1262,7 +1319,11 @@ export function App() {
   const showMade = async (
     c: Core,
     id: string,
-    listed: { notes: NoteSummary[]; templates: NoteSummary[]; books: BookRecord[] },
+    listed: {
+      notes: NoteSummary[]
+      templates: NoteSummary[]
+      books: BookRecord[]
+    },
   ) => {
     const made = listed.notes.find((n) => n.id === id) ?? listed.templates.find((n) => n.id === id)
     if (!made) return
@@ -1275,7 +1336,11 @@ export function App() {
         ? { kind: 'trash' }
         : inTemplates
           ? { kind: 'templates' }
-          : { kind: 'library', bookId: libraryBook?.id ?? null, filter: activeFilter }
+          : {
+              kind: 'library',
+              bookId: libraryBook?.id ?? null,
+              filter: activeFilter,
+            }
       if (viewLists(view, made, listed.books)) return
     }
     showLibrary(homeOf(made), { clearFilter: true })
@@ -1469,8 +1534,6 @@ export function App() {
     changeBooks((c) => c.setBook(noteId, bookId))
   const setStatus = (noteId: string, status: NoteStatus) =>
     changeBooks((c) => c.setStatus(noteId, status))
-  const setPinned = (noteId: string, pinned: boolean) =>
-    changeBooks((c) => c.setPinned(noteId, pinned))
 
   /**
    * One change to several notes, note by note (each with its own write and
@@ -1805,6 +1868,23 @@ export function App() {
   }, [paletteDone])
   useMenuEvent('devot://show-palette', SHOW_PALETTE, openPalette)
 
+  // Cmd+E: editor and preview swap; from split, the pane that has the
+  // keyboard is the one that stays.
+  const previewKeyEcho = useRef(-Infinity)
+  const togglePreview = () => {
+    const from = document.activeElement
+    setMode((m) => {
+      if (m === 'edit') return 'preview'
+      if (m === 'preview') return 'edit'
+      return from?.closest('.preview') ? 'preview' : 'edit'
+    })
+  }
+  useMenuEvent('devot://toggle-preview', TOGGLE_PREVIEW, () => {
+    // The key reaches the menu too; the window already ran the command.
+    if (performance.now() >= previewKeyEcho.current) togglePreview()
+  })
+  useMenuEvent('devot://show-split', SHOW_SPLIT, () => setMode('split'))
+
   // Every command this window can run now, by registry ID: the window keys,
   // the palette and the native menu run them.
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
@@ -1828,9 +1908,9 @@ export function App() {
     'view.fontReset': { run: () => stepEditorFontSize(0) },
     'view.syncScroll': {
       run: () =>
-        changeEditorSettings({ syncScroll: !editorSettings().syncScroll }).catch(() =>
-          console.warn('W_EDITOR_SETTINGS_SAVE_FAILED'),
-        ),
+        changeEditorSettings({
+          syncScroll: !editorSettings().syncScroll,
+        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
       label: syncScroll ? 'command.syncScrollOff' : 'command.syncScrollOn',
     },
     'view.allNotes': { run: () => showLibrary({ kind: 'all' }) },
@@ -1853,13 +1933,18 @@ export function App() {
   if (inTrash && selected !== undefined && trash.some((n) => n.id === selected) && !multiIds) {
     const id = selected
     for (const [action, commandId] of Object.entries(TRASH_COMMANDS)) {
-      handlers[commandId] = { run: () => trashAction(action as TrashAction, id) }
+      handlers[commandId] = {
+        run: () => trashAction(action as TrashAction, id),
+      }
     }
   }
   // Several notes selected: the note commands act on all of them.
   if (multiIds && inTrash) {
     const ids = multiIds
-    handlers['trash.restore'] = { run: () => restoreNotes(ids), label: 'batch.restore' }
+    handlers['trash.restore'] = {
+      run: () => restoreNotes(ids),
+      label: 'batch.restore',
+    }
     handlers['trash.deleteForever'] = {
       run: () => confirmDeleteMany(ids),
       label: 'batch.deleteForever',
@@ -1872,11 +1957,16 @@ export function App() {
       run: run('pin'),
       label: selectedNotes.every((n) => n.pinned) ? 'batch.unpin' : 'batch.pin',
     }
-    handlers['note.copyLink'] = { run: run('copyLink'), label: 'batch.copyLinks' }
+    handlers['note.copyLink'] = {
+      run: run('copyLink'),
+      label: 'batch.copyLinks',
+    }
     handlers['note.trash'] = { run: run('trash'), label: 'batch.trash' }
     if (!inTemplates) {
       for (const [status, commandId] of Object.entries(STATUS_COMMANDS)) {
-        handlers[commandId] = { run: () => setNotesStatus(ids, status as NoteStatus) }
+        handlers[commandId] = {
+          run: () => setNotesStatus(ids, status as NoteStatus),
+        }
       }
       handlers['note.addTag'] = { run: run('addTag') }
       if (selectedNotes.some((n) => n.tagIds.length > 0)) {
@@ -1911,7 +2001,9 @@ export function App() {
     const id = openNote.id
     for (const [action, commandId] of Object.entries(NOTE_COMMANDS)) {
       if (SELECTION_ONLY.has(action as NoteAction)) continue
-      handlers[commandId] = { run: () => noteActions.run(action as NoteAction, id) }
+      handlers[commandId] = {
+        run: () => noteActions.run(action as NoteAction, id),
+      }
     }
     handlers['note.pin'] = {
       run: () => noteActions.run('pin', id),
@@ -1921,10 +2013,18 @@ export function App() {
     // status is not shown and not used (its front matter sets one).
     if (!selectedIsTemplate) {
       for (const [status, commandId] of Object.entries(STATUS_COMMANDS)) {
-        handlers[commandId] = { run: () => setStatus(id, status as NoteStatus) }
+        handlers[commandId] = {
+          run: () => setStatus(id, status as NoteStatus),
+        }
       }
     }
     handlers['view.edit'] = { run: () => setMode('edit') }
+    handlers['view.togglePreview'] = {
+      run: () => {
+        previewKeyEcho.current = performance.now() + MENU_ECHO_MS
+        togglePreview()
+      },
+    }
     handlers['view.split'] = { run: () => setMode('split') }
     handlers['view.preview'] = { run: () => setMode('preview') }
     if (mode !== 'preview') {
@@ -1936,12 +2036,19 @@ export function App() {
         const tableId = paletteOpen && paletteInTable ? tableOf(c.id) : undefined
         if (tableId) handlers[c.id] = { run: () => editorRef.current?.table(tableId) }
       }
-      handlers['edit.pastePlain'] = { run: () => editorRef.current?.pastePlain() }
+      handlers['edit.pastePlain'] = {
+        run: () => editorRef.current?.pastePlain(),
+      }
       if (paletteOpen && paletteSelection) {
-        handlers['note.newFromSelection'] = { run: () => noteFromSelection(id) }
+        handlers['note.newFromSelection'] = {
+          run: () => noteFromSelection(id),
+        }
       }
       const image = paletteOpen ? paletteImage : null
-      if (image?.fileId) handlers['image.view'] = { run: () => void editorRef.current?.viewImage() }
+      if (image?.fileId)
+        handlers['image.view'] = {
+          run: () => void editorRef.current?.viewImage(),
+        }
       if (image) {
         for (const [action, commandId] of Object.entries(IMAGE_COMMANDS)) {
           if (!imageActionApplies(action as ImageAction, image)) continue
@@ -1977,7 +2084,9 @@ export function App() {
     switch (entry.kind) {
       case 'command': {
         const handler = handlers[entry.id as keyof CommandHandlers]
-        return { primary: { label: t('palette.run'), run: () => handler?.run() } }
+        return {
+          primary: { label: t('palette.run'), run: () => handler?.run() },
+        }
       }
       case 'book':
         return {
@@ -2032,6 +2141,21 @@ export function App() {
   const showSidebarButton = useMemo(
     () => (sidebarOff && !focus ? <ShowSidebarButton onClick={toggleSidebarNow} /> : null),
     [sidebarOff, focus, toggleSidebarNow],
+  )
+  // The Filter field under the list's header: the search, scoped to the view.
+  const changeQueryStable = useStable((next: string) => changeQuery(next))
+  const clearSearchStable = useStable(() => clearSearch())
+  const filterField = useMemo(
+    () => (
+      <SearchField
+        ref={searchField}
+        value={query}
+        onChange={changeQueryStable}
+        onClear={clearSearchStable}
+        placeholder={inView ? t('filter.placeholder') : t('search.placeholder')}
+      />
+    ),
+    [query, inView, changeQueryStable, clearSearchStable],
   )
   const openFromList = useStable((id: string) => void select(id))
   const createFromList = useStable(() => void create())
@@ -2171,6 +2295,8 @@ export function App() {
         <NoteList
           view={listView}
           title={t('search.results')}
+          icon="search"
+          filter={filterField}
           scope={results?.search.scope ? format(t('search.in'), { view: viewName }) : undefined}
           highlight={highlight}
           onFind={findAgain}
@@ -2189,11 +2315,14 @@ export function App() {
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
+          excerpts={loadExcerpts}
         />
       ) : inTrash ? (
         <NoteList
           view={listView}
           title={t('sidebar.trash')}
+          icon="trash"
+          filter={filterField}
           pinned={NO_NOTES}
           notes={trashRows}
           tags={NO_TAGS}
@@ -2203,6 +2332,7 @@ export function App() {
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
+          excerpts={loadExcerpts}
           drag={false}
           onFind={findEverywhere}
           onTrashAction={trashKey}
@@ -2213,6 +2343,8 @@ export function App() {
         <NoteList
           view={listView}
           title={t('sidebar.templates')}
+          icon="templates"
+          filter={filterField}
           pinned={templateRows.pinned}
           notes={templateRows.others}
           tags={tagsById}
@@ -2230,12 +2362,23 @@ export function App() {
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
+          excerpts={loadExcerpts}
           drag="templates"
         />
       ) : (
         <NoteList
           view={listView}
           title={filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes')}
+          icon={
+            libraryBook
+              ? 'notebook'
+              : activeFilter?.kind === 'pinned'
+                ? 'notes.pinned'
+                : activeFilter
+                  ? 'tag'
+                  : 'notes.all'
+          }
+          filter={filterField}
           scope={filterLabel !== undefined ? libraryBook?.name : undefined}
           pinned={activeFilter?.kind === 'pinned' ? NO_NOTES : groups.pinned}
           notes={activeFilter?.kind === 'pinned' ? groups.pinned : groups.others}
@@ -2253,11 +2396,22 @@ export function App() {
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
+          excerpts={loadExcerpts}
         />
       )}
       <main className="content" data-devot-part="editor">
         <div className="toolbar editor-toolbar" data-devot-part="toolbar" data-tauri-drag-region>
           <div className="trail-buttons" data-tauri-drag-region>
+            <button
+              type="button"
+              className="tool"
+              aria-label={t('mode.focus')}
+              title={titleWithKey('mode.focusTitle', 'view.focus')}
+              aria-pressed={focus}
+              onClick={toggleFocus}
+            >
+              <Icon name={focus ? 'mode.focus.exit' : 'mode.focus'} size="md" />
+            </button>
             <button
               type="button"
               className="tool"
@@ -2281,60 +2435,22 @@ export function App() {
           </div>
           {selected && !inTrash && !multiIds ? (
             <>
-              <button
-                type="button"
-                className="tool"
-                aria-label={t('note.moveToTrash')}
-                title={t('note.moveToTrash')}
-                onClick={() => void trashNote(selected)}
-              >
-                <Icon name="trash" size="md" />
-              </button>
-              <button
-                type="button"
-                className="tool"
-                aria-label={t(selectedNote?.pinned ? 'note.unpin' : 'note.pin')}
-                title={t(selectedNote?.pinned ? 'note.unpin' : 'note.pin')}
-                aria-pressed={selectedNote?.pinned ?? false}
-                onClick={() => void setPinned(selected, !selectedNote?.pinned)}
-              >
-                <Icon name={selectedNote?.pinned ? 'note.pinned' : 'notes.pinned'} size="md" />
-              </button>
-              <button
-                type="button"
-                className="tool"
-                aria-label={t('history.button')}
-                title={titleWithKey('history.buttonTitle', 'note.history')}
-                onClick={() => void showHistory(selected)}
-              >
-                <Icon name="history" size="md" />
-              </button>
               <ModeControl mode={mode} onChange={setMode} />
+              <button
+                type="button"
+                className="tool note-more"
+                aria-label={t('note.more')}
+                title={t('note.more')}
+                aria-haspopup="menu"
+                onClick={(e) => {
+                  const box = e.currentTarget.getBoundingClientRect()
+                  noteActions.menuAt(selected, { x: box.left, y: box.bottom })
+                }}
+              >
+                <Icon name="more.vertical" size="md" />
+              </button>
             </>
           ) : null}
-          {focus ? null : (
-            <SearchField
-              ref={searchField}
-              value={query}
-              onChange={changeQuery}
-              onClear={clearSearch}
-              placeholder={
-                inView
-                  ? format(t('search.placeholderView'), { view: viewName })
-                  : t('search.placeholder')
-              }
-            />
-          )}
-          <button
-            type="button"
-            className="tool"
-            aria-label={t('mode.focus')}
-            title={titleWithKey('mode.focusTitle', 'view.focus')}
-            aria-pressed={focus}
-            onClick={toggleFocus}
-          >
-            <Icon name={focus ? 'mode.focus.exit' : 'mode.focus'} size="md" />
-          </button>
         </div>
         {multiIds ? (
           <SelectionSummary
@@ -2389,12 +2505,10 @@ export function App() {
                   value={selectedNote?.bookId ?? null}
                   onChange={(bookId) => void moveNote(selected, bookId)}
                 />
-                <span className="meta-divider" aria-hidden="true" />
                 <StatusPicker
                   value={selectedNote?.status ?? 'none'}
                   onChange={(status) => void setStatus(selected, status)}
                 />
-                <span className="meta-divider" aria-hidden="true" />
                 <TagEditor
                   tags={tags}
                   value={selectedNote?.tagIds ?? []}
@@ -2441,6 +2555,7 @@ export function App() {
                   onScrollPane={setPreviewPane}
                   onOpenImage={setViewing}
                   onImageMenu={showImageMenu}
+                  onToggleTask={(at) => void editorRef.current?.toggleTask(at)}
                   initialScroll={takePreviewScroll}
                   onScroll={previewScrolled}
                 />
@@ -2520,7 +2635,10 @@ export function App() {
       ) : null}
       {paletteOpen ? (
         <CommandPalette
-          entries={{ command: commandEntries(handlers, t), ...(paletteLibrary ?? NO_LIBRARY) }}
+          entries={{
+            command: commandEntries(handlers, t),
+            ...(paletteLibrary ?? NO_LIBRARY),
+          }}
           actions={paletteActions}
           onClose={closePalette}
         />
@@ -2565,7 +2683,9 @@ export function App() {
         <ConfirmDialog
           message={
             confirm.kind === 'empty'
-              ? format(t('trash.confirmEmpty'), { notes: noteCount(trash.length, currentLocale()) })
+              ? format(t('trash.confirmEmpty'), {
+                  notes: noteCount(trash.length, currentLocale()),
+                })
               : confirm.kind === 'many'
                 ? format(t('trash.confirmMany'), {
                     notes: noteCount(confirm.ids.length, currentLocale()),

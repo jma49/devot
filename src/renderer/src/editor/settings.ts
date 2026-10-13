@@ -173,9 +173,16 @@ const gutterOn = [lineNumbers(), foldGutter()]
 const activeLineGutter = highlightActiveLineGutter()
 const activeLine = highlightActiveLine()
 const spellCheck = EditorView.contentAttributes.of({ spellcheck: 'true' })
-/** Lines no wider than the reading width, in the middle of the editor. */
+/**
+ * Lines no wider than the reading width, in the middle of the editor. The
+ * split view sets `--editor-reading-width` to `none` (app.css): there each
+ * pane takes half the note area.
+ */
 const readableWidth = EditorView.theme({
-  '.cm-content': { maxWidth: 'var(--size-reading-width)', marginInline: 'auto' },
+  '.cm-content': {
+    maxWidth: 'var(--editor-reading-width, var(--size-reading-width))',
+    marginInline: 'auto',
+  },
 })
 
 /** Each compartment: the settings it reads and what it holds for them. */

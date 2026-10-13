@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { bookDeleteDetail, fileSize, noteCount, noteDate } from './format'
+import { bookDeleteDetail, fileSize, noteCount, noteDate, relativeTime } from './format'
 
 /** Counts `new Intl.DateTimeFormat(...)` until the test ends. */
 function countDateFormats(): { count: number } {
@@ -20,6 +20,21 @@ function countDateFormats(): { count: number } {
 }
 const restore: (() => void)[] = []
 afterEach(() => restore.splice(0).forEach((undo) => undo()))
+
+describe('relativeTime', () => {
+  const now = new Date(2026, 9, 10, 15, 30).getTime()
+
+  it('says how long ago a note changed', () => {
+    expect(relativeTime(now - 5_000, now, 'en')).toBe('now')
+    expect(relativeTime(now - 5 * 60_000, now, 'en')).toBe('5 minutes ago')
+    expect(relativeTime(now - 3 * 3_600_000, now, 'en')).toBe('3 hours ago')
+    expect(relativeTime(now - 3 * 86_400_000, now, 'en')).toBe('3 days ago')
+  })
+
+  it('falls back to the date after a month', () => {
+    expect(relativeTime(new Date(2026, 7, 1).getTime(), now, 'en')).toBe('Aug 1, 2026')
+  })
+})
 
 describe('noteDate', () => {
   const now = new Date(2026, 9, 10, 15, 30).getTime()

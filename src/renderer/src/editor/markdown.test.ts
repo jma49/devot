@@ -1,5 +1,6 @@
 import { markdownLanguage } from '@codemirror/lang-markdown'
-import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
+import { LanguageDescription, ensureSyntaxTree, syntaxTree } from '@codemirror/language'
+import { languages } from '@codemirror/language-data'
 import { EditorState } from '@codemirror/state'
 import { TreeFragment, type ChangedRange, type PartialParse, type Tree } from '@lezer/common'
 import { highlightTree, tags } from '@lezer/highlight'
@@ -10,6 +11,7 @@ import { light } from '../theme/tokens'
 import {
   FRONT_MATTER,
   frontMatterTags,
+  markupTags,
   noteHighlightStyle,
   noteMarkdown,
   noteParser,
@@ -282,5 +284,59 @@ describe('front matter is not Markdown to the editor', () => {
     expect(markdownLanguage.isActiveAt(state, body, 1)).toBe(true)
     expect(state.languageDataAt('autocomplete', key)).toEqual([])
     expect(state.languageDataAt('autocomplete', body)).toHaveLength(1)
+  })
+})
+
+describe('Markdown source highlighting', () => {
+  /** The highlight class over each character, from the editor's full language. */
+  function classes(doc: string): string[] {
+    const state = EditorState.create({ doc, extensions: [noteMarkdown] })
+    const tree = ensureSyntaxTree(state, doc.length, 1e9)
+    if (!tree) throw new Error('E_TEST_NO_TREE')
+    const out: string[] = Array.from({ length: doc.length }, () => '')
+    highlightTree(tree, noteHighlightStyle, (from, to, cls) => {
+      for (let i = from; i < to; i++) out[i] = cls
+    })
+    return out
+  }
+  type HighlightTag = Parameters<typeof noteHighlightStyle.style>[0][number]
+  const style = (tag: HighlightTag) => noteHighlightStyle.style([tag])
+  /** Whether a character's classes include the tag's own (a mark keeps its parent's too). */
+  const has = (cls: string | undefined, tag: HighlightTag) =>
+    (cls ?? '').split(' ').includes(style(tag) ?? '\u0000')
+
+  it('colours heading marks apart from the heading text', () => {
+    const at = classes('### Free Mode\n')
+    expect(has(at[0], markupTags.heading)).toBe(true)
+    expect(has(at[4], tags.heading3)).toBe(true)
+    expect(has(at[4], markupTags.heading)).toBe(false)
+  })
+
+  it('colours emphasis marks, inline code, HTML tags, list and quote markers', () => {
+    const doc = 'Press <kbd>Cmd</kbd> to _go_ with `x`\n\n- item\n\n> quote\n'
+    const at = classes(doc)
+    expect(has(at[doc.indexOf('kbd')], tags.tagName)).toBe(true)
+    expect(has(at[doc.indexOf('_go')], tags.processingInstruction)).toBe(true)
+    expect(has(at[doc.indexOf('go_')], tags.emphasis)).toBe(true)
+    expect(has(at[doc.indexOf('x`')], tags.monospace)).toBe(true)
+    expect(has(at[doc.indexOf('- item')], markupTags.list)).toBe(true)
+    expect(has(at[doc.indexOf('> quote')], markupTags.list)).toBe(true)
+    for (const tag of [markupTags.heading, markupTags.list, tags.tagName, tags.monospace])
+      expect(style(tag)).toBeTruthy()
+  })
+
+  it('underlines link addresses', () => {
+    const at = classes('![shot](https://example.com/a.png)\n')
+    const specs = noteHighlightStyle.specs as readonly { tag: unknown; [css: string]: unknown }[]
+    expect(specs.find((s) => s.tag === tags.url)?.['textDecoration']).toBe('underline')
+    expect(has(at[8], tags.url)).toBe(true)
+  })
+
+  it('highlights a fenced block in its own language', async () => {
+    await LanguageDescription.matchLanguageName(languages, 'js')?.load()
+    const doc = '```js\nconst a = "s"\n```\n'
+    const at = classes(doc)
+    expect(has(at[doc.indexOf('const')], tags.keyword)).toBe(true)
+    expect(has(at[doc.indexOf('"s"')], tags.string)).toBe(true)
   })
 })

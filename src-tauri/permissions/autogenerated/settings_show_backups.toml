@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-settings-show-backups"
+description = "Enables the settings_show_backups command without any pre-configured scope."
+commands.allow = ["settings_show_backups"]
+
+[[permission]]
+identifier = "deny-settings-show-backups"
+description = "Denies the settings_show_backups command without any pre-configured scope."
+commands.deny = ["settings_show_backups"]

@@ -201,12 +201,10 @@ for (const width of [1280, 800]) {
     await expect(headline).toHaveText(name)
     await expect(headline).toHaveAttribute('title', name)
     await expect(headline).toHaveCSS('text-overflow', 'ellipsis')
-    const [h, sort, add] = [
+    const [h, add] = [
       await box(headline),
-      await box(page.getByRole('button', { name: 'Sort Notes' })),
       await box(page.getByRole('button', { name: 'New Note', exact: true })),
     ]
-    expect(h.x + h.width).toBeLessThanOrEqual(sort.x)
-    expect(sort.x + sort.width).toBeLessThanOrEqual(add.x)
+    expect(h.x + h.width).toBeLessThanOrEqual(add.x)
   })
 }

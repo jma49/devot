@@ -18,6 +18,7 @@ import {
   type NoteMenuAction,
   type NoteMenuTarget,
 } from './noteMenu'
+import type { MenuPoint } from './contextMenu'
 import { TagPickDialog } from './TagPickDialog'
 
 /**
@@ -162,6 +163,8 @@ export function useNoteActions(deps: {
     run: (action: NoteAction, id: string) => runOn(action, idsFor(id)),
     runOn,
     menu: (id: string) => void showMenu(menuTarget(idsFor(id))),
+    /** The menu for the open note alone, at `at` (the editor's More button). */
+    menuAt: (id: string, at: MenuPoint) => void showMenu(menuTarget([id]), at),
     dialog: (
       <>
         {movingFirst ? (

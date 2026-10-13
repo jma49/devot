@@ -80,7 +80,9 @@ describe('HTML pages', () => {
     const { html } = await page()
     expect(html).toContain('<h1>Plan</h1>')
     expect(html).toContain('<div class="alert alert-warning"><p class="alert-title">Warning</p>')
-    expect(html).toContain('<pre class="frontmatter"><code class="language-yaml">tags: [work]')
+    expect(html).toContain(
+      '<dl class="frontmatter"><div class="frontmatter-row"><dt>tags</dt><dd><span class="frontmatter-chip">work</span></dd></div></dl>',
+    )
     expect(html).toContain('class="task-list-item"')
     expect(html).not.toMatch(/\sdata-[a-z-]+=/)
     // Nothing runs or loads on its own: no scripts, frames or buttons.
@@ -96,9 +98,9 @@ describe('HTML pages', () => {
     expect(html).toContain(
       `<img src="devot-image-${NONCE}-0" alt="Board"> <img src="devot-image-${NONCE}-0" alt="again"> <img src="devot-image-${NONCE}-1" alt="logo">`,
     )
-    expect(html).toContain('<img src="https://example.com/r.png" alt="Remote">')
+    expect(html).toContain('<img src="https://example.com/r.png" alt="Remote" class="image-block">')
     // Code that mentions a placeholder or an attachment stays text.
-    expect(html).toContain(`"devot-image-${NONCE}-0 devot://file/${ID1}" &#x3C; 1`)
+    expect(html).toContain(`"devot-image-${NONCE}-0 devot://file/${ID1}"</span> &#x3C; `)
     expect(() => pageBody({ type: 'root', children: [] }, { nonce: 'x' })).toThrow(
       'E_EXPORT_NONCE_INVALID',
     )

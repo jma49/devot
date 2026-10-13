@@ -216,6 +216,8 @@ it('keeps every command item to set its key', () => {
     ['Plain', 'history'],
     ['Plain', 'palette'],
     ['Plain', 'sidebar'],
+    ['Plain', 'toggle_preview'],
+    ['Plain', 'split'],
     ['Check', 'sync_scroll'],
     ['Plain', 'backups'],
   ])

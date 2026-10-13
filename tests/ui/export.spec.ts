@@ -140,8 +140,10 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
   expect(args.images).toHaveLength(1)
   const [image] = args.images as { placeholder: string; fileId: string }[]
   expect(image?.fileId).toBe(FILE)
-  expect(html).toContain(`<img src="${image!.placeholder}" alt="Board">`)
-  expect(html).toContain(`<img src="${image!.placeholder}" alt="Half" class="image-size-half">`)
+  expect(html).toContain(`<img src="${image!.placeholder}" alt="Board" class="image-block">`)
+  expect(html).toContain(
+    `<img src="${image!.placeholder}" alt="Half" class="image-size-half image-block">`,
+  )
   expect(html).toContain('.preview img.image-size-half')
   expect(html).toMatch(/--size-image-small: [^;]+;/)
 })
@@ -245,7 +247,7 @@ test('a page to print loads nothing from the web: its images from there print as
     await pickFromNoteMenu(page, 'Plan', 'Export as HTML…')
     await expect.poll(async () => (await calls(page, 'export_write')).length).toBe(1)
     const exported = ((await calls(page, 'export_write'))[0]!.args as { text: string }).text
-    expect(exported).toContain(`<img src="${remote}" alt="Pixel">`)
+    expect(exported).toContain(`<img src="${remote}" alt="Pixel"`)
     expect(exported).toContain('img-src data: https: http:')
   } finally {
     await new Promise((resolve) => server.close(resolve))

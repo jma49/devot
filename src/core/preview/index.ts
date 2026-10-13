@@ -17,6 +17,13 @@ import { createRegistry, type PreviewOptions, type PreviewRegistry } from './reg
 
 export * from './registry'
 export { videoEmbedUrl } from './builtins'
+export {
+  codeLanguage,
+  createCodeRenderer,
+  parseCodeInfo,
+  type CodeInfo,
+  type Highlighter,
+} from './code'
 export { createEmojiRenderer, type EmojiTable } from './emoji'
 export { createMathRenderer, type MathEngine } from './math'
 

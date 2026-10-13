@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickNoteMore, openNotePinned } from './fixtures'
 
 // App-level shortcuts check metaKey (Command on macOS), so they are pressed
 // with Meta here on every platform, like the other specs.
@@ -103,7 +103,7 @@ test('labels a command for the open note: Pin to Top or Unpin', async ({ page })
   await search(page, 'pin')
   await expect(active(page)).toContainText('Pin to Top')
   await field(page).press('Enter')
-  await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible()
+  await expect.poll(() => openNotePinned(page)).toBe(true)
   await search(page, 'unpin')
   await expect(active(page)).toContainText('Unpin')
 })
@@ -311,7 +311,7 @@ test('the View menu item opens it, but not over another sheet', async ({ page })
   await page.keyboard.press('Escape')
   await expect(palette(page)).toBeHidden()
 
-  await page.getByRole('button', { name: 'Revision History', exact: true }).click()
+  await pickNoteMore(page, 'Revision History\u2026')
   await expect(page.getByRole('dialog', { name: 'Revision History' })).toBeVisible()
   await page.keyboard.press('Meta+KeyP')
   await showFromMenu(page)
@@ -503,10 +503,10 @@ test('Duplicate from the editor keeps the keyboard in the window', async ({ page
 test('runs the Trash commands: Restore, Delete Permanently, Empty Trash', async ({ page }) => {
   const trashButton = sidebar(page).getByRole('button', { name: /^Trash \d+$/ })
   await createNote(page, 'Back')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(trashButton).toHaveText(/1$/)
   await createNote(page, 'Gone')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(trashButton).toHaveText(/2$/)
   await trashButton.click()
   await expect(noteRows(page)).toHaveCount(2)

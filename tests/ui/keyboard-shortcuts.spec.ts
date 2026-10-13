@@ -31,6 +31,7 @@ const status = (page: Page) => section(page).getByRole('status')
 
 async function openSettings(page: Page) {
   await page.goto('/settings.html')
+  await page.getByRole('tab', { name: 'Keyboard', exact: true }).click()
   await expect(section(page).getByRole('heading', { name: 'Keyboard Shortcuts' })).toBeVisible()
 }
 
@@ -308,6 +309,8 @@ test('a shortcut changed in Settings works in the main window at once', async ({
       'note.history': 'Alt+CmdOrCtrl+Y',
       'palette.open': MAC ? 'Alt+CmdOrCtrl+P' : 'Ctrl+Alt+P',
       'view.sidebar': 'CmdOrCtrl+/',
+      'view.togglePreview': 'CmdOrCtrl+E',
+      'view.split': 'Shift+CmdOrCtrl+E',
       'view.syncScroll': null,
       'app.backups': null,
     },

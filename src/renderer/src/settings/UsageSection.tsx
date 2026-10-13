@@ -94,7 +94,9 @@ export function UsageSection() {
 
   return (
     <section className="settings-section" aria-labelledby="usage-title">
-      <h2 id="usage-title">{t('usage.title')}</h2>
+      <h2 id="usage-title" className="visually-hidden">
+        {t('usage.title')}
+      </h2>
       <p>{t('usage.detail')}</p>
       <p>{t('usage.limits')}</p>
       {errors.map((text) => (

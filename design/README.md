@@ -12,6 +12,7 @@ Everything in this folder is meant to be publishable as an open-source asset lib
 | `tokens/themes/system.light.tokens.json` | The default "System" theme, light appearance                          |
 | `tokens/themes/system.dark.tokens.json`  | The default "System" theme, dark appearance                           |
 | `icons/symbols.json`                     | Devot icon names mapped to SF Symbol names                            |
+| `icons/languages.json`                   | Language marks for code block headers (third party, see below)        |
 | `app-icon/dove.svg`                      | The Devot dove: the logo mark, one teal vector path                   |
 | `app-icon/source.svg`                    | The app icon: the dove on a light rounded tile, 2048 px canvas        |
 | `app-icon/source.png`                    | `source.svg` rendered at 2048 px; `pnpm tauri icon` makes the sizes   |
@@ -54,6 +55,9 @@ Text meets WCAG AA in both appearances: 4.5:1 for text, 3:1 for graphics such as
 | `color.syntax.string`            | `#395991`            | `#8fb0ea`            |
 | `color.syntax.inserted`          | `#21653d`            | `#55be82`            |
 | `color.syntax.deleted`           | `#9e3531`            | `#ed928e`            |
+| `color.syntax.heading`           | `#a3245a`            | `#f08fb5`            |
+| `color.syntax.markup`            | `#3d4fb8`            | `#a3b0f7`            |
+| `color.syntax.list`              | `#9e3531`            | `#ed928e`            |
 
 The editor selection is a solid tint of the accent fill: the fill mixed into the editor surface until the selection stands 1.3:1 from the editor and from the active line (CodeMirror draws the selection under the lines, so the active line's tint lies over it there). The values above are the teal ones; for a system accent the runtime mixes the same way, so every accent lands at the same lightness. The editor text colours (body, front matter, links and every syntax colour) keep 4.5:1 on it, also on the active line, which is why the light link and syntax colours, the dark secondary text and the editor's own inserted/deleted colours (the status green and red, deepened) are a step darker or lighter than before. Only the de-emphasised tertiary text (rules, fences, comments) drops to 3:1, on the selection only. The selection is the same colour with or without keyboard focus.
 
@@ -70,6 +74,10 @@ A pop-up button (the note's Notebook and Status pickers) grows to `size.popup-ma
 ## Icons
 
 Icons are SF Symbols, rendered by macOS at runtime through AppKit (the `symbol_png` Tauri command), then cached per name, size and appearance. This repository stores symbol names only, never symbol artwork. SF Symbols may only be used in software for Apple platforms and never in logos or app icons, so Devot's own app icon and logo must be original artwork.
+
+## Language marks
+
+A code block in the preview with a language shows that language's mark in its header (`icons/languages.json`, read by `src/core/preview/code.ts`). The marks are third-party artwork from [simple-icons](https://github.com/simple-icons/simple-icons) 16.35.0, one 24 x 24 path each, drawn in the text colour so they follow light and dark. The package is CC0-1.0; each entry records its own licence, and only CC0-1.0 and MIT marks are kept (JavaScript and GNU Bash are MIT). Marks under share-alike or non-commercial licences are left out, and their languages show a generic mark. Add a mark only with its licence recorded in its entry.
 
 ## Themes
 

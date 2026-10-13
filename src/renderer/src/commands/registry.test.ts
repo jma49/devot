@@ -296,6 +296,8 @@ describe('COMMANDS', () => {
     expect(keys('search.view')).toEqual(['Mod+Shift+F'])
     expect(keys('search.all')).toEqual(['Mod+Alt+Shift+F'])
     expect(keys('view.focus')).toEqual(['Mod+Shift+D'])
+    expect(keys('view.togglePreview')).toEqual(['Mod+E'])
+    expect(keys('view.split')).toEqual(['Mod+Shift+E'])
     expect(keys('note.history')).toEqual(['Mod+Alt+Y'])
     expect(keys('note.duplicate')).toEqual(['Mod+D'])
     expect(keys('notebook.delete')).toEqual(['Backspace', 'Delete'])
@@ -311,7 +313,7 @@ describe('COMMANDS', () => {
       { format: 'strikethrough', key: 'Shift-Mod-x' },
       { format: 'highlight', key: 'Shift-Mod-h' },
       { format: 'link', key: 'Mod-k' },
-      { format: 'code', key: 'Mod-e' },
+      { format: 'code', key: 'Mod-Alt-e' },
       { format: 'codeBlock', key: 'Shift-Mod-c' },
       { format: 'bulletList', key: 'Shift-Mod-8' },
       { format: 'numberedList', key: 'Shift-Mod-7' },

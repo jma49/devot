@@ -8,11 +8,16 @@ type HastChild = RootContent | ElementContent
 
 const HTML_NS = 'http://www.w3.org/1999/xhtml'
 const MATHML_NS = 'http://www.w3.org/1998/Math/MathML'
+const SVG_NS = 'http://www.w3.org/2000/svg'
 
-/** MathML starts at `<math>`; everything inside it stays in that namespace. */
+/**
+ * MathML starts at `<math>` and SVG (a code block's language mark, built by
+ * the core) at `<svg>`; everything inside stays in that namespace.
+ */
 function namespaceFor(tagName: string, parentNs: string | null): string {
   if (tagName === 'math') return MATHML_NS
-  return parentNs === MATHML_NS ? MATHML_NS : HTML_NS
+  if (tagName === 'svg') return SVG_NS
+  return parentNs === MATHML_NS || parentNs === SVG_NS ? parentNs : HTML_NS
 }
 
 function attributes(node: HastElement): Map<string, string> {
@@ -55,6 +60,8 @@ function syncAttributes(el: Element, node: HastElement): void {
   for (const [name, value] of next) {
     if (el.getAttribute(name) !== value) el.setAttribute(name, value)
   }
+  // A clicked box no longer follows its attribute; it shows what the note says.
+  if (el instanceof HTMLInputElement) el.checked = next.has('checked')
   applySwatch(el)
 }
 

@@ -80,7 +80,7 @@ test('each fenced code block has a copy button that copies its text as written',
 
   // Hidden until the block is pointed at (toBeVisible ignores opacity).
   await expect(copyButtons(page).first()).toHaveCSS('opacity', '0')
-  await preview(page).locator('pre').nth(1).hover()
+  await preview(page).locator('pre').first().hover()
   await expect(copyButtons(page).first()).toHaveCSS('opacity', '1')
   await copyButtons(page).first().click()
   await expect

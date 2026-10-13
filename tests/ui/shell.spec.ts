@@ -109,7 +109,7 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
   expect((await requests()).filter((r) => r === 'square.and.pencil@17')).toHaveLength(2)
 })
 
-test('selection is accent when the list is focused, neutral otherwise', async ({ page }) => {
+test('the note list selection stays neutral, focused or not', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' })
   await freshStart(page)
   await createNote(page, 'Alpha')
@@ -125,8 +125,9 @@ test('selection is accent when the list is focused, neutral otherwise', async ({
 
   await beta.click()
   await expect(beta).toBeFocused()
-  await expect.poll(() => css(beta, 'background-color')).toBe(rgb(light['color.accent.fill']))
-  expect(await css(beta, 'color')).toBe(rgb(light['color.accent.on-fill']))
+  // Focused: still neutral (only the sidebar shows the accent).
+  expect(await css(beta, 'background-color')).toBe('rgba(28, 27, 25, 0.075)')
+  expect(await css(beta, 'color')).not.toBe(rgb(light['color.accent.on-fill']))
 
   // Arrow keys move the selection and open the note.
   await page.keyboard.press('ArrowDown')

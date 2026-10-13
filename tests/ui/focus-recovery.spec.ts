@@ -4,7 +4,7 @@
 // the action. Window shortcuts use Meta (the registry's Mod matches
 // metaKey everywhere).
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, pickNoteMore, shownMenu, test, type TestWindow } from './fixtures'
 
 const list = (page: Page) => page.getByRole('region', { name: 'Notes' })
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -129,11 +129,15 @@ test('a tag chip’s remove button hands the keyboard to the tag field', async (
   await expect(page.getByRole('combobox', { name: 'Add Tag' })).toBeFocused()
 })
 
-test('Move to Trash in the toolbar leaves the keyboard in the list', async ({ page }) => {
+test('Move to Trash in the More menu leaves the keyboard in the list', async ({ page }) => {
   await createNote(page, 'First')
   await createNote(page, 'Second')
-  await page.getByRole('button', { name: 'Move to Trash' }).focus()
+  await page.getByRole('button', { name: 'More', exact: true }).focus()
   await page.keyboard.press('Enter')
+  await expect
+    .poll(async () => (await shownMenu(page)).some((l) => l.startsWith('Move to Trash')))
+    .toBe(true)
+  await pickMenuItem(page, 'Move to Trash')
   await expect(noteRows(page)).toHaveCount(1)
   await expect(list(page).locator(':focus')).toHaveCount(1)
   await expect.poll(async () => (await settledFocus(page)).part).toBe('list')
@@ -146,7 +150,7 @@ test('Restore and Delete Permanently in the Trash leave the keyboard on a visibl
   await createNote(page, 'Gone two')
   for (let i = 0; i < 2; i++) {
     await noteRows(page).first().click()
-    await page.getByRole('button', { name: 'Move to Trash' }).click()
+    await pickNoteMore(page, 'Move to Trash')
     await expect(trashRow(page)).toHaveText(new RegExp(`${i + 1}$`))
   }
   await trashRow(page).click()
@@ -185,7 +189,7 @@ test('the selection summary’s actions leave the keyboard on a visible element'
 
 test('Empty Trash keeps the keyboard on its button, which is then disabled', async ({ page }) => {
   await createNote(page, 'Gone')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(trashRow(page)).toHaveText(/1$/)
   await trashRow(page).click()
   const empty = page.getByRole('button', { name: 'Empty Trash' })

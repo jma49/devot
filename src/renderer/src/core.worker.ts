@@ -32,6 +32,8 @@ import {
   type SearchScope,
   type StorageAdapter,
   type TagColor,
+  type WelcomeContent,
+  seedWelcome,
 } from '../../core'
 import { errorCode } from '../../core/errors'
 import type { SaveProblemsMessage } from './saving'
@@ -47,6 +49,8 @@ let books: BookService | undefined
 let tags: TagService | undefined
 let templates: TemplateService | undefined
 let newId: (() => string) | undefined
+// Writes the first-launch notes into an empty library (core/welcome.ts).
+let welcome: ((content: WelcomeContent) => Promise<string | null>) | undefined
 // The running import, and whether it was asked to stop.
 let importing: Promise<unknown> = Promise.resolve()
 let stopImport = false
@@ -89,6 +93,7 @@ export const coreApi = {
     newId = ids
     const storage = observeWrites(fromWire(remote), () => mirror?.touch())
     mirrorStorage = storage
+    welcome = (content) => seedWelcome({ storage, clock, newId: ids, content })
     service = createNoteService({
       storage,
       clock,
@@ -106,6 +111,14 @@ export const coreApi = {
     await books
       .settleOrder()
       .catch((e: unknown) => console.warn('W_BOOK_ORDER_FAILED', errorCode(e)))
+  },
+  /**
+   * The first-launch notes, into a library that has never held anything
+   * (see seedWelcome); resolves to the ID of the note to open, or null.
+   */
+  seedWelcome: (content: WelcomeContent) => {
+    if (!welcome) throw new Error('E_CORE_NOT_READY')
+    return welcome(content)
   },
   list: (limit?: number) => required().list(limit),
   create: (title?: string, bookId?: string | null) => required().create(title, bookId),
@@ -129,6 +142,8 @@ export const coreApi = {
     }),
   /** What each untitled note's row shows instead of a title (see NoteService.headlines). */
   headlines: (ids: string[]) => required().headlines(ids),
+  /** The body excerpt each list row shows (see NoteService.excerpts). */
+  excerpts: (ids: string[]) => required().excerpts(ids),
   /** A new note from text selected in `sourceId` (see NoteService.extract). */
   extract: (sourceId: string, markdown: string) => required().extract(sourceId, markdown),
   applyUpdate: (id: string, update: Uint8Array) => required().applyUpdate(id, update),

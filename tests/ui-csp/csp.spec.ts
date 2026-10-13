@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import {
   changeEditorSettingsElsewhere,
   expect,
@@ -6,6 +6,7 @@ import {
   shownMenu,
   test,
   type TestWindow,
+  pickNoteMore,
 } from '../ui/fixtures'
 import {
   composite,
@@ -59,8 +60,8 @@ const violations = (page: Page) => page.evaluate(() => globalThis.devotCspViolat
 test('the editor is styled and nothing breaks the policy', async ({ page }) => {
   await start(page)
   await newNote(page, '# Heading\n\nText with $x^2$, :tada: and `#ff0000`.')
-  const gutters = page.locator('.cm-gutters')
-  await expect(gutters).toHaveCSS('display', 'flex')
+  // CodeMirror's injected styles apply (line numbers are off by default).
+  await expect(page.locator('.cm-editor')).toHaveCSS('display', 'flex')
   await expect(page.getByRole('article', { name: 'Preview' }).locator('math')).toHaveCount(1)
   await expect(page.locator('.swatch')).toHaveCSS('background-color', 'rgb(255, 0, 0)')
   expect(await violations(page)).toEqual([])
@@ -380,7 +381,7 @@ test('revision history compares and restores under the policy', async ({ page })
   await body.click()
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.insertText('\nnew line')
-  await page.getByRole('button', { name: 'Revision History', exact: true }).click()
+  await pickNoteMore(page, 'Revision History\u2026')
   const sheet = page.getByRole('dialog', { name: 'Revision History' })
   await sheet.getByRole('option').filter({ hasText: 'Earliest version' }).click()
   const added = sheet.locator('.diff-added')
@@ -435,6 +436,10 @@ test('find marks matches in the editor and the preview under the policy', async 
   expect(await violations(page)).toEqual([])
 })
 
+/** A pane's tab in the settings window, which shows one pane at a time. */
+const settingsTab = (page: Page, name: string) =>
+  page.getByRole('tablist', { name: 'Settings panes' }).getByRole('tab', { name, exact: true })
+
 test('the settings window lists usage events within the policy', async ({ page }) => {
   await page.addInitScript(() => {
     ;(globalThis as unknown as TestWindow).devotIpcMocks = {
@@ -442,6 +447,7 @@ test('the settings window lists usage events within the policy', async ({ page }
     }
   })
   await start(page, '/settings.html')
+  await settingsTab(page, 'Usage').click()
   const section = page.getByRole('region', { name: 'Usage Data' })
   await expect(section.getByRole('table', { name: 'Events by type' })).toContainText('Note created')
   await section.getByRole('button', { name: 'Show Events' }).click()
@@ -451,6 +457,7 @@ test('the settings window lists usage events within the policy', async ({ page }
 
 test('the editor settings work under the policy in both windows', async ({ page }) => {
   await start(page, '/settings.html')
+  await settingsTab(page, 'Editor').click()
   const editor = page.getByRole('region', { name: 'Editor' })
   await editor.getByRole('checkbox', { name: 'Check spelling while typing' }).check()
   await editor.getByRole('combobox', { name: 'Font' }).selectOption('Menlo')
@@ -468,6 +475,9 @@ test('the editor settings work under the policy in both windows', async ({ page 
   await newNote(page, 'Some text')
   const content = page.locator('.cm-content')
   await expect(content).toHaveCSS('font-size', '18px')
+  // Split mode gives each pane half the note area; Edit keeps the reading width.
+  await expect(content).toHaveCSS('max-width', 'none')
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
   await expect(content).toHaveCSS('max-width', '720px')
   await page.keyboard.press('Meta+Equal')
   await expect(content).toHaveCSS('font-size', '19px')
@@ -534,7 +544,8 @@ test('code blocks get a styled copy button and split mode scrolls together under
 }) => {
   await start(page)
   const sections = Array.from({ length: 80 }, (_, i) => `## Part ${i + 1}\n\nText ${i + 1}.`)
-  await newNote(page, '```js\nconst x = 1\n```\n\n' + sections.join('\n\n'))
+  // A bare fence: its button sits in the block's corner (a header holds it otherwise).
+  await newNote(page, '```\nconst x = 1\n```\n\n' + sections.join('\n\n'))
   const preview = page.getByRole('article', { name: 'Preview' })
   const copy = preview.getByRole('button', { name: 'Copy Code' })
   await preview.locator('pre').hover()
@@ -558,7 +569,7 @@ test('images under their lines and the image viewer are styled under the policy'
   await newNote(page, `![Shot](${file}#half)\n\nafter`)
   await expect(page.locator('.cm-inline-images')).toHaveCSS('height', '160px')
   const img = page.getByRole('article', { name: 'Preview' }).locator('img')
-  await expect(img).toHaveClass('image-size-half')
+  await expect(img).toHaveClass(/\bimage-size-half\b/)
   await img.dblclick()
   const viewer = page.getByRole('dialog', { name: 'Image Viewer: Shot' })
   await expect(viewer).toBeVisible()
@@ -569,50 +580,29 @@ test('images under their lines and the image viewer are styled under the policy'
   expect(await violations(page)).toEqual([])
 })
 
-test('an image from the web shows a placeholder with its address and breaks no policy', async ({
+test('an image from the web loads in the preview and under its line, within the policy', async ({
   page,
 }) => {
   await start(page)
+  // A 1x1 PNG served for the web address; nothing leaves the machine.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    'base64',
+  )
+  await page.route('https://example.com/chart.png', (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: png }),
+  )
   const address = 'https://example.com/chart.png'
   await newNote(page, `![Chart](${address})\n\nafter`)
-  const preview = page.getByRole('article', { name: 'Preview' })
-  const placeholder = preview.locator('.image-placeholder')
-  await expect(placeholder).toBeVisible()
-  await expect(placeholder).toContainText('Image from the web not loaded')
-  await expect(placeholder).toContainText('never loads images from the web')
-  await expect(placeholder.getByRole('link', { name: address })).toBeVisible()
-  await expect(preview.locator('img')).toHaveCount(0)
-  // The placeholder is styled (not unstyled inline text) and no request is
-  // blocked by the policy: the image is never asked for.
-  await expect(placeholder).toHaveCSS('display', 'inline-flex')
-  expect(await violations(page)).toEqual([])
-})
-
-test('the address of a web image opens in the browser; others are text', async ({ page }) => {
-  const requested: string[] = []
-  page.on('request', (request) => {
-    if (request.url().includes('example.com')) requested.push(request.url())
-  })
-  await start(page)
-  const address = 'https://example.com/chart.png'
-  await newNote(
-    page,
-    `![Sales chart](${address})\n\n![Old](http://example.com/old.png)\n\n![P](//example.com/p.png)`,
-  )
-  const preview = page.getByRole('article', { name: 'Preview' })
-  await expect(preview.locator('.image-placeholder')).toHaveCount(3)
-  await expect(preview.locator('.image-placeholder-alt').first()).toHaveText('Sales chart')
-  await expect(preview.getByRole('link')).toHaveCount(1)
-  await preview.getByRole('link', { name: address }).click()
-  const opened = () =>
-    page.evaluate(() =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((c) => c.cmd === 'open_external')
-        .map((c) => c.args['url']),
-    )
-  await expect.poll(opened).toEqual([address])
-  expect(page.url()).not.toContain('example.com')
-  expect(requested).toEqual([])
+  const loaded = (img: Locator) =>
+    img.evaluate((el) => (el as unknown as { naturalWidth: number }).naturalWidth)
+  const shown = page.getByRole('article', { name: 'Preview' }).locator(`img[src="${address}"]`)
+  await expect(shown).toBeVisible()
+  await expect.poll(() => loaded(shown)).toBe(1)
+  const under = page.locator('.cm-inline-images img')
+  await expect(under).toHaveAttribute('src', address)
+  await expect.poll(() => loaded(under)).toBe(1)
+  await expect(page.getByText('Image from the web not loaded')).toHaveCount(0)
   expect(await violations(page)).toEqual([])
 })
 

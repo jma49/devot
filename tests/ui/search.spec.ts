@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickNoteMore } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
@@ -57,7 +57,7 @@ test('results follow edits and the trash', async ({ page }) => {
   await expect(header(page)).toHaveText('Search Results')
   await expect(noteRows(page)).toHaveCount(1)
   await noteRows(page).first().click()
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(noteRows(page)).toHaveCount(0)
 })
 

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test } from './fixtures'
+import { expect, pickMenuItem, shownMenu, test, pickNoteMore, openNotePinned } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
@@ -9,8 +9,6 @@ const sheet = (page: Page) => page.getByRole('dialog', { name: 'Revision History
 const versions = (page: Page) => sheet(page).getByRole('listbox', { name: 'Versions' })
 const entries = (page: Page) => versions(page).getByRole('option')
 const changes = (page: Page) => sheet(page).getByRole('region', { name: 'Changes' })
-const historyButton = (page: Page) =>
-  page.getByRole('button', { name: 'Revision History', exact: true })
 /** The oldest kept version: here, the only one. */
 const version = (page: Page) => entries(page).filter({ hasText: 'Earliest version' })
 
@@ -60,7 +58,7 @@ test('compares a version with the note and restores it as one undo step', async 
   await appendText(page, '\nthird line')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line\nthird line')
 
-  await historyButton(page).click()
+  await pickNoteMore(page, 'Revision History\u2026')
   await expect(sheet(page)).toBeVisible()
   // The version and the note's naming.
   await expect(entries(page)).toHaveCount(2)
@@ -85,7 +83,7 @@ test('a restore is an undo step apart from the typing before and after it', asyn
   await appendText(page, '\nsecond line')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line')
 
-  await historyButton(page).click()
+  await pickNoteMore(page, 'Revision History\u2026')
   await version(page).click()
   await sheet(page).getByRole('button', { name: 'Restore' }).click()
   await expect(sheet(page)).toBeHidden()
@@ -125,15 +123,15 @@ test('lists title, notebook, status and pin changes with the versions', async ({
   await expect(noteRow(page, 'Final')).toHaveCount(1)
   await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
   await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('active')
-  await page.getByRole('button', { name: 'Pin to Top' }).click()
-  await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible()
+  await pickNoteMore(page, 'Pin to Top')
+  await expect.poll(() => openNotePinned(page)).toBe(true)
   const notebook = page.getByRole('combobox', { name: 'Notebook' })
   await notebook.selectOption({ label: 'No Notebook' })
   await expect(notebook).toHaveValue('')
   await notebook.selectOption({ label: 'Work' })
   await expect(notebook).not.toHaveValue('')
 
-  await historyButton(page).click()
+  await pickNoteMore(page, 'Revision History\u2026')
   await expect(entries(page)).toHaveCount(7)
   await expect(entries(page).nth(0)).toContainText('Moved to Work')
   await expect(entries(page).nth(1)).toContainText('Removed from its notebook')
@@ -157,8 +155,8 @@ test('opens from the note menu, the menu bar and its shortcut; works by keyboard
   await createNote(page, '', 'one')
   await reopen(page, '')
   await appendText(page, ' two')
-  await page.getByRole('button', { name: 'Pin to Top' }).click()
-  await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible()
+  await pickNoteMore(page, 'Pin to Top')
+  await expect.poll(() => openNotePinned(page)).toBe(true)
 
   // The note menu.
   // Its row shows its first line.
@@ -214,7 +212,7 @@ test('labels the oldest kept version apart from the changes after it', async ({ 
   await appendText(page, '!')
   await expect.poll(() => savedBody(page, '')).toBe('one two!')
 
-  await historyButton(page).click()
+  await pickNoteMore(page, 'Revision History\u2026')
   await expect(entries(page)).toHaveCount(2)
   await expect(entries(page).nth(0)).toContainText('4 characters added')
   await expect(entries(page).nth(1)).toContainText('Earliest version \u00b7 3 characters')
@@ -223,7 +221,7 @@ test('labels the oldest kept version apart from the changes after it', async ({ 
 
 test('a new note has no versions yet', async ({ page }) => {
   await createNote(page, '', 'just typed')
-  await historyButton(page).click()
+  await pickNoteMore(page, 'Revision History\u2026')
   await expect(entries(page)).toHaveCount(0)
   await expect(sheet(page)).toContainText('No versions yet')
   await expect(sheet(page).getByRole('button', { name: 'Restore' })).toBeDisabled()

@@ -1,7 +1,7 @@
 // The rendered note takes the keyboard and scrolls with it, in Preview mode
 // and in the Trash, and the font size keys (Cmd+=, Cmd+-, Cmd+0) resize it.
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickNoteMore } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -96,7 +96,7 @@ test('Control+Tab reaches the rendered note in the Trash, and the keys scroll it
   page,
 }) => {
   await longNote(page, 'Long')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(trashRow(page)).toHaveText(/1$/)
   await trashRow(page).click()
   await noteRows(page).first().click()
@@ -111,7 +111,7 @@ test('Control+Tab reaches the rendered note in the Trash, and the keys scroll it
 
 test('Tab reaches the preview from the Trash buttons, with a focus ring', async ({ page }) => {
   await longNote(page, 'Long')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await trashRow(page).click()
   await noteRows(page).first().click()
   await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
@@ -140,4 +140,23 @@ test('Cmd+= and Cmd+- resize the preview, and Cmd+0 resets it', async ({ page })
   await page.keyboard.press('Meta+Equal')
   await page.keyboard.press('Meta+Digit0')
   await expect.poll(() => fontSize(page, 'p')).toBeCloseTo(base, 1)
+})
+
+test('Cmd+E swaps editor and preview, and Cmd+Shift+E shows both', async ({ page }) => {
+  await longNote(page, 'Mode keys')
+  const key = (k: string) => page.keyboard.press(`Meta+${k}`)
+  const pressed = async (name: 'Edit' | 'Split' | 'Preview') =>
+    expect(modeButton(page, name)).toHaveAttribute('aria-pressed', 'true')
+
+  await pressed('Edit')
+  await key('KeyE')
+  await pressed('Preview')
+  await key('KeyE')
+  await pressed('Edit')
+  await key('Shift+KeyE')
+  await pressed('Split')
+  // From split, the pane with the keyboard stays: the editor has it here.
+  await page.getByRole('textbox', { name: 'Note body' }).click()
+  await key('KeyE')
+  await pressed('Edit')
 })

@@ -45,6 +45,10 @@ pub const ACTIVITY_ID: &str = "devot.activity";
 pub const SHOW_ACTIVITY_EVENT: &str = "devot://show-activity";
 pub const SIDEBAR_ID: &str = "devot.sidebar";
 pub const TOGGLE_SIDEBAR_EVENT: &str = "devot://toggle-sidebar";
+pub const TOGGLE_PREVIEW_ID: &str = "devot.togglePreview";
+pub const TOGGLE_PREVIEW_EVENT: &str = "devot://toggle-preview";
+pub const SPLIT_ID: &str = "devot.split";
+pub const SHOW_SPLIT_EVENT: &str = "devot://show-split";
 
 /// View > Hide Sidebar, kept to relabel it.
 pub struct SidebarMenuItem(MenuItem<Wry>);
@@ -86,6 +90,16 @@ pub const COMMAND_ITEMS: &[CommandItem] = &[
         place: MenuPlace::View,
         command: "view.sidebar",
         titles: &[strings::HIDE_SIDEBAR, strings::SHOW_SIDEBAR],
+    },
+    CommandItem {
+        place: MenuPlace::View,
+        command: "view.togglePreview",
+        titles: &[strings::TOGGLE_PREVIEW],
+    },
+    CommandItem {
+        place: MenuPlace::View,
+        command: "view.split",
+        titles: &[strings::SHOW_SPLIT],
     },
     CommandItem {
         place: MenuPlace::View,
@@ -342,6 +356,12 @@ pub fn install(app: &App) -> tauri::Result<()> {
             revision: 0,
             settings: EditorSettings::default(),
         });
+    let toggle_preview = MenuItemBuilder::with_id(TOGGLE_PREVIEW_ID, strings::TOGGLE_PREVIEW)
+        .accelerator("CmdOrCtrl+E")
+        .build(app)?;
+    let split = MenuItemBuilder::with_id(SPLIT_ID, strings::SHOW_SPLIT)
+        .accelerator("Shift+CmdOrCtrl+E")
+        .build(app)?;
     let sync_scroll = CheckMenuItemBuilder::with_id(SYNC_SCROLL_ID, strings::SYNC_SCROLL)
         .checked(stored.settings.sync_scroll)
         .build(app)?;
@@ -359,6 +379,8 @@ pub fn install(app: &App) -> tauri::Result<()> {
                 CommandMenuItem::Plain(history.clone()),
                 CommandMenuItem::Plain(palette.clone()),
                 CommandMenuItem::Plain(sidebar.clone()),
+                CommandMenuItem::Plain(toggle_preview.clone()),
+                CommandMenuItem::Plain(split.clone()),
                 CommandMenuItem::Check(sync_scroll.clone()),
                 CommandMenuItem::Plain(backups.clone()),
             ])
@@ -368,6 +390,8 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .item(&palette)
         .separator()
         .item(&sidebar)
+        .item(&toggle_preview)
+        .item(&split)
         .item(&sync_scroll)
         .separator()
         .item(&history)
@@ -418,6 +442,14 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     } else if event.id() == SIDEBAR_ID {
         if app.emit_to("main", TOGGLE_SIDEBAR_EVENT, ()).is_err() {
             log::warn!("W_SIDEBAR_MENU_EMIT_FAILED");
+        }
+    } else if event.id() == TOGGLE_PREVIEW_ID {
+        if app.emit_to("main", TOGGLE_PREVIEW_EVENT, ()).is_err() {
+            log::warn!("W_TOGGLE_PREVIEW_MENU_EMIT_FAILED");
+        }
+    } else if event.id() == SPLIT_ID {
+        if app.emit_to("main", SHOW_SPLIT_EVENT, ()).is_err() {
+            log::warn!("W_SPLIT_MENU_EMIT_FAILED");
         }
     } else if event.id() == SYNC_SCROLL_ID {
         toggle_sync_scroll(app);
@@ -503,6 +535,8 @@ mod tests {
                 "note.history",
                 "palette.open",
                 "view.sidebar",
+                "view.togglePreview",
+                "view.split",
                 "view.syncScroll",
                 "app.backups"
             ]
@@ -516,10 +550,12 @@ mod tests {
                 MenuPlace::View,
                 MenuPlace::View,
                 MenuPlace::View,
+                MenuPlace::View,
+                MenuPlace::View,
                 MenuPlace::App
             ]
         );
-        assert_eq!(COMMAND_ITEMS[4].titles, [strings::BACKUPS]);
+        assert_eq!(COMMAND_ITEMS[6].titles, [strings::BACKUPS]);
         // The sidebar item is found by either label.
         let sidebar = COMMAND_ITEMS[2].titles;
         assert!(sidebar.contains(&sidebar_label(true)) && sidebar.contains(&sidebar_label(false)));
@@ -546,6 +582,8 @@ mod tests {
                 ("note.history", Some("Alt+CmdOrCtrl+Y".to_owned())),
                 ("palette.open", None),
                 ("view.sidebar", Some("Shift+Alt+CmdOrCtrl+S".to_owned())),
+                ("view.togglePreview", None),
+                ("view.split", None),
                 ("view.syncScroll", None),
                 ("app.backups", None),
             ]
@@ -558,13 +596,13 @@ mod tests {
         let plan =
             plan_command_keys(&keys(&[("view.syncScroll", Some("Shift+CmdOrCtrl+J"))])).unwrap();
         assert_eq!(
-            plan[3],
+            plan[5],
             ("view.syncScroll", Some("Shift+CmdOrCtrl+J".to_owned()))
         );
         // Backups takes a key like the others.
         let plan = plan_command_keys(&keys(&[("app.backups", Some("Shift+CmdOrCtrl+B"))])).unwrap();
         assert_eq!(
-            plan[4],
+            plan[6],
             ("app.backups", Some("Shift+CmdOrCtrl+B".to_owned()))
         );
     }

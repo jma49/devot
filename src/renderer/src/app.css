@@ -59,6 +59,11 @@ button {
   height: var(--size-icon-md);
 }
 
+.icon-lg {
+  width: var(--size-icon-lg);
+  height: var(--size-icon-lg);
+}
+
 /* Toolbars: a unified 52 px band over the list and the editor. */
 .toolbar,
 .titlebar {
@@ -421,16 +426,83 @@ button {
   padding: 0 var(--space-6) 0 var(--space-8);
 }
 
+/* The list's header: sidebar toggle at the start, the view centred, New Note at the end. */
+.list-header {
+  display: grid;
+  grid-template-columns: minmax(var(--space-10), 1fr) minmax(0, auto) minmax(var(--space-10), 1fr);
+  align-items: center;
+  border-bottom: 0;
+}
+
+.list-header-side {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.list-header-end {
+  justify-content: flex-end;
+}
+
+.list .list-header .toolbar-title {
+  flex: none;
+  align-items: center;
+  max-width: 100%;
+}
+
+.headline-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+  color: var(--color-text-primary);
+}
+
+.headline-row .headline {
+  min-width: 0;
+}
+
+/* Filter field and sort chip under the header. */
+.list-filter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: 0 var(--space-6) var(--space-4);
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.list-filter .search-field {
+  width: 100%;
+}
+
+.sort-chip {
+  height: calc(var(--space-8) + var(--space-1));
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-capsule);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  white-space: nowrap;
+}
+
+.sort-chip:hover {
+  background: var(--color-fill-track);
+}
+
 .rows {
   flex: 1;
   min-height: 0;
   overflow: auto;
   list-style: none;
   margin: 0;
-  padding: var(--space-4);
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 0;
 }
 
 .rows:focus {
@@ -452,8 +524,8 @@ button {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-card);
+  padding: var(--space-5) var(--space-6);
+  border-radius: 0;
   outline: none;
 }
 
@@ -474,43 +546,29 @@ button {
   overflow-wrap: anywhere;
 }
 
-/* Words a search matched. On the accent-filled selection they are underlined instead. */
+/* Words a search matched. */
 .row mark {
   border-radius: var(--space-1);
   background: var(--color-fill-match);
   color: inherit;
 }
 
-.rows:focus-within .row[aria-selected='true'] mark {
-  background: transparent;
-  text-decoration: underline;
-}
-
-.rows:focus-within .row[aria-selected='true'] .row-excerpt {
-  color: inherit;
-}
-
 .row-meta {
   display: flex;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
   font-size: var(--font-size-footnote);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
+.row-time {
+  color: var(--color-accent-text);
+}
+
 .row-status {
   color: var(--status-color);
-}
-
-.rows:focus-within .row[aria-selected='true'] .row-status {
-  color: inherit;
-}
-
-.row-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
 }
 
 .chip {
@@ -536,14 +594,13 @@ button {
   list-style: none;
 }
 
-/* Selection: neutral, or the accent while its list has the keyboard focus. */
+/* Selection: neutral in the note list; the sidebar shows the accent while it has the keyboard focus. */
 .source[aria-current='true'],
 .row[aria-selected='true'] {
   background: var(--color-fill-row-selected-unemphasized);
 }
 
-.sources:focus-within .source[aria-current='true'],
-.rows:focus-within .row[aria-selected='true'] {
+.sources:focus-within .source[aria-current='true'] {
   background: var(--color-accent-fill);
   color: var(--color-accent-on-fill);
 }
@@ -574,22 +631,50 @@ button {
 }
 
 .title {
-  margin: var(--space-8) var(--space-10) var(--space-4);
+  margin: 0 var(--space-9) var(--space-3);
   padding: 0;
   border: 0;
   outline: 0;
   background: transparent;
   color: inherit;
-  font: var(--font-weight-bold) var(--font-size-title) / 1.25 var(--font-family-ui);
+  font: var(--font-weight-regular) var(--font-size-note-title) / 1.25 var(--font-family-ui);
 }
 
+/* The note's notebook, status and tags: one compact line, no separators. */
 .note-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 var(--space-9) var(--space-4);
+  font-size: var(--font-size-body);
+}
+
+/* Tags in the note's line: outlined pills, their remove button on hover or keyboard focus. */
+.note-meta .tag-editor {
   gap: var(--space-3);
-  margin: 0 var(--space-10) var(--space-4);
-  font-size: var(--font-size-footnote);
+}
+
+.note-meta .chip {
+  height: var(--size-segment-height);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-line-hairline);
+  box-sizing: border-box;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+}
+
+.note-meta .chip-remove {
+  opacity: 0;
+}
+
+.note-meta .chip:is(:hover, :focus-within) .chip-remove {
+  opacity: 1;
+}
+
+.note-meta .tag-input::placeholder {
+  color: var(--color-text-tertiary);
 }
 
 .template-hint {
@@ -694,7 +779,7 @@ button {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   box-sizing: border-box;
   /* No wider than its cap or its row: in a narrow window it gives way too. */
   min-width: 0;
@@ -710,11 +795,46 @@ button {
 }
 
 .popup .icon:first-child {
-  background-color: var(--color-accent-text);
+  background-color: var(--color-text-secondary);
 }
 
 .popup .icon:last-child {
+  width: var(--space-5);
+  height: var(--space-5);
   color: var(--color-text-secondary);
+}
+
+/* What the pop-up shows; the select over it is unseen (see BookPicker.tsx). */
+.popup-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-popup .popup-value {
+  font-weight: var(--font-weight-bold);
+}
+
+.popup.status-none,
+.popup.status-none .icon:last-child {
+  color: var(--color-text-tertiary);
+}
+
+.popup.status-none .status-dot {
+  display: none;
+}
+
+.popup:has(> .popup-value) select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+}
+
+.popup:has(> select:focus-visible) {
+  outline: 2px solid var(--color-accent-fill);
+  outline-offset: 1px;
 }
 
 .popup select {
@@ -733,12 +853,13 @@ button {
   text-overflow: ellipsis;
 }
 
-/* Back and Forward start it; the rest sits at its end. In a narrow window
-   the search field gives way first, and nothing spills over the list. */
+/* Focus mode, Back and Forward start it; the view modes and the More menu
+   sit at its end. No rule under it: it is part of the note's surface. */
 .editor-toolbar {
   gap: var(--space-4);
   justify-content: flex-start;
-  padding: 0 var(--space-7);
+  padding: 0 var(--space-6) 0 var(--space-5);
+  border-bottom: 0;
   overflow: hidden;
 }
 
@@ -746,12 +867,35 @@ button {
   flex-shrink: 0;
 }
 
-.editor-toolbar > .search-field {
-  flex-shrink: 1;
-  min-width: calc(var(--space-10) * 2);
+/* The view modes: an outlined group, the selected segment filled grey. */
+.editor-toolbar .segmented {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line-hairline);
+  background: transparent;
 }
 
-/* Back and Forward, at the start of the editor's toolbar. */
+.editor-toolbar .segment {
+  height: var(--size-field-height);
+  border-radius: 0;
+}
+
+.editor-toolbar .segment + .segment {
+  border-left: 1px solid var(--color-line-hairline);
+}
+
+.editor-toolbar .segment[aria-pressed='true'] {
+  background: var(--color-fill-row-selected-unemphasized);
+  box-shadow: none;
+}
+
+/* The More menu's ellipsis stands upright. */
+.note-more .icon {
+  transform: rotate(90deg);
+}
+
+/* Focus mode, Back and Forward, at the start of the editor's toolbar. */
 .trail-buttons {
   display: flex;
   gap: var(--space-1);
@@ -803,7 +947,7 @@ button {
 /* The side margins become padding, so text lines up as outside focus mode. */
 .window[data-focus] .content > .title,
 .window[data-focus] .content > .note-meta {
-  padding-inline: var(--space-10);
+  padding-inline: var(--space-9);
 }
 
 .window[data-focus] .content > .panes-split {
@@ -846,20 +990,28 @@ button {
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* Each pane keeps a minimum; a content area too narrow for two scrolls sideways. */
+/* Each pane takes half the note area, with no reading width of its own, and
+   keeps a minimum; a content area too narrow for two scrolls sideways. */
 .panes-split {
   grid-template-columns: repeat(2, minmax(var(--size-pane-min-width), 1fr));
   overflow-x: auto;
 }
 
+/* Editor and preview stand apart by a small gutter of whitespace, no rule. */
+.panes-split .editor {
+  --editor-reading-width: none;
+  padding-right: var(--space-4);
+}
+
 .panes-split .preview {
-  border-left: 1px solid var(--color-line-hairline);
+  padding-left: var(--space-6);
 }
 
 .editor {
   min-height: 0;
   overflow: auto;
-  padding: 0 var(--space-9);
+  /* A line pads its text by space-3: the text lines up with the title. */
+  padding: 0 var(--space-9) 0 calc(var(--space-9) - var(--space-3));
 }
 
 .editor[hidden] {
@@ -991,7 +1143,25 @@ button {
   opacity: 0;
 }
 
+.code-header > .code-copy {
+  position: static;
+  width: var(--space-9);
+  height: var(--space-9);
+  margin: calc(-1 * var(--space-2)) 0 calc(-1 * var(--space-2)) auto;
+  background: transparent;
+  box-shadow: none;
+}
+
+.code-title + .code-lang + .code-copy {
+  margin-left: 0;
+}
+
+.code-header > .code-copy:hover {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
 .preview pre:hover > .code-copy,
+.preview .code-block:hover .code-copy,
 .code-copy:focus-visible,
 .code-copy:not([data-state='idle']) {
   opacity: 1;
@@ -1072,33 +1242,6 @@ button {
   color: var(--color-text-secondary);
 }
 
-.image-placeholder {
-  display: inline-flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  max-width: 100%;
-  padding: var(--space-4) var(--space-5);
-  box-sizing: border-box;
-  border-radius: var(--radius-card);
-  background: var(--color-fill-track);
-  color: var(--color-text-secondary);
-  vertical-align: top;
-}
-
-.image-placeholder-alt {
-  color: var(--color-text-primary);
-}
-
-.image-placeholder-address {
-  overflow-wrap: anywhere;
-  font-family: var(--font-family-mono);
-}
-
-.image-placeholder-why {
-  font-size: var(--font-size-footnote);
-  color: var(--color-text-tertiary);
-}
-
 .embed-load {
   flex-shrink: 0;
   white-space: nowrap;
@@ -1111,12 +1254,11 @@ button {
   color: var(--color-text-primary);
 }
 
-/* Search field in the toolbar. */
 .search-field {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  width: calc(var(--space-10) * 6);
+  width: 100%;
   height: var(--size-field-height);
   padding: 0 var(--space-4);
   box-sizing: border-box;
@@ -1757,29 +1899,66 @@ button {
   margin-right: var(--space-4);
 }
 
-/* Settings window: one section per area, under the window's own title. */
+/* Settings window: a toolbar with a tab per pane over the pane shown. The
+   window fits the toolbar and the pane (SettingsWindow.tsx); a pane taller
+   than that scrolls under the toolbar. */
 .settings {
+  --settings-label-width: calc(var(--space-10) * 5.5);
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  overflow-y: auto;
-  padding: var(--space-8);
   background: var(--color-surface-editor);
 }
 
-.settings-section + .settings-section {
-  margin-top: var(--space-8);
-  padding-top: var(--space-8);
-  border-top: 1px solid var(--color-line-hairline);
+.settings-toolbar {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--color-line-hairline);
+  background: var(--color-surface-list);
 }
 
-.settings-section h2 {
-  margin: 0 0 var(--space-3);
-  font-size: var(--font-size-headline);
-  font-weight: var(--font-weight-semibold);
+/* A tab: its symbol over its name; the selected one sits on a tinted
+   rounded fill in the accent colour. */
+.settings-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: calc(var(--space-10) * 2);
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+  white-space: nowrap;
+}
+
+.settings-tab:hover {
+  color: var(--color-text-primary);
+}
+
+.settings-tab[aria-selected='true'] {
+  background: var(--color-fill-row-selected-unemphasized);
+  color: var(--color-accent-text);
+}
+
+.settings-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.settings-pane-body {
+  padding: var(--space-9);
 }
 
 .settings-section p {
-  margin: 0 0 var(--space-4);
+  margin: 0 0 var(--space-6);
   color: var(--color-text-secondary);
 }
 
@@ -1789,61 +1968,65 @@ button {
 
 /* The Markdown mirror's folder: a long path wraps anywhere. */
 .settings-section .mirror-folder {
-  color: var(--color-text-primary);
   overflow-wrap: anywhere;
 }
 
-/* Editor settings: groups of checkboxes and labelled rows. */
-.settings-group {
+/* A settings form: labels right-aligned in one column, controls
+   left-aligned in the next with their hints under them, groups of rows set
+   apart by space. */
+.settings-form-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  margin: 0 0 var(--space-7);
-  padding: 0;
-  border: 0;
+  gap: var(--space-6);
 }
 
-.settings-group legend {
-  margin-bottom: var(--space-4);
-  padding: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
+.settings-form-group + .settings-form-group {
+  margin-top: var(--space-9);
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: var(--settings-label-width) minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--space-4);
+}
+
+.settings-label {
+  color: var(--color-text-primary);
+  text-align: right;
+}
+
+.settings-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .settings-check {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .settings-check input {
   margin: 0;
 }
 
-/* A checkbox with a hint under it, e.g. why it cannot be changed now. */
-.settings-flag {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
 .settings-check:has(input:disabled) {
   color: var(--color-text-secondary);
 }
 
-.settings-row {
-  display: grid;
-  grid-template-columns: calc(var(--size-list-width) / 3) minmax(0, 1fr);
-  align-items: baseline;
-  gap: var(--space-4);
+/* A checkbox with a hint under it, lined up with the checkbox's text. */
+.settings-flag {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
-.settings-control {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-5);
+.settings-flag .settings-hint {
+  padding-left: calc(var(--size-icon-sm) + var(--space-3));
 }
 
 .settings-number {
@@ -1853,6 +2036,12 @@ button {
 .settings-hint {
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
+}
+
+.settings-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
 }
 
 .settings-actions {

@@ -41,8 +41,8 @@
     "format.link": "link",
     "format.code": "chevron.left.forwardslash.chevron.right",
     "history": "clock.arrow.circlepath",
-    "nav.back": "chevron.left",
-    "nav.forward": "chevron.right",
+    "nav.back": "arrow.left",
+    "nav.forward": "arrow.right",
     "find.previous": "chevron.up",
     "find.next": "chevron.down",
     "format.codeBlock": "curlybraces.square",
@@ -53,6 +53,15 @@
     "format.alert": "exclamationmark.bubble",
     "code.copy": "doc.on.doc",
     "code.copied": "checkmark",
-    "code.copyFailed": "exclamationmark.triangle"
+    "code.copyFailed": "exclamationmark.triangle",
+    "more.vertical": "ellipsis",
+    "popup.chevron": "chevron.down",
+    "filter": "line.3.horizontal.decrease",
+    "settings.general": "gearshape",
+    "settings.editor": "character.cursor.ibeam",
+    "settings.appearance": "paintpalette",
+    "settings.keyboard": "keyboard",
+    "settings.mirror": "folder",
+    "settings.usage": "chart.bar"
   }
 }

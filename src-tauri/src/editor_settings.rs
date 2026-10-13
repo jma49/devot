@@ -101,7 +101,7 @@ impl Default for EditorSettings {
     /// their lines.
     fn default() -> Self {
         Self {
-            line_numbers: true,
+            line_numbers: false,
             line_wrapping: true,
             readable_width: false,
             font_size: 13,
@@ -366,7 +366,7 @@ mod tests {
     #[test]
     fn defaults_keep_the_editor_as_it_was() {
         let d = EditorSettings::default();
-        assert!(d.line_numbers && d.line_wrapping && d.highlight_active_line);
+        assert!(!d.line_numbers && d.line_wrapping && d.highlight_active_line);
         assert!(!d.readable_width && !d.spell_check);
         assert_eq!(d.font_size, 13);
         assert_eq!(d.line_height, 1.4);
@@ -388,7 +388,7 @@ mod tests {
         assert_eq!(
             value,
             json!({
-                "lineNumbers": true,
+                "lineNumbers": false,
                 "lineWrapping": true,
                 "readableWidth": false,
                 "fontSize": 13,

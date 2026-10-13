@@ -11,7 +11,7 @@
 //   (`#half`) from its URL to a class (`image-size-half`), which the page's
 //   styles size as the preview does.
 // - A page to print (Print… and Export as PDF…) loads nothing from the web,
-//   just as the preview never does: its policy allows only `data:` images,
+//   so no slow host holds a print job up: its policy allows only `data:` images,
 //   and each image from the web becomes a link to it, its alt text (else its
 //   URL) as the link's text (only that text inside a link, since links do
 //   not nest); a `picture`'s other sources are left out. An exported page
@@ -24,8 +24,8 @@
 // - Colour swatches get their colour as an inline style.
 // - Attributes the preview uses for itself (`data-*`) are left out.
 // - Simple HTML (Copy as Simple HTML) also leaves out every class and
-//   style, front matter, swatches and diagrams' drawings (their source
-//   shows as code), and alerts become block quotes with a bold title. A
+//   style, front matter, swatches, code block headers and highlighting,
+//   and diagrams' drawings (their source shows as code), and alerts become block quotes with a bold title. A
 //   sized image gets no `width` either (Half has no pixel width to give):
 //   it shows at its own size, as in other Markdown tools.
 
@@ -83,6 +83,9 @@ const classes = (node: Element): string[] => {
 
 const codeBlock = (language: string, source: string): Element =>
   el('pre', {}, [el('code', { className: [`language-${language}`] }, [txt(source)])])
+
+const textOf = (node: ElementContent): string =>
+  node.type === 'text' ? node.value : 'children' in node ? node.children.map(textOf).join('') : ''
 
 const link = (href: string): Element => el('p', {}, [el('a', { href }, [txt(href)])])
 
@@ -165,6 +168,13 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
     }
     if (print && node.tagName === 'source') return []
     if (simple && (names.includes('frontmatter') || names.includes('swatch'))) return []
+    if (simple && names.includes('code-block')) {
+      // The code alone: no header, no highlighting.
+      const pre = node.children.find(
+        (c): c is Element => c.type === 'element' && c.tagName === 'pre',
+      )
+      return pre ? [el('pre', {}, [el('code', {}, [txt(pre.children.map(textOf).join(''))])])] : []
+    }
     if (simple && names.includes('alert')) {
       const [title, ...rest] = node.children
       const heading =
@@ -182,6 +192,8 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
       if (simple && (key === 'className' || key === 'style')) continue
       properties[key] = value
     }
+    // A task's box can be ticked in the preview only.
+    if (node.tagName === 'input') properties['disabled'] = true
     if (node.tagName === 'img') {
       const id = FILE_URL.exec(String(node.properties['src'] ?? ''))?.[1]
       if (id) properties['src'] = placeholder(id)

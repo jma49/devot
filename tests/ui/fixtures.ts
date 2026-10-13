@@ -1,4 +1,4 @@
-import { test as base, type Page } from '@playwright/test'
+import { expect, test as base, type Page } from '@playwright/test'
 
 // A 1x1 black PNG: what `symbol_png` returns, at a smaller size.
 const PNG =
@@ -70,7 +70,8 @@ export interface MockMirror {
  * `window.devotIpcCalls` and `symbol_png` answers with a tiny PNG. Native
  * menus are kept in `window.devotMenus` (see `shownMenu`, `pickMenuItem`);
  * `clipboard_write_text`, `usage_record`, `format_menu_set` and
- * `sidebar_menu_set` succeed, and
+ * `sidebar_menu_set` succeed (and so does `settings_fit`, the Settings window
+ * fitting its pane), and
  * `sidebar_material_sync` answers with the stored sidebar material. The editor settings live
  * in `window.devotEditorSettings` (revision `devotEditorRevision`; see
  * `changeEditorSettingsElsewhere`): `editor_settings_set` merges its change
@@ -111,6 +112,15 @@ export const test = base.extend({
 export async function openApp(page: Page, path = '/'): Promise<void> {
   await page.goto(path)
   await appReady(page)
+}
+
+/**
+ * Opens the Settings window on the pane whose toolbar tab is `tab` (it opens
+ * on the pane shown last, General at first).
+ */
+export async function openSettings(page: Page, tab: string): Promise<void> {
+  await page.goto('/settings.html')
+  await page.getByRole('tab', { name: tab, exact: true }).click()
 }
 
 /** Reloads the page and returns once the window is ready (see `openApp`). */
@@ -155,7 +165,8 @@ export async function mockTauri(page: Page): Promise<void> {
             cmd === 'usage_record' ||
             cmd === 'format_menu_set' ||
             cmd === 'sidebar_menu_set' ||
-            cmd === 'command_menu_set'
+            cmd === 'command_menu_set' ||
+            cmd === 'settings_fit'
           )
             return null
           if (cmd === 'keyboard_shortcuts_get')
@@ -511,4 +522,41 @@ export function changeMirrorElsewhere(page: Page, change: Partial<MockMirror>) {
     void manifest
     w.dispatchEvent(new w.CustomEvent('devot:mirror-changed', { detail }))
   }, change)
+}
+
+const menuPopups = (page: Page) =>
+  page.evaluate(
+    () =>
+      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
+        (c) => c.cmd === 'plugin:menu|popup',
+      ).length,
+  )
+
+/**
+ * Opens the open note's More menu (the ellipsis at the end of the editor's
+ * toolbar) and resolves to its items, as `shownMenu` lists them. With
+ * `keepFocus`, the button is clicked without taking the keyboard.
+ */
+export async function openNoteMore(
+  page: Page,
+  options: { keepFocus?: boolean } = {},
+): Promise<string[]> {
+  const before = await menuPopups(page)
+  const more = page.getByRole('button', { name: 'More', exact: true })
+  if (options.keepFocus) await more.dispatchEvent('click')
+  else await more.click()
+  await expect.poll(() => menuPopups(page)).toBe(before + 1)
+  return shownMenu(page)
+}
+
+/** Picks an item of the open note's More menu. */
+export async function pickNoteMore(page: Page, label: string): Promise<void> {
+  await openNoteMore(page)
+  await pickMenuItem(page, label)
+}
+
+/** Whether the open note is pinned: its More menu offers Unpin. Leaves the keyboard alone. */
+export async function openNotePinned(page: Page): Promise<boolean> {
+  const items = await openNoteMore(page, { keepFocus: true })
+  return items.some((line) => line === 'Unpin' || line.startsWith('Unpin '))
 }

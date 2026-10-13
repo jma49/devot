@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickNoteMore } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -91,7 +91,10 @@ test('a second Return while the note is made does not make another', async ({ pa
   await page.evaluate(() => localStorage.removeItem('devot.test.delayNoteWrites'))
   await expect.poll(async () => (await body(page).textContent()) ?? '').toMatch(LINK)
   await expect(noteRows(page)).toHaveCount(2)
-  await expect(noteRows(page).filter({ hasText: 'Plan B' })).toHaveCount(1)
+  // By title: the source's excerpt shows the link's text too.
+  await expect(
+    noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Plan B' }) }),
+  ).toHaveCount(1)
   // The link stands once; the second Return was an ordinary line break.
   expect(((await body(page).textContent()) ?? '').match(/devot:\/\/note\//g)).toHaveLength(1)
   expect(await body(page).textContent()).not.toContain('[[')
@@ -171,7 +174,7 @@ test('looking up notes does not save the open note', async ({ page }) => {
 
 test('notes in the Trash are not offered', async ({ page }) => {
   await createNote(page, 'Old idea')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(noteRows(page)).toHaveCount(0)
   await createNote(page, 'Old notes index')
   await startLink(page, 'Old')

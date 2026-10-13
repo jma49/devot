@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openNotePinned } from './fixtures'
 
 // Notes with no title stay told apart in the list (their first line shows,
 // the title stays empty), Return in the title goes on to the body, and
@@ -111,16 +111,13 @@ test('Duplicate titles the copy "<title> copy", keeps status and tags, and not t
   await noteRows(page).first().click()
   await expect(noteRows(page).first()).toBeFocused()
   await page.keyboard.press('KeyP')
-  await expect(page.getByRole('button', { name: 'Unpin' })).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => openNotePinned(page)).toBe(true)
 
   await page.keyboard.press('Meta+KeyD')
   await expect(titleField(page)).toHaveValue('Weekly plan copy')
   await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('active')
   await expect(page.getByRole('group', { name: 'Tags' }).getByText('work')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Pin to Top' })).toHaveAttribute(
-    'aria-pressed',
-    'false',
-  )
+  await expect.poll(() => openNotePinned(page)).toBe(false)
   await expect
     .poll(async () => (await stored(page)).map((n) => [n.title, n.status, n.pinned]))
     .toEqual([

@@ -59,3 +59,23 @@ export function headline(markdown: string): string {
   }
   return ''
 }
+
+/** Characters of a body an excerpt looks through. */
+const EXCERPT_SCAN_CHARS = 2000
+/** The longest list excerpt, in code points (the row shows two lines of it). */
+export const LIST_EXCERPT_CHARS = 200
+
+/**
+ * What a list row shows under a note's title: the start of its readable
+ * text (front matter and Markdown markers out). For a note with no title
+ * the first line is its headline, so the excerpt starts after it. Empty
+ * when nothing is left.
+ */
+export function listExcerpt(markdown: string, title: string): string {
+  let text = readableText(markdown.slice(0, EXCERPT_SCAN_CHARS))
+  if (title === '') {
+    const first = headline(markdown)
+    if (first !== '' && text.startsWith(first)) text = text.slice(first.length).trim()
+  }
+  return [...text].slice(0, LIST_EXCERPT_CHARS).join('')
+}

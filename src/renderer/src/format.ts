@@ -8,12 +8,14 @@ const sameDay = (a: Date, b: Date) =>
 
 // Formatters are costly to build, and a list formats a date per row: each
 // is built once per locale and kind, then kept.
-const formatters = new Map<string, Intl.DateTimeFormat | Intl.PluralRules | Intl.NumberFormat>()
+const formatters = new Map<
+  string,
+  Intl.DateTimeFormat | Intl.PluralRules | Intl.NumberFormat | Intl.RelativeTimeFormat
+>()
 
-function kept<T extends Intl.DateTimeFormat | Intl.PluralRules | Intl.NumberFormat>(
-  key: string,
-  build: () => T,
-): T {
+function kept<
+  T extends Intl.DateTimeFormat | Intl.PluralRules | Intl.NumberFormat | Intl.RelativeTimeFormat,
+>(key: string, build: () => T): T {
   let formatter = formatters.get(key) as T | undefined
   if (!formatter) {
     formatter = build()
@@ -30,6 +32,33 @@ export function noteDate(updatedAt: number, now: number, locale: string): string
     `date|${today ? 'time' : 'day'}|${locale}`,
     () => new Intl.DateTimeFormat(locale, today ? { timeStyle: 'short' } : { dateStyle: 'medium' }),
   ).format(date)
+}
+
+/**
+ * How long ago a note changed ("now", "5 minutes ago", "yesterday"); a month
+ * or more back, its date.
+ */
+export function relativeTime(updatedAt: number, now: number, locale: string): string {
+  const seconds = Math.max(0, Math.round((now - updatedAt) / 1000))
+  const rtf = kept(`rel|${locale}`, () => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }))
+  if (seconds < 60) return rtf.format(0, 'second')
+  if (seconds < 3600) return rtf.format(-Math.floor(seconds / 60), 'minute')
+  if (seconds < 86_400) return rtf.format(-Math.floor(seconds / 3600), 'hour')
+  const days = Math.floor(seconds / 86_400)
+  if (days < 30) return rtf.format(-days, 'day')
+  return noteDate(updatedAt, now, locale)
+}
+
+/** A note's date and time in full, for tooltips. */
+export function fullDate(updatedAt: number, locale: string): string {
+  return kept(
+    `date|full|${locale}`,
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }),
+  ).format(new Date(updatedAt))
 }
 
 /** A count with the catalog's plural form for the locale ("1 note", "12 notes"). */
@@ -58,7 +87,10 @@ export function bookDeleteDetail(subs: number, notes: number): string {
   }
   return notes === 0
     ? format(t('book.deleteSubs'), { subs: subCount })
-    : format(t('book.deleteSubsNotes'), { subs: subCount, notes: noteCount(notes, locale) })
+    : format(t('book.deleteSubsNotes'), {
+        subs: subCount,
+        notes: noteCount(notes, locale),
+      })
 }
 
 /** "250 kB", "12.3 MB", "2.3 GB" (decimal units, as Finder shows them); nothing is "0 kB". */

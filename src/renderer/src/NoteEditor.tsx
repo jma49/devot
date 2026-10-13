@@ -28,6 +28,7 @@ import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
 import { pasteUrls, plainPaste } from './editor/paste'
 import { editorSetup, reconfigureSetup } from './editor/settings'
 import { slashMenu } from './editor/slashMenu'
+import { taskToggle } from './editor/tasks'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
 import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
 import { setInertFormats } from './commands/formatMenu'
@@ -109,6 +110,11 @@ export interface EditorHandle {
    * there is no longer that image.
    */
   setImageSize: (source: ImageSource, size: ImageSize) => boolean
+  /**
+   * Ticks or unticks the task whose mark is at `at` (a box ticked in the
+   * preview), as one change; false when the text there is no longer a box.
+   */
+  toggleTask: (at: number) => boolean
 }
 
 /** Paste as Plain Text: the clipboard's text, read through Rust, as it is. */
@@ -704,6 +710,11 @@ export function NoteEditor({
             },
             viewImage: () => viewImageAt(ready),
             setImageSize: (source, size) => setImageSize(ready, source, size),
+            toggleTask: (at) => {
+              const change = taskToggle(ready.state, at)
+              if (change) ready.dispatch(change)
+              return change !== null
+            },
           }
         }
         if (focusOnOpen.current && (!focusOnlyIfFree.current || keyboardIsFree())) view.focus()

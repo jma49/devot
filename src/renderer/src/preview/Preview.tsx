@@ -1,6 +1,6 @@
 import { invoke } from '../ipc'
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
-import type { PreviewLabels, RemoteImageLabels } from '../../../core'
+import type { PreviewLabels } from '../../../core'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
 import type { MenuPoint } from '../contextMenu'
 import { imageMenuHasItems, type ImageMenuTarget } from '../imageMenu'
@@ -39,11 +39,6 @@ export function previewLabels(): PreviewLabels {
   }
 }
 
-/** The placeholder's texts for images from the web (the preview never loads them). */
-function remoteImageLabels(): RemoteImageLabels {
-  return { notLoaded: t('image.remoteNotLoaded'), why: t('image.remoteWhy') }
-}
-
 interface RenderInput {
   markdown: string
   loadedEmbeds: string[]
@@ -68,6 +63,8 @@ interface Props {
   initialScroll?: () => number | undefined
   /** The user scrolled the preview; its scroll position. */
   onScroll?: (top: number) => void
+  /** A task's box was clicked; where its mark is in the Markdown. */
+  onToggleTask?: (at: number) => void
 }
 
 /**
@@ -125,6 +122,7 @@ export function Preview({
   onImageMenu,
   initialScroll,
   onScroll,
+  onToggleTask,
 }: Props) {
   const host = useRef<HTMLElement>(null)
   const [loadedEmbeds, setLoadedEmbeds] = useState<string[]>([])
@@ -192,7 +190,6 @@ export function Preview({
         core
           .renderPreview(input.markdown, {
             labels: previewLabels(),
-            remoteImages: remoteImageLabels(),
             loadedEmbeds: input.loadedEmbeds,
           })
           .then((tree) => ({ tree, lines: lineCount(input.markdown), markdown: input.markdown })),
@@ -231,6 +228,13 @@ export function Preview({
 
   const onClick = (event: MouseEvent) => {
     const target = event.target as Element
+    const box = target.closest('input[data-task-at]')
+    if (box) {
+      // The box shows what the note says: the change comes back as a render.
+      event.preventDefault()
+      onToggleTask?.(Number(box.getAttribute('data-task-at')))
+      return
+    }
     const load = target.closest('[data-embed-load]')
     if (load) {
       const src = load.closest('[data-embed-src]')?.getAttribute('data-embed-src')
