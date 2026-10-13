@@ -313,6 +313,22 @@ describe('a write made before the window hears of an outside write', () => {
     expect(stored?.pinned).toBe(true)
   })
 
+  it('reports the title another process gave a note a save took in before the window heard', async () => {
+    const { a, b } = twoProcesses()
+    const id = await shared(a.notes, b.notes, 'text')
+    // B renames; A types and saves before it hears of B's write, taking the
+    // title in on the retry.
+    await b.notes.setTitle(id, 'Renamed in B')
+    await b.notes.flush()
+    await a.notes.setBody(id, 'text, typed in A')
+    await a.notes.flush()
+    expect((await a.storage.getNote(id))?.title).toBe('Renamed in B')
+
+    // Hearing of it still reports the title to the open note, once.
+    expect(await a.notes.mergeStored()).toEqual([{ id, title: 'Renamed in B' }])
+    expect(await a.notes.mergeStored()).toEqual([])
+  })
+
   it('keeps a body written between the read and the write of a change to a note not in memory', async () => {
     const path = join(tempDir('devot-outside-'), 'devot.sqlite')
     const b = processOn(path, 'b1')

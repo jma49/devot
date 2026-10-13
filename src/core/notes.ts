@@ -291,8 +291,9 @@ export interface NoteService {
    * other wrote over) is saved again; a note deleted for good meanwhile is
    * let go. The others stay in memory: letting one go here could lose an
    * edit that has just loaded it. Returns the notes whose title the other
-   * process changed, with that title. A note that cannot be read is left as
-   * it was.
+   * process changed, with that title, counting a title a write took in when
+   * storage refused it before this merge. A note that cannot be read is left
+   * as it was.
    */
   mergeStored(): Promise<{ id: string; title: string }[]>
 }
@@ -314,6 +315,12 @@ interface Live {
   writes: number
   /** Service calls using the note now (see using): it stays in memory while any does. */
   users: number
+  /**
+   * Whether a write made again after storage refused it took in a title
+   * another process gave the note: mergeStored reports it, as a title it
+   * takes in itself.
+   */
+  retitled: boolean
   /** Saves failed in a row, and the timer that tries again. */
   failures: number
   retry: Timer | undefined
@@ -516,6 +523,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     queue: Promise.resolve(),
     writes: 0,
     users: 0,
+    retitled: false,
     failures: 0,
     retry: undefined,
     // A note made this session has no earlier text to keep.
@@ -794,7 +802,9 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           drop(note)
           return undefined
         }
+        const title = note.record.title
         takeIn(note, stored)
+        if (note.record.title !== title) note.retitled = true
       }
       const record = make()
       await storage.putNote(record)
@@ -1463,7 +1473,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
             note.edits += 1
             schedule(note)
           }
-          if (note.record.title !== title) retitled.push({ id, title: note.record.title })
+          // Or a write made again before this merge took it in (see put).
+          if (note.record.title !== title || note.retitled) {
+            retitled.push({ id, title: note.record.title })
+          }
+          note.retitled = false
         })
       const merged = await Promise.allSettled([...live.values()].map(merge))
       for (const result of merged) {
