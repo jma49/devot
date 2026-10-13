@@ -69,6 +69,23 @@ export function countOf(count: number, locale: string, one: MessageKey, other: M
   return format(t(key), { count: number.format(count) })
 }
 
+/** Task progress in the note info card: "1 of 2 tasks". */
+export function taskCount(done: number, total: number, locale: string): string {
+  const plural = kept(`plural|${locale}`, () => new Intl.PluralRules(locale))
+  const key = plural.select(total) === 'one' ? 'noteInfo.tasksOne' : 'noteInfo.tasksOther'
+  const number = kept(`number|${locale}`, () => new Intl.NumberFormat(locale))
+  return format(t(key), { done: number.format(done), count: number.format(total) })
+}
+
+const pad = (value: number) => String(value).padStart(2, '0')
+
+/** A note's date in the note info card, in local time: `YYYY-MM-DD HH:mm:ss`. */
+export function stampDate(at: number): string {
+  const d = new Date(at)
+  const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return `${day} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
 export const noteCount = (count: number, locale: string) =>
   countOf(count, locale, 'noteList.countOne', 'noteList.countOther')
 

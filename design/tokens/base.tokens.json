@@ -437,6 +437,26 @@
           "hex": "#a3b0f7"
         }
       }
+    },
+    "alert": {
+      "purple-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4824, 0.2471, 0.702],
+          "hex": "#7b3fb3"
+        },
+        "$description": "The Important alert, light: purple text that keeps 4.5:1 on the editor."
+      },
+      "purple-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7686, 0.6118, 0.949],
+          "hex": "#c49cf2"
+        },
+        "$description": "The Important alert, dark."
+      }
     }
   },
   "font": {

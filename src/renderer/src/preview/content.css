@@ -2,7 +2,8 @@
  * Note content: how the preview shows a note's Markdown. The app and the
  * pages it exports and prints (exporter.ts) share these rules.
  */
-.preview > :first-child {
+.preview > :first-child,
+.preview-body > :first-child {
   margin-top: 0;
 }
 
@@ -13,7 +14,7 @@
 }
 
 .preview h1 {
-  font-size: 1.85em;
+  font-size: 2em;
 }
 
 .preview h2 {
@@ -25,13 +26,25 @@
 }
 
 .preview h4 {
-  font-size: 1.05em;
+  font-size: 1em;
 }
 
-/* The two top levels are ruled off from what follows. */
+.preview h5 {
+  font-size: 0.875em;
+}
+
+.preview h6 {
+  font-size: 0.85em;
+}
+
+/* The two top levels are ruled off from what follows, the first more firmly. */
 .preview :is(h1, h2) {
   padding-bottom: 0.25em;
   border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.preview h1 {
+  border-bottom-width: 2px;
 }
 
 .preview :is(p, ul, ol, table, pre, blockquote, details, .alert) {
@@ -44,18 +57,19 @@
 }
 
 .preview code {
-  padding: 1px var(--space-2);
+  padding: 0.2em 0.4em;
   border-radius: var(--space-2);
   background: var(--color-fill-track);
   font-family: var(--font-family-mono);
-  font-size: 0.88em;
+  font-size: 85%;
 }
 
 .preview pre {
   position: relative;
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius-card);
-  background: var(--color-fill-track);
+  padding: var(--space-7);
+  border: 1px solid var(--color-code-block-border);
+  border-radius: var(--radius-button);
+  background: var(--color-code-block-bg);
   overflow: auto;
 }
 
@@ -75,7 +89,7 @@
 
 .preview pre > code {
   display: block;
-  padding: var(--space-5) var(--space-6);
+  padding: var(--space-7);
   border-radius: inherit;
   overflow-x: auto;
 }
@@ -83,7 +97,7 @@
 .preview blockquote {
   margin-left: 0;
   padding: 0 0 0 var(--space-6);
-  border-left: 3px solid var(--color-line-hairline);
+  border-left: 3px solid var(--color-quote-bar);
   color: var(--color-text-secondary);
 }
 
@@ -101,8 +115,20 @@
 }
 
 .preview th {
-  background: var(--color-fill-track);
+  background: var(--color-table-head);
   font-weight: var(--font-weight-semibold);
+}
+
+.preview tbody tr:nth-child(even) {
+  background: var(--color-table-stripe);
+}
+
+/* Highlighted text. */
+.preview mark {
+  padding: 0 0.1em;
+  border-radius: var(--space-2);
+  background: var(--color-mark-bg);
+  color: inherit;
 }
 
 .preview hr {
@@ -118,6 +144,11 @@
 
 .preview li > :is(ul, ol) {
   margin-bottom: 0;
+}
+
+/* A numbered list inside another counts in roman numerals. */
+.preview :is(ol, ul) ol {
+  list-style-type: lower-roman;
 }
 
 .preview li > p {
@@ -149,6 +180,12 @@
 .preview input[type='checkbox'] {
   margin: 0 var(--space-3) 0 calc(-1 * var(--space-7));
   accent-color: var(--color-accent-fill);
+}
+
+/* A done task is muted and struck through. */
+.preview li:has(> input[type='checkbox']:checked, > p > input[type='checkbox']:checked) {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
 }
 
 /* A task's box ticks the task in the note. */
@@ -240,12 +277,16 @@
  */
 .preview .code-block {
   margin: 0 0 0.8em;
-  border-radius: var(--radius-card);
-  background: var(--color-fill-track);
+  border: 1px solid var(--color-code-block-border);
+  border-radius: var(--radius-button);
+  background: var(--color-code-block-bg);
+  overflow: hidden;
 }
 
 .preview .code-block > pre {
   margin: 0;
+  border: 0;
+  border-radius: 0;
   background: transparent;
 }
 
@@ -253,9 +294,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: var(--space-9);
-  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-6);
-  border-bottom: 1px solid var(--color-line-hairline);
+  box-sizing: border-box;
+  min-height: var(--space-10);
+  padding: 0 var(--space-3) 0 var(--space-7);
+  border-bottom: 1px solid var(--color-code-block-border);
+  background: var(--color-code-header-bg);
   color: var(--color-text-secondary);
   font-family: var(--font-family-ui);
   font-size: calc(var(--font-size-footnote) * var(--preview-scale, 1));
@@ -280,8 +323,8 @@
 .code-title {
   min-width: 0;
   overflow: hidden;
-  color: var(--color-text-primary);
-  font-family: var(--font-family-mono);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-bold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -351,10 +394,10 @@
   font-weight: var(--font-weight-bold);
 }
 
+/* Alerts: an accent bar, and an icon and title in the kind's colour. */
 .alert {
-  padding: var(--space-4) var(--space-6);
-  border-radius: var(--radius-card);
-  background: var(--color-fill-track);
+  padding: var(--space-1) 0 var(--space-1) var(--space-6);
+  border-left: 3px solid var(--alert-color);
 }
 
 .alert > :last-child {
@@ -362,29 +405,135 @@
 }
 
 .alert .alert-title {
-  margin: 0 0 var(--space-1);
-  font-size: calc(var(--font-size-footnote) * var(--preview-scale, 1));
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-2);
+  color: var(--alert-color);
   font-weight: var(--font-weight-semibold);
 }
 
-.alert-note .alert-title {
-  color: var(--color-accent-text);
+.alert-icon {
+  width: 1.1em;
+  height: 1.1em;
 }
 
-.alert-tip .alert-title {
-  color: var(--color-status-done);
+.alert-note {
+  --alert-color: var(--color-alert-note);
 }
 
-.alert-important .alert-title {
+.alert-tip {
+  --alert-color: var(--color-alert-tip);
+}
+
+.alert-important {
+  --alert-color: var(--color-alert-important);
+}
+
+.alert-warning {
+  --alert-color: var(--color-alert-warning);
+}
+
+.alert-caution {
+  --alert-color: var(--color-alert-caution);
+}
+
+/* Line icons drawn into the content (core/preview/glyphs.ts). */
+.glyph {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.15em;
+}
+
+.glyph-dot {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* Task progress: a short bar, filled as far as the tasks are done. */
+.task-bar {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: var(--space-10);
+  height: var(--space-3);
+  border: 0;
+  border-radius: var(--space-6);
+  background: var(--color-fill-track);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.task-bar::-webkit-progress-bar {
+  border-radius: var(--space-6);
+  background: var(--color-fill-track);
+}
+
+.task-bar::-webkit-progress-value {
+  border-radius: var(--space-6);
+  background: var(--color-status-done);
+}
+
+/* A link to another note, shown as that note: status, title, progress, tags. */
+.preview a.note-chip {
+  text-underline-offset: 4px;
+}
+
+.note-chip > :is(.glyph, .task-bar, .note-chip-tag) {
+  margin-right: 0.3em;
+}
+
+.note-chip-title {
+  margin-right: 0.3em;
+}
+
+.note-chip-status-active {
   color: var(--color-status-active);
 }
 
-.alert-warning .alert-title {
+.note-chip-status-on_hold {
   color: var(--color-status-hold);
 }
 
-.alert-caution .alert-title {
+.note-chip-status-completed {
+  color: var(--color-status-done);
+}
+
+.note-chip-status-dropped {
   color: var(--color-status-dropped);
+}
+
+.note-chip-tag {
+  display: inline-block;
+  padding: 0 0.5em;
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
+  font-size: 0.78em;
+  line-height: 1.5;
+  vertical-align: 0.1em;
+}
+
+.note-chip-tag[class*='tag-color-']::before {
+  content: '';
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: 0.3em;
+  border-radius: var(--radius-capsule);
+  background: var(--tag-color);
+  vertical-align: 0.05em;
+}
+
+/* A link to a note that is gone. */
+.note-link-broken {
+  margin-right: 0.2em;
 }
 
 /* Math is MathML, laid out by the web view with the system's math font. */

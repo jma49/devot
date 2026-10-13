@@ -55,7 +55,13 @@ describe('trash on SQLite', () => {
     const id = await notes.create('Doomed')
     await write(notes, id, '# Last words')
     await notes.trash(id)
-    expect(await notes.peekTrashed(id)).toEqual({ id, title: 'Doomed', bodyMd: '# Last words' })
+    expect(await notes.peekTrashed(id)).toEqual({
+      id,
+      title: 'Doomed',
+      bodyMd: '# Last words',
+      createdAt: expect.any(Number),
+      updatedAt: expect.any(Number),
+    })
   })
 
   it('restores a note with its body and metadata intact', async () => {

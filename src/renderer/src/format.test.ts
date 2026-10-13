@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { bookDeleteDetail, fileSize, noteCount, noteDate, relativeTime } from './format'
+import {
+  bookDeleteDetail,
+  fileSize,
+  noteCount,
+  noteDate,
+  relativeTime,
+  stampDate,
+  taskCount,
+} from './format'
 
 /** Counts `new Intl.DateTimeFormat(...)` until the test ends. */
 function countDateFormats(): { count: number } {
@@ -93,5 +101,19 @@ describe('bookDeleteDetail', () => {
     expect(bookDeleteDetail(3, 12)).toBe(
       'Its 3 sub-notebooks will be deleted too. Together they hold 12 notes, which will stay without a notebook. You can\u2019t undo this.',
     )
+  })
+})
+
+describe('stampDate', () => {
+  it('writes the local date and time as YYYY-MM-DD HH:mm:ss, zero-padded', () => {
+    expect(stampDate(new Date(2026, 0, 5, 7, 8, 9).getTime())).toBe('2026-01-05 07:08:09')
+    expect(stampDate(new Date(2026, 9, 13, 23, 59, 30).getTime())).toBe('2026-10-13 23:59:30')
+  })
+})
+
+describe('taskCount', () => {
+  it('says how many tasks are done of how many, with the plural of the total', () => {
+    expect(taskCount(1, 2, 'en')).toBe('1 of 2 tasks')
+    expect(taskCount(0, 1, 'en')).toBe('0 of 1 task')
   })
 })

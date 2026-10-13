@@ -112,6 +112,16 @@
           "hex": "#ef8a17",
           "alpha": 0.55
         }
+      },
+      "card": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.065
+        },
+        "$description": "The preview's note info card."
       }
     },
     "accent": {
@@ -321,6 +331,108 @@
           "hex": "#0e6b62"
         },
         "$description": "A day with the most writing in the activity heatmap."
+      }
+    },
+    "code-block": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.022
+        },
+        "$description": "A code block in the preview."
+      },
+      "border": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.1
+        }
+      }
+    },
+    "code-header": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.05
+        },
+        "$description": "The header bar of a code block with a language or a file name."
+      }
+    },
+    "table": {
+      "head": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.075
+        },
+        "$description": "A table's header row in the preview."
+      },
+      "stripe": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.03
+        },
+        "$description": "Every other body row of a table in the preview."
+      }
+    },
+    "quote": {
+      "bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.18
+        },
+        "$description": "The left bar of a blockquote in the preview."
+      }
+    },
+    "mark": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9176, 0.702, 0.0314],
+          "hex": "#eab308",
+          "alpha": 0.3
+        },
+        "$description": "Highlighted text (<mark>) in the preview."
+      }
+    },
+    "alert": {
+      "note": {
+        "$value": "{color.status.active-light}",
+        "$type": "color",
+        "$description": "The colour of a Note alert's bar, icon and title."
+      },
+      "tip": {
+        "$value": "{color.status.done-light}",
+        "$type": "color"
+      },
+      "important": {
+        "$value": "{color.alert.purple-light}",
+        "$type": "color"
+      },
+      "warning": {
+        "$value": "{color.status.hold-light}",
+        "$type": "color"
+      },
+      "caution": {
+        "$value": "{color.status.dropped-light}",
+        "$type": "color"
       }
     }
   }

@@ -62,6 +62,7 @@ export const light = {
   "color.fill.segment-on": "#ffffff",
   "color.fill.match": "rgb(245 197 66 / 0.5)",
   "color.fill.match-current": "rgb(239 138 23 / 0.55)",
+  "color.fill.card": "rgb(28 27 25 / 0.065)",
   "color.accent.fill": "#0e6b62",
   "color.accent.text": "#0d655c",
   "color.accent.selection": "#d0e1df",
@@ -92,7 +93,19 @@ export const light = {
   "color.activity.level-1": "rgb(14 107 98 / 0.25)",
   "color.activity.level-2": "rgb(14 107 98 / 0.45)",
   "color.activity.level-3": "rgb(14 107 98 / 0.7)",
-  "color.activity.level-4": "#0e6b62"
+  "color.activity.level-4": "#0e6b62",
+  "color.code-block.bg": "rgb(28 27 25 / 0.022)",
+  "color.code-block.border": "rgb(28 27 25 / 0.1)",
+  "color.code-header.bg": "rgb(28 27 25 / 0.05)",
+  "color.table.head": "rgb(28 27 25 / 0.075)",
+  "color.table.stripe": "rgb(28 27 25 / 0.03)",
+  "color.quote.bar": "rgb(28 27 25 / 0.18)",
+  "color.mark.bg": "rgb(234 179 8 / 0.3)",
+  "color.alert.note": "#2a63c0",
+  "color.alert.tip": "#257244",
+  "color.alert.important": "#7b3fb3",
+  "color.alert.warning": "#905a09",
+  "color.alert.caution": "#af3b36"
 } as const
 
 export const dark = {
@@ -110,6 +123,7 @@ export const dark = {
   "color.fill.segment-on": "rgb(235 232 226 / 0.22)",
   "color.fill.match": "rgb(227 164 58 / 0.38)",
   "color.fill.match-current": "rgb(242 155 56 / 0.5)",
+  "color.fill.card": "rgb(235 232 226 / 0.08)",
   "color.accent.fill": "#25837a",
   "color.accent.text": "#63cdbf",
   "color.accent.selection": "#1f3531",
@@ -140,7 +154,19 @@ export const dark = {
   "color.activity.level-1": "rgb(99 205 191 / 0.22)",
   "color.activity.level-2": "rgb(99 205 191 / 0.42)",
   "color.activity.level-3": "rgb(99 205 191 / 0.66)",
-  "color.activity.level-4": "#63cdbf"
+  "color.activity.level-4": "#63cdbf",
+  "color.code-block.bg": "rgb(235 232 226 / 0.035)",
+  "color.code-block.border": "rgb(235 232 226 / 0.12)",
+  "color.code-header.bg": "rgb(235 232 226 / 0.06)",
+  "color.table.head": "rgb(235 232 226 / 0.12)",
+  "color.table.stripe": "rgb(235 232 226 / 0.045)",
+  "color.quote.bar": "rgb(235 232 226 / 0.22)",
+  "color.mark.bg": "rgb(227 164 58 / 0.3)",
+  "color.alert.note": "#6898f1",
+  "color.alert.tip": "#46b877",
+  "color.alert.important": "#c49cf2",
+  "color.alert.warning": "#e3a43a",
+  "color.alert.caution": "#e97873"
 } as const
 
 export type ThemeColor = keyof typeof light

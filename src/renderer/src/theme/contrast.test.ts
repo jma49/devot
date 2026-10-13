@@ -176,6 +176,24 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     expect(under(3, marks)).toEqual([])
   })
 
+  it('draws preview text at 4.5:1 on its blocks: alert titles, marks, tables, the info card', () => {
+    const editor = solid(theme, 'surface.editor')
+    const alerts = ['note', 'tip', 'important', 'warning', 'caution']
+    const pairs: Record<string, [Rgb, Rgb[]]> = Object.fromEntries(
+      alerts.map((kind) => [`${kind} alert`, [solid(theme, `alert.${kind}`), [editor]]]),
+    )
+    const blocks = ['mark.bg', 'table.head', 'table.stripe', 'code-block.bg', 'fill.card']
+    pairs['primary on preview blocks'] = [
+      solid(theme, 'text.primary'),
+      blocks.map((b) => over(theme, b, editor)),
+    ]
+    pairs['secondary on the info card and code headers'] = [
+      solid(theme, 'text.secondary'),
+      ['fill.card', 'code-header.bg'].map((b) => over(theme, b, editor)),
+    ]
+    expect(under(4.5, pairs)).toEqual([])
+  })
+
   it('draws the destructive label at 4.5:1, also on a raised button face', () => {
     const faces = backdrops(theme).flatMap((s) => [
       s,
