@@ -21,6 +21,9 @@ const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palett
 const paletteField = (page: Page) =>
   palette(page).getByRole('combobox', { name: 'Command Palette' })
 const trashRow = (page: Page) => sidebar(page).getByRole('button', { name: /^Trash \d+$/ })
+const templatesRow = (page: Page) => sidebar(page).getByRole('button', { name: /^Templates \d+$/ })
+const backButton = (page: Page) => page.getByRole('button', { name: 'Back', exact: true })
+const forwardButton = (page: Page) => page.getByRole('button', { name: 'Forward', exact: true })
 
 async function createNote(page: Page, title: string) {
   const before = await noteRows(page).count()
@@ -38,6 +41,17 @@ async function createBook(page: Page, name: string) {
   await field.fill(name)
   await field.press('Enter')
   await expect(book(page, name)).toBeVisible()
+}
+
+async function createTemplate(page: Page, title: string) {
+  await templatesRow(page).click()
+  await expect(header(page)).toHaveText('Templates')
+  const before = await noteRows(page).count()
+  await page.getByRole('button', { name: 'New Template', exact: true }).click()
+  await expect(noteRows(page)).toHaveCount(before + 1)
+  await expect(titleField(page)).toHaveValue('')
+  await titleField(page).fill(title)
+  await expect(noteRow(page, title)).toHaveCount(1)
 }
 
 /** Opens the palette with Cmd+P, types a query and picks the entry of a group. */
@@ -123,4 +137,21 @@ test('a tag from the palette, during a search over every note, drops the hidden 
   await expect(search(page)).toHaveValue('')
   await expect(book(page, 'Work')).toHaveAttribute('aria-selected', 'false')
   await expect(noteRows(page)).toHaveText([/Loose plan/])
+})
+
+test.describe('Templates', () => {
+  test('Back and Forward return to a template', async ({ page }) => {
+    await createTemplate(page, 'Weekly')
+    await sidebar(page)
+      .getByRole('button', { name: /^All Notes/ })
+      .click()
+    await createNote(page, 'Plain')
+    await expect(backButton(page)).toBeEnabled()
+    await backButton(page).click()
+    await expect(titleField(page)).toHaveValue('Weekly')
+    await expect(page.getByText(/Front matter sets the title/)).toBeVisible()
+    await expect(forwardButton(page)).toBeEnabled()
+    await page.keyboard.press('Meta+BracketRight')
+    await expect(titleField(page)).toHaveValue('Plain')
+  })
 })

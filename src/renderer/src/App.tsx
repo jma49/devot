@@ -1504,10 +1504,14 @@ export function App() {
   })
 
   // Back and Forward: the trail entry each opens, skipping notes deleted
-  // since (the Trash's notes are never entries). The open note is the current entry's,
+  // since (the Trash's notes are never entries). Templates are notes too:
+  // they are entries like any other. The open note is the current entry's,
   // or the one a navigation is opening (`opening`); none in the Trash or
   // when it was deleted.
-  const liveIds = useMemo(() => new Set(notes.map((n) => n.id)), [notes])
+  const liveIds = useMemo(
+    () => new Set([...notes, ...templates].map((n) => n.id)),
+    [notes, templates],
+  )
   const onTrail = (now: Trail, opening?: string) => ({
     live: (id: string) => liveIds.has(id),
     current: opening ?? (inTrash || selected === undefined ? undefined : now.ids[now.at]),
