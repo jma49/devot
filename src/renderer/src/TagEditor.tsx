@@ -19,6 +19,10 @@ export function TagDot(props: { color: TagColor }) {
   )
 }
 
+/** A tag chip's classes: a coloured tag's chip takes its tag colour (app.css `.tag-chip`). */
+export const chipClass = (color: TagColor | null | undefined) =>
+  color ? `chip tag-chip tag-color-${color}` : 'chip'
+
 /** A row of the tag field's suggestions: an existing tag, or a new one to make. */
 export type TagRow = { kind: 'tag'; tag: TagRecord } | { kind: 'create'; name: string }
 
@@ -107,7 +111,11 @@ export function TagEditor(props: {
   return (
     <div className="tag-editor" role="group" aria-label={t('note.tagsLabel')}>
       {onNote.map((tag) => (
-        <span key={tag.id} className="chip" data-selected={chosenChip === tag.id || undefined}>
+        <span
+          key={tag.id}
+          className={chipClass(tag.color)}
+          data-selected={chosenChip === tag.id || undefined}
+        >
           {tag.color ? <TagDot color={tag.color} /> : null}
           {tag.name}
           <button

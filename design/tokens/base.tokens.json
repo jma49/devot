@@ -950,14 +950,6 @@
       },
       "$description": "The command palette's panel."
     },
-    "sidebar-bar": {
-      "$type": "dimension",
-      "$value": {
-        "value": 3,
-        "unit": "px"
-      },
-      "$description": "The bar on the left of the selected sidebar row while the sidebar has the keyboard focus."
-    },
     "focus-ring": {
       "$type": "dimension",
       "$value": {

@@ -184,6 +184,33 @@ button {
   background: var(--color-fill-track);
 }
 
+/* Hover, press and selection: every control's fill, colour and edge change
+   over the hover duration; disclosure chevrons turn over the toggle one. */
+:is(
+  .tool,
+  .source,
+  .book-row,
+  .row,
+  .chip,
+  .footer-toggle,
+  .popup,
+  .segment,
+  .pick-row,
+  .picker-option,
+  .tag-suggestion,
+  .palette-row,
+  .history-row,
+  .settings-tab,
+  .builtin-row,
+  .button
+) {
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    border-color var(--motion-duration-hover) var(--motion-easing-out),
+    color var(--motion-duration-hover) var(--motion-easing-out),
+    opacity var(--motion-duration-hover) var(--motion-easing-out);
+}
+
 /* The panes' toolbars: a rounder, stronger hover. */
 .toolbar .tool {
   border-radius: var(--radius-card);
@@ -195,7 +222,7 @@ button {
 
 .tool:disabled,
 .tool[aria-disabled='true'] {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
 }
 
 /* Sidebar: the window material shows through its tint. */
@@ -262,12 +289,14 @@ button {
 }
 
 /* The selected row of the sidebar (a pressed filter, the view shown, the
-   selected notebook): a fill, and while the sidebar has the keyboard focus a
-   bar on its left edge. */
+   selected notebook) and of the note list, the same in both: an accent wash,
+   and while the list has the keyboard focus a solid accent fill with the
+   on-fill colour for its text and marks. */
 .source.filter[aria-pressed='true'],
 .source[aria-current='true'],
-.books [aria-selected='true'] > .book-row {
-  background: var(--color-fill-row-selected);
+.books [aria-selected='true'] > .book-row,
+.row[aria-selected='true'] {
+  background: var(--color-fill-row-selected-unemphasized);
 }
 
 .sidebar:focus-within
@@ -275,15 +304,32 @@ button {
     .source.filter[aria-pressed='true'],
     .source[aria-current='true'],
     .books [aria-selected='true'] > .book-row
-  )::before {
-  content: '';
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  width: var(--size-sidebar-bar);
-  border-radius: var(--radius-button) 0 0 var(--radius-button);
+  ),
+.rows:focus-within .row[aria-selected='true'] {
   background: var(--color-accent-fill);
-  pointer-events: none;
+  color: var(--color-accent-on-fill);
+}
+
+.sidebar:focus-within
+  :is(
+    .source.filter[aria-pressed='true'],
+    .source[aria-current='true'],
+    .books [aria-selected='true'] > .book-row
+  )
+  :is(.source-count, .book-ai, .disclosure),
+.rows:focus-within .row[aria-selected='true'] :is(.row-excerpt, .row-time, .row-progress) {
+  color: var(--color-accent-on-fill);
+}
+
+.sidebar:focus-within
+  :is(
+    .source.filter[aria-pressed='true'],
+    .source[aria-current='true'],
+    .books [aria-selected='true'] > .book-row
+  )
+  .icon,
+.rows:focus-within .row[aria-selected='true'] :is(.row-status .icon, .progress-fill) {
+  background-color: var(--color-accent-on-fill);
 }
 
 .status-active {
@@ -318,42 +364,53 @@ button {
 /* Tag colours: a dot painted with the theme's token for the palette ID. */
 .tag-color-red {
   --tag-color: var(--color-tag-red);
+  --tag-text: var(--color-tag-text-red);
 }
 
 .tag-color-orange {
   --tag-color: var(--color-tag-orange);
+  --tag-text: var(--color-tag-text-orange);
 }
 
 .tag-color-yellow {
   --tag-color: var(--color-tag-yellow);
+  --tag-text: var(--color-tag-text-yellow);
 }
 
 .tag-color-green {
   --tag-color: var(--color-tag-green);
+  --tag-text: var(--color-tag-text-green);
 }
 
 .tag-color-blue {
   --tag-color: var(--color-tag-blue);
+  --tag-text: var(--color-tag-text-blue);
 }
 
 .tag-color-purple {
   --tag-color: var(--color-tag-purple);
+  --tag-text: var(--color-tag-text-purple);
 }
 
 .tag-color-pink {
   --tag-color: var(--color-tag-pink);
+  --tag-text: var(--color-tag-text-pink);
 }
 
 .tag-color-gray {
   --tag-color: var(--color-tag-gray);
+  --tag-text: var(--color-tag-text-gray);
 }
 
+/* A tag's colour dot: the colour at the dot strength inside a solid edge. */
 .tag-dot {
   flex-shrink: 0;
+  box-sizing: border-box;
   width: var(--space-4);
   height: var(--space-4);
+  border: 1px solid var(--tag-color);
   border-radius: var(--radius-capsule);
-  background: var(--tag-color);
+  background: color-mix(in srgb, var(--tag-color) calc(var(--opacity-tag-dot) * 100%), transparent);
 }
 
 /* In a sidebar row the dot takes the tag icon's place. */
@@ -469,7 +526,7 @@ button {
   padding: 0 var(--space-2);
   border: 0;
   border-radius: var(--radius-control);
-  outline: 2px solid var(--color-accent-fill);
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
   background: var(--color-surface-editor);
   color: var(--color-text-primary);
   font: inherit;
@@ -744,8 +801,8 @@ button {
 
 /* The list itself has the keyboard only when it is empty or after a click on its blank space. */
 .rows:focus-visible {
-  outline: 2px solid var(--color-accent-fill);
-  outline-offset: -2px;
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
 /* Stands for the rows of a long list that are not rendered (NoteList's window). */
@@ -758,7 +815,7 @@ button {
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid var(--color-line-hairline);
+  border-bottom: 1px solid var(--color-line-separator);
   border-radius: 0;
   outline: none;
 }
@@ -869,11 +926,6 @@ button {
   list-style: none;
 }
 
-/* Selection in the note list. */
-.row[aria-selected='true'] {
-  background: var(--color-fill-row-selected);
-}
-
 /* Editor. */
 /* The editor keeps room for two split panes (and so for its toolbar): the
    list gives way first, down to its minimum, and below size.sidebar-collapse-width
@@ -941,6 +993,40 @@ button {
 
 .note-meta .tag-input::placeholder {
   color: var(--color-text-tertiary);
+}
+
+/* A coloured tag's chip, in the note list and the note's line: its tag
+   colour at the opacity.tag strengths for the fill and edge, stronger under
+   the pointer or pressed, and its label in the tag's text colour. */
+.chip.tag-chip {
+  border: 1px solid
+    color-mix(in srgb, var(--tag-color) calc(var(--opacity-tag-border) * 100%), transparent);
+  background: color-mix(
+    in srgb,
+    var(--tag-color) calc(var(--opacity-tag-fill) * 100%),
+    transparent
+  );
+  color: var(--tag-text);
+}
+
+.chip.tag-chip:is(:hover, :active) {
+  border-color: color-mix(
+    in srgb,
+    var(--tag-color) calc(var(--opacity-tag-border-active) * 100%),
+    transparent
+  );
+  background: color-mix(
+    in srgb,
+    var(--tag-color) calc(var(--opacity-tag-fill-active) * 100%),
+    transparent
+  );
+}
+
+/* On the focused list's selection, a chip takes the on-fill colour. */
+.rows:focus-within .row[aria-selected='true'] .chip {
+  border-color: var(--color-accent-on-fill);
+  background: transparent;
+  color: var(--color-accent-on-fill);
 }
 
 .template-hint {
@@ -1099,8 +1185,8 @@ button {
 }
 
 .popup:has(> select:focus-visible) {
-  outline: 2px solid var(--color-accent-fill);
-  outline-offset: 1px;
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: 0;
 }
 
 .popup select {
@@ -1196,9 +1282,6 @@ button {
    reflow, and they are inert from the first frame (App.tsx). `data-pane-motion`
    is on the window only for the length of a toggle, so a resize or the first
    paint never animates. */
-.window {
-  --pane-motion: var(--motion-duration-pane);
-}
 
 .sidebar,
 .list {
@@ -1216,10 +1299,10 @@ button {
 .window[data-pane-motion] > .sidebar,
 .window[data-pane-motion] > .list {
   transition:
-    width var(--pane-motion) var(--motion-easing-standard),
-    min-width var(--pane-motion) var(--motion-easing-standard),
-    padding var(--pane-motion) var(--motion-easing-standard),
-    border-right-width var(--pane-motion) var(--motion-easing-standard),
+    width var(--motion-duration-pane) var(--motion-easing-standard),
+    min-width var(--motion-duration-pane) var(--motion-easing-standard),
+    padding var(--motion-duration-pane) var(--motion-easing-standard),
+    border-right-width var(--motion-duration-pane) var(--motion-easing-standard),
     visibility 0s linear;
 }
 
@@ -1238,11 +1321,11 @@ button {
 .window[data-pane-motion][data-focus] > .sidebar,
 .window[data-pane-motion][data-focus] > .list {
   transition:
-    width var(--pane-motion) var(--motion-easing-standard),
-    min-width var(--pane-motion) var(--motion-easing-standard),
-    padding var(--pane-motion) var(--motion-easing-standard),
-    border-right-width var(--pane-motion) var(--motion-easing-standard),
-    visibility 0s linear var(--pane-motion);
+    width var(--motion-duration-pane) var(--motion-easing-standard),
+    min-width var(--motion-duration-pane) var(--motion-easing-standard),
+    padding var(--motion-duration-pane) var(--motion-easing-standard),
+    border-right-width var(--motion-duration-pane) var(--motion-easing-standard),
+    visibility 0s linear var(--motion-duration-pane);
 }
 
 /* As specific as the hiding rules above, so it wins over them too. */
@@ -1635,8 +1718,8 @@ button {
 }
 
 .code-copy:focus-visible {
-  outline: 2px solid var(--color-accent-fill);
-  outline-offset: 1px;
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: 0;
 }
 
 .code-copy[data-state='copied'] {
@@ -1793,7 +1876,7 @@ button {
 
 .button:disabled,
 .button[aria-disabled='true'] {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
 }
 
 .button-destructive {
@@ -1918,7 +2001,7 @@ button {
 }
 
 .link-dialog-insert[aria-disabled='true'] {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
 }
 
 /* Sheets: a modal panel with a title, like the backups list. */
@@ -2285,8 +2368,8 @@ button {
 }
 
 .activity-cell:focus-visible {
-  outline: var(--space-1) solid var(--color-accent-fill);
-  outline-offset: var(--space-1);
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: 0;
 }
 
 .activity-future {
@@ -2578,8 +2661,9 @@ button {
 }
 
 .theme-card:has(input:focus-visible) .theme-card-previews {
-  outline: 2px solid var(--color-accent-fill);
-  outline-offset: 2px;
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  /* Beside the selected card's ring, not over it. */
+  outline-offset: var(--size-focus-ring);
 }
 
 .theme-preview {
@@ -2915,8 +2999,8 @@ button {
 }
 
 .palette-field:focus-within {
-  outline: 2px solid var(--color-accent-fill);
-  outline-offset: -2px;
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
 .palette-lead {
@@ -3162,8 +3246,8 @@ button.popup[aria-expanded='true'] {
 }
 
 button.popup:focus-visible {
-  outline: 2px solid var(--color-accent-fill);
-  outline-offset: 1px;
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: 0;
 }
 
 .popup[class*='status-'] .icon:first-child {

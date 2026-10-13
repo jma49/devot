@@ -23,14 +23,18 @@ Tokens use the [W3C Design Tokens (DTCG)](https://www.designtokens.org/) format.
 
 - **Window:** the window is transparent with the system `sidebar` effect; the sidebar shows the material through a light warm tint (`color.surface.sidebar`), while the note list and editor are opaque. Settings > Appearance can turn the material off: the sidebar then paints `color.surface.sidebar-opaque`, the same tint without transparency. The traffic lights and the sidebar toggle sit in the sidebar's top bar; a unified 52 px toolbar runs over the list and editor.
 - **Type:** the system UI font (SF Pro) and SF Mono, not bundled. Body 13 pt, captions and section headers 11 pt, sidebar rows 28 px. Scroll bars are 6 px wide.
-- **Selection:** the focused list shows its selection as an accent fill with white text; unfocused lists use a neutral fill.
+- **Selection:** the sidebar and the note list draw a selected row the same way: an accent wash (`color.fill.row-selected-unemphasized`) while the list does not have the keyboard, a solid `color.accent.fill` with `color.accent.on-fill` text and marks while it does.
+- **Text and lines:** tiers of one ink per appearance (`color.ink.text`, `color.ink.line`). Text: body 87%, under the pointer 80%, secondary 60%, placeholders and disabled 40%, selected 95% (`color.text.*`, each naming its tier); a tier is the ink over the editor, moved toward black or white only where contrast needs it. Lines: borders 15% (light) or 10% (dark), internal dividers 10% (`color.line.hairline`, `color.line.separator`).
+- **Surfaces:** the sidebar sits furthest from the editor, the note list one small step closer, the editor at the end; panes are divided by 1 px lines, never shadows. Floating things rest on the two-layer pop-up shadow.
+- **Focus:** custom controls show one ring, `size.focus-ring` wide in `color.focus.ring` on their edge (just inside a control that clips, such as a scroll list); native form controls keep the system ring. The ring is the accent fill at a design strength of 40% (light) or 30% (dark), raised to the least that keeps 3:1 on every surface (79% and 97%); with the system accent it is worked out the same way (`theme/accent.ts`).
+- **Disabled:** a control that cannot be used shows at `opacity.disabled`.
 - **Controls:** segmented controls, pop-up buttons and search fields follow AppKit sizes and shapes. A segmented control's selected segment is a raised neutral segment, not an accent fill.
 - **Floating bars:** the selection toolbar and the image size bar float over the editor on `color.surface.popover` (`radius.floating-bar`, a soft `color.line.shadow`), with a notch pointing at the text; a button under the pointer gets a round `color.line.control` ring, and tooltips show the command's key in a chip. The link dialog uses the same surface with `radius.dialog`.
 - **Menus:** the menu bar and every context menu are native. Settings live in the app menu (Devot ▸ Settings…, ⌘,), not in the window.
 
 ## Tag colours
 
-Tags may take one colour from a fixed palette of eight: red, orange, yellow, green, blue, purple, pink and gray (`color.tag.*` in each theme, light and dark). Notes store the palette ID, never a colour value, so a theme can restyle every tag. The colour shows as a dot in the sidebar and on tag chips.
+Tags may take one colour from a fixed palette of eight: red, orange, yellow, green, blue, purple, pink and gray (`color.tag.*` in each theme, light and dark). Notes store the palette ID, never a colour value, so a theme can restyle every tag. The colour shows as a dot in the sidebar and on tag chips. A coloured tag's chip mixes its colour with transparent: fill at `opacity.tag.fill` (10%), edge at `opacity.tag.border` (20%), and under the pointer or pressed 20% and 30%; its label is `color.tag-text.*`, the tag colour moved toward black (light) or white (dark) only as far as 4.5:1 on the chip needs. The dot is the colour at `opacity.tag.dot` (30%) inside a solid edge. The strengths are the same in both appearances; only the colours change.
 
 ## Activity heatmap
 
@@ -104,10 +108,13 @@ The preview draws its blocks from their own theme tokens: `color.code-block.*` a
 
 Floating things move by the `motion.*` tokens; a policy test rejects literal durations and curves in UI code.
 
+- Hover, press and selection: a control's fill, colour and edge ease over `motion.duration.hover` (180 ms, `motion.easing.out`). Two-state changes (a disclosure chevron turning, a section opening) take `motion.duration.toggle` (200 ms); colour changes meant to be noticed take `motion.duration.color` (400 ms).
+- A toolbar button's tooltip shows after the pointer rests `motion.delay.tooltip` (400 ms) and hides at once.
+
 - Floating bar buttons (selection toolbar, image size bar): under the pointer and pressed look the same, a `color.line.control` ring over `color.fill.tool-hover`. The text colour eases over `motion.duration.color` (`motion.easing.standard`), the ring over `motion.duration.ring` (`motion.easing.out`); the fill snaps.
 - Pop-ups we place ourselves (pickers, tag suggestions, toolbar tooltips, a bar button's tooltip) grow from `motion.scale.popover-enter` out of their notch or anchor while they fade in, over `motion.duration.popover`, on their own layer. They rest on the two-layer `shadow.popover-*` shadow in the `color.shadow.popover-*` colours; menus (pickers, tag suggestions) have a 1px hairline edge and `radius.card` corners, and toolbar tooltips a notch pointing at their button.
 - Pop-ups CodeMirror places (the floating bars, completion lists) and a code block's copy button only fade, over `motion.duration.fade`: CodeMirror places a tooltip from its measured box, which a growing one would throw off.
-- Reduce Motion sets `--popover-enter-scale` to 1 (`app.css`): everything fades, nothing grows or slides. Dismissal is instant.
+- Reduce Motion sets `--popover-enter-scale` to 1 (`app.css`) and stops chevrons turning and sections sliding open: everything fades, nothing grows, turns or slides. Dismissal is instant.
 
 ## Themes
 

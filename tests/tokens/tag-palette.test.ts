@@ -30,11 +30,19 @@ describe('tag colour palette', () => {
     expect(counts).toEqual(TAG_COLORS.map(() => 4))
   })
 
-  it('styles every colour: a class sets the dot colour from its token', () => {
+  it('styles every colour: a class sets the dot colour and the chip label from their tokens', () => {
     const css = read('src/renderer/src/app.css')
     for (const id of TAG_COLORS) {
-      expect(css).toContain(`.tag-color-${id} {\n  --tag-color: var(--color-tag-${id});\n}`)
+      expect(css).toContain(
+        `.tag-color-${id} {\n  --tag-color: var(--color-tag-${id});\n  --tag-text: var(--color-tag-text-${id});\n}`,
+      )
     }
+  })
+
+  it('has an AA chip label colour for every colour, light and dark', () => {
+    const css = read('src/renderer/src/theme/tokens.css')
+    const counts = TAG_COLORS.map((id) => css.split(`--color-tag-text-${id}:`).length - 1)
+    expect(counts).toEqual(TAG_COLORS.map(() => 4))
   })
 
   it('names every colour in the message catalog', () => {

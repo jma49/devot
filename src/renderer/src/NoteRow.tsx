@@ -13,7 +13,7 @@ import { fullDate, relativeTime } from './format'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
-import { TagDot } from './TagEditor'
+import { chipClass, TagDot } from './TagEditor'
 
 /** Each status's icon, in its colour (see `.status-*`). */
 export const STATUS_ICONS: Readonly<Record<NoteStatus, IconName>> = {
@@ -161,7 +161,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
         ) : null}
         {progress ? <TaskProgress {...progress} /> : null}
         {chips.map((c) => (
-          <span key={c.id} className="chip">
+          <span key={c.id} className={chipClass(c.color)}>
             {c.color ? <TagDot color={c.color} /> : null}
             {c.name}
           </span>
