@@ -27,7 +27,13 @@ import { BAR_GAP, FloatButton, FloatSeparator, floatTheme, NOTCH_X, useFloatTip 
 import { formatCommand, formatState, selectionHasLink, type ToolbarFormat } from './formats'
 import { openLinkDialog } from './LinkDialog'
 import { TOOLBAR_GROUPS, toolbarTip } from './toolbarButtons'
-import { hideToolbar, toolbarState, toolbarStateExtension, toolbarVisible } from './toolbarState'
+import {
+  hideToolbar,
+  toolbarOff,
+  toolbarState,
+  toolbarStateExtension,
+  toolbarVisible,
+} from './toolbarState'
 
 interface ToolbarProps {
   view: EditorView
@@ -156,8 +162,10 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
 
 const toolbarTooltip = (showAlertMenu: ShowAlertMenu) => {
   const create = (view: EditorView) => createToolbar(view, showAlertMenu)
-  return showTooltip.compute([toolbarState, 'selection', 'doc'], (state): Tooltip | null =>
-    toolbarVisible(state) ? { pos: state.selection.main.from, above: true, create } : null,
+  return showTooltip.compute(
+    [toolbarState, toolbarOff, 'selection', 'doc'],
+    (state): Tooltip | null =>
+      toolbarVisible(state) ? { pos: state.selection.main.from, above: true, create } : null,
   )
 }
 
