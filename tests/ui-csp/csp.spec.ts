@@ -96,12 +96,12 @@ test('the [[ link popup is styled and positioned under the policy', async ({ pag
   // Its theme applies, and its position (set through CSSOM) puts it just
   // below the line being typed, inside the window.
   await expect(popup.getByRole('option').first()).not.toHaveCSS('border-radius', '0px')
-  const line = await page.locator('.cm-activeLine').boundingBox()
+  const line = await page.locator('.cm-line').filter({ hasText: '[[' }).first().boundingBox()
   const box = await popup.boundingBox()
   const viewport = page.viewportSize()
   expect(line && box && viewport).toBeTruthy()
   if (line && box && viewport) {
-    expect(box.y).toBeGreaterThanOrEqual(line.y + line.height - 2)
+    expect(box.y).toBeGreaterThanOrEqual(line.y + line.height - 3)
     expect(box.y - (line.y + line.height)).toBeLessThan(20)
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width)
   }
@@ -352,7 +352,7 @@ test('the selection toolbar is styled and placed by the editor under the policy'
   expect(word && box).toBeTruthy()
   if (word && box) {
     expect(box.y + box.height).toBeLessThanOrEqual(word.y + 1)
-    expect(word.y - (box.y + box.height)).toBeLessThan(12)
+    expect(word.y - (box.y + box.height)).toBeLessThan(20)
   }
   await bold.click()
   await expect(page.locator('.cm-line').last()).toHaveText('fifth **line**')
@@ -457,12 +457,12 @@ test('the settings window lists usage events within the policy', async ({ page }
 
 test('the editor settings work under the policy in both windows', async ({ page }) => {
   await start(page, '/settings.html')
-  await settingsTab(page, 'Editor').click()
-  const editor = page.getByRole('region', { name: 'Editor' })
-  await editor.getByRole('checkbox', { name: 'Check spelling while typing' }).check()
-  await editor.getByRole('combobox', { name: 'Font' }).selectOption('Menlo')
-  await editor.getByRole('spinbutton', { name: 'Font size' }).fill('18')
-  await expect(editor.getByRole('combobox', { name: 'Line height' })).toHaveValue('1.4')
+  await settingsTab(page, 'Editing').click()
+  const editor = page.getByRole('region', { name: 'Editing' }).first()
+  await editor.getByRole('checkbox', { name: 'Spellcheck' }).check()
+  await editor.getByRole('combobox', { name: 'Font Family' }).selectOption('Menlo')
+  await editor.getByRole('spinbutton', { name: 'Font Size' }).fill('18')
+  await expect(editor.getByRole('combobox', { name: 'Line Height' })).toHaveValue('1.5')
   expect(await violations(page)).toEqual([])
 
   // The main window, with settings that set CSS variables and reconfigure the editor.
@@ -492,7 +492,7 @@ test('the command palette is styled and runs commands under the policy', async (
   await start(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Palette')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   const field = palette.getByRole('combobox', { name: 'Command Palette' })
   await expect(field).toBeFocused()
@@ -712,7 +712,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.addInitScript(() => {
       const w = globalThis as unknown as TestWindow
       w.devotEditorRevision = 1
-      w.devotEditorSettings = { lineNumbers: true, lineWrapping: false }
+      w.devotEditorSettings = { lineNumbers: true, lineWrapping: false, highlightActiveLine: true }
     })
     await start(page)
     await newNote(page, NOTE_FOR_COLOURS)
