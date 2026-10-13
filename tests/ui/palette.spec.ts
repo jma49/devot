@@ -563,9 +563,7 @@ test('b and a space scope the palette to notebooks; Shift+Return files the open 
   await field(page).fill('recip')
   await field(page).press('Shift+Enter')
   await expect(palette(page)).toBeHidden()
-  await expect(
-    page.getByRole('combobox', { name: 'Notebook' }).locator('option:checked'),
-  ).toHaveText(/Recipes/)
+  await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Recipes/)
 })
 
 test('Escape steps back from a query to the scope, to the sources, then closes', async ({
