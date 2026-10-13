@@ -27,9 +27,23 @@ pre-push:
       use_stdin: true
     - name: format
       run: pnpm format:check
+    # The heavy steps run only when the push changes files they check: a push
+    # of docs or images skips them (CI still runs what the change needs).
+    # Each glob is listed with and without `**/`, which needs a folder.
     - name: typecheck
+      glob:
+        - '*.{ts,tsx,js,mjs,cjs,json,yml,yaml}'
+        - '**/*.{ts,tsx,js,mjs,cjs,json,yml,yaml}'
       run: pnpm typecheck
+    # Vitest also reads Rust sources, migrations and capabilities.
     - name: unit-tests
+      glob:
+        - '*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,html}'
+        - '**/*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,html,rs,sql,sqlite}'
       run: pnpm test
     - name: rust
+      glob:
+        - 'src-tauri/*.{rs,toml,json}'
+        - 'src-tauri/**/*.{rs,toml,json,sql}'
+        - 'src-tauri/Cargo.lock'
       run: export PATH="$HOME/.cargo/bin:/opt/homebrew/opt/rustup/bin:/usr/local/opt/rustup/bin:$PATH" && cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
