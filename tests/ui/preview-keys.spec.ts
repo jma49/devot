@@ -1,0 +1,116 @@
+// The rendered note takes the keyboard and scrolls with it, in Preview mode
+// and in the Trash, and the font size keys (Cmd+=, Cmd+-, Cmd+0) resize it.
+import type { Page } from '@playwright/test'
+import { expect, test } from './fixtures'
+
+const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
+const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
+const trashRow = (page: Page) => sidebar(page).getByRole('button', { name: /^Trash \d+$/ })
+const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
+const modeButton = (page: Page, name: string) =>
+  page.getByRole('group', { name: 'View mode' }).getByRole('button', { name, exact: true })
+
+const paragraphs = (n: number) =>
+  Array.from({ length: n }, (_, i) => `Paragraph ${i + 1}`).join('\n\n')
+
+async function longNote(page: Page, title: string) {
+  await page.setViewportSize({ width: 1280, height: 600 })
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
+  await page.getByRole('textbox', { name: 'Title' }).fill(title)
+  await page.getByRole('textbox', { name: 'Note body' }).click()
+  await page.keyboard.insertText(`# Top heading\n\n${paragraphs(120)}`)
+  await expect(page.locator('.cm-line').last()).toHaveText('Paragraph 120')
+}
+
+const scrollTop = (page: Page) => preview(page).evaluate((e) => e.scrollTop)
+const fontSize = (page: Page, selector: string) =>
+  preview(page)
+    .locator(selector)
+    .first()
+    .evaluate((e) =>
+      Number.parseFloat(
+        (
+          globalThis as unknown as { getComputedStyle(el: unknown): { fontSize: string } }
+        ).getComputedStyle(e).fontSize,
+      ),
+    )
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+})
+
+test('Control+Tab reaches the preview in Preview mode, and the keys scroll it', async ({
+  page,
+}) => {
+  await longNote(page, 'Long')
+  await modeButton(page, 'Preview').click()
+  await expect(preview(page).getByText('Paragraph 120', { exact: true })).toBeAttached()
+  await sidebar(page)
+    .getByRole('button', { name: /^All Notes/ })
+    .focus()
+  await page.keyboard.press('Control+Tab')
+  await expect(noteRows(page).first()).toBeFocused()
+  await page.keyboard.press('Control+Tab')
+  await expect(preview(page)).toBeFocused()
+  expect(await scrollTop(page)).toBe(0)
+  await page.keyboard.press('PageDown')
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(200)
+  const after = await scrollTop(page)
+  await page.keyboard.press('ArrowDown')
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(after)
+  await page.keyboard.press('End')
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(after + 1000)
+})
+
+test('Control+Tab reaches the rendered note in the Trash, and the keys scroll it', async ({
+  page,
+}) => {
+  await longNote(page, 'Long')
+  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await expect(trashRow(page)).toHaveText(/1$/)
+  await trashRow(page).click()
+  await noteRows(page).first().click()
+  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+  await expect(preview(page).getByText('Paragraph 120', { exact: true })).toBeAttached()
+  await noteRows(page).first().focus()
+  await page.keyboard.press('Control+Tab')
+  await expect(preview(page)).toBeFocused()
+  await page.keyboard.press('PageDown')
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(200)
+})
+
+test('Tab reaches the preview from the Trash buttons, with a focus ring', async ({ page }) => {
+  await longNote(page, 'Long')
+  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await trashRow(page).click()
+  await noteRows(page).first().click()
+  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+  await page.getByRole('button', { name: 'Delete Permanently' }).focus()
+  await page.keyboard.press('Tab')
+  await expect(preview(page)).toBeFocused()
+  // Focus that came by Tab shows the ring; a click does not need it.
+  await expect(preview(page)).not.toHaveCSS('box-shadow', 'none')
+})
+
+test('Cmd+= and Cmd+- resize the preview, and Cmd+0 resets it', async ({ page }) => {
+  await longNote(page, 'Sized')
+  await modeButton(page, 'Preview').click()
+  await expect(preview(page).getByRole('heading', { name: 'Top heading' })).toBeVisible()
+  const base = await fontSize(page, 'p')
+  const heading = await fontSize(page, 'h1')
+  await page.keyboard.press('Meta+Equal')
+  // 13 to 14 px in the editor: the preview grows by the same ratio.
+  await expect.poll(() => fontSize(page, 'p')).toBeCloseTo((base * 14) / 13, 1)
+  await expect.poll(() => fontSize(page, 'h1')).toBeCloseTo((heading * 14) / 13, 1)
+  await page.keyboard.press('Meta+Equal')
+  await expect.poll(() => fontSize(page, 'p')).toBeCloseTo((base * 15) / 13, 1)
+  await page.keyboard.press('Meta+Minus')
+  await page.keyboard.press('Meta+Minus')
+  await expect.poll(() => fontSize(page, 'p')).toBeCloseTo(base, 1)
+  await page.keyboard.press('Meta+Equal')
+  await page.keyboard.press('Meta+Digit0')
+  await expect.poll(() => fontSize(page, 'p')).toBeCloseTo(base, 1)
+})

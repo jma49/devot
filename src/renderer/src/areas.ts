@@ -49,8 +49,9 @@ export const visible = (el: HTMLElement | null): el is HTMLElement =>
  * What takes the keyboard in each area: the sidebar's row that is its tab
  * stop; the list's (its open note's or first row, else the list itself); in
  * the editor area the note's text (once the editor has loaded, `editor`),
- * else its title, else the first button of the note (the Trash's Restore).
- * Undefined for an area with none shown.
+ * else the rendered note (Preview mode, the Trash), which scrolls with the
+ * keys, else the title, else the first button of the note. Undefined for an
+ * area with none shown.
  */
 export function areaTargets(
   editor: { focus: () => void } | null,
@@ -67,6 +68,7 @@ export function areaTargets(
       one('[data-devot-part="list"] [role="listbox"]'),
     editor:
       (editor && visible(body) && !body.hidden ? () => editor.focus() : undefined) ??
+      one('main [data-devot-part="preview"]') ??
       one('main input.title') ??
       one('main > :not([data-devot-part="toolbar"]) button:not(:disabled)'),
   }

@@ -277,8 +277,10 @@ export function Preview({
         className="preview"
         data-devot-part="preview"
         aria-label={t('preview.label')}
-        // Focusable, so a click puts find (Cmd+F) here in split mode.
-        tabIndex={-1}
+        // Focusable: a click puts find (Cmd+F) here in split mode, and the
+        // keyboard scrolls it (Control+Tab lands here when it is the editor
+        // area, see areas.ts).
+        tabIndex={0}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}

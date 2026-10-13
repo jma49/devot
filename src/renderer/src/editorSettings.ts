@@ -36,6 +36,8 @@ export interface StyleTarget {
 /** Sets the CSS variables the editor's theme reads. */
 export function applyEditorStyle(settings: EditorSettings, style: StyleTarget): void {
   style.setProperty('--editor-font-size', `${settings.fontSize}px`)
+  // The preview grows and shrinks with the editor's size (13 px is 1).
+  style.setProperty('--preview-scale', String(settings.fontSize / DEFAULT_EDITOR_SETTINGS.fontSize))
   style.setProperty('--editor-line-height', String(settings.lineHeight))
   style.setProperty('--editor-font-family', FONT_STACKS[settings.fontFamily])
 }
