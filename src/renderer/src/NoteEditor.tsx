@@ -24,6 +24,7 @@ import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
 import { imageActions, imageAt, imageSizeChange, viewImageAt } from './editor/images'
 import { TABLE_COMMANDS, inTable, tableKeymap, type TableCommandId } from './editor/tableCommands'
 import { tableTyping } from './editor/tableTyping'
+import { markdownLineStyles } from './editor/lineStyles'
 import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
 import { pasteUrls, plainPaste } from './editor/paste'
 import { editorSetup, reconfigureSetup } from './editor/settings'
@@ -295,7 +296,7 @@ const theme = EditorView.theme({
   '&': {
     height: '100%',
     backgroundColor: 'transparent',
-    color: 'var(--color-text-primary)',
+    color: 'var(--color-text-editor)',
   },
   // The text only: popups inside the editor keep the UI's size.
   '.cm-scroller': {
@@ -304,7 +305,21 @@ const theme = EditorView.theme({
     lineHeight: 'var(--editor-line-height, 1.4)',
   },
   '&.cm-focused': { outline: 'none' },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-accent-fill)' },
+  // Thin scroll bars, as in the rest of the window (app.css).
+  '.cm-scroller::-webkit-scrollbar': {
+    width: 'var(--size-scrollbar)',
+    height: 'var(--size-scrollbar)',
+    background: 'transparent',
+  },
+  '.cm-scroller::-webkit-scrollbar-thumb': {
+    borderRadius: 'var(--radius-capsule)',
+    background: 'var(--color-fill-scrollbar)',
+  },
+  '.cm-cursor, .cm-dropCursor': {
+    borderLeftColor: 'var(--color-editor-caret)',
+    borderLeftWidth: 'var(--space-1)',
+  },
+  '.cm-placeholder': { color: 'var(--color-editor-placeholder)' },
   // CodeMirror's own colours are for a light page; these follow the tokens,
   // so the gutter, the active line and the selection read in both appearances.
   // The gutter is sticky: it stays opaque so unwrapped text scrolled under it does not show through.
@@ -313,15 +328,17 @@ const theme = EditorView.theme({
     color: 'var(--color-text-tertiary)',
     border: '0',
   },
-  '.cm-activeLine': { backgroundColor: 'var(--color-fill-track)' },
+  '.cm-activeLine': { backgroundColor: 'var(--color-editor-active-line)' },
   '.cm-activeLineGutter': {
-    backgroundColor: 'var(--color-fill-track)',
+    backgroundColor: 'var(--color-editor-active-line)',
     color: 'var(--color-text-primary)',
   },
   // The selection is drawn in a layer behind the lines, so the active line's tint lies over it.
-  // A solid accent tint that stands 1.3:1 from both; focused or not, it is the same colour.
-  '.cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground':
-    { backgroundColor: 'var(--color-accent-selection)' },
+  // A solid tint that stands 1.3:1 from both; lighter while the editor does not have focus.
+  '.cm-selectionBackground': { backgroundColor: 'var(--color-accent-selection-inactive)' },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
+    backgroundColor: 'var(--color-accent-selection)',
+  },
   '.cm-selectionMatch': { backgroundColor: 'var(--color-fill-match)' },
   '.cm-foldPlaceholder': {
     backgroundColor: 'var(--color-fill-track)',
@@ -346,8 +363,8 @@ const theme = EditorView.theme({
     borderRadius: 'var(--radius-button)',
   },
   '.cm-tooltip-autocomplete ul li[aria-selected]': {
-    backgroundColor: 'var(--color-accent-fill)',
-    color: 'var(--color-accent-on-fill)',
+    backgroundColor: 'var(--color-editor-completion-selected)',
+    color: 'var(--color-text-primary)',
   },
   // A slash menu item's key, and the letters its query matched (as in the palette).
   '.cm-completionDetail': {
@@ -356,12 +373,10 @@ const theme = EditorView.theme({
     fontSize: 'var(--font-size-footnote)',
     color: 'var(--color-text-tertiary)',
   },
-  '.cm-tooltip-autocomplete ul li[aria-selected] .cm-completionDetail': {
-    color: 'var(--color-accent-on-fill)',
-  },
   '.cm-completionMatchedText': {
     textDecoration: 'none',
-    fontWeight: 'var(--font-weight-semibold)',
+    fontWeight: 'var(--font-weight-bold)',
+    color: 'var(--color-syntax-markup)',
   },
   '.cm-completionIcon': { display: 'none' },
 })
@@ -598,6 +613,8 @@ export function NoteEditor({
               imeKeys(),
               theme,
               syntaxHighlighting(noteHighlightStyle),
+              // Heading sizes, list levels, code chips, quotes, alerts and tables.
+              markdownLineStyles,
               // The GFM dialect (strikethrough, tables, task lists) and front matter.
               noteMarkdown,
               attachImages(core, noteId, text, (codes) => imagesRefused.current?.(codes)),

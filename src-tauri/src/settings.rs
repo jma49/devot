@@ -31,8 +31,14 @@ pub fn open(app: &AppHandle) {
         }
         return;
     }
+    // The appearance chosen in Settings, or the system's.
+    let theme = app
+        .try_state::<std::sync::Arc<crate::editor_settings::EditorSettingsStore>>()
+        .and_then(|store| store.get().ok())
+        .and_then(|stored| stored.settings.appearance.window_theme());
     let built = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(PAGE.into()))
         .title(strings::SETTINGS_TITLE)
+        .theme(theme)
         .inner_size(WIDTH, INITIAL_HEIGHT)
         .resizable(false)
         .minimizable(false)

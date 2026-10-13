@@ -1,6 +1,8 @@
-// Follows the macOS accent colour. The generated tokens read
-// `--system-accent-<role>-<appearance>` (role: fill, text or selection) and
-// fall back to Devot teal, so Multicolor only needs the overrides removed.
+// Follows the macOS accent colour when Settings > Appearance asks for it
+// (off by default: Devot's own palette). The generated tokens read
+// `--system-accent-<role>-<appearance>` (role: fill, text, selection or
+// selection-inactive) and fall back to Devot's palette, so Multicolor, or
+// the setting turned off, only needs the overrides removed.
 //
 // The system gives one colour per appearance, but Devot draws it two ways:
 // as a fill under white text (selections, buttons) and as text or a link on
@@ -26,7 +28,7 @@ export interface StyleTarget {
 
 const HEX = /^#[0-9a-f]{6}$/i
 type Appearance = 'light' | 'dark'
-const ROLES = ['fill', 'text', 'selection'] as const
+const ROLES = ['fill', 'text', 'selection', 'selection-inactive'] as const
 const varName = (role: (typeof ROLES)[number], appearance: Appearance) =>
   `--system-accent-${role}-${appearance}`
 
@@ -42,28 +44,37 @@ const THEMES = { light, dark } as const
  */
 export const SELECTION_CONTRAST = 1.3
 
+/** How strong the selection of an editor without focus is, against the focused one's. */
+export const INACTIVE_SELECTION = 13 / 30
+
 /**
  * The editor selection for an accent fill: the fill mixed into the editor
  * surface, in 1% steps, until it stands `SELECTION_CONTRAST` from the editor
  * and, with the active line's tint over it (CodeMirror draws the selection in
  * a layer under the lines), from the active line. Solid, so it is the same
- * colour whatever it is drawn over.
+ * colour whatever it is drawn over. `inactive` is the same mix at
+ * `INACTIVE_SELECTION` of the strength, for an editor without focus.
  */
-export function selectionTint(fill: Rgb, appearance: Appearance): Rgb {
+export function selectionTints(fill: Rgb, appearance: Appearance): { focused: Rgb; inactive: Rgb } {
   const theme = THEMES[appearance]
   const editor = parseColor(theme['color.surface.editor']).rgb
-  const track = parseColor(theme['color.fill.track'])
-  const activeLine = composite(track, editor)
+  const line = parseColor(theme['color.editor.active-line'])
+  const activeLine = composite(line, editor)
+  const mix = (alpha: number) => composite({ rgb: fill, alpha }, editor).map(Math.round) as Rgb
   for (let step = 1; step <= 100; step++) {
-    const tint = composite({ rgb: fill, alpha: step / 100 }, editor).map(Math.round) as Rgb
+    const tint = mix(step / 100)
     if (
       contrastRatio(tint, editor) >= SELECTION_CONTRAST &&
-      contrastRatio(composite(track, tint), activeLine) >= SELECTION_CONTRAST
+      contrastRatio(composite(line, tint), activeLine) >= SELECTION_CONTRAST
     )
-      return tint
+      return { focused: tint, inactive: mix((step / 100) * INACTIVE_SELECTION) }
   }
-  return fill
+  return { focused: fill, inactive: mix(INACTIVE_SELECTION) }
 }
+
+/** The focused editor's selection for an accent fill (`selectionTints`). */
+export const selectionTint = (fill: Rgb, appearance: Appearance): Rgb =>
+  selectionTints(fill, appearance).focused
 
 /**
  * What accent text can sit on: the surfaces, the track and selected-row fills
@@ -80,7 +91,7 @@ function textBackdrops(appearance: Appearance, selection: Rgb): Rgb[] {
     ...surfaces,
     ...surfaces.flatMap((s) => fills.map((f) => composite(f, s))),
     selection,
-    composite(track, selection),
+    composite(parseColor(theme['color.editor.active-line']), selection),
   ]
 }
 
@@ -97,10 +108,11 @@ export function readableAccent(
   const theme = THEMES[appearance]
   const onFill = parseColor(theme['color.accent.on-fill']).rgb
   const fill = toHex(readableOn(accent, [onFill], 'darker', TARGET))
-  const selection = selectionTint(parseColor(fill).rgb, appearance)
+  const { focused: selection, inactive } = selectionTints(parseColor(fill).rgb, appearance)
   return {
     fill,
     selection: toHex(selection),
+    'selection-inactive': toHex(inactive),
     // Light text darkens toward black on paper; dark text lightens on the night surfaces.
     text: toHex(
       readableOn(
@@ -126,9 +138,29 @@ export function applyAccent(info: AccentInfo, style: StyleTarget): void {
 
 export const ACCENT_EVENT = 'devot://accent-changed'
 
-/** Applies the current accent and keeps it in sync. Returns a stop function. */
-export async function followSystemAccent(style: StyleTarget): Promise<() => void> {
+/** No system accent: every role falls back to Devot's palette. */
+const OWN_PALETTE: AccentInfo = { multicolor: true, light: null, dark: null }
+
+/**
+ * Applies the system accent while `wanted()` says so (Settings >
+ * Appearance), Devot's palette otherwise, and keeps it in sync: call the
+ * returned `refresh` when the setting changes.
+ */
+export async function followSystemAccent(
+  style: StyleTarget,
+  wanted: () => boolean,
+): Promise<() => void> {
+  let latest: AccentInfo | undefined
+  const show = () => applyAccent(wanted() && latest ? latest : OWN_PALETTE, style)
+  show()
   const { listen } = await import('@tauri-apps/api/event')
-  applyAccent(await invoke<AccentInfo>('system_accent'), style)
-  return listen<AccentInfo>(ACCENT_EVENT, (event) => applyAccent(event.payload, style))
+  await listen<AccentInfo>(ACCENT_EVENT, (event) => {
+    latest = event.payload
+    show()
+  })
+  const current = await invoke<AccentInfo>('system_accent')
+  // An event that came in meanwhile is newer.
+  latest ??= current
+  show()
+  return show
 }

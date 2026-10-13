@@ -453,7 +453,15 @@
       },
       "mono": {
         "$type": "fontFamily",
-        "$value": ["ui-monospace", "SF Mono", "Menlo", "monospace"]
+        "$value": [
+          "SFMono-Regular",
+          "ui-monospace",
+          "Consolas",
+          "Liberation Mono",
+          "Menlo",
+          "Courier",
+          "monospace"
+        ]
       }
     },
     "size": {
@@ -513,6 +521,30 @@
           "unit": "px"
         },
         "$description": "The open note's title, above its notebook, status and tags."
+      },
+      "editor-h1": {
+        "$type": "dimension",
+        "$description": "A level 1 heading line in the editor, at the default 13 px text.",
+        "$value": {
+          "value": 22,
+          "unit": "px"
+        }
+      },
+      "editor-h2": {
+        "$type": "dimension",
+        "$description": "A level 2 heading line in the editor, at the default 13 px text.",
+        "$value": {
+          "value": 18,
+          "unit": "px"
+        }
+      },
+      "editor-h3": {
+        "$type": "dimension",
+        "$description": "A level 3 heading line in the editor, at the default 13 px text.",
+        "$value": {
+          "value": 15,
+          "unit": "px"
+        }
       }
     },
     "weight": {
@@ -603,6 +635,14 @@
     }
   },
   "radius": {
+    "mark": {
+      "$type": "dimension",
+      "$description": "Inline code chips and the box around tables in the editor.",
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      }
+    },
     "control": {
       "$type": "dimension",
       "$value": {
@@ -756,6 +796,14 @@
       "$description": "The height of an image shown under its line in the editor (fixed, so lines never move as images load).",
       "$value": {
         "value": 160,
+        "unit": "px"
+      }
+    },
+    "scrollbar": {
+      "$type": "dimension",
+      "$description": "The width of a scroll bar.",
+      "$value": {
+        "value": 6,
         "unit": "px"
       }
     }

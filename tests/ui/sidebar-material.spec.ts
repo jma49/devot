@@ -18,8 +18,8 @@ import {
 
 /** The sidebar's surfaces (`color.surface.sidebar` and `-opaque`). */
 const SURFACES = {
-  light: { material: 'rgba(241, 240, 237, 0.7)', opaque: 'rgb(241, 240, 237)' },
-  dark: { material: 'rgba(28, 27, 25, 0.7)', opaque: 'rgb(28, 27, 25)' },
+  light: { material: 'rgba(243, 244, 246, 0.7)', opaque: 'rgb(243, 244, 246)' },
+  dark: { material: 'rgba(23, 23, 23, 0.7)', opaque: 'rgb(23, 23, 23)' },
 } as const
 const CLEAR = 'rgba(0, 0, 0, 0)'
 

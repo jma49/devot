@@ -43,7 +43,7 @@ function backdrops(theme: Theme, overlays: string[] = []): Rgb[] {
  */
 function selectionBackdrops(theme: Theme, selection: Rgba): Rgb[] {
   const selected = composite(selection, solid(theme, 'surface.editor'))
-  return [selected, over(theme, 'fill.track', selected)]
+  return [selected, over(theme, 'editor.active-line', selected)]
 }
 
 /**
@@ -56,7 +56,7 @@ function selectionStandsOut(theme: Theme, selection: Rgba): Record<string, numbe
   const [selected, selectedLine] = selectionBackdrops(theme, selection)
   return {
     'from the editor': contrastRatio(selected!, editor),
-    'from the active line': contrastRatio(selectedLine!, over(theme, 'fill.track', editor)),
+    'from the active line': contrastRatio(selectedLine!, over(theme, 'editor.active-line', editor)),
   }
 }
 
@@ -64,24 +64,29 @@ const below = (min: number, ratios: Record<string, number>): string[] =>
   Object.entries(ratios).flatMap(([name, r]) => (r < min ? [`${name} ${r.toFixed(3)}`] : []))
 
 /**
+ * The colours the editor draws text in: its body text, front matter (the
+ * secondary text), every syntax colour and every alert colour.
+ */
+function editorText(theme: Theme): Record<string, Rgb> {
+  const group = (prefix: string) =>
+    Object.keys(theme)
+      .filter((key) => key.startsWith(`color.${prefix}.`))
+      .map((key) => key.slice('color.'.length))
+  return Object.fromEntries(
+    ['text.editor', 'text.secondary', ...group('syntax'), ...group('alert')].map((path) => [
+      path,
+      solid(theme, path),
+    ]),
+  )
+}
+
+/**
  * The editor's text colours that must keep 4.5:1 on a selection: body, front
  * matter, links and every syntax colour. Only the de-emphasised tertiary text
- * (rules, fences, comments) may drop to 3:1, and only on the selection.
+ * (rules, section labels) may drop to 3:1, and only on the selection.
  */
 function selectedText(theme: Theme, link: Rgb): Record<string, Rgb> {
-  return {
-    primary: solid(theme, 'text.primary'),
-    'secondary (front matter)': solid(theme, 'text.secondary'),
-    link,
-    keyword: solid(theme, 'syntax.keyword'),
-    function: solid(theme, 'syntax.function'),
-    string: solid(theme, 'syntax.string'),
-    inserted: solid(theme, 'syntax.inserted'),
-    deleted: solid(theme, 'syntax.deleted'),
-    heading: solid(theme, 'syntax.heading'),
-    markup: solid(theme, 'syntax.markup'),
-    list: solid(theme, 'syntax.list'),
-  }
+  return { primary: solid(theme, 'text.primary'), link, ...editorText(theme) }
 }
 
 const checkedOn = (colours: Record<string, Rgb>, backgrounds: Rgb[]) =>
@@ -185,21 +190,24 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     expect(worst(solid(theme, 'text.destructive'), faces)).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('draws editor syntax colours at 4.5:1 on the editor, also on the active line', () => {
+  it('draws editor text, secondary text and every syntax and alert colour at 4.5:1 on the editor, also on the active line', () => {
     const editor = solid(theme, 'surface.editor')
-    const lines = [editor, over(theme, 'fill.track', editor)]
-    expect(
-      under(4.5, {
-        keyword: [solid(theme, 'syntax.keyword'), lines],
-        function: [solid(theme, 'syntax.function'), lines],
-        string: [solid(theme, 'syntax.string'), lines],
-        inserted: [solid(theme, 'syntax.inserted'), lines],
-        deleted: [solid(theme, 'syntax.deleted'), lines],
-        heading: [solid(theme, 'syntax.heading'), lines],
-        markup: [solid(theme, 'syntax.markup'), lines],
-        list: [solid(theme, 'syntax.list'), lines],
-      }),
-    ).toEqual([])
+    const lines = [editor, over(theme, 'editor.active-line', editor)]
+    const colours = editorText(theme)
+    // Every colour of the syntax and alert groups is checked, not only the ones listed here.
+    expect(Object.keys(colours)).toEqual(
+      expect.arrayContaining(['text.editor', 'syntax.heading', 'syntax.link', 'alert.note']),
+    )
+    expect(under(4.5, checkedOn(colours, lines))).toEqual([])
+  })
+
+  it('draws the inactive selection lighter than the focused one, and its text at 4.5:1', () => {
+    const editor = solid(theme, 'surface.editor')
+    const focused = solid(theme, 'accent.selection')
+    const inactive = solid(theme, 'accent.selection-inactive')
+    expect(contrastRatio(inactive, editor)).toBeLessThan(contrastRatio(focused, editor))
+    expect(contrastRatio(inactive, editor)).toBeGreaterThan(1)
+    expect(under(4.5, checkedOn(editorText(theme), [inactive]))).toEqual([])
   })
 
   it('sets the selection 1.3:1 apart from the editor and from the active line', () => {

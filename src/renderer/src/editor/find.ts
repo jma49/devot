@@ -132,6 +132,7 @@ const theme = EditorView.theme({
   '.cm-find-current, .cm-find-current .cm-find-match': {
     borderRadius: 'var(--space-1)',
     backgroundColor: 'var(--color-fill-match-current)',
+    outline: '1px solid var(--color-line-match)',
   },
   '&[data-find] .cm-selectionMatch': { backgroundColor: 'transparent' },
 })

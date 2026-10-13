@@ -320,8 +320,15 @@ describe('Markdown source highlighting', () => {
     expect(has(at[doc.indexOf('go_')], tags.emphasis)).toBe(true)
     expect(has(at[doc.indexOf('x`')], tags.monospace)).toBe(true)
     expect(has(at[doc.indexOf('- item')], markupTags.list)).toBe(true)
-    expect(has(at[doc.indexOf('> quote')], markupTags.list)).toBe(true)
-    for (const tag of [markupTags.heading, markupTags.list, tags.tagName, tags.monospace])
+    expect(has(at[doc.indexOf('> quote')], markupTags.quote)).toBe(true)
+    expect(has(at[doc.indexOf('quote\n')], tags.quote)).toBe(true)
+    for (const tag of [
+      markupTags.heading,
+      markupTags.list,
+      markupTags.quote,
+      tags.tagName,
+      tags.monospace,
+    ])
       expect(style(tag)).toBeTruthy()
   })
 
