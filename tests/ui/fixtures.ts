@@ -70,7 +70,8 @@ export interface MockMirror {
  * `window.devotIpcCalls` and `symbol_png` answers with a tiny PNG. Native
  * menus are kept in `window.devotMenus` (see `shownMenu`, `pickMenuItem`);
  * `clipboard_write_text`, `usage_record`, `format_menu_set` and
- * `sidebar_menu_set` succeed, and
+ * `sidebar_menu_set` succeed (and so does `settings_fit`, the Settings window
+ * fitting its pane), and
  * `sidebar_material_sync` answers with the stored sidebar material. The editor settings live
  * in `window.devotEditorSettings` (revision `devotEditorRevision`; see
  * `changeEditorSettingsElsewhere`): `editor_settings_set` merges its change
@@ -111,6 +112,15 @@ export const test = base.extend({
 export async function openApp(page: Page, path = '/'): Promise<void> {
   await page.goto(path)
   await appReady(page)
+}
+
+/**
+ * Opens the Settings window on the pane whose toolbar tab is `tab` (it opens
+ * on the pane shown last, General at first).
+ */
+export async function openSettings(page: Page, tab: string): Promise<void> {
+  await page.goto('/settings.html')
+  await page.getByRole('tab', { name: tab, exact: true }).click()
 }
 
 /** Reloads the page and returns once the window is ready (see `openApp`). */
@@ -155,7 +165,8 @@ export async function mockTauri(page: Page): Promise<void> {
             cmd === 'usage_record' ||
             cmd === 'format_menu_set' ||
             cmd === 'sidebar_menu_set' ||
-            cmd === 'command_menu_set'
+            cmd === 'command_menu_set' ||
+            cmd === 'settings_fit'
           )
             return null
           if (cmd === 'keyboard_shortcuts_get')

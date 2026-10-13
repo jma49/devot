@@ -155,7 +155,9 @@ export function KeyboardSection() {
 
   return (
     <section className="settings-section" aria-labelledby="shortcuts-title">
-      <h2 id="shortcuts-title">{t('shortcuts.title')}</h2>
+      <h2 id="shortcuts-title" className="visually-hidden">
+        {t('shortcuts.title')}
+      </h2>
       <p>{t('shortcuts.detail')}</p>
       <p>{t('shortcuts.howTo')}</p>
       <p className="visually-hidden" role="status" aria-live="polite">

@@ -31,6 +31,7 @@ const status = (page: Page) => section(page).getByRole('status')
 
 async function openSettings(page: Page) {
   await page.goto('/settings.html')
+  await page.getByRole('tab', { name: 'Keyboard', exact: true }).click()
   await expect(section(page).getByRole('heading', { name: 'Keyboard Shortcuts' })).toBeVisible()
 }
 

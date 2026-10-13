@@ -1912,6 +1912,36 @@ pub fn show_critical_alert(title: &str, message: &str) -> bool {
     true
 }
 
+// ---- Settings window -------------------------------------------------------
+
+/// Gives `window` a content area `height` points tall, keeping its width
+/// and its top edge where they are (a settings window grows and shrinks
+/// downward as its panes change), animated when `animate`. Must run on the
+/// main thread; false when it is not or the window is gone.
+pub fn set_content_height(window: &tauri::WebviewWindow, height: f64, animate: bool) -> bool {
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
+    if MainThreadMarker::new().is_none() {
+        return false;
+    }
+    let Some(ns_window) = window.ns_window().ok().filter(|w| !w.is_null()) else {
+        return false;
+    };
+    // SAFETY: `ns_window()` returns the window's live NSWindow (checked
+    // non-null above), borrowed only for this call on the main thread.
+    let ns_window = unsafe { &*ns_window.cast::<NSWindow>() };
+    catch_unwind(AssertUnwindSafe(|| {
+        let content = ns_window.contentRectForFrameRect(ns_window.frame());
+        let top = content.origin.y + content.size.height;
+        let next = NSRect::new(
+            NSPoint::new(content.origin.x, top - height),
+            NSSize::new(content.size.width, height),
+        );
+        let frame = ns_window.frameRectForContentRect(next);
+        ns_window.setFrame_display_animate(frame, true, animate);
+    }))
+    .is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

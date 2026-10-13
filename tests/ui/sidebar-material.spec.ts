@@ -1,5 +1,11 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './fixtures'
+import {
+  changeEditorSettingsElsewhere,
+  expect,
+  openSettings,
+  test,
+  type TestWindow,
+} from './fixtures'
 
 // The sidebar material (Settings > Appearance). With it on (the default) the
 // sidebar lets the window's material show through a light tint; turned off,
@@ -287,7 +293,7 @@ test('stored settings without the material mean the default, the material', asyn
 })
 
 test('the Settings window turns the material off and on', async ({ page }) => {
-  await page.goto('/settings.html')
+  await openSettings(page, 'Appearance')
   await expect(appearance(page).getByRole('heading', { name: 'Appearance' })).toBeVisible()
   await expect(translucent(page)).toBeChecked()
   await expect(translucent(page)).toHaveAccessibleDescription(/opaque sidebar/)
@@ -306,7 +312,7 @@ test('the Settings window turns the material off and on', async ({ page }) => {
 
 test('the Settings window shows the stored choice and changes from elsewhere', async ({ page }) => {
   await stored(page, { sidebarMaterial: false })
-  await page.goto('/settings.html')
+  await openSettings(page, 'Appearance')
   await expect(translucent(page)).not.toBeChecked()
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: true })
   await expect(translucent(page)).toBeChecked()
@@ -317,7 +323,7 @@ test('a change that cannot be stored is reported and dropped', async ({ page }) 
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = { editor_settings_set: { error: 'E_EDITOR_SETTINGS_WRITE_FAILED' } }
   })
-  await page.goto('/settings.html')
+  await openSettings(page, 'Appearance')
   // A click, not uncheck(): the box goes back as soon as Rust refuses.
   await translucent(page).click()
   await expect(appearance(page).getByRole('alert')).toContainText('E_EDITOR_SETTINGS_WRITE_FAILED')

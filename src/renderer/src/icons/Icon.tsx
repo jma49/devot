@@ -8,6 +8,9 @@ const cache = createSymbolCache((name, pointSize) =>
 
 const DARK = '(prefers-color-scheme: dark)'
 
+/** Each size in points, as its `--size-icon-*` token. */
+const POINT_SIZES = { sm: 14, md: 17, lg: 22 } as const
+
 function subscribe(onChange: () => void) {
   const query = matchMedia(DARK)
   query.addEventListener('change', onChange)
@@ -22,10 +25,10 @@ export function useAppearance(): Appearance {
  * An SF Symbol, coloured with the text colour of its parent. Decorative: the
  * control that holds it carries the accessible name.
  */
-export function Icon({ name, size }: { name: IconName; size: 'sm' | 'md' }) {
+export function Icon({ name, size }: { name: IconName; size: 'sm' | 'md' | 'lg' }) {
   const appearance = useAppearance()
   const symbol = symbolFor(name)
-  const pointSize = size === 'sm' ? 14 : 17
+  const pointSize = POINT_SIZES[size]
   const [url, setUrl] = useState<string>()
 
   useEffect(() => {

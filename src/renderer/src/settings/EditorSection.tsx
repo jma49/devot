@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   FONT_FAMILIES,
   FONT_SIZE_MAX,
@@ -18,7 +18,7 @@ import { shortcutLabel } from '../commands/keys'
 import { useKeymap } from '../commands/shortcutSettings'
 import { useEditorSettings } from '../editorSettings'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
-import { SettingsFlag, useSettingsChange } from './controls'
+import { FormGroup, FormHint, FormRow, SettingsFlag, useSettingsChange } from './controls'
 
 const FONT_LABELS: Readonly<Record<FontFamilyId, MessageKey>> = {
   system: 'editorSettings.font.system',
@@ -85,16 +85,6 @@ function fontSizeHint(): string {
   })
 }
 
-/** A labelled row: the label on the left, the control on the right. */
-function Row({ id, label, children }: { id: string; label: MessageKey; children: ReactNode }) {
-  return (
-    <div className="settings-row">
-      <label htmlFor={id}>{t(label)}</label>
-      <div className="settings-control">{children}</div>
-    </div>
-  )
-}
-
 /**
  * Settings > Editor: how the note editor looks and behaves. Every change is
  * stored at once and applies to the editor in every window; changes made
@@ -159,31 +149,32 @@ export function EditorSection() {
 
   return (
     <section className="settings-section" aria-labelledby="editor-title">
-      <h2 id="editor-title">{t('editorSettings.title')}</h2>
-      <p>{t('editorSettings.detail')}</p>
+      <h2 id="editor-title" className="visually-hidden">
+        {t('editorSettings.title')}
+      </h2>
       {error ? (
         <p role="alert" className="settings-error">
           {format(t('editorSettings.failed'), { code: error })}
         </p>
       ) : null}
-      <fieldset className="settings-group">
-        <legend>{t('editorSettings.view')}</legend>
-        {flag('lineNumbers')}
-        {flag('lineWrapping')}
-        {/* Only wrapped lines can keep to a width (see editor/settings.ts). */}
-        {flag(
-          'readableWidth',
-          settings.lineWrapping
-            ? undefined
-            : { id: id('width-hint'), text: 'editorSettings.readableWidthHint' },
-        )}
-        {flag('highlightActiveLine')}
-        {flag('syncScroll')}
-        {flag('inlineImages')}
-      </fieldset>
-      <fieldset className="settings-group">
-        <legend>{t('editorSettings.text')}</legend>
-        <Row id={id('font')} label="editorSettings.fontFamily">
+      <FormGroup>
+        <FormRow label="editorSettings.view">
+          {flag('lineNumbers')}
+          {flag('lineWrapping')}
+          {/* Only wrapped lines can keep to a width (see editor/settings.ts). */}
+          {flag(
+            'readableWidth',
+            settings.lineWrapping
+              ? undefined
+              : { id: id('width-hint'), text: 'editorSettings.readableWidthHint' },
+          )}
+          {flag('highlightActiveLine')}
+          {flag('syncScroll')}
+          {flag('inlineImages')}
+        </FormRow>
+      </FormGroup>
+      <FormGroup label="editorSettings.text">
+        <FormRow htmlFor={id('font')} label="editorSettings.fontFamily">
           <select
             id={id('font')}
             value={settings.fontFamily}
@@ -195,8 +186,8 @@ export function EditorSection() {
               </option>
             ))}
           </select>
-        </Row>
-        <Row id={id('size')} label="editorSettings.fontSize">
+        </FormRow>
+        <FormRow htmlFor={id('size')} label="editorSettings.fontSize">
           <input
             id={id('size')}
             type="number"
@@ -212,11 +203,9 @@ export function EditorSection() {
               setTypedSize(null)
             }}
           />
-          <span id={id('size-hint')} className="settings-hint">
-            {fontSizeHint()}
-          </span>
-        </Row>
-        <Row id={id('line-height')} label="editorSettings.lineHeight">
+          <FormHint id={id('size-hint')}>{fontSizeHint()}</FormHint>
+        </FormRow>
+        <FormRow htmlFor={id('line-height')} label="editorSettings.lineHeight">
           <select
             id={id('line-height')}
             value={String(settings.lineHeight)}
@@ -232,11 +221,10 @@ export function EditorSection() {
               </option>
             ))}
           </select>
-        </Row>
-      </fieldset>
-      <fieldset className="settings-group">
-        <legend>{t('editorSettings.typing')}</legend>
-        <Row id={id('indent')} label="editorSettings.indentUnit">
+        </FormRow>
+      </FormGroup>
+      <FormGroup label="editorSettings.typing">
+        <FormRow htmlFor={id('indent')} label="editorSettings.indentUnit">
           <select
             id={id('indent')}
             value={settings.indentUnit}
@@ -248,8 +236,8 @@ export function EditorSection() {
               </option>
             ))}
           </select>
-        </Row>
-        <Row id={id('tab-width')} label="editorSettings.tabWidth">
+        </FormRow>
+        <FormRow htmlFor={id('tab-width')} label="editorSettings.tabWidth">
           <select
             id={id('tab-width')}
             value={String(settings.tabWidth)}
@@ -264,8 +252,8 @@ export function EditorSection() {
               </option>
             ))}
           </select>
-        </Row>
-        <Row id={id('marker')} label="editorSettings.listMarker">
+        </FormRow>
+        <FormRow htmlFor={id('marker')} label="editorSettings.listMarker">
           <select
             id={id('marker')}
             value={settings.listMarker}
@@ -277,8 +265,8 @@ export function EditorSection() {
               </option>
             ))}
           </select>
-        </Row>
-        <Row id={id('paste-url')} label="editorSettings.pasteUrl">
+        </FormRow>
+        <FormRow htmlFor={id('paste-url')} label="editorSettings.pasteUrl">
           <select
             id={id('paste-url')}
             value={settings.pasteUrl}
@@ -291,12 +279,15 @@ export function EditorSection() {
               </option>
             ))}
           </select>
-          <span id={id('paste-url-hint')} className="settings-hint">
-            {t('editorSettings.pasteUrlHint')}
-          </span>
-        </Row>
-        {flag('spellCheck')}
-      </fieldset>
+          <FormHint id={id('paste-url-hint')}>{t('editorSettings.pasteUrlHint')}</FormHint>
+        </FormRow>
+        <FormRow label="editorSettings.spelling">{flag('spellCheck')}</FormRow>
+      </FormGroup>
+      <FormGroup>
+        <FormRow>
+          <FormHint>{t('editorSettings.detail')}</FormHint>
+        </FormRow>
+      </FormGroup>
     </section>
   )
 }

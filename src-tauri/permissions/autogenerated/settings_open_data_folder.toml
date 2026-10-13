@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-settings-open-data-folder"
+description = "Enables the settings_open_data_folder command without any pre-configured scope."
+commands.allow = ["settings_open_data_folder"]
+
+[[permission]]
+identifier = "deny-settings-open-data-folder"
+description = "Denies the settings_open_data_folder command without any pre-configured scope."
+commands.deny = ["settings_open_data_folder"]

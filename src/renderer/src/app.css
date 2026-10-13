@@ -59,6 +59,11 @@ button {
   height: var(--size-icon-md);
 }
 
+.icon-lg {
+  width: var(--size-icon-lg);
+  height: var(--size-icon-lg);
+}
+
 /* Toolbars: a unified 52 px band over the list and the editor. */
 .toolbar,
 .titlebar {
@@ -1757,29 +1762,66 @@ button {
   margin-right: var(--space-4);
 }
 
-/* Settings window: one section per area, under the window's own title. */
+/* Settings window: a toolbar with a tab per pane over the pane shown. The
+   window fits the toolbar and the pane (SettingsWindow.tsx); a pane taller
+   than that scrolls under the toolbar. */
 .settings {
+  --settings-label-width: calc(var(--space-10) * 5.5);
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  overflow-y: auto;
-  padding: var(--space-8);
   background: var(--color-surface-editor);
 }
 
-.settings-section + .settings-section {
-  margin-top: var(--space-8);
-  padding-top: var(--space-8);
-  border-top: 1px solid var(--color-line-hairline);
+.settings-toolbar {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--color-line-hairline);
+  background: var(--color-surface-list);
 }
 
-.settings-section h2 {
-  margin: 0 0 var(--space-3);
-  font-size: var(--font-size-headline);
-  font-weight: var(--font-weight-semibold);
+/* A tab: its symbol over its name; the selected one sits on a tinted
+   rounded fill in the accent colour. */
+.settings-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: calc(var(--space-10) * 2);
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+  white-space: nowrap;
+}
+
+.settings-tab:hover {
+  color: var(--color-text-primary);
+}
+
+.settings-tab[aria-selected='true'] {
+  background: var(--color-fill-row-selected-unemphasized);
+  color: var(--color-accent-text);
+}
+
+.settings-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.settings-pane-body {
+  padding: var(--space-9);
 }
 
 .settings-section p {
-  margin: 0 0 var(--space-4);
+  margin: 0 0 var(--space-6);
   color: var(--color-text-secondary);
 }
 
@@ -1789,61 +1831,65 @@ button {
 
 /* The Markdown mirror's folder: a long path wraps anywhere. */
 .settings-section .mirror-folder {
-  color: var(--color-text-primary);
   overflow-wrap: anywhere;
 }
 
-/* Editor settings: groups of checkboxes and labelled rows. */
-.settings-group {
+/* A settings form: labels right-aligned in one column, controls
+   left-aligned in the next with their hints under them, groups of rows set
+   apart by space. */
+.settings-form-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  margin: 0 0 var(--space-7);
-  padding: 0;
-  border: 0;
+  gap: var(--space-6);
 }
 
-.settings-group legend {
-  margin-bottom: var(--space-4);
-  padding: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
+.settings-form-group + .settings-form-group {
+  margin-top: var(--space-9);
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: var(--settings-label-width) minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--space-4);
+}
+
+.settings-label {
+  color: var(--color-text-primary);
+  text-align: right;
+}
+
+.settings-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .settings-check {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .settings-check input {
   margin: 0;
 }
 
-/* A checkbox with a hint under it, e.g. why it cannot be changed now. */
-.settings-flag {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
 .settings-check:has(input:disabled) {
   color: var(--color-text-secondary);
 }
 
-.settings-row {
-  display: grid;
-  grid-template-columns: calc(var(--size-list-width) / 3) minmax(0, 1fr);
-  align-items: baseline;
-  gap: var(--space-4);
+/* A checkbox with a hint under it, lined up with the checkbox's text. */
+.settings-flag {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
-.settings-control {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-5);
+.settings-flag .settings-hint {
+  padding-left: calc(var(--size-icon-sm) + var(--space-3));
 }
 
 .settings-number {
@@ -1853,6 +1899,12 @@ button {
 .settings-hint {
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
+}
+
+.settings-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
 }
 
 .settings-actions {

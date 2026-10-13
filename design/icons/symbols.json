@@ -53,6 +53,12 @@
     "format.alert": "exclamationmark.bubble",
     "code.copy": "doc.on.doc",
     "code.copied": "checkmark",
-    "code.copyFailed": "exclamationmark.triangle"
+    "code.copyFailed": "exclamationmark.triangle",
+    "settings.general": "gearshape",
+    "settings.editor": "character.cursor.ibeam",
+    "settings.appearance": "paintpalette",
+    "settings.keyboard": "keyboard",
+    "settings.mirror": "folder",
+    "settings.usage": "chart.bar"
   }
 }

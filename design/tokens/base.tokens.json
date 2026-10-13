@@ -695,6 +695,14 @@
         "unit": "px"
       }
     },
+    "icon-lg": {
+      "$type": "dimension",
+      "$description": "A Settings toolbar tab's symbol.",
+      "$value": {
+        "value": 22,
+        "unit": "px"
+      }
+    },
     "image-small": {
       "$type": "dimension",
       "$description": "The width of an image set to Small in the preview.",

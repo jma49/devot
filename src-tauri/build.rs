@@ -90,6 +90,9 @@ fn main() {
             "mirror_bodies",
             "mirror_files",
             "mirror_hashes",
+            "settings_fit",
+            "settings_open_data_folder",
+            "settings_show_backups",
         ]),
     ))
     .expect("E_TAURI_BUILD");
