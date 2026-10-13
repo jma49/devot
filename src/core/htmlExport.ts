@@ -164,7 +164,11 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
       }
     }
     if (print && node.tagName === 'source') return []
-    if (simple && (names.includes('frontmatter') || names.includes('swatch'))) return []
+    if (
+      simple &&
+      (names.includes('frontmatter') || names.includes('swatch') || names.includes('code-head'))
+    )
+      return []
     if (simple && names.includes('alert')) {
       const [title, ...rest] = node.children
       const heading =

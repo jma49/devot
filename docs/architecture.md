@@ -362,6 +362,7 @@ An option keeps Devot running in the menu bar when its last window closes. The m
 - Assets live in `design/`, to the standard of an open-source asset library:
   - Design tokens in W3C Design Tokens (DTCG) JSON: `design/tokens/`. A build step generates CSS custom properties and TypeScript constants.
   - Icons are SF Symbols rendered at runtime; `design/icons/symbols.json` maps Devot icon names to symbol names. No symbol artwork is stored in the repository.
+  - Code blocks' language marks (`src/core/preview/languageIcons.ts`) are glyph paths from Simple Icons (CC0 1.0); the file says so at its top.
   - Fonts are the system's (SF Pro, SF Mono) and are not bundled. Any bundled font must have an open licence (such as OFL).
 - Every asset comes from a source that can be open-sourced. Devot's app icon and logo must be original artwork: the dove in `design/app-icon/` (`dove.svg` the mark, `source.svg` the app icon).
 - _Open:_ whether `design/` becomes its own repository.
@@ -516,3 +517,11 @@ Coverage is reported, not gated: a percentage is easy to game. Every PR must tes
 4. Paid users: accounts, auth and billing.
 5. Check the SF Symbols licence text (the repository stores symbol names only).
 6. Measure idle GPU power with the transparent window; if it is high, drop to an opaque window with a tinted sidebar.
+
+## First-launch notes
+
+A library that has never held anything (no live note, no note in the Trash, no notebook) gets a "Getting started" notebook with a welcome note and a Markdown example, once (`seedWelcome` in `src/core/welcome.ts`). The notebook and notes have fixed IDs, so deleting them never brings them back (a purged note is never written again, and a trashed one keeps the library non-empty) and devices that seed separately merge. The text is bundled Markdown in `src/renderer/src/welcome/`; `{{key:<command>}}` is replaced with the command's default key from the registry. The UI tests' libraries start empty unless a test sets `devotSeedWelcome`.
+
+## Code block title bar
+
+A fenced block with a language or a `title="..."` in its info string gets a bar with the language's mark and the title (`src/core/preview/code.ts`); Simple HTML leaves it out.

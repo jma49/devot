@@ -991,6 +991,10 @@ button {
   opacity: 0;
 }
 
+.preview pre:has(> .code-head) > .code-copy {
+  top: var(--space-2);
+}
+
 .preview pre:hover > .code-copy,
 .code-copy:focus-visible,
 .code-copy:not([data-state='idle']) {

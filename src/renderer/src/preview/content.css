@@ -70,6 +70,41 @@
   overflow-x: auto;
 }
 
+/* A code block's title bar: the language's mark and the title (code.ts). */
+.preview .code-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  /* Room for the copy button on the right. */
+  box-sizing: border-box;
+  min-height: calc(var(--size-field-height) + var(--space-2) * 2);
+  padding: 0 calc(var(--size-field-height) + var(--space-5)) 0 var(--space-6);
+  border-bottom: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-footnote);
+  line-height: 1.5;
+}
+
+.preview .code-lang {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: currentcolor;
+}
+
+.preview .code-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview .code-head + code {
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+}
+
 .preview blockquote {
   padding-left: var(--space-6);
   border-left: 3px solid var(--color-line-hairline);
