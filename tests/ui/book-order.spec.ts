@@ -295,10 +295,10 @@ test('Move Up and Move Down in the notebook menu', async ({ page }) => {
     return shownMenu(page)
   }
   // Only the moves there is room for.
-  expect(await menuFor('Alpha')).not.toContain('Move Up')
-  expect(await menuFor('Alpha')).toContain('Move Down')
-  expect(await menuFor('Charlie')).toContain('Move Up')
-  expect(await menuFor('Charlie')).not.toContain('Move Down')
+  expect(await menuFor('Alpha')).not.toContain('Move Up Alt+ArrowUp')
+  expect(await menuFor('Alpha')).toContain('Move Down Alt+ArrowDown')
+  expect(await menuFor('Charlie')).toContain('Move Up Alt+ArrowUp')
+  expect(await menuFor('Charlie')).not.toContain('Move Down Alt+ArrowDown')
 
   await menuFor('Charlie')
   await pickMenuItem(page, 'Move Up')

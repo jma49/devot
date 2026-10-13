@@ -73,7 +73,8 @@ import { TagEditor } from './TagEditor'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, type Core } from './core-client'
-import { currentFocusStore, currentSidebarStore } from './focus'
+import { currentFocusStore, currentSidebarStore, keyboardIsFree } from './focus'
+import { useFocusRescue } from './focusRescue'
 import { currentLastStateStore, restorePlan, type LastState, type NoteState } from './lastState'
 import type { FindTarget } from './find/target'
 import { useFind } from './find/useFind'
@@ -183,6 +184,9 @@ function ShowSidebarButton({ onClick }: { onClick: () => void }) {
   )
 }
 
+/** How long a request for an area waits for it to show. */
+const AREA_ASK_MS = 1000
+
 /** Where the keyboard goes once the window has rendered. */
 type FocusRequest = { kind: 'area'; area: Area } | { kind: 'title' | 'body'; id: string }
 
@@ -288,9 +292,11 @@ export function App() {
   // Where the keyboard goes once the window has rendered (see the effect
   // below); asking re-renders.
   const focusAfter = useRef<FocusRequest>(undefined)
+  const focusAskedAt = useRef(0)
   const [, setFocusAsked] = useState(0)
   const requestFocus = (request: FocusRequest) => {
     focusAfter.current = request
+    focusAskedAt.current = performance.now()
     setFocusAsked((n) => n + 1)
   }
   const titleRef = useRef<HTMLInputElement>(null)
@@ -1073,6 +1079,11 @@ export function App() {
   // its place, unless it is gone. Its editor takes the keyboard if it had it.
   // Opening it makes it the first entry of Back and Forward's trail.
   const restoreStarted = useRef(false)
+  // The note whose editor takes the keyboard from the restore, if nobody has it then.
+  const restoreKeyboard = useRef<string>(undefined)
+  useEffect(() => {
+    if (restoreKeyboard.current !== selected) restoreKeyboard.current = undefined
+  }, [selected])
   const restoreLast = async () => {
     try {
       const untouched =
@@ -1100,7 +1111,12 @@ export function App() {
       if (preview && note.previewTop !== undefined) {
         restorePreview.current = { id: note.id, top: note.previewTop }
       }
-      await select(note.id, { keyboard: note.keyboard && !preview })
+      // The keyboard goes to the editor only while it is nobody's: a search
+      // typed or focus put anywhere since launch is the user's, here and
+      // once the editor has loaded (`restoreKeyboard`).
+      const keyboard = note.keyboard && !preview && query === '' && keyboardIsFree()
+      if (keyboard) restoreKeyboard.current = note.id
+      await select(note.id, { keyboard })
     } catch {
       console.warn('W_LAST_STATE_RESTORE_FAILED')
     } finally {
@@ -1549,6 +1565,8 @@ export function App() {
     if (to) targets[to]?.()
   }
   usePaneTab(moveArea)
+  // The keyboard never stays on the page when what had it goes away.
+  useFocusRescue(() => editorRef.current)
 
   // Hiding or showing the sidebar. Focus mode hides it too, so showing it
   // leaves focus mode. When it hides with the keyboard, the list takes it;
@@ -1591,8 +1609,12 @@ export function App() {
     const request = focusAfter.current
     if (!request) return
     if (request.kind === 'area') {
+      const go = areaTargets(editorRef.current)[request.area]
+      // The area may show on a pass of its own (a sidebar the same click
+      // shows): the ask stays for the passes of the next second.
+      if (!go && performance.now() - focusAskedAt.current < AREA_ASK_MS) return
       focusAfter.current = undefined
-      return areaTargets(editorRef.current)[request.area]?.()
+      return go?.()
     }
     // The note opened before the request was made; another one opened since.
     focusAfter.current = undefined
@@ -1800,6 +1822,7 @@ export function App() {
         handlers['note.newFromSelection'] = { run: () => noteFromSelection(id) }
       }
       const image = paletteOpen ? paletteImage : null
+      if (image?.fileId) handlers['image.view'] = { run: () => void editorRef.current?.viewImage() }
       if (image) {
         for (const [action, commandId] of Object.entries(IMAGE_COMMANDS)) {
           if (!imageActionApplies(action as ImageAction, image)) continue
@@ -1900,13 +1923,17 @@ export function App() {
     setSelected(id)
   })
   const trashKey = useStable((action: TrashAction, id: string) => void trashAction(action, id))
-  const askEmptyTrash = useStable(() => setConfirm({ kind: 'empty' }))
+  const askEmptyTrash = useStable(() => {
+    if (trash.length > 0) setConfirm({ kind: 'empty' })
+  })
+  // aria-disabled, not disabled: a disabled button would drop the keyboard
+  // when the Trash is emptied from it.
   const emptyTrashButton = useMemo(
     () => (
       <button
         type="button"
         className="button"
-        disabled={trash.length === 0}
+        aria-disabled={trash.length === 0}
         onClick={askEmptyTrash}
       >
         {t('trash.empty')}
@@ -2243,6 +2270,7 @@ export function App() {
                 core={core}
                 noteId={selected}
                 autoFocus={selected === takesKeyboard}
+                autoFocusIfFree={selected === restoreKeyboard.current}
                 hidden={mode === 'preview'}
                 onText={openText.set}
                 links={{ find: findLinkTargets, create: createLinkedNote }}

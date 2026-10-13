@@ -74,7 +74,7 @@ test('right-click shows the native notebook menu for that notebook', async ({ pa
     'New Notebook Inside',
     '---',
     'Rename Enter',
-    'Move Up',
+    'Move Up Alt+ArrowUp',
     '---',
     'Allow AI Access [ ]',
     '---',

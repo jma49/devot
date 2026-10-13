@@ -74,9 +74,12 @@ describe('BOOK_MENU', () => {
 })
 
 describe('bookShortcut', () => {
-  it('renames with Return and deletes with Delete or Backspace', () => {
+  it('renames with Return or F2, moves with Option and the arrows, and deletes with Delete or Backspace', () => {
     const cases: [Keys, BookAction][] = [
       [key('Enter'), 'rename'],
+      [key('F2'), 'rename'],
+      [key('ArrowUp', { altKey: true }), 'moveUp'],
+      [key('ArrowDown', { altKey: true }), 'moveDown'],
       [key('Backspace'), 'delete'],
       [key('Delete'), 'delete'],
     ]
@@ -89,6 +92,9 @@ describe('bookShortcut', () => {
       key('Enter', { shiftKey: true }),
       key('Backspace', { metaKey: true }),
       key('Backspace', { altKey: true }),
+      key('ArrowUp'),
+      key('ArrowUp', { altKey: true, shiftKey: true }),
+      key('F2', { metaKey: true }),
       key('Delete', { ctrlKey: true }),
       key('Backspace', { repeat: true }),
       key('n'),
@@ -104,10 +110,13 @@ describe('bookShortcut', () => {
     )
     expect(shown).toEqual([
       ['rename', 'Enter'],
+      ['moveUp', 'Alt+ArrowUp'],
+      ['moveDown', 'Alt+ArrowDown'],
       ['delete', 'Backspace'],
     ])
     for (const [action, accelerator] of shown) {
-      expect(bookShortcut(key(accelerator))).toBe(action)
+      const name = accelerator.split('+').pop() ?? accelerator
+      expect(bookShortcut(key(name, { altKey: accelerator.startsWith('Alt+') }))).toBe(action)
     }
   })
 })

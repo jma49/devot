@@ -20,7 +20,7 @@ import { formatKeyAvailability } from './editor/formatKeys'
 import { imeKeys } from './editor/imeKeys'
 import { editorScrollPane } from './editor/scrollPane'
 import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
-import { imageActions, imageAt, imageSizeChange } from './editor/images'
+import { imageActions, imageAt, imageSizeChange, viewImageAt } from './editor/images'
 import { TABLE_COMMANDS, inTable, tableKeymap, type TableCommandId } from './editor/tableCommands'
 import { tableTyping } from './editor/tableTyping'
 import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
@@ -33,6 +33,7 @@ import { setInertFormats } from './commands/formatMenu'
 import { subscribeKeymap } from './commands/shortcutSettings'
 import { useEditorSettings } from './editorSettings'
 import type { FindTarget } from './find/target'
+import { keyboardIsFree } from './focus'
 import { t } from './i18n'
 import {
   imageActionApplies,
@@ -100,6 +101,8 @@ export interface EditorHandle {
   pastePlain: () => Promise<void>
   /** The image at the cursor, or the first on its line (the image commands act on it). */
   imageAtCursor: () => ImageMenuTarget | null
+  /** Shows that image in the viewer (an attachment only); false when there is none. */
+  viewImage: () => boolean
   /**
    * Gives the image at `source` a size, as one change; false when the text
    * there is no longer that image.
@@ -182,8 +185,8 @@ function setImageSize(view: EditorView, source: ImageSource, size: ImageSize): b
  */
 const imageCommandKeys = registryKeys(() =>
   Prec.high(
-    keymap.of(
-      imageKeys().map(({ action, key }) => ({
+    keymap.of([
+      ...imageKeys().map(({ action, key }) => ({
         key,
         run: (view: EditorView) => {
           const image = imageAt(view.state, view.state.selection.main.head)
@@ -194,7 +197,12 @@ const imageCommandKeys = registryKeys(() =>
         },
         preventDefault: true,
       })),
-    ),
+      ...editorCommandKeys('image.view').map((key) => ({
+        key,
+        run: viewImageAt,
+        preventDefault: true,
+      })),
+    ]),
   ),
 )
 
@@ -379,6 +387,8 @@ interface Props {
    * row); read when the note has loaded.
    */
   autoFocus: boolean
+  /** With `autoFocus`: only if nothing has the keyboard when the body has loaded (a restore). */
+  autoFocusIfFree?: boolean
   /** Kept mounted but out of sight in preview mode, so the text stays live. */
   hidden: boolean
   /** The current Markdown, on open and after every change. */
@@ -421,6 +431,7 @@ export function NoteEditor({
   core,
   noteId,
   autoFocus,
+  autoFocusIfFree = false,
   hidden,
   onText,
   links,
@@ -439,6 +450,7 @@ export function NoteEditor({
   const host = useRef<HTMLDivElement>(null)
   // Read once, when the note has loaded.
   const focusOnOpen = useRef(autoFocus)
+  const focusOnlyIfFree = useRef(autoFocusIfFree)
   const settings = useEditorSettings()
   const latestSettings = useRef(settings)
   /**
@@ -464,6 +476,7 @@ export function NoteEditor({
     placeAsked.current = initialPlace
     placeReport.current = onPlace
     focusOnOpen.current = autoFocus
+    focusOnlyIfFree.current = autoFocusIfFree
     report.current = onText
     linkSources.current = links
     findHandle.current = onFind
@@ -673,10 +686,11 @@ export function NoteEditor({
             const image = imageAt(ready.state, ready.state.selection.main.head)
             return image ? imageMenuTarget(image) : null
           },
+          viewImage: () => viewImageAt(ready),
           setImageSize: (source, size) => setImageSize(ready, source, size),
         }
       }
-      if (focusOnOpen.current) view.focus()
+      if (focusOnOpen.current && (!focusOnlyIfFree.current || keyboardIsFree())) view.focus()
       // A hidden editor goes to its place when it shows (see above).
       if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
     })

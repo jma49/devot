@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
@@ -35,6 +35,7 @@ export function TagEditor(props: {
   const several = props.common !== undefined
   const full = props.common ?? props.value
   const [draft, setDraft] = useState('')
+  const field = useRef<HTMLInputElement>(null)
   const suggestions = useId()
   const onNote = props.tags.filter((tag) => props.value.includes(tag.id))
   const limit = useNameLimit(draft, MAX_TAG_NAME_CHARS, setDraft)
@@ -53,13 +54,18 @@ export function TagEditor(props: {
             type="button"
             className="chip-remove"
             aria-label={format(t('note.removeTagNamed'), { name: tag.name })}
-            onClick={() => props.onRemove(tag.id)}
+            onClick={(e) => {
+              props.onRemove(tag.id)
+              // The chip goes away with the keyboard on it: the tag field takes it.
+              if (e.detail === 0) field.current?.focus()
+            }}
           >
             <Icon name="tag.remove" size="sm" />
           </button>
         </span>
       ))}
       <input
+        ref={field}
         className="tag-input"
         aria-label={t('note.addTag')}
         placeholder={t('note.addTag')}

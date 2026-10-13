@@ -90,6 +90,12 @@ describe('keyMatches', () => {
     expect(keyMatches('Space', press('Space', ' '))).toBe(true)
   })
 
+  it('matches the menu key, which is a named key of its own', () => {
+    expect(keyMatches('ContextMenu', press('ContextMenu', 'ContextMenu'))).toBe(true)
+    expect(keyMatches('Shift+F10', press('F10', 'F10', { shiftKey: true }))).toBe(true)
+    expect(keyMatches('ContextMenu', press('F10', 'F10'))).toBe(false)
+  })
+
   it('reads the key name when the physical key is not given', () => {
     expect(keyMatches('M', { ...press('', 'm'), code: undefined })).toBe(true)
     expect(keyMatches('Delete', { ...press('', 'Delete'), code: undefined })).toBe(true)
@@ -199,6 +205,7 @@ describe('shortcut forms', () => {
     expect(shortcutLabel('Mod+Ctrl+Space')).toBe('\u2303\u2318Space')
     expect(shortcutLabel('Mod+Backspace')).toBe('\u2318\u232b')
     expect(shortcutLabel('Enter')).toBe('\u21a9')
+    expect(shortcutLabel('ContextMenu')).toBe('Menu')
     expect(shortcutLabel('M')).toBe('M')
   })
 

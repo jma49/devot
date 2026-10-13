@@ -59,7 +59,7 @@ describe('TAG_MENU', () => {
   it('shows Rename, the Colour submenu, Filter by Tag, Copy Tag ID and Delete Tag', async () => {
     const { lines } = await shown({ id: 't', color: null, filtered: false })
     expect(lines).toEqual([
-      'Rename',
+      'Rename F2',
       'Colour >',
       '  None [x]',
       '  Red [ ]',

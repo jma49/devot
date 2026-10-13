@@ -61,3 +61,9 @@ export const currentFocusStore = () => current(focusStore)
 
 /** The hidden sidebar store for the current window. */
 export const currentSidebarStore = () => current(sidebarStore)
+
+/** Whether nothing has the keyboard: it sits on the page itself. */
+export function keyboardIsFree(): boolean {
+  const active = document.activeElement
+  return active === null || active === document.body
+}

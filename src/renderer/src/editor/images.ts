@@ -99,6 +99,19 @@ export function imageAt(state: EditorState, pos: number): EditorImage | null {
 }
 
 /**
+ * Shows the attachment image at `pos`, or else the first on its line, in the
+ * viewer (what a double-click on its preview does); false when the line has
+ * none.
+ */
+export function viewImageAt(view: EditorView, pos = view.state.selection.main.head): boolean {
+  const image = imageAt(view.state, pos)
+  const open = view.state.facet(imageActions)?.open
+  if (!image?.fileId || !open) return false
+  open({ src: new URL(image.url, document.baseURI).href, alt: image.alt })
+  return true
+}
+
+/**
  * The change that gives `image` this size, replacing only its destination;
  * null when the text there is no longer that image or it cannot take a size.
  */

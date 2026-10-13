@@ -40,23 +40,22 @@ export function ImageViewer({ image, onClose }: { image: ViewedImage; onClose: (
     }
   }, [opener])
 
-  // Tab and Shift+Tab go round the viewer's controls: the web view would
-  // otherwise move the keyboard out of the page after the last one.
+  // Tab and Shift+Tab go round the viewer's controls, every stop of them:
+  // with macOS's default keyboard setting the web view would skip buttons,
+  // and after the last stop (or before the first) it would leave the page.
   const keepTab = (event: KeyboardEvent) => {
     if (event.key !== 'Tab' || !dialog.current) return
     const stops = Array.from(
       dialog.current.querySelectorAll<HTMLElement>('button, [tabindex="0"]'),
     ).filter((el) => !el.hasAttribute('disabled'))
-    const first = stops[0]
-    const last = stops[stops.length - 1]
-    const active = document.activeElement
-    if (event.shiftKey && (active === first || !dialog.current.contains(active))) {
-      event.preventDefault()
-      last?.focus()
-    } else if (!event.shiftKey && (active === last || !dialog.current.contains(active))) {
-      event.preventDefault()
-      first?.focus()
-    }
+    if (stops.length === 0) return
+    event.preventDefault()
+    const at = stops.findIndex((el) => el === document.activeElement)
+    const step = event.shiftKey ? -1 : 1
+    // From outside the stops, the first (or last) one.
+    const to =
+      at < 0 ? (step > 0 ? 0 : stops.length - 1) : (at + step + stops.length) % stops.length
+    stops[to]?.focus()
   }
 
   return (
