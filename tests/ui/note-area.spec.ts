@@ -217,6 +217,6 @@ test('a code block in the preview is headed by its language mark and title', asy
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('End')
   await page.keyboard.press('Shift+Home')
-  await page.keyboard.insertText('```rust main.rs')
+  await page.keyboard.insertText('```rust:main.rs')
   await expect(heads.nth(0).locator('.code-title')).toHaveText('main.rs')
 })

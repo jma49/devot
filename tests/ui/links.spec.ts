@@ -91,7 +91,10 @@ test('a second Return while the note is made does not make another', async ({ pa
   await page.evaluate(() => localStorage.removeItem('devot.test.delayNoteWrites'))
   await expect.poll(async () => (await body(page).textContent()) ?? '').toMatch(LINK)
   await expect(noteRows(page)).toHaveCount(2)
-  await expect(noteRows(page).filter({ hasText: 'Plan B' })).toHaveCount(1)
+  // By title: the source's excerpt shows the link's text too.
+  await expect(
+    noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Plan B' }) }),
+  ).toHaveCount(1)
   // The link stands once; the second Return was an ordinary line break.
   expect(((await body(page).textContent()) ?? '').match(/devot:\/\/note\//g)).toHaveLength(1)
   expect(await body(page).textContent()).not.toContain('[[')

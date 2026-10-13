@@ -60,8 +60,8 @@ const violations = (page: Page) => page.evaluate(() => globalThis.devotCspViolat
 test('the editor is styled and nothing breaks the policy', async ({ page }) => {
   await start(page)
   await newNote(page, '# Heading\n\nText with $x^2$, :tada: and `#ff0000`.')
-  const gutters = page.locator('.cm-gutters')
-  await expect(gutters).toHaveCSS('display', 'flex')
+  // CodeMirror's injected styles apply (line numbers are off by default).
+  await expect(page.locator('.cm-editor')).toHaveCSS('display', 'flex')
   await expect(page.getByRole('article', { name: 'Preview' }).locator('math')).toHaveCount(1)
   await expect(page.locator('.swatch')).toHaveCSS('background-color', 'rgb(255, 0, 0)')
   expect(await violations(page)).toEqual([])
@@ -535,7 +535,8 @@ test('code blocks get a styled copy button and split mode scrolls together under
 }) => {
   await start(page)
   const sections = Array.from({ length: 80 }, (_, i) => `## Part ${i + 1}\n\nText ${i + 1}.`)
-  await newNote(page, '```js\nconst x = 1\n```\n\n' + sections.join('\n\n'))
+  // A bare fence: its button sits in the block's corner (a header holds it otherwise).
+  await newNote(page, '```\nconst x = 1\n```\n\n' + sections.join('\n\n'))
   const preview = page.getByRole('article', { name: 'Preview' })
   const copy = preview.getByRole('button', { name: 'Copy Code' })
   await preview.locator('pre').hover()
@@ -559,7 +560,7 @@ test('images under their lines and the image viewer are styled under the policy'
   await newNote(page, `![Shot](${file}#half)\n\nafter`)
   await expect(page.locator('.cm-inline-images')).toHaveCSS('height', '160px')
   const img = page.getByRole('article', { name: 'Preview' }).locator('img')
-  await expect(img).toHaveClass('image-size-half')
+  await expect(img).toHaveClass(/\bimage-size-half\b/)
   await img.dblclick()
   const viewer = page.getByRole('dialog', { name: 'Image Viewer: Shot' })
   await expect(viewer).toBeVisible()
