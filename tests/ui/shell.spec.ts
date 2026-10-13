@@ -150,3 +150,40 @@ test('coded console warnings reach the local log without other arguments', async
     .poll(async () => (await logged()).map((c) => c.args))
     .toContainEqual({ level: 'warn', code: 'W_UI_TEST', ids: [id] })
 })
+
+test('the selected view mode is a neutral grey segment', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  await freshStart(page)
+  await createNote(page, 'Modes')
+  const split = page
+    .getByRole('group', { name: 'View mode' })
+    .getByRole('button', { name: 'Split' })
+  await split.click()
+  await expect(split).toHaveAttribute('aria-pressed', 'true')
+  expect(await css(split, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
+})
+
+test('the window stays put while the caret scrolls to the end of a long note', async ({ page }) => {
+  await freshStart(page)
+  await createNote(page, 'Long')
+  const body = page.getByRole('textbox', { name: 'Note body' })
+  await body.click()
+  await body.fill(Array.from({ length: 200 }, (_, i) => `line ${i}`).join('\n'))
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('/')
+  await expect(page.locator('.cm-tooltip-autocomplete')).toBeVisible()
+  const scrolled = () =>
+    page.evaluate(() => {
+      const doc = (
+        globalThis as unknown as {
+          document: {
+            documentElement: { scrollTop: number }
+            body: { scrollTop: number }
+          }
+        }
+      ).document
+      return doc.documentElement.scrollTop + doc.body.scrollTop
+    })
+  expect(await scrolled()).toBe(0)
+})
