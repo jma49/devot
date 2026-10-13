@@ -353,6 +353,22 @@ const asWritten = (record: NoteRecord): NoteRecord => ({
 })
 
 /**
+ * Runs `attempt`, which reads a note and writes it, again (`retry` true)
+ * while storage refuses the write because another process wrote the note
+ * since the read: WRITE_TRIES times in all at most, then the refusal is
+ * thrown like any other failure.
+ */
+const untilWritten = async <T>(attempt: (retry: boolean) => Promise<T>): Promise<T> => {
+  for (let tries = 1; ; tries += 1) {
+    try {
+      return await attempt(tries > 1)
+    } catch (error) {
+      if (!isStale(error) || tries >= WRITE_TRIES) throw error
+    }
+  }
+}
+
+/**
  * The HLC of each metadata field: a change to the field gives it a new one,
  * so a record whose HLCs differ from the saved one's has changes to write.
  */
@@ -770,24 +786,20 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
    * meanwhile (it is let go: storage would take no write of it). Throws the
    * storage's error. Runs only through exclusive.
    */
-  const put = async (note: Live, make: () => NoteRecord): Promise<NoteRecord | undefined> => {
-    const { id } = note.record
-    for (let tries = 1; ; tries += 1) {
+  const put = (note: Live, make: () => NoteRecord): Promise<NoteRecord | undefined> =>
+    untilWritten(async (retry) => {
+      if (retry) {
+        const stored = await getStored(note.record.id, { trashed: true })
+        if (!stored) {
+          drop(note)
+          return undefined
+        }
+        takeIn(note, stored)
+      }
       const record = make()
-      try {
-        await storage.putNote(record)
-        return record
-      } catch (error) {
-        if (!isStale(error) || tries >= WRITE_TRIES) throw error
-      }
-      const stored = await getStored(id, { trashed: true })
-      if (!stored) {
-        drop(note)
-        return undefined
-      }
-      takeIn(note, stored)
-    }
-  }
+      await storage.putNote(record)
+      return record
+    })
 
   /**
    * Writes the note as it is now, if it has changes and is still in memory,
@@ -1020,11 +1032,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
    * end with it (see keepBaseline), then the event. Writes of one note made
    * this way go one at a time, and a load of it waits for them. When another
    * process wrote the note between the read and the write (storage refuses
-   * the write), it is read and written again (see WRITE_TRIES).
+   * the write), it is read and written again (see untilWritten).
    */
   const writeStored = (id: string, change: MetaChange): Promise<void> => {
-    const run = (coldWrites.get(id) ?? Promise.resolve()).then(async () => {
-      for (let tries = 1; ; tries += 1) {
+    const run = (coldWrites.get(id) ?? Promise.resolve()).then(() =>
+      untilWritten(async () => {
         const stored = await getStored(id)
         if (!stored) throw new Error('E_NOTE_NOT_FOUND')
         // A title stored past the limit is cut, as when a note is loaded.
@@ -1039,17 +1051,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           updatedAt: Math.max(now(), before.createdAt),
         }
         keepBaseline(id, { ydoc: stored.ydoc, text: stored.bodyMd, at: stored.updatedAt })
-        try {
-          await storage.putNote(record)
-        } catch (error) {
-          if (isStale(error) && tries < WRITE_TRIES) continue
-          throw error
-        }
+        await storage.putNote(record)
         recordEvents(undefined, before, record)
         sweep()
-        return
-      }
-    })
+      }),
+    )
     const settled = run.then(
       () => undefined,
       () => undefined,
@@ -1362,25 +1368,20 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       await revisionWork
     },
 
-    async restore(id) {
-      for (let tries = 1; ; tries += 1) {
+    // Read again and written again when another process wrote the note
+    // between the read and the write (see untilWritten).
+    restore: (id) =>
+      untilWritten(async () => {
         const record = await trashed(id)
         // A title stored past what storage takes now (by an older build) is
         // cut for the write, as when a note is loaded; the stored one stays.
-        try {
-          await storage.putNote({
-            ...record,
-            title: clipTitle(record.title),
-            deletedAt: null,
-            deletedHlc: clock.tick(),
-          })
-          return
-        } catch (error) {
-          // Another process wrote the note since it was read: read it again.
-          if (!isStale(error) || tries >= WRITE_TRIES) throw error
-        }
-      }
-    },
+        await storage.putNote({
+          ...record,
+          title: clipTitle(record.title),
+          deletedAt: null,
+          deletedHlc: clock.tick(),
+        })
+      }),
 
     listTrash: () => storage.listTrash(),
 
