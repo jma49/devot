@@ -14,7 +14,9 @@ interface DomNode {
   readonly clientHeight: number
   readonly clientTop: number
   readonly textContent: string | null
-  readonly shadowRoot: { querySelectorAll(selector: string): ArrayLike<DomNode> } | null
+  readonly shadowRoot: {
+    querySelectorAll(selector: string): ArrayLike<DomNode>
+  } | null
   getBoundingClientRect(): { top: number }
   closest(selector: string): DomNode | null
   querySelector(selector: string): DomNode | null
@@ -195,6 +197,39 @@ test('a wheel over either pane scrolls both, and the follower never scrolls back
   await expect.poll(async () => (await scrollTops(page)).editor).toBeGreaterThan(editorTop + 200)
 })
 
+test('wheel steps move the preview in the same event, never back, to the matching block', async ({
+  page,
+}) => {
+  await openLongNote(page)
+  const editorBox = (await page.locator('[data-devot-part="editor-body"]').boundingBox())!
+  await page.mouse.move(editorBox.x + editorBox.width / 2, editorBox.y + editorBox.height / 2)
+  // No waiting between the steps and the reads: each wheel moves both panes itself.
+  let last = 0
+  for (let step = 0; step < 25; step += 1) {
+    await page.mouse.wheel(0, 45)
+    const { preview: top } = await scrollTops(page)
+    expect(top).toBeGreaterThan(last)
+    last = top
+  }
+  // Bring the next heading in the editor to its top with one more wheel step.
+  const next = await page.evaluate(() => {
+    const win = globalThis as unknown as PageGlobals
+    const host = win.document.querySelector('[data-devot-part="editor-body"]')!
+    const top = host.getBoundingClientRect().top + host.clientTop
+    for (const line of Array.from(host.shadowRoot!.querySelectorAll('.cm-line'))) {
+      const offset = line.getBoundingClientRect().top - top
+      if (offset > 20 && (line.textContent ?? '').startsWith('## ')) {
+        return { text: line.textContent!, offset }
+      }
+    }
+    return null
+  })
+  expect(next).not.toBeNull()
+  await page.mouse.wheel(0, next!.offset)
+  await expect.poll(() => editorOffset(page, next!.text).then(near)).toBe(true)
+  await expect.poll(() => previewOffset(page, next!.text.slice(3)).then(near)).toBe(true)
+})
+
 test('the preview keeps up while typing above what it shows', async ({ page }) => {
   await openLongNote(page)
   await scrollEditorTo(page, '## Section 60')
@@ -205,7 +240,9 @@ test('the preview keeps up while typing above what it shows', async ({ page }) =
   await page.getByRole('textbox', { name: 'Note body' }).getByText('## Section 60').click()
   await page.keyboard.press('Home')
   await page.keyboard.insertText('Inserted paragraph\n\n')
-  const inserted = preview(page).getByText('Inserted paragraph', { exact: true })
+  const inserted = preview(page).getByText('Inserted paragraph', {
+    exact: true,
+  })
   await expect(inserted).toBeAttached()
   // The new paragraph sits as far below the top in the preview as in the editor.
   await expect

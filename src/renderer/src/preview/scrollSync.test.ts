@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest'
-import { lineAt, normalizeAnchors, syncScrolling, topOf, type ScrollPane } from './scrollSync'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  lineAt,
+  normalizeAnchors,
+  previewScrollPane,
+  syncScrolling,
+  topOf,
+  wheelDistance,
+  type ScrollPane,
+} from './scrollSync'
 
 describe('anchors', () => {
   const anchors = normalizeAnchors(
@@ -60,6 +68,145 @@ describe('anchors', () => {
   })
 })
 
+describe('anchors over blank lines and long blocks', () => {
+  // Line 1 a heading, lines 2-4 blank, a paragraph at 5, a 50-line code
+  // block from 8 to 59, then a paragraph at 61; the note has 61 lines.
+  const anchors = normalizeAnchors(
+    [
+      { line: 1, top: 0 },
+      { line: 5, top: 60 },
+      { line: 8, top: 120 },
+      { line: 61, top: 1120 },
+    ],
+    { line: 62, top: 1150 },
+  )
+
+  it('move evenly through blank lines', () => {
+    expect(topOf(anchors, 3)).toBe(30)
+    expect(lineAt(anchors, 45)).toBe(4)
+  })
+
+  it('move evenly through a long code block, which has one anchor', () => {
+    // Halfway through the block's 53 lines (8 to 61) is halfway down it.
+    expect(topOf(anchors, 34.5)).toBe(620)
+    expect(lineAt(anchors, 620)).toBe(34.5)
+    let previous = -1
+    for (let line = 8; line <= 61; line += 0.5) {
+      const top = topOf(anchors, line)
+      expect(top).toBeGreaterThan(previous)
+      previous = top
+    }
+  })
+
+  it('reach both ends exactly', () => {
+    expect(topOf(anchors, 1)).toBe(0)
+    expect(lineAt(anchors, 0)).toBe(1)
+    expect(topOf(anchors, 62)).toBe(1150)
+    expect(lineAt(anchors, 1150)).toBe(62)
+  })
+
+  it('make do with no blocks at all (an empty note)', () => {
+    const empty = normalizeAnchors([], { line: 2, top: 0 })
+    expect(empty).toEqual([{ line: 1, top: 0 }])
+    expect(topOf(empty, 5)).toBe(0)
+    expect(lineAt(empty, 40)).toBe(1)
+  })
+})
+
+describe('wheelDistance', () => {
+  const wheel = (deltaY: number, more: object = {}) => ({
+    deltaX: 0,
+    deltaY,
+    deltaMode: 0,
+    ...more,
+  })
+
+  it('counts pixels, lines and pages', () => {
+    expect(wheelDistance(wheel(12.5), 600)).toBe(12.5)
+    expect(wheelDistance(wheel(-3, { deltaMode: 1 }), 600)).toBe(-120)
+    expect(wheelDistance(wheel(1, { deltaMode: 2 }), 600)).toBe(600)
+  })
+
+  it('leaves sideways scrolls and pinches alone', () => {
+    expect(wheelDistance(wheel(2, { deltaX: 5 }), 600)).toBeNull()
+    expect(wheelDistance(wheel(4, { ctrlKey: true }), 600)).toBeNull()
+    expect(wheelDistance(wheel(0), 600)).toBeNull()
+  })
+})
+
+/** A preview element whose blocks sit at `tops` (by source line). */
+function fakePreview(tops: Map<number, number>, height: number) {
+  const element = Object.assign(new EventTarget(), {
+    scrollTop: 0,
+    scrollHeight: height,
+    clientHeight: 100,
+    clientTop: 0,
+    getBoundingClientRect: () => ({ top: -element.scrollTop }),
+    querySelectorAll: () =>
+      [...tops.keys()].map((line) => ({
+        dataset: { sourceLine: String(line) },
+        getBoundingClientRect: () => ({
+          top: tops.get(line)! - element.scrollTop,
+        }),
+      })),
+  })
+  return element
+}
+
+/** The node test environment has no ResizeObserver; the preview only starts one. */
+const stubResizeObserver = () =>
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  )
+
+describe('previewScrollPane', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('measures its blocks again when an image above loads late', () => {
+    stubResizeObserver()
+    // An image paragraph at line 3, then a heading at line 5; 9 lines.
+    const tops = new Map([
+      [1, 0],
+      [3, 40],
+      [5, 60],
+    ])
+    const element = fakePreview(tops, 200)
+    const pane = previewScrollPane(element as unknown as HTMLElement)
+    pane.changed(9)
+    let laidOut = 0
+    pane.onLayout!(() => laidOut++)
+    expect(pane.offsetOf(5)).toBe(60)
+    // The image loads at 300 pixels: everything below moves down.
+    tops.set(5, 360)
+    element.scrollHeight = 500
+    element.dispatchEvent(new Event('load'))
+    expect(laidOut).toBe(1)
+    expect(pane.offsetOf(5)).toBe(360)
+    expect(pane.offsetOf(4)).toBe(200)
+    pane.dispose()
+  })
+
+  it('notices content that grew without a load event (a diagram)', () => {
+    stubResizeObserver()
+    const tops = new Map([
+      [1, 0],
+      [4, 50],
+    ])
+    const element = fakePreview(tops, 100)
+    const pane = previewScrollPane(element as unknown as HTMLElement)
+    pane.changed(5)
+    expect(pane.offsetOf(4)).toBe(50)
+    tops.set(4, 250)
+    element.scrollHeight = 300
+    expect(pane.offsetOf(4)).toBe(250)
+    pane.dispose()
+  })
+})
+
 /** A pane over a fake scroller: one pixel per line, `height` pixels tall. */
 class FakePane implements ScrollPane {
   readonly element = Object.assign(new EventTarget(), {
@@ -100,6 +247,17 @@ class FakePane implements ScrollPane {
   }
   gesture(type = 'wheel') {
     this.element.dispatchEvent(new Event(type))
+  }
+  /** A wheel or trackpad scroll of `deltaY` pixels over the pane; whether it was taken. */
+  wheel(deltaY: number, more: object = {}) {
+    const event = Object.assign(new Event('wheel', { cancelable: true }), {
+      deltaX: 0,
+      deltaY,
+      deltaMode: 0,
+      ...more,
+    })
+    this.element.dispatchEvent(event)
+    return event.defaultPrevented
   }
 }
 
@@ -287,12 +445,79 @@ describe('syncScrolling', () => {
     expect(preview.element.scrollTop).toBe(300)
   })
 
+  it('moves both panes in the wheel event itself, before any frame', () => {
+    const { editor, preview, flush } = setup()
+    flush()
+    expect(editor.wheel(30)).toBe(true)
+    expect(editor.element.scrollTop).toBe(30)
+    expect(preview.element.scrollTop).toBe(60)
+    expect(preview.wheel(40)).toBe(true)
+    expect(preview.element.scrollTop).toBe(100)
+    expect(editor.element.scrollTop).toBe(50)
+    // Their scroll events are Devot's own: nothing moves back.
+    editor.fire()
+    preview.fire()
+    flush()
+    expect(editor.element.scrollTop).toBe(50)
+    expect(preview.element.scrollTop).toBe(100)
+  })
+
+  it('keeps every fraction of a trackpad scroll', () => {
+    const { editor, preview, flush } = setup()
+    flush()
+    // The element keeps whole pixels only.
+    let top = 0
+    Object.defineProperty(editor.element, 'scrollTop', {
+      get: () => top,
+      set: (value: number) => (top = Math.round(value)),
+    })
+    for (let i = 0; i < 8; i++) editor.wheel(0.4)
+    expect(editor.element.scrollTop).toBe(3)
+    expect(preview.element.scrollTop).toBe(6)
+  })
+
+  it('stops both panes at their ends together', () => {
+    const { editor, preview, flush } = setup({ previewHeight: 3000 })
+    flush()
+    editor.wheel(5000)
+    expect(editor.element.scrollTop).toBe(900)
+    expect(preview.element.scrollTop).toBe(2900)
+    preview.wheel(-99999)
+    expect(preview.element.scrollTop).toBe(0)
+    expect(editor.element.scrollTop).toBe(0)
+  })
+
+  it('leaves to the browser a wheel it cannot follow', () => {
+    const { editor, preview, flush } = setup()
+    flush()
+    expect(editor.wheel(10, { deltaX: 30 })).toBe(false)
+    expect(editor.wheel(10, { ctrlKey: true })).toBe(false)
+    editor.element.scrollHeight = 100
+    expect(preview.wheel(10)).toBe(false)
+    expect(editor.element.scrollTop).toBe(0)
+  })
+
+  it('takes a wheel over the follower as the new lead at once', () => {
+    const { editor, preview, flush } = setup()
+    flush()
+    editor.wheel(100)
+    flush()
+    // Momentum from the editor's own scroll after the user moves to the preview.
+    preview.wheel(20)
+    editor.userScroll(400)
+    flush()
+    // The editor's stray scroll is not followed: it goes back to the preview's line.
+    expect(preview.element.scrollTop).toBe(220)
+    expect(editor.element.scrollTop).toBe(110)
+  })
+
   it('stops listening when stopped', () => {
     const { editor, preview, stop, flush, frames } = setup()
     editor.userScroll(30)
     stop()
     expect(frames).toEqual([])
     editor.userScroll(60)
+    expect(editor.wheel(10)).toBe(false)
     preview.relayout()
     flush()
     expect(preview.scrolledTo).toEqual([])
