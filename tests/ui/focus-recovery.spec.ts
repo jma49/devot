@@ -69,7 +69,9 @@ async function createNote(page: Page, title: string) {
   await expect(noteRows(page)).toHaveCount(before + 1)
   await expect(titleField(page)).toHaveValue('')
   await titleField(page).fill(title)
-  await expect(noteRows(page).filter({ hasText: title })).toHaveCount(1)
+  await expect(
+    noteRows(page).filter({ has: page.locator('.row-title', { hasText: title }) }),
+  ).toHaveCount(1)
 }
 
 async function addTag(page: Page, name: string) {

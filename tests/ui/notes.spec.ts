@@ -41,11 +41,13 @@ test('only a note just created takes the keyboard, not one reopened from the lis
     await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
     await page.getByRole('textbox', { name: 'Title' }).fill(title)
   }
-  await rows.filter({ hasText: 'First' }).click()
+  await rows.filter({ has: page.locator('.row-title', { hasText: 'First' }) }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('First')
-  await rows.filter({ hasText: 'Second' }).click()
+  await rows.filter({ has: page.locator('.row-title', { hasText: 'Second' }) }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Second')
-  await expect(rows.filter({ hasText: 'Second' })).toBeFocused()
+  await expect(
+    rows.filter({ has: page.locator('.row-title', { hasText: 'Second' }) }),
+  ).toBeFocused()
 })
 
 test('a long title pasted in is cut to the limit, and the note keeps saving', async ({ page }) => {

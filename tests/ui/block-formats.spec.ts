@@ -40,9 +40,9 @@ test('the block buttons apply and remove each format', async ({ page }) => {
   await newNote(page, 'alpha\nbeta')
   const cases: [string, string[]][] = [
     ['Code Block', ['```', 'alpha', 'beta', '```']],
-    ['Bulleted List', ['- alpha', '- beta']],
+    ['Bulleted List', ['* alpha', '* beta']],
     ['Numbered List', ['1. alpha', '2. beta']],
-    ['Task List', ['- [ ] alpha', '- [ ] beta']],
+    ['Task List', ['* [ ] alpha', '* [ ] beta']],
     ['Quote', ['> alpha', '> beta']],
   ]
   for (const [name, formatted] of cases) {
@@ -65,18 +65,18 @@ test('the list buttons convert between kinds and keep nesting', async ({ page })
   await expect(button(page, 'Numbered List')).toHaveAttribute('aria-pressed', 'true')
   await expect(button(page, 'Bulleted List')).toHaveAttribute('aria-pressed', 'false')
   await button(page, 'Task List').click()
-  expect(await lines(page)).toEqual(['- [ ] one', '  - [ ] two', '- [ ] three'])
+  expect(await lines(page)).toEqual(['* [ ] one', '  * [ ] two', '* [ ] three'])
   await button(page, 'Bulleted List').click()
-  expect(await lines(page)).toEqual(['- one', '  - two', '- three'])
+  expect(await lines(page)).toEqual(['* one', '  * two', '* three'])
 })
 
 test('every block format has a shortcut that works without the toolbar', async ({ page }) => {
   await newNote(page, 'word')
   const cases: [string, string[]][] = [
     ['ControlOrMeta+Shift+KeyC', ['```', 'word', '```']],
-    ['ControlOrMeta+Shift+KeyL', ['- word']],
+    ['ControlOrMeta+Shift+KeyL', ['* word']],
     ['ControlOrMeta+Shift+KeyO', ['1. word']],
-    ['ControlOrMeta+Shift+KeyT', ['- [ ] word']],
+    ['ControlOrMeta+Shift+KeyT', ['* [ ] word']],
     ['ControlOrMeta+Quote', ['> word']],
   ]
   for (const [keys, formatted] of cases) {
@@ -162,7 +162,7 @@ test('Shift+Cmd+C makes a code block in the editor and copies the URI in the lis
   expect(await lines(page)).toEqual(['```', 'code', '```'])
 })
 
-test('Return on an empty list item or quote line leaves it, a blank line apart', async ({
+test('Return on an empty list item leaves it, a blank line apart; a quote goes on', async ({
   page,
 }) => {
   await newNote(page, '- one\n- two')
@@ -176,7 +176,8 @@ test('Return on an empty list item or quote line leaves it, a blank line apart',
   await page.keyboard.insertText('> note')
   await page.keyboard.press('Enter')
   await expect.poll(() => lines(page)).toEqual(['> note', '> '])
+  // An empty quote line goes on as a quote line too.
   await page.keyboard.press('Enter')
   await page.keyboard.type('after')
-  expect(await lines(page)).toEqual(['> note', '', 'after'])
+  expect(await lines(page)).toEqual(['> note', '>', '> after'])
 })

@@ -65,8 +65,8 @@ const KINDS: [string, string, string[]][] = [
   ['caution', 'Caution', ['Intro', '', '> [!CAUTION]', '> x']],
   ['tip', 'Tip', ['Intro', '', '> [!TIP]', '> x']],
   ['ordered', 'Ordered List', ['Intro', '', '1. x']],
-  ['task', 'Task List', ['Intro', '', '- [ ] x']],
-  ['unordered', 'Unordered List', ['Intro', '', '- x']],
+  ['task', 'Task List', ['Intro', '', '* [ ] x']],
+  ['unordered', 'Unordered List', ['Intro', '', '* x']],
 ]
 
 for (const [query, label, expected] of KINDS) {

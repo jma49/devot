@@ -543,6 +543,8 @@ test('export and print act on one note: not offered or run while several are sel
   for (const text of ['Export', 'Copy as', 'Print']) {
     await searchPalette(text)
     await expect(exportCommands).toHaveCount(0)
+    // Escape clears the query, then closes.
+    await palette.getByRole('combobox').press('Escape')
     await palette.getByRole('combobox').press('Escape')
     await expect(palette).toHaveCount(0)
   }
@@ -560,9 +562,13 @@ test('export and print act on one note: not offered or run while several are sel
   await expect(summary(page)).toHaveCount(0)
   await searchPalette('Export')
   await expect(exportCommands).toHaveCount(3)
+  // Escape clears the query, then closes.
+  await palette.getByRole('combobox').press('Escape')
   await palette.getByRole('combobox').press('Escape')
   await searchPalette('Print')
   await expect(exportCommands).toHaveCount(1)
+  // Escape clears the query, then closes.
+  await palette.getByRole('combobox').press('Escape')
   await palette.getByRole('combobox').press('Escape')
   await expect(palette).toHaveCount(0)
   await page.keyboard.press('Meta+Shift+P')

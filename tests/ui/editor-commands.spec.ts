@@ -114,10 +114,6 @@ test('Shift+Cmd+H inserts a horizontal rule under the line, and the palette offe
   await paletteField(page).press('Enter')
   expect(await lines(page)).toEqual(['Above', 'Below', '', '---', ''])
   await expect(body(page)).toBeFocused()
-  // Shift+Cmd+H is still Highlight.
-  await line(page, 0).dblclick()
-  await page.keyboard.press('ControlOrMeta+Shift+KeyH')
-  await expect(line(page, 0)).toHaveText('<mark>Above</mark>')
   // The Format menu gets the rule's key while the editor has the keyboard.
   const keys = await page.evaluate(
     () =>
@@ -125,7 +121,7 @@ test('Shift+Cmd+H inserts a horizontal rule under the line, and the palette offe
         .filter((c) => c.cmd === 'format_menu_set')
         .at(-1)?.args['keys'] as Record<string, string>,
   )
-  expect(keys['format.horizontalRule']).toBe('Shift+CmdOrCtrl+-')
+  expect(keys['format.horizontalRule']).toBe('Shift+CmdOrCtrl+H')
 })
 
 test('New Note from Selection moves the text into a note and links to it', async ({ page }) => {
@@ -143,7 +139,10 @@ test('New Note from Selection moves the text into a note and links to it', async
   // Nothing selected: the palette does not offer it.
   await search(page, 'new note from selection')
   await expect(commandOptions(page).filter({ hasText: 'New Note from Selection' })).toHaveCount(0)
+  // Escape clears the query first, then closes the palette.
   await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toBeHidden()
 
   await line(page, 1).click()
   await page.keyboard.press('Home')
@@ -238,11 +237,18 @@ test('a URL pasted over text links it; a lone URL goes in as the setting says', 
   await paste(page, 'https://example.com/docs')
   await expect(line(page, 0)).toHaveText('[See the docs](https://example.com/docs)')
 
-  // A lone URL: as copied by default.
+  // A lone URL: as an empty link by default, the cursor in its text.
   await line(page, 1).click()
   await page.keyboard.press('End')
   await paste(page, 'https://a.example')
-  await expect(line(page, 1)).toHaveText('link: https://a.example')
+  await expect(line(page, 1)).toHaveText('link: [](https://a.example)')
+
+  // As copied.
+  await changeEditorSettingsElsewhere(page, { pasteUrl: 'plain' })
+  await page.keyboard.press('Shift+Home')
+  await paste(page, 'link: ')
+  await paste(page, 'https://p.example')
+  await expect(line(page, 1)).toHaveText('link: https://p.example')
 
   await changeEditorSettingsElsewhere(page, { pasteUrl: 'autolink' })
   await page.keyboard.press('Shift+Home')

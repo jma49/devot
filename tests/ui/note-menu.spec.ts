@@ -10,7 +10,8 @@ import {
 } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
-const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
+const noteRow = (page: Page, title: string) =>
+  noteRows(page).filter({ has: page.locator('.row-title', { hasText: title }) })
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const picker = (page: Page) => page.getByRole('dialog', { name: 'Move to Notebook' })

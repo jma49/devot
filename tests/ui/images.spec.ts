@@ -381,6 +381,8 @@ test('the palette runs the image commands for the image at the cursor', async ({
   await page.keyboard.press('Meta+KeyK')
   await field(page).fill('Image Size')
   await expect(commands(page).filter({ hasText: 'Image Size' })).toHaveCount(0)
+  // Escape clears the query first, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette(page)).toBeHidden()
 })

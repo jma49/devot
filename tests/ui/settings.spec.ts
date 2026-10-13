@@ -195,8 +195,11 @@ test('a navigation column of panes on the left, General first', async ({ page })
   // One pane at a time.
   await expect(page.getByRole('tabpanel')).toHaveCount(1)
   await expect(page.getByRole('tabpanel')).toHaveAccessibleName('General')
-  await expect(page.getByRole('region')).toHaveCount(1)
-  await expect(page.getByRole('region')).toHaveAccessibleName('General')
+  // The pane's region; its blocks are regions of their own inside it.
+  await expect(page.getByRole('tabpanel').getByRole('region').first()).toHaveAccessibleName(
+    'General',
+  )
+  await expect(page.getByRole('region', { name: 'General', exact: true })).toHaveCount(1)
 })
 
 test('a click on a row shows its pane', async ({ page }) => {
@@ -208,7 +211,7 @@ test('a click on a row shows its pane', async ({ page }) => {
   await expect(editor(page)).toContainText('only on this Mac')
   await expect(page.getByRole('region', { name: 'General' })).toHaveCount(0)
   await tab(page, 'Preview').click()
-  await expect(page.getByRole('region', { name: 'Preview' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Preview' }).first()).toBeVisible()
 })
 
 test('the column is one tab stop; Up, Down, Home and End move between panes', async ({ page }) => {
@@ -237,10 +240,10 @@ test('the column is one tab stop; Up, Down, Home and End move between panes', as
 test('opens on the pane shown last', async ({ page }) => {
   await page.goto('/settings.html')
   await tab(page, 'Mirror').click()
-  await expect(page.getByRole('region', { name: 'Markdown Mirror' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Markdown Mirror' }).first()).toBeVisible()
   await page.reload()
   await expect(tab(page, 'Mirror')).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByRole('region', { name: 'Markdown Mirror' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Markdown Mirror' }).first()).toBeVisible()
   await expect(page.getByRole('region', { name: 'General' })).toHaveCount(0)
 })
 
@@ -458,9 +461,10 @@ test('each control stores its change at once', async ({ page }) => {
   await checkbox(page, 'Toolbar').uncheck()
   await checkbox(page, 'Line Numbers').check()
   await checkbox(page, 'Highlight Active Line').check()
+  // Readable Line Length applies only to wrapped lines: set it first.
+  await checkbox(page, 'Readable Line Length').check()
   await checkbox(page, 'Line Wrapping').uncheck()
   await checkbox(page, 'Inline Image Widgets').uncheck()
-  await checkbox(page, 'Readable Line Length').check()
   await checkbox(page, 'Scroll Past End').uncheck()
   await checkbox(page, 'Spellcheck').uncheck()
   await checkbox(page, 'Show Invisible Characters').check()
@@ -479,9 +483,9 @@ test('each control stores its change at once', async ({ page }) => {
       { toolbar: false },
       { lineNumbers: true },
       { highlightActiveLine: true },
+      { readableWidth: true },
       { lineWrapping: false },
       { inlineImages: false },
-      { readableWidth: true },
       { scrollPastEnd: false },
       { spellCheck: false },
       { showInvisibles: true },

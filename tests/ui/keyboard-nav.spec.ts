@@ -106,7 +106,9 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('Back and Forward', () => {
-  test('Cmd+[ and Cmd+] go through the notes opened, from the editor too', async ({ page }) => {
+  test('Cmd+[ and Cmd+] go through the notes opened; in the editor they indent', async ({
+    page,
+  }) => {
     await expect(backButton(page)).toBeDisabled()
     await expect(forwardButton(page)).toBeDisabled()
     await threeNotes(page)
@@ -114,16 +116,22 @@ test.describe('Back and Forward', () => {
     await expect(backButton(page)).toBeEnabled()
     await expect(forwardButton(page)).toBeDisabled()
 
-    // In the editor the keys are Back and Forward, not outdent and indent.
+    // In the editor the keys indent and outdent; they do not go back.
     await typeBody(page, 'gamma text')
+    await page.keyboard.press('Meta+BracketRight')
+    await expect.poll(() => lines(page)).not.toEqual(['gamma text'])
+    await page.keyboard.press('Meta+BracketLeft')
+    await expect.poll(() => lines(page)).toEqual(['gamma text'])
+    await expect(titleField(page)).toHaveValue('Gamma')
+    await expect(body(page)).toBeFocused()
+
+    // From the note list they go back and forward.
+    await noteRow(page, 'Gamma').focus()
     await page.keyboard.press('Meta+BracketLeft')
     await expect(titleField(page)).toHaveValue('Beta')
-    await expect(body(page)).toBeFocused()
     await expect(forwardButton(page)).toBeEnabled()
     await page.keyboard.press('Meta+BracketRight')
     await expect(titleField(page)).toHaveValue('Gamma')
-    await expect(body(page)).toBeFocused()
-    await expect.poll(() => lines(page)).toEqual(['gamma text'])
     await expect(forwardButton(page)).toBeDisabled()
 
     // The toolbar buttons do the same, and stop at either end.

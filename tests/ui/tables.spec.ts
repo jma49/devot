@@ -161,6 +161,8 @@ test('the palette runs table commands while the cursor is in a table', async ({ 
   await page.keyboard.press('Meta+KeyK')
   await field(page).fill('Delete Column')
   await expect(commands(page).filter({ hasText: 'Delete Column' })).toHaveCount(0)
+  // Escape clears the query first, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette(page)).toBeHidden()
 })

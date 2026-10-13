@@ -16,7 +16,7 @@ import {
 
 const ON: Partial<MockMirror> = { folder: '~/Notes', generation: 1, size: 12_345_678 }
 
-const section = (page: Page) => page.getByRole('region', { name: 'Markdown Mirror' })
+const section = (page: Page) => page.getByRole('region', { name: 'Markdown Mirror' }).first()
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
     (c) =>
@@ -47,7 +47,7 @@ async function openWith(page: Page, path: string, mirror?: Partial<MockMirror>) 
       }
     }, mirror)
   }
-  if (path === '/settings.html') await openSettings(page, 'Markdown Mirror')
+  if (path === '/settings.html') await openSettings(page, 'Mirror')
   else await page.goto(path)
 }
 

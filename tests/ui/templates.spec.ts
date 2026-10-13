@@ -77,6 +77,8 @@ test('templates live in their own view, out of All Notes and search', async ({ p
   await expect(palette.getByRole('option', { name: /Move to Trash/ })).toHaveCount(1)
   await palette.getByRole('combobox').fill('Set Status')
   await expect(palette.getByRole('option', { name: /Set Status/ })).toHaveCount(0)
+  // Escape clears the query first, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette).toHaveCount(0)
 
