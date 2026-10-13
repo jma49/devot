@@ -143,6 +143,8 @@ for (const width of [1280, 800]) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 700 })
+    // A window under 1000 px hides the sidebar until it is asked for.
+    if (width < 1000) await page.getByRole('button', { name: 'Show Sidebar' }).click()
     const name = 'W'.repeat(200)
     await createNote(page, 'Loose')
     await createBook(page, name)

@@ -238,14 +238,19 @@ const theme = EditorView.theme({
   '.cm-tooltip.cm-format-toolbar': {
     boxSizing: 'border-box',
     // Its own width, not what is left right of the selection; at most the
-    // editor's (set when placed), so a narrow window wraps the buttons.
+    // editor's (set when placed). A narrower editor (a split pane) keeps the
+    // buttons on one row and scrolls them sideways.
     width: 'max-content',
+    overflowX: 'auto',
+    scrollbarWidth: 'none',
     padding: 'var(--space-1)',
     boxShadow: '0 0 0 0.5px var(--color-line-hairline), 0 2px 8px var(--color-line-hairline)',
   },
-  '.cm-format-buttons': { display: 'flex', flexWrap: 'wrap', gap: 'var(--space-1)' },
+  '.cm-tooltip.cm-format-toolbar::-webkit-scrollbar': { display: 'none' },
+  '.cm-format-buttons': { display: 'flex', gap: 'var(--space-1)' },
   '.cm-format-button': {
     display: 'flex',
+    flexShrink: '0',
     alignItems: 'center',
     justifyContent: 'center',
     width: 'var(--size-field-height)',
@@ -259,6 +264,7 @@ const theme = EditorView.theme({
   '.cm-format-button:hover': { background: 'var(--color-fill-track)' },
   '.cm-format-separator': {
     alignSelf: 'center',
+    flexShrink: '0',
     width: '1px',
     height: 'var(--size-icon-sm)',
     margin: '0 var(--space-1)',

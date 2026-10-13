@@ -283,6 +283,26 @@ describe('bodyExcerpt', () => {
     expect(bodyExcerpt('', ['x'])).toBeUndefined()
   })
 
+  it('starts at the beginning of a word, never inside one', () => {
+    // The 40th character before the term lands inside "abcdefghij" (index 70
+    // of the body; its word starts at 66): the excerpt starts at the next word.
+    const body = `${'abcdefghij '.repeat(10)}needle here`
+    const cut = bodyExcerpt(body, ['needle'])
+    expect(cut).toBe(`…${body.slice(77)}`)
+    expect(cut?.startsWith('…abcdefghij needle')).toBe(false)
+    // Where the 40th character is a word's first, nothing moves.
+    expect(bodyExcerpt(`${'abcdefghi '.repeat(10)}needle`, ['needle'])).toBe(
+      `…${'abcdefghi '.repeat(10).slice(60)}needle`,
+    )
+    // A term inside a long word, with no word break before it: the cut stays.
+    const word = `${'x'.repeat(100)}needle`
+    expect(bodyExcerpt(word, ['needle'])).toBe(`…${'x'.repeat(40)}needle`)
+    // Text with no spaces (Chinese) is cut where it falls.
+    const chinese = `${SYNC_PLAN.repeat(20)}marker`
+    expect(bodyExcerpt(chinese, ['marker'])?.startsWith('…')).toBe(true)
+    expect(bodyExcerpt(chinese, ['marker'])).toBe(`…${chinese.slice(80 - 40)}`)
+  })
+
   // Shared with the Rust store (storage/tests.rs): long bodies, read only
   // around the place a word is found.
   it.each(EXCERPT_CASES)('$name', ({ parts, terms, excerpt }) => {
