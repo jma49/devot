@@ -488,6 +488,7 @@ export const en = {
   'command.showTemplates': 'Show Templates',
   'command.newFromTemplate': 'New Note from Template\u2026',
   'command.modeEdit': 'Show Editor',
+  'command.modeToggle': 'Toggle Editor and Preview',
   'command.modeSplit': 'Show Editor and Preview',
   'command.modePreview': 'Show Preview',
   'command.back': 'Back',

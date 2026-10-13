@@ -45,7 +45,7 @@ export interface EditorSettings {
  * sidebar material on, synced scrolling on, and images shown under their lines.
  */
 export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
-  lineNumbers: true,
+  lineNumbers: false,
   lineWrapping: true,
   readableWidth: false,
   fontSize: 13,

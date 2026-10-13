@@ -308,6 +308,8 @@ test('a shortcut changed in Settings works in the main window at once', async ({
       'note.history': 'Alt+CmdOrCtrl+Y',
       'palette.open': MAC ? 'Alt+CmdOrCtrl+P' : 'Ctrl+Alt+P',
       'view.sidebar': 'CmdOrCtrl+/',
+      'view.togglePreview': 'CmdOrCtrl+E',
+      'view.split': MAC ? 'Shift+CmdOrCtrl+E' : 'Ctrl+Shift+E',
       'view.syncScroll': null,
       'app.backups': null,
     },

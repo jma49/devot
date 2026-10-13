@@ -141,3 +141,22 @@ test('Cmd+= and Cmd+- resize the preview, and Cmd+0 resets it', async ({ page })
   await page.keyboard.press('Meta+Digit0')
   await expect.poll(() => fontSize(page, 'p')).toBeCloseTo(base, 1)
 })
+
+test('Cmd+E swaps editor and preview, and Cmd+Shift+E shows both', async ({ page }) => {
+  await longNote(page, 'Mode keys')
+  const key = (k: string) => page.keyboard.press(`ControlOrMeta+${k}`)
+  const pressed = async (name: 'Edit' | 'Split' | 'Preview') =>
+    expect(modeButton(page, name)).toHaveAttribute('aria-pressed', 'true')
+
+  await pressed('Edit')
+  await key('KeyE')
+  await pressed('Preview')
+  await key('KeyE')
+  await pressed('Edit')
+  await key('Shift+KeyE')
+  await pressed('Split')
+  // From split, the pane with the keyboard stays: the editor has it here.
+  await page.getByRole('textbox', { name: 'Note body' }).click()
+  await key('KeyE')
+  await pressed('Edit')
+})

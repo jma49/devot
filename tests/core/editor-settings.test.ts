@@ -18,7 +18,7 @@ import {
 describe('editor settings', () => {
   it('defaults to the editor as it was', () => {
     expect(DEFAULT_EDITOR_SETTINGS).toEqual({
-      lineNumbers: true,
+      lineNumbers: false,
       lineWrapping: true,
       readableWidth: false,
       fontSize: 13,

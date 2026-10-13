@@ -273,7 +273,7 @@ test('the font size hint drops its keys when one of them is cleared', async ({ p
 
 test('each control stores its change at once', async ({ page }) => {
   await openEditor(page)
-  await checkbox(page, 'Show line numbers').uncheck()
+  await checkbox(page, 'Show line numbers').check()
   await checkbox(page, 'Limit lines to a readable width').check()
   await checkbox(page, 'Wrap lines').uncheck()
   await checkbox(page, 'Highlight the current line').uncheck()
@@ -290,7 +290,7 @@ test('each control stores its change at once', async ({ page }) => {
   await expect
     .poll(() => setCalls(page))
     .toEqual([
-      { lineNumbers: false },
+      { lineNumbers: true },
       { readableWidth: true },
       { lineWrapping: false },
       { highlightActiveLine: false },
@@ -305,7 +305,7 @@ test('each control stores its change at once', async ({ page }) => {
       { pasteUrl: 'autolink' },
       { fontSize: 16 },
     ])
-  await expect(checkbox(page, 'Show line numbers')).not.toBeChecked()
+  await expect(checkbox(page, 'Show line numbers')).toBeChecked()
   await expect(select(page, 'List marker')).toHaveValue('*')
 })
 
@@ -417,5 +417,5 @@ test('a change that cannot be stored is reported and undone', async ({ page }) =
   await expect(editor(page).getByRole('alert')).toHaveText(
     'The editor settings could not be saved (E_EDITOR_SETTINGS_WRITE_FAILED).',
   )
-  await expect(checkbox(page, 'Show line numbers')).toBeChecked()
+  await expect(checkbox(page, 'Show line numbers')).not.toBeChecked()
 })
