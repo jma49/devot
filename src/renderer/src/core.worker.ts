@@ -129,6 +129,8 @@ export const coreApi = {
     }),
   /** What each untitled note's row shows instead of a title (see NoteService.headlines). */
   headlines: (ids: string[]) => required().headlines(ids),
+  /** The body excerpt each list row shows (see NoteService.excerpts). */
+  excerpts: (ids: string[]) => required().excerpts(ids),
   /** A new note from text selected in `sourceId` (see NoteService.extract). */
   extract: (sourceId: string, markdown: string) => required().extract(sourceId, markdown),
   applyUpdate: (id: string, update: Uint8Array) => required().applyUpdate(id, update),

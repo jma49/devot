@@ -62,8 +62,9 @@ const KEPT = 2000
 export function staleHeadlines(
   notes: readonly NoteSummary[],
   cache: ReadonlyMap<string, CachedHeadline>,
+  all = false,
 ): NoteSummary[] {
-  return notes.filter((n) => n.title === '' && cache.get(n.id)?.at !== n.updatedAt)
+  return notes.filter((n) => (all || n.title === '') && cache.get(n.id)?.at !== n.updatedAt)
 }
 
 /** Drops the oldest entries of `cache` until at most `limit` are left. */
@@ -103,6 +104,8 @@ export function mergeHeadlines(
 export function useHeadlines(
   load: HeadlineLoader | undefined,
   notes: readonly NoteSummary[],
+  /** Look up every note, not only the untitled ones (body excerpts). */
+  all = false,
 ): ReadonlyMap<string, string> {
   const [cache, setCache] = useState<ReadonlyMap<string, CachedHeadline>>(() => new Map())
   // What was asked for and has not come back, so a render in between asks no more.
@@ -110,7 +113,7 @@ export function useHeadlines(
   useEffect(() => {
     if (!load) return
     const keyOf = (n: NoteSummary) => `${n.id}@${n.updatedAt}`
-    const ask = staleHeadlines(notes, cache).filter((n) => !asked.current.has(keyOf(n)))
+    const ask = staleHeadlines(notes, cache, all).filter((n) => !asked.current.has(keyOf(n)))
     if (ask.length === 0) return
     const keys = ask.map(keyOf)
     const at = new Map(ask.map((n) => [n.id, n.updatedAt]))
@@ -127,13 +130,13 @@ export function useHeadlines(
       .finally(() => {
         for (const key of keys) asked.current.delete(key)
       })
-  }, [load, notes, cache])
+  }, [load, notes, cache, all])
   return useMemo(() => {
     const shown = new Map<string, string>()
     for (const n of notes) {
-      const text = n.title === '' ? cache.get(n.id)?.text : undefined
+      const text = all || n.title === '' ? cache.get(n.id)?.text : undefined
       if (text) shown.set(n.id, text)
     }
     return shown
-  }, [notes, cache])
+  }, [notes, cache, all])
 }

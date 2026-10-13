@@ -32,7 +32,7 @@ import { loadActivity, type ActivityHeatmap, type OffsetAt } from './activity'
 import { TEMPLATES_BOOK_ID } from './books'
 import { foldUnchanged, lineDiff, type DiffBlock } from './diff'
 import { errorCode } from './errors'
-import { headline } from './extract'
+import { headline, listExcerpt } from './extract'
 import { receiveStored, type Clock } from './hlc'
 import {
   BASELINE,
@@ -169,6 +169,13 @@ export interface NoteService {
    * is empty. Notes are read without being kept in memory.
    */
   headlines(ids: readonly string[]): Promise<Record<string, string>>
+  /**
+   * What the lists show under each of these notes' titles: the start of the
+   * body's readable text (see `listExcerpt`), pending edits included. A note
+   * that does not exist is left out. Notes are read without being kept in
+   * memory.
+   */
+  excerpts(ids: readonly string[]): Promise<Record<string, string>>
   /**
    * A new note with the title, body, notebook and status of `id` (pending
    * edits included; a deleted notebook counts as none); it is never pinned.
@@ -1286,6 +1293,20 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
             ? note.doc.getText(BODY).toString()
             : (await storage.getNote(id, { trashed: true }))?.bodyMd
           if (bodyMd !== undefined) found[id] = headline(bodyMd)
+        }),
+      )
+      return found
+    },
+
+    async excerpts(ids) {
+      const found: Record<string, string> = {}
+      await Promise.all(
+        ids.map(async (id) => {
+          const note = live.get(id)
+          const record = note ? undefined : await storage.getNote(id, { trashed: true })
+          const bodyMd = note ? note.doc.getText(BODY).toString() : record?.bodyMd
+          if (bodyMd === undefined) return
+          found[id] = listExcerpt(bodyMd, note ? note.record.title : (record?.title ?? ''))
         }),
       )
       return found

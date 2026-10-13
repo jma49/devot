@@ -421,16 +421,83 @@ button {
   padding: 0 var(--space-6) 0 var(--space-8);
 }
 
+/* The list's header: sidebar toggle at the start, the view centred, New Note at the end. */
+.list-header {
+  display: grid;
+  grid-template-columns: minmax(var(--space-10), 1fr) minmax(0, auto) minmax(var(--space-10), 1fr);
+  align-items: center;
+  border-bottom: 0;
+}
+
+.list-header-side {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.list-header-end {
+  justify-content: flex-end;
+}
+
+.list .list-header .toolbar-title {
+  flex: none;
+  align-items: center;
+  max-width: 100%;
+}
+
+.headline-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+  color: var(--color-text-primary);
+}
+
+.headline-row .headline {
+  min-width: 0;
+}
+
+/* Filter field and sort chip under the header. */
+.list-filter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: 0 var(--space-6) var(--space-4);
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.list-filter .search-field {
+  width: 100%;
+}
+
+.sort-chip {
+  height: calc(var(--space-8) + var(--space-1));
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-capsule);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  white-space: nowrap;
+}
+
+.sort-chip:hover {
+  background: var(--color-fill-track);
+}
+
 .rows {
   flex: 1;
   min-height: 0;
   overflow: auto;
   list-style: none;
   margin: 0;
-  padding: var(--space-4);
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 0;
 }
 
 .rows:focus {
@@ -452,8 +519,8 @@ button {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-card);
+  padding: var(--space-5) var(--space-6);
+  border-radius: 0;
   outline: none;
 }
 
@@ -474,43 +541,29 @@ button {
   overflow-wrap: anywhere;
 }
 
-/* Words a search matched. On the accent-filled selection they are underlined instead. */
+/* Words a search matched. */
 .row mark {
   border-radius: var(--space-1);
   background: var(--color-fill-match);
   color: inherit;
 }
 
-.rows:focus-within .row[aria-selected='true'] mark {
-  background: transparent;
-  text-decoration: underline;
-}
-
-.rows:focus-within .row[aria-selected='true'] .row-excerpt {
-  color: inherit;
-}
-
 .row-meta {
   display: flex;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
   font-size: var(--font-size-footnote);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
+.row-time {
+  color: var(--color-accent-text);
+}
+
 .row-status {
   color: var(--status-color);
-}
-
-.rows:focus-within .row[aria-selected='true'] .row-status {
-  color: inherit;
-}
-
-.row-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
 }
 
 .chip {
@@ -536,14 +589,13 @@ button {
   list-style: none;
 }
 
-/* Selection: neutral, or the accent while its list has the keyboard focus. */
+/* Selection: neutral in the note list; the sidebar shows the accent while it has the keyboard focus. */
 .source[aria-current='true'],
 .row[aria-selected='true'] {
   background: var(--color-fill-row-selected-unemphasized);
 }
 
-.sources:focus-within .source[aria-current='true'],
-.rows:focus-within .row[aria-selected='true'] {
+.sources:focus-within .source[aria-current='true'] {
   background: var(--color-accent-fill);
   color: var(--color-accent-on-fill);
 }
@@ -744,11 +796,6 @@ button {
 
 .editor-toolbar > * {
   flex-shrink: 0;
-}
-
-.editor-toolbar > .search-field {
-  flex-shrink: 1;
-  min-width: calc(var(--space-10) * 2);
 }
 
 /* Back and Forward, at the start of the editor's toolbar. */

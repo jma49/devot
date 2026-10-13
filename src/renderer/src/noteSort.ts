@@ -169,6 +169,13 @@ export function orderLabel(order: ListOrder): string {
   return t(order === 'relevance' ? 'sort.relevance' : (`sort.${noteSortId(order)}` as const))
 }
 
+/** The short label of an order, as the sort chip shows it ("Date Updated \u2193"). */
+export function orderChip(order: ListOrder): string {
+  return t(
+    order === 'relevance' ? 'sort.chip.relevance' : (`sort.chip.${noteSortId(order)}` as const),
+  )
+}
+
 /**
  * The order of one view and its pop-up. `show(anchor)` opens the menu under
  * the anchor (the header button); a pick re-sorts the list and is remembered.

@@ -53,6 +53,7 @@
     "format.alert": "exclamationmark.bubble",
     "code.copy": "doc.on.doc",
     "code.copied": "checkmark",
-    "code.copyFailed": "exclamationmark.triangle"
+    "code.copyFailed": "exclamationmark.triangle",
+    "filter": "line.3.horizontal.decrease"
   }
 }
