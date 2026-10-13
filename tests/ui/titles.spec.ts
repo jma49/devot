@@ -89,9 +89,12 @@ test('Return in the title moves to the body, and an input method keeps its Retur
   // The Return that picks a candidate of an input method stays in the title.
   await titleField(page).focus()
   await titleField(page).evaluate((el) => {
-    el.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true, cancelable: true }),
-    )
+    const w = globalThis as unknown as {
+      KeyboardEvent: new (type: string, init: object) => object
+    }
+    const key = new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    Object.defineProperty(key, 'keyCode', { value: 229 })
+    el.dispatchEvent(key as Event)
   })
   await expect(titleField(page)).toBeFocused()
 })
