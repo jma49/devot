@@ -100,6 +100,15 @@ A code block in the preview with a language shows that language's mark in its he
 
 The preview draws its blocks from their own theme tokens: `color.code-block.*` and `color.code-header.bg` for code, `color.table.head` and `color.table.stripe` for tables, `color.quote.bar`, `color.mark.bg` for highlighted text, `color.fill.card` for the note info card, and `color.alert.*` for the five alert kinds (note blue, tip green, important purple, warning orange, caution red), each in light and dark. Alert titles keep 4.5:1 on the editor (`contrast.test.ts`). The small line icons drawn into a note's content (alert kinds, note statuses, a broken link) are Devot's own drawings in `src/core/preview/glyphs.ts`, stroked in the text colour.
 
+## Motion
+
+Floating things move by the `motion.*` tokens; a policy test rejects literal durations and curves in UI code.
+
+- Floating bar buttons (selection toolbar, image size bar): under the pointer and pressed look the same, a `color.line.control` ring over `color.fill.tool-hover`. The text colour eases over `motion.duration.color` (`motion.easing.standard`), the ring over `motion.duration.ring` (`motion.easing.out`); the fill snaps.
+- Pop-ups we place ourselves (pickers, tag suggestions, toolbar tooltips, a bar button's tooltip) grow from `motion.scale.popover-enter` out of their notch or anchor while they fade in, over `motion.duration.popover`, on their own layer. They rest on the two-layer `shadow.popover-*` shadow in the `color.shadow.popover-*` colours; menus (pickers, tag suggestions) have a 1px hairline edge and `radius.card` corners, and toolbar tooltips a notch pointing at their button.
+- Pop-ups CodeMirror places (the floating bars, completion lists) and a code block's copy button only fade, over `motion.duration.fade`: CodeMirror places a tooltip from its measured box, which a growing one would throw off.
+- Reduce Motion sets `--popover-enter-scale` to 1 (`app.css`): everything fades, nothing grows or slides. Dismissal is instant.
+
 ## Themes
 
 - **Default**: Devot's palette in the appearance chosen in Settings (the system's by default), optionally with the system accent.

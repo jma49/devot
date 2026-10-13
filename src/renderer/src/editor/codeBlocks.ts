@@ -36,6 +36,7 @@ import { t } from '../i18n'
 import { iconElement } from '../icons/Icon'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
 import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
+import { fadeIn, motionKeyframes } from './motion'
 import { withLook } from './popupLook'
 
 /**
@@ -485,10 +486,7 @@ const typingKeys = Prec.highest(
 )
 
 const theme = EditorView.theme({
-  '@keyframes cm-codeblock-copy-in': {
-    from: { opacity: '0', transform: 'scale(0.9)' },
-    to: { opacity: '1', transform: 'scale(1)' },
-  },
+  ...motionKeyframes,
   '.cm-line.cm-codeblock': {
     position: 'relative',
     zIndex: '0',
@@ -551,7 +549,9 @@ const theme = EditorView.theme({
     background: 'var(--color-fill-button)',
     color: 'var(--color-text-secondary)',
     cursor: 'default',
-    animation: 'cm-codeblock-copy-in 0.2s ease-out',
+    // A control over the text: it fades in, and its colour eases.
+    animation: fadeIn,
+    transition: 'color var(--motion-duration-color) var(--motion-easing-standard)',
   },
   '.cm-codeblock-copy:hover': { color: 'var(--color-text-primary)' },
   '.cm-codeblock-copy[data-state="copied"]': { color: 'var(--color-status-done)' },

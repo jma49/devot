@@ -68,6 +68,14 @@ describe('token compiler', () => {
     expect(() => f('shadow', {})).toThrow('E_TOKEN_TYPE_UNSUPPORTED')
   })
 
+  it('formats motion: durations, easing curves and plain numbers', () => {
+    const f = (type: string, value: unknown) =>
+      cssValue({ path: 'x', type, value, systemAccent: false })
+    expect(f('duration', { value: 400, unit: 'ms' })).toBe('400ms')
+    expect(f('cubicBezier', [0.215, 0.61, 0.355, 1])).toBe('cubic-bezier(0.215, 0.61, 0.355, 1)')
+    expect(f('number', 0.8)).toBe('0.8')
+  })
+
   it('names CSS variables after the token path', () => {
     expect(cssVarName('color.surface.sidebar')).toBe('--color-surface-sidebar')
   })

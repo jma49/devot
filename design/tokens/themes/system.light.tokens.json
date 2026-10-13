@@ -856,6 +856,28 @@
         "hex": "#af3b36",
         "alpha": 0.25
       }
+    },
+    "shadow": {
+      "popover-key": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "hex": "#000000",
+          "alpha": 0.12
+        },
+        "$description": "The close, sharp layer of a pop-up's shadow."
+      },
+      "popover-ambient": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "hex": "#000000",
+          "alpha": 0.15
+        },
+        "$description": "The wide, soft layer of a pop-up's shadow."
+      }
     }
   }
 }

@@ -91,6 +91,12 @@ export function cssValue(token: FlatToken): string {
         .map((f) => (/^[a-z-]+$/i.test(String(f)) ? String(f) : `'${String(f)}'`))
         .join(', ')
     }
+    case 'duration': {
+      const d = token.value as { value: number; unit: 'ms' | 's' }
+      return `${d.value}${d.unit}`
+    }
+    case 'cubicBezier':
+      return `cubic-bezier(${(token.value as number[]).join(', ')})`
     case 'fontWeight':
     case 'number':
       return String(token.value)
