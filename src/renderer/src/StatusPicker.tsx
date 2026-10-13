@@ -76,7 +76,7 @@ export function StatusPicker(props: {
               ? t('note.statusLabel')
               : t(`status.${props.value}`)}
         </span>
-        <Icon name="popup.chevron" size="sm" />
+        <Icon name="popup.chevron" size="xs" />
       </button>
       {open ? (
         <PickerList

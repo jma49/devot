@@ -122,7 +122,7 @@ export function BookPicker(props: {
       >
         <Icon name="notebook" size="sm" />
         <span className="popup-value">{current}</span>
-        <Icon name="popup.chevron" size="sm" />
+        <Icon name="popup.chevron" size="xs" />
       </button>
       {open ? (
         <PickerList

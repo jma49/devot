@@ -120,7 +120,7 @@ export function TagEditor(props: {
               if (e.detail === 0) field.current?.focus()
             }}
           >
-            <Icon name="tag.remove" size="sm" />
+            <Icon name="tag.remove" size="xs" />
           </button>
         </span>
       ))}

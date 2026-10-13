@@ -47,7 +47,7 @@
     "nav.forward": "arrow.right",
     "find.previous": "chevron.up",
     "find.next": "chevron.down",
-    "format.codeBlock": "curlybraces.square",
+    "format.codeBlock": "curlybraces",
     "format.bulletList": "list.bullet",
     "format.numberedList": "list.number",
     "format.taskList": "checklist",

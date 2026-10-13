@@ -131,7 +131,7 @@ test('the toolbar shows for a selection, with named SF Symbol buttons in three g
     ['Highlight', 'highlighter'],
     ['Link', 'link'],
     ['Inline Code', 'chevron.left.forwardslash.chevron.right'],
-    ['Code Block', 'curlybraces.square'],
+    ['Code Block', 'curlybraces'],
     ['Bulleted List', 'list.bullet'],
     ['Numbered List', 'list.number'],
     ['Task List', 'checklist'],

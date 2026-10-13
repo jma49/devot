@@ -105,7 +105,13 @@ export function FloatSeparator(): ReactNode {
   return <div role="separator" aria-orientation="vertical" className="cm-float-separator" />
 }
 
-const panelShadow = '0 0 0 0.5px var(--color-line-hairline), 0 4px 14px var(--color-line-shadow)'
+/**
+ * The bar's outline and shadow, drawn round the bar and its notch together
+ * (a filter follows the painted shape), so the two read as one shape with
+ * no seam where they meet.
+ */
+const barOutline =
+  'drop-shadow(0 0 0.5px var(--color-line-hairline)) drop-shadow(0 4px 7px var(--color-line-shadow))'
 const notchSize = 'var(--space-5)'
 const notchOut = 'calc(var(--space-5) / -2)'
 
@@ -115,11 +121,13 @@ export const floatTheme = EditorView.theme({
     display: 'flex',
     alignItems: 'center',
     height: 'var(--size-float-toolbar-height)',
-    padding: 'var(--space-2) var(--space-3)',
+    // The same space round the buttons on every side.
+    padding: 'var(--space-2)',
     border: '0',
     borderRadius: 'var(--radius-floating-bar)',
     backgroundColor: 'var(--color-surface-popover)',
-    boxShadow: panelShadow,
+    boxShadow: 'none',
+    filter: barOutline,
     color: 'var(--color-text-secondary)',
     fontFamily: 'var(--font-family-ui)',
   },
@@ -134,14 +142,8 @@ export const floatTheme = EditorView.theme({
     backgroundColor: 'var(--color-surface-popover)',
     transform: 'rotate(45deg)',
   },
-  '.cm-tooltip-above.cm-float-bar::after': {
-    bottom: notchOut,
-    boxShadow: '0.5px 0.5px 0 0 var(--color-line-hairline)',
-  },
-  '.cm-tooltip-below.cm-float-bar::after': {
-    top: notchOut,
-    boxShadow: '-0.5px -0.5px 0 0 var(--color-line-hairline)',
-  },
+  '.cm-tooltip-above.cm-float-bar::after': { bottom: notchOut },
+  '.cm-tooltip-below.cm-float-bar::after': { top: notchOut },
   '.cm-float-buttons': {
     display: 'flex',
     alignItems: 'center',
@@ -201,7 +203,8 @@ export const floatTheme = EditorView.theme({
     padding: 'var(--space-3) var(--space-5)',
     borderRadius: 'var(--radius-card)',
     backgroundColor: 'var(--color-surface-popover)',
-    boxShadow: panelShadow,
+    // Inside the bar: the bar's outline and shadow reach it too.
+    boxShadow: 'none',
     color: 'var(--color-text-secondary)',
     fontSize: 'var(--font-size-footnote)',
     whiteSpace: 'nowrap',

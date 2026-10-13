@@ -1,7 +1,7 @@
 import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
-import { decorationsFor, lineStyles, type LineStyle } from './lineStyles'
+import { decorationsFor, markdownGutterLines, lineStyles, type LineStyle } from './lineStyles'
 import { noteMarkdown } from './markdown'
 
 function stylesOf(doc: string): { state: EditorState; styles: LineStyle[] } {
@@ -82,5 +82,36 @@ describe('editor line styles', () => {
     expect(lines[4]).toBe('cm-md-table')
     expect(lines[5]).toBe('cm-md-table cm-md-table-last')
     expect(marked(doc, 'cm-md-table-header')).toEqual(['| a | b |'])
+  })
+})
+
+describe('the gutter', () => {
+  it("pads a table's first line, as the line is padded inside its box", () => {
+    const s = EditorState.create({
+      doc: 'a\n\n| x | y |\n| - | - |\n| 1 | 2 |',
+      extensions: [noteMarkdown],
+    })
+    ensureSyntaxTree(s, s.doc.length, 5000)
+    const lines: string[] = []
+    for (let c = markdownGutterLines(s).iter(); c.value; c.next())
+      lines.push(`${s.doc.lineAt(c.from).number}:${c.value.elementClass}`)
+    expect(lines).toEqual(['3:cm-md-gutter-table'])
+  })
+
+  it('drops the number of a large heading (levels 1 to 3) to its baseline, on every line', () => {
+    const s = EditorState.create({
+      doc: '# One\n\ntext\n\n### Three\n\n#### Four\n\nTwo\n---\n\n```\n# not\n```',
+      extensions: [noteMarkdown],
+    })
+    ensureSyntaxTree(s, s.doc.length, 5000)
+    const lines: string[] = []
+    for (let c = markdownGutterLines(s).iter(); c.value; c.next())
+      lines.push(`${s.doc.lineAt(c.from).number}:${c.value.elementClass}`)
+    expect(lines).toEqual([
+      '1:cm-md-gutter-h1',
+      '5:cm-md-gutter-h3',
+      '9:cm-md-gutter-h2',
+      '10:cm-md-gutter-h2',
+    ])
   })
 })

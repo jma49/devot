@@ -58,7 +58,7 @@
 
 .preview code {
   padding: 0.2em 0.4em;
-  border-radius: var(--space-2);
+  border-radius: var(--radius-mark);
   background: var(--color-fill-track);
   font-family: var(--font-family-mono);
   font-size: 85%;

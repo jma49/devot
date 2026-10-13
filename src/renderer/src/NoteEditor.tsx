@@ -10,6 +10,7 @@ import { BODY } from '../../core/notes'
 import { imageFiles, storeImages } from './attachments'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
+import { BOX_HANG } from './editor/boxes'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys } from './commands/registry'
 import { invoke } from './ipc'
@@ -338,6 +339,8 @@ const theme = EditorView.theme({
     lineHeight: 'var(--editor-line-height, 1.5)',
   },
   '&.cm-focused': { outline: 'none' },
+  // Room for the boxes and quote bars that reach past the lines (editor/boxes.ts).
+  '.cm-content': { paddingInline: BOX_HANG },
   // Thin scroll bars, as in the rest of the window (app.css).
   '.cm-scroller::-webkit-scrollbar': {
     width: 'var(--size-scrollbar)',
