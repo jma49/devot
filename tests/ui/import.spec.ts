@@ -283,3 +283,23 @@ test('a folder picked while Backups is open is imported once it closes', async (
   await dialog(page).getByRole('button', { name: 'Done' }).click()
   await expect(dialog(page)).toBeHidden()
 })
+
+test('a finished import closes the trashed note that was open', async ({ page }) => {
+  await open(page)
+  const title = page.getByRole('textbox', { name: 'Title' })
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await title.fill('Doomed')
+  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await sidebar(page)
+    .getByRole('button', { name: /^Trash \d+$/ })
+    .click()
+  await noteRows(page).filter({ hasText: 'Doomed' }).click()
+  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+
+  await send(page, 'devot:import-ready', SCAN)
+  await expect(dialog(page)).toContainText('Imported 3 notes into 3 notebooks.')
+  await dialog(page).getByRole('button', { name: 'Done' }).click()
+  await expect(header(page)).toHaveText('Vault')
+  await expect(title).toHaveCount(0)
+  await expect(body(page)).toHaveCount(0)
+})

@@ -435,6 +435,11 @@ export function App() {
     [quitGuard, refresh],
   )
 
+  // Changes of view made from callbacks that outlive a render (a finished
+  // import, New Notebook) go through the latest rules (see `showLibrary`).
+  const showLibraryRef =
+    useRef<(next: Selection, options?: { clearFilter?: boolean }) => void>(undefined)
+
   /**
    * Shows the next sheet unless one is up: an import job first (every
    * result stays until the user closes it; an import ends by showing its
@@ -476,9 +481,7 @@ export function App() {
         })
         await refresh(c)
         if (report?.bookId) {
-          clearSearch()
-          setFilter(null)
-          setLibrary({ kind: 'book', id: report.bookId })
+          showLibraryRef.current?.({ kind: 'book', id: report.bookId }, { clearFilter: true })
         }
         setImportState({ kind: 'done', name: scan.name, report, skipped: scan.skipped })
       } catch (e) {
@@ -514,19 +517,6 @@ export function App() {
   const libraryBook = library.kind === 'book' ? books.find((b) => b.id === library.id) : undefined
   const inTrash = library.kind === 'trash'
   const inTemplates = library.kind === 'templates'
-  // Switching between the Trash and the rest closes the open note. Filters
-  // narrow the library, not Templates.
-  const showLibrary = (next: Selection) => {
-    clearSearch()
-    if ((next.kind === 'trash') !== inTrash) setSelected(undefined)
-    if (next.kind === 'templates') setFilter(null)
-    setLibrary(next)
-  }
-  const showFilter = (next: NoteFilter | null) => {
-    clearSearch()
-    if (inTrash || inTemplates) showLibrary({ kind: 'all' })
-    setFilter(next)
-  }
   const keptTrashRows = useRef<NoteSummary[]>([])
   const trashRows = useMemo(
     () =>
@@ -634,6 +624,35 @@ export function App() {
   // view comes back when the search is cleared, and a row pressed meanwhile
   // shows its own view.
   const searchingAll = searching && !inView
+  /**
+   * Shows All Notes, a notebook, Templates or the Trash. Every change of view
+   * goes through here (the sidebar, the palette, New Notebook, a finished
+   * import), so the same rules apply to all of them:
+   * - the search is cleared, and a search over every note, which hid the
+   *   view, also drops the filter that did not show as pressed;
+   * - switching between the Trash and the rest closes the open note;
+   * - filters narrow the library, not Templates.
+   * `clearFilter` also turns the filter off (the arrow keys in the sidebar,
+   * a finished import).
+   */
+  const showLibrary = (next: Selection, options?: { clearFilter?: boolean }) => {
+    const clearFilter = searchingAll || options?.clearFilter || next.kind === 'templates'
+    clearSearch()
+    if ((next.kind === 'trash') !== inTrash) setSelected(undefined)
+    if (clearFilter) setFilter(null)
+    setLibrary(next)
+  }
+  /** Turns a filter on or off; it covers every note, whatever view was shown. */
+  const showFilter = (next: NoteFilter | null) => {
+    // A search over every note hid its notebook: the filter pressed covers every note.
+    const everyNote = searchingAll || inTrash || inTemplates
+    clearSearch()
+    if (everyNote) showLibrary({ kind: 'all' })
+    setFilter(next)
+  }
+  useEffect(() => {
+    showLibraryRef.current = showLibrary
+  })
   const viewBookId = libraryBook?.id ?? null
   const searchScope = useMemo<SearchScope | undefined>(
     () => (inView ? { bookId: viewBookId, filter: activeFilter } : undefined),
@@ -1200,8 +1219,7 @@ export function App() {
           : { kind: 'library', bookId: libraryBook?.id ?? null, filter: activeFilter }
       if (viewLists(view, made, listed.books)) return
     }
-    setFilter(null)
-    showLibrary(homeOf(made))
+    showLibrary(homeOf(made), { clearFilter: true })
   }
 
   const create = async () => {
@@ -1358,7 +1376,7 @@ export function App() {
   const createBook = (parentId: string | null) =>
     changeBooks(async (c) => {
       const id = await c.createBook(t('book.new'), parentId)
-      setLibrary({ kind: 'book', id })
+      showLibraryRef.current?.({ kind: 'book', id })
       setRenamingBook(id)
     })
 
@@ -1486,9 +1504,9 @@ export function App() {
   })
 
   // Back and Forward: the trail entry each opens, skipping notes deleted
-  // since (the Trash's notes are never entries). The open note is the
-  // current entry's, or the one a navigation is opening (`opening`); none in
-  // the Trash or when it was deleted.
+  // since (the Trash's notes are never entries). The open note is the current entry's,
+  // or the one a navigation is opening (`opening`); none in the Trash or
+  // when it was deleted.
   const liveIds = useMemo(() => new Set(notes.map((n) => n.id)), [notes])
   const onTrail = (now: Trail, opening?: string) => ({
     live: (id: string) => liveIds.has(id),
@@ -1537,6 +1555,15 @@ export function App() {
     if (body && mode === 'preview') setMode('edit')
     requestFocus({ kind: part, id })
   }
+
+  /**
+   * The editor could not open its note (it is gone or in the Trash): the
+   * note closes, so no editor shows with a stale title and an empty body.
+   */
+  const closeUnopenable = useStable((id: string) => {
+    console.warn('W_NOTE_OPEN_FAILED', id)
+    if (id === selected) setSelected(undefined)
+  })
 
   /**
    * The list's selection changed (see listSelection.ts). One note left is
@@ -1941,11 +1968,9 @@ export function App() {
     ),
     [trash.length, askEmptyTrash],
   )
-  const sidebarSelect = useStable((next: Selection, options?: { clearFilter?: boolean }) => {
-    // The filter did not show as pressed: the view pressed comes without it.
-    if (searchingAll || options?.clearFilter) setFilter(null)
-    showLibrary(next)
-  })
+  const sidebarSelect = useStable((next: Selection, options?: { clearFilter?: boolean }) =>
+    showLibrary(next, options),
+  )
   const sidebarCreateBook = useStable((parentId: string | null) => void createBook(parentId))
   const sidebarRenameBook = useStable(
     (id: string, name: string) => void changeBooks((c) => c.renameBook(id, name)),
@@ -1973,11 +1998,7 @@ export function App() {
     (ids: string[], status: NoteStatus) => void setNotesStatus(ids, status),
   )
   const sidebarTrashNotes = useStable((ids: string[]) => void trashNotes(ids))
-  const sidebarFilter = useStable((next: NoteFilter | null) => {
-    // Nor did the notebook: the filter pressed covers every note.
-    if (searchingAll) setLibrary({ kind: 'all' })
-    showFilter(next)
-  })
+  const sidebarFilter = useStable((next: NoteFilter | null) => showFilter(next))
   const sidebarRenameTag = useStable(
     (id: string, name: string) => void changeBooks((c) => c.renameTag(id, name)),
   )
@@ -2285,6 +2306,7 @@ export function App() {
                 onPlace={editorPlaced}
                 onNewFromSelection={inTrash ? undefined : () => void noteFromSelection(selected)}
                 onImagesRefused={setImageNotice}
+                onOpenFailed={closeUnopenable}
               />
               {mode === 'edit' ? null : (
                 <LivePreview
