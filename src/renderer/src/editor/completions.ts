@@ -11,11 +11,12 @@ import { iconElement } from '../icons/Icon'
 import { codeBlocks, languageSource } from './codeBlocks'
 import { chooseTemplate, editorHints } from './hints'
 import { alertSource, emojiSource } from './inlineCompletions'
+import { fadeIn, motionKeyframes } from './motion'
 import { lookOf } from './popupLook'
 import { chooseImageFiles, slashMenu, slashSource, slashTrigger } from './slashMenu'
 
-/** A row icon's size in points (`--size-icon-menu`). */
-const ICON_POINTS = 16
+/** A row icon's box in pixels (`--size-icon-menu`). */
+const ICON_BOX = 16
 
 /** What each row shows before its label. */
 function rowIcon(completion: Completion): Node | null {
@@ -26,7 +27,7 @@ function rowIcon(completion: Completion): Node | null {
   box.setAttribute('aria-hidden', 'true')
   if (look.tone) box.dataset['tone'] = look.tone
   if (look.glyph !== undefined) box.textContent = look.glyph
-  else if (look.icon) box.appendChild(iconElement(look.icon, ICON_POINTS))
+  else if (look.icon) box.appendChild(iconElement(look.icon, ICON_BOX))
   else if (look.list === 'language') box.classList.add('cm-popup-ring')
   else return null
   return box
@@ -49,13 +50,15 @@ const completionLook = autocompletion({
 })
 
 const theme = EditorView.theme({
+  ...motionKeyframes,
   '.cm-tooltip.cm-tooltip-autocomplete': {
     border: '0',
     borderRadius: 'var(--radius-popover)',
     backgroundColor: 'var(--color-surface-popover)',
-    boxShadow: '0 0 0 1px var(--color-line-hairline), 0 8px 24px var(--color-line-hairline)',
+    boxShadow: '0 0 0 1px var(--color-line-hairline), var(--popover-shadow)',
     color: 'var(--color-text-primary)',
     overflow: 'hidden',
+    animation: fadeIn,
   },
   '.cm-tooltip.cm-tooltip-autocomplete > ul': {
     fontFamily: 'var(--font-family-ui)',

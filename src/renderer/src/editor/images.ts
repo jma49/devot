@@ -279,7 +279,8 @@ const theme = EditorView.theme({
     gap: 'var(--space-4)',
     boxSizing: 'border-box',
     height: 'var(--size-inline-image-height)',
-    padding: 'var(--space-2) 0',
+    // In from the content's edge as a line's text is (CodeMirror pads it by space-3).
+    padding: 'var(--space-2) 0 var(--space-2) var(--space-3)',
     overflow: 'hidden',
   },
   '.cm-inline-image': {

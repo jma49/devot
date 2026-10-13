@@ -36,7 +36,7 @@
   --radius-card: 8px;
   --radius-pill: 12px;
   --radius-capsule: 999px;
-  --radius-popover: 12px;
+  --radius-popover: 8px;
   --radius-floating-bar: 14px;
   --radius-dialog: 12px;
   --size-sidebar-width: 232px;
@@ -67,6 +67,17 @@
   --size-link-dialog-width: 300px;
   --size-palette-width: 650px;
   --size-sidebar-bar: 3px;
+  --motion-duration-color: 400ms;
+  --motion-duration-ring: 200ms;
+  --motion-duration-popover: 300ms;
+  --motion-duration-fade: 400ms;
+  --motion-duration-pane: 220ms;
+  --motion-easing-standard: cubic-bezier(0.42, 0, 0.58, 1);
+  --motion-easing-out: cubic-bezier(0, 0, 0.58, 1);
+  --motion-scale-popover-enter: 0.8;
+  --shadow-popover-y: 2px;
+  --shadow-popover-key-blur: 4px;
+  --shadow-popover-ambient-blur: 10px;
   --color-surface-sidebar: rgb(243 244 246 / 0.7);
   --color-surface-sidebar-opaque: #f3f4f6;
   --color-surface-list: #fafaf9;
@@ -157,6 +168,8 @@
   --color-match-bg: #f3e1bb;
   --color-match-border: #d9b871;
   --color-trailing-space: rgb(175 59 54 / 0.25);
+  --color-shadow-popover-key: rgb(0 0 0 / 0.12);
+  --color-shadow-popover-ambient: rgb(0 0 0 / 0.15);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -251,6 +264,8 @@
     --color-match-bg: #5b4a26;
     --color-match-border: #80672f;
     --color-trailing-space: rgb(233 120 115 / 0.3);
+    --color-shadow-popover-key: rgb(0 0 0 / 0.36);
+    --color-shadow-popover-ambient: rgb(0 0 0 / 0.45);
   }
 }
 
@@ -346,6 +361,8 @@
   --color-match-bg: #5b4a26;
   --color-match-border: #80672f;
   --color-trailing-space: rgb(233 120 115 / 0.3);
+  --color-shadow-popover-key: rgb(0 0 0 / 0.36);
+  --color-shadow-popover-ambient: rgb(0 0 0 / 0.45);
 }
 
 :root[data-appearance='light'], [data-appearance-preview='light'] {
@@ -440,4 +457,6 @@
   --color-match-bg: #f3e1bb;
   --color-match-border: #d9b871;
   --color-trailing-space: rgb(175 59 54 / 0.25);
+  --color-shadow-popover-key: rgb(0 0 0 / 0.12);
+  --color-shadow-popover-ambient: rgb(0 0 0 / 0.15);
 }

@@ -10,10 +10,19 @@ import type { Completion, CompletionContext, CompletionResult } from '@codemirro
 import { startCompletion } from '@codemirror/autocomplete'
 import { indentUnit, syntaxTree } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
-import { Prec, RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state'
+import {
+  Prec,
+  RangeSetBuilder,
+  StateField,
+  type EditorState,
+  type Extension,
+  type RangeSet,
+} from '@codemirror/state'
 import {
   Decoration,
   EditorView,
+  GutterMarker,
+  gutterLineClass,
   keymap,
   ViewPlugin,
   WidgetType,
@@ -26,13 +35,20 @@ import { writeClipboardText } from '../clipboard'
 import { t } from '../i18n'
 import { iconElement } from '../icons/Icon'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
+import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
+import { fadeIn, motionKeyframes } from './motion'
 import { withLook } from './popupLook'
 
-/** A line of a fenced block: where it starts, and whether it is the box's top or bottom line. */
+/**
+ * A line of a fenced block: where it starts, whether it is the box's top or
+ * bottom line, and whether it is the closing fence (an unclosed block's last
+ * line is code).
+ */
 export interface CodeBlockLine {
   from: number
   first: boolean
   last: boolean
+  closing: boolean
 }
 
 /** The fenced blocks the tree has between `from` and `to`. */
@@ -42,6 +58,8 @@ function fencedBlocks(state: EditorState, from: number, to: number): SyntaxNode[
     from,
     to,
     enter(node) {
+      // A paragraph holds no block: its inline nodes need no visit.
+      if (node.name === 'Paragraph') return false
       if (node.name !== 'FencedCode') return undefined
       blocks.push(node.node)
       return false
@@ -50,10 +68,20 @@ function fencedBlocks(state: EditorState, from: number, to: number): SyntaxNode[
   return blocks
 }
 
-/** The lines of a block, from its opening fence's line to its closing fence's (or its last). */
-function blockLines(state: EditorState, block: SyntaxNode): { first: number; last: number } {
+/**
+ * The lines of a block, from its opening fence's line to its closing fence's
+ * (or its last), and whether that last line is a closing fence.
+ */
+function blockLines(
+  state: EditorState,
+  block: SyntaxNode,
+): { first: number; last: number; closed: boolean } {
   const { doc } = state
-  return { first: doc.lineAt(block.from).number, last: doc.lineAt(block.to).number }
+  const first = doc.lineAt(block.from).number
+  const last = doc.lineAt(block.to).number
+  const fences = block.getChildren('CodeMark')
+  const close = fences.length > 1 ? fences.at(-1) : undefined
+  return { first, last, closed: close !== undefined && doc.lineAt(close.from).number === last }
 }
 
 /** Every line of the fenced blocks between `from` and `to`, in order. */
@@ -64,9 +92,10 @@ export function codeBlockLines(
 ): CodeBlockLine[] {
   const out: CodeBlockLine[] = []
   for (const block of fencedBlocks(state, from, to)) {
-    const { first, last } = blockLines(state, block)
+    const { first, last, closed } = blockLines(state, block)
     for (let n = first; n <= last; n++) {
-      out.push({ from: state.doc.line(n).from, first: n === first, last: n === last })
+      const line = { first: n === first, last: n === last }
+      out.push({ from: state.doc.line(n).from, ...line, closing: line.last && closed })
     }
   }
   return out
@@ -125,6 +154,8 @@ const lineDeco = (line: CodeBlockLine) =>
       'cm-codeblock',
       line.first ? 'cm-codeblock-first' : '',
       line.last ? 'cm-codeblock-last' : '',
+      // Its box sits closer to it (see the theme).
+      line.closing ? 'cm-codeblock-closing' : '',
     ]
       .filter(Boolean)
       .join(' '),
@@ -193,7 +224,7 @@ function decorations(view: EditorView): DecorationSet {
   const active = selectedBlock(state)
   for (const { from, to } of view.visibleRanges) {
     for (const block of fencedBlocks(state, from, to)) {
-      const { first, last } = blockLines(state, block)
+      const { first, last, closed } = blockLines(state, block)
       const marks: { from: number; to: number; deco: Decoration }[] = []
       for (const mark of block.getChildren('CodeMark'))
         marks.push({ from: mark.from, to: mark.to, deco: fenceMark })
@@ -205,7 +236,12 @@ function decorations(view: EditorView): DecorationSet {
         builder.add(
           line.from,
           line.from,
-          lineDeco({ from: line.from, first: n === first, last: n === last }),
+          lineDeco({
+            from: line.from,
+            first: n === first,
+            last: n === last,
+            closing: n === last && closed,
+          }),
         )
         for (const m of marks)
           if (m.from >= line.from && m.to <= line.to) builder.add(m.from, m.to, m.deco)
@@ -239,6 +275,33 @@ const boxes = ViewPlugin.fromClass(
   },
   { decorations: (v) => v.decorations },
 )
+
+/**
+ * The gutter beside a block's first line: padded as that line is (the
+ * theme), so its number and fold chevron sit level with the opening fence.
+ */
+class FirstLineGutter extends GutterMarker {
+  override elementClass = 'cm-codeblock-gutter-first'
+}
+const firstLineGutter = new FirstLineGutter()
+
+function firstLines(state: EditorState): RangeSet<GutterMarker> {
+  const builder = new RangeSetBuilder<GutterMarker>()
+  for (const block of fencedBlocks(state, 0, state.doc.length)) {
+    const { from } = state.doc.lineAt(block.from)
+    builder.add(from, from, firstLineGutter)
+  }
+  return builder.finish()
+}
+
+const gutterLines = StateField.define<RangeSet<GutterMarker>>({
+  create: firstLines,
+  update: (value, tr) =>
+    tr.docChanged || syntaxTree(tr.state) !== syntaxTree(tr.startState)
+      ? firstLines(tr.state)
+      : value,
+  provide: (field) => gutterLineClass.from(field),
+})
 
 // Languages
 
@@ -423,47 +486,58 @@ const typingKeys = Prec.highest(
 )
 
 const theme = EditorView.theme({
-  '@keyframes cm-codeblock-copy-in': {
-    from: { opacity: '0', transform: 'scale(0.9)' },
-    to: { opacity: '1', transform: 'scale(1)' },
-  },
+  ...motionKeyframes,
   '.cm-line.cm-codeblock': {
     position: 'relative',
     zIndex: '0',
     fontFamily: 'var(--font-family-mono)',
   },
   // The box is drawn behind the text, inset by the margin on the outer lines.
+  // It reaches past the line's sides (as the quote bar does, see lineStyles.ts):
+  // the text keeps the note's column, and its inset from the box's side
+  // matches the one from its top and bottom.
   '.cm-line.cm-codeblock::before': {
     content: '""',
     position: 'absolute',
-    inset: '0',
+    inset: `0 calc(-1 * ${BOX_HANG})`,
     zIndex: '-1',
     pointerEvents: 'none',
     background: 'var(--color-code-block-bg)',
     borderInline: '1px solid var(--color-code-block-border)',
   },
   // Above the lines under it: the copy button reaches down over them.
-  '.cm-line.cm-codeblock-first': { paddingTop: 'var(--space-2)', zIndex: '1' },
-  '.cm-line.cm-codeblock-last': { paddingBottom: 'var(--space-2)' },
+  '.cm-line.cm-codeblock-first': { paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`, zIndex: '1' },
+  '.cm-line.cm-codeblock-last': { paddingBottom: `calc(${BOX_MARGIN} + var(--space-1))` },
   '.cm-line.cm-codeblock-first::before': {
-    top: 'var(--space-2)',
+    top: BOX_MARGIN,
     borderTop: '1px solid var(--color-code-block-border)',
     borderTopLeftRadius: 'var(--radius-button)',
     borderTopRightRadius: 'var(--radius-button)',
   },
   '.cm-line.cm-codeblock-last::before': {
-    bottom: 'var(--space-2)',
+    bottom: BOX_MARGIN,
     borderBottom: '1px solid var(--color-code-block-border)',
     borderBottomLeftRadius: 'var(--radius-button)',
     borderBottomRightRadius: 'var(--radius-button)',
+  },
+  // A closing fence's backticks sit high in their line: the box's bottom comes
+  // up a little under them, so they stand as far from it as the opening
+  // fence stands from the top.
+  '.cm-line.cm-codeblock-closing': { paddingBottom: BOX_MARGIN },
+  '.cm-line.cm-codeblock-closing::before': { bottom: `calc(${BOX_MARGIN} + var(--space-1))` },
+  // The first line's number and fold chevron, level with its text.
+  '.cm-gutterElement.cm-codeblock-gutter-first': {
+    boxSizing: 'border-box',
+    paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,
   },
   // A highlight span inside a fence keeps the fence's colour.
   '.cm-codeblock-fence, .cm-codeblock-fence *': { color: 'var(--color-syntax-markup)' },
   '.cm-codeblock-info, .cm-codeblock-info *': { color: 'var(--color-syntax-heading)' },
   '.cm-codeblock-copy': {
     position: 'absolute',
-    top: 'calc(var(--space-2) + var(--space-2))',
-    right: 'var(--space-2)',
+    // In the box's corner, as far from its top as from its side.
+    top: `calc(${BOX_MARGIN} + var(--space-2))`,
+    right: `calc(var(--space-2) - ${BOX_HANG})`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -475,7 +549,9 @@ const theme = EditorView.theme({
     background: 'var(--color-fill-button)',
     color: 'var(--color-text-secondary)',
     cursor: 'default',
-    animation: 'cm-codeblock-copy-in 0.2s ease-out',
+    // A control over the text: it fades in, and its colour eases.
+    animation: fadeIn,
+    transition: 'color var(--motion-duration-color) var(--motion-easing-standard)',
   },
   '.cm-codeblock-copy:hover': { color: 'var(--color-text-primary)' },
   '.cm-codeblock-copy[data-state="copied"]': { color: 'var(--color-status-done)' },
@@ -495,5 +571,5 @@ const theme = EditorView.theme({
 
 /** The code block boxes, fence colours and copy button, for the note editor. */
 export function codeBlocks(): Extension {
-  return [boxes, typingKeys, theme]
+  return [boxes, gutterLines, typingKeys, theme]
 }

@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import symbolsJson from '../../../../design/icons/symbols.json'
-import { createSymbolCache, ICONS, symbolFor, type RenderSymbol } from './symbols'
+import {
+  createSymbolCache,
+  ICONS,
+  symbolFor,
+  inkBounds,
+  symbolSize,
+  symbolStyle,
+  type RenderSymbol,
+} from './symbols'
 
 const ok = (name: string, size: number) => Promise.resolve(`${name}@${size}`)
 
@@ -39,5 +47,73 @@ describe('icon names', () => {
     for (const icon of ICONS) {
       expect(symbolFor(icon)).toBe(symbolsJson.symbols[icon])
     }
+  })
+})
+
+/** A PNG's signature and header, `width` by `height` pixels, as a data URL. */
+function png(width: number, height: number): string {
+  const be = (n: number) => [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]
+  const bytes = [
+    137,
+    80,
+    78,
+    71,
+    13,
+    10,
+    26,
+    10,
+    0,
+    0,
+    0,
+    13,
+    73,
+    72,
+    68,
+    82,
+    ...be(width),
+    ...be(height),
+    8,
+    6,
+    0,
+    0,
+    0,
+  ]
+  return `data:image/png;base64,${btoa(String.fromCharCode(...bytes))}`
+}
+
+describe('symbol size', () => {
+  it('is half the PNG, which Rust renders at twice the point size', () => {
+    expect(symbolSize(png(50, 32))).toEqual({ width: 25, height: 16 })
+    expect(symbolSize('data:image/png;base64,pin@17')).toBeNull()
+  })
+})
+
+describe('ink', () => {
+  it('is the bounds of the pixels more than a quarter opaque, in CSS pixels', () => {
+    // 4 by 3 pixels: ink from (1, 0) to (2, 2); a faint pixel at (3, 2) does not count.
+    const alpha = [0, 255, 0, 0, 0, 200, 255, 0, 0, 0, 255, 40]
+    expect(inkBounds(alpha, 4, 3)).toEqual({ x: 0.5, y: 0, width: 1, height: 1.5 })
+    expect(inkBounds([0, 10, 64], 3, 1)).toBeNull()
+  })
+})
+
+describe('placing a symbol in its box', () => {
+  it('centres the ink on the box, on the half-pixel grid, keeping the box in the layout', () => {
+    const image = {
+      url: 'data:x',
+      width: 20,
+      height: 16,
+      ink: { x: 1, y: 2, width: 17, height: 11 },
+    }
+    expect(symbolStyle(image, 18)).toEqual({
+      maskImage: 'url("data:x")',
+      WebkitMaskImage: 'url("data:x")',
+      maskSize: '100% 100%',
+      WebkitMaskSize: '100% 100%',
+      width: '20px',
+      height: '16px',
+      // Ink centre (9.5, 7.5) onto (9, 9): left -0.5 (snapped from -0.5), top 1.5.
+      margin: '1.5px -1.5px 0.5px -0.5px',
+    })
   })
 })

@@ -1,10 +1,12 @@
 import { CompletionContext } from '@codemirror/autocomplete'
 import { ensureSyntaxTree, indentUnit } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
+import { gutterLineClass } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import {
   blockAt,
   codeBlockLines,
+  codeBlocks,
   codeReturn,
   codeTab,
   copyText,
@@ -34,18 +36,18 @@ const show = (s: EditorState) => {
   return text.slice(0, head) + '^' + text.slice(head)
 }
 
-/** Each boxed line as `number:first/last`. */
+/** Each boxed line as its number, then F (first), L (last), C (a closing fence). */
 const boxed = (doc: string) =>
   codeBlockLines(state(doc)).map((l) => {
     const s = state(doc)
     const n = s.doc.lineAt(l.from).number
-    return `${n}${l.first ? 'F' : ''}${l.last ? 'L' : ''}`
+    return `${n}${l.first ? 'F' : ''}${l.last ? 'L' : ''}${l.closing ? 'C' : ''}`
   })
 
 describe('codeBlockLines', () => {
   it('boxes every line of a closed block, its fences included', () => {
-    expect(boxed('a\n\n```js\nx\n```\n\nb')).toEqual(['3F', '4', '5L'])
-    expect(boxed('```\n```')).toEqual(['1F', '2L'])
+    expect(boxed('a\n\n```js\nx\n```\n\nb')).toEqual(['3F', '4', '5LC'])
+    expect(boxed('```\n```')).toEqual(['1F', '2LC'])
   })
 
   it('boxes an unclosed block to the end of the note', () => {
@@ -53,7 +55,29 @@ describe('codeBlockLines', () => {
   })
 
   it('boxes a block in a list item from its fence line', () => {
-    expect(boxed('- item\n  ```\n  x\n  ```\n- next')).toEqual(['2F', '3', '4L'])
+    expect(boxed('- item\n  ```\n  x\n  ```\n- next')).toEqual(['2F', '3', '4LC'])
+  })
+})
+
+describe('the gutter beside a block', () => {
+  /** The lines whose gutter takes the first line's padding. */
+  const padded = (doc: string) => {
+    const s = EditorState.create({ doc, extensions: [noteMarkdown, codeBlocks()] })
+    ensureSyntaxTree(s, s.doc.length, 5000)
+    // The tree is complete now: a transaction brings the field up to date.
+    const t = s.update({}).state
+    const lines: number[] = []
+    for (const set of t.facet(gutterLineClass))
+      for (let c = set.iter(); c.value; c.next()) {
+        if (c.value.elementClass === 'cm-codeblock-gutter-first')
+          lines.push(t.doc.lineAt(c.from).number)
+      }
+    return lines
+  }
+
+  it('pads the first line of each block, so its number and fold mark sit level with the fence', () => {
+    expect(padded('a\n\n```js\nx\n```\n\nb\n\n```\ny')).toEqual([3, 9])
+    expect(padded('no code')).toEqual([])
   })
 })
 

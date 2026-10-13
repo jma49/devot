@@ -4,6 +4,33 @@
 :root {
   font: var(--font-size-body) / 1.4 var(--font-family-ui);
   -webkit-font-smoothing: antialiased;
+  /* Pop-ups (bars, menus, tooltips) grow from this scale out of their notch or
+     anchor as they fade in, and rest on a two-layer shadow. The editor's
+     shadow root reads both too. */
+  --popover-enter-scale: var(--motion-scale-popover-enter);
+  --popover-shadow:
+    0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
+    0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
+}
+
+/* Reduce Motion: pop-ups only fade, nothing grows or slides. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --popover-enter-scale: 1;
+  }
+}
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    scale: var(--popover-enter-scale);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }
 
 html,
@@ -75,6 +102,11 @@ button {
   mask-repeat: no-repeat;
   -webkit-mask-position: center;
   mask-position: center;
+}
+
+.icon-xs {
+  width: var(--space-5);
+  height: var(--space-5);
 }
 
 .icon-sm {
@@ -750,7 +782,7 @@ button {
 
 /* Words a filter matched: a box a shade darker at its edge. */
 .row mark {
-  border-radius: var(--space-2);
+  border-radius: var(--radius-mark);
   background: var(--color-match-bg);
   box-shadow: inset 0 0 0 1px var(--color-match-border);
   color: inherit;
@@ -829,7 +861,8 @@ button {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-5) var(--space-2);
+  /* The rows' side padding: the label lines up with their titles. */
+  padding: var(--space-4) var(--space-6) var(--space-2);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-tertiary);
@@ -879,6 +912,11 @@ button {
 }
 
 /* Tags in the note's line: outlined pills, their remove button on hover or keyboard focus. */
+/* The notebook pop-up's icon, not its hover fill, lines up with the title. */
+.note-meta > .picker:first-child {
+  margin-inline-start: calc(-1 * var(--space-2));
+}
+
 .note-meta .tag-editor {
   gap: var(--space-3);
 }
@@ -1159,7 +1197,7 @@ button {
    is on the window only for the length of a toggle, so a resize or the first
    paint never animates. */
 .window {
-  --pane-motion: 220ms;
+  --pane-motion: var(--motion-duration-pane);
 }
 
 .sidebar,
@@ -1178,10 +1216,10 @@ button {
 .window[data-pane-motion] > .sidebar,
 .window[data-pane-motion] > .list {
   transition:
-    width var(--pane-motion) ease-in-out,
-    min-width var(--pane-motion) ease-in-out,
-    padding var(--pane-motion) ease-in-out,
-    border-right-width var(--pane-motion) ease-in-out,
+    width var(--pane-motion) var(--motion-easing-standard),
+    min-width var(--pane-motion) var(--motion-easing-standard),
+    padding var(--pane-motion) var(--motion-easing-standard),
+    border-right-width var(--pane-motion) var(--motion-easing-standard),
     visibility 0s linear;
 }
 
@@ -1200,10 +1238,10 @@ button {
 .window[data-pane-motion][data-focus] > .sidebar,
 .window[data-pane-motion][data-focus] > .list {
   transition:
-    width var(--pane-motion) ease-in-out,
-    min-width var(--pane-motion) ease-in-out,
-    padding var(--pane-motion) ease-in-out,
-    border-right-width var(--pane-motion) ease-in-out,
+    width var(--pane-motion) var(--motion-easing-standard),
+    min-width var(--pane-motion) var(--motion-easing-standard),
+    padding var(--pane-motion) var(--motion-easing-standard),
+    border-right-width var(--pane-motion) var(--motion-easing-standard),
     visibility 0s linear var(--pane-motion);
 }
 
@@ -1297,8 +1335,10 @@ button {
 .editor {
   min-height: 0;
   overflow: auto;
-  /* A line pads its text by space-3: the text lines up with the title. */
-  padding: 0 var(--space-9) 0 calc(var(--space-9) - var(--space-3));
+  /* The content pads its lines by space-2 (room for boxes, editor/boxes.ts)
+     and a line its text by space-3: the text lines up with the title. */
+  padding: 0 calc(var(--space-9) - var(--space-2)) 0
+    calc(var(--space-9) - var(--space-3) - var(--space-2));
 }
 
 .editor[hidden] {
@@ -1348,9 +1388,10 @@ button {
   align-items: center;
   gap: var(--space-3) var(--space-7);
   box-sizing: border-box;
-  min-height: 48px;
-  padding: 0.6rem;
-  border-radius: 14px;
+  /* An icon's box and the same space round it as between it and the card's edge. */
+  min-height: calc(var(--space-10) + var(--space-4) * 2);
+  padding: var(--space-4);
+  border-radius: var(--radius-floating-bar);
   background: var(--color-fill-card);
 }
 
@@ -1560,6 +1601,9 @@ button {
   box-shadow: 0 0 0 0.5px var(--color-line-hairline);
   color: var(--color-text-secondary);
   opacity: 0;
+  transition:
+    opacity var(--motion-duration-fade) var(--motion-easing-standard),
+    color var(--motion-duration-color) var(--motion-easing-standard);
 }
 
 .code-header > .code-copy {
@@ -2605,6 +2649,13 @@ button {
   gap: var(--space-3);
 }
 
+/* A pop-up in the window's text size, as tall as the push buttons beside it. */
+.setting-control select {
+  min-height: var(--size-segment-height);
+  font: inherit;
+  font-size: var(--font-size-body);
+}
+
 /* An on/off setting: the checkbox first, then the label and description. */
 .setting-toggle {
   justify-content: flex-start;
@@ -2614,7 +2665,8 @@ button {
 
 .setting-toggle input {
   flex: none;
-  margin: var(--space-1) 0 0;
+  /* Centred on the label's capitals. */
+  margin: var(--space-2) 0 0;
 }
 
 .setting-toggle:has(input:disabled) .setting-label {
@@ -3130,15 +3182,19 @@ button.popup:focus-visible {
   overflow: auto;
   margin: 0;
   padding: var(--space-2);
+  border: 1px solid var(--color-line-hairline);
   border-radius: var(--radius-card);
   background: var(--color-surface-editor);
   color: var(--color-text-primary);
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-regular);
   list-style: none;
-  box-shadow:
-    0 0 0 0.5px var(--color-line-hairline),
-    0 var(--space-2) var(--space-9) var(--color-line-hairline);
+  box-shadow: var(--popover-shadow);
+  /* Grows out of the button it hangs from, on its own layer so text does not shimmer. */
+  transform: translateZ(0);
+  transform-origin: top left;
+  backface-visibility: hidden;
+  animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
 }
 
 .picker-search {
@@ -3226,24 +3282,47 @@ button.popup:focus-visible {
   color: var(--color-accent-on-fill);
 }
 
-/* A toolbar button's tooltip: its name, then its key in a chip (ToolTips.tsx). */
+/*
+ * A toolbar button's tooltip: its name, then its key in a chip (ToolTips.tsx).
+ * It hangs under the button with a notch pointing up at it, and grows out of
+ * the notch as it fades in.
+ */
 .tool-tip {
   position: fixed;
   z-index: 30;
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-5);
   border-radius: var(--radius-button);
   background: var(--color-surface-editor);
   color: var(--color-text-primary);
   font-size: var(--font-size-footnote);
   white-space: nowrap;
   pointer-events: none;
-  transform: translate(-50%, var(--space-2));
+  transform: translate3d(-50%, var(--space-4), 0);
+  transform-origin: top center;
+  backface-visibility: hidden;
   box-shadow:
     0 0 0 0.5px var(--color-line-hairline),
-    0 var(--space-1) var(--space-6) var(--color-line-hairline);
+    var(--popover-shadow);
+  animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
+}
+
+/* The notch: a turned square centred on the top edge, over it, with the
+   hairline on its two outer sides. */
+.tool-tip::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--space-4) / -2);
+  left: calc(50% - var(--space-4) / 2);
+  box-sizing: border-box;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-top: 0.5px solid var(--color-line-hairline);
+  border-left: 0.5px solid var(--color-line-hairline);
+  background: inherit;
+  transform: rotate(45deg);
 }
 
 .tool-tip-key {

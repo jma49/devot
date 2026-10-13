@@ -5,16 +5,25 @@
 // syntax tree and drawn as decorations over the source; the text is never
 // changed.
 import { syntaxTree } from '@codemirror/language'
-import type { EditorState, Range } from '@codemirror/state'
+import {
+  RangeSetBuilder,
+  StateField,
+  type EditorState,
+  type Range,
+  type RangeSet,
+} from '@codemirror/state'
 import {
   Decoration,
   EditorView,
+  GutterMarker,
+  gutterLineClass,
   ViewPlugin,
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { ALERT_KINDS, type AlertKind } from './blocks'
+import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
 
 /** One piece of styling: a class on whole lines from `from` to `to`, or on that text. */
 export interface LineStyle {
@@ -177,11 +186,67 @@ const plugin = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 )
 
+/**
+ * The gutter beside a large heading's lines: its line number (and fold
+ * chevron) moves down onto the heading's baseline. A line's text sits
+ * 0.75 of its size plus half its font's ascent less its descent below the
+ * line's top (line height 1.5); 1.1 of the size difference is that for the
+ * editor's fonts.
+ */
+class HeadingGutter extends GutterMarker {
+  override elementClass: string
+  constructor(level: 1 | 2 | 3) {
+    super()
+    this.elementClass = `cm-md-gutter-h${level}`
+  }
+}
+const headingGutters = { 1: new HeadingGutter(1), 2: new HeadingGutter(2), 3: new HeadingGutter(3) }
+
+/** The gutter beside a table's first line: padded as that line is, level with its text. */
+class TableGutter extends GutterMarker {
+  override elementClass = 'cm-md-gutter-table'
+}
+const tableGutter = new TableGutter()
+
+/** The gutter's classes: every line of a heading of levels 1 to 3, and each table's first line. */
+export function markdownGutterLines(state: EditorState): RangeSet<GutterMarker> {
+  const builder = new RangeSetBuilder<GutterMarker>()
+  syntaxTree(state).iterate({
+    enter: (ref) => {
+      if (ref.name === 'Paragraph' || ref.name === 'FencedCode') return false
+      if (ref.name === 'Table') {
+        const { from } = state.doc.lineAt(ref.from)
+        builder.add(from, from, tableGutter)
+        return false
+      }
+      const level = Number(HEADING.exec(ref.name)?.[1] ?? 0)
+      if (level < 1 || level > 3) return undefined
+      const marker = headingGutters[level as 1 | 2 | 3]
+      for (let at = ref.from; at <= ref.to;) {
+        const line = state.doc.lineAt(at)
+        builder.add(line.from, line.from, marker)
+        at = line.to + 1
+      }
+      return false
+    },
+  })
+  return builder.finish()
+}
+
+const headingGutter = StateField.define<RangeSet<GutterMarker>>({
+  create: markdownGutterLines,
+  update: (value, tr) =>
+    tr.docChanged || syntaxTree(tr.state) !== syntaxTree(tr.startState)
+      ? markdownGutterLines(tr.state)
+      : value,
+  provide: (field) => gutterLineClass.from(field),
+})
+
 const token = (name: string) => `var(--color-${name})`
 /** A heading size, grown and shrunk with the editor's text (13 px is 1). */
 const headingSize = (level: 1 | 2 | 3) =>
   `calc(var(--font-size-editor-h${level}) * var(--preview-scale, 1))`
-const BOX_BORDER = `1px solid ${token('editor-code-border')}`
+const BOX_BORDER = `1px solid ${token('code-block-border')}`
 
 const alertColours = Object.fromEntries(
   ALERT_KINDS.flatMap((kind) => [
@@ -197,10 +262,22 @@ const alertColours = Object.fromEntries(
  * The styles: a mark's class reaches the highlight spans inside it (`x *`),
  * whose own colour would otherwise win.
  */
+const gutterDrop = (level: 1 | 2 | 3) => ({
+  boxSizing: 'border-box',
+  paddingTop: `calc((${headingSize(level)} - var(--editor-font-size, var(--font-size-body))) * 1.1)`,
+})
+
 const theme = EditorView.theme({
   '.cm-md-h1': { fontSize: headingSize(1) },
   '.cm-md-h2': { fontSize: headingSize(2) },
   '.cm-md-h3': { fontSize: headingSize(3) },
+  '.cm-gutterElement.cm-md-gutter-h1': gutterDrop(1),
+  '.cm-gutterElement.cm-md-gutter-h2': gutterDrop(2),
+  '.cm-gutterElement.cm-md-gutter-h3': gutterDrop(3),
+  '.cm-gutterElement.cm-md-gutter-table': {
+    boxSizing: 'border-box',
+    paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,
+  },
   '.cm-md-list-alt, .cm-md-list-alt *': { color: token('syntax-list-alt') },
   '.cm-md-task-done, .cm-md-task-done *': { textDecoration: 'line-through' },
   '.cm-md-code': {
@@ -217,29 +294,43 @@ const theme = EditorView.theme({
     backgroundColor: token('editor-mark-fill'),
     borderBottom: `2px solid ${token('editor-mark-line')}`,
   },
+  // The bar hangs past the line's side as a box does (boxes.ts): it lines up
+  // with a code block's or a table's edge, and the text stays where it was.
   '.cm-md-quote': {
+    marginLeft: `calc(-1 * ${BOX_HANG})`,
     borderLeft: `3px solid ${token('editor-quote-bar')}`,
-    paddingLeft: 'var(--space-4)',
+    paddingLeft: `calc(var(--space-4) + ${BOX_HANG})`,
   },
   '.cm-md-alert-label, .cm-md-alert-label *': { textDecoration: 'none' },
   ...alertColours,
-  '.cm-md-table': {
-    backgroundColor: token('editor-code-fill'),
+  // The same box as a fenced code block's (codeBlocks.ts), drawn behind the text.
+  '.cm-md-table': { position: 'relative', zIndex: '0' },
+  '.cm-md-table::before': {
+    content: '""',
+    position: 'absolute',
+    inset: `0 calc(-1 * ${BOX_HANG})`,
+    zIndex: '-1',
+    pointerEvents: 'none',
+    backgroundColor: token('code-block-bg'),
     borderLeft: BOX_BORDER,
     borderRight: BOX_BORDER,
   },
-  '.cm-md-table-first': {
+  '.cm-md-table-first': { paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})` },
+  '.cm-md-table-last': { paddingBottom: `calc(${BOX_MARGIN} + ${BOX_PAD})` },
+  '.cm-md-table-first::before': {
+    top: BOX_MARGIN,
     borderTop: BOX_BORDER,
-    borderTopLeftRadius: 'var(--radius-mark)',
-    borderTopRightRadius: 'var(--radius-mark)',
+    borderTopLeftRadius: 'var(--radius-button)',
+    borderTopRightRadius: 'var(--radius-button)',
   },
-  '.cm-md-table-last': {
+  '.cm-md-table-last::before': {
+    bottom: BOX_MARGIN,
     borderBottom: BOX_BORDER,
-    borderBottomLeftRadius: 'var(--radius-mark)',
-    borderBottomRightRadius: 'var(--radius-mark)',
+    borderBottomLeftRadius: 'var(--radius-button)',
+    borderBottomRightRadius: 'var(--radius-button)',
   },
   '.cm-md-table-header': { fontWeight: 'var(--font-weight-bold)' },
 })
 
 /** The editor's Markdown shapes: the decorations and their styles. */
-export const markdownLineStyles = [plugin, theme]
+export const markdownLineStyles = [plugin, headingGutter, theme]

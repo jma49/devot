@@ -725,7 +725,7 @@
     "popover": {
       "$type": "dimension",
       "$value": {
-        "value": 12,
+        "value": 8,
         "unit": "px"
       },
       "$description": "Floating lists in the editor: the slash menu and the completion popups."
@@ -957,6 +957,87 @@
         "unit": "px"
       },
       "$description": "The bar on the left of the selected sidebar row while the sidebar has the keyboard focus."
+    }
+  },
+  "motion": {
+    "$description": "How floating panels and controls move. Reduce Motion keeps the fades and drops every scale (app.css).",
+    "duration": {
+      "$type": "duration",
+      "color": {
+        "$value": {
+          "value": 400,
+          "unit": "ms"
+        },
+        "$description": "A floating bar button's text colour easing to its hover or pressed colour."
+      },
+      "ring": {
+        "$value": {
+          "value": 200,
+          "unit": "ms"
+        },
+        "$description": "A floating bar button's outline ring coming and going."
+      },
+      "popover": {
+        "$value": {
+          "value": 300,
+          "unit": "ms"
+        },
+        "$description": "A pop-up (bar, menu, tooltip) growing out of its notch or anchor as it fades in."
+      },
+      "fade": {
+        "$value": {
+          "value": 400,
+          "unit": "ms"
+        },
+        "$description": "A control over the content (a code block's copy button) fading in."
+      },
+      "pane": {
+        "$value": {
+          "value": 220,
+          "unit": "ms"
+        },
+        "$description": "The sidebar and note list sliding in and out."
+      }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "standard": {
+        "$value": [0.42, 0, 0.58, 1],
+        "$description": "Eases in and out (CSS ease-in-out)."
+      },
+      "out": {
+        "$value": [0, 0, 0.58, 1],
+        "$description": "Starts quick and settles (CSS ease-out)."
+      }
+    },
+    "scale": {
+      "$type": "number",
+      "popover-enter": {
+        "$value": 0.8,
+        "$description": "The size a pop-up starts at before growing to full size."
+      }
+    }
+  },
+  "shadow": {
+    "$type": "dimension",
+    "$description": "The two-layer shadow under pop-ups; its colours are the theme's color.shadow tokens.",
+    "popover-y": {
+      "$value": {
+        "value": 2,
+        "unit": "px"
+      }
+    },
+    "popover-key-blur": {
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      }
+    },
+    "popover-ambient-blur": {
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      }
     }
   }
 }

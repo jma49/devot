@@ -8,6 +8,7 @@ import { EditorView } from '@codemirror/view'
 import { useState, type ReactNode } from 'react'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
+import { fadeIn, motionKeyframes, popoverIn } from './motion'
 import type { Tip } from './toolbarButtons'
 
 /**
@@ -105,11 +106,23 @@ export function FloatSeparator(): ReactNode {
   return <div role="separator" aria-orientation="vertical" className="cm-float-separator" />
 }
 
-const panelShadow = '0 0 0 0.5px var(--color-line-hairline), 0 4px 14px var(--color-line-shadow)'
-const notchSize = 'var(--space-5)'
-const notchOut = 'calc(var(--space-5) / -2)'
+/**
+ * The bar and its notch read as one shape: one hairline round both (the
+ * notch lies over the bar's edge, its fill hiding the bar's hairline where
+ * they join, and draws the hairline on its two outer sides), and one shadow
+ * that follows the painted shape (a filter, not a box shadow).
+ */
+const hairline = '0.5px solid var(--color-line-hairline)'
+const notchSize = 'var(--space-4)'
+const notchOut = 'calc(var(--space-4) / -2)'
+const popoverShadow = [
+  'drop-shadow(0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key))',
+  'drop-shadow(0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient))',
+].join(' ')
 
-export const floatTheme = EditorView.theme({
+/** The bars' styles (exported for the tests); `floatTheme` is the extension. */
+export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
+  ...motionKeyframes,
   '.cm-tooltip.cm-float-bar': {
     boxSizing: 'border-box',
     display: 'flex',
@@ -119,28 +132,35 @@ export const floatTheme = EditorView.theme({
     border: '0',
     borderRadius: 'var(--radius-floating-bar)',
     backgroundColor: 'var(--color-surface-popover)',
-    boxShadow: panelShadow,
+    boxShadow: '0 0 0 0.5px var(--color-line-hairline)',
+    filter: popoverShadow,
     color: 'var(--color-text-secondary)',
     fontFamily: 'var(--font-family-ui)',
+    // A bar only fades in; its tooltip grows out of its notch.
+    animation: fadeIn,
   },
-  // The notch: a turned square half outside the panel, under its buttons.
+  // The notch: a turned square centred on the bar's edge, over it.
   '.cm-tooltip.cm-float-bar::after': {
     content: '""',
     position: 'absolute',
-    zIndex: '-1',
+    zIndex: '1',
+    boxSizing: 'border-box',
     left: `calc(${NOTCH_X}px - ${notchSize} / 2)`,
     width: notchSize,
     height: notchSize,
     backgroundColor: 'var(--color-surface-popover)',
     transform: 'rotate(45deg)',
+    pointerEvents: 'none',
   },
   '.cm-tooltip-above.cm-float-bar::after': {
     bottom: notchOut,
-    boxShadow: '0.5px 0.5px 0 0 var(--color-line-hairline)',
+    borderRight: hairline,
+    borderBottom: hairline,
   },
   '.cm-tooltip-below.cm-float-bar::after': {
     top: notchOut,
-    boxShadow: '-0.5px -0.5px 0 0 var(--color-line-hairline)',
+    borderLeft: hairline,
+    borderTop: hairline,
   },
   '.cm-float-buttons': {
     display: 'flex',
@@ -156,13 +176,26 @@ export const floatTheme = EditorView.theme({
     width: 'var(--size-float-button)',
     height: 'var(--size-float-button)',
     padding: '0',
-    border: '0',
+    border: '1px solid transparent',
     borderRadius: 'var(--radius-capsule)',
-    background: 'transparent',
+    backgroundColor: 'transparent',
     color: 'var(--color-text-secondary)',
+    // The colour and the ring ease; the fill snaps.
+    transition: [
+      'color var(--motion-duration-color) var(--motion-easing-standard)',
+      'border-color var(--motion-duration-ring) var(--motion-easing-out)',
+    ].join(', '),
   },
-  '.cm-float-button:hover': { boxShadow: 'inset 0 0 0 1px var(--color-line-control)' },
-  '.cm-float-button[aria-pressed="true"]': { color: 'var(--color-accent-text)' },
+  // Under the pointer and pressed (a format that applies) look the same: a ring over a fill.
+  '.cm-float-button:hover': {
+    borderColor: 'var(--color-line-control)',
+    backgroundColor: 'var(--color-fill-tool-hover)',
+  },
+  '.cm-float-button[aria-pressed="true"]': {
+    borderColor: 'var(--color-line-control)',
+    backgroundColor: 'var(--color-fill-tool-hover)',
+    color: 'var(--color-accent-text)',
+  },
   '.cm-float-separator': {
     alignSelf: 'center',
     flexShrink: '0',
@@ -201,15 +234,45 @@ export const floatTheme = EditorView.theme({
     padding: 'var(--space-3) var(--space-5)',
     borderRadius: 'var(--radius-card)',
     backgroundColor: 'var(--color-surface-popover)',
-    boxShadow: panelShadow,
+    // Inside the bar: the bar's shadow (a filter) reaches it too.
+    boxShadow: '0 0 0 0.5px var(--color-line-hairline)',
     color: 'var(--color-text-secondary)',
     fontSize: 'var(--font-size-footnote)',
     whiteSpace: 'nowrap',
     pointerEvents: 'none',
     transform: 'translateX(-50%)',
+    backfaceVisibility: 'hidden',
+    animation: popoverIn,
   },
-  '.cm-float-tip[data-side="below"]': { top: 'calc(100% + var(--space-3))' },
-  '.cm-float-tip[data-side="above"]': { bottom: 'calc(100% + var(--space-3))' },
+  '.cm-float-tip[data-side="below"]': {
+    top: 'calc(100% + var(--space-4))',
+    transformOrigin: 'center top',
+  },
+  '.cm-float-tip[data-side="above"]': {
+    bottom: 'calc(100% + var(--space-4))',
+    transformOrigin: 'center bottom',
+  },
+  // The tooltip's notch, pointing at its button, like the bar's.
+  '.cm-float-tip::before': {
+    content: '""',
+    position: 'absolute',
+    boxSizing: 'border-box',
+    left: `calc(50% - ${notchSize} / 2)`,
+    width: notchSize,
+    height: notchSize,
+    backgroundColor: 'inherit',
+    transform: 'rotate(45deg)',
+  },
+  '.cm-float-tip[data-side="below"]::before': {
+    top: notchOut,
+    borderLeft: hairline,
+    borderTop: hairline,
+  },
+  '.cm-float-tip[data-side="above"]::before': {
+    bottom: notchOut,
+    borderRight: hairline,
+    borderBottom: hairline,
+  },
   '.cm-float-kbd': {
     padding: '0 var(--space-3)',
     borderRadius: 'var(--radius-control)',
@@ -219,4 +282,6 @@ export const floatTheme = EditorView.theme({
     lineHeight: 'var(--size-segment-height)',
     color: 'var(--color-text-secondary)',
   },
-})
+}
+
+export const floatTheme = EditorView.theme(floatStyles)

@@ -36,7 +36,7 @@ export const sizes = {
   "radius.card": "8px",
   "radius.pill": "12px",
   "radius.capsule": "999px",
-  "radius.popover": "12px",
+  "radius.popover": "8px",
   "radius.floating-bar": "14px",
   "radius.dialog": "12px",
   "size.sidebar-width": "232px",
@@ -66,7 +66,18 @@ export const sizes = {
   "size.float-button": "28px",
   "size.link-dialog-width": "300px",
   "size.palette-width": "650px",
-  "size.sidebar-bar": "3px"
+  "size.sidebar-bar": "3px",
+  "motion.duration.color": "400ms",
+  "motion.duration.ring": "200ms",
+  "motion.duration.popover": "300ms",
+  "motion.duration.fade": "400ms",
+  "motion.duration.pane": "220ms",
+  "motion.easing.standard": "cubic-bezier(0.42, 0, 0.58, 1)",
+  "motion.easing.out": "cubic-bezier(0, 0, 0.58, 1)",
+  "motion.scale.popover-enter": "0.8",
+  "shadow.popover-y": "2px",
+  "shadow.popover-key-blur": "4px",
+  "shadow.popover-ambient-blur": "10px"
 } as const
 
 export const light = {
@@ -159,7 +170,9 @@ export const light = {
   "color.mark.bg": "rgb(234 179 8 / 0.3)",
   "color.match.bg": "#f3e1bb",
   "color.match.border": "#d9b871",
-  "color.trailing-space": "rgb(175 59 54 / 0.25)"
+  "color.trailing-space": "rgb(175 59 54 / 0.25)",
+  "color.shadow.popover-key": "rgb(0 0 0 / 0.12)",
+  "color.shadow.popover-ambient": "rgb(0 0 0 / 0.15)"
 } as const
 
 export const dark = {
@@ -252,7 +265,9 @@ export const dark = {
   "color.mark.bg": "rgb(227 164 58 / 0.3)",
   "color.match.bg": "#5b4a26",
   "color.match.border": "#80672f",
-  "color.trailing-space": "rgb(233 120 115 / 0.3)"
+  "color.trailing-space": "rgb(233 120 115 / 0.3)",
+  "color.shadow.popover-key": "rgb(0 0 0 / 0.36)",
+  "color.shadow.popover-ambient": "rgb(0 0 0 / 0.45)"
 } as const
 
 export type ThemeColor = keyof typeof light
