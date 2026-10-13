@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Core } from './core-client'
+import { headline } from '../../core/extract'
+import { displayTitle } from './headlines'
 import { t } from './i18n'
 import { Preview } from './preview/Preview'
 
@@ -23,6 +25,7 @@ export function TrashView(props: {
     }
   }, [core, noteId])
   if (!note) return null
+  const name = displayTitle(note.title, headline(note.bodyMd))
   return (
     <>
       <div className="trash-banner" role="status">
@@ -33,12 +36,12 @@ export function TrashView(props: {
         <button
           type="button"
           className="button button-destructive"
-          onClick={() => props.onDelete(note.title)}
+          onClick={() => props.onDelete(name)}
         >
           {t('trash.deleteForever')}
         </button>
       </div>
-      <h1 className="title trash-title">{note.title || t('note.untitled')}</h1>
+      <h1 className="title trash-title">{name}</h1>
       <div className="panes panes-preview">
         <Preview core={core} markdown={note.bodyMd} onOpenNote={() => {}} />
       </div>

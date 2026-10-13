@@ -4,6 +4,7 @@ import type { NoteSummary } from '../../../core'
 import type { BookNode } from '../../../core/books'
 import { shortcutLabel } from '../commands/keys'
 import { COMMANDS, commandKeys, type CommandHandlers } from '../commands/registry'
+import { displayTitle } from '../headlines'
 import type { MessageKey } from '../i18n'
 import type { PaletteEntry } from './results'
 
@@ -33,13 +34,14 @@ export function commandEntries(
 
 /**
  * Notebooks in sidebar order (each with its parent's name), tags, and notes
- * newest first (each with its notebook's name; untitled ones as `untitled`).
+ * newest first (each with its notebook's name; untitled ones by `headlines`, as the list shows them).
  */
 export function libraryEntries(source: {
   tree: readonly BookNode[]
   tags: readonly { id: string; name: string }[]
   notes: readonly NoteSummary[]
-  untitled: string
+  /** The first line of untitled notes, by ID (see headlines.ts). */
+  headlines: ReadonlyMap<string, string>
 }): { book: PaletteEntry[]; tag: PaletteEntry[]; note: PaletteEntry[] } {
   const book: PaletteEntry[] = []
   const names = new Map<string, string>()
@@ -63,7 +65,7 @@ export function libraryEntries(source: {
       return {
         kind: 'note',
         id: n.id,
-        label: n.title || source.untitled,
+        label: displayTitle(n.title, source.headlines.get(n.id)),
         ...(name === undefined ? {} : { detail: name }),
       }
     })

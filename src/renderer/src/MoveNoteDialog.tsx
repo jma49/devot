@@ -86,7 +86,7 @@ export function MoveNoteDialog(props: {
         {t('moveNote.title')}
       </h2>
       <p id="move-note-detail" className="sheet-detail">
-        {props.detail ?? format(t('moveNote.detail'), { title: props.title || t('note.untitled') })}
+        {props.detail ?? format(t('moveNote.detail'), { title: props.title })}
       </p>
       <input
         className="pick-filter"

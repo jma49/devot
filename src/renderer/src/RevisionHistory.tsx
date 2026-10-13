@@ -5,6 +5,7 @@ import { errorCode } from './backups'
 import { useMenuEvent } from './commands/dispatch'
 import type { Core } from './core-client'
 import { countOf } from './format'
+import { displayTitle, displayTitles } from './headlines'
 import { currentLocale, format, t } from './i18n'
 
 const entryId = (i: number) => `history-entry-${i}`
@@ -70,6 +71,17 @@ export function RevisionHistory(props: {
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
   const locale = currentLocale()
+  // An untitled note is named by its first line, as the list names it.
+  const [named, setNamed] = useState<string>()
+  useEffect(() => {
+    let current = true
+    void displayTitles((ids) => core.headlines(ids), [{ id: noteId, title: props.title }]).then(
+      (found) => current && setNamed(found.get(noteId)),
+    )
+    return () => {
+      current = false
+    }
+  }, [core, noteId, props.title])
 
   useLayoutEffect(() => {
     const el = dialog.current
@@ -170,7 +182,7 @@ export function RevisionHistory(props: {
         {t('history.title')}
       </h2>
       <p className="sheet-detail">
-        {format(t('history.detail'), { title: props.title || t('note.untitled') })}
+        {format(t('history.detail'), { title: named ?? displayTitle(props.title, undefined) })}
       </p>
       {error ? (
         <p role="alert" className="sheet-error">

@@ -38,7 +38,10 @@ describe('libraryEntries', () => {
       note('b', '', 3, null),
       note('c', 'In a deleted notebook', 2, 'gone'),
     ],
-    untitled: 'Untitled',
+    headlines: new Map([
+      ['b', 'Groceries'],
+      ['z', 'Unused'],
+    ]),
   })
 
   it('lists notebooks in tree order, each with its parent', () => {
@@ -49,9 +52,9 @@ describe('libraryEntries', () => {
     ])
   })
 
-  it('lists notes newest first, with their notebook, untitled ones by that name', () => {
+  it('lists notes newest first, with their notebook, untitled ones by their first line', () => {
     expect(entries.note).toEqual([
-      { kind: 'note', id: 'b', label: 'Untitled' },
+      { kind: 'note', id: 'b', label: 'Groceries' },
       { kind: 'note', id: 'c', label: 'In a deleted notebook' },
       { kind: 'note', id: 'a', label: 'Old', detail: 'Projects' },
     ])

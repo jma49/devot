@@ -128,3 +128,31 @@ test('Duplicate titles the copy "<title> copy", keeps status and tags, and not t
       ['Weekly plan copy', 'active', false],
     ])
 })
+
+test('the palette and the [[ popup name untitled notes by their first line', async ({ page }) => {
+  await untitledNote(page, 'Alpha idea')
+  await untitledNote(page, 'Beta idea')
+
+  // The palette lists both, and finds one by its first line.
+  await page.keyboard.press('Meta+KeyP')
+  const palette = page.getByRole('dialog', { name: 'Command Palette' })
+  const notes = palette.getByRole('group', { name: 'Notes' }).getByRole('option')
+  await expect(notes).toHaveText(['Beta idea', 'Alpha idea'])
+  await palette.getByRole('combobox', { name: 'Command Palette' }).fill('alpha')
+  await expect(notes).toHaveText(['Alpha idea'])
+  await page.keyboard.press('Escape')
+  await expect(palette).toBeHidden()
+
+  // The [[ popup of a third note lists them the same way, and links by that name.
+  await untitledNote(page, 'Gamma idea')
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.type('\n[[')
+  const popup = page.locator('.cm-tooltip-autocomplete')
+  await expect(popup.getByRole('option', { name: 'Alpha idea' })).toBeVisible()
+  await expect(popup.getByRole('option', { name: 'Beta idea' })).toBeVisible()
+  await expect(popup.getByRole('option', { name: 'Untitled' })).toHaveCount(0)
+  await page.waitForTimeout(150)
+  await popup.getByRole('option', { name: 'Beta idea' }).click()
+  await expect(body(page)).toContainText('[Beta idea](devot://note/')
+})

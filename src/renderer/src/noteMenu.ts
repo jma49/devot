@@ -16,7 +16,7 @@ import {
   type CommandEntryOptions,
   type MenuGroups,
 } from './contextMenu'
-import { t } from './i18n'
+import { displayTitle } from './headlines'
 import { invoke } from './ipc'
 import { STATUS_COMMANDS } from './statusKeys'
 
@@ -155,14 +155,17 @@ export function trashShortcut(e: KeyPress): TrashAction | undefined {
   )
 }
 
-/** What the copy actions put on the clipboard. */
+/**
+ * What the copy actions put on the clipboard. A note's `title` is its display
+ * title (see `displayTitles`): without one, a link is named "Untitled".
+ */
 export function noteClipboardText(
   action: 'copyLink' | 'copyUri' | 'copyId',
   note: { id: string; title: string },
 ): string {
   if (action === 'copyUri') return noteUri(note.id)
   if (action === 'copyId') return note.id
-  return noteLink(note.title || t('note.untitled'), note.id)
+  return noteLink(displayTitle(note.title, undefined), note.id)
 }
 
 /** Puts plain text on the system clipboard (through Rust: see `clipboard_write_text`). */
