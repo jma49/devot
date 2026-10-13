@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickNoteMore } from './fixtures'
 
 // Names as typed: tag names stay unique and a tag picked is the one used,
 // name fields stop at their limits and say why a change was refused, and
@@ -187,7 +187,7 @@ test('a title with $ patterns shows as typed in dialogs', async ({ page }) => {
   await page.keyboard.press('Escape')
 
   // Revision History.
-  await page.getByRole('button', { name: 'Revision History', exact: true }).click()
+  await pickNoteMore(page, 'Revision History\u2026')
   const history = page.getByRole('dialog', { name: 'Revision History' })
   await expect(history).toContainText(`Versions of “${DOLLARS}”`)
   await page.keyboard.press('Escape')

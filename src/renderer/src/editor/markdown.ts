@@ -4,6 +4,7 @@
 // inside it is Markdown, so the key lines above the closing fence never read
 // as a setext heading, and formats leave its lines alone.
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
+import { languages } from '@codemirror/language-data'
 import {
   HighlightStyle,
   Language,
@@ -138,8 +139,26 @@ export const FrontMatter: MarkdownConfig = {
   },
 }
 
+/**
+ * Highlight tags of Markdown's own marks that the editor colours apart: a
+ * heading's `#`s, and list and quote markers. The other marks (emphasis,
+ * code and link marks) keep Markdown's `processingInstruction`.
+ */
+export const markupTags = {
+  heading: Tag.define(tags.processingInstruction),
+  list: Tag.define(tags.processingInstruction),
+}
+
+/** The Lezer Markdown extension that gives those marks their tags. */
+export const MarkupMarks: MarkdownConfig = {
+  props: [styleTags({ HeaderMark: markupTags.heading, 'ListMark QuoteMark': markupTags.list })],
+}
+
 /** The editor's Markdown parser, for reading Markdown outside an editor state. */
-export const noteParser = (markdownLanguage.parser as MarkdownParser).configure(FrontMatter)
+export const noteParser = (markdownLanguage.parser as MarkdownParser).configure([
+  FrontMatter,
+  MarkupMarks,
+])
 
 /** Whether a note starts with a line that could open front matter. */
 function startsWithFence(input: Input): boolean {
@@ -194,9 +213,11 @@ class FrontMatterParser extends Parser {
 // `markdown` adds its wrappers (code in fenced blocks) after those of its
 // base, so the base already reads front matter: its wrapper must come first.
 // Pasting a URL as a link is the editor's own (editor/paste.ts), so a paste
-// is handled once.
+// is handled once. A fenced block's language (```js) is highlighted by its
+// own parser, loaded the first time a note uses it.
 const support = markdown({
   base: new Language(markdownLanguage.data, noteParser, [], 'markdown'),
+  codeLanguages: languages,
   pasteURLAsLink: false,
 })
 
@@ -219,19 +240,29 @@ const token = (name: string) => `var(--color-${name})`
 /**
  * The editor's highlight style, built from the design tokens so it follows
  * the appearance: CodeMirror's own default has light-only colours (dark blue
- * links, near-black metadata) and underlines headings. Links are the only
- * underlined text, in the accent; their addresses and the rest of the code
- * colours use the syntax tokens; front matter takes the theme's secondary
- * text colour (as the preview shows it) and its fences the tertiary one.
+ * links, near-black metadata) and underlines headings. Headings are bold in
+ * their own colour after their `#`s in the markup colour, which also marks
+ * emphasis and code marks and HTML tags (`<kbd>`); inline code, list and
+ * quote markers have colours of their own. Links and their addresses are the
+ * only underlined text; the rest of the code colours use the syntax tokens;
+ * front matter takes the theme's secondary text colour (as the preview shows
+ * it) and its fences the tertiary one.
  */
 export const noteHighlightStyle = HighlightStyle.define([
   { tag: tags.meta, color: token('text-secondary') },
   { tag: tags.link, color: token('accent-text'), textDecoration: 'underline' },
-  { tag: tags.heading, fontWeight: 'bold' },
+  { tag: tags.heading, fontWeight: 'bold', color: token('syntax-heading') },
+  { tag: markupTags.heading, color: token('syntax-markup') },
+  { tag: markupTags.list, color: token('syntax-list') },
+  { tag: tags.processingInstruction, color: token('syntax-markup') },
+  { tag: [tags.tagName, tags.angleBracket, tags.attributeName], color: token('syntax-markup') },
+  { tag: tags.monospace, color: token('syntax-function') },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strong, fontWeight: 'bold' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
-  { tag: [tags.url, tags.labelName], color: token('syntax-string') },
+  { tag: tags.url, color: token('syntax-string'), textDecoration: 'underline' },
+  { tag: tags.labelName, color: token('syntax-string') },
+  { tag: [tags.number, tags.function(tags.variableName)], color: token('syntax-function') },
   { tag: tags.contentSeparator, color: token('text-tertiary') },
   { tag: [tags.keyword, tags.atom, tags.bool], color: token('syntax-keyword') },
   {

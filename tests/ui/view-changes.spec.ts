@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test, type TestWindow, pickNoteMore } from './fixtures'
 
 // Every way of changing the view follows the same rules (the sidebar, the
 // palette, New Notebook, a finished import): a note in the Trash closes when
@@ -76,7 +76,7 @@ test('New Notebook from the Trash closes the trashed note instead of editing it'
   page,
 }) => {
   await createNote(page, 'Doomed')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(trashRow(page)).toHaveText(/1$/)
   await trashRow(page).click()
   await noteRow(page, 'Doomed').click()

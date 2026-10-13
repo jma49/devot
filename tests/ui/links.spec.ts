@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickNoteMore } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -171,7 +171,7 @@ test('looking up notes does not save the open note', async ({ page }) => {
 
 test('notes in the Trash are not offered', async ({ page }) => {
   await createNote(page, 'Old idea')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(noteRows(page)).toHaveCount(0)
   await createNote(page, 'Old notes index')
   await startLink(page, 'Old')

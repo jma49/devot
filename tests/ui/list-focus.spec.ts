@@ -3,7 +3,14 @@
 // row (or the previous one at the end) opens and takes it, or the list itself
 // when it is empty.
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, test, type TestWindow } from './fixtures'
+import {
+  expect,
+  pickMenuItem,
+  test,
+  type TestWindow,
+  pickNoteMore,
+  openNotePinned,
+} from './fixtures'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
@@ -66,7 +73,7 @@ async function trashAll(page: Page) {
   for (const [i, title] of ['Alpha', 'Beta', 'Gamma'].entries()) {
     await noteRow(page, title).click()
     await expect(titleField(page)).toHaveValue(title)
-    await page.getByRole('button', { name: 'Move to Trash' }).click()
+    await pickNoteMore(page, 'Move to Trash')
     await trashCount(page, i + 1)
   }
 }
@@ -91,7 +98,7 @@ test('Cmd+Delete opens the next row and keeps the keyboard in the list', async (
   await page.keyboard.press('KeyP')
   await expect(pinnedHeader(page)).toBeVisible()
   await expect(noteRow(page, 'Alpha')).toBeFocused()
-  await expect(page.getByRole('button', { name: 'Unpin' })).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => openNotePinned(page)).toBe(true)
 })
 
 test('at the end of the list the previous row takes over; then the list', async ({ page }) => {

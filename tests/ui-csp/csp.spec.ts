@@ -6,6 +6,7 @@ import {
   shownMenu,
   test,
   type TestWindow,
+  pickNoteMore,
 } from '../ui/fixtures'
 import {
   composite,
@@ -380,7 +381,7 @@ test('revision history compares and restores under the policy', async ({ page })
   await body.click()
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.insertText('\nnew line')
-  await page.getByRole('button', { name: 'Revision History', exact: true }).click()
+  await pickNoteMore(page, 'Revision History\u2026')
   const sheet = page.getByRole('dialog', { name: 'Revision History' })
   await sheet.getByRole('option').filter({ hasText: 'Earliest version' }).click()
   const added = sheet.locator('.diff-added')

@@ -477,3 +477,37 @@ describe('images from the web', () => {
     expect(address && text(address)).toBe('https://example.com/a.png')
   })
 })
+
+describe('code block titles', () => {
+  const code = async (md: string) => elements(await render(md)).find((e) => e.tagName === 'code')
+
+  it('reads the title from title=, the rest of the info string, or lang:title', async () => {
+    for (const fence of [
+      '```js title="app.js"',
+      "```js title='app.js'",
+      '```js app.js',
+      '```js:app.js',
+    ]) {
+      const el = await code(`${fence}\nlet a = 1\n\`\`\``)
+      expect(el?.properties['className']).toEqual(['language-js'])
+      expect(el?.properties['dataTitle']).toBe('app.js')
+    }
+  })
+
+  it('sets no title for a bare language or other settings', async () => {
+    for (const fence of ['```js', '```js {1,3} linenos=true', '```']) {
+      const el = await code(`${fence}\nx\n\`\`\``)
+      expect(el?.properties['dataTitle']).toBeUndefined()
+    }
+  })
+
+  it('keeps a title only through the allowlist, as text', async () => {
+    const el = await code('```html title="<b onclick=x>a</b>"\nx\n```')
+    expect(el?.properties['dataTitle']).toBe('<b onclick=x>a</b>')
+    const raw = elements(await render('<pre><code data-title="t" onclick="x">a</code></pre>')).find(
+      (e) => e.tagName === 'code',
+    )
+    expect(raw?.properties['dataTitle']).toBe('t')
+    expect(raw?.properties['onClick']).toBeUndefined()
+  })
+})

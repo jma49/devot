@@ -13,15 +13,18 @@ import remarkParse from 'remark-parse'
 import remarkRehype, { defaultHandlers } from 'remark-rehype'
 import { unified } from 'unified'
 import { BUILTIN_RENDERERS } from './builtins'
+import { remarkCodeTitle } from './codeTitle'
 import { createRegistry, type PreviewOptions, type PreviewRegistry } from './registry'
 
 export * from './registry'
 export { videoEmbedUrl } from './builtins'
+export { codeTitle, MAX_CODE_TITLE_CHARS } from './codeTitle'
 export { createEmojiRenderer, type EmojiTable } from './emoji'
 export { createMathRenderer, type MathEngine } from './math'
 
 /**
- * The allowlist: GitHub's schema plus `mark`, https iframes and devot:// URLs.
+ * The allowlist: GitHub's schema plus `mark`, https iframes, devot:// URLs and
+ * a code block's title (`data-title` on `code`, see codeTitle.ts).
  * Math arrives as `code.language-math` (kept by the schema) and is rendered
  * after sanitizing.
  */
@@ -32,7 +35,7 @@ const schema: Schema = {
     ...defaultSchema.attributes,
     iframe: ['src', 'title', 'width', 'height'],
     // The fence's info string (see code.ts), shown only as a title.
-    code: [...(defaultSchema.attributes?.['code'] ?? []), 'dataMeta'],
+    code: [...(defaultSchema.attributes?.['code'] ?? []), 'dataMeta', 'dataTitle'],
   },
   protocols: {
     ...defaultSchema.protocols,
@@ -46,6 +49,7 @@ const processor = unified()
   .use(remarkFrontmatter, ['yaml'])
   .use(remarkGfm)
   .use(remarkMath)
+  .use(remarkCodeTitle)
   // Front matter is shown by the `devot.frontmatter` renderer, not as text.
   .use(remarkRehype, {
     allowDangerousHtml: true,

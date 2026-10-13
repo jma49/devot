@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickNoteMore } from './fixtures'
 import { seedNotes } from './renders'
 
 // The note list shows the user's own changes at once: new dates and order
@@ -63,7 +63,7 @@ test('a note renamed during a search shows its new title in the results', async 
 test('New Note in Pinned lists the new note in All Notes', async ({ page }) => {
   await seedNotes(page, 3)
   await openNote(page, 'Note 1')
-  await page.getByRole('button', { name: 'Pin to Top' }).click()
+  await pickNoteMore(page, 'Pin to Top')
   await expect(filter(page, 'Pinned')).toHaveText(/1$/)
   await filter(page, 'Pinned').click()
   await expect(rows(page)).toHaveCount(1)

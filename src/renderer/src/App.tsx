@@ -1225,11 +1225,6 @@ export function App() {
     return pending && pending.id === selected ? pending.top : undefined
   }
 
-  const trashNote = async (id: string) => {
-    await changeBooks((c) => c.trash(id))
-    if (selected === id) setSelected(undefined)
-  }
-
   /** Puts a trashed note back where it was. */
   const restoreTrashed = async (id: string) => {
     await changeBooks((c) => c.restore(id))
@@ -1481,8 +1476,6 @@ export function App() {
     changeBooks((c) => c.setBook(noteId, bookId))
   const setStatus = (noteId: string, status: NoteStatus) =>
     changeBooks((c) => c.setStatus(noteId, status))
-  const setPinned = (noteId: string, pinned: boolean) =>
-    changeBooks((c) => c.setPinned(noteId, pinned))
 
   /**
    * One change to several notes, note by note (each with its own write and
@@ -2160,6 +2153,20 @@ export function App() {
 
   if (startFailure) return <StartFailure code={startFailure} onRetry={retryStart} />
 
+  // The search field sits in the note list's header (not in focus mode,
+  // which hides the list); Find in All Notes and Find in View focus it.
+  const searchSlot = focus ? null : (
+    <SearchField
+      ref={searchField}
+      value={query}
+      onChange={changeQuery}
+      onClear={clearSearch}
+      placeholder={
+        inView ? format(t('search.placeholderView'), { view: viewName }) : t('search.placeholder')
+      }
+    />
+  )
+
   return (
     <div
       className="window"
@@ -2221,6 +2228,7 @@ export function App() {
           sortButtonRef={sortButtonRef}
           onEdit={editFromList}
           leading={showSidebarButton}
+          search={searchSlot}
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
@@ -2242,6 +2250,7 @@ export function App() {
           onFind={findEverywhere}
           onTrashAction={trashKey}
           leading={showSidebarButton}
+          search={searchSlot}
           headerAction={emptyTrashButton}
         />
       ) : inTemplates ? (
@@ -2262,6 +2271,7 @@ export function App() {
           onFind={findEverywhere}
           onEdit={editFromList}
           leading={showSidebarButton}
+          search={searchSlot}
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
@@ -2285,6 +2295,7 @@ export function App() {
           onFind={findInView}
           onEdit={editFromList}
           leading={showSidebarButton}
+          search={searchSlot}
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
@@ -2293,6 +2304,16 @@ export function App() {
       <main className="content" data-devot-part="editor">
         <div className="toolbar editor-toolbar" data-devot-part="toolbar" data-tauri-drag-region>
           <div className="trail-buttons" data-tauri-drag-region>
+            <button
+              type="button"
+              className="tool"
+              aria-label={t('mode.focus')}
+              title={titleWithKey('mode.focusTitle', 'view.focus')}
+              aria-pressed={focus}
+              onClick={toggleFocus}
+            >
+              <Icon name={focus ? 'mode.focus.exit' : 'mode.focus'} size="md" />
+            </button>
             <button
               type="button"
               className="tool"
@@ -2316,60 +2337,22 @@ export function App() {
           </div>
           {selected && !inTrash && !multiIds ? (
             <>
-              <button
-                type="button"
-                className="tool"
-                aria-label={t('note.moveToTrash')}
-                title={t('note.moveToTrash')}
-                onClick={() => void trashNote(selected)}
-              >
-                <Icon name="trash" size="md" />
-              </button>
-              <button
-                type="button"
-                className="tool"
-                aria-label={t(selectedNote?.pinned ? 'note.unpin' : 'note.pin')}
-                title={t(selectedNote?.pinned ? 'note.unpin' : 'note.pin')}
-                aria-pressed={selectedNote?.pinned ?? false}
-                onClick={() => void setPinned(selected, !selectedNote?.pinned)}
-              >
-                <Icon name={selectedNote?.pinned ? 'note.pinned' : 'notes.pinned'} size="md" />
-              </button>
-              <button
-                type="button"
-                className="tool"
-                aria-label={t('history.button')}
-                title={titleWithKey('history.buttonTitle', 'note.history')}
-                onClick={() => void showHistory(selected)}
-              >
-                <Icon name="history" size="md" />
-              </button>
               <ModeControl mode={mode} onChange={setMode} />
+              <button
+                type="button"
+                className="tool note-more"
+                aria-label={t('note.more')}
+                title={t('note.more')}
+                aria-haspopup="menu"
+                onClick={(e) => {
+                  const box = e.currentTarget.getBoundingClientRect()
+                  noteActions.menuAt(selected, { x: box.left, y: box.bottom })
+                }}
+              >
+                <Icon name="more.vertical" size="md" />
+              </button>
             </>
           ) : null}
-          {focus ? null : (
-            <SearchField
-              ref={searchField}
-              value={query}
-              onChange={changeQuery}
-              onClear={clearSearch}
-              placeholder={
-                inView
-                  ? format(t('search.placeholderView'), { view: viewName })
-                  : t('search.placeholder')
-              }
-            />
-          )}
-          <button
-            type="button"
-            className="tool"
-            aria-label={t('mode.focus')}
-            title={titleWithKey('mode.focusTitle', 'view.focus')}
-            aria-pressed={focus}
-            onClick={toggleFocus}
-          >
-            <Icon name={focus ? 'mode.focus.exit' : 'mode.focus'} size="md" />
-          </button>
         </div>
         {multiIds ? (
           <SelectionSummary
@@ -2424,12 +2407,10 @@ export function App() {
                   value={selectedNote?.bookId ?? null}
                   onChange={(bookId) => void moveNote(selected, bookId)}
                 />
-                <span className="meta-divider" aria-hidden="true" />
                 <StatusPicker
                   value={selectedNote?.status ?? 'none'}
                   onChange={(status) => void setStatus(selected, status)}
                 />
-                <span className="meta-divider" aria-hidden="true" />
                 <TagEditor
                   tags={tags}
                   value={selectedNote?.tagIds ?? []}

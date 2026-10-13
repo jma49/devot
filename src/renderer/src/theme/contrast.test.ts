@@ -78,6 +78,9 @@ function selectedText(theme: Theme, link: Rgb): Record<string, Rgb> {
     string: solid(theme, 'syntax.string'),
     inserted: solid(theme, 'syntax.inserted'),
     deleted: solid(theme, 'syntax.deleted'),
+    heading: solid(theme, 'syntax.heading'),
+    markup: solid(theme, 'syntax.markup'),
+    list: solid(theme, 'syntax.list'),
   }
 }
 
@@ -192,6 +195,9 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
         string: [solid(theme, 'syntax.string'), lines],
         inserted: [solid(theme, 'syntax.inserted'), lines],
         deleted: [solid(theme, 'syntax.deleted'), lines],
+        heading: [solid(theme, 'syntax.heading'), lines],
+        markup: [solid(theme, 'syntax.markup'), lines],
+        list: [solid(theme, 'syntax.list'), lines],
       }),
     ).toEqual([])
   })

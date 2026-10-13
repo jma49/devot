@@ -3,7 +3,7 @@
 // mode come back after a reload; whatever is gone since is skipped quietly.
 // The caret is placed with clicks only (no platform text-navigation keys).
 import type { Locator, Page } from '@playwright/test'
-import { expect, reloadApp, test } from './fixtures'
+import { expect, reloadApp, test, pickNoteMore } from './fixtures'
 
 const STATE_KEY = 'devot.lastState.main'
 
@@ -384,7 +384,7 @@ test('the restored note is where Back returns to', async ({ page }) => {
 
 test('the Trash is not restored: the library view before it comes back', async ({ page }) => {
   await createNote(page, 'Trashed')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(noteRows(page)).toHaveCount(0)
   await createNote(page, 'Open one')
   await writeBody(page, 'first second')
