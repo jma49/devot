@@ -588,6 +588,34 @@ test('an image from the web shows a placeholder with its address and breaks no p
   expect(await violations(page)).toEqual([])
 })
 
+test('the address of a web image opens in the browser; others are text', async ({ page }) => {
+  const requested: string[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('example.com')) requested.push(request.url())
+  })
+  await start(page)
+  const address = 'https://example.com/chart.png'
+  await newNote(
+    page,
+    `![Sales chart](${address})\n\n![Old](http://example.com/old.png)\n\n![P](//example.com/p.png)`,
+  )
+  const preview = page.getByRole('article', { name: 'Preview' })
+  await expect(preview.locator('.image-placeholder')).toHaveCount(3)
+  await expect(preview.locator('.image-placeholder-alt').first()).toHaveText('Sales chart')
+  await expect(preview.getByRole('link')).toHaveCount(1)
+  await preview.getByRole('link', { name: address }).click()
+  const opened = () =>
+    page.evaluate(() =>
+      (globalThis as unknown as TestWindow).devotIpcCalls
+        .filter((c) => c.cmd === 'open_external')
+        .map((c) => c.args['url']),
+    )
+  await expect.poll(opened).toEqual([address])
+  expect(page.url()).not.toContain('example.com')
+  expect(requested).toEqual([])
+  expect(await violations(page)).toEqual([])
+})
+
 // The editor's colours come from the design tokens in both appearances: the
 // syntax colours, the gutter, the active line and the selection stay readable.
 interface Seen {

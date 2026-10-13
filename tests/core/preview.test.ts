@@ -437,6 +437,27 @@ describe('images from the web', () => {
     expect(tags(tree, 'a')).toHaveLength(1)
     expect(tags(tree, 'a')[0]?.properties['href']).toBe('https://example.com/page')
     expect(byClass(tree, 'image-placeholder')).toHaveLength(1)
+    const [address] = byClass(tree, 'image-placeholder-address')
+    expect(address?.tagName).toBe('span')
+    expect(address && text(address)).toBe('https://example.com/a.png')
+  })
+
+  it('treat an address without a protocol as a web image, shown as text', async () => {
+    for (const md of ['![x](//example.com/a.png)', '<img src="//example.com/a.png" alt="x">']) {
+      const tree = await held(md)
+      expect(tags(tree, 'img')).toHaveLength(0)
+      const [address] = byClass(tree, 'image-placeholder-address')
+      expect(address?.tagName).toBe('span')
+      expect(address && text(address)).toBe('//example.com/a.png')
+    }
+  })
+
+  it('keep the description of the image in the placeholder', async () => {
+    const tree = await held('![Sales chart](https://example.com/a.png)')
+    const [alt] = byClass(tree, 'image-placeholder-alt')
+    expect(alt && text(alt)).toBe('Sales chart')
+    const none = await held('![](https://example.com/a.png)')
+    expect(byClass(none, 'image-placeholder-alt')).toHaveLength(0)
   })
 
   it('leave attachment images and the images of a page that keeps them alone', async () => {

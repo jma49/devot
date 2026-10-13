@@ -185,22 +185,24 @@ const images: PreviewRenderer = {
 
 // --- images from the web -----------------------------------------------------
 
-const WEB_IMAGE = /^https?:\/\//i
+const WEB_IMAGE = /^(https?:)?\/\//i
 const SECURE_IMAGE = /^https:\/\//i
 
 /**
  * Where the preview does not load images from the web, each one becomes a
  * placeholder that says so and shows the address; an https address is a link
- * (the page opens it in the browser), except inside another link.
+ * (the page opens it in the browser), except inside another link. An address
+ * without a protocol, and an http address, are text only.
  */
 const remoteImages: PreviewRenderer = {
   id: 'devot.remote-images',
   apiVersion: PREVIEW_API_VERSION,
   transform(tree, { remoteImages: texts }) {
     if (!texts) return
-    const placeholder = (src: string, inLink: boolean): Element =>
+    const placeholder = (src: string, alt: string, inLink: boolean): Element =>
       el('span', { className: ['image-placeholder'], dataImageAddress: src }, [
         el('span', { className: ['image-placeholder-text'] }, [txt(texts.notLoaded)]),
+        ...(alt ? [el('span', { className: ['image-placeholder-alt'] }, [txt(alt)])] : []),
         SECURE_IMAGE.test(src) && !inLink
           ? el('a', { className: ['image-placeholder-address'], href: src }, [txt(src)])
           : el('span', { className: ['image-placeholder-address'] }, [txt(src)]),
@@ -211,7 +213,8 @@ const remoteImages: PreviewRenderer = {
         if (child.type !== 'element') return child
         const src = child.properties['src']
         if (child.tagName === 'img' && typeof src === 'string' && WEB_IMAGE.test(src)) {
-          const next = placeholder(src, inLink)
+          const alt = child.properties['alt']
+          const next = placeholder(src, typeof alt === 'string' ? alt.trim() : '', inLink)
           if (child.position) next.position = child.position
           return next
         }

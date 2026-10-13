@@ -1073,6 +1073,10 @@ button {
   vertical-align: top;
 }
 
+.image-placeholder-alt {
+  color: var(--color-text-primary);
+}
+
 .image-placeholder-address {
   overflow-wrap: anywhere;
   font-family: var(--font-family-mono);
