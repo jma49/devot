@@ -17,6 +17,15 @@ const tagRow = (page: Page, name: string) =>
 const trashRow = (page: Page) => sidebar(page).getByRole('button', { name: /^Trash \d+$/ })
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 
+/** Deletes the focused notebook row: Backspace asks first, Return confirms. */
+async function deleteFocusedBook(page: Page, name: string) {
+  await page.keyboard.press('Backspace')
+  await expect(
+    page.getByRole('dialog', { name: `Delete the notebook \u201c${name}\u201d?` }),
+  ).toBeVisible()
+  await page.keyboard.press('Enter')
+}
+
 /** Whether the keyboard is on the page itself, nowhere. */
 const onPage = (page: Page) =>
   page.evaluate(() => {
@@ -79,11 +88,11 @@ test.beforeEach(async ({ page }) => {
 test('deleting a notebook row with the keyboard moves it to the next row', async ({ page }) => {
   for (const name of ['Home', 'Work', 'Play']) await createBook(page, name)
   await book(page, 'Work').focus()
-  await page.keyboard.press('Backspace')
+  await deleteFocusedBook(page, 'Work')
   await expect(book(page, 'Work')).toHaveCount(0)
   await expect(book(page, 'Play')).toBeFocused()
   // The last notebook: the row before it.
-  await page.keyboard.press('Backspace')
+  await deleteFocusedBook(page, 'Play')
   await expect(book(page, 'Play')).toHaveCount(0)
   await expect(book(page, 'Home')).toBeFocused()
 })
@@ -91,7 +100,7 @@ test('deleting a notebook row with the keyboard moves it to the next row', async
 test('deleting the only notebook leaves the keyboard on a sidebar row', async ({ page }) => {
   await createBook(page, 'Home')
   await book(page, 'Home').focus()
-  await page.keyboard.press('Backspace')
+  await deleteFocusedBook(page, 'Home')
   await expect(book(page, 'Home')).toHaveCount(0)
   await expect.poll(async () => (await settledFocus(page)).part).toBe('sidebar')
 })

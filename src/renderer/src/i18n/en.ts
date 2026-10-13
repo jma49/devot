@@ -294,6 +294,21 @@ export const en = {
   'save.quitHeldOther':
     'Devot did not quit: changes to {count} notes could not be saved ({code}). It keeps trying; quit again to quit without them.',
   'save.retry': 'Try Again',
+  'start.failed': 'Devot could not load your notes.',
+  'start.detail':
+    'Error code: {code}. Choose Help > Export Diagnostics\u2026 to save a report you can share.',
+  'start.retry': 'Try Again',
+  'core.failed':
+    'Something went wrong inside Devot ({code}). If your changes stop saving, quit and open Devot again.',
+  'book.confirmDelete': 'Delete the notebook \u201c{name}\u201d?',
+  'book.deleteEmpty': 'It is empty. You can\u2019t undo this.',
+  'book.deleteNotes':
+    'It holds {notes}, which will stay without a notebook. You can\u2019t undo this.',
+  'book.deleteSubs': 'Its {subs} will be deleted too. You can\u2019t undo this.',
+  'book.deleteSubsNotes':
+    'Its {subs} will be deleted too. Together they hold {notes}, which will stay without a notebook. You can\u2019t undo this.',
+  'book.subOne': '{count} sub-notebook',
+  'book.subOther': '{count} sub-notebooks',
   'change.failed': 'The change could not be made ({code}).',
   'images.refusedOne': 'An image could not be added ({code}).',
   'images.refusedOther': '{count} images could not be added ({code}).',

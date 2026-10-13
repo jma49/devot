@@ -185,10 +185,22 @@ export function crashEnvironment(tauriDebug: string | undefined): 'production' |
   return tauriDebug === 'false' ? 'production' : 'development'
 }
 
+type SentryBrowser = typeof import('@sentry/browser')
+let started: SentryBrowser | undefined
+
+/**
+ * Reports a failure that happened elsewhere (the core worker's uncaught
+ * errors) by its code alone. Nothing happens in a build without a DSN.
+ */
+export function reportCode(code: string) {
+  started?.captureException(new Error(code))
+}
+
 /** Starts Sentry when this build has a DSN; the SDK loads only then. */
 export async function startCrashReporting(dsn: string | undefined, release: string) {
   if (!dsn) return
   const Sentry = await import('@sentry/browser')
+  started = Sentry
   Sentry.init({
     dsn,
     release,

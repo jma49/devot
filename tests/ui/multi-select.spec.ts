@@ -843,8 +843,10 @@ test('a note that cannot be changed is reported, and the others still change', a
   })
   await pick(page, 'Free', 'Locked')
   await summary(page).getByRole('button', { name: 'Pin to Top' }).click()
-  const notice = page.getByRole('alert')
+  // In the notice stack with the others, not above the editor.
+  const notice = page.locator('.notices').getByRole('alert')
   await expect(notice).toHaveText(/Could not change 1 note\./)
+  await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0)
   expect((await stored(page))['Free']?.pinned).toBe(true)
   expect((await stored(page))['Locked']?.pinned).toBe(false)
   await notice.getByRole('button', { name: 'Dismiss' }).click()

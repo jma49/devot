@@ -12,7 +12,7 @@ import type {
 } from '../../core'
 // Imported directly (not through the core index) so the main bundle does not
 // pull in the preview pipeline.
-import { bookCounts, buildBookTree, TEMPLATES_BOOK_ID } from '../../core/books'
+import { bookCounts, bookWithDescendants, buildBookTree, TEMPLATES_BOOK_ID } from '../../core/books'
 import { noteLink } from '../../core/links'
 import { clipTitle } from '../../core/noteLimits'
 import {
@@ -38,7 +38,10 @@ import { BackupsDialog } from './BackupsDialog'
 import { BookPicker } from './BookPicker'
 import { ImportDialog, type ImportState } from './ImportDialog'
 import { IMPORT_FAILED, IMPORT_READY, finishImport, runImport } from './importer'
+import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
+import { CoreNotice } from './CoreNotice'
+import { StartFailure } from './StartFailure'
 import {
   IMAGE_COMMANDS,
   imageActionApplies,
@@ -64,7 +67,7 @@ import { COMMANDS, formatOf, insertOf, tableOf, type CommandHandlers } from './c
 import { CommandPalette, type PaletteActions } from './palette/CommandPalette'
 import { commandEntries, libraryEntries } from './palette/entries'
 import type { PaletteEntry } from './palette/results'
-import { countOf, noteCount } from './format'
+import { bookDeleteDetail, noteCount } from './format'
 import { openAfter, selectAll, type ListSelection } from './listSelection'
 import { SelectionSummary } from './SelectionSummary'
 import { TrashView } from './TrashView'
@@ -73,7 +76,7 @@ import { StatusPicker } from './StatusPicker'
 import { TagEditor } from './TagEditor'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
-import { startCore, type Core } from './core-client'
+import { startCore, stopCore, type Core } from './core-client'
 import { currentFocusStore, currentSidebarStore, keyboardIsFree } from './focus'
 import { useFocusRescue } from './focusRescue'
 import { currentLastStateStore, restorePlan, type LastState, type NoteState } from './lastState'
@@ -206,6 +209,12 @@ export function App() {
   // Tooltips name the keys in effect; they follow the user's changes.
   useKeymap()
   const [core, setCore] = useState<Core>()
+  // Why the core could not start (a code), until Try Again starts it again;
+  // `startAttempt` counts the starts.
+  const [startFailure, setStartFailure] = useState<string>()
+  const [startAttempt, setStartAttempt] = useState(0)
+  // The code of an error the running core worker raised (a notice).
+  const [coreFailure, setCoreFailure] = useState<string>()
   // The lists have loaded once (the last state is restored then).
   const [listsLoaded, setListsLoaded] = useState(false)
   const [notes, setNotes] = useState<NoteSummary[]>([])
@@ -239,6 +248,7 @@ export function App() {
     | { kind: 'one'; id: string; title: string }
     | { kind: 'many'; ids: readonly string[] }
     | { kind: 'tag'; id: string; name: string; count: number }
+    | { kind: 'book'; id: string; name: string; subs: number; notes: number }
   >()
   // A notebook just created, shown with its name ready to edit.
   const [renamingBook, setRenamingBook] = useState<string>()
@@ -703,21 +713,42 @@ export function App() {
     [multiIds, noteById],
   )
 
+  const onCoreFailure = useCallback((code: string) => {
+    console.error(code)
+    setCoreFailure(code)
+  }, [])
   useEffect(() => {
     let alive = true
-    void startCore(onSaveProblems, showWrites).then(async (c) => {
-      if (!alive) return
-      setCore(() => c)
-      coreRef.current = c
-      await refresh(c)
-      setListsLoaded(true)
-      // Folders picked before the core was ready.
-      nextSheet()
-    })
+    let started: Core | undefined
+    void startCore(onSaveProblems, showWrites, onCoreFailure)
+      .then(async (c) => {
+        started = c
+        if (!alive) return
+        setCore(() => c)
+        coreRef.current = c
+        await refresh(c)
+        setListsLoaded(true)
+        // Folders picked before the core was ready.
+        nextSheet()
+      })
+      .catch((e: unknown) => {
+        if (!alive) return
+        // Not an empty library: the window says why it has none.
+        if (started) stopCore(started)
+        coreRef.current = undefined
+        setCore(undefined)
+        const code = errorCode(e)
+        console.warn('W_CORE_START_FAILED', code)
+        setStartFailure(code)
+      })
     return () => {
       alive = false
     }
-  }, [refresh, nextSheet, onSaveProblems, showWrites])
+  }, [refresh, nextSheet, onSaveProblems, showWrites, onCoreFailure, startAttempt])
+  const retryStart = () => {
+    setStartFailure(undefined)
+    setStartAttempt((n) => n + 1)
+  }
 
   // Search: newest query wins, run shortly after typing stops.
   useEffect(() => {
@@ -1188,6 +1219,7 @@ export function App() {
     setConfirm(undefined)
     if (!pending) return
     if (pending.kind === 'tag') return void (await changeBooks((c) => c.deleteTag(pending.id)))
+    if (pending.kind === 'book') return void (await deleteBook(pending.id))
     if (pending.kind === 'many') {
       await runBatch(pending.ids, { kind: 'purge' })
       setMulti(undefined)
@@ -2011,7 +2043,19 @@ export function App() {
   const sidebarSetAiAccess = useStable(
     (id: string, on: boolean) => void changeBooks((c) => c.setBookAiAccess(id, on)),
   )
-  const sidebarDeleteBook = useStable((id: string) => void deleteBook(id))
+  // Deleting a notebook asks first: it takes its sub-notebooks with it, and
+  // nothing brings them back.
+  const sidebarDeleteBook = useStable((id: string) => {
+    const book = books.find((b) => b.id === id)
+    if (!book) return
+    setConfirm({
+      kind: 'book',
+      id,
+      name: book.name,
+      subs: bookWithDescendants(books, id).size - 1,
+      notes: counts.get(id) ?? 0,
+    })
+  })
   const sidebarExportBook = useStable(
     (action: 'exportMarkdown' | 'exportHtml', id: string) => void exportBook(action, id),
   )
@@ -2038,6 +2082,8 @@ export function App() {
       count: tagged.get(id) ?? 0,
     }),
   )
+
+  if (startFailure) return <StartFailure code={startFailure} onRetry={retryStart} />
 
   return (
     <div
@@ -2245,16 +2291,6 @@ export function App() {
             <Icon name={focus ? 'mode.focus.exit' : 'mode.focus'} size="md" />
           </button>
         </div>
-        {batchFailed ? (
-          <div role="alert" className="notice" data-devot-part="notice">
-            <span className="notice-text">
-              {countOf(batchFailed, currentLocale(), 'batch.failedOne', 'batch.failedOther')}
-            </span>
-            <button type="button" className="button" onClick={() => setBatchFailed(undefined)}>
-              {t('notice.dismiss')}
-            </button>
-          </div>
-        ) : null}
         {multiIds ? (
           <SelectionSummary
             notes={selectedNotes}
@@ -2366,6 +2402,8 @@ export function App() {
       {(backupNotice && !backupsOpen) ||
       exportNotice ||
       changeNotice ||
+      batchFailed ||
+      coreFailure ||
       imageNotice ||
       saveNoticeShown ||
       mirror.notices.length > 0 ? (
@@ -2399,6 +2437,12 @@ export function App() {
           {mirror.notices}
           {changeNotice ? (
             <ChangeNotice code={changeNotice} onDismiss={() => setChangeNotice(undefined)} />
+          ) : null}
+          {batchFailed ? (
+            <BatchNotice failed={batchFailed} onDismiss={() => setBatchFailed(undefined)} />
+          ) : null}
+          {coreFailure ? (
+            <CoreNotice code={coreFailure} onDismiss={() => setCoreFailure(undefined)} />
           ) : null}
           {imageNotice ? (
             <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />
@@ -2450,6 +2494,15 @@ export function App() {
             notes: noteCount(confirm.count, currentLocale()),
           })}
           confirm={t('tagMenu.delete')}
+          onConfirm={() => void runConfirmed()}
+          onCancel={() => setConfirm(undefined)}
+        />
+      ) : confirm?.kind === 'book' ? (
+        <ConfirmDialog
+          message={format(t('book.confirmDelete'), { name: confirm.name })}
+          detail={bookDeleteDetail(confirm.subs, confirm.notes)}
+          confirm={t('bookMenu.delete')}
+          confirmFirst
           onConfirm={() => void runConfirmed()}
           onCancel={() => setConfirm(undefined)}
         />

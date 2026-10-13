@@ -9,6 +9,8 @@ const row = (page: Page, name: string) => book(page, name).locator('> .book-row'
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
 const nameField = (page: Page) => page.getByRole('textbox', { name: 'Notebook name' })
+const confirmDelete = (page: Page, name: string) =>
+  page.getByRole('dialog', { name: `Delete the notebook \u201c${name}\u201d?` })
 
 async function createBook(page: Page, name: string) {
   await page.getByRole('button', { name: 'New Notebook' }).click()
@@ -197,6 +199,7 @@ test('Delete Notebook deletes the clicked notebook with its sub-notebooks and ke
   await expect(header(page)).toHaveText('Home')
   await openMenu(page, 'Work')
   await pickMenuItem(page, 'Delete Notebook')
+  await confirmDelete(page, 'Work').getByRole('button', { name: 'Delete Notebook' }).click()
   await expect(book(page, 'Work')).toHaveCount(0)
   await expect(book(page, 'Devot')).toHaveCount(0)
   await expect(tree(page).getByRole('treeitem')).toHaveCount(1)
@@ -216,6 +219,9 @@ test('the keys still rename and delete the focused notebook', async ({ page }) =
   await nameField(page).press('Enter')
   await expect(book(page, 'Job')).toBeFocused()
   await page.keyboard.press('Backspace')
+  // Return confirms the question the key asks.
+  await expect(confirmDelete(page, 'Job')).toBeVisible()
+  await page.keyboard.press('Enter')
   await expect(book(page, 'Job')).toHaveCount(0)
   await expect(tree(page).getByRole('treeitem')).toHaveCount(1)
 })
@@ -234,6 +240,8 @@ test('the keyboard stays on the selected notebook after a right-click', async ({
   await row(page, 'Home').click()
   await openMenu(page, 'Work')
   await page.keyboard.press('Backspace')
+  await expect(confirmDelete(page, 'Home')).toBeVisible()
+  await page.keyboard.press('Enter')
   await expect(book(page, 'Home')).toHaveCount(0)
   await expect(book(page, 'Work')).toBeVisible()
 })
@@ -243,7 +251,60 @@ test('the keyboard stays in the tree after Delete Notebook from the menu', async
   await row(page, 'Home').click()
   await openMenu(page, 'Work')
   await pickMenuItem(page, 'Delete Notebook')
+  await confirmDelete(page, 'Work').getByRole('button', { name: 'Delete Notebook' }).click()
   await expect(book(page, 'Work')).toHaveCount(0)
+  await expect(book(page, 'Home')).toBeFocused()
+})
+
+test('Backspace and Delete on a notebook row ask first; Cancel and Escape keep it', async ({
+  page,
+}) => {
+  await setUp(page)
+  await row(page, 'Devot').click()
+  await createNote(page, 'Survivor')
+  await row(page, 'Work').click()
+  await expect(book(page, 'Work')).toBeFocused()
+
+  // The question names what goes with the notebook and what stays.
+  await page.keyboard.press('Backspace')
+  const ask = confirmDelete(page, 'Work')
+  await expect(ask).toContainText(
+    'Its 1 sub-notebook will be deleted too. Together they hold 1 note, which will stay without a notebook.',
+  )
+  await expect(tree(page).getByRole('treeitem')).toHaveCount(3)
+  await ask.getByRole('button', { name: 'Cancel' }).click()
+  await expect(ask).toHaveCount(0)
+  await expect(book(page, 'Work')).toBeFocused()
+  await expect(book(page, 'Devot')).toBeVisible()
+
+  await page.keyboard.press('Delete')
+  await expect(ask).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(ask).toHaveCount(0)
+  await expect(book(page, 'Work')).toBeFocused()
+  await expect(tree(page).getByRole('treeitem')).toHaveCount(3)
+  // Nothing was deleted: the note is still in its notebook.
+  await expect(noteRows(page).filter({ hasText: 'Survivor' })).toHaveCount(1)
+
+  // A notebook with nothing in it says so.
+  await row(page, 'Home').click()
+  await page.keyboard.press('Backspace')
+  await expect(confirmDelete(page, 'Home')).toContainText('It is empty.')
+  await page.keyboard.press('Escape')
+  await expect(book(page, 'Home')).toBeFocused()
+})
+
+test('Delete Notebook from the menu asks too, and Cancel keeps the keyboard where it was', async ({
+  page,
+}) => {
+  await setUp(page)
+  await openMenu(page, 'Work')
+  await pickMenuItem(page, 'Delete Notebook')
+  const ask = confirmDelete(page, 'Work')
+  await expect(ask).toContainText('Its 1 sub-notebook will be deleted too.')
+  await ask.getByRole('button', { name: 'Cancel' }).click()
+  await expect(book(page, 'Work')).toBeVisible()
+  await expect(book(page, 'Devot')).toBeVisible()
   await expect(book(page, 'Home')).toBeFocused()
 })
 

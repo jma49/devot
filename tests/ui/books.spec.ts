@@ -119,6 +119,10 @@ test('deleting a notebook removes its sub-notebooks and keeps every note', async
   await row(page, 'Older').dragTo(row(page, 'Old'))
   await row(page, 'Old').click()
   await page.keyboard.press('Delete')
+  await page
+    .getByRole('dialog', { name: 'Delete the notebook \u201cOld\u201d?' })
+    .getByRole('button', { name: 'Delete Notebook' })
+    .click()
   await expect(tree(page).getByRole('treeitem')).toHaveCount(0)
   await expect(header(page)).toHaveText('All Notes')
   await expect(noteRows(page).filter({ hasText: 'Survivor' })).toHaveCount(1)

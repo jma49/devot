@@ -20,6 +20,24 @@ function asId(arg: unknown): string | undefined {
   return errorCode(arg, '') || undefined
 }
 
+const LEVELS: readonly LogLevel[] = ['error', 'warn', 'info']
+
+/**
+ * The entry a message from another context carries (the core worker), checked
+ * again here: a level and a code, and of the IDs only those that are IDs or
+ * codes. Anything else is not an entry.
+ */
+export function sanitizeEntry(value: unknown): LogEntry | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { level, code, ids } = value as Record<string, unknown>
+  if (!LEVELS.includes(level as LogLevel)) return undefined
+  if (typeof code !== 'string' || !CODE.test(code)) return undefined
+  const kept = Array.isArray(ids)
+    ? ids.map(asId).filter((id): id is string => id !== undefined)
+    : []
+  return { level: level as LogLevel, code, ids: kept.slice(0, MAX_IDS) }
+}
+
 /** The entry for a console call, or nothing when it does not start with a code. */
 export function logEntry(level: LogLevel, args: unknown[]): LogEntry | undefined {
   const [code, ...rest] = args
@@ -46,15 +64,30 @@ export function forwardConsole(
   }
 }
 
+/** What a window or a worker scope lets `forwardUncaught` listen to. */
+export interface UncaughtSource {
+  addEventListener(type: 'error', listener: (e: ErrorEvent) => void): void
+  addEventListener(type: 'unhandledrejection', listener: (e: PromiseRejectionEvent) => void): void
+}
+
+/** The codes uncaught errors and rejected promises are logged under. */
+export interface UncaughtCodes {
+  uncaught: string
+  rejection: string
+}
+
+const UI_CODES: UncaughtCodes = { uncaught: 'E_UI_UNCAUGHT', rejection: 'E_UI_UNHANDLED_REJECTION' }
+
 /** Uncaught errors are logged by kind only; their messages may hold content. */
 export function forwardUncaught(
-  target: Pick<Window, 'addEventListener'>,
+  target: UncaughtSource,
   send: (entry: LogEntry) => Promise<unknown>,
+  codes: UncaughtCodes = UI_CODES,
 ) {
   const report = (code: string, reason: unknown) => {
     const id = asId(reason)
     send({ level: 'error', code, ids: id ? [id] : [] }).catch(() => {})
   }
-  target.addEventListener('error', (e) => report('E_UI_UNCAUGHT', e.error))
-  target.addEventListener('unhandledrejection', (e) => report('E_UI_UNHANDLED_REJECTION', e.reason))
+  target.addEventListener('error', (e) => report(codes.uncaught, e.error))
+  target.addEventListener('unhandledrejection', (e) => report(codes.rejection, e.reason))
 }
