@@ -207,7 +207,11 @@ export const EXCERPT_STRETCH = 300
 /** How many places of a word a long body's excerpt tries. */
 export const EXCERPT_PLACES = 8
 
-/** Lower case, one character for one (as the trigram index folds case). */
+/**
+ * Lower case, one character for one (as the trigram index folds case, and
+ * as the Rust store's `fold` does: tests/support/folds.json holds cases both
+ * agree on).
+ */
 const fold = (chars: readonly string[]) =>
   chars.map((c) => {
     const lower = c.toLowerCase()
@@ -219,8 +223,10 @@ const fold = (chars: readonly string[]) =>
  * (no code point's lower case changes its length). Only U+0130 lowers to
  * two code points, and only U+03A3 lowers by context (at the end of a
  * word), so without them the whole string's lower case is the same.
+ * Storage scans terms too short for its trigram index with this, as the SQL
+ * function `devot_fold` (src/mcp/sqlite.ts, storage/mod.rs).
  */
-const foldText = (text: string) =>
+export const foldText = (text: string) =>
   /[\u0130\u03a3]/.test(text) ? fold([...text]).join('') : text.toLowerCase()
 
 /** UTF-16 index of the code point `count` code points before `at` (or 0). */

@@ -891,6 +891,87 @@ fn searches_titles_and_bodies_in_any_script() {
 }
 
 #[test]
+fn short_search_terms_ignore_case_in_every_script() {
+    let (_dir, mut store) = temp_store();
+    let mut a = note("a", "\u{c9}mile and the \u{c9}COLE", 10);
+    a.body_md = "\u{dc}nal \u{410}\u{411} \u{c5}ngstr\u{f6}m".into();
+    store.put_note(&a, &[]).unwrap();
+    let mut b = note("b", "Plain", 20);
+    b.body_md = "ascii only".into();
+    store.put_note(&b, &[]).unwrap();
+
+    let ids = |query: NoteQuery| -> Vec<String> {
+        store
+            .search_notes(&query, 50)
+            .unwrap()
+            .into_iter()
+            .map(|n| n.id)
+            .collect()
+    };
+    // Two characters are scanned, three or more use the trigram index: both
+    // find a note in any case.
+    for term in [
+        "\u{e9}m",
+        "\u{c9}M",
+        "\u{e9}c",
+        "\u{c9}c",
+        "\u{fc}n",
+        "\u{dc}N",
+        "\u{430}\u{431}",
+        "\u{e5}n",
+        "\u{c5}N",
+        "\u{e9}mi",
+        "\u{c9}MI",
+        "\u{e9}cole",
+    ] {
+        assert_eq!(ids(words(&[term])), ["a"], "{term}");
+    }
+    assert!(ids(words(&["\u{e9}x"])).is_empty());
+    // An accent is not ignored: e is not \u{e9}.
+    assert_eq!(ids(words(&["em"])), Vec::<String>::new());
+    let field = |field: TextField, term: &str, negate: bool| NoteQuery {
+        text: vec![TextCondition {
+            field,
+            value: term.into(),
+            negate,
+        }],
+        sets: Vec::new(),
+        pinned: false,
+    };
+    assert_eq!(ids(field(TextField::Any, "\u{c9}M", true)), ["b"]);
+    assert_eq!(ids(field(TextField::Title, "\u{e9}m", false)), ["a"]);
+    assert!(ids(field(TextField::Body, "\u{e9}m", false)).is_empty());
+    assert_eq!(ids(field(TextField::Body, "\u{fc}n", false)), ["a"]);
+}
+
+#[test]
+fn devot_fold_agrees_with_the_shared_cases() {
+    #[derive(serde::Deserialize)]
+    struct Case {
+        why: String,
+        text: String,
+        folded: String,
+    }
+    let cases: Vec<Case> =
+        serde_json::from_str(include_str!("../../../tests/support/folds.json")).unwrap();
+    assert!(cases.len() > 10);
+    let (_dir, store) = temp_store();
+    for case in cases {
+        let folded: String = store
+            .conn
+            .query_row("SELECT devot_fold(?1)", [&case.text], |row| row.get(0))
+            .unwrap();
+        assert_eq!(folded, case.folded, "{}", case.why);
+        assert_eq!(fold_text(&case.text), case.folded, "{}", case.why);
+    }
+    let none: Option<String> = store
+        .conn
+        .query_row("SELECT devot_fold(NULL)", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(none, None);
+}
+
+#[test]
 fn the_search_index_follows_edits_and_purges() {
     let (_dir, mut store) = temp_store();
     let mut a = note("a", "Draft", 10);

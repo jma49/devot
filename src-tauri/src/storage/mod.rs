@@ -533,6 +533,40 @@ fn fold(c: char) -> char {
     }
 }
 
+/// `text` folded one character at a time (see `fold`). The SQL function
+/// `devot_fold` is this: terms too short for the trigram index are scanned
+/// with it, so they ignore case in every script, as the index does (SQLite's
+/// own `lower()` folds ASCII only). devot-mcp registers the same function
+/// (src/mcp/sqlite.ts) from the same cases (tests/support/folds.json).
+fn fold_text(text: &str) -> String {
+    if text.is_ascii() {
+        text.to_ascii_lowercase()
+    } else {
+        text.chars().map(fold).collect()
+    }
+}
+
+/// Registers `devot_fold(text)` on a connection: the folded text, or the
+/// value itself when it is not text (NULL stays NULL).
+fn register_fold(conn: &Connection) -> rusqlite::Result<()> {
+    use rusqlite::functions::FunctionFlags;
+    use rusqlite::types::{Value, ValueRef};
+    conn.create_scalar_function(
+        "devot_fold",
+        1,
+        FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+        |ctx| {
+            Ok(match ctx.get_raw(0) {
+                ValueRef::Text(bytes) => Value::Text(fold_text(&String::from_utf8_lossy(bytes))),
+                ValueRef::Null => Value::Null,
+                ValueRef::Integer(i) => Value::Integer(i),
+                ValueRef::Real(f) => Value::Real(f),
+                ValueRef::Blob(b) => Value::Blob(b.to_vec()),
+            })
+        },
+    )
+}
+
 /// Byte offset of the character `count` characters before `at` (or 0).
 fn chars_back(text: &str, at: usize, count: usize) -> usize {
     text[..at]
@@ -759,7 +793,7 @@ fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
     for t in &query.text {
         if !indexable(&t.value) {
             clauses.push(format!(
-                "instr(lower({}), lower({})) {} 0",
+                "instr(devot_fold({}), devot_fold({})) {} 0",
                 t.field.column(!ranked.is_empty()),
                 param(t.value.clone()),
                 if t.negate { "=" } else { ">" }
@@ -825,6 +859,7 @@ impl Store {
     /// Opens (creating if needed) the database and applies pending migrations.
     pub fn open(path: &Path) -> Result<Self> {
         let mut conn = Connection::open(path)?;
+        register_fold(&conn)?;
         // WAL lets devot-mcp read while Devot writes; FULL sync because data
         // integrity outranks write speed.
         conn.pragma_update(None, "journal_mode", "WAL")?;
