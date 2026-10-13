@@ -14,6 +14,7 @@ import {
 /** `color` names the Colour submenu; its items pick `color.none` or `color.<id>`. */
 export type TagAction =
   | 'rename'
+  | 'settings'
   | 'color'
   | 'color.none'
   | `color.${TagColor}`
@@ -43,6 +44,7 @@ type CommandAction = Exclude<TagAction, `color${string}`>
 /** The registry command behind each tag action (its label and keys). */
 export const TAG_COMMANDS: Readonly<Record<CommandAction, CommandId>> = {
   rename: 'tag.rename',
+  settings: 'tag.settings',
   filter: 'tag.filter',
   copyId: 'tag.copyId',
   delete: 'tag.delete',
@@ -56,7 +58,8 @@ const entry = (
 
 /** The menu's items, group by group; `tagShortcut` handles the keys shown. */
 export const TAG_MENU: MenuGroups<TagAction, TagMenuTarget> = [
-  [entry('rename'), { action: 'color', label: 'tagMenu.color', submenu: COLOR_ITEMS }],
+  // Rename is F2 only: Tag Settings holds the name.
+  [entry('settings'), { action: 'color', label: 'tagMenu.color', submenu: COLOR_ITEMS }],
   [entry('filter', { checked: (tag) => tag.filtered })],
   [entry('copyId')],
   [entry('delete')],

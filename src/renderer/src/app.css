@@ -134,6 +134,7 @@ button {
   box-sizing: border-box;
   background: var(--color-surface-sidebar);
   border-right: 1px solid var(--color-line-hairline);
+  font-size: var(--font-size-row);
 }
 
 /* Settings > Appearance turned the material off (sidebarMaterial.ts): the
@@ -155,6 +156,7 @@ button {
 }
 
 .source {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -182,26 +184,32 @@ button {
 .source-count {
   font-size: var(--font-size-footnote);
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
 }
 
-/* Filters: Pinned, statuses and tags. A pressed filter shows like a selection. */
-.source.filter[aria-pressed='true'] {
-  background: var(--color-fill-row-selected-unemphasized);
+/* The selected row of the sidebar (a pressed filter, the view shown, the
+   selected notebook): a fill, and while the sidebar has the keyboard focus a
+   bar on its left edge. */
+.source.filter[aria-pressed='true'],
+.source[aria-current='true'],
+.books [aria-selected='true'] > .book-row {
+  background: var(--color-fill-row-selected);
 }
 
-.sources:focus-within .source.filter[aria-pressed='true'] {
+.sidebar:focus-within
+  :is(
+    .source.filter[aria-pressed='true'],
+    .source[aria-current='true'],
+    .books [aria-selected='true'] > .book-row
+  )::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: var(--size-sidebar-bar);
+  border-radius: var(--radius-button) 0 0 var(--radius-button);
   background: var(--color-accent-fill);
-  color: var(--color-accent-on-fill);
-}
-
-.sources:focus-within .source.filter[aria-pressed='true'] .icon {
-  background-color: var(--color-accent-on-fill);
-}
-
-/* The count is text: a background in its colour would draw a solid block. */
-.sources:focus-within .source.filter[aria-pressed='true'] .source-count {
-  color: var(--color-accent-on-fill);
+  pointer-events: none;
 }
 
 .status-active {
@@ -284,11 +292,6 @@ button {
   height: var(--size-icon-md);
 }
 
-/* On the accent fill of a focused, pressed row, a ring keeps the dot apart. */
-.sources:focus-within .source.filter[aria-pressed='true'] .tag-dot {
-  box-shadow: 0 0 0 1px var(--color-accent-on-fill);
-}
-
 /* Notebooks. */
 .section-header {
   display: flex;
@@ -298,9 +301,22 @@ button {
   margin-top: var(--space-5);
   padding: 0 var(--space-1) var(--space-2) var(--space-4);
   border-radius: var(--radius-button);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-footnote);
   color: var(--color-text-tertiary);
+}
+
+.section-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.section-tools .tool {
+  color: var(--color-text-tertiary);
+}
+
+.section-tools .icon {
+  background-color: var(--color-text-tertiary);
 }
 
 .tool-small {
@@ -385,27 +401,109 @@ button {
   font: inherit;
 }
 
-.books [aria-selected='true'] > .book-row {
-  background: var(--color-fill-row-selected-unemphasized);
-}
-
-.books:focus-within [aria-selected='true'] > .book-row {
-  background: var(--color-accent-fill);
-  color: var(--color-accent-on-fill);
-}
-
-.books:focus-within [aria-selected='true'] > .book-row :is(.icon, .disclosure .icon) {
-  background-color: var(--color-accent-on-fill);
-}
-
-.books:focus-within [aria-selected='true'] > .book-row .source-count {
-  color: var(--color-accent-on-fill);
-}
-
 /* A drop target, and the notebook whose context menu is open. */
 .drop-target,
 .menu-target {
   box-shadow: inset 0 0 0 2px var(--color-accent-fill);
+}
+
+/* The sidebar's last line: when a note was last saved, and a chevron for the
+   backup and mirror state. */
+.sidebar-footer {
+  position: relative;
+  margin-top: auto;
+  padding-top: var(--space-4);
+}
+
+.footer-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: var(--size-sidebar-row);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: var(--font-size-footnote);
+}
+
+.footer-toggle:hover {
+  background: var(--color-fill-track);
+}
+
+.footer-toggle .icon {
+  background-color: var(--color-text-tertiary);
+}
+
+.footer-panel {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  font-size: var(--font-size-footnote);
+}
+
+.footer-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.footer-error {
+  color: var(--color-status-dropped);
+}
+
+/* Tag Settings: a row of colour swatches under the name. */
+.sheet-field {
+  display: block;
+}
+
+.tag-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-7);
+}
+
+.tag-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-9);
+  height: var(--space-9);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-capsule);
+  background: transparent;
+}
+
+.tag-swatch[aria-checked='true'] {
+  box-shadow: 0 0 0 2px var(--color-accent-fill);
+}
+
+.tag-swatch .tag-dot {
+  width: var(--space-7);
+  height: var(--space-7);
+}
+
+.tag-swatch-none {
+  width: var(--space-7);
+  height: var(--space-7);
+  border-radius: var(--radius-capsule);
+  box-shadow: inset 0 0 0 1px var(--color-text-tertiary);
+}
+
+.pick-row[aria-disabled='true'] {
+  opacity: 0.4;
 }
 
 /* Note list. */
@@ -594,23 +692,9 @@ button {
   list-style: none;
 }
 
-/* Selection: neutral in the note list; the sidebar shows the accent while it has the keyboard focus. */
-.source[aria-current='true'],
+/* Selection in the note list. */
 .row[aria-selected='true'] {
   background: var(--color-fill-row-selected-unemphasized);
-}
-
-.sources:focus-within .source[aria-current='true'] {
-  background: var(--color-accent-fill);
-  color: var(--color-accent-on-fill);
-}
-
-.sources:focus-within .source[aria-current='true'] .icon {
-  background-color: var(--color-accent-on-fill);
-}
-
-.sources:focus-within .source[aria-current='true'] .source-count {
-  color: var(--color-accent-on-fill);
 }
 
 /* Editor. */

@@ -347,6 +347,22 @@ export const COMMANDS = [
     palette: false,
   },
   {
+    id: 'notebook.copyId',
+    label: 'bookMenu.copyId',
+    group: 'notebook',
+    scope: 'notebookRow',
+    keys: [],
+    palette: false,
+  },
+  {
+    id: 'notebook.move',
+    label: 'bookMenu.move',
+    group: 'notebook',
+    scope: 'notebookRow',
+    keys: [],
+    palette: false,
+  },
+  {
     id: 'notebook.rename',
     label: 'bookMenu.rename',
     group: 'notebook',
@@ -417,6 +433,14 @@ export const COMMANDS = [
     group: 'tag',
     scope: 'tagRow',
     keys: ['F2'],
+    palette: false,
+  },
+  {
+    id: 'tag.settings',
+    label: 'tagMenu.settings',
+    group: 'tag',
+    scope: 'tagRow',
+    keys: [],
     palette: false,
   },
   {

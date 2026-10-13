@@ -82,6 +82,7 @@ import { TrashView } from './TrashView'
 import { Icon } from './icons/Icon'
 import { StatusPicker } from './StatusPicker'
 import { TagEditor } from './TagEditor'
+import { markWrite } from './lastWrite'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, stopCore, type Core } from './core-client'
@@ -462,6 +463,8 @@ export function App() {
   // the reload takes it out, and the keyboard would go to the wrong row.
   const reloadsPending = useRef(0)
   const showWrites = useCallback((writes: ReadonlyMap<string, number>) => {
+    // The sidebar's footer shows when the last write was.
+    for (const at of writes.values()) markWrite(at)
     if (reloadsPending.current > 0) return
     setNotes((list) => withWrites(list, writes))
     setTemplates((list) => withWrites(list, writes))
@@ -2264,6 +2267,8 @@ export function App() {
   const sidebarSetTagColor = useStable(
     (id: string, color: TagColor | null) => void changeBooks((c) => c.setTagColor(id, color)),
   )
+  const sidebarSearchBooks = useStable(() => openPalette('book'))
+  const sidebarSearchTags = useStable(() => openPalette('tag'))
   const sidebarDeleteTag = useStable((id: string) =>
     setConfirm({
       kind: 'tag',
@@ -2316,6 +2321,8 @@ export function App() {
         templatesCount={templates.length}
         trashCount={trash.length}
         onHide={toggleSidebarNow}
+        onSearchBooks={sidebarSearchBooks}
+        onSearchTags={sidebarSearchTags}
       />
       {searching ? (
         <NoteList

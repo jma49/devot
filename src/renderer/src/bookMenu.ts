@@ -5,8 +5,10 @@ import { commandMatches, type CommandId } from './commands/registry'
 import { commandEntry, type CommandEntryOptions, type MenuGroups } from './contextMenu'
 
 export type BookAction =
+  | 'copyId'
   | 'newInside'
   | 'rename'
+  | 'move'
   | 'moveUp'
   | 'moveDown'
   | 'moveToTop'
@@ -30,8 +32,10 @@ export interface BookMenuTarget {
 
 /** The registry command behind each notebook action (its label and keys). */
 export const BOOK_COMMANDS: Readonly<Record<BookAction, CommandId>> = {
+  copyId: 'notebook.copyId',
   newInside: 'notebook.newInside',
   rename: 'notebook.rename',
+  move: 'notebook.move',
   moveUp: 'notebook.moveUp',
   moveDown: 'notebook.moveDown',
   moveToTop: 'notebook.moveToTop',
@@ -46,9 +50,10 @@ const entry = (action: BookAction, more: CommandEntryOptions<BookAction, BookMen
 
 /** The menu's items, group by group; `bookShortcut` handles the keys shown. */
 export const BOOK_MENU: MenuGroups<BookAction, BookMenuTarget> = [
-  [entry('newInside')],
+  [entry('copyId'), entry('newInside')],
   [
     entry('rename'),
+    entry('move'),
     entry('moveUp', { shown: (book) => book.previousId !== null }),
     entry('moveDown', { shown: (book) => book.nextId !== null }),
     entry('moveToTop', { shown: (book) => book.parentId !== null }),
