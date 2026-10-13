@@ -10,7 +10,7 @@ import {
   type MirrorPatch,
 } from '../mirror'
 import { useMirrorFolderChoice } from '../MirrorFolderChoice'
-import { SettingsFlag } from './controls'
+import { FormGroup, FormHint, FormRow, SettingsFlag } from './controls'
 
 /**
  * Settings > Markdown Mirror: the folder Devot keeps up to date with every
@@ -50,9 +50,9 @@ export function MirrorSection() {
 
   return (
     <section className="settings-section" aria-labelledby="mirror-title">
-      <h2 id="mirror-title">{t('mirror.title')}</h2>
-      <p>{t('mirror.detail')}</p>
-      <p>{t('mirror.notReadBack')}</p>
+      <h2 id="mirror-title" className="visually-hidden">
+        {t('mirror.title')}
+      </h2>
       {error ? (
         <p role="alert" className="settings-error">
           {format(t(error.message), { code: error.code })}
@@ -63,43 +63,51 @@ export function MirrorSection() {
           {pausedMessage(status.paused)}
         </p>
       ) : null}
-      {on ? (
-        <>
-          <p className="mirror-folder">
-            {format(t('mirror.folder'), { folder: status.folder ?? '' })}
-          </p>
-          {status.size === null ? null : (
-            <p>{format(t('mirror.size'), { size: fileSize(status.size, locale) })}</p>
+      <FormGroup>
+        <FormRow>
+          <FormHint>{t('mirror.detail')}</FormHint>
+        </FormRow>
+      </FormGroup>
+      <FormGroup>
+        <FormRow label="mirror.folderLabel">
+          {on ? (
+            <span className="mirror-folder">{status.folder}</span>
+          ) : (
+            <span>{t('mirror.off')}</span>
           )}
-        </>
-      ) : (
-        <p>{t('mirror.off')}</p>
-      )}
-      <SettingsFlag
-        label="mirror.includeAttachments"
-        checked={status.includeAttachments}
-        hint={{ id: hint, text: 'mirror.includeAttachmentsHint' }}
-        onChange={(checked) => void change({ includeAttachments: checked })}
-      />
-      <div className="settings-actions">
-        <button ref={chooseButton} type="button" className="button" onClick={choose}>
-          {t('mirror.chooseFolder')}
-        </button>
-        {on ? (
-          <button
-            type="button"
-            className="button"
-            onClick={(event) => {
-              // Turn Off goes as the mirror turns off: the keyboard it had
-              // moves to Choose Folder… rather than to the page.
-              if (event.currentTarget === document.activeElement) chooseButton.current?.focus()
-              void change({ turnOff: true })
-            }}
-          >
-            {t('mirror.turnOff')}
-          </button>
-        ) : null}
-      </div>
+          {on && status.size !== null ? (
+            <FormHint>{format(t('mirror.size'), { size: fileSize(status.size, locale) })}</FormHint>
+          ) : null}
+          <div className="settings-buttons">
+            <button ref={chooseButton} type="button" className="button" onClick={choose}>
+              {t('mirror.chooseFolder')}
+            </button>
+            {on ? (
+              <button
+                type="button"
+                className="button"
+                onClick={(event) => {
+                  // Turn Off goes as the mirror turns off: the keyboard it had
+                  // moves to Choose Folder… rather than to the page.
+                  if (event.currentTarget === document.activeElement) chooseButton.current?.focus()
+                  void change({ turnOff: true })
+                }}
+              >
+                {t('mirror.turnOff')}
+              </button>
+            ) : null}
+          </div>
+          <FormHint>{t('mirror.notReadBack')}</FormHint>
+        </FormRow>
+        <FormRow label="mirror.attachments">
+          <SettingsFlag
+            label="mirror.includeAttachments"
+            checked={status.includeAttachments}
+            hint={{ id: hint, text: 'mirror.includeAttachmentsHint' }}
+            onChange={(checked) => void change({ includeAttachments: checked })}
+          />
+        </FormRow>
+      </FormGroup>
       {folderChoice.dialog}
     </section>
   )

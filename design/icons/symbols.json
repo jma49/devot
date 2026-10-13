@@ -56,6 +56,12 @@
     "code.copyFailed": "exclamationmark.triangle",
     "more.vertical": "ellipsis",
     "popup.chevron": "chevron.down",
-    "filter": "line.3.horizontal.decrease"
+    "filter": "line.3.horizontal.decrease",
+    "settings.general": "gearshape",
+    "settings.editor": "character.cursor.ibeam",
+    "settings.appearance": "paintpalette",
+    "settings.keyboard": "keyboard",
+    "settings.mirror": "folder",
+    "settings.usage": "chart.bar"
   }
 }

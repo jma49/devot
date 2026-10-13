@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { useEditorSetting } from '../editorSettings'
 import { format, t } from '../i18n'
-import { SettingsFlag, useSettingsChange } from './controls'
+import { FormGroup, FormRow, SettingsFlag, useSettingsChange } from './controls'
 
 /**
  * Settings > Appearance: whether the window shows the sidebar material
@@ -17,18 +17,24 @@ export function AppearanceSection() {
 
   return (
     <section className="settings-section" aria-labelledby="appearance-title">
-      <h2 id="appearance-title">{t('appearanceSettings.title')}</h2>
+      <h2 id="appearance-title" className="visually-hidden">
+        {t('appearanceSettings.title')}
+      </h2>
       {error ? (
         <p role="alert" className="settings-error">
           {format(t('appearanceSettings.failed'), { code: error })}
         </p>
       ) : null}
-      <SettingsFlag
-        label="appearanceSettings.sidebarMaterial"
-        checked={material}
-        hint={{ id: hint, text: 'appearanceSettings.sidebarMaterialHint' }}
-        onChange={(checked) => change({ sidebarMaterial: checked })}
-      />
+      <FormGroup>
+        <FormRow label="appearanceSettings.sidebar">
+          <SettingsFlag
+            label="appearanceSettings.sidebarMaterial"
+            checked={material}
+            hint={{ id: hint, text: 'appearanceSettings.sidebarMaterialHint' }}
+            onChange={(checked) => change({ sidebarMaterial: checked })}
+          />
+        </FormRow>
+      </FormGroup>
     </section>
   )
 }

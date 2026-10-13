@@ -1,5 +1,11 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './fixtures'
+import {
+  changeEditorSettingsElsewhere,
+  expect,
+  openSettings,
+  test,
+  type TestWindow,
+} from './fixtures'
 
 // The Settings window: the Editor section (local editor settings, applied
 // live in every window) and the Usage Data section (the local usage events
@@ -45,7 +51,7 @@ async function open(page: Page, events: unknown[] | { error: string }) {
       },
     }
   }, events)
-  await page.goto('/settings.html')
+  await openSettings(page, 'Usage')
 }
 
 const calls = (page: Page, cmd: string) =>
@@ -172,7 +178,7 @@ async function openEditor(page: Page, stored: Record<string, unknown> = {}) {
     w.devotEditorSettings = settings
     w.devotIpcMocks = { usage_list: [] }
   }, stored)
-  await page.goto('/settings.html')
+  await openSettings(page, 'Editor')
 }
 
 const setCalls = async (page: Page) =>
@@ -181,18 +187,115 @@ const setCalls = async (page: Page) =>
 /** What Rust sends every window after a change made elsewhere. */
 const changedElsewhere = changeEditorSettingsElsewhere
 
-test('the window title is the only Settings title, and Editor comes first', async ({ page }) => {
-  await openEditor(page)
+const tabs = (page: Page) => page.getByRole('tablist', { name: 'Settings panes' })
+const tab = (page: Page, name: string) => tabs(page).getByRole('tab', { name, exact: true })
+
+test('the window title is the only Settings title; a toolbar tab per pane, General first', async ({
+  page,
+}) => {
+  await page.goto('/settings.html')
   await expect(page.getByRole('heading', { name: 'Settings' })).toHaveCount(0)
   await expect(page.getByRole('main', { name: 'Settings' })).toBeVisible()
-  await expect(page.getByRole('region')).toHaveCount(5)
-  await expect(page.getByRole('region').nth(0)).toHaveAccessibleName('Editor')
-  await expect(page.getByRole('region').nth(1)).toHaveAccessibleName('Appearance')
-  await expect(page.getByRole('region').nth(2)).toHaveAccessibleName('Keyboard Shortcuts')
-  await expect(page.getByRole('region').nth(3)).toHaveAccessibleName('Markdown Mirror')
-  await expect(page.getByRole('region').nth(4)).toHaveAccessibleName('Usage Data')
-  await expect(editor(page).getByRole('heading', { name: 'Editor', level: 2 })).toBeVisible()
+  await expect(tabs(page).getByRole('tab')).toHaveText([
+    'General',
+    'Editor',
+    'Appearance',
+    'Keyboard',
+    'Markdown Mirror',
+    'Usage',
+  ])
+  // Each tab shows its symbol.
+  await expect(tabs(page).locator('[data-symbol]')).toHaveCount(6)
+  await expect(tab(page, 'General')).toHaveAttribute('aria-selected', 'true')
+  // One pane at a time.
+  await expect(page.getByRole('tabpanel')).toHaveCount(1)
+  await expect(page.getByRole('tabpanel')).toHaveAccessibleName('General')
+  await expect(page.getByRole('region')).toHaveCount(1)
+  await expect(page.getByRole('region')).toHaveAccessibleName('General')
+  // The window fits the pane it opens on, at once.
+  const fits = await calls(page, 'settings_fit')
+  expect(fits.length).toBeGreaterThan(0)
+  expect(fits[0]?.args['animate']).toBe(false)
+  expect(fits[0]?.args['height']).toBeGreaterThan(0)
+})
+
+test('a click on a tab shows its pane, and the window fits it, animated', async ({ page }) => {
+  await page.goto('/settings.html')
+  await expect(page.getByRole('region', { name: 'General' })).toBeVisible()
+  const before = (await calls(page, 'settings_fit')).length
+  await tab(page, 'Editor').click()
+  await expect(tab(page, 'Editor')).toHaveAttribute('aria-selected', 'true')
+  await expect(tab(page, 'General')).toHaveAttribute('aria-selected', 'false')
   await expect(editor(page)).toContainText('only on this Mac')
+  await expect(page.getByRole('region', { name: 'General' })).toHaveCount(0)
+  await expect.poll(async () => (await calls(page, 'settings_fit')).length).toBeGreaterThan(before)
+  const last = (await calls(page, 'settings_fit')).at(-1)
+  expect(last?.args['animate']).toBe(true)
+})
+
+test('the toolbar is one tab stop; the arrow keys, Home and End move between panes', async ({
+  page,
+}) => {
+  await page.goto('/settings.html')
+  await expect(tab(page, 'General')).toHaveAttribute('tabindex', '0')
+  await expect(tab(page, 'Editor')).toHaveAttribute('tabindex', '-1')
+  await tab(page, 'General').focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(tab(page, 'Editor')).toBeFocused()
+  await expect(editor(page)).toBeVisible()
+  await page.keyboard.press('End')
+  await expect(tab(page, 'Usage')).toBeFocused()
+  await expect(page.getByRole('region', { name: 'Usage Data' })).toBeVisible()
+  await page.keyboard.press('ArrowRight')
+  await expect(tab(page, 'General')).toBeFocused()
+  await page.keyboard.press('ArrowLeft')
+  await expect(tab(page, 'Usage')).toBeFocused()
+  await page.keyboard.press('Home')
+  await expect(tab(page, 'General')).toBeFocused()
+  // Tab leaves the toolbar for the pane's first control (WebKit on macOS
+  // tabs to buttons with Option, or with Full Keyboard Access).
+  await page.keyboard.press('Alt+Tab')
+  await expect(page.getByRole('button', { name: 'Open Data Folder' })).toBeFocused()
+})
+
+test('opens on the pane shown last', async ({ page }) => {
+  await page.goto('/settings.html')
+  await tab(page, 'Markdown Mirror').click()
+  await expect(page.getByRole('region', { name: 'Markdown Mirror' })).toBeVisible()
+  await page.reload()
+  await expect(tab(page, 'Markdown Mirror')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('region', { name: 'Markdown Mirror' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'General' })).toHaveCount(0)
+})
+
+test('General opens the data folder and the Backups dialog', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { settings_open_data_folder: null, settings_show_backups: null }
+  })
+  await page.goto('/settings.html')
+  const general = page.getByRole('region', { name: 'General' })
+  const openFolder = general.getByRole('button', { name: 'Open Data Folder' })
+  await expect(openFolder).toHaveAccessibleDescription(/notes, attachments, backups/)
+  await openFolder.click()
+  await general.getByRole('button', { name: 'Show Backups\u2026' }).click()
+  // The command takes no path: it opens the app's own folder only.
+  expect(await calls(page, 'settings_open_data_folder')).toEqual([
+    { cmd: 'settings_open_data_folder', args: {} },
+  ])
+  expect(await calls(page, 'settings_show_backups')).toHaveLength(1)
+  await expect(general.getByRole('alert')).toHaveCount(0)
+})
+
+test('General says when the data folder cannot be opened', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { settings_open_data_folder: { error: 'E_DATA_FOLDER_OPEN_FAILED' } }
+  })
+  await page.goto('/settings.html')
+  const general = page.getByRole('region', { name: 'General' })
+  await general.getByRole('button', { name: 'Open Data Folder' }).click()
+  await expect(general.getByRole('alert')).toContainText('E_DATA_FOLDER_OPEN_FAILED')
 })
 
 test('every editor setting has a labelled control showing its stored value', async ({ page }) => {

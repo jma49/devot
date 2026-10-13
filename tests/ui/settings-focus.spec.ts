@@ -1,4 +1,4 @@
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, openSettings, test, type TestWindow } from './fixtures'
 
 // Clearing the usage data from the keyboard leaves the keyboard on the Clear
 // button, which turns off (aria-disabled) instead of dropping it.
@@ -16,7 +16,7 @@ test('Clear Usage Data keeps the keyboard on its button once nothing is left', a
       },
     }
   })
-  await page.goto('/settings.html')
+  await openSettings(page, 'Usage')
   const section = page.getByRole('region', { name: 'Usage Data' })
   const clear = section.getByRole('button', { name: 'Clear Usage Data…' })
   await expect(clear).toBeEnabled()

@@ -73,11 +73,21 @@ describe('Tauri command permissions', () => {
       'allow-mirror-confirm',
       'allow-mirror-get',
       'allow-mirror-set',
+      'allow-settings-fit',
+      'allow-settings-open-data-folder',
+      'allow-settings-show-backups',
+      'allow-symbol-png',
       'allow-usage-clear',
       'allow-usage-list',
       'core:event:allow-listen',
       'core:event:allow-unlisten',
     ])
+  })
+
+  it('lets only the Settings window fit itself, open the data folder and ask for the Backups dialog', () => {
+    for (const command of ['fit', 'open-data-folder', 'show-backups']) {
+      expect(windowsWith(`allow-settings-${command}`)).toEqual(['settings'])
+    }
   })
 
   it('lets only the Settings window change the keyboard shortcuts, and only the main window set the menu keys', () => {

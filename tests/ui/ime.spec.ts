@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { COMPOSITION_END_KEY_MS } from '../../src/renderer/src/ime'
-import { expect, test } from './fixtures'
+import { expect, openSettings, test } from './fixtures'
 
 // Keys an input method uses are its own (src/renderer/src/ime.ts). WebKit
 // sends them while a composition is open with `isComposing` set, and the
@@ -336,7 +336,7 @@ test('the Tab that ends a composition keeps the keyboard in the editor', async (
 test('in Settings, the Escape right after a composition keeps the shortcut recorder recording', async ({
   page,
 }) => {
-  await page.goto('/settings.html')
+  await openSettings(page, 'Keyboard')
   const recorder = page
     .getByRole('region', { name: 'Keyboard Shortcuts' })
     .getByRole('button', { name: /^Bold shortcut/ })
