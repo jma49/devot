@@ -81,6 +81,8 @@ test('New Note creates the note and links it', async ({ page }) => {
 
 test('a second Return while the note is made does not make another', async ({ page }) => {
   await createNote(page, 'Source')
+  // Its row shows the title once it is saved (until then, its first line).
+  await expect(noteRows(page).filter({ hasText: 'Source' })).toHaveCount(1)
   await startLink(page, 'Plan B')
   await waitForResults(page, 'Plan B')
   await page.evaluate(() => localStorage.setItem('devot.test.delayNoteWrites', '600'))

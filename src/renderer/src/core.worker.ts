@@ -10,6 +10,7 @@ import {
   createNoteService,
   createTagService,
   createTemplateService,
+  duplicateNote,
   exportMarkdown,
   importMarkdown,
   observeWrites,
@@ -117,7 +118,17 @@ export const coreApi = {
   unhold: (id: string) => required().unhold(id),
   /** A note's title and current Markdown (unsaved typing included). */
   read: (id: string) => required().read(id),
-  duplicate: (id: string) => required().duplicate(id),
+  /**
+   * A copy of a note: titled "<title> <suffix>", with the status and the tags
+   * `tagIds` (see duplicateNote).
+   */
+  duplicate: (id: string, suffix?: string, tagIds?: string[]) =>
+    duplicateNote({ notes: required(), tags: requiredTags() }, id, {
+      ...(suffix === undefined ? {} : { suffix }),
+      ...(tagIds === undefined ? {} : { tagIds }),
+    }),
+  /** What each untitled note's row shows instead of a title (see NoteService.headlines). */
+  headlines: (ids: string[]) => required().headlines(ids),
   /** A new note from text selected in `sourceId` (see NoteService.extract). */
   extract: (sourceId: string, markdown: string) => required().extract(sourceId, markdown),
   applyUpdate: (id: string, update: Uint8Array) => required().applyUpdate(id, update),

@@ -26,6 +26,7 @@ import {
   selectToggle,
   type ListSelection,
 } from './listSelection'
+import { useHeadlines, type HeadlineLoader } from './headlines'
 import { entryOffsets, spacerHeight, windowRuns } from './listWindow'
 import { noteShortcut, trashShortcut, type NoteAction, type TrashAction } from './noteMenu'
 import { DRAG_NOTE, DRAG_TEMPLATE } from './Sidebar'
@@ -95,6 +96,11 @@ interface Props {
    * status or tag row does not take), or nothing (the Trash's rows stay put).
    */
   drag?: 'notes' | 'templates' | false
+  /**
+   * Looks up what a row shows for a note with no title: its first line.
+   * Without it such a row shows "Untitled".
+   */
+  headlines?: HeadlineLoader | undefined
 }
 
 /** `text` with the runs that match `pattern` in `<mark>`; text nodes only, never markup. */
@@ -158,6 +164,8 @@ interface RowProps {
   tabbable: boolean
   tags: ReadonlyMap<string, TagRecord>
   highlight: Props['highlight']
+  /** What shows for a note with no title: its first line, once known (see `useHeadlines`). */
+  headline: string | undefined
   /** The start of today (see `useToday`). */
   today: number
   locale: string
@@ -202,7 +210,11 @@ const NoteRow = memo(function NoteRow(props: RowProps) {
       onContextMenu={props.menu ? (e) => events.contextMenu(id, e) : undefined}
     >
       <span className="row-title">
-        {n.title ? <Marked text={n.title} pattern={highlight?.title} /> : t('note.untitled')}
+        {n.title ? (
+          <Marked text={n.title} pattern={highlight?.title} />
+        ) : (
+          (props.headline ?? t('note.untitled'))
+        )}
       </span>
       {n.excerpt ? (
         <span className="row-excerpt">
@@ -321,6 +333,15 @@ export const NoteList = memo(function NoteList(props: Props) {
     viewport,
     metrics,
   ])
+  // The rows that render look up what they show for a note with no title.
+  const rendered = useMemo(
+    () =>
+      runs.flatMap(([start, end]) =>
+        entries.slice(start, end).flatMap((e) => (e.kind === 'row' ? [e.note] : [])),
+      ),
+    [runs, entries],
+  )
+  const headlines = useHeadlines(props.headlines, rendered)
   // A long list measures its entries as they render and change size, and
   // itself (its gaps, padding and height), and renders again when that
   // moves anything.
@@ -688,6 +709,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         tabbable={n.id === tabStop || (!tabStop && entry.index === 0)}
         tags={tags}
         highlight={props.highlight}
+        headline={headlines.get(n.id)}
         today={today}
         locale={locale}
         draggable={props.drag !== false}

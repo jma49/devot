@@ -32,6 +32,7 @@ import { loadActivity, type ActivityHeatmap, type OffsetAt } from './activity'
 import { TEMPLATES_BOOK_ID } from './books'
 import { foldUnchanged, lineDiff, type DiffBlock } from './diff'
 import { errorCode } from './errors'
+import { headline } from './extract'
 import { receiveStored, type Clock } from './hlc'
 import {
   BASELINE,
@@ -67,7 +68,7 @@ import {
 } from './storage'
 import { extractTitle } from './extract'
 import { fileLinkSpans, newFileCopies, replaceFileLinks, type FileCopy } from './files'
-import { clipTitle } from './noteLimits'
+import { clipTitle, MAX_TITLE_CHARS } from './noteLimits'
 import { lineFeeds, textDiff } from './text'
 
 /** The Y.Text that holds a note's Markdown. */
@@ -162,12 +163,21 @@ export interface NoteService {
    */
   read(id: string): Promise<{ id: string; title: string; bodyMd: string; bookId: string | null }>
   /**
-   * A new note with the title, body and notebook of `id` (pending edits
-   * included; a deleted notebook counts as none). The body is the source's
-   * Yjs state, never re-typed text. Images it shows become the copy's own
-   * (see extract).
+   * What the lists call each of these notes while it has no title: the first
+   * line of its body (see `headline`), pending edits included, for notes in
+   * the Trash too. A note that does not exist is left out; one with no text
+   * is empty. Notes are read without being kept in memory.
    */
-  duplicate(id: string): Promise<string>
+  headlines(ids: readonly string[]): Promise<Record<string, string>>
+  /**
+   * A new note with the title, body, notebook and status of `id` (pending
+   * edits included; a deleted notebook counts as none); it is never pinned.
+   * With `suffix`, a titled note's copy is titled "<title> <suffix>" (the original
+   * cut to fit the title limit, so the suffix stays); an untitled note's copy
+   * stays untitled. The body is the source's Yjs state, never re-typed text. Images it shows become the
+   * copy's own (see extract). Tags are the caller's (see duplicateNote).
+   */
+  duplicate(id: string, options?: { suffix?: string }): Promise<string>
   /**
    * A new note holding `markdown` (text selected in the note `sourceId`),
    * titled after its first line (`extractTitle`), in the source's notebook
@@ -1125,6 +1135,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     bookId: string | null,
     doc: Y.Doc,
     copies: readonly FileCopy[],
+    status: NoteStatus = 'none',
   ) => {
     const at = now()
     const record: NoteRecord = {
@@ -1136,8 +1147,8 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       bodyVersion: 0,
       bookId,
       bookHlc: bookId === null ? '' : clock.tick(),
-      status: 'none',
-      statusHlc: '',
+      status,
+      statusHlc: status === 'none' ? '' : clock.tick(),
       pinned: false,
       pinnedHlc: '',
       createdAt: at,
@@ -1197,7 +1208,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       return record.id
     },
 
-    duplicate: (id) =>
+    duplicate: (id, copy) =>
       using(id, async (source) => {
         const doc = new Y.Doc()
         Y.applyUpdate(doc, Y.encodeStateAsUpdate(source.doc))
@@ -1214,7 +1225,17 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
             text.insert(index, to.get(from) as string)
           }
         })
-        return insertNote(source.record.title, await liveBook(source.record.bookId), doc, copies)
+        const { title } = source.record
+        // The original is cut to make room, so the suffix always survives.
+        const tail = copy?.suffix ? ` ${copy.suffix}` : ''
+        const room = Math.max(0, MAX_TITLE_CHARS - [...tail].length)
+        return insertNote(
+          title !== '' && tail ? `${[...title].slice(0, room).join('')}${tail}` : title,
+          await liveBook(source.record.bookId),
+          doc,
+          copies,
+          source.record.status,
+        )
       }),
 
     async extract(sourceId, markdown) {
@@ -1254,6 +1275,20 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       if (!record) throw new Error('E_NOTE_NOT_FOUND')
       const bodyMd = note ? note.doc.getText(BODY).toString() : record.bodyMd
       return { id, title: record.title, bodyMd, bookId: record.bookId }
+    },
+
+    async headlines(ids) {
+      const found: Record<string, string> = {}
+      await Promise.all(
+        ids.map(async (id) => {
+          const note = live.get(id)
+          const bodyMd = note
+            ? note.doc.getText(BODY).toString()
+            : (await storage.getNote(id, { trashed: true }))?.bodyMd
+          if (bodyMd !== undefined) found[id] = headline(bodyMd)
+        }),
+      )
+      return found
     },
 
     applyUpdate: (id, update) =>

@@ -8,6 +8,8 @@ import {
   createIdGenerator,
   createNoteService,
   createTagService,
+  duplicateNote,
+  MAX_TITLE_CHARS,
   noteUri,
   UUID_V7,
   type NoteService,
@@ -180,18 +182,64 @@ describe('duplicating a note', () => {
     expect((await storage.getNote(id))?.bookId).toBe(book)
   })
 
-  it('does not copy the pin, status or tags', async () => {
+  it('keeps the status and the tags, not the pin', async () => {
     const { notes, tags, storage } = services()
     const id = await notes.create('Pinned')
     await notes.setPinned(id, true)
     await notes.setStatus(id, 'active')
-    await tags.addToNote(id, 'work')
+    const work = await tags.addToNote(id, 'work')
+    const home = await tags.addToNote(id, 'home')
     await notes.flush()
 
-    const copy = await notes.duplicate(id)
+    const copy = await duplicateNote({ notes, tags }, id, { tagIds: [work, home] })
     const summary = (await notes.list()).find((n) => n.id === copy)
-    expect(summary).toMatchObject({ pinned: false, status: 'none', tagIds: [] })
+    expect(summary).toMatchObject({ pinned: false, status: 'active' })
+    expect([...(summary?.tagIds ?? [])].sort()).toEqual([work, home].sort())
     expect((await storage.getNote(copy))?.title).toBe('Pinned')
+    // The original keeps all of it.
+    expect((await notes.list()).find((n) => n.id === id)).toMatchObject({
+      pinned: true,
+      status: 'active',
+    })
+    // The status has its own clock, so it merges like any other change.
+    expect((await storage.getNote(copy))?.statusHlc).not.toBe('')
+  })
+
+  it('titles the copy after the original and a suffix, never past the title limit', async () => {
+    const { notes, tags, storage } = services()
+    const id = await notes.create('Plan')
+    const copy = await duplicateNote({ notes, tags }, id, { suffix: 'copy' })
+    expect((await storage.getNote(copy))?.title).toBe('Plan copy')
+    // A copy of a copy follows the same rule.
+    const again = await duplicateNote({ notes, tags }, copy, { suffix: 'copy' })
+    expect((await storage.getNote(again))?.title).toBe('Plan copy copy')
+
+    const long = await notes.create('x'.repeat(MAX_TITLE_CHARS))
+    const cut = await duplicateNote({ notes, tags }, long, { suffix: 'copy' })
+    const cutTitle = (await storage.getNote(cut))?.title ?? ''
+    expect([...cutTitle]).toHaveLength(MAX_TITLE_CHARS)
+    // The suffix survives: the copy never gets the original's title.
+    expect(cutTitle.endsWith(' copy')).toBe(true)
+
+    // An untitled note stays untitled: its list row shows its first line.
+    const untitled = await notes.create('')
+    const plain = await duplicateNote({ notes, tags }, untitled, { suffix: 'copy' })
+    expect((await storage.getNote(plain))?.title).toBe('')
+  })
+
+  it('leaves the title as it is without a suffix', async () => {
+    const { notes, storage } = services()
+    const id = await notes.create('Same')
+    expect((await storage.getNote(await notes.duplicate(id)))?.title).toBe('Same')
+  })
+
+  it('still makes the copy when a tag cannot be put on it', async () => {
+    const { notes, tags } = services()
+    const id = await notes.create('Tagged')
+    const copy = await duplicateNote({ notes, tags }, id, {
+      tagIds: ['0192a6f0-0000-7000-8000-00000000000b'],
+    })
+    expect((await notes.list()).map((n) => n.id)).toContain(copy)
   })
 
   it('gives the copy its own images, so purging the original keeps them', async () => {

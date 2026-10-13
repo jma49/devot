@@ -180,7 +180,7 @@ test('Duplicate copies the title, body and notebook and opens the copy', async (
   await expect.poll(async () => (await stored(page)).length).toBe(2)
   const copy = (await stored(page)).find((n) => n.id !== original?.id)
   expect(copy).toMatchObject({
-    title: 'Weekly plan',
+    title: 'Weekly plan copy',
     bodyMd: '# Goals\n\nShip the menu.',
     bookId: original?.bookId,
   })
@@ -196,7 +196,8 @@ test('Duplicate copies the title, body and notebook and opens the copy', async (
   await openMenu(page, 'Weekly plan')
   await pickMenuItem(page, 'Duplicate')
   await expect(noteRow(page, 'Weekly plan')).toHaveCount(3)
-  await expect(titleField(page)).toHaveValue('Weekly plan')
+  // The first row is the earlier copy, so this is a copy of a copy.
+  await expect(titleField(page)).toHaveValue('Weekly plan copy copy')
 })
 
 test('P pins and unpins the selected note', async ({ page }) => {
@@ -476,7 +477,7 @@ test('in search results, Duplicate focuses the copy and the menu works', async (
   await page.keyboard.press('Meta+KeyD')
   await expect.poll(async () => (await stored(page)).length).toBe(3)
   await expect(noteRows(page)).toHaveCount(2)
-  const copy = (await stored(page)).find((n) => n.title === 'Alpha plan' && n.id !== original?.id)
+  const copy = (await stored(page)).find((n) => n.title === 'Alpha plan copy')
   const selectedRow = noteRows(page).and(page.locator('[aria-selected="true"]'))
   await expect(selectedRow).toHaveCount(1)
   await expect(selectedRow).toBeFocused()
