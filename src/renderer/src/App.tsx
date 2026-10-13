@@ -12,7 +12,7 @@ import type {
 } from '../../core'
 // Imported directly (not through the core index) so the main bundle does not
 // pull in the preview pipeline.
-import { bookCounts, buildBookTree, TEMPLATES_BOOK_ID } from '../../core/books'
+import { bookCounts, bookWithDescendants, buildBookTree, TEMPLATES_BOOK_ID } from '../../core/books'
 import { noteLink } from '../../core/links'
 import { clipTitle } from '../../core/noteLimits'
 import {
@@ -64,7 +64,7 @@ import { COMMANDS, formatOf, insertOf, tableOf, type CommandHandlers } from './c
 import { CommandPalette, type PaletteActions } from './palette/CommandPalette'
 import { commandEntries, libraryEntries } from './palette/entries'
 import type { PaletteEntry } from './palette/results'
-import { countOf, noteCount } from './format'
+import { bookDeleteDetail, countOf, noteCount } from './format'
 import { openAfter, selectAll, type ListSelection } from './listSelection'
 import { SelectionSummary } from './SelectionSummary'
 import { TrashView } from './TrashView'
@@ -239,6 +239,7 @@ export function App() {
     | { kind: 'one'; id: string; title: string }
     | { kind: 'many'; ids: readonly string[] }
     | { kind: 'tag'; id: string; name: string; count: number }
+    | { kind: 'book'; id: string; name: string; subs: number; notes: number }
   >()
   // A notebook just created, shown with its name ready to edit.
   const [renamingBook, setRenamingBook] = useState<string>()
@@ -1184,6 +1185,7 @@ export function App() {
     setConfirm(undefined)
     if (!pending) return
     if (pending.kind === 'tag') return void (await changeBooks((c) => c.deleteTag(pending.id)))
+    if (pending.kind === 'book') return void (await deleteBook(pending.id))
     if (pending.kind === 'many') {
       await runBatch(pending.ids, { kind: 'purge' })
       setMulti(undefined)
@@ -2007,7 +2009,19 @@ export function App() {
   const sidebarSetAiAccess = useStable(
     (id: string, on: boolean) => void changeBooks((c) => c.setBookAiAccess(id, on)),
   )
-  const sidebarDeleteBook = useStable((id: string) => void deleteBook(id))
+  // Deleting a notebook asks first: it takes its sub-notebooks with it, and
+  // nothing brings them back.
+  const sidebarDeleteBook = useStable((id: string) => {
+    const book = books.find((b) => b.id === id)
+    if (!book) return
+    setConfirm({
+      kind: 'book',
+      id,
+      name: book.name,
+      subs: bookWithDescendants(books, id).size - 1,
+      notes: counts.get(id) ?? 0,
+    })
+  })
   const sidebarExportBook = useStable(
     (action: 'exportMarkdown' | 'exportHtml', id: string) => void exportBook(action, id),
   )
@@ -2446,6 +2460,15 @@ export function App() {
             notes: noteCount(confirm.count, currentLocale()),
           })}
           confirm={t('tagMenu.delete')}
+          onConfirm={() => void runConfirmed()}
+          onCancel={() => setConfirm(undefined)}
+        />
+      ) : confirm?.kind === 'book' ? (
+        <ConfirmDialog
+          message={format(t('book.confirmDelete'), { name: confirm.name })}
+          detail={bookDeleteDetail(confirm.subs, confirm.notes)}
+          confirm={t('bookMenu.delete')}
+          confirmFirst
           onConfirm={() => void runConfirmed()}
           onCancel={() => setConfirm(undefined)}
         />

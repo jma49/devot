@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { fileSize, noteCount, noteDate } from './format'
+import { bookDeleteDetail, fileSize, noteCount, noteDate } from './format'
 
 /** Counts `new Intl.DateTimeFormat(...)` until the test ends. */
 function countDateFormats(): { count: number } {
@@ -63,5 +63,20 @@ describe('fileSize', () => {
   it('uses gigabytes from a gigabyte on, and shows nothing as 0 kB', () => {
     expect(fileSize(2_345_678_901, 'en')).toBe('2.3 GB')
     expect(fileSize(0, 'en')).toBe('0 kB')
+  })
+})
+
+describe('bookDeleteDetail', () => {
+  it('says what goes and what stays, with the right plurals', () => {
+    expect(bookDeleteDetail(0, 0)).toBe('It is empty. You can\u2019t undo this.')
+    expect(bookDeleteDetail(0, 1)).toBe(
+      'It holds 1 note, which will stay without a notebook. You can\u2019t undo this.',
+    )
+    expect(bookDeleteDetail(1, 0)).toBe(
+      'Its 1 sub-notebook will be deleted too. You can\u2019t undo this.',
+    )
+    expect(bookDeleteDetail(3, 12)).toBe(
+      'Its 3 sub-notebooks will be deleted too. Together they hold 12 notes, which will stay without a notebook. You can\u2019t undo this.',
+    )
   })
 })

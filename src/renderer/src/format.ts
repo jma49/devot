@@ -1,5 +1,5 @@
 // Locale-aware formatting for the note list and the sidebar.
-import { format, t, type MessageKey } from './i18n'
+import { currentLocale, format, t, type MessageKey } from './i18n'
 
 const sameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() &&
@@ -42,6 +42,24 @@ export function countOf(count: number, locale: string, one: MessageKey, other: M
 
 export const noteCount = (count: number, locale: string) =>
   countOf(count, locale, 'noteList.countOne', 'noteList.countOther')
+
+/**
+ * What deleting a notebook takes and leaves, for the question that asks first:
+ * its `subs` sub-notebooks go with it; the `notes` in it and them stay, in
+ * no notebook.
+ */
+export function bookDeleteDetail(subs: number, notes: number): string {
+  const locale = currentLocale()
+  const subCount = countOf(subs, locale, 'book.subOne', 'book.subOther')
+  if (subs === 0) {
+    return notes === 0
+      ? t('book.deleteEmpty')
+      : format(t('book.deleteNotes'), { notes: noteCount(notes, locale) })
+  }
+  return notes === 0
+    ? format(t('book.deleteSubs'), { subs: subCount })
+    : format(t('book.deleteSubsNotes'), { subs: subCount, notes: noteCount(notes, locale) })
+}
 
 /** "250 kB", "12.3 MB", "2.3 GB" (decimal units, as Finder shows them); nothing is "0 kB". */
 export function fileSize(bytes: number, locale: string): string {
