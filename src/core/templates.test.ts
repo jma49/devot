@@ -287,6 +287,34 @@ describe('draftFromTemplate', () => {
     })
   })
 
+  it('reads the front matter as YAML: comments, escapes, block scalars and multi-line lists', () => {
+    const draft = draftFromTemplate(
+      {
+        title: 'x',
+        body:
+          '---\ntitle: Weekly {{date:YYYY-MM-DD}} # fill in\nnotebook: Work/Meetings # where\n' +
+          'tags: [\n  meeting,\n  "deep focus", # second\n]\nstatus: Active # now\nlang: en\n---\nBody\n',
+      },
+      clock,
+    )
+    expect(draft).toEqual({
+      title: 'Weekly 2026-03-03',
+      notebook: 'Work/Meetings',
+      tags: ['meeting', 'deep focus'],
+      status: 'active',
+      body: '---\nlang: en\n---\nBody\n',
+    })
+    const empty = draftFromTemplate({ title: 'Own', body: '---\ntitle: ~\n---\n' }, clock)
+    expect(empty.title).toBe('Own')
+    expect(
+      draftFromTemplate({ title: 'Own', body: '---\ntitle: >\n  Folded\n  title\n---\n' }, clock)
+        .title,
+    ).toBe('Folded title')
+    expect(
+      draftFromTemplate({ title: 'x', body: '---\ntitle: "A\\x41\\u00e9"\n---\n' }, clock).title,
+    ).toBe('AA\u00e9')
+  })
+
   it('leaves a {{title}} inside the title as text', () => {
     expect(draftFromTemplate({ title: 'Copy of {{title}}', body: '' }, clock).title).toBe(
       'Copy of {{title}}',

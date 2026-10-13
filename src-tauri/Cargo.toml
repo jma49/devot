@@ -35,7 +35,7 @@ sentry = { version = "0.49", default-features = false, features = [
 # Sends saved native crash reports itself, to learn whether Sentry took
 # them; the same ureq and TLS stack as Sentry's own transport.
 ureq = { version = "3", default-features = false, features = ["native-tls"] }
-rusqlite = { version = "0.40", features = ["bundled", "backup"] }
+rusqlite = { version = "0.40", features = ["bundled", "backup", "functions"] }
 tokio = { version = "1", features = ["sync"] }
 uuid = { version = "1", features = ["v4"] }
 # The native folder panel for Markdown import, used from Rust only.

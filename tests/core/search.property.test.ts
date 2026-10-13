@@ -135,7 +135,24 @@ describe('matchSegments', () => {
 // Search on SQLite must agree with a plain model of the query rules, whatever
 // the notes and the query.
 
-const WORDS = ['plan', 'relay', 'yjs', 'ab', SYNC, 'week']
+// Cased non-ASCII words too, short ones among them ("\u00e9m" is scanned, not
+// looked up in the trigram index): a query finds them in any case. The words
+// have no sigma or dotted capital I, whose lower case depends on context in
+// the model's own toLowerCase (storage folds one character at a time; see
+// tests/support/folds.json).
+const WORDS = [
+  'plan',
+  'relay',
+  'yjs',
+  'ab',
+  SYNC,
+  'week',
+  '\u00c9mile',
+  '\u00e9m',
+  '\u00dcnal',
+  '\u00c5\u00c4',
+  '\u0416\u0443\u043a',
+]
 const BOOKS = ['Alpha', 'Beta', 'Weekly notes'] as const // Beta is inside Alpha
 const TAGS = ['red', 'to read'] as const
 
@@ -161,10 +178,26 @@ const modelNote: fc.Arbitrary<ModelNote> = fc.record({
 
 const anyCase = (name: string) =>
   fc.constantFrom(name, name.toUpperCase(), name.toLowerCase(), `${name[0]}${name.slice(1)}`)
+// Short terms (two characters, scanned) and their cased spellings.
+const SHORT_TERMS = [
+  '\u00e9m',
+  '\u00c9M',
+  '\u00dcn',
+  '\u00fcN',
+  '\u00e5\u00e4',
+  '\u00c5\u00c4',
+  '\u0436\u0443',
+  '\u0416\u0423',
+]
 const queryClause = fc.oneof(
   fc.record({
     field: fc.constantFrom('any', 'title', 'body'),
-    value: fc.oneof(fc.constantFrom(...WORDS), words(2, 2)),
+    value: fc.constantFrom(...SHORT_TERMS),
+    negate: fc.boolean(),
+  }),
+  fc.record({
+    field: fc.constantFrom('any', 'title', 'body'),
+    value: fc.oneof(fc.constantFrom(...WORDS).chain(anyCase), words(2, 2)),
     negate: fc.boolean(),
   }),
   fc.record({

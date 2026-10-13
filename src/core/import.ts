@@ -11,7 +11,10 @@
 //   heading, else the file name without its extension. The body keeps the
 //   heading.
 // - Front matter `tags` and `status` become Devot tags and status. The front
-//   matter itself stays in the note unchanged, including those keys.
+//   matter itself stays in the note unchanged, including those keys. It is
+//   read as YAML (comments, quotes and escapes, block and multi-line
+//   scalars, lists over several lines); a key whose YAML is not valid is
+//   read from its line as far as that goes.
 // - Front matter that Markdown export added (its first line is the comment
 //   EXPORT_HEADER, see export.ts) is Devot's own: its title (exactly, only
 //   cut to the limit), tags (a leading `#` kept) and status become the
@@ -41,6 +44,7 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
+import { isMap, isScalar, isSeq, parseDocument } from 'yaml'
 import { MAX_BOOK_NAME_CHARS, type BookService } from './books'
 import { errorCode } from './errors'
 import { fileUri } from './files'
@@ -223,57 +227,36 @@ export function withoutFrontMatterKeys(markdown: string, keys: readonly string[]
   return markdown.slice(0, start) + block + rest
 }
 
-/** YAML's escapes of one character in double-quoted scalars, and what they stand for. */
-const YAML_ESCAPES: Readonly<Record<string, string>> = {
-  '0': '\0',
-  a: '\x07',
-  b: '\b',
-  t: '\t',
-  '\t': '\t',
-  n: '\n',
-  v: '\v',
-  f: '\f',
-  r: '\r',
-  e: '\x1b',
-  ' ': ' ',
-  '"': '"',
-  '/': '/',
-  '\\': '\\',
-  N: String.fromCodePoint(0x85),
-  _: String.fromCodePoint(0xa0),
-  L: String.fromCodePoint(0x2028),
-  P: String.fromCodePoint(0x2029),
-}
-
-/** A YAML double-quoted scalar's text with its escapes read; one it does not know stays as written. */
-function unescapeYaml(text: string): string {
-  return text.replace(
-    /\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|[^])/g,
-    (all, escape: string) => {
-      if (escape.length > 1) {
-        const code = Number.parseInt(escape.slice(1), 16)
-        return code <= 0x10ffff ? String.fromCodePoint(code) : all
-      }
-      return YAML_ESCAPES[escape] ?? all
-    },
-  )
-}
-
-/**
- * A YAML scalar without its quotes. `exact` (Devot's own block, see
- * `quoted` in export.ts) reads every escape of a double-quoted one;
- * elsewhere only `\"` and `\\` are read, and the rest stays as written.
- */
-function scalar(raw: string, exact = false): string {
+/** A scalar's text with its quotes removed; of a double-quoted one only `\"` and `\\` are read. */
+function scalar(raw: string): string {
   const value = trimWhitespace(raw)
   if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
-    const inner = value.slice(1, -1)
-    return exact ? unescapeYaml(inner) : inner.replace(/\\(["\\])/g, '$1')
+    return value.slice(1, -1).replace(/\\(["\\])/g, '$1')
   }
   if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
     return value.slice(1, -1).replace(/''/g, "'")
   }
   return value
+}
+
+/** `text` up to a YAML comment: a `#` after a space or a tab, outside quotes. */
+function withoutComment(text: string): string {
+  let quote: string | null = null
+  let escaped = false
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i]!
+    if (escaped) {
+      escaped = false
+    } else if (quote) {
+      if (c === quote) quote = null
+      else if (c === '\\' && quote === '"') escaped = true
+    } else if ((c === '"' || c === "'") && /^[\s,]?$/.test(text[i - 1] ?? '')) {
+      quote = c
+    } else if (c === '#' && /[ \t]/.test(text[i - 1] ?? '')) {
+      return text.slice(0, i)
+    }
+  }
+  return text
 }
 
 /** Splits on commas that are not inside quotes (a `\` in double quotes escapes the next character). */
@@ -301,12 +284,11 @@ function splitList(raw: string): string[] {
   return items
 }
 
-/** Tag names from list items: unquoted, without a leading `#` (unless `exact`). */
-function cleanTags(raw: string[], exact = false): string[] {
+/** Tag names from their text: without a leading `#` (unless `exact`), trimmed, no empty or repeated ones. */
+function cleanTags(names: readonly string[], exact = false): string[] {
   const seen = new Set<string>()
   const tags: string[] = []
-  for (const item of raw) {
-    const name = scalar(item, exact)
+  for (const name of names) {
     // Trimmed as tag names are (and as Rust checks them).
     const tag = trimWhitespace(exact ? name : name.replace(/^#+/, ''))
     const key = tag.toLowerCase()
@@ -319,14 +301,78 @@ function cleanTags(raw: string[], exact = false): string[] {
   return tags
 }
 
-function toStatus(raw: string): NoteStatus | null {
-  return statusFromName(scalar(raw))
+/** What the YAML of one top-level key says. */
+type YamlValue =
+  /** A scalar: its text (null for YAML's null); `quoted` when it was written in quotes. */
+  | { text: string | null; quoted: boolean }
+  /** A list: the text of each item that is a scalar (null for YAML's null). */
+  | { list: readonly (string | null)[] }
+  /** A map, or anything else that is no text and no list. */
+  | { other: true }
+
+/** The words YAML reads as null when they are not quoted. */
+const NULL_WORDS = new Set(['', '~', 'null', 'Null', 'NULL'])
+
+/** A YAML scalar's text, or null for YAML's null; numbers, booleans and dates stay as written. */
+function textOf(node: unknown): { text: string | null; quoted: boolean } | undefined {
+  if (!isScalar(node)) return undefined
+  const value = typeof node.value === 'string' ? node.value : ''
+  if (node.type === 'BLOCK_LITERAL' || node.type === 'BLOCK_FOLDED') {
+    return { text: value.trim() === '' ? null : value.replace(/\n$/, ''), quoted: false }
+  }
+  if (node.type === 'QUOTE_DOUBLE' || node.type === 'QUOTE_SINGLE') {
+    return { text: value, quoted: true }
+  }
+  return { text: NULL_WORDS.has(value) ? null : value, quoted: false }
+}
+
+/**
+ * What the YAML in `chunk` (one top-level key and the lines under it) says
+ * for that key, or undefined when it is not valid YAML. Everything is read
+ * as text (the failsafe schema), so `2024` and `true` stay as written.
+ */
+function yamlValue(chunk: string): YamlValue | undefined {
+  const doc = parseDocument(chunk, { schema: 'failsafe', uniqueKeys: false })
+  if (doc.errors.length > 0 || !isMap(doc.contents) || doc.contents.items.length !== 1) {
+    return undefined
+  }
+  const node = doc.contents.items[0]?.value ?? null
+  if (node === null) return { text: null, quoted: false }
+  if (isSeq(node)) return { list: node.items.map((item) => textOf(item)?.text ?? null) }
+  return textOf(node) ?? { other: true }
+}
+
+/** The top-level keys of front matter, each with its line's text after the colon and every line it owns. */
+function keyChunks(yaml: string): { key: string; rest: string; text: string }[] {
+  const chunks: { key: string; rest: string; text: string }[] = []
+  for (const line of yaml.split(/\r?\n/)) {
+    const match = KEY.exec(line)
+    if (match) chunks.push({ key: match[1]!.toLowerCase(), rest: match[2]!, text: line })
+    else if (chunks.length > 0) chunks.at(-1)!.text += `\n${line}`
+  }
+  return chunks
+}
+
+/** What a key's line says as one text when YAML cannot read it: up to a comment, unquoted. */
+const lineText = (rest: string) => scalar(withoutComment(rest))
+
+/** The tags a key's line says when YAML cannot read it: a bracketed list, or a comma-separated value. */
+function lineTags(rest: string): string[] {
+  const value = trimWhitespace(rest)
+  if (value.startsWith('[')) {
+    const close = value.lastIndexOf(']')
+    return splitList(value.slice(1, close < 0 ? undefined : close)).map(scalar)
+  }
+  return splitList(withoutComment(value)).map(scalar)
 }
 
 /**
  * The keys Devot reads from front matter: `title`, `notebook`, `tags` (a
- * flow list, a block list, or a comma-separated value) and `status`. Keys
- * match in any case; every other key is ignored. Import uses all but
+ * list in either style, or a comma-separated value) and `status`. The front
+ * matter is read as YAML (comments, quotes and their escapes, block and
+ * multi-line scalars); a key whose YAML is not valid is read from its line
+ * as it stands, as far as that goes. Keys match in any case, the last of a
+ * repeated key counts, and every other key is ignored. Import uses all but
  * `notebook`; a note made from a template uses all four (templates.ts).
  */
 export function readFrontMatter(markdown: string): FrontMatterMeta {
@@ -340,33 +386,28 @@ export function readFrontMatter(markdown: string): FrontMatterMeta {
 function metaOf(yaml: string | null, exact = false): FrontMatterMeta {
   const meta: FrontMatterMeta = { title: null, notebook: null, tags: [], status: null }
   if (yaml === null) return meta
-  const lines = yaml.split(/\r?\n/)
-  for (let i = 0; i < lines.length; i += 1) {
-    const match = KEY.exec(lines[i] ?? '')
-    if (!match) continue
-    const key = match[1]!.toLowerCase()
-    const value = trimWhitespace(match[2]!)
-    if (key === 'title') {
-      meta.title = scalar(value, exact)
-    } else if (key === 'notebook') {
-      meta.notebook = oneLine(scalar(value)) || null
-    } else if (key === 'status') {
-      meta.status = toStatus(value)
-    } else if (key === 'tags') {
-      if (value.startsWith('[') && value.endsWith(']')) {
-        meta.tags = cleanTags(splitList(value.slice(1, -1)), exact)
-      } else if (value) {
-        meta.tags = cleanTags(splitList(value), exact)
-      } else {
-        // A block list: `- item` lines, indented or not.
-        const items: string[] = []
-        while (i + 1 < lines.length && /^[ \t]*-(?:[ \t]|$)/.test(lines[i + 1] ?? '')) {
-          i += 1
-          items.push((lines[i] ?? '').replace(/^[ \t]*-/, ''))
-        }
-        meta.tags = cleanTags(items, exact)
-      }
+  for (const { key, rest, text } of keyChunks(yaml)) {
+    if (key !== 'title' && key !== 'notebook' && key !== 'status' && key !== 'tags') continue
+    const read = yamlValue(text)
+    if (key === 'tags') {
+      if (!read) meta.tags = cleanTags(lineTags(rest), exact)
+      else if ('list' in read)
+        meta.tags = cleanTags(
+          read.list.filter((t) => t !== null),
+          exact,
+        )
+      else if ('text' in read) {
+        // A comma-separated value, unless it was quoted: that is one tag.
+        const names = read.text === null ? [] : read.quoted ? [read.text] : read.text.split(',')
+        meta.tags = cleanTags(names, exact)
+      } else meta.tags = []
+      continue
     }
+    // The other keys take one text; a list or a map says none.
+    const one = !read ? lineText(rest) : 'text' in read ? read.text : null
+    if (key === 'title') meta.title = one
+    else if (key === 'notebook') meta.notebook = oneLine(one ?? '') || null
+    else meta.status = one === null ? null : statusFromName(one)
   }
   return meta
 }

@@ -9,7 +9,7 @@ import type { AiStorage } from '../core/ai'
 import { checkUpload } from '../core/files'
 import { noteLinks } from '../core/links'
 import { checkNote } from '../core/noteLimits'
-import { bodyExcerpt, excerptTerms, ftsQuery, indexable } from '../core/search'
+import { bodyExcerpt, excerptTerms, foldText, ftsQuery, indexable } from '../core/search'
 import { isTagColor } from '../core/tags'
 import type {
   ActivityData,
@@ -168,7 +168,7 @@ export function searchStatement(
       }
     } else {
       where.push(
-        `instr(lower(${textColumn(t.field, ranked.length > 0)}), lower(${param(t.value)})) ${t.negate ? '=' : '>'} 0`,
+        `instr(devot_fold(${textColumn(t.field, ranked.length > 0)}), devot_fold(${param(t.value)})) ${t.negate ? '=' : '>'} 0`,
       )
     }
   }
@@ -347,6 +347,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     // share the file; the busy timeout waits out the other's writes. Every
     // write transaction begins IMMEDIATE, as the Rust store's do: one that
     // read first would fail at once when it then needs to write.
+    // The SQL function the Rust store registers too (storage/mod.rs): terms
+    // too short for the trigram index are scanned with it, so they ignore
+    // case in every script as the index does (SQLite's lower() is ASCII only).
+    db.function('devot_fold', { deterministic: true }, (text) =>
+      typeof text === 'string' ? foldText(text) : text,
+    )
     db.pragma('busy_timeout = 5000')
     db.pragma('journal_mode = WAL')
     db.pragma('synchronous = FULL')
