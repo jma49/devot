@@ -1,6 +1,6 @@
 import { invoke } from '../ipc'
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
-import type { PreviewLabels, RemoteImageLabels } from '../../../core'
+import type { PreviewLabels } from '../../../core'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
 import type { MenuPoint } from '../contextMenu'
 import { imageMenuHasItems, type ImageMenuTarget } from '../imageMenu'
@@ -37,11 +37,6 @@ export function previewLabels(): PreviewLabels {
     embedLoad: t('embed.load'),
     videoTitle: t('embed.videoTitle'),
   }
-}
-
-/** The placeholder's texts for images from the web (the preview never loads them). */
-function remoteImageLabels(): RemoteImageLabels {
-  return { notLoaded: t('image.remoteNotLoaded'), why: t('image.remoteWhy') }
 }
 
 interface RenderInput {
@@ -195,7 +190,6 @@ export function Preview({
         core
           .renderPreview(input.markdown, {
             labels: previewLabels(),
-            remoteImages: remoteImageLabels(),
             loadedEmbeds: input.loadedEmbeds,
           })
           .then((tree) => ({ tree, lines: lineCount(input.markdown), markdown: input.markdown })),

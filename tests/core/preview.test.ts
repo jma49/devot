@@ -350,7 +350,6 @@ describe('preview renderer extension point', () => {
       'devot.code',
       'devot.swatches',
       'devot.images',
-      'devot.remote-images',
       'devot.links',
       'devot.video-embeds',
       'devot.iframes',
@@ -448,69 +447,33 @@ describe('mermaid', () => {
 })
 
 describe('images from the web', () => {
-  const remoteImages = { notLoaded: 'Image from the web not loaded', why: 'No web images here.' }
-  const held = (md: string) => render(md, { remoteImages })
-
-  it('become a placeholder with their address where the preview holds them back', async () => {
-    const tree = await held('![A chart](https://example.com/chart.png)')
-    expect(tags(tree, 'img')).toHaveLength(0)
-    const [placeholder] = byClass(tree, 'image-placeholder')
-    expect(placeholder && text(placeholder)).toContain('Image from the web not loaded')
-    expect(placeholder && text(placeholder)).toContain('No web images here.')
-    const [address] = byClass(tree, 'image-placeholder-address')
-    expect(address?.tagName).toBe('a')
-    expect(address?.properties['href']).toBe('https://example.com/chart.png')
-    expect(address && text(address)).toBe('https://example.com/chart.png')
-  })
-
-  it('show an http address as text, never a link', async () => {
-    const tree = await held('![x](http://example.com/a.png)')
-    const [address] = byClass(tree, 'image-placeholder-address')
-    expect(address?.tagName).toBe('span')
-    expect(address && text(address)).toBe('http://example.com/a.png')
-  })
-
-  it('inside a link show their address as text, so links do not nest', async () => {
-    const tree = await held('[![x](https://example.com/a.png)](https://example.com/page)')
-    expect(tags(tree, 'a')).toHaveLength(1)
-    expect(tags(tree, 'a')[0]?.properties['href']).toBe('https://example.com/page')
-    expect(byClass(tree, 'image-placeholder')).toHaveLength(1)
-    const [address] = byClass(tree, 'image-placeholder-address')
-    expect(address?.tagName).toBe('span')
-    expect(address && text(address)).toBe('https://example.com/a.png')
-  })
-
-  it('treat an address without a protocol as a web image, shown as text', async () => {
-    for (const md of ['![x](//example.com/a.png)', '<img src="//example.com/a.png" alt="x">']) {
-      const tree = await held(md)
-      expect(tags(tree, 'img')).toHaveLength(0)
-      const [address] = byClass(tree, 'image-placeholder-address')
-      expect(address?.tagName).toBe('span')
-      expect(address && text(address)).toBe('//example.com/a.png')
+  it('load as images, http and https alike', async () => {
+    for (const src of ['https://example.com/chart.png', 'http://example.com/chart.png']) {
+      const [img] = tags(await render(`![A chart](${src})`), 'img')
+      expect(img?.properties['src']).toBe(src)
+      expect(img?.properties['alt']).toBe('A chart')
     }
   })
 
-  it('keep the description of the image in the placeholder', async () => {
-    const tree = await held('![Sales chart](https://example.com/a.png)')
-    const [alt] = byClass(tree, 'image-placeholder-alt')
-    expect(alt && text(alt)).toBe('Sales chart')
-    const none = await held('![](https://example.com/a.png)')
-    expect(byClass(none, 'image-placeholder-alt')).toHaveLength(0)
+  it('load from allowlisted HTML, without event attributes or script URLs', async () => {
+    const tree = await render(
+      '<img src="https://example.com/a.png" alt="x" onerror="alert(1)">\n\n<img src="javascript:alert(1)" alt="y">',
+    )
+    const [web, script] = tags(tree, 'img')
+    expect(web?.properties['src']).toBe('https://example.com/a.png')
+    expect(Object.keys(web?.properties ?? {}).some((k) => /^on/i.test(k))).toBe(false)
+    expect(script?.properties['src']).toBeUndefined()
   })
 
-  it('leave attachment images and the images of a page that keeps them alone', async () => {
-    const id = '0198a8c0-1111-7222-8333-444455556666'
-    const local = await held(`![x](devot://file/${id})`)
-    expect(tags(local, 'img')).toHaveLength(1)
-    expect(byClass(local, 'image-placeholder')).toHaveLength(0)
-    const kept = await render('![x](https://example.com/a.png)')
-    expect(tags(kept, 'img')).toHaveLength(1)
-    expect(byClass(kept, 'image-placeholder')).toHaveLength(0)
+  it('stay images inside a link', async () => {
+    const tree = await render('[![x](https://example.com/a.png)](https://example.com/page)')
+    expect(tags(tree, 'a')[0]?.properties['href']).toBe('https://example.com/page')
+    expect(tags(tree, 'img')[0]?.properties['src']).toBe('https://example.com/a.png')
   })
 
-  it('keep the size suffix out of the address', async () => {
-    const tree = await held('![x](https://example.com/a.png#half)')
-    const [address] = byClass(tree, 'image-placeholder-address')
-    expect(address && text(address)).toBe('https://example.com/a.png')
+  it('load without the size suffix, which becomes a class', async () => {
+    const [img] = tags(await render('![x](https://example.com/a.png#half)'), 'img')
+    expect(img?.properties['src']).toBe('https://example.com/a.png')
+    expect(img?.properties['className']).toContain('image-size-half')
   })
 })

@@ -1,15 +1,15 @@
 // Images in the note editor: finding them, setting their size (see
-// core/images.ts), and showing attachments under their lines.
+// core/images.ts), and showing images under their lines.
 //
-// Previews are block widgets under each line that shows an attachment, from
+// Previews are block widgets under each line that shows an image, from
 // a state field (only decorations from the state may change the editor's
 // vertical layout). Each block has one fixed height, known before its images
 // load, so lines never move as images arrive or fail. CodeMirror only draws
 // the visible part of a note, so only visible images load. Finding the
 // images scans the text for `![` and asks the syntax tree only there, which
 // stays cheap for long notes (the scan reads the document's own line
-// strings, copying nothing). Only attachments (devot://file) show: the
-// production CSP loads no remote images.
+// strings, copying nothing). Attachments (devot://file) and https images
+// show; the app's CSP loads no plain http images.
 import { syntaxTree } from '@codemirror/language'
 import { Facet, StateField, type EditorState, type TransactionSpec } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
@@ -98,15 +98,20 @@ export function imageAt(state: EditorState, pos: number): EditorImage | null {
   return images.find((i) => i.from <= pos && pos <= i.to) ?? images[0] ?? null
 }
 
+/** Whether an image shows under its line: an attachment or an https image. */
+function shows(image: EditorImage): boolean {
+  return image.fileId !== null || /^https:\/\/[^/]/i.test(image.url)
+}
+
 /**
- * Shows the attachment image at `pos`, or else the first on its line, in the
+ * Shows the image at `pos`, or else the first on its line, in the
  * viewer (what a double-click on its preview does); false when the line has
  * none.
  */
 export function viewImageAt(view: EditorView, pos = view.state.selection.main.head): boolean {
   const image = imageAt(view.state, pos)
   const open = view.state.facet(imageActions)?.open
-  if (!image?.fileId || !open) return false
+  if (!image || !shows(image) || !open) return false
   open({ src: new URL(image.url, document.baseURI).href, alt: image.alt })
   return true
 }
@@ -133,17 +138,17 @@ export function imageSizeChange(
   }
 }
 
-/** A line with attachments to show under it: where the block goes, and its images. */
+/** A line with images to show under it: where the block goes, and its images. */
 export interface ImageLine {
   at: number
   images: EditorImage[]
 }
 
-/** The lines that show attachments, in order, each with the images that end on it. */
+/** The lines that show images, in order, each with the images that end on it. */
 export function imageLines(state: EditorState): ImageLine[] {
   const byLine = new Map<number, EditorImage[]>()
   for (const image of findImages(state)) {
-    if (!image.fileId) continue
+    if (!shows(image)) continue
     const at = state.doc.lineAt(image.to).to
     const images = byLine.get(at)
     if (images) images.push(image)

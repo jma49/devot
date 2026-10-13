@@ -26,8 +26,10 @@ describe('production CSP (tauri.conf.json)', () => {
     expect(all).not.toContain("'unsafe-eval'")
   })
 
-  it('loads images from the app, data/blob URLs and attachments only', () => {
-    expect(sources('img-src')).toEqual(["'self'", 'data:', 'blob:', 'devot:'])
+  it('loads images from the app, data/blob URLs, attachments and https', () => {
+    // Images in notes load from the web, as written; plain http stays blocked.
+    expect(sources('img-src')).toEqual(["'self'", 'data:', 'blob:', 'devot:', 'https:'])
+    expect(config.app.security.devCsp['img-src']).toBe(csp['img-src'])
   })
 
   it('blocks external resource loads', () => {
@@ -35,6 +37,7 @@ describe('production CSP (tauri.conf.json)', () => {
       for (const source of sources(name)) {
         if (TAURI_IPC.includes(source)) continue
         if (name === 'connect-src' && source === SENTRY_INGEST) continue
+        if (name === 'img-src' && source === 'https:') continue
         expect(source).not.toMatch(/^(https?:|ws:|wss:|\*)/)
       }
     }

@@ -62,16 +62,18 @@ describe('finding images in the editor', () => {
 })
 
 describe('inline image previews', () => {
-  it('puts one block under each line that shows attachments', () => {
+  it('puts one block under each line that shows attachments or https images', () => {
     const doc = [
       `![a](${FILE}) ![b](${OTHER}#small)`,
       'plain',
-      '![remote](https://a.test/x.png)',
+      '![remote](https://a.test/x.png) ![plain](http://a.test/y.png) ![web](HTTPS://a.test/w.png)',
+      '![relative](pic.png) ![no scheme](//a.test/z.png)',
       `> quoted ![c](${FILE})`,
     ].join('\n')
     const lines = imageLines(state(doc))
     expect(lines.map((l) => [l.at, l.images.map((i) => i.alt)])).toEqual([
       [doc.indexOf('\nplain'), ['a', 'b']],
+      [doc.indexOf('\n![relative]'), ['remote', 'web']],
       [doc.length, ['c']],
     ])
   })

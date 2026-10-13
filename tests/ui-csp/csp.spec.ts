@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import {
   changeEditorSettingsElsewhere,
   expect,
@@ -571,50 +571,29 @@ test('images under their lines and the image viewer are styled under the policy'
   expect(await violations(page)).toEqual([])
 })
 
-test('an image from the web shows a placeholder with its address and breaks no policy', async ({
+test('an image from the web loads in the preview and under its line, within the policy', async ({
   page,
 }) => {
   await start(page)
+  // A 1x1 PNG served for the web address; nothing leaves the machine.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    'base64',
+  )
+  await page.route('https://example.com/chart.png', (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: png }),
+  )
   const address = 'https://example.com/chart.png'
   await newNote(page, `![Chart](${address})\n\nafter`)
-  const preview = page.getByRole('article', { name: 'Preview' })
-  const placeholder = preview.locator('.image-placeholder')
-  await expect(placeholder).toBeVisible()
-  await expect(placeholder).toContainText('Image from the web not loaded')
-  await expect(placeholder).toContainText('never loads images from the web')
-  await expect(placeholder.getByRole('link', { name: address })).toBeVisible()
-  await expect(preview.locator('img')).toHaveCount(0)
-  // The placeholder is styled (not unstyled inline text) and no request is
-  // blocked by the policy: the image is never asked for.
-  await expect(placeholder).toHaveCSS('display', 'inline-flex')
-  expect(await violations(page)).toEqual([])
-})
-
-test('the address of a web image opens in the browser; others are text', async ({ page }) => {
-  const requested: string[] = []
-  page.on('request', (request) => {
-    if (request.url().includes('example.com')) requested.push(request.url())
-  })
-  await start(page)
-  const address = 'https://example.com/chart.png'
-  await newNote(
-    page,
-    `![Sales chart](${address})\n\n![Old](http://example.com/old.png)\n\n![P](//example.com/p.png)`,
-  )
-  const preview = page.getByRole('article', { name: 'Preview' })
-  await expect(preview.locator('.image-placeholder')).toHaveCount(3)
-  await expect(preview.locator('.image-placeholder-alt').first()).toHaveText('Sales chart')
-  await expect(preview.getByRole('link')).toHaveCount(1)
-  await preview.getByRole('link', { name: address }).click()
-  const opened = () =>
-    page.evaluate(() =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((c) => c.cmd === 'open_external')
-        .map((c) => c.args['url']),
-    )
-  await expect.poll(opened).toEqual([address])
-  expect(page.url()).not.toContain('example.com')
-  expect(requested).toEqual([])
+  const loaded = (img: Locator) =>
+    img.evaluate((el) => (el as unknown as { naturalWidth: number }).naturalWidth)
+  const shown = page.getByRole('article', { name: 'Preview' }).locator(`img[src="${address}"]`)
+  await expect(shown).toBeVisible()
+  await expect.poll(() => loaded(shown)).toBe(1)
+  const under = page.locator('.cm-inline-images img')
+  await expect(under).toHaveAttribute('src', address)
+  await expect.poll(() => loaded(under)).toBe(1)
+  await expect(page.getByText('Image from the web not loaded')).toHaveCount(0)
   expect(await violations(page)).toEqual([])
 })
 

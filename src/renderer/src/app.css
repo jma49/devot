@@ -1236,33 +1236,6 @@ button {
   color: var(--color-text-secondary);
 }
 
-.image-placeholder {
-  display: inline-flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  max-width: 100%;
-  padding: var(--space-4) var(--space-5);
-  box-sizing: border-box;
-  border-radius: var(--radius-card);
-  background: var(--color-fill-track);
-  color: var(--color-text-secondary);
-  vertical-align: top;
-}
-
-.image-placeholder-alt {
-  color: var(--color-text-primary);
-}
-
-.image-placeholder-address {
-  overflow-wrap: anywhere;
-  font-family: var(--font-family-mono);
-}
-
-.image-placeholder-why {
-  font-size: var(--font-size-footnote);
-  color: var(--color-text-tertiary);
-}
-
 .embed-load {
   flex-shrink: 0;
   white-space: nowrap;

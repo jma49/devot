@@ -13,8 +13,7 @@ import {
 // Images in the editor and the preview: previews under their lines, size
 // presets, the viewer, the image context menu and the image commands.
 // Attachments (devot://file) do not load in Playwright's browser; an image at a
-// path on the page's own origin (routed here) does, and the preview treats it as
-// local (images from the web become placeholders), so the viewer is checked with
+// path on the page's own origin (routed here) does, so the viewer is checked with
 // one. Editor keys
 // are platform-neutral; the palette opens with Meta+P like in the other specs.
 

@@ -270,49 +270,6 @@ const images: PreviewRenderer = {
   },
 }
 
-// --- images from the web -----------------------------------------------------
-
-const WEB_IMAGE = /^(https?:)?\/\//i
-const SECURE_IMAGE = /^https:\/\//i
-
-/**
- * Where the preview does not load images from the web, each one becomes a
- * placeholder that says so and shows the address; an https address is a link
- * (the page opens it in the browser), except inside another link. An address
- * without a protocol, and an http address, are text only.
- */
-const remoteImages: PreviewRenderer = {
-  id: 'devot.remote-images',
-  apiVersion: PREVIEW_API_VERSION,
-  transform(tree, { remoteImages: texts }) {
-    if (!texts) return
-    const placeholder = (src: string, alt: string, inLink: boolean): Element =>
-      el('span', { className: ['image-placeholder'], dataImageAddress: src }, [
-        el('span', { className: ['image-placeholder-text'] }, [txt(texts.notLoaded)]),
-        ...(alt ? [el('span', { className: ['image-placeholder-alt'] }, [txt(alt)])] : []),
-        SECURE_IMAGE.test(src) && !inLink
-          ? el('a', { className: ['image-placeholder-address'], href: src }, [txt(src)])
-          : el('span', { className: ['image-placeholder-address'] }, [txt(src)]),
-        el('span', { className: ['image-placeholder-why'] }, [txt(texts.why)]),
-      ])
-    const visit = (node: Parent, inLink: boolean): void => {
-      node.children = node.children.map((child) => {
-        if (child.type !== 'element') return child
-        const src = child.properties['src']
-        if (child.tagName === 'img' && typeof src === 'string' && WEB_IMAGE.test(src)) {
-          const alt = child.properties['alt']
-          const next = placeholder(src, typeof alt === 'string' ? alt.trim() : '', inLink)
-          if (child.position) next.position = child.position
-          return next
-        }
-        visit(child, inLink || child.tagName === 'a')
-        return child
-      }) as typeof node.children
-    }
-    visit(tree, false)
-  },
-}
-
 // --- devot:// links ----------------------------------------------------------
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
@@ -453,7 +410,6 @@ export const BUILTIN_RENDERERS: readonly PreviewRenderer[] = [
   createCodeRenderer(),
   swatches,
   images,
-  remoteImages,
   links,
   videoEmbeds,
   iframes,
