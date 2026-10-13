@@ -87,8 +87,8 @@ it('the scripts start only an app whose data folder they know', () => {
   // The launch cost script starts any build, release ones too, through the
   // probe, always with HOME in its own temporary folder.
   const perf = read('scripts/perf/launch-cost.sh')
-  expect(perf.match(/"\$PROBE" "\$APP"/g)).toHaveLength(1)
-  expect(perf).toContain('HOME="$APP_HOME" "$PROBE" "$APP"')
+  expect(perf.match(/"\$PROBE" "\$@" "\$APP"/g)).toHaveLength(1)
+  expect(perf).toContain('HOME="$APP_HOME" "$PROBE" "$@" "$APP"')
   expect(perf).toContain('app_wait_for_db "$PID" "$APP_HOME"')
 })
 
