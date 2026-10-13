@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeShortcutsElsewhere, expect, test } from './fixtures'
+import { changeShortcutsElsewhere, expect, test, pickNoteMore } from './fixtures'
 
 // Find and replace in the open note. The find shortcuts are window-wide app
 // shortcuts that check the Command key, so these tests press Meta on every
@@ -339,7 +339,7 @@ test('find stays out of the way of the other shortcuts', async ({ page }) => {
   await page.keyboard.press('Alt+Meta+r')
   await expect(bar(page)).toHaveCount(0)
   // With no note open, Cmd+F does nothing.
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(noteRows(page)).toHaveCount(0)
   await page.keyboard.press('Meta+f')
   await expect(bar(page)).toHaveCount(0)

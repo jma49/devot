@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
+import {
+  expect,
+  pickMenuItem,
+  shownMenu,
+  test,
+  type TestWindow,
+  pickNoteMore,
+  openNotePinned,
+} from './fixtures'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
@@ -63,8 +71,8 @@ async function createNote(page: Page, title: string) {
 }
 
 async function pinOpenNote(page: Page) {
-  await page.getByRole('button', { name: 'Pin to Top' }).click()
-  await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible()
+  await pickNoteMore(page, 'Pin to Top')
+  await expect.poll(() => openNotePinned(page)).toBe(true)
 }
 
 async function createBook(page: Page, name: string) {
@@ -267,7 +275,7 @@ test('a new note is scrolled into view when the order puts it at the bottom', as
 
 test('the Trash has no sort button and keeps its deletion order', async ({ page }) => {
   await createNote(page, 'Gone')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await sidebar(page)
     .getByRole('button', { name: /^Trash/ })
     .click()

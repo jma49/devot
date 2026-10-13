@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickNoteMore } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -20,7 +20,7 @@ async function createNote(page: Page, title: string, body = '') {
 /** Moves the open note to the Trash and waits until the Trash count shows it. */
 async function trashOpenNote(page: Page) {
   const before = Number((await trashRow(page).textContent())?.match(/(\d+)$/)?.[1] ?? 0)
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(trashRow(page)).toHaveText(new RegExp(`${before + 1}$`))
 }
 
@@ -33,7 +33,7 @@ test.beforeEach(async ({ page }) => {
 test('moves a note to the Trash and restores it with its metadata', async ({ page }) => {
   await createNote(page, 'Keeper', '# Body kept')
   await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(noteRows(page)).toHaveCount(0)
   await expect(trashRow(page)).toHaveText(/1$/)
 

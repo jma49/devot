@@ -44,9 +44,9 @@ for (const width of [760, 800, 900]) {
 
     // Every control of the editor's toolbar is inside the window, whole.
     const toolbar = page.locator('.editor-toolbar')
-    const controls = toolbar.locator('button, .search-field')
+    const controls = toolbar.locator('button')
     const count = await controls.count()
-    expect(count).toBeGreaterThanOrEqual(8)
+    expect(count).toBeGreaterThanOrEqual(7)
     for (let i = 0; i < count; i += 1) {
       const b = await box(controls.nth(i))
       expect(b.x, `control ${i} starts inside`).toBeGreaterThanOrEqual(0)
@@ -141,6 +141,8 @@ test('a sidebar asked for in a narrow window is hidden again after a trip throug
   await expect(sidebar(page)).toBeVisible()
   await page.setViewportSize({ width: 1280, height: 700 })
   await expect(sidebar(page)).toBeVisible()
+  // The window has rendered as a wide one before it narrows again.
+  await expect(page.locator('.window')).not.toHaveAttribute('data-narrow')
   await page.setViewportSize({ width: 800, height: 700 })
   await expect(sidebar(page)).toBeHidden()
   await expect(showSidebar(page)).toBeVisible()

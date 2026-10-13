@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test, type TestWindow, pickNoteMore } from './fixtures'
 
 const FILES: Record<string, string> = {
   'Inbox.md': '# Inbox\n\nSee [[Plan]] later.\n',
@@ -289,7 +289,7 @@ test('a finished import closes the trashed note that was open', async ({ page })
   const title = page.getByRole('textbox', { name: 'Title' })
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await title.fill('Doomed')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await sidebar(page)
     .getByRole('button', { name: /^Trash \d+$/ })
     .click()

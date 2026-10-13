@@ -29,7 +29,11 @@ export function currentBookOption(list: BookOption[], value: string | null): str
   return value !== null && list.some((o) => o.id === value) ? value : NO_BOOK
 }
 
-/** Pop-up button that moves the open note to another notebook. */
+/**
+ * Pop-up button that moves the open note to another notebook: the notebook's
+ * name in bold and a chevron. A native select lies over it, unseen, so the
+ * keyboard and VoiceOver work it as before.
+ */
 export function BookPicker(props: {
   tree: BookNode[]
   value: string | null
@@ -40,8 +44,11 @@ export function BookPicker(props: {
   // A long name is cut off in the control; the tooltip has the whole name.
   const current = list.find((o) => o.id === value)?.name ?? t('note.noBook')
   return (
-    <label className="popup">
+    <label className="popup book-popup">
       <Icon name="notebook" size="sm" />
+      <span className="popup-value" aria-hidden="true">
+        {current}
+      </span>
       <select
         aria-label={t('note.bookLabel')}
         title={current}
@@ -55,7 +62,7 @@ export function BookPicker(props: {
           </option>
         ))}
       </select>
-      <Icon name="popup" size="sm" />
+      <Icon name="popup.chevron" size="sm" />
     </label>
   )
 }

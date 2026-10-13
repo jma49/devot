@@ -1,11 +1,14 @@
-// A copy button on each fenced code block in the preview. It is the page's
-// own control, never part of the note's HTML: the core renders no button,
-// the patcher leaves it alone (`UI_ATTRIBUTE`), and printing hides it.
+// A copy button on each fenced code block in the preview, and a header with
+// the block's language mark and title (or its language) when it names one.
+// Both are the page's own, never part of the note's HTML: the core renders
+// neither, the patcher leaves them alone (`UI_ATTRIBUTE`), and printing
+// hides the button.
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { writeClipboardText } from '../clipboard'
 import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
+import { codeLabel, languageMark, markPath } from './codeLanguages'
 import { UI_ATTRIBUTE } from './dom'
 
 /** How long the button shows that it copied (or could not). */
@@ -87,7 +90,56 @@ const keyOf = (block: HTMLElement) => {
   return key
 }
 
-/** A copy button inside each of `blocks`. */
-export function CodeCopyButtons({ blocks }: { blocks: readonly HTMLElement[] }) {
-  return blocks.map((block) => createPortal(<CopyButton block={block} />, block, keyOf(block)))
+const codeOf = (block: HTMLElement) => block.querySelector(':scope > code')
+
+/** Every block's language and title, one line each: changes when a header must. */
+export function codeLabels(blocks: readonly HTMLElement[]): string {
+  return blocks
+    .map((block) => {
+      const { language, title } = codeLabel(codeOf(block))
+      return `${language}\u0000${title}`
+    })
+    .join('\n')
+}
+
+/**
+ * The block's header: the language's mark (a generic code symbol for a
+ * language without one) and the title, or the language as the note wrote it.
+ */
+function CodeHead({ block }: { block: HTMLElement }) {
+  const { language, title } = codeLabel(codeOf(block))
+  if (language === '' && title === '') return null
+  const mark = language === '' ? undefined : languageMark(language)
+  return (
+    <div className="code-head" {...{ [UI_ATTRIBUTE]: '' }} data-language={language || undefined}>
+      {mark ? (
+        <svg className="code-mark" viewBox="0 0 24 24" aria-hidden="true" data-mark={mark}>
+          <path d={markPath(mark)} />
+        </svg>
+      ) : (
+        <Icon name="format.code" size="sm" />
+      )}
+      <span className="code-title">{title || language}</span>
+    </div>
+  )
+}
+
+/** A header and a copy button inside each of `blocks`. */
+export function CodeCopyButtons({
+  blocks,
+}: {
+  blocks: readonly HTMLElement[]
+  /** `codeLabels(blocks)`, so a block whose language or title changed shows it. */
+  labels?: string
+}) {
+  return blocks.map((block) =>
+    createPortal(
+      <>
+        <CodeHead block={block} />
+        <CopyButton block={block} />
+      </>,
+      block,
+      keyOf(block),
+    ),
+  )
 }

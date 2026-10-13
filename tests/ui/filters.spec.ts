@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickNoteMore, openNotePinned } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
@@ -102,8 +102,8 @@ test('declining a tag delete keeps the tag and returns focus to its row', async 
 
 test('pinned notes sit in their own section at the top', async ({ page }) => {
   await createNote(page, 'Old')
-  await page.getByRole('button', { name: 'Pin to Top' }).click()
-  await expect(page.getByRole('button', { name: 'Unpin' })).toHaveAttribute('aria-pressed', 'true')
+  await pickNoteMore(page, 'Pin to Top')
+  await expect.poll(() => openNotePinned(page)).toBe(true)
   await createNote(page, 'New')
 
   const list = page.getByRole('listbox', { name: 'Notes' })
@@ -138,12 +138,12 @@ test('status, tags and pinning survive a reload', async ({ page }) => {
   await createNote(page, 'Kept')
   await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'On Hold' })
   await addTag(page, 'later')
-  await page.getByRole('button', { name: 'Pin to Top' }).click()
+  await pickNoteMore(page, 'Pin to Top')
   await page.reload()
   await noteRows(page).first().click()
   await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('on_hold')
   await expect(page.getByRole('group', { name: 'Tags' })).toContainText('later')
-  await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible()
+  await expect.poll(() => openNotePinned(page)).toBe(true)
 })
 
 test('the count on a selected filter row stays a number while the sidebar has the keyboard', async ({

@@ -50,6 +50,8 @@ export const en = {
   'note.statusLabel': 'Status',
   'note.tagsLabel': 'Tags',
   'note.addTag': 'Add Tag',
+  'note.addTags': 'Add Tags',
+  'note.more': 'More',
   'note.removeTag': 'Remove Tag',
   'note.removeTagNamed': 'Remove Tag {name}',
   'note.pin': 'Pin to Top',

@@ -13,7 +13,7 @@ import { useAppearance } from '../icons/Icon'
 import { patchChildren } from './dom'
 import { previewFindTarget } from './find'
 import { createIslandMounter, createIslandRegistry } from './islands'
-import { CodeCopyButtons, codeBlocks } from './CodeCopy'
+import { CodeCopyButtons, codeBlocks, codeLabels } from './CodeCopy'
 import { latestOnly } from './latest'
 import { mermaidIsland } from './mermaid'
 import { previewScrollPane, type PreviewScrollPane, type ScrollPane } from './scrollSync'
@@ -134,6 +134,8 @@ export function Preview({
   const scroll = useRef<PreviewScrollPane | null>(null)
   const [mounter] = useState(() => createIslandMounter(islands))
   const [codes, setCodes] = useState<HTMLElement[]>([])
+  // The blocks' languages and titles: a block patched in place re-renders its header.
+  const [codeHeads, setCodeHeads] = useState('')
 
   const render = useRef<(input: RenderInput) => void>(undefined)
   /** The Markdown the preview on screen was rendered from (images point into it). */
@@ -203,6 +205,7 @@ export function Preview({
         mounter.mount(host.current, { appearance: appearanceNow.current }, islandRendered)
         const next = codeBlocks(host.current)
         setCodes((now) => (sameList(now, next) ? now : next))
+        setCodeHeads(codeLabels(next))
         scroll.current?.changed(lines)
         if (tree.children.length > 0 && !scrollAskedOnce.current) {
           scrollAskedOnce.current = true
@@ -298,7 +301,7 @@ export function Preview({
           if (!scrollTarget.current) scrolled.current?.(event.currentTarget.scrollTop)
         }}
       />
-      <CodeCopyButtons blocks={codes} />
+      <CodeCopyButtons blocks={codes} labels={codeHeads} />
     </>
   )
 }

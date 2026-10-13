@@ -574,22 +574,50 @@ button {
 }
 
 .title {
-  margin: var(--space-8) var(--space-10) var(--space-4);
+  margin: var(--space-2) var(--space-9) var(--space-3);
   padding: 0;
   border: 0;
   outline: 0;
   background: transparent;
   color: inherit;
-  font: var(--font-weight-bold) var(--font-size-title) / 1.25 var(--font-family-ui);
+  font: var(--font-weight-regular) var(--font-size-note-title) / 1.25 var(--font-family-ui);
 }
 
+/* The note's notebook, status and tags: one compact line, no separators. */
 .note-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 var(--space-9) var(--space-4);
+  font-size: var(--font-size-body);
+}
+
+/* Tags in the note's line: outlined pills, their remove button on hover or keyboard focus. */
+.note-meta .tag-editor {
   gap: var(--space-3);
-  margin: 0 var(--space-10) var(--space-4);
-  font-size: var(--font-size-footnote);
+}
+
+.note-meta .chip {
+  height: var(--size-segment-height);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-line-hairline);
+  box-sizing: border-box;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+}
+
+.note-meta .chip-remove {
+  opacity: 0;
+}
+
+.note-meta .chip:is(:hover, :focus-within) .chip-remove {
+  opacity: 1;
+}
+
+.note-meta .tag-input::placeholder {
+  color: var(--color-text-tertiary);
 }
 
 .template-hint {
@@ -694,7 +722,7 @@ button {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   box-sizing: border-box;
   /* No wider than its cap or its row: in a narrow window it gives way too. */
   min-width: 0;
@@ -710,11 +738,46 @@ button {
 }
 
 .popup .icon:first-child {
-  background-color: var(--color-accent-text);
+  background-color: var(--color-text-secondary);
 }
 
 .popup .icon:last-child {
+  width: var(--space-5);
+  height: var(--space-5);
   color: var(--color-text-secondary);
+}
+
+/* What the pop-up shows; the select over it is unseen (see BookPicker.tsx). */
+.popup-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-popup .popup-value {
+  font-weight: var(--font-weight-bold);
+}
+
+.popup.status-none,
+.popup.status-none .icon:last-child {
+  color: var(--color-text-tertiary);
+}
+
+.popup.status-none .status-dot {
+  display: none;
+}
+
+.popup:has(> .popup-value) select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+}
+
+.popup:has(> select:focus-visible) {
+  outline: 2px solid var(--color-accent-fill);
+  outline-offset: 1px;
 }
 
 .popup select {
@@ -733,12 +796,13 @@ button {
   text-overflow: ellipsis;
 }
 
-/* Back and Forward start it; the rest sits at its end. In a narrow window
-   the search field gives way first, and nothing spills over the list. */
+/* Focus mode, Back and Forward start it; the view modes and the More menu
+   sit at its end. No rule under it: it is part of the note's surface. */
 .editor-toolbar {
   gap: var(--space-4);
   justify-content: flex-start;
-  padding: 0 var(--space-7);
+  padding: 0 var(--space-6) 0 var(--space-5);
+  border-bottom: 0;
   overflow: hidden;
 }
 
@@ -746,12 +810,35 @@ button {
   flex-shrink: 0;
 }
 
-.editor-toolbar > .search-field {
-  flex-shrink: 1;
-  min-width: calc(var(--space-10) * 2);
+/* The view modes: an outlined group, the selected segment filled grey. */
+.editor-toolbar .segmented {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line-hairline);
+  background: transparent;
 }
 
-/* Back and Forward, at the start of the editor's toolbar. */
+.editor-toolbar .segment {
+  height: var(--size-field-height);
+  border-radius: 0;
+}
+
+.editor-toolbar .segment + .segment {
+  border-left: 1px solid var(--color-line-hairline);
+}
+
+.editor-toolbar .segment[aria-pressed='true'] {
+  background: var(--color-fill-row-selected-unemphasized);
+  box-shadow: none;
+}
+
+/* The More menu's ellipsis stands upright. */
+.note-more .icon {
+  transform: rotate(90deg);
+}
+
+/* Focus mode, Back and Forward, at the start of the editor's toolbar. */
 .trail-buttons {
   display: flex;
   gap: var(--space-1);
@@ -803,7 +890,7 @@ button {
 /* The side margins become padding, so text lines up as outside focus mode. */
 .window[data-focus] .content > .title,
 .window[data-focus] .content > .note-meta {
-  padding-inline: var(--space-10);
+  padding-inline: var(--space-9);
 }
 
 .window[data-focus] .content > .panes-split {
@@ -852,14 +939,16 @@ button {
   overflow-x: auto;
 }
 
+/* Editor and preview stand apart by whitespace alone. */
 .panes-split .preview {
-  border-left: 1px solid var(--color-line-hairline);
+  padding-left: var(--space-10);
 }
 
 .editor {
   min-height: 0;
   overflow: auto;
-  padding: 0 var(--space-9);
+  /* A line pads its text by space-3: the text lines up with the title. */
+  padding: 0 var(--space-9) 0 calc(var(--space-9) - var(--space-3));
 }
 
 .editor[hidden] {
@@ -970,6 +1059,46 @@ button {
 .find-toggle[aria-pressed='true'] {
   background: var(--color-fill-row-selected-unemphasized);
   color: var(--color-accent-text);
+}
+
+/*
+ * A code block's header: its language's mark and its title (or language),
+ * over the code, which moves down to make room.
+ */
+.code-head {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: calc(var(--size-field-height) + var(--space-4));
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--size-field-height);
+  padding: var(--space-2) var(--space-6) 0;
+  color: var(--color-text-secondary);
+  font: var(--font-weight-semibold) var(--font-size-footnote) / 1 var(--font-family-ui);
+}
+
+.code-head .icon,
+.code-mark {
+  flex: none;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+
+.code-mark {
+  fill: currentColor;
+}
+
+.code-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview pre:has(> .code-head) > code {
+  padding-top: calc(var(--size-field-height) + var(--space-2));
 }
 
 /* Shown on hover, on keyboard focus and while it reports a copy. */
@@ -1111,12 +1240,17 @@ button {
   color: var(--color-text-primary);
 }
 
-/* Search field in the toolbar. */
+/* Search field, in the note list's header (its width is the list's). */
+.list-search {
+  flex-shrink: 0;
+  padding: var(--space-4) var(--space-5);
+}
+
 .search-field {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  width: calc(var(--space-10) * 6);
+  width: 100%;
   height: var(--size-field-height);
   padding: 0 var(--space-4);
   box-sizing: border-box;

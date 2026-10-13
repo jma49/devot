@@ -68,7 +68,7 @@ export function TagEditor(props: {
         ref={field}
         className="tag-input"
         aria-label={t('note.addTag')}
-        placeholder={t('note.addTag')}
+        placeholder={t('note.addTags')}
         list={suggestions}
         value={draft}
         {...limit}

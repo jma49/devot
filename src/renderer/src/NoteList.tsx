@@ -78,6 +78,8 @@ interface Props {
   onEdit?: (part: 'title' | 'body', id: string) => void
   /** Shown first in the toolbar (Show Sidebar while the sidebar is hidden). */
   leading?: ReactNode
+  /** Shown under the toolbar, above the rows: the search field. */
+  search?: ReactNode
   /** Search results: what to mark in titles and in body excerpts (see `searchPattern`). */
   highlight?: { title: RegExp | null; body: RegExp | null }
   /**
@@ -770,6 +772,7 @@ export const NoteList = memo(function NoteList(props: Props) {
           </button>
         )}
       </div>
+      {props.search ? <div className="list-search">{props.search}</div> : null}
       <ul
         ref={list}
         className="rows"

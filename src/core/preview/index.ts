@@ -13,22 +13,29 @@ import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
 import { BUILTIN_RENDERERS } from './builtins'
+import { remarkCodeTitle } from './codeTitle'
 import { createRegistry, type PreviewOptions, type PreviewRegistry } from './registry'
 
 export * from './registry'
 export { videoEmbedUrl } from './builtins'
+export { codeTitle, MAX_CODE_TITLE_CHARS } from './codeTitle'
 export { createEmojiRenderer, type EmojiTable } from './emoji'
 export { createMathRenderer, type MathEngine } from './math'
 
 /**
- * The allowlist: GitHub's schema plus `mark`, https iframes and devot:// URLs.
+ * The allowlist: GitHub's schema plus `mark`, https iframes, devot:// URLs and
+ * a code block's title (`data-title` on `code`, see codeTitle.ts).
  * Math arrives as `code.language-math` (kept by the schema) and is rendered
  * after sanitizing.
  */
 const schema: Schema = {
   ...defaultSchema,
   tagNames: [...(defaultSchema.tagNames ?? []), 'mark', 'iframe'],
-  attributes: { ...defaultSchema.attributes, iframe: ['src', 'title', 'width', 'height'] },
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [...(defaultSchema.attributes?.['code'] ?? []), 'dataTitle'],
+    iframe: ['src', 'title', 'width', 'height'],
+  },
   protocols: {
     ...defaultSchema.protocols,
     href: ['http', 'https', 'mailto', 'devot'],
@@ -41,6 +48,7 @@ const processor = unified()
   .use(remarkFrontmatter, ['yaml'])
   .use(remarkGfm)
   .use(remarkMath)
+  .use(remarkCodeTitle)
   // Front matter is shown by the `devot.frontmatter` renderer, not as text.
   .use(remarkRehype, { allowDangerousHtml: true, handlers: { yaml: () => undefined } })
   .use(rehypeRaw)

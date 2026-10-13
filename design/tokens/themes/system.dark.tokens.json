@@ -234,6 +234,21 @@
         "$value": "{color.syntax.red-dark}",
         "$type": "color",
         "$description": "Deleted and invalid text in the editor; status red, deepened so it keeps 4.5:1 on the selection."
+      },
+      "heading": {
+        "$value": "{color.syntax.crimson-dark}",
+        "$type": "color",
+        "$description": "Heading text in the editor's Markdown source."
+      },
+      "markup": {
+        "$value": "{color.syntax.indigo-dark}",
+        "$type": "color",
+        "$description": "Markdown and HTML markup in the editor: heading and emphasis markers, inline code, and tags such as kbd."
+      },
+      "list": {
+        "$value": "{color.syntax.red-dark}",
+        "$type": "color",
+        "$description": "List and quote markers in the editor."
       }
     },
     "diff": {

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, reloadApp, test } from './fixtures'
+import { expect, reloadApp, test, pickNoteMore } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -275,7 +275,7 @@ test('an image another note shows stays when its own note is deleted for good', 
 
   await noteRows(page).filter({ hasText: 'Source' }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Source')
-  await page.getByRole('button', { name: 'Move to Trash' }).click()
+  await pickNoteMore(page, 'Move to Trash')
   await expect(trashRow).toHaveText(/1$/)
   await trashRow.click()
   await page.getByRole('button', { name: 'Empty Trash' }).click()

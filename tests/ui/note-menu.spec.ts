@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test'
-import { clipboardWrites, expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
+import {
+  clipboardWrites,
+  expect,
+  pickMenuItem,
+  shownMenu,
+  test,
+  type TestWindow,
+  openNotePinned,
+} from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
@@ -139,10 +147,7 @@ test('menu items act on the clicked note, not the open one', async ({ page }) =>
   await pickMenuItem(page, 'Pin to Top')
   await expect(pinnedHeader(page)).toBeVisible()
   await expect(titleField(page)).toHaveValue('Open')
-  await expect(page.getByRole('button', { name: 'Pin to Top' })).toHaveAttribute(
-    'aria-pressed',
-    'false',
-  )
+  await expect.poll(() => openNotePinned(page)).toBe(false)
 
   await openMenu(page, 'Clicked')
   await pickMenuItem(page, 'Move to Trash')
@@ -206,7 +211,7 @@ test('P pins and unpins the selected note', async ({ page }) => {
   await focusRow(page, 'First')
   await page.keyboard.press('KeyP')
   await expect(pinnedHeader(page)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Unpin' })).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => openNotePinned(page)).toBe(true)
   // The row keeps the keyboard as it moves to the pinned section.
   await expect(noteRow(page, 'First')).toBeFocused()
   await page.keyboard.press('KeyP')
@@ -382,7 +387,7 @@ test('shortcuts act on the open note after a right-click on another row', async 
   await focusRow(page, 'Open')
   await openMenu(page, 'Other')
   await page.keyboard.press('KeyP')
-  await expect(page.getByRole('button', { name: 'Unpin' })).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => openNotePinned(page)).toBe(true)
   await expect
     .poll(async () => (await stored(page)).map((n) => [n.title, n.pinned]).sort())
     .toEqual([
@@ -409,7 +414,7 @@ test('after duplicating into a filtered-out copy, shortcuts act on the copy', as
     'data-note-id',
     copy?.id ?? '',
   )
-  await expect(page.getByRole('button', { name: 'Pin to Top' })).toBeVisible()
+  await expect.poll(() => openNotePinned(page)).toBe(false)
   await page.keyboard.press('Meta+Shift+KeyC')
   await expect.poll(() => clipboardWrites(page)).toEqual([`devot://note/${copy?.id}`])
 })
