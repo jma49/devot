@@ -160,7 +160,11 @@ test('New Note from Selection moves the text into a note and links to it', async
   await expect(body(page)).toBeFocused()
   // The new note is in the same notebook, titled after the text's first line.
   await expect(noteRows(page)).toHaveCount(2)
-  await expect(noteRows(page).filter({ hasText: 'Follow-ups' })).toHaveCount(1)
+  // By title: the source's excerpt shows the link's text too.
+  const followUps = noteRows(page).filter({
+    has: page.locator('.row-title', { hasText: 'Follow-ups' }),
+  })
+  await expect(followUps).toHaveCount(1)
 
   // One undo step puts the text back; the new note stays.
   await page.keyboard.press('ControlOrMeta+z')
@@ -169,7 +173,7 @@ test('New Note from Selection moves the text into a note and links to it', async
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y')
   await expect(line(page, 1)).toHaveText(/^\[Follow-ups\]/)
 
-  await noteRows(page).filter({ hasText: 'Follow-ups' }).click()
+  await followUps.click()
   await expect(title(page)).toHaveValue('Follow-ups')
   await expect.poll(() => lines(page)).toEqual(['## Follow-ups', 'Send the deck'])
 })

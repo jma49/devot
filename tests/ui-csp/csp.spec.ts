@@ -436,6 +436,10 @@ test('find marks matches in the editor and the preview under the policy', async 
   expect(await violations(page)).toEqual([])
 })
 
+/** A pane's tab in the settings window, which shows one pane at a time. */
+const settingsTab = (page: Page, name: string) =>
+  page.getByRole('tablist', { name: 'Settings panes' }).getByRole('tab', { name, exact: true })
+
 test('the settings window lists usage events within the policy', async ({ page }) => {
   await page.addInitScript(() => {
     ;(globalThis as unknown as TestWindow).devotIpcMocks = {
@@ -443,6 +447,7 @@ test('the settings window lists usage events within the policy', async ({ page }
     }
   })
   await start(page, '/settings.html')
+  await settingsTab(page, 'Usage').click()
   const section = page.getByRole('region', { name: 'Usage Data' })
   await expect(section.getByRole('table', { name: 'Events by type' })).toContainText('Note created')
   await section.getByRole('button', { name: 'Show Events' }).click()
@@ -452,6 +457,7 @@ test('the settings window lists usage events within the policy', async ({ page }
 
 test('the editor settings work under the policy in both windows', async ({ page }) => {
   await start(page, '/settings.html')
+  await settingsTab(page, 'Editor').click()
   const editor = page.getByRole('region', { name: 'Editor' })
   await editor.getByRole('checkbox', { name: 'Check spelling while typing' }).check()
   await editor.getByRole('combobox', { name: 'Font' }).selectOption('Menlo')

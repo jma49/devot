@@ -128,7 +128,7 @@ test('the toolbar shows for a selection, with named SF Symbol buttons', async ({
     ['Strikethrough', 'Strikethrough (⇧⌘X)', 'strikethrough'],
     ['Highlight', 'Highlight (⇧⌘H)', 'highlighter'],
     ['Link', 'Link (⌘K)', 'link'],
-    ['Inline Code', 'Inline Code (⌘E)', 'chevron.left.forwardslash.chevron.right'],
+    ['Inline Code', 'Inline Code (⌥⌘E)', 'chevron.left.forwardslash.chevron.right'],
     ['Code Block', 'Code Block (⇧⌘C)', 'curlybraces.square'],
     ['Bulleted List', 'Bulleted List (⇧⌘8)', 'list.bullet'],
     ['Numbered List', 'Numbered List (⇧⌘7)', 'list.number'],
@@ -249,7 +249,7 @@ test('every format has a shortcut that works without the toolbar', async ({ page
     ['ControlOrMeta+i', '*word*'],
     ['ControlOrMeta+Shift+X', '~~word~~'],
     ['ControlOrMeta+Shift+H', '<mark>word</mark>'],
-    ['ControlOrMeta+e', '`word`'],
+    ['ControlOrMeta+Alt+KeyE', '`word`'],
   ]
   for (const [keys, formatted] of cases) {
     await page.keyboard.press('ControlOrMeta+a')

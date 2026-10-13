@@ -109,7 +109,10 @@ test('Note Link opens the note search where the query was', async ({ page }) => 
   await expect(popup(page).getByRole('option', { name: 'New Note “Plan B”' })).toBeVisible()
   await page.waitForTimeout(150)
   await page.keyboard.press('Enter')
-  await expect(noteRows(page).filter({ hasText: 'Plan B' })).toHaveCount(1)
+  // By title: the source's excerpt shows the link's text too.
+  await expect(
+    noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Plan B' }) }),
+  ).toHaveCount(1)
   await expect.poll(async () => (await lines(page))[1]).toMatch(/^\[Plan B\]\(devot:\/\/note\//)
 })
 

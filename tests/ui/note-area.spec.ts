@@ -74,7 +74,7 @@ test('the toolbar starts with focus mode, Back and Forward and ends with the vie
   const search = page.getByRole('region', { name: 'Notes' }).getByRole('searchbox')
   await expect(search).toBeVisible()
   await body(page).click()
-  await page.keyboard.press('ControlOrMeta+Shift+KeyF')
+  await page.keyboard.press('Meta+Shift+KeyF')
   await expect(search).toBeFocused()
 })
 

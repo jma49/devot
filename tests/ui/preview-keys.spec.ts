@@ -144,7 +144,7 @@ test('Cmd+= and Cmd+- resize the preview, and Cmd+0 resets it', async ({ page })
 
 test('Cmd+E swaps editor and preview, and Cmd+Shift+E shows both', async ({ page }) => {
   await longNote(page, 'Mode keys')
-  const key = (k: string) => page.keyboard.press(`ControlOrMeta+${k}`)
+  const key = (k: string) => page.keyboard.press(`Meta+${k}`)
   const pressed = async (name: 'Edit' | 'Split' | 'Preview') =>
     expect(modeButton(page, name)).toHaveAttribute('aria-pressed', 'true')
 
