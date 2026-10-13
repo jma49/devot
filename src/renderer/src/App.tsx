@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
   BatchChange,
   BookRecord,
@@ -170,6 +170,9 @@ const ALL_NOTES: Selection = { kind: 'all' }
  */
 const LIST_TITLE_MS = 150
 
+/** How long `data-pane-motion` stays on: the slide (app.css) plus a margin. */
+const PANE_MOTION_MS = 300
+
 /** View > Hide Sidebar in the menu bar; App re-sends the Tauri event as this. */
 export const TOGGLE_SIDEBAR = 'devot:toggle-sidebar'
 
@@ -334,6 +337,25 @@ export function App() {
   if (!narrow && askedIn !== null) setAskedIn(null)
   const sidebarOff = sidebarHidden || (narrow && askedIn !== narrow)
   const sidebarShown = !focus && !sidebarOff
+  // Hiding or showing the sidebar and the list slides them (app.css). The
+  // window carries `data-pane-motion` for the length of the slide only, so a
+  // first paint never animates. The panes are inert from the first frame of a
+  // hide, so the keyboard leaves them as it did when they vanished at once.
+  const [panesSeen, setPanesSeen] = useState({ focus, sidebarOff })
+  const [paneMotion, setPaneMotion] = useState(false)
+  if (panesSeen.focus !== focus || panesSeen.sidebarOff !== sidebarOff) {
+    setPanesSeen({ focus, sidebarOff })
+    setPaneMotion(true)
+  }
+  useEffect(() => {
+    if (!paneMotion) return
+    const timer = setTimeout(() => setPaneMotion(false), PANE_MOTION_MS)
+    return () => clearTimeout(timer)
+  }, [paneMotion, panesSeen])
+  useLayoutEffect(() => {
+    document.querySelector('.window > .sidebar')?.toggleAttribute('inert', focus || sidebarOff)
+    document.querySelector('.window > .list')?.toggleAttribute('inert', focus)
+  }, [focus, sidebarOff])
   // The notes this window opened, for Back and Forward. The ref moves at
   // once (quick presses each step on); the state renders it.
   const trailRef = useRef<Trail>(EMPTY_TRAIL)
@@ -2339,6 +2361,7 @@ export function App() {
       data-ready={restored || undefined}
       data-sidebar-hidden={sidebarOff || undefined}
       data-narrow={narrow || undefined}
+      data-pane-motion={paneMotion || undefined}
     >
       <ToolTips />
       <Sidebar
