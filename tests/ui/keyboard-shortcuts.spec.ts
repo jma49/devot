@@ -309,6 +309,7 @@ test('a shortcut changed in Settings works in the main window at once', async ({
       'palette.open': MAC ? 'Alt+CmdOrCtrl+P' : 'Ctrl+Alt+P',
       'view.sidebar': 'CmdOrCtrl+/',
       'view.syncScroll': null,
+      'app.backups': null,
     },
   })
 

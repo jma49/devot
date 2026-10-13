@@ -180,12 +180,15 @@ it('labels View > Hide Sidebar as the app labels the command', () => {
 })
 
 // View > Revision History..., Command Palette..., Hide Sidebar and Synced
-// Scrolling (a check item, no key by default) take the keys in effect from
+// Scrolling (a check item, no key by default), and Devot > Backups... take the keys in effect from
 // the main window (`command_menu_set`), which accepts only the commands Rust
 // lists, with keys `format_menu_set` would read.
 it('sets the command items keys Rust accepts', () => {
-  const items = [...MENU.matchAll(/CommandItem \{\s*command: "([^"]+)"/g)].map((m) => m[1])
+  const items = [
+    ...MENU.matchAll(/CommandItem \{\s*place: MenuPlace::\w+,\s*command: "([^"]+)"/g),
+  ].map((m) => m[1])
   expect(items).toContain('view.syncScroll')
+  expect(items).toContain('app.backups')
   expect(items.sort()).toEqual(Object.values(NATIVE_MENU_COMMANDS).sort())
   const keys = commandMenuKeys()
   expect(Object.keys(keys).sort()).toEqual(items)
@@ -214,6 +217,7 @@ it('keeps every command item to set its key', () => {
     ['Plain', 'palette'],
     ['Plain', 'sidebar'],
     ['Check', 'sync_scroll'],
+    ['Plain', 'backups'],
   ])
 })
 

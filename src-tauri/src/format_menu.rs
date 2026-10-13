@@ -523,7 +523,7 @@ mod tests {
         }
         // Each is a valid accelerator, and every key menu.rs sets is listed,
         // except the defaults of the items that run a command (the UI sets
-        // those; Synced Scrolling has none by default).
+        // those; Synced Scrolling and Backups have none by default).
         for taken in MENU_BAR_KEYS {
             assert!(parse_accelerator(taken).is_some(), "{taken}");
         }
@@ -534,7 +534,7 @@ mod tests {
             .map(|part| part.split('"').next().unwrap_or_default())
             .filter(|accelerator| !MENU_BAR_KEYS.contains(accelerator))
             .count();
-        assert_eq!(others, crate::menu::COMMAND_ITEMS.len() - 1);
+        assert_eq!(others, crate::menu::COMMAND_ITEMS.len() - 2);
         assert!(menu.matches(".accelerator(\"").count() >= 5);
     }
 

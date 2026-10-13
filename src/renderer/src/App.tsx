@@ -798,7 +798,11 @@ export function App() {
 
   // Backups: the menu opens the dialog; a failed backup shows a notice.
   useEffect(() => {
-    const show = () => showBackups()
+    // Rust sends the menu event to this window even while Settings or a
+    // native panel has the keyboard; then it must open nothing behind it.
+    const show = () => {
+      if (document.hasFocus()) showBackups()
+    }
     const failed = (e: Event) => setBackupNotice(errorCode((e as CustomEvent).detail))
     window.addEventListener(SHOW_BACKUPS, show)
     window.addEventListener(BACKUP_FAILED, failed)

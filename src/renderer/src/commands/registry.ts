@@ -1007,6 +1007,8 @@ export const NATIVE_MENU_COMMANDS: Readonly<Record<string, CommandId>> = {
   // A check item; Rust toggles the setting itself, and drops the echo of a
   // key the window ran the command for (see menu.rs).
   'devot.syncScroll': 'view.syncScroll',
+  // In the app menu (Devot > Backups...).
+  'devot.backups': 'app.backups',
 }
 
 /**

@@ -49,8 +49,20 @@ pub const TOGGLE_SIDEBAR_EVENT: &str = "devot://toggle-sidebar";
 /// View > Hide Sidebar, kept to relabel it.
 pub struct SidebarMenuItem(MenuItem<Wry>);
 
+/// The menu a command item is in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MenuPlace {
+    /// The View menu.
+    View,
+    /// The app menu (Devot), the menu bar's first.
+    App,
+}
+
 /// A menu item that runs a registry command.
 pub struct CommandItem {
+    /// The menu the item is in.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub place: MenuPlace,
     /// The registry command's ID.
     pub command: &'static str,
     /// Every title the item can have (read on macOS to clear its key).
@@ -58,23 +70,32 @@ pub struct CommandItem {
     pub titles: &'static [&'static str],
 }
 
-/// The View menu's items that run a registry command.
+/// The menu items that run a registry command (View, and Devot > Backups...).
 pub const COMMAND_ITEMS: &[CommandItem] = &[
     CommandItem {
+        place: MenuPlace::View,
         command: "note.history",
         titles: &[strings::REVISION_HISTORY],
     },
     CommandItem {
+        place: MenuPlace::View,
         command: "palette.open",
         titles: &[strings::COMMAND_PALETTE],
     },
     CommandItem {
+        place: MenuPlace::View,
         command: "view.sidebar",
         titles: &[strings::HIDE_SIDEBAR, strings::SHOW_SIDEBAR],
     },
     CommandItem {
+        place: MenuPlace::View,
         command: "view.syncScroll",
         titles: &[strings::SYNC_SCROLL],
+    },
+    CommandItem {
+        place: MenuPlace::App,
+        command: "app.backups",
+        titles: &[strings::BACKUPS],
     },
 ];
 
@@ -130,7 +151,7 @@ pub fn plan_command_keys(
 }
 
 /// Gives View > Revision History..., Command Palette..., Hide Sidebar and
-/// Synced Scrolling the keys their commands have now (main window only): the user may have changed
+/// Synced Scrolling, and Devot > Backups..., the keys their commands have now (main window only): the user may have changed
 /// them (Settings > Keyboard Shortcuts). Keys are command ID to accelerator
 /// (as `shortcutAccelerator` writes it), or null for no key.
 #[tauri::command]
@@ -166,16 +187,20 @@ pub async fn command_menu_set(
 async fn clear_command_keys(app: &AppHandle) -> bool {
     #[cfg(target_os = "macos")]
     {
-        let titles: Vec<&'static str> = COMMAND_ITEMS
-            .iter()
-            .flat_map(|item| item.titles.iter().copied())
-            .collect();
+        let titles_in = |place: MenuPlace| -> Vec<&'static str> {
+            COMMAND_ITEMS
+                .iter()
+                .filter(|item| item.place == place)
+                .flat_map(|item| item.titles.iter().copied())
+                .collect()
+        };
+        let (view, app_menu) = (titles_in(MenuPlace::View), titles_in(MenuPlace::App));
         let (reply, answer) = tokio::sync::oneshot::channel();
         let sent = app.run_on_main_thread(move || {
-            let _ = reply.send(crate::native::macos::clear_item_key_equivalents(
-                strings::MENU_VIEW,
-                &titles,
-            ));
+            let _ = reply.send(
+                crate::native::macos::clear_item_key_equivalents(strings::MENU_VIEW, &view)
+                    & crate::native::macos::clear_app_menu_key_equivalents(&app_menu),
+            );
         });
         sent.is_ok() && answer.await.unwrap_or(false)
     }
@@ -335,6 +360,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
                 CommandMenuItem::Plain(palette.clone()),
                 CommandMenuItem::Plain(sidebar.clone()),
                 CommandMenuItem::Check(sync_scroll.clone()),
+                CommandMenuItem::Plain(backups.clone()),
             ])
             .collect(),
     ));
@@ -477,9 +503,23 @@ mod tests {
                 "note.history",
                 "palette.open",
                 "view.sidebar",
-                "view.syncScroll"
+                "view.syncScroll",
+                "app.backups"
             ]
         );
+        // Backups is in the app menu; the others are in View.
+        let places: Vec<_> = COMMAND_ITEMS.iter().map(|item| item.place).collect();
+        assert_eq!(
+            places,
+            [
+                MenuPlace::View,
+                MenuPlace::View,
+                MenuPlace::View,
+                MenuPlace::View,
+                MenuPlace::App
+            ]
+        );
+        assert_eq!(COMMAND_ITEMS[4].titles, [strings::BACKUPS]);
         // The sidebar item is found by either label.
         let sidebar = COMMAND_ITEMS[2].titles;
         assert!(sidebar.contains(&sidebar_label(true)) && sidebar.contains(&sidebar_label(false)));
@@ -507,6 +547,7 @@ mod tests {
                 ("palette.open", None),
                 ("view.sidebar", Some("Shift+Alt+CmdOrCtrl+S".to_owned())),
                 ("view.syncScroll", None),
+                ("app.backups", None),
             ]
         );
         // A command left out has no key.
@@ -519,6 +560,12 @@ mod tests {
         assert_eq!(
             plan[3],
             ("view.syncScroll", Some("Shift+CmdOrCtrl+J".to_owned()))
+        );
+        // Backups takes a key like the others.
+        let plan = plan_command_keys(&keys(&[("app.backups", Some("Shift+CmdOrCtrl+B"))])).unwrap();
+        assert_eq!(
+            plan[4],
+            ("app.backups", Some("Shift+CmdOrCtrl+B".to_owned()))
         );
     }
 

@@ -811,16 +811,45 @@ pub fn clear_item_key_equivalents(menu_title: &str, item_titles: &[&str]) -> boo
         let Some(menu) = format_menu(&app, menu_title) else {
             return false;
         };
-        let empty = NSString::new();
-        for item in menu.itemArray().iter() {
-            let title = item.title().to_string();
-            if item.submenu().is_none() && item_titles.contains(&title.as_str()) {
-                item.setKeyEquivalent(&empty);
-            }
-        }
+        clear_titled_keys(&menu, item_titles);
         true
     }))
     .unwrap_or(false)
+}
+
+/// Like `clear_item_key_equivalents` for the app menu (Devot), the menu
+/// bar's first menu: AppKit names it after the process, so it is found by
+/// position, not title. Must run on the main thread; false when it is
+/// missing.
+pub fn clear_app_menu_key_equivalents(item_titles: &[&str]) -> bool {
+    let Some(mtm) = MainThreadMarker::new() else {
+        return false;
+    };
+    catch_unwind(AssertUnwindSafe(|| {
+        let app = NSApplication::sharedApplication(mtm);
+        let Some(menu) = app
+            .mainMenu()
+            .and_then(|bar| bar.itemAtIndex(0))
+            .and_then(|holder| holder.submenu())
+        else {
+            return false;
+        };
+        clear_titled_keys(&menu, item_titles);
+        true
+    }))
+    .unwrap_or(false)
+}
+
+/// Clears the key of each item of `menu` (not a submenu holder) titled one
+/// of `item_titles`.
+fn clear_titled_keys(menu: &NSMenu, item_titles: &[&str]) {
+    let empty = NSString::new();
+    for item in menu.itemArray().iter() {
+        let title = item.title().to_string();
+        if item.submenu().is_none() && item_titles.contains(&title.as_str()) {
+            item.setKeyEquivalent(&empty);
+        }
+    }
 }
 
 /// The Format menu as the menu bar holds it, found by its title on every
@@ -975,6 +1004,18 @@ pub fn self_test_format_menu_keys() -> Result<(), &'static str> {
             || edit_italic.keyEquivalent().length() == 0
         {
             return Err("E_ITEM_KEYS_CLEARED_WRONG_ITEMS");
+        }
+        // The app menu is the bar's first menu, found by position.
+        let first = app
+            .mainMenu()
+            .and_then(|bar| bar.itemAtIndex(0))
+            .and_then(|holder| holder.submenu())
+            .ok_or("E_APP_MENU_NOT_FOUND")?;
+        let backups = item("b", &edit_ran);
+        backups.setTitle(&NSString::from_str("Backups"));
+        first.addItem(&backups);
+        if !clear_app_menu_key_equivalents(&["Backups"]) || backups.keyEquivalent().length() != 0 {
+            return Err("E_APP_MENU_KEY_NOT_CLEARED");
         }
         Ok(())
     })();
