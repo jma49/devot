@@ -478,7 +478,7 @@ test('the editor settings work under the policy in both windows', async ({ page 
   // Split mode gives each pane half the note area; Edit keeps the reading width.
   await expect(content).toHaveCSS('max-width', 'none')
   await page.getByRole('button', { name: 'Edit', exact: true }).click()
-  await expect(content).toHaveCSS('max-width', '720px')
+  await expect(content).toHaveCSS('max-width', '740px')
   await page.keyboard.press('Meta+Equal')
   await expect(content).toHaveCSS('font-size', '19px')
   await changeEditorSettingsElsewhere(page, { lineNumbers: false, spellCheck: true, tabWidth: 8 })

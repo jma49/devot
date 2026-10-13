@@ -323,6 +323,16 @@
         },
         "$description": "A day with the most writing in the activity heatmap."
       }
+    },
+    "trailing-space": {
+      "$type": "color",
+      "$description": "Behind spaces and tabs at the end of a line when the editor highlights trailing whitespace.",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.9137, 0.4706, 0.451],
+        "hex": "#e97873",
+        "alpha": 0.3
+      }
     }
   }
 }

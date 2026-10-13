@@ -35,7 +35,8 @@ export const sizes = {
   "size.pane-min-width": "240px",
   "size.sidebar-collapse-width": "1000px",
   "size.popup-max-width": "240px",
-  "size.reading-width": "720px",
+  "size.reading-width": "740px",
+  "size.settings-nav-width": "155px",
   "size.toolbar-height": "52px",
   "size.sidebar-row": "28px",
   "size.segment-height": "22px",
@@ -92,7 +93,8 @@ export const light = {
   "color.activity.level-1": "rgb(14 107 98 / 0.25)",
   "color.activity.level-2": "rgb(14 107 98 / 0.45)",
   "color.activity.level-3": "rgb(14 107 98 / 0.7)",
-  "color.activity.level-4": "#0e6b62"
+  "color.activity.level-4": "#0e6b62",
+  "color.trailing-space": "rgb(175 59 54 / 0.25)"
 } as const
 
 export const dark = {
@@ -140,7 +142,8 @@ export const dark = {
   "color.activity.level-1": "rgb(99 205 191 / 0.22)",
   "color.activity.level-2": "rgb(99 205 191 / 0.42)",
   "color.activity.level-3": "rgb(99 205 191 / 0.66)",
-  "color.activity.level-4": "#63cdbf"
+  "color.activity.level-4": "#63cdbf",
+  "color.trailing-space": "rgb(233 120 115 / 0.3)"
 } as const
 
 export type ThemeColor = keyof typeof light

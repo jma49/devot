@@ -21,6 +21,10 @@ describe('the last pane', () => {
     expect(paneStore(storage).read()).toBe('mirror')
   })
 
+  it('opens a pane remembered under its old name', () => {
+    expect(paneStore(memory({ 'devot.settings.pane': 'editor' })).read()).toBe('editing')
+  })
+
   it('falls back to General for a value that names no pane', () => {
     expect(paneStore(memory({ 'devot.settings.pane': 'sync' })).read()).toBe('general')
   })
@@ -39,11 +43,25 @@ describe('the last pane', () => {
   })
 })
 
-describe('toolbar keys', () => {
-  it('step through the panes with the arrow keys, wrapping at the ends', () => {
-    expect(paneAfterKey('general', 'ArrowRight')).toBe('editor')
-    expect(paneAfterKey('usage', 'ArrowRight')).toBe('general')
-    expect(paneAfterKey('general', 'ArrowLeft')).toBe('usage')
+describe('navigation keys', () => {
+  it('step through the panes with the Up and Down keys, wrapping at the ends', () => {
+    expect(paneAfterKey('general', 'ArrowDown')).toBe('editing')
+    expect(paneAfterKey('editing', 'ArrowDown')).toBe('preview')
+    expect(paneAfterKey('usage', 'ArrowDown')).toBe('general')
+    expect(paneAfterKey('general', 'ArrowUp')).toBe('usage')
+    expect(paneAfterKey('general', 'ArrowRight')).toBeUndefined()
+  })
+
+  it('lists the panes in the order the column shows them', () => {
+    expect(PANES).toEqual([
+      'general',
+      'editing',
+      'preview',
+      'appearance',
+      'keyboard',
+      'mirror',
+      'usage',
+    ])
   })
 
   it('go to the ends with Home and End, and leave other keys alone', () => {

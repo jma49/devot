@@ -61,15 +61,16 @@ test('the editor starts with the stored settings', async ({ page }) => {
   await expect(content(page)).toHaveAttribute('spellcheck', 'true')
 })
 
-test('the defaults keep the editor as it was', async ({ page }) => {
+test('the defaults give the editor room', async ({ page }) => {
   await newNote(page, 'alpha\n\tbeta')
   await expect(page.locator('.cm-lineNumbers')).toHaveCount(0)
-  await expect(page.locator('.cm-activeLine')).toHaveCount(1)
+  await expect(page.locator('.cm-activeLine')).toHaveCount(0)
   await expect(content(page)).toHaveClass(/cm-lineWrapping/)
   await expect(content(page)).toHaveCSS('font-size', '13px')
-  await expect(content(page)).toHaveAttribute('spellcheck', 'false')
+  await expect(content(page)).toHaveAttribute('spellcheck', 'true')
   await expect(content(page)).toHaveCSS('max-width', 'none')
-  await expect(content(page)).toHaveCSS('tab-size', '4')
+  await expect(content(page)).toHaveCSS('tab-size', '2')
+  await expect(scroller(page)).toHaveCSS('line-height', '19.5px')
   await expect(scroller(page)).toHaveCSS('font-family', /SF Mono|ui-monospace|Menlo|monospace/)
 })
 
@@ -105,17 +106,17 @@ test('a change from another window applies to the open editor at once', async ({
   await expect(body(page)).toContainText('alpha')
 
   await changed(page, { readableWidth: true })
-  await expect(content(page)).toHaveCSS('max-width', '720px')
+  await expect(content(page)).toHaveCSS('max-width', '740px')
   await expect(page.locator('.cm-editor')).toHaveAttribute('data-probe', '1')
 
   // And back.
   await changed(page, { lineNumbers: true })
   await expect(page.locator('.cm-lineNumbers')).toHaveCount(1)
-  await expect(page.locator('.cm-activeLine')).toHaveCount(1)
+  await expect(page.locator('.cm-activeLine')).toHaveCount(0)
   await expect(content(page)).toHaveClass(/cm-lineWrapping/)
   await expect(content(page)).toHaveCSS('max-width', 'none')
   await expect(content(page)).toHaveCSS('font-size', '13px')
-  await expect(content(page)).toHaveAttribute('spellcheck', 'false')
+  await expect(content(page)).toHaveAttribute('spellcheck', 'true')
   await expect(page.locator('.cm-editor')).toHaveAttribute('data-probe', '1')
 })
 
@@ -284,4 +285,17 @@ test('the font size commands are in the command palette', async ({ page }) => {
   await expect(palette.getByRole('option', { name: /Decrease Font Size/ })).toContainText('⌘-')
   await palette.getByRole('option', { name: /Increase Font Size/ }).click()
   await expect.poll(() => setCalls(page)).toEqual([{ fontSize: 14 }])
+})
+
+test('turning Toolbar off hides the selection toolbar', async ({ page }) => {
+  await newNote(page, 'alpha beta')
+  await page.keyboard.press('ControlOrMeta+a')
+  const toolbar = page.getByRole('toolbar', { name: 'Format' })
+  await expect(toolbar).toBeVisible()
+  await changed(page, { toolbar: false })
+  await expect(toolbar).toBeHidden()
+  // The selection stays; the toolbar is back when the setting is.
+  await changed(page, { toolbar: true })
+  await page.keyboard.press('ControlOrMeta+a')
+  await expect(toolbar).toBeVisible()
 })

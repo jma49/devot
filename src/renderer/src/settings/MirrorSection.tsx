@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { errorCode } from '../backups'
 import { fileSize } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
@@ -10,7 +10,7 @@ import {
   type MirrorPatch,
 } from '../mirror'
 import { useMirrorFolderChoice } from '../MirrorFolderChoice'
-import { FormGroup, FormHint, FormRow, SettingsFlag } from './controls'
+import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
 
 /**
  * Settings > Markdown Mirror: the folder Devot keeps up to date with every
@@ -31,9 +31,12 @@ export function MirrorSection() {
   )
   const folderChoice = useMirrorFolderChoice(chooseFailed)
   const chooseButton = useRef<HTMLButtonElement>(null)
-  const hint = `${useId()}-attachments-hint`
   const locale = currentLocale()
   const on = status.folder !== null
+  const mirrorSize = (size: number | null, loc: string) =>
+    size === null
+      ? t('mirror.folderLabel')
+      : format(t('mirror.size'), { size: fileSize(size, loc) })
 
   useEffect(() => startMirrorStatus(), [])
 
@@ -63,21 +66,12 @@ export function MirrorSection() {
           {pausedMessage(status.paused)}
         </p>
       ) : null}
-      <FormGroup>
-        <FormRow>
-          <FormHint>{t('mirror.detail')}</FormHint>
-        </FormRow>
-      </FormGroup>
-      <FormGroup>
-        <FormRow label="mirror.folderLabel">
-          {on ? (
-            <span className="mirror-folder">{status.folder}</span>
-          ) : (
-            <span>{t('mirror.off')}</span>
-          )}
-          {on && status.size !== null ? (
-            <FormHint>{format(t('mirror.size'), { size: fileSize(status.size, locale) })}</FormHint>
-          ) : null}
+      <SettingsSection icon="settings.mirror" title="mirror.title">
+        <SettingsNote>{t('mirror.detail')}</SettingsNote>
+        <Setting
+          label="mirror.folderLabel"
+          description={on ? mirrorSize(status.size, locale) : t('mirror.off')}
+        >
           <div className="settings-buttons">
             <button ref={chooseButton} type="button" className="button" onClick={choose}>
               {t('mirror.chooseFolder')}
@@ -97,17 +91,20 @@ export function MirrorSection() {
               </button>
             ) : null}
           </div>
-          <FormHint>{t('mirror.notReadBack')}</FormHint>
-        </FormRow>
-        <FormRow label="mirror.attachments">
-          <SettingsFlag
-            label="mirror.includeAttachments"
-            checked={status.includeAttachments}
-            hint={{ id: hint, text: 'mirror.includeAttachmentsHint' }}
-            onChange={(checked) => void change({ includeAttachments: checked })}
-          />
-        </FormRow>
-      </FormGroup>
+        </Setting>
+        {on ? (
+          <SettingsNote>
+            <span className="mirror-folder">{status.folder}</span>
+          </SettingsNote>
+        ) : null}
+        <SettingsNote>{t('mirror.notReadBack')}</SettingsNote>
+        <SettingToggle
+          label="mirror.includeAttachments"
+          description="mirror.includeAttachmentsHint"
+          checked={status.includeAttachments}
+          onChange={(checked) => void change({ includeAttachments: checked })}
+        />
+      </SettingsSection>
       {folderChoice.dialog}
     </section>
   )

@@ -1,7 +1,6 @@
-import { useId } from 'react'
 import { useEditorSetting } from '../editorSettings'
 import { format, t } from '../i18n'
-import { FormGroup, FormRow, SettingsFlag, useSettingsChange } from './controls'
+import { SettingToggle, SettingsSection, useSettingsChange } from './controls'
 
 /**
  * Settings > Appearance: whether the window shows the sidebar material
@@ -13,7 +12,6 @@ import { FormGroup, FormRow, SettingsFlag, useSettingsChange } from './controls'
 export function AppearanceSection() {
   const material = useEditorSetting('sidebarMaterial')
   const [error, change] = useSettingsChange()
-  const hint = `${useId()}-material-hint`
 
   return (
     <section className="settings-section" aria-labelledby="appearance-title">
@@ -25,16 +23,14 @@ export function AppearanceSection() {
           {format(t('appearanceSettings.failed'), { code: error })}
         </p>
       ) : null}
-      <FormGroup>
-        <FormRow label="appearanceSettings.sidebar">
-          <SettingsFlag
-            label="appearanceSettings.sidebarMaterial"
-            checked={material}
-            hint={{ id: hint, text: 'appearanceSettings.sidebarMaterialHint' }}
-            onChange={(checked) => change({ sidebarMaterial: checked })}
-          />
-        </FormRow>
-      </FormGroup>
+      <SettingsSection icon="settings.appearance" title="appearanceSettings.sidebar">
+        <SettingToggle
+          label="appearanceSettings.sidebarMaterial"
+          description="appearanceSettings.sidebarMaterialHint"
+          checked={material}
+          onChange={(sidebarMaterial) => change({ sidebarMaterial })}
+        />
+      </SettingsSection>
     </section>
   )
 }

@@ -11,7 +11,7 @@ import type { PasteUrlStyle } from '../../../core/editorSettings'
 import { context, inFrontMatter, LITERAL_BLOCKS, nodeAt, type Cx } from './formatContext'
 import { escapeBangBefore, linkAddress, linkTo } from './formats'
 
-/** How a lone URL is pasted (Settings > Editor); as copied by default. */
+/** How a lone URL is pasted (Settings > Editing); a link by default. */
 export const pasteUrlStyle = Facet.define<PasteUrlStyle, PasteUrlStyle>({
   combine: (values) => values[0] ?? 'plain',
 })

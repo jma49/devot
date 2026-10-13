@@ -22,7 +22,8 @@ const MOD = MAC ? 'Mod' : 'Ctrl'
 const withMod = (rest: string) => (MAC ? `${rest}\u2318` : `\u2303${rest}`)
 
 const section = (page: Page) => page.getByRole('region', { name: 'Keyboard Shortcuts' })
-const group = (page: Page, name: string) => section(page).getByRole('table', { name })
+const table = (page: Page) => section(page).getByRole('table', { name: 'Keyboard Shortcuts' })
+const search = (page: Page) => section(page).getByRole('searchbox', { name: 'Search keybindings' })
 /** A command's row, by its registry ID (labels repeat, with a scope after them). */
 const row = (page: Page, id: string) => section(page).locator(`tr[data-command="${id}"]`)
 const recorder = (page: Page, command: string) =>
@@ -51,22 +52,23 @@ const calls = (page: Page, cmd: string) =>
     cmd,
   )
 
-test('lists the commands by group with their keys', async ({ page }) => {
+test('lists every command in one table with its keys and where they come from', async ({
+  page,
+}) => {
   await openSettings(page)
-  for (const name of [
-    'Notes',
-    'Notebooks',
-    'Tags',
-    'View',
-    'Search',
-    'Find',
-    'Edit',
-    'Format',
-    'Tables',
-    'Images',
-    'App',
+  await expect(table(page).getByRole('columnheader')).toHaveText([
+    'Keystroke',
+    'Command',
+    'Source',
+    'Actions',
   ])
-    await expect(group(page, name)).toBeVisible()
+  // One table, not a table per group.
+  await expect(section(page).getByRole('table')).toHaveCount(1)
+  await expect(row(page, 'format.bold').getByRole('cell').nth(1)).toHaveText('Default')
+  // Each keystroke has a copy icon.
+  await expect(
+    row(page, 'format.bold').getByRole('button', { name: 'Copy the keystroke for Bold' }),
+  ).toBeVisible()
   await expect(row(page, 'image.sizeHalf')).toContainText('Image Size: Half Width')
   await expect(row(page, 'insert.table')).toContainText('In the editor')
   // The commands for several notes, and where their keys work.
@@ -89,13 +91,34 @@ test('lists the commands by group with their keys', async ({ page }) => {
   ).toBeDisabled()
 })
 
+test('the search field narrows the table to the commands that match', async ({ page }) => {
+  await openSettings(page)
+  const rows = table(page).locator('tbody tr')
+  const all = await rows.count()
+  expect(all).toBeGreaterThan(100)
+  await search(page).fill('bold')
+  await expect(rows).toHaveCount(1)
+  await expect(row(page, 'format.bold')).toBeVisible()
+  // A key matches too, as shown or as written.
+  await search(page).fill('\u2318K')
+  await expect(row(page, 'palette.open')).toBeVisible()
+  await expect(row(page, 'format.bold')).toHaveCount(0)
+  await search(page).fill('shift+enter')
+  await expect(row(page, 'edit.plainNewline')).toBeVisible()
+  await search(page).fill('no such command')
+  await expect(rows).toHaveCount(0)
+  await expect(section(page)).toContainText('No keybinding matches.')
+  await search(page).fill('')
+  await expect(rows).toHaveCount(all)
+})
+
 test('records a new key, and announces it', async ({ page }) => {
   await openSettings(page)
   await record(page, 'Bold', 'ControlOrMeta+Alt+KeyB')
   await expect(recorder(page, 'Bold')).toHaveAttribute('aria-pressed', 'false')
   await expect(recorder(page, 'Bold')).toHaveText(withMod('\u2325') + 'B')
   await expect(status(page)).toHaveText(`Bold: ${withMod('\u2325')}B`)
-  await expect(row(page, 'format.bold')).toContainText('Changed')
+  await expect(row(page, 'format.bold')).toContainText('User')
   expect(await storedShortcuts(page)).toEqual({ 'format.bold': [`${MOD}+Alt+B`] })
   await expect(recorder(page, 'Bold')).toBeFocused()
 })

@@ -264,5 +264,5 @@ const theme = EditorView.theme({
   '.cm-inline-image-failed': { visibility: 'hidden' },
 })
 
-/** Attachments shown under their lines (Settings > Editor > Show images). */
+/** Attachments shown under their lines (Settings > Editing > Inline Image Widgets). */
 export const inlineImages = [inlineImageField, theme]

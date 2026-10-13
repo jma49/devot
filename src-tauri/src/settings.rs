@@ -1,6 +1,6 @@
-//! The Settings window (Devot > Settings..., Cmd+,): a toolbar of panes,
-//! one shown at a time, the window fitting the pane's height
-//! (`settings_fit`). Its capability (`capabilities/settings.json`) grants
+//! The Settings window (Devot > Settings..., Cmd+,): a column of panes on
+//! the left, one shown at a time in a window of a fixed size (a longer pane
+//! scrolls). Its capability (`capabilities/settings.json`) grants
 //! only what its panes need: the editor settings (see `editor_settings`),
 //! the keyboard shortcuts, the Markdown mirror's setting, reading and
 //! clearing the local usage events, opening the app's data folder in Finder
@@ -11,17 +11,15 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::{menu, strings};
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub const LABEL: &str = "settings";
 const PAGE: &str = "settings.html";
 
-/// The window's content width, the same for every pane.
-const WIDTH: f64 = 620.0;
-/// Its content height until the page fits it to the pane it shows.
-const INITIAL_HEIGHT: f64 = 480.0;
-/// The content heights the page may ask for; a longer pane scrolls.
-const HEIGHTS: std::ops::RangeInclusive<f64> = 120.0..=1200.0;
+/// The window's content width.
+const WIDTH: f64 = 820.0;
+/// Its content height; a longer pane scrolls.
+const HEIGHT: f64 = 640.0;
 
 /// Opens the Settings window, or brings it to the front when it is open.
 pub fn open(app: &AppHandle) {
@@ -33,7 +31,7 @@ pub fn open(app: &AppHandle) {
     }
     let built = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(PAGE.into()))
         .title(strings::SETTINGS_TITLE)
-        .inner_size(WIDTH, INITIAL_HEIGHT)
+        .inner_size(WIDTH, HEIGHT)
         .resizable(false)
         .minimizable(false)
         .maximizable(false)
@@ -41,43 +39,6 @@ pub fn open(app: &AppHandle) {
     if built.is_err() {
         log::warn!("W_SETTINGS_OPEN_FAILED");
     }
-}
-
-/// A content height the page asked for, rounded to whole points.
-fn checked_height(height: f64) -> Result<f64, &'static str> {
-    if !height.is_finite() || !HEIGHTS.contains(&height) {
-        return Err("E_SETTINGS_HEIGHT_INVALID");
-    }
-    Ok(height.round())
-}
-
-/// Fits the Settings window to the pane it shows: its content area becomes
-/// `height` points tall, its width and top edge staying where they are;
-/// animated when `animate` (a pane change), at once otherwise (the first
-/// pane).
-#[tauri::command]
-pub fn settings_fit(window: WebviewWindow, height: f64, animate: bool) -> Result<(), String> {
-    if window.label() != LABEL {
-        return Err("E_SETTINGS_WINDOW_ONLY".into());
-    }
-    let height = checked_height(height)?;
-    let target = window.clone();
-    window
-        .run_on_main_thread(move || {
-            #[cfg(target_os = "macos")]
-            let fitted = crate::native::macos::set_content_height(&target, height, animate);
-            #[cfg(not(target_os = "macos"))]
-            let fitted = {
-                let _ = animate;
-                target
-                    .set_size(tauri::LogicalSize::new(WIDTH, height))
-                    .is_ok()
-            };
-            if !fitted {
-                log::warn!("W_SETTINGS_FIT_FAILED");
-            }
-        })
-        .map_err(|_| String::from("E_SETTINGS_FIT_FAILED"))
 }
 
 /// What opens `folder` in Finder. The folder is the app's own, never one
@@ -139,15 +100,6 @@ mod tests {
     fn refuses_a_folder_open_could_read_as_a_flag() {
         for folder in ["-a Calculator", "relative/folder", ""] {
             assert!(open_folder_command(Path::new(folder)).is_err(), "{folder}");
-        }
-    }
-
-    #[test]
-    fn takes_only_heights_a_pane_can_have() {
-        assert_eq!(checked_height(312.4), Ok(312.0));
-        assert_eq!(checked_height(120.0), Ok(120.0));
-        for height in [f64::NAN, f64::INFINITY, -1.0, 0.0, 119.0, 1200.5] {
-            assert!(checked_height(height).is_err(), "{height}");
         }
     }
 }

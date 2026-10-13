@@ -165,105 +165,81 @@ test('shows why the events could not be read', async ({ page }) => {
   )
 })
 
-// The Editor section.
-
-const editor = (page: Page) => page.getByRole('region', { name: 'Editor' })
-const checkbox = (page: Page, name: string) => editor(page).getByRole('checkbox', { name })
-const select = (page: Page, name: string) => editor(page).getByRole('combobox', { name })
-const fontSize = (page: Page) => editor(page).getByRole('spinbutton', { name: 'Font size' })
-
-async function openEditor(page: Page, stored: Record<string, unknown> = {}) {
-  await page.addInitScript((settings) => {
-    const w = globalThis as unknown as TestWindow & { devotEditorSettings: unknown }
-    w.devotEditorSettings = settings
-    w.devotIpcMocks = { usage_list: [] }
-  }, stored)
-  await openSettings(page, 'Editor')
-}
-
-const setCalls = async (page: Page) =>
-  (await calls(page, 'editor_settings_set')).map((c) => c.args['patch'])
-
 /** What Rust sends every window after a change made elsewhere. */
 const changedElsewhere = changeEditorSettingsElsewhere
 
 const tabs = (page: Page) => page.getByRole('tablist', { name: 'Settings panes' })
 const tab = (page: Page, name: string) => tabs(page).getByRole('tab', { name, exact: true })
 
-test('the window title is the only Settings title; a toolbar tab per pane, General first', async ({
-  page,
-}) => {
+test('a navigation column of panes on the left, General first', async ({ page }) => {
   await page.goto('/settings.html')
   await expect(page.getByRole('heading', { name: 'Settings' })).toHaveCount(0)
   await expect(page.getByRole('main', { name: 'Settings' })).toBeVisible()
   await expect(tabs(page).getByRole('tab')).toHaveText([
     'General',
-    'Editor',
+    'Editing',
+    'Preview',
     'Appearance',
     'Keyboard',
-    'Markdown Mirror',
+    'Mirror',
     'Usage',
   ])
-  // Each tab shows its symbol.
-  await expect(tabs(page).locator('[data-symbol]')).toHaveCount(6)
+  // Each row shows its symbol on the right of its name.
+  await expect(tabs(page).locator('[data-symbol]')).toHaveCount(7)
+  await expect(tabs(page)).toHaveCSS('width', '155px')
+  await expect(tabs(page)).toHaveAttribute('aria-orientation', 'vertical')
   await expect(tab(page, 'General')).toHaveAttribute('aria-selected', 'true')
+  // The selected row has a bar of the accent colour on its right edge.
+  await expect(tab(page, 'General')).toHaveCSS('box-shadow', /-3px 0px 0px 0px inset/)
+  await expect(tab(page, 'Editing')).toHaveCSS('box-shadow', 'none')
   // One pane at a time.
   await expect(page.getByRole('tabpanel')).toHaveCount(1)
   await expect(page.getByRole('tabpanel')).toHaveAccessibleName('General')
   await expect(page.getByRole('region')).toHaveCount(1)
   await expect(page.getByRole('region')).toHaveAccessibleName('General')
-  // The window fits the pane it opens on, at once.
-  const fits = await calls(page, 'settings_fit')
-  expect(fits.length).toBeGreaterThan(0)
-  expect(fits[0]?.args['animate']).toBe(false)
-  expect(fits[0]?.args['height']).toBeGreaterThan(0)
 })
 
-test('a click on a tab shows its pane, and the window fits it, animated', async ({ page }) => {
+test('a click on a row shows its pane', async ({ page }) => {
   await page.goto('/settings.html')
   await expect(page.getByRole('region', { name: 'General' })).toBeVisible()
-  const before = (await calls(page, 'settings_fit')).length
-  await tab(page, 'Editor').click()
-  await expect(tab(page, 'Editor')).toHaveAttribute('aria-selected', 'true')
+  await tab(page, 'Editing').click()
+  await expect(tab(page, 'Editing')).toHaveAttribute('aria-selected', 'true')
   await expect(tab(page, 'General')).toHaveAttribute('aria-selected', 'false')
   await expect(editor(page)).toContainText('only on this Mac')
   await expect(page.getByRole('region', { name: 'General' })).toHaveCount(0)
-  await expect.poll(async () => (await calls(page, 'settings_fit')).length).toBeGreaterThan(before)
-  const last = (await calls(page, 'settings_fit')).at(-1)
-  expect(last?.args['animate']).toBe(true)
+  await tab(page, 'Preview').click()
+  await expect(page.getByRole('region', { name: 'Preview' })).toBeVisible()
 })
 
-test('the toolbar is one tab stop; the arrow keys, Home and End move between panes', async ({
-  page,
-}) => {
+test('the column is one tab stop; Up, Down, Home and End move between panes', async ({ page }) => {
   await page.goto('/settings.html')
   await expect(tab(page, 'General')).toHaveAttribute('tabindex', '0')
-  await expect(tab(page, 'Editor')).toHaveAttribute('tabindex', '-1')
+  await expect(tab(page, 'Editing')).toHaveAttribute('tabindex', '-1')
   await tab(page, 'General').focus()
-  await page.keyboard.press('ArrowRight')
-  await expect(tab(page, 'Editor')).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(tab(page, 'Editing')).toBeFocused()
   await expect(editor(page)).toBeVisible()
   await page.keyboard.press('End')
   await expect(tab(page, 'Usage')).toBeFocused()
   await expect(page.getByRole('region', { name: 'Usage Data' })).toBeVisible()
-  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowDown')
   await expect(tab(page, 'General')).toBeFocused()
-  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('ArrowUp')
   await expect(tab(page, 'Usage')).toBeFocused()
   await page.keyboard.press('Home')
   await expect(tab(page, 'General')).toBeFocused()
-  // Tab leaves the toolbar for the pane's first control (WebKit on macOS
+  // Tab leaves the column for the pane's first control (WebKit on macOS
   // tabs to buttons with Option, or with Full Keyboard Access).
   await page.keyboard.press('Alt+Tab')
-  await expect(page.getByRole('button', { name: 'Open Data Folder' })).toBeFocused()
+  await expect(page.getByRole('combobox', { name: 'Default Notebook' })).toBeFocused()
 })
 
 test('opens on the pane shown last', async ({ page }) => {
   await page.goto('/settings.html')
-  await tab(page, 'Markdown Mirror').click()
+  await tab(page, 'Mirror').click()
   await expect(page.getByRole('region', { name: 'Markdown Mirror' })).toBeVisible()
   await page.reload()
-  await expect(tab(page, 'Markdown Mirror')).toHaveAttribute('aria-selected', 'true')
+  await expect(tab(page, 'Mirror')).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByRole('region', { name: 'Markdown Mirror' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'General' })).toHaveCount(0)
 })
@@ -298,71 +274,174 @@ test('General says when the data folder cannot be opened', async ({ page }) => {
   await expect(general.getByRole('alert')).toContainText('E_DATA_FOLDER_OPEN_FAILED')
 })
 
+test('General offers the notebooks as the default for new notes', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow & {
+      localStorage: { setItem(k: string, v: string): void }
+    }
+    w.devotEditorSettings = { defaultNotebook: 'book-b' }
+    w.localStorage.setItem(
+      'devot.notebookChoices',
+      JSON.stringify([
+        { id: 'book-a', name: 'Work', depth: 0 },
+        { id: 'book-b', name: 'Plans', depth: 1 },
+      ]),
+    )
+  })
+  await page.goto('/settings.html')
+  const notebook = page.getByRole('combobox', { name: 'Default Notebook' })
+  await expect(notebook).toHaveValue('book-b')
+  await expect(notebook).toHaveAccessibleDescription(/when the view shown has no notebook/)
+  await expect(notebook.getByRole('option')).toHaveText(['None', 'Work', '\u00a0\u00a0Plans'])
+  await notebook.selectOption('Work')
+  expect(await setCalls(page)).toEqual([{ defaultNotebook: 'book-a' }])
+  await notebook.selectOption('None')
+  expect((await setCalls(page)).at(-1)).toEqual({ defaultNotebook: null })
+})
+
+// The Editing section.
+
+const editor = (page: Page) => page.getByRole('region', { name: 'Editing' })
+const checkbox = (page: Page, name: string) => editor(page).getByRole('checkbox', { name })
+const select = (page: Page, name: string) => editor(page).getByRole('combobox', { name })
+const fontSize = (page: Page) => editor(page).getByRole('spinbutton', { name: 'Font Size' })
+
+async function openEditor(page: Page, stored: Record<string, unknown> = {}) {
+  await page.addInitScript((settings) => {
+    const w = globalThis as unknown as TestWindow & { devotEditorSettings: unknown }
+    w.devotEditorSettings = settings
+    w.devotIpcMocks = { usage_list: [] }
+  }, stored)
+  await openSettings(page, 'Editing')
+}
+
+const setCalls = async (page: Page) =>
+  (await calls(page, 'editor_settings_set')).map((c) => c.args['patch'])
+
+test('the Editing pane has Interface, Markdown and Text Appearance sections', async ({ page }) => {
+  await openEditor(page)
+  await expect(editor(page).getByRole('heading', { level: 3 })).toHaveText([
+    'Interface',
+    'Markdown',
+    'Text Appearance',
+  ])
+  await expect(editor(page).getByRole('heading', { level: 3 }).first()).toHaveCSS(
+    'font-size',
+    '17px',
+  )
+  await expect(editor(page).getByRole('heading', { level: 3 }).first()).toHaveCSS(
+    'font-weight',
+    '700',
+  )
+  // Each section has its symbol, and each setting a label and a description.
+  await expect(editor(page).locator('h3 [data-symbol]')).toHaveCount(3)
+  await expect(checkbox(page, 'Toolbar')).toHaveAccessibleDescription(
+    'Whether the toolbar shows over selected text.',
+  )
+})
+
 test('every editor setting has a labelled control showing its stored value', async ({ page }) => {
   await openEditor(page, {
-    lineNumbers: false,
+    toolbar: false,
+    lineNumbers: true,
+    highlightActiveLine: true,
+    lineWrapping: true,
+    inlineImages: false,
     readableWidth: true,
-    fontSize: 15,
-    fontFamily: 'menlo',
-    lineHeight: 1.8,
+    scrollPastEnd: false,
+    cursorScrollMargin: 40,
+    listMarker: '+',
     indentUnit: 'tab',
     tabWidth: 8,
-    listMarker: '*',
-    spellCheck: true,
-    pasteUrl: 'link',
-    syncScroll: false,
-    inlineImages: false,
+    pasteUrl: 'autolink',
+    spellCheck: false,
+    fontSize: 15,
+    fontFamily: 'menlo',
+    fontWeight: '600',
+    lineHeight: 1.8,
+    showInvisibles: true,
+    highlightTrailingWhitespace: true,
   })
-  await expect(checkbox(page, 'Show line numbers')).not.toBeChecked()
-  await expect(checkbox(page, 'Scroll the editor and preview together')).not.toBeChecked()
-  await expect(checkbox(page, 'Show images under their lines')).not.toBeChecked()
-  await expect(checkbox(page, 'Wrap lines')).toBeChecked()
-  await expect(checkbox(page, 'Limit lines to a readable width')).toBeChecked()
-  await expect(checkbox(page, 'Highlight the current line')).toBeChecked()
-  await expect(checkbox(page, 'Check spelling while typing')).toBeChecked()
-  await expect(fontSize(page)).toHaveValue('15')
-  await expect(select(page, 'Font')).toHaveValue('menlo')
-  await expect(select(page, 'Line height')).toHaveValue('1.8')
-  await expect(select(page, 'Indent with')).toHaveValue('tab')
-  await expect(select(page, 'Tab width')).toHaveValue('8')
-  await expect(select(page, 'List marker')).toHaveValue('*')
-  await expect(select(page, 'Paste a URL as')).toHaveValue('link')
-  await expect(select(page, 'Paste a URL as')).toHaveAccessibleDescription(
-    'A URL pasted over selected text always makes a link.',
+  await expect(checkbox(page, 'Toolbar')).not.toBeChecked()
+  await expect(checkbox(page, 'Line Numbers')).toBeChecked()
+  await expect(checkbox(page, 'Highlight Active Line')).toBeChecked()
+  await expect(checkbox(page, 'Line Wrapping')).toBeChecked()
+  await expect(checkbox(page, 'Inline Image Widgets')).not.toBeChecked()
+  await expect(checkbox(page, 'Readable Line Length')).toBeChecked()
+  await expect(checkbox(page, 'Scroll Past End')).not.toBeChecked()
+  await expect(editor(page).getByRole('spinbutton', { name: 'Cursor Scroll Margin' })).toHaveValue(
+    '40',
   )
+  await expect(select(page, 'Unordered List Bullet')).toHaveValue('+')
+  await expect(select(page, 'Indent Unit')).toHaveValue('tab')
+  await expect(select(page, 'Tab Size')).toHaveValue('8')
+  await expect(select(page, 'Paste URL as Link')).toHaveValue('autolink')
+  await expect(checkbox(page, 'Spellcheck')).not.toBeChecked()
+  await expect(fontSize(page)).toHaveValue('15')
+  await expect(select(page, 'Font Family')).toHaveValue('menlo')
+  await expect(select(page, 'Font Weight')).toHaveValue('600')
+  await expect(select(page, 'Line Height')).toHaveValue('1.8')
+  await expect(checkbox(page, 'Show Invisible Characters')).toBeChecked()
+  await expect(checkbox(page, 'Highlight Trailing Whitespace')).toBeChecked()
   // Option labels come from the catalog too.
-  await expect(select(page, 'Font').getByRole('option')).toHaveText([
+  await expect(select(page, 'Font Family').getByRole('option')).toHaveText([
     'System',
     'SF Mono',
     'Menlo',
     'Monaco',
     'Courier New',
   ])
-  await expect(select(page, 'Indent with').getByRole('option')).toHaveText([
+  await expect(select(page, 'Font Weight').getByRole('option')).toHaveText([
+    'normal',
+    '300',
+    '400',
+    '500',
+    '600',
+    '700',
+  ])
+  await expect(select(page, 'Indent Unit').getByRole('option')).toHaveText([
     '2 spaces',
     '4 spaces',
-    'Tabs',
+    'Tab',
   ])
-  await expect(select(page, 'List marker').getByRole('option')).toHaveText([
-    'Hyphen (-)',
-    'Asterisk (*)',
+  await expect(select(page, 'Unordered List Bullet').getByRole('option')).toHaveText([
+    '*',
+    '-',
+    '+',
   ])
-  await expect(select(page, 'Paste a URL as').getByRole('option')).toHaveText([
+  await expect(select(page, 'Paste URL as Link').getByRole('option')).toHaveText([
     'Plain text',
     'Autolink <URL>',
     'Link [](URL)',
   ])
-  await expect(select(page, 'Line height').getByRole('option')).toHaveText([
+  await expect(select(page, 'Line Height').getByRole('option')).toHaveText([
     '1.2',
     '1.4',
+    '1.5',
     '1.6',
     '1.8',
     '2.0',
   ])
-  await expect(editor(page)).toContainText('\u2318= and \u2318- change it from the editor')
+  await expect(fontSize(page)).toHaveAccessibleDescription(
+    /\u2318= and \u2318- change it from the editor/,
+  )
 })
 
-test('the font size hint drops its keys when one of them is cleared', async ({ page }) => {
+test('the new defaults show for settings never set', async ({ page }) => {
+  await openEditor(page)
+  await expect(checkbox(page, 'Toolbar')).toBeChecked()
+  await expect(checkbox(page, 'Scroll Past End')).toBeChecked()
+  await expect(checkbox(page, 'Highlight Active Line')).not.toBeChecked()
+  await expect(checkbox(page, 'Spellcheck')).toBeChecked()
+  await expect(select(page, 'Unordered List Bullet')).toHaveValue('*')
+  await expect(select(page, 'Indent Unit')).toHaveValue('spaces2')
+  await expect(select(page, 'Tab Size')).toHaveValue('2')
+  await expect(select(page, 'Line Height')).toHaveValue('1.5')
+  await expect(select(page, 'Paste URL as Link')).toHaveValue('link')
+  await expect(select(page, 'Font Weight')).toHaveValue('normal')
+})
+
+test('the font size description drops its keys when one of them is cleared', async ({ page }) => {
   await page.addInitScript(() => {
     const w = globalThis as unknown as TestWindow
     w.devotShortcutRevision = 1
@@ -370,57 +449,65 @@ test('the font size hint drops its keys when one of them is cleared', async ({ p
   })
   await openEditor(page)
   await expect(fontSize(page)).toHaveAccessibleDescription(
-    'The command palette changes it too: Increase, Decrease and Reset Font Size.',
+    /The command palette changes it too: Increase, Decrease and Reset Font Size\./,
   )
 })
 
 test('each control stores its change at once', async ({ page }) => {
   await openEditor(page)
-  await checkbox(page, 'Show line numbers').check()
-  await checkbox(page, 'Limit lines to a readable width').check()
-  await checkbox(page, 'Wrap lines').uncheck()
-  await checkbox(page, 'Highlight the current line').uncheck()
-  await checkbox(page, 'Scroll the editor and preview together').uncheck()
-  await checkbox(page, 'Show images under their lines').uncheck()
-  await checkbox(page, 'Check spelling while typing').check()
-  await select(page, 'Font').selectOption('System')
-  await select(page, 'Line height').selectOption('1.6')
-  await select(page, 'Indent with').selectOption('4 spaces')
-  await select(page, 'Tab width').selectOption('2')
-  await select(page, 'List marker').selectOption('Asterisk (*)')
-  await select(page, 'Paste a URL as').selectOption('Autolink <URL>')
+  await checkbox(page, 'Toolbar').uncheck()
+  await checkbox(page, 'Line Numbers').check()
+  await checkbox(page, 'Highlight Active Line').check()
+  await checkbox(page, 'Line Wrapping').uncheck()
+  await checkbox(page, 'Inline Image Widgets').uncheck()
+  await checkbox(page, 'Readable Line Length').check()
+  await checkbox(page, 'Scroll Past End').uncheck()
+  await checkbox(page, 'Spellcheck').uncheck()
+  await checkbox(page, 'Show Invisible Characters').check()
+  await checkbox(page, 'Highlight Trailing Whitespace').check()
+  await select(page, 'Unordered List Bullet').selectOption('+')
+  await select(page, 'Indent Unit').selectOption('4 spaces')
+  await select(page, 'Tab Size').selectOption('4')
+  await select(page, 'Paste URL as Link').selectOption('Autolink <URL>')
+  await select(page, 'Font Family').selectOption('System')
+  await select(page, 'Font Weight').selectOption('500')
+  await select(page, 'Line Height').selectOption('1.6')
   await fontSize(page).fill('16')
   await expect
     .poll(() => setCalls(page))
     .toEqual([
+      { toolbar: false },
       { lineNumbers: true },
-      { readableWidth: true },
+      { highlightActiveLine: true },
       { lineWrapping: false },
-      { highlightActiveLine: false },
-      { syncScroll: false },
       { inlineImages: false },
-      { spellCheck: true },
-      { fontFamily: 'system' },
-      { lineHeight: 1.6 },
+      { readableWidth: true },
+      { scrollPastEnd: false },
+      { spellCheck: false },
+      { showInvisibles: true },
+      { highlightTrailingWhitespace: true },
+      { listMarker: '+' },
       { indentUnit: 'spaces4' },
-      { tabWidth: 2 },
-      { listMarker: '*' },
+      { tabWidth: 4 },
       { pasteUrl: 'autolink' },
+      { fontFamily: 'system' },
+      { fontWeight: '500' },
+      { lineHeight: 1.6 },
       { fontSize: 16 },
     ])
-  await expect(checkbox(page, 'Show line numbers')).toBeChecked()
-  await expect(select(page, 'List marker')).toHaveValue('*')
+  await expect(checkbox(page, 'Line Numbers')).toBeChecked()
+  await expect(select(page, 'Unordered List Bullet')).toHaveValue('+')
 })
 
 test('the readable width setting is off limits while lines do not wrap, and says why', async ({
   page,
 }) => {
   await openEditor(page, { readableWidth: true })
-  const width = checkbox(page, 'Limit lines to a readable width')
+  const width = checkbox(page, 'Readable Line Length')
   await expect(width).toBeEnabled()
   await expect(editor(page)).not.toContainText('Applies only when lines wrap.')
 
-  await checkbox(page, 'Wrap lines').uncheck()
+  await checkbox(page, 'Line Wrapping').uncheck()
   await expect(width).toBeDisabled()
   // It still shows the stored value, which applies again once lines wrap.
   await expect(width).toBeChecked()
@@ -428,11 +515,11 @@ test('the readable width setting is off limits while lines do not wrap, and says
 
   await changedElsewhere(page, { lineWrapping: true, readableWidth: true })
   await expect(width).toBeEnabled()
-  await expect(width).toHaveAccessibleDescription('')
+  await expect(width).toHaveAccessibleDescription(/Limits the width of the editor to 740 pixels/)
   expect(await setCalls(page)).toEqual([{ lineWrapping: false }])
 })
 
-/** How long EditorSection waits for typing to pause, and a little more. */
+/** How long the number fields wait for typing to pause, and a little more. */
 const PAST_TYPING_PAUSE_MS = 600
 
 test('a font size out of range is not stored, and leaving the field shows the stored one', async ({
@@ -501,9 +588,9 @@ test('the font size is stored once typing pauses, or when the field is left', as
 test('a change made in another window shows at once', async ({ page }) => {
   await openEditor(page)
   await expect(fontSize(page)).toHaveValue('13')
-  await changedElsewhere(page, { fontSize: 18, lineNumbers: false })
+  await changedElsewhere(page, { fontSize: 18, lineNumbers: true })
   await expect(fontSize(page)).toHaveValue('18')
-  await expect(checkbox(page, 'Show line numbers')).not.toBeChecked()
+  await expect(checkbox(page, 'Line Numbers')).toBeChecked()
 })
 
 test('a change that cannot be stored is reported and undone', async ({ page }) => {
@@ -515,10 +602,33 @@ test('a change that cannot be stored is reported and undone', async ({ page }) =
       editor_settings_set: { error: 'E_EDITOR_SETTINGS_WRITE_FAILED' },
     }
   })
-  // Clicked, not unchecked: the box is unchecked only until the store refuses.
-  await checkbox(page, 'Show line numbers').click()
+  // Clicked, not checked: the box is checked only until the store refuses.
+  await checkbox(page, 'Line Numbers').click()
   await expect(editor(page).getByRole('alert')).toHaveText(
     'The editor settings could not be saved (E_EDITOR_SETTINGS_WRITE_FAILED).',
   )
-  await expect(checkbox(page, 'Show line numbers')).not.toBeChecked()
+  await expect(checkbox(page, 'Line Numbers')).not.toBeChecked()
+})
+
+// The Preview pane.
+
+const preview = (page: Page) => page.getByRole('region', { name: 'Preview' })
+
+test('Preview has its own font size (15 px) and synced scrolling', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow & { devotEditorSettings: unknown }
+    w.devotIpcMocks = { usage_list: [] }
+  })
+  await openSettings(page, 'Preview')
+  const size = preview(page).getByRole('spinbutton', { name: 'Font Size' })
+  const sync = preview(page).getByRole('checkbox', { name: 'Synced Scrolling' })
+  await expect(size).toHaveValue('15')
+  await expect(sync).toBeChecked()
+  await sync.uncheck()
+  await size.fill('18')
+  await size.blur()
+  await expect.poll(() => setCalls(page)).toEqual([{ syncScroll: false }, { previewFontSize: 18 }])
+  // The editor pane no longer has the synced scrolling switch.
+  await tab(page, 'Editing').click()
+  await expect(editor(page).getByRole('checkbox', { name: 'Synced Scrolling' })).toHaveCount(0)
 })

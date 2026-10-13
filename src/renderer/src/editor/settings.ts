@@ -31,6 +31,8 @@ import {
   highlightActiveLine,
   highlightActiveLineGutter,
   highlightSpecialChars,
+  highlightTrailingWhitespace,
+  highlightWhitespace,
   keymap,
   lineNumbers,
   type KeyBinding,
@@ -43,6 +45,7 @@ import { listBullet } from './blocks'
 import { inlineImages } from './images'
 import { pasteUrlStyle } from './paste'
 import { registryKeys } from './registryKeys'
+import { toolbarOff } from './toolbarState'
 
 /** Whether CodeMirror binds keys as on macOS (Mod is Command), as it decides that. */
 const MAC =
@@ -185,6 +188,19 @@ const readableWidth = EditorView.theme({
   },
 })
 
+/** Room under the last line so the end of the note can scroll up the page (the host element scrolls). */
+const pastEnd = EditorView.theme({ '&.cm-editor .cm-content': { paddingBottom: '50vh' } })
+/** Drawn spaces and tabs in a muted colour, and tinted trailing ones (`--color-trailing-space`). */
+const whitespaceTheme = EditorView.theme({
+  '.cm-highlightSpace': {
+    backgroundImage:
+      'radial-gradient(circle at 50% 55%, var(--color-text-tertiary) 20%, transparent 5%)',
+  },
+  '.cm-trailingSpace': { backgroundColor: 'var(--color-trailing-space)' },
+})
+const trailingWhitespace = [highlightTrailingWhitespace(), whitespaceTheme]
+const invisibles = [highlightWhitespace(), whitespaceTheme]
+
 /** Each compartment: the settings it reads and what it holds for them. */
 const PARTS = {
   gutter: (s: EditorSettings): Extension =>
@@ -201,6 +217,18 @@ const PARTS = {
   bullet: (s: EditorSettings): Extension => listBullet.of(s.listMarker),
   pasteUrl: (s: EditorSettings): Extension => pasteUrlStyle.of(s.pasteUrl),
   images: (s: EditorSettings): Extension => (s.inlineImages ? inlineImages : []),
+  toolbar: (s: EditorSettings): Extension => (s.toolbar ? [] : toolbarOff.of(true)),
+  scrollPastEnd: (s: EditorSettings): Extension => (s.scrollPastEnd ? pastEnd : []),
+  scrollMargin: (s: EditorSettings): Extension =>
+    s.cursorScrollMargin > 0
+      ? EditorView.scrollMargins.of(() => ({
+          top: s.cursorScrollMargin,
+          bottom: s.cursorScrollMargin,
+        }))
+      : [],
+  invisibles: (s: EditorSettings): Extension => (s.showInvisibles ? invisibles : []),
+  trailing: (s: EditorSettings): Extension =>
+    s.highlightTrailingWhitespace ? trailingWhitespace : [],
 } as const
 
 type Part = keyof typeof PARTS
@@ -216,6 +244,11 @@ const READS: Readonly<Record<Part, readonly (keyof EditorSettings)[]>> = {
   bullet: ['listMarker'],
   pasteUrl: ['pasteUrl'],
   images: ['inlineImages'],
+  toolbar: ['toolbar'],
+  scrollPastEnd: ['scrollPastEnd'],
+  scrollMargin: ['cursorScrollMargin'],
+  invisibles: ['showInvisibles'],
+  trailing: ['highlightTrailingWhitespace'],
 }
 
 const NAMES = Object.keys(PARTS) as Part[]

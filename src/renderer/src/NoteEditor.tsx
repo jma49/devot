@@ -303,7 +303,8 @@ const theme = EditorView.theme({
   '.cm-scroller': {
     fontSize: 'var(--editor-font-size, var(--font-size-body))',
     fontFamily: 'var(--editor-font-family, var(--font-family-mono))',
-    lineHeight: 'var(--editor-line-height, 1.4)',
+    fontWeight: 'var(--editor-font-weight, normal)',
+    lineHeight: 'var(--editor-line-height, 1.5)',
   },
   '&.cm-focused': { outline: 'none' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-accent-fill)' },

@@ -539,7 +539,7 @@ export const COMMANDS = [
     keys: ['Ctrl+Shift+Tab'],
     palette: false,
   },
-  // The editor's font size (Settings > Editor), in every window that shows
+  // The editor's font size (Settings > Editing), in every window that shows
   // notes. Cmd+= with or without Shift, as Cmd++ is typed.
   {
     id: 'view.fontBigger',

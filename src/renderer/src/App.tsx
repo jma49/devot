@@ -122,6 +122,7 @@ import { LivePreview } from './preview/Preview'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { Activity, useActivityMenu } from './Activity'
+import { choicesFromTree, notebookForNewNote, publishNotebooks } from './notebookChoices'
 import { Sidebar, stepSidebarRow, type Selection } from './Sidebar'
 import { useKept, useStable } from './stable'
 import { STATUS_COMMANDS } from './statusKeys'
@@ -569,6 +570,8 @@ export function App() {
   }
 
   const tree = useMemo(() => buildBookTree(books), [books])
+  // The Settings window offers these as the default notebook.
+  useEffect(() => publishNotebooks(choicesFromTree(tree)), [tree])
   const counts = useKept(
     useMemo(() => bookCounts(notes, books), [notes, books]),
     sameCounts,
@@ -1346,14 +1349,20 @@ export function App() {
     showLibrary(homeOf(made), { clearFilter: true })
   }
 
+  /** The notebook a new note goes to: the one shown, else Settings > General's default. */
+  const newNoteBookId = () =>
+    notebookForNewNote(
+      libraryBook?.id,
+      editorSettings().defaultNotebook,
+      books.map((b) => b.id),
+    )
+
   const create = async () => {
     if (!core) return
     // Save pending titles first, so the refreshed list shows them.
     await saveEdits(core)
     // In Templates, a new note is a new template.
-    const id = inTemplates
-      ? await core.createTemplate()
-      : await core.create('', libraryBook?.id ?? null)
+    const id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     if (!inTemplates) track('note.created', { from: 'new_note' })
     await showMade(core, id, await refresh(core))
     await select(id, { keyboard: true })
@@ -1369,7 +1378,7 @@ export function App() {
     if (!core) return
     await saveEdits(core)
     const id = await core
-      .applyTemplate(templateId, Date.now(), libraryBook?.id ?? null)
+      .applyTemplate(templateId, Date.now(), newNoteBookId())
       .catch(() => undefined)
     if (!id) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
     recentTemplates.use(templateId)
