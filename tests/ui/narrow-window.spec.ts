@@ -133,6 +133,19 @@ test('the sidebar shows at 1000 px, gives way below it, and comes back on reques
   await expect(sidebar(page)).toBeVisible()
 })
 
+test('a sidebar asked for in a narrow window is hidden again after a trip through a wide one', async ({
+  page,
+}) => {
+  await openNote(page, 800, 'note')
+  await showSidebar(page).click()
+  await expect(sidebar(page)).toBeVisible()
+  await page.setViewportSize({ width: 1280, height: 700 })
+  await expect(sidebar(page)).toBeVisible()
+  await page.setViewportSize({ width: 800, height: 700 })
+  await expect(sidebar(page)).toBeHidden()
+  await expect(showSidebar(page)).toBeVisible()
+})
+
 test('a sidebar the user hid stays hidden in a wide window', async ({ page }) => {
   await openNote(page, 1280, 'note')
   await page.getByRole('button', { name: 'Hide Sidebar' }).click()

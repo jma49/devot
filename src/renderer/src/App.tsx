@@ -284,6 +284,8 @@ export function App() {
   // it nor the hiding is stored (the saved choice is the user's own).
   const narrow = useNarrowWindow()
   const [askedIn, setAskedIn] = useState<boolean | null>(null)
+  // The request ends when the window is wide again.
+  if (!narrow && askedIn !== null) setAskedIn(null)
   const sidebarOff = sidebarHidden || (narrow && askedIn !== narrow)
   const sidebarShown = !focus && !sidebarOff
   // The notes this window opened, for Back and Forward. The ref moves at
