@@ -2112,7 +2112,10 @@ export function App() {
           onAction={runNoteAction}
           onMenu={showNoteMenu}
           sort={sortButton}
+          sortButtonRef={sortButtonRef}
           onFind={findEverywhere}
+          onEdit={editFromList}
+          leading={showSidebarButton}
           selection={shownSelection}
           onSelection={changeListSelection}
           drag="templates"

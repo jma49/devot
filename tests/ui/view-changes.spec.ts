@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, type TestWindow } from './fixtures'
 
 // Every way of changing the view follows the same rules (the sidebar, the
 // palette, New Notebook, a finished import): a note in the Trash closes when
@@ -153,5 +153,46 @@ test.describe('Templates', () => {
     await expect(forwardButton(page)).toBeEnabled()
     await page.keyboard.press('Meta+BracketRight')
     await expect(titleField(page)).toHaveValue('Plain')
+  })
+
+  test('the list has the Show Sidebar button while the sidebar is hidden', async ({ page }) => {
+    await createTemplate(page, 'Weekly')
+    await page.keyboard.press('Meta+Slash')
+    await expect(sidebar(page)).toBeHidden()
+    const show = page.getByRole('button', { name: 'Show Sidebar' })
+    await expect(show).toBeVisible()
+    await show.click()
+    await expect(sidebar(page)).toBeVisible()
+  })
+
+  test('Return on a row edits the title, Cmd+Return the body', async ({ page }) => {
+    await createTemplate(page, 'Weekly')
+    await createTemplate(page, 'Monthly')
+    await noteRow(page, 'Weekly').click()
+    await expect(noteRow(page, 'Weekly')).toBeFocused()
+    await expect(titleField(page)).toHaveValue('Weekly')
+    await page.keyboard.press('Enter')
+    await expect(titleField(page)).toBeFocused()
+
+    await noteRow(page, 'Monthly').click()
+    await expect(noteRow(page, 'Monthly')).toBeFocused()
+    await expect(titleField(page)).toHaveValue('Monthly')
+    await page.keyboard.press('Meta+Enter')
+    await expect(body(page)).toBeFocused()
+  })
+
+  test('Sort Notes in the palette opens the sort pop-up', async ({ page }) => {
+    const popups = () =>
+      page.evaluate(
+        () =>
+          (globalThis as unknown as TestWindow).devotIpcCalls.filter(
+            (c) => c.cmd === 'plugin:menu|popup',
+          ).length,
+      )
+    await createTemplate(page, 'Weekly')
+    await page.keyboard.press('Meta+KeyP')
+    await paletteField(page).fill('Sort Notes')
+    await paletteField(page).press('Enter')
+    await expect.poll(popups).toBe(1)
   })
 })
