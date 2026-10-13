@@ -670,6 +670,27 @@ export const en = {
   'palette.open': 'Open',
   'palette.showTag': 'Show Notes',
   'palette.moveHere': 'Move Note Here',
+  // The slash menu (editor/slashMenu.ts): its groups and the items with labels of their own.
+  'slash.groupBasic': 'Basic Formatting',
+  'slash.groupAlerts': 'Alerts',
+  'slash.groupOther': 'Other',
+  'slash.blockquote': 'Blockquote',
+  'slash.codeblock': 'Codeblock',
+  'slash.imageFile': 'Image File',
+  'slash.orderedList': 'Ordered List',
+  'slash.remoteImage': 'Remote Image',
+  'slash.unorderedList': 'Unordered List',
+  // Words in the items' Markdown hints, and the Remote Image's fields.
+  'slash.hintAlt': 'alt',
+  'slash.hintUrl': 'url',
+  'slash.hintText': 'text',
+  'slash.hintTitle': 'title',
+  // Ghost text in the editor (editor/hints.ts).
+  'editor.slashHint': "Type '/' for commands...",
+  'editor.emptyNoteHint': 'Just start typing, or',
+  'editor.chooseTemplate': 'Choose a template',
+  // The copy button of a code block in the editor (editor/codeBlocks.ts).
+  'editor.copyCodeBlock': 'Copy code block',
   'palette.addTag': 'Add Tag to Note',
 } as const
 

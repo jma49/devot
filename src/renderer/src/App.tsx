@@ -2545,6 +2545,7 @@ export function App() {
                 onNewFromSelection={inTrash ? undefined : () => void noteFromSelection(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
+                onChooseTemplate={() => setPicking({ recent: recentTemplates.load() })}
               />
               {mode === 'edit' ? null : (
                 <LivePreview

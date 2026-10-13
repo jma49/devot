@@ -1,9 +1,10 @@
 import type { Page } from '@playwright/test'
 import { changeShortcutsElsewhere, expect, test } from './fixtures'
 
-// The slash menu: `/` at the start of a line or after a space lists the
-// insertions; the query filters them, Return inserts, Escape or a space
-// closes the list and keeps the text. Keys are platform-neutral (ControlOrMeta
+// The slash menu: `/` at the start of a line lists the insertions in three
+// groups; the query filters them (a substring of the label), Return inserts,
+// Escape closes the list and keeps the text, and a query that matches
+// nothing closes it for that slash. Keys are platform-neutral (ControlOrMeta
 // for the command key, no macOS text-navigation keys), so the tests run the
 // same on Linux.
 
@@ -12,6 +13,7 @@ const lines = (page: Page) => page.locator('.cm-line').allTextContents()
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const popup = (page: Page) => page.locator('.cm-tooltip-autocomplete')
 const options = (page: Page) => popup(page).getByRole('option')
+const headers = (page: Page) => popup(page).locator('completion-section')
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palette' })
 const paletteField = (page: Page) =>
   palette(page).getByRole('combobox', { name: 'Command Palette' })
@@ -57,25 +59,19 @@ test.beforeEach(async ({ page }) => {
 // The query typed after the slash, the item it puts first, and the lines
 // after Return and typing `x` where the cursor went.
 const KINDS: [string, string, string[]][] = [
-  ['link', 'Link', ['Intro', '[x]()']],
-  ['image', 'Image', ['Intro', '![x]()']],
-  ['quote', 'Quote', ['Intro', '> x']],
-  ['notea', 'Note Alert', ['Intro', '> [!NOTE]', '> x']],
-  ['tip', 'Tip Alert', ['Intro', '> [!TIP]', '> x']],
-  ['important', 'Important Alert', ['Intro', '> [!IMPORTANT]', '> x']],
-  ['warning', 'Warning Alert', ['Intro', '> [!WARNING]', '> x']],
-  ['caution', 'Caution Alert', ['Intro', '> [!CAUTION]', '> x']],
-  ['code', 'Code Block', ['Intro', '```', 'x', '```']],
-  ['table', 'Table', ['Intro', '', '| x    |     |', '| --- | --- |', '|     |     |']],
-  ['bullet', 'Bulleted List', ['Intro', '- x']],
-  ['numbered', 'Numbered List', ['Intro', '1. x']],
-  ['task', 'Task List', ['Intro', '- [ ] x']],
-  ['rule', 'Horizontal Rule', ['Intro', '', '---', 'x']],
+  ['blockq', 'Blockquote', ['Intro', '', '> x']],
+  ['heading 2', 'Heading 2', ['Intro', '', '## x']],
+  ['link', 'Link', ['Intro', '', '[x]()']],
+  ['caution', 'Caution', ['Intro', '', '> [!CAUTION]', '> x']],
+  ['tip', 'Tip', ['Intro', '', '> [!TIP]', '> x']],
+  ['ordered', 'Ordered List', ['Intro', '', '1. x']],
+  ['task', 'Task List', ['Intro', '', '- [ ] x']],
+  ['unordered', 'Unordered List', ['Intro', '', '- x']],
 ]
 
 for (const [query, label, expected] of KINDS) {
   test(`Return inserts ${label} in place of the typed query`, async ({ page }) => {
-    await newNote(page, 'Intro\n')
+    await newNote(page, 'Intro\n\n')
     await typeQuery(page, query)
     await waitForFirst(page, label)
     await page.keyboard.press('Enter')
@@ -85,102 +81,77 @@ for (const [query, label, expected] of KINDS) {
   })
 }
 
-test('Code Block in a list item goes inside the item, keeping its marker', async ({ page }) => {
-  await newNote(page, '1. Run this:')
-  await page.keyboard.press('Enter')
-  await typeQuery(page, 'code')
-  await waitForFirst(page, 'Code Block')
-  await page.keyboard.press('Enter')
-  await expect(popup(page)).toBeHidden()
-  await page.keyboard.insertText('make')
-  expect(await lines(page)).toEqual(['1. Run this:', '2. ```', '   make', '   ```'])
-})
-
-test('Note Link opens the note search where the query was', async ({ page }) => {
-  await newNote(page, 'Intro\n')
-  await typeQuery(page, 'notel')
-  await waitForFirst(page, 'Note Link')
-  await page.keyboard.press('Enter')
-  expect(await lines(page)).toEqual(['Intro', '[[]]'])
-  // The `[[` popup opens with the pick, before anything is typed.
-  await expect(popup(page).getByRole('option', { name: 'New Note', exact: true })).toBeVisible()
-  // It takes over and searches for what is typed next.
-  await page.keyboard.insertText('Plan B')
-  await expect(popup(page).getByRole('option', { name: 'New Note “Plan B”' })).toBeVisible()
-  await page.waitForTimeout(150)
-  await page.keyboard.press('Enter')
-  // By title: the source's excerpt shows the link's text too.
-  await expect(
-    noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Plan B' }) }),
-  ).toHaveCount(1)
-  await expect.poll(async () => (await lines(page))[1]).toMatch(/^\[Plan B\]\(devot:\/\/note\//)
-})
-
-test('Return right after the query is typed picks', async ({ page }) => {
-  await newNote(page, 'Intro\n')
-  await typeQuery(page, '')
-  await waitForFirst(page, 'Link')
-  // No wait between the last key and Return: the list ranks as keys come.
-  await page.keyboard.type('table')
-  await page.keyboard.press('Enter')
-  await expect(popup(page)).toBeHidden()
-  expect(await lines(page)).toEqual([
-    'Intro',
-    '',
-    '|     |     |',
-    '| --- | --- |',
-    '|     |     |',
-  ])
-})
-
-test('the menu stays closed for its slash after the editor loses the focus', async ({ page }) => {
+test('the menu lists its items in groups and filters by substring', async ({ page }) => {
   await newNote(page, '')
-  await typeQuery(page, 'ta')
-  await waitForFirst(page, 'Table')
-  await page.getByRole('textbox', { name: 'Title' }).click()
+  await typeQuery(page, '')
+  await waitForFirst(page, 'Blockquote')
+  await expect(headers(page)).toHaveText(['Basic Formatting', 'Alerts', 'Other'])
+  await expect(options(page)).toHaveCount(19)
+  await expect(options(page).first()).toHaveAttribute('aria-selected', 'true')
+  await expect(options(page).first()).toContainText('> Quote')
+  // Up from the first row wraps to the last.
+  await page.keyboard.press('ArrowUp')
+  await expect(options(page).last()).toHaveAttribute('aria-selected', 'true')
+  await expect(options(page).last()).toContainText('Note Link')
+
+  await page.keyboard.type('ist')
+  await waitForFirst(page, 'Task List')
+  expect(await options(page).locator('.cm-completionLabel').allTextContents()).toEqual([
+    'Task List',
+    'Ordered List',
+    'Unordered List',
+  ])
+  await expect(headers(page)).toHaveText(['Basic Formatting'])
+  await expect(options(page).first().locator('.cm-completionMatchedText')).toHaveText('ist')
+})
+
+test('Codeblock writes the fences and opens the language list', async ({ page }) => {
+  await newNote(page, '')
+  await typeQuery(page, '')
+  await waitForFirst(page, 'Blockquote')
+  await page.keyboard.type('co')
+  await waitForFirst(page, 'Codeblock')
+  await expect(options(page)).toHaveCount(1)
+  await page.keyboard.press('Enter')
+  expect(await lines(page)).toEqual(['```', '', '```'])
+  // The language list opens at once, right after the opening fence.
+  await expect(options(page).first()).toContainText('```')
+  await page.keyboard.type('rust')
+  await waitForFirst(page, '```rust')
+  await page.keyboard.press('Enter')
   await expect(popup(page)).toBeHidden()
-  // Back in the body, typing on after that slash keeps the text.
-  await body(page).click()
-  await page.keyboard.press('ControlOrMeta+End')
-  await page.keyboard.type('b')
+  // The cursor stays on the fence line.
+  await page.keyboard.insertText(':main.rs')
+  expect(await lines(page)).toEqual(['```rust:main.rs', '', '```'])
+})
+
+test('a slash after other text opens nothing', async ({ page }) => {
+  await newNote(page, 'x ')
+  await typeQuery(page, '')
+  await settle(page)
+  await expect(popup(page)).toHaveCount(0)
+  expect(await lines(page)).toEqual(['x /'])
+})
+
+test('a query that matches nothing closes the menu, and Backspace does not reopen it', async ({
+  page,
+}) => {
+  await newNote(page, '')
+  await typeQuery(page, 'h')
+  await waitForFirst(page, 'Heading 1')
+  await page.keyboard.type('d')
+  await expect(popup(page)).toBeHidden()
+  await page.keyboard.press('Backspace')
   await settle(page)
   await expect(popup(page)).toBeHidden()
-  expect(await lines(page)).toEqual(['/tab'])
+  expect(await lines(page)).toEqual(['/h'])
   // A new slash opens it again.
-  await page.keyboard.type(' /')
-  await waitForFirst(page, 'Link')
-})
-
-test('the menu lists every insertion and filters as the query is typed', async ({ page }) => {
-  await newNote(page, '')
+  await page.keyboard.press('Enter')
   await typeQuery(page, '')
-  await waitForFirst(page, 'Link')
-  expect(await options(page).allTextContents()).toEqual([
-    'Link⌘K',
-    'Image',
-    'Quote⇧⌘.',
-    'Note Alert',
-    'Tip Alert',
-    'Important Alert',
-    'Warning Alert',
-    'Caution Alert',
-    'Note Link',
-    'Code Block⇧⌘C',
-    'Table',
-    'Bulleted List⇧⌘8',
-    'Numbered List⇧⌘7',
-    'Task List⇧⌘9',
-    'Horizontal Rule⇧⌘-',
-  ])
-  await page.keyboard.type('al')
-  await waitForFirst(page, 'Alert')
-  expect(await options(page).count()).toBeLessThan(15)
-  await page.keyboard.type('zzz')
-  await expect(popup(page)).toBeHidden()
-  expect(await lines(page)).toEqual(['/alzzz'])
+  await waitForFirst(page, 'Blockquote')
 })
 
-test('Escape and a space close the menu and keep the text', async ({ page }) => {
+test('Escape closes the menu and keeps the text', async ({ page }) => {
   await newNote(page, '')
   await typeQuery(page, 'li')
   await waitForFirst(page, 'Link')
@@ -191,82 +162,64 @@ test('Escape and a space close the menu and keep the text', async ({ page }) => 
   await settle(page)
   await expect(popup(page)).toBeHidden()
   expect(await lines(page)).toEqual(['/link'])
-  // A new slash opens it again; a space closes it.
-  await page.keyboard.type(' /ta')
-  await waitForFirst(page, 'Table')
-  await page.keyboard.type(' ')
-  await expect(popup(page)).toBeHidden()
-  // Return after the space is a new line, not a pick.
-  await page.keyboard.press('Enter')
-  expect(await lines(page)).toEqual(['/link /ta ', ''])
 })
 
-test('Escape right after typing still keeps the menu closed', async ({ page }) => {
+test('the menu stays closed for its slash after the editor loses the focus', async ({ page }) => {
   await newNote(page, '')
-  // Escape before the list has caught up with the query.
-  await typeQuery(page, 'ta')
-  await page.keyboard.press('Escape')
+  await typeQuery(page, 'he')
+  await waitForFirst(page, 'Heading 1')
+  await page.getByRole('textbox', { name: 'Title' }).click()
+  await expect(popup(page)).toBeHidden()
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.type('a')
   await settle(page)
   await expect(popup(page)).toBeHidden()
-  await page.keyboard.type('b')
-  await settle(page)
-  await expect(popup(page)).toBeHidden()
-  expect(await lines(page)).toEqual(['/tab'])
+  expect(await lines(page)).toEqual(['/hea'])
 })
 
-test('a slash in a note link query stays with the note search', async ({ page }) => {
+test('an empty line shows the slash hint, an empty note the template chip', async ({ page }) => {
   await newNote(page, '')
-  await page.keyboard.type('[[Q1 /')
-  await expect(popup(page).getByRole('option', { name: 'New Note \u201cQ1 /\u201d' })).toBeVisible()
-  await expect(popup(page).getByRole('option', { name: 'Table' })).toHaveCount(0)
-  await expect(popup(page).getByRole('option')).toHaveCount(1)
-})
-
-test('the menu does not open in code or after other characters', async ({ page }) => {
-  // In a fenced code block.
-  await newNote(page, '```\ncode ')
-  await typeQuery(page, '')
-  await settle(page)
-  await expect(popup(page)).toHaveCount(0)
-  expect(await lines(page)).toEqual(['```', 'code /'])
-
-  // In inline code: the cursor between `code ` and the closing backtick.
-  await newNote(page, 'a `code ` b')
-  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft')
-  await typeQuery(page, '')
-  await settle(page)
-  await expect(popup(page)).toHaveCount(0)
-  expect(await lines(page)).toEqual(['a `code /` b'])
-
-  // After a character that is not a space: paths and fractions.
-  await newNote(page, 'see src')
-  await typeQuery(page, 'x')
-  await settle(page)
-  await expect(popup(page)).toHaveCount(0)
-
-  // After a space it opens: the waits above were long enough to see it.
-  await page.keyboard.type(' ')
-  await typeQuery(page, '')
-  await waitForFirst(page, 'Link')
+  const chip = page.getByRole('button', { name: /^Choose a template/ })
+  await expect(chip).toBeVisible()
+  await page.keyboard.insertText('Intro\n')
+  await expect(chip).toBeHidden()
+  await expect(page.locator('.cm-line.cm-slash-hint')).toHaveAttribute(
+    'data-hint',
+    "Type '/' for commands...",
+  )
+  // The hint is not text of the note.
+  expect(await lines(page)).toEqual(['Intro', ''])
 })
 
 test('a pick is one undo step that brings the query back', async ({ page }) => {
-  await newNote(page, 'Intro\n')
-  await typeQuery(page, 'quote')
-  await waitForFirst(page, 'Quote')
+  await newNote(page, 'Intro\n\n')
+  await typeQuery(page, 'blockq')
+  await waitForFirst(page, 'Blockquote')
   await page.keyboard.press('Enter')
-  expect(await lines(page)).toEqual(['Intro', '> '])
+  expect(await lines(page)).toEqual(['Intro', '', '> '])
   await page.keyboard.press('ControlOrMeta+z')
-  expect(await lines(page)).toEqual(['Intro', '/quote'])
-  // On Linux CodeMirror binds redo to Ctrl+Y (Ctrl+Shift+Z is undo there).
-  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y')
-  expect(await lines(page)).toEqual(['Intro', '> '])
+  expect(await lines(page)).toEqual(['Intro', '', '/blockq'])
+})
+
+test('`:` and a shortcode list emoji; `> [!` lists the alert kinds', async ({ page }) => {
+  await newNote(page, 'Done ')
+  await page.keyboard.type(':tad')
+  await waitForFirst(page, ':tada:')
+  await page.keyboard.press('Enter')
+  expect(await lines(page)).toEqual(['Done \u{1f389}'])
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('> [!wa')
+  await waitForFirst(page, '[!WARNING]')
+  await page.keyboard.press('Enter')
+  expect((await lines(page)).at(-1)).toBe('> [!WARNING]')
 })
 
 test('Return from an input method does not pick', async ({ page }) => {
   await newNote(page, '')
-  await typeQuery(page, 'quo')
-  await waitForFirst(page, 'Quote')
+  await typeQuery(page, 'blockq')
+  await waitForFirst(page, 'Blockquote')
   // The Return that ends a composition (WebKit may report it after compositionend).
   const handled = await body(page).evaluate((el) => {
     // This config has no DOM types: the one browser class used here.
@@ -280,7 +233,7 @@ test('Return from an input method does not pick', async ({ page }) => {
   })
   expect(handled).toBe(false)
   await expect(popup(page)).toBeVisible()
-  expect(await lines(page)).toEqual(['/quo'])
+  expect(await lines(page)).toEqual(['/blockq'])
   // The next Return, outside the composition, picks.
   await page.keyboard.press('Enter')
   expect(await lines(page)).toEqual(['> '])

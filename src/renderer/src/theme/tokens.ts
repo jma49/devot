@@ -33,6 +33,7 @@ export const sizes = {
   "radius.field": "7px",
   "radius.card": "8px",
   "radius.capsule": "999px",
+  "radius.popover": "12px",
   "size.sidebar-width": "232px",
   "size.list-width": "320px",
   "size.list-min-width": "224px",
@@ -49,7 +50,11 @@ export const sizes = {
   "size.icon-lg": "22px",
   "size.image-small": "240px",
   "size.inline-image-height": "160px",
-  "size.scrollbar": "6px"
+  "size.scrollbar": "6px",
+  "size.menu-width": "325px",
+  "size.menu-max-height": "210px",
+  "size.menu-row": "24px",
+  "size.icon-menu": "16px"
 } as const
 
 export const light = {
@@ -57,20 +62,25 @@ export const light = {
   "color.surface.sidebar-opaque": "#f3f4f6",
   "color.surface.list": "#fafaf9",
   "color.surface.editor": "#ffffff",
+  "color.surface.popover": "#ffffff",
   "color.text.primary": "#212121",
   "color.text.secondary": "#595959",
   "color.text.tertiary": "#676767",
   "color.text.editor": "#1f2937",
   "color.text.destructive": "#af3b36",
+  "color.text.placeholder": "#c6c3bc",
   "color.line.hairline": "rgb(23 23 23 / 0.15)",
   "color.line.separator": "#e5e7eb",
   "color.line.match": "#f59f0a",
+  "color.line.control": "rgb(28 27 25 / 0.2)",
   "color.fill.track": "rgb(23 23 23 / 0.055)",
   "color.fill.scrollbar": "rgb(23 23 23 / 0.25)",
   "color.fill.row-selected-unemphasized": "rgb(7 87 131 / 0.2)",
   "color.fill.segment-on": "#ffffff",
   "color.fill.match": "rgb(245 159 10 / 0.25)",
   "color.fill.match-current": "rgb(245 159 10 / 0.5)",
+  "color.fill.button": "#ebeae7",
+  "color.fill.completion-selected": "#ebe7fe",
   "color.accent.fill": "#3472d6",
   "color.accent.text": "#2856a2",
   "color.accent.hover": "#2463eb",
@@ -123,7 +133,9 @@ export const light = {
   "color.activity.level-1": "rgb(14 107 98 / 0.25)",
   "color.activity.level-2": "rgb(14 107 98 / 0.45)",
   "color.activity.level-3": "rgb(14 107 98 / 0.7)",
-  "color.activity.level-4": "#0e6b62"
+  "color.activity.level-4": "#0e6b62",
+  "color.code-block.bg": "rgb(28 27 25 / 0.03)",
+  "color.code-block.border": "rgb(28 27 25 / 0.1)"
 } as const
 
 export const dark = {
@@ -131,20 +143,25 @@ export const dark = {
   "color.surface.sidebar-opaque": "#171717",
   "color.surface.list": "#111111",
   "color.surface.editor": "#0a0a0a",
+  "color.surface.popover": "#2a2927",
   "color.text.primary": "#dbdbdb",
   "color.text.secondary": "#a3a3a3",
   "color.text.tertiary": "#8f8f8f",
   "color.text.editor": "#d1d5db",
   "color.text.destructive": "#f0a6a2",
+  "color.text.placeholder": "#5f5c55",
   "color.line.hairline": "rgb(245 245 245 / 0.1)",
   "color.line.separator": "rgb(38 38 38 / 0.75)",
   "color.line.match": "#f59f0a",
+  "color.line.control": "rgb(235 232 226 / 0.18)",
   "color.fill.track": "rgb(245 245 245 / 0.07)",
   "color.fill.scrollbar": "rgb(245 245 245 / 0.25)",
   "color.fill.row-selected-unemphasized": "rgb(145 195 253 / 0.2)",
   "color.fill.segment-on": "rgb(235 232 226 / 0.22)",
   "color.fill.match": "rgb(245 159 10 / 0.25)",
   "color.fill.match-current": "rgb(245 159 10 / 0.45)",
+  "color.fill.button": "#34332f",
+  "color.fill.completion-selected": "#3a3550",
   "color.accent.fill": "#4576b2",
   "color.accent.text": "#7ea6d8",
   "color.accent.hover": "#2463eb",
@@ -197,7 +214,9 @@ export const dark = {
   "color.activity.level-1": "rgb(99 205 191 / 0.22)",
   "color.activity.level-2": "rgb(99 205 191 / 0.42)",
   "color.activity.level-3": "rgb(99 205 191 / 0.66)",
-  "color.activity.level-4": "#63cdbf"
+  "color.activity.level-4": "#63cdbf",
+  "color.code-block.bg": "rgb(235 232 226 / 0.04)",
+  "color.code-block.border": "rgb(235 232 226 / 0.1)"
 } as const
 
 export type ThemeColor = keyof typeof light

@@ -1,6 +1,6 @@
 import { syntaxHighlighting } from '@codemirror/language'
 import { EditorSelection } from '@codemirror/state'
-import { Facet, Prec } from '@codemirror/state'
+import { Facet, Prec, type Extension } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { useEffect, useRef, type RefObject } from 'react'
 import { yCollab } from 'y-codemirror.next'
@@ -28,7 +28,7 @@ import { markdownLineStyles } from './editor/lineStyles'
 import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
 import { pasteUrls, plainPaste } from './editor/paste'
 import { editorSetup, reconfigureSetup } from './editor/settings'
-import { slashMenu } from './editor/slashMenu'
+import { editorCompletions } from './editor/completions'
 import { taskToggle } from './editor/tasks'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
 import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
@@ -254,7 +254,7 @@ function attachImages(
   noteId: string,
   text: Y.Text,
   refused: (codes: string[]) => void,
-) {
+): { extension: Extension; choose: (view: EditorView) => void } {
   const insert = (view: EditorView, pos: number, files: File[]) => {
     const anchor = anchorAt(text, Math.min(pos, view.state.doc.length))
     void storeImages(noteId, files).then(async (stored) => {
@@ -266,7 +266,24 @@ function attachImages(
       })
     })
   }
-  return EditorView.domEventHandlers({
+  // Image File in the slash menu: the system's file panel, images only.
+  const choose = (view: EditorView) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.multiple = true
+    input.hidden = true
+    const pos = view.state.selection.main.head
+    input.addEventListener('change', () => {
+      const files = [...(input.files ?? [])].filter((f) => f.type.startsWith('image/'))
+      input.remove()
+      if (files.length > 0) insert(view, pos, files)
+    })
+    input.addEventListener('cancel', () => input.remove())
+    document.body.appendChild(input)
+    input.click()
+  }
+  const extension = EditorView.domEventHandlers({
     paste(event, view) {
       const files = imageFiles(event.clipboardData)
       if (files.length === 0) return false
@@ -283,6 +300,7 @@ function attachImages(
       return true
     },
   })
+  return { extension, choose }
 }
 
 /**
@@ -345,7 +363,7 @@ const theme = EditorView.theme({
     color: 'var(--color-text-secondary)',
     border: '0',
   },
-  // The `[[` note popup and the slash menu.
+  // The selection toolbar; the completion popups have their own look (editor/completions.ts).
   '.cm-tooltip': {
     border: '0',
     borderRadius: 'var(--radius-card)',
@@ -353,32 +371,6 @@ const theme = EditorView.theme({
     boxShadow: '0 0 0 0.5px var(--color-line-hairline)',
     color: 'var(--color-text-primary)',
   },
-  '.cm-tooltip.cm-tooltip-autocomplete > ul': {
-    fontFamily: 'var(--font-family-ui)',
-    maxHeight: 'calc(var(--size-sidebar-row) * 9)',
-    padding: 'var(--space-2)',
-  },
-  '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
-    padding: 'var(--space-2) var(--space-4)',
-    borderRadius: 'var(--radius-button)',
-  },
-  '.cm-tooltip-autocomplete ul li[aria-selected]': {
-    backgroundColor: 'var(--color-editor-completion-selected)',
-    color: 'var(--color-text-primary)',
-  },
-  // A slash menu item's key, and the letters its query matched (as in the palette).
-  '.cm-completionDetail': {
-    marginLeft: 'var(--space-4)',
-    fontStyle: 'normal',
-    fontSize: 'var(--font-size-footnote)',
-    color: 'var(--color-text-tertiary)',
-  },
-  '.cm-completionMatchedText': {
-    textDecoration: 'none',
-    fontWeight: 'var(--font-weight-bold)',
-    color: 'var(--color-syntax-markup)',
-  },
-  '.cm-completionIcon': { display: 'none' },
 })
 
 /**
@@ -453,6 +445,8 @@ interface Props {
   onImagesRefused?: (codes: string[]) => void
   /** The core could not open the note (it is gone or in the Trash). */
   onOpenFailed?: (noteId: string) => void
+  /** Runs New Note from Template (the empty note's chip). */
+  onChooseTemplate?: () => void
 }
 
 /** CodeMirror bound to a local Yjs replica of the note held by the core. */
@@ -476,6 +470,7 @@ export function NoteEditor({
   onNewFromSelection,
   onImagesRefused,
   onOpenFailed,
+  onChooseTemplate,
 }: Props) {
   const host = useRef<HTMLDivElement>(null)
   // Read once, when the note has loaded.
@@ -503,7 +498,9 @@ export function NoteEditor({
   const fromSelection = useRef(onNewFromSelection)
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
+  const chooseTemplateRef = useRef(onChooseTemplate)
   useEffect(() => {
+    chooseTemplateRef.current = onChooseTemplate
     placeAsked.current = initialPlace
     placeReport.current = onPlace
     focusOnOpen.current = autoFocus
@@ -587,6 +584,8 @@ export function NoteEditor({
           }
         }
         const setupFor = latestSettings.current
+        const images = attachImages(core, noteId, text, (codes) => imagesRefused.current?.(codes))
+        const imageChooser = images.choose
         const body = text.toString()
         const restored = placeAsked.current?.()
         const selection = restored?.selection && clampSelection(restored.selection, body.length)
@@ -617,7 +616,7 @@ export function NoteEditor({
               markdownLineStyles,
               // The GFM dialect (strikethrough, tables, task lists) and front matter.
               noteMarkdown,
-              attachImages(core, noteId, text, (codes) => imagesRefused.current?.(codes)),
+              images.extension,
               pasteUrls,
               pastePlainKeys(),
               newFromSelectionKeys(),
@@ -635,7 +634,10 @@ export function NoteEditor({
                 discard: (id) => linkSources.current.discard(id),
                 linked: (id) => linkSources.current.linked(id),
               }),
-              slashMenu(),
+              editorCompletions({
+                chooseImageFiles: (target) => imageChooser(target),
+                chooseTemplate: () => chooseTemplateRef.current?.(),
+              }),
               formatToolbar(showAlertMenu),
               formatKeyAvailability(setInertFormats),
               tableKeymap(),
