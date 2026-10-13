@@ -14,6 +14,22 @@ body,
   background: transparent;
 }
 
+/* The window never scrolls as a whole: only its panes do. Without this, a
+   caret or popup scrolled into view near the bottom of a note scrolls the
+   page itself and slides the whole window up. The viewport still scrolls
+   for the caret even when its overflow is hidden, so the app's root paints
+   nothing outside itself, positioned popups included, and leaves the page
+   nothing to scroll. */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+#root {
+  contain: paint;
+}
+
 body {
   color: var(--color-text-primary);
   cursor: default;
@@ -1098,7 +1114,7 @@ button {
 }
 
 .editor-toolbar .segment[aria-pressed='true'] {
-  background: var(--color-fill-row-selected-unemphasized);
+  background: var(--color-fill-row-selected);
   box-shadow: none;
 }
 
@@ -1271,7 +1287,7 @@ button {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--space-3) var(--space-7);
   box-sizing: border-box;
   min-height: 48px;
   padding: 0.6rem;
@@ -1304,6 +1320,7 @@ button {
 .note-info-caption {
   display: flex;
   flex-direction: column;
+  gap: var(--space-1);
   min-width: 0;
 }
 
