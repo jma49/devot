@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { NoteSummary, TaskProgress } from '../../../core'
+import { errorCode } from '../../../core/errors'
 import type { Core } from '../core-client'
 import { displayTitles } from '../headlines'
 import { currentLocale, t } from '../i18n'
@@ -139,7 +140,7 @@ export function NoteInfo(props: {
         const names = await displayTitles((ids) => core.headlines(ids), notes)
         if (current) setBacklinks(notes.map((n) => ({ id: n.id, name: names.get(n.id) ?? '' })))
       })
-      .catch(() => console.warn('W_BACKLINKS_FAILED', info.noteId))
+      .catch((e: unknown) => console.warn('W_BACKLINKS_FAILED', info.noteId, errorCode(e)))
     return () => {
       current = false
     }
