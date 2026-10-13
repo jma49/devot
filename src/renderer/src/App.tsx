@@ -1997,6 +1997,7 @@ export function App() {
     <div
       className="window"
       data-focus={focus || undefined}
+      data-ready={restored || undefined}
       data-sidebar-hidden={sidebarHidden || undefined}
     >
       <Sidebar
