@@ -924,7 +924,7 @@
     "float-toolbar-height": {
       "$type": "dimension",
       "$value": {
-        "value": 36,
+        "value": 37,
         "unit": "px"
       }
     },

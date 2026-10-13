@@ -4,7 +4,6 @@ import {
   createSymbolCache,
   ICONS,
   symbolFor,
-  fitPoints,
   inkBounds,
   symbolSize,
   symbolStyle,
@@ -98,23 +97,7 @@ describe('ink', () => {
   })
 })
 
-describe('fitting a symbol to its box', () => {
-  it('renders a set of symbols to about the same ink area, heights in a narrow band', () => {
-    // An 18 px box: ink of about 13 by 13 px. A square glyph measured at 14 points grows.
-    expect(fitPoints({ x: 0, y: 0, width: 10, height: 10 }, 14, 18)).toBe(18)
-    // A tall narrow one is held to the top of the band (14 px high), a wide
-    // flat one raised to its foot (11.7 px).
-    expect(fitPoints({ x: 0, y: 0, width: 7, height: 14 }, 14, 18)).toBe(14)
-    expect(fitPoints({ x: 0, y: 0, width: 10, height: 7 }, 14, 18)).toBe(23.5)
-    // A very wide one is held to the box's width.
-    expect(fitPoints({ x: 0, y: 0, width: 30, height: 5 }, 14, 18)).toBe(8.5)
-  })
-
-  it('never renders at more than twice or less than half the first size', () => {
-    expect(fitPoints({ x: 0, y: 0, width: 0.5, height: 0.5 }, 14, 18)).toBe(28)
-    expect(fitPoints({ x: 0, y: 0, width: 100, height: 100 }, 14, 18)).toBe(7)
-  })
-
+describe('placing a symbol in its box', () => {
   it('centres the ink on the box, on the half-pixel grid, keeping the box in the layout', () => {
     const image = {
       url: 'data:x',

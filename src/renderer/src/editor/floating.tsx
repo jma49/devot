@@ -96,7 +96,7 @@ export function FloatButton(props: FloatButtonProps) {
       onMouseLeave={props.onHideTip}
       onClick={(e) => props.onPress(e.currentTarget)}
     >
-      <Icon name={props.icon} size="toolbar" fit />
+      <Icon name={props.icon} size="toolbar" />
     </button>
   )
 }
@@ -121,8 +121,7 @@ export const floatTheme = EditorView.theme({
     display: 'flex',
     alignItems: 'center',
     height: 'var(--size-float-toolbar-height)',
-    // The same space round the buttons on every side.
-    padding: 'var(--space-2)',
+    padding: 'var(--space-2) var(--space-3)',
     border: '0',
     borderRadius: 'var(--radius-floating-bar)',
     backgroundColor: 'var(--color-surface-popover)',

@@ -3,7 +3,6 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { shownAppearance, subscribeAppearance } from '../theme/appearance'
 import {
   createSymbolCache,
-  fitPoints,
   inkBounds,
   symbolFor,
   symbolSize,
@@ -53,26 +52,14 @@ async function measure(url: string): Promise<SymbolImage> {
 const placed = new Map<string, Promise<SymbolImage>>()
 
 /**
- * A symbol rendered for a box, with where its ink is. `fit` (a toolbar's
- * set of buttons): rendered again at the point size that gives its ink the
- * set's size (`fitPoints`). Never scaled in the page.
+ * A symbol rendered for a box (every symbol for a box at one point size and
+ * weight), with where its ink is. Never scaled in the page.
  */
-function placedSymbol(
-  symbol: string,
-  box: number,
-  appearance: Appearance,
-  fit: boolean,
-): Promise<SymbolImage> {
-  const key = `${symbol}@${box}/${appearance}${fit ? '/fit' : ''}`
+function placedSymbol(symbol: string, box: number, appearance: Appearance): Promise<SymbolImage> {
+  const key = `${symbol}@${box}/${appearance}`
   let entry = placed.get(key)
   if (!entry) {
-    entry = (async () => {
-      const points = boxPoints(box)
-      const first = await measure(await cache.get(symbol, points, appearance))
-      if (!fit) return first
-      const fitted = fitPoints(first.ink, points, box)
-      return fitted === points ? first : measure(await cache.get(symbol, fitted, appearance))
-    })()
+    entry = (async () => measure(await cache.get(symbol, boxPoints(box), appearance)))()
     entry.catch(() => placed.delete(key))
     placed.set(key, entry)
   }
@@ -91,18 +78,9 @@ export function useAppearance(): Appearance {
 
 /**
  * An SF Symbol, coloured with the text colour of its parent. Decorative: the
- * control that holds it carries the accessible name. `fit`: one of a set of
- * buttons whose symbols are sized to match (see `placedSymbol`).
+ * control that holds it carries the accessible name.
  */
-export function Icon({
-  name,
-  size,
-  fit = false,
-}: {
-  name: IconName
-  size: keyof typeof BOXES
-  fit?: boolean
-}) {
+export function Icon({ name, size }: { name: IconName; size: keyof typeof BOXES }) {
   const appearance = useAppearance()
   const symbol = symbolFor(name)
   const box = BOXES[size]
@@ -110,14 +88,14 @@ export function Icon({
 
   useEffect(() => {
     let current = true
-    placedSymbol(symbol, box, appearance, fit).then(
+    placedSymbol(symbol, box, appearance).then(
       (next) => current && setImage(next),
       () => console.warn('W_SYMBOL_UNAVAILABLE', symbol),
     )
     return () => {
       current = false
     }
-  }, [symbol, box, appearance, fit])
+  }, [symbol, box, appearance])
 
   return (
     <span
@@ -140,7 +118,7 @@ export function iconElement(name: IconName, box: number): HTMLElement {
   span.className = 'icon'
   span.dataset['symbol'] = symbol
   span.setAttribute('aria-hidden', 'true')
-  placedSymbol(symbol, box, shownAppearance(), false).then(
+  placedSymbol(symbol, box, shownAppearance()).then(
     (image) => {
       // React's names to CSS's (`WebkitMaskImage` is `-webkit-mask-image`).
       for (const [key, value] of Object.entries(symbolStyle(image, box)))

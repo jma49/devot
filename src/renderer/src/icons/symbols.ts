@@ -102,33 +102,6 @@ export function inkBounds(alpha: ArrayLike<number>, width: number, height: numbe
 }
 
 /**
- * The ink a set of symbols is fitted to in a square `box` (a toolbar's
- * buttons): about the same area for all (a square of `side`), so a tall
- * bold B, a wide list mark and a diagonal link carry the same visual
- * weight; heights held within a narrow band round `side`; never beyond the box.
- */
-export function inkTarget(box: number): { side: number; low: number; high: number; max: number } {
-  const side = box * 0.72
-  return { side, low: side * 0.9, high: side * 1.08, max: box }
-}
-
-/**
- * The point size (in half points) that brings a symbol whose ink measured
- * `ink` at `points` to its box's target. The symbol is rendered again at
- * that size, never scaled, so its edges stay sharp.
- */
-export function fitPoints(ink: Box, points: number, box: number): number {
-  const target = inkTarget(box)
-  const height = Math.min(
-    target.high,
-    Math.max(target.low, (ink.height * target.side) / Math.sqrt(ink.width * ink.height)),
-  )
-  const scale = Math.min(height / ink.height, target.max / ink.width, target.max / ink.height)
-  const fitted = Math.round(points * scale * 2) / 2
-  return Math.min(points * 2, Math.max(points / 2, fitted))
-}
-
-/**
  * How a symbol sits in its `box` (CSS pixels, square): at its own size, its
  * ink centred on the box, on the half-pixel grid (whole device pixels on a
  * Retina screen). The margins keep the box's place in the layout; a symbol
