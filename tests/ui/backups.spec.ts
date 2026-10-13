@@ -163,3 +163,20 @@ test('stays open through repeated Escapes while busy, then closes', async ({ pag
   await showBackups(page)
   await expect(dialog).toBeVisible()
 })
+
+test('the Backups menu key acts on nothing here while another window has the keyboard', async ({
+  page,
+}) => {
+  await open(page, { backups_list: { backups: [NEW], lastError: null } })
+  const focus = (on: boolean) =>
+    page.evaluate((v) => {
+      ;(globalThis as unknown as { document: { hasFocus(): boolean } }).document.hasFocus = () => v
+    }, on)
+  await focus(false)
+  await showBackups(page)
+  await page.waitForTimeout(150)
+  await expect(page.getByRole('dialog', { name: 'Backups' })).toBeHidden()
+  await focus(true)
+  await showBackups(page)
+  await expect(page.getByRole('dialog', { name: 'Backups' })).toBeVisible()
+})
