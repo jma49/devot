@@ -87,6 +87,12 @@ async fn attachment(db: &Db, id: String) -> Result<FileRecord, String> {
         .ok_or_else(|| "E_FILE_NOT_FOUND".into())
 }
 
+/// The most pixels an image may have for Copy Image: the pasteboard gets it
+/// decoded (as TIFF, four bytes a pixel), and decoding takes a few copies
+/// more, so a larger one would take gigabytes, which a file of a few MB can
+/// ask for. Twice a 48-megapixel photo; Save Image As… takes any size.
+pub const MAX_COPY_PIXELS: u64 = 100_000_000;
+
 /// Puts an attachment on the general pasteboard as image data.
 #[tauri::command]
 pub async fn image_copy(
@@ -100,11 +106,12 @@ pub async fn image_copy(
         use crate::native::macos;
         // Decoding and converting run off the main thread; only the
         // pasteboard write runs there.
-        let image =
-            tauri::async_runtime::spawn_blocking(move || macos::pasteboard_image(&file.data))
-                .await
-                .map_err(|_| String::from("E_IMAGE_UNREADABLE"))?
-                .ok_or_else(|| String::from("E_IMAGE_UNREADABLE"))?;
+        let image = tauri::async_runtime::spawn_blocking(move || {
+            macos::pasteboard_image(&file.data, MAX_COPY_PIXELS)
+        })
+        .await
+        .map_err(|_| String::from("E_IMAGE_UNREADABLE"))?
+        .map_err(String::from)?;
         let (reply, answer) = tokio::sync::oneshot::channel();
         app.run_on_main_thread(move || {
             let _ = reply.send(macos::write_clipboard_image(&image));
@@ -244,6 +251,33 @@ mod tests {
         assert!(std::fs::symlink_metadata(&path).unwrap().is_file());
         assert_eq!(std::fs::read(&path).unwrap(), b"\x89PNG new");
         assert_eq!(std::fs::read(&theirs).unwrap(), b"theirs");
+    }
+
+    /// A small file can hold an image of so many pixels that its decoded
+    /// copies would take gigabytes; its header is read first, and nothing is
+    /// decoded past the limit.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn copies_no_image_over_the_pixel_limit() {
+        use crate::native::macos;
+        // A 1x1 PNG.
+        const PNG: &[u8] = &[
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48,
+            0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x04, 0x00, 0x00,
+            0x00, 0xb5, 0x1c, 0x0c, 0x02, 0x00, 0x00, 0x00, 0x0b, 0x49, 0x44, 0x41, 0x54, 0x78,
+            0xda, 0x63, 0x64, 0x60, 0x00, 0x00, 0x00, 0x06, 0x00, 0x02, 0x30, 0x81, 0xd0, 0x2f,
+            0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+        ];
+        let copy = macos::pasteboard_image(PNG, 1).expect("one pixel is within one");
+        assert_eq!(copy.png.as_deref(), Some(PNG));
+        assert_eq!(
+            macos::pasteboard_image(PNG, 0).err(),
+            Some("E_IMAGE_TOO_LARGE")
+        );
+        assert_eq!(
+            macos::pasteboard_image(b"not an image", MAX_COPY_PIXELS).err(),
+            Some("E_IMAGE_UNREADABLE")
+        );
     }
 
     #[test]

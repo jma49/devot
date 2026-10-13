@@ -299,34 +299,51 @@ pub struct PasteboardImage {
 /// Decodes an attachment into the data the pasteboard gets. A PNG keeps its
 /// own bytes; other formats are converted. Safe off the main thread (NSImage
 /// and NSBitmapImageRep decode on any thread), so the work never stalls the
-/// UI. None when AppKit cannot read the bytes as an image.
-pub fn pasteboard_image(bytes: &[u8]) -> Option<PasteboardImage> {
+/// UI. `E_IMAGE_UNREADABLE` when AppKit cannot read the bytes as an image,
+/// `E_IMAGE_TOO_LARGE` when its header gives it more than `max_pixels`
+/// pixels: nothing is decoded then.
+///
+/// AppKit's temporaries (several decoded copies of the image) go in an
+/// autorelease pool of the call's own, emptied before it returns: a thread
+/// with no pool keeps them until it exits, and a blocking-pool thread lives
+/// on for 10 s and more, so a few copies of a large photo held hundreds of
+/// MB. What is returned is Rust's own copy.
+pub fn pasteboard_image(bytes: &[u8], max_pixels: u64) -> Result<PasteboardImage, &'static str> {
     catch_unwind(AssertUnwindSafe(|| {
-        let data = NSData::with_bytes(bytes);
-        let image = NSImage::initWithData(NSImage::alloc(), &data)?;
-        let tiff = image.TIFFRepresentation()?;
-        let png = if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-            Some(bytes.to_vec())
-        } else {
-            NSBitmapImageRep::imageRepWithData(&tiff).and_then(|bitmap| {
-                // SAFETY: a public AppKit API (macOS 10.0+) called on a live
-                // bitmap with an empty properties dictionary; nil is checked.
-                unsafe {
-                    bitmap.representationUsingType_properties(
-                        NSBitmapImageFileType::PNG,
-                        &NSDictionary::new(),
-                    )
-                }
-                .map(|png| png.to_vec())
+        objc2::rc::autoreleasepool(|_| {
+            let data = NSData::with_bytes(bytes);
+            // The size, read from the header without decoding the pixels.
+            let header = NSBitmapImageRep::imageRepWithData(&data).ok_or("E_IMAGE_UNREADABLE")?;
+            let side = |n: isize| u64::try_from(n).unwrap_or(0);
+            if side(header.pixelsWide()).saturating_mul(side(header.pixelsHigh())) > max_pixels {
+                return Err("E_IMAGE_TOO_LARGE");
+            }
+            let image =
+                NSImage::initWithData(NSImage::alloc(), &data).ok_or("E_IMAGE_UNREADABLE")?;
+            let tiff = image.TIFFRepresentation().ok_or("E_IMAGE_UNREADABLE")?;
+            let png = if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+                Some(bytes.to_vec())
+            } else {
+                NSBitmapImageRep::imageRepWithData(&tiff).and_then(|bitmap| {
+                    // SAFETY: a public AppKit API (macOS 10.0+) called on a
+                    // live bitmap with an empty properties dictionary; nil
+                    // is checked.
+                    unsafe {
+                        bitmap.representationUsingType_properties(
+                            NSBitmapImageFileType::PNG,
+                            &NSDictionary::new(),
+                        )
+                    }
+                    .map(|png| png.to_vec())
+                })
+            };
+            Ok(PasteboardImage {
+                png,
+                tiff: tiff.to_vec(),
             })
-        };
-        Some(PasteboardImage {
-            png,
-            tiff: tiff.to_vec(),
         })
     }))
-    .ok()
-    .flatten()
+    .unwrap_or(Err("E_IMAGE_UNREADABLE"))
 }
 
 /// Replaces a pasteboard's contents with an image. False when nothing could
@@ -358,14 +375,14 @@ pub fn write_clipboard_image(image: &PasteboardImage) -> bool {
 /// Run on the main thread.
 pub fn self_test_image_pasteboard(png: &[u8]) -> Result<(), &'static str> {
     let owned = png.to_vec();
-    let image = std::thread::spawn(move || pasteboard_image(&owned))
+    let image = std::thread::spawn(move || pasteboard_image(&owned, u64::MAX))
         .join()
         .map_err(|_| "E_IMAGE_DECODE_PANICKED")?
-        .ok_or("E_IMAGE_NOT_DECODED")?;
+        .map_err(|_| "E_IMAGE_NOT_DECODED")?;
     if image.png.as_deref() != Some(png) {
         return Err("E_IMAGE_PNG_NOT_KEPT");
     }
-    if pasteboard_image(b"not an image").is_some() {
+    if pasteboard_image(b"not an image", u64::MAX).is_ok() {
         return Err("E_IMAGE_TOOK_NON_IMAGE");
     }
     let pasteboard = NSPasteboard::pasteboardWithUniqueName();
@@ -398,6 +415,29 @@ pub fn self_test_image_pasteboard(png: &[u8]) -> Result<(), &'static str> {
         }
     }
     result
+}
+
+/// This process's physical memory footprint in bytes, as Activity Monitor
+/// shows it; None when the kernel does not answer. The main-thread tests
+/// read it to check that native work frees what it used.
+#[doc(hidden)]
+pub fn memory_footprint() -> Option<u64> {
+    use mach2::task_info::{TASK_VM_INFO, task_vm_info};
+    let mut info = task_vm_info::default();
+    let mut count = (size_of::<task_vm_info>() / size_of::<mach2::vm_types::natural_t>())
+        as mach2::message::mach_msg_type_number_t;
+    // SAFETY: `task_info` writes at most `count` naturals (the size of
+    // `info`, a plain struct that lives for the whole call) into `info` and
+    // the number written into `count`; the task port is this process's own.
+    let result = unsafe {
+        mach2::task::task_info(
+            mach2::traps::mach_task_self(),
+            TASK_VM_INFO,
+            (&raw mut info).cast(),
+            &raw mut count,
+        )
+    };
+    (result == mach2::kern_return::KERN_SUCCESS).then_some(info.phys_footprint)
 }
 
 /// The general pasteboard's plain text: `Ok(None)` when it holds none, an
