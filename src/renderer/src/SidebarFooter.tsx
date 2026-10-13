@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { SHOW_BACKUPS, errorCode, listBackups, type BackupStatus } from './backups'
 import { currentLocale, format, t } from './i18n'
-import { Icon } from './icons/Icon'
+import { Chevron } from './Chevron'
 import { clockTime, useLastWrite } from './lastWrite'
 import { pausedMessage, useMirrorStatus } from './mirror'
 
@@ -108,7 +108,7 @@ export function SidebarFooter() {
         <span className="footer-saved">
           {at === null ? '' : format(t('sidebar.savedAt'), { time: clockTime(at) })}
         </span>
-        <Icon name={open ? 'disclosure.open' : 'disclosure.up'} size="sm" />
+        <Chevron open={open} closed="up" />
       </button>
     </div>
   )

@@ -519,6 +519,27 @@ button {
   color: var(--color-text-tertiary);
 }
 
+/* A disclosure chevron (Chevron.tsx): one symbol pointing down, turned to
+   point right or up while its section is shut, over the toggle duration. */
+.chevron {
+  display: inline-flex;
+  transition: rotate var(--motion-duration-toggle) var(--motion-easing-out);
+}
+
+.chevron[data-turn='right'] {
+  rotate: -90deg;
+}
+
+.chevron[data-turn='up'] {
+  rotate: 180deg;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+
 .book-name-field {
   flex: 1;
   min-width: 0;

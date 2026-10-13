@@ -56,6 +56,34 @@ test('the chevron folds Tags, points up while folded, and the choice is kept aft
   await expect(row).toBeVisible()
 })
 
+test('the Tags chevron turns up over the toggle duration and back down, and Reduce Motion turns it at once', async ({
+  page,
+}) => {
+  await createTag(page, 'urgent')
+  const chevron = sidebar(page).locator('.section-header', { hasText: 'Tags' }).locator('.chevron')
+  const style = (property: string) =>
+    chevron.evaluate(
+      (el, p) =>
+        (
+          globalThis as unknown as {
+            getComputedStyle(e: unknown): { getPropertyValue(n: string): string }
+          }
+        )
+          .getComputedStyle(el)
+          .getPropertyValue(p),
+      property,
+    )
+  expect(await style('transition-duration')).toBe('0.2s')
+  await sidebar(page).getByRole('button', { name: 'Collapse Tags' }).click()
+  await expect(chevron).toHaveAttribute('data-turn', 'up')
+  await expect.poll(() => style('rotate')).toBe('180deg')
+  await sidebar(page).getByRole('button', { name: 'Expand Tags' }).click()
+  await expect(chevron).not.toHaveAttribute('data-turn')
+  await expect(sidebar(page).locator('#tags-list')).toBeVisible()
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(await style('transition-duration')).toBe('0s')
+})
+
 test('the search buttons open the palette scoped to notebooks and to tags', async ({ page }) => {
   await createTag(page, 'urgent')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
