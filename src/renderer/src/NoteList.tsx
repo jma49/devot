@@ -14,9 +14,10 @@ import {
 } from 'react'
 import type { NoteSummary, TagRecord } from '../../core'
 import { matchSegments } from '../../core/search'
-import { noteCount, noteDate } from './format'
+import { fullDate, noteCount, relativeTime } from './format'
 import { currentLocale, format, t } from './i18n'
 import { Icon } from './icons/Icon'
+import type { IconName } from './icons/symbols'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import {
   openAfter,
@@ -66,8 +67,8 @@ interface Props {
   /** Right-click on a row: show the note menu for it. */
   onMenu?: (id: string) => void
   /** The sort button: its tooltip (the current order) and what it opens. */
-  sort?: { label: string; onOpen: (anchor: HTMLElement) => void }
-  /** The sort button itself (the palette's Sort Notes… opens its pop-up there). */
+  sort?: { label: string; chip: string; onOpen: (anchor: HTMLElement) => void }
+  /** The sort chip itself (the palette's Sort Notes… opens its pop-up there). */
   sortButtonRef?: Ref<HTMLButtonElement>
   /** `/` pressed on a row (`search.fromList`): search this view. */
   onFind?: () => void
@@ -76,10 +77,12 @@ interface Props {
    * the open note's title or body (the row's note when none is open).
    */
   onEdit?: (part: 'title' | 'body', id: string) => void
+  /** The view's icon, shown beside its name in the header. */
+  icon?: IconName | undefined
+  /** The Filter field under the header (the search field; none in the Trash). */
+  filter?: ReactNode
   /** Shown first in the toolbar (Show Sidebar while the sidebar is hidden). */
   leading?: ReactNode
-  /** Shown under the toolbar, above the rows: the search field. */
-  search?: ReactNode
   /** Search results: what to mark in titles and in body excerpts (see `searchPattern`). */
   highlight?: { title: RegExp | null; body: RegExp | null }
   /**
@@ -103,6 +106,8 @@ interface Props {
    * Without it such a row shows "Untitled".
    */
   headlines?: HeadlineLoader | undefined
+  /** Looks up the body excerpt a row shows under its title (search results bring their own). */
+  excerpts?: HeadlineLoader | undefined
 }
 
 /** `text` with the runs that match `pattern` in `<mark>`; text nodes only, never markup. */
@@ -131,19 +136,14 @@ type Entry =
   | { kind: 'section'; key: string; section: 'pinned' | 'others' }
   | { kind: 'row'; key: string; note: NoteSummary; index: number }
 
-const startOfDay = (time: number) => new Date(time).setHours(0, 0, 0, 0)
-
-/**
- * The start of today, checked every minute so "today" stays right; it
- * changes (and the rows render again) only when the day does.
- */
-function useToday(): number {
-  const [today, setToday] = useState(() => startOfDay(Date.now()))
+/** The current time, refreshed every minute so relative times stay right. */
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const timer = setInterval(() => setToday(startOfDay(Date.now())), MINUTE)
+    const timer = setInterval(() => setNow(Date.now()), MINUTE)
     return () => clearInterval(timer)
   }, [])
-  return today
+  return now
 }
 
 /** What a row does with its events; one object for all rows, kept from render to render. */
@@ -168,8 +168,10 @@ interface RowProps {
   highlight: Props['highlight']
   /** What shows for a note with no title: its first line, once known (see `useHeadlines`). */
   headline: string | undefined
-  /** The start of today (see `useToday`). */
-  today: number
+  /** The start of the note's body, once known (see `useHeadlines`). */
+  preview: string | undefined
+  /** The time the row's relative date is measured from (see `useNow`). */
+  now: number
   locale: string
   draggable: boolean
   /** Right-click shows the note menu. */
@@ -218,27 +220,27 @@ const NoteRow = memo(function NoteRow(props: RowProps) {
           (props.headline ?? t('note.untitled'))
         )}
       </span>
-      {n.excerpt ? (
-        <span className="row-excerpt">
-          <Marked text={n.excerpt} pattern={highlight?.body} />
-        </span>
-      ) : null}
       <span className="row-meta">
-        <time dateTime={new Date(n.updatedAt).toISOString()}>
-          {noteDate(n.updatedAt, props.today, props.locale)}
+        <time
+          className="row-time"
+          dateTime={new Date(n.updatedAt).toISOString()}
+          title={fullDate(n.updatedAt, props.locale)}
+        >
+          {relativeTime(n.updatedAt, props.now, props.locale)}
         </time>
         {n.status !== 'none' ? (
           <span className={`row-status status-${n.status}`}>{t(`status.${n.status}`)}</span>
         ) : null}
+        {chips.map((c) => (
+          <span key={c.id} className="chip">
+            {c.color ? <TagDot color={c.color} /> : null}
+            {c.name}
+          </span>
+        ))}
       </span>
-      {chips.length > 0 ? (
-        <span className="row-tags">
-          {chips.map((c) => (
-            <span key={c.id} className="chip">
-              {c.color ? <TagDot color={c.color} /> : null}
-              {c.name}
-            </span>
-          ))}
+      {n.excerpt || props.preview ? (
+        <span className="row-excerpt">
+          <Marked text={n.excerpt ?? props.preview ?? ''} pattern={highlight?.body} />
         </span>
       ) : null}
     </li>
@@ -268,7 +270,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         : order[0]
   const rows = useRef(new Map<string, HTMLLIElement>())
   const list = useRef<HTMLUListElement>(null)
-  const today = useToday()
+  const now = useNow()
   const locale = currentLocale()
 
   // A long list renders only the entries near the part that shows (see
@@ -344,6 +346,7 @@ export const NoteList = memo(function NoteList(props: Props) {
     [runs, entries],
   )
   const headlines = useHeadlines(props.headlines, rendered)
+  const previews = useHeadlines(props.excerpts, rendered, true)
   // A long list measures its entries as they render and change size, and
   // itself (its gaps, padding and height), and renders again when that
   // moves anything.
@@ -461,7 +464,10 @@ export const NoteList = memo(function NoteList(props: Props) {
   // else the next row (or the previous one at the end) takes it, and opens
   // unless another note is open; else the list itself.
   const keyboard = useRef<string>(undefined)
-  const shown = useRef<{ view: string; notes: NoteSummary[] }>({ view: props.view, notes: [] })
+  const shown = useRef<{ view: string; notes: NoteSummary[] }>({
+    view: props.view,
+    notes: [],
+  })
   // Native listeners: React ignores focus changes made while it commits, such
   // as a closing dialog giving the keyboard back to its row.
   useEffect(() => {
@@ -712,7 +718,8 @@ export const NoteList = memo(function NoteList(props: Props) {
         tags={tags}
         highlight={props.highlight}
         headline={headlines.get(n.id)}
-        today={today}
+        preview={previews.get(n.id)}
+        now={now}
         locale={locale}
         draggable={props.drag !== false}
         menu={props.onMenu !== undefined}
@@ -731,48 +738,59 @@ export const NoteList = memo(function NoteList(props: Props) {
   return (
     <section className="list" data-devot-part="list" aria-label={t('noteList.label')}>
       <div
-        className="toolbar"
+        className="toolbar list-header"
         data-devot-part="toolbar"
         role="toolbar"
         aria-label={t('toolbar.label')}
         data-tauri-drag-region
       >
-        {props.leading}
+        <div className="list-header-side" data-tauri-drag-region>
+          {props.leading}
+        </div>
         <div className="toolbar-title" data-tauri-drag-region>
-          {/* Long names are cut off with an ellipsis; the tooltip has the whole one. */}
-          <span className="headline" title={title} data-tauri-drag-region>
-            {title}
+          <span className="headline-row" data-tauri-drag-region>
+            {props.icon ? <Icon name={props.icon} size="sm" /> : null}
+            {/* Long names are cut off with an ellipsis; the tooltip has the whole one. */}
+            <span className="headline" title={title} data-tauri-drag-region>
+              {title}
+            </span>
           </span>
           <span className="caption" title={scope ? caption : undefined} data-tauri-drag-region>
             {caption}
           </span>
         </div>
-        {props.sort ? (
-          <button
-            ref={sortButtonRef}
-            type="button"
-            className="tool"
-            aria-label={t('sort.button')}
-            title={props.sort.label}
-            onClick={(e) => props.sort?.onOpen(e.currentTarget)}
-          >
-            <Icon name="sort" size="md" />
-          </button>
-        ) : null}
-        {props.headerAction ?? (
-          <button
-            type="button"
-            className="tool"
-            aria-label={props.createLabel ?? t('noteList.newNote')}
-            title={props.createLabel ?? t('noteList.newNote')}
-            onClick={onCreate}
-            disabled={!onCreate}
-          >
-            <Icon name="note.new" size="md" />
-          </button>
-        )}
+        <div className="list-header-side list-header-end" data-tauri-drag-region>
+          {props.headerAction ?? (
+            <button
+              type="button"
+              className="tool"
+              aria-label={props.createLabel ?? t('noteList.newNote')}
+              title={props.createLabel ?? t('noteList.newNote')}
+              onClick={onCreate}
+              disabled={!onCreate}
+            >
+              <Icon name="note.new" size="md" />
+            </button>
+          )}
+        </div>
       </div>
-      {props.search ? <div className="list-search">{props.search}</div> : null}
+      {props.filter || props.sort ? (
+        <div className="list-filter">
+          {props.filter}
+          {props.sort ? (
+            <button
+              ref={sortButtonRef}
+              type="button"
+              className="sort-chip"
+              aria-label={t('sort.button')}
+              title={props.sort.label}
+              onClick={(e) => props.sort?.onOpen(e.currentTarget)}
+            >
+              {props.sort.chip}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <ul
         ref={list}
         className="rows"

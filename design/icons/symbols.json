@@ -55,6 +55,7 @@
     "code.copied": "checkmark",
     "code.copyFailed": "exclamationmark.triangle",
     "more.vertical": "ellipsis",
-    "popup.chevron": "chevron.down"
+    "popup.chevron": "chevron.down",
+    "filter": "line.3.horizontal.decrease"
   }
 }

@@ -49,3 +49,17 @@ describe('headlines', () => {
     expect(await notes.headlines([id])).toEqual({ [id]: 'Gone soon' })
   })
 })
+
+describe('excerpts', () => {
+  it('gives the readable start of the body; an untitled note skips its headline', async () => {
+    const { notes } = setup()
+    const a = await notes.create('')
+    const b = await notes.create('Named')
+    await notes.setBody(a, '# Shopping list\n\nmilk and **eggs**')
+    await notes.setBody(b, '---\ntags: x\n---\nSome *plain* text')
+    expect(await notes.excerpts([a, b, '0192a6f0-0000-7000-8000-00000000000a'])).toEqual({
+      [a]: 'milk and eggs',
+      [b]: 'Some plain text',
+    })
+  })
+})

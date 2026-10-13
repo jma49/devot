@@ -1,6 +1,7 @@
 import { forwardRef } from 'react'
 import { t } from './i18n'
 import { Icon } from './icons/Icon'
+import type { IconName } from './icons/symbols'
 import { isImeKey } from './ime'
 
 /**
@@ -15,11 +16,13 @@ export const SearchField = forwardRef<
     onClear: () => void
     /** Says where the search looks (every note, or the current view). */
     placeholder: string
+    /** The icon at the field's start (a magnifier by default). */
+    icon?: IconName
   }
->(function SearchField({ value, onChange, onClear, placeholder }, ref) {
+>(function SearchField({ value, onChange, onClear, placeholder, icon = 'filter' }, ref) {
   return (
     <label className="search-field">
-      <Icon name="search" size="sm" />
+      <Icon name={icon} size="sm" />
       <input
         ref={ref}
         type="search"

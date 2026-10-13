@@ -103,7 +103,7 @@ test('a notebook from the palette, during a search over every note, drops the hi
   await expect(header(page)).toHaveText('Active')
 
   // The field searches every note: the filter no longer looks pressed.
-  await search(page).click()
+  await page.keyboard.press('Meta+Alt+Shift+KeyF')
   await page.keyboard.type('plan')
   await expect(active).toHaveAttribute('aria-pressed', 'false')
 
@@ -127,7 +127,7 @@ test('a tag from the palette, during a search over every note, drops the hidden 
   await createBook(page, 'Work')
   await createNote(page, 'Work plan')
 
-  await search(page).click()
+  await page.keyboard.press('Meta+Alt+Shift+KeyF')
   await page.keyboard.type('plan')
   await expect(book(page, 'Work')).toHaveAttribute('aria-selected', 'false')
 
