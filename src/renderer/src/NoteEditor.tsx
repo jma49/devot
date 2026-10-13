@@ -12,6 +12,8 @@ import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys } from './commands/registry'
+import { invoke } from './ipc'
+import { lineCommands } from './editor/lineCommands'
 import type { ShowAlertMenu } from './editor/alertMenu'
 import { moveSelection, selectedText, trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
@@ -327,7 +329,8 @@ const theme = EditorView.theme({
   '.cm-scroller': {
     fontSize: 'var(--editor-font-size, var(--font-size-body))',
     fontFamily: 'var(--editor-font-family, var(--font-family-mono))',
-    lineHeight: 'var(--editor-line-height, 1.4)',
+    fontWeight: 'var(--editor-font-weight, normal)',
+    lineHeight: 'var(--editor-line-height, 1.5)',
   },
   '&.cm-focused': { outline: 'none' },
   // Thin scroll bars, as in the rest of the window (app.css).
@@ -454,6 +457,8 @@ interface Props {
   onOpenFailed?: (noteId: string) => void
   /** Runs New Note from Template (the empty note's chip). */
   onChooseTemplate?: () => void
+  /** Opens the note a link under the caret points at (Open Link's key). */
+  onOpenNote?: (noteId: string) => void
 }
 
 /** CodeMirror bound to a local Yjs replica of the note held by the core. */
@@ -478,6 +483,7 @@ export function NoteEditor({
   onImagesRefused,
   onOpenFailed,
   onChooseTemplate,
+  onOpenNote,
 }: Props) {
   const host = useRef<HTMLDivElement>(null)
   // Read once, when the note has loaded.
@@ -506,6 +512,7 @@ export function NoteEditor({
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
   const chooseTemplateRef = useRef(onChooseTemplate)
+  const noteOpener = useRef(onOpenNote)
   useEffect(() => {
     chooseTemplateRef.current = onChooseTemplate
     placeAsked.current = initialPlace
@@ -519,6 +526,7 @@ export function NoteEditor({
     fromSelection.current = onNewFromSelection
     imagesRefused.current = onImagesRefused
     openFailed.current = onOpenFailed
+    noteOpener.current = onOpenNote
     latestSettings.current = settings
     imageHandlers.current = { open: onOpenImage, menu: showImageMenu }
   })
@@ -627,6 +635,15 @@ export function NoteEditor({
               pasteUrls,
               pastePlainKeys(),
               newFromSelectionKeys(),
+              lineCommands((href) => {
+                const note = /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)
+                if (note?.[1]) noteOpener.current?.(note[1])
+                else if (/^https:\/\//i.test(href)) {
+                  invoke('open_external', { url: href }).catch(() =>
+                    console.warn('W_OPEN_EXTERNAL_FAILED'),
+                  )
+                }
+              }),
               insertKeymap(),
               imageCommandKeys(),
               newFromSelection.of(() => {

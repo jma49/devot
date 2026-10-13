@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { bookShortcut, BOOK_COMMANDS } from '../bookMenu'
+import { LINE_COMMANDS, lineKeys } from '../editor/lineCommands'
 import { IMAGE_COMMANDS, imageKeys } from '../imageMenu'
 import { NOTE_COMMANDS, TRASH_COMMANDS, noteShortcut, trashShortcut } from '../noteMenu'
 import { TAG_COMMANDS, tagShortcut } from '../tagMenu'
@@ -71,6 +72,7 @@ function bound(id: CommandId): boolean {
   if (table) return editorTableKeys().some((k) => k.command === table && k.key === key)
   const insert = insertOf(id)
   if (insert) return editorInsertKeys().some((k) => k.insert === insert && k.key === key)
+  if (LINE_COMMANDS.includes(id)) return lineKeys().some((k) => k.id === id && k.key === key)
   const image = Object.entries(IMAGE_COMMANDS).find(([, c]) => c === id)?.[0]
   if (image) return imageKeys().some((k) => k.action === image && k.key === key)
   const spec = COMMANDS.find((c) => c.id === id)!

@@ -100,7 +100,6 @@ pub fn run() {
             usage::usage_record,
             usage::usage_list,
             usage::usage_clear,
-            settings::settings_fit,
             settings::settings_open_data_folder,
             settings::settings_show_backups,
             editor_settings::editor_settings_get,

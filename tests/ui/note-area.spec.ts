@@ -185,7 +185,7 @@ test('split mode gives the editor and the preview half each, with no rule and no
   await changeEditorSettingsElsewhere(page, { lineWrapping: true, readableWidth: true })
   const content = page.locator('.cm-content')
   // Outside split, the readable width holds.
-  await expect(content).toHaveCSS('max-width', '720px')
+  await expect(content).toHaveCSS('max-width', '740px')
   await page
     .getByRole('group', { name: 'View mode' })
     .getByRole('button', { name: 'Split' })

@@ -28,7 +28,7 @@ test('the toolbar button enters and leaves focus mode', async ({ page }) => {
   const main = await page.getByRole('main').boundingBox()
   const body = await page.locator('.panes').boundingBox()
   expect(main?.width).toBe(1600)
-  expect(body?.width).toBeLessThanOrEqual(720)
+  expect(body?.width).toBeLessThanOrEqual(740)
   expect(Math.abs((body?.x ?? 0) * 2 + (body?.width ?? 0) - 1600)).toBeLessThanOrEqual(1)
 
   await focusButton(page).click()

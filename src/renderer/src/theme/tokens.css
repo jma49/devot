@@ -45,7 +45,8 @@
   --size-pane-min-width: 240px;
   --size-sidebar-collapse-width: 1000px;
   --size-popup-max-width: 240px;
-  --size-reading-width: 720px;
+  --size-reading-width: 740px;
+  --size-settings-nav-width: 155px;
   --size-toolbar-height: 52px;
   --size-sidebar-row: 28px;
   --size-segment-height: 22px;
@@ -155,6 +156,7 @@
   --color-mark-bg: rgb(234 179 8 / 0.3);
   --color-match-bg: #f3e1bb;
   --color-match-border: #d9b871;
+  --color-trailing-space: rgb(175 59 54 / 0.25);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -248,6 +250,7 @@
     --color-mark-bg: rgb(227 164 58 / 0.3);
     --color-match-bg: #5b4a26;
     --color-match-border: #80672f;
+    --color-trailing-space: rgb(233 120 115 / 0.3);
   }
 }
 
@@ -342,6 +345,7 @@
   --color-mark-bg: rgb(227 164 58 / 0.3);
   --color-match-bg: #5b4a26;
   --color-match-border: #80672f;
+  --color-trailing-space: rgb(233 120 115 / 0.3);
 }
 
 :root[data-appearance='light'], [data-appearance-preview='light'] {
@@ -435,4 +439,5 @@
   --color-mark-bg: rgb(234 179 8 / 0.3);
   --color-match-bg: #f3e1bb;
   --color-match-border: #d9b871;
+  --color-trailing-space: rgb(175 59 54 / 0.25);
 }

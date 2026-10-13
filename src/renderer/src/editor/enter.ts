@@ -1,15 +1,13 @@
 // Return in a list or a quote. The Markdown language's own Return continues
-// the markup of the line and, on an empty list item, takes its marker off.
-// Two things it leaves out, which this wraps:
+// the markup of the line and, on an empty list item or quote line, takes its
+// marker off. Two things it does differently, which this wraps:
 //
 // - Leaving a list: the marker goes and the next line starts right under the
 //   last item, so text typed there is a lazy continuation of that item (the
 //   preview shows it inside the bullet). A blank line goes between them.
-// - Leaving a quote: Return on an empty quote line continues the quote
-//   again. It leaves it, as it does a list: one blank line, the cursor out.
-//   On an empty line in the middle of a quote (a line of it follows), or in
-//   a code block in a quote, Return goes on in the quote instead, so the
-//   quote is never split in two.
+// - An empty quote line: Return continues the quote with a new `> ` line.
+//   Leaving a quote is Shift+Return (a plain line) or Backspace on the empty
+//   `> ` (the language's own Backspace takes the marker off).
 //
 // Both are one transaction, so one undo step. An empty second item of a list
 // leaves it too: the language's own Return would loosen the list there (a
@@ -23,7 +21,6 @@ import {
   type EditorState,
   type Extension,
   type Line,
-  type Text,
   type Transaction,
 } from '@codemirror/state'
 import { keymap, type EditorView } from '@codemirror/view'
@@ -57,13 +54,11 @@ const PARSE_MS = 50
 
 /**
  * Return on an empty quote line (the cursor after the quote's marker, nothing
- * after it). At the end of the quote the marker of the innermost quote goes,
- * with a blank line above the cursor unless there is one already; when the
- * quote opens a list item, the item stays, empty. In the middle of the quote
- * (also in a list in it) or in a code block in it a new line of it follows.
- * Null for any other line.
+ * after it): the quote goes on with a new line of it, also in the middle of
+ * the quote and in a code block in it, so the quote is never split. Null for
+ * any other line.
  */
-function leaveQuote(state: EditorState): Transaction | null {
+function continueQuote(state: EditorState): Transaction | null {
   const range = state.selection.main
   if (state.selection.ranges.length !== 1 || !range.empty) return null
   const { doc } = state
@@ -74,22 +69,8 @@ function leaveQuote(state: EditorState): Transaction | null {
   const tree = ensureSyntaxTree(state, next, PARSE_MS) ?? syntaxTree(state)
   // Quote markers in the tree, not text in code or front matter.
   const marks = markersBefore(tree, line, range.from)
-  const inner = marks?.at(-1)
-  if (!marks || !inner) return null
-  // The `>` of a line in a list or code block in the quote is in that block:
-  // its quote is the nearest one above it. In code, the quote never splits.
-  let quote = tree.resolveInner(inner.mark, 1).parent
-  let inCode = false
-  while (quote && quote.name !== 'Blockquote') {
-    if (quote.name === 'FencedCode' || quote.name === 'CodeBlock') inCode = true
-    quote = quote.parent
-  }
-  const insert =
-    inCode || (quote && quote.to > line.to)
-      ? goOn(marks, line, range.from)
-      : marks.some((m) => !m.quote)
-        ? openingItem(marks)
-        : leaving(marks, line, doc)
+  if (!marks) return null
+  const insert = goOn(marks, line, range.from)
   const changes = { from: line.from, to: line.to, insert }
   return state.update({
     changes,
@@ -108,33 +89,6 @@ function goOn(marks: LineMark[], line: Line, cursor: number): string {
   const indent = line.text.slice(end, cursor - line.from)
   const next = marks.map((m) => (m.quote ? m.text : ' '.repeat(m.text.length))).join('') + indent
   return `${line.text.trimEnd()}\n${/[ \t]$/.test(next) ? next : `${next} `}`
-}
-
-/**
- * The line of a quote that opens a list item (`- > `), the quote left: the
- * item's marker and those before it stay, so the item stays, empty. It needs
- * no blank line: its marker starts a block of its own.
- */
-const openingItem = (marks: LineMark[]) =>
-  marks
-    .slice(0, -1)
-    .map((m) => m.text)
-    .join('')
-
-/**
- * The last line of a quote, the quote left: the outer quote markers stay, a
- * list item's marker as its indent, with a blank line above unless there is
- * one already.
- */
-function leaving(marks: LineMark[], line: Line, doc: Text): string {
-  const inner = marks.at(-1)?.text ?? ''
-  const outer =
-    marks
-      .slice(0, -1)
-      .map((m) => (m.quote ? m.text : ' '.repeat(m.text.length)))
-      .join('') + inner.slice(0, inner.length - inner.trimStart().length)
-  const apart = line.number > 1 && !bare(doc.line(line.number - 1).text)
-  return apart ? `${outer.trimEnd()}\n${outer}` : outer
 }
 
 /**
@@ -179,12 +133,13 @@ function continueList(state: EditorState): Transaction | null {
 }
 
 /**
- * Return in Markdown: the language's own, except that leaving a list or a
- * quote (Return on its empty last item or line) starts a separate paragraph.
+ * Return in Markdown: the language's own, except that leaving a list (Return
+ * on its empty last item) starts a separate paragraph and an empty quote line
+ * continues the quote.
  * False where it does nothing, as the language's command does.
  */
 export function insertNewlineLeavingMarkup(view: EditorView): boolean {
-  const tr = leaveQuote(view.state) ?? continueList(view.state)
+  const tr = continueQuote(view.state) ?? continueList(view.state)
   if (!tr) return false
   view.dispatch(tr)
   return true

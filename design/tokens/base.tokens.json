@@ -796,9 +796,17 @@
     "reading-width": {
       "$type": "dimension",
       "$value": {
-        "value": 720,
+        "value": 740,
         "unit": "px"
       }
+    },
+    "settings-nav-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 155,
+        "unit": "px"
+      },
+      "$description": "The width of the Settings window's navigation column."
     },
     "toolbar-height": {
       "$type": "dimension",

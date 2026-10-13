@@ -846,6 +846,16 @@
         },
         "$description": "The outline of that box, a shade darker."
       }
+    },
+    "trailing-space": {
+      "$type": "color",
+      "$description": "Behind spaces and tabs at the end of a line when the editor highlights trailing whitespace.",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.6863, 0.2314, 0.2118],
+        "hex": "#af3b36",
+        "alpha": 0.25
+      }
     }
   }
 }

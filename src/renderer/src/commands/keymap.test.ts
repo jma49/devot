@@ -74,7 +74,7 @@ describe('keyProblem', () => {
   })
 
   it('needs Command or Control where text is typed', () => {
-    for (const id of ['note.new', 'palette.openOutsideEditor', 'format.bold'] as const) {
+    for (const id of ['note.new', 'palette.open', 'format.bold'] as const) {
       for (const key of ['J', 'Shift+J', 'Alt+J', 'Alt+Shift+1', 'F5', 'Enter', 'Space'])
         expect(keyProblem(id, key)).toBe('needsModifier')
       for (const key of ['Mod+J', 'Ctrl+J', 'Ctrl+Alt+F5', 'Mod+Shift+Enter'])
@@ -82,7 +82,7 @@ describe('keyProblem', () => {
     }
     // Its own defaults stay allowed: the table keys, F3.
     expect(keyProblem('table.nextCell', 'Tab')).toBeUndefined()
-    expect(keyProblem('table.moveRowUp', 'Alt+ArrowUp')).toBeUndefined()
+    expect(keyProblem('table.moveRowUp', 'Mod+Alt+Shift+ArrowUp')).toBeUndefined()
     expect(keyProblem('find.nextInEditor', 'F3')).toBeUndefined()
     expect(keyProblem('table.nextCell', 'Enter')).toBe('needsModifier')
   })
@@ -114,8 +114,8 @@ describe('keyProblem', () => {
     ])
       for (const id of ['notebook.moveToTop', 'note.pin', 'note.new', 'format.bold'] as const)
         expect(keyProblem(id, key)).toBe('navigation')
-    // A table row moves on Option+Up by default.
-    expect(keyProblem('table.moveRowUp', 'Alt+ArrowUp')).toBeUndefined()
+    // A table row moves on Shift+Option+Cmd+Up by default.
+    expect(keyProblem('table.moveRowUp', 'Mod+Alt+Shift+ArrowUp')).toBeUndefined()
   })
 
   it('needs Command or Control for the panes keys, which work in the editor text too', () => {
@@ -163,9 +163,9 @@ describe('effectiveKeymap', () => {
   })
 
   it('lets a user key win over a default one where both apply', () => {
-    // Cmd+P is the palette's by default.
-    const keymap = effectiveKeymap({ 'format.bold': ['Mod+P'] })
-    expect(keymap.get('format.bold')).toEqual(['Mod+P'])
+    // Cmd+K is the palette's by default.
+    const keymap = effectiveKeymap({ 'format.bold': ['Mod+K'] })
+    expect(keymap.get('format.bold')).toEqual(['Mod+K'])
     expect(keymap.get('palette.open')).toEqual([])
     expect(shortcutClashes(asCommands(keymap))).toEqual([])
     // Where scopes never meet, both keep it.
@@ -191,9 +191,9 @@ describe('assigning keys', () => {
   it('takes the key from commands that have it where both apply', () => {
     const keymap = effectiveKeymap({})
     // The palette (window) and Bold (editor) overlap; Copy Note URI (note list) does not.
-    const change = assignKey('format.bold', 'Mod+P', keymap)
+    const change = assignKey('format.bold', 'Mod+K', keymap)
     expect(change.takes).toEqual(['palette.open'])
-    expect(change.patch).toEqual({ 'format.bold': ['Mod+P'], 'palette.open': [] })
+    expect(change.patch).toEqual({ 'format.bold': ['Mod+K'], 'palette.open': [] })
     const next = effectiveKeymap(applyPatch({}, change.patch))
     expect(next.get('palette.open')).toEqual([])
     expect(shortcutClashes(asCommands(next))).toEqual([])
@@ -210,11 +210,9 @@ describe('assigning keys', () => {
     expect(keyClashes('note.pin', 'Mod+Backspace', keymap)).toEqual(['note.trash'])
     expect(keyClashes('trash.restore', 'Mod+Backspace', keymap)).toEqual(['trash.deleteForever'])
     expect(keyClashes('notebook.rename', 'Mod+Backspace', keymap)).toEqual([])
-    expect(keyClashes('note.new', 'Mod+K', keymap)).toEqual([
-      'palette.openOutsideEditor',
-      'format.link',
-    ])
-    expect(keyClashes('format.link', 'Mod+K', keymap)).toEqual([])
+    expect(keyClashes('note.new', 'Mod+K', keymap)).toEqual(['palette.open'])
+    expect(keyClashes('note.new', 'Mod+Alt+K', keymap)).toEqual(['format.link'])
+    expect(keyClashes('format.link', 'Mod+Alt+K', keymap)).toEqual([])
   })
 
   it('writes the defaults as no change', () => {
@@ -234,15 +232,15 @@ describe('assigning keys', () => {
     // A command without default keys has nothing to clear.
     expect(clearKeys('note.copyId')).toEqual({ 'note.copyId': null })
 
-    let overrides = applyPatch({}, assignKey('format.bold', 'Mod+P', effectiveKeymap({})).patch)
-    // Resetting the palette takes Cmd+P back from Bold.
+    let overrides = applyPatch({}, assignKey('format.bold', 'Mod+K', effectiveKeymap({})).patch)
+    // Resetting the palette takes Cmd+K back from Bold.
     const reset = resetKeys('palette.open', effectiveKeymap(overrides))
     expect(reset).toEqual({
       patch: { 'palette.open': null, 'format.bold': [] },
       takes: ['format.bold'],
     })
     overrides = applyPatch(overrides, reset.patch)
-    expect(effectiveKeymap(overrides).get('palette.open')).toEqual(['Mod+P'])
+    expect(effectiveKeymap(overrides).get('palette.open')).toEqual(['Mod+K'])
     expect(effectiveKeymap(overrides).get('format.bold')).toEqual([])
 
     expect(resetAllKeys(overrides)).toEqual({ 'format.bold': null })

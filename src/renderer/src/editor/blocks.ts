@@ -37,8 +37,8 @@ import { mayBeFrontMatter, noteParser } from './markdown'
 
 export type { AlertKind } from '../../../core/preview/registry'
 
-/** The bullet a new list item gets (Settings > Editor > List marker); `-` by default. */
-export const listBullet = Facet.define<'-' | '*', '-' | '*'>({
+/** The bullet a new list item gets (Settings > Editing > Unordered List Bullet); `-` without settings. */
+export const listBullet = Facet.define<'-' | '*' | '+', '-' | '*' | '+'>({
   combine: (values) => values[0] ?? '-',
 })
 export type ListKind = 'bullet' | 'numbered' | 'task'

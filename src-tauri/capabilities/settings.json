@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings",
-  "description": "Permissions for the Settings window: reading and changing the editor settings, the keyboard shortcuts and the Markdown mirror's setting (and hearing when another window changes them), reading and clearing the local usage events, the toolbar's symbols, fitting the window to its pane, opening the app's data folder in Finder and showing the Backups dialog. Add a command here only when a settings section needs it.",
+  "description": "Permissions for the Settings window: reading and changing the editor settings, the keyboard shortcuts and the Markdown mirror's setting (and hearing when another window changes them), reading and clearing the local usage events, the navigation column's symbols, opening the app's data folder in Finder and showing the Backups dialog. Add a command here only when a settings section needs it.",
   "windows": ["settings"],
   "permissions": [
     "core:event:allow-listen",
@@ -17,7 +17,6 @@
     "allow-mirror-choose",
     "allow-mirror-confirm",
     "allow-symbol-png",
-    "allow-settings-fit",
     "allow-settings-open-data-folder",
     "allow-settings-show-backups"
   ]

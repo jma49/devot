@@ -72,8 +72,12 @@ describe('COMMANDS', () => {
       { command: 'previousCell', key: 'Shift-Tab' },
       { command: 'nextRow', key: 'Enter' },
       { command: 'insertRowBelow', key: 'Alt-Enter' },
-      { command: 'moveRowUp', key: 'Alt-ArrowUp' },
-      { command: 'moveRowDown', key: 'Alt-ArrowDown' },
+      { command: 'moveRowUp', key: 'Shift-Mod-Alt-ArrowUp' },
+      { command: 'moveRowDown', key: 'Shift-Mod-Alt-ArrowDown' },
+      { command: 'alignLeft', key: 'Mod-Alt-ArrowLeft' },
+      { command: 'alignCenter', key: 'Mod-Alt-ArrowUp' },
+      { command: 'alignRight', key: 'Mod-Alt-ArrowRight' },
+      { command: 'alignNone', key: 'Mod-Alt-ArrowDown' },
     ])
     // Moving between cells is what the keys are for; the palette leaves it out.
     for (const id of ['table.nextCell', 'table.previousCell', 'table.nextRow'] as const)
@@ -138,9 +142,10 @@ describe('COMMANDS', () => {
       const c = command(id)
       return [c.scope, ...c.keys]
     }
-    // Back and Forward, and the next and previous note, from anywhere.
-    expect(spec('note.back')).toEqual(['window', 'Mod+['])
-    expect(spec('note.forward')).toEqual(['window', 'Mod+]'])
+    // Back and Forward outside the editor (there Cmd+[ and Cmd+] outdent and
+    // indent), the next and previous note from anywhere.
+    expect(spec('note.back')).toEqual(['outsideEditor', 'Mod+[', 'Mod+ArrowLeft'])
+    expect(spec('note.forward')).toEqual(['outsideEditor', 'Mod+]', 'Mod+ArrowRight'])
     expect(spec('note.next')).toEqual(['window', 'Mod+Shift+]'])
     expect(spec('note.previous')).toEqual(['window', 'Mod+Shift+['])
     expect(spec('view.sidebar')).toEqual(['window', 'Mod+/'])
@@ -156,10 +161,18 @@ describe('COMMANDS', () => {
     expect(spec('note.editBody')).toEqual(['noteList', 'Mod+Enter'])
   })
 
-  it('runs Back, Forward and the sidebar key from the editor too', () => {
-    const cases: [KeyPress, string][] = [
+  it('runs Back and Forward outside the editor, and the other note keys from the editor too', () => {
+    const outside: [KeyPress, string][] = [
       [press('BracketLeft', '[', { metaKey: true }), 'note.back'],
       [press('BracketRight', ']', { metaKey: true }), 'note.forward'],
+      [press('ArrowLeft', 'ArrowLeft', { metaKey: true }), 'note.back'],
+      [press('ArrowRight', 'ArrowRight', { metaKey: true }), 'note.forward'],
+    ]
+    for (const [e, id] of outside) {
+      expect(windowCommand(e, { inEditor: false })).toBe(id)
+      expect(windowCommand(e, { inEditor: true })).toBeUndefined()
+    }
+    const cases: [KeyPress, string][] = [
       [press('BracketRight', '}', { metaKey: true, shiftKey: true }), 'note.next'],
       [press('BracketLeft', '{', { metaKey: true, shiftKey: true }), 'note.previous'],
       [press('Slash', '/', { metaKey: true }), 'view.sidebar'],
@@ -297,38 +310,37 @@ describe('COMMANDS', () => {
     expect(keys('search.all')).toEqual(['Mod+Alt+Shift+F'])
     expect(keys('view.focus')).toEqual(['Mod+Shift+D'])
     expect(keys('view.togglePreview')).toEqual(['Mod+E'])
-    expect(keys('view.split')).toEqual(['Mod+Shift+E'])
+    expect(keys('view.split')).toEqual(['Mod+P'])
     expect(keys('note.history')).toEqual(['Mod+Alt+Y'])
     expect(keys('note.duplicate')).toEqual(['Mod+D'])
     expect(keys('notebook.delete')).toEqual(['Backspace', 'Delete'])
     expect(editorFormatKeys()).toEqual([
-      { format: 'heading1', key: 'Mod-Alt-1' },
-      { format: 'heading2', key: 'Mod-Alt-2' },
-      { format: 'heading3', key: 'Mod-Alt-3' },
-      { format: 'heading4', key: 'Mod-Alt-4' },
+      { format: 'heading1', key: 'Mod-1' },
+      { format: 'heading2', key: 'Mod-2' },
+      { format: 'heading3', key: 'Mod-3' },
+      { format: 'heading4', key: 'Mod-4' },
       { format: 'heading5', key: 'Mod-Alt-5' },
       { format: 'heading6', key: 'Mod-Alt-6' },
       { format: 'bold', key: 'Mod-b' },
       { format: 'italic', key: 'Mod-i' },
-      { format: 'strikethrough', key: 'Shift-Mod-x' },
-      { format: 'highlight', key: 'Shift-Mod-h' },
-      { format: 'link', key: 'Mod-k' },
+      { format: 'strikethrough', key: 'Mod-u' },
+      { format: 'link', key: 'Mod-Alt-k' },
       { format: 'code', key: 'Mod-Alt-e' },
       { format: 'codeBlock', key: 'Shift-Mod-c' },
-      { format: 'bulletList', key: 'Shift-Mod-8' },
-      { format: 'numberedList', key: 'Shift-Mod-7' },
-      { format: 'taskList', key: 'Shift-Mod-9' },
-      { format: 'quote', key: 'Shift-Mod-.' },
-      { format: 'horizontalRule', key: 'Shift-Mod--' },
+      { format: 'bulletList', key: 'Shift-Mod-l' },
+      { format: 'numberedList', key: 'Shift-Mod-o' },
+      { format: 'taskList', key: 'Shift-Mod-t' },
+      { format: 'quote', key: "Mod-'" },
+      { format: 'horizontalRule', key: 'Shift-Mod-h' },
     ])
   })
 
   it('declares the editor commands for rules, new notes from a selection and plain pastes', () => {
-    // Shift+Cmd+H stays Highlight; the rule takes Shift+Cmd+- (no other command has it).
-    expect(command('format.highlight').keys).toEqual(['Mod+Shift+H'])
+    // Highlight has no key; the rule takes Shift+Cmd+H.
+    expect(command('format.highlight').keys).toEqual([])
     expect(command('format.horizontalRule')).toMatchObject({
       scope: 'editor',
-      keys: ['Mod+Shift+-'],
+      keys: ['Mod+Shift+H'],
     })
     expect(formatOf('format.horizontalRule')).toBe('horizontalRule')
     expect(command('note.newFromSelection')).toMatchObject({ scope: 'editor', keys: [] })
@@ -345,7 +357,7 @@ describe('COMMANDS', () => {
       shortcutClashes([...COMMANDS, { id: 'probe', scope: 'editor', keys: [key] }])
         .filter((c) => c.ids.includes('probe'))
         .map((c) => c.ids.find((id) => id !== 'probe'))
-    expect(probe('Mod+Shift+-')).toEqual(['format.horizontalRule'])
+    expect(probe('Mod+Shift+H')).toEqual(['format.horizontalRule'])
     expect(probe('Mod+Alt+Shift+V')).toEqual(['edit.pastePlain'])
     const ruleKey = press('Minus', '_', { metaKey: true, shiftKey: true })
     expect(keyMatches('Mod+Shift+-', ruleKey)).toBe(true)
@@ -368,15 +380,13 @@ describe('COMMANDS', () => {
     expect(insertOf('format.link')).toBeUndefined()
   })
 
-  it('opens the palette with Cmd+P anywhere and Cmd+K outside the editor', () => {
-    expect(commandKeys('palette.open')).toEqual(['Mod+P'])
+  it('opens the palette with Cmd+K anywhere, the editor too, and Link takes Option+Cmd+K', () => {
+    expect(commandKeys('palette.open')).toEqual(['Mod+K'])
     const cmdK = press('KeyK', 'k', { metaKey: true })
-    const cmdP = press('KeyP', 'p', { metaKey: true })
-    expect(windowCommand(cmdP, { inEditor: true })).toBe('palette.open')
-    expect(windowCommand(cmdK, { inEditor: false })).toBe('palette.openOutsideEditor')
-    // In the editor Cmd+K is Link.
-    expect(windowCommand(cmdK, { inEditor: true })).toBeUndefined()
-    expect(command('format.link').keys).toEqual(['Mod+K'])
+    expect(windowCommand(cmdK, { inEditor: true })).toBe('palette.open')
+    expect(windowCommand(cmdK, { inEditor: false })).toBe('palette.open')
+    expect(command('format.link').keys).toEqual(['Mod+Alt+K'])
+    expect(command('view.split').keys).toEqual(['Mod+P'])
   })
 
   it('finds window commands by key, and only those', () => {
@@ -409,7 +419,6 @@ describe('labels with shortcuts', () => {
     ['format.boldTitle', 'format.bold'],
     ['format.italicTitle', 'format.italic'],
     ['format.strikethroughTitle', 'format.strikethrough'],
-    ['format.highlightTitle', 'format.highlight'],
     ['format.linkTitle', 'format.link'],
     ['format.codeTitle', 'format.code'],
     ['format.codeBlockTitle', 'format.codeBlock'],
@@ -436,7 +445,7 @@ describe('labels with shortcuts', () => {
       // The catalog's title names no key of its own.
       expect(en[key]).not.toMatch(/[\u2318\u2325\u21e7\u2303]/)
     }
-    expect(headingTitle()).toBe(`Heading (${shortcutLabel('Mod+Alt+1')}\u20266)`)
+    expect(headingTitle()).toBe(`Heading (${shortcutLabel('Mod+1')})`)
   })
 
   it('follow the keys in effect', () => {
@@ -444,12 +453,17 @@ describe('labels with shortcuts', () => {
       effectiveKeymap({
         'view.focus': ['Mod+Alt+J'],
         'format.bold': [],
-        'format.heading3': ['Mod+Ctrl+3'],
       }),
     )
     expect(titleWithKey('mode.focusTitle', 'view.focus')).toBe('Focus Mode (\u2325\u2318J)')
     expect(titleWithKey('format.boldTitle', 'format.bold')).toBe('Bold')
-    // Headings that are no longer one chord show the first one's key.
+    // Six headings on one chord with the digits 1 to 6 are shown as a range.
+    const chord = Object.fromEntries(
+      [1, 2, 3, 4, 5, 6].map((n) => [`format.heading${n}`, [`Mod+Alt+${n}`]]),
+    )
+    setCommandKeys(effectiveKeymap(chord))
+    expect(headingTitle()).toBe(`Heading (${shortcutLabel('Mod+Alt+1')}\u20266)`)
+    setCommandKeys(effectiveKeymap({ ...chord, 'format.heading3': ['Mod+Ctrl+3'] }))
     expect(headingTitle()).toBe(`Heading (${shortcutLabel('Mod+Alt+1')})`)
     setCommandKeys(effectiveKeymap({ 'format.heading1': [] }))
     expect(headingTitle()).toBe('Heading')
@@ -527,5 +541,72 @@ describe('heldCommandKey', () => {
     // French: the A key types Q; Select All is on the key that types A.
     expect(held('KeyQ', 'a', { metaKey: true })).toBe(true)
     expect(held('KeyA', 'q', { metaKey: true })).toBe(false)
+  })
+})
+
+describe('the default keys', () => {
+  it('give formatting, views and editing their keys', () => {
+    const keys = (id: CommandId) => command(id).keys
+    const table: [CommandId, string[]][] = [
+      ['palette.open', ['Mod+K']],
+      ['format.link', ['Mod+Alt+K']],
+      ['view.split', ['Mod+P']],
+      ['view.togglePreview', ['Mod+E']],
+      ['format.heading1', ['Mod+1']],
+      ['format.heading2', ['Mod+2']],
+      ['format.heading3', ['Mod+3']],
+      ['format.heading4', ['Mod+4']],
+      ['format.heading5', ['Mod+Alt+5']],
+      ['format.heading6', ['Mod+Alt+6']],
+      ['format.strikethrough', ['Mod+U']],
+      ['format.bulletList', ['Mod+Shift+L']],
+      ['format.numberedList', ['Mod+Shift+O']],
+      ['format.taskList', ['Mod+Shift+T']],
+      ['format.quote', ["Mod+'"]],
+      ['format.horizontalRule', ['Mod+Shift+H']],
+      ['format.highlight', []],
+      ['format.codeBlock', ['Mod+Shift+C']],
+      ['format.code', ['Mod+Alt+E']],
+      ['note.move', ['M']],
+      ['note.moveAnywhere', ['Mod+Ctrl+M']],
+      ['view.focusNoteList', ['Mod+Ctrl+L']],
+      ['view.nextSidebarRow', ['Mod+Shift+J']],
+      ['view.previousSidebarRow', ['Mod+Shift+K']],
+      ['note.back', ['Mod+[', 'Mod+ArrowLeft']],
+      ['note.forward', ['Mod+]', 'Mod+ArrowRight']],
+      ['edit.plainNewline', ['Shift+Enter']],
+      ['edit.lineBelow', ['Mod+Enter']],
+      ['edit.lineAbove', ['Mod+Shift+Enter']],
+      ['edit.deleteLine', ['Mod+D']],
+      ['edit.selectLine', ['Mod+L']],
+      ['edit.moveLineUp', ['Alt+ArrowUp']],
+      ['edit.moveLineDown', ['Alt+ArrowDown']],
+      ['edit.copyLineUp', ['Alt+Shift+ArrowUp']],
+      ['edit.copyLineDown', ['Alt+Shift+ArrowDown']],
+      ['edit.outdent', ['Mod+[']],
+      ['edit.indent', ['Mod+]']],
+      ['edit.openLink', ['Ctrl+Shift+O']],
+      ['edit.sortLines', ['F5']],
+      ['edit.sortLinesReverse', ['Shift+F5']],
+      ['edit.sortLinesCase', ['Ctrl+F5']],
+      ['edit.sortLinesCaseReverse', ['Ctrl+Shift+F5']],
+      ['edit.joinLines', ['Ctrl+J']],
+      ['table.alignLeft', ['Mod+Alt+ArrowLeft']],
+      ['table.alignRight', ['Mod+Alt+ArrowRight']],
+      ['table.alignCenter', ['Mod+Alt+ArrowUp']],
+      ['table.alignNone', ['Mod+Alt+ArrowDown']],
+    ]
+    for (const [id, expected] of table) expect([id, keys(id)]).toEqual([id, expected])
+    // Full screen is the system's own (Control+Command+F, a reserved key).
+    expect(RESERVED_KEYS).toContain('Mod+Ctrl+F')
+  })
+
+  it('keep the user keys as they are when a default changes', () => {
+    // Strikethrough was Shift+Cmd+X; a user who kept that key still has it.
+    const keymap = effectiveKeymap({ 'format.strikethrough': ['Mod+Shift+X'] })
+    expect(keymap.get('format.strikethrough')).toEqual(['Mod+Shift+X'])
+    expect(keymap.get('format.bold')).toEqual(['Mod+B'])
+    // A user key on a new default key of another command wins over that default.
+    expect(effectiveKeymap({ 'format.bold': ['Mod+U'] }).get('format.strikethrough')).toEqual([])
   })
 })

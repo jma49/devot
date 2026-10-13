@@ -131,7 +131,8 @@ import { LivePreview } from './preview/Preview'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { Activity, useActivityMenu } from './Activity'
-import { Sidebar, type Selection } from './Sidebar'
+import { choicesFromTree, notebookForNewNote, publishNotebooks } from './notebookChoices'
+import { Sidebar, stepSidebarRow, type Selection } from './Sidebar'
 import { useKept, useStable } from './stable'
 import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
@@ -596,6 +597,8 @@ export function App() {
   }
 
   const tree = useMemo(() => buildBookTree(books), [books])
+  // The Settings window offers these as the default notebook.
+  useEffect(() => publishNotebooks(choicesFromTree(tree)), [tree])
   const counts = useKept(
     useMemo(() => bookCounts(notes, books), [notes, books]),
     sameCounts,
@@ -1375,14 +1378,20 @@ export function App() {
     showLibrary(homeOf(made), { clearFilter: true })
   }
 
+  /** The notebook a new note goes to: the one shown, else Settings > General's default. */
+  const newNoteBookId = () =>
+    notebookForNewNote(
+      libraryBook?.id,
+      editorSettings().defaultNotebook,
+      books.map((b) => b.id),
+    )
+
   const create = async () => {
     if (!core) return
     // Save pending titles first, so the refreshed list shows them.
     await saveEdits(core)
     // In Templates, a new note is a new template.
-    const id = inTemplates
-      ? await core.createTemplate()
-      : await core.create('', libraryBook?.id ?? null)
+    const id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     if (!inTemplates) track('note.created', { from: 'new_note' })
     await showMade(core, id, await refresh(core))
     await select(id, { keyboard: true })
@@ -1398,7 +1407,7 @@ export function App() {
     if (!core) return
     await saveEdits(core)
     const id = await core
-      .applyTemplate(templateId, Date.now(), libraryBook?.id ?? null)
+      .applyTemplate(templateId, Date.now(), newNoteBookId())
       .catch(() => undefined)
     if (!id) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
     recentTemplates.use(templateId)
@@ -1944,7 +1953,6 @@ export function App() {
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
   const handlers: CommandHandlers = {
     'palette.open': { run: () => openPalette() },
-    'palette.openOutsideEditor': { run: () => openPalette() },
     'search.view': { run: () => startSearch('view') },
     'search.all': { run: () => startSearch('all') },
     'view.focus': { run: toggleFocus },
@@ -1955,6 +1963,9 @@ export function App() {
       },
       label: sidebarShown ? 'command.hideSidebar' : 'command.showSidebar',
     },
+    'view.focusNoteList': { run: () => requestFocus({ kind: 'area', area: 'list' }) },
+    'view.nextSidebarRow': { run: () => stepSidebarRow(1) },
+    'view.previousSidebarRow': { run: () => stepSidebarRow(-1) },
     'view.nextArea': { run: () => moveArea(1) },
     'view.previousArea': { run: () => moveArea(-1) },
     'view.fontBigger': { run: () => stepEditorFontSize(1) },
@@ -2115,6 +2126,8 @@ export function App() {
   }
   // Find works while a note is open; its keys run ahead of the editor's (useFind).
   Object.assign(handlers, find.commands)
+  // Move to Notebook from anywhere runs what the list's key does.
+  if (handlers['note.move']) handlers['note.moveAnywhere'] = handlers['note.move']
   useWindowCommands(handlers)
   // The menu bar's Format menu runs the format commands too.
   useFormatMenu(handlers)
@@ -2633,6 +2646,7 @@ export function App() {
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
                 onChooseTemplate={() => setPicking({ recent: recentTemplates.load() })}
+                onOpenNote={(id) => void select(id)}
               />
               {mode === 'edit' ? null : (
                 <LivePreview

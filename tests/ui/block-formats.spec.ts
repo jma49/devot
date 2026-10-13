@@ -74,10 +74,10 @@ test('every block format has a shortcut that works without the toolbar', async (
   await newNote(page, 'word')
   const cases: [string, string[]][] = [
     ['ControlOrMeta+Shift+KeyC', ['```', 'word', '```']],
-    ['ControlOrMeta+Shift+Digit8', ['- word']],
-    ['ControlOrMeta+Shift+Digit7', ['1. word']],
-    ['ControlOrMeta+Shift+Digit9', ['- [ ] word']],
-    ['ControlOrMeta+Shift+Period', ['> word']],
+    ['ControlOrMeta+Shift+KeyL', ['- word']],
+    ['ControlOrMeta+Shift+KeyO', ['1. word']],
+    ['ControlOrMeta+Shift+KeyT', ['- [ ] word']],
+    ['ControlOrMeta+Quote', ['> word']],
   ]
   for (const [keys, formatted] of cases) {
     await selectAllWithoutToolbar(page)

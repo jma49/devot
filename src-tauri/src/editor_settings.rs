@@ -29,6 +29,9 @@ pub const LINE_HEIGHT_MIN: f64 = 1.0;
 pub const LINE_HEIGHT_MAX: f64 = 2.5;
 pub const TAB_WIDTH_MIN: u64 = 1;
 pub const TAB_WIDTH_MAX: u64 = 8;
+pub const CURSOR_SCROLL_MARGIN_MAX: u64 = 200;
+/// The longest notebook ID the default notebook may name.
+const NOTEBOOK_ID_MAX: usize = 64;
 
 const INVALID: &str = "E_EDITOR_SETTINGS_INVALID";
 
@@ -59,6 +62,25 @@ pub enum ListMarker {
     Dash,
     #[serde(rename = "*")]
     Star,
+    #[serde(rename = "+")]
+    Plus,
+}
+
+/// The weight of the editor's text: the font's normal one or a CSS weight.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FontWeight {
+    #[serde(rename = "normal")]
+    Normal,
+    #[serde(rename = "300")]
+    W300,
+    #[serde(rename = "400")]
+    W400,
+    #[serde(rename = "500")]
+    W500,
+    #[serde(rename = "600")]
+    W600,
+    #[serde(rename = "700")]
+    W700,
 }
 
 /// What pasting a lone URL inserts: the URL as copied, an autolink
@@ -118,12 +140,28 @@ pub struct EditorSettings {
     pub appearance: Appearance,
     /// The accent follows the macOS accent colour instead of Devot's palette.
     pub system_accent: bool,
+    /// The selection toolbar shows over selected text.
+    pub toolbar: bool,
+    /// The editor scrolls past the end of the note.
+    pub scroll_past_end: bool,
+    /// Pixels kept above and below the cursor when it nears the edge.
+    pub cursor_scroll_margin: u64,
+    pub font_weight: FontWeight,
+    /// Spaces, tabs and line breaks are drawn.
+    pub show_invisibles: bool,
+    /// Spaces and tabs at the end of a line are tinted.
+    pub highlight_trailing_whitespace: bool,
+    /// The preview's font size, in CSS pixels.
+    pub preview_font_size: u64,
+    /// The notebook a new note goes to when the view has none.
+    pub default_notebook: Option<String>,
 }
 
 impl Default for EditorSettings {
-    /// The editor as it was before these settings existed (with SF Mono),
-    /// the sidebar material on, synced scrolling on, images shown under
-    /// their lines, and the system's appearance with Devot's own accent.
+    /// The editor's defaults (SF Mono), the sidebar material on, synced
+    /// scrolling on, images shown under their lines, and the system's
+    /// appearance with Devot's own accent. A default applies only to a
+    /// setting the user never set (see `EditorSettingsStore`).
     fn default() -> Self {
         Self {
             line_numbers: false,
@@ -131,18 +169,26 @@ impl Default for EditorSettings {
             readable_width: false,
             font_size: 13,
             font_family: FontFamily::Mono,
-            line_height: 1.4,
+            line_height: 1.5,
             indent_unit: IndentUnit::Spaces2,
-            tab_width: 4,
-            list_marker: ListMarker::Dash,
-            spell_check: false,
-            highlight_active_line: true,
+            tab_width: 2,
+            list_marker: ListMarker::Star,
+            spell_check: true,
+            highlight_active_line: false,
             sidebar_material: true,
-            paste_url: PasteUrl::Plain,
+            paste_url: PasteUrl::Link,
             sync_scroll: true,
             inline_images: true,
             appearance: Appearance::System,
             system_accent: false,
+            toolbar: true,
+            scroll_past_end: true,
+            cursor_scroll_margin: 0,
+            font_weight: FontWeight::Normal,
+            show_invisibles: false,
+            highlight_trailing_whitespace: false,
+            preview_font_size: 15,
+            default_notebook: None,
         }
     }
 }
@@ -156,6 +202,23 @@ fn whole(value: &Value, min: u64, max: u64) -> Result<u64, &'static str> {
         .as_u64()
         .filter(|n| (min..=max).contains(n))
         .ok_or(INVALID)
+}
+
+/// A notebook ID (a short run of letters, digits, `-` and `_`) or null.
+fn notebook_id(value: &Value) -> Result<Option<String>, &'static str> {
+    match value {
+        Value::Null => Ok(None),
+        Value::String(id)
+            if !id.is_empty()
+                && id.len() <= NOTEBOOK_ID_MAX
+                && id
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') =>
+        {
+            Ok(Some(id.clone()))
+        }
+        _ => Err(INVALID),
+    }
 }
 
 fn choice<T: for<'de> Deserialize<'de>>(value: &Value) -> Result<T, &'static str> {
@@ -188,6 +251,18 @@ impl EditorSettings {
             "inlineImages" => self.inline_images = flag(value)?,
             "appearance" => self.appearance = choice(value)?,
             "systemAccent" => self.system_accent = flag(value)?,
+            "toolbar" => self.toolbar = flag(value)?,
+            "scrollPastEnd" => self.scroll_past_end = flag(value)?,
+            "cursorScrollMargin" => {
+                self.cursor_scroll_margin = whole(value, 0, CURSOR_SCROLL_MARGIN_MAX)?
+            }
+            "fontWeight" => self.font_weight = choice(value)?,
+            "showInvisibles" => self.show_invisibles = flag(value)?,
+            "highlightTrailingWhitespace" => self.highlight_trailing_whitespace = flag(value)?,
+            "previewFontSize" => {
+                self.preview_font_size = whole(value, FONT_SIZE_MIN, FONT_SIZE_MAX)?
+            }
+            "defaultNotebook" => self.default_notebook = notebook_id(value)?,
             _ => return Err(INVALID),
         }
         Ok(())
@@ -204,7 +279,9 @@ impl EditorSettings {
     }
 
     /// Settings read from a stored file: each valid value is kept, anything
-    /// else takes its default.
+    /// else takes its default (the store itself keeps the valid values
+    /// apart, see `EditorSettingsStore::read`).
+    #[cfg(test)]
     pub fn from_stored(value: &Value) -> Self {
         let mut out = Self::default();
         if let Value::Object(map) = value {
@@ -241,11 +318,19 @@ pub fn initial_script(snapshot: &Snapshot) -> String {
     format!("window.{INITIAL_GLOBAL} = {json};")
 }
 
+/// What the store holds: the settings in effect and the values the user has
+/// set (the only ones written to the file, so a default that changes later
+/// still applies to every setting the user never touched).
+struct Held {
+    snapshot: Snapshot,
+    stored: Map<String, Value>,
+}
+
 /// The settings file. It is read on first use; a missing or unreadable file
 /// means the defaults.
 pub struct EditorSettingsStore {
     path: PathBuf,
-    current: Mutex<Option<Snapshot>>,
+    current: Mutex<Option<Held>>,
 }
 
 impl EditorSettingsStore {
@@ -256,24 +341,34 @@ impl EditorSettingsStore {
         }
     }
 
-    fn read(&self) -> Snapshot {
-        let settings = match std::fs::read(&self.path) {
+    fn read(&self) -> Held {
+        let stored = match std::fs::read(&self.path) {
             Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(value) => EditorSettings::from_stored(&value),
+                Ok(Value::Object(map)) => map,
+                Ok(_) => Map::new(),
                 Err(_) => {
                     log::warn!("W_EDITOR_SETTINGS_UNREADABLE");
-                    EditorSettings::default()
+                    Map::new()
                 }
             },
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => EditorSettings::default(),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Map::new(),
             Err(_) => {
                 log::warn!("W_EDITOR_SETTINGS_READ_FAILED");
-                EditorSettings::default()
+                Map::new()
             }
         };
-        Snapshot {
-            revision: 0,
-            settings,
+        // Only values that are valid and known stay in `stored`.
+        let mut settings = EditorSettings::default();
+        let stored = stored
+            .into_iter()
+            .filter(|(key, value)| settings.set(key, value).is_ok())
+            .collect();
+        Held {
+            snapshot: Snapshot {
+                revision: 0,
+                settings,
+            },
+            stored,
         }
     }
 
@@ -283,14 +378,14 @@ impl EditorSettingsStore {
             .current
             .lock()
             .map_err(|_| "E_EDITOR_SETTINGS_LOCK_FAILED")?;
-        Ok(held.get_or_insert_with(|| self.read()).clone())
+        Ok(held.get_or_insert_with(|| self.read()).snapshot.clone())
     }
 
     /// Applies `patch` and stores the result: a temporary file, flushed to
     /// disk, then renamed over the old one, so a crash or a power loss leaves
     /// either version whole. Returns the settings now in effect.
     pub fn update(&self, patch: &Map<String, Value>) -> Result<Snapshot, &'static str> {
-        self.store_next(|now| now.with(patch))
+        self.store_next(|_| patch.clone())
     }
 
     /// Like `update`, with the change made from the current settings while
@@ -299,28 +394,36 @@ impl EditorSettingsStore {
         &self,
         change: impl FnOnce(&EditorSettings) -> Map<String, Value>,
     ) -> Result<Snapshot, &'static str> {
-        self.store_next(|now| now.with(&change(now)))
+        self.store_next(change)
     }
 
-    /// Stores the settings `next` makes from the current ones (see `update`).
+    /// Stores the change `patch_for` makes to the current settings (see
+    /// `update`): the file holds the values the user set, and only those.
     fn store_next(
         &self,
-        next: impl FnOnce(&EditorSettings) -> Result<EditorSettings, &'static str>,
+        patch_for: impl FnOnce(&EditorSettings) -> Map<String, Value>,
     ) -> Result<Snapshot, &'static str> {
         let mut held = self
             .current
             .lock()
             .map_err(|_| "E_EDITOR_SETTINGS_LOCK_FAILED")?;
         let now = held.get_or_insert_with(|| self.read());
+        let patch = patch_for(&now.snapshot.settings);
+        let settings = now.snapshot.settings.with(&patch)?;
+        let mut stored = now.stored.clone();
+        stored.extend(patch);
         let next = Snapshot {
-            revision: now.revision + 1,
-            settings: next(&now.settings)?,
+            revision: now.snapshot.revision + 1,
+            settings,
         };
-        let json = serde_json::to_vec_pretty(&next.settings)
-            .map_err(|_| "E_EDITOR_SETTINGS_WRITE_FAILED")?;
+        let json =
+            serde_json::to_vec_pretty(&stored).map_err(|_| "E_EDITOR_SETTINGS_WRITE_FAILED")?;
         crate::atomic_file::write_replacing(&self.path, &json)
             .map_err(|_| "E_EDITOR_SETTINGS_WRITE_FAILED")?;
-        *held = Some(next.clone());
+        *held = Some(Held {
+            snapshot: next.clone(),
+            stored,
+        });
         Ok(next)
     }
 }
@@ -401,18 +504,24 @@ mod tests {
     }
 
     #[test]
-    fn defaults_keep_the_editor_as_it_was() {
+    fn defaults_are_roomy_and_helpful() {
         let d = EditorSettings::default();
-        assert!(!d.line_numbers && d.line_wrapping && d.highlight_active_line);
-        assert!(!d.readable_width && !d.spell_check);
+        assert!(!d.line_numbers && d.line_wrapping && !d.highlight_active_line);
+        assert!(!d.readable_width && d.spell_check);
         assert_eq!(d.font_size, 13);
-        assert_eq!(d.line_height, 1.4);
+        assert_eq!(d.line_height, 1.5);
         assert_eq!(d.indent_unit, IndentUnit::Spaces2);
-        assert_eq!(d.tab_width, 4);
-        assert_eq!(d.list_marker, ListMarker::Dash);
+        assert_eq!(d.tab_width, 2);
+        assert_eq!(d.list_marker, ListMarker::Star);
         // The window shows the sidebar material unless turned off.
         assert!(d.sidebar_material);
-        assert_eq!(d.paste_url, PasteUrl::Plain);
+        assert_eq!(d.paste_url, PasteUrl::Link);
+        assert!(d.toolbar && d.scroll_past_end);
+        assert_eq!(d.cursor_scroll_margin, 0);
+        assert_eq!(d.font_weight, FontWeight::Normal);
+        assert!(!d.show_invisibles && !d.highlight_trailing_whitespace);
+        assert_eq!(d.preview_font_size, 15);
+        assert_eq!(d.default_notebook, None);
         // Split mode scrolls the editor and the preview together.
         assert!(d.sync_scroll);
         // Images show under their lines unless turned off.
@@ -433,18 +542,26 @@ mod tests {
                 "readableWidth": false,
                 "fontSize": 13,
                 "fontFamily": "mono",
-                "lineHeight": 1.4,
+                "lineHeight": 1.5,
                 "indentUnit": "spaces2",
-                "tabWidth": 4,
-                "listMarker": "-",
-                "spellCheck": false,
-                "highlightActiveLine": true,
+                "tabWidth": 2,
+                "listMarker": "*",
+                "spellCheck": true,
+                "highlightActiveLine": false,
                 "sidebarMaterial": true,
-                "pasteUrl": "plain",
+                "pasteUrl": "link",
                 "syncScroll": true,
                 "inlineImages": true,
                 "appearance": "system",
                 "systemAccent": false,
+                "toolbar": true,
+                "scrollPastEnd": true,
+                "cursorScrollMargin": 0,
+                "fontWeight": "normal",
+                "showInvisibles": false,
+                "highlightTrailingWhitespace": false,
+                "previewFontSize": 15,
+                "defaultNotebook": null,
             })
         );
     }
@@ -470,6 +587,14 @@ mod tests {
                 "inlineImages": false,
                 "appearance": "dark",
                 "systemAccent": true,
+                "toolbar": false,
+                "scrollPastEnd": false,
+                "cursorScrollMargin": 200,
+                "fontWeight": "700",
+                "showInvisibles": true,
+                "highlightTrailingWhitespace": true,
+                "previewFontSize": 32,
+                "defaultNotebook": "0b0c-1d_2",
             })))
             .unwrap();
         assert_eq!(next.appearance, Appearance::Dark);
@@ -484,6 +609,19 @@ mod tests {
                 .unwrap();
             assert_eq!(read.appearance.window_theme(), theme);
         }
+        assert!(!next.toolbar && !next.scroll_past_end);
+        assert_eq!(next.cursor_scroll_margin, 200);
+        assert_eq!(next.font_weight, FontWeight::W700);
+        assert!(next.show_invisibles && next.highlight_trailing_whitespace);
+        assert_eq!(next.preview_font_size, 32);
+        assert_eq!(next.default_notebook.as_deref(), Some("0b0c-1d_2"));
+        let plus = EditorSettings::default()
+            .with(&patch(
+                json!({ "listMarker": "+", "defaultNotebook": null }),
+            ))
+            .unwrap();
+        assert_eq!(plus.list_marker, ListMarker::Plus);
+        assert_eq!(plus.default_notebook, None);
         assert_eq!(next.paste_url, PasteUrl::Link);
         assert!(!next.inline_images);
         assert!(!next.line_numbers && !next.line_wrapping && !next.highlight_active_line);
@@ -542,7 +680,21 @@ mod tests {
             json!({ "indentUnit": 2 }),
             json!({ "tabWidth": 0 }),
             json!({ "tabWidth": 9 }),
-            json!({ "listMarker": "+" }),
+            json!({ "listMarker": "#" }),
+            json!({ "toolbar": "on" }),
+            json!({ "scrollPastEnd": null }),
+            json!({ "cursorScrollMargin": 201 }),
+            json!({ "cursorScrollMargin": -1 }),
+            json!({ "fontWeight": "bold" }),
+            json!({ "fontWeight": 400 }),
+            json!({ "showInvisibles": 1 }),
+            json!({ "highlightTrailingWhitespace": "yes" }),
+            json!({ "previewFontSize": 9 }),
+            json!({ "previewFontSize": 33 }),
+            json!({ "defaultNotebook": "" }),
+            json!({ "defaultNotebook": "a b" }),
+            json!({ "defaultNotebook": 5 }),
+            json!({ "defaultNotebook": "x".repeat(65) }),
             json!({ "listMarker": "- " }),
             json!({ "pasteUrl": "markdown" }),
             json!({ "pasteUrl": "Plain" }),
@@ -579,7 +731,7 @@ mod tests {
             "lineNumbers": false,
             "fontSize": 99,
             "fontFamily": "menlo",
-            "listMarker": "+",
+            "listMarker": "#",
             "sidebarMaterial": "no",
             "pasteUrl": "html",
             "syncScroll": false,
@@ -592,8 +744,8 @@ mod tests {
         assert_eq!(read.font_family, FontFamily::Menlo);
         // Bad values take their defaults.
         assert_eq!(read.font_size, 13);
-        assert_eq!(read.list_marker, ListMarker::Dash);
-        assert_eq!(read.paste_url, PasteUrl::Plain);
+        assert_eq!(read.list_marker, ListMarker::Star);
+        assert_eq!(read.paste_url, PasteUrl::Link);
         assert_eq!(
             EditorSettings::from_stored(&json!([1, 2])),
             EditorSettings::default()
@@ -666,6 +818,34 @@ mod tests {
             .map(|e| e.unwrap().file_name())
             .collect();
         assert_eq!(names, [FILE]);
+    }
+
+    #[test]
+    fn writes_only_what_the_user_set_so_new_defaults_apply_to_the_rest() {
+        let dir = tempfile::tempdir().unwrap();
+        store(&dir)
+            .update(&patch(json!({ "fontSize": 16 })))
+            .unwrap();
+        let written: Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join(FILE)).unwrap()).unwrap();
+        assert_eq!(written, json!({ "fontSize": 16 }));
+        // Another change adds its key and keeps the first.
+        store(&dir)
+            .update(&patch(json!({ "lineHeight": 1.8 })))
+            .unwrap();
+        let written: Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join(FILE)).unwrap()).unwrap();
+        assert_eq!(written, json!({ "fontSize": 16, "lineHeight": 1.8 }));
+        // A value stored by an older Devot is kept; unset ones take the defaults.
+        std::fs::write(
+            dir.path().join(FILE),
+            br#"{ "lineHeight": 1.4, "tabWidth": 4 }"#,
+        )
+        .unwrap();
+        let read = store(&dir).get().unwrap().settings;
+        assert_eq!((read.line_height, read.tab_width), (1.4, 4));
+        assert_eq!(read.list_marker, ListMarker::Star);
+        assert!(read.spell_check);
     }
 
     #[test]

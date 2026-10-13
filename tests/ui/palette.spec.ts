@@ -53,9 +53,9 @@ const showFromMenu = (page: Page) =>
     w.dispatchEvent(new w.CustomEvent('devot:show-palette'))
   })
 
-/** Opens the palette with Cmd+P and types a query. */
+/** Opens the palette with Cmd+K and types a query. */
 async function search(page: Page, query: string) {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
   await field(page).fill(query)
 }
@@ -116,7 +116,7 @@ test('labels a command for the open note: Pin to Top or Unpin', async ({ page })
   await expect(active(page)).toContainText('Unpin')
 })
 
-test('Cmd+K opens it outside the editor; in the editor Cmd+K stays Link', async ({ page }) => {
+test('Cmd+K opens it anywhere, the editor too; Link is Option+Cmd+K', async ({ page }) => {
   await createNote(page, 'Keys')
   await body(page).click()
   await page.keyboard.insertText('word')
@@ -128,16 +128,19 @@ test('Cmd+K opens it outside the editor; in the editor Cmd+K stays Link', async 
   await expect(palette(page)).toBeHidden()
   await expect(noteRows(page).first()).toBeFocused()
 
+  // With the editor focused Cmd+K opens the palette and Escape puts the keyboard back there.
   await body(page).dblclick()
-  await page.keyboard.press('ControlOrMeta+KeyK')
-  await expect(body(page)).toHaveText('[word]()')
-  await expect(palette(page)).toBeHidden()
-  // Cmd+P works in the editor too, and Escape puts the keyboard back there.
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
   await page.keyboard.press('Escape')
+  await expect(palette(page)).toBeHidden()
   await page.keyboard.insertText('!')
   await expect(body(page)).toContainText('!')
+
+  await body(page).dblclick()
+  await page.keyboard.press('ControlOrMeta+Alt+KeyK')
+  await expect(palette(page)).toBeHidden()
+  await expect(body(page)).toContainText('[')
 })
 
 test('runs a format on the editor selection', async ({ page }) => {
@@ -321,7 +324,7 @@ test('the View menu item opens it, but not over another sheet', async ({ page })
 
   await pickNoteMore(page, 'Revision History\u2026')
   await expect(page.getByRole('dialog', { name: 'Revision History' })).toBeVisible()
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await showFromMenu(page)
   await expect(palette(page)).toBeHidden()
 })

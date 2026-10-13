@@ -2,7 +2,7 @@
 // keeps them (src-tauri/src/editor_settings.rs); after every change it sends
 // `devot://editor-settings-changed` with the full settings to every window,
 // which re-sends it in the page as `devot:editor-settings-changed` (the UI
-// tests send that one). Font, size and line height reach the editor as CSS
+// tests send that one). Font, size, weight and line height reach the editor as CSS
 // variables on the root element, set through CSSOM (the CSP allows no
 // inline styles); the rest reconfigure the editor (editor/settings.ts).
 import { useSyncExternalStore } from 'react'
@@ -14,6 +14,7 @@ import {
   type EditorSettings,
   type FontFamilyId,
 } from '../../core/editorSettings'
+import { sizes } from './theme/tokens'
 import { createSyncedStore } from './syncedStore'
 import { invoke } from './ipc'
 
@@ -29,6 +30,9 @@ const FONT_STACKS: Readonly<Record<FontFamilyId, string>> = {
   courierNew: "'Courier New', var(--font-family-mono)",
 }
 
+/** The type scale's preview size in pixels (what a preview scale of 1 is). */
+const PREVIEW_BASE_SIZE = parseFloat(sizes['font.size.preview'])
+
 export interface StyleTarget {
   setProperty(name: string, value: string): void
 }
@@ -36,8 +40,9 @@ export interface StyleTarget {
 /** Sets the CSS variables the editor's theme reads. */
 export function applyEditorStyle(settings: EditorSettings, style: StyleTarget): void {
   style.setProperty('--editor-font-size', `${settings.fontSize}px`)
-  // The preview grows and shrinks with the editor's size (13 px is 1).
-  style.setProperty('--preview-scale', String(settings.fontSize / DEFAULT_EDITOR_SETTINGS.fontSize))
+  style.setProperty('--editor-font-weight', settings.fontWeight)
+  // The preview's own size: 1 is the type scale's preview size.
+  style.setProperty('--preview-scale', String(settings.previewFontSize / PREVIEW_BASE_SIZE))
   style.setProperty('--editor-line-height', String(settings.lineHeight))
   style.setProperty('--editor-font-family', FONT_STACKS[settings.fontFamily])
 }

@@ -45,7 +45,8 @@ export const sizes = {
   "size.pane-min-width": "240px",
   "size.sidebar-collapse-width": "1000px",
   "size.popup-max-width": "240px",
-  "size.reading-width": "720px",
+  "size.reading-width": "740px",
+  "size.settings-nav-width": "155px",
   "size.toolbar-height": "52px",
   "size.sidebar-row": "28px",
   "size.segment-height": "22px",
@@ -157,7 +158,8 @@ export const light = {
   "color.quote.bar": "rgb(28 27 25 / 0.18)",
   "color.mark.bg": "rgb(234 179 8 / 0.3)",
   "color.match.bg": "#f3e1bb",
-  "color.match.border": "#d9b871"
+  "color.match.border": "#d9b871",
+  "color.trailing-space": "rgb(175 59 54 / 0.25)"
 } as const
 
 export const dark = {
@@ -249,7 +251,8 @@ export const dark = {
   "color.quote.bar": "rgb(235 232 226 / 0.22)",
   "color.mark.bg": "rgb(227 164 58 / 0.3)",
   "color.match.bg": "#5b4a26",
-  "color.match.border": "#80672f"
+  "color.match.border": "#80672f",
+  "color.trailing-space": "rgb(233 120 115 / 0.3)"
 } as const
 
 export type ThemeColor = keyof typeof light

@@ -12,6 +12,17 @@ export function inEditor(element: EventTarget | null): boolean {
   return element instanceof Element && element.closest('[data-devot-part="editor-body"]') !== null
 }
 
+/** Whether an element takes typed text: a field, or an editable part of the page. */
+export function inTextField(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLInputElement &&
+        !['button', 'checkbox', 'radio', 'submit', 'reset', 'range'].includes(target.type)))
+  )
+}
+
 /**
  * Learns from every key press in the window which character each physical
  * key types (`rememberKey`), so keys with Option or Shift on them are read
@@ -51,6 +62,8 @@ export function useWindowCommands(handlers: CommandHandlers) {
         shiftKey: e.shiftKey,
       }
       const id = windowCommand(press, { inEditor: inEditor(e.target) })
+      // Command and an arrow key move the caret in a text field.
+      if (id && e.key.startsWith('Arrow') && inTextField(e.target)) return
       const handler = id && latest.current[id]
       if (!handler) return
       e.preventDefault()

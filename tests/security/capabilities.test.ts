@@ -73,7 +73,6 @@ describe('Tauri command permissions', () => {
       'allow-mirror-confirm',
       'allow-mirror-get',
       'allow-mirror-set',
-      'allow-settings-fit',
       'allow-settings-open-data-folder',
       'allow-settings-show-backups',
       'allow-symbol-png',
@@ -84,8 +83,8 @@ describe('Tauri command permissions', () => {
     ])
   })
 
-  it('lets only the Settings window fit itself, open the data folder and ask for the Backups dialog', () => {
-    for (const command of ['fit', 'open-data-folder', 'show-backups']) {
+  it('lets only the Settings window open the data folder and ask for the Backups dialog', () => {
+    for (const command of ['open-data-folder', 'show-backups']) {
       expect(windowsWith(`allow-settings-${command}`)).toEqual(['settings'])
     }
   })

@@ -3,7 +3,7 @@ import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './
 
 // Synced scrolling: in split mode, scrolling either pane brings the
 // other to the same source line. On by default; the palette, the View menu
-// (Rust) and Settings > Editor turn it off.
+// (Rust) and Settings > Preview turn it off.
 
 const SECTIONS = 120
 
