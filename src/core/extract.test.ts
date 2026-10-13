@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractTitle } from './extract'
+import { extractTitle, headline, HEADLINE_CHARS } from './extract'
 import { MAX_TITLE_CHARS } from './noteLimits'
 
 describe('extractTitle', () => {
@@ -55,5 +55,32 @@ describe('extractTitle', () => {
     // Characters, not UTF-16 units: an emoji is not cut in half.
     const emoji = '\u{1F600}'.repeat(MAX_TITLE_CHARS + 1)
     expect([...extractTitle(emoji)]).toHaveLength(MAX_TITLE_CHARS)
+  })
+})
+
+describe('headline', () => {
+  it('is the first line with readable text, as the list shows an untitled note', () => {
+    expect(headline('Groceries\nmilk')).toBe('Groceries')
+    expect(headline('# Weekly **review**\n\nText')).toBe('Weekly review')
+    expect(headline('- [ ] Call the bank')).toBe('Call the bank')
+    expect(headline('[Plan](devot://note/abc) for May')).toBe('Plan for May')
+  })
+
+  it('skips front matter, and lines with no text such as an image alone', () => {
+    expect(headline('---\ntitle: x\ntags: [a]\n---\n\nBody line')).toBe('Body line')
+    expect(headline('![](devot://file/abc)\nCaption')).toBe('Caption')
+    // An unclosed fence is not front matter.
+    expect(headline('---\nIntro')).toBe('Intro')
+  })
+
+  it('is empty for a body with no text', () => {
+    expect(headline('')).toBe('')
+    expect(headline('  \n#\n> \n![](devot://file/abc)')).toBe('')
+  })
+
+  it('is cut short, and reads only the start of a huge body', () => {
+    expect([...headline('x'.repeat(500))]).toHaveLength(HEADLINE_CHARS)
+    expect(headline('\n'.repeat(100_000) + 'late')).toBe('')
+    expect(headline('\u{1F600}'.repeat(500))).toBe('\u{1F600}'.repeat(HEADLINE_CHARS))
   })
 })
