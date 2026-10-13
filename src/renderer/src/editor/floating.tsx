@@ -8,7 +8,8 @@ import { EditorView } from '@codemirror/view'
 import { useState, type ReactNode } from 'react'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
-import { fadeIn, motionKeyframes, popoverIn } from './motion'
+import { closingRef } from '../closing'
+import { closingStyles, closingTooltips, fadeIn, motionKeyframes, popoverIn } from './motion'
 import type { Tip } from './toolbarButtons'
 
 /**
@@ -57,9 +58,13 @@ export function useFloatTip(view: EditorView) {
   return { show, hide, bubble }
 }
 
+/** A bar button's tooltip shrinks toward its notch as it goes. */
+const floatTipRef = closingRef('scale', 'cm-float-tip')
+
 function FloatTip({ tip, x, below }: ShownTip) {
   return (
     <div
+      ref={floatTipRef}
       role="tooltip"
       className="cm-float-tip"
       data-side={below ? 'below' : 'above'}
@@ -123,6 +128,7 @@ const popoverShadow = [
 /** The bars' styles (exported for the tests); `floatTheme` is the extension. */
 export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
   ...motionKeyframes,
+  ...closingStyles,
   '.cm-tooltip.cm-float-bar': {
     boxSizing: 'border-box',
     display: 'flex',
@@ -284,4 +290,5 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
   },
 }
 
-export const floatTheme = EditorView.theme(floatStyles)
+/** The bars' look, and their fading out when they close. */
+export const floatTheme = [EditorView.theme(floatStyles), closingTooltips]

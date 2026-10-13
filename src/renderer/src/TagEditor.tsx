@@ -2,6 +2,7 @@ import { useId, useRef, useState, type RefObject } from 'react'
 import type { TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
+import { closingRef } from './closing'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
@@ -29,6 +30,8 @@ export type TagRow = { kind: 'tag'; tag: TagRecord } | { kind: 'create'; name: s
 
 /** Suggestions shown at most. */
 const MAX_SUGGESTIONS = 8
+/** The suggestions shrink back toward the field as they close. */
+const suggestionsRef = closingRef('scale', 'tag-suggestions')
 
 /**
  * What the tag field suggests for `draft`: the tags not in `exclude` whose
@@ -198,6 +201,7 @@ export function TagEditor(props: {
         />
         {rows.length > 0 ? (
           <ul
+            ref={suggestionsRef}
             id={listId}
             className="tag-suggestions"
             role="listbox"

@@ -78,6 +78,7 @@ export const sizes = {
   "motion.easing.standard": "cubic-bezier(0.42, 0, 0.58, 1)",
   "motion.easing.out": "cubic-bezier(0, 0, 0.58, 1)",
   "motion.scale.popover-enter": "0.92",
+  "motion.scale.popover-exit": "0.9",
   "motion.delay.tooltip": "400ms",
   "shadow.popover-y": "2px",
   "shadow.popover-key-blur": "4px",

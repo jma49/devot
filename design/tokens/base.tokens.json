@@ -1037,6 +1037,10 @@
       "popover-enter": {
         "$value": 0.92,
         "$description": "The size a pop-up starts at before growing to full size."
+      },
+      "popover-exit": {
+        "$value": 0.9,
+        "$description": "The size a pop-up shrinks to, toward its notch or anchor, as it fades out."
       }
     },
     "delay": {
