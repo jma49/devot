@@ -1,0 +1,46 @@
+// The alert pop-up: a native menu under the toolbar's Alert button that
+// picks the kind (Note, Tip, Important, Warning, Caution). The kind the
+// selection already has is checked; picking it removes the alert. Each item
+// is the registry's `format.alert*` command, named by its kind here.
+import type { EditorView } from '@codemirror/view'
+import { useCallback } from 'react'
+import type { CommandId } from '../commands/registry'
+import { commandEntry, useContextMenu, type MenuGroups } from '../contextMenu'
+import { ALERT_KINDS, alertKind, type AlertKind } from './blocks'
+import { alertFormat, formatCommand } from './formats'
+
+/** What the pop-up acts on: the editor, and the alert kind its selection is in. */
+export interface AlertMenuTarget {
+  view: EditorView
+  kind: AlertKind | null
+}
+
+/** Opens the pop-up for the editor under `anchor` (the Alert button). */
+export type ShowAlertMenu = (view: EditorView, anchor: Element) => Promise<void>
+
+/** The registry command that puts the selection in an alert of `kind`. */
+export const alertCommand = (kind: AlertKind): CommandId => `format.${alertFormat(kind)}`
+
+export const ALERT_MENU: MenuGroups<AlertKind, AlertMenuTarget> = [
+  ALERT_KINDS.map((kind) =>
+    commandEntry<AlertKind, AlertMenuTarget>(kind, alertCommand(kind), {
+      label: `alert.${kind}`,
+      checked: (target) => target.kind === kind,
+    }),
+  ),
+]
+
+/** The alert pop-up for this window; a pick formats the editor it was opened for. */
+export function useAlertMenu(): ShowAlertMenu {
+  const pick = useCallback((kind: AlertKind, target: AlertMenuTarget) => {
+    formatCommand(alertFormat(kind))(target.view)
+  }, [])
+  const show = useContextMenu('alert', ALERT_MENU, pick)
+  return useCallback(
+    (view: EditorView, anchor: Element) => {
+      const box = anchor.getBoundingClientRect()
+      return show({ view, kind: alertKind(view.state) }, { x: box.left, y: box.bottom })
+    },
+    [show],
+  )
+}

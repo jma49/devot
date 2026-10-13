@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings",
+  "description": "Permissions for the Settings window: reading and changing the editor settings, the keyboard shortcuts and the Markdown mirror's setting (and hearing when another window changes them), reading and clearing the local usage events. Add a command here only when a settings section needs it.",
+  "windows": ["settings"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-editor-settings-get",
+    "allow-editor-settings-set",
+    "allow-usage-list",
+    "allow-usage-clear",
+    "allow-keyboard-shortcuts-get",
+    "allow-keyboard-shortcuts-set",
+    "allow-mirror-get",
+    "allow-mirror-set",
+    "allow-mirror-choose",
+    "allow-mirror-confirm"
+  ]
+}

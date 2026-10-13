@@ -1,0 +1,35 @@
+# Local git hooks. See docs/architecture.md, Quality > Workflow.
+# Hooks run in a non-interactive shell (also from GUI git clients) that does
+# not read ~/.zshrc, so the Rust jobs add rustup's usual locations to PATH.
+pre-commit:
+  parallel: true
+  jobs:
+    - name: format
+      glob: '*.{ts,tsx,js,mjs,json,md,css,html,yml,yaml}'
+      run: pnpm exec oxfmt {staged_files}
+      stage_fixed: true
+    - name: lint
+      glob: '*.{ts,tsx,js,mjs}'
+      run: pnpm exec oxlint {staged_files}
+    - name: rustfmt
+      # Two globs: `**/` needs a folder, so the first one covers build.rs and
+      # build_env.rs beside Cargo.toml.
+      glob:
+        - 'src-tauri/*.rs'
+        - 'src-tauri/**/*.rs'
+      run: PATH="$HOME/.cargo/bin:/opt/homebrew/opt/rustup/bin:/usr/local/opt/rustup/bin:$PATH" rustfmt --edition 2024 {staged_files}
+      stage_fixed: true
+
+pre-push:
+  jobs:
+    - name: block-main
+      run: sh scripts/block-main-push.sh
+      use_stdin: true
+    - name: format
+      run: pnpm format:check
+    - name: typecheck
+      run: pnpm typecheck
+    - name: unit-tests
+      run: pnpm test
+    - name: rust
+      run: export PATH="$HOME/.cargo/bin:/opt/homebrew/opt/rustup/bin:/usr/local/opt/rustup/bin:$PATH" && cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test

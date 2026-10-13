@@ -1,0 +1,204 @@
+/*
+ * Note content: how the preview shows a note's Markdown. The app and the
+ * pages it exports and prints (exporter.ts) share these rules.
+ */
+.preview > :first-child {
+  margin-top: 0;
+}
+
+.preview :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.2em 0 0.4em;
+  line-height: 1.3;
+  font-weight: var(--font-weight-bold);
+}
+
+.preview h1 {
+  font-size: var(--font-size-title);
+}
+
+.preview h2 {
+  font-size: var(--font-size-headline);
+}
+
+.preview h3 {
+  font-size: var(--font-size-title3);
+}
+
+.preview :is(p, ul, ol, table, pre, blockquote, details, .alert) {
+  margin: 0 0 0.8em;
+}
+
+.preview a {
+  color: var(--color-accent-text);
+  cursor: pointer;
+}
+
+.preview code {
+  padding: 1px var(--space-2);
+  border-radius: var(--space-2);
+  background: var(--color-fill-track);
+  font-family: var(--font-family-mono);
+  font-size: 0.88em;
+}
+
+.preview pre {
+  position: relative;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+  overflow: auto;
+}
+
+.preview pre code {
+  padding: 0;
+  background: transparent;
+}
+
+/*
+ * A code block scrolls sideways inside its box, so the copy button (the
+ * page's own control, never part of the note's HTML) stays in the corner.
+ */
+.preview pre:has(> code) {
+  padding: 0;
+  overflow: visible;
+}
+
+.preview pre > code {
+  display: block;
+  padding: var(--space-5) var(--space-6);
+  border-radius: inherit;
+  overflow-x: auto;
+}
+
+.preview blockquote {
+  padding-left: var(--space-6);
+  border-left: 3px solid var(--color-line-hairline);
+  color: var(--color-text-secondary);
+}
+
+.preview table {
+  border-collapse: collapse;
+}
+
+.preview :is(th, td) {
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--color-line-hairline);
+}
+
+.preview li:has(> input[type='checkbox']) {
+  list-style: none;
+}
+
+.preview input[type='checkbox'] {
+  margin: 0 var(--space-3) 0 calc(-1 * var(--space-7));
+  accent-color: var(--color-accent-fill);
+}
+
+.preview img {
+  max-width: 100%;
+}
+
+/* Preview images: a size preset (an image URL's #small, #half or #full). */
+.preview img.image-size-small {
+  width: var(--size-image-small);
+}
+
+.preview img.image-size-half {
+  width: 50%;
+}
+
+.preview img.image-size-full {
+  width: 100%;
+}
+
+.preview .frontmatter {
+  color: var(--color-text-secondary);
+}
+
+.preview .footnotes {
+  font-size: var(--font-size-footnote);
+  color: var(--color-text-secondary);
+}
+
+.alert {
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+}
+
+.alert > :last-child {
+  margin-bottom: 0;
+}
+
+.alert .alert-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-footnote);
+  font-weight: var(--font-weight-semibold);
+}
+
+.alert-note .alert-title {
+  color: var(--color-accent-text);
+}
+
+.alert-tip .alert-title {
+  color: var(--color-status-done);
+}
+
+.alert-important .alert-title {
+  color: var(--color-status-active);
+}
+
+.alert-warning .alert-title {
+  color: var(--color-status-hold);
+}
+
+.alert-caution .alert-title {
+  color: var(--color-status-dropped);
+}
+
+/* Math is MathML, laid out by the web view with the system's math font. */
+.math-display {
+  margin: 0 0 0.8em;
+  overflow-x: auto;
+}
+
+.math-display math {
+  display: block;
+  text-align: center;
+}
+
+.preview code.math-error {
+  color: var(--color-status-dropped);
+}
+
+/* Islands: diagrams the page draws itself. */
+.island {
+  margin: 0 0 0.8em;
+  overflow-x: auto;
+}
+
+.island svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.island-error {
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+  color: var(--color-status-dropped);
+  font-size: var(--font-size-footnote);
+}
+
+/* The colour itself is set from data-swatch-color through the CSSOM. */
+.swatch {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-right: var(--space-2);
+  border-radius: var(--space-1);
+  box-shadow: 0 0 0 1px var(--color-line-hairline);
+  vertical-align: -0.05em;
+}

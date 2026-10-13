@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-revision-put"
+description = "Enables the revision_put command without any pre-configured scope."
+commands.allow = ["revision_put"]
+
+[[permission]]
+identifier = "deny-revision-put"
+description = "Denies the revision_put command without any pre-configured scope."
+commands.deny = ["revision_put"]

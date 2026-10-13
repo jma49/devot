@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mirror-apply"
+description = "Enables the mirror_apply command without any pre-configured scope."
+commands.allow = ["mirror_apply"]
+
+[[permission]]
+identifier = "deny-mirror-apply"
+description = "Denies the mirror_apply command without any pre-configured scope."
+commands.deny = ["mirror_apply"]

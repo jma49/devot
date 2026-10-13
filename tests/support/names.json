@@ -1,0 +1,47 @@
+[
+  {
+    "why": "U+0085 (next line) is whitespace on both sides",
+    "name": "Plan\u0085",
+    "clean": "Plan"
+  },
+  {
+    "why": "U+0085 leading and trailing",
+    "name": "\u0085Plan\u0085",
+    "clean": "Plan"
+  },
+  {
+    "why": "U+FEFF is not whitespace: it stays",
+    "name": "Plan\ufeff",
+    "clean": "Plan\ufeff"
+  },
+  {
+    "why": "a leading U+FEFF stays too",
+    "name": "\ufeffPlan",
+    "clean": "\ufeffPlan"
+  },
+  {
+    "why": "only U+0085 is no name",
+    "name": "\u0085",
+    "clean": null
+  },
+  {
+    "why": "only U+FEFF is a name",
+    "name": "\ufeff",
+    "clean": "\ufeff"
+  },
+  {
+    "why": "spaces, tabs, no-break and em spaces",
+    "name": " \tPlan\u00a0\u2003",
+    "clean": "Plan"
+  },
+  {
+    "why": "line and paragraph separators",
+    "name": "\u2028Plan\u2029",
+    "clean": "Plan"
+  },
+  {
+    "why": "inner whitespace stays",
+    "name": "Plan\u0085B",
+    "clean": "Plan\u0085B"
+  }
+]

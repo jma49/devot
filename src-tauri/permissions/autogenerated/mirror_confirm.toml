@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mirror-confirm"
+description = "Enables the mirror_confirm command without any pre-configured scope."
+commands.allow = ["mirror_confirm"]
+
+[[permission]]
+identifier = "deny-mirror-confirm"
+description = "Denies the mirror_confirm command without any pre-configured scope."
+commands.deny = ["mirror_confirm"]

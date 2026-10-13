@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mirror-choose"
+description = "Enables the mirror_choose command without any pre-configured scope."
+commands.allow = ["mirror_choose"]
+
+[[permission]]
+identifier = "deny-mirror-choose"
+description = "Denies the mirror_choose command without any pre-configured scope."
+commands.deny = ["mirror_choose"]

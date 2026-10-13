@@ -1,0 +1,313 @@
+{
+  "$description": "System theme, dark appearance. Follows the macOS appearance and accent colour; when the system accent is Multicolor, the accent falls back to Devot teal.",
+  "$extensions": {
+    "app.devot": {
+      "theme": "system",
+      "appearance": "dark"
+    }
+  },
+  "color": {
+    "surface": {
+      "sidebar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.7
+        },
+        "$extensions": {
+          "app.devot": {
+            "material": "sidebar"
+          }
+        }
+      },
+      "sidebar-opaque": {
+        "$value": "{color.night.2}",
+        "$type": "color",
+        "$description": "The sidebar when the window material is turned off (Settings > Appearance): the material tint, opaque."
+      },
+      "list": {
+        "$value": "{color.night.1}",
+        "$type": "color"
+      },
+      "editor": {
+        "$value": "{color.night.0}",
+        "$type": "color"
+      }
+    },
+    "text": {
+      "primary": {
+        "$value": "{color.night.mist-100}",
+        "$type": "color"
+      },
+      "secondary": {
+        "$value": "{color.night.mist-400}",
+        "$type": "color"
+      },
+      "tertiary": {
+        "$value": "{color.night.mist-500}",
+        "$type": "color"
+      },
+      "destructive": {
+        "$value": "{color.status.destructive-dark}",
+        "$type": "color",
+        "$description": "The label of a destructive action (Delete, Empty Trash)."
+      }
+    },
+    "line": {
+      "hairline": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9098, 0.8863],
+          "hex": "#ebe8e2",
+          "alpha": 0.1
+        }
+      }
+    },
+    "fill": {
+      "track": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9098, 0.8863],
+          "hex": "#ebe8e2",
+          "alpha": 0.07
+        }
+      },
+      "row-selected-unemphasized": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9098, 0.8863],
+          "hex": "#ebe8e2",
+          "alpha": 0.1
+        }
+      },
+      "segment-on": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9098, 0.8863],
+          "hex": "#ebe8e2",
+          "alpha": 0.22
+        }
+      },
+      "match": {
+        "$type": "color",
+        "$description": "Behind words a search matched in the note list, and find matches in a note.",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.8902, 0.6431, 0.2275],
+          "hex": "#e3a43a",
+          "alpha": 0.38
+        }
+      },
+      "match-current": {
+        "$type": "color",
+        "$description": "Behind the current find match in a note.",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.949, 0.6078, 0.2196],
+          "hex": "#f29b38",
+          "alpha": 0.5
+        }
+      }
+    },
+    "accent": {
+      "fill": {
+        "$value": "{color.teal.500}",
+        "$type": "color",
+        "$extensions": {
+          "app.devot": {
+            "source": "system-accent",
+            "multicolorFallback": true
+          }
+        }
+      },
+      "text": {
+        "$value": "{color.teal.300}",
+        "$type": "color",
+        "$extensions": {
+          "app.devot": {
+            "source": "system-accent",
+            "multicolorFallback": true
+          }
+        }
+      },
+      "selection": {
+        "$type": "color",
+        "$description": "Behind selected text in the editor: a solid tint of the accent fill that stands 1.3:1 from the editor and from the active line (which CodeMirror draws over it).",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.2078, 0.1922],
+          "hex": "#1f3531"
+        },
+        "$extensions": {
+          "app.devot": {
+            "source": "system-accent",
+            "multicolorFallback": true
+          }
+        }
+      },
+      "on-fill": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        }
+      }
+    },
+    "status": {
+      "active": {
+        "$value": "{color.status.active-dark}",
+        "$type": "color"
+      },
+      "hold": {
+        "$value": "{color.status.hold-dark}",
+        "$type": "color"
+      },
+      "done": {
+        "$value": "{color.status.done-dark}",
+        "$type": "color"
+      },
+      "dropped": {
+        "$value": "{color.status.dropped-dark}",
+        "$type": "color"
+      }
+    },
+    "tag": {
+      "red": {
+        "$value": "{color.tag.red-dark}",
+        "$type": "color"
+      },
+      "orange": {
+        "$value": "{color.tag.orange-dark}",
+        "$type": "color"
+      },
+      "yellow": {
+        "$value": "{color.tag.yellow-dark}",
+        "$type": "color"
+      },
+      "green": {
+        "$value": "{color.tag.green-dark}",
+        "$type": "color"
+      },
+      "blue": {
+        "$value": "{color.tag.blue-dark}",
+        "$type": "color"
+      },
+      "purple": {
+        "$value": "{color.tag.purple-dark}",
+        "$type": "color"
+      },
+      "pink": {
+        "$value": "{color.tag.pink-dark}",
+        "$type": "color"
+      },
+      "gray": {
+        "$value": "{color.tag.gray-dark}",
+        "$type": "color"
+      }
+    },
+    "syntax": {
+      "keyword": {
+        "$value": "{color.teal.300}",
+        "$type": "color"
+      },
+      "function": {
+        "$value": "{color.syntax.amber-dark}",
+        "$type": "color"
+      },
+      "string": {
+        "$value": "{color.syntax.blue-dark}",
+        "$type": "color"
+      },
+      "inserted": {
+        "$value": "{color.syntax.green-dark}",
+        "$type": "color",
+        "$description": "Inserted text and literals in the editor; status green, deepened so it keeps 4.5:1 on the selection."
+      },
+      "deleted": {
+        "$value": "{color.syntax.red-dark}",
+        "$type": "color",
+        "$description": "Deleted and invalid text in the editor; status red, deepened so it keeps 4.5:1 on the selection."
+      }
+    },
+    "diff": {
+      "added": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2745, 0.7216, 0.4667],
+          "hex": "#46b877",
+          "alpha": 0.2
+        },
+        "$description": "Background of a line added since a version (revision history)."
+      },
+      "removed": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.898, 0.3843, 0.3608],
+          "hex": "#e5625c",
+          "alpha": 0.2
+        },
+        "$description": "Background of a line removed since a version (revision history)."
+      }
+    },
+    "activity": {
+      "level-0": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9098, 0.8863],
+          "hex": "#ebe8e2",
+          "alpha": 0.08
+        },
+        "$description": "An idle day in the activity heatmap."
+      },
+      "level-1": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3882, 0.8039, 0.749],
+          "hex": "#63cdbf",
+          "alpha": 0.22
+        },
+        "$description": "A day with the least writing in the activity heatmap."
+      },
+      "level-2": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3882, 0.8039, 0.749],
+          "hex": "#63cdbf",
+          "alpha": 0.42
+        },
+        "$description": "A day with some writing in the activity heatmap."
+      },
+      "level-3": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3882, 0.8039, 0.749],
+          "hex": "#63cdbf",
+          "alpha": 0.66
+        },
+        "$description": "A day with more writing in the activity heatmap."
+      },
+      "level-4": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3882, 0.8039, 0.749],
+          "hex": "#63cdbf"
+        },
+        "$description": "A day with the most writing in the activity heatmap."
+      }
+    }
+  }
+}

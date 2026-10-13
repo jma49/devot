@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sidebar-material-sync"
+description = "Enables the sidebar_material_sync command without any pre-configured scope."
+commands.allow = ["sidebar_material_sync"]
+
+[[permission]]
+identifier = "deny-sidebar-material-sync"
+description = "Denies the sidebar_material_sync command without any pre-configured scope."
+commands.deny = ["sidebar_material_sync"]

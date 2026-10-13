@@ -1,0 +1,156 @@
+[package]
+name = "devot"
+version = "0.0.0"
+description = "A local-first Markdown note-taking app"
+license = "MIT"
+repository = "https://github.com/jma49/devot"
+edition = "2024"
+publish = false
+
+[lib]
+# The library form lets the same code run as the iOS app later.
+name = "devot_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = ["macos-private-api"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+log = "0.4"
+# Crash reporting: panics only, sent over the system TLS stack. Debug images
+# list the binaries a panic's frames are in (by debug ID), so Sentry can name
+# the functions of a stripped release build from its uploaded devot.dSYM.
+sentry = { version = "0.49", default-features = false, features = [
+  "backtrace",
+  "contexts",
+  "debug-images",
+  "panic",
+  "ureq",
+  "native-tls",
+] }
+# Sends saved native crash reports itself, to learn whether Sentry took
+# them; the same ureq and TLS stack as Sentry's own transport.
+ureq = { version = "3", default-features = false, features = ["native-tls"] }
+rusqlite = { version = "0.40", features = ["bundled", "backup"] }
+tokio = { version = "1", features = ["sync"] }
+uuid = { version = "1", features = ["v4"] }
+# The native folder panel for Markdown import, used from Rust only.
+tauri-plugin-dialog = "2.8"
+# The Markdown mirror's manifest records each file's SHA-256 (the core
+# hashes the same way). Already in the tree through Tauri.
+sha2 = "0.10"
+# Safe calls relative to a folder handle (openat, mkdirat, renameat and
+# renameatx_np, unlinkat, fstatat) for atomic_file, so no folder on the way
+# to a file can be swapped for a link after Devot looked. File system calls
+# only; already in the tree through tempfile (native-tls).
+rustix = { version = "1.1", default-features = false, features = ["std", "fs"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Native crash reports (DSN builds only): the exception handler in the app,
+# the Mach IPC that hands a crash to the reporter process, the minidump
+# writer it runs, and the parser that turns the minidump into a stack trace.
+crash-handler = "0.8"
+crash-context = "0.8"
+minidump-writer = "0.13"
+minidump = "0.26"
+# What the crash handler restores once it has reported a crash or its
+# reporter has gone: the SIGABRT action and the Mach exception ports. Both
+# crates already come with crash-handler.
+libc = "0.2"
+mach2 = "0.6"
+# `exception`: a private API that throws an Objective-C exception is caught
+# (`objc2::exception::catch`) and falls back; catch_unwind cannot stop one.
+objc2 = { version = "0.6", features = ["exception"] }
+block2 = "0.6"
+objc2-foundation = { version = "0.3", features = [
+  "NSString",
+  "NSData",
+  "NSDictionary",
+  "NSArray",
+  "NSUserDefaults",
+  "NSDistributedNotificationCenter",
+  "NSNotification",
+  "NSOperation",
+  "NSObject",
+  "NSURL",
+  "NSError",
+  "NSDate",
+  "NSValue",
+  "NSRunLoop",
+  "NSGeometry",
+  "NSObjCRuntime",
+  "NSRange",
+  "block2",
+] }
+objc2-app-kit = { version = "0.3", features = [
+  # The alert a launch that cannot open the notes shows (startup.rs).
+  "NSAlert",
+  "NSImage",
+  "NSImageRep",
+  "NSBitmapImageRep",
+  "NSFontDescriptor",
+  "NSColor",
+  "NSColorSpace",
+  "NSAppearance",
+  "NSPasteboard",
+  "NSApplication",
+  "NSEvent",
+  "NSGraphicsContext",
+  "NSMenu",
+  "NSMenuItem",
+  "NSResponder",
+  "NSWindow",
+  "NSView",
+  "NSPrintInfo",
+  "NSPrintOperation",
+  # Marked text: what the Format key monitor asks before it offers a key.
+  "NSText",
+  "NSTextView",
+  "NSTextInputClient",
+  "block2",
+] }
+# Printing a note: an offscreen web view of the exported page.
+objc2-web-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "objc2-app-kit",
+  "WKNavigation",
+  "WKNavigationDelegate",
+  "WKWebView",
+  "WKWebViewConfiguration",
+  "WKWebpagePreferences",
+] }
+
+[[test]]
+name = "main_thread"
+harness = false
+
+[[test]]
+name = "native_crash"
+harness = false
+
+[lints.rust]
+# Only src/native may opt back in, with a SAFETY comment on every block.
+unsafe_code = "deny"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+# Line tables go to a separate devot.dSYM next to the binary, which stays
+# stripped; `pnpm sentry:debug-files` uploads it so that native crash
+# reports show function names. It is never part of the app bundle.
+debug = "line-tables-only"
+split-debuginfo = "packed"
+
+# Debug builds keep line tables only (file and line in backtraces, no full
+# variable info), which keeps target/ several gigabytes smaller per checkout.
+[profile.dev]
+debug = "line-tables-only"
+
+[dev-dependencies]
+tempfile = "3"

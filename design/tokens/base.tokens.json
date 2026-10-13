@@ -1,0 +1,691 @@
+{
+  "$description": "Devot primitives. Themes reference these; components use theme tokens only.",
+  "color": {
+    "paper": {
+      "0": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9922, 0.9922, 0.9882],
+          "hex": "#fdfdfc"
+        }
+      },
+      "1": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9686, 0.9647, 0.9569],
+          "hex": "#f7f6f4"
+        }
+      },
+      "2": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9451, 0.9412, 0.9294],
+          "hex": "#f1f0ed"
+        }
+      },
+      "ink-900": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19"
+        }
+      },
+      "ink-600": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3608, 0.349, 0.3216],
+          "hex": "#5c5952"
+        }
+      },
+      "ink-500": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4078, 0.3961, 0.3647],
+          "hex": "#68655d"
+        }
+      }
+    },
+    "night": {
+      "0": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1137, 0.1098, 0.102],
+          "hex": "#1d1c1a"
+        }
+      },
+      "1": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.102, 0.098, 0.0941],
+          "hex": "#1a1918"
+        }
+      },
+      "2": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19"
+        }
+      },
+      "mist-100": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9098, 0.8863],
+          "hex": "#ebe8e2"
+        }
+      },
+      "mist-400": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6824, 0.6667, 0.6275],
+          "hex": "#aeaaa0"
+        }
+      },
+      "mist-500": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5882, 0.5725, 0.5333],
+          "hex": "#969288"
+        }
+      }
+    },
+    "teal": {
+      "700": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.051, 0.3961, 0.3608],
+          "hex": "#0d655c"
+        }
+      },
+      "600": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0549, 0.4196, 0.3843],
+          "hex": "#0e6b62"
+        }
+      },
+      "500": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1451, 0.5137, 0.4784],
+          "hex": "#25837a"
+        }
+      },
+      "300": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3882, 0.8039, 0.749],
+          "hex": "#63cdbf"
+        }
+      }
+    },
+    "status": {
+      "active-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1647, 0.3882, 0.7529],
+          "hex": "#2a63c0"
+        }
+      },
+      "active-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4078, 0.5961, 0.9451],
+          "hex": "#6898f1"
+        }
+      },
+      "hold-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5647, 0.3529, 0.0353],
+          "hex": "#905a09"
+        }
+      },
+      "hold-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.8902, 0.6431, 0.2275],
+          "hex": "#e3a43a"
+        }
+      },
+      "done-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1451, 0.4471, 0.2667],
+          "hex": "#257244"
+        }
+      },
+      "done-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2745, 0.7216, 0.4667],
+          "hex": "#46b877"
+        }
+      },
+      "dropped-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6863, 0.2314, 0.2118],
+          "hex": "#af3b36"
+        }
+      },
+      "dropped-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9137, 0.4706, 0.451],
+          "hex": "#e97873"
+        }
+      },
+      "destructive-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9412, 0.651, 0.6353],
+          "hex": "#f0a6a2"
+        },
+        "$description": "Destructive labels in the dark appearance: light enough to read on a raised button face."
+      }
+    },
+    "tag": {
+      "red-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.2314, 0.1882],
+          "hex": "#ff3b30"
+        }
+      },
+      "red-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.2706, 0.2275],
+          "hex": "#ff453a"
+        }
+      },
+      "orange-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.5843, 0.0],
+          "hex": "#ff9500"
+        }
+      },
+      "orange-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.6235, 0.0392],
+          "hex": "#ff9f0a"
+        }
+      },
+      "yellow-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.8, 0.0],
+          "hex": "#ffcc00"
+        }
+      },
+      "yellow-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.8392, 0.0392],
+          "hex": "#ffd60a"
+        }
+      },
+      "green-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1569, 0.8039, 0.2549],
+          "hex": "#28cd41"
+        }
+      },
+      "green-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1961, 0.8431, 0.2941],
+          "hex": "#32d74b"
+        }
+      },
+      "blue-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.4784, 1.0],
+          "hex": "#007aff"
+        }
+      },
+      "blue-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0392, 0.5176, 1.0],
+          "hex": "#0a84ff"
+        }
+      },
+      "purple-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6863, 0.3216, 0.8706],
+          "hex": "#af52de"
+        }
+      },
+      "purple-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.749, 0.3529, 0.949],
+          "hex": "#bf5af2"
+        }
+      },
+      "pink-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.1765, 0.3333],
+          "hex": "#ff2d55"
+        }
+      },
+      "pink-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.2157, 0.3725],
+          "hex": "#ff375f"
+        }
+      },
+      "gray-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5569, 0.5569, 0.5765],
+          "hex": "#8e8e93"
+        }
+      },
+      "gray-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5961, 0.5961, 0.6157],
+          "hex": "#98989d"
+        }
+      }
+    },
+    "syntax": {
+      "amber-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5412, 0.2941, 0.0588],
+          "hex": "#8a4b0f"
+        }
+      },
+      "amber-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.8902, 0.651, 0.3529],
+          "hex": "#e3a65a"
+        }
+      },
+      "blue-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2235, 0.349, 0.5686],
+          "hex": "#395991"
+        }
+      },
+      "blue-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5608, 0.6902, 0.9176],
+          "hex": "#8fb0ea"
+        }
+      },
+      "green-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1294, 0.3961, 0.2392],
+          "hex": "#21653d"
+        }
+      },
+      "green-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3333, 0.7451, 0.5098],
+          "hex": "#55be82"
+        }
+      },
+      "red-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6196, 0.2078, 0.1922],
+          "hex": "#9e3531"
+        }
+      },
+      "red-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9294, 0.5725, 0.5569],
+          "hex": "#ed928e"
+        }
+      }
+    }
+  },
+  "font": {
+    "family": {
+      "ui": {
+        "$type": "fontFamily",
+        "$value": [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "SF Pro Text",
+          "PingFang SC",
+          "sans-serif"
+        ]
+      },
+      "mono": {
+        "$type": "fontFamily",
+        "$value": ["ui-monospace", "SF Mono", "Menlo", "monospace"]
+      }
+    },
+    "size": {
+      "caption": {
+        "$type": "dimension",
+        "$value": {
+          "value": 11,
+          "unit": "px"
+        }
+      },
+      "footnote": {
+        "$type": "dimension",
+        "$value": {
+          "value": 12,
+          "unit": "px"
+        }
+      },
+      "body": {
+        "$type": "dimension",
+        "$value": {
+          "value": 13,
+          "unit": "px"
+        }
+      },
+      "preview": {
+        "$type": "dimension",
+        "$value": {
+          "value": 13.5,
+          "unit": "px"
+        }
+      },
+      "title3": {
+        "$type": "dimension",
+        "$value": {
+          "value": 15,
+          "unit": "px"
+        }
+      },
+      "headline": {
+        "$type": "dimension",
+        "$value": {
+          "value": 17,
+          "unit": "px"
+        }
+      },
+      "title": {
+        "$type": "dimension",
+        "$value": {
+          "value": 22,
+          "unit": "px"
+        }
+      }
+    },
+    "weight": {
+      "regular": {
+        "$type": "fontWeight",
+        "$value": 400
+      },
+      "semibold": {
+        "$type": "fontWeight",
+        "$value": 600
+      },
+      "bold": {
+        "$type": "fontWeight",
+        "$value": 700
+      }
+    }
+  },
+  "space": {
+    "1": {
+      "$type": "dimension",
+      "$value": {
+        "value": 2,
+        "unit": "px"
+      }
+    },
+    "2": {
+      "$type": "dimension",
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      }
+    },
+    "3": {
+      "$type": "dimension",
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      }
+    },
+    "4": {
+      "$type": "dimension",
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      }
+    },
+    "5": {
+      "$type": "dimension",
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      }
+    },
+    "6": {
+      "$type": "dimension",
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      }
+    },
+    "7": {
+      "$type": "dimension",
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      }
+    },
+    "8": {
+      "$type": "dimension",
+      "$value": {
+        "value": 18,
+        "unit": "px"
+      }
+    },
+    "9": {
+      "$type": "dimension",
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      }
+    },
+    "10": {
+      "$type": "dimension",
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      }
+    }
+  },
+  "radius": {
+    "control": {
+      "$type": "dimension",
+      "$value": {
+        "value": 5,
+        "unit": "px"
+      }
+    },
+    "button": {
+      "$type": "dimension",
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      }
+    },
+    "field": {
+      "$type": "dimension",
+      "$value": {
+        "value": 7,
+        "unit": "px"
+      }
+    },
+    "card": {
+      "$type": "dimension",
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      }
+    },
+    "capsule": {
+      "$type": "dimension",
+      "$value": {
+        "value": 999,
+        "unit": "px"
+      }
+    }
+  },
+  "size": {
+    "sidebar-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 232,
+        "unit": "px"
+      }
+    },
+    "list-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 320,
+        "unit": "px"
+      }
+    },
+    "popup-max-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 240,
+        "unit": "px"
+      },
+      "$description": "The widest a pop-up button grows; a longer name is cut off with an ellipsis."
+    },
+    "reading-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 720,
+        "unit": "px"
+      }
+    },
+    "toolbar-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 52,
+        "unit": "px"
+      }
+    },
+    "sidebar-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 28,
+        "unit": "px"
+      }
+    },
+    "segment-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 22,
+        "unit": "px"
+      }
+    },
+    "field-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 28,
+        "unit": "px"
+      }
+    },
+    "icon-sm": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      }
+    },
+    "icon-md": {
+      "$type": "dimension",
+      "$value": {
+        "value": 17,
+        "unit": "px"
+      }
+    },
+    "image-small": {
+      "$type": "dimension",
+      "$description": "The width of an image set to Small in the preview.",
+      "$value": {
+        "value": 240,
+        "unit": "px"
+      }
+    },
+    "inline-image-height": {
+      "$type": "dimension",
+      "$description": "The height of an image shown under its line in the editor (fixed, so lines never move as images load).",
+      "$value": {
+        "value": 160,
+        "unit": "px"
+      }
+    }
+  }
+}

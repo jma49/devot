@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-note-purge"
+description = "Enables the note_purge command without any pre-configured scope."
+commands.allow = ["note_purge"]
+
+[[permission]]
+identifier = "deny-note-purge"
+description = "Denies the note_purge command without any pre-configured scope."
+commands.deny = ["note_purge"]

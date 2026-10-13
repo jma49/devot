@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-app-exit-cancel"
+description = "Enables the app_exit_cancel command without any pre-configured scope."
+commands.allow = ["app_exit_cancel"]
+
+[[permission]]
+identifier = "deny-app-exit-cancel"
+description = "Denies the app_exit_cancel command without any pre-configured scope."
+commands.deny = ["app_exit_cancel"]

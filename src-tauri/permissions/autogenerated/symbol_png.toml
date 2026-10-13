@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-symbol-png"
+description = "Enables the symbol_png command without any pre-configured scope."
+commands.allow = ["symbol_png"]
+
+[[permission]]
+identifier = "deny-symbol-png"
+description = "Denies the symbol_png command without any pre-configured scope."
+commands.deny = ["symbol_png"]

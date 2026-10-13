@@ -1,0 +1,4 @@
+# Caps parallel jobs so a local build leaves the machine usable.
+# CARGO_BUILD_JOBS overrides this.
+[build]
+jobs = 4

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-revisions-delete"
+description = "Enables the revisions_delete command without any pre-configured scope."
+commands.allow = ["revisions_delete"]
+
+[[permission]]
+identifier = "deny-revisions-delete"
+description = "Denies the revisions_delete command without any pre-configured scope."
+commands.deny = ["revisions_delete"]

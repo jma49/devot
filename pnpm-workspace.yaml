@@ -1,0 +1,12 @@
+allowBuilds:
+  esbuild: true
+  lefthook: true
+  better-sqlite3: true
+  # Its binary comes from the platform package (@sentry/cli-darwin and the
+  # like); the install script would only download it again.
+  '@sentry/cli': false
+
+# remark-math pulls katex in through micromark-extension-math (unused by
+# Devot, which renders math with temml); keep it on a patched release.
+overrides:
+  katex: ^0.18.2

@@ -1,0 +1,185 @@
+[
+  {
+    "name": "a long body: the stretch around the place found",
+    "parts": [
+      ["lorem ipsum dolor ", 150],
+      ["the hibernation plan ", 1],
+      ["sit amet ", 200]
+    ],
+    "terms": ["HIBERNATION"],
+    "excerpt": "\u2026lorem ipsum dolor lorem ipsum dolor the hibernation plan sit amet sit amet sit amet sit amet sit amet sit amet sit amet sit amet sit amet sit amet sit amet sit "
+  },
+  {
+    "name": "the first term found decides, in query order",
+    "parts": [
+      ["alpha beta gamma ", 200],
+      ["needle ", 1],
+      ["delta ", 300],
+      ["haystack ", 1],
+      ["omega ", 100]
+    ],
+    "terms": ["missing", "haystack", "needle"],
+    "excerpt": "\u2026lta delta delta delta delta delta delta haystack omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega ome"
+  },
+  {
+    "name": "a place at the start of a paragraph takes its lead-in from the one before",
+    "parts": [
+      ["words before the heading ", 120],
+      ["\n\n## Snapshot plan\n\n", 1],
+      ["after the heading ", 150]
+    ],
+    "terms": ["snapshot"],
+    "excerpt": "\u2026re the heading words before the heading Snapshot plan after the heading after the heading after the heading after the heading after the heading after the headin"
+  },
+  {
+    "name": "front matter before a long body",
+    "parts": [
+      ["---\ntitle: Snapshot\ntags: [a, b]\n---\n", 1],
+      ["Snapshot of the week ", 1],
+      ["plain text ", 300]
+    ],
+    "terms": ["snapshot"],
+    "excerpt": "Snapshot of the week plain text plain text plain text plain text plain text plain text plain text plain text plain text plain text plain text plain text plain t"
+  },
+  {
+    "name": "a place inside a link address is skipped for the next one",
+    "parts": [
+      ["intro text ", 150],
+      ["[docs](https://example.com/needle) ", 1],
+      ["middle text ", 20],
+      ["the real needle here ", 1],
+      ["tail text ", 200]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026e text middle text middle text the real needle here tail text tail text tail text tail text tail text tail text tail text tail text tail text tail text tail tex"
+  },
+  {
+    "name": "a word only syntax holds shows no excerpt",
+    "parts": [
+      ["intro text ", 150],
+      ["[docs](https://example.com/secret) ", 3],
+      ["tail text ", 200]
+    ],
+    "terms": ["secret"],
+    "excerpt": null
+  },
+  {
+    "name": "a place near the end",
+    "parts": [
+      ["filler words ", 400],
+      ["the final needle", 1]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026rds filler words filler words the final needle"
+  },
+  {
+    "name": "emphasis and lists around the place",
+    "parts": [
+      ["- item with **bold** and _em_ text\n", 80],
+      ["- the **needle** in a list\n", 1],
+      ["- more *items* here\n", 80]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026 em text item with bold and em text the needle in a list more items here more items here more items here more items here more items here more items here more it"
+  },
+  {
+    "name": "Chinese text",
+    "parts": [
+      ["\u540c\u6b65\u65b9\u6848 ", 600],
+      ["marker ", 1],
+      ["\u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 ", 300]
+    ],
+    "terms": ["MARKER"],
+    "excerpt": "\u2026\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848 marker \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c\u6b65\u65b9\u6848 \u540c\u6b65\u65b9\u6848\u540c"
+  },
+  {
+    "name": "characters outside the BMP before the place",
+    "parts": [
+      ["\ud83d\ude80 rocket ", 400],
+      ["needle ", 1],
+      ["tail ", 300]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026ket \ud83d\ude80 rocket \ud83d\ude80 rocket \ud83d\ude80 rocket \ud83d\ude80 rocket needle tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tai"
+  },
+  {
+    "name": "one very long line",
+    "parts": [
+      ["abcdefghij ", 400],
+      ["needle ", 1],
+      ["klmnopqrst ", 400]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026efghij abcdefghij abcdefghij abcdefghij needle klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klm"
+  },
+  {
+    "name": "line breaks with carriage returns",
+    "parts": [
+      ["line of text\r\n", 300],
+      ["the needle line\r\n", 1],
+      ["more lines\r\n", 200]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026e of text line of text line of text the needle line more lines more lines more lines more lines more lines more lines more lines more lines more lines more line"
+  },
+  {
+    "name": "a closed code fence before the stretch",
+    "parts": [
+      ["```\ncode **kept** as written\n```\n\n", 1],
+      ["prose words ", 300],
+      ["needle in prose ", 1],
+      ["prose tail ", 100]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026rds prose words prose words prose words needle in prose prose tail prose tail prose tail prose tail prose tail prose tail prose tail prose tail prose tail prose"
+  },
+  {
+    "name": "a short body is read whole",
+    "parts": [["te**rm** in a short body", 1]],
+    "terms": ["term"],
+    "excerpt": "term in a short body"
+  },
+  {
+    "name": "a place shown near the start of its stretch widens it",
+    "parts": [
+      ["filler words ", 100],
+      ["the te**rm** joined ", 1],
+      ["x ", 135],
+      ["a plain term here ", 1],
+      ["tail words ", 100]
+    ],
+    "terms": ["TERM"],
+    "excerpt": "\u2026ler words filler words filler words the term joined x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x "
+  },
+  {
+    "name": "a place in front matter is skipped",
+    "parts": [
+      ["---\ntitle: needle\ntags: [a]\n---\n", 1],
+      ["intro words ", 100],
+      ["the needle here ", 1],
+      ["tail words ", 100]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026intro words intro words intro words the needle here tail words tail words tail words tail words tail words tail words tail words tail words tail words tail word"
+  },
+  {
+    "name": "code in a fence that opens within the stretch stays as written",
+    "parts": [
+      ["prose words ", 100],
+      ["\n\n```\nlet **needle** = 1\n```\n\n", 1],
+      ["tail words ", 100]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026ose words prose words prose words let **needle** = 1 tail words tail words tail words tail words tail words tail words tail words tail words tail words tail wor"
+  },
+  {
+    "name": "in a long body a word must be written as typed",
+    "parts": [
+      ["filler words ", 200],
+      ["te**rm** joined by markers ", 1],
+      ["tail words ", 100]
+    ],
+    "terms": ["term"],
+    "excerpt": null
+  }
+]

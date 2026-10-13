@@ -1,0 +1,194 @@
+//! Native checks that must run on the main thread (WebKit kills the process
+//! when called from libtest's worker threads), so this test has no harness
+//! (`harness = false` in Cargo.toml).
+
+fn main() {
+    #[cfg(target_os = "macos")]
+    {
+        use devot_lib::native::macos;
+
+        macos::self_test_private_api_guards()
+            .expect("objects without a private method give a fallback, not a crash");
+        println!("main_thread: private API guards fall back instead of crashing");
+
+        macos::self_test_sixty_fps_toggle().expect("the 60 fps WebKit preference can be toggled");
+        println!("main_thread: 60 fps preference toggles off and on");
+
+        macos::self_test_format_menu_keys().expect("the Format menu takes its own keys");
+        println!(
+            "main_thread: the Format menu takes its keys and no others; menu items lose keys by title"
+        );
+
+        macos::self_test_marked_text().expect("the key monitor sees an input method's marked text");
+        println!(
+            "main_thread: marked text in the first responder is seen until it is committed; a web view can say"
+        );
+
+        // A 1x1 PNG; written to a private pasteboard, never the user's.
+        const PNG: &[u8] = &[
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48,
+            0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x04, 0x00, 0x00,
+            0x00, 0xb5, 0x1c, 0x0c, 0x02, 0x00, 0x00, 0x00, 0x0b, 0x49, 0x44, 0x41, 0x54, 0x78,
+            0xda, 0x63, 0x64, 0x60, 0x00, 0x00, 0x00, 0x06, 0x00, 0x02, 0x30, 0x81, 0xd0, 0x2f,
+            0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+        ];
+        macos::self_test_image_pasteboard(PNG)
+            .expect("an image goes on a pasteboard as PNG and TIFF");
+        println!("main_thread: images go on the pasteboard as PNG and TIFF");
+        print_to_pdf();
+        print_jobs_end();
+        print_loads_nothing_remote();
+
+        let accent = macos::system_accent();
+        let is_hex = |s: &Option<String>| {
+            s.as_deref().is_some_and(|h| {
+                h.len() == 7 && h.starts_with('#') && h[1..].chars().all(|c| c.is_ascii_hexdigit())
+            })
+        };
+        if accent.multicolor {
+            assert!(accent.light.is_none() && accent.dark.is_none());
+        } else {
+            assert!(
+                is_hex(&accent.light) && is_hex(&accent.dark),
+                "accent: {accent:?}"
+            );
+        }
+        println!(
+            "main_thread: system accent reads (multicolor: {})",
+            accent.multicolor
+        );
+    }
+}
+
+/// A long page prints to a PDF of several pages through the system print
+/// pipeline, with its text laid out (fonts embedded), not blank pages, and
+/// with its scripts off (the script would empty the page).
+#[cfg(target_os = "macos")]
+fn print_to_pdf() {
+    use devot_lib::native::macos;
+
+    // Removed when it goes out of scope, also when an assertion fails.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("note.pdf");
+    let paragraphs: String = (0..200)
+        .map(|i| format!("<p>Paragraph {i} of a long printed note.</p>"))
+        .collect();
+    let html = format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Printed</title></head>\
+         <body><h1>Printed note</h1>{paragraphs}<script>document.body.remove()</script></body></html>"
+    );
+    macos::self_test_print_to_pdf(&html, &path).expect("a page prints to a PDF file");
+    let pdf = std::fs::read(&path).expect("the PDF file exists");
+    assert!(pdf.starts_with(b"%PDF-"), "not a PDF");
+    let text = String::from_utf8_lossy(&pdf);
+    let pages = text.matches("/Type /Page").count() - text.matches("/Type /Pages").count();
+    assert!(pages >= 2, "a long note takes several pages, got {pages}");
+    assert!(text.contains("/FontDescriptor"), "the pages hold text");
+    assert_eq!(macos::self_test_print_jobs(), 0, "the job is over");
+    println!("main_thread: a long page prints to a {pages}-page PDF");
+}
+
+/// Every print job ends and frees the print slot, so a PDF export never
+/// blocks the next print: PDF prints in a row all succeed, and no job is
+/// left over after any of them.
+#[cfg(target_os = "macos")]
+fn print_jobs_end() {
+    use devot_lib::native::macos;
+
+    let dir = tempfile::tempdir().unwrap();
+    for n in 1..=3 {
+        let path = dir.path().join(format!("note {n}.pdf"));
+        let html = format!("<!doctype html><title>Note {n}</title><p>Printed note {n}.</p>");
+        macos::self_test_print_to_pdf(&html, &path)
+            .unwrap_or_else(|code| panic!("print {n} of 3 failed: {code}"));
+        let pdf = std::fs::read(&path).expect("the PDF file exists");
+        assert!(pdf.starts_with(b"%PDF-"), "print {n} is not a PDF");
+        assert_eq!(
+            macos::self_test_print_jobs(),
+            0,
+            "print {n} left its job behind"
+        );
+    }
+    println!("main_thread: three PDF prints in a row each end and free the print slot");
+}
+
+/// Printing loads nothing from elsewhere, whatever the page allows itself:
+/// a page whose own policy allows web images, with an image, a
+/// stylesheet and a background from a local listener, prints without one
+/// connection to it. Its `data:` image (as an attachment is) still prints.
+#[cfg(target_os = "macos")]
+fn print_loads_nothing_remote() {
+    use base64::Engine;
+    use devot_lib::native::macos;
+    use std::io::{Read, Write};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let connections = Arc::new(AtomicUsize::new(0));
+    let stop = Arc::new(AtomicBool::new(false));
+    // Counts connections and answers each with 404, so a page that did
+    // load from it would not wait for an answer.
+    let server = {
+        let (connections, stop) = (Arc::clone(&connections), Arc::clone(&stop));
+        std::thread::spawn(move || {
+            while !stop.load(Ordering::SeqCst) {
+                match listener.accept() {
+                    Ok((mut stream, _)) => {
+                        connections.fetch_add(1, Ordering::SeqCst);
+                        let _ = stream.set_nonblocking(false);
+                        let _ = stream.read(&mut [0; 4096]);
+                        let _ = stream.write_all(
+                            b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                        );
+                    }
+                    Err(_) => std::thread::sleep(std::time::Duration::from_millis(10)),
+                }
+            }
+        })
+    };
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("note.pdf");
+    let origin = format!("http://127.0.0.1:{port}");
+    // A 2x2 image of four colours (WebKit fills a one-colour image as a
+    // plain rectangle, which leaves no image in the PDF to find).
+    const PNG: &[u8] = &[
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x08, 0x02, 0x00, 0x00, 0x00, 0xfd,
+        0xd4, 0x9a, 0x73, 0x00, 0x00, 0x00, 0x16, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0xb8,
+        0xe0, 0xa0, 0xa0, 0x90, 0x70, 0x81, 0x41, 0x61, 0x81, 0xc3, 0x87, 0x0f, 0x0a, 0x00, 0x23,
+        0xce, 0x05, 0x81, 0x7b, 0xc8, 0xad, 0x30, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44,
+        0xae, 0x42, 0x60, 0x82,
+    ];
+    let data = base64::engine::general_purpose::STANDARD.encode(PNG);
+    let html = format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\">\
+         <meta http-equiv=\"Content-Security-Policy\" \
+         content=\"default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline' http:\">\
+         <link rel=\"stylesheet\" href=\"{origin}/page.css\">\
+         <style>body {{ background: url({origin}/background.png) }}</style>\
+         <title>Remote</title></head><body><p>Remote images stay out of print.</p>\
+         <img src=\"{origin}/tracker.png\" alt=\"Tracker\">\
+         <img src=\"data:image/png;base64,{data}\" alt=\"Attachment\" width=\"40\" height=\"40\">\
+         </body></html>"
+    );
+    let printed = macos::self_test_print_to_pdf(&html, &path);
+    stop.store(true, Ordering::SeqCst);
+    server.join().unwrap();
+    printed.expect("the page prints");
+    assert_eq!(
+        connections.load(Ordering::SeqCst),
+        0,
+        "printing connected to the listener"
+    );
+    let pdf = std::fs::read(&path).expect("the PDF file exists");
+    assert!(
+        String::from_utf8_lossy(&pdf).contains("/Subtype /Image"),
+        "the data: image prints"
+    );
+    assert_eq!(macos::self_test_print_jobs(), 0, "the job is over");
+    println!("main_thread: printing loads nothing from elsewhere; data: images print");
+}

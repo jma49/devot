@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mirror-hashes"
+description = "Enables the mirror_hashes command without any pre-configured scope."
+commands.allow = ["mirror_hashes"]
+
+[[permission]]
+identifier = "deny-mirror-hashes"
+description = "Denies the mirror_hashes command without any pre-configured scope."
+commands.deny = ["mirror_hashes"]

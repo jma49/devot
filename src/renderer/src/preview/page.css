@@ -1,0 +1,65 @@
+/*
+ * An exported or printed note (exporter.ts): the note content alone, as a
+ * page of its own. Printed pages are always light and keep their fills.
+ */
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-ui);
+  -webkit-text-size-adjust: 100%;
+}
+
+.preview {
+  box-sizing: border-box;
+  max-width: var(--size-reading-width);
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-9);
+  font-size: var(--font-size-preview);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.preview img {
+  height: auto;
+}
+
+@media print {
+  :root {
+    color-scheme: light;
+  }
+
+  body {
+    background: none;
+  }
+
+  .preview {
+    max-width: none;
+    padding: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Paper does not scroll: long code lines wrap, drawings show whole. */
+  .preview pre > code {
+    white-space: pre-wrap;
+    overflow: visible;
+  }
+
+  .island,
+  .math-display {
+    overflow: visible;
+  }
+
+  .preview :is(pre, blockquote, table, img, .island, .alert, .math-display) {
+    break-inside: avoid;
+  }
+
+  .preview :is(h1, h2, h3, h4, h5, h6) {
+    break-after: avoid;
+  }
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tag-put"
+description = "Enables the tag_put command without any pre-configured scope."
+commands.allow = ["tag_put"]
+
+[[permission]]
+identifier = "deny-tag-put"
+description = "Denies the tag_put command without any pre-configured scope."
+commands.deny = ["tag_put"]

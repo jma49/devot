@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mirror-check"
+description = "Enables the mirror_check command without any pre-configured scope."
+commands.allow = ["mirror_check"]
+
+[[permission]]
+identifier = "deny-mirror-check"
+description = "Denies the mirror_check command without any pre-configured scope."
+commands.deny = ["mirror_check"]

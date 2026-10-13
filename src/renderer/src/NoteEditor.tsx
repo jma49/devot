@@ -1,0 +1,702 @@
+import { syntaxHighlighting } from '@codemirror/language'
+import { isolateHistory } from '@codemirror/commands'
+import { EditorSelection } from '@codemirror/state'
+import { Facet, Prec } from '@codemirror/state'
+import { EditorView, keymap, tooltips } from '@codemirror/view'
+import { useEffect, useRef, type RefObject } from 'react'
+import { yCollab } from 'y-codemirror.next'
+import * as Y from 'yjs'
+import type { ImageSize } from '../../core/images'
+import { BODY } from '../../core/notes'
+import { imageFiles, storeImages } from './attachments'
+import { readClipboardText } from './clipboard'
+import { editorCommandKeys } from './commands/registry'
+import type { ShowAlertMenu } from './editor/alertMenu'
+import { moveSelection, selectedText, trackExtract } from './editor/extract'
+import { editorFind, editorFindTarget } from './editor/find'
+import { formatCommand, type FormatId } from './editor/formats'
+import { formatToolbar } from './editor/FormatToolbar'
+import { formatKeyAvailability } from './editor/formatKeys'
+import { imeKeys } from './editor/imeKeys'
+import { editorScrollPane } from './editor/scrollPane'
+import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
+import { imageActions, imageAt, imageSizeChange } from './editor/images'
+import { TABLE_COMMANDS, inTable, tableKeymap, type TableCommandId } from './editor/tableCommands'
+import { tableTyping } from './editor/tableTyping'
+import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
+import { pasteUrls, plainPaste } from './editor/paste'
+import { editorSetup, reconfigureSetup } from './editor/settings'
+import { slashMenu } from './editor/slashMenu'
+import { keepUndo, noteState, yjsHistory } from './editor/undo'
+import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
+import { setInertFormats } from './commands/formatMenu'
+import { subscribeKeymap } from './commands/shortcutSettings'
+import { useEditorSettings } from './editorSettings'
+import type { FindTarget } from './find/target'
+import { t } from './i18n'
+import {
+  imageActionApplies,
+  imageKeys,
+  imageMenuTarget,
+  runImageAction,
+  type ImageMenuTarget,
+  type ImageSource,
+  type ShowImageMenu,
+} from './imageMenu'
+import type { ViewedImage } from './ImageViewer'
+import { linkCompletion, type LinkSources } from './linkCompletion'
+import type { Core } from './core-client'
+import type { ScrollPane } from './preview/scrollSync'
+import { clampSelection, clampTop, type EditorTop, type SelectionState } from './lastState'
+
+const REMOTE = 'remote'
+/** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
+const RESTORE = 'restore'
+
+/** Applies a restore's Yjs update to the open editor as one undo step. */
+export type ApplyRestore = (update: Uint8Array) => void
+
+/** Where the user is in a note: the selection and the line at the top. */
+export interface EditorPlace {
+  selection: SelectionState
+  /** None until the editor has been scrolled or shown. */
+  top?: EditorTop
+}
+
+/** The open editor, for commands run from outside it (the command palette). */
+export interface EditorHandle {
+  /** The note the editor shows. */
+  noteId: string
+  /**
+   * The state vector of the editor's replica: what it holds, for the core
+   * to send only what it lacks (NoteService.open).
+   */
+  vector: () => Uint8Array
+  /**
+   * Takes in the note's state as the core holds it once it has merged what
+   * another process wrote (NoteService.mergeStored), or what of it the
+   * replica lacks: that shows, outside the undo history, and is not sent back
+   * to the core.
+   */
+  takeState: (state: Uint8Array) => void
+  /** Gives the editor the keyboard, with its selection as it was. */
+  focus: () => void
+  /** Focuses the editor and applies a format to its selection. */
+  format: (id: FormatId) => void
+  /** Focuses the editor and inserts at its selection (an image, a table, a note link). */
+  insert: (id: InsertId) => void
+  /** Whether the cursor is in a table. */
+  inTable: () => boolean
+  /** Focuses the editor and runs a table command on the table at the cursor. */
+  table: (id: TableCommandId) => void
+  /** Whether text is selected (New Note from Selection acts on it). */
+  hasSelection: () => boolean
+  /**
+   * Hands the selected text to `make` and puts the text it resolves to (a
+   * note link) in its place, as one undo step (see editor/extract.ts).
+   */
+  moveSelection: (make: (text: string) => Promise<string | null>) => Promise<boolean>
+  /** Focuses the editor and pastes the clipboard's text as it is. */
+  pastePlain: () => Promise<void>
+  /** The image at the cursor, or the first on its line (the image commands act on it). */
+  imageAtCursor: () => ImageMenuTarget | null
+  /**
+   * Gives the image at `source` a size, as one change; false when the text
+   * there is no longer that image.
+   */
+  setImageSize: (source: ImageSource, size: ImageSize) => boolean
+}
+
+/** Paste as Plain Text: the clipboard's text, read through Rust, as it is. */
+async function pastePlain(view: EditorView): Promise<void> {
+  const text = await readClipboardText().catch(() => {
+    console.warn('W_CLIPBOARD_READ_FAILED')
+    return ''
+  })
+  const spec = plainPaste(view.state, text)
+  if (spec) view.dispatch(spec)
+}
+
+/**
+ * The Paste as Plain Text keys (from the registry), ahead of CodeMirror's
+ * own bindings like the format and find keys.
+ */
+const pastePlainKeys = registryKeys(() =>
+  Prec.high(
+    keymap.of(
+      editorCommandKeys('edit.pastePlain').map((key) => ({
+        key,
+        run: (view: EditorView) => {
+          void pastePlain(view)
+          return true
+        },
+        preventDefault: true,
+      })),
+    ),
+  ),
+)
+
+/**
+ * What New Note from Selection does in this editor (the window makes the
+ * note); false when it cannot.
+ */
+const newFromSelection = Facet.define<() => boolean, (() => boolean) | undefined>({
+  combine: (all) => all[0],
+})
+
+/**
+ * The New Note from Selection keys (from the registry): with text selected,
+ * they hand it to the window; with none they do nothing.
+ */
+const newFromSelectionKeys = registryKeys(() =>
+  Prec.high(
+    keymap.of(
+      editorCommandKeys('note.newFromSelection').map((key) => ({
+        key,
+        run: (view: EditorView) =>
+          selectedText(view.state) !== null && (view.state.facet(newFromSelection)?.() ?? false),
+        preventDefault: true,
+      })),
+    ),
+  ),
+)
+
+/**
+ * Gives the image at `source` a size, as one change; false when the text
+ * there is no longer that image.
+ */
+function setImageSize(view: EditorView, source: ImageSource, size: ImageSize): boolean {
+  const change = imageSizeChange(view.state, source, size)
+  if (!change) {
+    console.warn('W_IMAGE_SIZE_STALE')
+    return false
+  }
+  view.dispatch(change)
+  return true
+}
+
+/**
+ * The image command keys (from the registry; none by default): they act on
+ * the image at the cursor, as the palette does, and do nothing when there
+ * is none or the command does not apply to it.
+ */
+const imageCommandKeys = registryKeys(() =>
+  Prec.high(
+    keymap.of(
+      imageKeys().map(({ action, key }) => ({
+        key,
+        run: (view: EditorView) => {
+          const image = imageAt(view.state, view.state.selection.main.head)
+          const target = image && imageMenuTarget(image)
+          if (!target || !imageActionApplies(action, target)) return false
+          void runImageAction(action, target, (source, size) => setImageSize(view, source, size))
+          return true
+        },
+        preventDefault: true,
+      })),
+    ),
+  ),
+)
+
+/**
+ * The line at the top of the editor and how far it is scrolled past that
+ * line's top. The editor's box (`scroller`, the shadow host) scrolls, not
+ * CodeMirror's own scroller.
+ */
+function editorTop(view: EditorView, scroller: HTMLElement): EditorTop | undefined {
+  // Hidden (preview mode): it shows nothing, so it keeps the place it had.
+  if (scroller.clientHeight === 0) return undefined
+  // The top of the editor, as a height from the top of the document.
+  const y = scroller.getBoundingClientRect().top - view.documentTop
+  const block = view.lineBlockAtHeight(y)
+  return { pos: block.from, offset: y - block.top }
+}
+
+/** Scrolls the editor so that `top` is where it was (a line gone since: the end). */
+function scrollToTop(view: EditorView, scroller: HTMLElement, top: EditorTop) {
+  view.requestMeasure({
+    read: (v) => {
+      const y = scroller.getBoundingClientRect().top - v.documentTop
+      const target = v.lineBlockAt(Math.min(top.pos, v.state.doc.length)).top + top.offset
+      return scroller.scrollTop + target - y
+    },
+    write: (scrollTop) => {
+      scroller.scrollTop = scrollTop
+    },
+  })
+}
+
+/**
+ * Stores pasted or dropped images and inserts their links at `pos`; images
+ * that could not be stored go to `refused` with their codes.
+ */
+function attachImages(noteId: string, refused: (codes: string[]) => void) {
+  const insert = (view: EditorView, pos: number, files: File[]) =>
+    void storeImages(noteId, files).then((stored) => {
+      if (stored.refused.length > 0) refused(stored.refused)
+      const { links } = stored
+      if (!links) return
+      const at = Math.min(pos, view.state.doc.length)
+      view.dispatch({
+        changes: { from: at, insert: links },
+        selection: { anchor: at + links.length },
+        // It lands a moment after the paste or drop: its own undo step,
+        // apart from typing done meanwhile or right after.
+        annotations: isolateHistory.of('full'),
+      })
+    })
+  return EditorView.domEventHandlers({
+    paste(event, view) {
+      const files = imageFiles(event.clipboardData)
+      if (files.length === 0) return false
+      event.preventDefault()
+      insert(view, view.state.selection.main.head, files)
+      return true
+    },
+    drop(event, view) {
+      const files = imageFiles(event.dataTransfer)
+      if (files.length === 0) return false
+      event.preventDefault()
+      const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+      insert(view, pos ?? view.state.selection.main.head, files)
+      return true
+    },
+  })
+}
+
+/**
+ * The editor lives in a shadow root: there CodeMirror adds its styles as
+ * constructed stylesheets, which the production CSP allows (in the document
+ * it would add <style> tags, which the CSP blocks). Theme variables inherit
+ * into the shadow root, so the theme below uses them directly, and so do the
+ * editor settings' font, size and line height (see editorSettings.ts).
+ */
+const theme = EditorView.theme({
+  '&': {
+    height: '100%',
+    backgroundColor: 'transparent',
+    color: 'var(--color-text-primary)',
+  },
+  // The text only: popups inside the editor keep the UI's size.
+  '.cm-scroller': {
+    fontSize: 'var(--editor-font-size, var(--font-size-body))',
+    fontFamily: 'var(--editor-font-family, var(--font-family-mono))',
+    lineHeight: 'var(--editor-line-height, 1.4)',
+  },
+  '&.cm-focused': { outline: 'none' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-accent-fill)' },
+  // CodeMirror's own colours are for a light page; these follow the tokens,
+  // so the gutter, the active line and the selection read in both appearances.
+  // The gutter is sticky: it stays opaque so unwrapped text scrolled under it does not show through.
+  '.cm-gutters': {
+    backgroundColor: 'var(--color-surface-editor)',
+    color: 'var(--color-text-tertiary)',
+    border: '0',
+  },
+  '.cm-activeLine': { backgroundColor: 'var(--color-fill-track)' },
+  '.cm-activeLineGutter': {
+    backgroundColor: 'var(--color-fill-track)',
+    color: 'var(--color-text-primary)',
+  },
+  // The selection is drawn in a layer behind the lines, so the active line's tint lies over it.
+  // A solid accent tint that stands 1.3:1 from both; focused or not, it is the same colour.
+  '.cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground':
+    { backgroundColor: 'var(--color-accent-selection)' },
+  '.cm-selectionMatch': { backgroundColor: 'var(--color-fill-match)' },
+  '.cm-foldPlaceholder': {
+    backgroundColor: 'var(--color-fill-track)',
+    color: 'var(--color-text-secondary)',
+    border: '0',
+  },
+  // The `[[` note popup and the slash menu.
+  '.cm-tooltip': {
+    border: '0',
+    borderRadius: 'var(--radius-card)',
+    backgroundColor: 'var(--color-surface-editor)',
+    boxShadow: '0 0 0 0.5px var(--color-line-hairline)',
+    color: 'var(--color-text-primary)',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+    fontFamily: 'var(--font-family-ui)',
+    maxHeight: 'calc(var(--size-sidebar-row) * 9)',
+    padding: 'var(--space-2)',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+    padding: 'var(--space-2) var(--space-4)',
+    borderRadius: 'var(--radius-button)',
+  },
+  '.cm-tooltip-autocomplete ul li[aria-selected]': {
+    backgroundColor: 'var(--color-accent-fill)',
+    color: 'var(--color-accent-on-fill)',
+  },
+  // A slash menu item's key, and the letters its query matched (as in the palette).
+  '.cm-completionDetail': {
+    marginLeft: 'var(--space-4)',
+    fontStyle: 'normal',
+    fontSize: 'var(--font-size-footnote)',
+    color: 'var(--color-text-tertiary)',
+  },
+  '.cm-tooltip-autocomplete ul li[aria-selected] .cm-completionDetail': {
+    color: 'var(--color-accent-on-fill)',
+  },
+  '.cm-completionMatchedText': {
+    textDecoration: 'none',
+    fontWeight: 'var(--font-weight-semibold)',
+  },
+  '.cm-completionIcon': { display: 'none' },
+})
+
+/**
+ * Popups (the `[[` list, the selection toolbar) stay inside the editor's
+ * box: WebKit positions them absolutely there, and the host's scrolling
+ * clips anything outside it, so a popup with no room above a line opens
+ * below it instead.
+ */
+const popupSpace = tooltips({
+  tooltipSpace: (view) => {
+    const root = view.dom.getRootNode()
+    return (root instanceof ShadowRoot ? root.host : view.dom).getBoundingClientRect()
+  },
+})
+
+function shadowContainer(host: HTMLElement): {
+  root: ShadowRoot
+  parent: HTMLElement
+} {
+  const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' })
+  root.replaceChildren()
+  const parent = document.createElement('div')
+  parent.className = 'editor-root'
+  root.appendChild(parent)
+  return { root, parent }
+}
+
+interface Props {
+  core: Core
+  noteId: string
+  /**
+   * Focus the body once it loads (a note just created, or Cmd+Return on its
+   * row); read when the note has loaded.
+   */
+  autoFocus: boolean
+  /** Kept mounted but out of sight in preview mode, so the text stays live. */
+  hidden: boolean
+  /** The current Markdown, on open and after every change. */
+  onText: (text: string) => void
+  /** Notes for the `[[` link popup, and creating one from it. */
+  links: LinkSources
+  /** Set while the note is open: applies a restored version (see ApplyRestore). */
+  restoreRef?: RefObject<ApplyRestore | null>
+  /** Gets the editor's find handle once the note is open, and null when it closes. */
+  onFind?: (target: FindTarget | null) => void
+  /** Opens the selection toolbar's alert pop-up (one per window, stable). */
+  showAlertMenu: ShowAlertMenu
+  /** Set while the editor is ready (see EditorHandle). */
+  handleRef?: RefObject<EditorHandle | null>
+  /** Gets the editor as a scroll pane once the note is open, and null when it closes. */
+  onScrollPane?: (pane: ScrollPane | null) => void
+  /** Double-click on an image under its line: show it in the viewer. */
+  onOpenImage?: (image: ViewedImage) => void
+  /** Right-click on an image under its line: the image menu. */
+  showImageMenu?: ShowImageMenu
+  /**
+   * Where to put the user when the note has loaded (a restored window);
+   * asked once. Positions past the end of the text go to its end.
+   */
+  initialPlace?: () => Partial<EditorPlace> | undefined
+  /**
+   * The selection changed, or the editor scrolled. Reported without reading
+   * the layout on a keystroke: the top line is measured only on a scroll
+   * and follows edits made above it.
+   */
+  onPlace?: (noteId: string, place: EditorPlace) => void
+  /** Makes a note of the selected text (New Note from Selection's keys). */
+  onNewFromSelection?: (() => void) | undefined
+  /** Pasted or dropped images could not be stored: the code of each. */
+  onImagesRefused?: (codes: string[]) => void
+}
+
+/** CodeMirror bound to a local Yjs replica of the note held by the core. */
+export function NoteEditor({
+  core,
+  noteId,
+  autoFocus,
+  hidden,
+  onText,
+  links,
+  restoreRef,
+  onFind,
+  showAlertMenu,
+  handleRef,
+  onScrollPane,
+  onOpenImage,
+  showImageMenu,
+  initialPlace,
+  onPlace,
+  onNewFromSelection,
+  onImagesRefused,
+}: Props) {
+  const host = useRef<HTMLDivElement>(null)
+  // Read once, when the note has loaded.
+  const focusOnOpen = useRef(autoFocus)
+  const settings = useEditorSettings()
+  const latestSettings = useRef(settings)
+  /**
+   * The open editor, the settings it is set up for, the box that scrolls,
+   * and where the user is in the note.
+   */
+  const open = useRef<{
+    view: EditorView
+    settings: typeof settings
+    scroller: HTMLElement
+    place: EditorPlace
+  } | null>(null)
+  const report = useRef(onText)
+  const linkSources = useRef(links)
+  const findHandle = useRef(onFind)
+  const scrollHandle = useRef(onScrollPane)
+  const imageHandlers = useRef({ open: onOpenImage, menu: showImageMenu })
+  const placeAsked = useRef(initialPlace)
+  const placeReport = useRef(onPlace)
+  const fromSelection = useRef(onNewFromSelection)
+  const imagesRefused = useRef(onImagesRefused)
+  useEffect(() => {
+    placeAsked.current = initialPlace
+    placeReport.current = onPlace
+    focusOnOpen.current = autoFocus
+    report.current = onText
+    linkSources.current = links
+    findHandle.current = onFind
+    scrollHandle.current = onScrollPane
+    fromSelection.current = onNewFromSelection
+    imagesRefused.current = onImagesRefused
+    latestSettings.current = settings
+    imageHandlers.current = { open: onOpenImage, menu: showImageMenu }
+  })
+
+  // Keys changed in any window (Settings > Keyboard Shortcuts) rebind at once.
+  useEffect(
+    () =>
+      subscribeKeymap(() => open.current?.view.dispatch({ effects: reconfigureRegistryKeys() })),
+    [],
+  )
+
+  // Settings changed in any window apply to the open editor as they are.
+  useEffect(() => {
+    const now = open.current
+    if (!now || now.settings === settings) return
+    const effects = reconfigureSetup(now.settings, settings)
+    // The font, its size or the line height change the line heights.
+    const remeasure = (['fontFamily', 'fontSize', 'lineHeight'] as const).some(
+      (key) => now.settings[key] !== settings[key],
+    )
+    now.settings = settings
+    if (effects.length > 0) now.view.dispatch({ effects })
+    // A setting outside the editor (the sidebar material) leaves it alone.
+    if (effects.length > 0 || remeasure) now.view.requestMeasure()
+  }, [settings])
+
+  // Shown again (after preview mode), the editor goes back to its place: a
+  // hidden box can lose its scroll position, and a place restored while it
+  // was hidden has not been applied yet.
+  useEffect(() => {
+    const now = open.current
+    if (hidden || !now?.place.top) return
+    scrollToTop(now.view, now.scroller, now.place.top)
+  }, [hidden])
+
+  useEffect(() => {
+    let view: EditorView | undefined
+    let cancelled = false
+    const doc = new Y.Doc()
+    // The core made restores itself; everything else local goes to it.
+    const forward = (update: Uint8Array, origin: unknown) => {
+      if (origin !== REMOTE && origin !== RESTORE) void core.applyUpdate(noteId, update)
+    }
+
+    // The core keeps the note in memory while the editor shows it, so its
+    // replica and the core's document never part (see NoteService.hold).
+    void core.hold(noteId)
+    void core.open(noteId).then((opened) => {
+      if (cancelled || !host.current) return
+      Y.applyUpdate(doc, opened.state, REMOTE)
+      doc.on('update', forward)
+      const text = doc.getText(BODY)
+      report.current(text.toString())
+      text.observe(() => report.current(text.toString()))
+      const scroller = host.current
+      const { root, parent } = shadowContainer(scroller)
+      // True while a restored version is applied: an undo step of its own,
+      // where every other change from the Yjs document is none (editor/undo.ts).
+      let restoring = false
+      if (restoreRef) {
+        restoreRef.current = (update) => {
+          restoring = true
+          try {
+            Y.applyUpdate(doc, update, RESTORE)
+          } finally {
+            restoring = false
+          }
+        }
+      }
+      const setupFor = latestSettings.current
+      const body = text.toString()
+      const restored = placeAsked.current?.()
+      const selection = restored?.selection && clampSelection(restored.selection, body.length)
+      const place: EditorPlace = {
+        selection: selection ?? { anchor: 0, head: 0 },
+      }
+      // Kept inside the note, as the selection is: the note can be shorter
+      // than when it was stored, and edits map the top line through changes.
+      if (restored?.top) place.top = clampTop(restored.top, body.length)
+      const placeChanged = () => placeReport.current?.(noteId, { ...place })
+      // The note's undo history, when it was shown before (editor/undo.ts).
+      const initial = noteState(
+        noteId,
+        {
+          doc: body,
+          ...(selection
+            ? {
+                selection: EditorSelection.single(selection.anchor, selection.head),
+              }
+            : {}),
+          extensions: [
+            editorSetup(setupFor),
+            // No keymap acts on the keys an input method composes with.
+            imeKeys(),
+            theme,
+            syntaxHighlighting(noteHighlightStyle),
+            // The GFM dialect (strikethrough, tables, task lists) and front matter.
+            noteMarkdown,
+            attachImages(noteId, (codes) => imagesRefused.current?.(codes)),
+            pasteUrls,
+            pastePlainKeys(),
+            newFromSelectionKeys(),
+            insertKeymap(),
+            imageCommandKeys(),
+            newFromSelection.of(() => {
+              const run = fromSelection.current
+              run?.()
+              return run !== undefined
+            }),
+            trackExtract,
+            linkCompletion({
+              find: (query) => linkSources.current.find(query),
+              create: (title) => linkSources.current.create(title),
+            }),
+            slashMenu(),
+            formatToolbar(showAlertMenu),
+            formatKeyAvailability(setInertFormats),
+            tableKeymap(),
+            tableTyping(),
+            editorFind(),
+            imageActions.of({
+              open: (image) => imageHandlers.current.open?.(image),
+              menu: (image, at) => imageHandlers.current.menu?.(imageMenuTarget(image), at),
+            }),
+            popupSpace,
+            // Undo is CodeMirror's history alone: no Yjs undo manager.
+            yCollab(text, null, { undoManager: false }),
+            yjsHistory(() => restoring),
+            EditorView.contentAttributes.of({
+              'aria-label': t('note.bodyLabel'),
+            }),
+            EditorView.updateListener.of((update) => {
+              if (!update.selectionSet && !update.docChanged) return
+              if (update.docChanged && place.top) {
+                place.top = {
+                  ...place.top,
+                  pos: update.changes.mapPos(place.top.pos),
+                }
+              }
+              const { anchor, head } = update.state.selection.main
+              place.selection = { anchor, head }
+              placeChanged()
+            }),
+            EditorView.domEventHandlers({
+              scroll: (_event, scrolled) => {
+                const top = editorTop(scrolled, scroller)
+                if (!top) return
+                place.top = top
+                placeChanged()
+              },
+            }),
+          ],
+        },
+        doc,
+      )
+      view = new EditorView({
+        root,
+        state: initial,
+        // With no scroll position, the selection shows in the middle.
+        ...(selection && !restored?.top
+          ? {
+              scrollTo: EditorView.scrollIntoView(selection.head, {
+                y: 'center',
+              }),
+            }
+          : {}),
+        parent,
+      })
+      open.current = { view, settings: setupFor, scroller, place }
+      findHandle.current?.(editorFindTarget(view))
+      // The host element scrolls: the editor grows with its text.
+      scrollHandle.current?.(editorScrollPane(view, host.current))
+      const ready = view
+      if (handleRef) {
+        handleRef.current = {
+          noteId,
+          vector: () => Y.encodeStateVector(doc),
+          takeState: (state) => Y.applyUpdate(doc, state, REMOTE),
+          focus: () => ready.focus(),
+          format: (id) => {
+            ready.focus()
+            formatCommand(id)(ready)
+          },
+          insert: (id) => {
+            ready.focus()
+            insertCommand(id)(ready)
+          },
+          inTable: () => inTable(ready.state),
+          table: (id) => {
+            ready.focus()
+            const tr = TABLE_COMMANDS[id](ready.state)
+            if (tr) ready.dispatch(tr)
+          },
+          hasSelection: () => selectedText(ready.state) !== null,
+          moveSelection: (make) => moveSelection(ready, make, () => !cancelled),
+          pastePlain: () => {
+            ready.focus()
+            return pastePlain(ready)
+          },
+          imageAtCursor: () => {
+            const image = imageAt(ready.state, ready.state.selection.main.head)
+            return image ? imageMenuTarget(image) : null
+          },
+          setImageSize: (source, size) => setImageSize(ready, source, size),
+        }
+      }
+      if (focusOnOpen.current) view.focus()
+      // A hidden editor goes to its place when it shows (see above).
+      if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
+    })
+
+    return () => {
+      cancelled = true
+      if (restoreRef) restoreRef.current = null
+      if (view) {
+        keepUndo(noteId, view.state, doc)
+        findHandle.current?.(null)
+        scrollHandle.current?.(null)
+      }
+      if (handleRef) handleRef.current = null
+      open.current = null
+      doc.off('update', forward)
+      view?.destroy()
+      doc.destroy()
+      void core.unhold(noteId)
+    }
+  }, [core, noteId, restoreRef, showAlertMenu, handleRef])
+
+  return <div className="editor" data-devot-part="editor-body" ref={host} hidden={hidden} />
+}

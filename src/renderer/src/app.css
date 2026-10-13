@@ -1,0 +1,2114 @@
+/* App styles. Every colour, size and font comes from the generated design
+   tokens (theme/tokens.css); a policy test rejects colour literals here. */
+
+:root {
+  font: var(--font-size-body) / 1.4 var(--font-family-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: transparent;
+}
+
+body {
+  color: var(--color-text-primary);
+  cursor: default;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.window {
+  display: flex;
+  height: 100%;
+}
+
+/* Window chrome is not selectable text. */
+.sidebar,
+.list {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* SF Symbols arrive black; the mask takes the colour of the text. */
+.icon {
+  display: inline-block;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.icon-sm {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+
+.icon-md {
+  width: var(--size-icon-md);
+  height: var(--size-icon-md);
+}
+
+/* Toolbars: a unified 52 px band over the list and the editor. */
+.toolbar,
+.titlebar {
+  height: var(--size-toolbar-height);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.toolbar-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.headline {
+  font-size: var(--font-size-title3);
+  font-weight: var(--font-weight-bold);
+}
+
+.caption {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+}
+
+/* A long notebook name is cut off, never run under the buttons beside it. */
+.toolbar-title :is(.headline, .caption) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-10);
+  height: var(--size-field-height);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-button);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.tool:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-fill-track);
+}
+
+.tool:disabled,
+.tool[aria-disabled='true'] {
+  opacity: 0.5;
+}
+
+/* Sidebar: the window material shows through its tint. */
+.sidebar {
+  width: var(--size-sidebar-width);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--space-5) var(--space-6);
+  box-sizing: border-box;
+  background: var(--color-surface-sidebar);
+  border-right: 1px solid var(--color-line-hairline);
+}
+
+/* Settings > Appearance turned the material off (sidebarMaterial.ts): the
+   window draws no effect, so the sidebar paints its own opaque surface, and
+   so does the root, behind every pane, before they render or while one
+   changes. */
+:root[data-sidebar-material='off'],
+:root[data-sidebar-material='off'] .sidebar {
+  background: var(--color-surface-sidebar-opaque);
+}
+
+.sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.source {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  height: var(--size-sidebar-row);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: transparent;
+  text-align: left;
+}
+
+.source .icon {
+  background-color: var(--color-accent-text);
+}
+
+.source-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-count {
+  font-size: var(--font-size-footnote);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+/* Filters: Pinned, statuses and tags. A pressed filter shows like a selection. */
+.source.filter[aria-pressed='true'] {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
+.sources:focus-within .source.filter[aria-pressed='true'] {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.sources:focus-within .source.filter[aria-pressed='true'] .icon {
+  background-color: var(--color-accent-on-fill);
+}
+
+/* The count is text: a background in its colour would draw a solid block. */
+.sources:focus-within .source.filter[aria-pressed='true'] .source-count {
+  color: var(--color-accent-on-fill);
+}
+
+.status-active {
+  --status-color: var(--color-status-active);
+}
+
+.status-on_hold {
+  --status-color: var(--color-status-hold);
+}
+
+.status-completed {
+  --status-color: var(--color-status-done);
+}
+
+.status-dropped {
+  --status-color: var(--color-status-dropped);
+}
+
+.status-none {
+  --status-color: var(--color-text-tertiary);
+}
+
+.source.filter[class*='status-'] .icon {
+  background-color: var(--status-color);
+}
+
+.tag-row .icon {
+  -webkit-mask-size: 55%;
+  mask-size: 55%;
+}
+
+/* Tag colours: a dot painted with the theme's token for the palette ID. */
+.tag-color-red {
+  --tag-color: var(--color-tag-red);
+}
+
+.tag-color-orange {
+  --tag-color: var(--color-tag-orange);
+}
+
+.tag-color-yellow {
+  --tag-color: var(--color-tag-yellow);
+}
+
+.tag-color-green {
+  --tag-color: var(--color-tag-green);
+}
+
+.tag-color-blue {
+  --tag-color: var(--color-tag-blue);
+}
+
+.tag-color-purple {
+  --tag-color: var(--color-tag-purple);
+}
+
+.tag-color-pink {
+  --tag-color: var(--color-tag-pink);
+}
+
+.tag-color-gray {
+  --tag-color: var(--color-tag-gray);
+}
+
+.tag-dot {
+  flex-shrink: 0;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-capsule);
+  background: var(--tag-color);
+}
+
+/* In a sidebar row the dot takes the tag icon's place. */
+.tag-dot-box {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon-md);
+  height: var(--size-icon-md);
+}
+
+/* On the accent fill of a focused, pressed row, a ring keeps the dot apart. */
+.sources:focus-within .source.filter[aria-pressed='true'] .tag-dot {
+  box-shadow: 0 0 0 1px var(--color-accent-on-fill);
+}
+
+/* Notebooks. */
+.section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: calc(var(--space-9) + var(--space-1));
+  margin-top: var(--space-5);
+  padding: 0 var(--space-1) var(--space-2) var(--space-4);
+  border-radius: var(--radius-button);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+}
+
+.tool-small {
+  width: var(--size-segment-height);
+  height: var(--size-segment-height);
+}
+
+.books,
+.books ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.books li {
+  /* --book-depth (0 for the top level) is set per item through the CSSOM. */
+  --book-indent: calc(var(--space-4) + var(--book-depth, 0) * var(--space-8));
+  position: relative;
+  outline: none;
+}
+
+.book-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--size-sidebar-row);
+  padding-inline: var(--book-indent) var(--space-4);
+  border-radius: var(--radius-button);
+}
+
+/* Where a dragged notebook will go: a line on the row's top or bottom edge,
+   from the row's own indent; after an open notebook, under its sub-notebooks
+   (the line is on the notebook's item). */
+.drop-before::before,
+.drop-after::after {
+  content: '';
+  position: absolute;
+  inset-inline: var(--book-indent) var(--space-2);
+  height: 2px;
+  border-radius: var(--radius-capsule);
+  background: var(--color-accent-fill);
+  pointer-events: none;
+}
+
+.drop-before::before {
+  top: -1px;
+}
+
+.drop-after::after {
+  bottom: -1px;
+}
+
+.book-row .icon-md {
+  background-color: var(--color-accent-text);
+}
+
+/* Allow AI Access is on: a small mark before the count. */
+.book-ai {
+  display: flex;
+  color: var(--color-text-secondary);
+}
+
+.disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-6);
+  color: var(--color-text-tertiary);
+}
+
+.book-name-field {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  outline: 2px solid var(--color-accent-fill);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.books [aria-selected='true'] > .book-row {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
+.books:focus-within [aria-selected='true'] > .book-row {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.books:focus-within [aria-selected='true'] > .book-row :is(.icon, .disclosure .icon) {
+  background-color: var(--color-accent-on-fill);
+}
+
+.books:focus-within [aria-selected='true'] > .book-row .source-count {
+  color: var(--color-accent-on-fill);
+}
+
+/* A drop target, and the notebook whose context menu is open. */
+.drop-target,
+.menu-target {
+  box-shadow: inset 0 0 0 2px var(--color-accent-fill);
+}
+
+/* Note list. */
+.list {
+  width: var(--size-list-width);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+  background: var(--color-surface-list);
+  border-right: 1px solid var(--color-line-hairline);
+}
+
+.list .toolbar {
+  padding: 0 var(--space-6) 0 var(--space-8);
+}
+
+.rows {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rows:focus {
+  outline: none;
+}
+
+/* The list itself has the keyboard only when it is empty or after a click on its blank space. */
+.rows:focus-visible {
+  outline: 2px solid var(--color-accent-fill);
+  outline-offset: -2px;
+}
+
+/* Stands for the rows of a long list that are not rendered (NoteList's window). */
+.rows-spacer {
+  flex: none;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-card);
+  outline: none;
+}
+
+.row-title {
+  font-weight: var(--font-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+  overflow-wrap: anywhere;
+}
+
+/* Words a search matched. On the accent-filled selection they are underlined instead. */
+.row mark {
+  border-radius: var(--space-1);
+  background: var(--color-fill-match);
+  color: inherit;
+}
+
+.rows:focus-within .row[aria-selected='true'] mark {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.rows:focus-within .row[aria-selected='true'] .row-excerpt {
+  color: inherit;
+}
+
+.row-meta {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--font-size-footnote);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.row-status {
+  color: var(--status-color);
+}
+
+.rows:focus-within .row[aria-selected='true'] .row-status {
+  color: inherit;
+}
+
+.row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: calc(var(--space-8) + var(--space-1));
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-track);
+  font-size: var(--font-size-caption);
+  white-space: nowrap;
+}
+
+.list-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5) var(--space-2);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+  list-style: none;
+}
+
+/* Selection: neutral, or the accent while its list has the keyboard focus. */
+.source[aria-current='true'],
+.row[aria-selected='true'] {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
+.sources:focus-within .source[aria-current='true'],
+.rows:focus-within .row[aria-selected='true'] {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.sources:focus-within .source[aria-current='true'] .icon {
+  background-color: var(--color-accent-on-fill);
+}
+
+.sources:focus-within .source[aria-current='true'] .source-count {
+  color: var(--color-accent-on-fill);
+}
+
+/* Editor. */
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-editor);
+}
+
+.title {
+  margin: var(--space-8) var(--space-10) var(--space-4);
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: var(--font-weight-bold) var(--font-size-title) / 1.25 var(--font-family-ui);
+}
+
+.note-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 var(--space-10) var(--space-4);
+  font-size: var(--font-size-footnote);
+}
+
+.template-hint {
+  color: var(--color-text-secondary);
+}
+
+/* Several notes selected: the editor pane sums them up, with their actions. */
+.selection-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-8) var(--space-10);
+}
+
+.selection-count {
+  margin: 0;
+  font: var(--font-weight-bold) var(--font-size-title) / 1.25 var(--font-family-ui);
+}
+
+.selection-titles {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-secondary);
+}
+
+.selection-titles li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selection-more {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-footnote);
+}
+
+.selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.selection-summary .selection-meta {
+  margin: 0;
+}
+
+.meta-divider {
+  width: 1px;
+  height: var(--size-icon-sm);
+  background: var(--color-line-hairline);
+}
+
+.status-dot {
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-capsule);
+  background: var(--status-color);
+}
+
+.tag-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chip-remove {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+}
+
+.chip-remove .icon {
+  width: var(--space-5);
+  height: var(--space-5);
+}
+
+.tag-input {
+  width: calc(var(--space-10) * 3);
+  height: var(--size-segment-height);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  outline: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.tag-input:focus {
+  background: var(--color-fill-track);
+}
+
+/* Pop-up button: a native select dressed as an AppKit pop-up. */
+.popup {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  /* No wider than its cap or its row: in a narrow window it gives way too. */
+  min-width: 0;
+  max-width: min(var(--size-popup-max-width), 100%);
+  height: var(--size-segment-height);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  color: var(--color-text-primary);
+}
+
+.popup:hover {
+  background: var(--color-fill-track);
+}
+
+.popup .icon:first-child {
+  background-color: var(--color-accent-text);
+}
+
+.popup .icon:last-child {
+  color: var(--color-text-secondary);
+}
+
+.popup select {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+  /* A select is as wide as its longest option; here it gives way, between the icons. */
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Back and Forward start it; the rest sits at its end. In a narrow window
+   the search field gives way first, and nothing spills over the list. */
+.editor-toolbar {
+  gap: var(--space-4);
+  justify-content: flex-start;
+  padding: 0 var(--space-7);
+  overflow: hidden;
+}
+
+.editor-toolbar > * {
+  flex-shrink: 0;
+}
+
+.editor-toolbar > .search-field {
+  flex-shrink: 1;
+  min-width: calc(var(--space-10) * 3);
+}
+
+/* Back and Forward, at the start of the editor's toolbar. */
+.trail-buttons {
+  display: flex;
+  gap: var(--space-1);
+  margin-right: auto;
+}
+
+/* The sidebar's title bar: the traffic lights, then its Hide Sidebar button. */
+[data-devot-part='sidebar-titlebar'] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.list .toolbar-title {
+  flex: 1;
+}
+
+/* A hidden sidebar: the list's toolbar clears the window controls and
+   shows the sidebar's button. */
+.window[data-sidebar-hidden] > .sidebar {
+  display: none;
+}
+
+.window[data-sidebar-hidden] .list .toolbar {
+  padding-left: calc(var(--space-10) * 2 + var(--space-7));
+}
+
+.sidebar-show {
+  margin-right: var(--space-4);
+}
+
+/* Focus mode: only the editor shows, at a reading width in the middle. */
+.window[data-focus] > .sidebar,
+.window[data-focus] > .list {
+  display: none;
+}
+
+/* Clear the window controls, which now sit over the editor toolbar. */
+.window[data-focus] .editor-toolbar {
+  padding-left: calc(var(--space-10) * 2 + var(--space-7));
+}
+
+.window[data-focus] .content > :not(.toolbar) {
+  box-sizing: border-box;
+  width: min(var(--size-reading-width), 100% - var(--space-10) * 2);
+  margin-inline: auto;
+}
+
+/* The side margins become padding, so text lines up as outside focus mode. */
+.window[data-focus] .content > .title,
+.window[data-focus] .content > .note-meta {
+  padding-inline: var(--space-10);
+}
+
+.window[data-focus] .content > .panes-split {
+  width: min(var(--size-reading-width) * 2, 100% - var(--space-10) * 2);
+}
+
+/* Segmented control: the selected segment is raised and neutral. */
+.segmented {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-field);
+  background: var(--color-fill-track);
+}
+
+.segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--space-10) + var(--space-4));
+  height: var(--size-segment-height);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.segment[aria-pressed='true'] {
+  background: var(--color-fill-segment-on);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  color: var(--color-text-primary);
+}
+
+/* Edit, split and preview. */
+.panes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.panes-split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.panes-split .preview {
+  border-left: 1px solid var(--color-line-hairline);
+}
+
+.editor {
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--space-9);
+}
+
+.editor[hidden] {
+  display: none;
+}
+
+/* Preview: rendered note content. */
+.preview {
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4) var(--space-10) var(--space-9) var(--space-9);
+  font-size: var(--font-size-preview);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* The preview takes focus on a click (for find); it is a reading area, not a control. */
+.preview:focus {
+  outline: none;
+}
+
+/* Find matches in the preview, painted without touching its DOM. */
+::highlight(devot-find) {
+  background-color: var(--color-fill-match);
+}
+
+::highlight(devot-find-current) {
+  background-color: var(--color-fill-match-current);
+}
+
+/* Find in note: a bar over the editor and the preview. */
+.find-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 var(--space-10) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+  font-size: var(--font-size-body);
+}
+
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.find-field {
+  flex: 1;
+  min-width: 0;
+  height: var(--size-segment-height);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  outline: none;
+  background: var(--color-surface-editor);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.find-field:focus {
+  box-shadow: 0 0 0 2px var(--color-accent-fill);
+}
+
+.find-field[aria-invalid='true'] {
+  box-shadow: 0 0 0 2px var(--color-status-dropped);
+}
+
+.find-status {
+  min-width: calc(var(--space-10) * 2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.find-status[data-error] {
+  color: var(--color-status-dropped);
+}
+
+.find-toggle {
+  min-width: var(--size-segment-height);
+  height: var(--size-segment-height);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: var(--font-weight-semibold) var(--font-size-footnote) / 1 var(--font-family-mono);
+}
+
+.find-toggle:hover {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
+.find-toggle[aria-pressed='true'] {
+  background: var(--color-fill-row-selected-unemphasized);
+  color: var(--color-accent-text);
+}
+
+/* Shown on hover, on keyboard focus and while it reports a copy. */
+.code-copy {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-field-height);
+  height: var(--size-field-height);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--color-surface-editor);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  color: var(--color-text-secondary);
+  opacity: 0;
+}
+
+.preview pre:hover > .code-copy,
+.code-copy:focus-visible,
+.code-copy:not([data-state='idle']) {
+  opacity: 1;
+}
+
+.code-copy:hover {
+  color: var(--color-text-primary);
+}
+
+.code-copy:focus-visible {
+  outline: 2px solid var(--color-accent-fill);
+  outline-offset: 1px;
+}
+
+.code-copy[data-state='copied'] {
+  color: var(--color-status-done);
+}
+
+.code-copy[data-state='failed'] {
+  color: var(--color-status-dropped);
+}
+
+/*
+ * The page's own controls inside the note are never selected with it, so a
+ * copied selection (plain text or HTML) holds the note only.
+ */
+[data-devot-ui] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Printed notes show the note only. */
+@media print {
+  [data-devot-ui] {
+    display: none;
+  }
+}
+
+/* Double-click opens the image viewer (the app's own control, not page CSS). */
+.preview img {
+  cursor: zoom-in;
+}
+
+/* The Mermaid renderer frame needs layout to measure text but is never seen. */
+.mermaid-frame {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 1000px;
+  height: 800px;
+  border: 0;
+  visibility: hidden;
+}
+
+.embed-video {
+  margin: 0 0 0.8em;
+  aspect-ratio: 16 / 9;
+}
+
+.embed-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 160px;
+  border: 0;
+  border-radius: var(--radius-card);
+}
+
+.embed-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin: 0 0 0.8em;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
+}
+
+.embed-load {
+  flex-shrink: 0;
+  white-space: nowrap;
+  height: var(--size-segment-height);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-fill-segment-on);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  color: var(--color-text-primary);
+}
+
+/* Search field in the toolbar. */
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: calc(var(--space-10) * 6);
+  height: var(--size-field-height);
+  padding: 0 var(--space-4);
+  box-sizing: border-box;
+  border-radius: var(--radius-field);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
+}
+
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-field input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.search-clear {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+}
+
+/* Trash. */
+.trash-source {
+  margin-top: auto;
+  padding-top: var(--space-4);
+}
+
+.trash-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: var(--space-6) var(--space-10) 0;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
+}
+
+.trash-banner span {
+  flex: 1;
+}
+
+.trash-title {
+  margin-bottom: var(--space-6);
+}
+
+/* Push buttons and the confirmation sheet. */
+.button {
+  height: var(--size-segment-height);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-fill-segment-on);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.button:disabled,
+.button[aria-disabled='true'] {
+  opacity: 0.5;
+}
+
+.button-destructive {
+  color: var(--color-text-destructive);
+}
+
+.confirm {
+  max-width: calc(var(--size-list-width) + var(--space-10));
+  padding: var(--space-8);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+}
+
+.confirm::backdrop {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
+.confirm-message {
+  margin: 0 0 var(--space-2);
+  font-weight: var(--font-weight-semibold);
+}
+
+.confirm-detail {
+  margin: 0 0 var(--space-7);
+  color: var(--color-text-secondary);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+
+/* Sheets: a modal panel with a title, like the backups list. */
+.sheet {
+  width: calc(var(--size-list-width) * 1.5);
+  padding: var(--space-8);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+}
+
+.sheet::backdrop {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
+.sheet-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-title3);
+  font-weight: var(--font-weight-bold);
+}
+
+.sheet-detail {
+  margin: 0 0 var(--space-6);
+  color: var(--color-text-secondary);
+}
+
+.sheet-error {
+  margin: 0 0 var(--space-6);
+  color: var(--color-status-dropped);
+}
+
+.backup-list {
+  max-height: calc(var(--size-sidebar-row) * 9);
+  overflow: auto;
+  margin: 0 0 var(--space-7);
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-line-hairline);
+}
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.backup-date {
+  flex: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.backup-size {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A pick list in a sheet that filters as you type (Move to Notebook). */
+.pick-filter {
+  width: 100%;
+  height: var(--size-field-height);
+  box-sizing: border-box;
+  margin: 0 0 var(--space-4);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-field);
+  outline: none;
+  background: var(--color-fill-track);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.pick-list {
+  max-height: calc(var(--size-sidebar-row) * 8);
+  overflow: auto;
+  margin: 0 0 var(--space-7);
+  padding: 0;
+  list-style: none;
+}
+
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--size-sidebar-row);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-control);
+}
+
+.pick-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pick-row .icon {
+  background-color: var(--color-accent-text);
+}
+
+.pick-row[aria-selected='true'] {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.pick-row[aria-selected='true'] .icon {
+  background-color: var(--color-accent-on-fill);
+}
+
+/* The default push button of a sheet. */
+.button-default {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+/* New Note from Template: the templates beside a preview of the note. */
+.sheet.templates {
+  width: calc(var(--size-list-width) * 2.25);
+  max-width: calc(100vw - var(--space-10) * 2);
+}
+
+.templates-body {
+  display: grid;
+  grid-template-columns: calc(var(--size-list-width) * 0.75) minmax(0, 1fr);
+  gap: var(--space-6);
+  height: calc(var(--size-sidebar-row) * 12);
+  margin: 0 0 var(--space-7);
+}
+
+.templates-pick {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.templates-list {
+  flex: 1;
+  max-height: none;
+  margin: 0;
+}
+
+.pick-group {
+  padding: var(--space-4) var(--space-4) var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.templates-preview {
+  overflow: auto;
+  min-width: 0;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-control);
+  background: var(--color-fill-track);
+}
+
+.templates-preview-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+}
+
+.templates-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+}
+
+.templates-preview-body {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-footnote);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Revision History: versions and events beside the changes since one. */
+.sheet.history {
+  width: calc(var(--size-list-width) * 2.5);
+  max-width: calc(100vw - var(--space-10) * 2);
+}
+
+.history-body {
+  display: grid;
+  grid-template-columns: calc(var(--size-list-width) * 0.75) minmax(0, 1fr);
+  gap: var(--space-6);
+  height: calc(var(--size-sidebar-row) * 14);
+  margin: 0 0 var(--space-7);
+}
+
+.history-list {
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius-control);
+  outline: none;
+}
+
+.history-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+}
+
+.history-when {
+  font-variant-numeric: tabular-nums;
+}
+
+.history-what {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.history-row[aria-selected='true'] {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
+.history-list:focus-visible .history-row[aria-selected='true'] {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.history-list:focus-visible .history-row[aria-selected='true'] .history-what {
+  color: var(--color-accent-on-fill);
+}
+
+.history-diff {
+  overflow: auto;
+  min-width: 0;
+}
+
+.diff {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-footnote);
+}
+
+.diff-line {
+  display: flex;
+  min-height: 1.5em;
+  line-height: 1.5;
+}
+
+.diff-mark {
+  flex: none;
+  width: var(--space-6);
+  color: var(--color-text-tertiary);
+  text-align: center;
+}
+
+.diff-line > :last-child {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.diff-added {
+  background: var(--color-diff-added);
+}
+
+.diff-added .diff-mark {
+  color: var(--color-status-done);
+}
+
+.diff-removed {
+  background: var(--color-diff-removed);
+}
+
+.diff-removed .diff-mark {
+  color: var(--color-status-dropped);
+}
+
+.diff-skipped {
+  padding: var(--space-2) var(--space-6);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-ui);
+}
+
+/* Activity: a heatmap of the last 52 weeks, weeks as columns, Monday first. */
+.sheet.activity {
+  /* As wide as the chart; text wraps to it. */
+  width: min-content;
+  min-width: calc(var(--size-list-width) * 2);
+  max-width: calc(100vw - var(--space-10) * 2);
+}
+
+.activity-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin: 0 0 var(--space-6);
+}
+
+.activity-summary {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-chart {
+  display: grid;
+  /* Room for a day's focus ring inside the scroll area. */
+  padding: var(--space-2);
+  grid-template-columns: auto auto;
+  justify-content: start;
+  gap: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  margin: 0 calc(var(--space-2) * -1) var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.activity-months {
+  grid-column: 2;
+  display: flex;
+  gap: var(--space-1);
+  height: var(--font-size-title3);
+}
+
+.activity-month {
+  flex: none;
+  width: var(--space-5);
+  white-space: nowrap;
+}
+
+.activity-weekdays {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.activity-weekdays > span {
+  height: var(--space-5);
+  line-height: var(--space-5);
+}
+
+.activity-grid,
+.activity-row {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.activity-grid {
+  flex-direction: column;
+}
+
+.activity-cell {
+  flex: none;
+  width: var(--space-5);
+  height: var(--space-5);
+  border-radius: var(--space-1);
+}
+
+.activity-cell:focus-visible {
+  outline: var(--space-1) solid var(--color-accent-fill);
+  outline-offset: var(--space-1);
+}
+
+.activity-future {
+  visibility: hidden;
+}
+
+.activity-level-0 {
+  background: var(--color-activity-level-0);
+}
+
+.activity-level-1 {
+  background: var(--color-activity-level-1);
+}
+
+.activity-level-2 {
+  background: var(--color-activity-level-2);
+}
+
+.activity-level-3 {
+  background: var(--color-activity-level-3);
+}
+
+.activity-level-4 {
+  background: var(--color-activity-level-4);
+}
+
+.activity-readout {
+  /* Room for two lines, so the sheet keeps its height as the text changes. */
+  min-height: 3em;
+  margin: 0 0 var(--space-4);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-legend {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.activity-legend > span:first-child {
+  margin-right: var(--space-2);
+}
+
+.activity-legend > span:last-child {
+  margin-left: var(--space-2);
+}
+
+.activity-footnote {
+  margin: 0 0 var(--space-7);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+}
+
+/* The Markdown folder import: progress, then what was not imported. */
+.import-progress {
+  display: block;
+  width: 100%;
+  margin: 0 0 var(--space-3);
+}
+
+.import-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.import-problems-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+}
+
+.import-problems {
+  max-height: calc(var(--size-sidebar-row) * 7);
+  overflow: auto;
+  margin: 0 0 var(--space-7);
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-line-hairline);
+}
+
+.import-problem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.import-path {
+  overflow-wrap: anywhere;
+}
+
+.import-image {
+  display: block;
+  color: var(--color-text-secondary);
+}
+
+.import-reason {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+/* Notices floating over the window (a failed backup or export), stacked in one corner. */
+.notices {
+  position: fixed;
+  right: var(--space-7);
+  bottom: var(--space-7);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+}
+
+.notice-text {
+  margin-right: var(--space-4);
+}
+
+/* Settings window: one section per area, under the window's own title. */
+.settings {
+  box-sizing: border-box;
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-8);
+  background: var(--color-surface-editor);
+}
+
+.settings-section + .settings-section {
+  margin-top: var(--space-8);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--color-line-hairline);
+}
+
+.settings-section h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+}
+
+.settings-section p {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-secondary);
+}
+
+.settings-section .settings-error {
+  color: var(--color-status-dropped);
+}
+
+/* The Markdown mirror's folder: a long path wraps anywhere. */
+.settings-section .mirror-folder {
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* Editor settings: groups of checkboxes and labelled rows. */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-7);
+  padding: 0;
+  border: 0;
+}
+
+.settings-group legend {
+  margin-bottom: var(--space-4);
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.settings-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.settings-check input {
+  margin: 0;
+}
+
+/* A checkbox with a hint under it, e.g. why it cannot be changed now. */
+.settings-flag {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings-check:has(input:disabled) {
+  color: var(--color-text-secondary);
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: calc(var(--size-list-width) / 3) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+.settings-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-5);
+}
+
+.settings-number {
+  width: calc(var(--space-10) * 2);
+}
+
+.settings-hint {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+}
+
+.settings-actions {
+  display: flex;
+  gap: var(--space-4);
+  margin: var(--space-6) 0;
+}
+
+/* Hidden from view, not from assistive tech (a live region, table headers). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Keyboard shortcuts: a table per group of commands. */
+.shortcuts {
+  width: 100%;
+  margin: 0 0 var(--space-7);
+  border-collapse: collapse;
+}
+
+.shortcuts caption {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+}
+
+.shortcuts th,
+.shortcuts td {
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border-bottom: 1px solid var(--color-line-hairline);
+  vertical-align: baseline;
+}
+
+.shortcuts th[scope='row'] {
+  font-weight: var(--font-weight-regular);
+  text-align: left;
+}
+
+.shortcuts th[scope='row'] .settings-hint {
+  display: block;
+}
+
+.shortcut-key {
+  min-width: calc(var(--space-10) * 2);
+  height: var(--size-segment-height);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-fill-track);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.shortcut-key[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px var(--color-accent-fill);
+}
+
+.shortcut-key kbd {
+  font: inherit;
+}
+
+.shortcut-key kbd + kbd {
+  margin-left: var(--space-3);
+}
+
+.shortcut-none {
+  color: var(--color-text-secondary);
+}
+
+.shortcuts td.shortcut-actions {
+  padding-right: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.shortcut-actions .button + .button {
+  margin-left: var(--space-2);
+}
+
+.shortcuts td .settings-error {
+  display: block;
+  margin-top: var(--space-2);
+  white-space: normal;
+}
+
+.usage-counts {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-counts th {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-regular);
+  text-align: left;
+}
+
+.usage-counts th,
+.usage-counts td {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.usage-counts :is(th, td):last-child {
+  text-align: right;
+}
+
+.usage-events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-line-hairline);
+}
+
+.usage-events li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.usage-events time {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-properties {
+  flex-basis: 100%;
+  color: var(--color-text-secondary);
+  font: var(--font-size-footnote) var(--font-family-mono);
+  overflow-wrap: anywhere;
+}
+
+/* The command palette: a field over grouped results, near the top of the window. */
+.palette {
+  width: calc(var(--size-list-width) * 1.75);
+  max-width: calc(100vw - var(--space-10) * 2);
+  margin: calc(var(--size-toolbar-height) * 2) auto auto;
+  padding: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  box-shadow:
+    0 0 0 0.5px var(--color-line-hairline),
+    0 var(--space-2) var(--space-9) var(--color-line-hairline);
+}
+
+.palette::backdrop {
+  background: transparent;
+}
+
+.palette-input {
+  width: 100%;
+  height: calc(var(--size-field-height) + var(--space-4));
+  box-sizing: border-box;
+  margin: 0 0 var(--space-3);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-field);
+  outline: none;
+  background: var(--color-fill-track);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-title3);
+}
+
+.palette-results {
+  max-height: calc(var(--size-sidebar-row) * 12);
+  overflow: auto;
+}
+
+.palette-group {
+  padding: var(--space-4) var(--space-4) var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--size-sidebar-row);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-control);
+}
+
+.palette-row .icon {
+  background-color: var(--color-text-secondary);
+}
+
+.palette-icon {
+  flex: none;
+  width: var(--size-icon-sm);
+}
+
+.palette-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-label mark {
+  background: none;
+  color: inherit;
+  font-weight: var(--font-weight-semibold);
+}
+
+.palette-detail {
+  margin-left: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.palette-key {
+  flex: none;
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: var(--font-size-footnote);
+}
+
+.palette-row[aria-selected='true'] {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.palette-row[aria-selected='true'] .icon {
+  background-color: var(--color-accent-on-fill);
+}
+
+.palette-row[aria-selected='true'] .palette-detail,
+.palette-row[aria-selected='true'] .palette-key {
+  color: var(--color-accent-on-fill);
+}
+
+.palette-empty {
+  margin: 0;
+  padding: var(--space-6) var(--space-4);
+  color: var(--color-text-secondary);
+}
+
+.palette-keys {
+  display: flex;
+  gap: var(--space-7);
+  min-height: var(--size-segment-height);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-4) 0;
+  border-top: 1px solid var(--color-line-hairline);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  align-items: center;
+}
+
+.palette-keys kbd {
+  font: inherit;
+  color: var(--color-text-tertiary);
+}
+
+/* The image viewer: one image over the whole window. */
+.image-viewer {
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+}
+
+.image-viewer[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.image-viewer::backdrop {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
+.image-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  height: var(--size-toolbar-height);
+  /* The viewer covers the title bar: its controls start clear of the
+     window controls, as the list's toolbar does with the sidebar hidden. */
+  padding: 0 var(--space-8) 0 calc(var(--space-10) * 2 + var(--space-7) + var(--space-5));
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.image-viewer-zoom {
+  width: auto;
+  padding: 0 var(--space-5);
+}
+
+.image-viewer-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: auto;
+  padding: var(--space-8);
+  outline: none;
+}
+
+.image-viewer-stage:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--color-accent-fill);
+}
+
+/* Centred while it fits; scrolls from its top-left corner when larger. */
+.image-viewer-image {
+  margin: auto;
+  flex: none;
+  cursor: zoom-in;
+}
+
+.image-viewer[data-zoom='fit'] .image-viewer-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.image-viewer[data-zoom='actual'] .image-viewer-image {
+  max-width: none;
+  max-height: none;
+  cursor: zoom-out;
+}

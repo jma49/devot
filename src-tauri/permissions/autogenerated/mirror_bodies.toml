@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mirror-bodies"
+description = "Enables the mirror_bodies command without any pre-configured scope."
+commands.allow = ["mirror_bodies"]
+
+[[permission]]
+identifier = "deny-mirror-bodies"
+description = "Denies the mirror_bodies command without any pre-configured scope."
+commands.deny = ["mirror_bodies"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mirror-open"
+description = "Enables the mirror_open command without any pre-configured scope."
+commands.allow = ["mirror_open"]
+
+[[permission]]
+identifier = "deny-mirror-open"
+description = "Denies the mirror_open command without any pre-configured scope."
+commands.deny = ["mirror_open"]

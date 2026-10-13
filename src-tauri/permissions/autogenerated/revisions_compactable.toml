@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-revisions-compactable"
+description = "Enables the revisions_compactable command without any pre-configured scope."
+commands.allow = ["revisions_compactable"]
+
+[[permission]]
+identifier = "deny-revisions-compactable"
+description = "Denies the revisions_compactable command without any pre-configured scope."
+commands.deny = ["revisions_compactable"]

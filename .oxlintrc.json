@@ -1,0 +1,86 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "import", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "rules": {
+    "react/react-in-jsx-scope": "off",
+    "import/no-unassigned-import": [
+      "warn",
+      {
+        "allow": ["**/*.css"]
+      }
+    ],
+    "import/no-named-as-default-member": "off",
+    "vitest/expect-expect": [
+      "error",
+      {
+        "assertFunctionNames": ["expect", "expectWithinBudget"]
+      }
+    ]
+  },
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    "src-tauri/target/**",
+    "src-tauri/gen/**",
+    "playwright-report/**",
+    "test-results/**"
+  ],
+  "overrides": [
+    {
+      "files": ["src/core/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "better-sqlite3",
+                "message": "The core library talks to storage through its adapter interface."
+              },
+              {
+                "name": "@tauri-apps/api",
+                "message": "The core library must not depend on Tauri; the UI layer adapts it."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["node:*"],
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "group": ["@tauri-apps/*", "@tauri-apps/**"],
+                "message": "The core library must not depend on Tauri; the UI layer adapts it."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/renderer/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "better-sqlite3",
+                "message": "The UI reaches data through Tauri commands."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["node:*"],
+                "message": "The UI runs in a webview and has no Node modules."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

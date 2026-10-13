@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-note-tag-get"
+description = "Enables the note_tag_get command without any pre-configured scope."
+commands.allow = ["note_tag_get"]
+
+[[permission]]
+identifier = "deny-note-tag-get"
+description = "Denies the note_tag_get command without any pre-configured scope."
+commands.deny = ["note_tag_get"]

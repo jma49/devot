@@ -1,0 +1,719 @@
+// better-sqlite3 implementation of the core StorageAdapter, used by devot-mcp
+// and by the tests. Its SQL matches the Rust store (src-tauri/src/storage),
+// and it applies the same migration files, bundled in at build time.
+/// <reference types="vite/client" />
+
+import Database from 'better-sqlite3'
+import { existsSync } from 'node:fs'
+import type { AiStorage } from '../core/ai'
+import { checkUpload } from '../core/files'
+import { noteLinks } from '../core/links'
+import { checkNote } from '../core/noteLimits'
+import { bodyExcerpt, excerptTerms, ftsQuery, indexable } from '../core/search'
+import { isTagColor } from '../core/tags'
+import type {
+  ActivityData,
+  ActivityNote,
+  ActivityRevision,
+  BookRecord,
+  CompactableVersion,
+  NoteQuery,
+  NoteRecord,
+  NoteStatus,
+  NoteSummary,
+  RevisionKind,
+  RevisionRecord,
+  RevisionSummary,
+  StorageAdapter,
+  TagRecord,
+  TextCondition,
+  TrashedNote,
+} from '../core/storage'
+
+/**
+ * The text a search field looks in. With ranked text, a body is read from
+ * the note's row only once the note has joined the ranked matches (`h`), so
+ * only the matches' bodies are read; otherwise from the row the list's index
+ * points to.
+ */
+const textColumn = (field: TextCondition['field'], ranked: boolean) => {
+  const body = ranked ? '(SELECT body_md FROM notes b WHERE b.rowid = h.rid)' : 'n.body_md'
+  return field === 'title' ? 'n.title' : field === 'body' ? body : `n.title || char(10) || ${body}`
+}
+
+const files = import.meta.glob<string>('../../src-tauri/migrations/*.sql', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+const migrations = Object.keys(files)
+  .filter((f) => /\/\d{4}_[^/]+\.sql$/.test(f))
+  .sort()
+  .map((f) => files[f]!)
+
+/** The schema version a fully migrated database reports. */
+export const SCHEMA_VERSION = migrations.length
+
+/**
+ * What the activity heatmap reads (listActivity), with `@since`; the same
+ * statements as the Rust store (storage/mod.rs, list_activity). Each reads
+ * a covering index of migration 0012, never a table row (rows hold Yjs
+ * states): only what falls in the window, and for each body version the
+ * one before it (versions are ordered by time, then length, then rowid).
+ */
+export const ACTIVITY_SQL = {
+  notes: `SELECT id, created_at AS createdAt FROM notes INDEXED BY notes_created
+     WHERE purged_at IS NULL AND created_at >= @since`,
+  revisions: `SELECT r.note_id AS noteId, r.kind, r.at, r.length,
+            CASE WHEN r.kind = 'body' THEN
+              (SELECT p.length FROM revisions p INDEXED BY revisions_activity
+                WHERE p.note_id = r.note_id AND p.kind = 'body'
+                  AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
+                ORDER BY p.at DESC, p.length DESC, p.rowid DESC LIMIT 1)
+            END AS previous
+     FROM revisions r INDEXED BY revisions_by_time
+     WHERE r.at >= @since AND r.kind IN ('body', 'title')
+       AND (r.kind = 'title' OR r.value IS NULL)`,
+} as const
+
+/**
+ * Revision history and its compaction (src/core/revisions.ts), the same
+ * statements as the Rust store's (storage/mod.rs; a test compares them).
+ * The reads go through covering indexes (migration 0013's
+ * revisions_history, and revisions_by_time), never a version's Yjs state.
+ */
+export const REVISION_SQL = {
+  /** A note's revisions, newest first. */
+  history: `SELECT id, note_id, kind, at, length, value FROM revisions
+     WHERE note_id = @noteId ORDER BY at DESC, id DESC`,
+  /**
+   * The plain body versions (a baseline is kept, so left out) of the first
+   * `@limit` notes, by ID after `@after`, with one taken at or after `@from`
+   * and before `@to`, and more than one taken before `@to`; by note, newest
+   * first. Only the window's versions are scanned, and each such note's.
+   */
+  compactable: `SELECT note_id AS noteId, id, at FROM revisions INDEXED BY revisions_history
+     WHERE kind = 'body' AND value IS NULL AND note_id IN (
+       SELECT w.note_id FROM (
+         SELECT DISTINCT note_id FROM revisions INDEXED BY revisions_by_time
+          WHERE at >= @from AND at < @to AND kind = 'body' AND value IS NULL
+            AND note_id > @after) w
+        WHERE (SELECT COUNT(*) FROM revisions p INDEXED BY revisions_history
+                WHERE p.note_id = w.note_id AND p.at < @to
+                  AND p.kind = 'body' AND p.value IS NULL) > 1
+        ORDER BY w.note_id LIMIT @limit)
+     ORDER BY note_id, at DESC, id DESC`,
+  /** Deletes one plain body version; never an event or a baseline. */
+  compactDrop: `DELETE FROM revisions WHERE id = @id AND kind = 'body' AND value IS NULL`,
+  /** Records when the last sweep ran. */
+  compactSwept: `INSERT INTO compaction (id, swept_at) VALUES (1, @at)
+     ON CONFLICT (id) DO UPDATE SET swept_at = excluded.swept_at`,
+  /** When the last sweep ran. */
+  lastCompaction: `SELECT swept_at AS sweptAt FROM compaction WHERE id = 1`,
+} as const
+
+/**
+ * The note list and the Trash, the same statements as the Rust store's
+ * (storage/mod.rs; a test compares them). Each reads an index that covers it
+ * (migration 0014), never a note's row: a note's small columns come after
+ * its Markdown and its Yjs state, so reading them from the row walks every
+ * overflow page of both.
+ */
+export const LIST_SQL = {
+  /** Live notes, most recently updated first. */
+  notes: `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
+            (SELECT group_concat(nt.tag_id) FROM note_tags nt
+               JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+              WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds
+     FROM notes INDEXED BY notes_list
+     WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC`,
+  /** Notes in the Trash (not purged), most recently deleted first. */
+  trash: `SELECT id, title, deleted_at AS deletedAt, book_id AS bookId FROM notes INDEXED BY notes_trash
+     WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC, id DESC`,
+} as const
+
+/**
+ * A search as SQL, the same as the Rust store builds (storage/mod.rs,
+ * search_sql): every condition is one clause of the WHERE, so the limit
+ * applies after all of them. Live notes come from the list's index
+ * (notes_list), never from their rows: ranked text matches the trigram
+ * index first (`hits`, with each match's rank), and the list's index joins
+ * them, through an index SQLite builds for the query. So a ranked search
+ * walks the whole list index even for one match (O(notes), about 2.5 ms
+ * for 50,000 notes): letting the matches drive the join would read each
+ * match's row through its blobs, which costs twice as much once a word is
+ * in many notes (see list-cost.test.ts). Text under three
+ * characters is scanned: it reads the bodies (of the ranked matches only,
+ * when there are some). Ties go to the newer note, then by ID, as the note
+ * list orders them.
+ */
+export function searchStatement(
+  query: NoteQuery,
+  limit: number,
+): { sql: string; params: Record<string, string | number> } {
+  const params: Record<string, string | number> = { limit }
+  const param = (value: string) => {
+    const name = `p${Object.keys(params).length}`
+    params[name] = value
+    return `@${name}`
+  }
+  const ranked = query.text.filter((t) => !t.negate && indexable(t.value))
+  const where = ['n.deleted_at IS NULL', 'n.purged_at IS NULL']
+  for (const t of query.text) {
+    if (indexable(t.value)) {
+      if (t.negate) {
+        where.push(
+          `n.rowid NOT IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ${param(ftsQuery([t]))})`,
+        )
+      }
+    } else {
+      where.push(
+        `instr(lower(${textColumn(t.field, ranked.length > 0)}), lower(${param(t.value)})) ${t.negate ? '=' : '>'} 0`,
+      )
+    }
+  }
+  for (const set of query.sets) {
+    const ids = `(SELECT value FROM json_each(${param(JSON.stringify(set.ids))}))`
+    if (set.kind === 'book') {
+      where.push(
+        set.negate ? `(n.book_id IS NULL OR n.book_id NOT IN ${ids})` : `n.book_id IN ${ids}`,
+      )
+    } else if (set.kind === 'status') {
+      where.push(`n.status ${set.negate ? 'NOT IN' : 'IN'} ${ids}`)
+    } else {
+      where.push(
+        `${set.negate ? 'NOT ' : ''}EXISTS (SELECT 1 FROM note_tags nt
+           WHERE nt.note_id = n.id AND nt.present = 1 AND nt.tag_id IN ${ids})`,
+      )
+    }
+  }
+  if (query.pinned) where.push('n.pinned = 1')
+  const sql = [
+    ranked.length
+      ? `WITH hits AS MATERIALIZED (SELECT rowid AS rid, bm25(notes_fts) AS score
+          FROM notes_fts WHERE notes_fts MATCH ${param(ftsQuery(ranked))})`
+      : '',
+    `SELECT n.id, n.title, n.created_at AS createdAt, n.updated_at AS updatedAt, n.book_id AS bookId, n.status, n.pinned,
+            (SELECT group_concat(nt.tag_id) FROM note_tags nt
+               JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+              WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds
+       FROM notes n INDEXED BY notes_list`,
+    ranked.length ? 'JOIN hits h ON h.rid = n.rowid' : '',
+    `WHERE ${where.join('\n  AND ')}`,
+    ranked.length
+      ? 'ORDER BY h.score, n.updated_at DESC, n.id DESC'
+      : 'ORDER BY n.updated_at DESC, n.id DESC',
+    'LIMIT @limit',
+  ].join('\n')
+  return { sql, params }
+}
+
+/**
+ * Run when a note (`@id`) is purged, before its attachments are deleted:
+ * gives each attachment of the note that another note, not purged, still
+ * shows (its Markdown holds the address `devot://file/<id>`) to that note, a
+ * live one before one in the Trash, then the smallest ID. A link can reach
+ * another note without a copy (cut or dragged Markdown, Paste as Plain Text,
+ * devot-mcp, a restored version, an old duplicate), and its image must stay.
+ * The search index finds those notes (a phrase match, so no note is read
+ * whole); it ignores case, so `instr` checks the address as written. The
+ * same statement as the Rust store's (storage/mod.rs, HAND_OVER_FILES_SQL;
+ * a test compares them).
+ */
+export const HAND_OVER_FILES_SQL = `UPDATE files SET note_id = COALESCE((
+       SELECT n.id FROM notes_fts JOIN notes n ON n.rowid = notes_fts.rowid
+        WHERE notes_fts MATCH 'body_md : "devot://file/' || replace(files.id, '"', '""') || '"'
+          AND n.purged_at IS NULL AND n.id <> files.note_id
+          AND instr(n.body_md, 'devot://file/' || files.id) > 0
+        ORDER BY n.deleted_at IS NOT NULL, n.id LIMIT 1), note_id)
+     WHERE note_id = @id`
+
+interface Row {
+  id: string
+  title: string
+  title_hlc: string
+  body_md: string
+  ydoc: Buffer
+  created_at: number
+  updated_at: number
+  book_id: string | null
+  book_hlc: string
+  status: NoteStatus
+  status_hlc: string
+  pinned: number
+  pinned_hlc: string
+  deleted_at: number | null
+  deleted_hlc: string | null
+}
+
+interface SummaryRow {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  bookId: string | null
+  status: NoteStatus
+  pinned: number
+  tagIds: string | null
+}
+
+interface RevisionRow {
+  id: string
+  note_id: string
+  kind: RevisionKind
+  at: number
+  ydoc: Buffer | null
+  length: number | null
+  value: string | null
+}
+
+const toRevision = (row: RevisionRow): RevisionRecord => ({
+  id: row.id,
+  noteId: row.note_id,
+  kind: row.kind,
+  at: row.at,
+  ydoc: row.ydoc === null ? null : new Uint8Array(row.ydoc),
+  length: row.length,
+  value: row.value,
+})
+
+interface TagRow {
+  id: string
+  name: string
+  name_hlc: string
+  created_at: number
+  updated_at: number
+  deleted_at: number | null
+  deleted_hlc: string | null
+  color: string | null
+  color_hlc: string
+}
+
+interface NoteTagRow {
+  note_id: string
+  tag_id: string
+  present: number
+  hlc: string
+}
+
+interface BookRow {
+  id: string
+  name: string
+  name_hlc: string
+  parent_id: string | null
+  parent_hlc: string
+  created_at: number
+  updated_at: number
+  deleted_at: number | null
+  deleted_hlc: string | null
+  ai_access: number
+  ai_access_hlc: string
+  sort_key: string
+  sort_key_hlc: string
+}
+
+export interface SqliteAdapter extends StorageAdapter, AiStorage {
+  close(): void
+  db: Database.Database
+  /** The schema version the database reports now. */
+  schemaVersion(): number
+  /**
+   * Runs `work` in one transaction: every write it makes lands together or
+   * not at all. Calls run one after another.
+   */
+  atomically<T>(work: () => Promise<T>): Promise<T>
+}
+
+export interface OpenOptions {
+  /**
+   * Brings an older schema up to date (the default). Without it, a database
+   * whose schema is not exactly this build's is refused, and a missing file
+   * is not created: devot-mcp leaves both to the app.
+   */
+  migrate?: boolean
+}
+
+export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteAdapter {
+  const migrate = open.migrate ?? true
+  let db: Database.Database
+  try {
+    db = new Database(path, { fileMustExist: !migrate })
+  } catch {
+    throw new Error(migrate || existsSync(path) ? 'E_STORAGE_OPEN_FAILED' : 'E_STORAGE_NOT_FOUND')
+  }
+  try {
+    // The same pragmas as the Rust store: WAL lets the app and devot-mcp
+    // share the file; the busy timeout waits out the other's writes. Every
+    // write transaction begins IMMEDIATE, as the Rust store's do: one that
+    // read first would fail at once when it then needs to write.
+    db.pragma('busy_timeout = 5000')
+    db.pragma('journal_mode = WAL')
+    db.pragma('synchronous = FULL')
+    db.pragma('foreign_keys = ON')
+
+    const version = db.pragma('user_version', { simple: true }) as number
+    if (version > SCHEMA_VERSION) throw new Error('E_STORAGE_SCHEMA_TOO_NEW')
+    if (!migrate && version < SCHEMA_VERSION) throw new Error('E_STORAGE_SCHEMA_TOO_OLD')
+    migrations.slice(version).forEach((sql, i) => {
+      db.transaction(() => {
+        db.exec(sql)
+        db.pragma(`user_version = ${version + i + 1}`)
+      }).immediate()
+    })
+  } catch (error) {
+    db.close()
+    throw error
+  }
+
+  const toSummary = (row: SummaryRow): NoteSummary => ({
+    id: row.id,
+    title: row.title,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    bookId: row.bookId,
+    status: row.status,
+    pinned: row.pinned === 1,
+    tagIds: row.tagIds ? row.tagIds.split(',') : [],
+  })
+  const countInBooks = db.prepare<[string], { bookId: string; notes: number }>(
+    `SELECT book_id AS bookId, count(*) AS notes FROM notes
+     WHERE deleted_at IS NULL AND book_id IN (SELECT value FROM json_each(?))
+     GROUP BY book_id`,
+  )
+  const tagNames = db.prepare<[string], { name: string }>(
+    `SELECT t.name FROM note_tags nt JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+     WHERE nt.note_id = ? AND nt.present = 1`,
+  )
+  const list = db.prepare<[], SummaryRow>(LIST_SQL.notes)
+  const get = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL')
+  const bodyMd = db.prepare<[string], { body_md: string }>('SELECT body_md FROM notes WHERE id = ?')
+  const getAny = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND purged_at IS NULL')
+  const trash = db.prepare<[], TrashedNote>(LIST_SQL.trash)
+  // Wipes the content and keeps the tombstone; a purge is final.
+  const purge = db.prepare(
+    `UPDATE notes SET title = '', title_hlc = MAX(title_hlc, @hlc), body_md = '', ydoc = x'',
+       deleted_at = COALESCE(deleted_at, @at), deleted_hlc = MAX(COALESCE(deleted_hlc, ''), @hlc),
+       purged_at = @at
+     WHERE id = @id AND purged_at IS NULL`,
+  )
+  const dropLinks = db.prepare('DELETE FROM note_tags WHERE note_id = ?')
+  // The link index: same statements as the Rust store (put_note, purge_note).
+  const dropNoteLinks = db.prepare('DELETE FROM links WHERE source_id = ?')
+  const addNoteLink = db.prepare('INSERT OR IGNORE INTO links (source_id, target_id) VALUES (?, ?)')
+  const handOverFiles = db.prepare<[{ id: string }]>(HAND_OVER_FILES_SQL)
+  const dropFiles = db.prepare('DELETE FROM files WHERE note_id = ?')
+  // Revision history: same statements as the Rust store (storage/mod.rs).
+  const dropRevisions = db.prepare('DELETE FROM revisions WHERE note_id = ?')
+  const putRevision = db.prepare(
+    `INSERT INTO revisions (id, note_id, kind, at, ydoc, length, value)
+     SELECT @id, @noteId, @kind, @at, @ydoc, @length, @value
+      WHERE EXISTS (SELECT 1 FROM notes WHERE id = @noteId AND purged_at IS NULL)
+     ON CONFLICT (id) DO UPDATE SET
+       at = excluded.at, ydoc = excluded.ydoc, length = excluded.length, value = excluded.value
+     WHERE note_id = excluded.note_id AND kind = excluded.kind`,
+  )
+  const listRevisions = db.prepare<[{ noteId: string }], Omit<RevisionRow, 'ydoc'>>(
+    REVISION_SQL.history,
+  )
+  const getRevision = db.prepare<[string], RevisionRow>('SELECT * FROM revisions WHERE id = ?')
+  const deleteRevision = db.prepare('DELETE FROM revisions WHERE note_id = ? AND id = ?')
+  const compactable = db.prepare<
+    [{ from: number; to: number; after: string; limit: number }],
+    CompactableVersion
+  >(REVISION_SQL.compactable)
+  const compactDrop = db.prepare<[{ id: string }]>(REVISION_SQL.compactDrop)
+  const compactSwept = db.prepare<[{ at: number }]>(REVISION_SQL.compactSwept)
+  const lastCompaction = db.prepare<[], { sweptAt: number }>(REVISION_SQL.lastCompaction)
+  const activityNotes = db.prepare<[{ since: number }], ActivityNote>(ACTIVITY_SQL.notes)
+  const activityRevisions = db.prepare<[{ since: number }], ActivityRevision>(
+    ACTIVITY_SQL.revisions,
+  )
+  const liveNote = db.prepare<[string], { live: number }>(
+    'SELECT EXISTS (SELECT 1 FROM notes WHERE id = ? AND deleted_at IS NULL) AS live',
+  )
+  const insertFile = db.prepare(
+    `INSERT INTO files (id, note_id, name, mime, size, data, created_at)
+     VALUES (@id, @noteId, @name, @mime, @size, @data, @createdAt)`,
+  )
+  // Same statement as the Rust store (copy_files).
+  const copyFile = db.prepare(
+    `INSERT INTO files (id, note_id, name, mime, size, data, created_at)
+     SELECT @to, @noteId, name, mime, size, data, @createdAt FROM files WHERE id = @from`,
+  )
+  // Same per-field last-writer-wins merge as the Rust store (storage/mod.rs).
+  const put = db.prepare(
+    `INSERT INTO notes (id, title, title_hlc, body_md, ydoc, book_id, book_hlc,
+                        status, status_hlc, pinned, pinned_hlc,
+                        created_at, updated_at, deleted_at, deleted_hlc)
+     VALUES (@id, @title, @titleHlc, @bodyMd, @ydoc, @bookId, @bookHlc,
+             @status, @statusHlc, @pinned, @pinnedHlc,
+             @createdAt, @updatedAt, @deletedAt, @deletedHlc)
+     ON CONFLICT (id) DO UPDATE SET
+       title = CASE WHEN excluded.title_hlc > title_hlc THEN excluded.title ELSE title END,
+       title_hlc = MAX(excluded.title_hlc, title_hlc),
+       book_id = CASE WHEN excluded.book_hlc > book_hlc THEN excluded.book_id ELSE book_id END,
+       book_hlc = MAX(excluded.book_hlc, book_hlc),
+       status = CASE WHEN excluded.status_hlc > status_hlc THEN excluded.status ELSE status END,
+       status_hlc = MAX(excluded.status_hlc, status_hlc),
+       pinned = CASE WHEN excluded.pinned_hlc > pinned_hlc THEN excluded.pinned ELSE pinned END,
+       pinned_hlc = MAX(excluded.pinned_hlc, pinned_hlc),
+       deleted_at = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
+                         THEN excluded.deleted_at ELSE deleted_at END,
+       deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
+                          THEN excluded.deleted_hlc ELSE deleted_hlc END,
+       body_md = excluded.body_md, ydoc = excluded.ydoc,
+       updated_at = MAX(excluded.updated_at, updated_at)
+     WHERE purged_at IS NULL`,
+  )
+  const books = db.prepare<[], BookRow>('SELECT * FROM books WHERE deleted_at IS NULL')
+  const userVersion = db.prepare<[], { user_version: number }>('PRAGMA user_version')
+  const tags = db.prepare<[], TagRow>('SELECT * FROM tags WHERE deleted_at IS NULL')
+  const putTag = db.prepare(
+    `INSERT INTO tags (id, name, name_hlc, created_at, updated_at, deleted_at, deleted_hlc,
+                       color, color_hlc)
+     VALUES (@id, @name, @nameHlc, @createdAt, @updatedAt, @deletedAt, @deletedHlc,
+             @color, @colorHlc)
+     ON CONFLICT (id) DO UPDATE SET
+       name = CASE WHEN excluded.name_hlc > name_hlc THEN excluded.name ELSE name END,
+       name_hlc = MAX(excluded.name_hlc, name_hlc),
+       color = CASE WHEN excluded.color_hlc > color_hlc THEN excluded.color ELSE color END,
+       color_hlc = MAX(excluded.color_hlc, color_hlc),
+       deleted_at = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
+                         THEN excluded.deleted_at ELSE deleted_at END,
+       deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
+                          THEN excluded.deleted_hlc ELSE deleted_hlc END,
+       updated_at = MAX(excluded.updated_at, updated_at)`,
+  )
+  const putNoteTag = db.prepare(
+    `INSERT INTO note_tags (note_id, tag_id, present, hlc) VALUES (@noteId, @tagId, @present, @hlc)
+     ON CONFLICT (note_id, tag_id) DO UPDATE SET
+       present = CASE WHEN excluded.hlc > hlc THEN excluded.present ELSE present END,
+       hlc = MAX(excluded.hlc, hlc)`,
+  )
+  const getNoteTag = db.prepare<[string, string], NoteTagRow>(
+    'SELECT note_id, tag_id, present, hlc FROM note_tags WHERE note_id = ? AND tag_id = ?',
+  )
+  const putBook = db.prepare(
+    `INSERT INTO books (id, name, name_hlc, parent_id, parent_hlc, created_at, updated_at,
+                        deleted_at, deleted_hlc, ai_access, ai_access_hlc, sort_key, sort_key_hlc)
+     VALUES (@id, @name, @nameHlc, @parentId, @parentHlc, @createdAt, @updatedAt,
+             @deletedAt, @deletedHlc, @aiAccess, @aiAccessHlc, @sortKey, @sortKeyHlc)
+     ON CONFLICT (id) DO UPDATE SET
+       name = CASE WHEN excluded.name_hlc > name_hlc THEN excluded.name ELSE name END,
+       name_hlc = MAX(excluded.name_hlc, name_hlc),
+       parent_id = CASE WHEN excluded.parent_hlc > parent_hlc THEN excluded.parent_id ELSE parent_id END,
+       parent_hlc = MAX(excluded.parent_hlc, parent_hlc),
+       ai_access = CASE WHEN excluded.ai_access_hlc > ai_access_hlc
+                        THEN excluded.ai_access ELSE ai_access END,
+       ai_access_hlc = MAX(excluded.ai_access_hlc, ai_access_hlc),
+       -- Equal clocks (keys the core gave old notebooks on two devices):
+       -- the greater key wins, so both sides end with the same one.
+       sort_key = CASE WHEN excluded.sort_key_hlc > sort_key_hlc
+                         OR (excluded.sort_key_hlc = sort_key_hlc AND excluded.sort_key > sort_key)
+                       THEN excluded.sort_key ELSE sort_key END,
+       sort_key_hlc = MAX(excluded.sort_key_hlc, sort_key_hlc),
+       deleted_at = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
+                         THEN excluded.deleted_at ELSE deleted_at END,
+       deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
+                          THEN excluded.deleted_hlc ELSE deleted_hlc END,
+       updated_at = MAX(excluded.updated_at, updated_at)`,
+  )
+
+  /** Runs a search (see searchStatement). */
+  const search = (query: NoteQuery, limit: number) => {
+    const { sql, params } = searchStatement(query, limit)
+    return db.prepare<[Record<string, string | number>], SummaryRow>(sql).all(params)
+  }
+  // Bodies are read for the notes returned only, never for every match.
+  const bodyOf = (id: string) => bodyMd.get(id)?.body_md ?? ''
+
+  // One atomic run at a time: a second BEGIN inside the first would fail.
+  let queue: Promise<unknown> = Promise.resolve()
+
+  return {
+    db,
+    close: () => db.close(),
+    schemaVersion: () => userVersion.get()?.user_version ?? 0,
+    atomically<T>(work: () => Promise<T>): Promise<T> {
+      const run = queue.then(async () => {
+        db.exec('BEGIN IMMEDIATE')
+        try {
+          const result = await work()
+          db.exec('COMMIT')
+          return result
+        } catch (error) {
+          if (db.inTransaction) db.exec('ROLLBACK')
+          throw error
+        }
+      })
+      queue = run.catch(() => undefined)
+      return run
+    },
+    listNotes: async () => list.all().map(toSummary),
+    async getNote(id, options) {
+      const row = options?.trashed ? getAny.get(id) : get.get(id)
+      if (!row) return null
+      return {
+        id: row.id,
+        title: row.title,
+        titleHlc: row.title_hlc,
+        bodyMd: row.body_md,
+        ydoc: new Uint8Array(row.ydoc),
+        bookId: row.book_id,
+        bookHlc: row.book_hlc,
+        status: row.status,
+        statusHlc: row.status_hlc,
+        pinned: row.pinned === 1,
+        pinnedHlc: row.pinned_hlc,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        deletedAt: row.deleted_at,
+        deletedHlc: row.deleted_hlc,
+      } satisfies NoteRecord
+    },
+    async putNote(note) {
+      // What the app's note_put refuses, this refuses too.
+      const links = noteLinks(note.bodyMd)
+      checkNote(note, links)
+      db.transaction(() => {
+        const written = put.run({
+          ...note,
+          ydoc: Buffer.from(note.ydoc),
+          pinned: note.pinned ? 1 : 0,
+        }).changes
+        if (written === 0) return
+        dropNoteLinks.run(note.id)
+        for (const target of links) addNoteLink.run(note.id, target)
+      }).immediate()
+    },
+    async searchNotes(query, limit) {
+      const terms = excerptTerms(query)
+      return search(query, limit).map((row) => {
+        const excerpt = terms.length ? bodyExcerpt(bodyOf(row.id), terms) : undefined
+        return excerpt === undefined ? toSummary(row) : { ...toSummary(row), excerpt }
+      })
+    },
+    searchNotesInBooks: async (query, bookIds, limit) =>
+      bookIds.length === 0
+        ? []
+        : search(
+            { ...query, sets: [...query.sets, { kind: 'book', ids: [...bookIds], negate: false }] },
+            limit,
+          ).map((row) => ({ ...toSummary(row), bodyMd: bodyOf(row.id) })),
+    countNotesInBooks: async (bookIds) =>
+      new Map(countInBooks.all(JSON.stringify(bookIds)).map((r) => [r.bookId, r.notes])),
+    noteTagNames: async (noteId) => tagNames.all(noteId).map((r) => r.name),
+    async putFile(meta, data) {
+      const mime = checkUpload(meta, data)
+      // The note's check and the file in one transaction, as the Rust store's.
+      db.transaction(() => {
+        if (!liveNote.get(meta.noteId)?.live) throw new Error('E_NOTE_NOT_FOUND')
+        insertFile.run({
+          ...meta,
+          mime,
+          size: data.length,
+          data: Buffer.from(data),
+          createdAt: Date.now(),
+        })
+      }).immediate()
+    },
+    async copyFiles(noteId, copies) {
+      db.transaction(() => {
+        if (!liveNote.get(noteId)?.live) throw new Error('E_NOTE_NOT_FOUND')
+        const createdAt = Date.now()
+        for (const { from, to } of copies) copyFile.run({ from, to, noteId, createdAt })
+      }).immediate()
+    },
+    listTrash: async () => trash.all(),
+    async purgeNote(id, at, hlc) {
+      db.transaction(() => {
+        purge.run({ id, at, hlc })
+        dropLinks.run(id)
+        // Attachments another note still shows pass to it; the rest go.
+        handOverFiles.run({ id })
+        dropFiles.run(id)
+        dropNoteLinks.run(id)
+        dropRevisions.run(id)
+      }).immediate()
+    },
+    async putRevision(revision) {
+      putRevision.run({
+        ...revision,
+        ydoc: revision.ydoc === null ? null : Buffer.from(revision.ydoc),
+      })
+    },
+    listRevisions: async (noteId) =>
+      listRevisions.all({ noteId }).map((row): RevisionSummary => ({
+        id: row.id,
+        noteId: row.note_id,
+        kind: row.kind,
+        at: row.at,
+        length: row.length,
+        value: row.value,
+      })),
+    async getRevision(id) {
+      const row = getRevision.get(id)
+      return row ? toRevision(row) : null
+    },
+    async deleteRevisions(noteId, ids) {
+      db.transaction(() => {
+        for (const id of ids) deleteRevision.run(noteId, id)
+      }).immediate()
+    },
+    listCompactable: async (from, to, after, limit) => compactable.all({ from, to, after, limit }),
+    async compactRevisions(ids, sweptAt) {
+      db.transaction(() => {
+        for (const id of ids) compactDrop.run({ id })
+        if (sweptAt !== null) compactSwept.run({ at: sweptAt })
+      }).immediate()
+    },
+    lastCompaction: async () => lastCompaction.get()?.sweptAt ?? null,
+    listActivity: async (since): Promise<ActivityData> => ({
+      notes: activityNotes.all({ since }),
+      revisions: activityRevisions.all({ since }),
+    }),
+    listBooks: async () =>
+      books.all().map((row): BookRecord => ({
+        id: row.id,
+        name: row.name,
+        nameHlc: row.name_hlc,
+        parentId: row.parent_id,
+        parentHlc: row.parent_hlc,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        deletedAt: row.deleted_at,
+        deletedHlc: row.deleted_hlc,
+        aiAccess: row.ai_access === 1,
+        aiAccessHlc: row.ai_access_hlc,
+        sortKey: row.sort_key,
+        sortKeyHlc: row.sort_key_hlc,
+      })),
+    async putBook(book) {
+      putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })
+    },
+    listTags: async () =>
+      tags.all().map((row): TagRecord => ({
+        id: row.id,
+        name: row.name,
+        nameHlc: row.name_hlc,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        deletedAt: row.deleted_at,
+        deletedHlc: row.deleted_hlc,
+        color: isTagColor(row.color) ? row.color : null,
+        colorHlc: row.color_hlc,
+      })),
+    async putTag(tag) {
+      putTag.run(tag)
+    },
+    async putNoteTag(link) {
+      putNoteTag.run({ ...link, present: link.present ? 1 : 0 })
+    },
+    async getNoteTag(noteId, tagId) {
+      const row = getNoteTag.get(noteId, tagId)
+      return row
+        ? { noteId: row.note_id, tagId: row.tag_id, present: row.present === 1, hlc: row.hlc }
+        : null
+    },
+  }
+}

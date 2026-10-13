@@ -1,0 +1,337 @@
+[
+  {
+    "name": "front matter, image, heading and a bracket link",
+    "markdown": "---\ntitle: Launch plan\ntags: [work, q4]\nstatus: on hold\nauthor: me\n---\n![Board](board.png)\n# Inbox\nSee [[Plan]]",
+    "text": "Board Inbox See Plan"
+  },
+  {
+    "name": "front matter fences may end in spaces or tabs",
+    "markdown": "--- \nk: v\n---\t\nBody",
+    "text": "Body"
+  },
+  {
+    "name": "empty front matter",
+    "markdown": "---\n---\nBody",
+    "text": "Body"
+  },
+  {
+    "name": "an opening fence that never closes is a break",
+    "markdown": "---\ntitle: x",
+    "text": "title: x"
+  },
+  {
+    "name": "front matter only at the very start",
+    "markdown": "Intro\n---\nk: v\n---\nBody",
+    "text": "Intro k: v Body"
+  },
+  {
+    "name": "line breaks as CRLF",
+    "markdown": "---\r\ntitle: A\r\n---\r\n# Head\r\nBody",
+    "text": "Head Body"
+  },
+  {
+    "name": "ATX headings, with closing hashes",
+    "markdown": "# Title\n## Sub ##\n###### Six\n####### Seven\n#hashtag\n## \n#",
+    "text": "Title Sub Six ####### Seven #hashtag"
+  },
+  {
+    "name": "setext underlines",
+    "markdown": "Title\n=====\nSub\n---",
+    "text": "Title Sub"
+  },
+  {
+    "name": "thematic breaks",
+    "markdown": "Above\n***\n___\n- - -\n* * *\nBelow",
+    "text": "Above Below"
+  },
+  {
+    "name": "emphasis, strong and strikethrough",
+    "markdown": "**bold** and *it* and __b__ and _i_ and ~~gone~~ and ***both***",
+    "text": "bold and it and b and i and gone and both"
+  },
+  {
+    "name": "markers inside words and between spaces stay",
+    "markdown": "snake_case and 2 * 3 and a*b and ~5 min",
+    "text": "snake_case and 2 * 3 and a*b and ~5 min"
+  },
+  {
+    "name": "emphasis next to punctuation",
+    "markdown": "(**note**): done.",
+    "text": "(note): done."
+  },
+  {
+    "name": "emphasis across lines",
+    "markdown": "**start\nend**",
+    "text": "start end"
+  },
+  {
+    "name": "emphasis between Chinese characters",
+    "markdown": "\u4e2d**\u6587**\u5b57",
+    "text": "\u4e2d\u6587\u5b57"
+  },
+  {
+    "name": "Chinese heading and list",
+    "markdown": "# \u4f1a\u8bae\n- \u540c\u6b65 **\u8ba1\u5212**",
+    "text": "\u4f1a\u8bae \u540c\u6b65 \u8ba1\u5212"
+  },
+  {
+    "name": "characters outside the BMP",
+    "markdown": "**\ud83d\ude80 launch**",
+    "text": "\ud83d\ude80 launch"
+  },
+  {
+    "name": "inline links, reference links and images",
+    "markdown": "See [the docs](https://x.y/a_(b)) and [ref][1] and ![alt text](img.png \"t\")\n\n[1]: https://x.y",
+    "text": "See the docs and ref and alt text"
+  },
+  {
+    "name": "an image inside a link",
+    "markdown": "[![logo](l.png)](https://x.y) Home",
+    "text": "logo Home"
+  },
+  {
+    "name": "note links",
+    "markdown": "Read [Weekly \\[draft\\]](devot://note/0192a6f0-0000-7000-8000-000000000001).",
+    "text": "Read Weekly [draft]."
+  },
+  {
+    "name": "double-bracket links, with a label",
+    "markdown": "See [[Plan]] and [[Plan|the plan]]",
+    "text": "See Plan and the plan"
+  },
+  {
+    "name": "footnotes",
+    "markdown": "Fact[^1] here\n\n[^1]: The source",
+    "text": "Fact here The source"
+  },
+  {
+    "name": "link reference definitions",
+    "markdown": "[1]: https://x.y \"Title\"\nText",
+    "text": "Text"
+  },
+  {
+    "name": "brackets that are not links",
+    "markdown": "[not a link] and [also]( and [^ x]",
+    "text": "[not a link] and [also]( and [^ x]"
+  },
+  {
+    "name": "list, quote and task markers",
+    "markdown": "- one\n* two\n+ three\n1. four\n2) five\n- [ ] todo\n- [x] done\n> quoted\n> > nested\n> - in quote\n  - indented",
+    "text": "one two three four five todo done quoted nested in quote indented"
+  },
+  {
+    "name": "numbers and dashes that are not markers",
+    "markdown": "3.14 and -1 and 2024 was",
+    "text": "3.14 and -1 and 2024 was"
+  },
+  {
+    "name": "headings inside quotes and lists",
+    "markdown": "> # Quoted head\n- ## Listed head",
+    "text": "Quoted head Listed head"
+  },
+  {
+    "name": "heading with emphasis and a link",
+    "markdown": "## **Plan** for [Q4](x)",
+    "text": "Plan for Q4"
+  },
+  {
+    "name": "code spans",
+    "markdown": "Use `npm i` and ``a ` b`` and `**raw**` here",
+    "text": "Use npm i and a ` b and **raw** here"
+  },
+  {
+    "name": "an unclosed backtick is text",
+    "markdown": "a `b",
+    "text": "a `b"
+  },
+  {
+    "name": "fenced code keeps its text, not its fences",
+    "markdown": "```js\nconst a = *b*;\n```\nAfter",
+    "text": "const a = *b*; After"
+  },
+  {
+    "name": "a backtick line with more backticks is code inline, not a fence",
+    "markdown": "```js``` and more\nstill text",
+    "text": "js and more still text"
+  },
+  {
+    "name": "fenced code in a quote",
+    "markdown": "> ```\n> # not a heading\n> ```\nAfter",
+    "text": "# not a heading After"
+  },
+  {
+    "name": "a tilde fence that never closes",
+    "markdown": "~~~\ncode\n",
+    "text": "code"
+  },
+  {
+    "name": "HTML tags and comments",
+    "markdown": "<div align=\"center\">Hi <b>there</b></div>\n<!-- hidden -->\nShown\n<!-- multi\nstill hidden\nline --> after\n<br/> <br /> <img src=\"x.png\" alt=\"y\">",
+    "text": "Hi there Shown after"
+  },
+  {
+    "name": "autolinks and lone angle brackets",
+    "markdown": "<https://devot.app> and a < b > c and <3",
+    "text": "https://devot.app and a < b > c and <3"
+  },
+  {
+    "name": "backslash escapes and a hard break",
+    "markdown": "\\*not emphasis\\* and \\[x\\](y) and end\\\nnext",
+    "text": "*not emphasis* and [x](y) and end next"
+  },
+  {
+    "name": "tables",
+    "markdown": "| a | b |\n|---|:-:|\n| 1 | 2 |",
+    "text": "a b 1 2"
+  },
+  {
+    "name": "indented code reads as text",
+    "markdown": "    code here",
+    "text": "code here"
+  },
+  {
+    "name": "an HTML comment opened mid-line is text",
+    "markdown": "Use <!-- to start a comment\n\nLater: deploy steps",
+    "text": "Use <!-- to start a comment Later: deploy steps"
+  },
+  {
+    "name": "lines that only look like definitions",
+    "markdown": "[10:30]: standup with the team\n- [Update]: shipped the build\n\n[1]: <https://x.y> 'T'\n[2]: /path (Title)",
+    "text": "[10:30]: standup with the team [Update]: shipped the build"
+  },
+  {
+    "name": "a backslash inside code is text",
+    "markdown": "Path `C:\\` and `x` here, \\`not code` here",
+    "text": "Path C:\\ and x here, `not code` here"
+  },
+  {
+    "name": "placeholders in angle brackets are text",
+    "markdown": "Copy <path/to/file> into <key=value> and </ b>",
+    "text": "Copy <path/to/file> into <key=value> and </ b>"
+  },
+  {
+    "name": "tables without outer pipes",
+    "markdown": "Name | Role\n---- | ----\nAnn | Dev\n\nAfter | that",
+    "text": "Name Role Ann Dev After | that"
+  },
+  {
+    "name": "code in a fence keeps its own quote marks",
+    "markdown": "```\n>>> import os\n```\n> ```\n> > quoted code\n> ```",
+    "text": ">>> import os > quoted code"
+  },
+  {
+    "name": "a comment opened inside a quote or a heading is text",
+    "markdown": "> <!-- note\nThe launch is Friday.\n# <!-- draft\nAfter",
+    "text": "<!-- note The launch is Friday. <!-- draft After"
+  },
+  {
+    "name": "a fence in a quote ends with the quote",
+    "markdown": "> ```\n> code\n\n# Heading **bold** text",
+    "text": "code Heading bold text"
+  },
+  {
+    "name": "numbers that continue a paragraph",
+    "markdown": "We shipped in\n2019. Then we grew.\n\n1. one\n2. two\n3) three\n\nIntro\n1. first",
+    "text": "We shipped in 2019. Then we grew. one two three Intro first"
+  },
+  {
+    "name": "unpaired emphasis markers are text",
+    "markdown": "Rename all *.md files, the _id field and __dirname",
+    "text": "Rename all *.md files, the _id field and __dirname"
+  },
+  {
+    "name": "underscores inside words in any script",
+    "markdown": "Jos\u00e9_Garcia and caf\u00e9_au_lait and snake_case",
+    "text": "Jos\u00e9_Garcia and caf\u00e9_au_lait and snake_case"
+  },
+  {
+    "name": "brackets that make no link",
+    "markdown": "See [done](see below) now, matrix[i][j] here, [x][missing]",
+    "text": "See [done](see below) now, matrix[i][j] here, [x][missing]"
+  },
+  {
+    "name": "reference links need a definition",
+    "markdown": "[Docs][d], [Guide][] and [x][missing]\n\n[d]: https://x.y\n[GUIDE]: <https://g.h> (Title)",
+    "text": "Docs, Guide and [x][missing]"
+  },
+  {
+    "name": "a tag inside link text ends with it",
+    "markdown": "[a <b ](url) c> tail",
+    "text": "a <b c> tail"
+  },
+  {
+    "name": "bold that ends in punctuation before a word stays as written",
+    "markdown": "**\u4e2d\u6587\u3002**\u7684",
+    "text": "**\u4e2d\u6587\u3002**\u7684"
+  },
+  {
+    "name": "a definition does not continue a paragraph",
+    "markdown": "Status\n[Done]: yes\n\n[x][Done]",
+    "text": "Status [Done]: yes [x][Done]"
+  },
+  {
+    "name": "definitions in code do not count",
+    "markdown": "```\n[x]: http://u\n```\nSee [x][] here",
+    "text": "[x]: http://u See [x][] here"
+  },
+  {
+    "name": "shortcut reference links",
+    "markdown": "See [docs] here, [Docs](not a link) too\n\n[docs]: https://x.y",
+    "text": "See docs here, Docs(not a link) too"
+  },
+  {
+    "name": "alert markers",
+    "markdown": "> [!NOTE]\n> Remember the launch\n\n> [!tip]   \n> Tip text\n> [!NOTE] stays",
+    "text": "Remember the launch Tip text [!NOTE] stays"
+  },
+  {
+    "name": "short runs of marker characters are text",
+    "markdown": "_\n\n==\n\n--\n\n**\n\nTitle\n--\n\n***",
+    "text": "_ == -- ** Title"
+  },
+  {
+    "name": "pipes outside tables are text",
+    "markdown": "| grep foo\n\n|x| is the absolute value",
+    "text": "| grep foo |x| is the absolute value"
+  },
+  {
+    "name": "double brackets after a word are an index",
+    "markdown": "x[[1]] and df[[\"a\"]]",
+    "text": "x[[1]] and df[[\"a\"]]"
+  },
+  {
+    "name": "emphasis runs of different lengths",
+    "markdown": "*a** and **b* c*",
+    "text": "a* and b c"
+  },
+  {
+    "name": "whitespace folds",
+    "markdown": "  one  \n\n\ttwo\f three  ",
+    "text": "one two three"
+  },
+  {
+    "name": "spaces outside ASCII are text",
+    "markdown": "\u00a0a\u3000b \u3000",
+    "text": "\u00a0a\u3000b \u3000"
+  },
+  {
+    "name": "nothing",
+    "markdown": "",
+    "text": ""
+  },
+  {
+    "name": "only syntax",
+    "markdown": "---\nk: v\n---\n# \n---\n![](x.png)\n- [ ]",
+    "text": ""
+  },
+  {
+    "name": "an angle destination holds no unescaped <",
+    "markdown": "[a](<b<c>) and [d](<e\\<f>) and [g](<h\\>i>)",
+    "text": "[a](<b) and d and g"
+  },
+  {
+    "name": "an escaped backslash leaves the < after it unescaped",
+    "markdown": "[a](<b\\\\<c>)",
+    "text": "[a](<b\\)"
+  }
+]

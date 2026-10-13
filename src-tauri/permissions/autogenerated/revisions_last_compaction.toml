@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-revisions-last-compaction"
+description = "Enables the revisions_last_compaction command without any pre-configured scope."
+commands.allow = ["revisions_last_compaction"]
+
+[[permission]]
+identifier = "deny-revisions-last-compaction"
+description = "Denies the revisions_last_compaction command without any pre-configured scope."
+commands.deny = ["revisions_last_compaction"]

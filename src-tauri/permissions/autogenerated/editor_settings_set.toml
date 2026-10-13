@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-editor-settings-set"
+description = "Enables the editor_settings_set command without any pre-configured scope."
+commands.allow = ["editor_settings_set"]
+
+[[permission]]
+identifier = "deny-editor-settings-set"
+description = "Denies the editor_settings_set command without any pre-configured scope."
+commands.deny = ["editor_settings_set"]

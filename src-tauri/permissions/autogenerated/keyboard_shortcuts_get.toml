@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-keyboard-shortcuts-get"
+description = "Enables the keyboard_shortcuts_get command without any pre-configured scope."
+commands.allow = ["keyboard_shortcuts_get"]
+
+[[permission]]
+identifier = "deny-keyboard-shortcuts-get"
+description = "Denies the keyboard_shortcuts_get command without any pre-configured scope."
+commands.deny = ["keyboard_shortcuts_get"]

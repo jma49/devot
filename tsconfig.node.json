@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "src/core",
+    "src/mcp",
+    "tests",
+    "scripts",
+    "vite.config.ts",
+    "vite.mcp.config.ts",
+    "vite.ui-test.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
+}
