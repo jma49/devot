@@ -16,7 +16,7 @@ Everything in this folder is meant to be publishable as an open-source asset lib
 | `app-icon/source.svg`                    | The app icon: the dove on a light rounded tile, 2048 px canvas        |
 | `app-icon/source.png`                    | `source.svg` rendered at 2048 px; `pnpm tauri icon` makes the sizes   |
 
-Tokens use the [W3C Design Tokens (DTCG)](https://www.designtokens.org/) format. `pnpm tokens` compiles them into `src/renderer/src/theme/tokens.css` (CSS custom properties) and `tokens.ts` (TypeScript constants); CI fails when those are stale. Components use theme tokens only, never primitives, and never colour literals.
+Tokens use the [W3C Design Tokens (DTCG)](https://www.designtokens.org/) format. `pnpm tokens` compiles them into `src/renderer/src/theme/tokens.css` (CSS custom properties) and `tokens.ts` (TypeScript constants); CI fails when those are stale. Components use theme tokens only, never the palette's colour primitives (`color.teal.*` and the like) and never colour literals (hex, rgb or named colours).
 
 ## Look
 

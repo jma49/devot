@@ -31,7 +31,7 @@ pub const CHANGED_EVENT: &str = "devot://keyboard-shortcuts-changed";
 
 /// At most this many keys per command.
 pub const MAX_KEYS: usize = 4;
-/// At most this many changed commands (the registry has fewer than 100).
+/// At most this many changed commands (the registry has about 140).
 pub const MAX_COMMANDS: usize = 256;
 const MAX_ID_LEN: usize = 64;
 
