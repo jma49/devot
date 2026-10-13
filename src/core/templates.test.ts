@@ -403,7 +403,7 @@ describe('instruction quotes', () => {
   it('stays in the template itself: only the draft drops it', () => {
     const body = '> # !Instructions\n> Hi\n\nBody\n'
     expect(withoutInstructions(body)).toBe('Body\n')
-    expect(STARTER_TEMPLATES.every((t) => t.body.startsWith('> # !Instructions'))).toBe(true)
+    expect(STARTER_TEMPLATES.every((t) => t.body.includes('> # !Instructions'))).toBe(true)
   })
 })
 
@@ -420,7 +420,8 @@ describe('starter templates', () => {
     const daily = STARTER_TEMPLATES.find((t) => t.title === 'Daily Report')!
     expect(daily.body).toContain('{{date}}')
     const made = draftFromTemplate(daily, { now: NOW, offsetAt: UTC })
-    expect(made.body).toContain('Daily Report 2026-03-03')
+    expect(made.title).toBe('Daily Report 2026-03-03')
+    expect(made.body.trim().startsWith('# Daily Report 2026-03-03')).toBe(true)
     expect(made.body).not.toContain('!Instructions')
   })
 })

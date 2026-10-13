@@ -120,6 +120,8 @@ export const en = {
   'templates.filter': 'Filter templates',
   'templates.recent': 'Recently Used',
   'templates.builtIn': 'Built-in',
+  'templates.builtInHint': 'Built-in templates are read-only. Edit a copy to make one of your own.',
+  'templates.editCopy': 'Edit a Copy',
   'templates.noMatches': 'No templates match.',
   'templates.create': 'Create',
   'templates.preview': 'Preview',

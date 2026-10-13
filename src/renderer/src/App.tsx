@@ -82,6 +82,7 @@ import { TrashView } from './TrashView'
 import { Icon } from './icons/Icon'
 import { StatusPicker } from './StatusPicker'
 import { TagEditor } from './TagEditor'
+import { BuiltInTemplate, BuiltInTemplates } from './BuiltInTemplates'
 import { markWrite } from './lastWrite'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
@@ -255,6 +256,8 @@ export function App() {
   const [trash, setTrash] = useState<TrashedNote[]>([])
   // Notes in Templates: listed in their own view, never in the library.
   const [templates, setTemplates] = useState<NoteSummary[]>([])
+  // The built-in (starter) template shown read-only in the Templates view.
+  const [builtIn, setBuiltIn] = useState<string>()
   // The template picker (New Note from Template), and the templates used
   // last on this device.
   // The recently used ones are read when it opens.
@@ -1105,6 +1108,8 @@ export function App() {
     // Opening a note shows it alone, unless the selection itself moved the
     // open note (`keepSelection`).
     if (!keepSelection) setMulti(undefined)
+    // A built-in template shown gives way to the note.
+    setBuiltIn(undefined)
     const open = startOpening(id)
     await saveEdits(core)
     // A link may point at a note that is gone; leave the selection alone then.
@@ -1392,6 +1397,27 @@ export function App() {
     await showMade(core, id, await refresh(core))
     await select(id, { keyboard: true })
   }
+
+  /** Saves a copy of a built-in template as the user's own, shows it and opens it. */
+  const editBuiltInCopy = async (id: string) => {
+    if (!core) return
+    await saveEdits(core)
+    const copy = await core.saveTemplate(id, {}).catch(() => undefined)
+    if (!copy) return console.warn('W_TEMPLATE_COPY_FAILED', id)
+    setBuiltIn(undefined)
+    await showMade(core, copy, await refresh(core))
+    await select(copy, { keyboard: true })
+  }
+  const useBuiltIn = (id: string) => {
+    setBuiltIn(undefined)
+    return createFromTemplate(id)
+  }
+  const showBuiltIn = useStable((id: string) => {
+    setSelected(undefined)
+    setBuiltIn(id)
+  })
+  // A built-in template shows only in the Templates view, with no note open.
+  const shownBuiltIn = selected === undefined && inTemplates ? builtIn : undefined
 
   /**
    * Copies a note (title with "copy" after it, body, notebook, status, tags;
@@ -2397,6 +2423,7 @@ export function App() {
           headlines={loadHeadlines}
           excerpts={loadExcerpts}
           drag="templates"
+          after={<BuiltInTemplates selected={shownBuiltIn} onSelect={showBuiltIn} />}
         />
       ) : (
         <NoteList
@@ -2595,6 +2622,12 @@ export function App() {
               )}
             </div>
           </>
+        ) : shownBuiltIn ? (
+          <BuiltInTemplate
+            id={shownBuiltIn}
+            onUse={(id) => void useBuiltIn(id)}
+            onEditCopy={(id) => void editBuiltInCopy(id)}
+          />
         ) : null}
       </main>
       {importState ? (

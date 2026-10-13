@@ -4,7 +4,7 @@
 // (TemplateService.save). Their IDs start with `starter:`, which no stored
 // note's ID does.
 //
-// Each body opens with an instruction quote (`> # !Instructions`): it
+// Each body has an instruction quote (`> # !Instructions`): it
 // explains the template, stays visible in the template and is left out of
 // the notes made from it (templates.ts).
 
@@ -123,11 +123,15 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = Object.freeze([
   make(
     'daily-report',
     'Daily Report',
-    `> # !Instructions
+    `---
+title: Daily Report {{date}}
+---
+
+> # !Instructions
 > Fill this in at the end of the day. {{date}} is replaced with today's date
 > in each note made from this template.
 
-# Daily Report {{date}}
+# {{title}}
 
 ## Done today
 
