@@ -35,6 +35,27 @@ export function keepRecent(cache: Map<string, CachedHeadline>, limit: number) {
 }
 
 /**
+ * `cache` with `found` (read for the writes in `at`) added. An answer for an
+ * older write never replaces one read for a newer write.
+ */
+export function mergeHeadlines(
+  cache: ReadonlyMap<string, CachedHeadline>,
+  found: Readonly<Record<string, string>>,
+  at: ReadonlyMap<string, number>,
+): Map<string, CachedHeadline> {
+  const next = new Map(cache)
+  for (const [id, text] of Object.entries(found)) {
+    const was = next.get(id)
+    const readAt = at.get(id) ?? 0
+    if (was && was.at > readAt) continue
+    // Moves the entry to the end: the most recently read last.
+    next.delete(id)
+    next.set(id, { at: readAt, text })
+  }
+  return next
+}
+
+/**
  * The headline of each untitled note of `notes` (the rows that show), by ID.
  * One that is not known yet is looked up, and the rows render again when it
  * is; one read for an earlier write shows until the new one arrives.
@@ -57,12 +78,7 @@ export function useHeadlines(
     void load([...at.keys()])
       .then((found) => {
         setCache((before) => {
-          const next = new Map(before)
-          for (const [id, text] of Object.entries(found)) {
-            // Moves the entry to the end: the most recently read last.
-            next.delete(id)
-            next.set(id, { at: at.get(id) ?? 0, text })
-          }
+          const next = mergeHeadlines(before, found, at)
           keepRecent(next, KEPT)
           return next
         })

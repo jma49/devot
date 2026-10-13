@@ -216,7 +216,10 @@ describe('duplicating a note', () => {
 
     const long = await notes.create('x'.repeat(MAX_TITLE_CHARS))
     const cut = await duplicateNote({ notes, tags }, long, { suffix: 'copy' })
-    expect([...((await storage.getNote(cut))?.title ?? '')]).toHaveLength(MAX_TITLE_CHARS)
+    const cutTitle = (await storage.getNote(cut))?.title ?? ''
+    expect([...cutTitle]).toHaveLength(MAX_TITLE_CHARS)
+    // The suffix survives: the copy never gets the original's title.
+    expect(cutTitle.endsWith(' copy')).toBe(true)
 
     // An untitled note stays untitled: its list row shows its first line.
     const untitled = await notes.create('')

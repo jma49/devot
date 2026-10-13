@@ -68,7 +68,7 @@ import {
 } from './storage'
 import { extractTitle } from './extract'
 import { fileLinkSpans, newFileCopies, replaceFileLinks, type FileCopy } from './files'
-import { clipTitle } from './noteLimits'
+import { clipTitle, MAX_TITLE_CHARS } from './noteLimits'
 import { lineFeeds, textDiff } from './text'
 
 /** The Y.Text that holds a note's Markdown. */
@@ -172,9 +172,9 @@ export interface NoteService {
   /**
    * A new note with the title, body, notebook and status of `id` (pending
    * edits included; a deleted notebook counts as none); it is never pinned.
-   * With `suffix`, a titled note's copy is titled "<title> <suffix>" (cut to
-   * the title limit); an untitled note's copy stays untitled. The body is the
-   * source's Yjs state, never re-typed text. Images it shows become the
+   * With `suffix`, a titled note's copy is titled "<title> <suffix>" (the original
+   * cut to fit the title limit, so the suffix stays); an untitled note's copy
+   * stays untitled. The body is the source's Yjs state, never re-typed text. Images it shows become the
    * copy's own (see extract). Tags are the caller's (see duplicateNote).
    */
   duplicate(id: string, options?: { suffix?: string }): Promise<string>
@@ -1226,8 +1226,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           }
         })
         const { title } = source.record
+        // The original is cut to make room, so the suffix always survives.
+        const tail = copy?.suffix ? ` ${copy.suffix}` : ''
+        const room = Math.max(0, MAX_TITLE_CHARS - [...tail].length)
         return insertNote(
-          title !== '' && copy?.suffix ? `${title} ${copy.suffix}` : title,
+          title !== '' && tail ? `${[...title].slice(0, room).join('')}${tail}` : title,
           await liveBook(source.record.bookId),
           doc,
           copies,
