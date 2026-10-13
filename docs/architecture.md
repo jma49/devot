@@ -360,7 +360,7 @@ An option keeps Devot running in the menu bar when its last window closes. The m
   - Design tokens in W3C Design Tokens (DTCG) JSON: `design/tokens/`. A build step generates CSS custom properties and TypeScript constants.
   - Icons are SF Symbols rendered at runtime; `design/icons/symbols.json` maps Devot icon names to symbol names. No symbol artwork is stored in the repository.
   - Fonts are the system's (SF Pro, SF Mono) and are not bundled. Any bundled font must have an open licence (such as OFL).
-- Every asset comes from a source that can be open-sourced. Devot's app icon and logo must be original artwork; `design/app-icon/source.png` is a placeholder.
+- Every asset comes from a source that can be open-sourced. Devot's app icon and logo must be original artwork: the dove in `design/app-icon/` (`dove.svg` the mark, `source.svg` the app icon).
 - _Open:_ whether `design/` becomes its own repository.
 
 ### Native look
