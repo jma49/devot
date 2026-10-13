@@ -112,6 +112,17 @@ describe('Sidebar sections', () => {
     expect(collapsed).toContain('Active')
   })
 
+  it('turns one chevron: down while a section is open, up while it is folded', () => {
+    const storage = memory()
+    const open = render(sectionStore(storage, 'main'))
+    expect(open).toMatch(/aria-label="Collapse Tags"[^>]*><span class="chevron"><\/span>/)
+    sectionStore(storage, 'main').save(new Set(['tags']))
+    const folded = render(sectionStore(storage, 'main'))
+    expect(folded).toMatch(
+      /aria-label="Expand Tags"[^>]*><span class="chevron" data-turn="up"><\/span>/,
+    )
+  })
+
   it('shows a chevron on Status and Tags, a search on Notebooks and Tags', () => {
     const html = render(sectionStore(memory(), 'main'))
     expect(html).toContain('aria-label="Collapse Status"')

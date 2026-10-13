@@ -4,8 +4,8 @@ import { expect, it } from 'vitest'
 import { isColorChecked } from '../support/policy-patterns'
 
 // Motion comes from the design tokens too: durations, easing curves and the
-// scale a pop-up grows from are `--motion-*` tokens, never literals, and Reduce
-// Motion turns every scale off (pop-ups only fade).
+// scales a pop-up grows from and shrinks to are `--motion-*` tokens, never
+// literals, and Reduce Motion turns every scale off (pop-ups only fade).
 const UI_ROOT = 'src/renderer/src'
 
 function files(dir: string): string[] {
@@ -56,15 +56,17 @@ it('the motion pattern catches literals and leaves tokens alone', () => {
   expect(tokens.filter(hasMotionLiteral)).toEqual([])
 })
 
-it('pop-ups grow only through the scale variable, which Reduce Motion sets to 1', () => {
+it('pop-ups grow and shrink only through the scale variables, which Reduce Motion sets to 1', () => {
   const scales = files(UI_ROOT)
     .filter(isColorChecked)
     .flatMap((file) => readFileSync(file, 'utf8').match(/(?<![\w-])scale[:(][^;\n]*/g) ?? [])
   expect(scales.length).toBeGreaterThan(0)
-  expect(scales.filter((s) => !s.includes('var(--popover-enter-scale)'))).toEqual([])
+  expect(scales.filter((s) => !/var\(--popover-(enter|exit)-scale\)/.test(s))).toEqual([])
 
   const css = readFileSync(`${UI_ROOT}/app.css`, 'utf8')
   expect(css).toMatch(/--popover-enter-scale:\s*var\(--motion-scale-popover-enter\)/)
+  expect(css).toMatch(/--popover-exit-scale:\s*var\(--motion-scale-popover-exit\)/)
   const reduced = css.split('@media (prefers-reduced-motion: reduce)').slice(1).join('')
   expect(reduced).toMatch(/--popover-enter-scale:\s*1;/)
+  expect(reduced).toMatch(/--popover-exit-scale:\s*1;/)
 })

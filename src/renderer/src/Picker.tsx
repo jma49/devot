@@ -7,6 +7,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
+import { closingRef } from './closing'
 import { isImeKey } from './ime'
 
 /** One row of a picker's pop-over. */
@@ -38,6 +39,15 @@ export function pickerStep(key: string, from: number, count: number): number | u
 }
 
 /**
+ * The row Up or Down moves to from a typing field over a list (a dialog's
+ * search, the tag field): the same steps as `pickerStep`, while Home and End
+ * stay with the field's text.
+ */
+export function fieldStep(key: string, from: number, count: number): number | undefined {
+  return key === 'ArrowDown' || key === 'ArrowUp' ? pickerStep(key, from, count) : undefined
+}
+
+/**
  * Open state for a pop-up button: what opens and closes it, and a click
  * anywhere outside `box` closing it.
  */
@@ -54,6 +64,9 @@ export function usePickerOpen(box: RefObject<HTMLElement | null>) {
   }, [open, box])
   return [open, setOpen] as const
 }
+
+/** A picker shrinks back toward its button as it closes. */
+const pickerRef = closingRef('scale', 'picker-popover')
 
 /**
  * A pop-over list under a pop-up button: Up, Down, Home and End move
@@ -113,7 +126,7 @@ export function PickerList(props: {
   const optionId = (i: number) => `${listId}-${i}`
   const activeId = shownActive >= 0 ? optionId(shownActive) : undefined
   return (
-    <div className="picker-popover" onKeyDown={onKeyDown}>
+    <div ref={pickerRef} className="picker-popover" onKeyDown={onKeyDown}>
       {props.search ? (
         <input
           ref={field}

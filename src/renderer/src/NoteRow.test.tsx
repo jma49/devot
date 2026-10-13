@@ -43,6 +43,7 @@ function row(over: Partial<RowProps> = {}): string {
     now,
     locale: 'en',
     draggable: true,
+    dragging: false,
     menu: true,
     events,
     ...over,
@@ -71,6 +72,23 @@ describe('NoteRow', () => {
     expect(html).toContain('aria-valuenow="1"')
     expect(html).toContain('style="width:25%"')
     expect(row({ progress: '' })).not.toContain('row-progress')
+  })
+
+  it('draws a coloured tag as a chip in its tag colour, and a plain tag as a plain chip', () => {
+    const tag = (id: string, color: TagRecord['color']) =>
+      ({ id, name: id, color }) as unknown as TagRecord
+    const tags = new Map([
+      ['t1', tag('t1', 'green')],
+      ['t2', tag('t2', null)],
+    ])
+    const html = row({ note: note({ tagIds: ['t1', 't2'] }), tags })
+    expect(html).toContain('<span class="chip tag-chip tag-color-green">')
+    expect(html).toMatch(/<span class="chip">t2<\/span>/)
+  })
+
+  it('dims a row while it is being dragged', () => {
+    expect(row({ dragging: true })).toMatch(/^<li class="row"[^>]* data-dragging="true"/)
+    expect(row()).not.toContain('data-dragging')
   })
 
   it('shows the status as an icon with an accessible name, and no text', () => {

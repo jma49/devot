@@ -11,7 +11,8 @@ import { t, type MessageKey } from '../i18n'
 import type { IconName } from '../icons/symbols'
 import { BAR_GAP, FloatButton, floatTheme, NOTCH_X, useFloatTip } from './floating'
 import { imageAtCaret, imageSizeChange, type EditorImage } from './images'
-import { editorFocused, toolbarState, toolbarStateExtension } from './toolbarState'
+import { barsMayShow } from './barRules'
+import { toolbarState, toolbarStateExtension } from './toolbarState'
 
 /** The preset the bar shows as current; none for a size that is no preset. */
 export function currentPreset(image: EditorImage): ImageSize | null {
@@ -74,7 +75,7 @@ function createBar(view: EditorView): TooltipView {
 const barTooltip = showTooltip.compute(
   [toolbarState, 'selection', 'doc'],
   (state): Tooltip | null => {
-    if (!editorFocused(state)) return null
+    if (!barsMayShow(state)) return null
     const image = imageAtCaret(state)
     return image ? { pos: image.from, above: false, create: createBar } : null
   },

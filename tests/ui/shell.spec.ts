@@ -109,7 +109,9 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
   expect((await requests()).filter((r) => r === 'square.and.pencil@14')).toHaveLength(2)
 })
 
-test('the note list selection stays neutral, focused or not', async ({ page }) => {
+test('the note list selection is an accent wash, and the accent fill while the list has the keyboard', async ({
+  page,
+}) => {
   await page.emulateMedia({ colorScheme: 'light' })
   await freshStart(page)
   await createNote(page, 'Alpha')
@@ -120,14 +122,14 @@ test('the note list selection stays neutral, focused or not', async ({ page }) =
   const alphaRow = rows.getByRole('option', { name: /Alpha/ })
   await expect(beta).toHaveAttribute('aria-selected', 'true')
 
-  // Typing in the title: the list is not focused.
-  await expect.poll(() => css(beta, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
+  // Typing in the title: the list is not focused, the selection is a wash.
+  await expect.poll(() => css(beta, 'background-color')).toBe('rgba(7, 87, 131, 0.2)')
 
   await beta.click()
   await expect(beta).toBeFocused()
-  // Focused: still neutral (only the sidebar shows the accent).
-  expect(await css(beta, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
-  expect(await css(beta, 'color')).not.toBe(rgb(light['color.accent.on-fill']))
+  // Focused: the accent fill with the on-fill text.
+  await expect.poll(() => css(beta, 'background-color')).toBe(rgb(light['color.accent.fill']))
+  await expect.poll(() => css(beta, 'color')).toBe(rgb(light['color.accent.on-fill']))
 
   // Arrow keys move the selection and open the note.
   await page.keyboard.press('ArrowDown')
@@ -160,7 +162,8 @@ test('the selected view mode is a neutral grey segment', async ({ page }) => {
     .getByRole('button', { name: 'Split' })
   await split.click()
   await expect(split).toHaveAttribute('aria-pressed', 'true')
-  expect(await css(split, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
+  // The fill eases in over the hover duration.
+  await expect.poll(() => css(split, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
 })
 
 test('the window stays put while the caret scrolls to the end of a long note', async ({ page }) => {

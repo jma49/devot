@@ -27,7 +27,6 @@
     "search": "magnifyingglass",
     "popup": "chevron.up.chevron.down",
     "disclosure.open": "chevron.down",
-    "disclosure.closed": "chevron.right",
     "sort": "arrow.up.arrow.down",
     "progress": "list.bullet.clipboard",
     "date.created": "clock",
@@ -89,7 +88,6 @@
     "image.size.half": "square.lefthalf.filled",
     "image.size.full": "square.fill",
     "terminal": "terminal",
-    "disclosure.up": "chevron.up",
     "outline": "list.bullet.indent"
   }
 }

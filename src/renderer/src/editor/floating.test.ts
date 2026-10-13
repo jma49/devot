@@ -45,6 +45,18 @@ describe('floating bar motion and states', () => {
     expect(enter.from).toEqual({ opacity: '0', scale: 'var(--popover-enter-scale)' })
   })
 
+  it('fades a closing bar out, and shrinks a closing tooltip back toward its notch', () => {
+    expect(rule('.cm-tooltip[data-closing][data-closing-motion="fade"]').animation).toBe(
+      'cm-fade-out var(--motion-duration-fade) var(--motion-easing-standard) forwards',
+    )
+    expect(rule('.cm-float-tip[data-closing][data-closing-motion="scale"]').animation).toBe(
+      'cm-popover-out var(--motion-duration-popover) var(--motion-easing-standard) forwards',
+    )
+    expect(floatStyles['@keyframes cm-fade-out']).toEqual({ to: { opacity: '0' } })
+    const exit = floatStyles['@keyframes cm-popover-out'] as Record<string, Rule>
+    expect(exit.to).toEqual({ opacity: '0', scale: 'var(--popover-exit-scale)' })
+  })
+
   it('gives the tooltip bubble a notch toward its button', () => {
     expect(rule('.cm-float-tip[data-side="below"]::before').top).toBeDefined()
     expect(rule('.cm-float-tip[data-side="above"]::before').bottom).toBeDefined()

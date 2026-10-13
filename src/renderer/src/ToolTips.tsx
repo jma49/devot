@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { closingRef } from './closing'
 import { t } from './i18n'
+import { sizes } from './theme/tokens'
 
-/** How long the pointer rests on a button before its tooltip shows, in ms. */
-const SHOW_AFTER_MS = 600
+/** How long the pointer rests on a button before its tooltip shows (`motion.delay.tooltip`), in ms. */
+export const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
 
 /** The toolbar buttons whose tooltips show as bubbles. */
 const TOOLS = '.toolbar .tool[title], .toolbar .tool[data-tip]'
@@ -22,6 +24,9 @@ export function splitTip(title: string): { name: string; key: string | undefined
   const key = found?.groups?.['key']
   return name !== undefined && key !== undefined ? { name, key } : { name: title, key: undefined }
 }
+
+/** A tooltip shrinks back toward its notch as it goes. */
+const tipRef = closingRef('scale', 'tool-tip')
 
 interface Shown {
   name: string
@@ -82,7 +87,7 @@ export function ToolTips() {
   }, [])
   if (!shown) return null
   return (
-    <div className="tool-tip" role="tooltip" style={{ left: shown.x, top: shown.y }}>
+    <div ref={tipRef} className="tool-tip" role="tooltip" style={{ left: shown.x, top: shown.y }}>
       <span>{shown.name}</span>
       {shown.key ? <kbd className="tool-tip-key">{shown.key}</kbd> : null}
     </div>

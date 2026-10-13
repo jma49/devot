@@ -136,6 +136,7 @@ import { Sidebar, stepSidebarRow, type Selection } from './Sidebar'
 import { useKept, useStable } from './stable'
 import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
+import { sizes } from './theme/tokens'
 import { track } from './usage'
 
 /** A query and the view it narrows (none: every note). */
@@ -170,8 +171,8 @@ const ALL_NOTES: Selection = { kind: 'all' }
  */
 const LIST_TITLE_MS = 150
 
-/** How long `data-pane-motion` stays on: the slide (app.css) plus a margin. */
-const PANE_MOTION_MS = 300
+/** How long `data-pane-motion` stays on: the slide (`motion.duration.pane`) plus a margin. */
+const PANE_MOTION_MS = Number.parseFloat(sizes['motion.duration.pane']) + 80
 
 /** View > Hide Sidebar in the menu bar; App re-sends the Tauri event as this. */
 export const TOGGLE_SIDEBAR = 'devot:toggle-sidebar'

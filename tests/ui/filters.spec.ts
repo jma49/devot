@@ -1,5 +1,11 @@
 import type { Page } from '@playwright/test'
+import { light } from '../../src/renderer/src/theme/tokens'
 import { expect, test, pickNoteMore, openNotePinned, pickStatus, statusPicker } from './fixtures'
+
+function rgb(hex: string): string {
+  const n = Number.parseInt(hex.slice(1), 16)
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
@@ -20,8 +26,12 @@ async function addTag(page: Page, name: string, shown = name) {
   const field = page.getByRole('combobox', { name: 'Add Tag' })
   await field.fill(name)
   await field.press('Enter')
+  // A chip, not the suggestions' closing copy that fades out beside them.
   await expect(
-    page.getByRole('group', { name: 'Tags' }).getByText(shown, { exact: true }),
+    page
+      .getByRole('group', { name: 'Tags' })
+      .locator('.chip')
+      .filter({ hasText: new RegExp(`^${shown}$`) }),
   ).toBeVisible()
 }
 
@@ -158,11 +168,11 @@ test('the count on a selected filter row stays a number while the sidebar has th
 
   const count = filter(page, 'Active').locator('.source-count')
   await expect(count).toHaveText('1')
-  // The selected row has a neutral fill (and a bar on its left edge while the
-  // sidebar has the keyboard): the count keeps its own colour and no
-  // background, and the icon keeps its mask fill.
+  // While the sidebar has the keyboard the selected row is the accent fill:
+  // the count takes the on-fill colour and no background, and the icon keeps
+  // its mask fill.
   await expect(count).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-  await expect(count).toHaveCSS('color', 'rgb(103, 103, 103)')
+  await expect(count).toHaveCSS('color', rgb(light['color.accent.on-fill']))
   await expect(filter(page, 'Active').locator('.icon')).not.toHaveCSS(
     'background-color',
     'rgba(0, 0, 0, 0)',

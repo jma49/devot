@@ -2,9 +2,11 @@ import { useId, useRef, useState, type RefObject } from 'react'
 import type { TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
+import { closingRef } from './closing'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
+import { fieldStep } from './Picker'
 import { useNameLimit } from './nameLimit'
 
 /** A tag's colour: a dot painted with the theme's token for it, named for assistive tech. */
@@ -19,11 +21,17 @@ export function TagDot(props: { color: TagColor }) {
   )
 }
 
+/** A tag chip's classes: a coloured tag's chip takes its tag colour (app.css `.tag-chip`). */
+export const chipClass = (color: TagColor | null | undefined) =>
+  color ? `chip tag-chip tag-color-${color}` : 'chip'
+
 /** A row of the tag field's suggestions: an existing tag, or a new one to make. */
 export type TagRow = { kind: 'tag'; tag: TagRecord } | { kind: 'create'; name: string }
 
 /** Suggestions shown at most. */
 const MAX_SUGGESTIONS = 8
+/** The suggestions shrink back toward the field as they close. */
+const suggestionsRef = closingRef('scale', 'tag-suggestions')
 
 /**
  * What the tag field suggests for `draft`: the tags not in `exclude` whose
@@ -107,7 +115,11 @@ export function TagEditor(props: {
   return (
     <div className="tag-editor" role="group" aria-label={t('note.tagsLabel')}>
       {onNote.map((tag) => (
-        <span key={tag.id} className="chip" data-selected={chosenChip === tag.id || undefined}>
+        <span
+          key={tag.id}
+          className={chipClass(tag.color)}
+          data-selected={chosenChip === tag.id || undefined}
+        >
           {tag.color ? <TagDot color={tag.color} /> : null}
           {tag.name}
           <button
@@ -146,19 +158,13 @@ export function TagEditor(props: {
             // Keys an input method composes with (picking a candidate) are its own.
             if (isImeKey(e.nativeEvent)) return
             if (e.metaKey || e.ctrlKey || e.altKey) return
-            const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
-            if (step && draft !== '') {
+            if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && draft !== '') {
               e.preventDefault()
               const shown = tagRows(props.tags, full, draft)
               if (!open) setOpen(true)
               if (shown.length === 0) return
-              setActive((i) =>
-                i < 0
-                  ? step > 0
-                    ? 0
-                    : shown.length - 1
-                  : (i + step + shown.length) % shown.length,
-              )
+              const key = e.key
+              setActive((i) => fieldStep(key, i, shown.length) ?? i)
               return
             }
             if (e.key === 'Enter') {
@@ -195,6 +201,7 @@ export function TagEditor(props: {
         />
         {rows.length > 0 ? (
           <ul
+            ref={suggestionsRef}
             id={listId}
             className="tag-suggestions"
             role="listbox"

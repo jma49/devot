@@ -13,7 +13,7 @@ import { fullDate, relativeTime } from './format'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
-import { TagDot } from './TagEditor'
+import { chipClass, TagDot } from './TagEditor'
 
 /** Each status's icon, in its colour (see `.status-*`). */
 export const STATUS_ICONS: Readonly<Record<NoteStatus, IconName>> = {
@@ -97,6 +97,8 @@ export interface RowProps {
   now: number
   locale: string
   draggable: boolean
+  /** The row is being dragged (with the selection it belongs to): it dims. */
+  dragging: boolean
   /** Right-click shows the note menu. */
   menu: boolean
   events: RowEvents
@@ -132,6 +134,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
       onMouseDown={events.mouseDown}
       onClick={(e) => events.click(id, e)}
       draggable={props.draggable}
+      data-dragging={props.dragging || undefined}
       onDragStart={(e) => events.dragStart(id, e)}
       onKeyDown={(e) => events.keyDown(id, e)}
       onContextMenu={props.menu ? (e) => events.contextMenu(id, e) : undefined}
@@ -161,7 +164,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
         ) : null}
         {progress ? <TaskProgress {...progress} /> : null}
         {chips.map((c) => (
-          <span key={c.id} className="chip">
+          <span key={c.id} className={chipClass(c.color)}>
             {c.color ? <TagDot color={c.color} /> : null}
             {c.name}
           </span>

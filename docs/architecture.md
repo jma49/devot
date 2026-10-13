@@ -368,7 +368,7 @@ An option keeps Devot running in the menu bar when its last window closes. The m
 - Direction: native macOS structure with cool neutrals, a blue accent and distinct Markdown colours in the editor. Details in `design/README.md`.
 - Assets live in `design/`, to the standard of an open-source asset library:
   - Design tokens in W3C Design Tokens (DTCG) JSON: `design/tokens/`. A build step generates CSS custom properties and TypeScript constants.
-  - Icons are SF Symbols rendered at runtime; `design/icons/symbols.json` maps Devot icon names to symbol names. No symbol artwork is stored in the repository.
+  - Icons are SF Symbols rendered at runtime; `design/icons/symbols.json` maps Devot icon names to symbol names. No symbol artwork is stored in the repository (licence finding: `docs/adr/0001-sf-symbols-rendered-at-runtime.md`).
   - Fonts are the system's (SF Pro, SF Mono) and are not bundled. Any bundled font must have an open licence (such as OFL).
 - Every asset comes from a source that can be open-sourced. Devot's app icon and logo must be original artwork: the dove in `design/app-icon/` (`dove.svg` the mark, `source.svg` the app icon).
 - _Open:_ whether `design/` becomes its own repository.
@@ -522,8 +522,7 @@ Coverage is reported, not gated: a percentage is easy to game. Every PR must tes
 2. In-app AI assistant interaction design.
 3. Third-party plugins and their UI model.
 4. Paid users: accounts, auth and billing.
-5. Check the SF Symbols licence text (the repository stores symbol names only).
-6. Measure idle GPU power with the transparent window; if it is high, drop to an opaque window with a tinted sidebar.
+5. Measure idle GPU power with the transparent window; if it is high, drop to an opaque window with a tinted sidebar.
 
 ## First-launch notes
 
