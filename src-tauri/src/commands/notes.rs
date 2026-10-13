@@ -252,6 +252,7 @@ mod tests {
             title_hlc: "0001728000000000-0000-node".into(),
             body_md: "# Title\n".into(),
             ydoc: STANDARD.encode([1, 2, 3]),
+            body_version: 4,
             book_id: Some("0192a6f0-0000-7000-8000-0000000000b1".into()),
             book_hlc: "0001728000000001-0000-node".into(),
             status: "active".into(),
@@ -269,7 +270,14 @@ mod tests {
     fn accepts_a_valid_note_and_round_trips_through_the_dto() {
         let record = dto().into_record().unwrap();
         assert_eq!(record.ydoc, vec![1, 2, 3]);
+        assert_eq!(record.body_version, 4);
         assert_eq!(NoteDto::from(record), dto());
+        // The largest version a write may be based on.
+        let last = NoteDto {
+            body_version: MAX_BODY_VERSION - 1,
+            ..dto()
+        };
+        assert!(last.into_record().is_ok());
     }
 
     #[test]
@@ -319,7 +327,7 @@ mod tests {
     #[test]
     fn rejects_bad_fields() {
         type Case = (fn(&mut NoteDto), &'static str);
-        let cases: [Case; 12] = [
+        let cases: [Case; 15] = [
             (|n| n.status = "urgent".into(), "E_NOTE_STATUS_INVALID"),
             (
                 |n| n.pinned_hlc = "bad hlc ".repeat(20),
@@ -335,6 +343,13 @@ mod tests {
             (|n| n.updated_at = 0, "E_NOTE_TIME_INVALID"),
             (|n| n.ydoc = "%%%".into(), "E_NOTE_YDOC_INVALID"),
             (|n| n.ydoc = String::new(), "E_NOTE_YDOC_INVALID"),
+            (|n| n.body_version = -1, "E_NOTE_VERSION_INVALID"),
+            // Storage could not move it on to a version JavaScript holds exactly.
+            (
+                |n| n.body_version = MAX_BODY_VERSION,
+                "E_NOTE_VERSION_INVALID",
+            ),
+            (|n| n.body_version = i64::MAX, "E_NOTE_VERSION_INVALID"),
         ];
         for (mutate, code) in cases {
             let mut note = dto();

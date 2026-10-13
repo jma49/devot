@@ -201,6 +201,10 @@ fn upgrades_the_schema_v1_fixture() {
         .expect("fixture note survives the upgrade");
     assert_eq!(fixture_note.title, "Fixture note");
     assert_eq!(fixture_note.book_id, None, "v1 notes are in no notebook");
+    assert_eq!(
+        fixture_note.body_version, 0,
+        "a body from before body versions is at version 0"
+    );
     assert!(store.list_books().unwrap().is_empty());
 }
 
@@ -286,6 +290,104 @@ fn keeps_the_newer_value_of_each_note_field() {
     assert_eq!(
         store.list_notes().unwrap()[0].book_id.as_deref(),
         Some("book-2")
+    );
+}
+
+/// `note` written over body version `version`.
+fn based_on(version: i64, note: NoteRecord) -> NoteRecord {
+    NoteRecord {
+        body_version: version,
+        ..note
+    }
+}
+
+#[test]
+fn moves_the_body_version_on_with_each_write_based_on_it() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "A", 10), &[]).unwrap();
+    assert_eq!(store.get_note("a", false).unwrap().unwrap().body_version, 1);
+    store
+        .put_note(&based_on(1, note("a", "A", 11)), &[])
+        .unwrap();
+    assert_eq!(store.get_note("a", false).unwrap().unwrap().body_version, 2);
+    // In the Trash too.
+    let trashed = in_trash(based_on(2, note("a", "A", 12)), 12);
+    store.put_note(&trashed, &[]).unwrap();
+    assert_eq!(store.get_note("a", true).unwrap().unwrap().body_version, 3);
+}
+
+#[test]
+fn refuses_a_write_based_on_another_body_version_and_leaves_a_purged_note_alone() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "A", 10), &["b".into()]).unwrap();
+    store
+        .put_note(&based_on(1, note("a", "A", 11)), &["b".into()])
+        .unwrap();
+    let before = store.get_note("a", false).unwrap().unwrap();
+
+    // Based on version 1, which a write has moved on from: refused whole,
+    // its newer title and pin and its links with it.
+    let mut stale = based_on(1, note("a", "Late", 12));
+    stale.title_hlc = "0000000000000099-0000-test".into();
+    stale.pinned = true;
+    stale.pinned_hlc = "0000000000000099-0000-test".into();
+    let refused = store.put_note(&stale, &["c".into()]).unwrap_err();
+    assert_eq!(refused.to_string(), "E_NOTE_BODY_STALE");
+    // Based on a version storage never had.
+    let ahead = based_on(7, note("a", "A", 13));
+    let refused = store.put_note(&ahead, &[]).unwrap_err();
+    assert_eq!(refused.to_string(), "E_NOTE_BODY_STALE");
+    assert_eq!(store.get_note("a", false).unwrap(), Some(before));
+    assert_eq!(link_rows(&store), [("a".to_string(), "b".to_string())]);
+
+    // A purge is final: a write to a purged note is left alone, whatever its version.
+    store
+        .purge_note("a", 20, "0000000000000020-0000-test")
+        .unwrap();
+    for version in [0, 2, 3] {
+        store
+            .put_note(&based_on(version, note("a", "Revived", 30)), &[])
+            .unwrap();
+    }
+    assert_eq!(store.get_note("a", true).unwrap(), None);
+}
+
+#[test]
+fn a_body_written_on_another_connection_makes_a_write_based_on_the_one_before_stale() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    let mut window = Store::open(&path).unwrap();
+    let mut other = Store::open(&path).unwrap();
+    window.put_note(&note("a", "A", 10), &[]).unwrap();
+
+    // The window reads the note; the other connection writes it before the
+    // window's write lands.
+    let read = window.get_note("a", false).unwrap().unwrap();
+    let theirs = other.get_note("a", false).unwrap().unwrap();
+    let theirs = NoteRecord {
+        body_md: "middle end".into(),
+        ..theirs
+    };
+    other.put_note(&theirs, &[]).unwrap();
+    let mine = NoteRecord {
+        body_md: "start middle".into(),
+        ..read
+    };
+    let refused = window.put_note(&mine, &[]).unwrap_err();
+    assert_eq!(refused.to_string(), "E_NOTE_BODY_STALE");
+    let stored = window.get_note("a", false).unwrap().unwrap();
+    assert_eq!(stored.body_md, "middle end");
+
+    // After taking that in, the window writes again, based on it.
+    let merged = NoteRecord {
+        body_md: "start middle end".into(),
+        ..stored
+    };
+    window.put_note(&merged, &[]).unwrap();
+    let stored = window.get_note("a", false).unwrap().unwrap();
+    assert_eq!(
+        (stored.body_md.as_str(), stored.body_version),
+        ("start middle end", 3)
     );
 }
 

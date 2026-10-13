@@ -18,6 +18,8 @@ interface StoredNote {
   title: string
   bodyMd: string
   ydoc: number[]
+  /** Missing in a note stored before body versions: 0. */
+  bodyVersion?: number
 }
 
 const storedNotes = (page: Page) =>
@@ -36,6 +38,8 @@ async function editOutside(page: Page, title: string, edit: (doc: Y.Doc) => void
   edit(doc)
   note.ydoc = Array.from(Y.encodeStateAsUpdate(doc))
   note.bodyMd = doc.getText('body').toString()
+  // Storage moves the body version on with the write.
+  note.bodyVersion = (note.bodyVersion ?? 0) + 1
   await page.evaluate((all) => localStorage.setItem('devot.test.notes', JSON.stringify(all)), notes)
   // Rust's `devot://db-changed`, as the page re-sends it.
   await page.evaluate((name) => {

@@ -30,6 +30,7 @@ async function writeOutside(page: Page, title: string, body: string, bookId: str
         statusHlc: '',
         pinned: false,
         pinnedHlc: '',
+        bodyVersion: 1,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         deletedAt: null,
@@ -119,6 +120,8 @@ interface StoredNote {
   titleHlc: string
   bodyMd: string
   ydoc: number[]
+  /** Missing in a note stored before body versions: 0. */
+  bodyVersion?: number
 }
 
 const storedNotes = (page: Page) =>
@@ -127,7 +130,8 @@ const storedNotes = (page: Page) =>
 /**
  * Edits the stored note `id` behind the app's back, as another process
  * would: `edit` changes its Yjs document (so the change merges with the
- * app's), and a `title` replaces its title with a newer timestamp.
+ * app's) and storage moves its body version on, and a `title` replaces its
+ * title with a newer timestamp.
  */
 async function editOutside(page: Page, id: string, edit: (doc: Y.Doc) => void, title?: string) {
   const notes = await storedNotes(page)
@@ -138,6 +142,7 @@ async function editOutside(page: Page, id: string, edit: (doc: Y.Doc) => void, t
   edit(doc)
   note.ydoc = Array.from(Y.encodeStateAsUpdate(doc))
   note.bodyMd = doc.getText('body').toString()
+  note.bodyVersion = (note.bodyVersion ?? 0) + 1
   if (title !== undefined) {
     note.title = title
     note.titleHlc = `${String(Date.now() + 1000).padStart(16, '0')}-0000-mcptest`
@@ -170,4 +175,27 @@ test('the open note takes in what another process wrote to it', async ({ page })
     .poll(async () => (await storedNotes(page))[0]?.bodyMd)
     .toBe('From Claude. Typed here. More.')
   expect((await storedNotes(page))[0]?.title).toBe('Renamed')
+})
+
+test('typing saved before the window hears of an outside write keeps both', async ({ page }) => {
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  const body = page.getByRole('textbox', { name: 'Note body' })
+  await page.getByRole('textbox', { name: 'Title' }).fill('Shared')
+  await body.click()
+  await page.keyboard.type('Typed here.')
+  await expect.poll(async () => (await storedNotes(page))[0]?.bodyMd).toBe('Typed here.')
+  const [{ id }] = (await storedNotes(page)) as [StoredNote]
+
+  // Another process writes to the note; the window types and saves before
+  // it hears of that write.
+  await editOutside(page, id, (doc) => doc.getText('body').insert(0, 'From Claude. '))
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.type(' More.')
+  await expect
+    .poll(async () => (await storedNotes(page))[0]?.bodyMd)
+    .toBe('From Claude. Typed here. More.')
+
+  // Once it hears, the editor shows both.
+  await signalChange(page)
+  await expect(body).toHaveText('From Claude. Typed here. More.')
 })
