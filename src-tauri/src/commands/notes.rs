@@ -11,6 +11,11 @@ pub(crate) const MAX_YDOC_BYTES: usize = 64 * 1024 * 1024;
 /// Notes one body may link to; far above any real note. Matches MAX_NOTE_LINKS
 /// in src/core/links.ts, which devot-mcp checks before it writes.
 const MAX_LINKS: usize = 10_000;
+/// The largest version a note's body may be at, the largest whole number
+/// JavaScript holds exactly: a write is based on a version below it, so the
+/// version storage moves it on to stays exact in the core. Matches
+/// MAX_BODY_VERSION in src/core/noteLimits.ts.
+const MAX_BODY_VERSION: i64 = 9_007_199_254_740_991;
 
 /// A note as it crosses the IPC boundary: the Yjs state travels as base64.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -21,6 +26,9 @@ pub struct NoteDto {
     pub title_hlc: String,
     pub body_md: String,
     pub ydoc: String,
+    /// The version of the stored body the note's body is based on (see
+    /// `Store::put_note`).
+    pub body_version: i64,
     pub book_id: Option<String>,
     /// Empty when the notebook was never set.
     pub book_hlc: String,
@@ -44,6 +52,7 @@ impl From<NoteRecord> for NoteDto {
             title: note.title,
             title_hlc: note.title_hlc,
             body_md: note.body_md,
+            body_version: note.body_version,
             book_id: note.book_id,
             book_hlc: note.book_hlc,
             status: note.status,
@@ -100,6 +109,9 @@ impl NoteDto {
         if self.created_at < 0 || self.updated_at < self.created_at {
             return Err("E_NOTE_TIME_INVALID");
         }
+        if !(0..MAX_BODY_VERSION).contains(&self.body_version) {
+            return Err("E_NOTE_VERSION_INVALID");
+        }
         let ydoc = STANDARD
             .decode(self.ydoc.as_bytes())
             .map_err(|_| "E_NOTE_YDOC_INVALID")?;
@@ -112,6 +124,7 @@ impl NoteDto {
             title_hlc: self.title_hlc,
             body_md: self.body_md,
             ydoc,
+            body_version: self.body_version,
             book_id: self.book_id,
             book_hlc: self.book_hlc,
             status: self.status,

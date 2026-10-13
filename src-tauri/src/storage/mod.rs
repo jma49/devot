@@ -28,6 +28,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0013_compaction.sql"),
     include_str!("../../migrations/0014_list_indexes.sql"),
     include_str!("../../migrations/0015_search_index_writes.sql"),
+    include_str!("../../migrations/0016_body_versions.sql"),
 ];
 
 /// The schema version a fully migrated database reports.
@@ -38,6 +39,9 @@ pub enum StorageError {
     Sqlite(rusqlite::Error),
     NewerSchema(u32),
     SnapshotCheckFailed,
+    /// A note write based on a body version the stored body has moved on
+    /// from: another process wrote the note since its writer read it.
+    BodyStale,
 }
 
 /// The code a SQLite failure is reported and logged with, by its kind:
@@ -64,6 +68,7 @@ impl std::fmt::Display for StorageError {
             Self::Sqlite(error) => f.write_str(sqlite_code(error)),
             Self::NewerSchema(found) => write!(f, "E_STORAGE_SCHEMA_TOO_NEW v{found}"),
             Self::SnapshotCheckFailed => f.write_str("E_STORAGE_SNAPSHOT_CHECK_FAILED"),
+            Self::BodyStale => f.write_str("E_NOTE_BODY_STALE"),
         }
     }
 }
@@ -72,7 +77,7 @@ impl std::error::Error for StorageError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Sqlite(error) => Some(error),
-            Self::NewerSchema(_) | Self::SnapshotCheckFailed => None,
+            Self::NewerSchema(_) | Self::SnapshotCheckFailed | Self::BodyStale => None,
         }
     }
 }
@@ -132,6 +137,10 @@ pub struct NoteRecord {
     pub title_hlc: String,
     pub body_md: String,
     pub ydoc: Vec<u8>,
+    /// The version of the stored body this record's body is based on: read,
+    /// the stored one; written, the one its writer last saw (see
+    /// `Store::put_note`). 0 for a note not written yet.
+    pub body_version: i64,
     pub book_id: Option<String>,
     pub book_hlc: String,
     /// One of `NOTE_STATUSES`.
@@ -897,7 +906,7 @@ impl Store {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, title, title_hlc, body_md, ydoc, created_at, updated_at,
                     deleted_at, deleted_hlc, book_id, book_hlc, status, status_hlc,
-                    pinned, pinned_hlc
+                    pinned, pinned_hlc, body_version
              FROM notes WHERE id = ?1 AND purged_at IS NULL AND (?2 OR deleted_at IS NULL)",
         )?;
         Ok(statement
@@ -918,6 +927,7 @@ impl Store {
                     status_hlc: row.get(12)?,
                     pinned: row.get(13)?,
                     pinned_hlc: row.get(14)?,
+                    body_version: row.get(15)?,
                 })
             })
             .optional()?)
@@ -929,13 +939,22 @@ impl Store {
     /// The TypeScript adapter (tests/support/sqlite-adapter.ts) does the same.
     /// Writes a note and replaces its link index rows with `links` (the
     /// note IDs its body links to), unless the note was purged.
+    ///
+    /// A compare-and-set on the body: the note is written only while its
+    /// stored body is still at `note.body_version`, the version its writer
+    /// last saw, and its body moves on to the next one (a new note is stored
+    /// at the next one too). A write based on another version, which would
+    /// go over a body another process wrote since, is refused with
+    /// `StorageError::BodyStale` and changes nothing; its writer takes the
+    /// stored body in and writes again. A purged note is left alone,
+    /// whatever the version.
     pub fn put_note(&mut self, note: &NoteRecord, links: &[String]) -> Result<()> {
         let tx = self.conn.transaction()?;
         let written = tx.execute(
             "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, book_id, book_hlc,
                                 status, status_hlc, pinned, pinned_hlc,
-                                created_at, updated_at, deleted_at, deleted_hlc)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+                                created_at, updated_at, deleted_at, deleted_hlc, body_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16 + 1)
              ON CONFLICT (id) DO UPDATE SET
                title = CASE WHEN excluded.title_hlc > title_hlc THEN excluded.title ELSE title END,
                title_hlc = MAX(excluded.title_hlc, title_hlc),
@@ -950,8 +969,9 @@ impl Store {
                deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
                                   THEN excluded.deleted_hlc ELSE deleted_hlc END,
                body_md = excluded.body_md, ydoc = excluded.ydoc,
+               body_version = excluded.body_version,
                updated_at = MAX(excluded.updated_at, updated_at)
-             WHERE purged_at IS NULL",
+             WHERE purged_at IS NULL AND body_version = ?16",
             params![
                 note.id,
                 note.title,
@@ -967,9 +987,22 @@ impl Store {
                 note.created_at,
                 note.updated_at,
                 note.deleted_at,
-                note.deleted_hlc
+                note.deleted_hlc,
+                note.body_version
             ],
         )?;
+        if written == 0 {
+            // Nothing written: the note was purged (left alone), or its body
+            // moved on from the version the write is based on.
+            let purged: bool = tx.query_row(
+                "SELECT purged_at IS NOT NULL FROM notes WHERE id = ?1",
+                [&note.id],
+                |row| row.get(0),
+            )?;
+            if !purged {
+                return Err(StorageError::BodyStale);
+            }
+        }
         if written > 0 {
             tx.execute("DELETE FROM links WHERE source_id = ?1", [&note.id])?;
             let mut insert =

@@ -10,6 +10,7 @@ fn note(id: &str, title: &str, updated_at: i64) -> NoteRecord {
         title_hlc: format!("{updated_at:013}-0000-test"),
         body_md: format!("# {title}\n"),
         ydoc: vec![1, 2, 3, updated_at as u8],
+        body_version: 0,
         book_id: None,
         book_hlc: String::new(),
         status: "none".into(),
@@ -213,7 +214,11 @@ fn round_trips_a_note() {
     let (_dir, mut store) = temp_store();
     let original = note("a", "First", 10);
     store.put_note(&original, &[]).unwrap();
-    assert_eq!(store.get_note("a", false).unwrap(), Some(original));
+    // Stored with its body at the next version.
+    assert_eq!(
+        store.get_note("a", false).unwrap(),
+        Some(based_on(1, original))
+    );
     assert_eq!(store.get_note("missing", false).unwrap(), None);
 }
 
@@ -221,7 +226,7 @@ fn round_trips_a_note() {
 fn put_replaces_an_existing_note_but_keeps_created_at() {
     let (_dir, mut store) = temp_store();
     store.put_note(&note("a", "Old", 10), &[]).unwrap();
-    let mut newer = note("a", "New", 20);
+    let mut newer = based_on(1, note("a", "New", 20));
     newer.created_at = 999;
     store.put_note(&newer, &[]).unwrap();
     let stored = store.get_note("a", false).unwrap().unwrap();
@@ -272,8 +277,9 @@ fn keeps_the_newer_value_of_each_note_field() {
     newer.book_hlc = "0000000000000030-0000-a".into();
     store.put_note(&newer, &[]).unwrap();
 
-    // A stale copy: older title and notebook, newer body.
-    let mut stale = note("a", "Old title", 40);
+    // A stale copy: older title and notebook, newer body (written over the
+    // body as stored).
+    let mut stale = based_on(1, note("a", "Old title", 40));
     stale.title_hlc = "0000000000000010-0000-a".into();
     stale.book_id = Some("book-1".into());
     stale.book_hlc = "0000000000000010-0000-a".into();
@@ -672,7 +678,7 @@ fn every_write_waits_out_another_writer() {
     let writes: Vec<(&str, Write)> = vec![
         (
             "put_note",
-            Box::new(|s| s.put_note(&note("a", "Renamed", 30), &[])),
+            Box::new(|s| s.put_note(&based_on(1, note("a", "Renamed", 30)), &[])),
         ),
         (
             "put_file",
@@ -731,7 +737,7 @@ fn merges_status_and_pinning_per_field() {
     newer.pinned = true;
     newer.pinned_hlc = "0000000000000010-0000-a".into();
     store.put_note(&newer, &[]).unwrap();
-    let mut other = note("a", "A", 10);
+    let mut other = based_on(1, note("a", "A", 10));
     other.status = "dropped".into();
     other.status_hlc = "0000000000000020-0000-b".into();
     other.pinned = false;
@@ -890,7 +896,7 @@ fn the_search_index_follows_edits_and_purges() {
     let mut a = note("a", "Draft", 10);
     a.body_md = "first words".into();
     store.put_note(&a, &[]).unwrap();
-    let mut edited = a.clone();
+    let mut edited = based_on(1, a.clone());
     edited.body_md = "second words".into();
     edited.updated_at = 20;
     store.put_note(&edited, &[]).unwrap();
@@ -1214,28 +1220,28 @@ fn a_write_rewrites_the_search_index_only_when_title_or_markdown_changes() {
         store.put_note(record, &[]).unwrap();
         store.conn.total_changes() - before
     };
-    let mut pinned = plan.clone();
+    let mut pinned = based_on(1, plan.clone());
     pinned.pinned = true;
     pinned.pinned_hlc = "0000000000002-0000-test".into();
     pinned.updated_at = 2;
     assert_eq!(cost(&mut store, &pinned), 1, "a pin writes the row alone");
-    let mut trashed = pinned.clone();
+    let mut trashed = based_on(2, pinned.clone());
     trashed.deleted_at = Some(3);
     trashed.deleted_hlc = Some("0000000000003-0000-test".into());
     assert_eq!(cost(&mut store, &trashed), 1, "so does the Trash");
-    let mut restored = trashed.clone();
+    let mut restored = based_on(3, trashed.clone());
     restored.deleted_at = None;
     restored.deleted_hlc = Some("0000000000004-0000-test".into());
     assert_eq!(cost(&mut store, &restored), 1, "and a restore");
     let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 10).unwrap().len();
     assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
 
-    let mut renamed = restored.clone();
+    let mut renamed = based_on(4, restored.clone());
     renamed.title = "Launch day".into();
     renamed.title_hlc = "0000000000005-0000-test".into();
     assert!(cost(&mut store, &renamed) > 1, "a new title is indexed");
     assert_eq!((found(&store, "plan"), found(&store, "day")), (0, 1));
-    let mut edited = renamed.clone();
+    let mut edited = based_on(5, renamed.clone());
     edited.body_md = "Snapshot first.".into();
     assert!(cost(&mut store, &edited) > 1, "a new body is indexed");
     assert_eq!((found(&store, "relay"), found(&store, "snapshot")), (0, 1));
@@ -1410,7 +1416,7 @@ fn stores_attachments_for_live_notes_and_purges_them_with_the_note() {
     assert!(store.get_file("f2").unwrap().is_none());
 
     // Trashed: the attachment stays. Purged: it goes.
-    let mut trashed = note("n", "Note", 10);
+    let mut trashed = based_on(1, note("n", "Note", 10));
     trashed.deleted_at = Some(20);
     trashed.deleted_hlc = Some("0000000000000020-0000-a".into());
     store.put_note(&trashed, &[]).unwrap();
@@ -1427,11 +1433,11 @@ fn reads_bodies_of_live_notes_and_names_of_attachments_for_the_mirror() {
     store.put_note(&note("a", "Alive", 10), &[]).unwrap();
     store.put_note(&note("b", "Trashed", 10), &[]).unwrap();
     store.put_note(&note("c", "Purged", 10), &[]).unwrap();
-    let mut trashed = note("b", "Trashed", 10);
+    let mut trashed = based_on(1, note("b", "Trashed", 10));
     trashed.deleted_at = Some(20);
     trashed.deleted_hlc = Some("0000000000000020-0000-a".into());
     store.put_note(&trashed, &[]).unwrap();
-    let mut purged = note("c", "Purged", 10);
+    let mut purged = based_on(1, note("c", "Purged", 10));
     purged.deleted_at = Some(20);
     purged.deleted_hlc = Some("0000000000000020-0000-a".into());
     store.put_note(&purged, &[]).unwrap();
@@ -1513,7 +1519,7 @@ fn copies_attachments_to_a_live_note_and_keeps_them_when_the_source_is_purged() 
     assert_eq!(store.get_file("f2").unwrap().unwrap().data, vec![1, 2, 3]);
 
     // A trashed note takes no copies.
-    let mut trashed = note("b", "Extracted", 11);
+    let mut trashed = based_on(1, note("b", "Extracted", 11));
     trashed.deleted_at = Some(70);
     trashed.deleted_hlc = Some("0000000000000070-0000-a".into());
     store.put_note(&trashed, &[]).unwrap();
@@ -1631,7 +1637,10 @@ fn an_attachment_no_other_note_shows_any_more_goes_with_its_note() {
         .unwrap();
     // b's link is edited away before the purge: only its latest body counts.
     store
-        .put_note(&note_showing("b", "The image was removed"), &[])
+        .put_note(
+            &based_on(1, note_showing("b", "The image was removed")),
+            &[],
+        )
         .unwrap();
     store
         .purge_note("a", 30, "0000000000000030-0000-a")
@@ -1663,8 +1672,10 @@ fn keeps_each_notes_link_rows_with_its_latest_body() {
         [pair("a", "b"), pair("a", "c"), pair("b", "a")]
     );
     // A new body replaces the rows; trashing keeps them; purging drops them.
-    store.put_note(&note("a", "A", 11), &["d".into()]).unwrap();
-    let mut trashed = note("b", "B", 12);
+    store
+        .put_note(&based_on(1, note("a", "A", 11)), &["d".into()])
+        .unwrap();
+    let mut trashed = based_on(1, note("b", "B", 12));
     trashed.deleted_at = Some(12);
     trashed.deleted_hlc = Some("0000000000000012-0000-a".into());
     store.put_note(&trashed, &["a".into()]).unwrap();
@@ -1805,7 +1816,7 @@ fn restoring_a_snapshot_brings_back_every_record() {
         .put_note(&note("late", "Groceries later", 20), &[])
         .unwrap();
     store
-        .put_note(&note("b", "Ideas renamed", 21), &[])
+        .put_note(&based_on(1, note("b", "Ideas renamed", 21)), &[])
         .unwrap();
     store
         .purge_note("a", 22, "0000000000000022-0000-a")
@@ -2119,7 +2130,7 @@ fn trashing_keeps_revisions_and_purging_deletes_them_for_good() {
     let (_dir, mut store) = temp_store();
     store.put_note(&note("a", "A", 10), &[]).unwrap();
     store.put_revision(&version("r1", "a", 1, &[1])).unwrap();
-    let mut trashed = note("a", "A", 11);
+    let mut trashed = based_on(1, note("a", "A", 11));
     trashed.deleted_at = Some(11);
     trashed.deleted_hlc = Some("0000000000000011-0000-a".into());
     store.put_note(&trashed, &[]).unwrap();
