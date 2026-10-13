@@ -4,6 +4,7 @@ import {
   FONT_FAMILIES,
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
+  APPEARANCES,
   INDENT_UNITS,
   LINE_HEIGHTS,
   LIST_MARKERS,
@@ -34,6 +35,9 @@ describe('editor settings', () => {
       // Split mode scrolls the editor and the preview together unless turned off.
       syncScroll: true,
       inlineImages: true,
+      // The system's appearance, with Devot's own accent.
+      appearance: 'system',
+      systemAccent: false,
     })
   })
 
@@ -43,6 +47,7 @@ describe('editor settings', () => {
     expect(INDENT_UNITS).toEqual(['spaces2', 'spaces4', 'tab'])
     expect(LIST_MARKERS).toEqual(['-', '*'])
     expect(PASTE_URL_STYLES).toEqual(['plain', 'autolink', 'link'])
+    expect(APPEARANCES).toEqual(['light', 'dark', 'system'])
     expect([FONT_SIZE_MIN, FONT_SIZE_MAX]).toEqual([10, 32])
     for (const h of LINE_HEIGHTS) expect(h >= 1 && h <= 2.5).toBe(true)
     expect(LINE_HEIGHTS).toContain(DEFAULT_EDITOR_SETTINGS.lineHeight)
@@ -108,9 +113,22 @@ describe('editor settings', () => {
       { syncScroll: 1 },
       { inlineImages: 'on' },
       { inlineImages: 1 },
+      { appearance: 'auto' },
+      { appearance: true },
+      { systemAccent: 'on' },
     ]) {
       expect(() => checkEditorSettingsPatch(bad)).toThrow('E_EDITOR_SETTINGS_INVALID')
     }
+  })
+
+  it('reads the appearance as light, dark or system, and anything else as system', () => {
+    for (const appearance of ['light', 'dark', 'system'] as const) {
+      expect(parseEditorSettings({ appearance }).appearance).toBe(appearance)
+      expect(checkEditorSettingsPatch({ appearance })).toEqual({ appearance })
+    }
+    for (const appearance of ['Dark', 'auto', '', 1, null])
+      expect(parseEditorSettings({ appearance }).appearance).toBe('system')
+    expect(parseEditorSettings({ systemAccent: true }).systemAccent).toBe(true)
   })
 
   it('steps the font size within its range', () => {

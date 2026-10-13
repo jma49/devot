@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 pub const FILE: &str = "editor-settings.json";
 pub const CHANGED_EVENT: &str = "devot://editor-settings-changed";
@@ -71,6 +71,27 @@ pub enum PasteUrl {
     Link,
 }
 
+/// The appearance the windows show (Settings > Appearance): the system's,
+/// or always light or dark.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Appearance {
+    System,
+    Light,
+    Dark,
+}
+
+impl Appearance {
+    /// The theme a window takes: `None` follows the system.
+    pub fn window_theme(self) -> Option<tauri::Theme> {
+        match self {
+            Self::System => None,
+            Self::Light => Some(tauri::Theme::Light),
+            Self::Dark => Some(tauri::Theme::Dark),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorSettings {
@@ -93,12 +114,16 @@ pub struct EditorSettings {
     pub sync_scroll: bool,
     /// Images (attachments) show under their lines in the editor.
     pub inline_images: bool,
+    /// Light, Dark, or the system's appearance (the default).
+    pub appearance: Appearance,
+    /// The accent follows the macOS accent colour instead of Devot's palette.
+    pub system_accent: bool,
 }
 
 impl Default for EditorSettings {
     /// The editor as it was before these settings existed (with SF Mono),
-    /// the sidebar material on, synced scrolling on, and images shown under
-    /// their lines.
+    /// the sidebar material on, synced scrolling on, images shown under
+    /// their lines, and the system's appearance with Devot's own accent.
     fn default() -> Self {
         Self {
             line_numbers: false,
@@ -116,6 +141,8 @@ impl Default for EditorSettings {
             paste_url: PasteUrl::Plain,
             sync_scroll: true,
             inline_images: true,
+            appearance: Appearance::System,
+            system_accent: false,
         }
     }
 }
@@ -159,6 +186,8 @@ impl EditorSettings {
             "pasteUrl" => self.paste_url = choice(value)?,
             "syncScroll" => self.sync_scroll = flag(value)?,
             "inlineImages" => self.inline_images = flag(value)?,
+            "appearance" => self.appearance = choice(value)?,
+            "systemAccent" => self.system_accent = flag(value)?,
             _ => return Err(INVALID),
         }
         Ok(())
@@ -309,10 +338,18 @@ pub async fn editor_settings_get(
 }
 
 /// Tells every window about stored settings, and brings the menu bar's
-/// check items (View > Synced Scrolling) in line with them.
+/// check items (View > Synced Scrolling) in line with them. Every window
+/// takes the chosen appearance, so its material, its controls and the page's
+/// `prefers-color-scheme` match it.
 pub fn announce(app: &AppHandle, next: &Snapshot) {
     if app.emit(CHANGED_EVENT, next).is_err() {
         log::warn!("W_EDITOR_SETTINGS_EMIT_FAILED");
+    }
+    let theme = next.settings.appearance.window_theme();
+    for window in app.webview_windows().values() {
+        if window.set_theme(theme).is_err() {
+            log::warn!("W_WINDOW_THEME_FAILED");
+        }
     }
     crate::menu::show_editor_settings(app, next);
 }
@@ -380,6 +417,9 @@ mod tests {
         assert!(d.sync_scroll);
         // Images show under their lines unless turned off.
         assert!(d.inline_images);
+        // The system's appearance, with Devot's own accent.
+        assert_eq!(d.appearance, Appearance::System);
+        assert!(!d.system_accent);
     }
 
     #[test]
@@ -403,6 +443,8 @@ mod tests {
                 "pasteUrl": "plain",
                 "syncScroll": true,
                 "inlineImages": true,
+                "appearance": "system",
+                "systemAccent": false,
             })
         );
     }
@@ -426,8 +468,22 @@ mod tests {
                 "pasteUrl": "link",
                 "syncScroll": false,
                 "inlineImages": false,
+                "appearance": "dark",
+                "systemAccent": true,
             })))
             .unwrap();
+        assert_eq!(next.appearance, Appearance::Dark);
+        assert!(next.system_accent);
+        for (appearance, theme) in [
+            ("light", Some(tauri::Theme::Light)),
+            ("dark", Some(tauri::Theme::Dark)),
+            ("system", None),
+        ] {
+            let read = EditorSettings::default()
+                .with(&patch(json!({ "appearance": appearance })))
+                .unwrap();
+            assert_eq!(read.appearance.window_theme(), theme);
+        }
         assert_eq!(next.paste_url, PasteUrl::Link);
         assert!(!next.inline_images);
         assert!(!next.line_numbers && !next.line_wrapping && !next.highlight_active_line);
@@ -501,6 +557,10 @@ mod tests {
             json!({ "inlineImages": "on" }),
             json!({ "inlineImages": 1 }),
             json!({ "inlineImages": null }),
+            json!({ "appearance": "auto" }),
+            json!({ "appearance": "Dark" }),
+            json!({ "appearance": true }),
+            json!({ "systemAccent": "on" }),
             // One bad value spoils the good ones with it.
             json!({ "lineNumbers": false, "fontSize": 99 }),
         ];

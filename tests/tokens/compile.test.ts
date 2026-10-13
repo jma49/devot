@@ -75,25 +75,43 @@ describe('token compiler', () => {
   it('maps the real design tokens for both appearances', () => {
     const { css } = compile(base, light, dark)
     const [lightBlock, darkBlock] = css.split('@media (prefers-color-scheme: dark)')
-    expect(lightBlock).toContain('--color-surface-list: #f7f6f4;')
-    expect(darkBlock).toContain('--color-surface-list: #1a1918;')
-    expect(lightBlock).toContain('--color-surface-sidebar: rgb(241 240 237 / 0.7);')
+    expect(lightBlock).toContain('--color-surface-list: #fafaf9;')
+    expect(darkBlock).toContain('--color-surface-list: #111111;')
+    expect(lightBlock).toContain('--color-surface-sidebar: rgb(243 244 246 / 0.7);')
     expect(lightBlock).toContain('--font-size-body: 13px;')
     expect(lightBlock).toContain('--size-sidebar-row: 28px;')
   })
 
-  it('lets the system accent override the teal fallback per appearance', () => {
+  it('applies an appearance chosen in Settings, or shown by a preview, over the system one', () => {
+    const { css } = compile(base, light, dark)
+    const [, darkBlock = ''] = css.split('@media (prefers-color-scheme: dark)')
+    // The system's dark appearance applies unless Light was chosen.
+    expect(darkBlock).toContain(":root:not([data-appearance='light']) {")
+    const chosen = (appearance: string) => {
+      const start = css.indexOf(
+        `:root[data-appearance='${appearance}'], [data-appearance-preview='${appearance}'] {`,
+      )
+      expect(start).toBeGreaterThan(-1)
+      return css.slice(start, css.indexOf('}', start))
+    }
+    expect(chosen('dark')).toContain('color-scheme: dark;')
+    expect(chosen('dark')).toContain('--color-surface-editor: #0a0a0a;')
+    expect(chosen('light')).toContain('color-scheme: light;')
+    expect(chosen('light')).toContain('--color-surface-editor: #ffffff;')
+  })
+
+  it('lets the system accent override the default accent per appearance', () => {
     const { css } = compile(base, light, dark)
     const [lightBlock, darkBlock] = css.split('@media (prefers-color-scheme: dark)')
-    expect(lightBlock).toContain('--color-accent-fill: var(--system-accent-fill-light, #0e6b62);')
-    expect(darkBlock).toContain('--color-accent-fill: var(--system-accent-fill-dark, #25837a);')
-    expect(lightBlock).toContain('--color-accent-text: var(--system-accent-text-light, #0d655c);')
-    expect(darkBlock).toContain('--color-accent-text: var(--system-accent-text-dark, #63cdbf);')
+    expect(lightBlock).toContain('--color-accent-fill: var(--system-accent-fill-light, #3472d6);')
+    expect(darkBlock).toContain('--color-accent-fill: var(--system-accent-fill-dark, #4576b2);')
+    expect(lightBlock).toContain('--color-accent-text: var(--system-accent-text-light, #2856a2);')
+    expect(darkBlock).toContain('--color-accent-text: var(--system-accent-text-dark, #7ea6d8);')
     expect(lightBlock).toContain(
-      '--color-accent-selection: var(--system-accent-selection-light, #d0e1df);',
+      '--color-accent-selection: var(--system-accent-selection-light, #e3d6fb);',
     )
     expect(darkBlock).toContain(
-      '--color-accent-selection: var(--system-accent-selection-dark, #1f3531);',
+      '--color-accent-selection: var(--system-accent-selection-dark, #29233a);',
     )
     expect(lightBlock).toContain('--color-accent-on-fill: #ffffff;')
   })
@@ -102,7 +120,7 @@ describe('token compiler', () => {
     const { css, ts } = compile(base, light, dark)
     expect(css).not.toContain('--color-paper-')
     expect(css).not.toContain('--color-teal-')
-    expect(ts).toContain('"color.surface.editor": "#fdfdfc"')
+    expect(ts).toContain('"color.surface.editor": "#ffffff"')
     expect(ts).toContain('"size.toolbar-height": "52px"')
   })
 

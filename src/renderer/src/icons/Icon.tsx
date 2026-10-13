@@ -1,24 +1,18 @@
 import { invoke } from '../ipc'
 import { useEffect, useState, useSyncExternalStore } from 'react'
+import { shownAppearance, subscribeAppearance } from '../theme/appearance'
 import { createSymbolCache, symbolFor, type Appearance, type IconName } from './symbols'
 
 const cache = createSymbolCache((name, pointSize) =>
   invoke<string>('symbol_png', { name, pointSize }),
 )
 
-const DARK = '(prefers-color-scheme: dark)'
-
 /** Each size in points, as its `--size-icon-*` token. */
 const POINT_SIZES = { sm: 14, md: 17, lg: 22 } as const
 
-function subscribe(onChange: () => void) {
-  const query = matchMedia(DARK)
-  query.addEventListener('change', onChange)
-  return () => query.removeEventListener('change', onChange)
-}
-
+/** The appearance the page shows: the one chosen in Settings, else the system's. */
 export function useAppearance(): Appearance {
-  return useSyncExternalStore(subscribe, () => (matchMedia(DARK).matches ? 'dark' : 'light'))
+  return useSyncExternalStore(subscribeAppearance, () => shownAppearance())
 }
 
 /**

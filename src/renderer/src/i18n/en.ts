@@ -245,6 +245,17 @@ export const en = {
   'editorSettings.spellCheck': 'Check spelling while typing',
   'editorSettings.failed': 'The editor settings could not be saved ({code}).',
   'appearanceSettings.title': 'Appearance',
+  'appearanceSettings.appearance': 'Appearance',
+  'appearanceSettings.light': 'Light',
+  'appearanceSettings.dark': 'Dark',
+  'appearanceSettings.system': 'Match System',
+  'appearanceSettings.previewHeading': 'Heading',
+  'appearanceSettings.previewItem': 'List item',
+  'appearanceSettings.previewCode': 'code',
+  'appearanceSettings.accent': 'Accent colour',
+  'appearanceSettings.systemAccent': 'Use the system accent colour',
+  'appearanceSettings.systemAccentHint':
+    'Buttons, links and selections follow the accent colour chosen in System Settings.',
   'appearanceSettings.sidebar': 'Sidebar',
   'appearanceSettings.sidebarMaterial': 'Translucent sidebar',
   'appearanceSettings.sidebarMaterialHint':

@@ -14,6 +14,8 @@ export type ListMarker = '-' | '*'
  * over selected text always makes that text a link.
  */
 export type PasteUrlStyle = 'plain' | 'autolink' | 'link'
+/** The appearance the windows show (Settings > Appearance): the system's, or always light or dark. */
+export type AppearanceChoice = 'system' | 'light' | 'dark'
 
 export interface EditorSettings {
   lineNumbers: boolean
@@ -38,11 +40,16 @@ export interface EditorSettings {
   syncScroll: boolean
   /** Images (attachments) show under their lines in the editor. */
   inlineImages: boolean
+  /** Light, Dark, or the system's appearance (the default). */
+  appearance: AppearanceChoice
+  /** The accent follows the macOS accent colour instead of Devot's palette. */
+  systemAccent: boolean
 }
 
 /**
  * The editor as it was before these settings existed (with SF Mono), the
- * sidebar material on, synced scrolling on, and images shown under their lines.
+ * sidebar material on, synced scrolling on, images shown under their lines,
+ * and the system's appearance with Devot's own accent.
  */
 export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   lineNumbers: false,
@@ -60,6 +67,8 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   pasteUrl: 'plain',
   syncScroll: true,
   inlineImages: true,
+  appearance: 'system',
+  systemAccent: false,
 })
 
 export const FONT_FAMILIES: readonly FontFamilyId[] = [
@@ -72,6 +81,8 @@ export const FONT_FAMILIES: readonly FontFamilyId[] = [
 export const INDENT_UNITS: readonly IndentUnitId[] = ['spaces2', 'spaces4', 'tab']
 export const LIST_MARKERS: readonly ListMarker[] = ['-', '*']
 export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 'link']
+/** The appearances Settings offers, in its order. */
+export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
 export const FONT_SIZE_MIN = 10
 export const FONT_SIZE_MAX = 32
 const LINE_HEIGHT_MIN = 1
@@ -111,6 +122,8 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   pasteUrl: oneOf(PASTE_URL_STYLES),
   syncScroll: isFlag,
   inlineImages: isFlag,
+  appearance: oneOf(APPEARANCES),
+  systemAccent: isFlag,
 }
 
 const KEYS = Object.keys(VALID) as (keyof EditorSettings)[]

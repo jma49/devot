@@ -25,9 +25,9 @@ describe('tag colour palette', () => {
       expect(Object.keys(theme(appearance).color.tag ?? {})).toEqual([...TAG_COLORS])
     }
     const css = read('src/renderer/src/theme/tokens.css')
-    // Once for light, once for dark.
+    // For the system's light and dark, then for each appearance chosen in Settings.
     const counts = TAG_COLORS.map((id) => css.split(`--color-tag-${id}:`).length - 1)
-    expect(counts).toEqual(TAG_COLORS.map(() => 2))
+    expect(counts).toEqual(TAG_COLORS.map(() => 4))
   })
 
   it('styles every colour: a class sets the dot colour from its token', () => {

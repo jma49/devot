@@ -19,6 +19,18 @@ body {
   cursor: default;
 }
 
+/* Thin scroll bars, a rounded thumb on a clear track. */
+::-webkit-scrollbar {
+  width: var(--size-scrollbar);
+  height: var(--size-scrollbar);
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-scrollbar);
+}
+
 button {
   font: inherit;
   color: inherit;
@@ -2016,6 +2028,77 @@ button {
 
 .settings-check:has(input:disabled) {
   color: var(--color-text-secondary);
+}
+
+/* Settings > Appearance: a card per appearance, with a few lines of Markdown in its colours. */
+.theme-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.theme-card-previews {
+  display: flex;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  box-shadow: 0 0 0 1px var(--color-line-hairline);
+}
+
+.theme-card:has(input:checked) .theme-card-previews {
+  box-shadow: 0 0 0 2px var(--color-accent-fill);
+}
+
+.theme-card:has(input:focus-visible) .theme-card-previews {
+  outline: 2px solid var(--color-accent-fill);
+  outline-offset: 2px;
+}
+
+.theme-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: calc(var(--space-10) * 3);
+  padding: var(--space-4);
+  background: var(--color-surface-editor);
+  color: var(--color-text-editor);
+  font: var(--font-size-caption) / 1.4 var(--font-family-mono);
+  white-space: nowrap;
+}
+
+/* Match System shows half of each. */
+.theme-card-previews .theme-preview + .theme-preview,
+.theme-card-previews .theme-preview:has(+ .theme-preview) {
+  width: calc(var(--space-10) * 1.5);
+  overflow: hidden;
+}
+
+.theme-preview-heading {
+  color: var(--color-syntax-heading);
+  font-weight: var(--font-weight-bold);
+}
+
+.theme-preview-markup {
+  color: var(--color-syntax-markup);
+  font-weight: var(--font-weight-regular);
+}
+
+.theme-preview-list {
+  color: var(--color-syntax-list);
+}
+
+.theme-preview-keyword {
+  color: var(--color-syntax-keyword);
+}
+
+.theme-card-name {
+  font-size: var(--font-size-footnote);
 }
 
 /* A checkbox with a hint under it, lined up with the checkbox's text. */

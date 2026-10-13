@@ -8,6 +8,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { startShortcutSettings } from './commands/shortcutSettings'
 import { startEditorSettings } from './editorSettings'
+import { startAppearance } from './theme/appearance'
 import { resolveLocale, setLocale, t } from './i18n'
 import { watchCompositions } from './ime'
 import { SettingsWindow } from './settings/SettingsWindow'
@@ -19,6 +20,7 @@ document.title = t('settings.title')
 // Before any key handler: the key that ends a composition is the input method's.
 watchCompositions(window)
 startEditorSettings()
+startAppearance()
 startShortcutSettings()
 
 const root = document.getElementById('root')
