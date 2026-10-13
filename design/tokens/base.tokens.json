@@ -457,6 +457,14 @@
       }
     },
     "size": {
+      "caption2": {
+        "$type": "dimension",
+        "$description": "The smallest text: tag pills in the note list.",
+        "$value": {
+          "value": 10,
+          "unit": "px"
+        }
+      },
       "caption": {
         "$type": "dimension",
         "$value": {
@@ -628,6 +636,14 @@
       "$type": "dimension",
       "$value": {
         "value": 8,
+        "unit": "px"
+      }
+    },
+    "pill": {
+      "$type": "dimension",
+      "$description": "Tag pills in the note list.",
+      "$value": {
+        "value": 12,
         "unit": "px"
       }
     },

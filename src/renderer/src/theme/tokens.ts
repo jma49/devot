@@ -3,6 +3,7 @@
 export const sizes = {
   "font.family.ui": "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', sans-serif",
   "font.family.mono": "ui-monospace, 'SF Mono', Menlo, monospace",
+  "font.size.caption2": "10px",
   "font.size.caption": "11px",
   "font.size.footnote": "12px",
   "font.size.body": "13px",
@@ -28,6 +29,7 @@ export const sizes = {
   "radius.button": "6px",
   "radius.field": "7px",
   "radius.card": "8px",
+  "radius.pill": "12px",
   "radius.capsule": "999px",
   "size.sidebar-width": "232px",
   "size.list-width": "320px",
@@ -57,11 +59,14 @@ export const light = {
   "color.text.tertiary": "#68655d",
   "color.text.destructive": "#af3b36",
   "color.line.hairline": "rgb(28 27 25 / 0.1)",
+  "color.line.control": "rgb(28 27 25 / 0.18)",
   "color.fill.track": "rgb(28 27 25 / 0.055)",
   "color.fill.row-selected-unemphasized": "rgb(28 27 25 / 0.075)",
   "color.fill.segment-on": "#ffffff",
   "color.fill.match": "rgb(245 197 66 / 0.5)",
   "color.fill.match-current": "rgb(239 138 23 / 0.55)",
+  "color.fill.row-selected": "rgb(28 27 25 / 0.12)",
+  "color.fill.tool-hover": "rgb(28 27 25 / 0.09)",
   "color.accent.fill": "#0e6b62",
   "color.accent.text": "#0d655c",
   "color.accent.selection": "#d0e1df",
@@ -92,7 +97,9 @@ export const light = {
   "color.activity.level-1": "rgb(14 107 98 / 0.25)",
   "color.activity.level-2": "rgb(14 107 98 / 0.45)",
   "color.activity.level-3": "rgb(14 107 98 / 0.7)",
-  "color.activity.level-4": "#0e6b62"
+  "color.activity.level-4": "#0e6b62",
+  "color.mark.bg": "#f3e1bb",
+  "color.mark.border": "#d9b871"
 } as const
 
 export const dark = {
@@ -105,11 +112,14 @@ export const dark = {
   "color.text.tertiary": "#969288",
   "color.text.destructive": "#f0a6a2",
   "color.line.hairline": "rgb(235 232 226 / 0.1)",
+  "color.line.control": "rgb(235 232 226 / 0.2)",
   "color.fill.track": "rgb(235 232 226 / 0.07)",
   "color.fill.row-selected-unemphasized": "rgb(235 232 226 / 0.1)",
   "color.fill.segment-on": "rgb(235 232 226 / 0.22)",
   "color.fill.match": "rgb(227 164 58 / 0.38)",
   "color.fill.match-current": "rgb(242 155 56 / 0.5)",
+  "color.fill.row-selected": "rgb(235 232 226 / 0.14)",
+  "color.fill.tool-hover": "rgb(235 232 226 / 0.12)",
   "color.accent.fill": "#25837a",
   "color.accent.text": "#63cdbf",
   "color.accent.selection": "#1f3531",
@@ -140,7 +150,9 @@ export const dark = {
   "color.activity.level-1": "rgb(99 205 191 / 0.22)",
   "color.activity.level-2": "rgb(99 205 191 / 0.42)",
   "color.activity.level-3": "rgb(99 205 191 / 0.66)",
-  "color.activity.level-4": "#63cdbf"
+  "color.activity.level-4": "#63cdbf",
+  "color.mark.bg": "#5b4a26",
+  "color.mark.border": "#80672f"
 } as const
 
 export type ThemeColor = keyof typeof light

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, statusPicker, bookPicker } from './fixtures'
 
 // Note templates: notes in the sidebar's Templates view, kept out of the
 // library, and Cmd+T (or New Note from Template... in the palette) to make
@@ -66,7 +66,7 @@ test('templates live in their own view, out of All Notes and search', async ({ p
   await expect(
     page.getByText(/Front matter sets the title, notebook, tags and status/),
   ).toBeVisible()
-  await expect(page.getByRole('combobox', { name: 'Notebook' })).toHaveCount(0)
+  await expect(bookPicker(page)).toHaveCount(0)
   // Nor does a template take a status: the palette offers none.
   await page.keyboard.press('Meta+KeyP')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
@@ -122,11 +122,9 @@ test('Cmd+T makes a note from a template, with its defaults and variables filled
   await expect(body(page)).toContainText('lang: en')
   await expect(body(page)).not.toContainText('notebook:')
   await expect(body(page)).not.toContainText('status:')
-  await expect(page.getByRole('combobox', { name: 'Notebook' })).toHaveValue(/.+/)
-  await expect(
-    page.getByRole('combobox', { name: 'Notebook' }).locator('option:checked'),
-  ).toHaveText('Work')
-  await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('active')
+  await expect(bookPicker(page)).toHaveAttribute('data-value', /.+/)
+  await expect(bookPicker(page).locator('.popup-value')).toHaveText('Work')
+  await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
   await expect(page.getByRole('group', { name: 'Tags' })).toContainText('meeting')
   // The new note takes the keyboard, as a new note does.
   await expect(body(page)).toBeFocused()

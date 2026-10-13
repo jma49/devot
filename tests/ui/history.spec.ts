@@ -1,5 +1,16 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test, pickNoteMore, openNotePinned } from './fixtures'
+import {
+  expect,
+  pickMenuItem,
+  shownMenu,
+  test,
+  pickNoteMore,
+  openNotePinned,
+  pickStatus,
+  statusPicker,
+  bookPicker,
+  pickBook,
+} from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
@@ -121,15 +132,15 @@ test('lists title, notebook, status and pin changes with the versions', async ({
   await appendText(page, ' and more')
   await titleField(page).fill('Final')
   await expect(noteRow(page, 'Final')).toHaveCount(1)
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
-  await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('active')
+  await pickStatus(page, 'Active')
+  await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
   await pickNoteMore(page, 'Pin to Top')
   await expect.poll(() => openNotePinned(page)).toBe(true)
-  const notebook = page.getByRole('combobox', { name: 'Notebook' })
-  await notebook.selectOption({ label: 'No Notebook' })
-  await expect(notebook).toHaveValue('')
-  await notebook.selectOption({ label: 'Work' })
-  await expect(notebook).not.toHaveValue('')
+  const notebook = bookPicker(page)
+  await pickBook(page, 'No Notebook')
+  await expect(notebook).toHaveAttribute('data-value', '')
+  await pickBook(page, 'Work')
+  await expect(notebook).not.toHaveAttribute('data-value', '')
 
   await pickNoteMore(page, 'Revision History\u2026')
   await expect(entries(page)).toHaveCount(7)

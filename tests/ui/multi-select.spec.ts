@@ -8,6 +8,8 @@ import {
   shownMenu,
   test,
   type TestWindow,
+  pickStatus,
+  statusPicker,
 } from './fixtures'
 import { seedNotes } from './renders'
 
@@ -334,7 +336,7 @@ test('the summary moves, pins, sets the status of and trashes every selected not
   await expect(dialog).toHaveCount(0)
   await expect(book(page, 'Work')).toContainText('3')
 
-  await summary(page).getByRole('combobox', { name: 'Status' }).selectOption({ label: 'On Hold' })
+  await pickStatus(summary(page), 'On Hold')
   await expect(sourceRow(page, 'On Hold')).toHaveText(/3$/)
   await summary(page).getByRole('button', { name: 'Pin to Top' }).click()
   await expect(summary(page).getByRole('button', { name: 'Unpin' })).toBeVisible()
@@ -577,7 +579,7 @@ test('in the Trash, several notes are restored or deleted permanently at once', 
   await sourceRow(page, 'Trash').click()
   await expect(noteRows(page)).toHaveCount(3)
   // Notes trashed together may share a deletion time: their order is not fixed.
-  const shown = await noteRows(page).locator('.row-title').allTextContents()
+  const shown = await noteRows(page).locator('.row-title, .row-headline').allTextContents()
   await noteRow(page, shown[0]!).click()
   await noteRow(page, shown[2]!).click({ modifiers: ['Shift'] })
   expect(await selectedTitles(page)).toEqual(shown)
@@ -818,7 +820,7 @@ test('a Shift-click that leaves the open note out keeps the keyboard on the clic
 test('in Templates the summary offers no status or tags', async ({ page }) => {
   await createTemplates(page, 'One', 'Two')
   await pick(page, 'Two', 'One')
-  await expect(summary(page).getByRole('combobox', { name: 'Status' })).toHaveCount(0)
+  await expect(statusPicker(summary(page))).toHaveCount(0)
   await expect(summary(page).getByRole('group', { name: 'Tags' })).toHaveCount(0)
   await summary(page).getByRole('button', { name: 'Pin to Top' }).click()
   await expect(list(page).locator('.list-section', { hasText: 'Pinned' })).toBeVisible()

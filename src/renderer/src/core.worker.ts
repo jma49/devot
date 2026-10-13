@@ -144,6 +144,8 @@ export const coreApi = {
   headlines: (ids: string[]) => required().headlines(ids),
   /** The body excerpt each list row shows (see NoteService.excerpts). */
   excerpts: (ids: string[]) => required().excerpts(ids),
+  /** The task progress each list row shows, as "done/total" (see NoteService.progress). */
+  progress: (ids: string[]) => required().progress(ids),
   /** A new note from text selected in `sourceId` (see NoteService.extract). */
   extract: (sourceId: string, markdown: string) => required().extract(sourceId, markdown),
   applyUpdate: (id: string, update: Uint8Array) => required().applyUpdate(id, update),

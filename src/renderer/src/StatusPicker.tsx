@@ -1,50 +1,95 @@
+import { useRef } from 'react'
 import { NOTE_STATUSES, type NoteStatus } from '../../core/storage'
+import { shortcutLabel } from './commands/keys'
+import { commandKeys } from './commands/registry'
 import { t } from './i18n'
 import { Icon } from './icons/Icon'
+import { STATUS_ICONS } from './NoteRow'
+import { PickerList, usePickerOpen, type PickerOption } from './Picker'
+import { STATUS_COMMANDS } from './statusKeys'
 
-/** The value the pop-up shows while the notes' statuses differ. */
-const MIXED = ''
+/** The status pop-over's rows: each status's icon in its colour, its name and its key in grey. */
+export function statusOptions(): PickerOption[] {
+  return NOTE_STATUSES.map((status) => {
+    const key = commandKeys(STATUS_COMMANDS[status])[0]
+    return {
+      id: status,
+      className: `status-${status}`,
+      content: (
+        <>
+          <Icon name={STATUS_ICONS[status]} size="sm" />
+          <span className="picker-name">
+            {t(status === 'none' ? 'status.pickNone' : `status.${status}`)}
+          </span>
+          {key ? (
+            <kbd className="picker-key" aria-hidden="true">
+              {shortcutLabel(key)}
+            </kbd>
+          ) : null}
+        </>
+      ),
+    }
+  })
+}
 
 /**
  * Pop-up button for the open note's status, or for several notes' (`mixed`:
  * they differ, and it reads Mixed until one is picked). With no status it
- * reads Status, in grey. A native select lies over it, unseen, so the
- * keyboard and VoiceOver work it as before.
+ * reads Status, in grey. It opens a pop-over of the five statuses, each
+ * with its key.
  */
 export function StatusPicker(props: {
   value: NoteStatus
   mixed?: boolean
   onChange: (status: NoteStatus) => void
 }) {
+  const box = useRef<HTMLDivElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = usePickerOpen(box)
+  const shown = props.mixed ? 'none' : props.value
+  const close = () => {
+    setOpen(false)
+    button.current?.focus()
+  }
   return (
-    <label className={`popup status-${props.mixed ? 'none' : props.value}`}>
-      <span className="status-dot" aria-hidden="true" />
-      <span className="popup-value" aria-hidden="true">
-        {props.mixed
-          ? t('status.mixed')
-          : props.value === 'none'
-            ? t('note.statusLabel')
-            : t(`status.${props.value}`)}
-      </span>
-      <select
+    <div ref={box} className="picker">
+      <button
+        ref={button}
+        type="button"
+        className={`popup status-${shown}`}
         aria-label={t('note.statusLabel')}
-        value={props.mixed ? MIXED : props.value}
-        onChange={(e) => {
-          if (e.target.value !== MIXED) props.onChange(e.target.value as NoteStatus)
+        data-value={props.mixed ? '' : props.value}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowDown' || open) return
+          e.preventDefault()
+          setOpen(true)
         }}
       >
-        {props.mixed ? (
-          <option value={MIXED} disabled>
-            {t('status.mixed')}
-          </option>
-        ) : null}
-        {NOTE_STATUSES.map((status) => (
-          <option key={status} value={status}>
-            {t(`status.${status}`)}
-          </option>
-        ))}
-      </select>
-      <Icon name="popup.chevron" size="sm" />
-    </label>
+        {shown === 'none' ? null : <Icon name={STATUS_ICONS[shown]} size="sm" />}
+        <span className="popup-value">
+          {props.mixed
+            ? t('status.mixed')
+            : props.value === 'none'
+              ? t('note.statusLabel')
+              : t(`status.${props.value}`)}
+        </span>
+        <Icon name="popup.chevron" size="sm" />
+      </button>
+      {open ? (
+        <PickerList
+          label={t('note.statusLabel')}
+          options={statusOptions()}
+          value={props.mixed ? undefined : props.value}
+          onClose={close}
+          onPick={(status) => {
+            close()
+            if (props.mixed || status !== props.value) props.onChange(status as NoteStatus)
+          }}
+        />
+      ) : null}
+    </div>
   )
 }

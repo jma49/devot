@@ -64,6 +64,16 @@
           "hex": "#ebe8e2",
           "alpha": 0.1
         }
+      },
+      "control": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9098, 0.8863],
+          "hex": "#ebe8e2",
+          "alpha": 0.2
+        },
+        "$description": "The outline of a small control, such as a tag pill."
       }
     },
     "fill": {
@@ -113,6 +123,26 @@
           "hex": "#f29b38",
           "alpha": 0.5
         }
+      },
+      "row-selected": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9098, 0.8863],
+          "hex": "#ebe8e2",
+          "alpha": 0.14
+        },
+        "$description": "A selected note list row."
+      },
+      "tool-hover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9098, 0.8863],
+          "hex": "#ebe8e2",
+          "alpha": 0.12
+        },
+        "$description": "A toolbar button under the pointer."
       }
     },
     "accent": {
@@ -155,7 +185,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
+          "components": [1, 1, 1],
           "hex": "#ffffff"
         }
       }
@@ -322,6 +352,26 @@
           "hex": "#63cdbf"
         },
         "$description": "A day with the most writing in the activity heatmap."
+      }
+    },
+    "mark": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3569, 0.2902, 0.149],
+          "hex": "#5b4a26"
+        },
+        "$description": "The box behind a word a filter matched in the note list."
+      },
+      "border": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.502, 0.4039, 0.1843],
+          "hex": "#80672f"
+        },
+        "$description": "The outline of that box, a shade darker."
       }
     }
   }

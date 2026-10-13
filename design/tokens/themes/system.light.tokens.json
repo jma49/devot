@@ -64,6 +64,16 @@
           "hex": "#1c1b19",
           "alpha": 0.1
         }
+      },
+      "control": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.18
+        },
+        "$description": "The outline of a small control, such as a tag pill."
       }
     },
     "fill": {
@@ -89,7 +99,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
+          "components": [1, 1, 1],
           "hex": "#ffffff"
         }
       },
@@ -112,6 +122,26 @@
           "hex": "#ef8a17",
           "alpha": 0.55
         }
+      },
+      "row-selected": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.12
+        },
+        "$description": "A selected note list row."
+      },
+      "tool-hover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.09
+        },
+        "$description": "A toolbar button under the pointer."
       }
     },
     "accent": {
@@ -154,7 +184,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
+          "components": [1, 1, 1],
           "hex": "#ffffff"
         }
       }
@@ -321,6 +351,26 @@
           "hex": "#0e6b62"
         },
         "$description": "A day with the most writing in the activity heatmap."
+      }
+    },
+    "mark": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9529, 0.8824, 0.7333],
+          "hex": "#f3e1bb"
+        },
+        "$description": "The box behind a word a filter matched in the note list."
+      },
+      "border": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.851, 0.7216, 0.4431],
+          "hex": "#d9b871"
+        },
+        "$description": "The outline of that box, a shade darker."
       }
     }
   }

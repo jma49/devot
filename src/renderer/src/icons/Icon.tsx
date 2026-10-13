@@ -18,7 +18,12 @@ function subscribe(onChange: () => void) {
 }
 
 export function useAppearance(): Appearance {
-  return useSyncExternalStore(subscribe, () => (matchMedia(DARK).matches ? 'dark' : 'light'))
+  return useSyncExternalStore(
+    subscribe,
+    () => (matchMedia(DARK).matches ? 'dark' : 'light'),
+    // Rendered outside a window (component tests): the light appearance.
+    () => 'light',
+  )
 }
 
 /**

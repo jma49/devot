@@ -79,3 +79,46 @@ export function listExcerpt(markdown: string, title: string): string {
   }
   return [...text].slice(0, LIST_EXCERPT_CHARS).join('')
 }
+
+/** A list item that is a task: its marker, then `[ ]` or `[x]`. */
+const TASK_ITEM = /^[ \t]*(?:>[ \t]?)*[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\[([ xX])\](?=[ \t]|$)/
+/** A code fence's opening or closing line. */
+const FENCE = /^[ \t]{0,3}(`{3,}|~{3,})/
+
+/** How many of a note's tasks are done, out of how many. */
+export interface TaskProgress {
+  done: number
+  total: number
+}
+
+/**
+ * The tasks (`- [ ]` and `- [x]` items, in lists and quotes) of a note's
+ * body, counted. Front matter and code blocks hold none.
+ */
+export function taskProgress(markdown: string): TaskProgress {
+  const lines = markdown.split(/\r\n?|\n/)
+  let first = 0
+  if (FRONT_MATTER_FENCE.test(lines[0] ?? '')) {
+    const close = lines.findIndex((l, i) => i > 0 && FRONT_MATTER_FENCE.test(l))
+    if (close > 0) first = close + 1
+  }
+  let done = 0
+  let total = 0
+  let fence: string | undefined
+  for (const line of lines.slice(first)) {
+    const marks = FENCE.exec(line)?.[1]
+    if (fence !== undefined) {
+      if (marks && marks[0] === fence[0] && marks.length >= fence.length) fence = undefined
+      continue
+    }
+    if (marks) {
+      fence = marks
+      continue
+    }
+    const task = TASK_ITEM.exec(line)
+    if (!task) continue
+    total += 1
+    if (task[1] !== ' ') done += 1
+  }
+  return { done, total }
+}

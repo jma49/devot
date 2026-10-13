@@ -65,6 +65,7 @@ import { useFormatMenu } from './commands/formatMenu'
 import { useKeymap } from './commands/shortcutSettings'
 import { invoke } from './ipc'
 import { titleWithKey } from './commands/titles'
+import { ToolTips } from './ToolTips'
 import { COMMANDS, formatOf, insertOf, tableOf, type CommandHandlers } from './commands/registry'
 import { CommandPalette, type PaletteActions } from './palette/CommandPalette'
 import { commandEntries, libraryEntries } from './palette/entries'
@@ -203,7 +204,10 @@ function ShowSidebarButton({ onClick }: { onClick: () => void }) {
 const AREA_ASK_MS = 1000
 
 /** Where the keyboard goes once the window has rendered. */
-type FocusRequest = { kind: 'area'; area: Area } | { kind: 'title' | 'body'; id: string }
+type FocusRequest =
+  | { kind: 'area'; area: Area }
+  /** `start`: the caret at the start of the body. */
+  | { kind: 'title' | 'body'; id: string; start?: boolean }
 
 /** Where the keyboard was when the palette opened, to give it back. */
 interface FocusReturn {
@@ -234,6 +238,11 @@ export function App() {
   // The body excerpts under the rows' titles (see NoteService.excerpts).
   const loadExcerpts = useMemo(
     () => (core ? (ids: string[]) => core.excerpts(ids) : undefined),
+    [core],
+  )
+  // The task progress on the rows (see NoteService.progress).
+  const loadProgress = useMemo(
+    () => (core ? (ids: string[]) => core.progress(ids) : undefined),
     [core],
   )
   // The lists have loaded once (the last state is restored then).
@@ -346,6 +355,8 @@ export function App() {
     setFocusAsked((n) => n + 1)
   }
   const titleRef = useRef<HTMLInputElement>(null)
+  // The open note's tag field, which Return in the title goes on to.
+  const tagInputRef = useRef<HTMLInputElement>(null)
   // The backups dialog, and the code of a failed automatic backup.
   const [backupsOpen, setBackupsOpen] = useState(false)
   const [backupNotice, setBackupNotice] = useState<string>()
@@ -1695,7 +1706,7 @@ export function App() {
    * editor in preview mode; an editor still loading takes the keyboard when
    * it has loaded.
    */
-  const editNote = async (part: 'title' | 'body', id: string) => {
+  const editNote = async (part: 'title' | 'body', id: string, start = false) => {
     const body = part === 'body'
     // Editing goes back to the open note alone.
     setMulti(undefined)
@@ -1703,7 +1714,7 @@ export function App() {
       if (!(await select(id, { keyboard: body }))) return
     } else if (body && !editorRef.current) setTakesKeyboard(id)
     if (body && mode === 'preview') setMode('edit')
-    requestFocus({ kind: part, id })
+    requestFocus({ kind: part, id, start })
   }
 
   /**
@@ -1801,7 +1812,9 @@ export function App() {
     // The note opened before the request was made; another one opened since.
     focusAfter.current = undefined
     if (request.id !== selected) return
-    if (request.kind === 'body') return editorRef.current?.focus()
+    if (request.kind === 'body') {
+      return request.start ? editorRef.current?.focusStart() : editorRef.current?.focus()
+    }
     const field = titleRef.current
     field?.focus()
     field?.setSelectionRange(field.value.length, field.value.length)
@@ -2257,6 +2270,7 @@ export function App() {
       data-sidebar-hidden={sidebarOff || undefined}
       data-narrow={narrow || undefined}
     >
+      <ToolTips />
       <Sidebar
         total={notes.length}
         tree={tree}
@@ -2316,6 +2330,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           excerpts={loadExcerpts}
+          progress={loadProgress}
         />
       ) : inTrash ? (
         <NoteList
@@ -2333,6 +2348,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           excerpts={loadExcerpts}
+          progress={loadProgress}
           drag={false}
           onFind={findEverywhere}
           onTrashAction={trashKey}
@@ -2363,6 +2379,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           excerpts={loadExcerpts}
+          progress={loadProgress}
           drag="templates"
         />
       ) : (
@@ -2397,6 +2414,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           excerpts={loadExcerpts}
+          progress={loadProgress}
         />
       )}
       <main className="content" data-devot-part="editor">
@@ -2488,11 +2506,19 @@ export function App() {
               value={title}
               onChange={(e) => rename(e.target.value)}
               onKeyDown={(e) => {
-                // Return finishes the title and goes on to the body (not the
-                // Return that picks a candidate of an input method).
-                if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey) return
+                // Return finishes the title and goes on to the tags (the body,
+                // for a template); Down Arrow goes to the start of the body.
+                // Not the keys that pick a candidate of an input method.
+                if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
                 if (isImeKey(e.nativeEvent)) return
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  return void editNote('body', selected, true)
+                }
+                if (e.key !== 'Enter') return
                 e.preventDefault()
+                const tagField = tagInputRef.current
+                if (tagField && !selectedIsTemplate) return tagField.focus()
                 void editNote('body', selected)
               }}
             />
@@ -2510,6 +2536,7 @@ export function App() {
                   onChange={(status) => void setStatus(selected, status)}
                 />
                 <TagEditor
+                  inputRef={tagInputRef}
                   tags={tags}
                   value={selectedNote?.tagIds ?? []}
                   onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}

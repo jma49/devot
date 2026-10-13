@@ -24,11 +24,12 @@ afterEach(() => restore.splice(0).forEach((undo) => undo()))
 describe('relativeTime', () => {
   const now = new Date(2026, 9, 10, 15, 30).getTime()
 
-  it('says how long ago a note changed', () => {
-    expect(relativeTime(now - 5_000, now, 'en')).toBe('now')
-    expect(relativeTime(now - 5 * 60_000, now, 'en')).toBe('5 minutes ago')
-    expect(relativeTime(now - 3 * 3_600_000, now, 'en')).toBe('3 hours ago')
-    expect(relativeTime(now - 3 * 86_400_000, now, 'en')).toBe('3 days ago')
+  it('says how long since a note changed', () => {
+    expect(relativeTime(now - 5_000, now, 'en')).toBe('a few seconds')
+    expect(relativeTime(now - 60_000, now, 'en')).toBe('1 minute')
+    expect(relativeTime(now - 7 * 60_000, now, 'en')).toBe('7 minutes')
+    expect(relativeTime(now - 3 * 3_600_000, now, 'en')).toBe('3 hours')
+    expect(relativeTime(now - 3 * 86_400_000, now, 'en')).toBe('3 days')
   })
 
   it('falls back to the date after a month', () => {

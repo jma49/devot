@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore, openNotePinned } from './fixtures'
+import { expect, test, pickNoteMore, openNotePinned, statusPicker, bookPicker } from './fixtures'
 
 // App-level shortcuts check metaKey (Command on macOS), so they are pressed
 // with Meta here on every platform, like the other specs.
@@ -184,7 +184,7 @@ test('find and the status keys are commands while a note is open', async ({ page
   await expect(active(page)).toContainText('Set Status to Active')
   await expect(active(page)).toContainText('\u2303\u23182')
   await field(page).press('Enter')
-  await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('active')
+  await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
 
   // Match Case only acts while the find bar is open.
   await search(page, 'match case')
@@ -221,10 +221,8 @@ test('notebooks: Return opens one, Option+Return moves the open note there', asy
   await expect(palette(page).locator('#palette-keys')).toContainText('Move Note Here')
   await field(page).press('Alt+Enter')
   await expect(palette(page)).toBeHidden()
-  await expect(page.getByRole('combobox', { name: 'Notebook' })).toHaveValue(/.+/)
-  await expect(
-    page.getByRole('combobox', { name: 'Notebook' }).locator('option:checked'),
-  ).toHaveText(/Recipes/)
+  await expect(bookPicker(page)).toHaveAttribute('data-value', /.+/)
+  await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Recipes/)
   // The note is in that notebook now: it is not offered there again.
   await search(page, 'recip')
   await expect(palette(page).locator('#palette-keys')).not.toContainText('Move Note Here')
@@ -359,9 +357,7 @@ test('Option-click runs the second action; without one it runs the first', async
     .getByRole('option')
     .click({ modifiers: ['Alt'] })
   await expect(palette(page)).toBeHidden()
-  await expect(
-    page.getByRole('combobox', { name: 'Notebook' }).locator('option:checked'),
-  ).toHaveText(/Archive/)
+  await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Archive/)
   // A command has no second action: Option+Return runs it.
   await search(page, 'focus mode')
   await field(page).press('Alt+Enter')

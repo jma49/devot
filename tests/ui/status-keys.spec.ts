@@ -1,9 +1,9 @@
 import type { Page } from '@playwright/test'
-import { expect, reloadApp, test } from './fixtures'
+import { expect, reloadApp, test, statusPicker } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
-const status = (page: Page) => page.getByRole('combobox', { name: 'Status' })
+const status = (page: Page) => statusPicker(page)
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 
@@ -49,12 +49,12 @@ test('Control+Command+1 to 5 set the open note status', async ({ page }) => {
   ]
   for (const [digit, id, label] of cases) {
     await press(page, digit)
-    await expect(status(page)).toHaveValue(id)
-    await expect(noteRow(page, 'Plan').locator('.row-status')).toHaveText(label)
+    await expect(status(page)).toHaveAttribute('data-value', id)
+    await expect(noteRow(page, 'Plan').locator('.row-status')).toHaveAttribute('aria-label', label)
     await expect.poll(() => storedStatus(page, 'Plan')).toBe(id)
   }
   await press(page, 1)
-  await expect(status(page)).toHaveValue('none')
+  await expect(status(page)).toHaveAttribute('data-value', 'none')
   await expect(noteRow(page, 'Plan').locator('.row-status')).toHaveCount(0)
   await expect.poll(() => storedStatus(page, 'Plan')).toBe('none')
 })
@@ -64,13 +64,13 @@ test('the shortcuts work while typing in the editor and in the title', async ({ 
   await body(page).click()
   await page.keyboard.insertText('Some text')
   await press(page, 2)
-  await expect(status(page)).toHaveValue('active')
+  await expect(status(page)).toHaveAttribute('data-value', 'active')
   // The editor kept its text and the key typed nothing.
   await expect(body(page)).toHaveText('Some text')
 
   await titleField(page).click()
   await press(page, 4)
-  await expect(status(page)).toHaveValue('completed')
+  await expect(status(page)).toHaveAttribute('data-value', 'completed')
   await expect(titleField(page)).toHaveValue('Typing')
 })
 
@@ -78,7 +78,7 @@ test('they act on the open note only, and not over a sheet', async ({ page }) =>
   await createNote(page, 'First')
   await createNote(page, 'Second')
   await press(page, 3)
-  await expect(status(page)).toHaveValue('on_hold')
+  await expect(status(page)).toHaveAttribute('data-value', 'on_hold')
   await expect.poll(() => storedStatus(page, 'Second')).toBe('on_hold')
   expect(await storedStatus(page, 'First')).toBe('none')
 
@@ -89,12 +89,12 @@ test('they act on the open note only, and not over a sheet', async ({ page }) =>
   await press(page, 5)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Move to Notebook' })).toHaveCount(0)
-  await expect(status(page)).toHaveValue('on_hold')
+  await expect(status(page)).toHaveAttribute('data-value', 'on_hold')
   expect(await storedStatus(page, 'Second')).toBe('on_hold')
   // The window hears the keys again, so the one pressed over the sheet was
   // refused rather than missed: the next one sets the status.
   await press(page, 4)
-  await expect(status(page)).toHaveValue('completed')
+  await expect(status(page)).toHaveAttribute('data-value', 'completed')
   await expect.poll(() => storedStatus(page, 'Second')).toBe('completed')
   expect(await storedStatus(page, 'First')).toBe('none')
 })
@@ -105,11 +105,11 @@ test('nothing happens with no note open', async ({ page }) => {
   await press(page, 2)
   await page.getByRole('button', { name: /^All Notes/ }).click()
   await noteRow(page, 'Alone').click()
-  await expect(status(page)).toHaveValue('none')
+  await expect(status(page)).toHaveAttribute('data-value', 'none')
   expect(await storedStatus(page, 'Alone')).toBe('none')
   // The window hears the keys (the check above is not a missed key): with
   // the note open, the same key sets the status.
   await press(page, 2)
-  await expect(status(page)).toHaveValue('active')
+  await expect(status(page)).toHaveAttribute('data-value', 'active')
   await expect.poll(() => storedStatus(page, 'Alone')).toBe('active')
 })

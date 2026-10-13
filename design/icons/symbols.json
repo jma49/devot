@@ -10,6 +10,7 @@
     "notebook.ai": "sparkles",
     "trash": "trash",
     "templates": "doc.on.doc",
+    "status.none": "circle.dashed",
     "status.active": "play.circle.fill",
     "status.onHold": "pause.circle.fill",
     "status.completed": "checkmark.circle.fill",

@@ -2,7 +2,7 @@
 // stop when the open note is not listed, the viewer opens from the command
 // palette and closes with Escape, and its Tab key goes round every stop.
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickStatus } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 
 test('the note list keeps a Tab stop when the open note is not listed', async ({ page }) => {
   await createNote(page, 'Shown')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await createNote(page, 'Hidden')
   // "Hidden" is open, and the Active filter lists only "Shown".
   await sidebar(page)

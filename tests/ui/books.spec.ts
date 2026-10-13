@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, statusPicker, bookPicker, pickBook } from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -43,7 +43,7 @@ test('creates a notebook, selects it and files new notes there', async ({ page }
   await createNote(page, 'Plan')
   // Naming ended when focus moved on; the new note keeps the keyboard.
   await expect(book(page, 'Work')).not.toBeFocused()
-  await expect(page.getByRole('combobox', { name: 'Notebook' })).toHaveValue(/.+/)
+  await expect(bookPicker(page)).toHaveAttribute('data-value', /.+/)
   await expect(book(page, 'Work')).toContainText('1')
   await page.getByRole('button', { name: /All Notes/ }).click()
   await expect(header(page)).toHaveText('All Notes')
@@ -107,8 +107,7 @@ test('moves a note by dragging it onto a notebook, or with the pop-up', async ({
   await expect(book(page, 'Home')).toContainText('1')
 
   await noteRows(page).filter({ hasText: 'Wanderer' }).click()
-  const picker = page.getByRole('combobox', { name: 'Notebook' })
-  await picker.selectOption({ label: 'No Notebook' })
+  await pickBook(page, 'No Notebook')
   await expect(book(page, 'Home')).toContainText('0')
 })
 
@@ -127,7 +126,7 @@ test('deleting a notebook removes its sub-notebooks and keeps every note', async
   await expect(header(page)).toHaveText('All Notes')
   await expect(noteRows(page).filter({ hasText: 'Survivor' })).toHaveCount(1)
   await noteRows(page).filter({ hasText: 'Survivor' }).click()
-  await expect(page.getByRole('combobox', { name: 'Notebook' })).toHaveValue('')
+  await expect(bookPicker(page)).toHaveAttribute('data-value', '')
 })
 
 test('notebooks survive a reload', async ({ page }) => {
@@ -149,8 +148,8 @@ for (const width of [1280, 800]) {
     await createNote(page, 'Loose')
     await createBook(page, name)
 
-    const picker = page.getByRole('combobox', { name: 'Notebook' })
-    const status = page.getByRole('combobox', { name: 'Status' })
+    const picker = bookPicker(page)
+    const status = statusPicker(page)
     const box = async (locator: ReturnType<Page['locator']>) => {
       const b = await locator.boundingBox()
       if (!b) throw new Error('E_TEST_NOT_VISIBLE')
@@ -187,11 +186,11 @@ for (const width of [1280, 800]) {
     // The note is in No Notebook; the picker is as wide as its longest option.
     await page.getByRole('button', { name: /All Notes/ }).click()
     await noteRows(page).first().click()
-    await expect(picker).toHaveValue('')
+    await expect(picker).toHaveAttribute('data-value', '')
     await detailsStayTight()
 
     // Moved into the long-named notebook, it shows its full name as a tooltip.
-    await picker.selectOption({ label: name })
+    await pickBook(page, name)
     await expect(picker).toHaveAttribute('title', name)
     await detailsStayTight()
 
