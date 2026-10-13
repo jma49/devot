@@ -360,12 +360,34 @@ test('a font size out of range is not stored, and leaving the field shows the st
   expect(errors).toEqual([])
 })
 
+/**
+ * Types each value into the font size field in one go (no timer runs between
+ * them, however slow the machine): a burst of keystrokes with no pause.
+ */
+const typeBurst = (page: Page, values: string[]) =>
+  fontSize(page).evaluate((input, typed) => {
+    const field = input as unknown as {
+      value: string
+      dispatchEvent(e: unknown): void
+      focus(): void
+    }
+    const w = globalThis as unknown as {
+      Event: new (type: string, init: { bubbles: boolean }) => unknown
+      HTMLInputElement: { prototype: object }
+    }
+    const set = Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, 'value')?.set
+    field.focus()
+    for (const value of typed) {
+      set?.call(field, value)
+      field.dispatchEvent(new w.Event('input', { bubbles: true }))
+    }
+  }, values)
+
 test('the font size is stored once typing pauses, or when the field is left', async ({ page }) => {
   await openEditor(page)
-  await fontSize(page).fill('12')
-  await fontSize(page).fill('14')
+  await typeBurst(page, ['12', '14'])
   await expect.poll(() => setCalls(page)).toEqual([{ fontSize: 14 }])
-  await fontSize(page).fill('16')
+  await typeBurst(page, ['16'])
   await fontSize(page).blur()
   expect(await setCalls(page)).toEqual([{ fontSize: 14 }, { fontSize: 16 }])
   await expect(fontSize(page)).toHaveValue('16')
