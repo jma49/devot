@@ -156,9 +156,9 @@ test('the menu lists every insertion and filters as the query is typed', async (
   await typeQuery(page, '')
   await waitForFirst(page, 'Link')
   expect(await options(page).allTextContents()).toEqual([
-    'Link⌘K',
+    'Link⌥⌘K',
     'Image',
-    'Quote⇧⌘.',
+    "Quote⌘'",
     'Note Alert',
     'Tip Alert',
     'Important Alert',
@@ -167,10 +167,10 @@ test('the menu lists every insertion and filters as the query is typed', async (
     'Note Link',
     'Code Block⇧⌘C',
     'Table',
-    'Bulleted List⇧⌘8',
-    'Numbered List⇧⌘7',
-    'Task List⇧⌘9',
-    'Horizontal Rule⇧⌘-',
+    'Bulleted List⇧⌘L',
+    'Numbered List⇧⌘O',
+    'Task List⇧⌘T',
+    'Horizontal Rule⇧⌘H',
   ])
   await page.keyboard.type('al')
   await waitForFirst(page, 'Alert')

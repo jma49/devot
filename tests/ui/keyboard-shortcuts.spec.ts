@@ -152,9 +152,9 @@ test('refuses keys macOS keeps, Edit menu keys and keys that type text', async (
 
 test('asks before taking a key from another command', async ({ page }) => {
   await openSettings(page)
-  const dialog = page.getByRole('dialog', { name: '\u2318P is already used by Command Palette.' })
+  const dialog = page.getByRole('dialog', { name: '\u2318K is already used by Command Palette.' })
 
-  await record(page, 'Bold', 'Meta+KeyP')
+  await record(page, 'Bold', 'Meta+KeyK')
   await expect(dialog).toContainText(
     'Use it for Bold instead? Command Palette will no longer have it.',
   )
@@ -163,21 +163,21 @@ test('asks before taking a key from another command', async ({ page }) => {
   await expect(recorder(page, 'Bold')).toHaveText('\u2318B')
   expect(await calls(page, 'keyboard_shortcuts_set')).toEqual([])
 
-  await record(page, 'Bold', 'Meta+KeyP')
+  await record(page, 'Bold', 'Meta+KeyK')
   await dialog.getByRole('button', { name: 'Reassign' }).click()
-  await expect(recorder(page, 'Bold')).toHaveText('\u2318P')
+  await expect(recorder(page, 'Bold')).toHaveText('\u2318K')
   await expect(recorder(page, 'Command Palette')).toHaveText('None')
-  expect(await storedShortcuts(page)).toEqual({ 'format.bold': ['Mod+P'], 'palette.open': [] })
+  expect(await storedShortcuts(page)).toEqual({ 'format.bold': ['Mod+K'], 'palette.open': [] })
 
   // Resetting the palette takes its key back, after asking.
   await row(page, 'palette.open')
     .getByRole('button', { name: /^Reset/ })
     .click()
   await page
-    .getByRole('dialog', { name: '\u2318P is already used by Bold.' })
+    .getByRole('dialog', { name: '\u2318K is already used by Bold.' })
     .getByRole('button', { name: 'Reassign' })
     .click()
-  await expect(recorder(page, 'Command Palette')).toHaveText('\u2318P')
+  await expect(recorder(page, 'Command Palette')).toHaveText('\u2318K')
   await expect(recorder(page, 'Bold')).toHaveText('None')
   expect(await storedShortcuts(page)).toEqual({ 'format.bold': [] })
 
@@ -310,7 +310,7 @@ test('a shortcut changed in Settings works in the main window at once', async ({
       'palette.open': MAC ? 'Alt+CmdOrCtrl+P' : 'Ctrl+Alt+P',
       'view.sidebar': 'CmdOrCtrl+/',
       'view.togglePreview': 'CmdOrCtrl+E',
-      'view.split': 'Shift+CmdOrCtrl+E',
+      'view.split': 'CmdOrCtrl+P',
       'view.syncScroll': null,
       'app.backups': null,
     },
@@ -326,7 +326,7 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   // The palette opens with its new key, and shows the new keys.
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   await page.keyboard.press('Escape')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(palette).toBeHidden()
   await page.keyboard.press('ControlOrMeta+Alt+KeyP')
   const field = palette.getByRole('combobox', { name: 'Command Palette' })

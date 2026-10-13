@@ -111,42 +111,12 @@ describe('Return on an empty list item', () => {
 })
 
 describe('Return on an empty quote line', () => {
-  it('leaves the quote: one blank line, the cursor outside', async () => {
-    expect(enter('> a\n> ^').text).toBe('> a\n\n^')
-    const doc = typed('> a^', 2, 'Next')
-    expect(doc).toBe('> a\n\nNext')
-    expect(await previewShape(doc)).toBe('<blockquote><p>a</p></blockquote><p>Next</p>')
-  })
-
-  it('leaves an alert the same way', async () => {
-    expect(enter('> [!NOTE]\n> text\n> ^').text).toBe('> [!NOTE]\n> text\n\n^')
-    const doc = typed('> [!NOTE]\n> text^', 2, 'Next')
-    expect(doc).toBe('> [!NOTE]\n> text\n\nNext')
-    expect(await previewShape(doc)).toContain('</div><p>Next</p>')
-  })
-
-  it('leaves one level of nested quotes', async () => {
-    expect(enter('> > a\n> > ^').text).toBe('> > a\n>\n> ^')
-    expect(enter('> > > a\n> > > ^').text).toBe('> > > a\n> >\n> > ^')
-    const doc = typed('> > a^', 2, 'Next')
-    expect(doc).toBe('> > a\n>\n> Next')
-    expect(await previewShape(doc)).toBe(
-      '<blockquote><blockquote><p>a</p></blockquote><p>Next</p></blockquote>',
-    )
-    expect(enter('> > a\n>\n> ^').text).toBe('> > a\n>\n^')
-  })
-
-  it('leaves a quote inside a list item, and a list inside a quote', () => {
-    expect(enter('- > a\n  > ^').text).toBe('- > a\n\n  ^')
-    expect(enter('- a\n- > b\n  > ^').text).toBe('- a\n- > b\n\n  ^')
-    expect(enter('> 1. a\n> 2. ^').text).toBe('> 1. a\n>\n> ^')
-    expect(enter('> 1. a\n> 2. b\n> 3. ^').text).toBe('> 1. a\n> 2. b\n>\n> ^')
-  })
-
-  it('adds no blank line where one is there, or above the first line', () => {
-    expect(enter('> a\n>\n> ^').text).toBe('> a\n>\n^')
-    expect(enter('> ^').text).toBe('^')
-    expect(enter('text\n\n> ^').text).toBe('text\n\n^')
+  it('continues the quote with a new line of it', () => {
+    expect(enter('> a\n> ^').text).toBe('> a\n>\n> ^')
+    expect(enter('> ^').text).toBe('>\n> ^')
+    expect(enter('> [!NOTE]\n> text\n> ^').text).toBe('> [!NOTE]\n> text\n>\n> ^')
+    expect(enter('> > a\n> > ^').text).toBe('> > a\n> >\n> > ^')
+    expect(enter('- > a\n  > ^').text).toBe('- > a\n  >\n  > ^')
   })
 
   it('is one transaction, one undo step', () => {
@@ -181,8 +151,8 @@ describe('Return on an empty quote line', () => {
     // The inner of two quotes goes on; where only the outer does, the inner is left.
     expect(enter('> > a\n> > ^\n> > b').text).toBe('> > a\n> >\n> > ^\n> > b')
     expect(enter('- > a\n  > ^\n  > b').text).toBe('- > a\n  >\n  > ^\n  > b')
-    // At the end of the quote, it is left as before.
-    expect(enter('> a\n> ^\n\nb').text).toBe('> a\n\n^\n\nb')
+    // At the end of the quote the quote goes on too.
+    expect(enter('> a\n> ^\n\nb').text).toBe('> a\n>\n> ^\n\nb')
   })
 
   it('keeps a quote whole when the empty line is in a list or code block in it', async () => {
@@ -206,15 +176,6 @@ describe('Return on an empty quote line', () => {
     expect(code).toBe('> ```\n> a\n>\n> c\n> b\n> ```')
     expect(await previewShape(code)).toBe('<blockquote><pre><code>acb</code></pre></blockquote>')
     expect(enter('> ```\n> a\n> ^').text).toBe('> ```\n> a\n>\n> ^')
-  })
-
-  it('leaves a quote that opens a list item for an empty item, keeping its marker', async () => {
-    expect(enter('- a\n- > ^').text).toBe('- a\n- ^')
-    expect(enter('1. a\n2. > ^').text).toBe('1. a\n2. ^')
-    expect(enter('> - a\n> - > ^').text).toBe('> - a\n> - ^')
-    expect(enter('- > ^').text).toBe('- ^')
-    const doc = typed('- a\n- > ^', 1, 'b')
-    expect(await previewShape(doc)).toBe('<ul><li>a</li><li>b</li></ul>')
   })
 
   it('continues a quote on a line with text', () => {

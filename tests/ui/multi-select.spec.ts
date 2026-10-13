@@ -107,9 +107,9 @@ const popups = (page: Page) =>
       ).length,
   )
 
-/** Runs the palette command labelled `label` (Meta+P: the registry key). */
+/** Runs the palette command labelled `label` (Meta+K: the registry key). */
 async function runCommand(page: Page, label: string) {
-  await page.keyboard.press('Meta+p')
+  await page.keyboard.press('Meta+k')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   await palette.getByRole('combobox').fill(label)
   const active = palette.locator('[role="option"][aria-selected="true"] .palette-label')
@@ -533,7 +533,7 @@ test('export and print act on one note: not offered or run while several are sel
     .getByRole('option')
     .filter({ hasText: /^(Export as|Copy as|Print…)/ })
   const searchPalette = async (text: string) => {
-    await page.keyboard.press('Meta+p')
+    await page.keyboard.press('Meta+k')
     await palette.getByRole('combobox').fill(text)
   }
 

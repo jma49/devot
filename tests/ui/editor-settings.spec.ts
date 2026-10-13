@@ -124,7 +124,7 @@ test('new list items take the list marker, and indenting takes the indent unit',
 }) => {
   await changed(page, { listMarker: '*', indentUnit: 'tab' })
   await newNote(page, 'alpha')
-  await page.keyboard.press('ControlOrMeta+Shift+Digit8')
+  await page.keyboard.press('ControlOrMeta+Shift+KeyL')
   await expect.poll(() => lineText(page, 0)).toBe('* alpha')
   await page.keyboard.press('Tab')
   await expect.poll(() => lineText(page, 0)).toBe('\t* alpha')
@@ -133,7 +133,7 @@ test('new list items take the list marker, and indenting takes the indent unit',
   await changed(page, { listMarker: '-', indentUnit: 'spaces4' })
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.insertText('\n\nbeta')
-  await page.keyboard.press('ControlOrMeta+Shift+Digit8')
+  await page.keyboard.press('ControlOrMeta+Shift+KeyL')
   await expect.poll(() => lineText(page, 2)).toBe('- beta')
   await page.keyboard.press('Tab')
   await expect.poll(() => lineText(page, 2)).toBe('    - beta')
@@ -277,7 +277,7 @@ test('the font size stops at its limits', async ({ page }) => {
 })
 
 test('the font size commands are in the command palette', async ({ page }) => {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   await palette.getByRole('combobox', { name: 'Command Palette' }).fill('font size')
   await expect(palette.getByRole('option', { name: /Increase Font Size/ })).toContainText('⌘=')

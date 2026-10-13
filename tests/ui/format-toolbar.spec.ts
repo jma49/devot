@@ -122,18 +122,18 @@ test('the toolbar shows for a selection, with named SF Symbol buttons', async ({
   await expect(toolbar(page)).toBeHidden()
   await selectAll(page)
   const names: [string, string, string][] = [
-    ['Heading', 'Heading (⌥⌘1…6)', 'textformat.size'],
+    ['Heading', 'Heading (⌘1)', 'textformat.size'],
     ['Bold', 'Bold (⌘B)', 'bold'],
     ['Italic', 'Italic (⌘I)', 'italic'],
-    ['Strikethrough', 'Strikethrough (⇧⌘X)', 'strikethrough'],
-    ['Highlight', 'Highlight (⇧⌘H)', 'highlighter'],
-    ['Link', 'Link (⌘K)', 'link'],
+    ['Strikethrough', 'Strikethrough (⌘U)', 'strikethrough'],
+    ['Highlight', 'Highlight', 'highlighter'],
+    ['Link', 'Link (⌥⌘K)', 'link'],
     ['Inline Code', 'Inline Code (⌥⌘E)', 'chevron.left.forwardslash.chevron.right'],
     ['Code Block', 'Code Block (⇧⌘C)', 'curlybraces.square'],
-    ['Bulleted List', 'Bulleted List (⇧⌘8)', 'list.bullet'],
-    ['Numbered List', 'Numbered List (⇧⌘7)', 'list.number'],
-    ['Task List', 'Task List (⇧⌘9)', 'checklist'],
-    ['Quote', 'Quote (⇧⌘.)', 'text.quote'],
+    ['Bulleted List', 'Bulleted List (⇧⌘L)', 'list.bullet'],
+    ['Numbered List', 'Numbered List (⇧⌘O)', 'list.number'],
+    ['Task List', 'Task List (⇧⌘T)', 'checklist'],
+    ['Quote', "Quote (⌘')", 'text.quote'],
     ['Alert', 'Alert', 'exclamationmark.bubble'],
   ]
   await expect(toolbar(page).getByRole('button')).toHaveCount(names.length)
@@ -247,8 +247,7 @@ test('every format has a shortcut that works without the toolbar', async ({ page
   const cases: [string, string][] = [
     ['ControlOrMeta+b', '**word**'],
     ['ControlOrMeta+i', '*word*'],
-    ['ControlOrMeta+Shift+X', '~~word~~'],
-    ['ControlOrMeta+Shift+H', '<mark>word</mark>'],
+    ['ControlOrMeta+KeyU', '~~word~~'],
     ['ControlOrMeta+Alt+KeyE', '`word`'],
   ]
   for (const [keys, formatted] of cases) {
@@ -261,14 +260,14 @@ test('every format has a shortcut that works without the toolbar', async ({ page
     expect(await lines(page), keys).toEqual(['word'])
   }
   for (const level of [1, 2, 3, 4, 5, 6]) {
-    await page.keyboard.press(`ControlOrMeta+Alt+Digit${level}`)
+    await page.keyboard.press(`${level <= 4 ? 'ControlOrMeta' : 'ControlOrMeta+Alt'}+Digit${level}`)
     expect(await lines(page)).toEqual([`${'#'.repeat(level)} word`])
   }
   await page.keyboard.press('ControlOrMeta+Alt+Digit6')
   expect(await lines(page)).toEqual(['word'])
 
   await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.press('ControlOrMeta+k')
+  await page.keyboard.press('ControlOrMeta+Alt+k')
   await page.keyboard.insertText('u')
   expect(await lines(page)).toEqual(['[word](u)'])
 })
@@ -295,7 +294,7 @@ test('each format is one undo step', async ({ page }) => {
   expect(await lines(page)).toEqual(['alpha beta'])
 
   await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.press('ControlOrMeta+Alt+Digit2')
+  await page.keyboard.press('ControlOrMeta+Digit2')
   expect(await lines(page)).toEqual(['## alpha beta'])
   await page.keyboard.press('ControlOrMeta+z')
   expect(await lines(page)).toEqual(['alpha beta'])

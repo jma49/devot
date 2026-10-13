@@ -342,7 +342,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .accelerator("Alt+CmdOrCtrl+Y")
         .build(app)?;
     let palette = MenuItemBuilder::with_id(PALETTE_ID, strings::COMMAND_PALETTE)
-        .accelerator("CmdOrCtrl+P")
+        .accelerator("CmdOrCtrl+K")
         .build(app)?;
     let activity = MenuItemBuilder::with_id(ACTIVITY_ID, strings::ACTIVITY).build(app)?;
     let sidebar = MenuItemBuilder::with_id(SIDEBAR_ID, strings::HIDE_SIDEBAR)
@@ -360,7 +360,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .accelerator("CmdOrCtrl+E")
         .build(app)?;
     let split = MenuItemBuilder::with_id(SPLIT_ID, strings::SHOW_SPLIT)
-        .accelerator("Shift+CmdOrCtrl+E")
+        .accelerator("CmdOrCtrl+P")
         .build(app)?;
     let sync_scroll = CheckMenuItemBuilder::with_id(SYNC_SCROLL_ID, strings::SYNC_SCROLL)
         .checked(stored.settings.sync_scroll)

@@ -1,7 +1,7 @@
 import { getIndentUnit } from '@codemirror/language'
 import {
   cursorCharLeft,
-  deleteLine,
+  moveLineUp,
   indentLess,
   indentMore,
   insertBlankLine,
@@ -116,12 +116,12 @@ describe('editor setup from the settings', () => {
 describe('the editor keymap', () => {
   const bindings = () => make(DEFAULT_EDITOR_SETTINGS).facet(keymap).flat()
 
-  it('leaves every window key to the window, such as Back, Forward and the sidebar', () => {
+  it('leaves every window key to the window, such as the palette, the sidebar and the next note', () => {
     const keys = bindings().flatMap((b) => [b.key, b.mac])
     const window = COMMANDS.flatMap((c) =>
       c.scope === 'window' ? c.keys.map(shortcutCodeMirror) : [],
     )
-    expect(window).toEqual(expect.arrayContaining(['Mod-[', 'Mod-]', 'Shift-Mod-]', 'Mod-/']))
+    expect(window).toEqual(expect.arrayContaining(['Mod-k', 'Mod-p', 'Shift-Mod-]', 'Mod-/']))
     expect(keys.filter((key) => key !== undefined && window.includes(key))).toEqual([])
   })
 
@@ -146,9 +146,9 @@ describe('CodeMirror bindings under keys the user set', () => {
 
   it('gives an editor command a key CodeMirror binds, such as Paste as Plain Text', () => {
     const before = withKeys({})
-    for (const command of [deleteLine, selectNextOccurrence, insertBlankLine])
+    for (const command of [moveLineUp, selectNextOccurrence, insertBlankLine])
       expect(runs(before, command)).toBe(true)
-    expect(runs(withKeys({ 'edit.pastePlain': [`${mod}+Shift+K`] }), deleteLine)).toBe(false)
+    expect(runs(withKeys({ 'edit.pastePlain': ['Alt+ArrowUp'] }), moveLineUp)).toBe(false)
     expect(runs(withKeys({ 'edit.pastePlain': [`${mod}+D`] }), selectNextOccurrence)).toBe(false)
     expect(runs(withKeys({ 'edit.pastePlain': [`${mod}+Enter`] }), insertBlankLine)).toBe(false)
   })
@@ -176,19 +176,17 @@ describe('CodeMirror bindings under keys the user set', () => {
   it('compares keys however CodeMirror spells them', () => {
     // Cmd-Alt-[ (fold, on macOS), Mod-Shift-l, Mod-Shift-u (macOS) and Ctrl-A
     // (Control+Shift+A, on macOS) are the same keys as these window keys.
-    expect(runs(withKeys({ 'note.forward': [`${mod}+Shift+L`] }), selectSelectionMatches)).toBe(
-      false,
-    )
+    expect(runs(withKeys({ 'note.next': [`${mod}+Shift+L`] }), selectSelectionMatches)).toBe(false)
     if (!mac) return
-    expect(runs(withKeys({ 'note.back': ['Mod+Alt+['] }), foldCode)).toBe(false)
-    expect(runs(withKeys({ 'note.back': ['Mod+Shift+U'] }), redoSelection)).toBe(false)
-    expect(runs(withKeys({ 'note.back': ['Ctrl+Shift+A'] }), toggleBlockComment)).toBe(false)
+    expect(runs(withKeys({ 'note.next': ['Mod+Alt+['] }), foldCode)).toBe(false)
+    expect(runs(withKeys({ 'note.next': ['Mod+Shift+U'] }), redoSelection)).toBe(false)
+    expect(runs(withKeys({ 'note.next': ['Ctrl+Shift+A'] }), toggleBlockComment)).toBe(false)
   })
 
   it('takes only the Shift variant of a binding when only that key is in use', () => {
     if (!mac) return
     // Control+B moves the cursor on macOS; Control+Shift+B selects.
-    const bindings = withKeys({ 'note.back': ['Ctrl+Shift+B'] })
+    const bindings = withKeys({ 'note.next': ['Ctrl+Shift+B'] })
     const ctrlB = bindings.filter((b) => b.run === cursorCharLeft && b.mac === 'Ctrl-b')
     expect(ctrlB).toHaveLength(1)
     expect(ctrlB[0]?.shift).toBeUndefined()

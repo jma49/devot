@@ -275,6 +275,14 @@ function NameField(props: {
  * keeps them the same while nothing it shows changes (typing in a note
  * renders no sidebar).
  */
+/** The page event that moves the sidebar's view to the next (1) or previous (-1) row. */
+const SIDEBAR_STEP = 'devot:sidebar-step'
+
+/** Shows the row after (1) or before (-1) the one shown (Next and Previous Sidebar Row). */
+export function stepSidebarRow(by: 1 | -1): void {
+  window.dispatchEvent(new CustomEvent(SIDEBAR_STEP, { detail: by }))
+}
+
 export const Sidebar = memo(function Sidebar(props: Props) {
   useKeymap()
   const { tree, counts, selection, renaming } = props
@@ -427,8 +435,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
    * notebook shows without a filter, the Trash shows (a filter does not
    * apply there), and a filter row turns its filter on.
    */
-  const arrive = (row: Row) => {
-    rowElements.current.get(row.key)?.focus()
+  const arrive = (row: Row, focusRow = true) => {
+    if (focusRow) rowElements.current.get(row.key)?.focus()
     if ('selection' in row.shows) {
       const { selection: next } = row.shows
       return props.onSelect(next, { clearFilter: next.kind !== 'trash' })
@@ -453,6 +461,18 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     const to = moves[event.key]
     if (to !== undefined && to.key !== key) arrive(to)
   }
+  // Next and Previous Sidebar Row, from anywhere: the view moves to the row
+  // after or before the one shown, and the keyboard stays where it is.
+  useEffect(() => {
+    const onStep = (e: Event) => {
+      const by = (e as CustomEvent<unknown>).detail
+      if (by !== 1 && by !== -1) return
+      const to = rowOrder[rowOrder.findIndex((r) => r.key === shownKey) + by]
+      if (to !== undefined) arrive(to, false)
+    }
+    window.addEventListener(SIDEBAR_STEP, onStep)
+    return () => window.removeEventListener(SIDEBAR_STEP, onStep)
+  })
   const nameEditing = editing ?? renaming
   const siblings = useMemo(() => neighbours(tree), [tree])
   const placed = (node: BookNode): PlacedNode => ({

@@ -122,7 +122,7 @@ import { LivePreview } from './preview/Preview'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { Activity, useActivityMenu } from './Activity'
-import { Sidebar, type Selection } from './Sidebar'
+import { Sidebar, stepSidebarRow, type Selection } from './Sidebar'
 import { useKept, useStable } from './stable'
 import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
@@ -1890,7 +1890,6 @@ export function App() {
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
   const handlers: CommandHandlers = {
     'palette.open': { run: openPalette },
-    'palette.openOutsideEditor': { run: openPalette },
     'search.view': { run: () => startSearch('view') },
     'search.all': { run: () => startSearch('all') },
     'view.focus': { run: toggleFocus },
@@ -1901,6 +1900,9 @@ export function App() {
       },
       label: sidebarShown ? 'command.hideSidebar' : 'command.showSidebar',
     },
+    'view.focusNoteList': { run: () => requestFocus({ kind: 'area', area: 'list' }) },
+    'view.nextSidebarRow': { run: () => stepSidebarRow(1) },
+    'view.previousSidebarRow': { run: () => stepSidebarRow(-1) },
     'view.nextArea': { run: () => moveArea(1) },
     'view.previousArea': { run: () => moveArea(-1) },
     'view.fontBigger': { run: () => stepEditorFontSize(1) },
@@ -2061,6 +2063,8 @@ export function App() {
   }
   // Find works while a note is open; its keys run ahead of the editor's (useFind).
   Object.assign(handlers, find.commands)
+  // Move to Notebook from anywhere runs what the list's key does.
+  if (handlers['note.move']) handlers['note.moveAnywhere'] = handlers['note.move']
   useWindowCommands(handlers)
   // The menu bar's Format menu runs the format commands too.
   useFormatMenu(handlers)
@@ -2545,6 +2549,7 @@ export function App() {
                 onNewFromSelection={inTrash ? undefined : () => void noteFromSelection(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
+                onOpenNote={(id) => void select(id)}
               />
               {mode === 'edit' ? null : (
                 <LivePreview

@@ -12,6 +12,8 @@ import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys } from './commands/registry'
+import { invoke } from './ipc'
+import { lineCommands } from './editor/lineCommands'
 import type { ShowAlertMenu } from './editor/alertMenu'
 import { moveSelection, selectedText, trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
@@ -438,6 +440,8 @@ interface Props {
   onImagesRefused?: (codes: string[]) => void
   /** The core could not open the note (it is gone or in the Trash). */
   onOpenFailed?: (noteId: string) => void
+  /** Opens the note a link under the caret points at (Open Link's key). */
+  onOpenNote?: (noteId: string) => void
 }
 
 /** CodeMirror bound to a local Yjs replica of the note held by the core. */
@@ -461,6 +465,7 @@ export function NoteEditor({
   onNewFromSelection,
   onImagesRefused,
   onOpenFailed,
+  onOpenNote,
 }: Props) {
   const host = useRef<HTMLDivElement>(null)
   // Read once, when the note has loaded.
@@ -488,6 +493,7 @@ export function NoteEditor({
   const fromSelection = useRef(onNewFromSelection)
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
+  const noteOpener = useRef(onOpenNote)
   useEffect(() => {
     placeAsked.current = initialPlace
     placeReport.current = onPlace
@@ -500,6 +506,7 @@ export function NoteEditor({
     fromSelection.current = onNewFromSelection
     imagesRefused.current = onImagesRefused
     openFailed.current = onOpenFailed
+    noteOpener.current = onOpenNote
     latestSettings.current = settings
     imageHandlers.current = { open: onOpenImage, menu: showImageMenu }
   })
@@ -604,6 +611,15 @@ export function NoteEditor({
               pasteUrls,
               pastePlainKeys(),
               newFromSelectionKeys(),
+              lineCommands((href) => {
+                const note = /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)
+                if (note?.[1]) noteOpener.current?.(note[1])
+                else if (/^https:\/\//i.test(href)) {
+                  invoke('open_external', { url: href }).catch(() =>
+                    console.warn('W_OPEN_EXTERNAL_FAILED'),
+                  )
+                }
+              }),
               insertKeymap(),
               imageCommandKeys(),
               newFromSelection.of(() => {
