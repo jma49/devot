@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractTitle, headline, HEADLINE_CHARS } from './extract'
+import { extractTitle, headline, HEADLINE_CHARS, taskProgress } from './extract'
 import { MAX_TITLE_CHARS } from './noteLimits'
 
 describe('extractTitle', () => {
@@ -82,5 +82,19 @@ describe('headline', () => {
     expect([...headline('x'.repeat(500))]).toHaveLength(HEADLINE_CHARS)
     expect(headline('\n'.repeat(100_000) + 'late')).toBe('')
     expect(headline('\u{1F600}'.repeat(500))).toBe('\u{1F600}'.repeat(HEADLINE_CHARS))
+  })
+})
+
+describe('taskProgress', () => {
+  it('counts tasks in lists and quotes, done ones too', () => {
+    expect(taskProgress('- [x] one\n* [ ] two\n1. [X] three\n> - [ ] four')).toEqual({
+      done: 2,
+      total: 4,
+    })
+  })
+
+  it('counts none in code blocks, front matter or plain brackets', () => {
+    const body = '---\ntodo: - [ ] no\n---\n```\n- [ ] code\n```\n[ ] not a list\n- [] empty'
+    expect(taskProgress(body)).toEqual({ done: 0, total: 0 })
   })
 })

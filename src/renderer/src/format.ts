@@ -35,17 +35,21 @@ export function noteDate(updatedAt: number, now: number, locale: string): string
 }
 
 /**
- * How long ago a note changed ("now", "5 minutes ago", "yesterday"); a month
- * or more back, its date.
+ * How long since a note changed, as the list shows it: "a few seconds",
+ * "7 minutes", "3 hours", "3 days"; a month or more back, its date.
  */
 export function relativeTime(updatedAt: number, now: number, locale: string): string {
   const seconds = Math.max(0, Math.round((now - updatedAt) / 1000))
-  const rtf = kept(`rel|${locale}`, () => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }))
-  if (seconds < 60) return rtf.format(0, 'second')
-  if (seconds < 3600) return rtf.format(-Math.floor(seconds / 60), 'minute')
-  if (seconds < 86_400) return rtf.format(-Math.floor(seconds / 3600), 'hour')
+  const span = (count: number, unit: 'minute' | 'hour' | 'day') =>
+    kept(
+      `span|${unit}|${locale}`,
+      () => new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'long' }),
+    ).format(count)
+  if (seconds < 60) return t('time.fewSeconds')
+  if (seconds < 3600) return span(Math.floor(seconds / 60), 'minute')
+  if (seconds < 86_400) return span(Math.floor(seconds / 3600), 'hour')
   const days = Math.floor(seconds / 86_400)
-  if (days < 30) return rtf.format(-days, 'day')
+  if (days < 30) return span(days, 'day')
   return noteDate(updatedAt, now, locale)
 }
 

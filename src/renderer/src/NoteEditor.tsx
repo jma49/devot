@@ -86,6 +86,8 @@ export interface EditorHandle {
   takeState: (state: Uint8Array) => void
   /** Gives the editor the keyboard, with its selection as it was. */
   focus: () => void
+  /** Focuses the editor with the caret at the start of the body. */
+  focusStart: () => void
   /** Focuses the editor and applies a format to its selection. */
   format: (id: FormatId) => void
   /** Focuses the editor and inserts at its selection (an image, a table, a note link). */
@@ -705,6 +707,10 @@ export function NoteEditor({
             vector: () => Y.encodeStateVector(doc),
             takeState: (state) => Y.applyUpdate(doc, state, REMOTE),
             focus: () => ready.focus(),
+            focusStart: () => {
+              ready.focus()
+              ready.dispatch({ selection: { anchor: 0 }, scrollIntoView: true })
+            },
             format: (id) => {
               ready.focus()
               formatCommand(id)(ready)

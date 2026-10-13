@@ -32,7 +32,7 @@ import { loadActivity, type ActivityHeatmap, type OffsetAt } from './activity'
 import { TEMPLATES_BOOK_ID } from './books'
 import { foldUnchanged, lineDiff, type DiffBlock } from './diff'
 import { errorCode } from './errors'
-import { headline, listExcerpt } from './extract'
+import { headline, listExcerpt, taskProgress } from './extract'
 import { receiveStored, type Clock } from './hlc'
 import {
   BASELINE,
@@ -69,7 +69,6 @@ import {
 import { extractTitle } from './extract'
 import { findBacklinks } from './links'
 import type { NoteLinkTarget } from './preview/registry'
-import { taskProgress } from './tasks'
 import { fileLinkSpans, newFileCopies, replaceFileLinks, type FileCopy } from './files'
 import { clipTitle, MAX_TITLE_CHARS } from './noteLimits'
 import { lineFeeds, textDiff } from './text'
@@ -182,6 +181,12 @@ export interface NoteService {
    * memory.
    */
   excerpts(ids: readonly string[]): Promise<Record<string, string>>
+  /**
+   * The task progress the lists show for each of these notes that has tasks,
+   * as "done/total" (see `taskProgress`), pending edits included; empty for
+   * a note with no tasks. A note that does not exist is left out.
+   */
+  progress(ids: readonly string[]): Promise<Record<string, string>>
   /**
    * A new note with the title, body, notebook and status of `id` (pending
    * edits included; a deleted notebook counts as none); it is never pinned.
@@ -1330,6 +1335,22 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           const bodyMd = note ? note.doc.getText(BODY).toString() : record?.bodyMd
           if (bodyMd === undefined) return
           found[id] = listExcerpt(bodyMd, note ? note.record.title : (record?.title ?? ''))
+        }),
+      )
+      return found
+    },
+
+    async progress(ids) {
+      const found: Record<string, string> = {}
+      await Promise.all(
+        ids.map(async (id) => {
+          const note = live.get(id)
+          const bodyMd = note
+            ? note.doc.getText(BODY).toString()
+            : (await storage.getNote(id, { trashed: true }))?.bodyMd
+          if (bodyMd === undefined) return
+          const { done, total } = taskProgress(bodyMd)
+          found[id] = total > 0 ? `${done}/${total}` : ''
         }),
       )
       return found

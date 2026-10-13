@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow, pickNoteMore } from './fixtures'
+import { expect, test, type TestWindow, pickNoteMore, pickStatus } from './fixtures'
 
 // Every way of changing the view follows the same rules (the sidebar, the
 // palette, New Notebook, a finished import): a note in the Trash closes when
@@ -97,7 +97,7 @@ test('a notebook from the palette, during a search over every note, drops the hi
 }) => {
   await createBook(page, 'Work')
   await createNote(page, 'Work plan')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   const active = sidebar(page).getByRole('button', { name: /^Active \d+$/ })
   await active.click()
   await expect(header(page)).toHaveText('Active')

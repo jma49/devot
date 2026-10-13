@@ -241,6 +241,26 @@
           "alpha": 0.065
         },
         "$description": "The preview's note info card."
+      },
+      "row-selected": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.12
+        },
+        "$description": "A selected note list row."
+      },
+      "tool-hover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.09
+        },
+        "$description": "A toolbar button under the pointer."
       }
     },
     "accent": {
@@ -805,6 +825,26 @@
           "alpha": 0.3
         },
         "$description": "Highlighted text (<mark>) in the preview."
+      }
+    },
+    "match": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9529, 0.8824, 0.7333],
+          "hex": "#f3e1bb"
+        },
+        "$description": "The box behind a word a filter matched in the note list."
+      },
+      "border": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.851, 0.7216, 0.4431],
+          "hex": "#d9b871"
+        },
+        "$description": "The outline of that box, a shade darker."
       }
     }
   }

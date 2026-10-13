@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore } from './fixtures'
+import { expect, test, pickNoteMore, pickStatus } from './fixtures'
 import { seedNotes } from './renders'
 
 // The note list shows the user's own changes at once: new dates and order
@@ -7,7 +7,8 @@ import { seedNotes } from './renders'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const rows = (page: Page) => list(page).getByRole('option')
-const rowTitles = (page: Page) => list(page).locator('.row-title')
+// A row's name: its title, or for an untitled note the first line leading its excerpt.
+const rowTitles = (page: Page) => list(page).locator('.row-title, .row-headline')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -32,7 +33,8 @@ async function expectNewNoteListed(page: Page, total: number) {
   await expect(rows(page)).toHaveCount(total)
   await expect(titleField(page)).toHaveValue('')
   await expect(selectedRow(page)).toHaveCount(1)
-  await expect(selectedRow(page).locator('.row-title')).toHaveText('Untitled')
+  await expect(selectedRow(page).locator('.row-headline')).toHaveText('Untitled')
+  await expect(selectedRow(page).locator('.row-title')).toHaveCount(0)
 }
 
 test('an edited note moves to the top with its new date', async ({ page }) => {
@@ -76,7 +78,7 @@ test('New Note in Pinned lists the new note in All Notes', async ({ page }) => {
 test('New Note in a status or tag view lists the new note in All Notes', async ({ page }) => {
   await seedNotes(page, 3)
   await openNote(page, 'Note 2')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   const tagField = page.getByRole('combobox', { name: 'Add Tag' })
   await tagField.fill('plans')
   await tagField.press('Enter')

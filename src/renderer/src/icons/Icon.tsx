@@ -12,7 +12,12 @@ const POINT_SIZES = { sm: 14, md: 17, toolbar: 18, lg: 22 } as const
 
 /** The appearance the page shows: the one chosen in Settings, else the system's. */
 export function useAppearance(): Appearance {
-  return useSyncExternalStore(subscribeAppearance, () => shownAppearance())
+  return useSyncExternalStore(
+    subscribeAppearance,
+    () => shownAppearance(),
+    // Rendered outside a window (component tests): the light appearance.
+    () => 'light',
+  )
 }
 
 /**

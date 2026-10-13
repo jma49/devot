@@ -5,7 +5,15 @@
 // registry's Mod matches metaKey on every platform); editor keys are
 // platform-neutral, and the caret is placed by typing and clicking only.
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, reloadApp, test, type TestWindow, pickNoteMore } from './fixtures'
+import {
+  expect,
+  pickMenuItem,
+  reloadApp,
+  test,
+  type TestWindow,
+  pickNoteMore,
+  pickStatus,
+} from './fixtures'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
@@ -336,7 +344,7 @@ test('the arrow keys move through the sidebar, and the selection follows', async
   await expect(book(page, 'Devot')).toHaveAttribute('aria-level', '2')
   await source(page, 'All Notes').click()
   await createNote(page, 'Plan')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   const tagField = page.getByRole('combobox', { name: 'Add Tag' })
   await tagField.fill('idea')
   await tagField.press('Enter')
@@ -407,7 +415,7 @@ test('arrowing out of the Trash shows All Notes without the filter left behind',
   page,
 }) => {
   await createNote(page, 'Plan')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await source(page, 'Active').click()
   await expect(header(page)).toHaveText('Active')
   await page.keyboard.press('End')

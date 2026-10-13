@@ -1,4 +1,4 @@
-import { expect, test as base, type Page } from '@playwright/test'
+import { expect, test as base, type Locator, type Page } from '@playwright/test'
 
 // A 1x1 black PNG: what `symbol_png` returns, at a smaller size.
 const PNG =
@@ -559,4 +559,32 @@ export async function pickNoteMore(page: Page, label: string): Promise<void> {
 export async function openNotePinned(page: Page): Promise<boolean> {
   const items = await openNoteMore(page, { keepFocus: true })
   return items.some((line) => line === 'Unpin' || line.startsWith('Unpin '))
+}
+
+/** The status pop-up button under the open note's title (or in `scope`, the selection summary). */
+export function statusPicker(scope: Page | Locator): Locator {
+  return scope.getByRole('button', { name: 'Status', exact: true })
+}
+
+/** The notebook pop-up button under the open note's title. */
+export function bookPicker(scope: Page | Locator): Locator {
+  return scope.getByRole('button', { name: 'Notebook', exact: true })
+}
+
+/** Opens the status pop-over and picks `label` (None, Active, On Hold, Completed, Dropped). */
+export async function pickStatus(scope: Page | Locator, label: string): Promise<void> {
+  await statusPicker(scope).click()
+  await scope
+    .getByRole('listbox', { name: 'Status' })
+    .getByRole('option', { name: label, exact: true })
+    .click()
+}
+
+/** Opens the notebook pop-over and picks the notebook named `label` (or No Notebook). */
+export async function pickBook(scope: Page | Locator, label: string): Promise<void> {
+  await bookPicker(scope).click()
+  await scope
+    .getByRole('listbox', { name: 'Notebook' })
+    .getByRole('option', { name: label, exact: true })
+    .click()
 }

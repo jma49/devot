@@ -36,7 +36,7 @@ export function MoveNoteDialog(props: {
   }, [])
 
   const all = [
-    { id: NO_BOOK, name: t('note.noBook'), label: t('note.noBook') },
+    { id: NO_BOOK, name: t('note.noBook'), label: t('note.noBook'), depth: 0, ancestors: [] },
     ...bookOptions(props.tree),
   ]
   const needle = query.trim().toLocaleLowerCase()

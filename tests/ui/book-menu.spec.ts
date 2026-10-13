@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, shownMenu, test, type TestWindow, bookPicker } from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -208,7 +208,7 @@ test('Delete Notebook deletes the clicked notebook with its sub-notebooks and ke
   await page.getByRole('button', { name: /All Notes/ }).click()
   await expect(noteRows(page)).toHaveCount(2)
   await noteRows(page).filter({ hasText: 'Survivor' }).click()
-  await expect(page.getByRole('combobox', { name: 'Notebook' })).toHaveValue('')
+  await expect(bookPicker(page)).toHaveAttribute('data-value', '')
 })
 
 test('the keys still rename and delete the focused notebook', async ({ page }) => {

@@ -1,7 +1,5 @@
 import {
-  Fragment,
   memo,
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -13,8 +11,7 @@ import {
   type Ref,
 } from 'react'
 import type { NoteSummary, TagRecord } from '../../core'
-import { matchSegments } from '../../core/search'
-import { fullDate, noteCount, relativeTime } from './format'
+import { noteCount } from './format'
 import { currentLocale, format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
@@ -32,7 +29,8 @@ import { entryOffsets, spacerHeight, windowRuns } from './listWindow'
 import { noteShortcut, trashShortcut, type NoteAction, type TrashAction } from './noteMenu'
 import { DRAG_NOTE, DRAG_TEMPLATE } from './Sidebar'
 import { useStable } from './stable'
-import { TagDot } from './TagEditor'
+import { NoteRow, type RowEvents } from './NoteRow'
+import { isImeKey } from './ime'
 
 interface Props {
   /**
@@ -108,14 +106,8 @@ interface Props {
   headlines?: HeadlineLoader | undefined
   /** Looks up the body excerpt a row shows under its title (search results bring their own). */
   excerpts?: HeadlineLoader | undefined
-}
-
-/** `text` with the runs that match `pattern` in `<mark>`; text nodes only, never markup. */
-function Marked({ text, pattern }: { text: string; pattern: RegExp | null | undefined }) {
-  if (!pattern) return text
-  return matchSegments(text, pattern).map((s, i) =>
-    s.match ? <mark key={i}>{s.text}</mark> : <Fragment key={i}>{s.text}</Fragment>,
-  )
+  /** Looks up each note's task progress, "done/total" (see NoteService.progress). */
+  progress?: HeadlineLoader | undefined
 }
 
 const MINUTE = 60_000
@@ -146,106 +138,10 @@ function useNow(): number {
   return now
 }
 
-/** What a row does with its events; one object for all rows, kept from render to render. */
-interface RowEvents {
-  setRow: (id: string, el: HTMLLIElement | null) => void
-  mouseDown: (event: MouseEvent<HTMLLIElement>) => void
-  click: (id: string, event: MouseEvent<HTMLLIElement>) => void
-  dragStart: (id: string, event: DragEvent<HTMLLIElement>) => void
-  keyDown: (id: string, event: KeyboardEvent<HTMLLIElement>) => void
-  contextMenu: (id: string, event: MouseEvent<HTMLLIElement>) => void
-}
-
-interface RowProps {
-  note: NoteSummary
-  /** Its place in the list, 1-based, and the list's length; set while the list is windowed. */
-  position: number | undefined
-  setSize: number | undefined
-  selected: boolean
-  /** The row takes Tab (see `tabStop`). */
-  tabbable: boolean
-  tags: ReadonlyMap<string, TagRecord>
-  highlight: Props['highlight']
-  /** What shows for a note with no title: its first line, once known (see `useHeadlines`). */
-  headline: string | undefined
-  /** The start of the note's body, once known (see `useHeadlines`). */
-  preview: string | undefined
-  /** The time the row's relative date is measured from (see `useNow`). */
-  now: number
-  locale: string
-  draggable: boolean
-  /** Right-click shows the note menu. */
-  menu: boolean
-  events: RowEvents
-}
-
 /** Stands for entries of a windowed list that are not rendered. */
 function spacer(key: string, height: number) {
   return <li key={key} className="rows-spacer" role="presentation" style={{ height }} />
 }
-
-/**
- * One note in the list. It renders again only when what it shows changes,
- * so a list of any length costs one row when one note changes.
- */
-const NoteRow = memo(function NoteRow(props: RowProps) {
-  const { note: n, events, highlight } = props
-  const id = n.id
-  const ref = useCallback((el: HTMLLIElement | null) => events.setRow(id, el), [events, id])
-  const chips = n.tagIds.flatMap((tagId) => {
-    const tag = props.tags.get(tagId)
-    return tag ? [tag] : []
-  })
-  return (
-    <li
-      ref={ref}
-      className="row"
-      data-note-id={id}
-      role="option"
-      aria-selected={props.selected}
-      aria-posinset={props.position}
-      aria-setsize={props.setSize}
-      tabIndex={props.tabbable ? 0 : -1}
-      onMouseDown={events.mouseDown}
-      onClick={(e) => events.click(id, e)}
-      draggable={props.draggable}
-      onDragStart={(e) => events.dragStart(id, e)}
-      onKeyDown={(e) => events.keyDown(id, e)}
-      onContextMenu={props.menu ? (e) => events.contextMenu(id, e) : undefined}
-    >
-      <span className="row-title">
-        {n.title ? (
-          <Marked text={n.title} pattern={highlight?.title} />
-        ) : (
-          (props.headline ?? t('note.untitled'))
-        )}
-      </span>
-      <span className="row-meta">
-        <time
-          className="row-time"
-          dateTime={new Date(n.updatedAt).toISOString()}
-          title={fullDate(n.updatedAt, props.locale)}
-        >
-          {relativeTime(n.updatedAt, props.now, props.locale)}
-        </time>
-        {n.status !== 'none' ? (
-          <span className={`row-status status-${n.status}`}>{t(`status.${n.status}`)}</span>
-        ) : null}
-        {chips.map((c) => (
-          <span key={c.id} className="chip">
-            {c.color ? <TagDot color={c.color} /> : null}
-            {c.name}
-          </span>
-        ))}
-      </span>
-      {n.excerpt || props.preview ? (
-        <span className="row-excerpt">
-          <Marked text={n.excerpt ?? props.preview ?? ''} pattern={highlight?.body} />
-        </span>
-      ) : null}
-    </li>
-  )
-})
 
 /**
  * The middle pane: a toolbar and the notes, navigable with the arrow keys.
@@ -347,6 +243,7 @@ export const NoteList = memo(function NoteList(props: Props) {
   )
   const headlines = useHeadlines(props.headlines, rendered)
   const previews = useHeadlines(props.excerpts, rendered, true)
+  const progress = useHeadlines(props.progress, rendered, true)
   // A long list measures its entries as they render and change size, and
   // itself (its gaps, padding and height), and renders again when that
   // moves anything.
@@ -719,6 +616,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         highlight={props.highlight}
         headline={headlines.get(n.id)}
         preview={previews.get(n.id)}
+        progress={progress.get(n.id)}
         now={now}
         locale={locale}
         draggable={props.drag !== false}
@@ -775,7 +673,18 @@ export const NoteList = memo(function NoteList(props: Props) {
         </div>
       </div>
       {props.filter || props.sort ? (
-        <div className="list-filter">
+        <div
+          className="list-filter"
+          onKeyDown={(e) => {
+            // Return in the Filter field hands the keyboard to the list (not
+            // the Return that picks a candidate of an input method).
+            if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return
+            if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || isImeKey(e.nativeEvent)) return
+            e.preventDefault()
+            if (tabStop !== undefined) focusRow(tabStop)
+            else list.current?.focus()
+          }}
+        >
           {props.filter}
           {props.sort ? (
             <button

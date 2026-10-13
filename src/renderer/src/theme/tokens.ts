@@ -3,6 +3,7 @@
 export const sizes = {
   "font.family.ui": "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', sans-serif",
   "font.family.mono": "SFMono-Regular, ui-monospace, Consolas, 'Liberation Mono', Menlo, Courier, monospace",
+  "font.size.caption2": "10px",
   "font.size.caption": "11px",
   "font.size.footnote": "12px",
   "font.size.body": "13px",
@@ -32,6 +33,7 @@ export const sizes = {
   "radius.button": "6px",
   "radius.field": "7px",
   "radius.card": "8px",
+  "radius.pill": "12px",
   "radius.capsule": "999px",
   "radius.popover": "12px",
   "radius.floating-bar": "14px",
@@ -89,6 +91,8 @@ export const light = {
   "color.fill.button": "#ebeae7",
   "color.fill.completion-selected": "#ebe7fe",
   "color.fill.card": "rgb(28 27 25 / 0.065)",
+  "color.fill.row-selected": "rgb(28 27 25 / 0.12)",
+  "color.fill.tool-hover": "rgb(28 27 25 / 0.09)",
   "color.accent.fill": "#3472d6",
   "color.accent.text": "#2856a2",
   "color.accent.hover": "#2463eb",
@@ -148,7 +152,9 @@ export const light = {
   "color.table.head": "rgb(28 27 25 / 0.075)",
   "color.table.stripe": "rgb(28 27 25 / 0.03)",
   "color.quote.bar": "rgb(28 27 25 / 0.18)",
-  "color.mark.bg": "rgb(234 179 8 / 0.3)"
+  "color.mark.bg": "rgb(234 179 8 / 0.3)",
+  "color.match.bg": "#f3e1bb",
+  "color.match.border": "#d9b871"
 } as const
 
 export const dark = {
@@ -177,6 +183,8 @@ export const dark = {
   "color.fill.button": "#34332f",
   "color.fill.completion-selected": "#3a3550",
   "color.fill.card": "rgb(235 232 226 / 0.08)",
+  "color.fill.row-selected": "rgb(235 232 226 / 0.14)",
+  "color.fill.tool-hover": "rgb(235 232 226 / 0.12)",
   "color.accent.fill": "#4576b2",
   "color.accent.text": "#7ea6d8",
   "color.accent.hover": "#2463eb",
@@ -236,7 +244,9 @@ export const dark = {
   "color.table.head": "rgb(235 232 226 / 0.12)",
   "color.table.stripe": "rgb(235 232 226 / 0.045)",
   "color.quote.bar": "rgb(235 232 226 / 0.22)",
-  "color.mark.bg": "rgb(227 164 58 / 0.3)"
+  "color.mark.bg": "rgb(227 164 58 / 0.3)",
+  "color.match.bg": "#5b4a26",
+  "color.match.border": "#80672f"
 } as const
 
 export type ThemeColor = keyof typeof light

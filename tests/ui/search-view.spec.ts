@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickStatus } from './fixtures'
 
 // Search syntax, the two search shortcuts (this view or every note), and
 // highlighted matches in the list.
@@ -97,7 +97,7 @@ test('Shift+Cmd+F searches the current view; Shift+Opt+Cmd+F searches every note
 
 test('searching a filter narrows within it', async ({ page }) => {
   await createNote(page, 'Active plan')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await createNote(page, 'Idle plan')
   await sidebar(page)
     .getByRole('button', { name: /^Active 1$/ })
@@ -296,7 +296,7 @@ test('searching every note shows nothing in the sidebar as selected until it is 
   // A filter: typing in the field searches every note, and the filter no
   // longer looks pressed; clearing the field shows it pressed again.
   await noteRows(page).filter({ hasText: 'Work plan' }).click()
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   const active = sidebar(page).getByRole('button', { name: /^Active 1$/ })
   await active.click()
   await expect(header(page)).toHaveText('Active')
@@ -334,12 +334,11 @@ test('a filter pressed while searching every note leaves the hidden notebook', a
     '[aria-current="true"], [aria-selected="true"], [aria-pressed="true"]',
   )
   const active = sidebar(page).getByRole('button', { name: /^Active 2$/ })
-  const status = page.getByRole('combobox', { name: 'Status' })
   await createNote(page, 'Loose plan')
-  await status.selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await createBook(page, 'Work')
   await createNote(page, 'Work plan')
-  await status.selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await expect(header(page)).toHaveText('Work')
 
   // Shift+Opt+Cmd+F searches every note: the notebook no longer looks
