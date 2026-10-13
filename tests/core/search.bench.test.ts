@@ -149,7 +149,8 @@ describe(`lists and search across ${NOTES} notes of a few KB`, () => {
     `answers a word and a two-character Chinese word in under ${BUDGET_MS} ms`,
     { timeout: TEST_TIMEOUT_MS },
     async (context) => {
-      expectWithinBudget(context, await search('merge \u9884\u89c8'), BUDGET_MS)
+      // Exact: stretched on a hosted runner, it would pass and end the known failure there.
+      expectWithinBudget(context, await search('merge \u9884\u89c8'), BUDGET_MS, { exact: true })
     },
   )
 

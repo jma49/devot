@@ -1,5 +1,12 @@
-import { afterEach, describe, expect, it, vi, type TestContext } from 'vitest'
-import { expectWithinBudget, setOverloadProbe, skipIfOverloaded } from './budget'
+import { afterEach, beforeEach, describe, expect, it, vi, type TestContext } from 'vitest'
+import {
+  budgetScale,
+  expectWithinBudget,
+  HOSTED_RUNNER_SCALE,
+  setBudgetScale,
+  setOverloadProbe,
+  skipIfOverloaded,
+} from './budget'
 import { machineOverloaded } from './machine-load'
 
 class Skipped extends Error {}
@@ -11,7 +18,11 @@ function fakeContext() {
   return { context: { skip } as unknown as TestContext, skip }
 }
 
-afterEach(() => setOverloadProbe(machineOverloaded))
+beforeEach(() => setBudgetScale(1))
+afterEach(() => {
+  setOverloadProbe(machineOverloaded)
+  setBudgetScale(budgetScale(process.env))
+})
 
 describe('time budgets', () => {
   it('pass within the budget whatever the load', () => {
@@ -46,5 +57,23 @@ describe('time budgets', () => {
     expect(() => skipIfOverloaded(context, 'second')).toThrow(Skipped)
     expect(skip).toHaveBeenCalledTimes(1)
     expect(skip).toHaveBeenCalledWith('machine overloaded (second)')
+  })
+})
+
+describe('the budget scale', () => {
+  it('stretches only on a GitHub-hosted runner', () => {
+    expect(budgetScale({})).toBe(1)
+    expect(budgetScale({ CI: '1' })).toBe(1)
+    expect(budgetScale({ GITHUB_ACTIONS: 'true' })).toBe(1)
+    expect(budgetScale({ CI: 'true', GITHUB_ACTIONS: 'true' })).toBe(HOSTED_RUNNER_SCALE)
+    expect(budgetScale({ CI: 'true', RUNNER_OS: 'Linux' })).toBe(HOSTED_RUNNER_SCALE)
+  })
+
+  it('moves the limit of a budget, which a regression of several times still exceeds', () => {
+    setBudgetScale(HOSTED_RUNNER_SCALE)
+    setOverloadProbe(() => false)
+    const { context } = fakeContext()
+    expectWithinBudget(context, 127, 32)
+    expect(() => expectWithinBudget(context, 10 * 32, 32)).toThrow(/to be less than 160/)
   })
 })

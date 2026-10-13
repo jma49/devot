@@ -44,11 +44,15 @@ export function watchCompositions(
     if (endedAt !== undefined && now() - endedAt < COMPOSITION_END_KEY_MS) endingKeys.add(event)
     endedAt = undefined
   }
-  target.addEventListener('compositionend', ended, true)
-  target.addEventListener('keydown', keyDown, true)
+  // The capture flag goes in an options object: with a bare `true`,
+  // removeEventListener on Node 24's EventTarget does not find the listener,
+  // and a stopped watch would go on running.
+  const capture = { capture: true }
+  target.addEventListener('compositionend', ended, capture)
+  target.addEventListener('keydown', keyDown, capture)
   return () => {
-    target.removeEventListener('compositionend', ended, true)
-    target.removeEventListener('keydown', keyDown, true)
+    target.removeEventListener('compositionend', ended, capture)
+    target.removeEventListener('keydown', keyDown, capture)
   }
 }
 
