@@ -20,6 +20,7 @@ import {
   type CompletionContext,
   type CompletionResult,
 } from '@codemirror/autocomplete'
+import { syntaxTree } from '@codemirror/language'
 import {
   EditorSelection,
   EditorState,
@@ -284,10 +285,51 @@ interface QueryOut {
  */
 const PLACEHOLDER = 'x'
 
-/** The state with `from`–`to` (the `/query`) taken out (or a placeholder in its place), the cursor there. */
-function withoutQuery(state: EditorState, from: number, to: number, inline: boolean): QueryOut {
+/**
+ * Where the text the menu's commands read starts: the top-level block the
+ * slash is in (or starts). Blocks
+ * at the top level read alone (a list, a quote or a table is one block), so
+ * the states made to ask the commands can leave the text above out: parsing
+ * a note again takes time in proportion to its length, even for one key.
+ * 0 (all of it) when the parsed tree does not reach the slash, or the block
+ * could read as front matter.
+ */
+function blockStart(state: EditorState, at: number): number {
+  const tree = syntaxTree(state)
+  let node = tree.resolveInner(at, 1)
+  if (!node.parent) node = tree.resolveInner(at, -1)
+  while (node.parent?.parent) node = node.parent
+  if (!node.parent) return 0
+  const start = state.doc.lineAt(node.from).from
+  return state.sliceDoc(start, start + 3) === '---' ? 0 : start
+}
+
+/**
+ * The state with `from`–`to` (the `/query`) taken out (or a placeholder in
+ * its place), the cursor there; `head` leaves out the text before it (only
+ * the state differs: `changes` is for the whole note when `head` is 0).
+ */
+function withoutQuery(
+  state: EditorState,
+  from: number,
+  to: number,
+  inline: boolean,
+  head = 0,
+): QueryOut {
   const keep = inline ? PLACEHOLDER : ''
   const changes = state.changes({ from, to, insert: keep })
+  if (head > 0) {
+    const cut = state.changes([
+      { from: 0, to: head },
+      { from, to, insert: keep },
+    ])
+    const anchor = cut.mapPos(from, -1)
+    return {
+      changes,
+      state: state.update({ changes: cut, selection: { anchor } }).state,
+      ...(inline ? { placeholder: anchor } : {}),
+    }
+  }
   const anchor = changes.mapPos(from, -1)
   return {
     changes,
@@ -349,8 +391,9 @@ export function matchesNothing(query: string): boolean {
 export function slashItems(state: EditorState, trigger: SlashTrigger): SlashItem[] {
   const matched = matching(trigger.query)
   if (matched.length === 0) return []
-  const inline = withoutQuery(state, trigger.from, trigger.to, true).state
-  const block = withoutQuery(state, trigger.from, trigger.to, false).state
+  const head = blockStart(state, trigger.from)
+  const inline = withoutQuery(state, trigger.from, trigger.to, true, head).state
+  const block = withoutQuery(state, trigger.from, trigger.to, false, head).state
   const there = (item: SlashDef) => (item.inline ? inline : block)
   const on = formatState(block)
   const kind = alertKind(block)

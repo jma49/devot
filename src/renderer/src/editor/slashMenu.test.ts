@@ -329,6 +329,27 @@ describe('the menu at the end of a long note', () => {
     expectWithinBudget(context, typing(`${long(200_000)}${tail}`), 32)
   })
 
+  // The commands read the block the slash is in, not the note above it: the
+  // states they run on leave the rest out (a parse of it is most of the time).
+  it.for([
+    ['a bulleted item', '- item\n- ^'],
+    ['a task item', '- [x] done\n- ^'],
+    ['a quote', '> quoted\n> ^'],
+    ['an alert', '> [!NOTE]\n> ^'],
+    ['a table cell', '| a | b |\n| - | - |\n| ^ | c |'],
+    ['a code block', '```js\nconst a = 1\n^'],
+    ['a paragraph', 'text ^'],
+    ['an empty last line', 'text\n\n^'],
+  ])('lists the same items after a long note as alone: %s', ([, tail = '']) => {
+    const listed = (marked: string) => {
+      const s = state(marked.replace('^', '/li^'))
+      const trigger = slashTrigger(s)
+      return trigger ? slashItems(s, trigger).map((item) => item.id) : null
+    }
+    expect(listed(`${long(20_000)}${tail}`)).toEqual(listed(tail))
+    expect(listed(`---\ntitle: a\n---\n\n${long(2_000)}${tail}`)).toEqual(listed(tail))
+  })
+
   // Inline items run beside a placeholder, block items on the line with the
   // query gone: two states with the query taken out, whatever the item count.
   it('makes one state with the query taken out per kind of item', () => {
