@@ -1803,6 +1803,7 @@ export function App() {
         handlers['note.newFromSelection'] = { run: () => noteFromSelection(id) }
       }
       const image = paletteOpen ? paletteImage : null
+      if (image?.fileId) handlers['image.view'] = { run: () => void editorRef.current?.viewImage() }
       if (image) {
         for (const [action, commandId] of Object.entries(IMAGE_COMMANDS)) {
           if (!imageActionApplies(action as ImageAction, image)) continue

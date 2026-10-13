@@ -936,6 +936,8 @@ export const COMMANDS = [
   // the cursor, or on the one right-clicked when run from the image context
   // menu. The palette lists them only while the cursor is on a line with an
   // image (the copy and save commands only for an attachment).
+  // View Image opens the viewer (what a double-click on the image does).
+  { id: 'image.view', label: 'command.imageView', group: 'image', scope: 'editor', keys: [] },
   { id: 'image.copy', label: 'command.imageCopy', group: 'image', scope: 'editor', keys: [] },
   { id: 'image.save', label: 'command.imageSave', group: 'image', scope: 'editor', keys: [] },
   {

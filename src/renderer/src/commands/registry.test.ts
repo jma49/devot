@@ -214,6 +214,10 @@ describe('COMMANDS', () => {
     expect(commandMatches('sidebar.rowMenu', press('F10', 'F10'))).toBe(false)
   })
 
+  it('declares View Image in the editor, without a key', () => {
+    expect(command('image.view')).toMatchObject({ scope: 'editor', group: 'image', keys: [] })
+  })
+
   it('sees a new key that would shadow a list, Trash or tag row key', () => {
     const probe = (scope: CommandScope, key: string) =>
       shortcutClashes([...COMMANDS, { id: 'probe', scope, keys: [key] }])

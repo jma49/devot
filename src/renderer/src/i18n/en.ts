@@ -517,6 +517,7 @@ export const en = {
   'command.tableAlignRight': 'Align Column Right',
   'command.tableAlignNone': 'Remove Column Alignment',
   'command.tableFormat': 'Format Table',
+  'command.imageView': 'View Image',
   'command.imageCopy': 'Copy Image',
   'command.imageSave': 'Save Image As\u2026',
   'command.imageSizeAuto': 'Image Size: Auto',

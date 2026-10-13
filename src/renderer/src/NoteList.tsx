@@ -243,8 +243,15 @@ export const NoteList = memo(function NoteList(props: Props) {
   const order = useMemo(() => notes.map((n) => n.id), [notes])
   const { selection, onSelection } = props
   const chosen = selection ? new Set(selection.ids) : undefined
-  // The row that takes Tab: the far end of a selection, else the open note's.
-  const tabStop = selection && order.includes(selection.lead) ? selection.lead : selected
+  // The row that takes Tab: the far end of a selection, else the open note's,
+  // else the first row (the open note may not be listed: another notebook, a
+  // filter): the list always keeps a Tab stop.
+  const tabStop =
+    selection && order.includes(selection.lead)
+      ? selection.lead
+      : selected !== undefined && order.includes(selected)
+        ? selected
+        : order[0]
   const rows = useRef(new Map<string, HTMLLIElement>())
   const list = useRef<HTMLUListElement>(null)
   const today = useToday()

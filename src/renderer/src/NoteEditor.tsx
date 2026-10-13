@@ -20,7 +20,7 @@ import { formatKeyAvailability } from './editor/formatKeys'
 import { imeKeys } from './editor/imeKeys'
 import { editorScrollPane } from './editor/scrollPane'
 import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
-import { imageActions, imageAt, imageSizeChange } from './editor/images'
+import { imageActions, imageAt, imageSizeChange, viewImageAt } from './editor/images'
 import { TABLE_COMMANDS, inTable, tableKeymap, type TableCommandId } from './editor/tableCommands'
 import { tableTyping } from './editor/tableTyping'
 import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
@@ -100,6 +100,8 @@ export interface EditorHandle {
   pastePlain: () => Promise<void>
   /** The image at the cursor, or the first on its line (the image commands act on it). */
   imageAtCursor: () => ImageMenuTarget | null
+  /** Shows that image in the viewer (an attachment only); false when there is none. */
+  viewImage: () => boolean
   /**
    * Gives the image at `source` a size, as one change; false when the text
    * there is no longer that image.
@@ -182,8 +184,8 @@ function setImageSize(view: EditorView, source: ImageSource, size: ImageSize): b
  */
 const imageCommandKeys = registryKeys(() =>
   Prec.high(
-    keymap.of(
-      imageKeys().map(({ action, key }) => ({
+    keymap.of([
+      ...imageKeys().map(({ action, key }) => ({
         key,
         run: (view: EditorView) => {
           const image = imageAt(view.state, view.state.selection.main.head)
@@ -194,7 +196,12 @@ const imageCommandKeys = registryKeys(() =>
         },
         preventDefault: true,
       })),
-    ),
+      ...editorCommandKeys('image.view').map((key) => ({
+        key,
+        run: viewImageAt,
+        preventDefault: true,
+      })),
+    ]),
   ),
 )
 
@@ -673,6 +680,7 @@ export function NoteEditor({
             const image = imageAt(ready.state, ready.state.selection.main.head)
             return image ? imageMenuTarget(image) : null
           },
+          viewImage: () => viewImageAt(ready),
           setImageSize: (source, size) => setImageSize(ready, source, size),
         }
       }
