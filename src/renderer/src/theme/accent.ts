@@ -44,16 +44,16 @@ const THEMES = { light, dark } as const
  */
 export const SELECTION_CONTRAST = 1.3
 
-/** How strong the selection of an editor without focus is, against the focused one's. */
-export const INACTIVE_SELECTION = 13 / 30
+/** The contrast of the selection of an editor without focus: lighter, still seen. */
+export const INACTIVE_SELECTION_CONTRAST = 1.15
 
 /**
  * The editor selection for an accent fill: the fill mixed into the editor
  * surface, in 1% steps, until it stands `SELECTION_CONTRAST` from the editor
  * and, with the active line's tint over it (CodeMirror draws the selection in
  * a layer under the lines), from the active line. Solid, so it is the same
- * colour whatever it is drawn over. `inactive` is the same mix at
- * `INACTIVE_SELECTION` of the strength, for an editor without focus.
+ * colour whatever it is drawn over. `inactive`, for an editor without focus,
+ * is the lightest mix that stands `INACTIVE_SELECTION_CONTRAST` from both.
  */
 export function selectionTints(fill: Rgb, appearance: Appearance): { focused: Rgb; inactive: Rgb } {
   const theme = THEMES[appearance]
@@ -61,15 +61,19 @@ export function selectionTints(fill: Rgb, appearance: Appearance): { focused: Rg
   const line = parseColor(theme['color.editor.active-line'])
   const activeLine = composite(line, editor)
   const mix = (alpha: number) => composite({ rgb: fill, alpha }, editor).map(Math.round) as Rgb
-  for (let step = 1; step <= 100; step++) {
-    const tint = mix(step / 100)
-    if (
-      contrastRatio(tint, editor) >= SELECTION_CONTRAST &&
-      contrastRatio(composite(line, tint), activeLine) >= SELECTION_CONTRAST
-    )
-      return { focused: tint, inactive: mix((step / 100) * INACTIVE_SELECTION) }
+  const lightest = (contrast: number): Rgb | undefined => {
+    for (let step = 1; step <= 100; step++) {
+      const tint = mix(step / 100)
+      if (
+        contrastRatio(tint, editor) >= contrast &&
+        contrastRatio(composite(line, tint), activeLine) >= contrast
+      )
+        return tint
+    }
+    return undefined
   }
-  return { focused: fill, inactive: mix(INACTIVE_SELECTION) }
+  const focused = lightest(SELECTION_CONTRAST) ?? fill
+  return { focused, inactive: lightest(INACTIVE_SELECTION_CONTRAST) ?? focused }
 }
 
 /** The focused editor's selection for an accent fill (`selectionTints`). */

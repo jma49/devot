@@ -325,8 +325,8 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.0941, 0.0824, 0.1216],
-          "hex": "#18151f"
+          "components": [0.1137, 0.098, 0.1529],
+          "hex": "#1d1927"
         },
         "$description": "Behind selected text when the editor does not have focus: the same tint at 13/30 of its strength.",
         "$extensions": {

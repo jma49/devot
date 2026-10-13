@@ -98,7 +98,7 @@
   --color-accent-text: var(--system-accent-text-light, #2856a2);
   --color-accent-hover: #2463eb;
   --color-accent-selection: var(--system-accent-selection-light, #e3d6fb);
-  --color-accent-selection-inactive: var(--system-accent-selection-inactive-light, #f3edfd);
+  --color-accent-selection-inactive: var(--system-accent-selection-inactive-light, #efe7fd);
   --color-accent-on-fill: #ffffff;
   --color-editor-caret: #7c3bed;
   --color-editor-active-line: rgb(145 195 253 / 0.2);
@@ -192,7 +192,7 @@
     --color-accent-text: var(--system-accent-text-dark, #7ea6d8);
     --color-accent-hover: #2463eb;
     --color-accent-selection: var(--system-accent-selection-dark, #29233a);
-    --color-accent-selection-inactive: var(--system-accent-selection-inactive-dark, #18151f);
+    --color-accent-selection-inactive: var(--system-accent-selection-inactive-dark, #1d1927);
     --color-accent-on-fill: #ffffff;
     --color-editor-caret: #a689fa;
     --color-editor-active-line: rgb(75 85 99 / 0.2);
@@ -287,7 +287,7 @@
   --color-accent-text: var(--system-accent-text-dark, #7ea6d8);
   --color-accent-hover: #2463eb;
   --color-accent-selection: var(--system-accent-selection-dark, #29233a);
-  --color-accent-selection-inactive: var(--system-accent-selection-inactive-dark, #18151f);
+  --color-accent-selection-inactive: var(--system-accent-selection-inactive-dark, #1d1927);
   --color-accent-on-fill: #ffffff;
   --color-editor-caret: #a689fa;
   --color-editor-active-line: rgb(75 85 99 / 0.2);
@@ -381,7 +381,7 @@
   --color-accent-text: var(--system-accent-text-light, #2856a2);
   --color-accent-hover: #2463eb;
   --color-accent-selection: var(--system-accent-selection-light, #e3d6fb);
-  --color-accent-selection-inactive: var(--system-accent-selection-inactive-light, #f3edfd);
+  --color-accent-selection-inactive: var(--system-accent-selection-inactive-light, #efe7fd);
   --color-accent-on-fill: #ffffff;
   --color-editor-caret: #7c3bed;
   --color-editor-active-line: rgb(145 195 253 / 0.2);
