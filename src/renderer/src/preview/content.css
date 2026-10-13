@@ -168,9 +168,9 @@
   background: var(--color-fill-track);
 }
 
-/* Preview images: a size preset (an image URL's #small, #half or #full). */
+/* Preview images: a size preset (`w:30%`, `w:50%` or `w:100%` in the alt text). */
 .preview img.image-size-small {
-  width: var(--size-image-small);
+  width: 30%;
 }
 
 .preview img.image-size-half {

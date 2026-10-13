@@ -146,7 +146,18 @@
           "components": [0.9216, 0.9098, 0.8863],
           "hex": "#ebe8e2",
           "alpha": 0.18
-        }
+        },
+        "$description": "The outline ring of a floating toolbar button under the pointer."
+      },
+      "shadow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "hex": "#000000",
+          "alpha": 0.45
+        },
+        "$description": "The soft shadow under floating panels."
       }
     },
     "fill": {

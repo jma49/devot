@@ -45,3 +45,8 @@ export const toolbarStateExtension = [
   toolbarState,
   EditorView.focusChangeEffect.of((_state, focusing) => setToolbarFocus.of(focusing)),
 ]
+
+/** Whether the editor has focus, as the floating bars know it. */
+export function editorFocused(state: EditorState): boolean {
+  return state.field(toolbarState, false)?.focused ?? false
+}

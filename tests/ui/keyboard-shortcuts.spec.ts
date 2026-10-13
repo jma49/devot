@@ -265,7 +265,9 @@ test('a shortcut changed in Settings works in the main window at once', async ({
     name: 'Bold',
     exact: true,
   })
-  await expect(boldButton).toHaveAttribute('title', 'Bold (\u2318B)')
+  const boldKey = page.getByRole('tooltip').locator('kbd')
+  await boldButton.hover()
+  await expect(boldKey).toHaveText('\u2318B')
 
   const settings = await context.newPage()
   await mockTauri(settings)
@@ -278,7 +280,9 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   await changeShortcutsElsewhere(page, await storedShortcuts(settings))
   await settings.close()
   // The toolbar still showing names the new key.
-  await expect(boldButton).toHaveAttribute('title', `Bold (${withMod('\u2325')}B)`)
+  await page.mouse.move(1, 1)
+  await boldButton.hover()
+  await expect(boldKey).toHaveText(`${withMod('\u2325')}B`)
 
   // A window key: the old one does nothing, the new one works.
   const focusButton = page.getByRole('button', { name: 'Focus Mode' })

@@ -34,6 +34,8 @@ export const sizes = {
   "radius.card": "8px",
   "radius.capsule": "999px",
   "radius.popover": "12px",
+  "radius.floating-bar": "14px",
+  "radius.dialog": "12px",
   "size.sidebar-width": "232px",
   "size.list-width": "320px",
   "size.list-min-width": "224px",
@@ -54,7 +56,11 @@ export const sizes = {
   "size.menu-width": "325px",
   "size.menu-max-height": "210px",
   "size.menu-row": "24px",
-  "size.icon-menu": "16px"
+  "size.icon-menu": "16px",
+  "size.icon-toolbar": "18px",
+  "size.float-toolbar-height": "37px",
+  "size.float-button": "28px",
+  "size.link-dialog-width": "300px"
 } as const
 
 export const light = {
@@ -73,6 +79,7 @@ export const light = {
   "color.line.separator": "#e5e7eb",
   "color.line.match": "#f59f0a",
   "color.line.control": "rgb(28 27 25 / 0.2)",
+  "color.line.shadow": "rgb(0 0 0 / 0.14)",
   "color.fill.track": "rgb(23 23 23 / 0.055)",
   "color.fill.scrollbar": "rgb(23 23 23 / 0.25)",
   "color.fill.row-selected-unemphasized": "rgb(7 87 131 / 0.2)",
@@ -154,6 +161,7 @@ export const dark = {
   "color.line.separator": "rgb(38 38 38 / 0.75)",
   "color.line.match": "#f59f0a",
   "color.line.control": "rgb(235 232 226 / 0.18)",
+  "color.line.shadow": "rgb(0 0 0 / 0.45)",
   "color.fill.track": "rgb(245 245 245 / 0.07)",
   "color.fill.scrollbar": "rgb(245 245 245 / 0.25)",
   "color.fill.row-selected-unemphasized": "rgb(145 195 253 / 0.2)",

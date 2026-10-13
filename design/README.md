@@ -25,6 +25,7 @@ Tokens use the [W3C Design Tokens (DTCG)](https://www.designtokens.org/) format.
 - **Type:** the system UI font (SF Pro) and SF Mono, not bundled. Body 13 pt, captions and section headers 11 pt, sidebar rows 28 px. Scroll bars are 6 px wide.
 - **Selection:** the focused list shows its selection as an accent fill with white text; unfocused lists use a neutral fill.
 - **Controls:** segmented controls, pop-up buttons and search fields follow AppKit sizes and shapes. A segmented control's selected segment is a raised neutral segment, not an accent fill.
+- **Floating bars:** the selection toolbar and the image size bar float over the editor on `color.surface.popover` (`radius.floating-bar`, a soft `color.line.shadow`), with a notch pointing at the text; a button under the pointer gets a round `color.line.control` ring, and tooltips show the command's key in a chip. The link dialog uses the same surface with `radius.dialog`.
 - **Menus:** the menu bar and every context menu are native. Settings live in the app menu (Devot ▸ Settings…, ⌘,), not in the window.
 
 ## Tag colours

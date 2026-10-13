@@ -1037,6 +1037,33 @@ export function linkTo(state: EditorState, url: string): TransactionSpec | null 
   }
 }
 
+/** Whether the selection touches a link (the Link button then removes it). */
+export function selectionHasLink(state: EditorState): boolean {
+  const cx = context(state)
+  return !!cx && selectedLinks(cx).length > 0
+}
+
+/** A link's text with its lone brackets escaped, on one line. */
+function linkLabel(text: string): string {
+  return text.replace(/\s*\n\s*/g, ' ').replace(/\\?[[\]]/g, (m) => (m.length === 2 ? m : `\\${m}`))
+}
+
+/**
+ * The link dialog's result: `[text](url)` in place of the main selection
+ * (the URL as its text when `text` is empty), the cursor after it; one undo
+ * step.
+ */
+export function insertLink(state: EditorState, text: string, url: string): TransactionSpec {
+  const { from, to } = state.selection.main
+  const address = linkAddress(url.trim())
+  const label = linkLabel(text.trim() === '' ? url.trim() : text)
+  const changes = state.changes([
+    ...escapeBangBefore(state, from),
+    { from, to, insert: `[${label}](${address})` },
+  ])
+  return spec(changes, EditorSelection.single(changes.mapPos(to, 1)))
+}
+
 /**
  * Removes the links the selection touches (keeping their text); otherwise
  * makes each selected line a link with an empty address and puts the cursor
