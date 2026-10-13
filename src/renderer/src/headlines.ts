@@ -5,9 +5,49 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { NoteSummary } from '../../core'
 import { errorCode } from '../../core/errors'
+import { t } from './i18n'
 
 /** Looks up the headlines of notes by ID (see NoteService.headlines). */
 export type HeadlineLoader = (ids: string[]) => Promise<Record<string, string>>
+
+/**
+ * What names a note anywhere it is named: its title, else its headline (the
+ * first line of its body), else "Untitled" for a note with neither (an empty
+ * one). The one fallback every list, dialog, link and menu uses.
+ */
+export function displayTitle(title: string, headline: string | undefined): string {
+  return title || headline || t('note.untitled')
+}
+
+/**
+ * The display title (see `displayTitle`) of each of `notes`, by ID, for places
+ * that name notes once rather than render a list. Only untitled notes are
+ * looked up; when the lookup fails they get "Untitled", so naming a note
+ * never fails with it.
+ */
+export async function displayTitles(
+  load: HeadlineLoader | undefined,
+  notes: readonly { id: string; title: string }[],
+): Promise<Map<string, string>> {
+  const untitled = notes.filter((n) => n.title === '').map((n) => n.id)
+  let found: Record<string, string> = {}
+  if (load && untitled.length > 0) {
+    try {
+      found = await load(untitled)
+    } catch (e) {
+      console.warn('W_HEADLINES_FAILED', errorCode(e))
+    }
+  }
+  return new Map(notes.map((n) => [n.id, displayTitle(n.title, found[n.id])]))
+}
+
+/** The `limit` most recently written untitled notes of `notes`. */
+export function newestUntitled(notes: readonly NoteSummary[], limit: number): NoteSummary[] {
+  return notes
+    .filter((n) => n.title === '')
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, limit)
+}
 
 /** A headline, and the `updatedAt` of the note it was read for. */
 export interface CachedHeadline {

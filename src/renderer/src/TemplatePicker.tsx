@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { BookRecord, NoteSummary, TemplateDraft } from '../../core'
+import { headline } from '../../core/extract'
 import type { Core } from './core-client'
+import { displayTitle, useHeadlines, type HeadlineLoader } from './headlines'
 import { format, t } from './i18n'
 import { isImeKey } from './ime'
 import { templateGroups } from './templates'
@@ -21,6 +23,8 @@ type Draft = TemplateDraft & { bookId: string | null }
 export function TemplatePicker(props: {
   core: Core
   templates: readonly NoteSummary[]
+  /** Looks up the first line of a template with no title, which names it. */
+  headlines?: HeadlineLoader | undefined
   /** Template IDs used last on this device, newest first. */
   recent: readonly string[]
   books: readonly BookRecord[]
@@ -31,6 +35,7 @@ export function TemplatePicker(props: {
   onCancel: () => void
 }) {
   const { core, bookId } = props
+  const headlines = useHeadlines(props.headlines, props.templates)
   const dialog = useRef<HTMLDialogElement>(null)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -97,7 +102,7 @@ export function TemplatePicker(props: {
       onClick={() => setActive(i)}
       onDoubleClick={() => props.onCreate(template.id)}
     >
-      <span className="pick-name">{template.title || t('note.untitled')}</span>
+      <span className="pick-name">{displayTitle(template.title, headlines.get(template.id))}</span>
     </div>
   )
   const grouped = groups.recent.length > 0
@@ -174,7 +179,9 @@ export function TemplatePicker(props: {
         <section className="templates-preview" aria-label={t('templates.preview')}>
           {shown ? (
             <>
-              <h3 className="templates-preview-title">{shown.title || t('note.untitled')}</h3>
+              <h3 className="templates-preview-title">
+                {displayTitle(shown.title, headline(shown.body))}
+              </h3>
               <p className="templates-preview-meta">
                 {bookName(shown.bookId) !== undefined ? (
                   <span>{format(t('templates.notebook'), { name: bookName(shown.bookId)! })}</span>

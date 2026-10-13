@@ -5,6 +5,7 @@ import { errorCode } from './backups'
 import { writeClipboardText } from './clipboard'
 import type { ExportFailure } from './ExportNotice'
 import { noteCount } from './format'
+import { displayTitle, displayTitles, useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { MoveNoteDialog } from './MoveNoteDialog'
 import {
@@ -47,6 +48,8 @@ export function useNoteActions(deps: {
   exportNote: (action: ExportAction, id: string) => Promise<void>
   /** Shows that a copy did not complete, with its code (a notice). */
   copyFailed: (failure: ExportFailure, code: string) => void
+  /** Looks up the first line of notes with no title, which name them (headlines.ts). */
+  headlines?: HeadlineLoader | undefined
 }) {
   const [moving, setMoving] = useState<readonly string[]>()
   const [tagging, setTagging] = useState<{ mode: 'add' | 'remove'; ids: readonly string[] }>()
@@ -61,12 +64,14 @@ export function useNoteActions(deps: {
     deps.selection?.includes(id) ? deps.selection : [id]
 
   /** Puts `text` on the clipboard; a failure is logged by its code and shown. */
-  const copy = (text: string, failure: ExportFailure) =>
-    writeClipboardText(text).catch((error: unknown) => {
-      const code = errorCode(error)
-      console.warn('W_NOTE_COPY_FAILED', code)
-      deps.copyFailed(failure, code)
-    })
+  const copy = (text: string | Promise<string>, failure: ExportFailure) =>
+    Promise.resolve(text)
+      .then(writeClipboardText)
+      .catch((error: unknown) => {
+        const code = errorCode(error)
+        console.warn('W_NOTE_COPY_FAILED', code)
+        deps.copyFailed(failure, code)
+      })
 
   /** Whether the batch tag actions apply: several notes, none a template. */
   const taggable = (notes: readonly NoteSummary[]) =>
@@ -109,7 +114,12 @@ export function useNoteActions(deps: {
       case 'status':
         return
       case 'copyLink':
-        return copy(noteLinks(notes), many ? 'copyLinks' : 'copyLink')
+        return copy(
+          displayTitles(deps.headlines, notes).then((named) =>
+            noteLinks(notes.map((n) => ({ id: n.id, title: named.get(n.id) ?? n.title }))),
+          ),
+          many ? 'copyLinks' : 'copyLink',
+        )
       case 'copyUri':
       case 'copyId':
         if (many) return
@@ -143,6 +153,7 @@ export function useNoteActions(deps: {
   if (moving !== undefined && movingNotes.length === 0) setMoving(undefined)
   if (tagging !== undefined && taggingNotes.length === 0) setTagging(undefined)
   const movingFirst = movingNotes[0]
+  const movingHeadlines = useHeadlines(deps.headlines, movingNotes.slice(0, 1))
   const books = new Set(movingNotes.map((n) => n.bookId))
   const sharedBook = books.size === 1 ? movingFirst?.bookId : undefined
   const onNotes = new Set(taggingNotes.flatMap((n) => n.tagIds))
@@ -156,7 +167,7 @@ export function useNoteActions(deps: {
         {movingFirst ? (
           <MoveNoteDialog
             tree={deps.tree}
-            title={movingFirst.title}
+            title={displayTitle(movingFirst.title, movingHeadlines.get(movingFirst.id))}
             detail={
               movingNotes.length > 1
                 ? format(t('moveNote.detailMany'), {

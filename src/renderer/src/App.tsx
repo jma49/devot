@@ -84,6 +84,8 @@ import { useFocusRescue } from './focusRescue'
 import { currentLastStateStore, restorePlan, type LastState, type NoteState } from './lastState'
 import type { FindTarget } from './find/target'
 import { useFind } from './find/useFind'
+import { headline } from '../../core/extract'
+import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
 import { NoteEditor, type ApplyRestore, type EditorHandle, type EditorPlace } from './NoteEditor'
@@ -137,6 +139,8 @@ const SEARCH_SETTLED_MS = 1000
 /** View > Command Palette… in the menu bar; App re-sends the Tauri event as this. */
 export const SHOW_PALETTE = 'devot:show-palette'
 
+/** How many untitled notes the palette looks up the first line of (the newest). */
+const PALETTE_HEADLINES = 500
 const NO_LIBRARY = { book: [], tag: [], note: [] }
 
 // Props that stay the same object, so the list and the sidebar (memoized)
@@ -1219,8 +1223,11 @@ export function App() {
     await changeBooks((c) => c.restore(id))
     setSelected(undefined)
   }
-  const confirmDelete = (id: string) =>
-    setConfirm({ kind: 'one', id, title: trash.find((n) => n.id === id)?.title ?? '' })
+  const confirmDelete = async (id: string) => {
+    const note = trash.find((n) => n.id === id)
+    const named = await displayTitles(loadHeadlines, [{ id, title: note?.title ?? '' }])
+    setConfirm({ kind: 'one', id, title: named.get(id) ?? '' })
+  }
   const trashAction = (action: TrashAction, id: string) => {
     // On a row of a multiple selection, the keys act on every selected note.
     const many = multiIds?.includes(id) ? multiIds : undefined
@@ -1336,7 +1343,10 @@ export function App() {
     const found = linkQuery
       ? await core.search(linkQuery, undefined, { flush: false })
       : await core.list(MAX_LINK_NOTES + 1)
-    return found.filter((n) => n.id !== selected)
+    const targets = found.filter((n) => n.id !== selected)
+    // The popup names an untitled note by its first line, as the list does.
+    const named = await displayTitles(loadHeadlines, targets.slice(0, MAX_LINK_NOTES))
+    return targets.map((n) => ({ ...n, title: named.get(n.id) ?? n.title }))
   }
 
   /**
@@ -1356,7 +1366,7 @@ export function App() {
       })
       if (!note) return null
       made = note.id
-      return noteLink(note.title || t('note.untitled'), note.id)
+      return noteLink(displayTitle(note.title, headline(text)), note.id)
     })
     if (made === undefined) return
     if (moved) {
@@ -1558,6 +1568,7 @@ export function App() {
   const exportBook = (action: 'exportMarkdown' | 'exportHtml', id: string) =>
     runExport('export', (exporter) => exporter.runBookExport(core!, action, id))
   const noteActions = useNoteActions({
+    headlines: loadHeadlines,
     notes: listedNotes,
     tree,
     tags,
@@ -1950,10 +1961,15 @@ export function App() {
 
   // What the palette lists. Notebooks, tags and notes are only gathered
   // while it is open, and again only when they change.
+  const paletteUntitled = useMemo(
+    () => (paletteOpen ? newestUntitled(notes, PALETTE_HEADLINES) : []),
+    [paletteOpen, notes],
+  )
+  const paletteHeadlines = useHeadlines(loadHeadlines, paletteUntitled)
   const paletteLibrary = useMemo(
     () =>
-      paletteOpen ? libraryEntries({ tree, tags, notes, untitled: t('note.untitled') }) : undefined,
-    [paletteOpen, tree, tags, notes],
+      paletteOpen ? libraryEntries({ tree, tags, notes, headlines: paletteHeadlines }) : undefined,
+    [paletteOpen, tree, tags, notes, paletteHeadlines],
   )
 
   /** What Return and Option+Return do on a palette result. */
@@ -2493,6 +2509,7 @@ export function App() {
         <TemplatePicker
           core={core}
           templates={templates}
+          headlines={loadHeadlines}
           recent={picking.recent}
           books={books}
           bookId={libraryBook?.id ?? null}
@@ -2553,7 +2570,7 @@ export function App() {
                 ? format(t('trash.confirmMany'), {
                     notes: noteCount(confirm.ids.length, currentLocale()),
                   })
-                : format(t('trash.confirmOne'), { title: confirm.title || t('note.untitled') })
+                : format(t('trash.confirmOne'), { title: confirm.title })
           }
           detail={t('trash.cannotUndo')}
           confirm={confirm.kind === 'empty' ? t('trash.empty') : t('trash.deleteForever')}
