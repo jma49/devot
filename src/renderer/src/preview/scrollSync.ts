@@ -2,10 +2,14 @@
 // place in the note. Both panes speak in source lines (fractional, 1-based):
 // the editor knows its lines; the preview knows the line each block starts on
 // (`data-source-line`, set by the core) and interpolates between blocks.
-// Scrolling one pane moves the other once per frame. A pane's scroll that
+//
+// A wheel or trackpad scroll over either pane moves both panes in the same
+// event, so they reach the screen in the same frame and the follower stays
+// attached to the finger, momentum included. Any other scroll (keys, the
+// scroll bar, find) moves the other pane once per frame. A pane's scroll that
 // Devot made itself is never taken for the user's, so nothing echoes back.
-// Only the frame callback reads layout, and the preview measures its blocks
-// once per layout, so scrolling a long note stays cheap.
+// The preview measures its blocks once per layout, so scrolling a long note
+// stays cheap.
 
 /** A block of the preview: its source line and its offset in the scrolled content. */
 export interface Anchor {
@@ -94,15 +98,54 @@ export interface SyncOptions {
 }
 
 /**
- * Scroll gestures, which show the pane the user is scrolling. (A click or a
- * key does not: it may scroll nothing, while the other pane scrolls for a
- * reason of its own, such as find.)
+ * Input that shows the pane the user works in, without scrolling it. (Unlike
+ * a wheel or a touch, a click or a key is no scroll gesture: it may scroll
+ * nothing, while the other pane scrolls for a reason of its own, such as find.)
  */
-const GESTURES = ['wheel', 'touchstart'] as const
-/** Input that shows the pane the user works in, without scrolling it. */
 const WORK = ['keydown', 'pointerdown'] as const
 /** How long a pane keeps the lead after a scroll gesture in it. */
 const GESTURE_HOLD_MS = 500
+/** Pixels in a line and a page of wheel scrolling, for wheels that count in those. */
+const WHEEL_LINE_PX = 40
+
+/** What synced scrolling reads from a wheel event. */
+export interface WheelInput {
+  readonly deltaX: number
+  readonly deltaY: number
+  readonly deltaMode: number
+  readonly ctrlKey?: boolean
+  readonly metaKey?: boolean
+}
+
+/**
+ * How far down a wheel event scrolls a pane `page` pixels tall, or null for
+ * one that is not a plain vertical scroll (sideways, or a pinch to zoom).
+ */
+export function wheelDistance(event: WheelInput, page: number): number | null {
+  const { deltaX, deltaY, deltaMode } = event
+  if (event.ctrlKey || event.metaKey) return null
+  if (!Number.isFinite(deltaY) || deltaY === 0) return null
+  if (Math.abs(deltaX) > Math.abs(deltaY)) return null
+  if (deltaMode === 1) return deltaY * WHEEL_LINE_PX
+  if (deltaMode === 2) return deltaY * page
+  return deltaY
+}
+
+/** Whether an element between `target` and `pane` scrolls by `dy` itself. */
+function scrolledInside(target: unknown, pane: unknown, dy: number): boolean {
+  if (typeof Element === 'undefined') return false
+  for (let el = target instanceof Element ? target : null; el && el !== pane;) {
+    if (el.scrollHeight > el.clientHeight + 1) {
+      const overflow = getComputedStyle(el).overflowY
+      if (overflow === 'auto' || overflow === 'scroll') {
+        const room = dy < 0 ? el.scrollTop : el.scrollHeight - el.clientHeight - el.scrollTop
+        if (room >= 1) return true
+      }
+    }
+    el = el.parentElement
+  }
+  return false
+}
 
 const maxOffset = (el: Scroller) => Math.max(0, el.scrollHeight - el.clientHeight)
 
@@ -196,6 +239,42 @@ export function syncScrolling(
     }
   }
 
+  /** Sets a pane's offset, as a scroll Devot made. */
+  const place = (pane: ScrollPane, top: number) => {
+    const el = pane.element
+    const before = el.scrollTop
+    el.scrollTop = top
+    if (el.scrollTop !== before) expected.set(pane, el.scrollTop)
+  }
+  /** Each pane's offset with the fraction the element rounds away, kept across wheel events. */
+  const exact = new Map<ScrollPane, number>()
+
+  // A wheel over a pane scrolls it here, rather than in the browser, and
+  // moves the other pane in the same event: both show the change in the
+  // same frame. A frame later the other pane is checked again (the editor
+  // learns the height of a line only once it shows it).
+  const onWheel = (pane: ScrollPane) => (event: Event) => {
+    gesture = { pane, at: now() }
+    current = pane
+    const el = pane.element
+    const dy = wheelDistance(event as unknown as WheelInput, el.clientHeight)
+    if (dy === null || event.defaultPrevented) return
+    if (scrolledInside(event.target, el, dy)) return
+    const to = other(pane)
+    // A pane that cannot scroll leaves the wheel to the browser.
+    if (maxOffset(el) < 1 || maxOffset(to.element) < 1) return
+    event.preventDefault()
+    const kept = exact.get(pane)
+    const from = kept !== undefined && Math.abs(kept - el.scrollTop) < 1 ? kept : el.scrollTop
+    const top = Math.min(maxOffset(el), Math.max(0, from + dy))
+    exact.set(pane, top)
+    place(pane, top)
+    place(to, followOffset(pane, to))
+    exact.delete(to)
+    leader = pane
+    handle ??= frame(follow)
+  }
+
   const onScroll = (pane: ScrollPane) => () => {
     const want = expected.get(pane)
     if (want !== undefined) {
@@ -209,18 +288,28 @@ export function syncScrolling(
   }
 
   const stops: (() => void)[] = []
-  const listen = (target: Scroller, type: string, listener: () => void, capture = false) => {
-    target.addEventListener(type, listener, { passive: true, capture })
+  const listen = (
+    target: Scroller,
+    type: string,
+    listener: (event: Event) => void,
+    { capture = false, passive = true } = {},
+  ) => {
+    target.addEventListener(type, listener, { passive, capture })
     stops.push(() => target.removeEventListener(type, listener, { capture }))
   }
   for (const pane of [first, second]) {
     listen(pane.element, 'scroll', onScroll(pane))
-    const scrolled = () => {
-      gesture = { pane, at: now() }
-      current = pane
-    }
-    for (const type of GESTURES) listen(pane.element, type, scrolled, true)
-    for (const type of WORK) listen(pane.element, type, () => (current = pane), true)
+    listen(pane.element, 'wheel', onWheel(pane), { passive: false })
+    listen(
+      pane.element,
+      'touchstart',
+      () => {
+        gesture = { pane, at: now() }
+        current = pane
+      },
+      { capture: true },
+    )
+    for (const type of WORK) listen(pane.element, type, () => (current = pane), { capture: true })
     // A pane laid out anew keeps its place while the user works in it.
     const stopLayout = pane.onLayout?.(() => {
       if (current !== pane) schedule(other(pane), true)
