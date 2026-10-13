@@ -41,7 +41,7 @@ import {
   blockAround,
   context,
   inFrontMatter,
-  LITERAL_BLOCKS,
+  LITERAL_TEXT,
   nodeAt,
   TOOLBAR_PARSE_MS,
 } from './formatContext'
@@ -77,18 +77,6 @@ const QUERY = /\/([^\s/]{0,32})$/
 const LOOK_BACK = 33
 /** How far back the `[[` of a note link being typed is looked for. */
 const LINK_LOOK_BACK = 250
-
-/** Syntax in which a slash is text: code, HTML, comments and link addresses. */
-const NO_MENU = new Set([
-  ...LITERAL_BLOCKS,
-  'InlineCode',
-  'URL',
-  'Autolink',
-  'LinkTitle',
-  'HTMLTag',
-  'Comment',
-  'ProcessingInstruction',
-])
 
 /** Items that make the slash's line a block: in a table they would split it. */
 const LINE_BLOCKS: ReadonlySet<SlashCommandId> = new Set([
@@ -149,7 +137,7 @@ export function slashTrigger(state: EditorState): SlashTrigger | null {
   const typed = typedQuery(state)
   if (!typed) return null
   const cx = context(state, TOOLBAR_PARSE_MS)
-  if (!cx || inFrontMatter(cx, typed.from) || blockAround(cx, typed.from, NO_MENU)) return null
+  if (!cx || inFrontMatter(cx, typed.from) || blockAround(cx, typed.from, LITERAL_TEXT)) return null
   return typed
 }
 
