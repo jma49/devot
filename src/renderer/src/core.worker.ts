@@ -98,7 +98,7 @@ export const coreApi = {
     // On failure they keep showing in that order and the next start retries.
     await books.settleOrder().catch(() => undefined)
   },
-  list: () => required().list(),
+  list: (limit?: number) => required().list(limit),
   create: (title?: string, bookId?: string | null) => required().create(title, bookId),
   /** A note's title and Yjs state; with `known`, only what that replica lacks. */
   open: (id: string, known?: Uint8Array) => required().open(id, known),
@@ -113,6 +113,9 @@ export const coreApi = {
   /** A new note from text selected in `sourceId` (see NoteService.extract). */
   extract: (sourceId: string, markdown: string) => required().extract(sourceId, markdown),
   applyUpdate: (id: string, update: Uint8Array) => required().applyUpdate(id, update),
+  /** Text into a note at a remembered position, for an editor that closed (see NoteService.insertAt). */
+  insertAt: (id: string, anchor: Uint8Array | null, markdown: string) =>
+    required().insertAt(id, anchor, markdown),
   setTitle: (id: string, title: string) => required().setTitle(id, title),
   setBook: (id: string, bookId: string | null) => required().setBook(id, bookId),
   setStatus: (id: string, status: NoteStatus) => required().setStatus(id, status),
@@ -134,7 +137,8 @@ export const coreApi = {
   /** Holds compaction sweeps before a backup restore (see NoteService.holdCompaction). */
   holdCompaction: () => required().holdCompaction(),
   resumeCompaction: () => required().resumeCompaction(),
-  search: (query: string, scope?: SearchScope) => required().search(query, scope),
+  search: (query: string, scope?: SearchScope, options?: { flush?: boolean }) =>
+    required().search(query, scope, options),
   trash: (id: string) => required().trash(id),
   restore: (id: string) => required().restore(id),
   listTrash: () => required().listTrash(),

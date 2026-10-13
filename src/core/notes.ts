@@ -128,8 +128,11 @@ export interface NoteServiceOptions {
 }
 
 export interface NoteService {
-  /** Live notes, templates left out (see templates.ts). */
-  list(): Promise<NoteSummary[]>
+  /**
+   * Live notes, templates left out (see templates.ts); with `limit`, only
+   * the first that many.
+   */
+  list(limit?: number): Promise<NoteSummary[]>
   /**
    * A new note, in `bookId` when given (it must be a live notebook). The
    * title goes in as setTitle takes one.
@@ -178,6 +181,15 @@ export interface NoteService {
   extract(sourceId: string, markdown: string): Promise<{ id: string; title: string }>
   /** Applies an editor update to the note and schedules a save. */
   applyUpdate(id: string, update: Uint8Array): Promise<void>
+  /**
+   * Inserts `markdown` into the body at `anchor`, a Yjs relative position
+   * (`Y.encodeRelativePosition`, made by a replica of the note) that has
+   * followed every edit since, so text that landed meanwhile stays where
+   * the position was; at the end of the body when it is null or does not
+   * name this body. As one Yjs update, then schedules a save. For an editor
+   * that closed before its image was stored; throws E_NOTE_NOT_FOUND.
+   */
+  insertAt(id: string, anchor: Uint8Array | null, markdown: string): Promise<void>
   /**
    * Makes the body `markdown` by applying the text difference as Yjs
    * operations (never by writing the snapshot), then schedules a save.
@@ -238,9 +250,10 @@ export interface NoteService {
    * Live notes matching a search query (see search.ts), best matches first;
    * with `scope`, only those in that view (a notebook, a filter). Templates
    * are never found. Pending edits are saved first (a note that cannot be
-   * saved is found as stored).
+   * saved is found as stored), unless `flush` is false: a lookup that runs
+   * on every key (the `[[` popup) finds notes as stored and writes nothing.
    */
-  search(query: string, scope?: SearchScope): Promise<NoteSummary[]>
+  search(query: string, scope?: SearchScope, options?: { flush?: boolean }): Promise<NoteSummary[]>
   /**
    * Moves a note to the trash (its pending edits are saved first). When a
    * write fails it rejects and the note stays where it was.
@@ -296,6 +309,25 @@ export interface NoteService {
    * as it was.
    */
   mergeStored(): Promise<{ id: string; title: string }[]>
+}
+
+/**
+ * Where a relative position (see NoteService.insertAt) is in the body now;
+ * the end of the body when there is none or it names another text.
+ */
+function anchoredIndex(doc: Y.Doc, text: Y.Text, anchor: Uint8Array | null): number {
+  if (anchor) {
+    try {
+      const found = Y.createAbsolutePositionFromRelativePosition(
+        Y.decodeRelativePosition(anchor),
+        doc,
+      )
+      if (found?.type === text) return Math.min(found.index, text.length)
+    } catch {
+      // Not a position: the end.
+    }
+  }
+  return text.length
 }
 
 type Timer = ReturnType<typeof setTimeout>
@@ -1131,7 +1163,10 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
   }
 
   const service: NoteService = {
-    list: async () => (await storage.listNotes()).filter((n) => n.bookId !== TEMPLATES_BOOK_ID),
+    list: async (limit) => {
+      const notes = (await storage.listNotes()).filter((n) => n.bookId !== TEMPLATES_BOOK_ID)
+      return limit === undefined ? notes : notes.slice(0, limit)
+    },
 
     async create(title = '', bookId = null) {
       await requireBook(bookId)
@@ -1229,6 +1264,15 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
     setBody: (id, markdown) => using(id, (note) => replaceBody(note, markdown)),
 
+    insertAt: (id, anchor, markdown) =>
+      using(id, (note) => {
+        const text = note.doc.getText(BODY)
+        const index = anchoredIndex(note.doc, text, anchor)
+        if (!markdown) return
+        editBody(note, () => text.insert(index, markdown))
+        schedule(note)
+      }),
+
     // Released notes (import, devot-mcp) take no version here: the saved
     // body is the latest text, and the next edit keeps it (keepBaseline).
     async release(id) {
@@ -1325,11 +1369,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       held = false
     },
 
-    async search(query, scope) {
+    async search(query, scope, lookup) {
       const clauses = parseSearch(query)
       if (clauses.length === 0) return []
       // Search what the user sees: edits still waiting for their save first.
-      await saveAll()
+      if (lookup?.flush !== false) await saveAll()
       // Names and sub-notebooks need the lists; most queries do not.
       const needs = (field: SearchClause['field']) => clauses.some((c) => c.field === field)
       const [books, tags] = await Promise.all([
