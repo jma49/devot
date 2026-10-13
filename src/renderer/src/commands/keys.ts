@@ -41,6 +41,8 @@ const NAMED: Readonly<Record<string, string>> = {
   End: '\u2198',
   PageUp: '\u21de',
   PageDown: '\u21df',
+  // The menu key (it opens the context menu where a keyboard has one).
+  ContextMenu: 'Menu',
   // Function keys show as themselves.
   ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`F${i + 1}`, `F${i + 1}`])),
 }

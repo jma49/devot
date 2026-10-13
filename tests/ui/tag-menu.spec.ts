@@ -106,7 +106,7 @@ test('right-click shows the native tag menu with a Colour submenu', async ({ pag
   await setUp(page)
   await openMenu(page, 'sync')
   expect(await shownMenu(page)).toEqual([
-    'Rename',
+    'Rename F2',
     'Colour >',
     '  None [x]',
     '  Red [ ]',

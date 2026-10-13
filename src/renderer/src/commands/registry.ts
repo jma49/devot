@@ -325,6 +325,18 @@ export const COMMANDS = [
     keys: ['Mod+Ctrl+5'],
   },
   { id: 'notebook.new', label: 'book.new', group: 'notebook', scope: 'window', keys: [] },
+  // A notebook or tag row in the sidebar: its own menu (every action of the
+  // row, the notebook's export and Allow AI Access and the tag's colours
+  // too) opens at the row, from the keyboard. Shift+F10 and the menu key as
+  // on other systems; Control+Return as in Mac text fields.
+  {
+    id: 'sidebar.rowMenu',
+    label: 'command.rowMenu',
+    group: 'app',
+    scope: 'sidebar',
+    keys: ['Shift+F10', 'ContextMenu', 'Ctrl+Enter'],
+    palette: false,
+  },
   // A notebook row in the sidebar.
   {
     id: 'notebook.newInside',
@@ -339,7 +351,7 @@ export const COMMANDS = [
     label: 'bookMenu.rename',
     group: 'notebook',
     scope: 'notebookRow',
-    keys: ['Enter'],
+    keys: ['Enter', 'F2'],
     palette: false,
   },
   {
@@ -347,7 +359,7 @@ export const COMMANDS = [
     label: 'bookMenu.moveUp',
     group: 'notebook',
     scope: 'notebookRow',
-    keys: [],
+    keys: ['Alt+ArrowUp'],
     palette: false,
   },
   {
@@ -355,7 +367,7 @@ export const COMMANDS = [
     label: 'bookMenu.moveDown',
     group: 'notebook',
     scope: 'notebookRow',
-    keys: [],
+    keys: ['Alt+ArrowDown'],
     palette: false,
   },
   {
@@ -404,7 +416,7 @@ export const COMMANDS = [
     label: 'tagMenu.rename',
     group: 'tag',
     scope: 'tagRow',
-    keys: [],
+    keys: ['F2'],
     palette: false,
   },
   {

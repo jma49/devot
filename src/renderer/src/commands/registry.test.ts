@@ -11,6 +11,7 @@ import {
   RESERVED_KEYS,
   command,
   commandKeys,
+  commandMatches,
   editorCommandKeys,
   editorFormatKeys,
   editorTableKeys,
@@ -181,10 +182,36 @@ describe('COMMANDS', () => {
     expect(command('trash.restore').scope).toBe('trashList')
     expect(command('trash.empty').scope).toBe('window')
     expect(command('tag.delete')).toMatchObject({ scope: 'tagRow', keys: ['Backspace', 'Delete'] })
-    for (const id of ['tag.rename', 'tag.filter', 'tag.copyId'] as const) {
+    expect(command('tag.rename')).toMatchObject({ scope: 'tagRow', keys: ['F2'] })
+    for (const id of ['tag.filter', 'tag.copyId'] as const) {
       expect(command(id)).toMatchObject({ scope: 'tagRow', keys: [] })
     }
     expect(command('search.fromList')).toMatchObject({ scope: 'list', keys: ['/'] })
+  })
+
+  it('gives the notebook and tag rows keys for renaming and moving, and a key for their menu', () => {
+    expect(command('notebook.rename').keys).toEqual(['Enter', 'F2'])
+    expect(command('notebook.moveUp')).toMatchObject({
+      scope: 'notebookRow',
+      keys: ['Alt+ArrowUp'],
+    })
+    expect(command('notebook.moveDown')).toMatchObject({
+      scope: 'notebookRow',
+      keys: ['Alt+ArrowDown'],
+    })
+    // Every row action is in the row's menu, which has keys of its own.
+    expect(command('sidebar.rowMenu')).toMatchObject({
+      scope: 'sidebar',
+      keys: ['Shift+F10', 'ContextMenu', 'Ctrl+Enter'],
+    })
+    for (const e of [
+      press('F10', 'F10', { shiftKey: true }),
+      press('ContextMenu', 'ContextMenu'),
+      press('Enter', 'Enter', { ctrlKey: true }),
+    ]) {
+      expect(commandMatches('sidebar.rowMenu', e)).toBe(true)
+    }
+    expect(commandMatches('sidebar.rowMenu', press('F10', 'F10'))).toBe(false)
   })
 
   it('sees a new key that would shadow a list, Trash or tag row key', () => {

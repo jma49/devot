@@ -34,7 +34,7 @@ const PRESS: KeyPress = {
 }
 
 const SOURCES = import.meta.glob<string>(
-  ['../NoteList.tsx', '../areas.ts', '../NoteEditor.tsx', '../editor/find.ts'],
+  ['../NoteList.tsx', '../areas.ts', '../NoteEditor.tsx', '../editor/find.ts', '../Sidebar.tsx'],
   { query: '?raw', import: 'default', eager: true },
 )
 
@@ -56,6 +56,8 @@ const BOUND_IN: Partial<Record<CommandId, [file: string, call: string]>> = {
   'find.previousInEditor': ['../editor/find.ts', '...commandKeys'],
   'edit.pastePlain': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'note.newFromSelection': ['../NoteEditor.tsx', 'editorCommandKeys'],
+  'image.view': ['../NoteEditor.tsx', 'editorCommandKeys'],
+  'sidebar.rowMenu': ['../Sidebar.tsx', 'commandMatches'],
 }
 
 /** Whether the keyboard path for the command's scope runs it on `PRESS`. */

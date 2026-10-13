@@ -13,10 +13,10 @@ import type { NoteStatus, TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS, type NoteFilter } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
 import { BOOK_MENU, bookShortcut, type BookAction, type BookMenuTarget } from './bookMenu'
-import { heldCommandKey } from './commands/registry'
+import { commandMatches, heldCommandKey } from './commands/registry'
 import { useKeymap } from './commands/shortcutSettings'
 import { titleWithKey } from './commands/titles'
-import { useContextMenu } from './contextMenu'
+import { useContextMenu, type MenuPoint } from './contextMenu'
 import type { IconName } from './icons/symbols'
 import type { MessageKey } from './i18n'
 import { currentLocale, t } from './i18n'
@@ -65,6 +65,13 @@ function zoneAt(event: DragEvent): DropZone {
   if (y < box.height / 4) return 'before'
   if (y > (box.height * 3) / 4) return 'after'
   return 'inside'
+}
+
+/** Where a row's menu opens from the keyboard: under the row, at its left edge. */
+function below(row: Element | null | undefined): MenuPoint | undefined {
+  if (!row) return undefined
+  const box = row.getBoundingClientRect()
+  return { x: box.left, y: box.bottom }
 }
 
 /** A notebook with the siblings shown just above and below it. */
@@ -494,9 +501,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
   }
   const showMenu = useContextMenu('book', BOOK_MENU, runAction)
-  const openMenu = async (node: BookNode) => {
+  const openMenu = async (node: BookNode, at?: MenuPoint) => {
     setMenuTarget(node.id)
-    await showMenu(placed(node))
+    await showMenu(placed(node), at)
     setMenuTarget((id) => (id === node.id ? undefined : id))
   }
 
@@ -521,9 +528,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     color: tag.color,
     filtered: sameFilter(props.filter, { kind: 'tag', tagId: tag.id }),
   })
-  const openTagMenu = async (tag: TagRecord) => {
+  const openTagMenu = async (tag: TagRecord, at?: MenuPoint) => {
     setTagMenuTarget(tag.id)
-    await showTagMenu(tagTarget(tag))
+    await showTagMenu(tagTarget(tag), at)
     setTagMenuTarget((id) => (id === tag.id ? undefined : id))
   }
 
@@ -548,6 +555,11 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         if (open) toggle(node.id, false)
         else if (node.parentId) go(rowList.find((n) => n.id === node.parentId))
         return
+    }
+    if (commandMatches('sidebar.rowMenu', event)) {
+      event.preventDefault()
+      const at = below(event.currentTarget.querySelector(':scope > .book-row'))
+      return void openMenu(node, at)
     }
     const action = bookShortcut(event)
     if (action) {
@@ -834,6 +846,10 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                 onKeyDown={(e) => {
                   if (e.target !== e.currentTarget.firstElementChild) return
                   if (heldCommandKey(e)) return e.preventDefault()
+                  if (commandMatches('sidebar.rowMenu', e)) {
+                    e.preventDefault()
+                    return void openTagMenu(tag, below(e.target as Element))
+                  }
                   const action = tagShortcut(e)
                   if (!action) return
                   e.preventDefault()

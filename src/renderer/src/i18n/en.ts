@@ -479,6 +479,7 @@ export const en = {
   'command.editTitle': 'Edit Title',
   'command.editBody': 'Edit Note',
   'command.sort': 'Sort Notes\u2026',
+  'command.rowMenu': 'Show Row Menu',
   'command.hideSidebar': 'Hide Sidebar',
   'command.showSidebar': 'Show Sidebar',
   'sidebar.hideTitle': 'Hide Sidebar',
