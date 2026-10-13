@@ -270,8 +270,9 @@ export function App() {
   const [builtIn, setBuiltIn] = useState<string>()
   // The template picker (New Note from Template), and the templates used
   // last on this device.
-  // The recently used ones are read when it opens.
-  const [picking, setPicking] = useState<{ recent: string[] }>()
+  // The recently used ones are read when it opens. With `into`, the chosen
+  // template fills that (empty) note instead of making a new one.
+  const [picking, setPicking] = useState<{ recent: string[]; into?: string }>()
   const recentTemplates = useMemo(() => currentRecentTemplates(), [])
   const [query, setQuery] = useState('')
   // Where the query looks: every note, or the notes of the current view.
@@ -1417,6 +1418,42 @@ export function App() {
     await showMade(core, id, await refresh(core))
     await select(id, { keyboard: true })
   }
+
+  /**
+   * Fills the open note from a template (the empty note's "Choose a
+   * template"): no new note is made. The open editor takes in what the core
+   * wrote, the way it takes in another process's writes.
+   */
+  const fillFromTemplate = async (templateId: string, noteId: string) => {
+    setPicking(undefined)
+    if (!core) return
+    await saveEdits(core)
+    const navigation = opens.current
+    const editor = editorRef.current?.noteId === noteId ? editorRef.current : null
+    const done = await core
+      .applyTemplateTo(templateId, noteId, Date.now())
+      .then(() => true)
+      .catch(() => false)
+    if (!done) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
+    recentTemplates.use(templateId)
+    if (opens.current === navigation && editor && editorRef.current === editor) {
+      const opened = await core.open(noteId, editor.vector()).catch(() => undefined)
+      if (opened && editorRef.current === editor) editor.takeState(opened.state)
+      const filled = await core.title(noteId).catch(() => undefined)
+      if (filled !== undefined && opens.current === navigation) setTitle(filled)
+    }
+    await saveEdits(core)
+    await refresh(core)
+  }
+
+  /** Writes dates set on the preview's info card, then reloads the lists that show them. */
+  const setNoteDates = useStable(
+    async (id: string, dates: { createdAt?: number; updatedAt?: number }) => {
+      if (!core) return
+      await core.setNoteDates(id, dates)
+      await refresh(core)
+    },
+  )
 
   /** Saves a copy of a built-in template as the user's own, shows it and opens it. */
   const editBuiltInCopy = async (id: string) => {
@@ -2645,7 +2682,9 @@ export function App() {
                 onNewFromSelection={inTrash ? undefined : () => void noteFromSelection(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
-                onChooseTemplate={() => setPicking({ recent: recentTemplates.load() })}
+                onChooseTemplate={() =>
+                  setPicking({ recent: recentTemplates.load(), into: selected })
+                }
                 onOpenNote={(id) => void select(id)}
               />
               {mode === 'edit' ? null : (
@@ -2661,6 +2700,7 @@ export function App() {
                         }
                       : undefined
                   }
+                  onSetDates={inTrash || !core ? undefined : setNoteDates}
                   onOpenNote={(id) => void select(id)}
                   onFind={setPreviewFind}
                   onScrollPane={setPreviewPane}
@@ -2746,7 +2786,12 @@ export function App() {
           books={books}
           bookId={libraryBook?.id ?? null}
           locales={locales}
-          onCreate={(id) => void createFromTemplate(id)}
+          intoOpenNote={picking.into !== undefined}
+          onCreate={(id) =>
+            void (picking.into === undefined
+              ? createFromTemplate(id)
+              : fillFromTemplate(id, picking.into))
+          }
           onCancel={() => setPicking(undefined)}
         />
       ) : null}

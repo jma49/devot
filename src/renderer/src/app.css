@@ -1314,6 +1314,30 @@ button {
   text-transform: uppercase;
 }
 
+/* A date that can be changed: a click opens a date-time field. */
+.note-info-date {
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.note-info-date:hover {
+  background: var(--color-fill-track);
+}
+
+.note-info-date-input {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-line-control);
+  border-radius: var(--radius-button);
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
 .note-info-value {
   display: inline-flex;
   align-items: center;

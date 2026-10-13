@@ -36,6 +36,12 @@ export interface NoteRecord {
   pinnedHlc: string
   createdAt: number
   updatedAt: number
+  /**
+   * HLC of the last hand-set change to the dates (setDates); '' or absent
+   * when never set. A write with a newer one sets both dates as written
+   * (schema v17); any other keeps `createdAt` and moves `updatedAt` only on.
+   */
+  datesHlc?: string
   deletedAt: number | null
   deletedHlc: string | null
 }

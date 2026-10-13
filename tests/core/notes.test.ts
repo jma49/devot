@@ -245,3 +245,68 @@ describe('titles', () => {
     expect((await storage.getNote(id))?.title).toBe('Renamed')
   })
 })
+
+describe('hand-set dates', () => {
+  const MAR_1 = Date.parse('2026-03-01T08:00:00Z')
+  const MAR_2 = Date.parse('2026-03-02T08:00:00Z')
+
+  it('writes the created and updated dates as set, and keeps them across a restart', async () => {
+    const path = freshPath()
+    const first = service(path)
+    const id = await first.notes.create('Dated')
+    await first.notes.setBody(id, 'Text')
+    await first.notes.flush()
+    await first.notes.setDates(id, { createdAt: MAR_1, updatedAt: MAR_2 })
+    const stored = (await first.storage.getNote(id))!
+    expect([stored.createdAt, stored.updatedAt]).toEqual([MAR_1, MAR_2])
+    expect(stored.datesHlc).not.toBe('')
+    await first.notes.flush()
+
+    const again = service(path, 'mac2')
+    const listed = (await again.storage.listNotes()).find((n) => n.id === id)!
+    expect([listed.createdAt, listed.updatedAt]).toEqual([MAR_1, MAR_2])
+  })
+
+  it('moves the update date on with the next edit, and keeps the creation date', async () => {
+    const { notes, storage } = service(freshPath())
+    const id = await notes.create('Dated')
+    await notes.setDates(id, { createdAt: MAR_1 })
+    await notes.setBody(id, 'Edited later')
+    await notes.flush()
+    const stored = (await storage.getNote(id))!
+    expect(stored.createdAt).toBe(MAR_1)
+    expect(stored.updatedAt).toBeGreaterThan(MAR_2)
+  })
+
+  it('refuses a note updated before it was created, and dates that are no time', async () => {
+    const { notes, storage } = service(freshPath())
+    const id = await notes.create('Dated')
+    await notes.setDates(id, { createdAt: MAR_1, updatedAt: MAR_2 })
+    await expect(notes.setDates(id, { createdAt: MAR_2 + 1 })).rejects.toThrow(
+      'E_NOTE_TIME_INVALID',
+    )
+    await expect(notes.setDates(id, { updatedAt: MAR_1 - 1 })).rejects.toThrow(
+      'E_NOTE_TIME_INVALID',
+    )
+    await expect(notes.setDates(id, { createdAt: Number.NaN })).rejects.toThrow(
+      'E_NOTE_TIME_INVALID',
+    )
+    await expect(notes.setDates(id, { createdAt: -1 })).rejects.toThrow('E_NOTE_TIME_INVALID')
+    const stored = (await storage.getNote(id))!
+    expect([stored.createdAt, stored.updatedAt]).toEqual([MAR_1, MAR_2])
+  })
+
+  it('wins over a stale write from another process, which keeps only a later update', async () => {
+    const path = freshPath()
+    const app = service(path)
+    const id = await app.notes.create('Dated')
+    await app.notes.flush()
+    const stale = (await app.storage.getNote(id))!
+    await app.notes.setDates(id, { createdAt: MAR_1, updatedAt: MAR_2 })
+    // Another process writes its older copy (no dates HLC) on the current body.
+    const current = (await app.storage.getNote(id))!
+    await app.storage.putNote({ ...stale, bodyVersion: current.bodyVersion, updatedAt: MAR_1 })
+    const stored = (await app.storage.getNote(id))!
+    expect([stored.createdAt, stored.updatedAt]).toEqual([MAR_1, MAR_2])
+  })
+})

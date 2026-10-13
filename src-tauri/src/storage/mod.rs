@@ -29,6 +29,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0014_list_indexes.sql"),
     include_str!("../../migrations/0015_search_index_writes.sql"),
     include_str!("../../migrations/0016_body_versions.sql"),
+    include_str!("../../migrations/0017_note_dates.sql"),
 ];
 
 /// The schema version a fully migrated database reports.
@@ -150,6 +151,8 @@ pub struct NoteRecord {
     pub pinned_hlc: String,
     pub created_at: i64,
     pub updated_at: i64,
+    /// HLC of the last hand-set change to the dates; empty when never set.
+    pub dates_hlc: String,
     pub deleted_at: Option<i64>,
     pub deleted_hlc: Option<String>,
 }
@@ -970,7 +973,7 @@ impl Store {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, title, title_hlc, body_md, ydoc, created_at, updated_at,
                     deleted_at, deleted_hlc, book_id, book_hlc, status, status_hlc,
-                    pinned, pinned_hlc, body_version
+                    pinned, pinned_hlc, body_version, dates_hlc
              FROM notes WHERE id = ?1 AND purged_at IS NULL AND (?2 OR deleted_at IS NULL)",
         )?;
         Ok(statement
@@ -992,6 +995,7 @@ impl Store {
                     pinned: row.get(13)?,
                     pinned_hlc: row.get(14)?,
                     body_version: row.get(15)?,
+                    dates_hlc: row.get(16)?,
                 })
             })
             .optional()?)
@@ -1017,8 +1021,9 @@ impl Store {
         let written = tx.execute(
             "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, book_id, book_hlc,
                                 status, status_hlc, pinned, pinned_hlc,
-                                created_at, updated_at, deleted_at, deleted_hlc, body_version)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16 + 1)
+                                created_at, updated_at, deleted_at, deleted_hlc, body_version,
+                                dates_hlc)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16 + 1, ?17)
              ON CONFLICT (id) DO UPDATE SET
                title = CASE WHEN excluded.title_hlc > title_hlc THEN excluded.title ELSE title END,
                title_hlc = MAX(excluded.title_hlc, title_hlc),
@@ -1034,7 +1039,11 @@ impl Store {
                                   THEN excluded.deleted_hlc ELSE deleted_hlc END,
                body_md = excluded.body_md, ydoc = excluded.ydoc,
                body_version = excluded.body_version,
-               updated_at = MAX(excluded.updated_at, updated_at)
+               created_at = CASE WHEN excluded.dates_hlc > dates_hlc
+                                 THEN excluded.created_at ELSE created_at END,
+               updated_at = CASE WHEN excluded.dates_hlc > dates_hlc
+                                 THEN excluded.updated_at ELSE MAX(excluded.updated_at, updated_at) END,
+               dates_hlc = MAX(excluded.dates_hlc, dates_hlc)
              WHERE purged_at IS NULL AND body_version = ?16",
             params![
                 note.id,
@@ -1052,7 +1061,8 @@ impl Store {
                 note.updated_at,
                 note.deleted_at,
                 note.deleted_hlc,
-                note.body_version
+                note.body_version,
+                note.dates_hlc
             ],
         )?;
         if written == 0 {

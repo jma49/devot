@@ -245,6 +245,7 @@ interface Row {
   pinned_hlc: string
   deleted_at: number | null
   deleted_hlc: string | null
+  dates_hlc: string
 }
 
 interface SummaryRow {
@@ -453,10 +454,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const put = db.prepare(
     `INSERT INTO notes (id, title, title_hlc, body_md, ydoc, book_id, book_hlc,
                         status, status_hlc, pinned, pinned_hlc,
-                        created_at, updated_at, deleted_at, deleted_hlc, body_version)
+                        created_at, updated_at, deleted_at, deleted_hlc, body_version,
+                        dates_hlc)
      VALUES (@id, @title, @titleHlc, @bodyMd, @ydoc, @bookId, @bookHlc,
              @status, @statusHlc, @pinned, @pinnedHlc,
-             @createdAt, @updatedAt, @deletedAt, @deletedHlc, @bodyVersion + 1)
+             @createdAt, @updatedAt, @deletedAt, @deletedHlc, @bodyVersion + 1,
+             @datesHlc)
      ON CONFLICT (id) DO UPDATE SET
        title = CASE WHEN excluded.title_hlc > title_hlc THEN excluded.title ELSE title END,
        title_hlc = MAX(excluded.title_hlc, title_hlc),
@@ -472,7 +475,11 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
                           THEN excluded.deleted_hlc ELSE deleted_hlc END,
        body_md = excluded.body_md, ydoc = excluded.ydoc,
        body_version = excluded.body_version,
-       updated_at = MAX(excluded.updated_at, updated_at)
+       created_at = CASE WHEN excluded.dates_hlc > dates_hlc
+                         THEN excluded.created_at ELSE created_at END,
+       updated_at = CASE WHEN excluded.dates_hlc > dates_hlc
+                         THEN excluded.updated_at ELSE MAX(excluded.updated_at, updated_at) END,
+       dates_hlc = MAX(excluded.dates_hlc, dates_hlc)
      WHERE purged_at IS NULL AND body_version = @bodyVersion`,
   )
   const purged = db.prepare<[string], { purged: number }>(
@@ -583,6 +590,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         updatedAt: row.updated_at,
         deletedAt: row.deleted_at,
         deletedHlc: row.deleted_hlc,
+        datesHlc: row.dates_hlc,
       } satisfies NoteRecord
     },
     async putNote(note) {
@@ -594,6 +602,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
           ...note,
           ydoc: Buffer.from(note.ydoc),
           pinned: note.pinned ? 1 : 0,
+          datesHlc: note.datesHlc ?? '',
         }).changes
         if (written === 0) {
           // A purged note is left alone; any other has a body that moved on

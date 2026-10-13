@@ -142,10 +142,21 @@ describe('COMMANDS', () => {
       const c = command(id)
       return [c.scope, ...c.keys]
     }
-    // Back and Forward outside the editor (there Cmd+[ and Cmd+] outdent and
-    // indent), the next and previous note from anywhere.
-    expect(spec('note.back')).toEqual(['outsideEditor', 'Mod+[', 'Mod+ArrowLeft'])
-    expect(spec('note.forward')).toEqual(['outsideEditor', 'Mod+]', 'Mod+ArrowRight'])
+    // Back and Forward from anywhere, the editor too (it indents with Tab and
+    // Shift+Tab), the next and previous note from anywhere.
+    expect(spec('note.back')).toEqual(['window', 'Mod+[', 'Mod+ArrowLeft'])
+    expect(spec('note.forward')).toEqual(['window', 'Mod+]', 'Mod+ArrowRight'])
+    expect(command('edit.indent').keys).toEqual([])
+    expect(command('edit.outdent').keys).toEqual([])
+    // Moving a table row keeps Cmd+Option+Shift+Up/Down: Option+Shift+Up/Down
+    // copy the line, and no other command shares the row keys.
+    expect(command('table.moveRowUp').keys).toEqual(['Mod+Alt+Shift+ArrowUp'])
+    expect(command('table.moveRowDown').keys).toEqual(['Mod+Alt+Shift+ArrowDown'])
+    expect(command('edit.copyLineUp').keys).toEqual(['Alt+Shift+ArrowUp'])
+    for (const key of ['Mod+Alt+Shift+ArrowUp', 'Mod+Alt+Shift+ArrowDown']) {
+      const holders = COMMANDS.filter((c) => (c.keys as readonly string[]).includes(key))
+      expect(holders.map((c) => c.id)).toHaveLength(1)
+    }
     expect(spec('note.next')).toEqual(['window', 'Mod+Shift+]'])
     expect(spec('note.previous')).toEqual(['window', 'Mod+Shift+['])
     expect(spec('view.sidebar')).toEqual(['window', 'Mod+/'])
@@ -161,18 +172,14 @@ describe('COMMANDS', () => {
     expect(spec('note.editBody')).toEqual(['noteList', 'Mod+Enter'])
   })
 
-  it('runs Back and Forward outside the editor, and the other note keys from the editor too', () => {
-    const outside: [KeyPress, string][] = [
+  it('runs Back, Forward and the other note keys from the editor too', () => {
+    // Cmd+Left and Cmd+Right are window keys too, but dispatch.ts leaves an
+    // arrow key in a text field to the caret.
+    const cases: [KeyPress, string][] = [
       [press('BracketLeft', '[', { metaKey: true }), 'note.back'],
       [press('BracketRight', ']', { metaKey: true }), 'note.forward'],
       [press('ArrowLeft', 'ArrowLeft', { metaKey: true }), 'note.back'],
       [press('ArrowRight', 'ArrowRight', { metaKey: true }), 'note.forward'],
-    ]
-    for (const [e, id] of outside) {
-      expect(windowCommand(e, { inEditor: false })).toBe(id)
-      expect(windowCommand(e, { inEditor: true })).toBeUndefined()
-    }
-    const cases: [KeyPress, string][] = [
       [press('BracketRight', '}', { metaKey: true, shiftKey: true }), 'note.next'],
       [press('BracketLeft', '{', { metaKey: true, shiftKey: true }), 'note.previous'],
       [press('Slash', '/', { metaKey: true }), 'view.sidebar'],
@@ -583,8 +590,8 @@ describe('the default keys', () => {
       ['edit.moveLineDown', ['Alt+ArrowDown']],
       ['edit.copyLineUp', ['Alt+Shift+ArrowUp']],
       ['edit.copyLineDown', ['Alt+Shift+ArrowDown']],
-      ['edit.outdent', ['Mod+[']],
-      ['edit.indent', ['Mod+]']],
+      ['edit.outdent', []],
+      ['edit.indent', []],
       ['edit.openLink', ['Ctrl+Shift+O']],
       ['edit.sortLines', ['F5']],
       ['edit.sortLinesReverse', ['Shift+F5']],
