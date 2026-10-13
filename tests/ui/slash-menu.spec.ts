@@ -243,7 +243,7 @@ test('Note Link from the palette opens the note search', async ({ page }) => {
   await newNote(page, 'Plan')
   // A double click selects the word, which becomes the query.
   await page.locator('.cm-line').first().dblclick()
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()
   await paletteField(page).fill('note link')
   await expect(commandOptions(page).first()).toContainText('Note Link')
@@ -255,7 +255,7 @@ test('Note Link from the palette opens the note search', async ({ page }) => {
 
 test('the palette offers the insertions too', async ({ page }) => {
   await newNote(page, 'Intro')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()
   await paletteField(page).fill('table')
   await expect(commandOptions(page).first()).toContainText('Table')

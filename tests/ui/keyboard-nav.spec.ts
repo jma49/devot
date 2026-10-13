@@ -437,7 +437,7 @@ test('Sort Notes\u2026 in the palette opens the list\u2019s sort pop-up', async 
         ).length,
     )
   await createNote(page, 'Alpha')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   const field = page.getByRole('combobox', { name: 'Command Palette' })
   await field.fill('Sort Notes')
   await field.press('Enter')

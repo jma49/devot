@@ -55,7 +55,7 @@ const calls = (page: Page, cmd: string) =>
 const popups = async (page: Page) => (await calls(page, 'plugin:menu|popup')).length
 
 async function runFromPalette(page: Page, name: string) {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
   await field(page).fill(name)
   const option = commands(page).filter({ hasText: name }).first()
@@ -378,7 +378,7 @@ test('the palette runs the image commands for the image at the cursor', async ({
 
   // Away from an image the palette does not offer them.
   await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await field(page).fill('Image Size')
   await expect(commands(page).filter({ hasText: 'Image Size' })).toHaveCount(0)
   await page.keyboard.press('Escape')

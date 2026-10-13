@@ -143,7 +143,7 @@ test('the palette and the [[ popup name untitled notes by their first line', asy
   await untitledNote(page, 'Beta idea')
 
   // The palette lists both, and finds one by its first line.
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   const notes = palette.getByRole('group', { name: 'Notes' }).getByRole('option')
   await expect(notes).toHaveText(['Beta idea', 'Alpha idea'])

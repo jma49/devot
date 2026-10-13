@@ -54,9 +54,9 @@ async function createTemplate(page: Page, title: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
-/** Opens the palette with Cmd+P, types a query and picks the entry of a group. */
+/** Opens the palette with Cmd+K, types a query and picks the entry of a group. */
 async function pick(page: Page, query: string, group: string) {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()
   await paletteField(page).fill(query)
   await palette(page)
@@ -190,7 +190,7 @@ test.describe('Templates', () => {
           ).length,
       )
     await createTemplate(page, 'Weekly')
-    await page.keyboard.press('Meta+KeyP')
+    await page.keyboard.press('Meta+KeyK')
     await paletteField(page).fill('Sort Notes')
     await paletteField(page).press('Enter')
     await expect.poll(popups).toBe(1)

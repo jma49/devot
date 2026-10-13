@@ -171,7 +171,7 @@ const applied = (page: Page) =>
   page.evaluate(() => (globalThis as unknown as TestWindow).devotMirrorApplied ?? [])
 
 async function runCommand(page: Page, query: string, label: string) {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()
   await paletteField(page).fill(query)
   await commandOptions(page).getByRole('option', { name: label }).click()
@@ -189,7 +189,7 @@ async function createNote(page: Page, title: string) {
 test.describe('the main window', () => {
   test('the palette chooses a folder (asking first) and turns the mirror off', async ({ page }) => {
     await openWith(page, '/')
-    await page.keyboard.press('Meta+KeyP')
+    await page.keyboard.press('Meta+KeyK')
     await paletteField(page).fill('mirror')
     await expect(commandOptions(page).getByRole('option')).toHaveText([
       'Choose Markdown Mirror Folder…',
@@ -205,7 +205,7 @@ test.describe('the main window', () => {
 
     await runCommand(page, 'turn off mirror', 'Turn Off Markdown Mirror')
     expect(await calls(page, 'mirror_set')).toEqual([{ patch: { turnOff: true } }])
-    await page.keyboard.press('Meta+KeyP')
+    await page.keyboard.press('Meta+KeyK')
     await paletteField(page).fill('mirror')
     await expect(commandOptions(page).getByRole('option')).toHaveText([
       'Choose Markdown Mirror Folder…',

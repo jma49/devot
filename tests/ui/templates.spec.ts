@@ -71,7 +71,7 @@ test('templates live in their own view, out of All Notes and search', async ({ p
   ).toBeVisible()
   await expect(bookPicker(page)).toHaveCount(0)
   // Nor does a template take a status: the palette offers none.
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   await palette.getByRole('combobox').fill('Move to Trash')
   await expect(palette.getByRole('option', { name: /Move to Trash/ })).toHaveCount(1)
@@ -200,7 +200,7 @@ test('a note made while search results show opens in a list that shows it', asyn
 
 test('the command palette offers New Note from Template', async ({ page }) => {
   await newTemplate(page, 'Daily', 'Daily body')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   await palette.getByRole('combobox').fill('from template')
   const option = palette.getByRole('option', { name: /New Note from Template/ })

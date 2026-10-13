@@ -559,7 +559,7 @@ test('b and a space scope the palette to notebooks; Shift+Return files the open 
     .getByRole('button', { name: /All Notes/ })
     .click()
   await createNote(page, 'Soup')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await field(page).fill('b ')
   await expect(field(page)).toHaveAttribute('placeholder', 'Search notebooks...')
   await expect(palette(page).getByRole('button', { name: 'Back' })).toBeVisible()
@@ -572,7 +572,7 @@ test('b and a space scope the palette to notebooks; Shift+Return files the open 
 test('Escape steps back from a query to the scope, to the sources, then closes', async ({
   page,
 }) => {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await field(page).fill('t ur')
   await expect(field(page)).toHaveValue('ur')
   await field(page).press('Escape')
@@ -590,7 +590,7 @@ test('the outline source lists headings and tasks; Return moves the caret there'
   await createNote(page, 'Outlined')
   await body(page).click()
   await page.keyboard.type('# One\n\n- [ ] first task\n\n## Two\n')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await field(page).fill('# ')
   await expect(options(page)).toHaveText(['One', 'first task', 'Two'])
   await options(page).nth(2).click()

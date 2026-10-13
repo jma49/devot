@@ -119,7 +119,7 @@ test('notes dropped on the second of two same-named tags get that tag', async ({
 test('the palette adds the tag picked, not another of its name', async ({ page }) => {
   await twoTodoTags(page)
   await createNote(page, 'Picked')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()
   await paletteField(page).fill('todo')
   const tags = palette(page).getByRole('group', { name: 'Tags' }).getByRole('option')
@@ -135,7 +135,7 @@ test('the tag picker adds the tag picked to the selected notes', async ({ page }
   await createNote(page, 'Beta')
   await noteRow(page, 'Alpha').click({ modifiers: ['Meta'] })
   await expect(page.getByRole('region', { name: 'Selected Notes' })).toBeVisible()
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await paletteField(page).fill('Add Tag to Selected')
   await paletteField(page).press('Enter')
   const picker = page.getByRole('dialog', { name: 'Add Tag' })

@@ -38,9 +38,9 @@ async function newNote(page: Page, text: string, name?: string) {
   await expect(line(page, 0)).toHaveText(text.split('\n')[0] ?? '')
 }
 
-/** Opens the palette with Cmd+P and types a query. */
+/** Opens the palette with Cmd+K and types a query. */
 async function search(page: Page, query: string) {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()
   await paletteField(page).fill(query)
 }

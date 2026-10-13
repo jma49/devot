@@ -81,11 +81,11 @@ test('the Format menu has its keys while the editor has the keyboard', async ({ 
   // On the empty line Strikethrough did nothing, so its key waited.
   await expect
     .poll(async () => (await lastMenuState(page))?.keys['format.strikethrough'])
-    .toBe('Shift+CmdOrCtrl+X')
+    .toBe('CmdOrCtrl+U')
   const { keys } = (await lastMenuState(page))!
   expect(keys['format.italic']).toBe('CmdOrCtrl+I')
-  expect(keys['format.strikethrough']).toBe('Shift+CmdOrCtrl+X')
-  expect(keys['format.heading1']).toBe('Alt+CmdOrCtrl+1')
+  expect(keys['format.strikethrough']).toBe('CmdOrCtrl+U')
+  expect(keys['format.heading1']).toBe('CmdOrCtrl+1')
   expect(keys['format.alertNote']).toBeUndefined()
 
   // Elsewhere the keys are the window's again (Cmd+K opens the palette).
