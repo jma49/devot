@@ -12,11 +12,19 @@ function styled(fontSize: number) {
 }
 
 describe('applyEditorStyle', () => {
-  it('sets the editor size and the preview scale that follows it', () => {
+  it('sets the editor size and weight, and the preview scale from the preview size', () => {
     const set = styled(DEFAULT_EDITOR_SETTINGS.fontSize)
     expect(set.get('--editor-font-size')).toBe('13px')
-    expect(set.get('--preview-scale')).toBe('1')
-    expect(Number(styled(26).get('--preview-scale'))).toBe(2)
-    expect(Number(styled(13 / 2 + 6.5 / 2).get('--preview-scale'))).toBeCloseTo(0.75, 5)
+    expect(set.get('--editor-font-weight')).toBe('normal')
+    // The editor's size no longer moves the preview; its own size does.
+    expect(set.get('--preview-scale')).toBe(styled(26).get('--preview-scale'))
+    expect(Number(set.get('--preview-scale'))).toBeCloseTo(15 / 13.5, 5)
+    const bigger = new Map<string, string>()
+    applyEditorStyle(
+      { ...DEFAULT_EDITOR_SETTINGS, previewFontSize: 27, fontWeight: '600' },
+      { setProperty: (name, value) => void bigger.set(name, value) },
+    )
+    expect(Number(bigger.get('--preview-scale'))).toBeCloseTo(2, 5)
+    expect(bigger.get('--editor-font-weight')).toBe('600')
   })
 })

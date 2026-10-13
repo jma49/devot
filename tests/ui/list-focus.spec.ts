@@ -219,7 +219,7 @@ test('Restore from the palette in the Trash list opens the next row', async ({ p
   const second = await noteRows(page).nth(1).textContent()
   await noteRows(page).nth(0).click()
   await expect(noteRows(page).nth(0)).toBeFocused()
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   await palette.getByRole('combobox', { name: 'Command Palette' }).fill('restore from trash')
   await expect(palette.locator('[role="option"][aria-selected="true"]')).toContainText(
@@ -270,7 +270,7 @@ test('switching views from the keyboard opens no note', async ({ page }) => {
   await expect(noteRows(page)).toHaveText([/^Gamma/, /^Beta/, /^Alpha/])
   // Gamma, outside Work, is open and its row has the keyboard.
   await focusRow(page, 'Gamma')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   await palette.getByRole('combobox', { name: 'Command Palette' }).fill('work')
   await expect(palette.locator('[role="option"][aria-selected="true"]')).toContainText('Work')

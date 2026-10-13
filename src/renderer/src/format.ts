@@ -35,17 +35,21 @@ export function noteDate(updatedAt: number, now: number, locale: string): string
 }
 
 /**
- * How long ago a note changed ("now", "5 minutes ago", "yesterday"); a month
- * or more back, its date.
+ * How long since a note changed, as the list shows it: "a few seconds",
+ * "7 minutes", "3 hours", "3 days"; a month or more back, its date.
  */
 export function relativeTime(updatedAt: number, now: number, locale: string): string {
   const seconds = Math.max(0, Math.round((now - updatedAt) / 1000))
-  const rtf = kept(`rel|${locale}`, () => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }))
-  if (seconds < 60) return rtf.format(0, 'second')
-  if (seconds < 3600) return rtf.format(-Math.floor(seconds / 60), 'minute')
-  if (seconds < 86_400) return rtf.format(-Math.floor(seconds / 3600), 'hour')
+  const span = (count: number, unit: 'minute' | 'hour' | 'day') =>
+    kept(
+      `span|${unit}|${locale}`,
+      () => new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'long' }),
+    ).format(count)
+  if (seconds < 60) return t('time.fewSeconds')
+  if (seconds < 3600) return span(Math.floor(seconds / 60), 'minute')
+  if (seconds < 86_400) return span(Math.floor(seconds / 3600), 'hour')
   const days = Math.floor(seconds / 86_400)
-  if (days < 30) return rtf.format(-days, 'day')
+  if (days < 30) return span(days, 'day')
   return noteDate(updatedAt, now, locale)
 }
 
@@ -67,6 +71,23 @@ export function countOf(count: number, locale: string, one: MessageKey, other: M
   const key = plural.select(count) === 'one' ? one : other
   const number = kept(`number|${locale}`, () => new Intl.NumberFormat(locale))
   return format(t(key), { count: number.format(count) })
+}
+
+/** Task progress in the note info card: "1 of 2 tasks". */
+export function taskCount(done: number, total: number, locale: string): string {
+  const plural = kept(`plural|${locale}`, () => new Intl.PluralRules(locale))
+  const key = plural.select(total) === 'one' ? 'noteInfo.tasksOne' : 'noteInfo.tasksOther'
+  const number = kept(`number|${locale}`, () => new Intl.NumberFormat(locale))
+  return format(t(key), { done: number.format(done), count: number.format(total) })
+}
+
+const pad = (value: number) => String(value).padStart(2, '0')
+
+/** A note's date in the note info card, in local time: `YYYY-MM-DD HH:mm:ss`. */
+export function stampDate(at: number): string {
+  const d = new Date(at)
+  const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return `${day} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 export const noteCount = (count: number, locale: string) =>

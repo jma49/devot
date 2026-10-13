@@ -1,6 +1,6 @@
 import { syntaxHighlighting } from '@codemirror/language'
 import { EditorSelection } from '@codemirror/state'
-import { Facet, Prec } from '@codemirror/state'
+import { Facet, Prec, type Extension } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { useEffect, useRef, type RefObject } from 'react'
 import { yCollab } from 'y-codemirror.next'
@@ -12,11 +12,14 @@ import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys } from './commands/registry'
+import { invoke } from './ipc'
+import { lineCommands } from './editor/lineCommands'
 import type { ShowAlertMenu } from './editor/alertMenu'
 import { moveSelection, selectedText, trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
 import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
+import { imageSizeBar } from './editor/ImageSizeBar'
 import { formatKeyAvailability } from './editor/formatKeys'
 import { imeKeys } from './editor/imeKeys'
 import { editorScrollPane } from './editor/scrollPane'
@@ -24,10 +27,11 @@ import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
 import { imageActions, imageAt, imageSizeChange, viewImageAt } from './editor/images'
 import { TABLE_COMMANDS, inTable, tableKeymap, type TableCommandId } from './editor/tableCommands'
 import { tableTyping } from './editor/tableTyping'
+import { markdownLineStyles } from './editor/lineStyles'
 import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
 import { pasteUrls, plainPaste } from './editor/paste'
 import { editorSetup, reconfigureSetup } from './editor/settings'
-import { slashMenu } from './editor/slashMenu'
+import { editorCompletions } from './editor/completions'
 import { taskToggle } from './editor/tasks'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
 import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
@@ -84,10 +88,16 @@ export interface EditorHandle {
   takeState: (state: Uint8Array) => void
   /** Gives the editor the keyboard, with its selection as it was. */
   focus: () => void
+  /** Focuses the editor with the caret at the start of the body. */
+  focusStart: () => void
   /** Focuses the editor and applies a format to its selection. */
   format: (id: FormatId) => void
   /** Focuses the editor and inserts at its selection (an image, a table, a note link). */
   insert: (id: InsertId) => void
+  /** The note's Markdown as the editor shows it now (the palette's outline reads it). */
+  text: () => string
+  /** Puts the caret at the start of line `line` (1 is the first) and scrolls it into view. */
+  goToLine: (line: number) => void
   /** Whether the cursor is in a table. */
   inTable: () => boolean
   /** Focuses the editor and runs a table command on the table at the cursor. */
@@ -253,7 +263,7 @@ function attachImages(
   noteId: string,
   text: Y.Text,
   refused: (codes: string[]) => void,
-) {
+): { extension: Extension; choose: (view: EditorView) => void } {
   const insert = (view: EditorView, pos: number, files: File[]) => {
     const anchor = anchorAt(text, Math.min(pos, view.state.doc.length))
     void storeImages(noteId, files).then(async (stored) => {
@@ -265,7 +275,24 @@ function attachImages(
       })
     })
   }
-  return EditorView.domEventHandlers({
+  // Image File in the slash menu: the system's file panel, images only.
+  const choose = (view: EditorView) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.multiple = true
+    input.hidden = true
+    const pos = view.state.selection.main.head
+    input.addEventListener('change', () => {
+      const files = [...(input.files ?? [])].filter((f) => f.type.startsWith('image/'))
+      input.remove()
+      if (files.length > 0) insert(view, pos, files)
+    })
+    input.addEventListener('cancel', () => input.remove())
+    document.body.appendChild(input)
+    input.click()
+  }
+  const extension = EditorView.domEventHandlers({
     paste(event, view) {
       const files = imageFiles(event.clipboardData)
       if (files.length === 0) return false
@@ -282,6 +309,7 @@ function attachImages(
       return true
     },
   })
+  return { extension, choose }
 }
 
 /**
@@ -295,16 +323,31 @@ const theme = EditorView.theme({
   '&': {
     height: '100%',
     backgroundColor: 'transparent',
-    color: 'var(--color-text-primary)',
+    color: 'var(--color-text-editor)',
   },
   // The text only: popups inside the editor keep the UI's size.
   '.cm-scroller': {
     fontSize: 'var(--editor-font-size, var(--font-size-body))',
     fontFamily: 'var(--editor-font-family, var(--font-family-mono))',
-    lineHeight: 'var(--editor-line-height, 1.4)',
+    fontWeight: 'var(--editor-font-weight, normal)',
+    lineHeight: 'var(--editor-line-height, 1.5)',
   },
   '&.cm-focused': { outline: 'none' },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-accent-fill)' },
+  // Thin scroll bars, as in the rest of the window (app.css).
+  '.cm-scroller::-webkit-scrollbar': {
+    width: 'var(--size-scrollbar)',
+    height: 'var(--size-scrollbar)',
+    background: 'transparent',
+  },
+  '.cm-scroller::-webkit-scrollbar-thumb': {
+    borderRadius: 'var(--radius-capsule)',
+    background: 'var(--color-fill-scrollbar)',
+  },
+  '.cm-cursor, .cm-dropCursor': {
+    borderLeftColor: 'var(--color-editor-caret)',
+    borderLeftWidth: 'var(--space-1)',
+  },
+  '.cm-placeholder': { color: 'var(--color-editor-placeholder)' },
   // CodeMirror's own colours are for a light page; these follow the tokens,
   // so the gutter, the active line and the selection read in both appearances.
   // The gutter is sticky: it stays opaque so unwrapped text scrolled under it does not show through.
@@ -313,22 +356,24 @@ const theme = EditorView.theme({
     color: 'var(--color-text-tertiary)',
     border: '0',
   },
-  '.cm-activeLine': { backgroundColor: 'var(--color-fill-track)' },
+  '.cm-activeLine': { backgroundColor: 'var(--color-editor-active-line)' },
   '.cm-activeLineGutter': {
-    backgroundColor: 'var(--color-fill-track)',
+    backgroundColor: 'var(--color-editor-active-line)',
     color: 'var(--color-text-primary)',
   },
   // The selection is drawn in a layer behind the lines, so the active line's tint lies over it.
-  // A solid accent tint that stands 1.3:1 from both; focused or not, it is the same colour.
-  '.cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground':
-    { backgroundColor: 'var(--color-accent-selection)' },
+  // A solid tint that stands 1.3:1 from both; lighter while the editor does not have focus.
+  '.cm-selectionBackground': { backgroundColor: 'var(--color-accent-selection-inactive)' },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
+    backgroundColor: 'var(--color-accent-selection)',
+  },
   '.cm-selectionMatch': { backgroundColor: 'var(--color-fill-match)' },
   '.cm-foldPlaceholder': {
     backgroundColor: 'var(--color-fill-track)',
     color: 'var(--color-text-secondary)',
     border: '0',
   },
-  // The `[[` note popup and the slash menu.
+  // The selection toolbar; the completion popups have their own look (editor/completions.ts).
   '.cm-tooltip': {
     border: '0',
     borderRadius: 'var(--radius-card)',
@@ -336,34 +381,6 @@ const theme = EditorView.theme({
     boxShadow: '0 0 0 0.5px var(--color-line-hairline)',
     color: 'var(--color-text-primary)',
   },
-  '.cm-tooltip.cm-tooltip-autocomplete > ul': {
-    fontFamily: 'var(--font-family-ui)',
-    maxHeight: 'calc(var(--size-sidebar-row) * 9)',
-    padding: 'var(--space-2)',
-  },
-  '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
-    padding: 'var(--space-2) var(--space-4)',
-    borderRadius: 'var(--radius-button)',
-  },
-  '.cm-tooltip-autocomplete ul li[aria-selected]': {
-    backgroundColor: 'var(--color-accent-fill)',
-    color: 'var(--color-accent-on-fill)',
-  },
-  // A slash menu item's key, and the letters its query matched (as in the palette).
-  '.cm-completionDetail': {
-    marginLeft: 'var(--space-4)',
-    fontStyle: 'normal',
-    fontSize: 'var(--font-size-footnote)',
-    color: 'var(--color-text-tertiary)',
-  },
-  '.cm-tooltip-autocomplete ul li[aria-selected] .cm-completionDetail': {
-    color: 'var(--color-accent-on-fill)',
-  },
-  '.cm-completionMatchedText': {
-    textDecoration: 'none',
-    fontWeight: 'var(--font-weight-semibold)',
-  },
-  '.cm-completionIcon': { display: 'none' },
 })
 
 /**
@@ -438,6 +455,10 @@ interface Props {
   onImagesRefused?: (codes: string[]) => void
   /** The core could not open the note (it is gone or in the Trash). */
   onOpenFailed?: (noteId: string) => void
+  /** Runs New Note from Template (the empty note's chip). */
+  onChooseTemplate?: () => void
+  /** Opens the note a link under the caret points at (Open Link's key). */
+  onOpenNote?: (noteId: string) => void
 }
 
 /** CodeMirror bound to a local Yjs replica of the note held by the core. */
@@ -461,6 +482,8 @@ export function NoteEditor({
   onNewFromSelection,
   onImagesRefused,
   onOpenFailed,
+  onChooseTemplate,
+  onOpenNote,
 }: Props) {
   const host = useRef<HTMLDivElement>(null)
   // Read once, when the note has loaded.
@@ -488,7 +511,10 @@ export function NoteEditor({
   const fromSelection = useRef(onNewFromSelection)
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
+  const chooseTemplateRef = useRef(onChooseTemplate)
+  const noteOpener = useRef(onOpenNote)
   useEffect(() => {
+    chooseTemplateRef.current = onChooseTemplate
     placeAsked.current = initialPlace
     placeReport.current = onPlace
     focusOnOpen.current = autoFocus
@@ -500,6 +526,7 @@ export function NoteEditor({
     fromSelection.current = onNewFromSelection
     imagesRefused.current = onImagesRefused
     openFailed.current = onOpenFailed
+    noteOpener.current = onOpenNote
     latestSettings.current = settings
     imageHandlers.current = { open: onOpenImage, menu: showImageMenu }
   })
@@ -572,6 +599,8 @@ export function NoteEditor({
           }
         }
         const setupFor = latestSettings.current
+        const images = attachImages(core, noteId, text, (codes) => imagesRefused.current?.(codes))
+        const imageChooser = images.choose
         const body = text.toString()
         const restored = placeAsked.current?.()
         const selection = restored?.selection && clampSelection(restored.selection, body.length)
@@ -598,12 +627,23 @@ export function NoteEditor({
               imeKeys(),
               theme,
               syntaxHighlighting(noteHighlightStyle),
+              // Heading sizes, list levels, code chips, quotes, alerts and tables.
+              markdownLineStyles,
               // The GFM dialect (strikethrough, tables, task lists) and front matter.
               noteMarkdown,
-              attachImages(core, noteId, text, (codes) => imagesRefused.current?.(codes)),
+              images.extension,
               pasteUrls,
               pastePlainKeys(),
               newFromSelectionKeys(),
+              lineCommands((href) => {
+                const note = /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)
+                if (note?.[1]) noteOpener.current?.(note[1])
+                else if (/^https:\/\//i.test(href)) {
+                  invoke('open_external', { url: href }).catch(() =>
+                    console.warn('W_OPEN_EXTERNAL_FAILED'),
+                  )
+                }
+              }),
               insertKeymap(),
               imageCommandKeys(),
               newFromSelection.of(() => {
@@ -618,8 +658,12 @@ export function NoteEditor({
                 discard: (id) => linkSources.current.discard(id),
                 linked: (id) => linkSources.current.linked(id),
               }),
-              slashMenu(),
+              editorCompletions({
+                chooseImageFiles: (target) => imageChooser(target),
+                chooseTemplate: () => chooseTemplateRef.current?.(),
+              }),
               formatToolbar(showAlertMenu),
+              imageSizeBar,
               formatKeyAvailability(setInertFormats),
               tableKeymap(),
               tableTyping(),
@@ -684,6 +728,10 @@ export function NoteEditor({
             vector: () => Y.encodeStateVector(doc),
             takeState: (state) => Y.applyUpdate(doc, state, REMOTE),
             focus: () => ready.focus(),
+            focusStart: () => {
+              ready.focus()
+              ready.dispatch({ selection: { anchor: 0 }, scrollIntoView: true })
+            },
             format: (id) => {
               ready.focus()
               formatCommand(id)(ready)
@@ -691,6 +739,16 @@ export function NoteEditor({
             insert: (id) => {
               ready.focus()
               insertCommand(id)(ready)
+            },
+            text: () => ready.state.doc.toString(),
+            goToLine: (line) => {
+              const text = ready.state.doc
+              const at = text.line(Math.min(text.lines, Math.max(1, Math.floor(line)))).from
+              ready.focus()
+              ready.dispatch({
+                selection: EditorSelection.cursor(at),
+                effects: EditorView.scrollIntoView(at, { y: 'start', yMargin: 24 }),
+              })
             },
             inTable: () => inTable(ready.state),
             table: (id) => {

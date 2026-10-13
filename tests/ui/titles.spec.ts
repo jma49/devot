@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openNotePinned } from './fixtures'
+import { expect, test, openNotePinned, pickStatus, statusPicker } from './fixtures'
 
 // Notes with no title stay told apart in the list (their first line shows,
 // the title stays empty), Return in the title goes on to the body, and
@@ -7,7 +7,8 @@ import { expect, test, openNotePinned } from './fixtures'
 // the pin.
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
-const rowTitles = (page: Page) => noteRows(page).locator('.row-title')
+// A row's name: its title, or for an untitled note the first line leading its excerpt.
+const rowTitles = (page: Page) => noteRows(page).locator('.row-title, .row-headline')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 
@@ -50,6 +51,15 @@ test('notes with no title show their first line, and keep an empty title', async
   await expect(rowTitles(page).first()).toHaveText('Dentist')
 })
 
+test('Down Arrow in the title puts the caret at the start of the body', async ({ page }) => {
+  await untitledNote(page, 'first line\nsecond line')
+  await titleField(page).fill('Plan')
+  await titleField(page).press('ArrowDown')
+  await expect(body(page)).toBeFocused()
+  await page.keyboard.insertText('> ')
+  await expect(body(page)).toContainText('> first line')
+})
+
 test('a note with no text at all still shows Untitled', async ({ page }) => {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(rowTitles(page)).toHaveText(['Untitled'])
@@ -75,16 +85,18 @@ test('selecting several notes lists each by its first line', async ({ page }) =>
   await expect(summary.getByRole('listitem')).toHaveText(['Beta idea', 'Alpha idea'])
 })
 
-test('Return in the title moves to the body, and an input method keeps its Return', async ({
+test('Return in the title moves to the tags, and an input method keeps its Return', async ({
   page,
 }) => {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await titleField(page).fill('Plan')
   await titleField(page).press('Enter')
-  await expect(body(page)).toBeFocused()
+  const tags = page.getByRole('combobox', { name: 'Add Tag' })
+  await expect(tags).toBeFocused()
   await expect(titleField(page)).toHaveValue('Plan')
-  await page.keyboard.insertText('first words')
-  await expect(body(page)).toContainText('first words')
+  await page.keyboard.insertText('ideas')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('group', { name: 'Tags' })).toContainText('ideas')
 
   // The Return that picks a candidate of an input method stays in the title.
   await titleField(page).focus()
@@ -104,7 +116,7 @@ test('Duplicate titles the copy "<title> copy", keeps status and tags, and not t
 }) => {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await titleField(page).fill('Weekly plan')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   const tags = page.getByRole('combobox', { name: 'Add Tag' })
   await tags.fill('work')
   await tags.press('Enter')
@@ -115,7 +127,7 @@ test('Duplicate titles the copy "<title> copy", keeps status and tags, and not t
 
   await page.keyboard.press('Meta+KeyD')
   await expect(titleField(page)).toHaveValue('Weekly plan copy')
-  await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('active')
+  await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
   await expect(page.getByRole('group', { name: 'Tags' }).getByText('work')).toBeVisible()
   await expect.poll(() => openNotePinned(page)).toBe(false)
   await expect
@@ -131,12 +143,15 @@ test('the palette and the [[ popup name untitled notes by their first line', asy
   await untitledNote(page, 'Beta idea')
 
   // The palette lists both, and finds one by its first line.
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   const notes = palette.getByRole('group', { name: 'Notes' }).getByRole('option')
+  await palette.getByRole('combobox', { name: 'Command Palette' }).fill('idea')
   await expect(notes).toHaveText(['Beta idea', 'Alpha idea'])
   await palette.getByRole('combobox', { name: 'Command Palette' }).fill('alpha')
   await expect(notes).toHaveText(['Alpha idea'])
+  // Escape clears the query, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette).toBeHidden()
 

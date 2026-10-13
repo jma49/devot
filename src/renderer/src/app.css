@@ -19,6 +19,18 @@ body {
   cursor: default;
 }
 
+/* Thin scroll bars, a rounded thumb on a clear track. */
+::-webkit-scrollbar {
+  width: var(--size-scrollbar);
+  height: var(--size-scrollbar);
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-scrollbar);
+}
+
 button {
   font: inherit;
   color: inherit;
@@ -57,6 +69,11 @@ button {
 .icon-md {
   width: var(--size-icon-md);
   height: var(--size-icon-md);
+}
+
+.icon-toolbar {
+  width: var(--size-icon-toolbar);
+  height: var(--size-icon-toolbar);
 }
 
 .icon-lg {
@@ -119,6 +136,15 @@ button {
   background: var(--color-fill-track);
 }
 
+/* The panes' toolbars: a rounder, stronger hover. */
+.toolbar .tool {
+  border-radius: var(--radius-card);
+}
+
+.toolbar .tool:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-fill-tool-hover);
+}
+
 .tool:disabled,
 .tool[aria-disabled='true'] {
   opacity: 0.5;
@@ -134,6 +160,7 @@ button {
   box-sizing: border-box;
   background: var(--color-surface-sidebar);
   border-right: 1px solid var(--color-line-hairline);
+  font-size: var(--font-size-row);
 }
 
 /* Settings > Appearance turned the material off (sidebarMaterial.ts): the
@@ -155,6 +182,7 @@ button {
 }
 
 .source {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -182,26 +210,32 @@ button {
 .source-count {
   font-size: var(--font-size-footnote);
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
 }
 
-/* Filters: Pinned, statuses and tags. A pressed filter shows like a selection. */
-.source.filter[aria-pressed='true'] {
-  background: var(--color-fill-row-selected-unemphasized);
+/* The selected row of the sidebar (a pressed filter, the view shown, the
+   selected notebook): a fill, and while the sidebar has the keyboard focus a
+   bar on its left edge. */
+.source.filter[aria-pressed='true'],
+.source[aria-current='true'],
+.books [aria-selected='true'] > .book-row {
+  background: var(--color-fill-row-selected);
 }
 
-.sources:focus-within .source.filter[aria-pressed='true'] {
+.sidebar:focus-within
+  :is(
+    .source.filter[aria-pressed='true'],
+    .source[aria-current='true'],
+    .books [aria-selected='true'] > .book-row
+  )::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: var(--size-sidebar-bar);
+  border-radius: var(--radius-button) 0 0 var(--radius-button);
   background: var(--color-accent-fill);
-  color: var(--color-accent-on-fill);
-}
-
-.sources:focus-within .source.filter[aria-pressed='true'] .icon {
-  background-color: var(--color-accent-on-fill);
-}
-
-/* The count is text: a background in its colour would draw a solid block. */
-.sources:focus-within .source.filter[aria-pressed='true'] .source-count {
-  color: var(--color-accent-on-fill);
+  pointer-events: none;
 }
 
 .status-active {
@@ -284,11 +318,6 @@ button {
   height: var(--size-icon-md);
 }
 
-/* On the accent fill of a focused, pressed row, a ring keeps the dot apart. */
-.sources:focus-within .source.filter[aria-pressed='true'] .tag-dot {
-  box-shadow: 0 0 0 1px var(--color-accent-on-fill);
-}
-
 /* Notebooks. */
 .section-header {
   display: flex;
@@ -298,9 +327,22 @@ button {
   margin-top: var(--space-5);
   padding: 0 var(--space-1) var(--space-2) var(--space-4);
   border-radius: var(--radius-button);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-footnote);
   color: var(--color-text-tertiary);
+}
+
+.section-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.section-tools .tool {
+  color: var(--color-text-tertiary);
+}
+
+.section-tools .icon {
+  background-color: var(--color-text-tertiary);
 }
 
 .tool-small {
@@ -385,27 +427,170 @@ button {
   font: inherit;
 }
 
-.books [aria-selected='true'] > .book-row {
-  background: var(--color-fill-row-selected-unemphasized);
-}
-
-.books:focus-within [aria-selected='true'] > .book-row {
-  background: var(--color-accent-fill);
-  color: var(--color-accent-on-fill);
-}
-
-.books:focus-within [aria-selected='true'] > .book-row :is(.icon, .disclosure .icon) {
-  background-color: var(--color-accent-on-fill);
-}
-
-.books:focus-within [aria-selected='true'] > .book-row .source-count {
-  color: var(--color-accent-on-fill);
-}
-
 /* A drop target, and the notebook whose context menu is open. */
 .drop-target,
 .menu-target {
   box-shadow: inset 0 0 0 2px var(--color-accent-fill);
+}
+
+/* The Templates view's Built-in group, under the user's templates. */
+.builtin {
+  flex: none;
+  max-height: 40%;
+  overflow: auto;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--color-line-hairline);
+}
+
+.builtin-title {
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.builtin-row {
+  display: block;
+  width: 100%;
+  height: var(--size-sidebar-row);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.builtin-row[aria-pressed='true'] {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
+.builtin-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--space-7);
+  overflow: auto;
+}
+
+.builtin-heading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-note-title);
+}
+
+.builtin-actions {
+  display: flex;
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+
+.builtin-body {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-footnote);
+  white-space: pre-wrap;
+  color: var(--color-text-secondary);
+}
+
+/* The sidebar's last line: when a note was last saved, and a chevron for the
+   backup and mirror state. */
+.sidebar-footer {
+  position: relative;
+  margin-top: auto;
+  padding-top: var(--space-4);
+}
+
+.footer-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: var(--size-sidebar-row);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: var(--font-size-footnote);
+}
+
+.footer-toggle:hover {
+  background: var(--color-fill-track);
+}
+
+.footer-toggle .icon {
+  background-color: var(--color-text-tertiary);
+}
+
+.footer-panel {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  font-size: var(--font-size-footnote);
+}
+
+.footer-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.footer-error {
+  color: var(--color-status-dropped);
+}
+
+/* Tag Settings: a row of colour swatches under the name. */
+.sheet-field {
+  display: block;
+}
+
+.tag-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-7);
+}
+
+.tag-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-9);
+  height: var(--space-9);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-capsule);
+  background: transparent;
+}
+
+.tag-swatch[aria-checked='true'] {
+  box-shadow: 0 0 0 2px var(--color-accent-fill);
+}
+
+.tag-swatch .tag-dot {
+  width: var(--space-7);
+  height: var(--space-7);
+}
+
+.tag-swatch-none {
+  width: var(--space-7);
+  height: var(--space-7);
+  border-radius: var(--radius-capsule);
+  box-shadow: inset 0 0 0 1px var(--color-text-tertiary);
+}
+
+.pick-row[aria-disabled='true'] {
+  opacity: 0.4;
 }
 
 /* Note list. */
@@ -525,31 +710,33 @@ button {
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--color-line-hairline);
   border-radius: 0;
   outline: none;
 }
 
 .row-title {
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* One line of the body, Markdown and line breaks out (see listExcerpt). */
 .row-excerpt {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   overflow: hidden;
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Words a search matched. */
+/* Words a filter matched: a box a shade darker at its edge. */
 .row mark {
-  border-radius: var(--space-1);
-  background: var(--color-fill-match);
+  border-radius: var(--space-2);
+  background: var(--color-match-bg);
+  box-shadow: inset 0 0 0 1px var(--color-match-border);
   color: inherit;
 }
 
@@ -568,7 +755,46 @@ button {
 }
 
 .row-status {
-  color: var(--status-color);
+  display: inline-flex;
+}
+
+.row-status .icon {
+  background-color: var(--status-color);
+}
+
+/* Tasks done: an icon, a small bar and "1 of 4". */
+.row-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.progress-bar {
+  display: inline-block;
+  width: var(--space-10);
+  height: var(--space-3);
+  overflow: hidden;
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-track);
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent-fill);
+}
+
+/* Tags on a row: small outlined pills. */
+.row .chip {
+  height: auto;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line-control);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption2);
+  line-height: 1.5;
 }
 
 .chip {
@@ -594,23 +820,9 @@ button {
   list-style: none;
 }
 
-/* Selection: neutral in the note list; the sidebar shows the accent while it has the keyboard focus. */
-.source[aria-current='true'],
+/* Selection in the note list. */
 .row[aria-selected='true'] {
-  background: var(--color-fill-row-selected-unemphasized);
-}
-
-.sources:focus-within .source[aria-current='true'] {
-  background: var(--color-accent-fill);
-  color: var(--color-accent-on-fill);
-}
-
-.sources:focus-within .source[aria-current='true'] .icon {
-  background-color: var(--color-accent-on-fill);
-}
-
-.sources:focus-within .source[aria-current='true'] .source-count {
-  color: var(--color-accent-on-fill);
+  background: var(--color-fill-row-selected);
 }
 
 /* Editor. */
@@ -1043,6 +1255,113 @@ button {
   box-shadow: inset 0 0 0 2px var(--color-accent-fill);
 }
 
+/*
+ * The note info card: the first thing in the preview, never in an exported
+ * or printed page. Task progress and dates, each an icon over a caption.
+ */
+.note-info {
+  margin: var(--space-1) 0 var(--space-7);
+  font-size: var(--font-size-body);
+  line-height: 1.3;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.note-info-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 0.6rem;
+  border-radius: 14px;
+  background: var(--color-fill-card);
+}
+
+.note-info-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.note-info-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-10);
+  height: var(--space-10);
+  color: var(--color-text-primary);
+}
+
+.note-info-icon .icon {
+  width: var(--size-icon-lg);
+  height: var(--size-icon-lg);
+}
+
+.note-info-caption {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.note-info-label {
+  color: var(--color-text-secondary);
+  font-size: 0.6rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.note-info-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* "Linked to this note": the notes whose text links here. */
+.note-backlinks {
+  margin-top: var(--space-4);
+}
+
+.note-backlinks > summary {
+  cursor: default;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+
+.note-backlinks > ul {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note-backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.note-backlink > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Find matches in the preview, painted without touching its DOM. */
 ::highlight(devot-find) {
   background-color: var(--color-fill-match);
@@ -1365,6 +1684,97 @@ button {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-4);
+}
+
+/* The selection toolbar's link dialog: a text and a URL field. */
+.link-dialog {
+  box-sizing: border-box;
+  width: var(--size-link-dialog-width);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-dialog);
+  background: var(--color-surface-popover);
+  color: var(--color-text-primary);
+  box-shadow:
+    0 0 0 0.5px var(--color-line-hairline),
+    0 8px 28px var(--color-line-shadow);
+  overflow: hidden;
+}
+
+.link-dialog::backdrop {
+  background: transparent;
+}
+
+.link-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-6) var(--space-7);
+  border-bottom: 1px solid var(--color-line-hairline);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+}
+
+.link-dialog-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-7);
+}
+
+.link-dialog-field {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--size-field-height);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-field);
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-line-control);
+  background: var(--color-surface-popover);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.link-dialog-field::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.link-dialog-field:focus {
+  box-shadow:
+    inset 0 0 0 1px var(--color-accent-fill),
+    0 0 0 3px var(--color-accent-selection);
+}
+
+.link-dialog-actions {
+  display: flex;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-7);
+  border-top: 1px solid var(--color-line-hairline);
+  background: var(--color-fill-track);
+}
+
+.link-dialog-button {
+  flex: 1;
+  height: var(--size-field-height);
+  border: 0;
+  border-radius: var(--radius-field);
+  background: var(--color-fill-segment-on);
+  box-shadow: inset 0 0 0 1px var(--color-line-control);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+}
+
+.link-dialog-insert {
+  background: var(--color-accent-fill);
+  box-shadow: none;
+  color: var(--color-accent-on-fill);
+}
+
+.link-dialog-insert[aria-disabled='true'] {
+  opacity: 0.5;
 }
 
 /* Sheets: a modal panel with a title, like the backups list. */
@@ -1899,62 +2309,62 @@ button {
   margin-right: var(--space-4);
 }
 
-/* Settings window: a toolbar with a tab per pane over the pane shown. The
-   window fits the toolbar and the pane (SettingsWindow.tsx); a pane taller
-   than that scrolls under the toolbar. */
+/* Settings window: a navigation column on the left (a row per pane, its
+   name and its symbol) and the pane beside it, which scrolls. */
 .settings {
-  --settings-label-width: calc(var(--space-10) * 5.5);
   box-sizing: border-box;
   display: flex;
-  flex-direction: column;
   height: 100%;
   background: var(--color-surface-editor);
 }
 
-.settings-toolbar {
+.settings-nav {
   display: flex;
   flex: none;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-6);
-  border-bottom: 1px solid var(--color-line-hairline);
-  background: var(--color-surface-list);
+  flex-direction: column;
+  box-sizing: border-box;
+  width: var(--size-settings-nav-width);
+  padding-top: var(--space-2);
+  overflow-y: auto;
+  border-right: 1px solid var(--color-line-hairline);
+  background: var(--color-surface-sidebar);
 }
 
-/* A tab: its symbol over its name; the selected one sits on a tinted
-   rounded fill in the accent colour. */
+/* A row: its name on the left and an outline symbol on the right. The
+   selected one has a neutral fill and a bar of the accent colour on its
+   right edge. */
 .settings-tab {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--space-1);
-  min-width: calc(var(--space-10) * 2);
-  padding: var(--space-2) var(--space-4);
+  justify-content: space-between;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  height: calc(var(--size-field-height) + var(--space-4));
+  padding: 0 var(--space-7);
   border: 0;
-  border-radius: var(--radius-control);
   background: none;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-footnote);
-  white-space: nowrap;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-title3);
+  text-align: left;
 }
 
-.settings-tab:hover {
-  color: var(--color-text-primary);
+.settings-tab .icon {
+  color: var(--color-text-secondary);
 }
 
 .settings-tab[aria-selected='true'] {
   background: var(--color-fill-row-selected-unemphasized);
-  color: var(--color-accent-text);
+  box-shadow: inset -3px 0 0 var(--color-accent-fill);
 }
 
 .settings-pane {
   flex: 1;
-  min-height: 0;
+  min-width: 0;
   overflow-y: auto;
 }
 
 .settings-pane-body {
-  padding: var(--space-9);
+  padding: var(--space-7) var(--space-9) var(--space-9);
 }
 
 .settings-section p {
@@ -1971,62 +2381,154 @@ button {
   overflow-wrap: anywhere;
 }
 
-/* A settings form: labels right-aligned in one column, controls
-   left-aligned in the next with their hints under them, groups of rows set
-   apart by space. */
-.settings-form-group {
+/* A block of a pane: its title (17 px, bold, with a symbol) over its
+   settings; blocks are set apart by a hairline. */
+.settings-block + .settings-block {
+  margin-top: var(--space-9);
+  padding-top: var(--space-9);
+  border-top: 1px solid var(--color-line-hairline);
+}
+
+.settings-block-title {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-7);
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-bold);
+}
+
+/* A setting: its bold label and a grey description under it, and its
+   control on the right. */
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-9);
+  margin-bottom: var(--space-7);
+}
+
+/* Settings > Appearance: a card per appearance, with a few lines of Markdown in its colours. */
+.theme-cards {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-6);
 }
 
-.settings-form-group + .settings-form-group {
-  margin-top: var(--space-9);
-}
-
-.settings-row {
-  display: grid;
-  grid-template-columns: var(--settings-label-width) minmax(0, 1fr);
-  align-items: baseline;
-  column-gap: var(--space-4);
-}
-
-.settings-label {
-  color: var(--color-text-primary);
-  text-align: right;
-}
-
-.settings-control {
+.theme-card {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.settings-check {
-  display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-.settings-check input {
-  margin: 0;
+.theme-card-previews {
+  display: flex;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  box-shadow: 0 0 0 1px var(--color-line-hairline);
 }
 
-.settings-check:has(input:disabled) {
-  color: var(--color-text-secondary);
+.theme-card:has(input:checked) .theme-card-previews {
+  box-shadow: 0 0 0 2px var(--color-accent-fill);
 }
 
-/* A checkbox with a hint under it, lined up with the checkbox's text. */
-.settings-flag {
+.theme-card:has(input:focus-visible) .theme-card-previews {
+  outline: 2px solid var(--color-accent-fill);
+  outline-offset: 2px;
+}
+
+.theme-preview {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  width: calc(var(--space-10) * 3);
+  padding: var(--space-4);
+  background: var(--color-surface-editor);
+  color: var(--color-text-editor);
+  font: var(--font-size-caption) / 1.4 var(--font-family-mono);
+  white-space: nowrap;
 }
 
-.settings-flag .settings-hint {
-  padding-left: calc(var(--size-icon-sm) + var(--space-3));
+/* Match System shows half of each. */
+.theme-card-previews .theme-preview + .theme-preview,
+.theme-card-previews .theme-preview:has(+ .theme-preview) {
+  width: calc(var(--space-10) * 1.5);
+  overflow: hidden;
+}
+
+.theme-preview-heading {
+  color: var(--color-syntax-heading);
+  font-weight: var(--font-weight-bold);
+}
+
+.theme-preview-markup {
+  color: var(--color-syntax-markup);
+  font-weight: var(--font-weight-regular);
+}
+
+.theme-preview-list {
+  color: var(--color-syntax-list);
+}
+
+.theme-preview-keyword {
+  color: var(--color-syntax-keyword);
+}
+
+.theme-card-name {
+  font-size: var(--font-size-footnote);
+}
+
+.setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.setting-label {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-title3);
+  font-weight: var(--font-weight-semibold);
+}
+
+.setting-description {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+}
+
+.setting-control {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+/* An on/off setting: the checkbox first, then the label and description. */
+.setting-toggle {
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.setting-toggle input {
+  flex: none;
+  margin: var(--space-1) 0 0;
+}
+
+.setting-toggle:has(input:disabled) .setting-label {
+  color: var(--color-text-secondary);
+}
+
+.setting-toggle .setting-label {
+  font-weight: var(--font-weight-regular);
+}
+
+.settings-note {
+  margin: 0 0 var(--space-7);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
 }
 
 .settings-number {
@@ -2041,6 +2543,7 @@ button {
 .settings-buttons {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-4);
 }
 
@@ -2060,26 +2563,43 @@ button {
   white-space: nowrap;
 }
 
-/* Keyboard shortcuts: a table per group of commands. */
+/* Keyboard shortcuts: a search field over one table of every command. */
+.shortcuts-search {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--size-field-height);
+  margin: 0 0 var(--space-6);
+  padding: 0 var(--space-5);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-field);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+}
+
 .shortcuts {
   width: 100%;
   margin: 0 0 var(--space-7);
-  border-collapse: collapse;
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-card);
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
-.shortcuts caption {
-  margin-bottom: var(--space-3);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
+.shortcuts thead th {
+  background: var(--color-fill-track);
   font-weight: var(--font-weight-semibold);
   text-align: left;
 }
 
 .shortcuts th,
 .shortcuts td {
-  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--color-line-hairline);
-  vertical-align: baseline;
+  vertical-align: middle;
+}
+
+.shortcuts tbody tr:last-child > * {
+  border-bottom: 0;
 }
 
 .shortcuts th[scope='row'] {
@@ -2089,6 +2609,31 @@ button {
 
 .shortcuts th[scope='row'] .settings-hint {
   display: block;
+}
+
+.shortcut-keystroke {
+  white-space: nowrap;
+}
+
+.shortcut-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: var(--space-3);
+  padding: var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--color-accent-text);
+  vertical-align: middle;
+}
+
+.shortcut-copy[aria-disabled='true'] {
+  opacity: 0.4;
+}
+
+.shortcut-source {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
 }
 
 .shortcut-key {
@@ -2187,7 +2732,7 @@ button {
 
 /* The command palette: a field over grouped results, near the top of the window. */
 .palette {
-  width: calc(var(--size-list-width) * 1.75);
+  width: var(--size-palette-width);
   max-width: calc(100vw - var(--space-10) * 2);
   margin: calc(var(--size-toolbar-height) * 2) auto auto;
   padding: var(--space-4);
@@ -2204,16 +2749,52 @@ button {
   background: transparent;
 }
 
-.palette-input {
-  width: 100%;
+/* The field: a search icon (a back arrow once scoped) before the input. */
+.palette-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   height: calc(var(--size-field-height) + var(--space-4));
   box-sizing: border-box;
   margin: 0 0 var(--space-3);
   padding: 0 var(--space-5);
-  border: 0;
   border-radius: var(--radius-field);
-  outline: none;
   background: var(--color-fill-track);
+}
+
+.palette-field:focus-within {
+  outline: 2px solid var(--color-accent-fill);
+  outline-offset: -2px;
+}
+
+.palette-lead {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.palette-lead .icon {
+  background-color: var(--color-text-secondary);
+}
+
+.palette-back:hover .icon {
+  background-color: var(--color-text-primary);
+}
+
+.palette-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
   color: var(--color-text-primary);
   font: inherit;
   font-size: var(--font-size-title3);
@@ -2236,7 +2817,8 @@ button {
   align-items: center;
   gap: var(--space-4);
   height: var(--size-sidebar-row);
-  padding: 0 var(--space-4);
+  /* An outline entry indents by its depth (--palette-depth, set per row). */
+  padding: 0 var(--space-4) 0 calc(var(--space-4) + var(--palette-depth, 0) * var(--space-7));
   border-radius: var(--radius-control);
 }
 
@@ -2263,6 +2845,22 @@ button {
   font-weight: var(--font-weight-semibold);
 }
 
+.palette-command {
+  font-weight: var(--font-weight-semibold);
+}
+
+.palette-description {
+  margin-left: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+}
+
+.palette-done {
+  text-decoration: line-through;
+  color: var(--color-text-secondary);
+}
+
 .palette-detail {
   margin-left: var(--space-4);
   color: var(--color-text-secondary);
@@ -2271,9 +2869,12 @@ button {
 
 .palette-key {
   flex: none;
-  color: var(--color-text-tertiary);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
   font: inherit;
-  font-size: var(--font-size-footnote);
+  font-size: var(--font-size-caption);
 }
 
 .palette-row[aria-selected='true'] {
@@ -2286,6 +2887,8 @@ button {
 }
 
 .palette-row[aria-selected='true'] .palette-detail,
+.palette-row[aria-selected='true'] .palette-description,
+.palette-row[aria-selected='true'] .palette-done,
 .palette-row[aria-selected='true'] .palette-key {
   color: var(--color-accent-on-fill);
 }
@@ -2383,4 +2986,171 @@ button {
   max-width: none;
   max-height: none;
   cursor: zoom-out;
+}
+
+/* Pop-up buttons that open a pop-over (BookPicker, StatusPicker). */
+.picker {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  /* The pop-up's cap, on the box around it too: a long name does not take the row. */
+  max-width: min(var(--size-popup-max-width), 100%);
+}
+
+button.popup {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  outline: none;
+}
+
+button.popup:hover,
+button.popup[aria-expanded='true'] {
+  background: var(--color-fill-track);
+}
+
+button.popup:focus-visible {
+  outline: 2px solid var(--color-accent-fill);
+  outline-offset: 1px;
+}
+
+.popup[class*='status-'] .icon:first-child {
+  background-color: var(--status-color);
+}
+
+.picker-popover,
+.tag-suggestions {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 10;
+  box-sizing: border-box;
+  min-width: calc(var(--space-10) * 6);
+  max-height: calc(var(--space-10) * 10);
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  list-style: none;
+  box-shadow:
+    0 0 0 0.5px var(--color-line-hairline),
+    0 var(--space-2) var(--space-9) var(--color-line-hairline);
+}
+
+.picker-search {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--size-segment-height);
+  margin-bottom: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-control);
+  outline: none;
+  background: var(--color-fill-track);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.picker-search::-webkit-search-cancel-button {
+  display: none;
+}
+
+.picker-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  outline: none;
+}
+
+.picker-option,
+.tag-suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--space-9);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-button);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.picker-option[aria-selected='true'],
+.tag-suggestion[aria-selected='true'] {
+  background: var(--color-fill-row-selected);
+}
+
+.picker-option .icon {
+  background-color: var(--status-color, var(--color-text-secondary));
+}
+
+.picker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker-option[data-current] .picker-name {
+  font-weight: var(--font-weight-bold);
+}
+
+.picker-key {
+  margin-left: auto;
+  padding-left: var(--space-7);
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: var(--font-size-footnote);
+}
+
+.picker-empty {
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-text-tertiary);
+}
+
+/* The tag field and its suggestions. */
+.tag-field {
+  position: relative;
+  display: inline-flex;
+}
+
+.tag-create {
+  color: var(--color-text-secondary);
+}
+
+.chip[data-selected] {
+  border-color: transparent;
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+/* A toolbar button's tooltip: its name, then its key in a chip (ToolTips.tsx). */
+.tool-tip {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-button);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-footnote);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, var(--space-2));
+  box-shadow:
+    0 0 0 0.5px var(--color-line-hairline),
+    0 var(--space-1) var(--space-6) var(--color-line-hairline);
+}
+
+.tool-tip-key {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
+  font: inherit;
 }

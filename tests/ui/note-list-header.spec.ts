@@ -47,10 +47,10 @@ test('the sort chip shows the order and opens the sort menu', async ({ page }) =
   await expect(chip(page)).toHaveText('Title \u2191')
 })
 
-test('a row shows its time, then up to two lines of body', async ({ page }) => {
+test('a row shows its time, then one line of body', async ({ page }) => {
   await createNote(page, 'Garden plan', 'tomato rows and beans')
   const row = noteRows(page).first()
-  await expect(row.locator('.row-time')).toHaveText('now')
+  await expect(row.locator('.row-time')).toHaveText('a few seconds')
   await expect(row.locator('.row-time')).toHaveAttribute('title', /20\d\d/)
   await expect(row.locator('.row-excerpt')).toContainText('tomato rows and beans')
 })

@@ -1,10 +1,10 @@
 // The selection toolbar: a CodeMirror tooltip above the selection whose
-// buttons run the format commands, inline formats first, then block formats.
-// CodeMirror positions it through the CSSOM and styles it with constructed
-// sheets, so it works under the production CSP; React renders the buttons
-// into the tooltip.
+// buttons run the format commands, in three groups: inline formats and the
+// link, code, then block formats. CodeMirror positions it through the CSSOM
+// and styles it with constructed sheets, so it works under the production
+// CSP; React renders the buttons into the tooltip.
 import { syntaxTree } from '@codemirror/language'
-import { Prec, type EditorState, type Extension } from '@codemirror/state'
+import { EditorSelection, Prec, type EditorState, type Extension } from '@codemirror/state'
 import {
   EditorView,
   keymap,
@@ -15,84 +15,25 @@ import {
   type Tooltip,
   type TooltipView,
 } from '@codemirror/view'
+import { Fragment } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
-import { t, type MessageKey } from '../i18n'
-import { Icon } from '../icons/Icon'
-import type { IconName } from '../icons/symbols'
+import { t } from '../i18n'
 import { formatKeyRan } from '../commands/formatMenu'
 import { editorFormatKeys } from '../commands/registry'
-import { headingTitle, titleWithKey } from '../commands/titles'
 import { registryKeys } from './registryKeys'
 import type { ShowAlertMenu } from './alertMenu'
-import { formatCommand, formatState, type ToolbarFormat } from './formats'
-import { hideToolbar, toolbarState, toolbarStateExtension, toolbarVisible } from './toolbarState'
-
-interface ButtonSpec {
-  id: ToolbarFormat
-  label: MessageKey
-  title: MessageKey
-  icon: IconName
-}
-
-/**
- * A button's tooltip with its key in effect: the format command's (the
- * headings' range for Heading); the Alert pop-up has none.
- */
-function toolbarTitle(b: ButtonSpec): string {
-  if (b.id === 'heading') return headingTitle()
-  if (b.id === 'alert') return t(b.title)
-  return titleWithKey(b.title, `format.${b.id}`)
-}
-
-const INLINE_BUTTONS: ButtonSpec[] = [
-  { id: 'heading', label: 'format.heading', title: 'format.headingTitle', icon: 'format.heading' },
-  { id: 'bold', label: 'format.bold', title: 'format.boldTitle', icon: 'format.bold' },
-  { id: 'italic', label: 'format.italic', title: 'format.italicTitle', icon: 'format.italic' },
-  {
-    id: 'strikethrough',
-    label: 'format.strikethrough',
-    title: 'format.strikethroughTitle',
-    icon: 'format.strikethrough',
-  },
-  {
-    id: 'highlight',
-    label: 'format.highlight',
-    title: 'format.highlightTitle',
-    icon: 'format.highlight',
-  },
-  { id: 'link', label: 'format.link', title: 'format.linkTitle', icon: 'format.link' },
-  { id: 'code', label: 'format.code', title: 'format.codeTitle', icon: 'format.code' },
-]
-
-const BLOCK_BUTTONS: ButtonSpec[] = [
-  {
-    id: 'codeBlock',
-    label: 'format.codeBlock',
-    title: 'format.codeBlockTitle',
-    icon: 'format.codeBlock',
-  },
-  {
-    id: 'bulletList',
-    label: 'format.bulletList',
-    title: 'format.bulletListTitle',
-    icon: 'format.bulletList',
-  },
-  {
-    id: 'numberedList',
-    label: 'format.numberedList',
-    title: 'format.numberedListTitle',
-    icon: 'format.numberedList',
-  },
-  {
-    id: 'taskList',
-    label: 'format.taskList',
-    title: 'format.taskListTitle',
-    icon: 'format.taskList',
-  },
-  { id: 'quote', label: 'format.quote', title: 'format.quoteTitle', icon: 'format.quote' },
-  { id: 'alert', label: 'format.alert', title: 'format.alertTitle', icon: 'format.alert' },
-]
+import { BAR_GAP, FloatButton, FloatSeparator, floatTheme, NOTCH_X, useFloatTip } from './floating'
+import { formatCommand, formatState, selectionHasLink, type ToolbarFormat } from './formats'
+import { openLinkDialog } from './LinkDialog'
+import { TOOLBAR_GROUPS, toolbarTip } from './toolbarButtons'
+import {
+  hideToolbar,
+  toolbarOff,
+  toolbarState,
+  toolbarStateExtension,
+  toolbarVisible,
+} from './toolbarState'
 
 interface ToolbarProps {
   view: EditorView
@@ -100,40 +41,58 @@ interface ToolbarProps {
   showAlertMenu: ShowAlertMenu
 }
 
-function FormatToolbar({ view, state, showAlertMenu }: ToolbarProps) {
+/** Heading from the toolbar: one level up, then the caret goes to the end of the line. */
+function headingFromToolbar(view: EditorView) {
+  if (!formatCommand('heading')(view)) return
+  const line = view.state.doc.lineAt(view.state.selection.main.head)
+  view.dispatch({ selection: EditorSelection.cursor(line.to), scrollIntoView: true })
+}
+
+function press(view: EditorView, id: ToolbarFormat, button: HTMLElement, props: ToolbarProps) {
+  if (id === 'alert') void props.showAlertMenu(view, button)
+  else if (id === 'heading') headingFromToolbar(view)
+  // A link already selected is removed; otherwise the dialog asks for its address.
+  else if (id === 'link' && !selectionHasLink(view.state)) openLinkDialog(view)
+  else formatCommand(id)(view)
+}
+
+function FormatToolbar(props: ToolbarProps) {
+  const { view, state } = props
   const active = formatState(state)
-  const button = (b: ButtonSpec) => (
-    <button
-      key={b.id}
-      type="button"
-      className="cm-format-button"
-      // Mouse only: focus stays in the editor so the selection stays.
-      tabIndex={-1}
-      aria-label={t(b.label)}
-      aria-pressed={active[b.id]}
-      // The Alert button opens a pop-up to pick the kind.
-      aria-haspopup={b.id === 'alert' ? 'menu' : undefined}
-      title={toolbarTitle(b)}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={(e) => {
-        if (b.id === 'alert') void showAlertMenu(view, e.currentTarget)
-        else formatCommand(b.id)(view)
-      }}
-    >
-      <Icon name={b.icon} size="sm" />
-    </button>
-  )
+  const tip = useFloatTip(view)
   return (
-    <div
-      role="toolbar"
-      aria-label={t('format.toolbar')}
-      className="cm-format-buttons"
-      data-devot-part="format-toolbar"
-    >
-      {INLINE_BUTTONS.map(button)}
-      <div role="separator" aria-orientation="vertical" className="cm-format-separator" />
-      {BLOCK_BUTTONS.map(button)}
-    </div>
+    <>
+      <div
+        role="toolbar"
+        aria-label={t('format.toolbar')}
+        className="cm-float-buttons"
+        data-devot-part="format-toolbar"
+      >
+        {TOOLBAR_GROUPS.map((group, n) => (
+          <Fragment key={group[0]!.id}>
+            {n > 0 && <FloatSeparator />}
+            {group.map((b) => (
+              <FloatButton
+                key={b.id}
+                label={t(b.label)}
+                icon={b.icon}
+                tip={toolbarTip(b)}
+                pressed={active[b.id]}
+                // The Alert button opens a pop-up to pick the kind.
+                popup={b.id === 'alert'}
+                onShowTip={tip.show}
+                onHideTip={tip.hide}
+                onPress={(el) => {
+                  tip.hide()
+                  press(view, b.id, el, props)
+                }}
+              />
+            ))}
+          </Fragment>
+        ))}
+      </div>
+      {tip.bubble}
+    </>
   )
 }
 
@@ -158,7 +117,7 @@ function selectionRect(view: EditorView): Rect | null {
 
 function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipView {
   const dom = document.createElement('div')
-  dom.className = 'cm-format-toolbar'
+  dom.className = 'cm-float-bar cm-format-toolbar'
   const root = createRoot(dom)
   const render = (state: EditorState) =>
     root.render(<FormatToolbar view={view} state={state} showAlertMenu={showAlertMenu} />)
@@ -193,6 +152,8 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
     },
     // Null (nothing of the selection is drawn) makes CodeMirror hide it.
     getCoords: () => selectionRect(view) as Rect,
+    // The notch points at the selection's start, a little away from its line.
+    offset: { x: -NOTCH_X, y: BAR_GAP },
     resize: false,
     // Unmount outside CodeMirror's (and possibly React's) update.
     destroy: () => queueMicrotask(() => root.unmount()),
@@ -201,8 +162,10 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
 
 const toolbarTooltip = (showAlertMenu: ShowAlertMenu) => {
   const create = (view: EditorView) => createToolbar(view, showAlertMenu)
-  return showTooltip.compute([toolbarState, 'selection', 'doc'], (state): Tooltip | null =>
-    toolbarVisible(state) ? { pos: state.selection.main.from, above: true, create } : null,
+  return showTooltip.compute(
+    [toolbarState, toolbarOff, 'selection', 'doc'],
+    (state): Tooltip | null =>
+      toolbarVisible(state) ? { pos: state.selection.main.from, above: true, create } : null,
   )
 }
 
@@ -236,57 +199,13 @@ const formatKeys = registryKeys(() => {
 
 const theme = EditorView.theme({
   '.cm-tooltip.cm-format-toolbar': {
-    boxSizing: 'border-box',
     // Its own width, not what is left right of the selection; at most the
     // editor's (set when placed). A narrower editor (a split pane) keeps the
     // buttons on one row and scrolls them sideways.
     width: 'max-content',
-    overflowX: 'auto',
-    scrollbarWidth: 'none',
-    padding: 'var(--space-1)',
-    boxShadow: '0 0 0 0.5px var(--color-line-hairline), 0 2px 8px var(--color-line-hairline)',
   },
-  '.cm-tooltip.cm-format-toolbar::-webkit-scrollbar': { display: 'none' },
-  '.cm-format-buttons': { display: 'flex', gap: 'var(--space-1)' },
-  '.cm-format-button': {
-    display: 'flex',
-    flexShrink: '0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 'var(--size-field-height)',
-    height: 'var(--size-field-height)',
-    padding: '0',
-    border: '0',
-    borderRadius: 'var(--radius-button)',
-    background: 'transparent',
-    color: 'var(--color-text-secondary)',
-  },
-  '.cm-format-button:hover': { background: 'var(--color-fill-track)' },
-  '.cm-format-separator': {
-    alignSelf: 'center',
-    flexShrink: '0',
-    width: '1px',
-    height: 'var(--size-icon-sm)',
-    margin: '0 var(--space-1)',
-    background: 'var(--color-line-hairline)',
-  },
-  '.cm-format-button[aria-pressed="true"]': {
-    background: 'var(--color-fill-row-selected-unemphasized)',
-    color: 'var(--color-accent-text)',
-  },
-  // The app's icon rules do not reach into the editor's shadow root.
-  '.cm-format-button .icon': {
-    display: 'inline-block',
-    width: 'var(--size-icon-sm)',
-    height: 'var(--size-icon-sm)',
-    backgroundColor: 'currentColor',
-    maskSize: 'contain',
-    maskRepeat: 'no-repeat',
-    maskPosition: 'center',
-    WebkitMaskSize: 'contain',
-    WebkitMaskRepeat: 'no-repeat',
-    WebkitMaskPosition: 'center',
-  },
+  '.cm-format-toolbar .cm-float-buttons': { overflowX: 'auto', scrollbarWidth: 'none' },
+  '.cm-format-toolbar .cm-float-buttons::-webkit-scrollbar': { display: 'none' },
 })
 
 /**
@@ -294,5 +213,5 @@ const theme = EditorView.theme({
  * `showAlertMenu` opens the pop-up of the Alert button.
  */
 export function formatToolbar(showAlertMenu: ShowAlertMenu): Extension {
-  return [toolbarStateExtension, toolbarTooltip(showAlertMenu), formatKeys(), theme]
+  return [toolbarStateExtension, toolbarTooltip(showAlertMenu), formatKeys(), floatTheme, theme]
 }

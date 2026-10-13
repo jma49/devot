@@ -11,7 +11,8 @@ import {
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
-const rowTitles = (page: Page) => list(page).locator('.row-title')
+// A row's name: its title, or for an untitled note the first line leading its excerpt.
+const rowTitles = (page: Page) => list(page).locator('.row-title, .row-headline')
 const sections = (page: Page) => list(page).locator('.list-section')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')

@@ -65,10 +65,17 @@ import { useFormatMenu } from './commands/formatMenu'
 import { useKeymap } from './commands/shortcutSettings'
 import { invoke } from './ipc'
 import { titleWithKey } from './commands/titles'
+import { ToolTips } from './ToolTips'
 import { COMMANDS, formatOf, insertOf, tableOf, type CommandHandlers } from './commands/registry'
 import { CommandPalette, type PaletteActions } from './palette/CommandPalette'
-import { commandEntries, libraryEntries } from './palette/entries'
-import type { PaletteEntry } from './palette/results'
+import {
+  commandEntries,
+  libraryEntries,
+  outlineEntries,
+  sourceEntries,
+  withTagClause,
+} from './palette/entries'
+import type { PaletteEntry, PaletteSource } from './palette/results'
 import { bookDeleteDetail, noteCount } from './format'
 import { openAfter, selectAll, type ListSelection } from './listSelection'
 import { SelectionSummary } from './SelectionSummary'
@@ -76,6 +83,8 @@ import { TrashView } from './TrashView'
 import { Icon } from './icons/Icon'
 import { StatusPicker } from './StatusPicker'
 import { TagEditor } from './TagEditor'
+import { BuiltInTemplate, BuiltInTemplates } from './BuiltInTemplates'
+import { markWrite } from './lastWrite'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, stopCore, type Core } from './core-client'
@@ -122,7 +131,8 @@ import { LivePreview } from './preview/Preview'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { Activity, useActivityMenu } from './Activity'
-import { Sidebar, type Selection } from './Sidebar'
+import { choicesFromTree, notebookForNewNote, publishNotebooks } from './notebookChoices'
+import { Sidebar, stepSidebarRow, type Selection } from './Sidebar'
 import { useKept, useStable } from './stable'
 import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
@@ -203,7 +213,10 @@ function ShowSidebarButton({ onClick }: { onClick: () => void }) {
 const AREA_ASK_MS = 1000
 
 /** Where the keyboard goes once the window has rendered. */
-type FocusRequest = { kind: 'area'; area: Area } | { kind: 'title' | 'body'; id: string }
+type FocusRequest =
+  | { kind: 'area'; area: Area }
+  /** `start`: the caret at the start of the body. */
+  | { kind: 'title' | 'body'; id: string; start?: boolean }
 
 /** Where the keyboard was when the palette opened, to give it back. */
 interface FocusReturn {
@@ -236,6 +249,11 @@ export function App() {
     () => (core ? (ids: string[]) => core.excerpts(ids) : undefined),
     [core],
   )
+  // The task progress on the rows (see NoteService.progress).
+  const loadProgress = useMemo(
+    () => (core ? (ids: string[]) => core.progress(ids) : undefined),
+    [core],
+  )
   // The lists have loaded once (the last state is restored then).
   const [listsLoaded, setListsLoaded] = useState(false)
   const [notes, setNotes] = useState<NoteSummary[]>([])
@@ -248,6 +266,8 @@ export function App() {
   const [trash, setTrash] = useState<TrashedNote[]>([])
   // Notes in Templates: listed in their own view, never in the library.
   const [templates, setTemplates] = useState<NoteSummary[]>([])
+  // The built-in (starter) template shown read-only in the Templates view.
+  const [builtIn, setBuiltIn] = useState<string>()
   // The template picker (New Note from Template), and the templates used
   // last on this device.
   // The recently used ones are read when it opens.
@@ -346,6 +366,8 @@ export function App() {
     setFocusAsked((n) => n + 1)
   }
   const titleRef = useRef<HTMLInputElement>(null)
+  // The open note's tag field, which Return in the title goes on to.
+  const tagInputRef = useRef<HTMLInputElement>(null)
   // The backups dialog, and the code of a failed automatic backup.
   const [backupsOpen, setBackupsOpen] = useState(false)
   const [backupNotice, setBackupNotice] = useState<string>()
@@ -408,6 +430,10 @@ export function App() {
   }, [mode, syncScroll, editorPane, previewPane])
   // The command palette, and where the keyboard goes back to when it closes.
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // The source the palette opens scoped to (the sidebar's search buttons), and
+  // the open note's Markdown as it was then (the outline source lists it).
+  const [paletteScope, setPaletteScope] = useState<PaletteSource | undefined>()
+  const [paletteText, setPaletteText] = useState('')
   // Whether the editor's cursor was in a table when the palette opened: the
   // palette offers the table commands then.
   const [paletteInTable, setPaletteInTable] = useState(false)
@@ -452,6 +478,8 @@ export function App() {
   // the reload takes it out, and the keyboard would go to the wrong row.
   const reloadsPending = useRef(0)
   const showWrites = useCallback((writes: ReadonlyMap<string, number>) => {
+    // The sidebar's footer shows when the last write was.
+    for (const at of writes.values()) markWrite(at)
     if (reloadsPending.current > 0) return
     setNotes((list) => withWrites(list, writes))
     setTemplates((list) => withWrites(list, writes))
@@ -569,6 +597,8 @@ export function App() {
   }
 
   const tree = useMemo(() => buildBookTree(books), [books])
+  // The Settings window offers these as the default notebook.
+  useEffect(() => publishNotebooks(choicesFromTree(tree)), [tree])
   const counts = useKept(
     useMemo(() => bookCounts(notes, books), [notes, books]),
     sameCounts,
@@ -1092,6 +1122,8 @@ export function App() {
     // Opening a note shows it alone, unless the selection itself moved the
     // open note (`keepSelection`).
     if (!keepSelection) setMulti(undefined)
+    // A built-in template shown gives way to the note.
+    setBuiltIn(undefined)
     const open = startOpening(id)
     await saveEdits(core)
     // A link may point at a note that is gone; leave the selection alone then.
@@ -1346,14 +1378,20 @@ export function App() {
     showLibrary(homeOf(made), { clearFilter: true })
   }
 
+  /** The notebook a new note goes to: the one shown, else Settings > General's default. */
+  const newNoteBookId = () =>
+    notebookForNewNote(
+      libraryBook?.id,
+      editorSettings().defaultNotebook,
+      books.map((b) => b.id),
+    )
+
   const create = async () => {
     if (!core) return
     // Save pending titles first, so the refreshed list shows them.
     await saveEdits(core)
     // In Templates, a new note is a new template.
-    const id = inTemplates
-      ? await core.createTemplate()
-      : await core.create('', libraryBook?.id ?? null)
+    const id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     if (!inTemplates) track('note.created', { from: 'new_note' })
     await showMade(core, id, await refresh(core))
     await select(id, { keyboard: true })
@@ -1369,7 +1407,7 @@ export function App() {
     if (!core) return
     await saveEdits(core)
     const id = await core
-      .applyTemplate(templateId, Date.now(), libraryBook?.id ?? null)
+      .applyTemplate(templateId, Date.now(), newNoteBookId())
       .catch(() => undefined)
     if (!id) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
     recentTemplates.use(templateId)
@@ -1379,6 +1417,27 @@ export function App() {
     await showMade(core, id, await refresh(core))
     await select(id, { keyboard: true })
   }
+
+  /** Saves a copy of a built-in template as the user's own, shows it and opens it. */
+  const editBuiltInCopy = async (id: string) => {
+    if (!core) return
+    await saveEdits(core)
+    const copy = await core.saveTemplate(id, {}).catch(() => undefined)
+    if (!copy) return console.warn('W_TEMPLATE_COPY_FAILED', id)
+    setBuiltIn(undefined)
+    await showMade(core, copy, await refresh(core))
+    await select(copy, { keyboard: true })
+  }
+  const useBuiltIn = (id: string) => {
+    setBuiltIn(undefined)
+    return createFromTemplate(id)
+  }
+  const showBuiltIn = useStable((id: string) => {
+    setSelected(undefined)
+    setBuiltIn(id)
+  })
+  // A built-in template shows only in the Templates view, with no note open.
+  const shownBuiltIn = selected === undefined && inTemplates ? builtIn : undefined
 
   /**
    * Copies a note (title with "copy" after it, body, notebook, status, tags;
@@ -1695,7 +1754,7 @@ export function App() {
    * editor in preview mode; an editor still loading takes the keyboard when
    * it has loaded.
    */
-  const editNote = async (part: 'title' | 'body', id: string) => {
+  const editNote = async (part: 'title' | 'body', id: string, start = false) => {
     const body = part === 'body'
     // Editing goes back to the open note alone.
     setMulti(undefined)
@@ -1703,7 +1762,7 @@ export function App() {
       if (!(await select(id, { keyboard: body }))) return
     } else if (body && !editorRef.current) setTakesKeyboard(id)
     if (body && mode === 'preview') setMode('edit')
-    requestFocus({ kind: part, id })
+    requestFocus({ kind: part, id, start })
   }
 
   /**
@@ -1801,13 +1860,15 @@ export function App() {
     // The note opened before the request was made; another one opened since.
     focusAfter.current = undefined
     if (request.id !== selected) return
-    if (request.kind === 'body') return editorRef.current?.focus()
+    if (request.kind === 'body') {
+      return request.start ? editorRef.current?.focusStart() : editorRef.current?.focus()
+    }
     const field = titleRef.current
     field?.focus()
     field?.setSelectionRange(field.value.length, field.value.length)
   })
 
-  const openPalette = () => {
+  const openPalette = (scope?: PaletteSource) => {
     if (sheetOpen()) return
     const element = document.activeElement
     paletteReturn.current = {
@@ -1817,6 +1878,8 @@ export function App() {
     setPaletteInTable(editorRef.current?.inTable() ?? false)
     setPaletteSelection(editorRef.current?.hasSelection() ?? false)
     setPaletteImage(editorRef.current?.imageAtCursor() ?? null)
+    setPaletteText(editorRef.current?.text() ?? '')
+    setPaletteScope(scope)
     setPaletteOpen(true)
   }
   /**
@@ -1866,7 +1929,7 @@ export function App() {
       Array.from(tools).find(visible)?.focus()
     }
   }, [paletteDone])
-  useMenuEvent('devot://show-palette', SHOW_PALETTE, openPalette)
+  useMenuEvent('devot://show-palette', SHOW_PALETTE, () => openPalette())
 
   // Cmd+E: editor and preview swap; from split, the pane that has the
   // keyboard is the one that stays.
@@ -1889,8 +1952,7 @@ export function App() {
   // the palette and the native menu run them.
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
   const handlers: CommandHandlers = {
-    'palette.open': { run: openPalette },
-    'palette.openOutsideEditor': { run: openPalette },
+    'palette.open': { run: () => openPalette() },
     'search.view': { run: () => startSearch('view') },
     'search.all': { run: () => startSearch('all') },
     'view.focus': { run: toggleFocus },
@@ -1901,6 +1963,9 @@ export function App() {
       },
       label: sidebarShown ? 'command.hideSidebar' : 'command.showSidebar',
     },
+    'view.focusNoteList': { run: () => requestFocus({ kind: 'area', area: 'list' }) },
+    'view.nextSidebarRow': { run: () => stepSidebarRow(1) },
+    'view.previousSidebarRow': { run: () => stepSidebarRow(-1) },
     'view.nextArea': { run: () => moveArea(1) },
     'view.previousArea': { run: () => moveArea(-1) },
     'view.fontBigger': { run: () => stepEditorFontSize(1) },
@@ -2061,6 +2126,8 @@ export function App() {
   }
   // Find works while a note is open; its keys run ahead of the editor's (useFind).
   Object.assign(handlers, find.commands)
+  // Move to Notebook from anywhere runs what the list's key does.
+  if (handlers['note.move']) handlers['note.moveAnywhere'] = handlers['note.move']
   useWindowCommands(handlers)
   // The menu bar's Format menu runs the format commands too.
   useFormatMenu(handlers)
@@ -2079,9 +2146,12 @@ export function App() {
     [paletteOpen, tree, tags, notes, paletteHeadlines],
   )
 
-  /** What Return and Option+Return do on a palette result. */
+  /** What Return, Shift+Return and Command+Return do on a palette result. */
   const paletteActions = (entry: PaletteEntry): PaletteActions => {
     switch (entry.kind) {
+      case 'source':
+        // The palette opens a source itself.
+        return { primary: { label: t('palette.openSource'), run: () => undefined } }
       case 'command': {
         const handler = handlers[entry.id as keyof CommandHandlers]
         return {
@@ -2091,13 +2161,13 @@ export function App() {
       case 'book':
         return {
           primary: {
-            label: t('palette.open'),
+            label: t('palette.openNotebook'),
             run: () => showLibrary({ kind: 'book', id: entry.id }),
           },
-          secondary:
+          shift:
             openNote && openNote.bookId !== entry.id
               ? {
-                  label: t('palette.moveHere'),
+                  label: t('palette.moveNoteHere'),
                   run: () => moveNote(openNote.id, entry.id),
                 }
               : undefined,
@@ -2108,13 +2178,24 @@ export function App() {
             label: t('palette.showTag'),
             run: () => showFilter({ kind: 'tag', tagId: entry.id }),
           },
-          secondary:
+          meta: {
+            label: t('palette.addToFilter'),
+            run: () => changeQuery(withTagClause(query, entry.label)),
+          },
+          shift:
             openNote && !selectedIsTemplate && !openNote.tagIds.includes(entry.id)
               ? {
-                  label: t('palette.addTag'),
+                  label: t('palette.addTagToNote'),
                   run: () => putTagOnNotes([openNote.id], entry.id),
                 }
               : undefined,
+        }
+      case 'outline':
+        return {
+          primary: {
+            label: t('palette.goToLine'),
+            run: () => editorRef.current?.goToLine(entry.line ?? 1),
+          },
         }
       case 'note':
         return {
@@ -2238,6 +2319,8 @@ export function App() {
   const sidebarSetTagColor = useStable(
     (id: string, color: TagColor | null) => void changeBooks((c) => c.setTagColor(id, color)),
   )
+  const sidebarSearchBooks = useStable(() => openPalette('book'))
+  const sidebarSearchTags = useStable(() => openPalette('tag'))
   const sidebarDeleteTag = useStable((id: string) =>
     setConfirm({
       kind: 'tag',
@@ -2257,6 +2340,7 @@ export function App() {
       data-sidebar-hidden={sidebarOff || undefined}
       data-narrow={narrow || undefined}
     >
+      <ToolTips />
       <Sidebar
         total={notes.length}
         tree={tree}
@@ -2290,6 +2374,8 @@ export function App() {
         templatesCount={templates.length}
         trashCount={trash.length}
         onHide={toggleSidebarNow}
+        onSearchBooks={sidebarSearchBooks}
+        onSearchTags={sidebarSearchTags}
       />
       {searching ? (
         <NoteList
@@ -2316,6 +2402,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           excerpts={loadExcerpts}
+          progress={loadProgress}
         />
       ) : inTrash ? (
         <NoteList
@@ -2333,6 +2420,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           excerpts={loadExcerpts}
+          progress={loadProgress}
           drag={false}
           onFind={findEverywhere}
           onTrashAction={trashKey}
@@ -2363,7 +2451,9 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           excerpts={loadExcerpts}
+          progress={loadProgress}
           drag="templates"
+          after={<BuiltInTemplates selected={shownBuiltIn} onSelect={showBuiltIn} />}
         />
       ) : (
         <NoteList
@@ -2397,6 +2487,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           excerpts={loadExcerpts}
+          progress={loadProgress}
         />
       )}
       <main className="content" data-devot-part="editor">
@@ -2488,11 +2579,19 @@ export function App() {
               value={title}
               onChange={(e) => rename(e.target.value)}
               onKeyDown={(e) => {
-                // Return finishes the title and goes on to the body (not the
-                // Return that picks a candidate of an input method).
-                if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey) return
+                // Return finishes the title and goes on to the tags (the body,
+                // for a template); Down Arrow goes to the start of the body.
+                // Not the keys that pick a candidate of an input method.
+                if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
                 if (isImeKey(e.nativeEvent)) return
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  return void editNote('body', selected, true)
+                }
+                if (e.key !== 'Enter') return
                 e.preventDefault()
+                const tagField = tagInputRef.current
+                if (tagField && !selectedIsTemplate) return tagField.focus()
                 void editNote('body', selected)
               }}
             />
@@ -2510,6 +2609,7 @@ export function App() {
                   onChange={(status) => void setStatus(selected, status)}
                 />
                 <TagEditor
+                  inputRef={tagInputRef}
                   tags={tags}
                   value={selectedNote?.tagIds ?? []}
                   onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}
@@ -2545,11 +2645,22 @@ export function App() {
                 onNewFromSelection={inTrash ? undefined : () => void noteFromSelection(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
+                onChooseTemplate={() => setPicking({ recent: recentTemplates.load() })}
+                onOpenNote={(id) => void select(id)}
               />
               {mode === 'edit' ? null : (
                 <LivePreview
                   core={core}
                   text={openText}
+                  info={
+                    selectedNote
+                      ? {
+                          noteId: selectedNote.id,
+                          createdAt: selectedNote.createdAt,
+                          updatedAt: selectedNote.updatedAt,
+                        }
+                      : undefined
+                  }
                   onOpenNote={(id) => void select(id)}
                   onFind={setPreviewFind}
                   onScrollPane={setPreviewPane}
@@ -2562,6 +2673,12 @@ export function App() {
               )}
             </div>
           </>
+        ) : shownBuiltIn ? (
+          <BuiltInTemplate
+            id={shownBuiltIn}
+            onUse={(id) => void useBuiltIn(id)}
+            onEditCopy={(id) => void editBuiltInCopy(id)}
+          />
         ) : null}
       </main>
       {importState ? (
@@ -2637,9 +2754,12 @@ export function App() {
         <CommandPalette
           entries={{
             command: commandEntries(handlers, t),
+            source: sourceEntries(t),
+            outline: outlineEntries(paletteText),
             ...(paletteLibrary ?? NO_LIBRARY),
           }}
           actions={paletteActions}
+          initialScope={paletteScope}
           onClose={closePalette}
         />
       ) : null}

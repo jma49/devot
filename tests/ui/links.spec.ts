@@ -73,7 +73,9 @@ test('New Note creates the note and links it', async ({ page }) => {
   await startLink(page, 'Plan B')
   await popup(page).getByRole('option', { name: 'New Note “Plan B”' }).click()
   await expect(noteRows(page)).toHaveCount(2)
-  await expect(noteRows(page).filter({ hasText: 'Plan B' })).toHaveCount(1)
+  await expect(
+    noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Plan B' }) }),
+  ).toHaveCount(1)
   await expect.poll(async () => (await body(page).textContent())?.match(LINK)?.[1]).toBe('Plan B')
   // The note being edited stays open.
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Source')
@@ -82,7 +84,9 @@ test('New Note creates the note and links it', async ({ page }) => {
 test('a second Return while the note is made does not make another', async ({ page }) => {
   await createNote(page, 'Source')
   // Its row shows the title once it is saved (until then, its first line).
-  await expect(noteRows(page).filter({ hasText: 'Source' })).toHaveCount(1)
+  await expect(
+    noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Source' }) }),
+  ).toHaveCount(1)
   await startLink(page, 'Plan B')
   await waitForResults(page, 'Plan B')
   await page.evaluate(() => localStorage.setItem('devot.test.delayNoteWrites', '600'))
@@ -139,6 +143,9 @@ test('[[ opens no popup in code', async ({ page }) => {
   await createNote(page, 'Source')
   await body(page).click()
   await page.keyboard.type('```lua')
+  // The fence's language list opens; Escape leaves the language as typed.
+  await expect(popup(page)).toBeVisible()
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Enter')
   await page.keyboard.type('local x = t[[')
   // Past the time a lookup takes: a popup in code would be showing by now.

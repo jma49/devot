@@ -3,7 +3,7 @@
 // mode come back after a reload; whatever is gone since is skipped quietly.
 // The caret is placed with clicks only (no platform text-navigation keys).
 import type { Locator, Page } from '@playwright/test'
-import { expect, reloadApp, test, pickNoteMore } from './fixtures'
+import { expect, reloadApp, test, pickNoteMore, pickStatus } from './fixtures'
 
 const STATE_KEY = 'devot.lastState.main'
 
@@ -140,7 +140,7 @@ test('a reload restores the view, its filter, the open note, its selection and s
   await createBook(page, 'Work')
   await createNote(page, 'Other')
   await createNote(page, 'Long')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await writeBody(page, longBody(120))
   await source(page, 'Active').click()
   await expect(noteRows(page)).toHaveText([/^Long/])

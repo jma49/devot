@@ -102,20 +102,12 @@
       }
     },
     "teal": {
-      "700": {
+      "300": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.051, 0.3961, 0.3608],
-          "hex": "#0d655c"
-        }
-      },
-      "600": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [0.0549, 0.4196, 0.3843],
-          "hex": "#0e6b62"
+          "components": [0.3882, 0.8039, 0.749],
+          "hex": "#63cdbf"
         }
       },
       "500": {
@@ -126,12 +118,20 @@
           "hex": "#25837a"
         }
       },
-      "300": {
+      "600": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.3882, 0.8039, 0.749],
-          "hex": "#63cdbf"
+          "components": [0.0549, 0.4196, 0.3843],
+          "hex": "#0e6b62"
+        }
+      },
+      "700": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.051, 0.3961, 0.3608],
+          "hex": "#0d655c"
         }
       }
     },
@@ -215,7 +215,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 0.2314, 0.1882],
+          "components": [1, 0.2314, 0.1882],
           "hex": "#ff3b30"
         }
       },
@@ -223,7 +223,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 0.2706, 0.2275],
+          "components": [1, 0.2706, 0.2275],
           "hex": "#ff453a"
         }
       },
@@ -231,7 +231,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 0.5843, 0.0],
+          "components": [1, 0.5843, 0],
           "hex": "#ff9500"
         }
       },
@@ -239,7 +239,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 0.6235, 0.0392],
+          "components": [1, 0.6235, 0.0392],
           "hex": "#ff9f0a"
         }
       },
@@ -247,7 +247,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 0.8, 0.0],
+          "components": [1, 0.8, 0],
           "hex": "#ffcc00"
         }
       },
@@ -255,7 +255,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 0.8392, 0.0392],
+          "components": [1, 0.8392, 0.0392],
           "hex": "#ffd60a"
         }
       },
@@ -279,7 +279,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.0, 0.4784, 1.0],
+          "components": [0, 0.4784, 1],
           "hex": "#007aff"
         }
       },
@@ -287,7 +287,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.0392, 0.5176, 1.0],
+          "components": [0.0392, 0.5176, 1],
           "hex": "#0a84ff"
         }
       },
@@ -311,7 +311,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 0.1765, 0.3333],
+          "components": [1, 0.1765, 0.3333],
           "hex": "#ff2d55"
         }
       },
@@ -319,7 +319,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 0.2157, 0.3725],
+          "components": [1, 0.2157, 0.3725],
           "hex": "#ff375f"
         }
       },
@@ -437,6 +437,26 @@
           "hex": "#a3b0f7"
         }
       }
+    },
+    "alert": {
+      "purple-light": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4824, 0.2471, 0.702],
+          "hex": "#7b3fb3"
+        },
+        "$description": "The Important alert, light: purple text that keeps 4.5:1 on the editor."
+      },
+      "purple-dark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7686, 0.6118, 0.949],
+          "hex": "#c49cf2"
+        },
+        "$description": "The Important alert, dark."
+      }
     }
   },
   "font": {
@@ -453,10 +473,26 @@
       },
       "mono": {
         "$type": "fontFamily",
-        "$value": ["ui-monospace", "SF Mono", "Menlo", "monospace"]
+        "$value": [
+          "SFMono-Regular",
+          "ui-monospace",
+          "Consolas",
+          "Liberation Mono",
+          "Menlo",
+          "Courier",
+          "monospace"
+        ]
       }
     },
     "size": {
+      "caption2": {
+        "$type": "dimension",
+        "$description": "The smallest text: tag pills in the note list.",
+        "$value": {
+          "value": 10,
+          "unit": "px"
+        }
+      },
       "caption": {
         "$type": "dimension",
         "$value": {
@@ -513,6 +549,38 @@
           "unit": "px"
         },
         "$description": "The open note's title, above its notebook, status and tags."
+      },
+      "editor-h1": {
+        "$type": "dimension",
+        "$description": "A level 1 heading line in the editor, at the default 13 px text.",
+        "$value": {
+          "value": 22,
+          "unit": "px"
+        }
+      },
+      "editor-h2": {
+        "$type": "dimension",
+        "$description": "A level 2 heading line in the editor, at the default 13 px text.",
+        "$value": {
+          "value": 18,
+          "unit": "px"
+        }
+      },
+      "editor-h3": {
+        "$type": "dimension",
+        "$description": "A level 3 heading line in the editor, at the default 13 px text.",
+        "$value": {
+          "value": 15,
+          "unit": "px"
+        }
+      },
+      "row": {
+        "$type": "dimension",
+        "$value": {
+          "value": 14,
+          "unit": "px"
+        },
+        "$description": "A sidebar row's label."
       }
     },
     "weight": {
@@ -603,6 +671,14 @@
     }
   },
   "radius": {
+    "mark": {
+      "$type": "dimension",
+      "$description": "Inline code chips and the box around tables in the editor.",
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      }
+    },
     "control": {
       "$type": "dimension",
       "$value": {
@@ -631,10 +707,41 @@
         "unit": "px"
       }
     },
+    "pill": {
+      "$type": "dimension",
+      "$description": "Tag pills in the note list.",
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      }
+    },
     "capsule": {
       "$type": "dimension",
       "$value": {
         "value": 999,
+        "unit": "px"
+      }
+    },
+    "popover": {
+      "$type": "dimension",
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "Floating lists in the editor: the slash menu and the completion popups."
+    },
+    "floating-bar": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "The selection toolbar and the image size bar."
+    },
+    "dialog": {
+      "$type": "dimension",
+      "$value": {
+        "value": 12,
         "unit": "px"
       }
     }
@@ -689,9 +796,17 @@
     "reading-width": {
       "$type": "dimension",
       "$value": {
-        "value": 720,
+        "value": 740,
         "unit": "px"
       }
+    },
+    "settings-nav-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 155,
+        "unit": "px"
+      },
+      "$description": "The width of the Settings window's navigation column."
     },
     "toolbar-height": {
       "$type": "dimension",
@@ -758,6 +873,90 @@
         "value": 160,
         "unit": "px"
       }
+    },
+    "scrollbar": {
+      "$type": "dimension",
+      "$description": "The width of a scroll bar.",
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      }
+    },
+    "menu-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 325,
+        "unit": "px"
+      },
+      "$description": "The slash menu's width with every item listed; a filtered list shrinks to its rows."
+    },
+    "menu-max-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 210,
+        "unit": "px"
+      },
+      "$description": "How tall a completion list grows (eight and a half rows) before it scrolls."
+    },
+    "menu-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      },
+      "$description": "A row of the slash menu."
+    },
+    "icon-menu": {
+      "$type": "dimension",
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      },
+      "$description": "A row icon in the slash menu."
+    },
+    "icon-toolbar": {
+      "$type": "dimension",
+      "$value": {
+        "value": 18,
+        "unit": "px"
+      }
+    },
+    "float-toolbar-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 37,
+        "unit": "px"
+      }
+    },
+    "float-button": {
+      "$type": "dimension",
+      "$value": {
+        "value": 28,
+        "unit": "px"
+      }
+    },
+    "link-dialog-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 300,
+        "unit": "px"
+      }
+    },
+    "palette-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 650,
+        "unit": "px"
+      },
+      "$description": "The command palette's panel."
+    },
+    "sidebar-bar": {
+      "$type": "dimension",
+      "$value": {
+        "value": 3,
+        "unit": "px"
+      },
+      "$description": "The bar on the left of the selected sidebar row while the sidebar has the keyboard focus."
     }
   }
 }

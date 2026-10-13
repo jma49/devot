@@ -9,7 +9,8 @@ import { expect, test } from './fixtures'
 
 const DB_CHANGED = 'devot:db-changed'
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
-const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
+const noteRow = (page: Page, title: string) =>
+  noteRows(page).filter({ has: page.locator('.row-title, .row-headline', { hasText: title }) })
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 

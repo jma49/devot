@@ -18,14 +18,14 @@ import {
 
 /** The sidebar's surfaces (`color.surface.sidebar` and `-opaque`). */
 const SURFACES = {
-  light: { material: 'rgba(241, 240, 237, 0.7)', opaque: 'rgb(241, 240, 237)' },
-  dark: { material: 'rgba(28, 27, 25, 0.7)', opaque: 'rgb(28, 27, 25)' },
+  light: { material: 'rgba(243, 244, 246, 0.7)', opaque: 'rgb(243, 244, 246)' },
+  dark: { material: 'rgba(23, 23, 23, 0.7)', opaque: 'rgb(23, 23, 23)' },
 } as const
 const CLEAR = 'rgba(0, 0, 0, 0)'
 
 const root = (page: Page) => page.locator('html')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
-const appearance = (page: Page) => page.getByRole('region', { name: 'Appearance' })
+const appearance = (page: Page) => page.getByRole('region', { name: 'Appearance' }).first()
 const translucent = (page: Page) =>
   appearance(page).getByRole('checkbox', { name: 'Translucent sidebar' })
 
@@ -294,7 +294,7 @@ test('stored settings without the material mean the default, the material', asyn
 
 test('the Settings window turns the material off and on', async ({ page }) => {
   await openSettings(page, 'Appearance')
-  await expect(appearance(page).getByRole('heading', { name: 'Appearance' })).toBeVisible()
+  await expect(appearance(page).getByRole('heading', { name: 'Appearance' }).first()).toBeVisible()
   await expect(translucent(page)).toBeChecked()
   await expect(translucent(page)).toHaveAccessibleDescription(/opaque sidebar/)
 

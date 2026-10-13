@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore } from './fixtures'
+import { expect, test, pickNoteMore, pickStatus, statusPicker } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -32,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 
 test('moves a note to the Trash and restores it with its metadata', async ({ page }) => {
   await createNote(page, 'Keeper', '# Body kept')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await pickNoteMore(page, 'Move to Trash')
   await expect(noteRows(page)).toHaveCount(0)
   await expect(trashRow(page)).toHaveText(/1$/)
@@ -52,7 +52,7 @@ test('moves a note to the Trash and restores it with its metadata', async ({ pag
     .getByRole('button', { name: /^All Notes/ })
     .click()
   await noteRows(page).filter({ hasText: 'Keeper' }).click()
-  await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('active')
+  await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
 })
 
 test('Cmd+Delete in the list moves the selected note to the Trash', async ({ page }) => {

@@ -100,7 +100,6 @@ pub fn run() {
             usage::usage_record,
             usage::usage_list,
             usage::usage_clear,
-            settings::settings_fit,
             settings::settings_open_data_folder,
             settings::settings_show_backups,
             editor_settings::editor_settings_get,
@@ -198,6 +197,8 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     let configured = main.window_effects.take();
     let material = stored.settings.sidebar_material;
     main.window_effects = sidebar_material::effects_for(material, configured.as_ref());
+    // The appearance chosen in Settings, or the system's.
+    main.theme = stored.settings.appearance.window_theme();
     app.manage(sidebar_material::SidebarMaterial::new(
         configured,
         sidebar_material::Shown {

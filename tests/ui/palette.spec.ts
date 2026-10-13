@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore, openNotePinned } from './fixtures'
+import { expect, test, pickNoteMore, openNotePinned, statusPicker, bookPicker } from './fixtures'
 
 // App-level shortcuts check metaKey (Command on macOS), so they are pressed
 // with Meta here on every platform, like the other specs.
@@ -53,9 +53,9 @@ const showFromMenu = (page: Page) =>
     w.dispatchEvent(new w.CustomEvent('devot:show-palette'))
   })
 
-/** Opens the palette with Cmd+P and types a query. */
+/** Opens the palette with Cmd+K and types a query. */
 async function search(page: Page, query: string) {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
   await field(page).fill(query)
 }
@@ -70,7 +70,16 @@ test('lists commands with their shortcuts and runs the one picked', async ({ pag
   await createNote(page, 'Draft')
   await noteRows(page).first().click()
   await search(page, '')
-  // Nothing typed: every command the window can run, then the first notes.
+  // Nothing typed: the sources, each with its key.
+  await expect(options(page)).toHaveText([
+    /Search and run commands\s*>/,
+    /Search notebooks\s*b/,
+    /Search tags\s*t/,
+    /Outline of this note\s*#/,
+    /Search notes/,
+  ])
+  // Commands scope: every command the window can run.
+  await field(page).fill('> ')
   const commands = group(page, 'Commands')
   await expect(commands.getByRole('option').filter({ hasText: 'Focus Mode' })).toContainText(
     '\u21e7\u2318D',
@@ -79,7 +88,6 @@ test('lists commands with their shortcuts and runs the one picked', async ({ pag
     '\u2318D',
   )
   await expect(commands.getByRole('option').filter({ hasText: 'Pin to Top' })).toBeVisible()
-  await expect(group(page, 'Notes').getByRole('option')).toHaveText(['Draft'])
   // The palette never lists itself.
   await expect(commands.getByRole('option').filter({ hasText: 'Command Palette' })).toHaveCount(0)
 
@@ -108,7 +116,7 @@ test('labels a command for the open note: Pin to Top or Unpin', async ({ page })
   await expect(active(page)).toContainText('Unpin')
 })
 
-test('Cmd+K opens it outside the editor; in the editor Cmd+K stays Link', async ({ page }) => {
+test('Cmd+K opens it anywhere, the editor too; Link is Option+Cmd+K', async ({ page }) => {
   await createNote(page, 'Keys')
   await body(page).click()
   await page.keyboard.insertText('word')
@@ -120,16 +128,19 @@ test('Cmd+K opens it outside the editor; in the editor Cmd+K stays Link', async 
   await expect(palette(page)).toBeHidden()
   await expect(noteRows(page).first()).toBeFocused()
 
+  // With the editor focused Cmd+K opens the palette and Escape puts the keyboard back there.
   await body(page).dblclick()
-  await page.keyboard.press('ControlOrMeta+KeyK')
-  await expect(body(page)).toHaveText('[word]()')
-  await expect(palette(page)).toBeHidden()
-  // Cmd+P works in the editor too, and Escape puts the keyboard back there.
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
   await page.keyboard.press('Escape')
+  await expect(palette(page)).toBeHidden()
   await page.keyboard.insertText('!')
   await expect(body(page)).toContainText('!')
+
+  await body(page).dblclick()
+  await page.keyboard.press('ControlOrMeta+Alt+KeyK')
+  await expect(palette(page)).toBeHidden()
+  await expect(body(page)).toContainText('[')
 })
 
 test('runs a format on the editor selection', async ({ page }) => {
@@ -175,6 +186,8 @@ test('find and the status keys are commands while a note is open', async ({ page
   await expect(command('Find in Note')).toHaveCount(0)
   await search(page, 'set status')
   await expect(command('Set Status to Active')).toHaveCount(0)
+  // Escape clears the query, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
   await createNote(page, 'Findable')
@@ -184,7 +197,7 @@ test('find and the status keys are commands while a note is open', async ({ page
   await expect(active(page)).toContainText('Set Status to Active')
   await expect(active(page)).toContainText('\u2303\u23182')
   await field(page).press('Enter')
-  await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('active')
+  await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
 
   // Match Case only acts while the find bar is open.
   await search(page, 'match case')
@@ -208,7 +221,7 @@ test('find and the status keys are commands while a note is open', async ({ page
   await expect(bar.getByRole('status')).toHaveText('1 of 1')
 })
 
-test('notebooks: Return opens one, Option+Return moves the open note there', async ({ page }) => {
+test('notebooks: Return opens one, Shift+Return moves the open note there', async ({ page }) => {
   await createBook(page, 'Recipes')
   await createBook(page, 'Work')
   await sidebar(page)
@@ -218,29 +231,33 @@ test('notebooks: Return opens one, Option+Return moves the open note there', asy
 
   await search(page, 'recip')
   await expect(group(page, 'Notebooks').getByRole('option')).toHaveText(['Recipes'])
-  await expect(palette(page).locator('#palette-keys')).toContainText('Move Note Here')
-  await field(page).press('Alt+Enter')
+  await expect(palette(page).locator('#palette-keys')).toContainText('Open Notebook')
+  // The footer follows Shift while it is held.
+  await page.keyboard.down('Shift')
+  await expect(palette(page).locator('#palette-keys')).toContainText('Move Note to Notebook')
+  await page.keyboard.press('Enter')
+  await page.keyboard.up('Shift')
   await expect(palette(page)).toBeHidden()
-  await expect(page.getByRole('combobox', { name: 'Notebook' })).toHaveValue(/.+/)
-  await expect(
-    page.getByRole('combobox', { name: 'Notebook' }).locator('option:checked'),
-  ).toHaveText(/Recipes/)
+  await expect(bookPicker(page)).toHaveAttribute('data-value', /.+/)
+  await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Recipes/)
   // The note is in that notebook now: it is not offered there again.
   await search(page, 'recip')
-  await expect(palette(page).locator('#palette-keys')).not.toContainText('Move Note Here')
+  await page.keyboard.down('Shift')
+  await expect(palette(page).locator('#palette-keys')).not.toContainText('Move Note to Notebook')
+  await page.keyboard.up('Shift')
   await field(page).press('Enter')
   await expect(header(page)).toHaveText('Recipes')
   await expect(noteRows(page)).toHaveText([/Soup/])
 })
 
-test('tags: Return filters by one, Option+Return adds it to the open note', async ({ page }) => {
+test('tags: Return filters by one, Shift+Return adds it to the open note', async ({ page }) => {
   await createNote(page, 'Tagged')
   await addTag(page, 'urgent')
   await createNote(page, 'Plain')
 
   await search(page, 'urg')
   await expect(group(page, 'Tags').getByRole('option')).toHaveText(['urgent'])
-  await field(page).press('Alt+Enter')
+  await field(page).press('Shift+Enter')
   await expect(palette(page)).toBeHidden()
   await expect(noteTags(page).getByText('urgent', { exact: true })).toBeVisible()
 
@@ -313,7 +330,7 @@ test('the View menu item opens it, but not over another sheet', async ({ page })
 
   await pickNoteMore(page, 'Revision History\u2026')
   await expect(page.getByRole('dialog', { name: 'Revision History' })).toBeVisible()
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await showFromMenu(page)
   await expect(palette(page)).toBeHidden()
 })
@@ -348,7 +365,9 @@ test('New Note and the search shortcuts are commands too', async ({ page }) => {
   await expect(page.getByRole('searchbox', { name: 'Search notes' })).toBeFocused()
 })
 
-test('Option-click runs the second action; without one it runs the first', async ({ page }) => {
+test('Shift-click runs the Shift variant; a modifier without one does nothing', async ({
+  page,
+}) => {
   await createBook(page, 'Archive')
   await sidebar(page)
     .getByRole('button', { name: /All Notes/ })
@@ -357,14 +376,14 @@ test('Option-click runs the second action; without one it runs the first', async
   await search(page, 'archive')
   await group(page, 'Notebooks')
     .getByRole('option')
-    .click({ modifiers: ['Alt'] })
+    .click({ modifiers: ['Shift'] })
   await expect(palette(page)).toBeHidden()
-  await expect(
-    page.getByRole('combobox', { name: 'Notebook' }).locator('option:checked'),
-  ).toHaveText(/Archive/)
-  // A command has no second action: Option+Return runs it.
+  await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Archive/)
+  // A command has no Shift variant: Shift+Return does nothing.
   await search(page, 'focus mode')
-  await field(page).press('Alt+Enter')
+  await field(page).press('Shift+Enter')
+  await expect(palette(page)).toBeVisible()
+  await field(page).press('Enter')
   await expect(page.getByRole('button', { name: 'Focus Mode' })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -515,6 +534,8 @@ test('runs the Trash commands: Restore, Delete Permanently, Empty Trash', async 
   await expect(options(page).filter({ hasText: 'Restore from Trash' })).toHaveCount(0)
   await field(page).fill('empty trash')
   await expect(active(page)).toContainText('Empty Trash')
+  // Escape clears the query, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
   await noteRows(page).filter({ hasText: 'Back' }).click()
@@ -536,4 +557,51 @@ test('runs the Trash commands: Restore, Delete Permanently, Empty Trash', async 
   await expect(confirm).toContainText('\u201cGone\u201d')
   await confirm.getByRole('button', { name: 'Delete Permanently' }).click()
   await expect(noteRows(page)).toHaveCount(0)
+})
+
+test('b and a space scope the palette to notebooks; Shift+Return files the open note there', async ({
+  page,
+}) => {
+  await createBook(page, 'Recipes')
+  await sidebar(page)
+    .getByRole('button', { name: /All Notes/ })
+    .click()
+  await createNote(page, 'Soup')
+  await page.keyboard.press('Meta+KeyK')
+  await field(page).fill('b ')
+  await expect(field(page)).toHaveAttribute('placeholder', 'Search notebooks...')
+  await expect(palette(page).getByRole('button', { name: 'Back' })).toBeVisible()
+  await field(page).fill('recip')
+  await field(page).press('Shift+Enter')
+  await expect(palette(page)).toBeHidden()
+  await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Recipes/)
+})
+
+test('Escape steps back from a query to the scope, to the sources, then closes', async ({
+  page,
+}) => {
+  await page.keyboard.press('Meta+KeyK')
+  await field(page).fill('t ur')
+  await expect(field(page)).toHaveValue('ur')
+  await field(page).press('Escape')
+  await expect(field(page)).toHaveValue('')
+  await expect(field(page)).toHaveAttribute('placeholder', 'Search tags...')
+  await field(page).press('Escape')
+  await expect(field(page)).toHaveAttribute('placeholder', /Search commands, notebooks, tags/)
+  await field(page).press('Escape')
+  await expect(palette(page)).toBeHidden()
+})
+
+test('the outline source lists headings and tasks; Return moves the caret there', async ({
+  page,
+}) => {
+  await createNote(page, 'Outlined')
+  await body(page).click()
+  await page.keyboard.type('# One\n\n- [ ] first task\n\n## Two\n')
+  await page.keyboard.press('Meta+KeyK')
+  await field(page).fill('# ')
+  await expect(options(page)).toHaveText(['One', 'first task', 'Two'])
+  await options(page).nth(2).click()
+  await expect(palette(page)).toBeHidden()
+  await expect(body(page)).toBeFocused()
 })

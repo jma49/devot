@@ -264,14 +264,14 @@ test('window shortcuts leave the keys of a composition alone', async ({ page }) 
   await createNote(page, 'Keys')
   await titleField(page).click()
   for (const how of HOW) {
-    // Cmd+F (find) and Cmd+P (the command palette), while typing a title.
+    // Cmd+F (find) and Cmd+K (the command palette), while typing a title.
     await imeKey(titleField(page), { key: 'f', code: 'KeyF', metaKey: true }, how)
     await imeKey(titleField(page), { key: 'p', code: 'KeyP', metaKey: true }, how)
   }
   await expect(findBar(page)).toHaveCount(0)
   await expect(palette(page)).toHaveCount(0)
   await expect(titleField(page)).toBeFocused()
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(palette(page)).toBeVisible()
 })
 

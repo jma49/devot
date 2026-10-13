@@ -55,7 +55,7 @@ const calls = (page: Page, cmd: string) =>
 const popups = async (page: Page) => (await calls(page, 'plugin:menu|popup')).length
 
 async function runFromPalette(page: Page, name: string) {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
   await field(page).fill(name)
   const option = commands(page).filter({ hasText: name }).first()
@@ -191,7 +191,7 @@ test('the image menu copies and saves an attachment, and sets its size', async (
   await expect.poll(() => calls(page, 'image_save')).toEqual([{ id: FILE_ID }])
 
   await pickMenuItem(page, 'Small', 'Size')
-  await expect(body(page)).toHaveText(`Before ![Shot](${FILE}#small) after`)
+  await expect(body(page)).toHaveText(`Before ![Shot w:30%](${FILE}) after`)
   await expect(img).toHaveClass('image-size-small')
   // The image still loads from the attachment's own address.
   await expect(img).toHaveAttribute('src', FILE)
@@ -223,7 +223,7 @@ test('size presets show in the preview and stay in the Markdown', async ({ page 
       )
       .toBe(BIG_SIZE.width)
   }
-  await expect.poll(() => width(0)).toBe(240)
+  await expect.poll(() => width(0)).toBeCloseTo(article.width * 0.3, 0)
   expect(await width(1)).toBeCloseTo(article.width / 2, 0)
   expect(await width(2)).toBeCloseTo(article.width, 0)
   // Auto: its own size, no wider than the page.
@@ -248,7 +248,7 @@ test('a remote image offers only its size, and one without a destination nothing
   ])
   await pickMenuItem(page, 'Full Width', 'Size')
   await showMode(page, 'Edit')
-  await expect(body(page)).toContainText(`![Big](${BIG}#full)`)
+  await expect(body(page)).toContainText(`![Big w:100%](${BIG})`)
 
   // A reference image has no size of its own and no attachment: no menu.
   await showMode(page, 'Preview')
@@ -301,7 +301,7 @@ test('an image under its line has the image menu', async ({ page }) => {
   await expect.poll(() => popups(page)).toBe(before + 1)
   expect(await shownMenu(page)).toContain('Copy Image')
   await pickMenuItem(page, 'Half Width', 'Size')
-  await expect(body(page)).toContainText(`![Shot](${FILE}#half)`)
+  await expect(body(page)).toContainText(`![Shot w:50%](${FILE})`)
   await pickMenuItem(page, 'Save Image As…')
   await expect.poll(() => calls(page, 'image_save')).toEqual([{ id: FILE_ID }])
 
@@ -356,13 +356,13 @@ test('a key the user gives an image command acts on the image at the cursor', as
   const shot = page.locator('.cm-line').filter({ hasText: 'Shot' })
   await shot.click()
   await page.keyboard.press('ControlOrMeta+Alt+KeyJ')
-  await expect(shot).toHaveText(`![Shot](${FILE}#half)`)
+  await expect(shot).toHaveText(`![Shot w:50%](${FILE})`)
   // Away from an image it does nothing.
   await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
   await page.keyboard.press('ControlOrMeta+Alt+KeyJ')
   expect(await page.locator('.cm-line').allTextContents()).toEqual([
     'intro',
-    `![Shot](${FILE}#half)`,
+    `![Shot w:50%](${FILE})`,
   ])
 })
 
@@ -371,16 +371,57 @@ test('the palette runs the image commands for the image at the cursor', async ({
   await page.locator('.cm-line').filter({ hasText: 'Shot' }).click()
   await runFromPalette(page, 'Image Size: Half Width')
   await expect(page.locator('.cm-line').filter({ hasText: 'Shot' })).toHaveText(
-    `![Shot](${FILE}#half)`,
+    `![Shot w:50%](${FILE})`,
   )
   await runFromPalette(page, 'Copy Image')
   await expect.poll(() => calls(page, 'image_copy')).toEqual([{ id: FILE_ID }])
 
   // Away from an image the palette does not offer them.
   await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await field(page).fill('Image Size')
   await expect(commands(page).filter({ hasText: 'Image Size' })).toHaveCount(0)
+  // Escape clears the query first, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette(page)).toBeHidden()
+})
+
+test('the image size bar shows while the caret is in an image and writes the size', async ({
+  page,
+}) => {
+  await newNote(page, `intro\n![Shot](${FILE})`)
+  const bar = page.getByRole('toolbar', { name: 'Image Size' })
+  const shot = page.locator('.cm-line').filter({ hasText: 'Shot' })
+  await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
+  await expect(bar).toBeHidden()
+  await shot.click()
+  await expect(bar).toBeVisible()
+  await expect(bar.getByRole('button')).toHaveCount(4)
+  await expect(bar.getByRole('button', { name: 'Auto' })).toHaveAttribute('aria-pressed', 'true')
+  await bar.getByRole('button', { name: 'Half (50%)' }).hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Half (50%)')
+  await bar.getByRole('button', { name: 'Half (50%)' }).click()
+  await expect(shot).toHaveText(`![Shot w:50%](${FILE})`)
+  await expect(bar.getByRole('button', { name: 'Half (50%)' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await bar.getByRole('button', { name: 'Auto' }).click()
+  await expect(shot).toHaveText(`![Shot](${FILE})`)
+  // Away from the image it goes.
+  await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
+  await expect(bar).toBeHidden()
+})
+
+test('custom sizes in the alt text size the preview image', async ({ page }) => {
+  await newNote(page, `![a w:120 h:80](${BIG})\n\n![b w:30%](${BIG})`)
+  await showMode(page, 'Preview')
+  const imgs = preview(page).locator('img')
+  await expect(imgs).toHaveCount(2)
+  await expect(imgs.nth(0)).toHaveAttribute('alt', 'a')
+  await expect(imgs.nth(0)).toHaveAttribute('width', '120')
+  await expect(imgs.nth(0)).toHaveAttribute('height', '80')
+  await expect(imgs.nth(1)).toHaveAttribute('alt', 'b')
+  await expect(imgs.nth(1)).toHaveClass(/image-size-small/)
 })

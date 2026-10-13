@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow, pickNoteMore } from './fixtures'
+import { expect, test, type TestWindow, pickNoteMore, pickStatus } from './fixtures'
 
 // Every way of changing the view follows the same rules (the sidebar, the
 // palette, New Notebook, a finished import): a note in the Trash closes when
@@ -54,9 +54,9 @@ async function createTemplate(page: Page, title: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
-/** Opens the palette with Cmd+P, types a query and picks the entry of a group. */
+/** Opens the palette with Cmd+K, types a query and picks the entry of a group. */
 async function pick(page: Page, query: string, group: string) {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()
   await paletteField(page).fill(query)
   await palette(page)
@@ -97,7 +97,7 @@ test('a notebook from the palette, during a search over every note, drops the hi
 }) => {
   await createBook(page, 'Work')
   await createNote(page, 'Work plan')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   const active = sidebar(page).getByRole('button', { name: /^Active \d+$/ })
   await active.click()
   await expect(header(page)).toHaveText('Active')
@@ -190,7 +190,7 @@ test.describe('Templates', () => {
           ).length,
       )
     await createTemplate(page, 'Weekly')
-    await page.keyboard.press('Meta+KeyP')
+    await page.keyboard.press('Meta+KeyK')
     await paletteField(page).fill('Sort Notes')
     await paletteField(page).press('Enter')
     await expect.poll(popups).toBe(1)

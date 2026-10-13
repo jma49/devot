@@ -4,6 +4,8 @@
 // must only build structure from validated values, never pass note text
 // through as markup.
 import type { Root } from 'hast'
+import type { NoteStatus, TagColor } from '../storage'
+import type { TaskProgress } from '../tasks'
 
 export const PREVIEW_API_VERSION = 1
 
@@ -13,14 +15,34 @@ export interface PreviewLabels {
   embedFrom: string
   embedLoad: string
   videoTitle: string
+  /** A note link chip's name for a note without a title. */
+  untitled: string
+  /** The tooltip of a link to a note that does not exist (or is in the Trash). */
+  missingNote: string
 }
 
 export type AlertKind = 'note' | 'tip' | 'important' | 'warning' | 'caution'
+
+/** What a note link chip shows about the note it points at. */
+export interface NoteLinkTarget {
+  /** The note's title, or the first line of its body; empty when it has neither. */
+  title: string
+  status: NoteStatus
+  tasks: TaskProgress
+  /** The note's tags, by name. */
+  tags: { name: string; color: TagColor | null }[]
+}
 
 export interface PreviewOptions {
   labels: PreviewLabels
   /** Embed URLs from unknown origins the user chose to load. */
   loadedEmbeds: readonly string[]
+  /**
+   * The live notes the Markdown links to, by ID: those links show as chips,
+   * and a link to a note missing here as a broken link. Without it (exported
+   * pages) note links stay plain links.
+   */
+  noteLinks?: Readonly<Record<string, NoteLinkTarget>>
 }
 
 export interface PreviewContext extends PreviewOptions {

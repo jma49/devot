@@ -13,7 +13,12 @@ export function TrashView(props: {
   onDelete: (title: string) => void
 }) {
   const { core, noteId } = props
-  const [note, setNote] = useState<{ title: string; bodyMd: string }>()
+  const [note, setNote] = useState<{
+    title: string
+    bodyMd: string
+    createdAt: number
+    updatedAt: number
+  }>()
   useEffect(() => {
     let current = true
     core.peekTrashed(noteId).then(
@@ -43,7 +48,12 @@ export function TrashView(props: {
       </div>
       <h1 className="title trash-title">{name}</h1>
       <div className="panes panes-preview">
-        <Preview core={core} markdown={note.bodyMd} onOpenNote={() => {}} />
+        <Preview
+          core={core}
+          markdown={note.bodyMd}
+          info={{ noteId, createdAt: note.createdAt, updatedAt: note.updatedAt }}
+          onOpenNote={() => {}}
+        />
       </div>
     </>
   )

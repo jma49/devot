@@ -2,7 +2,13 @@
 // selection is not empty, and the user has not hidden it (Escape) or started
 // typing since the selection last changed on its own (a select event, or any
 // transaction that sets a selection without editing, like Edit > Select All).
-import { StateEffect, StateField, type EditorState, type Transaction } from '@codemirror/state'
+import {
+  Facet,
+  StateEffect,
+  StateField,
+  type EditorState,
+  type Transaction,
+} from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { FORMAT_EVENT } from './formats'
 
@@ -35,7 +41,13 @@ export const toolbarState = StateField.define<ToolbarState>({
   },
 })
 
+/** Set by Settings > Editing > Toolbar when it is off: the toolbar never shows. */
+export const toolbarOff = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+})
+
 export function toolbarVisible(state: EditorState): boolean {
+  if (state.facet(toolbarOff)) return false
   const value = state.field(toolbarState, false)
   return !!value && value.focused && !value.hidden && !state.selection.main.empty
 }
@@ -45,3 +57,8 @@ export const toolbarStateExtension = [
   toolbarState,
   EditorView.focusChangeEffect.of((_state, focusing) => setToolbarFocus.of(focusing)),
 ]
+
+/** Whether the editor has focus, as the floating bars know it. */
+export function editorFocused(state: EditorState): boolean {
+  return state.field(toolbarState, false)?.focused ?? false
+}

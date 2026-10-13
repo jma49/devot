@@ -2,7 +2,7 @@
 // stop when the open note is not listed, the viewer opens from the command
 // palette and closes with Escape, and its Tab key goes round every stop.
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, pickStatus } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 
 test('the note list keeps a Tab stop when the open note is not listed', async ({ page }) => {
   await createNote(page, 'Shown')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await createNote(page, 'Hidden')
   // "Hidden" is open, and the Active filter lists only "Shown".
   await sidebar(page)
@@ -51,7 +51,7 @@ test('View Image opens the viewer from the palette, and Escape closes it', async
   await createNote(page, 'Pictures')
   await body(page).click()
   await page.keyboard.insertText(`Look ![Big picture](${FILE})`)
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
   await field(page).fill('View Image')
   const option = palette(page).getByRole('option', { name: /View Image/ })
@@ -70,7 +70,7 @@ test('the palette offers View Image only on a line with an image', async ({ page
   await createNote(page, 'Plain')
   await body(page).click()
   await page.keyboard.insertText('No picture here')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
   await field(page).fill('View Image')
   await expect(palette(page).getByRole('option', { name: /View Image/ })).toHaveCount(0)
@@ -80,7 +80,7 @@ test('Tab and Shift+Tab go round every stop of the viewer', async ({ page }) => 
   await createNote(page, 'Pictures')
   await body(page).click()
   await page.keyboard.insertText(`![Big picture](${FILE})`)
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await field(page).fill('View Image')
   await page.keyboard.press('Enter')
   await expect(viewer(page)).toBeVisible()

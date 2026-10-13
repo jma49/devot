@@ -105,7 +105,7 @@ async function expectBesideSelection(page: Page): Promise<Box> {
   const gapAbove = top - (bar.y + bar.height)
   const gapBelow = bar.y - bottom
   expect(
-    (gapAbove >= -1 && gapAbove < 12) || (gapBelow >= -1 && gapBelow < 12),
+    (gapAbove >= -1 && gapAbove < 20) || (gapBelow >= -1 && gapBelow < 20),
     `toolbar ${bar.y}-${bar.y + bar.height}, selection ${top}-${bottom}`,
   ).toBe(true)
   return bar
@@ -117,31 +117,34 @@ test.beforeEach(async ({ page }) => {
   await page.reload()
 })
 
-test('the toolbar shows for a selection, with named SF Symbol buttons', async ({ page }) => {
+test('the toolbar shows for a selection, with named SF Symbol buttons in three groups', async ({
+  page,
+}) => {
   await newNote(page, 'alpha beta gamma')
   await expect(toolbar(page)).toBeHidden()
   await selectAll(page)
-  const names: [string, string, string][] = [
-    ['Heading', 'Heading (⌥⌘1…6)', 'textformat.size'],
-    ['Bold', 'Bold (⌘B)', 'bold'],
-    ['Italic', 'Italic (⌘I)', 'italic'],
-    ['Strikethrough', 'Strikethrough (⇧⌘X)', 'strikethrough'],
-    ['Highlight', 'Highlight (⇧⌘H)', 'highlighter'],
-    ['Link', 'Link (⌘K)', 'link'],
-    ['Inline Code', 'Inline Code (⌥⌘E)', 'chevron.left.forwardslash.chevron.right'],
-    ['Code Block', 'Code Block (⇧⌘C)', 'curlybraces.square'],
-    ['Bulleted List', 'Bulleted List (⇧⌘8)', 'list.bullet'],
-    ['Numbered List', 'Numbered List (⇧⌘7)', 'list.number'],
-    ['Task List', 'Task List (⇧⌘9)', 'checklist'],
-    ['Quote', 'Quote (⇧⌘.)', 'text.quote'],
-    ['Alert', 'Alert', 'exclamationmark.bubble'],
+  const names: [string, string][] = [
+    ['Heading', 'textformat.size'],
+    ['Bold', 'bold'],
+    ['Italic', 'italic'],
+    ['Strikethrough', 'strikethrough'],
+    ['Highlight', 'highlighter'],
+    ['Link', 'link'],
+    ['Inline Code', 'chevron.left.forwardslash.chevron.right'],
+    ['Code Block', 'curlybraces.square'],
+    ['Bulleted List', 'list.bullet'],
+    ['Numbered List', 'list.number'],
+    ['Task List', 'checklist'],
+    ['Quote', 'text.quote'],
+    ['Alert', 'exclamationmark.bubble'],
   ]
   await expect(toolbar(page).getByRole('button')).toHaveCount(names.length)
-  for (const [name, title, symbol] of names) {
-    await expect(button(page, name)).toHaveAttribute('title', title)
+  for (const [name, symbol] of names) {
     await expect(button(page, name).locator('.icon')).toHaveAttribute('data-symbol', symbol)
+    // The custom tooltip replaces the native one.
+    await expect(button(page, name)).not.toHaveAttribute('title')
   }
-  // A separator sets the block formats apart from the inline ones.
+  // Separators set the groups apart: inline formats and the link, code, blocks.
   const order = await toolbar(page)
     .locator('> *')
     .evaluateAll((els) =>
@@ -154,12 +157,37 @@ test('the toolbar shows for a selection, with named SF Symbol buttons', async ({
       ),
     )
   expect(order).toEqual([
-    ...names.slice(0, 7).map((n) => n[0]),
+    ...names.slice(0, 6).map((n) => n[0]),
     'separator',
-    ...names.slice(7).map((n) => n[0]),
+    ...names.slice(6, 8).map((n) => n[0]),
+    'separator',
+    ...names.slice(8).map((n) => n[0]),
   ])
   const calls = await page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls)
-  expect(symbolRequests(calls)).toContain('bold@14')
+  expect(symbolRequests(calls)).toContain('bold@18')
+})
+
+test('a button tooltip shows its name and key; Heading and Highlight have no key', async ({
+  page,
+}) => {
+  await newNote(page, 'alpha beta gamma')
+  await selectAll(page)
+  const tip = page.getByRole('tooltip')
+  await button(page, 'Bold').hover()
+  await expect(tip).toBeVisible()
+  await expect(tip.locator('.cm-float-tip-title')).toHaveText('Bold')
+  await expect(tip.locator('kbd')).toHaveText('\u2318B')
+  await button(page, 'Code Block').hover()
+  await expect(tip.locator('.cm-float-tip-title')).toHaveText('Code Block')
+  await expect(tip.locator('kbd')).toHaveText('\u21e7\u2318C')
+  for (const name of ['Heading', 'Highlight']) {
+    await button(page, name).hover()
+    await expect(tip.locator('.cm-float-tip-title')).toHaveText(name)
+    await expect(tip.locator('kbd')).toHaveCount(0)
+  }
+  // Leaving the toolbar hides it.
+  await page.mouse.move(1, 1)
+  await expect(tip).toBeHidden()
 })
 
 test('the toolbar hides on Escape, a collapsed selection and typing', async ({ page }) => {
@@ -223,23 +251,53 @@ test('the buttons apply and remove each format', async ({ page }) => {
   expect(await lines(page)).toEqual(['done'])
 })
 
-test('the heading button cycles the level and the link button opens the address', async ({
+test('the heading button raises the level and puts the caret at the end of the line', async ({
   page,
 }) => {
   await newNote(page, 'Plans')
   await selectAll(page)
   await button(page, 'Heading').click()
   expect(await lines(page)).toEqual(['# Plans'])
-  await button(page, 'Heading').click()
-  expect(await lines(page)).toEqual(['## Plans'])
-  await expect(button(page, 'Heading')).toHaveAttribute('aria-pressed', 'true')
-
-  await selectWord(page, 1, 'Plans')
-  await button(page, 'Link').click()
-  // The cursor waits in the empty address; the toolbar goes away.
+  // The caret goes to the end of the line: the selection is gone, and so is the toolbar.
   await expect(toolbar(page)).toBeHidden()
+  await page.keyboard.insertText('!')
+  expect(await lines(page)).toEqual(['# Plans!'])
+  await selectWord(page, 1, 'Plans')
+  await button(page, 'Heading').click()
+  expect(await lines(page)).toEqual(['## Plans!'])
+})
+
+test('the link button asks for the address in a dialog and inserts the link', async ({ page }) => {
+  await newNote(page, 'Read the docs today')
+  await selectWord(page, 1, 'docs')
+  await button(page, 'Link').click()
+  const dialog = page.getByRole('dialog', { name: 'Insert a link' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('textbox', { name: 'Text' })).toHaveValue('docs')
+  const url = dialog.getByRole('textbox', { name: 'URL' })
+  await expect(url).toBeFocused()
+  await expect(url).toHaveAttribute('placeholder', 'https://')
   await page.keyboard.insertText('https://example.com')
-  expect(await lines(page)).toEqual(['## [Plans](https://example.com)'])
+  await page.keyboard.press('Enter')
+  await expect(dialog).toBeHidden()
+  expect(await lines(page)).toEqual(['Read the [docs](https://example.com) today'])
+  // The caret is after the link, back in the body.
+  await page.keyboard.insertText('!')
+  expect(await lines(page)).toEqual(['Read the [docs](https://example.com)! today'])
+
+  // Escape leaves the note as it was.
+  await selectWord(page, 1, 'today')
+  await button(page, 'Link').click()
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  expect(await lines(page)).toEqual(['Read the [docs](https://example.com)! today'])
+
+  // On a link, the button removes it.
+  await selectWord(page, 1, 'docs')
+  await button(page, 'Link').click()
+  await expect(dialog).toBeHidden()
+  expect(await lines(page)).toEqual(['Read the docs! today'])
 })
 
 test('every format has a shortcut that works without the toolbar', async ({ page }) => {
@@ -247,8 +305,7 @@ test('every format has a shortcut that works without the toolbar', async ({ page
   const cases: [string, string][] = [
     ['ControlOrMeta+b', '**word**'],
     ['ControlOrMeta+i', '*word*'],
-    ['ControlOrMeta+Shift+X', '~~word~~'],
-    ['ControlOrMeta+Shift+H', '<mark>word</mark>'],
+    ['ControlOrMeta+KeyU', '~~word~~'],
     ['ControlOrMeta+Alt+KeyE', '`word`'],
   ]
   for (const [keys, formatted] of cases) {
@@ -261,14 +318,14 @@ test('every format has a shortcut that works without the toolbar', async ({ page
     expect(await lines(page), keys).toEqual(['word'])
   }
   for (const level of [1, 2, 3, 4, 5, 6]) {
-    await page.keyboard.press(`ControlOrMeta+Alt+Digit${level}`)
+    await page.keyboard.press(`${level <= 4 ? 'ControlOrMeta' : 'ControlOrMeta+Alt'}+Digit${level}`)
     expect(await lines(page)).toEqual([`${'#'.repeat(level)} word`])
   }
   await page.keyboard.press('ControlOrMeta+Alt+Digit6')
   expect(await lines(page)).toEqual(['word'])
 
   await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.press('ControlOrMeta+k')
+  await page.keyboard.press('ControlOrMeta+Alt+k')
   await page.keyboard.insertText('u')
   expect(await lines(page)).toEqual(['[word](u)'])
 })
@@ -295,7 +352,7 @@ test('each format is one undo step', async ({ page }) => {
   expect(await lines(page)).toEqual(['alpha beta'])
 
   await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.press('ControlOrMeta+Alt+Digit2')
+  await page.keyboard.press('ControlOrMeta+Digit2')
   expect(await lines(page)).toEqual(['## alpha beta'])
   await page.keyboard.press('ControlOrMeta+z')
   expect(await lines(page)).toEqual(['alpha beta'])

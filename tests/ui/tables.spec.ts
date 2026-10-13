@@ -22,7 +22,7 @@ async function newNote(page: Page, text: string) {
 
 /** Runs a palette command by its exact name. */
 async function runFromPalette(page: Page, name: string) {
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
   await field(page).fill(name)
   const option = commands(page).filter({ hasText: name }).first()
@@ -158,9 +158,11 @@ test('the palette runs table commands while the cursor is in a table', async ({ 
 
   // Outside the table the palette does not offer them.
   await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   await field(page).fill('Delete Column')
   await expect(commands(page).filter({ hasText: 'Delete Column' })).toHaveCount(0)
+  // Escape clears the query first, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette(page)).toBeHidden()
 })

@@ -63,3 +63,17 @@ describe('excerpts', () => {
     })
   })
 })
+
+describe('progress', () => {
+  it('counts each note’s tasks done, and is empty for a note with none', async () => {
+    const { notes } = setup()
+    const a = await notes.create('Chores')
+    const b = await notes.create('Plain')
+    await notes.setBody(a, '- [x] dishes\n- [ ] laundry\n- [ ] bins\n- [ ] floor')
+    await notes.setBody(b, 'no tasks here')
+    expect(await notes.progress([a, b, '0192a6f0-0000-7000-8000-00000000000a'])).toEqual({
+      [a]: '1/4',
+      [b]: '',
+    })
+  })
+})

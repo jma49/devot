@@ -8,6 +8,8 @@ import {
   shownMenu,
   test,
   type TestWindow,
+  pickStatus,
+  statusPicker,
 } from './fixtures'
 import { seedNotes } from './renders'
 
@@ -107,9 +109,9 @@ const popups = (page: Page) =>
       ).length,
   )
 
-/** Runs the palette command labelled `label` (Meta+P: the registry key). */
+/** Runs the palette command labelled `label` (Meta+K: the registry key). */
 async function runCommand(page: Page, label: string) {
-  await page.keyboard.press('Meta+p')
+  await page.keyboard.press('Meta+k')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   await palette.getByRole('combobox').fill(label)
   const active = palette.locator('[role="option"][aria-selected="true"] .palette-label')
@@ -334,7 +336,7 @@ test('the summary moves, pins, sets the status of and trashes every selected not
   await expect(dialog).toHaveCount(0)
   await expect(book(page, 'Work')).toContainText('3')
 
-  await summary(page).getByRole('combobox', { name: 'Status' }).selectOption({ label: 'On Hold' })
+  await pickStatus(summary(page), 'On Hold')
   await expect(sourceRow(page, 'On Hold')).toHaveText(/3$/)
   await summary(page).getByRole('button', { name: 'Pin to Top' }).click()
   await expect(summary(page).getByRole('button', { name: 'Unpin' })).toBeVisible()
@@ -533,7 +535,7 @@ test('export and print act on one note: not offered or run while several are sel
     .getByRole('option')
     .filter({ hasText: /^(Export as|Copy as|Print…)/ })
   const searchPalette = async (text: string) => {
-    await page.keyboard.press('Meta+p')
+    await page.keyboard.press('Meta+k')
     await palette.getByRole('combobox').fill(text)
   }
 
@@ -541,6 +543,8 @@ test('export and print act on one note: not offered or run while several are sel
   for (const text of ['Export', 'Copy as', 'Print']) {
     await searchPalette(text)
     await expect(exportCommands).toHaveCount(0)
+    // Escape clears the query, then closes.
+    await palette.getByRole('combobox').press('Escape')
     await palette.getByRole('combobox').press('Escape')
     await expect(palette).toHaveCount(0)
   }
@@ -558,9 +562,13 @@ test('export and print act on one note: not offered or run while several are sel
   await expect(summary(page)).toHaveCount(0)
   await searchPalette('Export')
   await expect(exportCommands).toHaveCount(3)
+  // Escape clears the query, then closes.
+  await palette.getByRole('combobox').press('Escape')
   await palette.getByRole('combobox').press('Escape')
   await searchPalette('Print')
   await expect(exportCommands).toHaveCount(1)
+  // Escape clears the query, then closes.
+  await palette.getByRole('combobox').press('Escape')
   await palette.getByRole('combobox').press('Escape')
   await expect(palette).toHaveCount(0)
   await page.keyboard.press('Meta+Shift+P')
@@ -577,7 +585,7 @@ test('in the Trash, several notes are restored or deleted permanently at once', 
   await sourceRow(page, 'Trash').click()
   await expect(noteRows(page)).toHaveCount(3)
   // Notes trashed together may share a deletion time: their order is not fixed.
-  const shown = await noteRows(page).locator('.row-title').allTextContents()
+  const shown = await noteRows(page).locator('.row-title, .row-headline').allTextContents()
   await noteRow(page, shown[0]!).click()
   await noteRow(page, shown[2]!).click({ modifiers: ['Shift'] })
   expect(await selectedTitles(page)).toEqual(shown)
@@ -818,7 +826,7 @@ test('a Shift-click that leaves the open note out keeps the keyboard on the clic
 test('in Templates the summary offers no status or tags', async ({ page }) => {
   await createTemplates(page, 'One', 'Two')
   await pick(page, 'Two', 'One')
-  await expect(summary(page).getByRole('combobox', { name: 'Status' })).toHaveCount(0)
+  await expect(statusPicker(summary(page))).toHaveCount(0)
   await expect(summary(page).getByRole('group', { name: 'Tags' })).toHaveCount(0)
   await summary(page).getByRole('button', { name: 'Pin to Top' }).click()
   await expect(list(page).locator('.list-section', { hasText: 'Pinned' })).toBeVisible()

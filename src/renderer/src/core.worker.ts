@@ -144,6 +144,8 @@ export const coreApi = {
   headlines: (ids: string[]) => required().headlines(ids),
   /** The body excerpt each list row shows (see NoteService.excerpts). */
   excerpts: (ids: string[]) => required().excerpts(ids),
+  /** The task progress each list row shows, as "done/total" (see NoteService.progress). */
+  progress: (ids: string[]) => required().progress(ids),
   /** A new note from text selected in `sourceId` (see NoteService.extract). */
   extract: (sourceId: string, markdown: string) => required().extract(sourceId, markdown),
   applyUpdate: (id: string, update: Uint8Array) => required().applyUpdate(id, update),
@@ -177,6 +179,8 @@ export const coreApi = {
   restore: (id: string) => required().restore(id),
   listTrash: () => required().listTrash(),
   peekTrashed: (id: string) => required().peekTrashed(id),
+  backlinks: (id: string) => required().backlinks(id),
+  linkTargets: (ids: string[]) => required().linkTargets(ids),
   purge: (id: string) => required().purge(id),
   emptyTrash: () => required().emptyTrash(),
   history: (id: string) => required().history(id),
@@ -189,6 +193,12 @@ export const coreApi = {
   /** The live notes and the templates, apart, from one listing. */
   listWithTemplates: () => requiredTemplates().listWithNotes(),
   createTemplate: () => requiredTemplates().create(),
+  /**
+   * Saves an edit of a template; a built-in one is read-only, so the edit
+   * goes to a new template of the user's own (its ID is returned).
+   */
+  saveTemplate: (id: string, edit: { title?: string; body?: string }) =>
+    requiredTemplates().save(id, edit),
   /**
    * What a note made from a template at `now` (the page's clock) would get,
    * and its notebook (`bookId` unless the template names one).

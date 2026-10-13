@@ -121,12 +121,12 @@ test('the note list selection stays neutral, focused or not', async ({ page }) =
   await expect(beta).toHaveAttribute('aria-selected', 'true')
 
   // Typing in the title: the list is not focused.
-  await expect.poll(() => css(beta, 'background-color')).toBe('rgba(28, 27, 25, 0.075)')
+  await expect.poll(() => css(beta, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
 
   await beta.click()
   await expect(beta).toBeFocused()
   // Focused: still neutral (only the sidebar shows the accent).
-  expect(await css(beta, 'background-color')).toBe('rgba(28, 27, 25, 0.075)')
+  expect(await css(beta, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
   expect(await css(beta, 'color')).not.toBe(rgb(light['color.accent.on-fill']))
 
   // Arrow keys move the selection and open the note.

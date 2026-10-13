@@ -1,5 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import type { BookRecord, NoteSummary, TemplateDraft } from '../../core'
+import {
+  STARTER_TEMPLATES,
+  type BookRecord,
+  type NoteSummary,
+  type TemplateDraft,
+} from '../../core'
 import { headline } from '../../core/extract'
 import type { Core } from './core-client'
 import { displayTitle, useHeadlines, type HeadlineLoader } from './headlines'
@@ -51,7 +56,12 @@ export function TemplatePicker(props: {
     () => templateGroups(props.templates, props.recent, query, props.locales),
     [props.templates, props.recent, query, props.locales],
   )
-  const options = [...groups.recent, ...groups.others]
+  // The built-in starters come last, narrowed by the same query.
+  const builtIn = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase()
+    return STARTER_TEMPLATES.filter((s) => !needle || s.title.toLocaleLowerCase().includes(needle))
+  }, [query])
+  const options: { id: string; title: string }[] = [...groups.recent, ...groups.others, ...builtIn]
   const index = Math.min(active, options.length - 1)
   const current = options[index]
   const currentId = current?.id
@@ -91,7 +101,7 @@ export function TemplatePicker(props: {
     }
   }
 
-  const row = (template: NoteSummary, i: number) => (
+  const row = (template: { id: string; title: string }, i: number) => (
     <div
       key={template.id}
       id={optionId(i)}
@@ -161,7 +171,7 @@ export function TemplatePicker(props: {
             ) : null}
             {groups.others.length > 0 ? (
               <div role="group" aria-label={t('sidebar.templates')}>
-                {grouped ? (
+                {grouped || builtIn.length > 0 ? (
                   <div className="pick-group" aria-hidden="true">
                     {t('sidebar.templates')}
                   </div>
@@ -169,12 +179,18 @@ export function TemplatePicker(props: {
                 {groups.others.map((template, i) => row(template, groups.recent.length + i))}
               </div>
             ) : null}
+            {builtIn.length > 0 ? (
+              <div role="group" aria-label={t('templates.builtIn')}>
+                <div className="pick-group" aria-hidden="true">
+                  {t('templates.builtIn')}
+                </div>
+                {builtIn.map((template, i) =>
+                  row(template, groups.recent.length + groups.others.length + i),
+                )}
+              </div>
+            ) : null}
           </div>
-          {props.templates.length === 0 ? (
-            <p className="sheet-detail">{t('templates.none')}</p>
-          ) : options.length === 0 ? (
-            <p className="sheet-detail">{t('templates.noMatches')}</p>
-          ) : null}
+          {options.length === 0 ? <p className="sheet-detail">{t('templates.noMatches')}</p> : null}
         </div>
         <section className="templates-preview" aria-label={t('templates.preview')}>
           {shown ? (

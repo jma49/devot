@@ -147,6 +147,8 @@ export function syncScrolling(
   let leader: ScrollPane | undefined
   /** The follower was laid out anew: it lines up with the leader whatever it reports. */
   let relayout = false
+  /** The leader of the last move, looked at again a frame later. */
+  let check: { pane: ScrollPane; top: number; tries: number } | undefined
   let handle: number | undefined
 
   const schedule = (pane: ScrollPane, laidOut = false) => {
@@ -160,19 +162,38 @@ export function syncScrolling(
 
   // Reads the leader, then writes the follower: one layout read and one
   // write per frame however many scroll events arrived.
+  //
+  // A move is looked at again over the next frames: the editor knows the
+  // height of a line it has not shown only once it has, so the line moved to
+  // can sit a little off until it is laid out.
   function follow() {
     handle = undefined
-    const from = leader
+    // Looked at again only while the user is still in the leader, and it
+    // has not moved since.
+    const again =
+      leader === undefined && check?.pane === current && check.top === check.pane.element.scrollTop
+        ? check
+        : undefined
+    const from = leader ?? again?.pane
     leader = undefined
+    check = undefined
     relayout = false
     // A pane that cannot scroll says nothing about where the user is.
     if (!from || maxOffset(from.element) < 1) return
     const to = other(from)
     const target = to.element
     const before = target.scrollTop
-    target.scrollTop = followOffset(from, to)
+    const want = followOffset(from, to)
+    if (again && Math.abs(want - before) < 1) return
+    target.scrollTop = want
     const after = target.scrollTop
-    if (after !== before) expected.set(to, after)
+    if (after === before) return
+    expected.set(to, after)
+    const tries = again ? again.tries + 1 : 0
+    if (tries < 2) {
+      check = { pane: from, top: from.element.scrollTop, tries }
+      handle = frame(follow)
+    }
   }
 
   const onScroll = (pane: ScrollPane) => () => {
@@ -254,8 +275,20 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
     anchors = undefined
     for (const listener of listeners) listener()
   }
-  // A narrower or wider pane wraps its text anew.
-  const resize = new ResizeObserver(relayout)
+  // The line read, as of the last scroll (the anchors are measured once, so
+  // this reads no layout after the first scroll).
+  let read: number | undefined
+  const scrolled = () => {
+    read = element.scrollTop > 0 ? lineAt(measure(), element.scrollTop) : undefined
+  }
+  element.addEventListener('scroll', scrolled, { passive: true })
+  // A narrower or wider pane wraps its text anew, and keeps the line read at
+  // its top (WebKit has no scroll anchoring to do it).
+  const resize = new ResizeObserver(() => {
+    anchors = undefined
+    if (read !== undefined) element.scrollTop = topOf(measure(), read)
+    relayout()
+  })
   resize.observe(element)
   // Images change the layout when they load.
   element.addEventListener('load', relayout, true)
@@ -274,6 +307,7 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
     },
     dispose: () => {
       resize.disconnect()
+      element.removeEventListener('scroll', scrolled)
       element.removeEventListener('load', relayout, true)
       listeners.clear()
     },

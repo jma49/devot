@@ -1,11 +1,14 @@
 import type { Page } from '@playwright/test'
 import {
+  pickBook,
+  pickStatus,
   changeEditorSettingsElsewhere,
   expect,
   openNoteMore,
   openNotePinned,
   pickMenuItem,
   test,
+  bookPicker,
 } from './fixtures'
 
 // The note area: a toolbar with focus mode, Back and Forward at its start and
@@ -98,20 +101,19 @@ test('the notebook, status and tags share one compact line, worked by click and 
   const meta = page.locator('.note-meta')
   await expect(meta.locator('.meta-divider')).toHaveCount(0)
 
-  // The notebook's name is bold; the select over it is what is focused and read.
-  const book = page.getByRole('combobox', { name: 'Notebook' })
+  // The notebook's name is bold; the button opens a searchable pop-over.
+  const book = bookPicker(page)
   await expect(meta.locator('.book-popup .popup-value')).toHaveText('Inbox')
   await expect(meta.locator('.book-popup .popup-value')).toHaveCSS('font-weight', '700')
   await book.focus()
   await expect(book).toBeFocused()
-  await book.selectOption({ label: 'No Notebook' })
+  await pickBook(page, 'No Notebook')
   await expect(meta.locator('.book-popup .popup-value')).toHaveText('No Notebook')
+  await expect(book).toBeFocused()
 
   // No status reads Status; picking one shows its name.
-  const status = page.getByRole('combobox', { name: 'Status' })
   await expect(meta.locator('.status-none .popup-value')).toHaveText('Status')
-  await status.focus()
-  await status.selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await expect(meta.locator('.status-active .popup-value')).toHaveText('Active')
 
   // Tags are outlined pills after which Add Tags waits.
@@ -122,6 +124,9 @@ test('the notebook, status and tags share one compact line, worked by click and 
   const chip = meta.locator('.chip', { hasText: 'work' })
   await expect(chip).toHaveCSS('border-top-style', 'solid')
   await expect(chip).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  // Backspace in the empty field selects the last chip; a second takes it off.
+  await add.press('Backspace')
+  await expect(chip).toHaveAttribute('data-selected', 'true')
   await add.press('Backspace')
   await expect(chip).toHaveCount(0)
 
@@ -164,8 +169,8 @@ for (const scheme of ['light', 'dark'] as const) {
     const mark = await colourOf('###')
     const heading = await colourOf(' Free Mode')
     expect(mark).not.toBe(heading)
-    for (const colour of [mark, heading, await colourOf('kbd'), await colourOf('x')])
-      expect(colour).not.toBe(text)
+    // Inline code keeps the text colour (its box sets it apart).
+    for (const colour of [mark, heading, await colourOf('kbd')]) expect(colour).not.toBe(text)
     await expect(
       page.locator('.cm-content span', { hasText: /^https:\/\/example\.com$/ }),
     ).toHaveCSS('text-decoration-line', 'underline')
@@ -180,7 +185,7 @@ test('split mode gives the editor and the preview half each, with no rule and no
   await changeEditorSettingsElsewhere(page, { lineWrapping: true, readableWidth: true })
   const content = page.locator('.cm-content')
   // Outside split, the readable width holds.
-  await expect(content).toHaveCSS('max-width', '720px')
+  await expect(content).toHaveCSS('max-width', '740px')
   await page
     .getByRole('group', { name: 'View mode' })
     .getByRole('button', { name: 'Split' })

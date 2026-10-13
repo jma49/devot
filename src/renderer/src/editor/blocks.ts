@@ -37,8 +37,8 @@ import { mayBeFrontMatter, noteParser } from './markdown'
 
 export type { AlertKind } from '../../../core/preview/registry'
 
-/** The bullet a new list item gets (Settings > Editor > List marker); `-` by default. */
-export const listBullet = Facet.define<'-' | '*', '-' | '*'>({
+/** The bullet a new list item gets (Settings > Editing > Unordered List Bullet); `-` without settings. */
+export const listBullet = Facet.define<'-' | '*' | '+', '-' | '*' | '+'>({
   combine: (values) => values[0] ?? '-',
 })
 export type ListKind = 'bullet' | 'numbered' | 'task'
@@ -1225,6 +1225,38 @@ export function toggleCodeBlock(state: EditorState): TransactionSpec | null {
     open.newLength,
   )
   return spec(open.compose(close), mapSelection(state, open, close))
+}
+
+/** An opening fence with nothing after it, after any quote and list markers. */
+const BARE_FENCE = /^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+(?:\[[ xX]\][ \t]+)?)?(?:`{3,}|~{3,})$/
+
+/** Whether the only cursor is at the end of a bare opening fence (a new block's). */
+export function atNewFence(state: EditorState): boolean {
+  const { ranges, main } = state.selection
+  if (ranges.length > 1 || !main.empty) return false
+  const line = state.doc.lineAt(main.head)
+  return main.head === line.to && BARE_FENCE.test(line.text)
+}
+
+/**
+ * Code Block: `toggleCodeBlock`, but a new empty block (made at a cursor on
+ * a blank line) puts the cursor right after its opening fence, where the
+ * fence's language goes.
+ */
+export function codeBlockCommand(state: EditorState): TransactionSpec | null {
+  const tr = toggleCodeBlock(state)
+  const { ranges, main } = state.selection
+  if (!tr || ranges.length > 1 || !main.empty) return tr
+  const after = state.update(tr).state
+  const cursor = after.selection.main
+  const { doc } = after
+  const line = doc.lineAt(cursor.head)
+  if (line.number < 2 || line.number >= doc.lines) return tr
+  const above = doc.line(line.number - 1)
+  const below = doc.line(line.number + 1)
+  if (!/^[ \t>]*$/.test(line.text) || !BARE_FENCE.test(above.text)) return tr
+  if (!/^[ \t>]*(?:`{3,}|~{3,})$/.test(below.text)) return tr
+  return { ...tr, selection: EditorSelection.single(above.to) }
 }
 
 /**

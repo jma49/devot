@@ -23,6 +23,8 @@ const labels: PreviewLabels = {
   embedFrom: 'Embedded content from {origin}',
   embedLoad: 'Load',
   videoTitle: 'Embedded video',
+  untitled: 'Untitled',
+  missingNote: 'Note not found',
 }
 
 const render = (md: string, options: Partial<PreviewOptions> = {}) =>
@@ -351,6 +353,7 @@ describe('preview renderer extension point', () => {
       'devot.swatches',
       'devot.images',
       'devot.links',
+      'devot.note-links',
       'devot.video-embeds',
       'devot.iframes',
     ])

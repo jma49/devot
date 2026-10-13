@@ -1,23 +1,22 @@
 import { CompletionContext } from '@codemirror/autocomplete'
 import { history, undo } from '@codemirror/commands'
-import { ChangeSet, EditorSelection, EditorState, Text } from '@codemirror/state'
+import { ChangeSet, EditorSelection, EditorState, Text, type Transaction } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 import { ensureSyntaxTree } from '@codemirror/language'
 import { describe, expect, it, vi } from 'vitest'
 import { expectWithinBudget } from '../../../../tests/support/budget'
-import { command, formatOf, insertOf } from '../commands/registry'
-import { t } from '../i18n'
-import { FORMAT_COMMANDS } from './formats'
-import { INSERT_COMMANDS } from './insert'
+import { nextSnippetField } from '@codemirror/autocomplete'
 import { noteMarkdown } from './markdown'
 import {
+  matchesNothing,
   placeholderOut,
-  SLASH_COMMANDS,
+  SLASH_ITEMS,
   slashItems,
+  slashMenu,
   slashSource,
   slashSpecs,
   slashTrigger,
-  type SlashCommandId,
+  type SlashId,
 } from './slashMenu'
 
 // `^` marks a cursor and `«` `»` a selected range (`|` is a table's pipe here).
@@ -34,7 +33,12 @@ function state(marked: string) {
   return EditorState.create({
     doc,
     selection: EditorSelection.create(ranges.length ? ranges : [EditorSelection.cursor(0)]),
-    extensions: [EditorState.allowMultipleSelections.of(true), noteMarkdown, history()],
+    extensions: [
+      EditorState.allowMultipleSelections.of(true),
+      noteMarkdown,
+      history(),
+      slashMenu(),
+    ],
   })
 }
 
@@ -56,10 +60,9 @@ const labels = (marked: string) => {
   const trigger = slashTrigger(s)
   return trigger ? slashItems(s, trigger).map((item) => item.label) : []
 }
-const label = (id: SlashCommandId) => t(command(id).label)
 
 /** The state after picking `id` in the menu the marked text opens. */
-function pick(marked: string, id: SlashCommandId): EditorState {
+function pick(marked: string, id: SlashId): EditorState {
   const s = state(marked)
   const trigger = slashTrigger(s)!
   const specs = slashSpecs(s, id, trigger.from, trigger.to)
@@ -67,299 +70,217 @@ function pick(marked: string, id: SlashCommandId): EditorState {
   return s.update(...specs!).state
 }
 
-/** The same command run on the text without the `/query` (`^` at the slash). */
-function direct(marked: string, id: SlashCommandId): EditorState {
-  const s = state(marked.replace(/\/[^\s/^]*\^/, '^'))
-  const format = formatOf(id)
-  const insert = insertOf(id)
-  const spec = format ? FORMAT_COMMANDS[format](s) : insert ? INSERT_COMMANDS[insert](s) : null
-  expect({ id, spec }).not.toEqual({ id, spec: null })
-  return s.update(spec!).state
+/** A stand-in for the view an option's `apply` dispatches to. */
+function fakeView(s: EditorState) {
+  const view = {
+    state: s,
+    composing: false,
+    dispatch(...specs: (Transaction | object)[]) {
+      const [first] = specs
+      view.state =
+        specs.length === 1 && first && 'startState' in first
+          ? (first as Transaction).state
+          : view.state.update(...(specs as object[])).state
+    },
+  }
+  return view
 }
 
 describe('slashTrigger', () => {
-  it('opens for a slash at the start of a line or after a space', () => {
+  it('opens for a slash at column 0 only', () => {
     expect(slashTrigger(state('/^'))).toEqual({ from: 0, to: 1, query: '' })
-    expect(slashTrigger(state('Some text /quo^'))).toEqual({ from: 10, to: 14, query: 'quo' })
-    expect(opens('First\n/^')).toBe(true)
-    expect(opens('Text\t/^')).toBe(true)
-    expect(opens('- /^')).toBe(true)
-    expect(opens('> /^')).toBe(true)
-    expect(opens('# Title /^')).toBe(true)
-    expect(opens('| a | /^ |\n| --- | --- |')).toBe(true)
-    // In a link's text, which is prose.
-    expect(opens('[see /^](https://example.com)')).toBe(true)
-  })
-
-  it('does not open after other characters', () => {
+    expect(slashTrigger(state('First\n/quo^'))).toEqual({ from: 6, to: 10, query: 'quo' })
+    expect(opens('x /^')).toBe(false)
+    expect(opens('Some text /quo^')).toBe(false)
+    expect(opens('- /^')).toBe(false)
+    expect(opens('> /^')).toBe(false)
     expect(opens('a/^')).toBe(false)
-    expect(opens('1/2^')).toBe(false)
-    expect(opens('src/x^')).toBe(false)
-    expect(opens('and/or^')).toBe(false)
-    expect(opens('https://example.com/pa^')).toBe(false)
-    expect(opens('[a](/x^)')).toBe(false)
-    expect(opens('</x^')).toBe(false)
-    expect(opens('a //^')).toBe(false)
+    expect(opens(' /^')).toBe(false)
   })
 
-  it('closes once the query has a space or another slash', () => {
-    expect(opens('/code bl^')).toBe(false)
-    expect(opens('/a/b^')).toBe(false)
+  it('takes spaces inside the query but not right after the slash, nor another slash', () => {
+    expect(slashTrigger(state('/task l^'))?.query).toBe('task l')
     expect(opens('/ ^')).toBe(false)
+    expect(opens('/a/b^')).toBe(false)
     expect(opens(`/${'x'.repeat(64)}^`)).toBe(false)
   })
 
-  it('does not open in code, HTML, comments or front matter', () => {
+  it('does not open in code, HTML or front matter', () => {
     expect(opens('```\n/^\n```')).toBe(false)
-    expect(opens('```\nx /^')).toBe(false)
-    expect(opens('~~~js\n  /^\n~~~')).toBe(false)
-    expect(opens('    /^')).toBe(false)
-    expect(opens('\t/^')).toBe(false)
-    expect(opens('    code /^')).toBe(false)
-    expect(opens('a `code /^` b')).toBe(false)
+    expect(opens('~~~js\n/^\n~~~')).toBe(false)
     expect(opens('<div>\n/^\n</div>')).toBe(false)
-    expect(opens('a <img src="x.png" /^> b')).toBe(false)
-    expect(opens('<!-- /^ -->')).toBe(false)
-    expect(opens('a <!-- /^ --> b')).toBe(false)
-    expect(opens('---\ntitle: /^\n---\nBody')).toBe(false)
-  })
-
-  it('does not open in a link address or title', () => {
-    expect(opens('[ref]: /^')).toBe(false)
-    expect(opens('[ref]: /path^')).toBe(false)
-    expect(opens('[a]( /x^)')).toBe(false)
-    expect(opens('[a](https://example.com "a /t^")')).toBe(false)
-  })
-
-  it('leaves a slash in the query of a note link to the note popup', () => {
-    expect(opens('[[Q1 /^]]')).toBe(false)
-    expect(opens('See [[Q1 /^')).toBe(false)
-    // After a finished note link it opens.
-    expect(opens('[[Q1]] /^')).toBe(true)
+    expect(opens('---\n/^\n---\nBody')).toBe(false)
   })
 
   it('opens only for a single cursor', () => {
     expect(opens('«/»')).toBe(false)
-    expect(opens('/^ and /^')).toBe(false)
+    expect(opens('/^\n/^')).toBe(false)
   })
 })
 
 describe('slashItems', () => {
-  it('offers every insertion in menu order for an empty query', () => {
-    expect(labels('/^')).toEqual(SLASH_COMMANDS.map(label))
-    expect(labels('/^')).toEqual([
-      'Link',
-      'Image',
-      'Quote',
-      'Note Alert',
-      'Tip Alert',
-      'Important Alert',
-      'Warning Alert',
-      'Caution Alert',
-      'Note Link',
-      'Code Block',
-      'Table',
-      'Bulleted List',
-      'Numbered List',
-      'Task List',
+  it('lists the 19 items in their groups for an empty query', () => {
+    const s = state('/^')
+    const items = slashItems(s, slashTrigger(s)!)
+    expect(items.map((i) => i.label)).toEqual([
+      'Blockquote',
+      'Codeblock',
+      'Heading 1',
+      'Heading 2',
+      'Heading 3',
+      'Heading 4',
       'Horizontal Rule',
+      'Image File',
+      'Link',
+      'Ordered List',
+      'Remote Image',
+      'Task List',
+      'Unordered List',
+      'Caution',
+      'Important',
+      'Note',
+      'Tip',
+      'Warning',
+      'Note Link',
     ])
+    expect(items.map((i) => i.id)).toEqual(SLASH_ITEMS.map((i) => i.id))
+    expect(new Set(items.slice(0, 13).map((i) => i.group))).toEqual(new Set(['basic']))
+    expect(new Set(items.slice(13, 18).map((i) => i.group))).toEqual(new Set(['alerts']))
+    expect(items[18]?.group).toBe('other')
+    expect(items.find((i) => i.id === 'alert-note')?.hint).toBe('> [!NOTE]')
+    expect(items.find((i) => i.id === 'heading3')?.hint).toBe('###')
+    expect(items.find((i) => i.id === 'alert-tip')?.tone).toBe('tip')
   })
 
-  it('filters by the query, best match first', () => {
-    expect(labels('/quo^')[0]).toBe('Quote')
-    expect(labels('/tab^')[0]).toBe('Table')
-    expect(labels('/hr^')[0]).toBe('Horizontal Rule')
-    expect(labels('/li^')[0]).toBe('Link')
-    expect(labels('/warn^')).toEqual(['Warning Alert'])
-    expect(labels('/CODE^')[0]).toBe('Code Block')
-    expect(labels('/zzz^')).toEqual([])
+  it('writes the configured bullet in the list hints', () => {
+    const s = state('/list^')
+    const items = slashItems(s, slashTrigger(s)!)
+    const bullet = items.find((i) => i.id === 'unorderedList')?.hint ?? ''
+    expect(['-', '*']).toContain(bullet)
+    expect(items.find((i) => i.id === 'taskList')?.hint).toBe(`${bullet} [ ]`)
+  })
+
+  it('matches a substring of the label, by match position, then the menu order', () => {
+    expect(labels('/ist^')).toEqual(['Task List', 'Ordered List', 'Unordered List'])
+    expect(labels('/co^')).toEqual(['Codeblock'])
+    expect(labels('/CODE^')).toEqual(['Codeblock'])
+    expect(labels('/heading 2^')).toEqual(['Heading 2'])
+    expect(labels('/tion^')).toEqual(['Caution'])
   })
 
   it('marks the matched letters', () => {
-    const s = state('/tab^')
+    const s = state('/ist^')
     const [first] = slashItems(s, slashTrigger(s)!)
-    expect(first?.ranges).toEqual([[0, 3]])
+    expect(first?.ranges).toEqual([[6, 9]])
   })
 
-  it('leaves out what would take a format off rather than add it', () => {
-    expect(labels('- item /^')).not.toContain('Bulleted List')
-    expect(labels('- item /^')).toContain('Numbered List')
-    expect(labels('> quoted /^')).not.toContain('Quote')
-    const inAlert = labels('> [!NOTE]\n> text /^')
-    expect(inAlert).not.toContain('Note Alert')
-    expect(inAlert).toContain('Tip Alert')
-    // A quote's toggle would take the alert's `> [!NOTE]` line off.
-    expect(inAlert).not.toContain('Quote')
-    expect(labels('> [!NOTE]\n> body\n> /^')).not.toContain('Quote')
-    // A table cell takes inline items; a table or rule goes after the table.
-    expect(labels('| a | /^ |\n| --- | --- |')).toEqual([
-      'Link',
-      'Image',
-      'Note Link',
-      'Table',
-      'Horizontal Rule',
-    ])
-    // A link cannot go into a link.
-    const inLink = labels('[see /^](https://example.com)')
-    expect(inLink).not.toContain('Link')
-    expect(inLink).not.toContain('Image')
-    expect(inLink).not.toContain('Note Link')
-    expect(inLink).toContain('Quote')
+  it('has no result when nothing matches', () => {
+    expect(labels('/hd^')).toEqual([])
+    expect(matchesNothing('hd')).toBe(true)
+    expect(matchesNothing('he')).toBe(false)
+  })
+
+  it('leaves out the table, which only the palette offers', () => {
+    expect(labels('/tab^')).toEqual([])
   })
 })
 
 describe('slashSpecs', () => {
-  it('runs the registry command in place of the `/query`', () => {
-    const cases = ['/^', 'Intro /q^', 'First\n/x^\nLast', '- item /^']
-    for (const marked of cases) {
-      for (const id of SLASH_COMMANDS) {
-        const s = state(marked)
-        const trigger = slashTrigger(s)!
-        const specs = slashSpecs(s, id, trigger.from, trigger.to)
-        // A command that does nothing here is neither offered nor picked.
-        if (!specs) continue
-        expect({ id, marked, text: show(pick(marked, id)) }).toEqual({
-          id,
-          marked,
-          text: show(direct(marked, id)),
-        })
-      }
-    }
-    expect(show(pick('Intro /quo^', 'format.quote'))).toBe('> Intro ^')
-    expect(show(pick('/^', 'format.link'))).toBe('[^]()')
-    expect(show(pick('See /img^', 'insert.image'))).toBe('See ![^]()')
-    expect(show(pick('See /^', 'insert.noteLink'))).toBe('See [[^]]')
-    expect(show(pick('/bul^', 'format.bulletList'))).toBe('- ^')
-    expect(show(pick('/hr^', 'format.horizontalRule'))).toBe('***\n^')
+  it('inserts a heading in place of the query', () => {
+    expect(show(pick('/hea^', 'heading2'))).toBe('## ^')
+    expect(show(pick('Intro\n\n/h4^', 'heading4'))).toBe('Intro\n\n#### ^')
   })
 
-  it('puts a code block inside the list item it is picked in, keeping the marker', () => {
-    expect(show(pick('1. Run this:\n2. /code^', 'format.codeBlock'))).toBe(
-      '1. Run this:\n2. ```\n   ^\n   ```',
-    )
-    expect(show(pick('- a\n  - /^', 'format.codeBlock'))).toBe('- a\n  - ```\n    ^\n    ```')
-    expect(show(pick('1. Run this:\n   /^', 'format.codeBlock'))).toBe(
-      '1. Run this:\n   ```\n   ^\n   ```',
-    )
+  it('inserts an alert with the cursor on its second line', () => {
+    expect(show(pick('/no^', 'alert-note'))).toBe('> [!NOTE]\n> ^')
+    expect(show(pick('/^', 'alert-caution'))).toBe('> [!CAUTION]\n> ^')
+  })
+
+  it('opens a code block with the cursor right after the opening fence', () => {
+    expect(show(pick('/co^', 'codeblock'))).toBe('```^\n\n```')
+  })
+
+  it('runs the other items in place of the query', () => {
+    expect(show(pick('/^', 'blockquote'))).toBe('> ^')
+    expect(show(pick('/^', 'link'))).toBe('[^]()')
+    expect(show(pick('/^', 'noteLink'))).toBe('[[^]]')
+    expect(show(pick('/or^', 'orderedList'))).toBe('1. ^')
+    expect(show(pick('/ima^', 'imageFile'))).toBe('^')
   })
 
   it('is one undo step that brings the `/query` back', () => {
-    for (const id of SLASH_COMMANDS) {
-      const after = pick('Intro\n/que^', id)
+    for (const { id } of SLASH_ITEMS) {
+      if (id === 'remoteImage') continue
+      const after = pick('Intro\n\n/que^', id)
       let undone = after
       undo({ state: after, dispatch: (tr) => (undone = tr.state) })
-      expect({ id, text: show(undone) }).toEqual({ id, text: 'Intro\n/que^' })
+      expect({ id, text: show(undone) }).toEqual({ id, text: 'Intro\n\n/que^' })
     }
-  })
-
-  it('keeps a list item under a paragraph a list item when the query goes', () => {
-    // Without the query `- ` under a paragraph would be a setext underline
-    // and `* ` paragraph text: a blank line above keeps the item apart.
-    const table = ['| ^    |     |', '| --- | --- |', '|     |     |'].join('\n')
-    for (const marker of ['-', '*', '+']) {
-      const marked = `para\n${marker} /^`
-      expect(show(pick(marked, 'insert.table'))).toBe(`para\n\n${table}`)
-      expect(show(pick(marked, 'format.horizontalRule'))).toBe('para\n\n---\n^')
-      expect(show(pick(marked, 'format.quote'))).toBe(`para\n\n> ${marker} ^`)
-      expect(show(pick(marked, 'format.numberedList'))).toBe('para\n\n1. ^')
-      expect(show(pick(marked, 'format.taskList'))).toBe(`para\n\n${marker} [ ] ^`)
-      // The code block goes inside the item, not the paragraph.
-      expect(show(pick(marked, 'format.codeBlock'))).toBe(
-        show(pick(`para\n\n${marker} /^`, 'format.codeBlock')),
-      )
-      expect(show(pick(marked, 'format.codeBlock'))).toBe(`para\n\n${marker} \`\`\`\n  ^\n  \`\`\``)
-      // Every block item does what it does to an item after a blank line.
-      expect(labels(marked)).toEqual(labels(`para\n\n${marker} /^`))
-      for (const id of SLASH_COMMANDS) {
-        const s = state(marked)
-        const trigger = slashTrigger(s)!
-        if (!slashSpecs(s, id, trigger.from, trigger.to)) continue
-        if (id === 'format.link' || id === 'insert.image' || id === 'insert.noteLink') continue
-        expect({ id, text: show(pick(marked, id)) }).toEqual({
-          id,
-          text: show(pick(`para\n\n${marker} /^`, id)),
-        })
-      }
-      // An inline insertion fills the item and needs no blank line.
-      expect(show(pick(marked, 'format.link'))).toBe(`para\n${marker} [^]()`)
-    }
-    expect(labels('para\n- /^')).toContain('Numbered List')
-    expect(labels('para\n- /^')).toContain('Task List')
-    expect(labels('para\n- /^')).not.toContain('Bulleted List')
-    // In a quote the blank line is the quote's.
-    const quoted = table
-      .split('\n')
-      .map((line) => `> ${line}`)
-      .join('\n')
-    expect(show(pick('> para\n> - /^', 'insert.table'))).toBe(`> para\n>\n${quoted}`)
-    // An item with other text, or in a list, stays as it is.
-    expect(show(pick('- a\n- /^', 'format.horizontalRule'))).toBe('- a\n\n---\n^')
-    expect(show(pick('para\n- a /^', 'format.horizontalRule'))).toBe('para\n- a \n\n---\n^')
   })
 
   it('takes out only the placeholder an inline command ran beside', () => {
-    // `See x`: the placeholder at 4 stands in for the query.
     const doc = Text.of(['See x'])
     const out = (changes: ChangeSet) => {
       const spec = placeholderOut(changes, 4, changes.apply(doc))
       return spec && ChangeSet.of(spec, changes.newLength).apply(changes.apply(doc)).toString()
     }
-    // Inserted before or around it, as links are: it goes, the insertion stays.
     expect(out(ChangeSet.of({ from: 4, insert: '[]()' }, doc.length))).toBe('See []()')
-    const noteLink = ChangeSet.of(
-      [
-        { from: 4, insert: '[[' },
-        { from: 4, insert: ']]' },
-      ],
-      doc.length,
-    )
-    expect(out(noteLink)).toBe('See [[]]')
-    // A command that rewrote the placeholder acted on it: nothing is taken out of its result.
     expect(out(ChangeSet.of({ from: 4, to: 5, insert: '[x]()' }, doc.length))).toBeNull()
   })
 
   it('does nothing when the slash is gone', () => {
     const s = state('Intro ^')
-    expect(slashSpecs(s, 'format.quote', 6, 6)).toBeNull()
+    expect(slashSpecs(s, 'blockquote', 6, 6)).toBeNull()
   })
 })
 
 describe('slashSource', () => {
-  const context = (marked: string, view?: Partial<EditorView>) => {
-    const s = state(marked)
-    return new CompletionContext(s, s.selection.main.head, false, view as EditorView | undefined)
-  }
+  const context = (s: EditorState, view?: Partial<EditorView>) =>
+    new CompletionContext(s, s.selection.main.head, false, view as EditorView | undefined)
 
-  it('offers the items from the slash, filtered by the menu itself', async () => {
-    const result = await slashSource(context('Intro /tab^'))
-    expect(result?.from).toBe(6)
+  it('offers the items in groups, with their hints', async () => {
+    const result = await slashSource(context(state('/^')))
     expect(result?.filter).toBe(false)
-    expect(result?.options[0]?.label).toBe('Table')
-  })
-
-  it('ranks again as the query is typed, without waiting for a new query', async () => {
-    const first = await slashSource(context('Intro /^'))
-    expect(first?.update).toBeTypeOf('function')
-    const typed = context('Intro /tab^')
-    const next = first!.update!(first!, 6, typed.pos, typed)
-    expect(next?.from).toBe(6)
-    expect(next?.options[0]?.label).toBe('Table')
-    // A query that matches nothing, or ends with a space, closes the list.
-    const none = context('Intro /zzz^')
-    expect(first!.update!(first!, 6, none.pos, none)).toBeNull()
-    const space = context('Intro /tab ^')
-    expect(first!.update!(first!, 6, space.pos, space)).toBeNull()
+    expect(result?.options).toHaveLength(19)
+    const sections = new Set(
+      result?.options.map((o) => (typeof o.section === 'object' ? o.section.name : o.section)),
+    )
+    expect([...sections]).toEqual(['Basic Formatting', 'Alerts', 'Other'])
+    expect(result?.options[1]?.detail).toBe('```')
   })
 
   it('stays closed while an input method composes text', async () => {
-    expect(await slashSource(context('/^', { composing: true }))).toBeNull()
-    expect(await slashSource(context('/^', { composing: false }))).not.toBeNull()
+    expect(await slashSource(context(state('/^'), { composing: true }))).toBeNull()
   })
 
-  it('stays closed where nothing matches', async () => {
-    expect(await slashSource(context('/zzz^'))).toBeNull()
-    expect(await slashSource(context('a/^'))).toBeNull()
+  it('stays closed for its slash once nothing matches, also after Backspace', () => {
+    let s = state('/h^')
+    expect(slashSource(context(s))).not.toBeNull()
+    s = s.update({ changes: { from: 2, insert: 'd' }, selection: { anchor: 3 } }).state
+    expect(slashSource(context(s))).toBeNull()
+    s = s.update({ changes: { from: 2, to: 3 }, selection: { anchor: 2 } }).state
+    expect(show(s)).toBe('/h^')
+    expect(slashSource(context(s))).toBeNull()
+    // A new slash opens it again.
+    s = s.update({ changes: { from: 0, to: 2, insert: '/' }, selection: { anchor: 1 } }).state
+    expect(slashSource(context(s))).not.toBeNull()
+  })
+
+  it('writes Remote Image as a snippet: `alt` selected, Tab goes to `url`', () => {
+    const s = state('/rem^')
+    const result = slashSource(context(s))!
+    const option = result.options.find((o) => o.label === 'Remote Image')!
+    const view = fakeView(s)
+    expect(typeof option.apply).toBe('function')
+    ;(option.apply as (v: unknown, c: unknown, from: number, to: number) => void)(
+      view,
+      option,
+      0,
+      4,
+    )
+    expect(show(view.state)).toBe('![«alt»](url)')
+    expect(nextSnippetField(view)).toBe(true)
+    expect(show(view.state)).toBe('![alt](«url»)')
   })
 })
 
@@ -377,11 +298,12 @@ describe('the menu at the end of a long note', () => {
     expect(ensureSyntaxTree(start, start.doc.length, 30_000)).not.toBeNull()
     let worst = 0
     let typed = start
-    for (const key of ['/', 'l', 'i']) {
+    for (const key of ['\n', '/', 'l', 'i']) {
       typed = typed.update({
         changes: { from: typed.doc.length, insert: key },
         selection: { anchor: typed.doc.length + 1 },
       }).state
+      if (key === '\n') continue
       const from = performance.now()
       const trigger = slashTrigger(typed)
       const items = trigger ? slashItems(typed, trigger) : []
@@ -407,26 +329,39 @@ describe('the menu at the end of a long note', () => {
     expectWithinBudget(context, typing(`${long(200_000)}${tail}`), 32)
   })
 
-  // Inline items run beside a placeholder, block items on the line with the
-  // query gone, so there are two; a list item that was only the query may need
-  // a third, with a blank line above it.
+  // The commands read the block the slash is in, not the note above it: the
+  // states they run on leave the rest out (a parse of it is most of the time).
   it.for([
-    ['in a paragraph', 'Intro /li^', 2],
-    ['in a list item', '- one\n- two /li^', 2],
-    ['in a list item that was only the query', 'Intro\n- /li^', 3],
-  ] as const)(
-    'makes one state with the query taken out per kind of item: %s',
-    ([, doc, states]) => {
-      const s = state(doc)
+    ['a bulleted item', '- item\n- ^'],
+    ['a task item', '- [x] done\n- ^'],
+    ['a quote', '> quoted\n> ^'],
+    ['an alert', '> [!NOTE]\n> ^'],
+    ['a table cell', '| a | b |\n| - | - |\n| ^ | c |'],
+    ['a code block', '```js\nconst a = 1\n^'],
+    ['a paragraph', 'text ^'],
+    ['an empty last line', 'text\n\n^'],
+  ])('lists the same items after a long note as alone: %s', ([, tail = '']) => {
+    const listed = (marked: string) => {
+      const s = state(marked.replace('^', '/li^'))
       const trigger = slashTrigger(s)
-      expect(trigger).not.toBeNull()
-      const update = vi.spyOn(EditorState.prototype, 'update')
-      try {
-        expect(slashItems(s, trigger!).length).toBeGreaterThan(0)
-        expect(update).toHaveBeenCalledTimes(states)
-      } finally {
-        update.mockRestore()
-      }
-    },
-  )
+      return trigger ? slashItems(s, trigger).map((item) => item.id) : null
+    }
+    expect(listed(`${long(20_000)}${tail}`)).toEqual(listed(tail))
+    expect(listed(`---\ntitle: a\n---\n\n${long(2_000)}${tail}`)).toEqual(listed(tail))
+  })
+
+  // Inline items run beside a placeholder, block items on the line with the
+  // query gone: two states with the query taken out, whatever the item count.
+  it('makes one state with the query taken out per kind of item', () => {
+    const s = state('Intro\n\n/li^')
+    const trigger = slashTrigger(s)
+    expect(trigger).not.toBeNull()
+    const update = vi.spyOn(EditorState.prototype, 'update')
+    try {
+      expect(slashItems(s, trigger!).length).toBeGreaterThan(0)
+      expect(update).toHaveBeenCalledTimes(2)
+    } finally {
+      update.mockRestore()
+    }
+  })
 })

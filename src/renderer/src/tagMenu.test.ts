@@ -56,10 +56,10 @@ async function shown(target: TagMenuTarget, pick: (a: TagAction) => void = () =>
 }
 
 describe('TAG_MENU', () => {
-  it('shows Rename, the Colour submenu, Filter by Tag, Copy Tag ID and Delete Tag', async () => {
+  it('shows Tag Settings, the Colour submenu, Filter by Tag, Copy Tag ID and Delete Tag', async () => {
     const { lines } = await shown({ id: 't', color: null, filtered: false })
     expect(lines).toEqual([
-      'Rename F2',
+      'Tag Settings\u2026',
       'Colour >',
       '  None [x]',
       '  Red [ ]',

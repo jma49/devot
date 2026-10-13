@@ -375,3 +375,51 @@ describe('a note from a template', () => {
     await expect(d.templates.draft('nope', CLOCK)).rejects.toThrow('E_TEMPLATE_NOT_FOUND')
   })
 })
+
+describe('starter templates', () => {
+  it('make a note without being stored, and cannot be written', async () => {
+    const d = device(freshPath())
+    const id = await d.templates.apply('starter:planning', CLOCK, null)
+    expect((await d.notes.read(id)).title).toBe('Planning')
+    expect((await d.notes.read(id)).bodyMd).not.toContain('!Instructions')
+    // Nothing is stored for the starter: the Templates notebook stays empty.
+    expect(await d.templates.list()).toEqual([])
+    await expect(d.notes.setBody('starter:planning', 'x')).rejects.toThrow('E_NOTE_NOT_FOUND')
+  })
+
+  it('save an edit as a copy of the user, and leave the starter as it was', async () => {
+    const d = device(freshPath())
+    const copy = await d.templates.save('starter:debugging', { body: 'Mine {{date}}' })
+    expect(copy.startsWith('starter:')).toBe(false)
+    expect((await d.templates.list()).map((n) => n.id)).toEqual([copy])
+    expect((await d.notes.read(copy)).title).toBe('Debugging')
+    expect((await d.notes.read(copy)).bodyMd).toBe('Mine {{date}}')
+    // A template of the user's own is written in place.
+    expect(await d.templates.save(copy, { body: 'Again' })).toBe(copy)
+    expect((await d.notes.read(copy)).bodyMd).toBe('Again')
+    await expect(d.templates.save('starter:nope', { body: 'x' })).rejects.toThrow(
+      'E_TEMPLATE_NOT_FOUND',
+    )
+  })
+})
+
+describe('applying a template to a note', () => {
+  it("keeps the note's tags and status and adds the template's", async () => {
+    const d = device(freshPath())
+    const t = await template(d, 'T', '---\ntags: [b]\nstatus: Active\n---\nFrom template\n')
+    const note = await d.notes.create('Mine', null)
+    await d.notes.setBody(note, 'Own text')
+    await d.notes.setStatus(note, 'completed')
+    await d.tags.addToNote(note, 'a')
+    await d.templates.applyTo(t, note, CLOCK)
+    await d.notes.flush()
+    const stored = (await d.storage.listNotes()).find((n) => n.id === note)
+    expect(stored?.status).toBe('completed')
+    const names = (await d.tags.list())
+      .filter((tag) => stored?.tagIds.includes(tag.id))
+      .map((tag) => tag.name)
+      .sort()
+    expect(names).toEqual(['a', 'b'])
+    expect((await d.notes.read(note)).bodyMd).toBe('Own text\n\nFrom template\n')
+  })
+})

@@ -7,13 +7,17 @@
 
 export type FontFamilyId = 'system' | 'mono' | 'menlo' | 'monaco' | 'courierNew'
 export type IndentUnitId = 'spaces2' | 'spaces4' | 'tab'
-export type ListMarker = '-' | '*'
+export type ListMarker = '-' | '*' | '+'
+/** The weight of the editor's text: the font's normal one or a CSS weight. */
+export type FontWeightId = 'normal' | '300' | '400' | '500' | '600' | '700'
 /**
  * What pasting a lone URL (nothing selected) inserts: the URL as copied, an
  * autolink (`<url>`) or a link with empty text (`[](url)`). A URL pasted
  * over selected text always makes that text a link.
  */
 export type PasteUrlStyle = 'plain' | 'autolink' | 'link'
+/** The appearance the windows show (Settings > Appearance): the system's, or always light or dark. */
+export type AppearanceChoice = 'system' | 'light' | 'dark'
 
 export interface EditorSettings {
   lineNumbers: boolean
@@ -38,11 +42,32 @@ export interface EditorSettings {
   syncScroll: boolean
   /** Images (attachments) show under their lines in the editor. */
   inlineImages: boolean
+  /** Light, Dark, or the system's appearance (the default). */
+  appearance: AppearanceChoice
+  /** The accent follows the macOS accent colour instead of Devot's palette. */
+  systemAccent: boolean
+  /** The selection toolbar shows over selected text. */
+  toolbar: boolean
+  /** The editor scrolls past the end of the note. */
+  scrollPastEnd: boolean
+  /** Pixels kept above and below the cursor when it nears the edge. */
+  cursorScrollMargin: number
+  fontWeight: FontWeightId
+  /** Spaces and tabs are drawn. */
+  showInvisibles: boolean
+  /** Spaces and tabs at the end of a line are tinted. */
+  highlightTrailingWhitespace: boolean
+  /** The preview's font size, in CSS pixels. */
+  previewFontSize: number
+  /** The notebook a new note goes to when the view has none (an ID), or none. */
+  defaultNotebook: string | null
 }
 
 /**
- * The editor as it was before these settings existed (with SF Mono), the
- * sidebar material on, synced scrolling on, and images shown under their lines.
+ * The editor's defaults (SF Mono), the sidebar material on, synced scrolling
+ * on, images shown under their lines, and the system's appearance with
+ * Devot's own accent. A default applies to a setting the user never set:
+ * Rust keeps only the values the user set.
  */
 export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   lineNumbers: false,
@@ -50,16 +75,26 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   readableWidth: false,
   fontSize: 13,
   fontFamily: 'mono',
-  lineHeight: 1.4,
+  lineHeight: 1.5,
   indentUnit: 'spaces2',
-  tabWidth: 4,
-  listMarker: '-',
-  spellCheck: false,
-  highlightActiveLine: true,
+  tabWidth: 2,
+  listMarker: '*',
+  spellCheck: true,
+  highlightActiveLine: false,
   sidebarMaterial: true,
-  pasteUrl: 'plain',
+  pasteUrl: 'link',
   syncScroll: true,
   inlineImages: true,
+  appearance: 'system',
+  systemAccent: false,
+  toolbar: true,
+  scrollPastEnd: true,
+  cursorScrollMargin: 0,
+  fontWeight: 'normal',
+  showInvisibles: false,
+  highlightTrailingWhitespace: false,
+  previewFontSize: 15,
+  defaultNotebook: null,
 })
 
 export const FONT_FAMILIES: readonly FontFamilyId[] = [
@@ -70,16 +105,20 @@ export const FONT_FAMILIES: readonly FontFamilyId[] = [
   'courierNew',
 ]
 export const INDENT_UNITS: readonly IndentUnitId[] = ['spaces2', 'spaces4', 'tab']
-export const LIST_MARKERS: readonly ListMarker[] = ['-', '*']
+export const LIST_MARKERS: readonly ListMarker[] = ['*', '-', '+']
+export const FONT_WEIGHTS: readonly FontWeightId[] = ['normal', '300', '400', '500', '600', '700']
 export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 'link']
+/** The appearances Settings offers, in its order. */
+export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
 export const FONT_SIZE_MIN = 10
 export const FONT_SIZE_MAX = 32
 const LINE_HEIGHT_MIN = 1
 const LINE_HEIGHT_MAX = 2.5
 const TAB_WIDTH_MIN = 1
 const TAB_WIDTH_MAX = 8
+export const CURSOR_SCROLL_MARGIN_MAX = 200
 /** The line heights the Settings window offers. */
-export const LINE_HEIGHTS: readonly number[] = [1.2, 1.4, 1.6, 1.8, 2]
+export const LINE_HEIGHTS: readonly number[] = [1.2, 1.4, 1.5, 1.6, 1.8, 2]
 /** The tab widths the Settings window offers. */
 export const TAB_WIDTHS: readonly number[] = [2, 4, 8]
 
@@ -92,6 +131,9 @@ const oneOf =
   (v: unknown) =>
     list.includes(v as T)
 const isFlag = (v: unknown) => typeof v === 'boolean'
+/** A notebook ID: letters, digits, `-` and `_`, up to 64 of them. */
+const isNotebookId = (v: unknown) =>
+  v === null || (typeof v === 'string' && /^[\w-]{1,64}$/.test(v))
 
 /** What each setting accepts. */
 const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } = {
@@ -111,6 +153,16 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   pasteUrl: oneOf(PASTE_URL_STYLES),
   syncScroll: isFlag,
   inlineImages: isFlag,
+  appearance: oneOf(APPEARANCES),
+  systemAccent: isFlag,
+  toolbar: isFlag,
+  scrollPastEnd: isFlag,
+  cursorScrollMargin: wholeIn(0, CURSOR_SCROLL_MARGIN_MAX),
+  fontWeight: oneOf(FONT_WEIGHTS),
+  showInvisibles: isFlag,
+  highlightTrailingWhitespace: isFlag,
+  previewFontSize: wholeIn(FONT_SIZE_MIN, FONT_SIZE_MAX),
+  defaultNotebook: isNotebookId,
 }
 
 const KEYS = Object.keys(VALID) as (keyof EditorSettings)[]

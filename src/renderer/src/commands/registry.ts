@@ -82,28 +82,27 @@ export const COMMANDS = [
     label: 'command.palette',
     group: 'app',
     scope: 'window',
-    keys: ['Mod+P'],
-    palette: false,
-  },
-  {
-    id: 'palette.openOutsideEditor',
-    label: 'command.paletteOutsideEditor',
-    group: 'app',
-    scope: 'outsideEditor',
     keys: ['Mod+K'],
     palette: false,
   },
   { id: 'note.new', label: 'noteList.newNote', group: 'note', scope: 'window', keys: ['Mod+N'] },
-  // Moving between notes, from anywhere (the editor too: its own indent keys
-  // moved to Tab and Shift+Tab). Back and Forward follow the notes this
-  // window opened; Next and Previous follow the note list.
-  { id: 'note.back', label: 'command.back', group: 'note', scope: 'window', keys: ['Mod+['] },
+  // Moving between notes. Back and Forward follow the notes this window
+  // opened; Next and Previous follow the note list. In the editor Cmd+[ and
+  // Cmd+] outdent and indent, so Back and Forward work outside it; the arrow
+  // keys also work only while no text field has the focus (see dispatch.ts).
+  {
+    id: 'note.back',
+    label: 'command.back',
+    group: 'note',
+    scope: 'outsideEditor',
+    keys: ['Mod+[', 'Mod+ArrowLeft'],
+  },
   {
     id: 'note.forward',
     label: 'command.forward',
     group: 'note',
-    scope: 'window',
-    keys: ['Mod+]'],
+    scope: 'outsideEditor',
+    keys: ['Mod+]', 'Mod+ArrowRight'],
   },
   {
     id: 'note.next',
@@ -152,6 +151,15 @@ export const COMMANDS = [
   },
   // The open note; the keys work in the note list.
   { id: 'note.move', label: 'noteMenu.move', group: 'note', scope: 'noteList', keys: ['M'] },
+  // The same from anywhere, the editor too (the list's own key is a plain M).
+  {
+    id: 'note.moveAnywhere',
+    label: 'noteMenu.move',
+    group: 'note',
+    scope: 'window',
+    keys: ['Mod+Ctrl+M'],
+    palette: false,
+  },
   {
     id: 'note.duplicate',
     label: 'noteMenu.duplicate',
@@ -347,6 +355,22 @@ export const COMMANDS = [
     palette: false,
   },
   {
+    id: 'notebook.copyId',
+    label: 'bookMenu.copyId',
+    group: 'notebook',
+    scope: 'notebookRow',
+    keys: [],
+    palette: false,
+  },
+  {
+    id: 'notebook.move',
+    label: 'bookMenu.move',
+    group: 'notebook',
+    scope: 'notebookRow',
+    keys: [],
+    palette: false,
+  },
+  {
     id: 'notebook.rename',
     label: 'bookMenu.rename',
     group: 'notebook',
@@ -420,6 +444,14 @@ export const COMMANDS = [
     palette: false,
   },
   {
+    id: 'tag.settings',
+    label: 'tagMenu.settings',
+    group: 'tag',
+    scope: 'tagRow',
+    keys: [],
+    palette: false,
+  },
+  {
     id: 'tag.filter',
     label: 'tagMenu.filter',
     group: 'tag',
@@ -472,7 +504,7 @@ export const COMMANDS = [
     label: 'command.modeSplit',
     group: 'view',
     scope: 'window',
-    keys: ['Mod+Shift+E'],
+    keys: ['Mod+P'],
   },
   { id: 'view.preview', label: 'command.modePreview', group: 'view', scope: 'window', keys: [] },
   // Split mode: the editor and the preview scroll together (an editor
@@ -531,7 +563,7 @@ export const COMMANDS = [
     keys: ['Ctrl+Shift+Tab'],
     palette: false,
   },
-  // The editor's font size (Settings > Editor), in every window that shows
+  // The editor's font size (Settings > Editing), in every window that shows
   // notes. Cmd+= with or without Shift, as Cmd++ is typed.
   {
     id: 'view.fontBigger',
@@ -635,28 +667,28 @@ export const COMMANDS = [
     label: 'command.heading1',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Alt+1'],
+    keys: ['Mod+1'],
   },
   {
     id: 'format.heading2',
     label: 'command.heading2',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Alt+2'],
+    keys: ['Mod+2'],
   },
   {
     id: 'format.heading3',
     label: 'command.heading3',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Alt+3'],
+    keys: ['Mod+3'],
   },
   {
     id: 'format.heading4',
     label: 'command.heading4',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Alt+4'],
+    keys: ['Mod+4'],
   },
   {
     id: 'format.heading5',
@@ -685,16 +717,22 @@ export const COMMANDS = [
     label: 'format.strikethrough',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Shift+X'],
+    keys: ['Mod+U'],
   },
   {
     id: 'format.highlight',
     label: 'format.highlight',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Shift+H'],
+    keys: [],
   },
-  { id: 'format.link', label: 'format.link', group: 'format', scope: 'editor', keys: ['Mod+K'] },
+  {
+    id: 'format.link',
+    label: 'format.link',
+    group: 'format',
+    scope: 'editor',
+    keys: ['Mod+Alt+K'],
+  },
   {
     id: 'format.code',
     label: 'format.code',
@@ -716,36 +754,35 @@ export const COMMANDS = [
     label: 'format.bulletList',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Shift+8'],
+    keys: ['Mod+Shift+L'],
   },
   {
     id: 'format.numberedList',
     label: 'format.numberedList',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Shift+7'],
+    keys: ['Mod+Shift+O'],
   },
   {
     id: 'format.taskList',
     label: 'format.taskList',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Shift+9'],
+    keys: ['Mod+Shift+T'],
   },
   {
     id: 'format.quote',
     label: 'format.quote',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Shift+.'],
+    keys: ["Mod+'"],
   },
-  // Shift+Cmd+H, the usual key for a rule, is Highlight; `-` draws one.
   {
     id: 'format.horizontalRule',
     label: 'format.horizontalRule',
     group: 'format',
     scope: 'editor',
-    keys: ['Mod+Shift+-'],
+    keys: ['Mod+Shift+H'],
   },
   // Alerts have no keys: the toolbar's Alert pop-up and the palette pick them.
   {
@@ -872,14 +909,14 @@ export const COMMANDS = [
     label: 'command.tableMoveRowUp',
     group: 'table',
     scope: 'editor',
-    keys: ['Alt+ArrowUp'],
+    keys: ['Mod+Alt+Shift+ArrowUp'],
   },
   {
     id: 'table.moveRowDown',
     label: 'command.tableMoveRowDown',
     group: 'table',
     scope: 'editor',
-    keys: ['Alt+ArrowDown'],
+    keys: ['Mod+Alt+Shift+ArrowDown'],
   },
   {
     id: 'table.insertColumnLeft',
@@ -921,28 +958,28 @@ export const COMMANDS = [
     label: 'command.tableAlignLeft',
     group: 'table',
     scope: 'editor',
-    keys: [],
+    keys: ['Mod+Alt+ArrowLeft'],
   },
   {
     id: 'table.alignCenter',
     label: 'command.tableAlignCenter',
     group: 'table',
     scope: 'editor',
-    keys: [],
+    keys: ['Mod+Alt+ArrowUp'],
   },
   {
     id: 'table.alignRight',
     label: 'command.tableAlignRight',
     group: 'table',
     scope: 'editor',
-    keys: [],
+    keys: ['Mod+Alt+ArrowRight'],
   },
   {
     id: 'table.alignNone',
     label: 'command.tableAlignNone',
     group: 'table',
     scope: 'editor',
-    keys: [],
+    keys: ['Mod+Alt+ArrowDown'],
   },
   {
     id: 'table.format',
@@ -988,6 +1025,151 @@ export const COMMANDS = [
     keys: [],
   },
   // The app.
+  // Keys added with the editing keys (kept together): the note list and the
+  // sidebar rows from anywhere, and the editor's line commands (see
+  // editor/lineCommands.ts). Return continues list and quote markup; Shift+Return
+  // starts a plain line.
+  {
+    id: 'view.focusNoteList',
+    label: 'command.focusNoteList',
+    group: 'view',
+    scope: 'window',
+    keys: ['Mod+Ctrl+L'],
+  },
+  {
+    id: 'view.nextSidebarRow',
+    label: 'command.nextSidebarRow',
+    group: 'view',
+    scope: 'window',
+    keys: ['Mod+Shift+J'],
+  },
+  {
+    id: 'view.previousSidebarRow',
+    label: 'command.previousSidebarRow',
+    group: 'view',
+    scope: 'window',
+    keys: ['Mod+Shift+K'],
+  },
+  {
+    id: 'edit.plainNewline',
+    label: 'command.plainNewline',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Shift+Enter'],
+    palette: false,
+  },
+  {
+    id: 'edit.lineBelow',
+    label: 'command.lineBelow',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+Enter'],
+  },
+  {
+    id: 'edit.lineAbove',
+    label: 'command.lineAbove',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+Shift+Enter'],
+  },
+  {
+    id: 'edit.deleteLine',
+    label: 'command.deleteLine',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+D'],
+  },
+  {
+    id: 'edit.selectLine',
+    label: 'command.selectLine',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+L'],
+  },
+  {
+    id: 'edit.moveLineUp',
+    label: 'command.moveLineUp',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Alt+ArrowUp'],
+  },
+  {
+    id: 'edit.moveLineDown',
+    label: 'command.moveLineDown',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Alt+ArrowDown'],
+  },
+  {
+    id: 'edit.copyLineUp',
+    label: 'command.copyLineUp',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Alt+Shift+ArrowUp'],
+  },
+  {
+    id: 'edit.copyLineDown',
+    label: 'command.copyLineDown',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Alt+Shift+ArrowDown'],
+  },
+  {
+    id: 'edit.outdent',
+    label: 'command.outdent',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+['],
+  },
+  {
+    id: 'edit.indent',
+    label: 'command.indent',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+]'],
+  },
+  {
+    id: 'edit.openLink',
+    label: 'command.openLink',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Ctrl+Shift+O'],
+  },
+  {
+    id: 'edit.sortLines',
+    label: 'command.sortLines',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['F5'],
+  },
+  {
+    id: 'edit.sortLinesReverse',
+    label: 'command.sortLinesReverse',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Shift+F5'],
+  },
+  {
+    id: 'edit.sortLinesCase',
+    label: 'command.sortLinesCase',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Ctrl+F5'],
+  },
+  {
+    id: 'edit.sortLinesCaseReverse',
+    label: 'command.sortLinesCaseReverse',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Ctrl+Shift+F5'],
+  },
+  {
+    id: 'edit.joinLines',
+    label: 'command.joinLines',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Ctrl+J'],
+  },
   { id: 'app.backups', label: 'command.backups', group: 'app', scope: 'window', keys: [] },
   // The Markdown mirror (mirror.ts): choose its folder, or turn it off.
   {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyAccent, selectionTint, type StyleTarget } from './accent'
+import { applyAccent, selectionTint, selectionTints, type StyleTarget } from './accent'
 import { parseColor, toHex } from './contrast'
 import { dark, light } from './tokens'
 
@@ -22,11 +22,13 @@ describe('system accent', () => {
       '--system-accent-fill-dark',
       '--system-accent-fill-light',
       '--system-accent-selection-dark',
+      '--system-accent-selection-inactive-dark',
+      '--system-accent-selection-inactive-light',
       '--system-accent-selection-light',
       '--system-accent-text-dark',
       '--system-accent-text-light',
     ])
-    for (const role of ['fill', 'text', 'selection'])
+    for (const role of ['fill', 'text', 'selection', 'selection-inactive'])
       for (const appearance of ['light', 'dark'])
         expect(props.get(`--system-accent-${role}-${appearance}`)).toMatch(/^#[0-9a-f]{6}$/)
   })
@@ -42,15 +44,17 @@ describe('system accent', () => {
     }
   })
 
-  it('gives the teal token the tint the runtime gives the teal fill', () => {
+  it('tints the default selection from the caret colour, as the runtime tints a fill', () => {
     for (const appearance of ['light', 'dark'] as const) {
       const theme = THEMES[appearance]
-      const fill = parseColor(theme['color.accent.fill']!).rgb
-      expect(theme['color.accent.selection']).toBe(toHex(selectionTint(fill, appearance)))
+      const caret = parseColor(theme['color.editor.caret']!).rgb
+      const { focused, inactive } = selectionTints(caret, appearance)
+      expect(theme['color.accent.selection']).toBe(toHex(focused))
+      expect(theme['color.accent.selection-inactive']).toBe(toHex(inactive))
     }
   })
 
-  it('removes the overrides for Multicolor so the teal tokens apply', () => {
+  it('removes the overrides for Multicolor so the default tokens apply', () => {
     const { style, props } = fakeStyle()
     applyAccent({ multicolor: false, light: '#007aff', dark: '#0a84ff' }, style)
     applyAccent({ multicolor: true, light: null, dark: null }, style)

@@ -1,7 +1,7 @@
 import { getIndentUnit } from '@codemirror/language'
 import {
   cursorCharLeft,
-  deleteLine,
+  moveLineUp,
   indentLess,
   indentMore,
   insertBlankLine,
@@ -28,6 +28,7 @@ import { COMMANDS, setCommandKeys } from '../commands/registry'
 import { listBullet } from './blocks'
 import { inlineImageField } from './images'
 import { pasteUrlStyle } from './paste'
+import { toolbarOff } from './toolbarState'
 import { codeMirrorKey, editorSetup, reconfigureSetup } from './settings'
 
 const make = (settings: EditorSettings) =>
@@ -45,25 +46,71 @@ describe('editor setup from the settings', () => {
       ...DEFAULT_EDITOR_SETTINGS,
       indentUnit: 'tab',
       tabWidth: 8,
-      listMarker: '*',
-      spellCheck: true,
+      listMarker: '+',
+      spellCheck: false,
     })
     expect(state.facet(EditorState.tabSize)).toBe(8)
     expect(getIndentUnit(state)).toBe(8)
-    expect(state.facet(listBullet)).toBe('*')
-    expect(attrs(state)).toMatchObject({ spellcheck: 'true' })
+    expect(state.facet(listBullet)).toBe('+')
+    expect(attrs(state)).not.toHaveProperty('spellcheck')
 
     const plain = make(DEFAULT_EDITOR_SETTINGS)
-    expect(plain.facet(EditorState.tabSize)).toBe(4)
+    expect(plain.facet(EditorState.tabSize)).toBe(2)
     expect(getIndentUnit(plain)).toBe(2)
-    expect(plain.facet(listBullet)).toBe('-')
-    expect(attrs(plain)).not.toHaveProperty('spellcheck')
+    expect(plain.facet(listBullet)).toBe('*')
+    expect(attrs(plain)).toMatchObject({ spellcheck: 'true' })
+  })
+
+  it('maps each new flag to its extension', () => {
+    const on = make(DEFAULT_EDITOR_SETTINGS)
+    expect(on.facet(toolbarOff)).toBe(false)
+    expect(make({ ...DEFAULT_EDITOR_SETTINGS, toolbar: false }).facet(toolbarOff)).toBe(true)
+    // Scroll past end is on by default and pads under the last line.
+    const css = (state: EditorState) =>
+      JSON.stringify(state.facet(EditorView.styleModule).map((m) => Object.values(m)))
+    expect(css(on)).toContain('50vh')
+    expect(css(make({ ...DEFAULT_EDITOR_SETTINGS, scrollPastEnd: false }))).not.toContain('50vh')
+    // The cursor scroll margin is a scroll margin on both edges, none at 0.
+    const margins = (state: EditorState) =>
+      state.facet(EditorView.scrollMargins).map((f) => f({} as EditorView))
+    expect(margins(on)).toEqual([])
+    expect(margins(make({ ...DEFAULT_EDITOR_SETTINGS, cursorScrollMargin: 40 }))).toEqual([
+      { top: 40, bottom: 40 },
+    ])
+    // Drawn whitespace and tinted trailing whitespace are decorations of their own.
+    const decorated = (settings: EditorSettings) =>
+      make(settings).facet(EditorView.decorations).length
+    const base = decorated(DEFAULT_EDITOR_SETTINGS)
+    expect(decorated({ ...DEFAULT_EDITOR_SETTINGS, showInvisibles: true })).toBe(base + 1)
+    expect(decorated({ ...DEFAULT_EDITOR_SETTINGS, highlightTrailingWhitespace: true })).toBe(
+      base + 1,
+    )
+    // Each flag reconfigures only its own part.
+    for (const key of [
+      'toolbar',
+      'scrollPastEnd',
+      'showInvisibles',
+      'highlightTrailingWhitespace',
+    ] as const) {
+      expect(
+        reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
+          ...DEFAULT_EDITOR_SETTINGS,
+          [key]: !DEFAULT_EDITOR_SETTINGS[key],
+        }),
+      ).toHaveLength(1)
+    }
+    expect(
+      reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
+        ...DEFAULT_EDITOR_SETTINGS,
+        cursorScrollMargin: 8,
+      }),
+    ).toHaveLength(1)
   })
 
   it('gives the editor the way a lone URL is pasted', () => {
-    expect(make(DEFAULT_EDITOR_SETTINGS).facet(pasteUrlStyle)).toBe('plain')
-    const link = make({ ...DEFAULT_EDITOR_SETTINGS, pasteUrl: 'link' })
-    expect(link.facet(pasteUrlStyle)).toBe('link')
+    expect(make(DEFAULT_EDITOR_SETTINGS).facet(pasteUrlStyle)).toBe('link')
+    const plain = make({ ...DEFAULT_EDITOR_SETTINGS, pasteUrl: 'plain' })
+    expect(plain.facet(pasteUrlStyle)).toBe('plain')
     const effects = reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
       ...DEFAULT_EDITOR_SETTINGS,
       pasteUrl: 'autolink',
@@ -92,22 +139,22 @@ describe('editor setup from the settings', () => {
     const to: EditorSettings = {
       ...DEFAULT_EDITOR_SETTINGS,
       indentUnit: 'spaces4',
-      listMarker: '*',
-      spellCheck: true,
+      listMarker: '-',
+      spellCheck: false,
     }
     const effects = reconfigureSetup(DEFAULT_EDITOR_SETTINGS, to)
     expect(effects).toHaveLength(3)
     const after = before.update({ effects }).state
     expect(getIndentUnit(after)).toBe(4)
-    expect(after.facet(listBullet)).toBe('*')
-    expect(attrs(after)).toMatchObject({ spellcheck: 'true' })
+    expect(after.facet(listBullet)).toBe('-')
+    expect(attrs(after)).not.toHaveProperty('spellcheck')
     expect(after.doc.toString()).toBe('a')
     expect(after.selection.main.head).toBe(1)
     // The gutter follows both line numbers and the current-line highlight.
     expect(
       reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
         ...DEFAULT_EDITOR_SETTINGS,
-        highlightActiveLine: false,
+        highlightActiveLine: true,
       }),
     ).toHaveLength(2)
   })
@@ -116,12 +163,12 @@ describe('editor setup from the settings', () => {
 describe('the editor keymap', () => {
   const bindings = () => make(DEFAULT_EDITOR_SETTINGS).facet(keymap).flat()
 
-  it('leaves every window key to the window, such as Back, Forward and the sidebar', () => {
+  it('leaves every window key to the window, such as the palette, the sidebar and the next note', () => {
     const keys = bindings().flatMap((b) => [b.key, b.mac])
     const window = COMMANDS.flatMap((c) =>
       c.scope === 'window' ? c.keys.map(shortcutCodeMirror) : [],
     )
-    expect(window).toEqual(expect.arrayContaining(['Mod-[', 'Mod-]', 'Shift-Mod-]', 'Mod-/']))
+    expect(window).toEqual(expect.arrayContaining(['Mod-k', 'Mod-p', 'Shift-Mod-]', 'Mod-/']))
     expect(keys.filter((key) => key !== undefined && window.includes(key))).toEqual([])
   })
 
@@ -146,9 +193,9 @@ describe('CodeMirror bindings under keys the user set', () => {
 
   it('gives an editor command a key CodeMirror binds, such as Paste as Plain Text', () => {
     const before = withKeys({})
-    for (const command of [deleteLine, selectNextOccurrence, insertBlankLine])
+    for (const command of [moveLineUp, selectNextOccurrence, insertBlankLine])
       expect(runs(before, command)).toBe(true)
-    expect(runs(withKeys({ 'edit.pastePlain': [`${mod}+Shift+K`] }), deleteLine)).toBe(false)
+    expect(runs(withKeys({ 'edit.pastePlain': ['Alt+ArrowUp'] }), moveLineUp)).toBe(false)
     expect(runs(withKeys({ 'edit.pastePlain': [`${mod}+D`] }), selectNextOccurrence)).toBe(false)
     expect(runs(withKeys({ 'edit.pastePlain': [`${mod}+Enter`] }), insertBlankLine)).toBe(false)
   })
@@ -176,19 +223,17 @@ describe('CodeMirror bindings under keys the user set', () => {
   it('compares keys however CodeMirror spells them', () => {
     // Cmd-Alt-[ (fold, on macOS), Mod-Shift-l, Mod-Shift-u (macOS) and Ctrl-A
     // (Control+Shift+A, on macOS) are the same keys as these window keys.
-    expect(runs(withKeys({ 'note.forward': [`${mod}+Shift+L`] }), selectSelectionMatches)).toBe(
-      false,
-    )
+    expect(runs(withKeys({ 'note.next': [`${mod}+Shift+L`] }), selectSelectionMatches)).toBe(false)
     if (!mac) return
-    expect(runs(withKeys({ 'note.back': ['Mod+Alt+['] }), foldCode)).toBe(false)
-    expect(runs(withKeys({ 'note.back': ['Mod+Shift+U'] }), redoSelection)).toBe(false)
-    expect(runs(withKeys({ 'note.back': ['Ctrl+Shift+A'] }), toggleBlockComment)).toBe(false)
+    expect(runs(withKeys({ 'note.next': ['Mod+Alt+['] }), foldCode)).toBe(false)
+    expect(runs(withKeys({ 'note.next': ['Mod+Shift+U'] }), redoSelection)).toBe(false)
+    expect(runs(withKeys({ 'note.next': ['Ctrl+Shift+A'] }), toggleBlockComment)).toBe(false)
   })
 
   it('takes only the Shift variant of a binding when only that key is in use', () => {
     if (!mac) return
     // Control+B moves the cursor on macOS; Control+Shift+B selects.
-    const bindings = withKeys({ 'note.back': ['Ctrl+Shift+B'] })
+    const bindings = withKeys({ 'note.next': ['Ctrl+Shift+B'] })
     const ctrlB = bindings.filter((b) => b.run === cursorCharLeft && b.mac === 'Ctrl-b')
     expect(ctrlB).toHaveLength(1)
     expect(ctrlB[0]?.shift).toBeUndefined()

@@ -6,10 +6,11 @@ import { resolveLocale, setLocale } from './i18n'
 import { watchCompositions } from './ime'
 import { startCrashReporting } from './crash'
 import { forwardConsole, forwardUncaught, type LogEntry } from './log'
-import { startEditorSettings } from './editorSettings'
+import { editorSettings, startEditorSettings, subscribeEditorSettings } from './editorSettings'
 import { startShortcutSettings } from './commands/shortcutSettings'
 import { startSidebarMaterial } from './sidebarMaterial'
 import { followSystemAccent } from './theme/accent'
+import { startAppearance } from './theme/appearance'
 import './theme/tokens.css'
 import './app.css'
 import './preview/content.css'
@@ -33,8 +34,11 @@ watchCompositions(window)
 startEditorSettings()
 startShortcutSettings()
 startSidebarMaterial()
+startAppearance()
 if (!DEVOT_UI_TEST) {
-  void followSystemAccent(document.documentElement.style)
+  void followSystemAccent(document.documentElement.style, () => editorSettings().systemAccent)
+    .then((refresh) => subscribeEditorSettings(refresh))
+    .catch(() => console.warn('W_SYSTEM_ACCENT_FAILED'))
 }
 
 const root = document.getElementById('root')

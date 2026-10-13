@@ -10,7 +10,8 @@ import {
 } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
-const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
+const noteRow = (page: Page, title: string) =>
+  noteRows(page).filter({ has: page.locator('.row-title, .row-headline', { hasText: title }) })
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const picker = (page: Page) => page.getByRole('dialog', { name: 'Move to Notebook' })
@@ -318,13 +319,12 @@ test('Cmd+Delete moves the selected note to the trash', async ({ page }) => {
 
 test('shortcuts do nothing while the editor or a text field has focus', async ({ page }) => {
   await createNote(page, 'Typing', 'mp')
-  // The editor: keys type, Cmd+D and Cmd+C stay the editor's.
+  // The editor: keys type, and Cmd+C stays the editor's (Cmd+D and
+  // Shift+Cmd+C are editor commands there: Delete Line and Code Block).
   await body(page).click()
   await page.keyboard.press('KeyM')
   await page.keyboard.press('KeyP')
-  await page.keyboard.press('Meta+KeyD')
   await page.keyboard.press('Meta+KeyC')
-  await page.keyboard.press('Meta+Shift+KeyC')
   await expect(body(page)).toContainText('mpmp')
   // The title and the search field.
   await titleField(page).click()

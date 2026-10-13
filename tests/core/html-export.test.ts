@@ -20,6 +20,8 @@ const labels: PreviewLabels = {
   embedFrom: 'Embedded content from {origin}',
   embedLoad: 'Load',
   videoTitle: 'Embedded video',
+  untitled: 'Untitled',
+  missingNote: 'Note not found',
 }
 
 const NONCE = '0123456789abcdef0123456789abcdef'
@@ -79,7 +81,10 @@ describe('HTML pages', () => {
   it('keeps the preview markup with its classes, without the attributes it uses itself', async () => {
     const { html } = await page()
     expect(html).toContain('<h1>Plan</h1>')
-    expect(html).toContain('<div class="alert alert-warning"><p class="alert-title">Warning</p>')
+    expect(html).toContain(
+      '<div class="alert alert-warning"><p class="alert-title"><svg class="glyph alert-icon"',
+    )
+    expect(html).toContain('</svg>Warning</p>')
     expect(html).toContain(
       '<dl class="frontmatter"><div class="frontmatter-row"><dt>tags</dt><dd><span class="frontmatter-chip">work</span></dd></div></dl>',
     )
@@ -196,7 +201,8 @@ describe('HTML pages', () => {
       ".a{content:'&lt;/style&gt;&lt;img src=x onerror=alert(1)&gt;'} .b{} &lt;/STYLE &gt;"
     const svg = `<svg xmlns="http://www.w3.org/2000/svg"><style>${css}</style><rect class="a"/></svg>`
     const { html } = await page({ island: () => svg })
-    const drawing = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'))
+    const island = html.indexOf('<div class="island')
+    const drawing = html.slice(html.indexOf('<svg', island), html.indexOf('</svg>', island))
     expect(drawing).not.toMatch(/<img/i)
     expect(drawing.match(/<\/style/gi)).toHaveLength(1)
     // The CSS still means the same: `\3c ` is `<` in CSS.

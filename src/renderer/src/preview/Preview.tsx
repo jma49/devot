@@ -1,6 +1,8 @@
 import { invoke } from '../ipc'
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
-import type { PreviewLabels } from '../../../core'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import type { NoteLinkTarget, PreviewLabels } from '../../../core'
+import { noteLinks } from '../../../core/links'
+import { taskProgress } from '../../../core/tasks'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
 import type { MenuPoint } from '../contextMenu'
 import { imageMenuHasItems, type ImageMenuTarget } from '../imageMenu'
@@ -16,6 +18,8 @@ import { createIslandMounter, createIslandRegistry } from './islands'
 import { CodeCopyButtons, codeBlocks } from './CodeCopy'
 import { latestOnly } from './latest'
 import { mermaidIsland } from './mermaid'
+import { NoteInfo } from './NoteInfo'
+import type { NoteInfoData } from './infoCard'
 import { previewScrollPane, type PreviewScrollPane, type ScrollPane } from './scrollSync'
 
 const NOTE_LINK = /^devot:\/\/note\/([0-9a-f-]{36})$/
@@ -36,6 +40,8 @@ export function previewLabels(): PreviewLabels {
     embedFrom: t('embed.from'),
     embedLoad: t('embed.load'),
     videoTitle: t('embed.videoTitle'),
+    untitled: t('note.untitled'),
+    missingNote: t('preview.missingNote'),
   }
 }
 
@@ -47,6 +53,8 @@ interface RenderInput {
 interface Props {
   core: Core
   markdown: string
+  /** The note's info card over the content; none without it. */
+  info?: NoteInfoData | undefined
   onOpenNote: (id: string) => void
   /** Gets the preview's find handle while it is shown, and null when it goes. */
   onFind?: (target: FindTarget | null) => void
@@ -115,6 +123,7 @@ export function LivePreview({ text, ...props }: Omit<Props, 'markdown'> & { text
 export function Preview({
   core,
   markdown,
+  info,
   onOpenNote,
   onFind,
   onScrollPane,
@@ -124,7 +133,10 @@ export function Preview({
   onScroll,
   onToggleTask,
 }: Props) {
-  const host = useRef<HTMLElement>(null)
+  /** The scrolling preview: the info card, then the note's content. */
+  const pane = useRef<HTMLElement>(null)
+  /** The note's rendered content, patched from the core's tree. */
+  const host = useRef<HTMLDivElement>(null)
   const [loadedEmbeds, setLoadedEmbeds] = useState<string[]>([])
   const appearance = useAppearance()
   const appearanceNow = useRef(appearance)
@@ -140,7 +152,9 @@ export function Preview({
   const scrollHandle = useRef(onScrollPane)
   const scrollAsked = useRef(initialScroll)
   const scrolled = useRef(onScroll)
+  const noteNow = useRef(info?.noteId)
   useEffect(() => {
+    noteNow.current = info?.noteId
     findHandle.current = onFind
     scrollHandle.current = onScrollPane
     scrollAsked.current = initialScroll
@@ -157,7 +171,7 @@ export function Preview({
   }, [])
   const keepRestoring = useCallback(() => {
     const target = scrollTarget.current
-    const el = host.current
+    const el = pane.current
     if (!target || !el) return
     if (performance.now() > target.until) return stopRestoring()
     el.scrollTop = target.top
@@ -167,16 +181,16 @@ export function Preview({
   useEffect(() => () => scrollTarget.current?.sizes.disconnect(), [])
 
   useEffect(() => {
-    if (!host.current) return
-    const target = previewFindTarget(host.current)
+    if (!pane.current) return
+    const target = previewFindTarget(pane.current)
     findHandle.current?.(target)
-    const pane = previewScrollPane(host.current)
-    scroll.current = pane
-    scrollHandle.current?.(pane)
+    const scrolling = previewScrollPane(pane.current)
+    scroll.current = scrolling
+    scrollHandle.current?.(scrolling)
     return () => {
       target.clear()
       findHandle.current?.(null)
-      pane.dispose()
+      scrolling.dispose()
       scroll.current = null
       scrollHandle.current?.(null)
     }
@@ -185,13 +199,34 @@ export function Preview({
   useEffect(() => {
     // A diagram drawn after the rendering moves the blocks below it.
     const islandRendered = () => scroll.current?.changed()
+    // What the note links to, for its chips: asked again only when another
+    // note opens or the set of linked notes changes.
+    let known: { key: string; targets: Promise<Record<string, NoteLinkTarget>> } | undefined
+    const targetsFor = (text: string) => {
+      const ids = noteLinks(text)
+      if (ids.length === 0) return Promise.resolve({})
+      const key = `${noteNow.current ?? ''} ${ids.join(' ')}`
+      if (known?.key !== key) {
+        const targets = core.linkTargets(ids).catch(() => {
+          console.warn('W_LINK_TARGETS_FAILED')
+          known = undefined
+          return undefined
+        })
+        known = { key, targets: targets.then((found) => found ?? {}) }
+        return targets
+      }
+      return known.targets
+    }
     render.current = latestOnly(
       (input: RenderInput) =>
-        core
-          .renderPreview(input.markdown, {
-            labels: previewLabels(),
-            loadedEmbeds: input.loadedEmbeds,
-          })
+        targetsFor(input.markdown)
+          .then((targets) =>
+            core.renderPreview(input.markdown, {
+              labels: previewLabels(),
+              loadedEmbeds: input.loadedEmbeds,
+              ...(targets ? { noteLinks: targets } : {}),
+            }),
+          )
           .then((tree) => ({ tree, lines: lineCount(input.markdown), markdown: input.markdown })),
       ({ tree, lines, markdown: from }) => {
         if (!host.current) return
@@ -226,6 +261,8 @@ export function Preview({
 
   useEffect(() => render.current?.({ markdown, loadedEmbeds }), [markdown, loadedEmbeds])
 
+  const tasks = useMemo(() => taskProgress(markdown), [markdown])
+
   const onClick = (event: MouseEvent) => {
     const target = event.target as Element
     const box = target.closest('input[data-task-at]')
@@ -248,7 +285,7 @@ export function Preview({
     const href = link.getAttribute('href') ?? ''
     if (href.startsWith('#')) {
       const id = decodeURIComponent(href.slice(1))
-      host.current
+      pane.current
         ?.querySelector(`[id="${CSS.escape(id)}"], [id="${CSS.escape(`user-content-${id}`)}"]`)
         ?.scrollIntoView({ block: 'start' })
       return
@@ -283,7 +320,7 @@ export function Preview({
   return (
     <>
       <article
-        ref={host}
+        ref={pane}
         className="preview"
         data-devot-part="preview"
         aria-label={t('preview.label')}
@@ -301,7 +338,10 @@ export function Preview({
         onScroll={(event) => {
           if (!scrollTarget.current) scrolled.current?.(event.currentTarget.scrollTop)
         }}
-      />
+      >
+        {info ? <NoteInfo core={core} info={info} tasks={tasks} onOpenNote={onOpenNote} /> : null}
+        <div ref={host} className="preview-body" />
+      </article>
       <CodeCopyButtons blocks={codes} />
     </>
   )

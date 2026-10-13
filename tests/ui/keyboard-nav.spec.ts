@@ -5,7 +5,15 @@
 // registry's Mod matches metaKey on every platform); editor keys are
 // platform-neutral, and the caret is placed by typing and clicking only.
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, reloadApp, test, type TestWindow, pickNoteMore } from './fixtures'
+import {
+  expect,
+  pickMenuItem,
+  reloadApp,
+  test,
+  type TestWindow,
+  pickNoteMore,
+  pickStatus,
+} from './fixtures'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
@@ -98,7 +106,9 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('Back and Forward', () => {
-  test('Cmd+[ and Cmd+] go through the notes opened, from the editor too', async ({ page }) => {
+  test('Cmd+[ and Cmd+] go through the notes opened; in the editor they indent', async ({
+    page,
+  }) => {
     await expect(backButton(page)).toBeDisabled()
     await expect(forwardButton(page)).toBeDisabled()
     await threeNotes(page)
@@ -106,16 +116,20 @@ test.describe('Back and Forward', () => {
     await expect(backButton(page)).toBeEnabled()
     await expect(forwardButton(page)).toBeDisabled()
 
-    // In the editor the keys are Back and Forward, not outdent and indent.
+    // In the editor the keys are outdent and indent; they do not go back.
     await typeBody(page, 'gamma text')
     await page.keyboard.press('Meta+BracketLeft')
-    await expect(titleField(page)).toHaveValue('Beta')
+    await page.waitForTimeout(200)
+    await expect(titleField(page)).toHaveValue('Gamma')
     await expect(body(page)).toBeFocused()
+
+    // From the note list they go back and forward.
+    await noteRow(page, 'Gamma').focus()
+    await page.keyboard.press('Meta+BracketLeft')
+    await expect(titleField(page)).toHaveValue('Beta')
     await expect(forwardButton(page)).toBeEnabled()
     await page.keyboard.press('Meta+BracketRight')
     await expect(titleField(page)).toHaveValue('Gamma')
-    await expect(body(page)).toBeFocused()
-    await expect.poll(() => lines(page)).toEqual(['gamma text'])
     await expect(forwardButton(page)).toBeDisabled()
 
     // The toolbar buttons do the same, and stop at either end.
@@ -336,7 +350,7 @@ test('the arrow keys move through the sidebar, and the selection follows', async
   await expect(book(page, 'Devot')).toHaveAttribute('aria-level', '2')
   await source(page, 'All Notes').click()
   await createNote(page, 'Plan')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   const tagField = page.getByRole('combobox', { name: 'Add Tag' })
   await tagField.fill('idea')
   await tagField.press('Enter')
@@ -358,6 +372,8 @@ test('the arrow keys move through the sidebar, and the selection follows', async
   await page.keyboard.press('ArrowDown')
   await expectAt(source(page, 'Pinned'), 'Pinned')
   await expect(source(page, 'Pinned')).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('ArrowDown')
+  await expectAt(source(page, 'Templates'), 'Templates')
   await page.keyboard.press('ArrowDown')
   await expectAt(book(page, 'Home'), 'Home')
   // A notebook shown leaves the filter.
@@ -387,13 +403,9 @@ test('the arrow keys move through the sidebar, and the selection follows', async
   await page.keyboard.press('ArrowDown')
   await expectAt(source(page, 'idea'), 'idea')
   await page.keyboard.press('ArrowDown')
-  await expectAt(source(page, 'Templates'), 'Templates')
-  await page.keyboard.press('ArrowDown')
   await expectAt(source(page, 'Trash'), 'Trash')
   await page.keyboard.press('ArrowDown')
   await expectAt(source(page, 'Trash'), 'Trash')
-  await page.keyboard.press('ArrowUp')
-  await expectAt(source(page, 'Templates'), 'Templates')
   await page.keyboard.press('ArrowUp')
   await expectAt(source(page, 'idea'), 'idea')
   await page.keyboard.press('Home')
@@ -407,7 +419,7 @@ test('arrowing out of the Trash shows All Notes without the filter left behind',
   page,
 }) => {
   await createNote(page, 'Plan')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await source(page, 'Active').click()
   await expect(header(page)).toHaveText('Active')
   await page.keyboard.press('End')
@@ -429,7 +441,7 @@ test('Sort Notes\u2026 in the palette opens the list\u2019s sort pop-up', async 
         ).length,
     )
   await createNote(page, 'Alpha')
-  await page.keyboard.press('Meta+KeyP')
+  await page.keyboard.press('Meta+KeyK')
   const field = page.getByRole('combobox', { name: 'Command Palette' })
   await field.fill('Sort Notes')
   await field.press('Enter')

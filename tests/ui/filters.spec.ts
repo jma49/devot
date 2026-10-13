@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore, openNotePinned } from './fixtures'
+import { expect, test, pickNoteMore, openNotePinned, pickStatus, statusPicker } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
@@ -33,7 +33,7 @@ test.beforeEach(async ({ page }) => {
 
 test('sets a status and filters by it, with counts', async ({ page }) => {
   await createNote(page, 'Doing')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await createNote(page, 'Idle')
   await expect(filter(page, 'Active')).toHaveText(/1$/)
 
@@ -121,10 +121,10 @@ test('filters combine with the selected notebook', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Notebook name' }).fill('Work')
   await page.getByRole('textbox', { name: 'Notebook name' }).press('Enter')
   await createNote(page, 'Work active')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await page.getByRole('button', { name: /^All Notes/ }).click()
   await createNote(page, 'Loose active')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
 
   await filter(page, 'Active').click()
   await expect(noteRows(page)).toHaveCount(2)
@@ -136,12 +136,12 @@ test('filters combine with the selected notebook', async ({ page }) => {
 
 test('status, tags and pinning survive a reload', async ({ page }) => {
   await createNote(page, 'Kept')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'On Hold' })
+  await pickStatus(page, 'On Hold')
   await addTag(page, 'later')
   await pickNoteMore(page, 'Pin to Top')
   await page.reload()
   await noteRows(page).first().click()
-  await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('on_hold')
+  await expect(statusPicker(page)).toHaveAttribute('data-value', 'on_hold')
   await expect(page.getByRole('group', { name: 'Tags' })).toContainText('later')
   await expect.poll(() => openNotePinned(page)).toBe(true)
 })
@@ -150,7 +150,7 @@ test('the count on a selected filter row stays a number while the sidebar has th
   page,
 }) => {
   await createNote(page, 'Doing')
-  await page.getByRole('combobox', { name: 'Status' }).selectOption({ label: 'Active' })
+  await pickStatus(page, 'Active')
   await filter(page, 'Active').click()
   await expect(filter(page, 'Active')).toHaveAttribute('aria-pressed', 'true')
   // A click does not focus a button in every browser: the keyboard goes to the row.
@@ -158,12 +158,13 @@ test('the count on a selected filter row stays a number while the sidebar has th
 
   const count = filter(page, 'Active').locator('.source-count')
   await expect(count).toHaveText('1')
-  // Drawn in the on-fill colour with no background of its own (a background
-  // in the text colour would hide the digit); the icon keeps its mask fill.
+  // The selected row has a neutral fill (and a bar on its left edge while the
+  // sidebar has the keyboard): the count keeps its own colour and no
+  // background, and the icon keeps its mask fill.
   await expect(count).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-  await expect(count).toHaveCSS('color', 'rgb(255, 255, 255)')
-  await expect(filter(page, 'Active').locator('.icon')).toHaveCSS(
+  await expect(count).toHaveCSS('color', 'rgb(103, 103, 103)')
+  await expect(filter(page, 'Active').locator('.icon')).not.toHaveCSS(
     'background-color',
-    'rgb(255, 255, 255)',
+    'rgba(0, 0, 0, 0)',
   )
 })

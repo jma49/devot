@@ -122,27 +122,34 @@ test('Tab reaches the preview from the Trash buttons, with a focus ring', async 
   await expect(preview(page)).not.toHaveCSS('box-shadow', 'none')
 })
 
-test('Cmd+= and Cmd+- resize the preview, and Cmd+0 resets it', async ({ page }) => {
+test('Cmd+= and Cmd+- size the editor; the preview keeps its own size', async ({ page }) => {
   await longNote(page, 'Sized')
-  await modeButton(page, 'Preview').click()
+  await modeButton(page, 'Split').click()
   await expect(preview(page).getByRole('heading', { name: 'Top heading' })).toBeVisible()
+  const editorSize = () =>
+    page
+      .locator('.cm-content')
+      .evaluate((e) =>
+        Number.parseFloat(
+          (
+            globalThis as unknown as { getComputedStyle(el: unknown): { fontSize: string } }
+          ).getComputedStyle(e).fontSize,
+        ),
+      )
   const base = await fontSize(page, 'p')
-  const heading = await fontSize(page, 'h1')
+  await page.locator('.cm-content').click()
   await page.keyboard.press('Meta+Equal')
-  // 13 to 14 px in the editor: the preview grows by the same ratio.
-  await expect.poll(() => fontSize(page, 'p')).toBeCloseTo((base * 14) / 13, 1)
-  await expect.poll(() => fontSize(page, 'h1')).toBeCloseTo((heading * 14) / 13, 1)
-  await page.keyboard.press('Meta+Equal')
-  await expect.poll(() => fontSize(page, 'p')).toBeCloseTo((base * 15) / 13, 1)
+  await expect.poll(editorSize).toBe(14)
   await page.keyboard.press('Meta+Minus')
   await page.keyboard.press('Meta+Minus')
-  await expect.poll(() => fontSize(page, 'p')).toBeCloseTo(base, 1)
-  await page.keyboard.press('Meta+Equal')
+  await expect.poll(editorSize).toBe(12)
   await page.keyboard.press('Meta+Digit0')
-  await expect.poll(() => fontSize(page, 'p')).toBeCloseTo(base, 1)
+  await expect.poll(editorSize).toBe(13)
+  // The preview's size is a setting of its own (Settings > Preview).
+  expect(await fontSize(page, 'p')).toBe(base)
 })
 
-test('Cmd+E swaps editor and preview, and Cmd+Shift+E shows both', async ({ page }) => {
+test('Cmd+E swaps editor and preview, and Cmd+P shows both', async ({ page }) => {
   await longNote(page, 'Mode keys')
   const key = (k: string) => page.keyboard.press(`Meta+${k}`)
   const pressed = async (name: 'Edit' | 'Split' | 'Preview') =>
@@ -153,7 +160,7 @@ test('Cmd+E swaps editor and preview, and Cmd+Shift+E shows both', async ({ page
   await pressed('Preview')
   await key('KeyE')
   await pressed('Edit')
-  await key('Shift+KeyE')
+  await key('KeyP')
   await pressed('Split')
   // From split, the pane with the keyboard stays: the editor has it here.
   await page.getByRole('textbox', { name: 'Note body' }).click()

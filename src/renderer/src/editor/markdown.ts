@@ -140,18 +140,27 @@ export const FrontMatter: MarkdownConfig = {
 }
 
 /**
- * Highlight tags of Markdown's own marks that the editor colours apart: a
- * heading's `#`s, and list and quote markers. The other marks (emphasis,
- * code and link marks) keep Markdown's `processingInstruction`.
+ * Highlight tags of Markdown's own marks that the editor styles apart: a
+ * heading's `#`s, list markers, quote markers and task boxes. The other
+ * marks (emphasis, code and link marks) keep Markdown's `processingInstruction`.
  */
 export const markupTags = {
   heading: Tag.define(tags.processingInstruction),
   list: Tag.define(tags.processingInstruction),
+  quote: Tag.define(tags.processingInstruction),
+  task: Tag.define(tags.processingInstruction),
 }
 
 /** The Lezer Markdown extension that gives those marks their tags. */
 export const MarkupMarks: MarkdownConfig = {
-  props: [styleTags({ HeaderMark: markupTags.heading, 'ListMark QuoteMark': markupTags.list })],
+  props: [
+    styleTags({
+      HeaderMark: markupTags.heading,
+      ListMark: markupTags.list,
+      QuoteMark: markupTags.quote,
+      TaskMarker: markupTags.task,
+    }),
+  ],
 }
 
 /** The editor's Markdown parser, for reading Markdown outside an editor state. */
@@ -240,31 +249,36 @@ const token = (name: string) => `var(--color-${name})`
 /**
  * The editor's highlight style, built from the design tokens so it follows
  * the appearance: CodeMirror's own default has light-only colours (dark blue
- * links, near-black metadata) and underlines headings. Headings are bold in
- * their own colour after their `#`s in the markup colour, which also marks
- * emphasis and code marks and HTML tags (`<kbd>`); inline code, list and
- * quote markers have colours of their own. Links and their addresses are the
- * only underlined text; the rest of the code colours use the syntax tokens;
+ * links, near-black metadata) and underlines headings. A heading line is
+ * bold in the heading colour, its `#`s in the markup colour, which also
+ * marks emphasis, code and link marks, task boxes (bold), table pipes,
+ * numbers and HTML tags (`<kbd>`); list markers and quotes have colours of
+ * their own (lineStyles.ts colours the second list level apart). Links and
+ * their addresses are the only underlined text; code uses the syntax tokens;
  * front matter takes the theme's secondary text colour (as the preview shows
  * it) and its fences the tertiary one.
  */
 export const noteHighlightStyle = HighlightStyle.define([
-  { tag: tags.meta, color: token('text-secondary') },
-  { tag: tags.link, color: token('accent-text'), textDecoration: 'underline' },
+  { tag: tags.meta, color: token('syntax-comment'), fontStyle: 'italic' },
+  { tag: tags.link, color: token('syntax-link'), textDecoration: 'underline' },
   { tag: tags.heading, fontWeight: 'bold', color: token('syntax-heading') },
   { tag: markupTags.heading, color: token('syntax-markup') },
   { tag: markupTags.list, color: token('syntax-list') },
+  { tag: markupTags.quote, color: token('syntax-markup') },
+  { tag: markupTags.task, color: token('syntax-markup'), fontWeight: 'bold' },
+  { tag: tags.quote, color: token('syntax-quote'), fontStyle: 'italic' },
   { tag: tags.processingInstruction, color: token('syntax-markup') },
   { tag: [tags.tagName, tags.angleBracket, tags.attributeName], color: token('syntax-markup') },
-  { tag: tags.monospace, color: token('syntax-function') },
+  { tag: tags.monospace, color: token('text-editor') },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strong, fontWeight: 'bold' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
-  { tag: tags.url, color: token('syntax-string'), textDecoration: 'underline' },
-  { tag: tags.labelName, color: token('syntax-string') },
-  { tag: [tags.number, tags.function(tags.variableName)], color: token('syntax-function') },
-  { tag: tags.contentSeparator, color: token('text-tertiary') },
-  { tag: [tags.keyword, tags.atom, tags.bool], color: token('syntax-keyword') },
+  { tag: tags.url, color: token('syntax-link'), textDecoration: 'underline' },
+  { tag: tags.labelName, color: token('syntax-link') },
+  { tag: [tags.number, tags.punctuation, tags.bracket], color: token('syntax-markup') },
+  { tag: tags.function(tags.variableName), color: token('syntax-function') },
+  { tag: tags.contentSeparator, color: token('syntax-markup') },
+  { tag: [tags.keyword, tags.operator, tags.atom, tags.bool], color: token('syntax-keyword') },
   {
     tag: [tags.string, tags.regexp, tags.escape, tags.special(tags.string)],
     color: token('syntax-string'),
@@ -272,11 +286,11 @@ export const noteHighlightStyle = HighlightStyle.define([
   { tag: [tags.literal, tags.inserted], color: token('syntax-inserted') },
   { tag: tags.deleted, color: token('syntax-deleted') },
   {
+    tag: [tags.typeName, tags.namespace, tags.className, tags.macroName],
+    color: token('syntax-class'),
+  },
+  {
     tag: [
-      tags.typeName,
-      tags.namespace,
-      tags.className,
-      tags.macroName,
       tags.definition(tags.variableName),
       tags.definition(tags.propertyName),
       tags.local(tags.variableName),
@@ -284,8 +298,12 @@ export const noteHighlightStyle = HighlightStyle.define([
     ],
     color: token('syntax-function'),
   },
-  { tag: tags.comment, color: token('text-tertiary') },
-  { tag: tags.invalid, color: token('syntax-deleted') },
+  { tag: tags.comment, color: token('syntax-comment'), fontStyle: 'italic' },
+  {
+    tag: tags.invalid,
+    color: token('syntax-invalid'),
+    textDecoration: 'underline dotted',
+  },
   { tag: frontMatterTags.content, color: token('text-secondary') },
   { tag: frontMatterTags.mark, color: token('text-tertiary') },
 ])

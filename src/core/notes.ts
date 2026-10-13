@@ -32,7 +32,7 @@ import { loadActivity, type ActivityHeatmap, type OffsetAt } from './activity'
 import { TEMPLATES_BOOK_ID } from './books'
 import { foldUnchanged, lineDiff, type DiffBlock } from './diff'
 import { errorCode } from './errors'
-import { headline, listExcerpt } from './extract'
+import { headline, listExcerpt, taskProgress } from './extract'
 import { receiveStored, type Clock } from './hlc'
 import {
   BASELINE,
@@ -67,9 +67,14 @@ import {
   type TrashedNote,
 } from './storage'
 import { extractTitle } from './extract'
+import { findBacklinks } from './links'
+import type { NoteLinkTarget } from './preview/registry'
 import { fileLinkSpans, newFileCopies, replaceFileLinks, type FileCopy } from './files'
 import { clipTitle, MAX_TITLE_CHARS } from './noteLimits'
 import { lineFeeds, textDiff } from './text'
+
+/** The most notes one preview asks chips for. */
+const MAX_LINK_TARGETS = 500
 
 /** The Y.Text that holds a note's Markdown. */
 export const BODY = 'body'
@@ -177,6 +182,12 @@ export interface NoteService {
    */
   excerpts(ids: readonly string[]): Promise<Record<string, string>>
   /**
+   * The task progress the lists show for each of these notes that has tasks,
+   * as "done/total" (see `taskProgress`), pending edits included; empty for
+   * a note with no tasks. A note that does not exist is left out.
+   */
+  progress(ids: readonly string[]): Promise<Record<string, string>>
+  /**
    * A new note with the title, body, notebook and status of `id` (pending
    * edits included; a deleted notebook counts as none); it is never pinned.
    * With `suffix`, a titled note's copy is titled "<title> <suffix>" (the original
@@ -280,7 +291,24 @@ export interface NoteService {
   restore(id: string): Promise<void>
   listTrash(): Promise<TrashedNote[]>
   /** A trashed note's title and Markdown, for a read-only view. */
-  peekTrashed(id: string): Promise<{ id: string; title: string; bodyMd: string }>
+  peekTrashed(id: string): Promise<{
+    id: string
+    title: string
+    bodyMd: string
+    createdAt: number
+    updatedAt: number
+  }>
+  /**
+   * The live notes whose Markdown links to `id` (see findBacklinks), as
+   * stored: the preview's "Linked to this note" list.
+   */
+  backlinks(id: string): Promise<NoteSummary[]>
+  /**
+   * What note link chips show about each of these notes (see
+   * NoteLinkTarget), pending edits included. A note that does not exist or
+   * is in the Trash is left out.
+   */
+  linkTargets(ids: readonly string[]): Promise<Record<string, NoteLinkTarget>>
   /**
    * Deletes one trashed note permanently, with the attachments no other
    * note shows (see StorageAdapter.purgeNote). Pending edits are saved
@@ -1312,6 +1340,22 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       return found
     },
 
+    async progress(ids) {
+      const found: Record<string, string> = {}
+      await Promise.all(
+        ids.map(async (id) => {
+          const note = live.get(id)
+          const bodyMd = note
+            ? note.doc.getText(BODY).toString()
+            : (await storage.getNote(id, { trashed: true }))?.bodyMd
+          if (bodyMd === undefined) return
+          const { done, total } = taskProgress(bodyMd)
+          found[id] = total > 0 ? `${done}/${total}` : ''
+        }),
+      )
+      return found
+    },
+
     applyUpdate: (id, update) =>
       using(id, (note) => {
         editBody(note, () => Y.applyUpdate(note.doc, update))
@@ -1497,7 +1541,41 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
     async peekTrashed(id) {
       const record = await trashed(id)
-      return { id, title: record.title, bodyMd: record.bodyMd }
+      const { title, bodyMd, createdAt, updatedAt } = record
+      return { id, title, bodyMd, createdAt, updatedAt }
+    },
+
+    backlinks: (id) => findBacklinks(storage, id),
+
+    async linkTargets(ids) {
+      const want = new Set(ids.slice(0, MAX_LINK_TARGETS))
+      if (want.size === 0) return {}
+      const [list, tags] = await Promise.all([storage.listNotes(), storage.listTags()])
+      const tagById = new Map(tags.filter((t) => t.deletedAt === null).map((t) => [t.id, t]))
+      const found: Record<string, NoteLinkTarget> = {}
+      await Promise.all(
+        list
+          .filter((summary) => want.has(summary.id))
+          .map(async (summary) => {
+            const note = live.get(summary.id)
+            const bodyMd = note
+              ? note.doc.getText(BODY).toString()
+              : ((await storage.getNote(summary.id))?.bodyMd ?? '')
+            const title = note ? note.record.title : summary.title
+            found[summary.id] = {
+              title: title || headline(bodyMd),
+              status: note ? note.record.status : summary.status,
+              tasks: taskProgress(bodyMd),
+              tags: summary.tagIds
+                .flatMap((tagId) => {
+                  const tag = tagById.get(tagId)
+                  return tag ? [{ name: tag.name, color: tag.color }] : []
+                })
+                .sort((a, b) => a.name.localeCompare(b.name)),
+            }
+          }),
+      )
+      return found
     },
 
     async purge(id) {
