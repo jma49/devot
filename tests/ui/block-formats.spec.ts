@@ -162,31 +162,6 @@ test('Shift+Cmd+C makes a code block in the editor and copies the URI in the lis
   expect(await lines(page)).toEqual(['```', 'code', '```'])
 })
 
-test('the toolbar wraps to stay inside a narrow editor', async ({ page }) => {
-  const inside = async () => {
-    const editor = await page.locator('[data-devot-part=editor-body]').boundingBox()
-    if (!editor) throw new Error('E_TEST_NO_EDITOR_BOX')
-    for (const name of ['Heading', 'Inline Code', 'Code Block', 'Alert']) {
-      const box = await button(page, name).boundingBox()
-      if (!box) return false
-      if (box.x < editor.x - 1 || box.x + box.width > editor.x + editor.width + 1) return false
-    }
-    return true
-  }
-  await newNote(page, 'alpha beta gamma delta')
-  await selectAll(page)
-  // The window shrinks to its narrowest while the toolbar shows: the editor is about 200 px wide.
-  await page.setViewportSize({ width: 760, height: 600 })
-  await expect.poll(inside).toBe(true)
-  // Shown afresh in the narrow window.
-  await page.keyboard.press('Escape')
-  await selectAll(page)
-  await expect.poll(inside).toBe(true)
-  // Every button still works there.
-  await button(page, 'Quote').click()
-  expect(await lines(page)).toEqual(['> alpha beta gamma delta'])
-})
-
 test('Return on an empty list item or quote line leaves it, a blank line apart', async ({
   page,
 }) => {

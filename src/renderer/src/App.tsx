@@ -31,6 +31,7 @@ import { BackupNotice } from './BackupNotice'
 import { ChangeNotice } from './ChangeNotice'
 import { ImageNotice } from './ImageNotice'
 import { MAX_LINK_NOTES } from './linkCompletion'
+import { useNarrowWindow } from './narrowWindow'
 import { ExportNotice, failureOf, type ExportFailure } from './ExportNotice'
 import { SaveNotice } from './SaveNotice'
 import { createQuitGuard, newProblems } from './saving'
@@ -278,7 +279,13 @@ export function App() {
   // Sidebar); focus mode hides it too.
   const sidebarStore = useMemo(() => currentSidebarStore(), [])
   const [sidebarHidden, setSidebarHidden] = useState(() => sidebarStore.load())
-  const sidebarShown = !focus && !sidebarHidden
+  // A narrow window hides the sidebar until Show Sidebar asks for it; the
+  // request lasts until the window crosses the threshold again, and neither
+  // it nor the hiding is stored (the saved choice is the user's own).
+  const narrow = useNarrowWindow()
+  const [askedIn, setAskedIn] = useState<boolean | null>(null)
+  const sidebarOff = sidebarHidden || (narrow && askedIn !== narrow)
+  const sidebarShown = !focus && !sidebarOff
   // The notes this window opened, for Back and Forward. The ref moves at
   // once (quick presses each step on); the state renders it.
   const trailRef = useRef<Trail>(EMPTY_TRAIL)
@@ -1659,8 +1666,12 @@ export function App() {
   const toggleSidebar = () => {
     if (sidebarShown) {
       const hadKeyboard = areaOf(document.activeElement) === 'sidebar'
-      sidebarStore.save(true)
-      setSidebarHidden(true)
+      // Shown on request in a narrow window: put away again, nothing stored.
+      if (narrow && !sidebarHidden) setAskedIn(null)
+      else {
+        sidebarStore.save(true)
+        setSidebarHidden(true)
+      }
       if (hadKeyboard) requestFocus({ kind: 'area', area: 'list' })
       return
     }
@@ -1673,6 +1684,7 @@ export function App() {
     }
     sidebarStore.save(false)
     setSidebarHidden(false)
+    setAskedIn(narrow)
   }
   useMenuEvent('devot://toggle-sidebar', TOGGLE_SIDEBAR, () => {
     const echo = performance.now() < sidebarKeyEcho.current
@@ -1990,8 +2002,8 @@ export function App() {
   // While the sidebar is hidden (not in focus mode), the list's toolbar
   // shows it again.
   const showSidebarButton = useMemo(
-    () => (sidebarHidden && !focus ? <ShowSidebarButton onClick={toggleSidebarNow} /> : null),
-    [sidebarHidden, focus, toggleSidebarNow],
+    () => (sidebarOff && !focus ? <ShowSidebarButton onClick={toggleSidebarNow} /> : null),
+    [sidebarOff, focus, toggleSidebarNow],
   )
   const openFromList = useStable((id: string) => void select(id))
   const createFromList = useStable(() => void create())
@@ -2090,7 +2102,8 @@ export function App() {
       className="window"
       data-focus={focus || undefined}
       data-ready={restored || undefined}
-      data-sidebar-hidden={sidebarHidden || undefined}
+      data-sidebar-hidden={sidebarOff || undefined}
+      data-narrow={narrow || undefined}
     >
       <Sidebar
         total={notes.length}

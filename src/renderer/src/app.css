@@ -406,7 +406,9 @@ button {
 /* Note list. */
 .list {
   width: var(--size-list-width);
-  flex-shrink: 0;
+  /* The list gives way to the editor in a narrow window, down to its minimum. */
+  flex-shrink: 1;
+  min-width: var(--size-list-min-width);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -555,12 +557,20 @@ button {
 }
 
 /* Editor. */
+/* The editor keeps room for two split panes (and so for its toolbar): the
+   list gives way first, down to its minimum, and below size.sidebar-collapse-width
+   the sidebar goes. A narrow window whose sidebar was asked for squeezes the
+   editor instead. */
 .content {
   flex: 1;
-  min-width: 0;
+  min-width: calc(var(--size-pane-min-width) * 2);
   display: flex;
   flex-direction: column;
   background: var(--color-surface-editor);
+}
+
+.window[data-narrow]:not([data-sidebar-hidden]) .content {
+  min-width: 0;
 }
 
 .title {
@@ -738,7 +748,7 @@ button {
 
 .editor-toolbar > .search-field {
   flex-shrink: 1;
-  min-width: calc(var(--space-10) * 3);
+  min-width: calc(var(--space-10) * 2);
 }
 
 /* Back and Forward, at the start of the editor's toolbar. */
@@ -836,8 +846,10 @@ button {
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* Each pane keeps a minimum; a content area too narrow for two scrolls sideways. */
 .panes-split {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(var(--size-pane-min-width), 1fr));
+  overflow-x: auto;
 }
 
 .panes-split .preview {

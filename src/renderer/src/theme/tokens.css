@@ -30,6 +30,9 @@
   --radius-capsule: 999px;
   --size-sidebar-width: 232px;
   --size-list-width: 320px;
+  --size-list-min-width: 224px;
+  --size-pane-min-width: 240px;
+  --size-sidebar-collapse-width: 1000px;
   --size-popup-max-width: 240px;
   --size-reading-width: 720px;
   --size-toolbar-height: 52px;

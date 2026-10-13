@@ -614,6 +614,30 @@
         "unit": "px"
       }
     },
+    "list-min-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 224,
+        "unit": "px"
+      },
+      "$description": "The narrowest the note list shrinks to when the window is narrow."
+    },
+    "pane-min-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 240,
+        "unit": "px"
+      },
+      "$description": "The narrowest a split-mode pane (source or preview) gets; the panes scroll sideways before they go below it."
+    },
+    "sidebar-collapse-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1000,
+        "unit": "px"
+      },
+      "$description": "A window narrower than this hides the sidebar until it is asked for (the sidebar, a shrunken list and the editor's toolbar no longer fit together)."
+    },
     "popup-max-width": {
       "$type": "dimension",
       "$value": {
