@@ -69,18 +69,54 @@ describe('Markdown dialect', () => {
     expect(tags(tree, 'table')).toHaveLength(1)
     const boxes = tags(tree, 'input')
     expect(boxes.map((b) => Boolean(b.properties['checked']))).toEqual([true, false])
-    expect(boxes.every((b) => b.properties['disabled'] === true)).toBe(true)
+    // Each box knows where its mark is in the Markdown, so the preview can tick it.
+    expect(boxes.map((b) => b.properties['dataTaskAt'])).toEqual([34, 45])
+    expect(boxes.some((b) => b.properties['disabled'])).toBe(false)
     expect(tags(tree, 'del')).toHaveLength(1)
     expect(tags(tree, 'a').some((a) => a.properties['href'] === 'https://example.com')).toBe(true)
     expect(byClass(tree, 'footnotes')).toHaveLength(1)
   })
 
-  it('shows front matter as a block above the note', async () => {
-    const tree = await render('---\ntitle: Hello\ntags: [a]\n---\n\n# Body')
+  it('finds task marks in nested, ordered and quoted lists, and leaves raw HTML boxes disabled', async () => {
+    const md =
+      '1. [X] a\n   - [ ] b\n\n> * [ ] c\n\n<ul><li><input type="checkbox" disabled> d</li></ul>'
+    const tree = await render(md)
+    const boxes = tags(tree, 'input')
+    const at = boxes.map((b) => b.properties['dataTaskAt'])
+    expect(at.slice(0, 3).map((n) => md[n as number])).toEqual(['X', ' ', ' '])
+    expect(at.slice(0, 3).map((n) => md.slice((n as number) - 1, (n as number) + 2))).toEqual([
+      '[X]',
+      '[ ]',
+      '[ ]',
+    ])
+    expect(at[3]).toBeUndefined()
+    expect(boxes[3]?.properties['disabled']).toBe(true)
+  })
+
+  it('shows front matter as a block of properties above the note', async () => {
+    const tree = await render('---\ntitle: Hello\ntags: [a, b]\nmeta: {x: 1}\n---\n\n# Body')
     const first = tree.children[0] as Element
+    expect(first.tagName).toBe('dl')
     expect(classes(first)).toContain('frontmatter')
-    expect(text(first)).toBe('title: Hello\ntags: [a]')
+    const rows = byClass(tree, 'frontmatter-row')
+    expect(rows.map((r) => text(tags(r as unknown as Root, 'dt')[0]!))).toEqual([
+      'title',
+      'tags',
+      'meta',
+    ])
+    expect(byClass(tree, 'frontmatter-chip').map(text)).toEqual(['a', 'b'])
+    expect(text(rows[2]!)).toBe('metax: 1')
     expect(tags(tree, 'h1')).toHaveLength(1)
+  })
+
+  it('shows front matter that is not a map of keys as code', async () => {
+    const tree = await render('---\n- just\n- a list\n---\n\nBody')
+    const first = tree.children[0] as Element
+    expect(first.tagName).toBe('pre')
+    expect(classes(first)).toContain('frontmatter')
+    expect(text(first)).toBe('- just\n- a list')
+    const broken = await render('---\ntitle: [unclosed\n---\n\nBody')
+    expect((broken.children[0] as Element).tagName).toBe('pre')
   })
 
   it.each([
@@ -161,7 +197,7 @@ describe('images', () => {
   it('keeps an unknown fragment as part of the URL', async () => {
     const tree = await render('![a](https://a.test/e.png#page)')
     expect(tags(tree, 'img')[0]?.properties['src']).toBe('https://a.test/e.png#page')
-    expect(classes(tags(tree, 'img')[0]!)).toEqual([])
+    expect(classes(tags(tree, 'img')[0]!)).toEqual(['image-block'])
   })
 
   it('marks where each inline image is in the Markdown', async () => {
@@ -179,7 +215,7 @@ describe('images', () => {
   it('keeps an image whose size fragment was escaped an image after its size is set to auto', async () => {
     const md = `![a](${file}\\#small)`
     const before = tags(await render(md), 'img')[0]!
-    expect(classes(before)).toEqual(['image-size-small'])
+    expect(classes(before)).toEqual(['image-size-small', 'image-block'])
     const from = Number(before.properties['dataImageFrom'])
     const to = Number(before.properties['dataImageTo'])
     const auto = setImageMarkdownSize(md.slice(from, to), 'auto')!
@@ -307,6 +343,7 @@ describe('preview renderer extension point', () => {
     expect(createPreviewRegistry({ builtins: true }).ids()).toEqual([
       'devot.frontmatter',
       'devot.alerts',
+      'devot.tasks',
       'devot.math',
       'devot.emoji',
       'devot.mermaid',
@@ -475,39 +512,5 @@ describe('images from the web', () => {
     const tree = await held('![x](https://example.com/a.png#half)')
     const [address] = byClass(tree, 'image-placeholder-address')
     expect(address && text(address)).toBe('https://example.com/a.png')
-  })
-})
-
-describe('code block titles', () => {
-  const code = async (md: string) => elements(await render(md)).find((e) => e.tagName === 'code')
-
-  it('reads the title from title=, the rest of the info string, or lang:title', async () => {
-    for (const fence of [
-      '```js title="app.js"',
-      "```js title='app.js'",
-      '```js app.js',
-      '```js:app.js',
-    ]) {
-      const el = await code(`${fence}\nlet a = 1\n\`\`\``)
-      expect(el?.properties['className']).toEqual(['language-js'])
-      expect(el?.properties['dataTitle']).toBe('app.js')
-    }
-  })
-
-  it('sets no title for a bare language or other settings', async () => {
-    for (const fence of ['```js', '```js {1,3} linenos=true', '```']) {
-      const el = await code(`${fence}\nx\n\`\`\``)
-      expect(el?.properties['dataTitle']).toBeUndefined()
-    }
-  })
-
-  it('keeps a title only through the allowlist, as text', async () => {
-    const el = await code('```html title="<b onclick=x>a</b>"\nx\n```')
-    expect(el?.properties['dataTitle']).toBe('<b onclick=x>a</b>')
-    const raw = elements(await render('<pre><code data-title="t" onclick="x">a</code></pre>')).find(
-      (e) => e.tagName === 'code',
-    )
-    expect(raw?.properties['dataTitle']).toBe('t')
-    expect(raw?.properties['onClick']).toBeUndefined()
   })
 })

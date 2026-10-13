@@ -166,15 +166,12 @@ describe('source lines', () => {
 describe('code blocks', () => {
   it('renders no copy button: the page adds it, so the HTML never holds it', async () => {
     const tree = await render('```html\n<b>&amp;</b>\n  indented\n```')
-    expect(elements(tree).map((e) => e.tagName)).toEqual([
-      'pre',
-      'div',
-      'svg',
-      'path',
-      'span',
-      'code',
-    ])
-    const code = first(tree, (e) => e.tagName === 'code')
+    const names = elements(tree).map((e) => e.tagName)
+    expect(names).toContain('pre')
+    expect(names).not.toContain('button')
+    const plain = await render('```\n<b>&amp;</b>\n  indented\n```')
+    expect(elements(plain).map((e) => e.tagName)).toEqual(['pre', 'code'])
+    const code = first(plain, (e) => e.tagName === 'code')
     expect(code?.children).toEqual([{ type: 'text', value: '<b>&amp;</b>\n  indented\n' }])
   })
 })

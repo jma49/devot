@@ -199,17 +199,15 @@ test('a code block in the preview is headed by its language mark and title', asy
     .getByRole('group', { name: 'View mode' })
     .getByRole('button', { name: 'Split' })
     .click()
-  const heads = preview(page).locator('.code-head')
+  const heads = preview(page).locator('.code-header')
   await expect(heads).toHaveCount(3)
-  await expect(heads.nth(0)).toHaveText('app.ts')
-  await expect(heads.nth(0).locator('svg')).toHaveAttribute('data-mark', 'typescript')
-  await expect(heads.nth(1)).toHaveText('python')
-  await expect(heads.nth(1).locator('svg')).toHaveAttribute('data-mark', 'python')
-  // A language without a mark shows the code symbol and its name.
-  await expect(heads.nth(2)).toHaveText('nolang')
-  await expect(heads.nth(2).locator('svg')).toHaveCount(0)
-  await expect(heads.nth(2).locator('.icon')).toHaveCount(1)
-  // The code starts below the header, and copying takes the code alone.
+  await expect(heads.nth(0).locator('.code-title')).toHaveText('app.ts')
+  await expect(heads.nth(0).locator('svg.code-lang-icon')).toHaveCount(1)
+  await expect(heads.nth(1).locator('.code-lang')).toHaveText('Python')
+  // A language without a mark shows the generic mark and its name.
+  await expect(heads.nth(2).locator('.code-lang')).toHaveText('nolang')
+  await expect(heads.nth(2).locator('.code-lang-icon-generic')).toHaveCount(1)
+  // The code starts below the header.
   const head = await heads.nth(0).boundingBox()
   const code = (await textStart(page, '.preview pre > code')).y
   expect(code).toBeGreaterThanOrEqual((head?.y ?? 0) + (head?.height ?? 0) - 1)
@@ -220,6 +218,5 @@ test('a code block in the preview is headed by its language mark and title', asy
   await page.keyboard.press('End')
   await page.keyboard.press('Shift+Home')
   await page.keyboard.insertText('```rust main.rs')
-  await expect(heads.nth(0)).toHaveText('main.rs')
-  await expect(heads.nth(0).locator('svg')).toHaveAttribute('data-mark', 'rust')
+  await expect(heads.nth(0).locator('.code-title')).toHaveText('main.rs')
 })

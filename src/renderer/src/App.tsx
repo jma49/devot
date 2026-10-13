@@ -2555,6 +2555,7 @@ export function App() {
                   onScrollPane={setPreviewPane}
                   onOpenImage={setViewing}
                   onImageMenu={showImageMenu}
+                  onToggleTask={(at) => void editorRef.current?.toggleTask(at)}
                   initialScroll={takePreviewScroll}
                   onScroll={previewScrolled}
                 />

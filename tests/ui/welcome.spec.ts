@@ -24,10 +24,10 @@ test('the example shows a code block with its title and language mark', async ({
     .getByRole('button', { name: 'Split' })
     .click()
   const preview = page.getByRole('article', { name: 'Preview' })
-  const head = preview.locator('.code-head', { hasText: 'example.ts' })
+  const head = preview.locator('.code-header', { hasText: 'example.ts' })
   await expect(head).toHaveCount(1)
-  await expect(head.locator('svg.code-lang path')).toHaveCount(1)
-  await expect(preview.locator('.code-head', { hasText: 'Shell' })).toHaveCount(1)
+  await expect(head.locator('svg.code-lang-icon path')).toHaveCount(1)
+  await expect(preview.locator('.code-header', { hasText: 'Shell' })).toHaveCount(1)
   // The picture, the table and the diagram are all there.
   await expect(preview.locator('img').first()).toBeVisible()
   await expect(preview.locator('table')).toHaveCount(1)

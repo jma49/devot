@@ -1113,46 +1113,6 @@ button {
   color: var(--color-accent-text);
 }
 
-/*
- * A code block's header: its language's mark and its title (or language),
- * over the code, which moves down to make room.
- */
-.code-head {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: calc(var(--size-field-height) + var(--space-4));
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  height: var(--size-field-height);
-  padding: var(--space-2) var(--space-6) 0;
-  color: var(--color-text-secondary);
-  font: var(--font-weight-semibold) var(--font-size-footnote) / 1 var(--font-family-ui);
-}
-
-.code-head .icon,
-.code-mark {
-  flex: none;
-  width: var(--size-icon-sm);
-  height: var(--size-icon-sm);
-}
-
-.code-mark {
-  fill: currentColor;
-}
-
-.code-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.preview pre:has(> .code-head) > code {
-  padding-top: calc(var(--size-field-height) + var(--space-2));
-}
-
 /* Shown on hover, on keyboard focus and while it reports a copy. */
 .code-copy {
   position: absolute;
@@ -1172,11 +1132,25 @@ button {
   opacity: 0;
 }
 
-.preview pre:has(> .code-head) > .code-copy {
-  top: var(--space-2);
+.code-header > .code-copy {
+  position: static;
+  width: var(--space-9);
+  height: var(--space-9);
+  margin: calc(-1 * var(--space-2)) 0 calc(-1 * var(--space-2)) auto;
+  background: transparent;
+  box-shadow: none;
+}
+
+.code-title + .code-lang + .code-copy {
+  margin-left: 0;
+}
+
+.code-header > .code-copy:hover {
+  background: var(--color-fill-row-selected-unemphasized);
 }
 
 .preview pre:hover > .code-copy,
+.preview .code-block:hover .code-copy,
 .code-copy:focus-visible,
 .code-copy:not([data-state='idle']) {
   opacity: 1;

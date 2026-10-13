@@ -12,7 +12,7 @@ Everything in this folder is meant to be publishable as an open-source asset lib
 | `tokens/themes/system.light.tokens.json` | The default "System" theme, light appearance                          |
 | `tokens/themes/system.dark.tokens.json`  | The default "System" theme, dark appearance                           |
 | `icons/symbols.json`                     | Devot icon names mapped to SF Symbol names                            |
-| `icons/languages.json`                   | Programming language marks for code block headers (CC0, see Icons)    |
+| `icons/languages.json`                   | Language marks for code block headers (third party, see below)        |
 | `app-icon/dove.svg`                      | The Devot dove: the logo mark, one teal vector path                   |
 | `app-icon/source.svg`                    | The app icon: the dove on a light rounded tile, 2048 px canvas        |
 | `app-icon/source.png`                    | `source.svg` rendered at 2048 px; `pnpm tauri icon` makes the sizes   |
@@ -75,7 +75,9 @@ A pop-up button (the note's Notebook and Status pickers) grows to `size.popup-ma
 
 Icons are SF Symbols, rendered by macOS at runtime through AppKit (the `symbol_png` Tauri command), then cached per name, size and appearance. This repository stores symbol names only, never symbol artwork. SF Symbols may only be used in software for Apple platforms and never in logos or app icons, so Devot's own app icon and logo must be original artwork.
 
-The one exception is `icons/languages.json`: the marks of programming languages that the preview shows in a code block's header, one SVG path each, drawn in the text colour. They come from [Simple Icons](https://simpleicons.org) 13.21.0, released under CC0-1.0; the marks stay trademarks of their owners and only label the language of a block. A language without a mark shows the code symbol.
+## Language marks
+
+A code block in the preview with a language shows that language's mark in its header (`icons/languages.json`, read by `src/core/preview/code.ts`). The marks are third-party artwork from [simple-icons](https://github.com/simple-icons/simple-icons) 16.35.0, one 24 x 24 path each, drawn in the text colour so they follow light and dark. The package is CC0-1.0; each entry records its own licence, and only CC0-1.0 and MIT marks are kept (JavaScript and GNU Bash are MIT). Marks under share-alike or non-commercial licences are left out, and their languages show a generic mark. Add a mark only with its licence recorded in its entry.
 
 ## Themes
 
