@@ -63,7 +63,7 @@ export function iconElement(name: IconName, pointSize: number): HTMLElement {
   span.className = 'icon'
   span.dataset['symbol'] = symbol
   span.setAttribute('aria-hidden', 'true')
-  const appearance: Appearance = matchMedia(DARK).matches ? 'dark' : 'light'
+  const appearance: Appearance = shownAppearance()
   cache.get(symbol, pointSize, appearance).then(
     (url) => {
       span.style.maskImage = `url("${url}")`
