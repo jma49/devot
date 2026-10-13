@@ -99,8 +99,10 @@ const theme = EditorView.theme({
     color: 'var(--color-text-tertiary)',
     whiteSpace: 'nowrap',
   },
+  // The selected row's fill is lighter than the popover: the hint steps up to
+  // secondary so it keeps 4.5:1 there.
   '.cm-tooltip-autocomplete ul li[aria-selected] .cm-completionDetail': {
-    color: 'var(--color-text-tertiary)',
+    color: 'var(--color-text-secondary)',
   },
   '.cm-completionMatchedText': {
     textDecoration: 'none',

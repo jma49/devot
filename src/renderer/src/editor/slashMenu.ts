@@ -52,6 +52,7 @@ import { alertFormat, FORMAT_COMMANDS, formatState, type ToolbarFormat } from '.
 import { imeKeys } from './imeKeys'
 import { AFTER_INSERT, INSERT_COMMANDS } from './insert'
 import { ALERT_ICONS, withLook } from './popupLook'
+import { releaseToolbar } from './toolbarState'
 import { inTable } from './tableCommands'
 
 export type SlashGroup = 'basic' | 'alerts' | 'other'
@@ -532,7 +533,8 @@ function noteDismissal(view: EditorView) {
   if (completionStatus(view.state) === null) return
   const typed = typedQuery(view.state.doc, view.state.selection)
   if (typed && view.state.field(dismissed, false) !== typed.from)
-    view.dispatch({ effects: dismiss.of(typed.from) })
+    // The slash typed hid the selection toolbar; closing its menu hands it back.
+    view.dispatch({ effects: [dismiss.of(typed.from), releaseToolbar.of(null)] })
 }
 
 /** Escape and leaving the editor close the list (the completion's own keys and blur do that). */

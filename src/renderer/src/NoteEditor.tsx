@@ -86,6 +86,11 @@ export interface EditorHandle {
    * to the core.
    */
   takeState: (state: Uint8Array) => void
+  /**
+   * Like `takeState`, for a change the user asked for (a template filling the
+   * note): it is one undo step, and is not sent back to the core.
+   */
+  takeStep: (state: Uint8Array) => void
   /** Gives the editor the keyboard, with its selection as it was. */
   focus: () => void
   /** Focuses the editor with the caret at the start of the body. */
@@ -588,16 +593,15 @@ export function NoteEditor({
         // True while a restored version is applied: an undo step of its own,
         // where every other change from the Yjs document is none (editor/undo.ts).
         let restoring = false
-        if (restoreRef) {
-          restoreRef.current = (update) => {
-            restoring = true
-            try {
-              Y.applyUpdate(doc, update, RESTORE)
-            } finally {
-              restoring = false
-            }
+        const applyStep: ApplyRestore = (update) => {
+          restoring = true
+          try {
+            Y.applyUpdate(doc, update, RESTORE)
+          } finally {
+            restoring = false
           }
         }
+        if (restoreRef) restoreRef.current = applyStep
         const setupFor = latestSettings.current
         const images = attachImages(core, noteId, text, (codes) => imagesRefused.current?.(codes))
         const imageChooser = images.choose
@@ -727,6 +731,7 @@ export function NoteEditor({
             noteId,
             vector: () => Y.encodeStateVector(doc),
             takeState: (state) => Y.applyUpdate(doc, state, REMOTE),
+            takeStep: applyStep,
             focus: () => ready.focus(),
             focusStart: () => {
               ready.focus()

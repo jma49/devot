@@ -1060,8 +1060,16 @@ mod tests {
     /// quadratic work; the limit is in between), whatever the machine's speed or load. Then runs the
     /// full `size` once, under a ceiling that only a hang reaches.
     fn assert_linear(work: impl Fn(&str), make: impl Fn(usize) -> String, size: usize) {
-        let small = best_of_five(&work, &make(size / 16));
-        let large = best_of_five(&work, &make(size / 4));
+        let (small_input, large_input) = (make(size / 16), make(size / 4));
+        // A load spike on a shared runner can slow one size more than the other:
+        // keep each size's fastest run over three interleaved rounds, so a spike
+        // has to hit every round to skew the ratio. (The best ratio of separate
+        // tries would let one lucky try pass quadratic work.)
+        let (mut small, mut large) = (Duration::MAX, Duration::MAX);
+        for _ in 0..3 {
+            small = small.min(best_of_five(&work, &small_input));
+            large = large.min(best_of_five(&work, &large_input));
+        }
         // Timer noise below a millisecond says nothing about growth.
         let growth = large.as_secs_f64() / small.max(Duration::from_millis(1)).as_secs_f64();
         assert!(

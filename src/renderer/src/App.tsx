@@ -1460,7 +1460,8 @@ export function App() {
     recentTemplates.use(templateId)
     if (opens.current === navigation && editor && editorRef.current === editor) {
       const opened = await core.open(noteId, editor.vector()).catch(() => undefined)
-      if (opened && editorRef.current === editor) editor.takeState(opened.state)
+      // The user asked for the fill, so Cmd+Z takes it back.
+      if (opened && editorRef.current === editor) editor.takeStep(opened.state)
       const filled = await core.title(noteId).catch(() => undefined)
       if (filled !== undefined && opens.current === navigation) setTitle(filled)
     }

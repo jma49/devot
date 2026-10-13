@@ -73,10 +73,15 @@ describe('editor setup from the settings', () => {
     // The cursor scroll margin is a scroll margin on both edges, none at 0.
     const margins = (state: EditorState) =>
       state.facet(EditorView.scrollMargins).map((f) => f({} as EditorView))
-    expect(margins(on)).toEqual([])
+    // With Scroll Past End the caret keeps four lines of room below it (13px at 1.5).
+    expect(margins(on)).toEqual([{ top: 0, bottom: 78 }])
+    expect(margins(make({ ...DEFAULT_EDITOR_SETTINGS, scrollPastEnd: false }))).toEqual([])
     expect(margins(make({ ...DEFAULT_EDITOR_SETTINGS, cursorScrollMargin: 40 }))).toEqual([
-      { top: 40, bottom: 40 },
+      { top: 40, bottom: 78 },
     ])
+    expect(
+      margins(make({ ...DEFAULT_EDITOR_SETTINGS, cursorScrollMargin: 120, scrollPastEnd: false })),
+    ).toEqual([{ top: 120, bottom: 120 }])
     // Drawn whitespace and tinted trailing whitespace are decorations of their own.
     const decorated = (settings: EditorSettings) =>
       make(settings).facet(EditorView.decorations).length
@@ -86,12 +91,7 @@ describe('editor setup from the settings', () => {
       base + 1,
     )
     // Each flag reconfigures only its own part.
-    for (const key of [
-      'toolbar',
-      'scrollPastEnd',
-      'showInvisibles',
-      'highlightTrailingWhitespace',
-    ] as const) {
+    for (const key of ['toolbar', 'showInvisibles', 'highlightTrailingWhitespace'] as const) {
       expect(
         reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
           ...DEFAULT_EDITOR_SETTINGS,
@@ -99,6 +99,13 @@ describe('editor setup from the settings', () => {
         }),
       ).toHaveLength(1)
     }
+    // Scroll Past End also sets the room under the caret.
+    expect(
+      reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
+        ...DEFAULT_EDITOR_SETTINGS,
+        scrollPastEnd: false,
+      }),
+    ).toHaveLength(2)
     expect(
       reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
         ...DEFAULT_EDITOR_SETTINGS,

@@ -2,7 +2,13 @@ import { EditorSelection, EditorState, type TransactionSpec } from '@codemirror/
 import { describe, expect, it } from 'vitest'
 import { toggleInline } from './formats'
 import { noteMarkdown } from './markdown'
-import { hideToolbar, setToolbarFocus, toolbarState, toolbarVisible } from './toolbarState'
+import {
+  hideToolbar,
+  releaseToolbar,
+  setToolbarFocus,
+  toolbarState,
+  toolbarVisible,
+} from './toolbarState'
 
 function start(): EditorState {
   return EditorState.create({
@@ -37,6 +43,16 @@ describe('toolbar visibility', () => {
     let s = step(select(focus(start()), 4, 7), { effects: hideToolbar.of(null) })
     expect(toolbarVisible(s)).toBe(false)
     s = select(s, 4, 9, 'select')
+    expect(toolbarVisible(s)).toBe(true)
+  })
+
+  it('shows again for the next selection once released after typing', () => {
+    let s = step(select(focus(start()), 4, 7), {
+      changes: { from: 0, insert: '/' },
+      userEvent: 'input.type',
+    })
+    s = step(s, { effects: releaseToolbar.of(null) })
+    s = select(s, 5, 8, 'select')
     expect(toolbarVisible(s)).toBe(true)
   })
 

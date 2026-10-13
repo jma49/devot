@@ -14,6 +14,8 @@ import { FORMAT_EVENT } from './formats'
 
 /** Hides the toolbar until the user selects again. */
 export const hideToolbar = StateEffect.define<null>()
+/** Lets the toolbar show for the next selection (closing the slash menu with Escape). */
+export const releaseToolbar = StateEffect.define<null>()
 /** The editor gained (true) or lost (false) focus. */
 export const setToolbarFocus = StateEffect.define<boolean>()
 
@@ -36,6 +38,7 @@ export const toolbarState = StateField.define<ToolbarState>({
     for (const effect of tr.effects) {
       if (effect.is(setToolbarFocus)) focused = effect.value
       if (effect.is(hideToolbar)) hidden = true
+      if (effect.is(releaseToolbar)) hidden = false
     }
     return focused === value.focused && hidden === value.hidden ? value : { focused, hidden }
   },
