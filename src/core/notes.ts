@@ -1208,7 +1208,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       return record.id
     },
 
-    duplicate: (id, options) =>
+    duplicate: (id, copy) =>
       using(id, async (source) => {
         const doc = new Y.Doc()
         Y.applyUpdate(doc, Y.encodeStateAsUpdate(source.doc))
@@ -1227,7 +1227,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         })
         const { title } = source.record
         return insertNote(
-          title !== '' && options?.suffix ? `${title} ${options.suffix}` : title,
+          title !== '' && copy?.suffix ? `${title} ${copy.suffix}` : title,
           await liveBook(source.record.bookId),
           doc,
           copies,

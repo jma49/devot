@@ -146,6 +146,8 @@ export const en = {
   'noteList.scopedCount': '{scope} \u00b7 {notes}',
   'toolbar.label': 'Toolbar',
   'note.untitled': 'Untitled',
+  /** Follows a duplicated note's title: "Plan copy". */
+  'note.copySuffix': 'copy',
   'note.titleLabel': 'Title',
   'note.bodyLabel': 'Note body',
   'mode.label': 'View mode',

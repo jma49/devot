@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import type { NoteStatus, NoteSummary, TagRecord } from '../../core'
 import { countOf } from './format'
+import { useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { StatusPicker } from './StatusPicker'
 import { TagEditor } from './TagEditor'
@@ -19,6 +21,8 @@ export function SelectionSummary(props: {
   notes: readonly NoteSummary[]
   view: 'notes' | 'templates' | 'trash'
   tags: readonly TagRecord[]
+  /** Looks up the first line of a note with no title, listed in its place. */
+  headlines?: HeadlineLoader | undefined
   onMove: () => void
   onPin: (pinned: boolean) => void
   onStatus: (status: NoteStatus) => void
@@ -37,14 +41,16 @@ export function SelectionSummary(props: {
   const tagIds = [...new Set(notes.flatMap((n) => n.tagIds))]
   const common = tagIds.filter((id) => notes.every((n) => n.tagIds.includes(id)))
   const more = notes.length - SHOWN_TITLES
+  const listed = useMemo(() => notes.slice(0, SHOWN_TITLES), [notes])
+  const headlines = useHeadlines(props.headlines, listed)
   return (
     <section className="selection-summary" aria-label={t('selection.label')}>
       <h2 className="selection-count">
         {countOf(notes.length, locale, 'selection.countOne', 'selection.countOther')}
       </h2>
       <ul className="selection-titles">
-        {notes.slice(0, SHOWN_TITLES).map((n) => (
-          <li key={n.id}>{n.title || t('note.untitled')}</li>
+        {listed.map((n) => (
+          <li key={n.id}>{n.title || headlines.get(n.id) || t('note.untitled')}</li>
         ))}
       </ul>
       {more > 0 ? (

@@ -34,6 +34,7 @@ import { MAX_LINK_NOTES } from './linkCompletion'
 import { useNarrowWindow } from './narrowWindow'
 import { ExportNotice, failureOf, type ExportFailure } from './ExportNotice'
 import { SaveNotice } from './SaveNotice'
+import { isImeKey } from './ime'
 import { createQuitGuard, newProblems } from './saving'
 import { BackupsDialog } from './BackupsDialog'
 import { BookPicker } from './BookPicker'
@@ -216,6 +217,11 @@ export function App() {
   const [startAttempt, setStartAttempt] = useState(0)
   // The code of an error the running core worker raised (a notice).
   const [coreFailure, setCoreFailure] = useState<string>()
+  // What the lists show for a note with no title (see headlines.ts).
+  const loadHeadlines = useMemo(
+    () => (core ? (ids: string[]) => core.headlines(ids) : undefined),
+    [core],
+  )
   // The lists have loaded once (the last state is restored then).
   const [listsLoaded, setListsLoaded] = useState(false)
   const [notes, setNotes] = useState<NoteSummary[]>([])
@@ -1302,11 +1308,15 @@ export function App() {
     await select(id, { keyboard: true })
   }
 
-  /** Copies a note (title, body, notebook) and opens the copy, shown in the list (see `showMade`). */
+  /**
+   * Copies a note (title with "copy" after it, body, notebook, status, tags;
+   * see `duplicateNote`) and opens the copy, shown in the list (see `showMade`).
+   */
   const duplicate = async (id: string) => {
     if (!core) return
     await saveEdits(core)
-    const copy = await core.duplicate(id).catch((e: unknown) => {
+    const tagIds = [...notes, ...templates].find((n) => n.id === id)?.tagIds
+    const copy = await core.duplicate(id, t('note.copySuffix'), tagIds).catch((e: unknown) => {
       console.warn('W_NOTE_DUPLICATE_FAILED', id, errorCode(e))
     })
     if (!copy) return
@@ -2162,6 +2172,7 @@ export function App() {
           leading={showSidebarButton}
           selection={shownSelection}
           onSelection={changeListSelection}
+          headlines={loadHeadlines}
         />
       ) : inTrash ? (
         <NoteList
@@ -2175,6 +2186,7 @@ export function App() {
           onCreate={undefined}
           selection={shownSelection}
           onSelection={changeListSelection}
+          headlines={loadHeadlines}
           drag={false}
           onFind={findEverywhere}
           onTrashAction={trashKey}
@@ -2201,6 +2213,7 @@ export function App() {
           leading={showSidebarButton}
           selection={shownSelection}
           onSelection={changeListSelection}
+          headlines={loadHeadlines}
           drag="templates"
         />
       ) : (
@@ -2223,6 +2236,7 @@ export function App() {
           leading={showSidebarButton}
           selection={shownSelection}
           onSelection={changeListSelection}
+          headlines={loadHeadlines}
         />
       )}
       <main className="content" data-devot-part="editor">
@@ -2311,6 +2325,7 @@ export function App() {
             notes={selectedNotes}
             view={inTrash ? 'trash' : inTemplates ? 'templates' : 'notes'}
             tags={tags}
+            headlines={loadHeadlines}
             onMove={() => void noteActions.runOn('move', multiIds)}
             onPin={(pinned) => void setNotesPinned(multiIds, pinned)}
             onStatus={(status) => void setNotesStatus(multiIds, status)}
@@ -2340,6 +2355,14 @@ export function App() {
               placeholder={t('note.untitled')}
               value={title}
               onChange={(e) => rename(e.target.value)}
+              onKeyDown={(e) => {
+                // Return finishes the title and goes on to the body (not the
+                // Return that picks a candidate of an input method).
+                if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey) return
+                if (isImeKey(e.nativeEvent)) return
+                e.preventDefault()
+                void editNote('body', selected)
+              }}
             />
             {selectedIsTemplate ? (
               <p className="note-meta template-hint">{t('templates.editorHint')}</p>
