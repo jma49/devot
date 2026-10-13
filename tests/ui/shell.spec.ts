@@ -95,18 +95,18 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
 
   const requests = () =>
     page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls).then(symbolRequests)
-  await expect.poll(requests).toContain('note.text@17')
+  await expect.poll(requests).toContain('note.text@14')
   const once = await requests()
-  expect(once.filter((r) => r === 'square.and.pencil@17')).toHaveLength(1)
+  expect(once.filter((r) => r === 'square.and.pencil@14')).toHaveLength(1)
 
   // A new appearance renders again; returning to a seen one uses the cache.
   await page.emulateMedia({ colorScheme: 'dark' })
   await expect
-    .poll(async () => (await requests()).filter((r) => r === 'square.and.pencil@17'))
+    .poll(async () => (await requests()).filter((r) => r === 'square.and.pencil@14'))
     .toHaveLength(2)
   await page.emulateMedia({ colorScheme: 'light' })
   await page.waitForTimeout(100)
-  expect((await requests()).filter((r) => r === 'square.and.pencil@17')).toHaveLength(2)
+  expect((await requests()).filter((r) => r === 'square.and.pencil@14')).toHaveLength(2)
 })
 
 test('the note list selection stays neutral, focused or not', async ({ page }) => {

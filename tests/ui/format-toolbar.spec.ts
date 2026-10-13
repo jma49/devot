@@ -164,7 +164,7 @@ test('the toolbar shows for a selection, with named SF Symbol buttons in three g
     ...names.slice(8).map((n) => n[0]),
   ])
   const calls = await page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls)
-  expect(symbolRequests(calls)).toContain('bold@18')
+  expect(symbolRequests(calls)).toContain('bold@14')
 })
 
 test('a button tooltip shows its name and key; Heading and Highlight have no key', async ({
