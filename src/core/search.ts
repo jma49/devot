@@ -300,14 +300,39 @@ function placeIn(text: string, terms: readonly string[]) {
     const at = folded.indexOf(wanted)
     if (at < 0) continue
     const from = codePointsBack(text, at, EXCERPT_BEFORE)
-    return { text, from, before: codePointsBetween(text, from, at, EXCERPT_BEFORE) }
+    return { text, from, at, before: codePointsBetween(text, from, at, EXCERPT_BEFORE) }
   }
   return undefined
 }
 
+/** The spaces and line breaks that set words apart. */
+const isBreak = (char: string | undefined) =>
+  char === ' ' || char === '\n' || char === '\t' || char === '\r'
+
+/**
+ * Where an excerpt starting at `from` (UTF-16) begins to read: at `from`
+ * when it falls at a word's start, else at the next word's, so an excerpt
+ * never opens with the tail of a word. A cut that finds no break before the
+ * term at `at` (a term in a long word, or text without spaces) stays where
+ * it falls. The Rust store's `word_start` follows the same rule.
+ */
+function wordStart(text: string, from: number, at: number): number {
+  if (from === 0 || isBreak(text[from - 1]) || isBreak(text[from])) return from
+  let i = from
+  while (i < at && !isBreak(text[i])) i += 1
+  if (i >= at) return from
+  while (i < at && isBreak(text[i])) i += 1
+  return i
+}
+
 /** The excerpt of a place; `cut` when its text starts after the body's start. */
-const excerptAt = ({ text, from }: { text: string; from: number }, cut: boolean) =>
-  `${cut || from > 0 ? '\u2026' : ''}${text.slice(from, codePointsAhead(text, from, EXCERPT_CHARS))}`
+const excerptAt = (
+  { text, from, at }: { text: string; from: number; at: number },
+  cut: boolean,
+) => {
+  const start = wordStart(text, from, at)
+  return `${cut || start > 0 ? '\u2026' : ''}${text.slice(start, codePointsAhead(text, start, EXCERPT_CHARS))}`
+}
 
 /**
  * About 160 characters of the readable text of `body` (see `readableText`:

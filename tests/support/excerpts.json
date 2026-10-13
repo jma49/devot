@@ -19,7 +19,7 @@
       ["omega ", 100]
     ],
     "terms": ["missing", "haystack", "needle"],
-    "excerpt": "\u2026lta delta delta delta delta delta delta haystack omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega ome"
+    "excerpt": "\u2026delta delta delta delta delta delta haystack omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega omega o"
   },
   {
     "name": "a place at the start of a paragraph takes its lead-in from the one before",
@@ -29,7 +29,7 @@
       ["after the heading ", 150]
     ],
     "terms": ["snapshot"],
-    "excerpt": "\u2026re the heading words before the heading Snapshot plan after the heading after the heading after the heading after the heading after the heading after the headin"
+    "excerpt": "\u2026the heading words before the heading Snapshot plan after the heading after the heading after the heading after the heading after the heading after the heading a"
   },
   {
     "name": "front matter before a long body",
@@ -51,7 +51,7 @@
       ["tail text ", 200]
     ],
     "terms": ["needle"],
-    "excerpt": "\u2026e text middle text middle text the real needle here tail text tail text tail text tail text tail text tail text tail text tail text tail text tail text tail tex"
+    "excerpt": "\u2026text middle text middle text the real needle here tail text tail text tail text tail text tail text tail text tail text tail text tail text tail text tail text "
   },
   {
     "name": "a word only syntax holds shows no excerpt",
@@ -70,7 +70,7 @@
       ["the final needle", 1]
     ],
     "terms": ["needle"],
-    "excerpt": "\u2026rds filler words filler words the final needle"
+    "excerpt": "\u2026filler words filler words the final needle"
   },
   {
     "name": "emphasis and lists around the place",
@@ -100,7 +100,7 @@
       ["tail ", 300]
     ],
     "terms": ["needle"],
-    "excerpt": "\u2026ket \ud83d\ude80 rocket \ud83d\ude80 rocket \ud83d\ude80 rocket \ud83d\ude80 rocket needle tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tai"
+    "excerpt": "\u2026\ud83d\ude80 rocket \ud83d\ude80 rocket \ud83d\ude80 rocket \ud83d\ude80 rocket needle tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail tail ta"
   },
   {
     "name": "one very long line",
@@ -110,7 +110,7 @@
       ["klmnopqrst ", 400]
     ],
     "terms": ["needle"],
-    "excerpt": "\u2026efghij abcdefghij abcdefghij abcdefghij needle klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klm"
+    "excerpt": "\u2026abcdefghij abcdefghij abcdefghij needle klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst klmnopqrst"
   },
   {
     "name": "line breaks with carriage returns",
@@ -120,7 +120,7 @@
       ["more lines\r\n", 200]
     ],
     "terms": ["needle"],
-    "excerpt": "\u2026e of text line of text line of text the needle line more lines more lines more lines more lines more lines more lines more lines more lines more lines more line"
+    "excerpt": "\u2026of text line of text line of text the needle line more lines more lines more lines more lines more lines more lines more lines more lines more lines more lines "
   },
   {
     "name": "a closed code fence before the stretch",
@@ -131,7 +131,7 @@
       ["prose tail ", 100]
     ],
     "terms": ["needle"],
-    "excerpt": "\u2026rds prose words prose words prose words needle in prose prose tail prose tail prose tail prose tail prose tail prose tail prose tail prose tail prose tail prose"
+    "excerpt": "\u2026prose words prose words prose words needle in prose prose tail prose tail prose tail prose tail prose tail prose tail prose tail prose tail prose tail prose tai"
   },
   {
     "name": "a short body is read whole",
@@ -149,7 +149,7 @@
       ["tail words ", 100]
     ],
     "terms": ["TERM"],
-    "excerpt": "\u2026ler words filler words filler words the term joined x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x "
+    "excerpt": "\u2026words filler words filler words the term joined x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x "
   },
   {
     "name": "a place in front matter is skipped",
@@ -170,7 +170,7 @@
       ["tail words ", 100]
     ],
     "terms": ["needle"],
-    "excerpt": "\u2026ose words prose words prose words let **needle** = 1 tail words tail words tail words tail words tail words tail words tail words tail words tail words tail wor"
+    "excerpt": "\u2026words prose words prose words let **needle** = 1 tail words tail words tail words tail words tail words tail words tail words tail words tail words tail words t"
   },
   {
     "name": "in a long body a word must be written as typed",
@@ -181,5 +181,24 @@
     ],
     "terms": ["term"],
     "excerpt": null
+  },
+  {
+    "name": "an excerpt starts at the beginning of a word, not inside one",
+    "parts": [
+      ["abcdefghij ", 10],
+      ["needle here", 1]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026abcdefghij abcdefghij abcdefghij needle here"
+  },
+  {
+    "name": "a term in a long word keeps its cut",
+    "parts": [
+      ["x", 100],
+      ["needle", 1],
+      [" tail", 1]
+    ],
+    "terms": ["needle"],
+    "excerpt": "\u2026xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedle tail"
   }
 ]

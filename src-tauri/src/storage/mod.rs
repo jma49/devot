@@ -656,13 +656,42 @@ fn place_in(text: &str, terms: &[&str]) -> Option<Place> {
     })
 }
 
+/// The spaces and line breaks that set words apart.
+fn is_break(c: char) -> bool {
+    matches!(c, ' ' | '\n' | '\t' | '\r')
+}
+
+/// Where an excerpt starting at character `from` begins to read: at `from`
+/// when it falls at a word's start, else at the next word's, so an excerpt
+/// never opens with the tail of a word. A cut that finds no break before the
+/// term (a term in a long word, or text without spaces) stays where it
+/// falls. Same rule as `wordStart` in src/core/search.ts.
+fn word_start(place: &Place) -> usize {
+    let (chars, from, at) = (&place.chars, place.from, place.before);
+    if from == 0 || is_break(chars[from - 1]) || is_break(chars[from]) {
+        return from;
+    }
+    let mut i = from;
+    while i < at && !is_break(chars[i]) {
+        i += 1;
+    }
+    if i >= at {
+        return from;
+    }
+    while i < at && is_break(chars[i]) {
+        i += 1;
+    }
+    i
+}
+
 /// The excerpt of a place; `cut` when its text starts after the body's start.
 fn excerpt_at(place: &Place, cut: bool) -> String {
+    let start = word_start(place);
     let mut excerpt = String::new();
-    if cut || place.from > 0 {
+    if cut || start > 0 {
         excerpt.push('\u{2026}');
     }
-    excerpt.extend(place.chars[place.from..].iter().take(EXCERPT_CHARS));
+    excerpt.extend(place.chars[start..].iter().take(EXCERPT_CHARS));
     excerpt
 }
 
