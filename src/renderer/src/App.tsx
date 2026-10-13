@@ -139,6 +139,10 @@ const SEARCH_SETTLED_MS = 1000
 /** View > Command Palette… in the menu bar; App re-sends the Tauri event as this. */
 export const SHOW_PALETTE = 'devot:show-palette'
 
+/** View > Toggle Editor and Preview, and View > Show Editor and Preview. */
+export const TOGGLE_PREVIEW = 'devot:toggle-preview'
+export const SHOW_SPLIT = 'devot:show-split'
+
 /** How many untitled notes the palette looks up the first line of (the newest). */
 const PALETTE_HEADLINES = 500
 const NO_LIBRARY = { book: [], tag: [], note: [] }
@@ -1805,6 +1809,23 @@ export function App() {
   }, [paletteDone])
   useMenuEvent('devot://show-palette', SHOW_PALETTE, openPalette)
 
+  // Cmd+E: editor and preview swap; from split, the pane that has the
+  // keyboard is the one that stays.
+  const previewKeyEcho = useRef(-Infinity)
+  const togglePreview = () => {
+    const from = document.activeElement
+    setMode((m) => {
+      if (m === 'edit') return 'preview'
+      if (m === 'preview') return 'edit'
+      return from?.closest('.preview') ? 'preview' : 'edit'
+    })
+  }
+  useMenuEvent('devot://toggle-preview', TOGGLE_PREVIEW, () => {
+    // The key reaches the menu too; the window already ran the command.
+    if (performance.now() >= previewKeyEcho.current) togglePreview()
+  })
+  useMenuEvent('devot://show-split', SHOW_SPLIT, () => setMode('split'))
+
   // Every command this window can run now, by registry ID: the window keys,
   // the palette and the native menu run them.
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
@@ -1925,6 +1946,12 @@ export function App() {
       }
     }
     handlers['view.edit'] = { run: () => setMode('edit') }
+    handlers['view.togglePreview'] = {
+      run: () => {
+        previewKeyEcho.current = performance.now() + MENU_ECHO_MS
+        togglePreview()
+      },
+    }
     handlers['view.split'] = { run: () => setMode('split') }
     handlers['view.preview'] = { run: () => setMode('preview') }
     if (mode !== 'preview') {

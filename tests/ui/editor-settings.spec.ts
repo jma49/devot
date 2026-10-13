@@ -63,7 +63,7 @@ test('the editor starts with the stored settings', async ({ page }) => {
 
 test('the defaults keep the editor as it was', async ({ page }) => {
   await newNote(page, 'alpha\n\tbeta')
-  await expect(page.locator('.cm-lineNumbers')).toHaveCount(1)
+  await expect(page.locator('.cm-lineNumbers')).toHaveCount(0)
   await expect(page.locator('.cm-activeLine')).toHaveCount(1)
   await expect(content(page)).toHaveClass(/cm-lineWrapping/)
   await expect(content(page)).toHaveCSS('font-size', '13px')
@@ -109,7 +109,7 @@ test('a change from another window applies to the open editor at once', async ({
   await expect(page.locator('.cm-editor')).toHaveAttribute('data-probe', '1')
 
   // And back.
-  await changed(page, {})
+  await changed(page, { lineNumbers: true })
   await expect(page.locator('.cm-lineNumbers')).toHaveCount(1)
   await expect(page.locator('.cm-activeLine')).toHaveCount(1)
   await expect(content(page)).toHaveClass(/cm-lineWrapping/)

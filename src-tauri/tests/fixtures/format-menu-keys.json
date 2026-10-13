@@ -3,7 +3,7 @@
   "format.italic": "CmdOrCtrl+I",
   "format.strikethrough": "Shift+CmdOrCtrl+X",
   "format.highlight": "Shift+CmdOrCtrl+H",
-  "format.code": "CmdOrCtrl+E",
+  "format.code": "Alt+CmdOrCtrl+E",
   "format.link": "CmdOrCtrl+K",
   "format.heading1": "Alt+CmdOrCtrl+1",
   "format.heading2": "Alt+CmdOrCtrl+2",

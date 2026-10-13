@@ -460,7 +460,20 @@ export const COMMANDS = [
   },
   { id: 'view.trash', label: 'command.showTrash', group: 'view', scope: 'window', keys: [] },
   { id: 'view.edit', label: 'command.modeEdit', group: 'view', scope: 'window', keys: [] },
-  { id: 'view.split', label: 'command.modeSplit', group: 'view', scope: 'window', keys: [] },
+  {
+    id: 'view.togglePreview',
+    label: 'command.modeToggle',
+    group: 'view',
+    scope: 'window',
+    keys: ['Mod+E'],
+  },
+  {
+    id: 'view.split',
+    label: 'command.modeSplit',
+    group: 'view',
+    scope: 'window',
+    keys: ['Mod+Shift+E'],
+  },
   { id: 'view.preview', label: 'command.modePreview', group: 'view', scope: 'window', keys: [] },
   // Split mode: the editor and the preview scroll together (an editor
   // setting; also View > Synced Scrolling in the menu bar).
@@ -682,7 +695,13 @@ export const COMMANDS = [
     keys: ['Mod+Shift+H'],
   },
   { id: 'format.link', label: 'format.link', group: 'format', scope: 'editor', keys: ['Mod+K'] },
-  { id: 'format.code', label: 'format.code', group: 'format', scope: 'editor', keys: ['Mod+E'] },
+  {
+    id: 'format.code',
+    label: 'format.code',
+    group: 'format',
+    scope: 'editor',
+    keys: ['Mod+Alt+E'],
+  },
   // Shift+Cmd+C is also Copy Note URI, but only on a note list row: the
   // editor never sees that key there, nor the list here.
   {
@@ -1007,6 +1026,8 @@ export const NATIVE_MENU_COMMANDS: Readonly<Record<string, CommandId>> = {
   // A check item; Rust toggles the setting itself, and drops the echo of a
   // key the window ran the command for (see menu.rs).
   'devot.syncScroll': 'view.syncScroll',
+  'devot.togglePreview': 'view.togglePreview',
+  'devot.split': 'view.split',
   // In the app menu (Devot > Backups...).
   'devot.backups': 'app.backups',
 }
