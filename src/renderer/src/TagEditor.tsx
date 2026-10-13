@@ -5,6 +5,7 @@ import { trimWhitespace } from '../../core/text'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
+import { fieldStep } from './Picker'
 import { useNameLimit } from './nameLimit'
 
 /** A tag's colour: a dot painted with the theme's token for it, named for assistive tech. */
@@ -154,19 +155,13 @@ export function TagEditor(props: {
             // Keys an input method composes with (picking a candidate) are its own.
             if (isImeKey(e.nativeEvent)) return
             if (e.metaKey || e.ctrlKey || e.altKey) return
-            const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
-            if (step && draft !== '') {
+            if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && draft !== '') {
               e.preventDefault()
               const shown = tagRows(props.tags, full, draft)
               if (!open) setOpen(true)
               if (shown.length === 0) return
-              setActive((i) =>
-                i < 0
-                  ? step > 0
-                    ? 0
-                    : shown.length - 1
-                  : (i + step + shown.length) % shown.length,
-              )
+              const key = e.key
+              setActive((i) => fieldStep(key, i, shown.length) ?? i)
               return
             }
             if (e.key === 'Enter') {

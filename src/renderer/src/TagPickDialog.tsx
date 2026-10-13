@@ -1,3 +1,4 @@
+import { fieldStep } from './Picker'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS, sameName } from '../../core/tags'
@@ -63,10 +64,10 @@ export function TagPickDialog(props: {
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     // Keys that end an input method's composition are left to it.
     if (isImeKey(e.nativeEvent)) return
-    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
-    if (step) {
+    const next = fieldStep(e.key, index, options.length)
+    if (next !== undefined) {
       e.preventDefault()
-      setActive(Math.max(0, Math.min(options.length - 1, index + step)))
+      if (next >= 0) setActive(next)
     } else if (e.key === 'Enter') {
       e.preventDefault()
       const chosen = options[index]

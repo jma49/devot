@@ -1,3 +1,4 @@
+import { fieldStep } from '../Picker'
 import {
   Fragment,
   useEffect,
@@ -212,10 +213,10 @@ export function CommandPalette(props: {
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     // Keys that pick or confirm an input method's candidate are not ours.
     if (isImeKey(e.nativeEvent)) return
-    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
-    if (step) {
+    const next = fieldStep(e.key, index, results.length)
+    if (next !== undefined) {
       e.preventDefault()
-      setActive(Math.max(0, Math.min(results.length - 1, index + step)))
+      if (next >= 0) setActive(next)
     } else if (e.key === 'Enter' && !e.ctrlKey && !e.altKey) {
       e.preventDefault()
       if (current) pick(current, { shift: e.shiftKey, meta: e.metaKey })

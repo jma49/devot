@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { BookNode } from '../../core/books'
 import type { TagRecord } from '../../core/storage'
 import { bookOptions, filterBooks } from './BookPicker'
-import { pickerStep } from './Picker'
+import { fieldStep, pickerStep } from './Picker'
 import { tagRows } from './TagEditor'
 import { splitTip } from './ToolTips'
 
@@ -63,6 +63,22 @@ describe('pickerStep', () => {
     expect(pickerStep('Home', 2, 3)).toBe(0)
     expect(pickerStep('End', 0, 3)).toBe(2)
     expect(pickerStep('a', 0, 3)).toBeUndefined()
+  })
+})
+
+describe('fieldStep', () => {
+  it('moves with Up and Down from a typing field, stops at the ends and never wraps', () => {
+    expect(fieldStep('ArrowDown', -1, 3)).toBe(0)
+    expect(fieldStep('ArrowUp', -1, 3)).toBe(2)
+    expect(fieldStep('ArrowDown', 2, 3)).toBe(2)
+    expect(fieldStep('ArrowUp', 0, 3)).toBe(0)
+    expect(fieldStep('ArrowDown', 0, 3)).toBe(1)
+  })
+
+  it('leaves Home and End to the field, and has nothing to move to in an empty list', () => {
+    expect(fieldStep('Home', 2, 3)).toBeUndefined()
+    expect(fieldStep('End', 0, 3)).toBeUndefined()
+    expect(fieldStep('ArrowDown', -1, 0)).toBe(-1)
   })
 })
 
