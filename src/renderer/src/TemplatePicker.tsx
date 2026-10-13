@@ -36,6 +36,8 @@ export function TemplatePicker(props: {
   /** The notebook a note goes to when its template names none. */
   bookId: string | null
   locales: readonly string[]
+  /** The pick fills the open (empty) note instead of making a new one. */
+  intoOpenNote?: boolean | undefined
   onCreate: (templateId: string) => void
   onCancel: () => void
 }) {
@@ -129,7 +131,7 @@ export function TemplatePicker(props: {
       }}
     >
       <h2 id="templates-title" className="sheet-title">
-        {t('templates.pickTitle')}
+        {t(props.intoOpenNote ? 'templates.chooseTitle' : 'templates.pickTitle')}
       </h2>
       <div className="templates-body">
         <div className="templates-pick">
@@ -221,7 +223,7 @@ export function TemplatePicker(props: {
           {t('dialog.cancel')}
         </button>
         <button type="button" className="button button-default" disabled={!current} onClick={pick}>
-          {t('templates.create')}
+          {t(props.intoOpenNote ? 'templates.use' : 'templates.create')}
         </button>
       </div>
     </dialog>

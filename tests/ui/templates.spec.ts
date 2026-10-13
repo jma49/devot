@@ -302,3 +302,27 @@ test('Move to Notebook takes a template out to No Notebook', async ({ page }) =>
   await allNotesRow(page).click()
   await expect(noteRows(page).filter({ hasText: 'Loose' })).toHaveCount(1)
 })
+
+test("the empty note's Choose a template fills that note instead of making another", async ({
+  page,
+}) => {
+  await newTemplate(page, 'Standup', 'Yesterday\nToday')
+  await allNotesRow(page).click()
+  await expect(header(page)).toHaveText('All Notes')
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(noteRows(page)).toHaveCount(1)
+  await expect(titleField(page)).toHaveValue('')
+  await body(page).click()
+  await page.getByRole('button', { name: /^Choose a template/ }).click()
+  const chooser = page.getByRole('dialog', { name: 'Choose a Template' })
+  await expect(chooser).toBeVisible()
+  await chooser.getByRole('combobox', { name: 'Filter templates' }).fill('standup')
+  await expect(chooser.getByRole('button', { name: 'Use Template' })).toBeEnabled()
+  await page.keyboard.press('Enter')
+  await expect(chooser).toHaveCount(0)
+  // The same note, now with the template's title and text: no second note.
+  await expect(noteRows(page)).toHaveCount(1)
+  await expect(titleField(page)).toHaveValue('Standup')
+  await expect(body(page)).toContainText('Yesterday')
+  await expect(body(page)).toContainText('Today')
+})

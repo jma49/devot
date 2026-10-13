@@ -86,7 +86,10 @@ function mergeNote(current: Stored | undefined, next: Stored & { bodyVersion: nu
     bodyMd: next.bodyMd,
     ydoc: next.ydoc,
     bodyVersion: next.bodyVersion,
-    updatedAt: Math.max(current.updatedAt, next.updatedAt),
+    // Newer hand-set dates are taken as written; else the later update time.
+    ...((next.datesHlc ?? '') > (current.datesHlc ?? '')
+      ? { createdAt: next.createdAt, updatedAt: next.updatedAt, datesHlc: next.datesHlc ?? '' }
+      : { updatedAt: Math.max(current.updatedAt, next.updatedAt) }),
     ...newer(current, next, 'title', 'titleHlc'),
     ...newer(current, next, 'bookId', 'bookHlc'),
     ...newer(current, next, 'status', 'statusHlc'),

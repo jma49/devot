@@ -1,11 +1,20 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { NoteSummary, TaskProgress } from '../../../core'
 import type { Core } from '../core-client'
 import { displayTitles } from '../headlines'
 import { currentLocale, t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
-import { backlinksOpen, infoFields, setBacklinksOpen, type NoteInfoData } from './infoCard'
+import {
+  backlinksOpen,
+  dateInputValue,
+  datesEdit,
+  infoFields,
+  parseDateInput,
+  setBacklinksOpen,
+  type InfoField,
+  type NoteInfoData,
+} from './infoCard'
 
 function Field(props: { icon: IconName; label: string; children: ReactNode }) {
   return (
@@ -18,6 +27,74 @@ function Field(props: { icon: IconName; label: string; children: ReactNode }) {
         <span className="note-info-value">{props.children}</span>
       </span>
     </div>
+  )
+}
+
+/** The dates a note's info card writes (see NoteService.setDates). */
+export type SetNoteDates = (
+  noteId: string,
+  dates: { createdAt?: number; updatedAt?: number },
+) => Promise<void>
+
+/**
+ * A date of the card. With `onSet` a click opens a date-time field: Return
+ * saves it, Escape (or leaving the field) puts the date back.
+ */
+function DateValue(props: {
+  field: InfoField
+  at: number
+  onSet?: ((at: number) => Promise<boolean>) | undefined
+}) {
+  const { field, at, onSet } = props
+  const [editing, setEditing] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (editing) input.current?.focus()
+  }, [editing])
+  const time = (
+    <time data-info={field.key} dateTime={field.dateTime}>
+      {field.value}
+    </time>
+  )
+  if (!onSet) return time
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="note-info-date"
+        title={t('noteInfo.editDate')}
+        onClick={() => setEditing(true)}
+      >
+        {time}
+      </button>
+    )
+  }
+  return (
+    <input
+      ref={input}
+      type="datetime-local"
+      step={1}
+      className="note-info-date-input"
+      aria-label={field.label}
+      data-info-edit={field.key}
+      defaultValue={dateInputValue(at)}
+      onBlur={() => setEditing(false)}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          setEditing(false)
+        } else if (event.key === 'Enter') {
+          event.preventDefault()
+          event.stopPropagation()
+          const next = parseDateInput(event.currentTarget.value)
+          if (next === null) return
+          void onSet(next).then((done) => {
+            if (done) setEditing(false)
+          })
+        }
+      }}
+    />
   )
 }
 
@@ -35,8 +112,22 @@ export function NoteInfo(props: {
   info: NoteInfoData
   tasks: TaskProgress
   onOpenNote: (id: string) => void
+  /** Writes dates set on the card; without it the dates cannot be changed. */
+  onSetDates?: SetNoteDates | undefined
 }) {
-  const { core, info, tasks, onOpenNote } = props
+  const { core, info, tasks, onOpenNote, onSetDates } = props
+  /** Writes field `key` as `at`; false when it is refused (kept open to fix). */
+  const setDate = (key: 'created' | 'updated', at: number): Promise<boolean> => {
+    const dates = datesEdit(info, key, at)
+    if (!dates || !onSetDates) return Promise.resolve(false)
+    return onSetDates(info.noteId, dates).then(
+      () => true,
+      () => {
+        console.warn('W_NOTE_DATES_FAILED', info.noteId)
+        return false
+      },
+    )
+  }
   const [backlinks, setBacklinks] = useState<Backlink[]>([])
   const [open, setOpen] = useState(backlinksOpen)
 
@@ -65,9 +156,15 @@ export function NoteInfo(props: {
                 <span data-info={field.key}>{field.value}</span>
               </>
             ) : (
-              <time data-info={field.key} dateTime={field.dateTime}>
-                {field.value}
-              </time>
+              <DateValue
+                field={field}
+                at={field.key === 'created' ? info.createdAt : info.updatedAt}
+                onSet={
+                  onSetDates && field.key !== 'progress'
+                    ? (at) => setDate(field.key as 'created' | 'updated', at)
+                    : undefined
+                }
+              />
             )}
           </Field>
         ))}

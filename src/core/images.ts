@@ -1,7 +1,8 @@
 // Images in a note: their size and where an inline image's parts are.
 //
-// A size is written at the end of the image's alt text: `![name w:30%](url)`.
-// The presets are Small (`w:30%`), Half (`w:50%`) and Full (`w:100%`); no
+// A size is written at the end of the image's alt text: `![name w:240](url)`.
+// The presets are Small (`w:240`, 240 px wide), Half (`w:50%`) and Full
+// (`w:100%`); no
 // size is `auto` (the image's own size, no wider than the page). The alt
 // text also takes `width:`/`height:` (or `w:`/`h:`) with a number in px (a
 // bare number), %, pt, pc, in, cm, mm, em, ex or ch, as in `w:320 h:240`.
@@ -14,9 +15,16 @@ export type ImageSize = 'auto' | 'small' | 'half' | 'full'
 
 export const IMAGE_SIZES: readonly ImageSize[] = ['auto', 'small', 'half', 'full']
 
-/** The width each preset writes into the alt text. */
+/** The width each preset writes into the alt text (a bare number is px). */
+const PRESET_WORDS: Record<Exclude<ImageSize, 'auto'>, string> = {
+  small: '240',
+  half: '50%',
+  full: '100%',
+}
+
+/** The width each preset is, as a CSS length. */
 const PRESET_WIDTHS: Record<Exclude<ImageSize, 'auto'>, string> = {
-  small: '30%',
+  small: '240px',
   half: '50%',
   full: '100%',
 }
@@ -27,12 +35,12 @@ export interface ImageDimensions {
   height?: string
 }
 
-/** One size word at the end of an alt text: `w:30%`, `width:200px`, `h:120`. */
+/** One size word at the end of an alt text: `w:240`, `width:200px`, `h:120`. */
 const SIZE_WORD = /^(w|width|h|height):(\d+(?:\.\d+)?|\.\d+)(%|px|pt|pc|in|cm|mm|em|ex|ch)?$/i
 
 /**
- * An alt text's name and the size words at its end (`name w:30%` is `name`
- * at 30% wide). A later word for the same side wins. Words before the last
+ * An alt text's name and the size words at its end (`name w:50%` is `name`
+ * at 50% wide). A later word for the same side wins. Words before the last
  * non-size word are part of the name.
  */
 export function splitAltSize(alt: string): { name: string; dimensions: ImageDimensions | null } {
@@ -71,7 +79,7 @@ export function presetOf(dimensions: ImageDimensions): ImageSize | null {
 /** An alt text name with a preset's size words (none for auto). */
 export function altWithSize(name: string, size: ImageSize): string {
   if (size === 'auto') return name
-  const word = `w:${PRESET_WIDTHS[size]}`
+  const word = `w:${PRESET_WORDS[size]}`
   return name === '' ? word : `${name} ${word}`
 }
 

@@ -106,9 +106,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('Back and Forward', () => {
-  test('Cmd+[ and Cmd+] go through the notes opened; in the editor they indent', async ({
-    page,
-  }) => {
+  test('Cmd+[ and Cmd+] go through the notes opened, from the editor too', async ({ page }) => {
     await expect(backButton(page)).toBeDisabled()
     await expect(forwardButton(page)).toBeDisabled()
     await threeNotes(page)
@@ -116,12 +114,14 @@ test.describe('Back and Forward', () => {
     await expect(backButton(page)).toBeEnabled()
     await expect(forwardButton(page)).toBeDisabled()
 
-    // In the editor the keys are outdent and indent; they do not go back.
+    // In the editor they go back too (Tab and Shift+Tab indent there), and
+    // the keyboard stays in the editor of the note opened.
     await typeBody(page, 'gamma text')
     await page.keyboard.press('Meta+BracketLeft')
-    await page.waitForTimeout(200)
-    await expect(titleField(page)).toHaveValue('Gamma')
+    await expect(titleField(page)).toHaveValue('Beta')
     await expect(body(page)).toBeFocused()
+    await page.keyboard.press('Meta+BracketRight')
+    await expect(titleField(page)).toHaveValue('Gamma')
 
     // From the note list they go back and forward.
     await noteRow(page, 'Gamma').focus()
@@ -149,6 +149,21 @@ test.describe('Back and Forward', () => {
     await expect(forwardButton(page)).toBeDisabled()
     await page.keyboard.press('Meta+BracketLeft')
     await expect(titleField(page)).toHaveValue('Beta')
+  })
+
+  test('Tab and Shift+Tab indent and outdent a list item in the editor', async ({ page }) => {
+    await threeNotes(page)
+    await typeBody(page, '- one')
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('two')
+    await page.keyboard.press('Tab')
+    await expect.poll(() => lines(page)).toEqual(['- one', '  - two'])
+    await expect(body(page)).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await expect.poll(() => lines(page)).toEqual(['- one', '- two'])
+    // Cmd+Left still moves the caret in the text, not back.
+    await page.keyboard.press('Meta+ArrowLeft')
+    await expect(titleField(page)).toHaveValue('Gamma')
   })
 
   test('quick presses each go one note further', async ({ page }) => {

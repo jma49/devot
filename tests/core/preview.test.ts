@@ -196,6 +196,17 @@ describe('images', () => {
     ])
   })
 
+  it('reads the alt-text presets: w:240, w:50% and w:100%', async () => {
+    const tree = await render(`![a w:240](${file}) ![b w:50%](${file}) ![c w:100%](${file})`)
+    const imgs = tags(tree, 'img')
+    expect(imgs.map((i) => classes(i))).toEqual([
+      ['image-size-small'],
+      ['image-size-half'],
+      ['image-size-full'],
+    ])
+    expect(imgs.map((i) => i.properties['alt'])).toEqual(['a', 'b', 'c'])
+  })
+
   it('keeps an unknown fragment as part of the URL', async () => {
     const tree = await render('![a](https://a.test/e.png#page)')
     expect(tags(tree, 'img')[0]?.properties['src']).toBe('https://a.test/e.png#page')

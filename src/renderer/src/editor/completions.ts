@@ -81,9 +81,9 @@ const theme = EditorView.theme({
   // A group header: a small label over a full-width rule; it scrolls with the list.
   '.cm-tooltip.cm-tooltip-autocomplete > ul > completion-section': {
     display: 'block',
-    margin: 'var(--space-2) 0 var(--space-1)',
-    padding: '0 var(--space-4) var(--space-1)',
-    borderBottom: '1px solid var(--color-line-hairline)',
+    margin: 'var(--space-2) 0 var(--space-2)',
+    padding: 'var(--space-1) var(--space-4) var(--space-2)',
+    borderBottom: '1px solid var(--color-line-control)',
     fontSize: 'var(--font-size-caption)',
     color: 'var(--color-text-secondary)',
     opacity: '1',

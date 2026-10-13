@@ -22,7 +22,13 @@ export default defineConfig({
   // raises it.
   workers: process.env['CI'] ? 2 : Number(process.env['DEVOT_UI_WORKERS'] ?? 2),
   reporter: process.env['CI'] ? 'github' : 'list',
-  use: { baseURL: `http://localhost:${uiPort}`, trace: 'retain-on-failure' },
+  // Reduce Motion is on by default so panes sliding never races an assertion;
+  // tests of the motion turn it off with `page.emulateMedia`.
+  use: {
+    baseURL: `http://localhost:${uiPort}`,
+    trace: 'retain-on-failure',
+    reducedMotion: 'reduce',
+  },
   projects: [
     { name: 'webkit', testDir: 'tests/ui', use: { ...devices['Desktop Safari'] } },
     // The built UI under the production CSP, which `pnpm dev` relaxes.

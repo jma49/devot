@@ -82,16 +82,17 @@ export function codeMirrorKey(name: string, mac: boolean = MAC): string {
 /**
  * Keys a command of Devot's takes in the editor, as `codeMirrorKey` writes
  * them: every key in effect of a window command (Back and Forward on Cmd+[
- * and Cmd+], the sidebar on Cmd+/, ...), and every key of an editor command
- * other than its defaults (a default such as Tab in a table falls through to
- * CodeMirror's binding when the command does not apply).
+ * and Cmd+], the sidebar on Cmd+/, ...) but an arrow key, which moves the
+ * caret in text (dispatch.ts leaves it alone there), and every key of an
+ * editor command other than its defaults (a default such as Tab in a table
+ * falls through to CodeMirror's binding when the command does not apply).
  */
 const takenKeys = () =>
   new Set(
     COMMANDS.flatMap((c) => {
       const keys =
         c.scope === 'window'
-          ? commandKeys(c.id)
+          ? commandKeys(c.id).filter((key) => !/(^|\+)Arrow/.test(key))
           : c.scope === 'editor'
             ? commandKeys(c.id).filter((key) => !defaultKeys(c.id).includes(key))
             : []

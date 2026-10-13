@@ -62,8 +62,9 @@ export function useWindowCommands(handlers: CommandHandlers) {
         shiftKey: e.shiftKey,
       }
       const id = windowCommand(press, { inEditor: inEditor(e.target) })
-      // Command and an arrow key move the caret in a text field.
-      if (id && e.key.startsWith('Arrow') && inTextField(e.target)) return
+      // Command and an arrow key move the caret in a text field or the editor
+      // (seen from here as its shadow root's host, not as editable).
+      if (id && e.key.startsWith('Arrow') && (inTextField(e.target) || inEditor(e.target))) return
       const handler = id && latest.current[id]
       if (!handler) return
       e.preventDefault()

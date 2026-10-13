@@ -238,6 +238,15 @@ export interface NoteService {
   /** Moves a note to a notebook, or to none (null). */
   setBook(id: string, bookId: string | null): Promise<void>
   setStatus(id: string, status: NoteStatus): Promise<void>
+  /**
+   * Sets a note's created and/or updated date by hand (the preview's info
+   * card) and writes it now. Both dates take one new HLC, so the change
+   * wins over older writes of them (schema v17). Throws
+   * E_NOTE_TIME_INVALID for a date that is not a whole, non-negative
+   * millisecond time, or when the note would be updated before it was
+   * created.
+   */
+  setDates(id: string, dates: { createdAt?: number; updatedAt?: number }): Promise<void>
   setPinned(id: string, pinned: boolean): Promise<void>
   /**
    * Changes a note's notebook, status or pin and writes it now (a batch
@@ -456,7 +465,14 @@ const untilWritten = async <T>(attempt: (retry: boolean) => Promise<T>): Promise
  * The HLC of each metadata field: a change to the field gives it a new one,
  * so a record whose HLCs differ from the saved one's has changes to write.
  */
-const META_HLCS = ['titleHlc', 'bookHlc', 'statusHlc', 'pinnedHlc', 'deletedHlc'] as const
+const META_HLCS = [
+  'titleHlc',
+  'bookHlc',
+  'statusHlc',
+  'pinnedHlc',
+  'deletedHlc',
+  'datesHlc',
+] as const
 
 /** The HLCs of a note's metadata fields. */
 const stampsOf = (record: NoteRecord) => META_HLCS.map((key) => record[key])
@@ -489,7 +505,10 @@ const withNewer = (to: NoteRecord, from: NoteRecord): NoteRecord => ({
   ...((from.deletedHlc ?? '') > (to.deletedHlc ?? '')
     ? { deletedAt: from.deletedAt, deletedHlc: from.deletedHlc }
     : {}),
-  updatedAt: Math.max(to.updatedAt, from.updatedAt),
+  // Newer hand-set dates are taken as they are (see NoteRecord.datesHlc).
+  ...((from.datesHlc ?? '') > (to.datesHlc ?? '')
+    ? { createdAt: from.createdAt, updatedAt: from.updatedAt, datesHlc: from.datesHlc ?? '' }
+    : { updatedAt: Math.max(to.updatedAt, from.updatedAt) }),
 })
 
 /**
@@ -905,11 +924,13 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     let edits = note.edits
     const record = await put(note, () => {
       edits = note.edits
+      // Dates set by hand since the last save are written as set.
+      const datesSet = (note.record.datesHlc ?? '') > (note.saved.datesHlc ?? '')
       note.record = {
         ...note.record,
         bodyMd: note.doc.getText(BODY).toString(),
         ydoc: Y.encodeStateAsUpdate(note.doc),
-        updatedAt: Math.max(now(), note.record.createdAt),
+        updatedAt: datesSet ? note.record.updatedAt : Math.max(now(), note.record.createdAt),
       }
       return note.record
     })
@@ -1408,6 +1429,21 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       await using(id, (note) => {
         note.record = { ...note.record, status, statusHlc: clock.tick() }
         schedule(note)
+      })
+    },
+
+    async setDates(id, dates) {
+      const valid = (at: number | undefined) =>
+        at === undefined || (Number.isSafeInteger(at) && at >= 0)
+      if (!valid(dates.createdAt) || !valid(dates.updatedAt)) {
+        throw new Error('E_NOTE_TIME_INVALID')
+      }
+      await using(id, async (note) => {
+        const createdAt = dates.createdAt ?? note.record.createdAt
+        const updatedAt = dates.updatedAt ?? note.record.updatedAt
+        if (updatedAt < createdAt) throw new Error('E_NOTE_TIME_INVALID')
+        note.record = { ...note.record, createdAt, updatedAt, datesHlc: clock.tick() }
+        await save(note)
       })
     },
 

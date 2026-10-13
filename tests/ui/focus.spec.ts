@@ -67,3 +67,28 @@ for (const keys of ['Meta+Alt+Shift+KeyF', 'Meta+Shift+KeyF']) {
     await expect(page.getByRole('searchbox', { name: 'Search notes' })).toBeFocused()
   })
 }
+
+test('hiding the panes slides them, and Reduce Motion makes it immediate', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await freshStart(page)
+  const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
+  // By class: a hidden sidebar has no role to find it by.
+  const widthOf = () =>
+    page.locator('.window > .sidebar').evaluate((el) => el.getBoundingClientRect().width)
+  const full = await widthOf()
+
+  await page.keyboard.press('Meta+Shift+KeyD')
+  // Mid-slide the sidebar is narrower than it was and not yet gone.
+  await expect.poll(widthOf).toBeLessThan(full)
+  await expect(sidebar).toBeHidden()
+  await page.keyboard.press('Meta+Shift+KeyD')
+  await expect(sidebar).toBeVisible()
+  await expect.poll(widthOf).toBe(full)
+
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.keyboard.press('Meta+Shift+KeyD')
+  await expect(page.locator('.window')).toHaveAttribute('data-focus', 'true')
+  expect(await widthOf()).toBe(0)
+  await expect(sidebar).toBeHidden({ timeout: 100 })
+})

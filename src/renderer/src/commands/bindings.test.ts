@@ -17,6 +17,7 @@ import {
   tableOf,
   windowCommand,
   type CommandId,
+  type CommandScope,
 } from './registry'
 
 // Settings > Keyboard Shortcuts offers a key for every command in the
@@ -76,7 +77,7 @@ function bound(id: CommandId): boolean {
   const image = Object.entries(IMAGE_COMMANDS).find(([, c]) => c === id)?.[0]
   if (image) return imageKeys().some((k) => k.action === image && k.key === key)
   const spec = COMMANDS.find((c) => c.id === id)!
-  switch (spec.scope) {
+  switch (spec.scope as CommandScope) {
     case 'window':
       return (
         windowCommand(PRESS, { inEditor: false }) === id &&

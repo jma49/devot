@@ -87,21 +87,22 @@ export const COMMANDS = [
   },
   { id: 'note.new', label: 'noteList.newNote', group: 'note', scope: 'window', keys: ['Mod+N'] },
   // Moving between notes. Back and Forward follow the notes this window
-  // opened; Next and Previous follow the note list. In the editor Cmd+[ and
-  // Cmd+] outdent and indent, so Back and Forward work outside it; the arrow
-  // keys also work only while no text field has the focus (see dispatch.ts).
+  // opened; Next and Previous follow the note list. Cmd+[ and Cmd+] work
+  // everywhere, the editor too (it indents and outdents with Tab and
+  // Shift+Tab); the arrow keys work only while no text field has the focus,
+  // where they move the caret (see dispatch.ts and editor/settings.ts).
   {
     id: 'note.back',
     label: 'command.back',
     group: 'note',
-    scope: 'outsideEditor',
+    scope: 'window',
     keys: ['Mod+[', 'Mod+ArrowLeft'],
   },
   {
     id: 'note.forward',
     label: 'command.forward',
     group: 'note',
-    scope: 'outsideEditor',
+    scope: 'window',
     keys: ['Mod+]', 'Mod+ArrowRight'],
   },
   {
@@ -1114,19 +1115,23 @@ export const COMMANDS = [
     scope: 'editor',
     keys: ['Alt+Shift+ArrowDown'],
   },
+  // Indent and Outdent have no keys of their own: in the editor Tab and
+  // Shift+Tab indent and outdent (a list item takes its marker along; in a
+  // table they move between cells, in a code block Tab inserts the indent
+  // unit), so Cmd+[ and Cmd+] stay Back and Forward (see note.back).
   {
     id: 'edit.outdent',
     label: 'command.outdent',
     group: 'edit',
     scope: 'editor',
-    keys: ['Mod+['],
+    keys: [],
   },
   {
     id: 'edit.indent',
     label: 'command.indent',
     group: 'edit',
     scope: 'editor',
-    keys: ['Mod+]'],
+    keys: [],
   },
   {
     id: 'edit.openLink',
@@ -1339,7 +1344,9 @@ export function shortcutClashes(
 export function windowCommand(e: KeyPress, where: { inEditor: boolean }): CommandId | undefined {
   return COMMANDS.find(
     (c) =>
-      (c.scope === 'window' || (c.scope === 'outsideEditor' && !where.inEditor)) &&
+      // Widened: no command may be outside the editor only at the moment.
+      ((c.scope as CommandScope) === 'window' ||
+        ((c.scope as CommandScope) === 'outsideEditor' && !where.inEditor)) &&
       commandKeys(c.id).some((key) => keyMatches(key, e)),
   )?.id
 }

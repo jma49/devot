@@ -88,15 +88,15 @@ describe('image Markdown', () => {
   })
 
   it('writes a size into the alt text and removes an old size fragment', () => {
-    expect(setImageMarkdownSize(`![Shot](${FILE})`, 'small')).toBe(`![Shot w:30%](${FILE})`)
+    expect(setImageMarkdownSize(`![Shot](${FILE})`, 'small')).toBe(`![Shot w:240](${FILE})`)
     expect(setImageMarkdownSize(`![Shot](${FILE})`, 'half')).toBe(`![Shot w:50%](${FILE})`)
-    expect(setImageMarkdownSize(`![Shot w:30%](${FILE})`, 'full')).toBe(`![Shot w:100%](${FILE})`)
-    expect(setImageMarkdownSize(`![Shot w:30%](${FILE})`, 'auto')).toBe(`![Shot](${FILE})`)
+    expect(setImageMarkdownSize(`![Shot w:240](${FILE})`, 'full')).toBe(`![Shot w:100%](${FILE})`)
+    expect(setImageMarkdownSize(`![Shot w:240](${FILE})`, 'auto')).toBe(`![Shot](${FILE})`)
     expect(setImageMarkdownSize(`![Shot](${FILE}#small)`, 'full')).toBe(`![Shot w:100%](${FILE})`)
     expect(setImageMarkdownSize(`![Shot](${FILE}#small)`, 'auto')).toBe(`![Shot](${FILE})`)
     expect(setImageMarkdownSize(`![](${FILE})`, 'half')).toBe(`![w:50%](${FILE})`)
     expect(setImageMarkdownSize('![a [b]](<x y.png#half> "T")', 'small')).toBe(
-      '![a [b] w:30%](<x y.png> "T")',
+      '![a [b] w:240](<x y.png> "T")',
     )
     // A custom size gives way to the preset; auto removes it.
     expect(setImageMarkdownSize('![a w:320 h:240](x.png)', 'half')).toBe('![a w:50%](x.png)')
@@ -112,7 +112,7 @@ describe('image Markdown', () => {
       size: 'auto',
       sizable: true,
     })
-    expect(setImageMarkdownSize('![x](y.png#page=2)', 'small')).toBe('![x w:30%](y.png#page=2)')
+    expect(setImageMarkdownSize('![x](y.png#page=2)', 'small')).toBe('![x w:240](y.png#page=2)')
   })
 
   it('reads a size whose `#` is escaped, and removes the escape together with the size', () => {
@@ -157,7 +157,7 @@ describe('image Markdown', () => {
 
 describe('sizes in the alt text', () => {
   it('reads the presets', () => {
-    expect(parseImageMarkdown(`![clip w:30%](${FILE})`)).toMatchObject({
+    expect(parseImageMarkdown(`![clip w:240](${FILE})`)).toMatchObject({
       alt: 'clip',
       url: FILE,
       size: 'small',
@@ -167,7 +167,17 @@ describe('sizes in the alt text', () => {
     expect(parseImageMarkdown(`![clip w:100%](${FILE})`)).toMatchObject({ size: 'full' })
     expect(parseImageMarkdown(`![clip width:100%](${FILE})`)).toMatchObject({ size: 'full' })
     // The alt text wins over an old fragment.
-    expect(parseImageMarkdown(`![clip w:30%](${FILE}#full)`)).toMatchObject({ size: 'small' })
+    expect(parseImageMarkdown(`![clip w:240](${FILE}#full)`)).toMatchObject({ size: 'small' })
+  })
+
+  it('reads Small as 240 px wide, whichever way it is written', () => {
+    expect(parseImageMarkdown(`![clip w:240px](${FILE})`)).toMatchObject({ size: 'small' })
+    expect(parseImageMarkdown(`![clip width:240](${FILE})`)).toMatchObject({ size: 'small' })
+    // Any other width is a size of its own, not a preset.
+    expect(parseImageMarkdown(`![clip w:30%](${FILE})`)).toMatchObject({
+      size: 'auto',
+      dimensions: { width: '30%' },
+    })
   })
 
   it('reads width and height in every form', () => {

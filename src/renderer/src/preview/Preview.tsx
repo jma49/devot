@@ -20,6 +20,7 @@ import { latestOnly } from './latest'
 import { mermaidIsland } from './mermaid'
 import { NoteInfo } from './NoteInfo'
 import type { NoteInfoData } from './infoCard'
+import type { SetNoteDates } from './NoteInfo'
 import { previewScrollPane, type PreviewScrollPane, type ScrollPane } from './scrollSync'
 
 const NOTE_LINK = /^devot:\/\/note\/([0-9a-f-]{36})$/
@@ -55,6 +56,8 @@ interface Props {
   markdown: string
   /** The note's info card over the content; none without it. */
   info?: NoteInfoData | undefined
+  /** Writes dates set on the info card; without it they cannot be changed. */
+  onSetDates?: SetNoteDates | undefined
   onOpenNote: (id: string) => void
   /** Gets the preview's find handle while it is shown, and null when it goes. */
   onFind?: (target: FindTarget | null) => void
@@ -124,6 +127,7 @@ export function Preview({
   core,
   markdown,
   info,
+  onSetDates,
   onOpenNote,
   onFind,
   onScrollPane,
@@ -339,7 +343,15 @@ export function Preview({
           if (!scrollTarget.current) scrolled.current?.(event.currentTarget.scrollTop)
         }}
       >
-        {info ? <NoteInfo core={core} info={info} tasks={tasks} onOpenNote={onOpenNote} /> : null}
+        {info ? (
+          <NoteInfo
+            core={core}
+            info={info}
+            tasks={tasks}
+            onOpenNote={onOpenNote}
+            onSetDates={onSetDates}
+          />
+        ) : null}
         <div ref={host} className="preview-body" />
       </article>
       <CodeCopyButtons blocks={codes} />

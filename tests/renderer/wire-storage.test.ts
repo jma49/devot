@@ -80,6 +80,7 @@ const note = (overrides: Partial<NoteRecord> = {}): NoteRecord => ({
   statusHlc: '',
   pinned: false,
   pinnedHlc: '',
+  datesHlc: '',
   createdAt: 1,
   updatedAt: 1,
   deletedAt: null,

@@ -244,7 +244,7 @@ const swatches: PreviewRenderer = {
 
 /**
  * An image's size (see core/images.ts) leaves its alt text and URL: a
- * preset (`w:30%` in the alt text, or an old `#small` on the URL) becomes a
+ * preset (`w:240` in the alt text, or an old `#small` on the URL) becomes a
  * class, and any other size its `width` and `height`; an image
  * alone in its paragraph gets `image-block`. An image
  * written as `![alt](url)` also gets where it is in the Markdown
