@@ -47,7 +47,7 @@ Text meets WCAG AA in both appearances: 4.5:1 for text, 3:1 for graphics such as
 | `color.accent.selection`          | `#e3d6fb` | `#29233a` |
 | `color.accent.selection-inactive` | `#efe7fd` | `#1d1927` |
 | `color.text.secondary`            | `#595959` | `#a3a3a3` |
-| `color.text.tertiary`             | `#676767` | `#8f8f8f` |
+| `color.text.tertiary`             | `#676767` | `#909090` |
 | `color.status.active`             | `#545d69` | `#94a3b8` |
 | `color.status.hold`               | `#7f5305` | `#f59f0a` |
 | `color.status.done`               | `#096848` | `#10b77f` |

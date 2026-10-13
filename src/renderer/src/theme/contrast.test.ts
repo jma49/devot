@@ -150,6 +150,23 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     ).toEqual([])
   })
 
+  it('draws popup text at 4.5:1 on the popover and its selected row', () => {
+    // The slash menu, completion popups and the floating toolbar: labels are
+    // primary, group headers secondary, key hints tertiary. On the selected
+    // row the hint turns secondary (editor/completions.ts).
+    const popover = [solid(theme, 'surface.popover')]
+    const selected = [solid(theme, 'fill.completion-selected')]
+    expect(
+      under(4.5, {
+        primary: [solid(theme, 'text.primary'), popover],
+        secondary: [solid(theme, 'text.secondary'), popover],
+        tertiary: [solid(theme, 'text.tertiary'), popover],
+        'primary on the selected row': [solid(theme, 'text.primary'), selected],
+        'hint on the selected row': [solid(theme, 'text.secondary'), selected],
+      }),
+    ).toEqual([])
+  })
+
   it('draws accent text and links at 4.5:1', () => {
     const fills = ['fill.track', 'fill.row-selected-unemphasized']
     expect(worst(solid(theme, 'accent.text'), backdrops(theme, fills))).toBeGreaterThanOrEqual(4.5)
