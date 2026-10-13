@@ -101,10 +101,9 @@ pub fn export(app: &AppHandle) -> Result<PathBuf, &'static str> {
     };
     let target = save(&downloads, info.created_ms, &bundle(&info, &logs_dir))?;
     // `-R` selects the file in a Finder window; the path is ours, not a flag.
-    std::process::Command::new("/usr/bin/open")
-        .arg("-R")
-        .arg(&target)
-        .spawn()
+    let mut reveal = std::process::Command::new("/usr/bin/open");
+    reveal.arg("-R").arg(&target);
+    crate::external::spawn_reaped(reveal, "W_DIAGNOSTICS_REVEAL_EXITED")
         .map_err(|_| "E_DIAGNOSTICS_REVEAL")?;
     Ok(target)
 }
