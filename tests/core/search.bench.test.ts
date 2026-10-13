@@ -71,6 +71,7 @@ beforeAll(() => {
         titleHlc: hlc,
         bodyMd,
         ydoc: noise.subarray(0, bytes),
+        bodyVersion: 0,
         bookId: null,
         bookHlc: '',
         status: 'none',

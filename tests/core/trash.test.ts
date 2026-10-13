@@ -8,6 +8,7 @@ import {
   createIdGenerator,
   createNoteService,
   createTagService,
+  type NoteRecord,
 } from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
@@ -146,10 +147,15 @@ describe('trash on SQLite', () => {
     const { storage, notes } = setup()
     const id = await notes.create('Flip')
     const live = (await storage.getNote(id))!
-    await storage.putNote({ ...live, deletedAt: 5, deletedHlc: '0000000000000005-0000-a' })
-    await storage.putNote({ ...live, deletedAt: null, deletedHlc: '0000000000000009-0000-b' })
+    /** The note with `change`, written over the body as stored now. */
+    const put = async (change: Pick<NoteRecord, 'deletedAt' | 'deletedHlc'>) => {
+      const { bodyVersion } = (await storage.getNote(id, { trashed: true }))!
+      await storage.putNote({ ...live, ...change, bodyVersion })
+    }
+    await put({ deletedAt: 5, deletedHlc: '0000000000000005-0000-a' })
+    await put({ deletedAt: null, deletedHlc: '0000000000000009-0000-b' })
     expect((await notes.list()).map((n) => n.id)).toEqual([id])
-    await storage.putNote({ ...live, deletedAt: 3, deletedHlc: '0000000000000004-0000-c' })
+    await put({ deletedAt: 3, deletedHlc: '0000000000000004-0000-c' })
     expect((await notes.list()).map((n) => n.id)).toEqual([id])
   })
 })

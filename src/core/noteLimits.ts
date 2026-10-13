@@ -14,6 +14,12 @@ export const MAX_TITLE_CHARS = 1000
 export const MAX_BODY_BYTES = 32 * 1024 * 1024
 /** The largest Yjs state a note may have, in bytes. */
 export const MAX_YDOC_BYTES = 64 * 1024 * 1024
+/**
+ * The largest version a note's body may be at (see NoteRecord.bodyVersion):
+ * a write is based on a version below it, so the version storage moves it
+ * on to is still a whole number JavaScript holds exactly.
+ */
+export const MAX_BODY_VERSION = Number.MAX_SAFE_INTEGER
 
 /** A link is `devot://note/` and a UUID: a body shorter than this many characters holds too few. */
 const LINK_CHARS = 'devot://note/'.length + 36
@@ -53,16 +59,19 @@ function overBytes(text: string, max: number): boolean {
 }
 
 /**
- * Throws the code note_put refuses `note` with when its title, body, Yjs
- * state or note links (`links`, the body's by default) are outside the
- * limits.
+ * Throws the code note_put refuses `note` with when its title, body, body
+ * version, Yjs state or note links (`links`, the body's by default) are
+ * outside the limits.
  */
 export function checkNote(note: NoteRecord, links?: readonly string[]): void {
-  const { title, bodyMd, ydoc } = note
+  const { title, bodyMd, bodyVersion, ydoc } = note
   if (/[\r\n]/.test(title) || cutAt(title, MAX_TITLE_CHARS) < title.length) {
     throw new Error('E_NOTE_TITLE_INVALID')
   }
   if (overBytes(bodyMd, MAX_BODY_BYTES)) throw new Error('E_NOTE_BODY_TOO_LARGE')
+  if (!Number.isSafeInteger(bodyVersion) || bodyVersion < 0 || bodyVersion >= MAX_BODY_VERSION) {
+    throw new Error('E_NOTE_VERSION_INVALID')
+  }
   if (ydoc.length === 0 || ydoc.length > MAX_YDOC_BYTES) throw new Error('E_NOTE_YDOC_INVALID')
   if (bodyMd.length <= MAX_NOTE_LINKS * LINK_CHARS) return
   if ((links ?? noteLinks(bodyMd)).length > MAX_NOTE_LINKS) throw new Error('E_NOTE_LINKS_TOO_MANY')

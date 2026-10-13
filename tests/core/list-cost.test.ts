@@ -153,6 +153,7 @@ const record = (id: string, fields: Partial<NoteRecord>): NoteRecord => ({
   titleHlc: '0000000000001-0000-test',
   bodyMd: '',
   ydoc: new Uint8Array([0]),
+  bodyVersion: 0,
   bookId: null,
   bookHlc: '',
   status: 'none',

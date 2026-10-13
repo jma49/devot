@@ -141,11 +141,20 @@ describe('writes from another process', () => {
   it('writes the note again when the other wrote over edits it had saved', async () => {
     const { a, b } = twoProcesses()
     const id = await shared(a.notes, b.notes, 'one')
-    // A saves an edit; B, which never heard of it, saves its own over it.
+    // A saves an edit; B writes a copy of its own over it, one that lacks
+    // A's edit (over the body version stored, so storage takes it: a writer
+    // that put back an old copy, say).
     await a.notes.setBody(id, 'one two')
     await a.notes.flush()
-    await b.notes.setBody(id, 'zero one')
-    await b.notes.flush()
+    const copy = new Y.Doc()
+    Y.applyUpdate(copy, (await b.notes.open(id)).state)
+    copy.getText(BODY).insert(0, 'zero ')
+    const stored = (await b.storage.getNote(id))!
+    await b.storage.putNote({
+      ...stored,
+      bodyMd: copy.getText(BODY).toString(),
+      ydoc: Y.encodeStateAsUpdate(copy),
+    })
     expect((await a.storage.getNote(id))?.bodyMd).toBe('zero one')
 
     await a.notes.mergeStored()

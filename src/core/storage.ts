@@ -4,6 +4,9 @@
 // Metadata fields carry the HLC of their last write. Storage keeps the newer
 // value per field when it writes a record (last-writer-wins), so writing a
 // stale copy of a record never undoes a newer change to one of its fields.
+// The body is a Yjs document, which a write replaces whole: storage writes a
+// note only while its body is still at the version the writer last saw
+// (see putNote), so a body written meanwhile is merged, never written over.
 
 import type { FileCopy, FileMeta } from './files'
 
@@ -15,6 +18,14 @@ export interface NoteRecord {
   bodyMd: string
   /** Yjs document state: the source of truth for the body. */
   ydoc: Uint8Array
+  /**
+   * The version of the stored body this record's body is based on: getNote
+   * gives the stored one, and a write is taken only while the stored body
+   * is still at the version it gives, which the write moves on by one (see
+   * putNote). 0 for a note not written yet, and for a body stored before
+   * versions (schema v16).
+   */
+  bodyVersion: number
   /** The note's notebook; null for none. A deleted notebook counts as none. */
   bookId: string | null
   /** HLC of the last notebook change; '' when never set. */
@@ -250,6 +261,15 @@ export interface StorageAdapter {
    * `noteLinks(note.bodyMd)` (see links.ts). A purged note is left alone. A
    * record outside the limits is refused with the app's code (checkNote in
    * noteLimits.ts).
+   *
+   * A compare-and-set on the body: the record is written only while the
+   * stored body is still at `note.bodyVersion`, the version its writer last
+   * saw, and the body moves on to the next version (a new note is stored at
+   * the next one too). A write based on another version would go over a
+   * body another process wrote since: it is refused with E_NOTE_BODY_STALE
+   * and changes nothing, and its writer takes the stored body in (a Yjs
+   * merge) and writes again. A purged note is left alone whatever the
+   * version.
    */
   putNote(note: NoteRecord): Promise<void>
   /**

@@ -73,6 +73,7 @@ const note = (overrides: Partial<NoteRecord> = {}): NoteRecord => ({
   titleHlc: '0000000000001-0000-test',
   bodyMd: 'See [the other](devot://note/0192a6f0-0000-7000-8000-000000000002)',
   ydoc: bytes(300),
+  bodyVersion: 0,
   bookId: null,
   bookHlc: '',
   status: 'none',
@@ -155,8 +156,10 @@ describe('the worker’s side', () => {
     expect(puts).toHaveLength(1)
     expect(puts[0]?.note.ydoc).toBe(toBase64(record.ydoc))
     expect(puts[0]?.links).toEqual(['0192a6f0-0000-7000-8000-000000000002'])
-    expect(fields((await sqlite.getNote(record.id))!)).toEqual(fields(record))
-    expect(fields((await storage.getNote(record.id))!)).toEqual(fields(record))
+    // Stored with its body at the next version.
+    const stored = fields({ ...record, bodyVersion: 1 })
+    expect(fields((await sqlite.getNote(record.id))!)).toEqual(stored)
+    expect(fields((await storage.getNote(record.id))!)).toEqual(stored)
 
     // What note_put refuses never leaves the worker.
     await expect(storage.putNote(note({ title: 'Two\nlines' }))).rejects.toThrow(

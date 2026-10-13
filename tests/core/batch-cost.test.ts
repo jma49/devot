@@ -189,6 +189,7 @@ describe('the search index', () => {
     titleHlc: formatHlc({ wall: 1, counter: 0, node: 'test' }),
     bodyMd: 'The relay goes first.',
     ydoc: new Uint8Array([0]),
+    bodyVersion: 0,
     bookId: null,
     bookHlc: '',
     status: 'none',
@@ -213,10 +214,13 @@ describe('the search index', () => {
     await sqlite.putNote(record({}))
     // Each write changes the note's row (one change); a change of its text
     // also takes its old text out of the index and puts the new one in
-    // (changes to the index's own tables).
+    // (changes to the index's own tables). Each is based on the body
+    // version the one before left.
+    let bodyVersion = 1
     const cost = async (fields: Partial<NoteRecord>) => {
       const before = changes(sqlite)
-      await sqlite.putNote(record(fields))
+      await sqlite.putNote(record({ ...fields, bodyVersion }))
+      bodyVersion += 1
       return changes(sqlite) - before
     }
     expect(await cost({ status: 'active', statusHlc: hlc(2), updatedAt: 2 })).toBe(1)

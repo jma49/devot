@@ -54,6 +54,7 @@ const record = (id: string, title: string) => ({
   titleHlc: `0000000000000010-0000-${id}`,
   bodyMd: '',
   ydoc: new Uint8Array([0, 0]),
+  bodyVersion: 0,
   bookId: null,
   bookHlc: '',
   status: 'none' as const,
@@ -81,7 +82,12 @@ it('every write waits out another writer', async () => {
   const writes: [string, () => Promise<unknown>][] = [
     [
       'putNote',
-      () => storage.putNote({ ...record('a', 'Renamed'), titleHlc: '0000000000000030-0000-a' }),
+      () =>
+        storage.putNote({
+          ...record('a', 'Renamed'),
+          titleHlc: '0000000000000030-0000-a',
+          bodyVersion: 1,
+        }),
     ],
     ['putFile', () => storage.putFile({ id: F1, noteId: 'a', name: 'shot.png' }, PNG)],
     ['copyFiles', () => storage.copyFiles('b', [{ from: F1, to: F2 }])],
