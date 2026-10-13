@@ -13,15 +13,25 @@
 }
 
 .preview h1 {
-  font-size: calc(var(--font-size-title) * var(--preview-scale, 1));
+  font-size: 1.85em;
 }
 
 .preview h2 {
-  font-size: calc(var(--font-size-headline) * var(--preview-scale, 1));
+  font-size: 1.5em;
 }
 
 .preview h3 {
-  font-size: calc(var(--font-size-title3) * var(--preview-scale, 1));
+  font-size: 1.25em;
+}
+
+.preview h4 {
+  font-size: 1.05em;
+}
+
+/* The two top levels are ruled off from what follows. */
+.preview :is(h1, h2) {
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--color-line-hairline);
 }
 
 .preview :is(p, ul, ol, table, pre, blockquote, details, .alert) {
@@ -71,9 +81,14 @@
 }
 
 .preview blockquote {
-  padding-left: var(--space-6);
+  margin-left: 0;
+  padding: 0 0 0 var(--space-6);
   border-left: 3px solid var(--color-line-hairline);
   color: var(--color-text-secondary);
+}
+
+.preview blockquote > :last-child {
+  margin-bottom: 0;
 }
 
 .preview table {
@@ -85,6 +100,48 @@
   border: 1px solid var(--color-line-hairline);
 }
 
+.preview th {
+  background: var(--color-fill-track);
+  font-weight: var(--font-weight-semibold);
+}
+
+.preview hr {
+  height: 0;
+  margin: 1.6em 0;
+  border: 0;
+  border-top: 1px solid var(--color-line-hairline);
+}
+
+.preview :is(ul, ol) {
+  padding-left: 1.6em;
+}
+
+.preview li > :is(ul, ol) {
+  margin-bottom: 0;
+}
+
+.preview li > p {
+  margin-bottom: 0.4em;
+}
+
+/* Keys: small keycaps. */
+.preview kbd {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-line-hairline);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-editor);
+  font-family: var(--font-family-mono);
+  font-size: 0.78em;
+  line-height: 1.6;
+  vertical-align: 0.08em;
+}
+
+.preview del {
+  color: var(--color-text-secondary);
+}
+
 .preview li:has(> input[type='checkbox']) {
   list-style: none;
 }
@@ -94,8 +151,21 @@
   accent-color: var(--color-accent-fill);
 }
 
+/* A task's box ticks the task in the note. */
+.preview input[data-task-at] {
+  cursor: pointer;
+}
+
 .preview img {
   max-width: 100%;
+}
+
+/* An image on a paragraph of its own sits in a light frame. */
+.preview img.image-block {
+  box-sizing: border-box;
+  padding: var(--space-7);
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
 }
 
 /* Preview images: a size preset (an image URL's #small, #half or #full). */
@@ -115,9 +185,170 @@
   color: var(--color-text-secondary);
 }
 
+/* Front matter as properties: a compact grid of keys and values. */
+.preview dl.frontmatter {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-7);
+  margin: 0 0 1.2em;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+  font-size: calc(var(--font-size-footnote) * var(--preview-scale, 1));
+  line-height: 1.5;
+}
+
+.frontmatter-row {
+  display: contents;
+}
+
+.frontmatter dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+}
+
+.frontmatter-chip {
+  display: inline-block;
+  margin: 0 var(--space-2) var(--space-1) 0;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
 .preview .footnotes {
+  margin-top: 2em;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-line-hairline);
   font-size: calc(var(--font-size-footnote) * var(--preview-scale, 1));
   color: var(--color-text-secondary);
+}
+
+/* The footnotes' heading is for screen readers. */
+.preview .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * Code blocks with a language or a title: a header bar with the language's
+ * mark and name, the title, and the page's copy button.
+ */
+.preview .code-block {
+  margin: 0 0 0.8em;
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+}
+
+.preview .code-block > pre {
+  margin: 0;
+  background: transparent;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--space-9);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-6);
+  border-bottom: 1px solid var(--color-line-hairline);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-ui);
+  font-size: calc(var(--font-size-footnote) * var(--preview-scale, 1));
+  line-height: 1.4;
+}
+
+.code-lang-icon {
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
+  fill: currentColor;
+}
+
+.code-lang-icon-generic {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.code-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-title + .code-lang {
+  margin-left: auto;
+}
+
+/* Highlighted code: the editor's syntax colours. */
+.hljs-keyword,
+.hljs-literal,
+.hljs-selector-tag,
+.hljs-meta .hljs-keyword,
+.hljs-doctag {
+  color: var(--color-syntax-keyword);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-symbol,
+.hljs-link,
+.hljs-char,
+.hljs-meta .hljs-string {
+  color: var(--color-syntax-string);
+}
+
+.hljs-title,
+.hljs-type,
+.hljs-built_in,
+.hljs-class,
+.hljs-name,
+.hljs-section,
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-template-variable,
+.hljs-variable.language_ {
+  color: var(--color-syntax-function);
+}
+
+.hljs-number,
+.hljs-addition,
+.hljs-bullet {
+  color: var(--color-syntax-inserted);
+}
+
+.hljs-deletion {
+  color: var(--color-syntax-deleted);
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-meta {
+  color: var(--color-text-tertiary);
+}
+
+.hljs-comment,
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: var(--font-weight-bold);
 }
 
 .alert {

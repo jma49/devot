@@ -991,7 +991,25 @@ button {
   opacity: 0;
 }
 
+.code-header > .code-copy {
+  position: static;
+  width: var(--space-9);
+  height: var(--space-9);
+  margin: calc(-1 * var(--space-2)) 0 calc(-1 * var(--space-2)) auto;
+  background: transparent;
+  box-shadow: none;
+}
+
+.code-title + .code-lang + .code-copy {
+  margin-left: 0;
+}
+
+.code-header > .code-copy:hover {
+  background: var(--color-fill-row-selected-unemphasized);
+}
+
 .preview pre:hover > .code-copy,
+.preview .code-block:hover .code-copy,
 .code-copy:focus-visible,
 .code-copy:not([data-state='idle']) {
   opacity: 1;

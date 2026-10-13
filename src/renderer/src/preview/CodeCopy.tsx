@@ -87,7 +87,20 @@ const keyOf = (block: HTMLElement) => {
   return key
 }
 
-/** A copy button inside each of `blocks`. */
+/**
+ * Where a block's button goes: the block's header when it has one (a block
+ * with a language or a title), else the block itself, in its corner.
+ */
+export function buttonHost(block: HTMLElement): HTMLElement {
+  const header = block.parentElement?.matches('.code-block')
+    ? block.parentElement.querySelector<HTMLElement>(':scope > .code-header')
+    : null
+  return header ?? block
+}
+
+/** A copy button for each of `blocks`. */
 export function CodeCopyButtons({ blocks }: { blocks: readonly HTMLElement[] }) {
-  return blocks.map((block) => createPortal(<CopyButton block={block} />, block, keyOf(block)))
+  return blocks.map((block) =>
+    createPortal(<CopyButton block={block} />, buttonHost(block), keyOf(block)),
+  )
 }

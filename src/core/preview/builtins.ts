@@ -6,6 +6,8 @@ import { parseImageMarkdown, splitImageSize } from '../images'
 import { createMathRenderer } from './math'
 import { PREVIEW_API_VERSION, type AlertKind, type PreviewRenderer } from './registry'
 import { fillPlaceholders } from '../text'
+import { createCodeRenderer } from './code'
+import { parse, stringify } from 'yaml'
 
 type Parent = Root | Element
 /** `undefined` keeps the element (and visits its children); `null` removes it. */
@@ -55,14 +57,51 @@ const isBlank = (node: RootContent) => node.type === 'text' && node.value.trim()
 
 // --- Front matter ----------------------------------------------------------
 
+/** A front matter value as text: scalars as written, anything else as YAML. */
+function valueText(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'object' && !(value instanceof Date)) return stringify(value).trimEnd()
+  return value instanceof Date ? value.toISOString() : String(value)
+}
+
+/** The rows of a properties block, or null when the YAML is not a plain map. */
+function propertiesBlock(yaml: string): Element | null {
+  let data: unknown
+  try {
+    data = parse(yaml, { maxAliasCount: 16 })
+  } catch {
+    return null
+  }
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null
+  const rows = Object.entries(data as Record<string, unknown>).map(([key, value]) => {
+    const list = Array.isArray(value) && value.every((v) => v === null || typeof v !== 'object')
+    const dd = list
+      ? (value as unknown[]).map((v) =>
+          el('span', { className: ['frontmatter-chip'] }, [txt(valueText(v))]),
+        )
+      : [txt(valueText(value))]
+    return el('div', { className: ['frontmatter-row'] }, [
+      el('dt', {}, [txt(key)]),
+      el('dd', {}, dd),
+    ])
+  })
+  return rows.length > 0 ? el('dl', { className: ['frontmatter'] }, rows) : null
+}
+
+/**
+ * Front matter shows as a compact block of properties (key and value per
+ * row, lists as chips); YAML that is not a map of keys shows as code.
+ */
 const frontmatter: PreviewRenderer = {
   id: 'devot.frontmatter',
   apiVersion: PREVIEW_API_VERSION,
   transform(tree, { frontmatter: yaml }) {
     if (yaml === null) return
-    const block = el('pre', { className: ['frontmatter'] }, [
-      el('code', { className: ['language-yaml'] }, [txt(yaml)]),
-    ])
+    const block =
+      propertiesBlock(yaml) ??
+      el('pre', { className: ['frontmatter'] }, [
+        el('code', { className: ['language-yaml'] }, [txt(yaml)]),
+      ])
     // Front matter always opens the note.
     block.position = { start: { line: 1, column: 1 }, end: { line: 1, column: 1 } }
     tree.children.unshift(block)
@@ -95,6 +134,45 @@ const alerts: PreviewRenderer = {
         el('p', { className: ['alert-title'] }, [txt(labels.alerts[kind])]),
         ...body,
       ])
+    })
+  },
+}
+
+// --- Task lists ----------------------------------------------------------------
+
+const TASK = /^(?:[-*+]|\d{1,9}[.)])[ \t]+\[[ xX]\]/
+
+/**
+ * A task's checkbox gets where its mark (the space or `x` between the
+ * brackets) is in the Markdown (`data-task-at`), so the preview can tick it
+ * by changing the note; such a box is not disabled. Pages made from the tree
+ * (export) disable every box again.
+ */
+const tasks: PreviewRenderer = {
+  id: 'devot.tasks',
+  apiVersion: PREVIEW_API_VERSION,
+  transform(tree, { source }) {
+    rewrite(tree, (li) => {
+      if (li.tagName !== 'li') return undefined
+      const offset = li.position?.start.offset
+      const match = offset === undefined ? null : TASK.exec(source.slice(offset, offset + 40))
+      const lead = li.children.find((c): c is Element => c.type === 'element')
+      const box =
+        lead?.tagName === 'input'
+          ? lead
+          : lead?.tagName === 'p'
+            ? lead.children.find((c): c is Element => c.type === 'element')
+            : undefined
+      if (
+        match &&
+        offset !== undefined &&
+        box?.tagName === 'input' &&
+        box.properties['type'] === 'checkbox'
+      ) {
+        box.properties['dataTaskAt'] = offset + match[0].length - 2
+        delete box.properties['disabled']
+      }
+      return undefined
     })
   },
 }
@@ -155,7 +233,8 @@ const swatches: PreviewRenderer = {
 
 /**
  * An image's size preset (`#small`, `#half`, `#full` on its URL, see
- * core/images.ts) becomes a class, and the image loads without it. An image
+ * core/images.ts) becomes a class, and the image loads without it; an image
+ * alone in its paragraph gets `image-block`. An image
  * written as `![alt](url)` also gets where it is in the Markdown
  * (`data-image-from`, `data-image-to`), so its size can be set from the
  * preview; reference images and raw HTML get none.
@@ -164,14 +243,22 @@ const images: PreviewRenderer = {
   id: 'devot.images',
   apiVersion: PREVIEW_API_VERSION,
   transform(tree, { source }) {
-    rewrite(tree, (node) => {
+    rewrite(tree, (node, parent) => {
       if (node.tagName !== 'img') return undefined
       const src = node.properties['src']
+      const names: string[] = []
       if (typeof src === 'string') {
         const { url, size } = splitImageSize(src)
         node.properties['src'] = url
-        if (size !== 'auto') node.properties['className'] = [`image-size-${size}`]
+        if (size !== 'auto') names.push(`image-size-${size}`)
       }
+      // An image on a paragraph of its own shows in a frame.
+      const alone =
+        parent.type === 'element' &&
+        parent.tagName === 'p' &&
+        parent.children.every((c) => c === node || isBlank(c))
+      if (alone) names.push('image-block')
+      if (names.length > 0) node.properties['className'] = names
       const from = node.position?.start.offset
       const to = node.position?.end.offset
       if (from !== undefined && to !== undefined && parseImageMarkdown(source.slice(from, to))) {
@@ -359,9 +446,11 @@ const iframes: PreviewRenderer = {
 export const BUILTIN_RENDERERS: readonly PreviewRenderer[] = [
   frontmatter,
   alerts,
+  tasks,
   createMathRenderer(),
   createEmojiRenderer(),
   mermaid,
+  createCodeRenderer(),
   swatches,
   images,
   remoteImages,
