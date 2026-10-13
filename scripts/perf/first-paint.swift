@@ -8,8 +8,9 @@
 //
 // The editor only shows when a note is open, and a window opens where it was
 // left, so the data folder needs a note open once. With --seed the probe
-// presses "New Note" once the shell shows, then waits for the editor; the
-// next launch of that data folder restores that note. Without --seed the
+// presses "New Note" once the shell shows and the button is enabled (again
+// every second until the editor shows), then waits for the editor; the next
+// launch of that data folder restores that note. Without --seed the
 // probe waits for the restored note's editor and gives up after 30 s.
 // usage: first-paint [--seed] <path to Devot.app>
 // The two labels below are the catalog's 'noteList.newNote' and
@@ -85,7 +86,7 @@ do {
 }
 let app = AXUIElementCreateApplication(process.processIdentifier)
 var shellMs: Double?
-var pressed = false
+var lastPress: Double = -1_000
 while process.isRunning && millis(since: start) < 30_000 {
   let windows = (attribute(app, kAXWindowsAttribute) as? [AXUIElement]) ?? []
   if shellMs == nil, windows.contains(where: { painted($0) }) {
@@ -96,10 +97,15 @@ while process.isRunning && millis(since: start) < 30_000 {
       print(String(format: "%.0f %.0f %d", shellMs!, millis(since: start), process.processIdentifier))
       exit(0)
     }
-    if seed, !pressed,
-      let button = windows.lazy.compactMap({ find($0, newNoteLabel) }).first
+    // The button is disabled until the core is ready, and a press on a
+    // disabled button can still report success: press only an enabled one,
+    // and press again every second until the editor shows.
+    if seed, millis(since: start) - lastPress >= 1_000,
+      let button = windows.lazy.compactMap({ find($0, newNoteLabel) }).first,
+      (attribute(button, kAXEnabledAttribute) as? Bool) == true
     {
-      pressed = AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
+      _ = AXUIElementPerformAction(button, kAXPressAction as CFString)
+      lastPress = millis(since: start)
     }
   }
   usleep(10_000)

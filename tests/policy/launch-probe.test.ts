@@ -19,6 +19,16 @@ it('the launch probe waits for the editor, found by the catalog labels', () => {
   expect(probe).toContain('E_PROBE_TIMEOUT')
 })
 
+// The button is disabled until the core is ready, and a press on a disabled
+// button can still report success, so the probe presses only an enabled button
+// and presses again until the editor shows.
+it('the launch probe presses New Note only while it is enabled, and retries', () => {
+  const probe = read('scripts/perf/first-paint.swift')
+  expect(probe).toContain('kAXEnabledAttribute')
+  expect(probe).not.toMatch(/pressed\s*=\s*AXUIElementPerformAction/)
+  expect(probe).toContain('lastPress')
+})
+
 it('the launch script seeds a note once and reports both times', () => {
   const perf = read('scripts/perf/launch-cost.sh')
   expect(perf.match(/^launch --seed$/gm)).toHaveLength(1)
