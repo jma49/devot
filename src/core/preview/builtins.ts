@@ -183,6 +183,46 @@ const images: PreviewRenderer = {
   },
 }
 
+// --- images from the web -----------------------------------------------------
+
+const WEB_IMAGE = /^https?:\/\//i
+const SECURE_IMAGE = /^https:\/\//i
+
+/**
+ * Where the preview does not load images from the web, each one becomes a
+ * placeholder that says so and shows the address; an https address is a link
+ * (the page opens it in the browser), except inside another link.
+ */
+const remoteImages: PreviewRenderer = {
+  id: 'devot.remote-images',
+  apiVersion: PREVIEW_API_VERSION,
+  transform(tree, { remoteImages: texts }) {
+    if (!texts) return
+    const placeholder = (src: string, inLink: boolean): Element =>
+      el('span', { className: ['image-placeholder'], dataImageAddress: src }, [
+        el('span', { className: ['image-placeholder-text'] }, [txt(texts.notLoaded)]),
+        SECURE_IMAGE.test(src) && !inLink
+          ? el('a', { className: ['image-placeholder-address'], href: src }, [txt(src)])
+          : el('span', { className: ['image-placeholder-address'] }, [txt(src)]),
+        el('span', { className: ['image-placeholder-why'] }, [txt(texts.why)]),
+      ])
+    const visit = (node: Parent, inLink: boolean): void => {
+      node.children = node.children.map((child) => {
+        if (child.type !== 'element') return child
+        const src = child.properties['src']
+        if (child.tagName === 'img' && typeof src === 'string' && WEB_IMAGE.test(src)) {
+          const next = placeholder(src, inLink)
+          if (child.position) next.position = child.position
+          return next
+        }
+        visit(child, inLink || child.tagName === 'a')
+        return child
+      }) as typeof node.children
+    }
+    visit(tree, false)
+  },
+}
+
 // --- devot:// links ----------------------------------------------------------
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
@@ -321,6 +361,7 @@ export const BUILTIN_RENDERERS: readonly PreviewRenderer[] = [
   mermaid,
   swatches,
   images,
+  remoteImages,
   links,
   videoEmbeds,
   iframes,
