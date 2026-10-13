@@ -161,7 +161,8 @@ test('opens from the note menu, the menu bar and its shortcut; works by keyboard
   await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible()
 
   // The note menu.
-  await noteRow(page, 'Untitled').click({ button: 'right' })
+  // Its row shows its first line.
+  await noteRow(page, 'one two').click({ button: 'right' })
   await expect.poll(() => shownMenu(page)).toContain('Revision History\u2026 Alt+CmdOrCtrl+Y')
   await pickMenuItem(page, 'Revision History\u2026')
   await expect(sheet(page)).toBeVisible()
