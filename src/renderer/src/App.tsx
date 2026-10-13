@@ -2551,6 +2551,15 @@ export function App() {
                 <LivePreview
                   core={core}
                   text={openText}
+                  info={
+                    selectedNote
+                      ? {
+                          noteId: selectedNote.id,
+                          createdAt: selectedNote.createdAt,
+                          updatedAt: selectedNote.updatedAt,
+                        }
+                      : undefined
+                  }
                   onOpenNote={(id) => void select(id)}
                   onFind={setPreviewFind}
                   onScrollPane={setPreviewPane}

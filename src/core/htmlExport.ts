@@ -175,11 +175,15 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
       )
       return pre ? [el('pre', {}, [el('code', {}, [txt(pre.children.map(textOf).join(''))])])] : []
     }
+    // Icons are drawings; simple HTML keeps the words.
+    if (simple && names.includes('glyph')) return []
     if (simple && names.includes('alert')) {
       const [title, ...rest] = node.children
+      const words = (parent: Element) =>
+        parent.children.filter((c) => !(c.type === 'element' && classes(c).includes('glyph')))
       const heading =
         title?.type === 'element' && classes(title).includes('alert-title')
-          ? [el('p', {}, [el('strong', {}, title.children)])]
+          ? [el('p', {}, [el('strong', {}, words(title))])]
           : title
             ? [title]
             : []

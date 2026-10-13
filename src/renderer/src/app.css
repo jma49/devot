@@ -1060,6 +1060,113 @@ button {
   box-shadow: inset 0 0 0 2px var(--color-accent-fill);
 }
 
+/*
+ * The note info card: the first thing in the preview, never in an exported
+ * or printed page. Task progress and dates, each an icon over a caption.
+ */
+.note-info {
+  margin: var(--space-1) 0 var(--space-7);
+  font-size: var(--font-size-body);
+  line-height: 1.3;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.note-info-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 0.6rem;
+  border-radius: 14px;
+  background: var(--color-fill-card);
+}
+
+.note-info-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.note-info-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-10);
+  height: var(--space-10);
+  color: var(--color-text-primary);
+}
+
+.note-info-icon .icon {
+  width: var(--size-icon-lg);
+  height: var(--size-icon-lg);
+}
+
+.note-info-caption {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.note-info-label {
+  color: var(--color-text-secondary);
+  font-size: 0.6rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.note-info-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* "Linked to this note": the notes whose text links here. */
+.note-backlinks {
+  margin-top: var(--space-4);
+}
+
+.note-backlinks > summary {
+  cursor: default;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+
+.note-backlinks > ul {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note-backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.note-backlink > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Find matches in the preview, painted without touching its DOM. */
 ::highlight(devot-find) {
   background-color: var(--color-fill-match);

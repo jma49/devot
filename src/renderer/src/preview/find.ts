@@ -12,7 +12,7 @@ export const CURRENT_HIGHLIGHT = 'devot-find-current'
 const BLOCK =
   'p, li, h1, h2, h3, h4, h5, h6, pre, blockquote, td, th, dt, dd, caption, figcaption, summary, div, section, header, footer, aside, details, table, ul, ol, dl, tr, article'
 // Text that is not shown as text: islands draw their own content (diagrams).
-const SKIP = '[data-devot-island], script, style, svg, template'
+const SKIP = '[data-devot-island], [data-find-skip], script, style, svg, template'
 
 interface TextMap {
   text: string

@@ -17,6 +17,8 @@ const labels: PreviewLabels = {
   embedFrom: 'Embedded content from {origin}',
   embedLoad: 'Load',
   videoTitle: 'Embedded video',
+  untitled: 'Untitled',
+  missingNote: 'Note not found',
 }
 
 const render = (md: string) => renderPreview(md, { labels, loadedEmbeds: [] })

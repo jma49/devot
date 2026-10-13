@@ -13,6 +13,8 @@ import { createMathRenderer } from './math'
 import { PREVIEW_API_VERSION, type AlertKind, type PreviewRenderer } from './registry'
 import { fillPlaceholders } from '../text'
 import { createCodeRenderer } from './code'
+import { glyph } from './glyphs'
+import { noteLinkChips } from './noteLinks'
 import { parse, stringify } from 'yaml'
 
 type Parent = Root | Element
@@ -137,7 +139,10 @@ const alerts: PreviewRenderer = {
       const emptyLead = first.children.every(isBlank)
       const body = quote.children.filter((c) => !(emptyLead && c === first))
       return el('div', { className: ['alert', `alert-${kind}`] }, [
-        el('p', { className: ['alert-title'] }, [txt(labels.alerts[kind])]),
+        el('p', { className: ['alert-title'] }, [
+          glyph(kind, 'alert-icon'),
+          txt(labels.alerts[kind]),
+        ]),
         ...body,
       ])
     })
@@ -433,6 +438,7 @@ export const BUILTIN_RENDERERS: readonly PreviewRenderer[] = [
   swatches,
   images,
   links,
+  noteLinkChips,
   videoEmbeds,
   iframes,
 ]

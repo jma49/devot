@@ -88,6 +88,7 @@ export const light = {
   "color.fill.match-current": "rgb(245 159 10 / 0.5)",
   "color.fill.button": "#ebeae7",
   "color.fill.completion-selected": "#ebe7fe",
+  "color.fill.card": "rgb(28 27 25 / 0.065)",
   "color.accent.fill": "#3472d6",
   "color.accent.text": "#2856a2",
   "color.accent.hover": "#2463eb",
@@ -142,7 +143,12 @@ export const light = {
   "color.activity.level-3": "rgb(14 107 98 / 0.7)",
   "color.activity.level-4": "#0e6b62",
   "color.code-block.bg": "rgb(28 27 25 / 0.03)",
-  "color.code-block.border": "rgb(28 27 25 / 0.1)"
+  "color.code-block.border": "rgb(28 27 25 / 0.1)",
+  "color.code-header.bg": "rgb(28 27 25 / 0.05)",
+  "color.table.head": "rgb(28 27 25 / 0.075)",
+  "color.table.stripe": "rgb(28 27 25 / 0.03)",
+  "color.quote.bar": "rgb(28 27 25 / 0.18)",
+  "color.mark.bg": "rgb(234 179 8 / 0.3)"
 } as const
 
 export const dark = {
@@ -170,6 +176,7 @@ export const dark = {
   "color.fill.match-current": "rgb(245 159 10 / 0.45)",
   "color.fill.button": "#34332f",
   "color.fill.completion-selected": "#3a3550",
+  "color.fill.card": "rgb(235 232 226 / 0.08)",
   "color.accent.fill": "#4576b2",
   "color.accent.text": "#7ea6d8",
   "color.accent.hover": "#2463eb",
@@ -224,7 +231,12 @@ export const dark = {
   "color.activity.level-3": "rgb(99 205 191 / 0.66)",
   "color.activity.level-4": "#63cdbf",
   "color.code-block.bg": "rgb(235 232 226 / 0.04)",
-  "color.code-block.border": "rgb(235 232 226 / 0.1)"
+  "color.code-block.border": "rgb(235 232 226 / 0.1)",
+  "color.code-header.bg": "rgb(235 232 226 / 0.06)",
+  "color.table.head": "rgb(235 232 226 / 0.12)",
+  "color.table.stripe": "rgb(235 232 226 / 0.045)",
+  "color.quote.bar": "rgb(235 232 226 / 0.22)",
+  "color.mark.bg": "rgb(227 164 58 / 0.3)"
 } as const
 
 export type ThemeColor = keyof typeof light

@@ -96,6 +96,10 @@ Icons are SF Symbols, rendered by macOS at runtime through AppKit (the `symbol_p
 
 A code block in the preview with a language shows that language's mark in its header (`icons/languages.json`, read by `src/core/preview/code.ts`). The marks are third-party artwork from [simple-icons](https://github.com/simple-icons/simple-icons) 16.35.0, one 24 x 24 path each, drawn in the text colour so they follow light and dark. The package is CC0-1.0; each entry records its own licence, and only CC0-1.0 and MIT marks are kept (JavaScript and GNU Bash are MIT). Marks under share-alike or non-commercial licences are left out, and their languages show a generic mark. Add a mark only with its licence recorded in its entry.
 
+## Preview blocks
+
+The preview draws its blocks from their own theme tokens: `color.code-block.*` and `color.code-header.bg` for code, `color.table.head` and `color.table.stripe` for tables, `color.quote.bar`, `color.mark.bg` for highlighted text, `color.fill.card` for the note info card, and `color.alert.*` for the five alert kinds (note blue, tip green, important purple, warning orange, caution red), each in light and dark. Alert titles keep 4.5:1 on the editor (`contrast.test.ts`). The small line icons drawn into a note's content (alert kinds, note statuses, a broken link) are Devot's own drawings in `src/core/preview/glyphs.ts`, stroked in the text colour.
+
 ## Themes
 
 - **Default**: Devot's palette in the appearance chosen in Settings (the system's by default), optionally with the system accent.
