@@ -35,6 +35,7 @@ fn main() {
         macos::self_test_image_pasteboard(PNG)
             .expect("an image goes on a pasteboard as PNG and TIFF");
         println!("main_thread: images go on the pasteboard as PNG and TIFF");
+        image_decode_frees_its_memory();
         print_to_pdf();
         print_jobs_end();
         print_loads_nothing_remote();
@@ -58,6 +59,83 @@ fn main() {
             accent.multicolor
         );
     }
+}
+
+/// Copy Image frees what it decoded once it returns, not when its thread
+/// ends. Two copies of a large image are decoded on a thread that then
+/// stays alive (as a blocking-pool thread does, for 10 s and more): AppKit's
+/// temporaries (decoded copies of the image) used to stay until that thread
+/// exited, hundreds of MB for a large photo, so the footprint fell by as
+/// much when it did. Now nothing is left for its exit to free. (The
+/// footprint does not fall back to where it was before the copies: the
+/// allocator keeps freed pages for reuse, which `heap` shows as free.)
+#[cfg(target_os = "macos")]
+fn image_decode_frees_its_memory() {
+    use devot_lib::native::macos;
+    use std::sync::{Arc, mpsc};
+
+    const SIDE: u32 = 4096;
+    // What one decoded copy of the image takes (four bytes a pixel).
+    let decoded = 4 * u64::from(SIDE) * u64::from(SIDE);
+    // Shared, so the thread's exit frees none of the image's own bytes.
+    let image: Arc<[u8]> = bmp(SIDE, SIDE).into();
+    let (copied, done) = mpsc::channel();
+    let (measured, wait) = mpsc::channel::<()>();
+    let worker = std::thread::spawn({
+        let image = Arc::clone(&image);
+        move || {
+            for _ in 0..2 {
+                let copy = macos::pasteboard_image(&image, u64::MAX).expect("the image decodes");
+                assert!(copy.png.is_some() && !copy.tiff.is_empty());
+            }
+            copied.send(()).unwrap();
+            // Alive until measured, as a blocking-pool thread stays.
+            let _ = wait.recv();
+        }
+    });
+    done.recv().expect("the copies finish");
+    let alive = macos::memory_footprint().expect("the footprint reads");
+    measured.send(()).unwrap();
+    worker.join().unwrap();
+    let ended = macos::memory_footprint().expect("the footprint reads");
+    let freed_at_exit = alive.saturating_sub(ended);
+    assert!(
+        freed_at_exit < decoded,
+        "the decoding thread held {} MB until it exited (one decoded copy is {} MB)",
+        freed_at_exit >> 20,
+        decoded >> 20
+    );
+    println!(
+        "main_thread: copies of a {SIDE}x{SIDE} image free their memory before the thread ends ({} MB held to its exit)",
+        freed_at_exit >> 20
+    );
+}
+
+/// An uncompressed 24-bit BMP of `width` by `height` pixels, a pattern
+/// rather than one colour.
+#[cfg(target_os = "macos")]
+fn bmp(width: u32, height: u32) -> Vec<u8> {
+    let row = (width * 3).next_multiple_of(4);
+    let size = row * height;
+    let mut out = Vec::with_capacity(54 + size as usize);
+    out.extend_from_slice(b"BM");
+    // File size, reserved, pixel offset; header size, width, height.
+    for value in [54 + size, 0, 54, 40, width, height] {
+        out.extend_from_slice(&value.to_le_bytes());
+    }
+    // One plane of 24 bits a pixel.
+    out.extend_from_slice(&[1, 0, 24, 0]);
+    // No compression, pixel bytes, 72 dpi both ways, no palette.
+    for value in [0, size, 2835, 2835, 0, 0] {
+        out.extend_from_slice(&value.to_le_bytes());
+    }
+    for y in 0..height {
+        let line: Vec<u8> = (0..row)
+            .map(|i| if i < width * 3 { (i ^ y) as u8 } else { 0 })
+            .collect();
+        out.extend_from_slice(&line);
+    }
+    out
 }
 
 /// A long page prints to a PDF of several pages through the system print
