@@ -143,16 +143,46 @@ fn validate_symbol_request(name: &str, point_size: f64) -> Result<(), &'static s
     Ok(())
 }
 
-/// Renders an SF Symbol as a base64 PNG at twice `point_size` pixels.
+/// Held while a symbol renders. AppKit lets an image be used on any thread,
+/// but by one thread at a time, and the symbol images it hands out may be
+/// shared.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+static SYMBOL_RENDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Runs `render` on a blocking thread, one render at a time, never on the
+/// thread that asks. Tauri runs a synchronous command on the main thread,
+/// which at launch also routes the page's first IPC: rendering the first
+/// paint's 22 icons there held it for about 115 ms (80 of them on the
+/// first, when AppKit loads the symbols). None when the render panicked.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+async fn render_one_at_a_time<T: Send + 'static>(
+    render: impl FnOnce() -> T + Send + 'static,
+) -> Option<T> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _turn = SYMBOL_RENDER
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        render()
+    })
+    .await
+    .ok()
+}
+
+/// Renders an SF Symbol as a base64 PNG at twice `point_size` pixels, off
+/// the main thread (`render_one_at_a_time`).
 #[tauri::command]
-pub fn symbol_png(name: String, point_size: f64) -> Result<String, String> {
+pub async fn symbol_png(name: String, point_size: f64) -> Result<String, String> {
     validate_symbol_request(&name, point_size).map_err(String::from)?;
     #[cfg(target_os = "macos")]
     {
         use base64::Engine as _;
-        macos::symbol_png(&name, point_size)
-            .map(|png| base64::engine::general_purpose::STANDARD.encode(png))
-            .ok_or_else(|| String::from("E_SYMBOL_UNAVAILABLE"))
+        render_one_at_a_time(move || {
+            macos::symbol_png(&name, point_size)
+                .map(|png| base64::engine::general_purpose::STANDARD.encode(png))
+        })
+        .await
+        .flatten()
+        .ok_or_else(|| String::from("E_SYMBOL_UNAVAILABLE"))
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -420,10 +450,59 @@ mod tests {
         }
     }
 
+    #[test]
+    fn renders_off_the_asking_thread_one_at_a_time() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+        // Tauri runs an async command's future on its runtime, never on the
+        // main thread; the render then goes to a blocking thread of its own.
+        let asking = std::thread::current().id();
+        let rendered_on =
+            tauri::async_runtime::block_on(render_one_at_a_time(|| std::thread::current().id()));
+        assert!(rendered_on.is_some_and(|thread| thread != asking));
+        // Renders asked for together (the icons of the first paint) take
+        // turns.
+        let running = Arc::new(AtomicUsize::new(0));
+        let most = Arc::new(AtomicUsize::new(0));
+        let renders: Vec<_> = (0..8)
+            .map(|_| {
+                let (running, most) = (Arc::clone(&running), Arc::clone(&most));
+                tauri::async_runtime::spawn(render_one_at_a_time(move || {
+                    most.fetch_max(running.fetch_add(1, SeqCst) + 1, SeqCst);
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                    running.fetch_sub(1, SeqCst);
+                }))
+            })
+            .collect();
+        tauri::async_runtime::block_on(async {
+            for render in renders {
+                assert!(render.await.unwrap().is_some());
+            }
+        });
+        assert_eq!(most.load(SeqCst), 1, "renders overlapped");
+    }
+
+    #[test]
+    fn the_command_refuses_a_bad_request_before_rendering() {
+        let ask = |name: &str, size: f64| {
+            tauri::async_runtime::block_on(symbol_png(name.into(), size)).unwrap_err()
+        };
+        assert_eq!(ask("../x", 17.0), "E_SYMBOL_NAME_INVALID");
+        assert_eq!(ask("pin", 0.0), "E_SYMBOL_SIZE_INVALID");
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn renders_a_known_symbol_as_png() {
+        use base64::Engine as _;
         let png = macos::symbol_png("square.and.pencil", 17.0).expect("symbol renders");
+        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+        // What the page gets: the same, as base64.
+        let answer =
+            tauri::async_runtime::block_on(symbol_png("square.and.pencil".into(), 17.0)).unwrap();
+        let png = base64::engine::general_purpose::STANDARD
+            .decode(answer)
+            .unwrap();
         assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
     }
 }

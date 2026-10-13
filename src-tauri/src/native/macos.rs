@@ -248,29 +248,34 @@ unsafe fn responds(object: *mut AnyObject, selector: objc2::runtime::Sel) -> boo
     answer.as_bool()
 }
 
-/// Renders an SF Symbol to PNG bytes at twice `point_size` pixels.
+/// Renders an SF Symbol to PNG bytes at twice `point_size` pixels. Safe off
+/// the main thread, one call at a time (`native::render_one_at_a_time`);
+/// AppKit's temporaries go in an autorelease pool of the call's own, as a
+/// blocking thread has none to empty.
 pub fn symbol_png(name: &str, point_size: f64) -> Option<Vec<u8>> {
     catch_unwind(|| {
-        // SAFETY: these are public AppKit APIs (macOS 11+) called with
-        // valid, owned arguments; every result is checked for nil.
-        unsafe {
-            let image = NSImage::imageWithSystemSymbolName_accessibilityDescription(
-                &NSString::from_str(name),
-                None,
-            )?;
-            let configuration = NSImageSymbolConfiguration::configurationWithPointSize_weight(
-                point_size * 2.0,
-                NSFontWeightRegular,
-            );
-            let image = image.imageWithSymbolConfiguration(&configuration)?;
-            let tiff = image.TIFFRepresentation()?;
-            let bitmap = NSBitmapImageRep::imageRepWithData(&tiff)?;
-            let png = bitmap.representationUsingType_properties(
-                NSBitmapImageFileType::PNG,
-                &NSDictionary::new(),
-            )?;
-            Some(png.to_vec())
-        }
+        objc2::rc::autoreleasepool(|_| {
+            // SAFETY: these are public AppKit APIs (macOS 11+) called with
+            // valid, owned arguments; every result is checked for nil.
+            unsafe {
+                let image = NSImage::imageWithSystemSymbolName_accessibilityDescription(
+                    &NSString::from_str(name),
+                    None,
+                )?;
+                let configuration = NSImageSymbolConfiguration::configurationWithPointSize_weight(
+                    point_size * 2.0,
+                    NSFontWeightRegular,
+                );
+                let image = image.imageWithSymbolConfiguration(&configuration)?;
+                let tiff = image.TIFFRepresentation()?;
+                let bitmap = NSBitmapImageRep::imageRepWithData(&tiff)?;
+                let png = bitmap.representationUsingType_properties(
+                    NSBitmapImageFileType::PNG,
+                    &NSDictionary::new(),
+                )?;
+                Some(png.to_vec())
+            }
+        })
     })
     .ok()
     .flatten()
