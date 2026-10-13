@@ -1,8 +1,19 @@
 # Devot
 
-A local-first Markdown note-taking app for macOS 26 and later, built with Tauri.
+A local-first Markdown note-taking app for macOS 26 and later, built with Tauri. Your notes live in a SQLite database on your Mac; every feature works without an account or a network connection.
 
-**Status:** early development. There are no binary releases yet, no signed or notarised builds (local builds are ad-hoc signed) and no automatic updates: build it from source (below).
+**Status:** milestone 1 (phase 1, the macOS MVP) is complete. There are no binary releases yet, no signed or notarised builds (local builds are ad-hoc signed) and no automatic updates: build it from source (see Development). Sync, AI edit proposals and iOS come in phases 2 and 3 (`docs/architecture.md`, Phases).
+
+## What you get
+
+- **Organise:** nestable notebooks, tags, note statuses (none, active, on hold, completed, dropped), pinning and a Trash.
+- **Write:** a Markdown editor with a safe live preview, math, Mermaid diagrams and emoji built in, pasted images and other attachments, and a distraction-free mode.
+- **Connect:** `[[` note links with a link index, and full-text search.
+- **Look:** light and dark themes, and an option for an opaque sidebar. A local activity heatmap shows when you write; usage events stay on your device.
+- **Bring notes in and out:** import a Markdown folder; export to Markdown or HTML; print; keep a Markdown mirror folder up to date (below).
+- **Stay safe:** automatic daily local backups with restore (Devot > Backups…), and local logs that carry codes and IDs, never note content.
+- **Work with AI, on your terms:** devot-mcp gives Claude and other MCP clients read access (search, read) and note creation, only in notebooks you allow (below).
+- **Crash reports (optional):** off unless a build is made with a Sentry DSN (below).
 
 ## Development
 
