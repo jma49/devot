@@ -7,9 +7,11 @@
 // refuses. It keeps no link index: nothing in the UI reads one yet. A note
 // a test stored without a body version is at version 0.
 // A UI test makes note writes fail (a full disk, say) by putting an error
-// code in `devot.test.failNoteWrites`, and makes writes slow with a number of
+// code in `devot.test.failNoteWrites`, makes writes slow with a number of
 // milliseconds in `devot.test.delayNoteWrites` (notes) or
-// `devot.test.delayFileWrites` (attachments).
+// `devot.test.delayFileWrites` (attachments), makes revision writes fail with
+// one in `devot.test.failRevisions`, and the listing of notes (the first load
+// of the lists) with one in `devot.test.failList`.
 import type {
   ActivityRevision,
   BookRecord,
@@ -35,11 +37,19 @@ const COMPACTION = 'devot.test.compaction'
 const FAIL_NOTE_WRITES = 'devot.test.failNoteWrites'
 const DELAY_NOTE_WRITES = 'devot.test.delayNoteWrites'
 const DELAY_FILE_WRITES = 'devot.test.delayFileWrites'
+const FAIL_REVISIONS = 'devot.test.failRevisions'
+const FAIL_LIST = 'devot.test.failList'
 
 /** Waits as long as a test asked for under `key` (a write that takes its time). */
 async function slowWrite(key: string) {
   const ms = Number(localStorage.getItem(key))
   if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** Throws the error code a UI test put under `key`, if any. */
+function failWith(key: string) {
+  const failure = localStorage.getItem(key)
+  if (failure) throw new Error(failure)
 }
 
 type StoredFile = FileMeta & { mime: string; base64: string }
@@ -114,6 +124,7 @@ function mergeBook(current: BookRecord | undefined, next: BookRecord): BookRecor
 
 export const memoryStorage: StorageAdapter = {
   async listNotes() {
+    failWith(FAIL_LIST)
     const liveTags = new Set(
       read<TagRecord>(TAGS)
         .filter((t) => t.deletedAt === null)
@@ -230,6 +241,7 @@ export const memoryStorage: StorageAdapter = {
     localStorage.setItem(REVISIONS, JSON.stringify(revisions))
   },
   async putRevision(revision) {
+    failWith(FAIL_REVISIONS)
     const note = read<Stored>(NOTES).find((n) => n.id === revision.noteId)
     if (!note || note.purgedAt !== undefined) return
     const all = read<StoredRevision>(REVISIONS)
@@ -324,8 +336,7 @@ export const memoryStorage: StorageAdapter = {
   },
   async putNote(note) {
     await slowWrite(DELAY_NOTE_WRITES)
-    const failure = localStorage.getItem(FAIL_NOTE_WRITES)
-    if (failure) throw new Error(failure)
+    failWith(FAIL_NOTE_WRITES)
     checkNote(note)
     const all = read<Stored>(NOTES)
     const current = all.find((n) => n.id === note.id)

@@ -40,6 +40,8 @@ import { ImportDialog, type ImportState } from './ImportDialog'
 import { IMPORT_FAILED, IMPORT_READY, finishImport, runImport } from './importer'
 import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
+import { CoreNotice } from './CoreNotice'
+import { StartFailure } from './StartFailure'
 import {
   IMAGE_COMMANDS,
   imageActionApplies,
@@ -74,7 +76,7 @@ import { StatusPicker } from './StatusPicker'
 import { TagEditor } from './TagEditor'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
-import { startCore, type Core } from './core-client'
+import { startCore, stopCore, type Core } from './core-client'
 import { currentFocusStore, currentSidebarStore, keyboardIsFree } from './focus'
 import { useFocusRescue } from './focusRescue'
 import { currentLastStateStore, restorePlan, type LastState, type NoteState } from './lastState'
@@ -207,6 +209,12 @@ export function App() {
   // Tooltips name the keys in effect; they follow the user's changes.
   useKeymap()
   const [core, setCore] = useState<Core>()
+  // Why the core could not start (a code), until Try Again starts it again;
+  // `startAttempt` counts the starts.
+  const [startFailure, setStartFailure] = useState<string>()
+  const [startAttempt, setStartAttempt] = useState(0)
+  // The code of an error the running core worker raised (a notice).
+  const [coreFailure, setCoreFailure] = useState<string>()
   // The lists have loaded once (the last state is restored then).
   const [listsLoaded, setListsLoaded] = useState(false)
   const [notes, setNotes] = useState<NoteSummary[]>([])
@@ -705,21 +713,42 @@ export function App() {
     [multiIds, noteById],
   )
 
+  const onCoreFailure = useCallback((code: string) => {
+    console.error(code)
+    setCoreFailure(code)
+  }, [])
   useEffect(() => {
     let alive = true
-    void startCore(onSaveProblems, showWrites).then(async (c) => {
-      if (!alive) return
-      setCore(() => c)
-      coreRef.current = c
-      await refresh(c)
-      setListsLoaded(true)
-      // Folders picked before the core was ready.
-      nextSheet()
-    })
+    let started: Core | undefined
+    void startCore(onSaveProblems, showWrites, onCoreFailure)
+      .then(async (c) => {
+        started = c
+        if (!alive) return
+        setCore(() => c)
+        coreRef.current = c
+        await refresh(c)
+        setListsLoaded(true)
+        // Folders picked before the core was ready.
+        nextSheet()
+      })
+      .catch((e: unknown) => {
+        if (!alive) return
+        // Not an empty library: the window says why it has none.
+        if (started) stopCore(started)
+        coreRef.current = undefined
+        setCore(undefined)
+        const code = errorCode(e)
+        console.warn('W_CORE_START_FAILED', code)
+        setStartFailure(code)
+      })
     return () => {
       alive = false
     }
-  }, [refresh, nextSheet, onSaveProblems, showWrites])
+  }, [refresh, nextSheet, onSaveProblems, showWrites, onCoreFailure, startAttempt])
+  const retryStart = () => {
+    setStartFailure(undefined)
+    setStartAttempt((n) => n + 1)
+  }
 
   // Search: newest query wins, run shortly after typing stops.
   useEffect(() => {
@@ -2050,6 +2079,8 @@ export function App() {
     }),
   )
 
+  if (startFailure) return <StartFailure code={startFailure} onRetry={retryStart} />
+
   return (
     <div
       className="window"
@@ -2368,6 +2399,7 @@ export function App() {
       exportNotice ||
       changeNotice ||
       batchFailed ||
+      coreFailure ||
       imageNotice ||
       saveNoticeShown ||
       mirror.notices.length > 0 ? (
@@ -2404,6 +2436,9 @@ export function App() {
           ) : null}
           {batchFailed ? (
             <BatchNotice failed={batchFailed} onDismiss={() => setBatchFailed(undefined)} />
+          ) : null}
+          {coreFailure ? (
+            <CoreNotice code={coreFailure} onDismiss={() => setCoreFailure(undefined)} />
           ) : null}
           {imageNotice ? (
             <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />

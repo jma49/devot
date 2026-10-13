@@ -32,8 +32,14 @@ import {
   type StorageAdapter,
   type TagColor,
 } from '../../core'
+import { errorCode } from '../../core/errors'
 import type { SaveProblemsMessage } from './saving'
 import { fromWire, type WireStorage } from './storage/wire'
+import { forwardWorkerLogs } from './workerLog'
+
+// The worker's own warnings, errors and uncaught failures go to the page,
+// which writes them to the local log (see workerLog.ts).
+forwardWorkerLogs(self, (message) => self.postMessage(message))
 
 let service: NoteService | undefined
 let books: BookService | undefined
@@ -96,7 +102,9 @@ export const coreApi = {
     templates = createTemplateService({ storage, notes: service, books, tags, clock, newId: ids })
     // Notebooks from before sort keys get theirs, in the order they show.
     // On failure they keep showing in that order and the next start retries.
-    await books.settleOrder().catch(() => undefined)
+    await books
+      .settleOrder()
+      .catch((e: unknown) => console.warn('W_BOOK_ORDER_FAILED', errorCode(e)))
   },
   list: (limit?: number) => required().list(limit),
   create: (title?: string, bookId?: string | null) => required().create(title, bookId),
