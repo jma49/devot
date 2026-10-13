@@ -2993,6 +2993,8 @@ button {
   position: relative;
   display: inline-flex;
   min-width: 0;
+  /* The pop-up's cap, on the box around it too: a long name does not take the row. */
+  max-width: min(var(--size-popup-max-width), 100%);
 }
 
 button.popup {
