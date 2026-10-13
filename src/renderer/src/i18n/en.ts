@@ -105,8 +105,7 @@ export const en = {
   'templates.pickTitle': 'New Note from Template',
   'templates.filter': 'Filter templates',
   'templates.recent': 'Recently Used',
-  'templates.none':
-    'No templates yet. Notes you add to Templates in the sidebar show up here, ready to start a note from.',
+  'templates.builtIn': 'Built-in',
   'templates.noMatches': 'No templates match.',
   'templates.create': 'Create',
   'templates.preview': 'Preview',
@@ -114,7 +113,7 @@ export const en = {
   'templates.tags': 'Tags: {tags}',
   'templates.status': 'Status: {status}',
   'templates.editorHint':
-    'Template. Front matter sets the title, notebook, tags and status of notes made from it; {{date}}, {{time}} and {{title}} are filled in.',
+    'Template. Front matter sets the title, notebook, tags and status of notes made from it; {{date}}, {{time}}, {{title}} and {{uuid}} are filled in. A quote that starts with a ! heading is left out of those notes.',
   'noteList.pinned': 'Pinned',
   'noteList.others': 'Notes',
   'sort.button': 'Sort Notes',

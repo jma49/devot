@@ -16,10 +16,15 @@
 //   one note, and purging the template would delete them), with the links
 //   taking the copies' IDs.
 //
+// An instruction quote is a blockquote whose first line is a heading that
+// starts with `!` (`> # !Instructions`). It explains the template, stays
+// visible in the template itself and is removed from the note made from it.
+//
 // Variables: `{{date}}` (YYYY-MM-DD), `{{time}}` (HH:mm), `{{datetime}}`
 // (YYYY-MM-DD HH:mm), each with an optional format after a colon
-// (`{{date:dddd, D MMMM}}`, tokens below), and `{{title}}`, the new note's
-// title. Names match in any case. Anything else between double braces is
+// (`{{date:dddd, D MMMM}}`, tokens below), `{{title}}`, the new note's
+// title, and `{{uuid}}`, a random UUID v4 (the same one wherever it appears
+// in one note, a new one for each note made). Names match in any case. Anything else between double braces is
 // left as written. Dates are on the wall clock of the system's time zone
 // at the moment the note is made; the clock and the zone are injectable.
 
@@ -30,6 +35,7 @@ import { newFileCopies, replaceFileLinks } from './files'
 import type { Clock } from './hlc'
 import { noteTitle, readFrontMatter, withoutFrontMatterKeys } from './import'
 import type { NoteService } from './notes'
+import { isStarterTemplate, starterTemplate } from './starterTemplates'
 import type { BookRecord, NoteStatus, NoteSummary, StorageAdapter } from './storage'
 import { sameName, type TagService } from './tags'
 import { lineFeeds } from './text'
@@ -48,6 +54,8 @@ export interface TemplateClock {
   offsetAt?: OffsetAt | undefined
   /** The locale for month and weekday names; English by default. */
   locale?: string | undefined
+  /** The UUID for `{{uuid}}`; random (v4) by default. */
+  uuid?: string | undefined
 }
 
 export interface TemplateContext extends TemplateClock {
@@ -131,17 +139,50 @@ const DATE_FORMATS: Readonly<Record<string, string>> = {
 
 /** `text` with its variables filled in, in one pass (see the rules at the top). */
 export function expandTemplate(text: string, context: TemplateContext): string {
+  let uuid = context.uuid
   return text.replace(VARIABLE, (whole, rawName: string, format: string | undefined) => {
     const name = rawName.toLowerCase()
     const fallback = DATE_FORMATS[name]
     if (fallback !== undefined) {
       return formatDate(context.now, format?.trim() || fallback, context)
     }
+    if (name === 'uuid' && format === undefined) return (uuid ??= crypto.randomUUID())
     if (name === 'title' && format === undefined && context.title !== undefined) {
       return context.title
     }
     return whole
   })
+}
+
+/** An instruction quote's first line: `> # !Instructions`. */
+const INSTRUCTION_START = /^ {0,3}>[ \t]*#{1,6}[ \t]*!/
+const QUOTE_LINE = /^ {0,3}>/
+const FENCE = /^ {0,3}(`{3,}|~{3,})/
+
+/**
+ * `text` without its instruction quotes (see the rules at the top): the
+ * quote's lines, and the blank line after it. Ordinary quotes and anything
+ * in a code block stay.
+ */
+export function withoutInstructions(text: string): string {
+  const lines = text.split('\n')
+  const out: string[] = []
+  let fence: string | null = null
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? ''
+    const mark = FENCE.exec(line)?.[1]
+    if (mark !== undefined) {
+      if (fence === null) fence = mark
+      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null
+    }
+    if (fence === null && !mark && INSTRUCTION_START.test(line)) {
+      while (i + 1 < lines.length && QUOTE_LINE.test(lines[i + 1] ?? '')) i += 1
+      if (lines[i + 1]?.trim() === '') i += 1
+      continue
+    }
+    out.push(line)
+  }
+  return out.join('\n')
 }
 
 /** What a note made from `template` at `clock` gets (see the rules at the top). */
@@ -151,11 +192,13 @@ export function draftFromTemplate(
 ): TemplateDraft {
   // As import does: a `\r` in a body would put later edits in the wrong place.
   const source = lineFeeds(template.body)
+  // One UUID for the whole note, title included.
+  const made = { ...clock, uuid: clock.uuid ?? crypto.randomUUID() }
   const own = readFrontMatter(source).title
   const title = noteTitle(
-    expandTemplate(own !== null && own.trim() !== '' ? own : template.title, clock),
+    expandTemplate(own !== null && own.trim() !== '' ? own : template.title, made),
   )
-  const body = expandTemplate(source, { ...clock, title })
+  const body = expandTemplate(withoutInstructions(source), { ...made, title })
   const meta = readFrontMatter(body)
   return {
     title,
@@ -221,6 +264,20 @@ export interface TemplateService {
     bookId?: string | null,
   ): Promise<TemplateDraft & { bookId: string | null }>
   /**
+   * Saves an edit of template `id` (its title and/or Markdown body). A
+   * starter template is read-only: its edit is saved as a new template of
+   * the user's own, whose ID is returned. A template of the user's own is
+   * written in place and keeps its ID.
+   */
+  save(id: string, edit: { title?: string; body?: string }): Promise<string>
+  /**
+   * Fills note `noteId` from template `id`, keeping what the note has: its
+   * tags and status stay (the template's tags are added; its status is used
+   * only while the note has none), its title stays unless empty, and the
+   * template's body goes after the note's own text.
+   */
+  applyTo(id: string, noteId: string, clock: TemplateClock): Promise<void>
+  /**
    * Makes a note from template `id` (see the rules at the top) and returns
    * its ID. It goes to `bookId` when the template names no notebook that
    * exists, unless that is not one of the user's live notebooks.
@@ -259,11 +316,14 @@ export function createTemplateService(options: TemplateServiceOptions): Template
 
   /** What a note made from template `id` gets, and the notebook it goes to. */
   const draft = async (id: string, at: TemplateClock, fallback: string | null = null) => {
-    const template = await notes.read(id).catch((error: unknown) => {
-      // Any other failure keeps its own code.
-      if (errorCode(error) === 'E_NOTE_NOT_FOUND') return null
-      throw error
-    })
+    const starter = starterTemplate(id)
+    const template = starter
+      ? { title: starter.title, bodyMd: starter.body, bookId: TEMPLATES_BOOK_ID }
+      : await notes.read(id).catch((error: unknown) => {
+          // Any other failure keeps its own code.
+          if (errorCode(error) === 'E_NOTE_NOT_FOUND') return null
+          throw error
+        })
     if (template?.bookId !== TEMPLATES_BOOK_ID) throw new Error('E_TEMPLATE_NOT_FOUND')
     const made = draftFromTemplate({ title: template.title, body: template.bodyMd }, at)
     const live = await books.list()
@@ -292,6 +352,37 @@ export function createTemplateService(options: TemplateServiceOptions): Template
     },
 
     draft,
+
+    async save(id, edit) {
+      let target = id
+      if (isStarterTemplate(id)) {
+        const starter = starterTemplate(id)
+        if (!starter) throw new Error('E_TEMPLATE_NOT_FOUND')
+        // A starter is never written: the edit goes to a copy.
+        await ensureBook()
+        target = await notes.create(edit.title ?? starter.title, TEMPLATES_BOOK_ID)
+        await notes.setBody(target, edit.body ?? starter.body)
+        return target
+      }
+      if (edit.title !== undefined) await notes.setTitle(target, edit.title)
+      if (edit.body !== undefined) await notes.setBody(target, edit.body)
+      return target
+    },
+
+    async applyTo(id, noteId, at) {
+      const made = await draft(id, at)
+      const note = await notes.read(noteId)
+      // Pending edits written, so the status read is the note's current one.
+      await notes.flush()
+      const status = (await storage.listNotes()).find((n) => n.id === noteId)?.status ?? 'none'
+      if (note.title === '' && made.title !== '') await notes.setTitle(noteId, made.title)
+      const own = note.bodyMd.trimEnd()
+      await notes.setBody(noteId, own === '' ? made.body : `${own}\n\n${made.body}`)
+      if (made.status !== null && made.status !== 'none' && status === 'none') {
+        await notes.setStatus(noteId, made.status)
+      }
+      for (const tag of made.tags) await tags.addToNote(noteId, tag)
+    },
 
     async apply(id, at, fallback) {
       const { bookId, ...made } = await draft(id, at, fallback)
