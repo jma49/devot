@@ -1037,43 +1037,111 @@ mod tests {
         }
     }
 
+    use std::time::{Duration, Instant};
+
+    /// The time of the quickest of five runs of `work` on `input` (a load
+    /// spike slows some runs, rarely all five).
+    fn best_of_five(work: &impl Fn(&str), input: &str) -> Duration {
+        (0..5)
+            .map(|_| {
+                let started = Instant::now();
+                work(input);
+                started.elapsed()
+            })
+            .min()
+            .unwrap_or_default()
+    }
+
+    /// Longest any run may take: a hang, not a speed limit.
+    const HANG_CEILING: Duration = Duration::from_secs(120);
+
+    /// Asserts `work` takes linear time on the inputs `make` builds:
+    /// four times the size takes about four times as long (sixteen times for
+    /// quadratic work; the limit is in between), whatever the machine's speed or load. Then runs the
+    /// full `size` once, under a ceiling that only a hang reaches.
+    fn assert_linear(work: impl Fn(&str), make: impl Fn(usize) -> String, size: usize) {
+        let small = best_of_five(&work, &make(size / 16));
+        let large = best_of_five(&work, &make(size / 4));
+        // Timer noise below a millisecond says nothing about growth.
+        let growth = large.as_secs_f64() / small.max(Duration::from_millis(1)).as_secs_f64();
+        assert!(
+            growth < 11.0,
+            "four times the input took {growth:.1} times as long ({small:?} to {large:?})"
+        );
+        let started = Instant::now();
+        work(&make(size));
+        assert!(
+            started.elapsed() < HANG_CEILING,
+            "took {:?}",
+            started.elapsed()
+        );
+    }
+
+    /// The check itself: work that grows with the square of the input fails
+    /// it, work that grows with the input passes it.
+    #[test]
+    fn the_growth_check_tells_quadratic_from_linear() {
+        let make = |n: usize| "a".repeat(n);
+        let linear = |text: &str| {
+            std::hint::black_box(text.bytes().filter(|b| *b == b'a').count());
+        };
+        assert_linear(linear, make, 4_000_000);
+        let quadratic = |text: &str| {
+            let bytes = text.as_bytes();
+            let mut same = 0usize;
+            for a in bytes {
+                for b in bytes {
+                    same += usize::from(a == b);
+                }
+            }
+            std::hint::black_box(same);
+        };
+        let failed = std::panic::catch_unwind(|| assert_linear(quadratic, make, 40_000));
+        assert!(failed.is_err(), "quadratic work passed the check");
+    }
+
     #[test]
     fn stays_linear_on_input_made_to_be_slow() {
-        let size = 200_000;
-        let inputs = [
-            "[".repeat(size),
-            "[[".repeat(size / 2) + &"]]".repeat(size / 2),
-            "[^".repeat(size / 2) + &"]".repeat(size / 2),
-            "<!--".repeat(size / 4),
-            format!("[a <!--{}](u) -->", "<!--".repeat(size / 4)),
-            "<a:b".repeat(size / 4),
-            "`".repeat(size),
-            "*_~~".repeat(size / 4),
-            "[".repeat(size / 2) + &"][]".repeat(size / 2),
-            "[x](".repeat(size / 4) + &")".repeat(size / 4),
+        // Each makes an input of about `n` characters built to be slow.
+        let makers: [fn(usize) -> String; 10] = [
+            |n| "[".repeat(n),
+            |n| "[[".repeat(n / 2) + &"]]".repeat(n / 2),
+            |n| "[^".repeat(n / 2) + &"]".repeat(n / 2),
+            |n| "<!--".repeat(n / 4),
+            |n| format!("[a <!--{}](u) -->", "<!--".repeat(n / 4)),
+            |n| "<a:b".repeat(n / 4),
+            |n| "`".repeat(n),
+            |n| "*_~~".repeat(n / 4),
+            |n| "[".repeat(n / 2) + &"][]".repeat(n / 2),
+            |n| "[x](".repeat(n / 4) + &")".repeat(n / 4),
         ];
-        let started = std::time::Instant::now();
-        for input in &inputs {
-            readable_text(&format!("x{input}\n{input}"));
+        for make in makers {
+            assert_linear(
+                |text| {
+                    readable_text(text);
+                },
+                |n| format!("x{0}\n{0}", make(n)),
+                200_000,
+            );
         }
-        // Linear work takes well under a second; quadratic work takes minutes.
-        assert!(started.elapsed() < std::time::Duration::from_secs(10));
     }
 
     #[test]
     fn checks_nested_link_destinations_in_linear_time() {
-        let k = 50_000;
-        let inputs = [
+        let makers: [fn(usize) -> String; 2] = [
             // Every `(` opens a destination that runs to the one late space.
-            "[a](".repeat(k) + " x" + &")".repeat(k),
+            |k| "[a](".repeat(k) + " x" + &")".repeat(k),
             // Every `<` opens a destination that runs to the first `>`.
-            "[a](<".repeat(k) + &">)".repeat(k),
+            |k| "[a](<".repeat(k) + &">)".repeat(k),
         ];
-        for input in &inputs {
-            let started = std::time::Instant::now();
-            readable_text(input);
-            // Linear work takes milliseconds; quadratic work takes seconds.
-            assert!(started.elapsed() < std::time::Duration::from_secs(1));
+        for make in makers {
+            assert_linear(
+                |text| {
+                    readable_text(text);
+                },
+                make,
+                50_000,
+            );
         }
     }
 
