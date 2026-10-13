@@ -85,8 +85,11 @@ test('Control+Tab reaches the preview in Preview mode, and the keys scroll it', 
   // WebKit's scroll animation sometimes drops a key pressed just after
   // another scroll: press again until the page moves.
   await pressUntilBeyond(page, 'ArrowDown', after)
+  // Page Down again: Home, End and Space scroll a focused region in WebKit on macOS
+  // (the app's engine) but not in Playwright's WebKit on Linux, where only
+  // the arrow keys and Page Up and Down do.
   const arrowed = await settledTop(page)
-  await pressUntilBeyond(page, 'End', arrowed + 1000)
+  await pressUntilBeyond(page, 'PageDown', arrowed + 200)
 })
 
 test('Control+Tab reaches the rendered note in the Trash, and the keys scroll it', async ({

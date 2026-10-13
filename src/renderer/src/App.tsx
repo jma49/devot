@@ -184,6 +184,9 @@ function ShowSidebarButton({ onClick }: { onClick: () => void }) {
   )
 }
 
+/** How long a request for an area waits for it to show. */
+const AREA_ASK_MS = 1000
+
 /** Where the keyboard goes once the window has rendered. */
 type FocusRequest = { kind: 'area'; area: Area } | { kind: 'title' | 'body'; id: string }
 
@@ -289,9 +292,11 @@ export function App() {
   // Where the keyboard goes once the window has rendered (see the effect
   // below); asking re-renders.
   const focusAfter = useRef<FocusRequest>(undefined)
+  const focusAskedAt = useRef(0)
   const [, setFocusAsked] = useState(0)
   const requestFocus = (request: FocusRequest) => {
     focusAfter.current = request
+    focusAskedAt.current = performance.now()
     setFocusAsked((n) => n + 1)
   }
   const titleRef = useRef<HTMLInputElement>(null)
@@ -1604,8 +1609,12 @@ export function App() {
     const request = focusAfter.current
     if (!request) return
     if (request.kind === 'area') {
+      const go = areaTargets(editorRef.current)[request.area]
+      // The area may show on a pass of its own (a sidebar the same click
+      // shows): the ask stays for the passes of the next second.
+      if (!go && performance.now() - focusAskedAt.current < AREA_ASK_MS) return
       focusAfter.current = undefined
-      return areaTargets(editorRef.current)[request.area]?.()
+      return go?.()
     }
     // The note opened before the request was made; another one opened since.
     focusAfter.current = undefined

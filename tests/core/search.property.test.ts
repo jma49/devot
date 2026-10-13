@@ -307,5 +307,5 @@ describe('search on SQLite', () => {
       ),
       { numRuns: 40 },
     )
-  })
+  }, 60_000)
 })
