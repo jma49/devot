@@ -17,6 +17,7 @@ import { moveSelection, selectedText, trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
 import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
+import { imageSizeBar } from './editor/ImageSizeBar'
 import { formatKeyAvailability } from './editor/formatKeys'
 import { imeKeys } from './editor/imeKeys'
 import { editorScrollPane } from './editor/scrollPane'
@@ -620,6 +621,7 @@ export function NoteEditor({
               }),
               slashMenu(),
               formatToolbar(showAlertMenu),
+              imageSizeBar,
               formatKeyAvailability(setInertFormats),
               tableKeymap(),
               tableTyping(),

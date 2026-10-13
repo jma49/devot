@@ -2,7 +2,13 @@
 // structure from validated values.
 import type { Element, ElementContent, Properties, Root, RootContent } from 'hast'
 import { createEmojiRenderer } from './emoji'
-import { parseImageMarkdown, splitImageSize } from '../images'
+import {
+  parseImageMarkdown,
+  presetOf,
+  sizeAttribute,
+  splitAltSize,
+  splitImageSize,
+} from '../images'
 import { createMathRenderer } from './math'
 import { PREVIEW_API_VERSION, type AlertKind, type PreviewRenderer } from './registry'
 import { fillPlaceholders } from '../text'
@@ -232,8 +238,9 @@ const swatches: PreviewRenderer = {
 // --- Images ------------------------------------------------------------------
 
 /**
- * An image's size preset (`#small`, `#half`, `#full` on its URL, see
- * core/images.ts) becomes a class, and the image loads without it; an image
+ * An image's size (see core/images.ts) leaves its alt text and URL: a
+ * preset (`w:30%` in the alt text, or an old `#small` on the URL) becomes a
+ * class, and any other size its `width` and `height`; an image
  * alone in its paragraph gets `image-block`. An image
  * written as `![alt](url)` also gets where it is in the Markdown
  * (`data-image-from`, `data-image-to`), so its size can be set from the
@@ -247,11 +254,26 @@ const images: PreviewRenderer = {
       if (node.tagName !== 'img') return undefined
       const src = node.properties['src']
       const names: string[] = []
+      let size: string = 'auto'
       if (typeof src === 'string') {
-        const { url, size } = splitImageSize(src)
-        node.properties['src'] = url
-        if (size !== 'auto') names.push(`image-size-${size}`)
+        const split = splitImageSize(src)
+        node.properties['src'] = split.url
+        size = split.size
       }
+      const alt = node.properties['alt']
+      if (typeof alt === 'string') {
+        const { name, dimensions } = splitAltSize(alt)
+        if (dimensions) {
+          node.properties['alt'] = name
+          const preset = presetOf(dimensions)
+          size = preset ?? 'auto'
+          if (!preset && dimensions.width)
+            node.properties['width'] = sizeAttribute(dimensions.width)
+          if (!preset && dimensions.height)
+            node.properties['height'] = sizeAttribute(dimensions.height)
+        }
+      }
+      if (size !== 'auto') names.push(`image-size-${size}`)
       // An image on a paragraph of its own shows in a frame.
       const alone =
         parent.type === 'element' &&

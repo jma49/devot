@@ -2,7 +2,14 @@ import { history, undo } from '@codemirror/commands'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { noteMarkdown } from './markdown'
-import { findImages, imageAt, imageLines, imageSizeChange, inlineImageField } from './images'
+import {
+  findImages,
+  imageAt,
+  imageAtCaret,
+  imageLines,
+  imageSizeChange,
+  inlineImageField,
+} from './images'
 
 const ID = '0192a6f0-0000-7000-8000-00000000f001'
 const FILE = `devot://file/${ID}`
@@ -28,6 +35,7 @@ describe('finding images in the editor', () => {
         url: FILE,
         fileId: ID,
         size: 'half',
+        dimensions: null,
         sizable: true,
       },
       expect.objectContaining({ url: 'https://a.test/b.png', fileId: null, size: 'auto' }),
@@ -100,14 +108,14 @@ describe('inline image previews', () => {
 })
 
 describe('setting an image size', () => {
-  it('changes only the destination, as one undo step', () => {
+  it('writes the size into the alt text, as one undo step', () => {
     const doc = `Look: ![a](${FILE} "T") here`
     let s = state(doc)
     const image = findImages(s)[0]!
     const change = imageSizeChange(s, image, 'small')
     expect(change).not.toBeNull()
     s = s.update(change!).state
-    expect(s.doc.toString()).toBe(`Look: ![a](${FILE}#small "T") here`)
+    expect(s.doc.toString()).toBe(`Look: ![a w:30%](${FILE} "T") here`)
     s = s.update(imageSizeChange(s, findImages(s)[0]!, 'auto')!).state
     expect(s.doc.toString()).toBe(doc)
     s = s.update(imageSizeChange(s, findImages(s)[0]!, 'full')!).state
@@ -125,17 +133,32 @@ describe('setting an image size', () => {
     expect(findImages(s)).toHaveLength(1)
   })
 
+  it('rewrites an old size fragment to the alt form', () => {
+    let s = state(`![a](${FILE}#half)`)
+    s = s.update(imageSizeChange(s, findImages(s)[0]!, 'full')!).state
+    expect(s.doc.toString()).toBe(`![a w:100%](${FILE})`)
+    // An image whose URL has another fragment takes a size too.
+    let t = state('![x](y.png#page)')
+    t = t.update(imageSizeChange(t, findImages(t)[0]!, 'small')!).state
+    expect(t.doc.toString()).toBe('![x w:30%](y.png#page)')
+  })
+
   it('does nothing when the image has changed since it was found', () => {
     const s = state(`![a](${FILE})`)
     const image = findImages(s)[0]!
     const edited = s.update({ changes: { from: 2, insert: 'x' } }).state
     expect(imageSizeChange(edited, image, 'small')).toBeNull()
-    expect(
-      imageSizeChange(
-        state('![x](y.png#page)'),
-        findImages(state('![x](y.png#page)'))[0]!,
-        'small',
-      ),
-    ).toBeNull()
+  })
+})
+
+describe('the image at the caret', () => {
+  it('is the image whose Markdown holds an empty selection', () => {
+    const doc = `x ![a](${FILE}) y`
+    const at = doc.indexOf('![a]')
+    expect(imageAtCaret(state(doc, at))?.alt).toBe('a')
+    expect(imageAtCaret(state(doc, at + 5))?.alt).toBe('a')
+    expect(imageAtCaret(state(doc, doc.length - 1))).toBeNull()
+    const selected = state(doc).update({ selection: EditorSelection.range(at, at + 4) }).state
+    expect(imageAtCaret(selected)).toBeNull()
   })
 })

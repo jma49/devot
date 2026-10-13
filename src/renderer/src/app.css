@@ -59,6 +59,11 @@ button {
   height: var(--size-icon-md);
 }
 
+.icon-toolbar {
+  width: var(--size-icon-toolbar);
+  height: var(--size-icon-toolbar);
+}
+
 .icon-lg {
   width: var(--size-icon-lg);
   height: var(--size-icon-lg);
@@ -1365,6 +1370,97 @@ button {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-4);
+}
+
+/* The selection toolbar's link dialog: a text and a URL field. */
+.link-dialog {
+  box-sizing: border-box;
+  width: var(--size-link-dialog-width);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-dialog);
+  background: var(--color-surface-popover);
+  color: var(--color-text-primary);
+  box-shadow:
+    0 0 0 0.5px var(--color-line-hairline),
+    0 8px 28px var(--color-line-shadow);
+  overflow: hidden;
+}
+
+.link-dialog::backdrop {
+  background: transparent;
+}
+
+.link-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-6) var(--space-7);
+  border-bottom: 1px solid var(--color-line-hairline);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+}
+
+.link-dialog-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-7);
+}
+
+.link-dialog-field {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--size-field-height);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-field);
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-line-control);
+  background: var(--color-surface-popover);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.link-dialog-field::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.link-dialog-field:focus {
+  box-shadow:
+    inset 0 0 0 1px var(--color-accent-fill),
+    0 0 0 3px var(--color-accent-selection);
+}
+
+.link-dialog-actions {
+  display: flex;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-7);
+  border-top: 1px solid var(--color-line-hairline);
+  background: var(--color-fill-track);
+}
+
+.link-dialog-button {
+  flex: 1;
+  height: var(--size-field-height);
+  border: 0;
+  border-radius: var(--radius-field);
+  background: var(--color-fill-segment-on);
+  box-shadow: inset 0 0 0 1px var(--color-line-control);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+}
+
+.link-dialog-insert {
+  background: var(--color-accent-fill);
+  box-shadow: none;
+  color: var(--color-accent-on-fill);
+}
+
+.link-dialog-insert[aria-disabled='true'] {
+  opacity: 0.5;
 }
 
 /* Sheets: a modal panel with a title, like the backups list. */

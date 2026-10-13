@@ -17,7 +17,8 @@ import type { SyntaxNode } from '@lezer/common'
 import {
   attachmentId,
   parseImageMarkdown,
-  withImageSize,
+  setImageMarkdownSize,
+  type ImageDimensions,
   type ImageSize,
 } from '../../../core/images'
 import type { MenuPoint } from '../contextMenu'
@@ -29,13 +30,16 @@ export interface EditorImage {
   to: number
   /** Its Markdown, as it was when found. */
   text: string
+  /** The alt text without its size words. */
   alt: string
   /** The URL without its size. */
   url: string
   /** The attachment it shows, if it is one. */
   fileId: string | null
   size: ImageSize
-  /** Whether a size can be set (its URL has no other fragment). */
+  /** A size that is no preset (`w:320 h:240`), else null. */
+  dimensions: ImageDimensions | null
+  /** Whether a size can be set. */
   sizable: boolean
 }
 
@@ -82,6 +86,7 @@ export function findImages(state: EditorState, from = 0, to = state.doc.length):
           url: image.url,
           fileId: attachmentId(image.url),
           size: image.size,
+          dimensions: image.dimensions,
           sizable: image.sizable,
         })
       }
@@ -96,6 +101,17 @@ export function imageAt(state: EditorState, pos: number): EditorImage | null {
   const line = state.doc.lineAt(pos)
   const images = findImages(state, line.from, line.to)
   return images.find((i) => i.from <= pos && pos <= i.to) ?? images[0] ?? null
+}
+
+/** The image the caret is in (an empty selection only), or null. */
+export function imageAtCaret(state: EditorState): EditorImage | null {
+  const { main } = state.selection
+  if (!main.empty) return null
+  const line = state.doc.lineAt(main.head)
+  return (
+    findImages(state, line.from, line.to).find((i) => i.from <= main.head && main.head <= i.to) ??
+    null
+  )
 }
 
 /** Whether an image shows under its line: an attachment or an https image. */
@@ -117,8 +133,8 @@ export function viewImageAt(view: EditorView, pos = view.state.selection.main.he
 }
 
 /**
- * The change that gives `image` this size, replacing only its destination;
- * null when the text there is no longer that image or it cannot take a size.
+ * The change that gives `image` this size (written in its alt text, see
+ * core/images.ts); null when the text there is no longer that image.
  */
 export function imageSizeChange(
   state: EditorState,
@@ -127,13 +143,25 @@ export function imageSizeChange(
 ): TransactionSpec | null {
   if (image.to > state.doc.length || state.sliceDoc(image.from, image.to) !== image.text)
     return null
-  const parsed = parseImageMarkdown(image.text)
-  if (!parsed?.sizable) return null
-  const insert = withImageSize(parsed.url, size)
-  const { from, to } = parsed.dest
-  if (image.text.slice(from, to) === insert) return {}
+  const written = setImageMarkdownSize(image.text, size)
+  if (written === null) return null
+  if (written === image.text) return {}
+  // Only the part that differs, so the cursor and marks around it stay put.
+  let start = 0
+  while (start < written.length && written[start] === image.text[start]) start += 1
+  let end = 0
+  while (
+    end < written.length - start &&
+    end < image.text.length - start &&
+    written[written.length - 1 - end] === image.text[image.text.length - 1 - end]
+  )
+    end += 1
   return {
-    changes: { from: image.from + from, to: image.from + to, insert },
+    changes: {
+      from: image.from + start,
+      to: image.to - end,
+      insert: written.slice(start, written.length - end),
+    },
     userEvent: 'input.image.size',
   }
 }

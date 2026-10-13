@@ -62,6 +62,10 @@
     "settings.appearance": "paintpalette",
     "settings.keyboard": "keyboard",
     "settings.mirror": "folder",
-    "settings.usage": "chart.bar"
+    "settings.usage": "chart.bar",
+    "image.size.auto": "photo",
+    "image.size.small": "square.grid.3x3.topleft.filled",
+    "image.size.half": "square.lefthalf.filled",
+    "image.size.full": "square.fill"
   }
 }

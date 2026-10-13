@@ -34,6 +34,15 @@
       "editor": {
         "$value": "{color.night.0}",
         "$type": "color"
+      },
+      "popover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1686, 0.1608, 0.149],
+          "hex": "#2b2926"
+        },
+        "$description": "Floating panels over the editor: the selection toolbar, the image size bar, their tooltips and the link dialog."
       }
     },
     "text": {
@@ -64,6 +73,26 @@
           "hex": "#ebe8e2",
           "alpha": 0.1
         }
+      },
+      "control": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9098, 0.8863],
+          "hex": "#ebe8e2",
+          "alpha": 0.35
+        },
+        "$description": "The outline ring of a floating toolbar button under the pointer."
+      },
+      "shadow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.45
+        },
+        "$description": "The soft shadow under floating panels."
       }
     },
     "fill": {

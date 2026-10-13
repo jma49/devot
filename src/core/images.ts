@@ -1,15 +1,79 @@
-// Images in a note: their size preset and where an inline image's parts are.
+// Images in a note: their size and where an inline image's parts are.
 //
-// A size is stored in the image's URL as a fragment: `![](devot://file/<id>#small)`,
-// `#half` or `#full`; no fragment is `auto` (the image's own size, no wider
-// than the page). Other Markdown tools ignore a fragment when they load an
-// image, so the note still shows the image there, at its own size.
+// A size is written at the end of the image's alt text: `![name w:30%](url)`.
+// The presets are Small (`w:30%`), Half (`w:50%`) and Full (`w:100%`); no
+// size is `auto` (the image's own size, no wider than the page). The alt
+// text also takes `width:`/`height:` (or `w:`/`h:`) with a number in px (a
+// bare number), %, pt, pc, in, cm, mm, em, ex or ch, as in `w:320 h:240`.
+// Older notes store a preset as a URL fragment (`#small`, `#half`, `#full`);
+// those still read, and setting a size rewrites them to the alt form.
 
 import { FILE_ID_SOURCE, fileUri } from './files'
 
 export type ImageSize = 'auto' | 'small' | 'half' | 'full'
 
 export const IMAGE_SIZES: readonly ImageSize[] = ['auto', 'small', 'half', 'full']
+
+/** The width each preset writes into the alt text. */
+const PRESET_WIDTHS: Record<Exclude<ImageSize, 'auto'>, string> = {
+  small: '30%',
+  half: '50%',
+  full: '100%',
+}
+
+/** A size written in the alt text, as CSS lengths (a bare number is px). */
+export interface ImageDimensions {
+  width?: string
+  height?: string
+}
+
+/** One size word at the end of an alt text: `w:30%`, `width:200px`, `h:120`. */
+const SIZE_WORD = /^(w|width|h|height):(\d+(?:\.\d+)?|\.\d+)(%|px|pt|pc|in|cm|mm|em|ex|ch)?$/i
+
+/**
+ * An alt text's name and the size words at its end (`name w:30%` is `name`
+ * at 30% wide). A later word for the same side wins. Words before the last
+ * non-size word are part of the name.
+ */
+export function splitAltSize(alt: string): { name: string; dimensions: ImageDimensions | null } {
+  const words = alt.split(/([ \t\n]+)/)
+  const dimensions: ImageDimensions = {}
+  let end = words.length
+  // Walks back over the trailing size words (and the spaces between them).
+  for (let i = words.length - 1; i >= 0; i -= 1) {
+    const word = words[i]!
+    if (word === '' || /^[ \t\n]+$/.test(word)) continue
+    const match = SIZE_WORD.exec(word)
+    if (!match) break
+    const side = match[1]!.toLowerCase().startsWith('w') ? 'width' : 'height'
+    dimensions[side] ??= `${match[2]}${(match[3] ?? 'px').toLowerCase()}`
+    end = i
+  }
+  if (end === words.length) return { name: alt, dimensions: null }
+  return {
+    name: words
+      .slice(0, end)
+      .join('')
+      .replace(/[ \t\n]+$/, ''),
+    dimensions,
+  }
+}
+
+/** The preset a written size is, or null for any other size. */
+export function presetOf(dimensions: ImageDimensions): ImageSize | null {
+  if (dimensions.height !== undefined) return null
+  for (const [size, width] of Object.entries(PRESET_WIDTHS)) {
+    if (dimensions.width === width) return size as ImageSize
+  }
+  return null
+}
+
+/** An alt text name with a preset's size words (none for auto). */
+export function altWithSize(name: string, size: ImageSize): string {
+  if (size === 'auto') return name
+  const word = `w:${PRESET_WIDTHS[size]}`
+  return name === '' ? word : `${name} ${word}`
+}
 
 const SIZE_FRAGMENT = /#(small|half|full)$/
 
@@ -50,13 +114,18 @@ export function attachmentId(url: string): string | null {
 }
 
 export interface ImageMarkdown {
-  /** The alt text as written (escapes kept). */
+  /** The alt text as written (escapes kept), without its size words. */
   alt: string
   /** The destination without its size (and without angle brackets). */
   url: string
+  /** The preset in effect: the alt text's, else the URL fragment's; auto for none or another size. */
   size: ImageSize
-  /** Whether a size can be set: the URL has no other fragment. */
+  /** A size in the alt text that is no preset (`w:320 h:240`), else null. */
+  dimensions: ImageDimensions | null
+  /** Whether a size can be set (always, now that sizes live in the alt text). */
   sizable: boolean
+  /** Where the alt text (inside the brackets) starts and ends. */
+  altRange: { from: number; to: number }
   /** Where the destination's text (inside any angle brackets) starts and ends. */
   dest: { from: number; to: number }
 }
@@ -131,17 +200,60 @@ export function parseImageMarkdown(text: string): ImageMarkdown | null {
     while (isSpace(text[rest])) rest += 1
   }
   if (rest !== end) return null
-  const { url, size } = splitWrittenSize(text.slice(from, to))
-  return { alt, url, size, sizable: !url.includes('#'), dest: { from, to } }
+  const written = splitWrittenSize(text.slice(from, to))
+  const { name, dimensions } = splitAltSize(alt)
+  const preset = dimensions ? presetOf(dimensions) : null
+  return {
+    alt: name,
+    url: written.url,
+    size: dimensions ? (preset ?? 'auto') : written.size,
+    dimensions: dimensions && !preset ? dimensions : null,
+    sizable: true,
+    altRange: { from: 2, to: 2 + alt.length },
+    dest: { from, to },
+  }
 }
 
 /**
- * The image's Markdown with this size, changing only its destination; null
- * when `text` is not one inline image or its URL cannot take a size.
+ * The image's Markdown with this size written in its alt text (and any old
+ * size fragment removed from its URL); the text unchanged when it already
+ * has that size; null when `text` is not one inline image.
  */
 export function setImageMarkdownSize(text: string, size: ImageSize): string | null {
   const image = parseImageMarkdown(text)
-  if (!image?.sizable) return null
-  const { from, to } = image.dest
-  return text.slice(0, from) + withImageSize(image.url, size) + text.slice(to)
+  if (!image) return null
+  if (image.size === size && image.dimensions === null) return text
+  const { altRange, dest } = image
+  return (
+    text.slice(0, altRange.from) +
+    altWithSize(image.alt, size) +
+    text.slice(altRange.to, dest.from) +
+    image.url +
+    text.slice(dest.to)
+  )
+}
+
+/** Pixels per unit, for units an HTML size attribute cannot take (em, ex and ch at 16px text). */
+const PX_PER_UNIT: Record<string, number> = {
+  px: 1,
+  pt: 4 / 3,
+  pc: 16,
+  in: 96,
+  cm: 96 / 2.54,
+  mm: 96 / 25.4,
+  em: 16,
+  ex: 8,
+  ch: 8,
+}
+
+/**
+ * A CSS length as an HTML `width`/`height` attribute: a percentage as it
+ * is, anything else in whole pixels.
+ */
+export function sizeAttribute(length: string): string {
+  const match = /^([\d.]+)([a-z%]+)$/.exec(length)
+  if (!match) return length
+  const value = Number(match[1])
+  if (match[2] === '%') return `${value}%`
+  return String(Math.round(value * (PX_PER_UNIT[match[2]!] ?? 1)))
 }
