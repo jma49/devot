@@ -38,6 +38,7 @@ import { BackupsDialog } from './BackupsDialog'
 import { BookPicker } from './BookPicker'
 import { ImportDialog, type ImportState } from './ImportDialog'
 import { IMPORT_FAILED, IMPORT_READY, finishImport, runImport } from './importer'
+import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import {
   IMAGE_COMMANDS,
@@ -64,7 +65,7 @@ import { COMMANDS, formatOf, insertOf, tableOf, type CommandHandlers } from './c
 import { CommandPalette, type PaletteActions } from './palette/CommandPalette'
 import { commandEntries, libraryEntries } from './palette/entries'
 import type { PaletteEntry } from './palette/results'
-import { bookDeleteDetail, countOf, noteCount } from './format'
+import { bookDeleteDetail, noteCount } from './format'
 import { openAfter, selectAll, type ListSelection } from './listSelection'
 import { SelectionSummary } from './SelectionSummary'
 import { TrashView } from './TrashView'
@@ -2255,16 +2256,6 @@ export function App() {
             <Icon name={focus ? 'mode.focus.exit' : 'mode.focus'} size="md" />
           </button>
         </div>
-        {batchFailed ? (
-          <div role="alert" className="notice" data-devot-part="notice">
-            <span className="notice-text">
-              {countOf(batchFailed, currentLocale(), 'batch.failedOne', 'batch.failedOther')}
-            </span>
-            <button type="button" className="button" onClick={() => setBatchFailed(undefined)}>
-              {t('notice.dismiss')}
-            </button>
-          </div>
-        ) : null}
         {multiIds ? (
           <SelectionSummary
             notes={selectedNotes}
@@ -2376,6 +2367,7 @@ export function App() {
       {(backupNotice && !backupsOpen) ||
       exportNotice ||
       changeNotice ||
+      batchFailed ||
       imageNotice ||
       saveNoticeShown ||
       mirror.notices.length > 0 ? (
@@ -2409,6 +2401,9 @@ export function App() {
           {mirror.notices}
           {changeNotice ? (
             <ChangeNotice code={changeNotice} onDismiss={() => setChangeNotice(undefined)} />
+          ) : null}
+          {batchFailed ? (
+            <BatchNotice failed={batchFailed} onDismiss={() => setBatchFailed(undefined)} />
           ) : null}
           {imageNotice ? (
             <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />
