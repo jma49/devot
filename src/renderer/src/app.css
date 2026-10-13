@@ -220,6 +220,17 @@ button {
   background: var(--color-fill-tool-hover);
 }
 
+/* Pressed: a step stronger than under the pointer. */
+.tool:active:not(:disabled, [aria-disabled='true']),
+.footer-toggle:active,
+.popup:active {
+  background: var(--color-fill-row-selected);
+}
+
+.segment:hover:not([aria-pressed='true']) {
+  background: var(--color-fill-track);
+}
+
 .tool:disabled,
 .tool[aria-disabled='true'] {
   opacity: var(--opacity-disabled);

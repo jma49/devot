@@ -4,7 +4,7 @@ import type { TagRecord } from '../../core/storage'
 import { bookOptions, filterBooks } from './BookPicker'
 import { fieldStep, pickerStep } from './Picker'
 import { tagRows } from './TagEditor'
-import { splitTip } from './ToolTips'
+import { SHOW_AFTER_MS, splitTip } from './ToolTips'
 
 function tag(id: string, name: string): TagRecord {
   return {
@@ -79,6 +79,12 @@ describe('fieldStep', () => {
     expect(fieldStep('Home', 2, 3)).toBeUndefined()
     expect(fieldStep('End', 0, 3)).toBeUndefined()
     expect(fieldStep('ArrowDown', -1, 0)).toBe(-1)
+  })
+})
+
+describe('toolbar tooltips', () => {
+  it('show after the pointer rests 400 ms (motion.delay.tooltip)', () => {
+    expect(SHOW_AFTER_MS).toBe(400)
   })
 })
 
