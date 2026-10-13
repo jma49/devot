@@ -6,7 +6,8 @@
 # docs/architecture.md ("What native crash reports cost").
 #
 # Prints, per run, the milliseconds from starting the binary to the window
-# showing the UI (first-paint.swift): first <runs> cold runs (the file cache
+# showing the first editor paint (first-paint.swift; the empty shell's time is
+# printed too): first <runs> cold runs (the file cache
 # dropped with `sudo purge`, which asks for the password), then <runs> warm
 # runs. Then it starts the app once more, waits 60 s and prints the footprint,
 # CPU and idle wakeups of the app and of the crash reporter (DSN builds only).
@@ -35,6 +36,7 @@ fi
 
 PID=""
 MS=""
+SHELL_MS=""
 WORK="$(mktemp -d)"
 # shellcheck disable=SC2329 # the EXIT trap below runs it
 finish() {
@@ -48,10 +50,13 @@ APP_HOME="$WORK/home"
 mkdir "$APP_HOME"
 swiftc -O "$ROOT/scripts/perf/first-paint.swift" -o "$PROBE"
 
-# Starts the app with its own HOME and waits until its window shows the UI;
-# sets PID, and MS to the milliseconds that took.
+# Starts the app with its own HOME and waits until its window shows the first
+# editor paint (the open note's editor, restored from the last state); sets
+# PID, SHELL_MS to the milliseconds until the empty shell showed and MS to
+# those until the editor did. `launch --seed` first opens a note by pressing
+# New Note, which the next launch of this data folder restores.
 launch() {
-  read -r MS PID < <(HOME="$APP_HOME" "$PROBE" "$APP")
+  read -r SHELL_MS MS PID < <(HOME="$APP_HOME" "$PROBE" "$@" "$APP")
 }
 
 # Ends the app this script started and waits until it and its crash reporter
@@ -69,9 +74,9 @@ quit() {
   sleep 1
 }
 
-# A first launch, not timed, makes the data folder. The database must be
-# under APP_HOME, or this build keeps its data elsewhere.
-launch
+# A first launch, not timed, makes the data folder and a note to restore. The
+# database must be under APP_HOME, or this build keeps its data elsewhere.
+launch --seed
 if ! app_wait_for_db "$PID" "$APP_HOME" 10; then
   echo "E_PERF_DATA_FOLDER: the app did not open its database under $APP_HOME" >&2
   exit 1
@@ -83,7 +88,7 @@ for kind in cold warm; do
   for i in $(seq "$RUNS"); do
     if [ "$kind" = cold ]; then sudo purge; fi
     launch
-    echo "$kind $i: $MS ms"
+    echo "$kind $i: $MS ms to the editor ($SHELL_MS ms to the empty shell)"
     # Let the launch's background work finish before quitting.
     sleep 3
     quit
