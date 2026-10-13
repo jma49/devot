@@ -22,6 +22,14 @@ export default defineConfig({
   // Markdown parsing runs in a Web Worker, where the DOM builds of some
   // packages (they decode entities through `document`) fail.
   resolve: { conditions: ['worker', ...defaultClientConditions] },
+  // Vite's dependency scan reads the pages but does not follow
+  // `new Worker(new URL(...))`, so a package only the core worker imports was
+  // found when the worker first loaded; Vite then re-bundled and reloaded
+  // every open page, and a cold start (CI, a fresh checkout) lost the first
+  // tests that way. Naming the worker pre-bundles everything before the first
+  // load (tests/scripts/vite-deps.test.ts). Naming entries replaces the
+  // default, the page files, so they stay listed.
+  optimizeDeps: { entries: ['*.html', 'src/core.worker.ts'] },
   // ES module workers, so the worker's lazy imports (math, emoji) become
   // their own chunks.
   worker: { format: 'es' },
