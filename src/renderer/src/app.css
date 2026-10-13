@@ -1207,9 +1207,13 @@ button {
     visibility 0s linear var(--pane-motion);
 }
 
+/* As specific as the hiding rules above, so it wins over them too. */
 @media (prefers-reduced-motion: reduce) {
   .window[data-pane-motion] > .sidebar,
-  .window[data-pane-motion] > .list {
+  .window[data-pane-motion] > .list,
+  .window[data-pane-motion][data-sidebar-hidden] > .sidebar,
+  .window[data-pane-motion][data-focus] > .sidebar,
+  .window[data-pane-motion][data-focus] > .list {
     transition: none;
   }
 }

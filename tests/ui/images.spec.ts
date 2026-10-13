@@ -191,7 +191,7 @@ test('the image menu copies and saves an attachment, and sets its size', async (
   await expect.poll(() => calls(page, 'image_save')).toEqual([{ id: FILE_ID }])
 
   await pickMenuItem(page, 'Small', 'Size')
-  await expect(body(page)).toHaveText(`Before ![Shot w:30%](${FILE}) after`)
+  await expect(body(page)).toHaveText(`Before ![Shot w:240](${FILE}) after`)
   await expect(img).toHaveClass('image-size-small')
   // The image still loads from the attachment's own address.
   await expect(img).toHaveAttribute('src', FILE)
@@ -223,7 +223,7 @@ test('size presets show in the preview and stay in the Markdown', async ({ page 
       )
       .toBe(BIG_SIZE.width)
   }
-  await expect.poll(() => width(0)).toBeCloseTo(article.width * 0.3, 0)
+  await expect.poll(() => width(0)).toBeCloseTo(240, 0)
   expect(await width(1)).toBeCloseTo(article.width / 2, 0)
   expect(await width(2)).toBeCloseTo(article.width, 0)
   // Auto: its own size, no wider than the page.
@@ -415,7 +415,7 @@ test('the image size bar shows while the caret is in an image and writes the siz
 })
 
 test('custom sizes in the alt text size the preview image', async ({ page }) => {
-  await newNote(page, `![a w:120 h:80](${BIG})\n\n![b w:30%](${BIG})`)
+  await newNote(page, `![a w:120 h:80](${BIG})\n\n![b w:240](${BIG})`)
   await showMode(page, 'Preview')
   const imgs = preview(page).locator('img')
   await expect(imgs).toHaveCount(2)

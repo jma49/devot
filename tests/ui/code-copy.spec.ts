@@ -101,10 +101,13 @@ test('each fenced code block has a copy button that copies its text as written',
 test('the button is reachable from the keyboard', async ({ page }) => {
   await openNote(page, '```\nkeyboard\n```')
   await expect(copyButtons(page)).toHaveCount(1)
-  // A click puts the keyboard in the preview; Option+Tab goes on to the
+  // A click on the code puts the keyboard there; Option+Tab goes on to the
   // button (WebKit on macOS tabs to buttons with Option, or with Full
-  // Keyboard Access; elsewhere Tab alone does, with or without Alt).
-  await preview(page).click({ position: { x: 5, y: 5 } })
+  // Keyboard Access; elsewhere Tab alone does, with or without Alt). The
+  // click is on the code, past the info card's date buttons above it.
+  await preview(page)
+    .locator('pre code')
+    .click({ position: { x: 2, y: 2 } })
   // Away from the block, so only the keyboard focus can show the button.
   await page.mouse.move(0, 0)
   await expect(copyButtons(page)).toHaveCSS('opacity', '0')

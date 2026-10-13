@@ -73,7 +73,9 @@ test('hiding the panes slides them, and Reduce Motion makes it immediate', async
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await freshStart(page)
   const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
-  const widthOf = () => sidebar.evaluate((el) => el.getBoundingClientRect().width)
+  // By class: a hidden sidebar has no role to find it by.
+  const widthOf = () =>
+    page.locator('.window > .sidebar').evaluate((el) => el.getBoundingClientRect().width)
   const full = await widthOf()
 
   await page.keyboard.press('Meta+Shift+KeyD')
