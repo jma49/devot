@@ -8,15 +8,18 @@
      anchor as they fade in, and rest on a two-layer shadow. The editor's
      shadow root reads both too. */
   --popover-enter-scale: var(--motion-scale-popover-enter);
+  /* They shrink to this scale, back toward the notch or anchor, as they fade out. */
+  --popover-exit-scale: var(--motion-scale-popover-exit);
   --popover-shadow:
     0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
     0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
 }
 
-/* Reduce Motion: pop-ups only fade, nothing grows or slides. */
+/* Reduce Motion: pop-ups only fade, nothing grows, shrinks or slides. */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --popover-enter-scale: 1;
+    --popover-exit-scale: 1;
   }
 }
 
@@ -31,6 +34,20 @@
   from {
     opacity: 0;
   }
+}
+
+@keyframes popover-out {
+  to {
+    opacity: 0;
+    scale: var(--popover-exit-scale);
+  }
+}
+
+/* A closing pop-up's copy (closing.ts): it shrinks toward the notch or
+   anchor it grew from as it fades, keeping the pop-up's transform origin. */
+[data-closing][data-closing-motion='scale'] {
+  pointer-events: none;
+  animation: popover-out var(--motion-duration-popover) var(--motion-easing-standard) forwards;
 }
 
 html,

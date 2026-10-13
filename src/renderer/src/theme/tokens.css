@@ -75,6 +75,7 @@
   --motion-easing-standard: cubic-bezier(0.42, 0, 0.58, 1);
   --motion-easing-out: cubic-bezier(0, 0, 0.58, 1);
   --motion-scale-popover-enter: 0.8;
+  --motion-scale-popover-exit: 0.9;
   --shadow-popover-y: 2px;
   --shadow-popover-key-blur: 4px;
   --shadow-popover-ambient-blur: 10px;

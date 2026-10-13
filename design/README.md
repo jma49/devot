@@ -107,7 +107,8 @@ Floating things move by the `motion.*` tokens; a policy test rejects literal dur
 - Floating bar buttons (selection toolbar, image size bar): under the pointer and pressed look the same, a `color.line.control` ring over `color.fill.tool-hover`. The text colour eases over `motion.duration.color` (`motion.easing.standard`), the ring over `motion.duration.ring` (`motion.easing.out`); the fill snaps.
 - Pop-ups we place ourselves (pickers, tag suggestions, toolbar tooltips, a bar button's tooltip) grow from `motion.scale.popover-enter` out of their notch or anchor while they fade in, over `motion.duration.popover`, on their own layer. They rest on the two-layer `shadow.popover-*` shadow in the `color.shadow.popover-*` colours; menus (pickers, tag suggestions) have a 1px hairline edge and `radius.card` corners, and toolbar tooltips a notch pointing at their button.
 - Pop-ups CodeMirror places (the floating bars, completion lists) and a code block's copy button only fade, over `motion.duration.fade`: CodeMirror places a tooltip from its measured box, which a growing one would throw off.
-- Reduce Motion sets `--popover-enter-scale` to 1 (`app.css`): everything fades, nothing grows or slides. Dismissal is instant.
+- Closing runs the opening backwards: pickers, tag suggestions and tooltips shrink to `motion.scale.popover-exit` toward the same notch or anchor while they fade out, over `motion.duration.popover`; floating bars and completion lists only fade out, over `motion.duration.fade`. The pop-up itself goes at once, so focus, keys and the accessibility tree move on without waiting; an inert copy that assistive tech does not see plays the motion where it was (`closing.ts`), and a pop-up that opens again replaces its copy.
+- Reduce Motion sets `--popover-enter-scale` and `--popover-exit-scale` to 1 (`app.css`): everything fades, nothing grows, shrinks or slides.
 
 ## Themes
 

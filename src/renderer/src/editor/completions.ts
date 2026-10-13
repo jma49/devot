@@ -11,7 +11,7 @@ import { iconElement } from '../icons/Icon'
 import { codeBlocks, languageSource } from './codeBlocks'
 import { chooseTemplate, editorHints } from './hints'
 import { alertSource, emojiSource } from './inlineCompletions'
-import { fadeIn, motionKeyframes } from './motion'
+import { closingStyles, closingTooltips, fadeIn, motionKeyframes } from './motion'
 import { lookOf } from './popupLook'
 import { chooseImageFiles, slashMenu, slashSource, slashTrigger } from './slashMenu'
 
@@ -51,6 +51,7 @@ const completionLook = autocompletion({
 
 const theme = EditorView.theme({
   ...motionKeyframes,
+  ...closingStyles,
   '.cm-tooltip.cm-tooltip-autocomplete': {
     border: '0',
     borderRadius: 'var(--radius-popover)',
@@ -165,6 +166,8 @@ export function editorCompletions(host: CompletionHost = {}): Extension {
   return [
     completionLook,
     theme,
+    // A closing list fades out (the floating bars install the same plugin).
+    closingTooltips,
     EditorState.languageData.of(() => [
       { autocomplete: slashSource },
       { autocomplete: languageSource },

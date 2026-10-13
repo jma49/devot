@@ -7,6 +7,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
+import { closingRef } from './closing'
 import { isImeKey } from './ime'
 
 /** One row of a picker's pop-over. */
@@ -54,6 +55,9 @@ export function usePickerOpen(box: RefObject<HTMLElement | null>) {
   }, [open, box])
   return [open, setOpen] as const
 }
+
+/** A picker shrinks back toward its button as it closes. */
+const pickerRef = closingRef('scale', 'picker-popover')
 
 /**
  * A pop-over list under a pop-up button: Up, Down, Home and End move
@@ -113,7 +117,7 @@ export function PickerList(props: {
   const optionId = (i: number) => `${listId}-${i}`
   const activeId = shownActive >= 0 ? optionId(shownActive) : undefined
   return (
-    <div className="picker-popover" onKeyDown={onKeyDown}>
+    <div ref={pickerRef} className="picker-popover" onKeyDown={onKeyDown}>
       {props.search ? (
         <input
           ref={field}
