@@ -7,7 +7,9 @@
 // refuses. It keeps no link index: nothing in the UI reads one yet. A note
 // a test stored without a body version is at version 0.
 // A UI test makes note writes fail (a full disk, say) by putting an error
-// code in `devot.test.failNoteWrites`.
+// code in `devot.test.failNoteWrites`, and makes writes slow with a number of
+// milliseconds in `devot.test.delayNoteWrites` (notes) or
+// `devot.test.delayFileWrites` (attachments).
 import type {
   ActivityRevision,
   BookRecord,
@@ -31,6 +33,14 @@ const FILES = 'devot.test.files'
 const REVISIONS = 'devot.test.revisions'
 const COMPACTION = 'devot.test.compaction'
 const FAIL_NOTE_WRITES = 'devot.test.failNoteWrites'
+const DELAY_NOTE_WRITES = 'devot.test.delayNoteWrites'
+const DELAY_FILE_WRITES = 'devot.test.delayFileWrites'
+
+/** Waits as long as a test asked for under `key` (a write that takes its time). */
+async function slowWrite(key: string) {
+  const ms = Number(localStorage.getItem(key))
+  if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 type StoredFile = FileMeta & { mime: string; base64: string }
 
@@ -158,6 +168,7 @@ export const memoryStorage: StorageAdapter = {
   },
   async putFile(meta, data) {
     const mime = checkUpload(meta, data)
+    await slowWrite(DELAY_FILE_WRITES)
     const live = read<Stored>(NOTES).some((n) => n.id === meta.noteId && n.deletedAt === null)
     if (!live) throw new Error('E_NOTE_NOT_FOUND')
     const base64 = btoa(String.fromCharCode(...data))
@@ -312,6 +323,7 @@ export const memoryStorage: StorageAdapter = {
     return { notes, revisions }
   },
   async putNote(note) {
+    await slowWrite(DELAY_NOTE_WRITES)
     const failure = localStorage.getItem(FAIL_NOTE_WRITES)
     if (failure) throw new Error(failure)
     checkNote(note)

@@ -19,7 +19,7 @@ async function newNote(page: Page) {
 async function sendFiles(
   page: Page,
   kind: 'paste' | 'drop',
-  files: { name: string; type: string; bytes: number[] }[],
+  files: { name: string; type: string; bytes: number[]; size?: number }[],
 ) {
   await body(page).evaluate(
     (el, { kind: action, files: list }) => {
@@ -36,8 +36,12 @@ async function sendFiles(
         dispatchEvent(event: unknown): boolean
       }
       const data = new w.DataTransfer()
-      for (const f of list)
-        data.items.add(new w.File([new Uint8Array(f.bytes)], f.name, { type: f.type }))
+      for (const f of list) {
+        // `size` pads the file with zeros after its first bytes.
+        const bytes = new Uint8Array(Math.max(f.size ?? 0, f.bytes.length))
+        bytes.set(f.bytes)
+        data.items.add(new w.File([bytes], f.name, { type: f.type }))
+      }
       const rect = target.getBoundingClientRect()
       const init = { bubbles: true, cancelable: true }
       const event =
@@ -155,6 +159,79 @@ test('images that could not be stored are reported in a notice, with the code', 
   // Several are counted.
   await sendFiles(page, 'drop', [refused('a.png'), refused('b.png')])
   await expect(notice).toHaveText(/^2 images could not be added \(E_FILE_TYPE_REFUSED\)\./)
+})
+
+test('an SVG, a TIFF and an oversized image are refused with a notice, the rest is added', async ({
+  page,
+}) => {
+  await newNote(page)
+  const notice = page.getByRole('alert').filter({ hasText: 'could not be added' })
+  await sendFiles(page, 'drop', [
+    {
+      name: 'logo.svg',
+      type: 'image/svg+xml',
+      bytes: [...new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>')],
+    },
+  ])
+  await expect(notice).toHaveText(/^An image could not be added \(E_FILE_TYPE_REFUSED\)\./)
+  await notice.getByRole('button', { name: 'Dismiss' }).click()
+
+  await sendFiles(page, 'paste', [
+    { name: 'scan.tiff', type: 'image/tiff', bytes: [0x49, 0x49, 0x2a, 0] },
+    // One byte over 10 MiB.
+    { name: 'huge.png', type: 'image/png', bytes: PNG, size: 10 * 1024 * 1024 + 1 },
+    { name: 'Shot.png', type: 'image/png', bytes: PNG },
+  ])
+  await expect(notice).toHaveText(/^2 images could not be added \(E_FILE_/)
+  await expect(body(page)).toContainText('![Shot](devot://file/')
+  await expect(body(page)).not.toContainText('huge')
+  expect((await stored(page)).map((f) => f.mime)).toEqual(['image/png'])
+})
+
+test('an image lands where it was pasted, however the text changed during the upload', async ({
+  page,
+}) => {
+  await newNote(page)
+  await page.evaluate(() => localStorage.setItem('devot.test.delayFileWrites', '700'))
+  await page.keyboard.type('Before ')
+  await sendFiles(page, 'paste', [{ name: 'Shot.png', type: 'image/png', bytes: PNG }])
+  // Typed while the file is stored: above the paste, and at it.
+  await page.keyboard.press('ControlOrMeta+Home')
+  await page.keyboard.type('Top. ')
+  await expect(body(page)).toHaveText('Top. Before ')
+  await expect(body(page)).toContainText('devot://file/')
+  expect(await body(page).textContent()).toMatch(
+    /^Top\. Before !\[Shot\]\(devot:\/\/file\/[0-9a-f-]{36}\)$/,
+  )
+  // The caret was not at the paste, so it stays where it is.
+  await page.keyboard.type('X')
+  expect(await body(page).textContent()).toMatch(/^Top\. XBefore !\[Shot\]/)
+})
+
+test('an image whose note was left during the upload is linked in that note', async ({ page }) => {
+  await newNote(page)
+  await page.getByRole('textbox', { name: 'Title' }).fill('Alpha')
+  await body(page).click()
+  await page.evaluate(() => localStorage.setItem('devot.test.delayFileWrites', '700'))
+  await page.keyboard.type('Alpha text ')
+  await sendFiles(page, 'paste', [{ name: 'Shot.png', type: 'image/png', bytes: PNG }])
+
+  // Another note is opened before the file is stored.
+  await newNote(page)
+  await page.getByRole('textbox', { name: 'Title' }).fill('Beta')
+  await expect.poll(async () => (await stored(page)).length).toBe(1)
+  const [file] = await stored(page)
+  const link = `![Shot](devot://file/${file?.id})`
+  await expect(body(page)).not.toContainText('devot://file/')
+
+  await noteRows(page).filter({ hasText: 'Alpha' }).click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Alpha')
+  await expect(body(page)).toHaveText(`Alpha text ${link}`)
+  // And it is saved, not only shown.
+  await noteRows(page).filter({ hasText: 'Beta' }).click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Beta')
+  await noteRows(page).filter({ hasText: 'Alpha' }).click()
+  await expect(body(page)).toHaveText(`Alpha text ${link}`)
 })
 
 test('Duplicate gives the copy its own image file, shown under a new ID', async ({ page }) => {

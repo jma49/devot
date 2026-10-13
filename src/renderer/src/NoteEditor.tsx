@@ -1,5 +1,4 @@
 import { syntaxHighlighting } from '@codemirror/language'
-import { isolateHistory } from '@codemirror/commands'
 import { EditorSelection } from '@codemirror/state'
 import { Facet, Prec } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
@@ -9,6 +8,8 @@ import * as Y from 'yjs'
 import type { ImageSize } from '../../core/images'
 import { BODY } from '../../core/notes'
 import { imageFiles, storeImages } from './attachments'
+import { errorCode } from '../../core/errors'
+import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys } from './commands/registry'
 import type { ShowAlertMenu } from './editor/alertMenu'
@@ -235,24 +236,29 @@ function scrollToTop(view: EditorView, scroller: HTMLElement, top: EditorTop) {
 }
 
 /**
- * Stores pasted or dropped images and inserts their links at `pos`; images
- * that could not be stored go to `refused` with their codes.
+ * Stores pasted or dropped images and inserts their links where they were
+ * pasted or dropped: that place is remembered as a position that follows
+ * every edit made while the files are stored, and if the editor has closed
+ * by then the link goes into the note all the same (editor/anchoredInsert.ts).
+ * Images that could not be stored go to `refused` with their codes.
  */
-function attachImages(noteId: string, refused: (codes: string[]) => void) {
-  const insert = (view: EditorView, pos: number, files: File[]) =>
-    void storeImages(noteId, files).then((stored) => {
+function attachImages(
+  core: Core,
+  noteId: string,
+  text: Y.Text,
+  refused: (codes: string[]) => void,
+) {
+  const insert = (view: EditorView, pos: number, files: File[]) => {
+    const anchor = anchorAt(text, Math.min(pos, view.state.doc.length))
+    void storeImages(noteId, files).then(async (stored) => {
       if (stored.refused.length > 0) refused(stored.refused)
-      const { links } = stored
-      if (!links) return
-      const at = Math.min(pos, view.state.doc.length)
-      view.dispatch({
-        changes: { from: at, insert: links },
-        selection: { anchor: at + links.length },
-        // It lands a moment after the paste or drop: its own undo step,
-        // apart from typing done meanwhile or right after.
-        annotations: isolateHistory.of('full'),
+      if (!stored.links) return
+      await insertAtAnchor(core, noteId, anchor, stored.links).catch((e: unknown) => {
+        // The note was deleted meanwhile; its files go with it.
+        console.warn('W_IMAGE_LINK_NOT_INSERTED', noteId, errorCode(e))
       })
     })
+  }
   return EditorView.domEventHandlers({
     paste(event, view) {
       const files = imageFiles(event.clipboardData)
@@ -525,6 +531,7 @@ export function NoteEditor({
 
   useEffect(() => {
     let view: EditorView | undefined
+    let untrackEditor: (() => void) | undefined
     let cancelled = false
     const doc = new Y.Doc()
     // The core made restores itself; everything else local goes to it.
@@ -587,7 +594,7 @@ export function NoteEditor({
               syntaxHighlighting(noteHighlightStyle),
               // The GFM dialect (strikethrough, tables, task lists) and front matter.
               noteMarkdown,
-              attachImages(noteId, (codes) => imagesRefused.current?.(codes)),
+              attachImages(core, noteId, text, (codes) => imagesRefused.current?.(codes)),
               pasteUrls,
               pastePlainKeys(),
               newFromSelectionKeys(),
@@ -602,6 +609,8 @@ export function NoteEditor({
               linkCompletion({
                 find: (query) => linkSources.current.find(query),
                 create: (title) => linkSources.current.create(title),
+                discard: (id) => linkSources.current.discard(id),
+                linked: (id) => linkSources.current.linked(id),
               }),
               slashMenu(),
               formatToolbar(showAlertMenu),
@@ -658,6 +667,7 @@ export function NoteEditor({
           parent,
         })
         open.current = { view, settings: setupFor, scroller, place }
+        untrackEditor = trackOpenEditor(noteId, view, doc, text)
         findHandle.current?.(editorFindTarget(view))
         // The host element scrolls: the editor grows with its text.
         scrollHandle.current?.(editorScrollPane(view, host.current))
@@ -715,6 +725,7 @@ export function NoteEditor({
       }
       if (handleRef) handleRef.current = null
       open.current = null
+      untrackEditor?.()
       doc.off('update', forward)
       view?.destroy()
       doc.destroy()
