@@ -81,10 +81,10 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.5608, 0.5608, 0.5608],
-          "hex": "#8f8f8f"
+          "components": [0.5647, 0.5647, 0.5647],
+          "hex": "#909090"
         },
-        "$description": "De-emphasised text: section labels, rules, fences. Spec hsl(0 0% 98%) at 40% (#6a6a6a), lightened 25% toward white so it keeps 4.5:1 on every surface (3:1 on the selection)."
+        "$description": "De-emphasised text: section labels, rules, fences, key hints in popups. Spec hsl(0 0% 98%) at 40% (#6a6a6a), lightened 26% toward white so it keeps 4.5:1 on every surface and the popover (3:1 on the selection)."
       },
       "editor": {
         "$type": "color",

@@ -170,7 +170,7 @@ export const dark = {
   "color.surface.popover": "#2a2927",
   "color.text.primary": "#dbdbdb",
   "color.text.secondary": "#a3a3a3",
-  "color.text.tertiary": "#8f8f8f",
+  "color.text.tertiary": "#909090",
   "color.text.editor": "#d1d5db",
   "color.text.destructive": "#f0a6a2",
   "color.text.placeholder": "#5f5c55",
