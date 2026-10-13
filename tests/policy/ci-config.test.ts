@@ -32,11 +32,13 @@ it('pnpm check runs the dependency audit', () => {
   expect(scripts['check']).toContain('pnpm deps:audit')
 })
 
-it('every pnpm step of the CI web job is a step of pnpm check', () => {
-  const steps = commands(job('web'))
+it('every pnpm step of the CI web jobs is a step of pnpm check', () => {
+  // The web check runs in two jobs: the quick checks, and the UI tests split into shards.
+  const steps = commands(job('web-checks') + job('ui'))
     .filter((c) => c.startsWith('pnpm ') && !/^pnpm (install|exec|ui:build)\b/.test(c))
-    .map((c) => c.replace(/^pnpm /, ''))
+    .map((c) => c.replace(/^pnpm /, '').split(' ')[0] ?? '')
   expect(steps.length).toBeGreaterThan(5)
+  expect(steps).toContain('test:ui')
   const missing = steps.filter((s) => !scripts['check']?.split(' && ').includes(`pnpm ${s}`))
   expect(missing).toEqual([])
 })
@@ -51,16 +53,50 @@ it('every cargo step of the CI rust job is a step of pnpm rust:check', () => {
   expect(scripts['rust:check']).toContain('cargo deny check')
 })
 
-it('documentation-only pull requests still get a policy run', () => {
+it('a pull request without web changes still gets a policy run with all of Vitest', () => {
   const trigger = workflow.slice(0, workflow.indexOf('\njobs:'))
   expect(trigger).not.toMatch(/paths-ignore/)
-  expect(job('policy')).toContain("needs.changes.outputs.code == 'false'")
+  // Vitest also reads Rust sources, migrations and capabilities, so a change
+  // that needs only the Rust job still runs all of it.
   expect(commands(job('policy'))).toEqual(
-    expect.arrayContaining(['pnpm format:check', 'pnpm exec vitest run tests/policy']),
+    expect.arrayContaining(['pnpm format:check', 'pnpm test']),
   )
-  for (const name of ['web', 'rust']) {
-    expect(job(name)).toContain("needs.changes.outputs.code == 'true'")
+})
+
+it('every job runs unless the change detection said it is not needed', () => {
+  // Missing or unexpected outputs must run everything, never skip everything.
+  expect(job('policy')).toContain("needs.changes.outputs.web != 'true'")
+  for (const name of ['web-checks', 'ui']) {
+    expect(job(name)).toContain("needs.changes.outputs.web != 'false'")
   }
+  expect(job('rust')).toContain("needs.changes.outputs.rust != 'false'")
+  expect(workflow).not.toMatch(/outputs\.(web|rust) == /)
+})
+
+it('the web check fails when the quick checks, a UI shard or the change detection fails', () => {
+  // `web` is a required check: it sums up the jobs that do the work, and
+  // runs even when they were skipped, so a skipped job cannot read as passing
+  // a failed one.
+  const web = job('web')
+  expect(web).toMatch(/^ {4}needs: \[changes, web-checks, ui\]$/m)
+  expect(web).toMatch(/^ {4}if: \$\{\{ always\(\) \}\}$/m)
+  for (const need of ['changes', 'web-checks', 'ui']) {
+    expect(web).toContain(`needs.${need}.result`)
+  }
+  expect(web).toMatch(/failure\|cancelled/)
+})
+
+it('the UI tests run in shards that together cover the whole suite', () => {
+  const ui = job('ui')
+  const shards =
+    /shard: \[([\d, ]+)\]/
+      .exec(ui)?.[1]
+      ?.split(',')
+      .map((n) => Number(n.trim())) ?? []
+  expect(shards.length).toBeGreaterThan(1)
+  expect(shards).toEqual(shards.map((_, i) => i + 1))
+  expect(ui).toContain(`pnpm test:ui --shard=\${{ matrix.shard }}/${shards.length}`)
+  expect(ui).toContain('fail-fast: false')
 })
 
 it('CI runs on every pull request and by hand, with no label gate', () => {
@@ -77,17 +113,30 @@ it('CI runs on every pull request and by hand, with no label gate', () => {
 })
 
 it('Playwright traces are uploaded unless the run was cancelled', () => {
-  const web = job('web')
-  const upload = /^\s*- if: (.*)\n\s*uses: actions\/upload-artifact@v4/m.exec(web)
+  const ui = job('ui')
+  const upload = /^\s*- if: (.*)\n\s*uses: actions\/upload-artifact@v4/m.exec(ui)
   expect(upload?.[1]).toBe('${{ !cancelled() }}')
-  expect(web).toContain('if-no-files-found: ignore')
+  expect(ui).toContain('if-no-files-found: ignore')
+  // One artifact per shard: two shards cannot upload under the same name.
+  expect(ui).toContain('name: playwright-results-${{ matrix.shard }}')
 })
 
 // A tiny stand-in for lefthook's glob matcher (gobwas): `**` crosses
-// folders, `*` does not, and `/**/` needs a folder between the slashes.
+// folders, `*` does not, `/**/` needs a folder between the slashes, and
+// `{a,b}` matches either.
 function globMatches(glob: string, path: string): boolean {
-  const source = glob.replace(/\*\*|\*|[.+^$()|[\]\\]/g, (m) =>
-    m === '**' ? '.*' : m === '*' ? '[^/]*' : `\\${m}`,
+  const source = glob.replace(/\*\*|\*|\{|\}|,|[.+^$()|[\]\\]/g, (m) =>
+    m === '**'
+      ? '.*'
+      : m === '*'
+        ? '[^/]*'
+        : m === '{'
+          ? '(?:'
+          : m === '}'
+            ? ')'
+            : m === ','
+              ? '|'
+              : `\\${m}`,
   )
   return new RegExp(`^${source}$`).test(path)
 }
@@ -119,23 +168,50 @@ function changedCode(files: string[]): string {
   return execFileSync('sh', ['scripts/ci/changed-code.sh'], {
     input: files.join('\n') + '\n',
     encoding: 'utf8',
-  }).trim()
+  })
+    .trim()
+    .split('\n')
+    .join(' ')
 }
 
-it('changed-code.sh calls a change documentation-only when every file is a doc', () => {
-  expect(changedCode(['docs/architecture.md', 'README.md', 'docs/adr/0001.md'])).toBe('code=false')
-  expect(changedCode(['docs/images/flow.png'])).toBe('code=false')
+it('changed-code.sh needs no build for documentation and the icon sources', () => {
+  expect(changedCode(['docs/architecture.md', 'README.md', 'docs/adr/0001.md'])).toBe(
+    'web=false rust=false',
+  )
+  expect(changedCode(['docs/images/flow.png'])).toBe('web=false rust=false')
+  expect(changedCode(['design/app-icon/source.svg', 'design/README.md'])).toBe(
+    'web=false rust=false',
+  )
 })
 
-it('changed-code.sh runs the full checks when any file is not a doc', () => {
-  expect(changedCode(['docs/architecture.md', 'src/core/x.ts'])).toBe('code=true')
-  expect(changedCode(['.github/workflows/ci.yml'])).toBe('code=true')
-  expect(changedCode(['tests/policy/ci-config.test.ts'])).toBe('code=true')
-  expect(changedCode(['package.json'])).toBe('code=true')
+it('changed-code.sh needs only the Rust job for changes under src-tauri', () => {
+  expect(changedCode(['src-tauri/src/lib.rs', 'src-tauri/Cargo.toml'])).toBe('web=false rust=true')
+  expect(
+    changedCode(['src-tauri/migrations/0014.sql', 'src-tauri/capabilities/default.json']),
+  ).toBe('web=false rust=true')
+  expect(changedCode(['src-tauri/icons/icon.icns', 'design/app-icon/source.png'])).toBe(
+    'web=false rust=true',
+  )
 })
 
-it('changed-code.sh runs the full checks when it learns of no files', () => {
-  expect(changedCode([])).toBe('code=true')
+it('changed-code.sh runs the UI tests for tauri.conf.json, whose CSP they serve', () => {
+  expect(changedCode(['src-tauri/tauri.conf.json'])).toBe('web=true rust=true')
+})
+
+it('changed-code.sh runs both jobs when anything else changes', () => {
+  expect(changedCode(['docs/architecture.md', 'src/core/x.ts'])).toBe('web=true rust=true')
+  expect(changedCode(['src-tauri/src/lib.rs', 'src/renderer/src/App.tsx'])).toBe(
+    'web=true rust=true',
+  )
+  expect(changedCode(['.github/workflows/ci.yml'])).toBe('web=true rust=true')
+  expect(changedCode(['tests/policy/ci-config.test.ts'])).toBe('web=true rust=true')
+  expect(changedCode(['package.json'])).toBe('web=true rust=true')
+  // Design tokens compile into the UI's CSS.
+  expect(changedCode(['design/tokens/base.tokens.json'])).toBe('web=true rust=true')
+})
+
+it('changed-code.sh runs both jobs when it learns of no files', () => {
+  expect(changedCode([])).toBe('web=true rust=true')
 })
 
 it('the changes job lists both paths of a rename, so code moved into docs is still built', () => {
@@ -161,5 +237,45 @@ it('the changes job lists both paths of a rename, so code moved into docs is sti
   const flags = args.filter((a) => a.startsWith('--'))
   const names = git('diff', ...flags, 'HEAD~1', 'HEAD')
   expect(names.split('\n').filter(Boolean).sort()).toEqual(['docs/foo.md', 'src/foo.ts'])
-  expect(changedCode(names.split('\n').filter(Boolean))).toBe('code=true')
+  expect(changedCode(names.split('\n').filter(Boolean))).toBe('web=true rust=true')
+})
+
+/** The globs of one pre-push job in lefthook.yml. */
+function pushGlobs(name: string): string[] {
+  const push = lefthook.slice(lefthook.indexOf('pre-push:'))
+  const block = new RegExp(`- name: ${name}\\n((?: {6}.*\\n)+)`).exec(push)?.[1] ?? ''
+  return [...block.matchAll(/^\s+- ['"]?(\S+?)['"]?\s*$/gm)].map((m) => m[1] ?? '')
+}
+const pushedBy = (name: string, files: string[]) =>
+  files.filter((file) => pushGlobs(name).some((g) => globMatches(g, file)))
+
+it('the pre-push hook runs the Rust step only for pushes that change Rust or Cargo files', () => {
+  const rust = [
+    'src-tauri/build.rs',
+    'src-tauri/src/lib.rs',
+    'src-tauri/Cargo.toml',
+    'src-tauri/Cargo.lock',
+    'src-tauri/tauri.conf.json',
+    'src-tauri/capabilities/default.json',
+    'src-tauri/migrations/0001_init.sql',
+  ]
+  expect(pushedBy('rust', rust)).toEqual(rust)
+  expect(
+    pushedBy('rust', [
+      'src-tauri/icons/icon.png',
+      'design/app-icon/source.svg',
+      'docs/architecture.md',
+    ]),
+  ).toEqual([])
+})
+
+it('the pre-push hook runs the type check and unit tests for code and config, not for docs or images', () => {
+  const code = ['src/core/notes.ts', 'src/renderer/src/App.tsx', 'package.json', 'vite.config.ts']
+  // Vitest reads the storage sources, migrations and fixtures to check they match the core.
+  const rustRead = ['src-tauri/src/storage/mod.rs', 'src-tauri/migrations/0001_init.sql']
+  expect(pushedBy('unit-tests', rustRead)).toEqual(rustRead)
+  for (const name of ['typecheck', 'unit-tests']) {
+    expect(pushedBy(name, code)).toEqual(code)
+    expect(pushedBy(name, ['docs/architecture.md', 'src-tauri/icons/icon.png'])).toEqual([])
+  }
 })

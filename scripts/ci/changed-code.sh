@@ -1,18 +1,42 @@
 #!/bin/sh
 # CI helper: reads the names of the files a pull request changes, one per
-# line, on stdin and prints `code=false` when every one is documentation (a
-# file under docs/ or any Markdown file), else `code=true`. Used by
-# .github/workflows/ci.yml to skip the build and test jobs for documentation
-# alone. A list with no files counts as code, so a doubt runs everything.
-code=false
+# line, on stdin and prints which build jobs it needs, as `web=true|false`
+# and `rust=true|false`. Used by .github/workflows/ci.yml; when the web jobs
+# are not needed, the `policy` job runs instead: the format check and all of
+# Vitest, which also reads Rust sources, migrations and capabilities.
+#
+# - Documentation (a file under docs/ or any Markdown file) and the design
+#   sources of the app icon (design/app-icon/) need neither.
+# - src-tauri/tauri.conf.json needs both: the UI tests serve the built UI
+#   under the CSP it declares.
+# - Anything else under src-tauri/ (Rust code, Cargo files, migrations,
+#   capabilities, the app icons the binary embeds) needs the Rust job; the
+#   Vitest tests that read those files run in the `policy` job.
+# - Everything else needs both: the Rust job builds the UI that the binary
+#   embeds, and a change to the tooling or CI itself could break either.
+# A list with no files needs both, so a doubt runs everything.
+web=false
+rust=false
 seen=false
 while IFS= read -r file; do
   [ -n "$file" ] || continue
   seen=true
   case "$file" in
-    docs/* | *.md) ;;
-    *) code=true ;;
+    docs/* | *.md | design/app-icon/*) ;;
+    src-tauri/tauri.conf.json)
+      web=true
+      rust=true
+      ;;
+    src-tauri/*) rust=true ;;
+    *)
+      web=true
+      rust=true
+      ;;
   esac
 done
-[ "$seen" = true ] || code=true
-echo "code=$code"
+if [ "$seen" = false ]; then
+  web=true
+  rust=true
+fi
+echo "web=$web"
+echo "rust=$rust"

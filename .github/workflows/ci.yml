@@ -3,9 +3,18 @@ name: CI
 # CI runs on every pull request, or when started by hand. Pushes to main do
 # not run it again: every change reaches main through a PR that passed here.
 #
-# A pull request that changes documentation alone skips the build and test
-# jobs but still gets the `policy` job: the formatting check and the policy
-# tests (tests/policy) read the documentation too.
+# A pull request runs only the jobs its files need (scripts/ci/changed-code.sh):
+# documentation and the icon sources need no build, changes under src-tauri/
+# need the Rust job (tauri.conf.json, whose CSP the UI tests use, needs both),
+# anything else needs both. When the web jobs are not needed, the `policy` job
+# runs the formatting check and all of Vitest, whose tests also read the
+# documentation, the Rust sources, migrations and capabilities.
+#
+# Every job runs unless the change detection said `false` for it, so missing
+# outputs run everything rather than nothing.
+#
+# The required checks are `web`, `rust` and `policy`. The web check is split
+# into the quick checks and the UI tests in shards; the `web` job sums them up.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -25,7 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.diff.outputs.code }}
+      web: ${{ steps.diff.outputs.web }}
+      rust: ${{ steps.diff.outputs.rust }}
     steps:
       # A pull request is checked out as its merge with the base branch, whose
       # first parent is the base: HEAD^1..HEAD is what the PR changes.
@@ -39,13 +49,14 @@ jobs:
           if [ "$EVENT" = pull_request ]; then
             git diff --no-renames --name-only HEAD^1 HEAD | sh scripts/ci/changed-code.sh >> "$GITHUB_OUTPUT"
           else
-            echo "code=true" >> "$GITHUB_OUTPUT"
+            printf 'web=true\nrust=true\n' >> "$GITHUB_OUTPUT"
           fi
 
-  # Documentation-only pull requests: the checks that read the docs.
+  # Pull requests without web changes: the checks that read the docs and the
+  # Rust side, which the web jobs would otherwise run.
   policy:
     needs: changes
-    if: needs.changes.outputs.code == 'false'
+    if: needs.changes.outputs.web != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -57,11 +68,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
-      - run: pnpm exec vitest run tests/policy
+      - run: pnpm test
 
-  web:
+  # The quick web checks: dependencies, tokens, formatting, lint, types, Vitest.
+  web-checks:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.web != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -78,21 +90,61 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+
+  # The UI tests (Playwright, WebKit), split into shards that run side by side.
+  ui:
+    needs: changes
+    if: needs.changes.outputs.web != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps webkit
-      - run: pnpm test:ui
+      - run: pnpm test:ui --shard=${{ matrix.shard }}/4
       # Also after a green run: a test that failed once and passed on retry
       # leaves its trace here, which is the evidence for a flake.
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-results
+          name: playwright-results-${{ matrix.shard }}
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
 
+  # The required web check. It runs even when the jobs it sums up were
+  # skipped (a pull request without web changes) and fails when any of them,
+  # or the change detection, failed or was cancelled.
+  web:
+    needs: [changes, web-checks, ui]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          CHECKS: ${{ needs.web-checks.result }}
+          UI: ${{ needs.ui.result }}
+        run: |
+          echo "changes=$CHANGES web-checks=$CHECKS ui=$UI"
+          for result in "$CHANGES" "$CHECKS" "$UI"; do
+            case "$result" in
+              failure|cancelled) exit 1 ;;
+            esac
+          done
+
   rust:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.rust != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
