@@ -2,8 +2,8 @@
 // filter, the open note with its selection and scroll position, and the view
 // mode come back after a reload; whatever is gone since is skipped quietly.
 // The caret is placed with clicks only (no platform text-navigation keys).
-import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import type { Locator, Page } from '@playwright/test'
+import { expect, reloadApp, test } from './fixtures'
 
 const STATE_KEY = 'devot.lastState.main'
 
@@ -27,6 +27,27 @@ const backButton = (page: Page) => page.getByRole('button', { name: 'Back', exac
 /** The editor's box, which scrolls (CodeMirror is inside it, in a shadow root). */
 const scroller = (page: Page) => page.locator('[data-devot-part="editor-body"]')
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
+/**
+ * The scroll position once it stopped moving. CodeMirror corrects a position
+ * set from outside a frame or two later (700 became 728 once its measured
+ * line heights settled), so a read right after the set is not the position
+ * that is stored: read again after two frames until it holds.
+ */
+const settledTop = (target: Locator) =>
+  target.evaluate(async (e) => {
+    const w = globalThis as unknown as { requestAnimationFrame(cb: () => void): void }
+    const frames = () =>
+      new Promise<void>((resolve) =>
+        w.requestAnimationFrame(() => w.requestAnimationFrame(resolve)),
+      )
+    let top = e.scrollTop
+    for (let i = 0; i < 50; i += 1) {
+      await frames()
+      if (e.scrollTop === top) return top
+      top = e.scrollTop
+    }
+    return top
+  })
 const line = (page: Page, text: string) =>
   page.locator('.cm-line').filter({ hasText: new RegExp(`^${text}$`) })
 
@@ -109,7 +130,7 @@ const openNoteState = (state: Record<string, unknown>) =>
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await reloadApp(page)
 })
 
 test('a reload restores the view, its filter, the open note, its selection and scroll, and the mode', async ({
@@ -131,7 +152,7 @@ test('a reload restores the view, its filter, the open note, its selection and s
     e.scrollTop = 900
   })
   await line(page, 'line 60').scrollIntoViewIfNeeded()
-  const top = await scroller(page).evaluate((e) => e.scrollTop)
+  const top = await settledTop(scroller(page))
   expect(top).toBeGreaterThan(300)
   // Double-click the number: the word selected is the selection kept.
   await dblclickWord(page, 'line 60', 5, 7)
@@ -147,7 +168,7 @@ test('a reload restores the view, its filter, the open note, its selection and s
   expect(saved['mode']).toBe('split')
   expect(openNoteState(saved)['keyboard']).toBe(true)
 
-  await page.reload()
+  await reloadApp(page)
   await expect(book(page, 'Work')).toHaveAttribute('aria-selected', 'true')
   await expect(source(page, 'Active')).toHaveAttribute('aria-pressed', 'true')
   await expect(header(page)).toHaveText('Active')
@@ -176,20 +197,20 @@ test('preview mode comes back scrolled where it was, without taking the keyboard
   await scroller(page).evaluate((e) => {
     e.scrollTop = 700
   })
-  const editorTop = await scroller(page).evaluate((e) => e.scrollTop)
+  const editorTop = await settledTop(scroller(page))
   await storedState(page, (s) => openNoteState(s)['editorTop'] !== undefined)
   await modeButton(page, 'Preview').click()
   await expect(preview(page).getByText('line 150', { exact: true })).toBeAttached()
   await preview(page).evaluate((e) => {
     e.scrollTop = 1200
   })
-  const top = await preview(page).evaluate((e) => e.scrollTop)
+  const top = await settledTop(preview(page))
   expect(top).toBeGreaterThan(600)
   const saved = await storedState(page, (s) => openNoteState(s)['previewTop'] === top)
   expect(saved['mode']).toBe('preview')
   expect(openNoteState(saved)['keyboard']).toBe(false)
 
-  await page.reload()
+  await reloadApp(page)
   await expect(titleField(page)).toHaveValue('Read me')
   await expect(modeButton(page, 'Preview')).toHaveAttribute('aria-pressed', 'true')
   await expect(preview(page).getByText('line 150', { exact: true })).toBeAttached()
@@ -225,10 +246,10 @@ test('a restored preview position past content that loads later is still reached
   await preview(page).evaluate((e) => {
     e.scrollTop = e.scrollHeight
   })
-  const top = await preview(page).evaluate((e) => e.scrollTop)
+  const top = await settledTop(preview(page))
   await storedState(page, (s) => openNoteState(s)['previewTop'] === top)
 
-  await page.reload()
+  await reloadApp(page)
   await expect(preview(page).locator('.island-mermaid svg')).toBeVisible()
   await expect.poll(() => preview(page).evaluate((e) => e.scrollTop)).toBe(top)
 })
@@ -257,7 +278,7 @@ test('a note deleted meanwhile is skipped quietly, and the view stays', async ({
   // Watched from the reload that finds the note gone.
   const warnings: string[] = []
   page.on('console', (m) => warnings.push(m.text()))
-  await page.reload()
+  await reloadApp(page)
 
   await expect(book(page, 'Work')).toHaveAttribute('aria-selected', 'true')
   await expect(noteRows(page)).toHaveText([/^Kept/])
@@ -268,7 +289,7 @@ test('a note deleted meanwhile is skipped quietly, and the view stays', async ({
     [],
   )
   // And it stays skipped.
-  await page.reload()
+  await reloadApp(page)
   await expect(noteRows(page)).toHaveText([/^Kept/])
   await expect(titleField(page)).toHaveCount(0)
 })
@@ -298,7 +319,7 @@ test('a note shorter than its stored scroll position still reports and saves typ
     if (m.type() === 'error') errors.push(m.text())
   })
   page.on('pageerror', (e) => errors.push(e.message))
-  await page.reload()
+  await reloadApp(page)
   await expect(titleField(page)).toHaveValue('Short')
   await expect(line(page, 'abc')).toHaveCount(1)
 
@@ -339,7 +360,7 @@ test('a notebook deleted meanwhile shows All Notes, with the note open', async (
     }
     localStorage.setItem('devot.test.books', JSON.stringify(books))
   }, bookId)
-  await page.reload()
+  await reloadApp(page)
 
   await expect(source(page, 'All Notes')).toHaveAttribute('aria-current', 'true')
   await expect(header(page)).toHaveText('All Notes')
@@ -350,7 +371,7 @@ test('the restored note is where Back returns to', async ({ page }) => {
   await createNote(page, 'First')
   await createNote(page, 'Restored')
   await storedState(page, (s) => typeof openNoteState(s)['id'] === 'string')
-  await page.reload()
+  await reloadApp(page)
   await expect(titleField(page)).toHaveValue('Restored')
   await expect(backButton(page)).toBeDisabled()
 
@@ -375,7 +396,7 @@ test('the Trash is not restored: the library view before it comes back', async (
   await source(page, 'Trash').click()
   await expect(header(page)).toHaveText('Trash')
   await noteRows(page).first().click()
-  await page.reload()
+  await reloadApp(page)
 
   await expect(header(page)).toHaveText('All Notes')
   await expect(titleField(page)).toHaveValue('Open one')
@@ -390,7 +411,7 @@ test('Templates come back with the template that was open', async ({ page }) => 
   await expect(header(page)).toHaveText('Templates')
   await createNote(page, 'Weekly', 'New Template')
   await storedState(page, (s) => (s['view'] as { kind?: string } | undefined)?.kind === 'templates')
-  await page.reload()
+  await reloadApp(page)
 
   await expect(header(page)).toHaveText('Templates')
   await expect(source(page, 'Templates')).toHaveAttribute('aria-current', 'true')

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, reloadApp, test, type TestWindow } from './fixtures'
 
 // The app records a few usage events through `usage_record`; none of them
 // carries a title, a query or an ID.
@@ -26,7 +26,7 @@ async function createNote(page: Page, title: string) {
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await reloadApp(page)
 })
 
 test('records note creation and searches without their text', async ({ page }) => {
@@ -70,10 +70,14 @@ test('a query typed key by key counts as one search', async ({ page }) => {
   await search(page).pressSequentially('relay', { delay: 200 })
   await expect(header(page)).toHaveText('Search Results')
   await expect(noteRows(page)).toHaveCount(1)
+  const searches = async () => (await recorded(page)).filter((e) => e['name'] === 'search.run')
+  const one = [{ name: 'search.run', properties: { scope: 'all', clauses: 1, results: '1' } }]
+  // The count comes once the results have settled (a second after the last
+  // key): poll for it instead of guessing how long a loaded machine takes.
+  await expect.poll(searches).toEqual(one)
+  // And no second one follows: one more settle window, then still one.
   await page.waitForTimeout(1500)
-  expect((await recorded(page)).filter((e) => e['name'] === 'search.run')).toEqual([
-    { name: 'search.run', properties: { scope: 'all', clauses: 1, results: '1' } },
-  ])
+  expect(await searches()).toEqual(one)
 })
 
 test('a failed recording never gets in the way', async ({ page }) => {

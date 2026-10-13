@@ -89,9 +89,43 @@ export interface MockMirror {
 export const test = base.extend({
   page: async ({ page }, use) => {
     await mockTauri(page)
+    const rebundled: string[] = []
+    page.on('console', (message) => {
+      if (REBUNDLED.test(message.text())) rebundled.push(message.text())
+    })
     await use(page)
+    // Vite found a dependency late, re-bundled and reloaded the page under
+    // the test (`optimizeDeps.entries` in vite.config.ts names them all up
+    // front): the test acted on a page that was about to go away.
+    if (rebundled.length > 0)
+      throw new Error(`Vite re-bundled while the page was open: ${rebundled[0]}`)
   },
 })
+
+/**
+ * Opens the app and returns once the window is ready (`data-ready` on
+ * `.window`): its lists have loaded, its last state is restored and every
+ * listener it adds in an effect is in place. Acting right after `page.goto`
+ * can lose a key or an event that no listener heard yet.
+ */
+export async function openApp(page: Page, path = '/'): Promise<void> {
+  await page.goto(path)
+  await appReady(page)
+}
+
+/** Reloads the page and returns once the window is ready (see `openApp`). */
+export async function reloadApp(page: Page): Promise<void> {
+  await page.reload()
+  await appReady(page)
+}
+
+/** Waits for the window to be ready (see `openApp`). */
+export function appReady(page: Page): Promise<void> {
+  return page.locator('.window[data-ready]').waitFor()
+}
+
+/** What Vite's client logs when its dependency pre-bundle changed under an open page. */
+const REBUNDLED = /new dependencies optimized|optimized dependencies changed/
 
 /** Sets up a page as `test` does; for a second page (another window). */
 export async function mockTauri(page: Page): Promise<void> {

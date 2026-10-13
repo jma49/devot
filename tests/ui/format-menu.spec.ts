@@ -27,6 +27,40 @@ const pick = (page: Page, id: unknown) =>
     w.dispatchEvent(new w.CustomEvent('devot:format', { detail }))
   }, id)
 
+/**
+ * The key and, at once, the menu item with that key, in one task: the menu
+ * item counts as an echo of the key only within a short window, which two
+ * round trips to the page could outlast on a loaded machine.
+ */
+const keyThenPick = (page: Page, code: string, id: string) =>
+  page.evaluate(
+    ([keyCode, detail, key]) => {
+      const w = globalThis as unknown as {
+        document: { activeElement: unknown; body: unknown }
+        navigator: { platform: string }
+        dispatchEvent(e: unknown): void
+        CustomEvent: new (type: string, init: { detail: unknown }) => unknown
+        KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown
+      }
+      const mac = /Mac/.test(w.navigator.platform)
+      const target = (w.document.activeElement ?? w.document.body) as {
+        dispatchEvent(e: unknown): void
+      }
+      target.dispatchEvent(
+        new w.KeyboardEvent('keydown', {
+          key,
+          code: keyCode,
+          metaKey: mac,
+          ctrlKey: !mac,
+          bubbles: true,
+          cancelable: true,
+        }),
+      )
+      w.dispatchEvent(new w.CustomEvent('devot:format', { detail }))
+    },
+    [code, id, 'i'] as const,
+  )
+
 /** The Format menu state the UI asked Rust for, oldest first. */
 const menuStates = (page: Page) =>
   page.evaluate(() =>
@@ -153,8 +187,7 @@ test('a format key the editor ran is not run again by the menu', async ({ page }
   await page.keyboard.press('Shift+Home')
   // The key reaches the page and the menu (as when WebKit passes a key the
   // page saw on to the menu bar): one format, not two.
-  await page.keyboard.press('ControlOrMeta+KeyI')
-  await pick(page, 'format.italic')
+  await keyThenPick(page, 'KeyI', 'format.italic')
   await expect(body(page)).toHaveText('*word*')
   await page.waitForTimeout(100)
   await expect(body(page)).toHaveText('*word*')
