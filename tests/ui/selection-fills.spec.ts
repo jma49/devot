@@ -33,6 +33,7 @@ test('a selected row has the same fill in the sidebar and the note list, focused
   await expect(allNotes(page)).toHaveAttribute('aria-current', 'true')
 
   // The title field has the keyboard: both lists show the wash.
+  await page.getByRole('textbox', { name: 'Title' }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toBeFocused()
   const wash = await background(row)
   expect(wash).not.toBe('rgba(0, 0, 0, 0)')

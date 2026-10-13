@@ -59,6 +59,8 @@ test('the chevron folds Tags, points up while folded, and the choice is kept aft
 test('the Tags chevron turns up over the toggle duration and back down, and Reduce Motion turns it at once', async ({
   page,
 }) => {
+  // The UI tests run with Reduce Motion on (playwright.config.ts).
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
   await createTag(page, 'urgent')
   const chevron = sidebar(page).locator('.section-header', { hasText: 'Tags' }).locator('.chevron')
   const style = (property: string) =>

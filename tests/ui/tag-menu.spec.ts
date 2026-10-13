@@ -41,7 +41,12 @@ async function addTag(page: Page, name: string) {
   const field = page.getByRole('combobox', { name: 'Add Tag' })
   await field.fill(name)
   await field.press('Enter')
-  await expect(editorTags(page).getByText(name, { exact: true })).toBeVisible()
+  // A chip, not the suggestions' closing copy that fades out beside them.
+  await expect(
+    editorTags(page)
+      .locator('.chip')
+      .filter({ hasText: new RegExp(`^${name}$`) }),
+  ).toBeVisible()
 }
 
 const popups = (page: Page) =>
@@ -68,7 +73,7 @@ async function setUp(page: Page) {
   await expect(tagRow(page, 'idea')).toHaveText(/2$/)
 }
 
-/** The colour the element paints, and the colour the theme gives a palette ID. */
+/** The element's edge colour, and the colour the theme gives a palette ID. */
 const painted = (page: Page, selector: string, color: string) =>
   page.evaluate(
     ([sel, id]) => {
@@ -83,7 +88,7 @@ const painted = (page: Page, selector: string, color: string) =>
           createElement(tag: string): El
           body: { append(el: El): void }
         }
-        getComputedStyle(el: El): { color: string; backgroundColor: string }
+        getComputedStyle(el: El): { color: string; borderTopColor: string }
       }
       const el = w.document.querySelector(sel)
       const probe = w.document.createElement('span')
@@ -91,7 +96,7 @@ const painted = (page: Page, selector: string, color: string) =>
       w.document.body.append(probe)
       const want = w.getComputedStyle(probe).color
       probe.remove()
-      return { got: el ? w.getComputedStyle(el).backgroundColor : null, want }
+      return { got: el ? w.getComputedStyle(el).borderTopColor : null, want }
     },
     [selector, color] as const,
   )
@@ -144,7 +149,7 @@ test('a colour shows as the sidebar dot and on chips, and survives a reload', as
   await expect(
     editorTags(page).locator('.chip', { hasText: 'idea' }).locator('.tag-dot'),
   ).toHaveAttribute('data-color', 'purple')
-  // Painted with the theme's token for the colour.
+  // Edged with the theme's token for the colour (its fill is a wash of it).
   const { got, want } = await painted(page, '.sources.tags .tag-dot', 'purple')
   expect(got).toBe(want)
   expect(await storedTags(page)).toEqual(
