@@ -637,6 +637,14 @@
         "value": 999,
         "unit": "px"
       }
+    },
+    "popover": {
+      "$type": "dimension",
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "Floating lists in the editor: the slash menu and the completion popups."
     }
   },
   "size": {
@@ -758,6 +766,38 @@
         "value": 160,
         "unit": "px"
       }
+    },
+    "menu-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 325,
+        "unit": "px"
+      },
+      "$description": "The slash menu's width with every item listed; a filtered list shrinks to its rows."
+    },
+    "menu-max-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 210,
+        "unit": "px"
+      },
+      "$description": "How tall a completion list grows (eight and a half rows) before it scrolls."
+    },
+    "menu-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      },
+      "$description": "A row of the slash menu."
+    },
+    "icon-menu": {
+      "$type": "dimension",
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      },
+      "$description": "A row icon in the slash menu."
     }
   }
 }

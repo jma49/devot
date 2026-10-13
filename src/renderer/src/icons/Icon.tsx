@@ -52,3 +52,25 @@ export function Icon({ name, size }: { name: IconName; size: 'sm' | 'md' | 'lg' 
     />
   )
 }
+
+/**
+ * An SF Symbol as a plain element, for DOM that React does not render (the
+ * editor's popups and widgets): masked like `Icon`, its colour the text
+ * colour of its parent, at `pointSize` points in the current appearance.
+ */
+export function iconElement(name: IconName, pointSize: number): HTMLElement {
+  const span = document.createElement('span')
+  const symbol = symbolFor(name)
+  span.className = 'icon'
+  span.dataset['symbol'] = symbol
+  span.setAttribute('aria-hidden', 'true')
+  const appearance: Appearance = matchMedia(DARK).matches ? 'dark' : 'light'
+  cache.get(symbol, pointSize, appearance).then(
+    (url) => {
+      span.style.maskImage = `url("${url}")`
+      span.style.setProperty('-webkit-mask-image', `url("${url}")`)
+    },
+    () => console.warn('W_SYMBOL_UNAVAILABLE', symbol),
+  )
+  return span
+}

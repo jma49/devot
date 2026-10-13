@@ -34,6 +34,15 @@
       "editor": {
         "$value": "{color.paper.0}",
         "$type": "color"
+      },
+      "popover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        },
+        "$description": "Floating lists in the editor: the slash menu and the completion popups."
       }
     },
     "text": {
@@ -53,6 +62,15 @@
         "$value": "{color.status.dropped-light}",
         "$type": "color",
         "$description": "The label of a destructive action (Delete, Empty Trash)."
+      },
+      "placeholder": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7765, 0.7647, 0.7373],
+          "hex": "#c6c3bc"
+        },
+        "$description": "Ghost text in an empty line or note; decorative, not held to text contrast."
       }
     },
     "line": {
@@ -63,6 +81,15 @@
           "components": [0.1098, 0.1059, 0.098],
           "hex": "#1c1b19",
           "alpha": 0.1
+        }
+      },
+      "control": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.2
         }
       }
     },
@@ -112,6 +139,23 @@
           "hex": "#ef8a17",
           "alpha": 0.55
         }
+      },
+      "button": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9176, 0.9059],
+          "hex": "#ebeae7"
+        }
+      },
+      "completion-selected": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9059, 0.9961],
+          "hex": "#ebe7fe"
+        },
+        "$description": "The selected row of a completion popup: a light violet."
       }
     },
     "accent": {
@@ -321,6 +365,49 @@
           "hex": "#0e6b62"
         },
         "$description": "A day with the most writing in the activity heatmap."
+      }
+    },
+    "code-block": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.03
+        },
+        "$description": "A fenced code block's box in the editor; translucent so the selection shows through."
+      },
+      "border": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.1
+        }
+      }
+    },
+    "alert": {
+      "note": {
+        "$value": "{color.tag.blue-light}",
+        "$type": "color"
+      },
+      "tip": {
+        "$value": "{color.tag.green-light}",
+        "$type": "color"
+      },
+      "important": {
+        "$value": "{color.tag.purple-light}",
+        "$type": "color"
+      },
+      "warning": {
+        "$value": "{color.tag.orange-light}",
+        "$type": "color"
+      },
+      "caution": {
+        "$value": "{color.tag.red-light}",
+        "$type": "color"
       }
     }
   }

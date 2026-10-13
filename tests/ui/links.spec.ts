@@ -139,6 +139,9 @@ test('[[ opens no popup in code', async ({ page }) => {
   await createNote(page, 'Source')
   await body(page).click()
   await page.keyboard.type('```lua')
+  // The fence's language list opens; Escape leaves the language as typed.
+  await expect(popup(page)).toBeVisible()
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Enter')
   await page.keyboard.type('local x = t[[')
   // Past the time a lookup takes: a popup in code would be showing by now.

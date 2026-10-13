@@ -12,6 +12,7 @@ import {
   type SelectionRange,
   type TransactionSpec,
 } from '@codemirror/state'
+import { startCompletion } from '@codemirror/autocomplete'
 import type { Command } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import { editorComposes } from '../ime'
@@ -20,7 +21,8 @@ import {
   blockStateOf,
   NO_BLOCKS,
   toggleAlert,
-  toggleCodeBlock,
+  atNewFence,
+  codeBlockCommand,
   toggleList,
   toggleQuote,
   type AlertKind,
@@ -1296,7 +1298,7 @@ export const FORMAT_COMMANDS: Record<FormatId, FormatCommand> = {
   highlight: (s) => toggleInline(s, 'highlight'),
   link: toggleLink,
   code: (s) => toggleInline(s, 'code'),
-  codeBlock: toggleCodeBlock,
+  codeBlock: codeBlockCommand,
   bulletList: (s) => toggleList(s, 'bullet'),
   numberedList: (s) => toggleList(s, 'numbered'),
   taskList: (s) => toggleList(s, 'task'),
@@ -1332,6 +1334,8 @@ export function formatCommand(id: FormatId): Command {
     const tr = FORMAT_COMMANDS[id](view.state)
     if (!tr) return false
     view.dispatch(tr)
+    // A new code block lists the fence languages at once (editor/codeBlocks.ts).
+    if (id === 'codeBlock' && atNewFence(view.state)) startCompletion(view)
     return true
   }
 }
