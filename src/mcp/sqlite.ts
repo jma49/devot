@@ -234,6 +234,7 @@ interface Row {
   title_hlc: string
   body_md: string
   ydoc: Buffer
+  body_version: number
   created_at: number
   updated_at: number
   book_id: string | null
@@ -441,13 +442,15 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
      SELECT @to, @noteId, name, mime, size, data, @createdAt FROM files WHERE id = @from`,
   )
   // Same per-field last-writer-wins merge as the Rust store (storage/mod.rs).
+  // A compare-and-set on the body, as the Rust store's put_note: written
+  // only while the stored body is at the version the record is based on.
   const put = db.prepare(
     `INSERT INTO notes (id, title, title_hlc, body_md, ydoc, book_id, book_hlc,
                         status, status_hlc, pinned, pinned_hlc,
-                        created_at, updated_at, deleted_at, deleted_hlc)
+                        created_at, updated_at, deleted_at, deleted_hlc, body_version)
      VALUES (@id, @title, @titleHlc, @bodyMd, @ydoc, @bookId, @bookHlc,
              @status, @statusHlc, @pinned, @pinnedHlc,
-             @createdAt, @updatedAt, @deletedAt, @deletedHlc)
+             @createdAt, @updatedAt, @deletedAt, @deletedHlc, @bodyVersion + 1)
      ON CONFLICT (id) DO UPDATE SET
        title = CASE WHEN excluded.title_hlc > title_hlc THEN excluded.title ELSE title END,
        title_hlc = MAX(excluded.title_hlc, title_hlc),
@@ -462,8 +465,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
        deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
                           THEN excluded.deleted_hlc ELSE deleted_hlc END,
        body_md = excluded.body_md, ydoc = excluded.ydoc,
+       body_version = excluded.body_version,
        updated_at = MAX(excluded.updated_at, updated_at)
-     WHERE purged_at IS NULL`,
+     WHERE purged_at IS NULL AND body_version = @bodyVersion`,
+  )
+  const purged = db.prepare<[string], { purged: number }>(
+    'SELECT purged_at IS NOT NULL AS purged FROM notes WHERE id = ?',
   )
   const books = db.prepare<[], BookRow>('SELECT * FROM books WHERE deleted_at IS NULL')
   const userVersion = db.prepare<[], { user_version: number }>('PRAGMA user_version')
@@ -559,6 +566,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         titleHlc: row.title_hlc,
         bodyMd: row.body_md,
         ydoc: new Uint8Array(row.ydoc),
+        bodyVersion: row.body_version,
         bookId: row.book_id,
         bookHlc: row.book_hlc,
         status: row.status,
@@ -581,7 +589,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
           ydoc: Buffer.from(note.ydoc),
           pinned: note.pinned ? 1 : 0,
         }).changes
-        if (written === 0) return
+        if (written === 0) {
+          // A purged note is left alone; any other has a body that moved on
+          // from the version the write is based on.
+          if (purged.get(note.id)?.purged === 0) throw new Error('E_NOTE_BODY_STALE')
+          return
+        }
         dropNoteLinks.run(note.id)
         for (const target of links) addNoteLink.run(note.id, target)
       }).immediate()

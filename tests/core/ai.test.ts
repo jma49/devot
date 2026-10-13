@@ -397,6 +397,7 @@ describe('creating notes beside a long history', () => {
           titleHlc: '0001728000000000-0000-app',
           bodyMd: 'kept',
           ydoc: state,
+          bodyVersion: 0,
           bookId: shared,
           bookHlc: '0001728000000000-0000-app',
           status: 'none',

@@ -10,6 +10,12 @@
 // its changes in memory: it is tried again later (sooner when anything saves
 // it) and reported (onSaveProblems) until a write holds them.
 //
+// Every write compares before it overwrites: it is based on the version of
+// the stored body the service last saw (NoteRecord.bodyVersion), and storage
+// refuses it when another process wrote the note since. The note then takes
+// the stored copy in (a Yjs merge, the newer HLC of each metadata field) and
+// is written again, so neither side's change is lost (see put).
+//
 // Only the most recently used notes stay in memory once nothing uses them
 // (NOTES_IN_MEMORY): a note leaves when nothing of it can be lost (see
 // trim), and is read from storage again when it is next used.
@@ -285,8 +291,9 @@ export interface NoteService {
    * other wrote over) is saved again; a note deleted for good meanwhile is
    * let go. The others stay in memory: letting one go here could lose an
    * edit that has just loaded it. Returns the notes whose title the other
-   * process changed, with that title. A note that cannot be read is left as
-   * it was.
+   * process changed, with that title, counting a title a write took in when
+   * storage refused it before this merge. A note that cannot be read is left
+   * as it was.
    */
   mergeStored(): Promise<{ id: string; title: string }[]>
 }
@@ -308,6 +315,12 @@ interface Live {
   writes: number
   /** Service calls using the note now (see using): it stays in memory while any does. */
   users: number
+  /**
+   * Whether a write made again after storage refused it took in a title
+   * another process gave the note: mergeStored reports it, as a title it
+   * takes in itself.
+   */
+  retitled: boolean
   /** Saves failed in a row, and the timer that tries again. */
   failures: number
   retry: Timer | undefined
@@ -329,6 +342,38 @@ interface Live {
 const notFound = () => new Error('E_REVISION_NOT_FOUND')
 /** The longest wait before a failed save is tried again. */
 const MAX_RETRY_MS = 30_000
+/**
+ * How many times one write of a note is made when storage refuses it because
+ * another process wrote the note first, each after taking that write in.
+ * When the other wins every time, the write fails like any other, keeping
+ * the changes, and is tried again later (see failed).
+ */
+const WRITE_TRIES = 5
+
+/** Whether storage refused a write because the stored body moved on from the one it is based on. */
+const isStale = (error: unknown) => errorCode(error) === 'E_NOTE_BODY_STALE'
+
+/** `record` as storage holds it once written: its body at the next version. */
+const asWritten = (record: NoteRecord): NoteRecord => ({
+  ...record,
+  bodyVersion: record.bodyVersion + 1,
+})
+
+/**
+ * Runs `attempt`, which reads a note and writes it, again (`retry` true)
+ * while storage refuses the write because another process wrote the note
+ * since the read: WRITE_TRIES times in all at most, then the refusal is
+ * thrown like any other failure.
+ */
+const untilWritten = async <T>(attempt: (retry: boolean) => Promise<T>): Promise<T> => {
+  for (let tries = 1; ; tries += 1) {
+    try {
+      return await attempt(tries > 1)
+    } catch (error) {
+      if (!isStale(error) || tries >= WRITE_TRIES) throw error
+    }
+  }
+}
 
 /**
  * The HLC of each metadata field: a change to the field gives it a new one,
@@ -369,6 +414,18 @@ const withNewer = (to: NoteRecord, from: NoteRecord): NoteRecord => ({
     : {}),
   updatedAt: Math.max(to.updatedAt, from.updatedAt),
 })
+
+/**
+ * Takes a note's stored copy into the note in memory: its Yjs document takes
+ * the stored state in (Yjs merges, so neither side's text is lost), each
+ * metadata field keeps the newer HLC, as storage does, and the next write is
+ * based on the stored body's version.
+ */
+const takeIn = (note: Live, stored: NoteRecord) => {
+  note.record = { ...withNewer(note.record, stored), bodyVersion: stored.bodyVersion }
+  note.saved = { ...withNewer(note.saved, stored), bodyVersion: stored.bodyVersion }
+  Y.applyUpdate(note.doc, stored.ydoc)
+}
 
 /**
  * Whether `doc`, which has taken the stored state in, holds something that
@@ -466,6 +523,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     queue: Promise.resolve(),
     writes: 0,
     users: 0,
+    retitled: false,
     failures: 0,
     retry: undefined,
     // A note made this session has no earlier text to keep.
@@ -728,6 +786,32 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
   }
 
   /**
+   * Writes `make()`, a record of the note as it is now, based on the body
+   * version the note holds. When storage refuses it because another process
+   * wrote the note since, the note takes the stored copy in and the record
+   * is made and written again, WRITE_TRIES times in all at most. Returns the
+   * record written, or undefined when the note was deleted for good
+   * meanwhile (it is let go: storage would take no write of it). Throws the
+   * storage's error. Runs only through exclusive.
+   */
+  const put = (note: Live, make: () => NoteRecord): Promise<NoteRecord | undefined> =>
+    untilWritten(async (retry) => {
+      if (retry) {
+        const stored = await getStored(note.record.id, { trashed: true })
+        if (!stored) {
+          drop(note)
+          return undefined
+        }
+        const title = note.record.title
+        takeIn(note, stored)
+        if (note.record.title !== title) note.retitled = true
+      }
+      const record = make()
+      await storage.putNote(record)
+      return record
+    })
+
+  /**
    * Writes the note as it is now, if it has changes and is still in memory,
    * then records what the write changed. Throws the storage's error. Runs
    * only through exclusive.
@@ -741,20 +825,25 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       note.rev.checked = true
       keepBaseline(note.record.id, body, note.rev)
     }
-    const edits = note.edits
-    const record: NoteRecord = {
-      ...note.record,
-      bodyMd: note.doc.getText(BODY).toString(),
-      ydoc: Y.encodeStateAsUpdate(note.doc),
-      updatedAt: Math.max(now(), note.record.createdAt),
-    }
-    note.record = record
-    await storage.putNote(record)
+    let edits = note.edits
+    const record = await put(note, () => {
+      edits = note.edits
+      note.record = {
+        ...note.record,
+        bodyMd: note.doc.getText(BODY).toString(),
+        ydoc: Y.encodeStateAsUpdate(note.doc),
+        updatedAt: Math.max(now(), note.record.createdAt),
+      }
+      return note.record
+    })
+    if (!record) return
+    const written = asWritten(record)
+    note.record = { ...note.record, bodyVersion: written.bodyVersion }
     const before = note.saved
-    note.saved = record
+    note.saved = written
     note.savedEdits = edits
     settle(note)
-    recordEvents(note.rev, before, record)
+    recordEvents(note.rev, before, written)
     sweep()
   }
 
@@ -951,28 +1040,32 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
    * search index is left alone (schema v15). Its history gets what a write
    * of the note in memory gives: the body first, when the history does not
    * end with it (see keepBaseline), then the event. Writes of one note made
-   * this way go one at a time, and a load of it waits for them.
+   * this way go one at a time, and a load of it waits for them. When another
+   * process wrote the note between the read and the write (storage refuses
+   * the write), it is read and written again (see untilWritten).
    */
   const writeStored = (id: string, change: MetaChange): Promise<void> => {
-    const run = (coldWrites.get(id) ?? Promise.resolve()).then(async () => {
-      const stored = await getStored(id)
-      if (!stored) throw new Error('E_NOTE_NOT_FOUND')
-      // A title stored past the limit is cut, as when a note is loaded.
-      const title = clipTitle(stored.title)
-      const before = title === stored.title ? stored : { ...stored, title }
-      const at = clock.tick()
-      const record: NoteRecord = {
-        ...before,
-        ...('bookId' in change ? { bookId: change.bookId, bookHlc: at } : {}),
-        ...('status' in change ? { status: change.status, statusHlc: at } : {}),
-        ...('pinned' in change ? { pinned: change.pinned, pinnedHlc: at } : {}),
-        updatedAt: Math.max(now(), before.createdAt),
-      }
-      keepBaseline(id, { ydoc: stored.ydoc, text: stored.bodyMd, at: stored.updatedAt })
-      await storage.putNote(record)
-      recordEvents(undefined, before, record)
-      sweep()
-    })
+    const run = (coldWrites.get(id) ?? Promise.resolve()).then(() =>
+      untilWritten(async () => {
+        const stored = await getStored(id)
+        if (!stored) throw new Error('E_NOTE_NOT_FOUND')
+        // A title stored past the limit is cut, as when a note is loaded.
+        const title = clipTitle(stored.title)
+        const before = title === stored.title ? stored : { ...stored, title }
+        const at = clock.tick()
+        const record: NoteRecord = {
+          ...before,
+          ...('bookId' in change ? { bookId: change.bookId, bookHlc: at } : {}),
+          ...('status' in change ? { status: change.status, statusHlc: at } : {}),
+          ...('pinned' in change ? { pinned: change.pinned, pinnedHlc: at } : {}),
+          updatedAt: Math.max(now(), before.createdAt),
+        }
+        keepBaseline(id, { ydoc: stored.ydoc, text: stored.bodyMd, at: stored.updatedAt })
+        await storage.putNote(record)
+        recordEvents(undefined, before, record)
+        sweep()
+      }),
+    )
     const settled = run.then(
       () => undefined,
       () => undefined,
@@ -1008,6 +1101,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       titleHlc: clock.tick(),
       bodyMd: doc.getText(BODY).toString(),
       ydoc: Y.encodeStateAsUpdate(doc),
+      bodyVersion: 0,
       bookId,
       bookHlc: bookId === null ? '' : clock.tick(),
       status: 'none',
@@ -1021,7 +1115,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     }
     const { id } = record
     await storage.putNote(record)
-    live.set(id, liveNote(record, doc, false))
+    live.set(id, liveNote(asWritten(record), doc, false))
     trim()
     if (copies.length === 0) return id
     try {
@@ -1050,6 +1144,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         titleHlc: clock.tick(),
         bodyMd: '',
         ydoc: Y.encodeStateAsUpdate(doc),
+        bodyVersion: 0,
         bookId,
         bookHlc: bookId === null ? '' : clock.tick(),
         status: 'none',
@@ -1062,7 +1157,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         deletedHlc: null,
       }
       await storage.putNote(record)
-      live.set(record.id, liveNote(record, doc, true))
+      live.set(record.id, liveNote(asWritten(record), doc, true))
       trim()
       return record.id
     },
@@ -1263,27 +1358,40 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
             failed(note, error)
             throw error
           }
+          // Deleted for good by another process meanwhile.
+          if (live.get(id) !== note) return
           // The Trash keeps the history, last edits included.
           takeVersion(note)
-          // Written apart: when it fails, the note stays as it was.
-          await storage.putNote({ ...note.record, deletedAt: now(), deletedHlc: clock.tick() })
+          // Written apart: when it fails, the note stays as it was. With the
+          // body as the document holds it, which may have taken in what
+          // another process wrote since the last write (see mergeStored).
+          await put(note, () => ({
+            ...note.record,
+            bodyMd: note.doc.getText(BODY).toString(),
+            ydoc: Y.encodeStateAsUpdate(note.doc),
+            deletedAt: now(),
+            deletedHlc: clock.tick(),
+          }))
           drop(note)
         })
       })
       await revisionWork
     },
 
-    async restore(id) {
-      const record = await trashed(id)
-      // A title stored past what storage takes now (by an older build) is
-      // cut for the write, as when a note is loaded; the stored one stays.
-      await storage.putNote({
-        ...record,
-        title: clipTitle(record.title),
-        deletedAt: null,
-        deletedHlc: clock.tick(),
-      })
-    },
+    // Read again and written again when another process wrote the note
+    // between the read and the write (see untilWritten).
+    restore: (id) =>
+      untilWritten(async () => {
+        const record = await trashed(id)
+        // A title stored past what storage takes now (by an older build) is
+        // cut for the write, as when a note is loaded; the stored one stays.
+        await storage.putNote({
+          ...record,
+          title: clipTitle(record.title),
+          deletedAt: null,
+          deletedHlc: clock.tick(),
+        })
+      }),
 
     listTrash: () => storage.listTrash(),
 
@@ -1360,14 +1468,16 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
             return
           }
           const title = note.record.title
-          note.record = withNewer(note.record, stored)
-          note.saved = withNewer(note.saved, stored)
-          Y.applyUpdate(note.doc, stored.ydoc)
+          takeIn(note, stored)
           if (holdsMore(note.doc, stored)) {
             note.edits += 1
             schedule(note)
           }
-          if (note.record.title !== title) retitled.push({ id, title: note.record.title })
+          // Or a write made again before this merge took it in (see put).
+          if (note.record.title !== title || note.retitled) {
+            retitled.push({ id, title: note.record.title })
+          }
+          note.retitled = false
         })
       const merged = await Promise.allSettled([...live.values()].map(merge))
       for (const result of merged) {

@@ -73,6 +73,7 @@ beforeAll(() => {
         titleHlc: hlc,
         bodyMd: body,
         ydoc: new Uint8Array([0]),
+        bodyVersion: 0,
         bookId: i % 7 === 0 ? null : id(900_000 + (i % BOOKS)),
         bookHlc: hlc,
         status: i % 5 === 0 ? 'active' : 'none',

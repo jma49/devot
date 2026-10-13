@@ -22,6 +22,7 @@ const base: NoteRecord = {
   titleHlc: formatHlc({ wall: 0, counter: 0, node: 'base' }),
   bodyMd: '',
   ydoc: new Uint8Array([0, 0]),
+  bodyVersion: 0,
   bookId: null,
   bookHlc: '',
   status: 'none',
@@ -105,7 +106,10 @@ describe('per-field last-writer-wins on SQLite', () => {
           for (const order of [writes, shuffled]) {
             const store = openSqliteAdapter(join(dir, `db-${(run += 1)}.sqlite`))
             await store.putNote(base)
-            for (const w of order) await store.putNote(asRecord(w))
+            // Each write is based on the body version the one before left.
+            for (const [i, w] of order.entries()) {
+              await store.putNote({ ...asRecord(w), bodyVersion: i + 1 })
+            }
             const note = (await store.getNote(ID))!
             results.push({
               title: note.title,

@@ -31,6 +31,7 @@ const record = (change: Partial<NoteRecord>): NoteRecord => ({
   titleHlc: '0001728000000000-0000-node',
   bodyMd: '',
   ydoc: Uint8Array.of(0, 0),
+  bodyVersion: 0,
   bookId: null,
   bookHlc: '',
   status: 'none',

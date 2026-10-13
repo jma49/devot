@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import {
   createIdGenerator,
   MAX_BODY_BYTES,
+  MAX_BODY_VERSION,
   MAX_NOTE_LINKS,
   MAX_TITLE_CHARS,
   MAX_YDOC_BYTES,
@@ -28,6 +29,7 @@ function record(change: Partial<NoteRecord> = {}): NoteRecord {
     bodyMd: '',
     // An empty Yjs update.
     ydoc: Uint8Array.of(0, 0),
+    bodyVersion: 0,
     bookId: null,
     bookHlc: '',
     status: 'none',
@@ -69,18 +71,30 @@ const CASES: [string, () => Partial<NoteRecord>, string | null][] = [
   ['an empty Yjs state', () => ({ ydoc: new Uint8Array(0) }), 'E_NOTE_YDOC_INVALID'],
   ['as many links as a body may hold', () => ({ bodyMd: links(MAX_NOTE_LINKS) }), null],
   ['one link more', () => ({ bodyMd: links(MAX_NOTE_LINKS + 1) }), 'E_NOTE_LINKS_TOO_MANY'],
+  ['a negative body version', () => ({ bodyVersion: -1 }), 'E_NOTE_VERSION_INVALID'],
+  ['a body version that is not whole', () => ({ bodyVersion: 1.5 }), 'E_NOTE_VERSION_INVALID'],
+  [
+    'a body version storage could not move on exactly',
+    () => ({ bodyVersion: MAX_BODY_VERSION }),
+    'E_NOTE_VERSION_INVALID',
+  ],
 ]
 
-/** What `putNote` answers for each case: its error code, or null when it stored the record. */
+/**
+ * What `putNote` answers for each case: its error code, or null when it
+ * stored the record. Each write is based on the body version the writes
+ * stored before it left.
+ */
 async function answers(storage: StorageAdapter) {
   const result: (string | null)[] = []
+  let bodyVersion = 0
   for (const [, change] of CASES) {
-    result.push(
-      await storage.putNote(record(change())).then(
-        () => null,
-        (e: unknown) => (e instanceof Error ? e.message : String(e)),
-      ),
+    const answer = await storage.putNote(record({ bodyVersion, ...change() })).then(
+      () => null,
+      (e: unknown) => (e instanceof Error ? e.message : String(e)),
     )
+    if (answer === null) bodyVersion += 1
+    result.push(answer)
   }
   return result
 }
@@ -131,8 +145,9 @@ describe('note writes over the limits', () => {
         'E_STORAGE_SQLITE',
       )
       localStorage.removeItem('devot.test.failNoteWrites')
+      const { bodyVersion } = (await memoryStorage.getNote(ID))!
       await memoryStorage.putNote(
-        record({ title: 'Saved', titleHlc: '0001728000000009-0000-node' }),
+        record({ title: 'Saved', titleHlc: '0001728000000009-0000-node', bodyVersion }),
       )
       expect((await memoryStorage.getNote(ID))?.title).toBe('Saved')
     })

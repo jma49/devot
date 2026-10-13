@@ -44,6 +44,7 @@ beforeAll(() => {
         titleHlc: hlc,
         bodyMd: 'word '.repeat(100 + Math.floor(rand() * 400)),
         ydoc: state,
+        bodyVersion: 0,
         bookId: null,
         bookHlc: '',
         status: 'none',

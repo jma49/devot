@@ -152,7 +152,9 @@ describe('notebook metadata merges per field (HLC)', () => {
     const stale = (await storage.getNote(id))!
     await notes.setBook(id, b)
     await notes.flush()
-    await storage.putNote({ ...stale, title: 'Stale write' })
+    // The older copy's fields, written over the body as stored now.
+    const { bodyVersion } = (await storage.getNote(id))!
+    await storage.putNote({ ...stale, title: 'Stale write', bodyVersion })
     const now = (await storage.getNote(id))!
     expect(now.bookId).toBe(b)
     expect(now.title).toBe('Note')

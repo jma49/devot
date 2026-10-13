@@ -2,9 +2,10 @@
 // UI tests' build, vite.ui-test.config.ts). Never used in the app: its
 // builds leave this file out, and the release build fails if one of its
 // keys (all `devot.test.*`) is in the bundle (scripts/sentry/ui.ts). It
-// merges records per field by HLC, like the SQLite stores, and refuses the
-// notes the app's note_put refuses. It keeps no link index: nothing in the
-// UI reads one yet.
+// merges records per field by HLC and compares body versions before it
+// writes, like the SQLite stores, and refuses the notes the app's note_put
+// refuses. It keeps no link index: nothing in the UI reads one yet. A note
+// a test stored without a body version is at version 0.
 // A UI test makes note writes fail (a full disk, say) by putting an error
 // code in `devot.test.failNoteWrites`.
 import type {
@@ -33,7 +34,11 @@ const FAIL_NOTE_WRITES = 'devot.test.failNoteWrites'
 
 type StoredFile = FileMeta & { mime: string; base64: string }
 
-type Stored = Omit<NoteRecord, 'ydoc'> & { ydoc: number[]; purgedAt?: number }
+type Stored = Omit<NoteRecord, 'ydoc' | 'bodyVersion'> & {
+  ydoc: number[]
+  bodyVersion?: number
+  purgedAt?: number
+}
 
 type StoredRevision = Omit<RevisionRecord, 'ydoc'> & { ydoc: number[] | null }
 
@@ -54,12 +59,13 @@ function newer<T>(current: T, next: T, field: keyof T, hlc: keyof T): Partial<T>
   return b > a ? ({ [field]: next[field], [hlc]: next[hlc] } as Partial<T>) : {}
 }
 
-function mergeNote(current: Stored | undefined, next: Stored): Stored {
+function mergeNote(current: Stored | undefined, next: Stored & { bodyVersion: number }): Stored {
   if (!current) return next
   return {
     ...current,
     bodyMd: next.bodyMd,
     ydoc: next.ydoc,
+    bodyVersion: next.bodyVersion,
     updatedAt: Math.max(current.updatedAt, next.updatedAt),
     ...newer(current, next, 'title', 'titleHlc'),
     ...newer(current, next, 'bookId', 'bookHlc'),
@@ -124,7 +130,7 @@ export const memoryStorage: StorageAdapter = {
     )
     if (!n) return null
     const { purgedAt: _, ...record } = n
-    return { ...record, ydoc: new Uint8Array(n.ydoc) }
+    return { ...record, bodyVersion: n.bodyVersion ?? 0, ydoc: new Uint8Array(n.ydoc) }
   },
   // The query rules of the SQLite stores, in plain code (newest first, no ranking).
   async searchNotes(query, limit) {
@@ -310,12 +316,18 @@ export const memoryStorage: StorageAdapter = {
     if (failure) throw new Error(failure)
     checkNote(note)
     const all = read<Stored>(NOTES)
+    const current = all.find((n) => n.id === note.id)
     // A purge is final.
-    if (all.some((n) => n.id === note.id && n.purgedAt !== undefined)) return
-    const next = mergeNote(
-      all.find((n) => n.id === note.id),
-      { ...note, ydoc: Array.from(note.ydoc) },
-    )
+    if (current?.purgedAt !== undefined) return
+    // Only over the body version the write is based on, as in SQL.
+    if (current && (current.bodyVersion ?? 0) !== note.bodyVersion) {
+      throw new Error('E_NOTE_BODY_STALE')
+    }
+    const next = mergeNote(current, {
+      ...note,
+      ydoc: Array.from(note.ydoc),
+      bodyVersion: note.bodyVersion + 1,
+    })
     localStorage.setItem(NOTES, JSON.stringify([...all.filter((n) => n.id !== note.id), next]))
   },
   async listBooks() {

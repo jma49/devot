@@ -82,6 +82,7 @@ mod tests {
             title_hlc: "0000000000000001-0000-a".into(),
             body_md: String::new(),
             ydoc: vec![0],
+            body_version: 0,
             book_id: None,
             book_hlc: String::new(),
             status: "none".into(),
