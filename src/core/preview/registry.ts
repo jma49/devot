@@ -17,8 +17,22 @@ export interface PreviewLabels {
 
 export type AlertKind = 'note' | 'tip' | 'important' | 'warning' | 'caution'
 
+/** Texts for the placeholder that stands in for an image from the web. */
+export interface RemoteImageLabels {
+  /** What the placeholder says is missing. */
+  notLoaded: string
+  /** Why the image is not loaded. */
+  why: string
+}
+
 export interface PreviewOptions {
   labels: PreviewLabels
+  /**
+   * Set where images from the web are never loaded (the preview): each one is
+   * replaced by a placeholder with its address. Left out for pages that keep
+   * the images (HTML export), which load where the file is opened.
+   */
+  remoteImages?: RemoteImageLabels
   /** Embed URLs from unknown origins the user chose to load. */
   loadedEmbeds: readonly string[]
 }

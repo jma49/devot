@@ -165,6 +165,9 @@ export const en = {
   'alert.important': 'Important',
   'alert.warning': 'Warning',
   'alert.caution': 'Caution',
+  'image.remoteNotLoaded': 'Image from the web not loaded',
+  'image.remoteWhy':
+    'The preview never loads images from the web, so no server learns that you opened this note.',
   'embed.from': 'Embedded content from {origin}',
   'embed.load': 'Load',
   'embed.videoTitle': 'Embedded video',
