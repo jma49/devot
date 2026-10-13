@@ -4,6 +4,8 @@ import {
   createSymbolCache,
   ICONS,
   symbolFor,
+  fitPoints,
+  inkBounds,
   symbolSize,
   symbolStyle,
   type RenderSymbol,
@@ -85,17 +87,50 @@ describe('symbol size', () => {
     expect(symbolSize(png(50, 32))).toEqual({ width: 25, height: 16 })
     expect(symbolSize('data:image/png;base64,pin@17')).toBeNull()
   })
+})
 
-  it('keeps a symbol at its own size, centred on its box, overhanging it evenly', () => {
-    const style = symbolStyle(png(50, 32), 18)
-    expect(style).toMatchObject({ width: '25px', height: '16px', margin: '1px -3.5px' })
-    expect(style['maskSize']).toBe('100% 100%')
+describe('ink', () => {
+  it('is the bounds of the pixels more than a quarter opaque, in CSS pixels', () => {
+    // 4 by 3 pixels: ink from (1, 0) to (2, 2); a faint pixel at (3, 2) does not count.
+    const alpha = [0, 255, 0, 0, 0, 200, 255, 0, 0, 0, 255, 40]
+    expect(inkBounds(alpha, 4, 3)).toEqual({ x: 0.5, y: 0, width: 1, height: 1.5 })
+    expect(inkBounds([0, 10, 64], 3, 1)).toBeNull()
+  })
+})
+
+describe('fitting a symbol to its box', () => {
+  it('renders a set of symbols to about the same ink area, heights in a narrow band', () => {
+    // An 18 px box: ink of about 13 by 13 px. A square glyph measured at 14 points grows.
+    expect(fitPoints({ x: 0, y: 0, width: 10, height: 10 }, 14, 18)).toBe(18)
+    // A tall narrow one is held to the top of the band (14 px high), a wide
+    // flat one raised to its foot (11.7 px).
+    expect(fitPoints({ x: 0, y: 0, width: 7, height: 14 }, 14, 18)).toBe(14)
+    expect(fitPoints({ x: 0, y: 0, width: 10, height: 7 }, 14, 18)).toBe(23.5)
+    // A very wide one is held to the box's width.
+    expect(fitPoints({ x: 0, y: 0, width: 30, height: 5 }, 14, 18)).toBe(8.5)
   })
 
-  it('falls back to the mask alone when the PNG cannot be read', () => {
-    expect(symbolStyle('data:image/png;base64,pin@17', 18)).toEqual({
-      maskImage: 'url("data:image/png;base64,pin@17")',
-      WebkitMaskImage: 'url("data:image/png;base64,pin@17")',
+  it('never renders at more than twice or less than half the first size', () => {
+    expect(fitPoints({ x: 0, y: 0, width: 0.5, height: 0.5 }, 14, 18)).toBe(28)
+    expect(fitPoints({ x: 0, y: 0, width: 100, height: 100 }, 14, 18)).toBe(7)
+  })
+
+  it('centres the ink on the box, on the half-pixel grid, keeping the box in the layout', () => {
+    const image = {
+      url: 'data:x',
+      width: 20,
+      height: 16,
+      ink: { x: 1, y: 2, width: 17, height: 11 },
+    }
+    expect(symbolStyle(image, 18)).toEqual({
+      maskImage: 'url("data:x")',
+      WebkitMaskImage: 'url("data:x")',
+      maskSize: '100% 100%',
+      WebkitMaskSize: '100% 100%',
+      width: '20px',
+      height: '16px',
+      // Ink centre (9.5, 7.5) onto (9, 9): left -0.5 (snapped from -0.5), top 1.5.
+      margin: '1.5px -1.5px 0.5px -0.5px',
     })
   })
 })

@@ -35,7 +35,7 @@
     "backlink": "arrow.turn.down.right",
     "callout.note": "info.circle",
     "check": "checkmark",
-    "format.heading": "textformat.size",
+    "format.heading": "number",
     "format.bold": "bold",
     "format.italic": "italic",
     "format.strikethrough": "strikethrough",

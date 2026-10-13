@@ -39,16 +39,32 @@ export function createSymbolCache(render: RenderSymbol): SymbolCache {
  * Rust renders a symbol at twice its point size, one pixel to a point
  * (`symbol_png`): shown at half its pixels in CSS pixels, a symbol keeps
  * its own width and height at the point size asked for, with two device
- * pixels to a CSS pixel on a Retina screen.
+ * pixels to a CSS pixel on a Retina screen, so its edges stay crisp.
  */
-const PIXELS_PER_POINT = 2
+export const PIXELS_PER_POINT = 2
 
-/** A symbol's size at its point size, in CSS pixels, read from its PNG's header; null if unreadable. */
+/** A rectangle in CSS pixels. */
+export interface Box {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** A rendered symbol: its data URL, its size in CSS pixels, and where its ink is inside that. */
+export interface SymbolImage {
+  url: string
+  width: number
+  height: number
+  ink: Box
+}
+
+/** A symbol's size in CSS pixels, read from its PNG's header; null if unreadable. */
 export function symbolSize(dataUrl: string): { width: number; height: number } | null {
-  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1, dataUrl.indexOf(',') + 1 + 32)
+  const start = dataUrl.indexOf(',') + 1
   let header: string
   try {
-    header = atob(base64)
+    header = atob(dataUrl.slice(start, start + 32))
   } catch {
     return null
   }
@@ -63,22 +79,73 @@ export function symbolSize(dataUrl: string): { width: number; height: number } |
 }
 
 /**
- * How a symbol sits in its `box` (CSS pixels, square): at its own size, so
- * every symbol keeps the same scale and weight and none is stretched or
- * blurred, centred on the box. A symbol wider or taller than the box
- * overhangs it evenly; the box keeps its place in the layout.
+ * The ink of a rendered symbol: the bounds of its pixels more than a
+ * quarter opaque (`alpha` holds one value per pixel, row by row), in CSS
+ * pixels; null when it has none.
  */
-export function symbolStyle(dataUrl: string, box: number): Record<string, string> {
-  const mask = `url("${dataUrl}")`
-  const size = symbolSize(dataUrl)
-  if (!size) return { maskImage: mask, WebkitMaskImage: mask }
+export function inkBounds(alpha: ArrayLike<number>, width: number, height: number): Box | null {
+  let left = width
+  let top = height
+  let right = -1
+  let bottom = -1
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      if ((alpha[y * width + x] ?? 0) <= 64) continue
+      if (x < left) left = x
+      if (x > right) right = x
+      if (y < top) top = y
+      if (y > bottom) bottom = y
+    }
+  if (right < 0) return null
+  const k = PIXELS_PER_POINT
+  return { x: left / k, y: top / k, width: (right - left + 1) / k, height: (bottom - top + 1) / k }
+}
+
+/**
+ * The ink a set of symbols is fitted to in a square `box` (a toolbar's
+ * buttons): about the same area for all (a square of `side`), so a tall
+ * bold B, a wide list mark and a diagonal link carry the same visual
+ * weight; heights held within a narrow band round `side`; never beyond the box.
+ */
+export function inkTarget(box: number): { side: number; low: number; high: number; max: number } {
+  const side = box * 0.72
+  return { side, low: side * 0.9, high: side * 1.08, max: box }
+}
+
+/**
+ * The point size (in half points) that brings a symbol whose ink measured
+ * `ink` at `points` to its box's target. The symbol is rendered again at
+ * that size, never scaled, so its edges stay sharp.
+ */
+export function fitPoints(ink: Box, points: number, box: number): number {
+  const target = inkTarget(box)
+  const height = Math.min(
+    target.high,
+    Math.max(target.low, (ink.height * target.side) / Math.sqrt(ink.width * ink.height)),
+  )
+  const scale = Math.min(height / ink.height, target.max / ink.width, target.max / ink.height)
+  const fitted = Math.round(points * scale * 2) / 2
+  return Math.min(points * 2, Math.max(points / 2, fitted))
+}
+
+/**
+ * How a symbol sits in its `box` (CSS pixels, square): at its own size, its
+ * ink centred on the box, on the half-pixel grid (whole device pixels on a
+ * Retina screen). The margins keep the box's place in the layout; a symbol
+ * larger than the box overhangs it.
+ */
+export function symbolStyle(image: SymbolImage, box: number): Record<string, string> {
+  const snap = (n: number) => Math.round(n * 2) / 2
+  const left = snap(box / 2 - (image.ink.x + image.ink.width / 2))
+  const top = snap(box / 2 - (image.ink.y + image.ink.height / 2))
+  const mask = `url("${image.url}")`
   return {
     maskImage: mask,
     WebkitMaskImage: mask,
     maskSize: '100% 100%',
     WebkitMaskSize: '100% 100%',
-    width: `${size.width}px`,
-    height: `${size.height}px`,
-    margin: `${(box - size.height) / 2}px ${(box - size.width) / 2}px`,
+    width: `${image.width}px`,
+    height: `${image.height}px`,
+    margin: `${top}px ${box - image.width - left}px ${box - image.height - top}px ${left}px`,
   }
 }

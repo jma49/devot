@@ -96,7 +96,7 @@ export function FloatButton(props: FloatButtonProps) {
       onMouseLeave={props.onHideTip}
       onClick={(e) => props.onPress(e.currentTarget)}
     >
-      <Icon name={props.icon} size="toolbar" />
+      <Icon name={props.icon} size="toolbar" fit />
     </button>
   )
 }
@@ -106,14 +106,14 @@ export function FloatSeparator(): ReactNode {
 }
 
 /**
- * The bar's outline and shadow, drawn round the bar and its notch together
- * (a filter follows the painted shape), so the two read as one shape with
- * no seam where they meet.
+ * The bar and its notch read as one shape: one hairline round both (the
+ * notch lies over the bar's edge, its fill hiding the bar's hairline where
+ * they join, and draws the hairline on its two outer sides), and one shadow
+ * that follows the painted shape (a filter, not a box shadow).
  */
-const barOutline =
-  'drop-shadow(0 0 0.5px var(--color-line-hairline)) drop-shadow(0 4px 7px var(--color-line-shadow))'
-const notchSize = 'var(--space-5)'
-const notchOut = 'calc(var(--space-5) / -2)'
+const hairline = '0.5px solid var(--color-line-hairline)'
+const notchSize = 'var(--space-4)'
+const notchOut = 'calc(var(--space-4) / -2)'
 
 export const floatTheme = EditorView.theme({
   '.cm-tooltip.cm-float-bar': {
@@ -126,24 +126,34 @@ export const floatTheme = EditorView.theme({
     border: '0',
     borderRadius: 'var(--radius-floating-bar)',
     backgroundColor: 'var(--color-surface-popover)',
-    boxShadow: 'none',
-    filter: barOutline,
+    boxShadow: '0 0 0 0.5px var(--color-line-hairline)',
+    filter: 'drop-shadow(0 4px 7px var(--color-line-shadow))',
     color: 'var(--color-text-secondary)',
     fontFamily: 'var(--font-family-ui)',
   },
-  // The notch: a turned square half outside the panel, under its buttons.
+  // The notch: a turned square centred on the bar's edge, over it.
   '.cm-tooltip.cm-float-bar::after': {
     content: '""',
     position: 'absolute',
-    zIndex: '-1',
+    zIndex: '1',
+    boxSizing: 'border-box',
     left: `calc(${NOTCH_X}px - ${notchSize} / 2)`,
     width: notchSize,
     height: notchSize,
     backgroundColor: 'var(--color-surface-popover)',
     transform: 'rotate(45deg)',
+    pointerEvents: 'none',
   },
-  '.cm-tooltip-above.cm-float-bar::after': { bottom: notchOut },
-  '.cm-tooltip-below.cm-float-bar::after': { top: notchOut },
+  '.cm-tooltip-above.cm-float-bar::after': {
+    bottom: notchOut,
+    borderRight: hairline,
+    borderBottom: hairline,
+  },
+  '.cm-tooltip-below.cm-float-bar::after': {
+    top: notchOut,
+    borderLeft: hairline,
+    borderTop: hairline,
+  },
   '.cm-float-buttons': {
     display: 'flex',
     alignItems: 'center',
@@ -203,8 +213,8 @@ export const floatTheme = EditorView.theme({
     padding: 'var(--space-3) var(--space-5)',
     borderRadius: 'var(--radius-card)',
     backgroundColor: 'var(--color-surface-popover)',
-    // Inside the bar: the bar's outline and shadow reach it too.
-    boxShadow: 'none',
+    // Inside the bar: the bar's shadow (a filter) reaches it too.
+    boxShadow: '0 0 0 0.5px var(--color-line-hairline)',
     color: 'var(--color-text-secondary)',
     fontSize: 'var(--font-size-footnote)',
     whiteSpace: 'nowrap',

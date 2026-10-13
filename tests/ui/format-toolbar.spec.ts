@@ -124,7 +124,7 @@ test('the toolbar shows for a selection, with named SF Symbol buttons in three g
   await expect(toolbar(page)).toBeHidden()
   await selectAll(page)
   const names: [string, string][] = [
-    ['Heading', 'textformat.size'],
+    ['Heading', 'number'],
     ['Bold', 'bold'],
     ['Italic', 'italic'],
     ['Strikethrough', 'strikethrough'],
