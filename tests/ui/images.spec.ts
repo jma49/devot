@@ -12,8 +12,10 @@ import {
 
 // Images in the editor and the preview: previews under their lines, size
 // presets, the viewer, the image context menu and the image commands.
-// Attachments (devot://file) do not load in Playwright's browser; a remote
-// image (routed here) does, so the viewer is checked with one. Editor keys
+// Attachments (devot://file) do not load in Playwright's browser; an image at a
+// path on the page's own origin (routed here) does, and the preview treats it as
+// local (images from the web become placeholders), so the viewer is checked with
+// one. Editor keys
 // are platform-neutral; the palette opens with Meta+P like in the other specs.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -28,8 +30,8 @@ const commands = (page: Page) =>
 
 const FILE_ID = '0192a6f0-0000-7000-8000-00000000f001'
 const FILE = `devot://file/${FILE_ID}`
-const BIG = 'https://images.test/big.svg'
 const BIG_SIZE = { width: 2400, height: 1600 }
+const BIG = '/test-images/big.svg'
 
 async function showMode(page: Page, name: 'Edit' | 'Split' | 'Preview') {
   await page.getByRole('group', { name: 'View mode' }).getByRole('button', { name }).click()
@@ -64,7 +66,7 @@ async function runFromPalette(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route(BIG, (route) =>
+  await page.route(`**${BIG}`, (route) =>
     route.fulfill({
       contentType: 'image/svg+xml',
       body: `<svg xmlns="http://www.w3.org/2000/svg" width="${BIG_SIZE.width}" height="${BIG_SIZE.height}"><rect width="100%" height="100%" fill="teal"/></svg>`,
@@ -93,7 +95,7 @@ test('double-clicking a preview image opens the viewer, fitted to the window', a
   await expect(viewer(page)).toBeVisible()
   await expect(viewer(page)).toHaveAccessibleName('Image Viewer: Big picture')
   await expect(viewer(page).getByRole('button', { name: 'Close' })).toBeFocused()
-  await expect(viewerImage(page)).toHaveAttribute('src', BIG)
+  await expect(viewerImage(page)).toHaveAttribute('src', new RegExp(`${BIG}$`))
   await expect(viewerImage(page)).toHaveAttribute('alt', 'Big picture')
   const fit = viewer(page).getByRole('button', { name: 'Fit to Window' })
   const actual = viewer(page).getByRole('button', { name: 'Actual Size' })
