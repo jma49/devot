@@ -57,6 +57,23 @@ const line = (target: Locator, edge: 'before' | 'after') =>
     return style.content === 'none' ? null : style.height
   }, `::${edge}`)
 
+/** A row's outline (or, given `property`, that one computed value). */
+function outline(target: Locator): Promise<{ style: string; width: string; offset: string }>
+function outline(target: Locator, property: string): Promise<string>
+function outline(target: Locator, property?: string) {
+  return target.evaluate((el, p) => {
+    const style = (
+      globalThis as unknown as {
+        getComputedStyle(e: unknown): Record<string, string> & {
+          getPropertyValue(n: string): string
+        }
+      }
+    ).getComputedStyle(el)
+    if (p) return style.getPropertyValue(p)
+    return { style: style.outlineStyle!, width: style.outlineWidth!, offset: style.outlineOffset! }
+  }, property)
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => localStorage.clear())
@@ -115,6 +132,11 @@ test('shows where a notebook will go while it is dragged', async ({ page }) => {
   await expect(target).toHaveClass(/drop-target/)
   await expect(target).not.toHaveClass(/drop-after/)
   expect(await line(target, 'after')).toBeNull()
+  // Into a notebook: a dashed accent outline just inside the row, and the
+  // dragged row dims while the drag lasts.
+  expect(await outline(target)).toEqual({ style: 'dashed', width: '2px', offset: '-2px' })
+  await expect(source).toHaveAttribute('data-dragging', 'true')
+  expect(await outline(source, 'opacity')).toBe('0.5')
 
   // Over itself there is nowhere to go.
   const self = await pointIn(source, 'top')
@@ -122,6 +144,7 @@ test('shows where a notebook will go while it is dragged', async ({ page }) => {
   await expect(source).not.toHaveClass(/drop-/)
   await expect(target).not.toHaveClass(/drop-/)
   await page.mouse.up()
+  await expect(source).not.toHaveAttribute('data-dragging')
   await expect.poll(() => shown(page)).toEqual(['Alpha', 'Bravo'])
 })
 

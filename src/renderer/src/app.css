@@ -487,18 +487,23 @@ button {
   content: '';
   position: absolute;
   inset-inline: var(--book-indent) var(--space-2);
-  height: 2px;
+  height: var(--size-drop-indicator);
   border-radius: var(--radius-capsule);
   background: var(--color-accent-fill);
   pointer-events: none;
 }
 
 .drop-before::before {
-  top: -1px;
+  top: calc(var(--size-drop-indicator) / -2);
 }
 
 .drop-after::after {
-  bottom: -1px;
+  bottom: calc(var(--size-drop-indicator) / -2);
+}
+
+/* A row being dragged dims while the drag lasts. */
+[data-dragging] {
+  opacity: var(--opacity-dragged);
 }
 
 .book-row .icon-md {
@@ -553,8 +558,13 @@ button {
   font: inherit;
 }
 
-/* A drop target, and the notebook whose context menu is open. */
-.drop-target,
+/* A drop target: a dashed accent outline just inside the row. */
+.drop-target {
+  outline: var(--size-drop-indicator) dashed var(--color-accent-fill);
+  outline-offset: calc(-1 * var(--size-drop-indicator));
+}
+
+/* The notebook or tag whose context menu is open. */
 .menu-target {
   box-shadow: inset 0 0 0 2px var(--color-accent-fill);
 }

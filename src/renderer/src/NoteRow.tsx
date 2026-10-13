@@ -97,6 +97,8 @@ export interface RowProps {
   now: number
   locale: string
   draggable: boolean
+  /** The row is being dragged (with the selection it belongs to): it dims. */
+  dragging: boolean
   /** Right-click shows the note menu. */
   menu: boolean
   events: RowEvents
@@ -132,6 +134,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
       onMouseDown={events.mouseDown}
       onClick={(e) => events.click(id, e)}
       draggable={props.draggable}
+      data-dragging={props.dragging || undefined}
       onDragStart={(e) => events.dragStart(id, e)}
       onKeyDown={(e) => events.keyDown(id, e)}
       onContextMenu={props.menu ? (e) => events.contextMenu(id, e) : undefined}

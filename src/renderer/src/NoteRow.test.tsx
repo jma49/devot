@@ -43,6 +43,7 @@ function row(over: Partial<RowProps> = {}): string {
     now,
     locale: 'en',
     draggable: true,
+    dragging: false,
     menu: true,
     events,
     ...over,
@@ -83,6 +84,11 @@ describe('NoteRow', () => {
     const html = row({ note: note({ tagIds: ['t1', 't2'] }), tags })
     expect(html).toContain('<span class="chip tag-chip tag-color-green">')
     expect(html).toMatch(/<span class="chip">t2<\/span>/)
+  })
+
+  it('dims a row while it is being dragged', () => {
+    expect(row({ dragging: true })).toMatch(/^<li class="row"[^>]* data-dragging="true"/)
+    expect(row()).not.toContain('data-dragging')
   })
 
   it('shows the status as an icon with an accessible name, and no text', () => {

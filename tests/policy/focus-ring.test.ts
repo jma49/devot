@@ -10,6 +10,8 @@ import { cssRules } from '../support/css-rules'
 const UI_ROOT = 'src/renderer/src'
 const RING = 'var(--size-focus-ring) solid var(--color-focus-ring)'
 const OFFSETS = new Set(['0', 'calc(-1 * var(--size-focus-ring))', 'var(--size-focus-ring)'])
+/** Not a focus ring: where a drag will drop (`.drop-target`), dashed. */
+const DROP = 'var(--size-drop-indicator) dashed var(--color-accent-fill)'
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -22,7 +24,8 @@ function files(dir: string): string[] {
 function offenders(css: string): string[] {
   return cssRules(css).flatMap(({ selector, body }) => {
     const outline = body.get('outline')
-    if (outline === undefined || outline === 'none' || outline === '0') return []
+    if (outline === undefined || outline === 'none' || outline === '0' || outline === DROP)
+      return []
     const offset = body.get('outline-offset') ?? '0'
     return outline === RING && OFFSETS.has(offset) ? [] : [`${selector} { outline: ${outline} }`]
   })

@@ -325,6 +325,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const [dropAt, setDropAt] = useState<DropAt>()
   // The notebook being dragged from this sidebar with its sub-notebooks: where it cannot go.
   const dragging = useRef<ReadonlySet<string> | undefined>(undefined)
+  // The notebook row being dragged: it dims until the drag ends.
+  const [draggedBook, setDraggedBook] = useState<string>()
   const [editingTag, setEditingTag] = useState<string>()
   // The notebook whose context menu is open: outlined, not selected.
   const [menuTarget, setMenuTarget] = useState<string>()
@@ -699,6 +701,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     const clear = () => {
       setDropAt(undefined)
       setNoteDrop(undefined)
+      setDraggedBook(undefined)
     }
     window.addEventListener('dragend', clear, true)
     window.addEventListener('drop', clear, true)
@@ -748,11 +751,13 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           e.dataTransfer.setData(DRAG_BOOK, node.id)
           e.dataTransfer.effectAllowed = 'move'
           dragging.current = subtree(tree, node.id)
+          setDraggedBook(node.id)
         }}
         onDragEnd={(e) => {
           e.stopPropagation()
           dragging.current = undefined
           setDropAt(undefined)
+          setDraggedBook(undefined)
         }}
         onKeyDown={(e) => onKey(e, node)}
         onClick={(e) => {
@@ -762,6 +767,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       >
         <div
           className={`book-row${dropClasses(node, 'row')}${menuTarget === node.id ? ' menu-target' : ''}`}
+          data-dragging={draggedBook === node.id || undefined}
           onDoubleClick={() => setEditing(node.id)}
           onMouseDown={(e) => {
             // A right-click (or Control-click) leaves the keyboard where it
