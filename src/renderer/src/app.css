@@ -1143,9 +1143,6 @@ button {
 
 /* A hidden sidebar: the list's toolbar clears the window controls and
    shows the sidebar's button. */
-.window[data-sidebar-hidden] > .sidebar {
-  display: none;
-}
 
 .window[data-sidebar-hidden] .list .toolbar {
   padding-left: calc(var(--space-10) * 2 + var(--space-7));
@@ -1155,11 +1152,69 @@ button {
   margin-right: var(--space-4);
 }
 
-/* Focus mode: only the editor shows, at a reading width in the middle. */
+/* Hiding or showing the sidebar and the list (the toggle, focus mode) slides
+   them: the width runs to zero and the editor, which fills the rest, follows.
+   The panes keep their inner width while they shrink, so text does not
+   reflow, and they are inert from the first frame (App.tsx). `data-pane-motion`
+   is on the window only for the length of a toggle, so a resize or the first
+   paint never animates. */
+.window {
+  --pane-motion: 220ms;
+}
+
+.sidebar,
+.list {
+  overflow: clip;
+}
+
+.sidebar > * {
+  min-width: calc(var(--size-sidebar-width) - var(--space-5) * 2 - 1px);
+}
+
+.list > * {
+  min-width: calc(var(--size-list-min-width) - 1px);
+}
+
+.window[data-pane-motion] > .sidebar,
+.window[data-pane-motion] > .list {
+  transition:
+    width var(--pane-motion) ease-in-out,
+    min-width var(--pane-motion) ease-in-out,
+    padding var(--pane-motion) ease-in-out,
+    border-right-width var(--pane-motion) ease-in-out,
+    visibility 0s linear;
+}
+
+.window[data-sidebar-hidden] > .sidebar,
 .window[data-focus] > .sidebar,
 .window[data-focus] > .list {
-  display: none;
+  visibility: hidden;
+  width: 0;
+  min-width: 0;
+  padding-inline: 0;
+  border-right-width: 0;
 }
+
+/* Hidden panes leave the page once the slide is done. */
+.window[data-pane-motion][data-sidebar-hidden] > .sidebar,
+.window[data-pane-motion][data-focus] > .sidebar,
+.window[data-pane-motion][data-focus] > .list {
+  transition:
+    width var(--pane-motion) ease-in-out,
+    min-width var(--pane-motion) ease-in-out,
+    padding var(--pane-motion) ease-in-out,
+    border-right-width var(--pane-motion) ease-in-out,
+    visibility 0s linear var(--pane-motion);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .window[data-pane-motion] > .sidebar,
+  .window[data-pane-motion] > .list {
+    transition: none;
+  }
+}
+
+/* Focus mode: only the editor shows, at a reading width in the middle. */
 
 /* Clear the window controls, which now sit over the editor toolbar. */
 .window[data-focus] .editor-toolbar {

@@ -43,7 +43,7 @@ export function areaOf(element: Element | null): Area | undefined {
 
 /** Whether an element is in the page and shown. */
 export const visible = (el: HTMLElement | null): el is HTMLElement =>
-  el !== null && el.isConnected && el.offsetParent !== null
+  el !== null && el.isConnected && el.offsetParent !== null && !el.closest('[inert]')
 
 /**
  * What takes the keyboard in each area: the sidebar's row that is its tab

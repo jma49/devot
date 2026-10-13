@@ -52,7 +52,7 @@ const SIDEBAR_ROWS = '[data-devot-part="sidebar"] [data-sidebar-row]'
 
 /** Whether an element is on the page and takes part in layout. */
 function shown(el: Element): boolean {
-  if (!el.isConnected) return false
+  if (!el.isConnected || el.closest('[inert]')) return false
   const visibility = (el as { checkVisibility?: (o: object) => boolean }).checkVisibility
   return visibility
     ? visibility.call(el, { visibilityProperty: true })
