@@ -30,6 +30,7 @@ import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } fr
 import { BackupNotice } from './BackupNotice'
 import { ChangeNotice } from './ChangeNotice'
 import { ImageNotice } from './ImageNotice'
+import { MAX_LINK_NOTES } from './linkCompletion'
 import { ExportNotice, failureOf, type ExportFailure } from './ExportNotice'
 import { SaveNotice } from './SaveNotice'
 import { createQuitGuard, newProblems } from './saving'
@@ -1270,10 +1271,16 @@ export function App() {
     await select(copy)
   }
 
-  /** Notes for the `[[` popup: search results, or recent notes for no query. */
+  /**
+   * Notes for the `[[` popup: search results, or the first notes of the list
+   * for no query. It runs on every key, so it saves nothing (notes are found
+   * as stored) and takes no more of the list than the popup shows.
+   */
   const findLinkTargets = async (linkQuery: string) => {
     if (!core) return []
-    const found = linkQuery ? await core.search(linkQuery) : await core.list()
+    const found = linkQuery
+      ? await core.search(linkQuery, undefined, { flush: false })
+      : await core.list(MAX_LINK_NOTES + 1)
     return found.filter((n) => n.id !== selected)
   }
 
@@ -1302,21 +1309,31 @@ export function App() {
     } else {
       const dropped = made
       console.warn('W_NOTE_EXTRACT_NOT_LINKED', sourceId, dropped)
-      await core
-        .trash(dropped)
-        .then(() => core.purge(dropped))
-        .catch(() => console.warn('W_NOTE_EXTRACT_DROP_FAILED', dropped))
+      await dropNote(core, dropped)
     }
     await refresh(core)
   }
+
+  /** Deletes a note made for a link that could not go in, for good. */
+  const dropNote = (c: Core, id: string) =>
+    c
+      .trash(id)
+      .then(() => c.purge(id))
+      .catch(() => console.warn('W_NOTE_DROP_FAILED', id))
 
   /** A note created from the `[[` popup; the open note stays open. */
   const createLinkedNote = async (linkTitle: string) => {
     if (!core) throw new Error('E_CORE_NOT_READY')
     const id = await core.create(linkTitle, libraryBook?.id ?? null)
-    track('note.created', { from: 'link' })
     await refresh(core)
     return id
+  }
+
+  /** A note from the `[[` popup could not be linked (see linkCompletion.ts): it goes again. */
+  const discardLinkedNote = async (id: string) => {
+    if (!core) return
+    await dropNote(core, id)
+    await refresh(core)
   }
 
   // A title being typed: the field shows it at once, the lists and search
@@ -2302,7 +2319,12 @@ export function App() {
                 autoFocusIfFree={selected === restoreKeyboard.current}
                 hidden={mode === 'preview'}
                 onText={openText.set}
-                links={{ find: findLinkTargets, create: createLinkedNote }}
+                links={{
+                  find: findLinkTargets,
+                  create: createLinkedNote,
+                  discard: discardLinkedNote,
+                  linked: () => track('note.created', { from: 'link' }),
+                }}
                 restoreRef={restoreRef}
                 onFind={setEditorFind}
                 onScrollPane={setEditorPane}

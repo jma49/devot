@@ -31,6 +31,21 @@ export const LITERAL_BLOCKS: readonly string[] = [
   FRONT_MATTER,
 ]
 
+/**
+ * Syntax in which a typed trigger (a slash, `[[`) is text: code, HTML,
+ * comments and front matter, and the address and title of a link.
+ */
+export const LITERAL_TEXT: ReadonlySet<string> = new Set([
+  ...LITERAL_BLOCKS,
+  'InlineCode',
+  'URL',
+  'Autolink',
+  'LinkTitle',
+  'HTMLTag',
+  'Comment',
+  'ProcessingInstruction',
+])
+
 /** The literal blocks' node names, as a set. */
 export const LITERAL_BLOCK_NAMES: ReadonlySet<string> = new Set(LITERAL_BLOCKS)
 

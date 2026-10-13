@@ -2,7 +2,7 @@
 // the page to storage (not through the core worker); the note gets a
 // Markdown image link to devot://file/<id>.
 import { errorCode } from '../../core/errors'
-import { attachmentMarkdown } from '../../core/files'
+import { attachmentMarkdown, checkUpload, MAX_FILE_BYTES } from '../../core/files'
 import { createIdGenerator } from '../../core/ids'
 import { storage } from './core-client'
 
@@ -31,7 +31,11 @@ export async function storeImages(noteId: string, files: readonly File[]): Promi
   for (const file of files) {
     const meta = { id: newId(), noteId, name: file.name || 'image' }
     try {
-      await storage.putFile(meta, new Uint8Array(await file.arrayBuffer()))
+      // Refused here what Rust would refuse, before the bytes are sent.
+      if (file.size > MAX_FILE_BYTES) throw new Error('E_FILE_SIZE_INVALID')
+      const data = new Uint8Array(await file.arrayBuffer())
+      checkUpload(meta, data)
+      await storage.putFile(meta, data)
       lines.push(attachmentMarkdown(meta))
     } catch (error) {
       const code = errorCode(error)
