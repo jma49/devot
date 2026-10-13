@@ -242,6 +242,9 @@ test('a URL pasted over text links it; a lone URL goes in as the setting says', 
   await page.keyboard.press('End')
   await paste(page, 'https://a.example')
   await expect(line(page, 1)).toHaveText('link: [](https://a.example)')
+  await page.keyboard.insertText('A')
+  await expect(line(page, 1)).toHaveText('link: [A](https://a.example)')
+  await page.keyboard.press('End')
 
   // As copied.
   await changeEditorSettingsElsewhere(page, { pasteUrl: 'plain' })

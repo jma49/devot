@@ -146,9 +146,12 @@ test('the palette and the [[ popup name untitled notes by their first line', asy
   await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   const notes = palette.getByRole('group', { name: 'Notes' }).getByRole('option')
+  await palette.getByRole('combobox', { name: 'Command Palette' }).fill('idea')
   await expect(notes).toHaveText(['Beta idea', 'Alpha idea'])
   await palette.getByRole('combobox', { name: 'Command Palette' }).fill('alpha')
   await expect(notes).toHaveText(['Alpha idea'])
+  // Escape clears the query, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette).toBeHidden()
 

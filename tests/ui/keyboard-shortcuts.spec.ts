@@ -302,7 +302,10 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   // What Rust sends every window after the change.
   await changeShortcutsElsewhere(page, await storedShortcuts(settings))
   await settings.close()
-  // The toolbar still showing names the new key.
+  // The toolbar, shown again (it hides while the editor lacks the keyboard),
+  // names the new key.
+  await page.bringToFront()
+  await page.locator('.cm-line').first().dblclick()
   await page.mouse.move(1, 1)
   await boldButton.hover()
   await expect(boldKey).toHaveText(`${withMod('\u2325')}B`)

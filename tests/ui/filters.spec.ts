@@ -158,12 +158,13 @@ test('the count on a selected filter row stays a number while the sidebar has th
 
   const count = filter(page, 'Active').locator('.source-count')
   await expect(count).toHaveText('1')
-  // Drawn in the on-fill colour with no background of its own (a background
-  // in the text colour would hide the digit); the icon keeps its mask fill.
+  // The selected row has a neutral fill (and a bar on its left edge while the
+  // sidebar has the keyboard): the count keeps its own colour and no
+  // background, and the icon keeps its mask fill.
   await expect(count).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-  await expect(count).toHaveCSS('color', 'rgb(255, 255, 255)')
-  await expect(filter(page, 'Active').locator('.icon')).toHaveCSS(
+  await expect(count).toHaveCSS('color', 'rgb(103, 103, 103)')
+  await expect(filter(page, 'Active').locator('.icon')).not.toHaveCSS(
     'background-color',
-    'rgb(255, 255, 255)',
+    'rgba(0, 0, 0, 0)',
   )
 })

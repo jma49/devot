@@ -131,9 +131,11 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
   expect(html).toContain("default-src 'none'")
   // The design tokens and the preview's rules come along.
   expect(html).toMatch(/--color-text-primary: [^;]+;/)
-  expect(html).toContain('.alert-note .alert-title')
+  expect(html).toContain('.alert .alert-title')
   expect(html).toContain('<article class="preview"><h1>Plan</h1>')
-  expect(html).toContain('<div class="alert alert-note"><p class="alert-title">Note</p>')
+  expect(html).toMatch(
+    /<div class="alert alert-note"><p class="alert-title">(<svg[^>]*>.*?<\/svg>)?Note<\/p>/,
+  )
   expect(html).toMatch(/<div class="island island-mermaid"><svg[^>]*>/)
   expect(html).not.toMatch(/<script|data-source-line|data-devot-island/)
   // One placeholder for the attachment, at whatever size it shows; sized as the preview.

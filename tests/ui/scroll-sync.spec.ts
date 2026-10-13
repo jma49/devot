@@ -224,7 +224,7 @@ test('the preview keeps up while typing above what it shows', async ({ page }) =
 
 test('is on by default and turned off and on from the palette', async ({ page }) => {
   await openLongNote(page)
-  await page.keyboard.press('Meta+P')
+  await page.keyboard.press('Meta+KeyK')
   const field = page.getByRole('combobox', { name: 'Command Palette' })
   await field.fill('synced scrolling')
   await expect(page.getByRole('option', { name: /Turn Off Synced Scrolling/ })).toBeVisible()
@@ -239,14 +239,16 @@ test('is on by default and turned off and on from the palette', async ({ page })
     )
     .toEqual([{ syncScroll: false }])
 
+  // The preview stays where it is (the top of its first block, at most).
+  const still = (await scrollTops(page)).preview
   await scrollEditorTo(page, '## Section 50')
   await page.waitForTimeout(200)
-  expect((await scrollTops(page)).preview).toBe(0)
+  expect((await scrollTops(page)).preview).toBe(still)
   await scrollPreviewTo(page, 'Section 30')
   await page.waitForTimeout(200)
   expect(await editorOffset(page, '## Section 50').then(near)).toBe(true)
 
-  await page.keyboard.press('Meta+P')
+  await page.keyboard.press('Meta+KeyK')
   await field.fill('synced scrolling')
   await expect(page.getByRole('option', { name: /Turn On Synced Scrolling/ })).toBeVisible()
   await page.keyboard.press('Enter')
@@ -259,9 +261,11 @@ test('follows the setting changed elsewhere (View > Synced Scrolling, Settings)'
 }) => {
   await openLongNote(page)
   await changeEditorSettingsElsewhere(page, { syncScroll: false })
+  // The preview stays where it is (the top of its first block, at most).
+  const still = (await scrollTops(page)).preview
   await scrollEditorTo(page, '## Section 45')
   await page.waitForTimeout(200)
-  expect((await scrollTops(page)).preview).toBe(0)
+  expect((await scrollTops(page)).preview).toBe(still)
   await changeEditorSettingsElsewhere(page, { syncScroll: true })
   await expect.poll(() => previewOffset(page, 'Section 45').then(near)).toBe(true)
 })

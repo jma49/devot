@@ -56,7 +56,9 @@ test.describe('Settings > Markdown Mirror', () => {
     page,
   }) => {
     await openWith(page, '/settings.html')
-    await expect(section(page).getByRole('heading', { name: 'Markdown Mirror' })).toBeVisible()
+    await expect(
+      section(page).getByRole('heading', { name: 'Markdown Mirror' }).first(),
+    ).toBeVisible()
     await expect(section(page)).toContainText('The mirror is off.')
     await expect(section(page)).toContainText('edits made there are not read back')
     await expect(section(page).getByRole('checkbox', { name: 'Include Attachments' })).toBeChecked()
@@ -68,7 +70,7 @@ test.describe('Settings > Markdown Mirror', () => {
 
     await setPick(page, { folder: '~/Notes', name: 'Notes', empty: true })
     await section(page).getByRole('button', { name: 'Choose Folder…' }).click()
-    await expect(section(page)).toContainText('Folder:~/Notes')
+    await expect(section(page)).toContainText('~/Notes')
     await expect(section(page)).toContainText('Size on disk: 0 kB')
     await expect(section(page).getByRole('button', { name: 'Turn Off' })).toBeVisible()
     expect(await calls(page, 'mirror_choose')).toHaveLength(2)
@@ -90,13 +92,13 @@ test.describe('Settings > Markdown Mirror', () => {
 
     await choose.click()
     await dialog.getByRole('button', { name: 'Use Folder' }).click()
-    await expect(section(page)).toContainText('Folder:~/Documents')
+    await expect(section(page)).toContainText('~/Documents')
     expect(await calls(page, 'mirror_confirm')).toEqual([{ token: 7 }])
   })
 
   test('Include Attachments and Turn Off store their change at once', async ({ page }) => {
     await openWith(page, '/settings.html', ON)
-    await expect(section(page)).toContainText('Folder:~/Notes')
+    await expect(section(page)).toContainText('~/Notes')
     await expect(section(page)).toContainText('Size on disk: 12.3 MB')
     const include = section(page).getByRole('checkbox', { name: 'Include Attachments' })
     await include.uncheck()
@@ -112,7 +114,7 @@ test.describe('Settings > Markdown Mirror', () => {
   test('shows no size until the mirror has read its folder', async ({ page }) => {
     // A folder just chosen, or a launch: Rust has not read the manifest yet.
     await openWith(page, '/settings.html', { ...ON, size: null })
-    await expect(section(page)).toContainText('Folder:~/Notes')
+    await expect(section(page)).toContainText('~/Notes')
     await expect(section(page)).not.toContainText('Size on disk')
     await changeMirrorElsewhere(page, { size: 52_000_000 })
     await expect(section(page)).toContainText('Size on disk: 52 MB')
@@ -130,7 +132,7 @@ test.describe('Settings > Markdown Mirror', () => {
 
   test('shows a pause, and changes made in the other window, as they happen', async ({ page }) => {
     await openWith(page, '/settings.html', ON)
-    await expect(section(page)).toContainText('Folder:~/Notes')
+    await expect(section(page)).toContainText('~/Notes')
     await changeMirrorElsewhere(page, { paused: 'E_MIRROR_FOLDER_MISSING', size: 2_500 })
     await expect(section(page).getByRole('alert')).toHaveText(
       'The mirror is paused: its folder is missing (E_MIRROR_FOLDER_MISSING). It resumes once the folder is back.',
@@ -138,7 +140,7 @@ test.describe('Settings > Markdown Mirror', () => {
     await expect(section(page)).toContainText('Size on disk: 3 kB')
     await changeMirrorElsewhere(page, { paused: null, folder: '/Volumes/Disk/Notes' })
     await expect(section(page).getByRole('alert')).toHaveCount(0)
-    await expect(section(page)).toContainText('Folder:/Volumes/Disk/Notes')
+    await expect(section(page)).toContainText('/Volumes/Disk/Notes')
   })
 
   test('says why a folder could not be used', async ({ page }) => {
@@ -192,8 +194,10 @@ test.describe('the main window', () => {
     await page.keyboard.press('Meta+KeyK')
     await paletteField(page).fill('mirror')
     await expect(commandOptions(page).getByRole('option')).toHaveText([
-      'Choose Markdown Mirror Folder…',
+      /^Choose Markdown Mirror Folder…/,
     ])
+    // Escape clears the query, then closes the palette.
+    await page.keyboard.press('Escape')
     await page.keyboard.press('Escape')
 
     await setPick(page, { folder: '~/Documents', name: 'Documents', empty: false })
@@ -208,7 +212,7 @@ test.describe('the main window', () => {
     await page.keyboard.press('Meta+KeyK')
     await paletteField(page).fill('mirror')
     await expect(commandOptions(page).getByRole('option')).toHaveText([
-      'Choose Markdown Mirror Folder…',
+      /^Choose Markdown Mirror Folder…/,
     ])
   })
 

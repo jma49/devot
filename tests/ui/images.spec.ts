@@ -393,6 +393,7 @@ test('the image size bar shows while the caret is in an image and writes the siz
   await newNote(page, `intro\n![Shot](${FILE})`)
   const bar = page.getByRole('toolbar', { name: 'Image Size' })
   const shot = page.locator('.cm-line').filter({ hasText: 'Shot' })
+  await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
   await expect(bar).toBeHidden()
   await shot.click()
   await expect(bar).toBeVisible()

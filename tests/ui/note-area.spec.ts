@@ -169,8 +169,8 @@ for (const scheme of ['light', 'dark'] as const) {
     const mark = await colourOf('###')
     const heading = await colourOf(' Free Mode')
     expect(mark).not.toBe(heading)
-    for (const colour of [mark, heading, await colourOf('kbd'), await colourOf('x')])
-      expect(colour).not.toBe(text)
+    // Inline code keeps the text colour (its box sets it apart).
+    for (const colour of [mark, heading, await colourOf('kbd')]) expect(colour).not.toBe(text)
     await expect(
       page.locator('.cm-content span', { hasText: /^https:\/\/example\.com$/ }),
     ).toHaveCSS('text-decoration-line', 'underline')

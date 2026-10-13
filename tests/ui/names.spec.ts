@@ -124,7 +124,7 @@ test('the palette adds the tag picked, not another of its name', async ({ page }
   await paletteField(page).fill('todo')
   const tags = palette(page).getByRole('group', { name: 'Tags' }).getByRole('option')
   await expect(tags).toHaveCount(2)
-  await tags.filter({ hasText: /^Todo$/ }).click({ modifiers: ['Alt'] })
+  await tags.filter({ hasText: /^Todo$/ }).click({ modifiers: ['Shift'] })
   await expect(palette(page)).toBeHidden()
   await expect.poll(() => storedTagIds(page, 'Picked')).toEqual([SECOND])
 })

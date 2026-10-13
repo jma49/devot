@@ -186,6 +186,8 @@ test('find and the status keys are commands while a note is open', async ({ page
   await expect(command('Find in Note')).toHaveCount(0)
   await search(page, 'set status')
   await expect(command('Set Status to Active')).toHaveCount(0)
+  // Escape clears the query, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
   await createNote(page, 'Findable')
@@ -230,15 +232,19 @@ test('notebooks: Return opens one, Shift+Return moves the open note there', asyn
   await search(page, 'recip')
   await expect(group(page, 'Notebooks').getByRole('option')).toHaveText(['Recipes'])
   await expect(palette(page).locator('#palette-keys')).toContainText('Open Notebook')
-  await field(page).press('Shift')
+  // The footer follows Shift while it is held.
+  await page.keyboard.down('Shift')
   await expect(palette(page).locator('#palette-keys')).toContainText('Move Note to Notebook')
-  await field(page).press('Shift+Enter')
+  await page.keyboard.press('Enter')
+  await page.keyboard.up('Shift')
   await expect(palette(page)).toBeHidden()
   await expect(bookPicker(page)).toHaveAttribute('data-value', /.+/)
   await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Recipes/)
   // The note is in that notebook now: it is not offered there again.
   await search(page, 'recip')
-  await expect(palette(page).locator('#palette-keys')).not.toContainText('Open Notebook')
+  await page.keyboard.down('Shift')
+  await expect(palette(page).locator('#palette-keys')).not.toContainText('Move Note to Notebook')
+  await page.keyboard.up('Shift')
   await field(page).press('Enter')
   await expect(header(page)).toHaveText('Recipes')
   await expect(noteRows(page)).toHaveText([/Soup/])
@@ -528,6 +534,8 @@ test('runs the Trash commands: Restore, Delete Permanently, Empty Trash', async 
   await expect(options(page).filter({ hasText: 'Restore from Trash' })).toHaveCount(0)
   await field(page).fill('empty trash')
   await expect(active(page)).toContainText('Empty Trash')
+  // Escape clears the query, then closes the palette.
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
   await noteRows(page).filter({ hasText: 'Back' }).click()
