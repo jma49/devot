@@ -6,6 +6,7 @@
   --font-size-caption: 11px;
   --font-size-footnote: 12px;
   --font-size-body: 13px;
+  --font-size-row: 14px;
   --font-size-preview: 13.5px;
   --font-size-title3: 15px;
   --font-size-headline: 17px;
@@ -45,6 +46,8 @@
   --size-icon-lg: 22px;
   --size-image-small: 240px;
   --size-inline-image-height: 160px;
+  --size-palette-width: 650px;
+  --size-sidebar-bar: 3px;
   --color-surface-sidebar: rgb(241 240 237 / 0.7);
   --color-surface-sidebar-opaque: #f1f0ed;
   --color-surface-list: #f7f6f4;
@@ -55,6 +58,7 @@
   --color-text-destructive: #af3b36;
   --color-line-hairline: rgb(28 27 25 / 0.1);
   --color-fill-track: rgb(28 27 25 / 0.055);
+  --color-fill-row-selected: rgb(28 27 25 / 0.12);
   --color-fill-row-selected-unemphasized: rgb(28 27 25 / 0.075);
   --color-fill-segment-on: #ffffff;
   --color-fill-match: rgb(245 197 66 / 0.5);
@@ -104,6 +108,7 @@
     --color-text-destructive: #f0a6a2;
     --color-line-hairline: rgb(235 232 226 / 0.1);
     --color-fill-track: rgb(235 232 226 / 0.07);
+    --color-fill-row-selected: rgb(235 232 226 / 0.16);
     --color-fill-row-selected-unemphasized: rgb(235 232 226 / 0.1);
     --color-fill-segment-on: rgb(235 232 226 / 0.22);
     --color-fill-match: rgb(227 164 58 / 0.38);

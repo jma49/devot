@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
 } from 'react'
@@ -13,7 +14,16 @@ import { t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { isImeKey } from '../ime'
 import type { IconName } from '../icons/symbols'
-import { paletteGroups, type PaletteEntry, type PaletteKind } from './results'
+import {
+  escapeStep,
+  paletteResults,
+  ROOT,
+  typeInto,
+  type PaletteEntry,
+  type PaletteKind,
+  type PaletteSource,
+  type PaletteState,
+} from './results'
 
 /**
  * What picking a result does; `label` names it in the key hints. `run` may
@@ -24,10 +34,30 @@ export interface PaletteAction {
   run: () => void | Promise<unknown>
 }
 
-/** A result's actions: Return runs `primary`, Option+Return (or Option-click) `secondary`. */
+/**
+ * A result's actions: Return runs `primary`, Shift+Return `shift` and
+ * Command+Return `meta` (the same with a click). A modifier with no action
+ * of its own does nothing.
+ */
 export interface PaletteActions {
   primary: PaletteAction
-  secondary?: PaletteAction | undefined
+  shift?: PaletteAction | undefined
+  meta?: PaletteAction | undefined
+}
+
+/** The modifiers held now, which choose among a result's actions. */
+interface Held {
+  shift: boolean
+  meta: boolean
+}
+
+const NO_MODIFIERS: Held = { shift: false, meta: false }
+
+/** The action the modifiers choose; undefined when the result has none for them. */
+function chosen(actions: PaletteActions, held: Held): PaletteAction | undefined {
+  if (held.meta) return actions.meta
+  if (held.shift) return actions.shift
+  return actions.primary
 }
 
 const GROUP_LABEL: Readonly<Record<PaletteKind, MessageKey>> = {
@@ -35,13 +65,34 @@ const GROUP_LABEL: Readonly<Record<PaletteKind, MessageKey>> = {
   book: 'palette.notebooks',
   tag: 'palette.tags',
   note: 'palette.notes',
+  outline: 'palette.outline',
+  source: 'palette.sources',
 }
 
-const ICON: Readonly<Record<PaletteKind, IconName | undefined>> = {
-  command: undefined,
+const ICON: Readonly<Record<PaletteKind, IconName>> = {
+  command: 'terminal',
   book: 'notebook',
   tag: 'tag',
   note: 'notes.all',
+  outline: 'outline',
+  source: 'search',
+}
+
+/** The icon of each source's row in the root's list. */
+const SOURCE_ICON: Readonly<Record<PaletteSource, IconName>> = {
+  command: 'terminal',
+  book: 'notebook',
+  tag: 'tag',
+  outline: 'outline',
+  note: 'notes.all',
+}
+
+const PLACEHOLDER: Readonly<Record<PaletteSource, MessageKey>> = {
+  command: 'palette.placeholder.command',
+  book: 'palette.placeholder.book',
+  tag: 'palette.placeholder.tag',
+  outline: 'palette.placeholder.outline',
+  note: 'palette.placeholder.note',
 }
 
 const optionId = (i: number) => `palette-option-${i}`
@@ -62,28 +113,56 @@ function Marked({ text, ranges }: { text: string; ranges: readonly [number, numb
 }
 
 /**
- * The command palette: one field that finds commands, notebooks, tags and
- * notes. Arrow keys move through the results, Return runs the selected one,
- * Option+Return its second action (move the open note to a notebook, add a
- * tag to it), Escape closes. `onClose` gives the keyboard back, then runs
+ * The command palette: one field over a list of sources, or over the results
+ * of one source it is scoped to (a source's key and a space, or its row).
+ * Arrow keys move through the results; Return runs the selected one, with
+ * Shift or Command held its variant (the footer says what each does);
+ * Escape steps back from a query to the scope, from the scope to the
+ * sources, and then closes. `onClose` gives the keyboard back, then runs
  * the picked action (`picked`), if any, and sees to the keyboard once it is done.
  */
 export function CommandPalette(props: {
   entries: Readonly<Record<PaletteKind, readonly PaletteEntry[]>>
   actions: (entry: PaletteEntry) => PaletteActions
+  /** The source to open scoped to (the sidebar's search buttons). */
+  initialScope?: PaletteSource | undefined
   onClose: (picked?: () => void | Promise<unknown>) => void
 }) {
   const { entries, actions, onClose } = props
   const dialog = useRef<HTMLDialogElement>(null)
-  const [query, setQuery] = useState('')
+  const input = useRef<HTMLInputElement>(null)
+  const [state, setState] = useState<PaletteState>(() =>
+    props.initialScope ? { scope: props.initialScope, query: '' } : ROOT,
+  )
   const [active, setActive] = useState(0)
+  const [held, setHeld] = useState<Held>(NO_MODIFIERS)
   useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
     return () => el?.close()
   }, [])
 
-  const groups = useMemo(() => paletteGroups(query, entries), [query, entries])
+  // The modifiers held, for the footer; a window that loses the keyboard
+  // forgets them.
+  useEffect(() => {
+    const track = (e: globalThis.KeyboardEvent) =>
+      setHeld((now) =>
+        now.shift === e.shiftKey && now.meta === e.metaKey
+          ? now
+          : { shift: e.shiftKey, meta: e.metaKey },
+      )
+    const reset = () => setHeld(NO_MODIFIERS)
+    window.addEventListener('keydown', track)
+    window.addEventListener('keyup', track)
+    window.addEventListener('blur', reset)
+    return () => {
+      window.removeEventListener('keydown', track)
+      window.removeEventListener('keyup', track)
+      window.removeEventListener('blur', reset)
+    }
+  }, [])
+
+  const groups = useMemo(() => paletteResults(state, entries), [state, entries])
   const results = groups.flatMap((g) => g.results)
   // Where each group starts in `results` (options are numbered across groups).
   const starts = groups.map((_, i) =>
@@ -92,7 +171,7 @@ export function CommandPalette(props: {
   const list = useRef<HTMLDivElement>(null)
   const index = Math.min(active, results.length - 1)
   const current = results[index]
-  const hints = current ? actions(current) : undefined
+  const hints = current && current.kind !== 'source' ? actions(current) : undefined
 
   useEffect(() => {
     document.getElementById(optionId(index))?.scrollIntoView({ block: 'nearest' })
@@ -104,11 +183,30 @@ export function CommandPalette(props: {
     onClose(picked)
   }
 
-  /** Runs a result's second action, or its first when it has no second. */
-  const pick = (entry: PaletteEntry, secondary: boolean) => {
-    const choice = actions(entry)
-    const action = (secondary ? choice.secondary : undefined) ?? choice.primary
-    close(() => action.run())
+  const change = (next: PaletteState) => {
+    setState(next)
+    setActive(0)
+    // New results start at the top.
+    if (list.current) list.current.scrollTop = 0
+    input.current?.focus()
+  }
+
+  /** Runs what the held modifiers choose for a result (a source row opens the source). */
+  const pick = (entry: PaletteEntry, modifiers: Held) => {
+    if (entry.kind === 'source') {
+      if (!modifiers.shift && !modifiers.meta)
+        change({ scope: entry.id as PaletteSource, query: '' })
+      return
+    }
+    const action = chosen(actions(entry), modifiers)
+    if (action) close(() => action.run())
+  }
+
+  /** Escape, from the field or the dialog: one step back, then closed. */
+  const stepBack = () => {
+    const next = escapeStep(state)
+    if (next === null) close()
+    else change(next)
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -118,11 +216,31 @@ export function CommandPalette(props: {
     if (step) {
       e.preventDefault()
       setActive(Math.max(0, Math.min(results.length - 1, index + step)))
-    } else if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+    } else if (e.key === 'Enter' && !e.ctrlKey && !e.altKey) {
       e.preventDefault()
-      if (current) pick(current, e.altKey)
+      if (current) pick(current, { shift: e.shiftKey, meta: e.metaKey })
+    } else if (e.key === 'Backspace' && state.scope !== null && state.query === '') {
+      // Nothing left to delete: the scope goes.
+      e.preventDefault()
+      change(ROOT)
     }
   }
+
+  const footer = (() => {
+    if (!current) return null
+    if (current.kind === 'source') {
+      return held.shift || held.meta ? null : { keys: 'Enter', label: t('palette.openSource') }
+    }
+    if (!hints) return null
+    const action = chosen(hints, held)
+    if (!action) return null
+    const keys = held.meta ? 'Mod+Enter' : held.shift ? 'Shift+Enter' : 'Enter'
+    return { keys, label: action.label }
+  })()
+
+  const scope = state.scope
+  const placeholder = scope === null ? t('palette.placeholder') : t(PLACEHOLDER[scope])
+  const showHeaders = scope === null && state.query.trim() !== ''
 
   return (
     <dialog
@@ -131,7 +249,7 @@ export function CommandPalette(props: {
       aria-label={t('command.palette')}
       onCancel={(e) => {
         e.preventDefault()
-        close()
+        stepBack()
       }}
       // A click on the backdrop lands on the dialog itself, as do clicks on
       // its padding: only one outside its box closes it.
@@ -146,31 +264,51 @@ export function CommandPalette(props: {
         if (!inside) close()
       }}
     >
-      <input
-        className="palette-input"
-        type="text"
-        role="combobox"
-        aria-label={t('command.palette')}
-        placeholder={t('palette.placeholder')}
-        aria-expanded="true"
-        aria-controls="palette-results"
-        aria-autocomplete="list"
-        aria-activedescendant={current ? optionId(index) : undefined}
-        aria-describedby="palette-keys"
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="off"
-        spellCheck={false}
-        autoFocus
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value)
-          setActive(0)
-          // New results start at the top.
-          if (list.current) list.current.scrollTop = 0
-        }}
-        onKeyDown={onKeyDown}
-      />
+      <div className="palette-field">
+        {scope === null ? (
+          <span className="palette-lead">
+            <Icon name="search" size="md" />
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="palette-lead palette-back"
+            aria-label={t('palette.back')}
+            title={t('palette.back')}
+            // The field keeps the keyboard.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => change(ROOT)}
+          >
+            <Icon name="nav.back" size="md" />
+          </button>
+        )}
+        <input
+          ref={input}
+          className="palette-input"
+          type="text"
+          role="combobox"
+          aria-label={t('command.palette')}
+          placeholder={placeholder}
+          aria-expanded="true"
+          aria-controls="palette-results"
+          aria-autocomplete="list"
+          aria-activedescendant={current ? optionId(index) : undefined}
+          aria-describedby="palette-keys"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          autoFocus
+          value={state.query}
+          onChange={(e) => {
+            setState(typeInto(state, e.target.value))
+            setActive(0)
+            // New results start at the top.
+            if (list.current) list.current.scrollTop = 0
+          }}
+          onKeyDown={onKeyDown}
+        />
+      </div>
       <div
         ref={list}
         id="palette-results"
@@ -180,12 +318,13 @@ export function CommandPalette(props: {
       >
         {groups.map((group, g) => (
           <div key={group.kind} role="group" aria-label={t(GROUP_LABEL[group.kind])}>
-            <div className="palette-group" aria-hidden="true">
-              {t(GROUP_LABEL[group.kind])}
-            </div>
+            {showHeaders ? (
+              <div className="palette-group" aria-hidden="true">
+                {t(GROUP_LABEL[group.kind])}
+              </div>
+            ) : null}
             {group.results.map((r, j) => {
               const i = (starts[g] ?? 0) + j
-              const icon = ICON[r.kind]
               return (
                 <div
                   key={`${r.kind}:${r.id}`}
@@ -193,12 +332,33 @@ export function CommandPalette(props: {
                   className="palette-row"
                   role="option"
                   aria-selected={i === index}
+                  style={
+                    r.kind === 'outline' && r.depth
+                      ? ({ '--palette-depth': r.depth } as CSSProperties)
+                      : undefined
+                  }
                   onMouseMove={() => i !== index && setActive(i)}
-                  onClick={(e) => pick(r, e.altKey)}
+                  onClick={(e) => pick(r, { shift: e.shiftKey, meta: e.metaKey })}
                 >
-                  {icon ? <Icon name={icon} size="sm" /> : <span className="palette-icon" />}
-                  <span className="palette-label">
+                  <Icon
+                    name={
+                      r.kind === 'source'
+                        ? SOURCE_ICON[r.id as PaletteSource]
+                        : r.kind === 'outline'
+                          ? r.level === 0
+                            ? 'format.taskList'
+                            : 'format.heading'
+                          : ICON[r.kind]
+                    }
+                    size="sm"
+                  />
+                  <span
+                    className={`palette-label${r.kind === 'command' ? ' palette-command' : ''}${r.done ? ' palette-done' : ''}`}
+                  >
                     <Marked text={r.label} ranges={r.ranges} />
+                    {r.description ? (
+                      <span className="palette-description">{r.description}</span>
+                    ) : null}
                     {r.detail ? <span className="palette-detail">{r.detail}</span> : null}
                   </span>
                   {r.shortcut ? <kbd className="palette-key">{r.shortcut}</kbd> : null}
@@ -208,19 +368,18 @@ export function CommandPalette(props: {
           </div>
         ))}
       </div>
-      {results.length === 0 ? <p className="palette-empty">{t('palette.empty')}</p> : null}
+      {results.length === 0 ? (
+        <p className="palette-empty">
+          {scope === 'outline' && state.query.trim() === ''
+            ? t('palette.noOutline')
+            : t('palette.empty')}
+        </p>
+      ) : null}
       <div id="palette-keys" className="palette-keys">
-        {hints ? (
-          <>
-            <span>
-              <kbd>{shortcutLabel('Enter')}</kbd> {hints.primary.label}
-            </span>
-            {hints.secondary ? (
-              <span>
-                <kbd>{shortcutLabel('Alt+Enter')}</kbd> {hints.secondary.label}
-              </span>
-            ) : null}
-          </>
+        {footer ? (
+          <span>
+            <kbd>{shortcutLabel(footer.keys)}</kbd> {footer.label}
+          </span>
         ) : null}
       </div>
     </dialog>

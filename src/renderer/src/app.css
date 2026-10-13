@@ -2187,7 +2187,7 @@ button {
 
 /* The command palette: a field over grouped results, near the top of the window. */
 .palette {
-  width: calc(var(--size-list-width) * 1.75);
+  width: var(--size-palette-width);
   max-width: calc(100vw - var(--space-10) * 2);
   margin: calc(var(--size-toolbar-height) * 2) auto auto;
   padding: var(--space-4);
@@ -2204,16 +2204,52 @@ button {
   background: transparent;
 }
 
-.palette-input {
-  width: 100%;
+/* The field: a search icon (a back arrow once scoped) before the input. */
+.palette-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   height: calc(var(--size-field-height) + var(--space-4));
   box-sizing: border-box;
   margin: 0 0 var(--space-3);
   padding: 0 var(--space-5);
-  border: 0;
   border-radius: var(--radius-field);
-  outline: none;
   background: var(--color-fill-track);
+}
+
+.palette-field:focus-within {
+  outline: 2px solid var(--color-accent-fill);
+  outline-offset: -2px;
+}
+
+.palette-lead {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.palette-lead .icon {
+  background-color: var(--color-text-secondary);
+}
+
+.palette-back:hover .icon {
+  background-color: var(--color-text-primary);
+}
+
+.palette-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
   color: var(--color-text-primary);
   font: inherit;
   font-size: var(--font-size-title3);
@@ -2236,7 +2272,8 @@ button {
   align-items: center;
   gap: var(--space-4);
   height: var(--size-sidebar-row);
-  padding: 0 var(--space-4);
+  /* An outline entry indents by its depth (--palette-depth, set per row). */
+  padding: 0 var(--space-4) 0 calc(var(--space-4) + var(--palette-depth, 0) * var(--space-7));
   border-radius: var(--radius-control);
 }
 
@@ -2263,6 +2300,22 @@ button {
   font-weight: var(--font-weight-semibold);
 }
 
+.palette-command {
+  font-weight: var(--font-weight-semibold);
+}
+
+.palette-description {
+  margin-left: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+}
+
+.palette-done {
+  text-decoration: line-through;
+  color: var(--color-text-secondary);
+}
+
 .palette-detail {
   margin-left: var(--space-4);
   color: var(--color-text-secondary);
@@ -2271,9 +2324,12 @@ button {
 
 .palette-key {
   flex: none;
-  color: var(--color-text-tertiary);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
   font: inherit;
-  font-size: var(--font-size-footnote);
+  font-size: var(--font-size-caption);
 }
 
 .palette-row[aria-selected='true'] {
@@ -2286,6 +2342,8 @@ button {
 }
 
 .palette-row[aria-selected='true'] .palette-detail,
+.palette-row[aria-selected='true'] .palette-description,
+.palette-row[aria-selected='true'] .palette-done,
 .palette-row[aria-selected='true'] .palette-key {
   color: var(--color-accent-on-fill);
 }

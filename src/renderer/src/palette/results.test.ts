@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { paletteGroups, type PaletteEntry, type PaletteKind } from './results'
+import {
+  escapeStep,
+  paletteGroups,
+  paletteResults,
+  ROOT,
+  typeInto,
+  type PaletteEntry,
+  type PaletteKind,
+} from './results'
 
 const entries = (kind: PaletteKind, labels: string[]): PaletteEntry[] =>
   labels.map((label, i) => ({ kind, id: `${kind}-${i}`, label }))
@@ -17,6 +25,8 @@ const source = {
     'note',
     Array.from({ length: 30 }, (_, i) => `Meeting ${i + 1}`),
   ),
+  outline: entries('outline', ['Intro', 'Plan', 'Ship it']),
+  source: entries('source', ['Commands', 'Notebooks', 'Tags']),
 }
 
 const shape = (query: string) =>
@@ -75,5 +85,46 @@ describe('paletteGroups', () => {
 
   it('finds nothing for a query nothing matches', () => {
     expect(paletteGroups('zzz', source)).toEqual([])
+  })
+})
+
+describe('scoping', () => {
+  it('a key and a space scope the palette, and the rest of the text is the query', () => {
+    expect(typeInto(ROOT, '> ')).toEqual({ scope: 'command', query: '' })
+    expect(typeInto(ROOT, 'b work')).toEqual({ scope: 'book', query: 'work' })
+    expect(typeInto(ROOT, 't ')).toEqual({ scope: 'tag', query: '' })
+    expect(typeInto(ROOT, '# ')).toEqual({ scope: 'outline', query: '' })
+    // The key alone, a longer word and a scoped palette's own text stay queries.
+    expect(typeInto(ROOT, 'b')).toEqual({ scope: null, query: 'b' })
+    expect(typeInto(ROOT, 'bt x')).toEqual({ scope: null, query: 'bt x' })
+    expect(typeInto({ scope: 'book', query: '' }, 't x')).toEqual({ scope: 'book', query: 't x' })
+  })
+
+  it("lists the sources at the root, and only the scope's results once scoped", () => {
+    expect(paletteResults(ROOT, source).map((g) => g.kind)).toEqual(['source'])
+    const scoped = paletteResults({ scope: 'book', query: 'work' }, source)
+    expect(scoped.map((g) => [g.kind, g.results.map((r) => r.label)])).toEqual([['book', ['Work']]])
+    // Text typed at the root still finds every kind.
+    expect(paletteResults({ scope: null, query: 'work' }, source).map((g) => g.kind)).toEqual([
+      'book',
+      'tag',
+    ])
+  })
+
+  it('keeps an outline in document order until something is typed', () => {
+    const all = paletteResults({ scope: 'outline', query: '' }, source)
+    expect(all[0]?.results.map((r) => r.label)).toEqual(['Intro', 'Plan', 'Ship it'])
+  })
+
+  it('steps back on Escape: the query, the scope, then closes', () => {
+    let state = typeInto(ROOT, 't urg')
+    expect(state).toEqual({ scope: 'tag', query: 'urg' })
+    state = escapeStep(state)!
+    expect(state).toEqual({ scope: 'tag', query: '' })
+    state = escapeStep(state)!
+    expect(state).toEqual(ROOT)
+    expect(escapeStep(state)).toBeNull()
+    // Text typed at the root clears first.
+    expect(escapeStep({ scope: null, query: 'abc' })).toEqual(ROOT)
   })
 })

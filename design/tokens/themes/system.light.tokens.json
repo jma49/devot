@@ -76,6 +76,16 @@
           "alpha": 0.055
         }
       },
+      "row-selected": {
+        "$type": "color",
+        "$description": "Behind the selected row of the sidebar.",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.12
+        }
+      },
       "row-selected-unemphasized": {
         "$type": "color",
         "$value": {
