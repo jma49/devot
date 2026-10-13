@@ -30,9 +30,18 @@ export default defineConfig({
   // load (tests/scripts/vite-deps.test.ts). Naming entries replaces the
   // default, the page files, so they stay listed.
   optimizeDeps: { entries: ['*.html', 'src/core.worker.ts'] },
-  // ES module workers, so the worker's lazy imports (math, emoji) become
-  // their own chunks.
-  worker: { format: 'es' },
+  // ES module workers, so the worker's lazy imports (math, emoji, code
+  // highlighting) become their own chunks. What such a chunk shares with the
+  // worker's own code (the bundler's helpers included) goes to a chunk of its
+  // own, never into the entry: WebKit runs the worker's script a second time
+  // when a chunk imports it, and that copy answers the page's calls with
+  // E_CORE_NOT_READY (tests/scripts/worker-chunks.test.ts).
+  worker: {
+    format: 'es',
+    rolldownOptions: {
+      output: { codeSplitting: { groups: [{ name: 'core-shared', minShareCount: 2 }] } },
+    },
+  },
   build: {
     outDir: '../../dist',
     emptyOutDir: true,

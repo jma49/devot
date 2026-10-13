@@ -458,8 +458,8 @@ interface Props {
   onNewFromSelection?: (() => void) | undefined
   /** Pasted or dropped images could not be stored: the code of each. */
   onImagesRefused?: (codes: string[]) => void
-  /** The core could not open the note (it is gone or in the Trash). */
-  onOpenFailed?: (noteId: string) => void
+  /** The core could not open the note (it is gone or in the Trash): the error's code. */
+  onOpenFailed?: (noteId: string, code: string) => void
   /** Runs New Note from Template (the empty note's chip). */
   onChooseTemplate?: () => void
   /** Opens the note a link under the caret points at (Open Link's key). */
@@ -784,8 +784,8 @@ export function NoteEditor({
         // A hidden editor goes to its place when it shows (see above).
         if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
       },
-      () => {
-        if (!cancelled) openFailed.current?.(noteId)
+      (e: unknown) => {
+        if (!cancelled) openFailed.current?.(noteId, errorCode(e))
       },
     )
 

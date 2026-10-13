@@ -1151,11 +1151,13 @@ export function App() {
     await saveEdits(core)
     // A link may point at a note that is gone; leave the selection alone then.
     // The note loads in the core for its editor; only its title comes here.
-    const title = await core.title(id).catch(() => undefined)
+    const title = await core.title(id).catch((e: unknown) => {
+      console.warn('W_NOTE_OPEN_FAILED', id, errorCode(e))
+      return undefined
+    })
     if (open !== opens.current) return false
     if (title === undefined) {
       openingRef.current = undefined
-      console.warn('W_NOTE_OPEN_FAILED', id)
       return false
     }
     // The open note's editor stays mounted and does not report its text
@@ -1829,8 +1831,8 @@ export function App() {
    * The editor could not open its note (it is gone or in the Trash): the
    * note closes, so no editor shows with a stale title and an empty body.
    */
-  const closeUnopenable = useStable((id: string) => {
-    console.warn('W_NOTE_OPEN_FAILED', id)
+  const closeUnopenable = useStable((id: string, code: string) => {
+    console.warn('W_NOTE_OPEN_FAILED', id, code)
     if (id === selected) setSelected(undefined)
   })
 
