@@ -73,7 +73,7 @@ import { TagEditor } from './TagEditor'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, type Core } from './core-client'
-import { currentFocusStore, currentSidebarStore } from './focus'
+import { currentFocusStore, currentSidebarStore, keyboardIsFree } from './focus'
 import { useFocusRescue } from './focusRescue'
 import { currentLastStateStore, restorePlan, type LastState, type NoteState } from './lastState'
 import type { FindTarget } from './find/target'
@@ -1074,6 +1074,11 @@ export function App() {
   // its place, unless it is gone. Its editor takes the keyboard if it had it.
   // Opening it makes it the first entry of Back and Forward's trail.
   const restoreStarted = useRef(false)
+  // The note whose editor takes the keyboard from the restore, if nobody has it then.
+  const restoreKeyboard = useRef<string>(undefined)
+  useEffect(() => {
+    if (restoreKeyboard.current !== selected) restoreKeyboard.current = undefined
+  }, [selected])
   const restoreLast = async () => {
     try {
       const untouched =
@@ -1101,7 +1106,12 @@ export function App() {
       if (preview && note.previewTop !== undefined) {
         restorePreview.current = { id: note.id, top: note.previewTop }
       }
-      await select(note.id, { keyboard: note.keyboard && !preview })
+      // The keyboard goes to the editor only while it is nobody's: a search
+      // typed or focus put anywhere since launch is the user's, here and
+      // once the editor has loaded (`restoreKeyboard`).
+      const keyboard = note.keyboard && !preview && query === '' && keyboardIsFree()
+      if (keyboard) restoreKeyboard.current = note.id
+      await select(note.id, { keyboard })
     } catch {
       console.warn('W_LAST_STATE_RESTORE_FAILED')
     } finally {
@@ -2251,6 +2261,7 @@ export function App() {
                 core={core}
                 noteId={selected}
                 autoFocus={selected === takesKeyboard}
+                autoFocusIfFree={selected === restoreKeyboard.current}
                 hidden={mode === 'preview'}
                 onText={openText.set}
                 links={{ find: findLinkTargets, create: createLinkedNote }}

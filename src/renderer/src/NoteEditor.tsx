@@ -33,6 +33,7 @@ import { setInertFormats } from './commands/formatMenu'
 import { subscribeKeymap } from './commands/shortcutSettings'
 import { useEditorSettings } from './editorSettings'
 import type { FindTarget } from './find/target'
+import { keyboardIsFree } from './focus'
 import { t } from './i18n'
 import {
   imageActionApplies,
@@ -386,6 +387,8 @@ interface Props {
    * row); read when the note has loaded.
    */
   autoFocus: boolean
+  /** With `autoFocus`: only if nothing has the keyboard when the body has loaded (a restore). */
+  autoFocusIfFree?: boolean
   /** Kept mounted but out of sight in preview mode, so the text stays live. */
   hidden: boolean
   /** The current Markdown, on open and after every change. */
@@ -428,6 +431,7 @@ export function NoteEditor({
   core,
   noteId,
   autoFocus,
+  autoFocusIfFree = false,
   hidden,
   onText,
   links,
@@ -446,6 +450,7 @@ export function NoteEditor({
   const host = useRef<HTMLDivElement>(null)
   // Read once, when the note has loaded.
   const focusOnOpen = useRef(autoFocus)
+  const focusOnlyIfFree = useRef(autoFocusIfFree)
   const settings = useEditorSettings()
   const latestSettings = useRef(settings)
   /**
@@ -471,6 +476,7 @@ export function NoteEditor({
     placeAsked.current = initialPlace
     placeReport.current = onPlace
     focusOnOpen.current = autoFocus
+    focusOnlyIfFree.current = autoFocusIfFree
     report.current = onText
     linkSources.current = links
     findHandle.current = onFind
@@ -684,7 +690,7 @@ export function NoteEditor({
           setImageSize: (source, size) => setImageSize(ready, source, size),
         }
       }
-      if (focusOnOpen.current) view.focus()
+      if (focusOnOpen.current && (!focusOnlyIfFree.current || keyboardIsFree())) view.focus()
       // A hidden editor goes to its place when it shows (see above).
       if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
     })
