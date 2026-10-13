@@ -418,14 +418,11 @@ mod tests {
         }
         let key = |command: &str| plan.iter().find(|(c, _)| *c == command).unwrap().1.clone();
         assert_eq!(key("format.italic").as_deref(), Some("CmdOrCtrl+I"));
-        assert_eq!(
-            key("format.strikethrough").as_deref(),
-            Some("Shift+CmdOrCtrl+X")
-        );
-        assert_eq!(key("format.quote").as_deref(), Some("Shift+CmdOrCtrl+."));
+        assert_eq!(key("format.strikethrough").as_deref(), Some("CmdOrCtrl+U"));
+        assert_eq!(key("format.quote").as_deref(), Some("CmdOrCtrl+'"));
         assert_eq!(
             key("format.horizontalRule").as_deref(),
-            Some("Shift+CmdOrCtrl+-")
+            Some("Shift+CmdOrCtrl+H")
         );
         // Alerts have no keys.
         assert_eq!(key("format.alertNote"), None);
@@ -545,7 +542,7 @@ mod tests {
         assert_eq!(plan(&keys), Err("E_FORMAT_MENU_ACCELERATOR_DUPLICATE"));
         // The same key with its modifiers in another order is the same key.
         let mut keys = default_keys();
-        keys.insert("format.italic".to_owned(), "CmdOrCtrl+Shift+X".to_owned());
+        keys.insert("format.italic".to_owned(), "CmdOrCtrl+Shift+L".to_owned());
         assert_eq!(plan(&keys), Err("E_FORMAT_MENU_ACCELERATOR_DUPLICATE"));
     }
 }
