@@ -10,7 +10,7 @@ export const sizes = {
   "font.size.title3": "15px",
   "font.size.headline": "17px",
   "font.size.title": "22px",
-  "font.size.note-title": "26px",
+  "font.size.note-title": "24px",
   "font.weight.regular": "400",
   "font.weight.semibold": "600",
   "font.weight.bold": "700",

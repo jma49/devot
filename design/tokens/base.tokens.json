@@ -509,7 +509,7 @@
       "note-title": {
         "$type": "dimension",
         "$value": {
-          "value": 26,
+          "value": 24,
           "unit": "px"
         },
         "$description": "The open note's title, above its notebook, status and tags."

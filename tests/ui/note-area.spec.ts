@@ -125,6 +125,13 @@ test('the notebook, status and tags share one compact line, worked by click and 
   await add.press('Backspace')
   await expect(chip).toHaveCount(0)
 
+  // The title sits right under the toolbar.
+  await expect(page.locator('.title')).toHaveCSS('font-size', '24px')
+  const toolbarBox = await toolbar(page).boundingBox()
+  const titleBox = await page.locator('.title').boundingBox()
+  if (!toolbarBox || !titleBox) throw new Error('no title')
+  expect(Math.abs(titleBox.y - (toolbarBox.y + toolbarBox.height))).toBeLessThan(2)
+
   // Everything sits on the title's left edge.
   const left = async (selector: string) => (await page.locator(selector).boundingBox())?.x ?? -1
   const titleX = await left('.title')
@@ -165,13 +172,39 @@ for (const scheme of ['light', 'dark'] as const) {
   })
 }
 
-test('split mode keeps no rule between the editor and the preview', async ({ page }) => {
+test('split mode gives the editor and the preview half each, with no rule and no reading width', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1800, height: 900 })
   await openNote(page, 'text')
+  await changeEditorSettingsElsewhere(page, { lineWrapping: true, readableWidth: true })
+  const content = page.locator('.cm-content')
+  // Outside split, the readable width holds.
+  await expect(content).toHaveCSS('max-width', '720px')
   await page
     .getByRole('group', { name: 'View mode' })
     .getByRole('button', { name: 'Split' })
     .click()
   await expect(preview(page)).toHaveCSS('border-left-width', '0px')
+  await expect(content).toHaveCSS('max-width', 'none')
+  const editorBox = await page.locator('.editor').boundingBox()
+  const previewBox = await preview(page).boundingBox()
+  if (!editorBox || !previewBox) throw new Error('no panes')
+  expect(Math.abs(editorBox.width - previewBox.width)).toBeLessThan(2)
+  // The gutter between the editor's text and the preview's is small.
+  const gutter = await page.evaluate(() => {
+    const d = (globalThis as unknown as { document: { querySelector(s: string): unknown } })
+      .document
+    const style = (el: unknown) =>
+      (
+        globalThis as unknown as { getComputedStyle(el: unknown): Record<string, string> }
+      ).getComputedStyle(el)
+    return (
+      parseFloat(style(d.querySelector('.editor'))['paddingRight'] ?? '0') +
+      parseFloat(style(d.querySelector('.preview'))['paddingLeft'] ?? '0')
+    )
+  })
+  expect(gutter).toBeLessThanOrEqual(24)
 })
 
 test('a code block in the preview is headed by its language mark and title', async ({ page }) => {

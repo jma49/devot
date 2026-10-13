@@ -631,7 +631,7 @@ button {
 }
 
 .title {
-  margin: var(--space-2) var(--space-9) var(--space-3);
+  margin: 0 var(--space-9) var(--space-3);
   padding: 0;
   border: 0;
   outline: 0;
@@ -990,15 +990,21 @@ button {
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* Each pane keeps a minimum; a content area too narrow for two scrolls sideways. */
+/* Each pane takes half the note area, with no reading width of its own, and
+   keeps a minimum; a content area too narrow for two scrolls sideways. */
 .panes-split {
   grid-template-columns: repeat(2, minmax(var(--size-pane-min-width), 1fr));
   overflow-x: auto;
 }
 
-/* Editor and preview stand apart by whitespace alone. */
+/* Editor and preview stand apart by a small gutter of whitespace, no rule. */
+.panes-split .editor {
+  --editor-reading-width: none;
+  padding-right: var(--space-4);
+}
+
 .panes-split .preview {
-  padding-left: var(--space-10);
+  padding-left: var(--space-6);
 }
 
 .editor {

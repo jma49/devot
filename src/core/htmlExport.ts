@@ -11,7 +11,7 @@
 //   (`#half`) from its URL to a class (`image-size-half`), which the page's
 //   styles size as the preview does.
 // - A page to print (Print… and Export as PDF…) loads nothing from the web,
-//   just as the preview never does: its policy allows only `data:` images,
+//   so no slow host holds a print job up: its policy allows only `data:` images,
 //   and each image from the web becomes a link to it, its alt text (else its
 //   URL) as the link's text (only that text inside a link, since links do
 //   not nest); a `picture`'s other sources are left out. An exported page
