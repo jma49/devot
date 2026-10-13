@@ -8,11 +8,16 @@ type HastChild = RootContent | ElementContent
 
 const HTML_NS = 'http://www.w3.org/1999/xhtml'
 const MATHML_NS = 'http://www.w3.org/1998/Math/MathML'
+const SVG_NS = 'http://www.w3.org/2000/svg'
 
-/** MathML starts at `<math>`; everything inside it stays in that namespace. */
+/**
+ * MathML starts at `<math>` and SVG at `<svg>` (a code block's language
+ * mark); everything inside stays in that namespace.
+ */
 function namespaceFor(tagName: string, parentNs: string | null): string {
   if (tagName === 'math') return MATHML_NS
-  return parentNs === MATHML_NS ? MATHML_NS : HTML_NS
+  if (tagName === 'svg') return SVG_NS
+  return parentNs === MATHML_NS || parentNs === SVG_NS ? parentNs : HTML_NS
 }
 
 function attributes(node: HastElement): Map<string, string> {

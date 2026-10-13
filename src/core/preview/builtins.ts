@@ -1,6 +1,7 @@
 // Built-in preview renderers. They run on the sanitized tree and only build
 // structure from validated values.
 import type { Element, ElementContent, Properties, Root, RootContent } from 'hast'
+import { codeBlocks } from './code'
 import { createEmojiRenderer } from './emoji'
 import { parseImageMarkdown, splitImageSize } from '../images'
 import { createMathRenderer } from './math'
@@ -362,6 +363,7 @@ export const BUILTIN_RENDERERS: readonly PreviewRenderer[] = [
   createMathRenderer(),
   createEmojiRenderer(),
   mermaid,
+  codeBlocks,
   swatches,
   images,
   remoteImages,

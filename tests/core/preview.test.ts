@@ -310,6 +310,7 @@ describe('preview renderer extension point', () => {
       'devot.math',
       'devot.emoji',
       'devot.mermaid',
+      'devot.code',
       'devot.swatches',
       'devot.images',
       'devot.remote-images',

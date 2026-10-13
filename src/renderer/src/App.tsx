@@ -79,6 +79,7 @@ import { TagEditor } from './TagEditor'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, stopCore, type Core } from './core-client'
+import { welcomeContent } from './welcome/content'
 import { currentFocusStore, currentSidebarStore, keyboardIsFree } from './focus'
 import { useFocusRescue } from './focusRescue'
 import { currentLastStateStore, restorePlan, type LastState, type NoteState } from './lastState'
@@ -749,6 +750,13 @@ export function App() {
         if (!alive) return
         setCore(() => c)
         coreRef.current = c
+        // A library that has never held anything starts with a few notes. The
+        // UI tests' libraries start empty, unless a test asks for the notes.
+        if (!DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome) {
+          await c.seedWelcome(welcomeContent()).catch((e: unknown) => {
+            console.warn('W_WELCOME_FAILED', errorCode(e))
+          })
+        }
         await refresh(c)
         setListsLoaded(true)
         // Folders picked before the core was ready.

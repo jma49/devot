@@ -10,7 +10,7 @@ import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import remarkParse from 'remark-parse'
-import remarkRehype from 'remark-rehype'
+import remarkRehype, { defaultHandlers } from 'remark-rehype'
 import { unified } from 'unified'
 import { BUILTIN_RENDERERS } from './builtins'
 import { createRegistry, type PreviewOptions, type PreviewRegistry } from './registry'
@@ -28,7 +28,12 @@ export { createMathRenderer, type MathEngine } from './math'
 const schema: Schema = {
   ...defaultSchema,
   tagNames: [...(defaultSchema.tagNames ?? []), 'mark', 'iframe'],
-  attributes: { ...defaultSchema.attributes, iframe: ['src', 'title', 'width', 'height'] },
+  attributes: {
+    ...defaultSchema.attributes,
+    iframe: ['src', 'title', 'width', 'height'],
+    // The fence's info string (see code.ts), shown only as a title.
+    code: [...(defaultSchema.attributes?.['code'] ?? []), 'dataMeta'],
+  },
   protocols: {
     ...defaultSchema.protocols,
     href: ['http', 'https', 'mailto', 'devot'],
@@ -42,7 +47,19 @@ const processor = unified()
   .use(remarkGfm)
   .use(remarkMath)
   // Front matter is shown by the `devot.frontmatter` renderer, not as text.
-  .use(remarkRehype, { allowDangerousHtml: true, handlers: { yaml: () => undefined } })
+  .use(remarkRehype, {
+    allowDangerousHtml: true,
+    handlers: {
+      yaml: () => undefined,
+      // The info string after the language travels on the `code` element.
+      code(state, node) {
+        const pre = defaultHandlers.code(state, node)
+        const code = pre.children[0]
+        if (node.meta && code?.type === 'element') code.properties['dataMeta'] = node.meta
+        return pre
+      },
+    },
+  })
   .use(rehypeRaw)
   .use(rehypeSanitize, schema)
   .freeze()
