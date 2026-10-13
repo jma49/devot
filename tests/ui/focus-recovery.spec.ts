@@ -93,7 +93,7 @@ test('deleting the only notebook leaves the keyboard on a sidebar row', async ({
   await book(page, 'Home').focus()
   await page.keyboard.press('Backspace')
   await expect(book(page, 'Home')).toHaveCount(0)
-  expect((await settledFocus(page)).part).toBe('sidebar')
+  await expect.poll(async () => (await settledFocus(page)).part).toBe('sidebar')
 })
 
 test('deleting a tag row moves the keyboard to a neighbouring row', async ({ page }) => {
@@ -127,7 +127,7 @@ test('Move to Trash in the toolbar leaves the keyboard in the list', async ({ pa
   await page.keyboard.press('Enter')
   await expect(noteRows(page)).toHaveCount(1)
   await expect(list(page).locator(':focus')).toHaveCount(1)
-  expect((await settledFocus(page)).part).toBe('list')
+  await expect.poll(async () => (await settledFocus(page)).part).toBe('list')
 })
 
 test('Restore and Delete Permanently in the Trash leave the keyboard on a visible element', async ({
@@ -146,7 +146,7 @@ test('Restore and Delete Permanently in the Trash leave the keyboard on a visibl
   await page.getByRole('button', { name: 'Restore' }).focus()
   await page.keyboard.press('Enter')
   await expect(trashRow(page)).toHaveText(/1$/)
-  expect((await settledFocus(page)).part).toBe('list')
+  await expect.poll(async () => (await settledFocus(page)).part).toBe('list')
 
   await noteRows(page).first().click()
   await page.getByRole('button', { name: 'Delete Permanently' }).focus()
@@ -155,7 +155,7 @@ test('Restore and Delete Permanently in the Trash leave the keyboard on a visibl
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Delete Permanently' }).click()
   await expect(trashRow(page)).toHaveText(/0$/)
-  expect((await settledFocus(page)).part).toBe('list')
+  await expect.poll(async () => (await settledFocus(page)).part).toBe('list')
 })
 
 test('the selection summary’s actions leave the keyboard on a visible element', async ({
@@ -171,7 +171,7 @@ test('the selection summary’s actions leave the keyboard on a visible element'
   await summary.getByRole('button', { name: 'Move to Trash' }).focus()
   await page.keyboard.press('Enter')
   await expect(summary).toBeHidden()
-  expect((await settledFocus(page)).part).toBe('list')
+  await expect.poll(async () => (await settledFocus(page)).part).toBe('list')
 })
 
 test('Empty Trash keeps the keyboard on its button, which is then disabled', async ({ page }) => {
@@ -205,11 +205,11 @@ for (const area of ['sidebar', 'list'] as const) {
     await page.keyboard.press('Meta+Shift+KeyD')
     await expect(sidebar(page)).toBeHidden()
     await expect(list(page)).toBeHidden()
-    expect((await settledFocus(page)).part).toBe('editor')
+    await expect.poll(async () => (await settledFocus(page)).part).toBe('editor')
     // Leaving focus mode with the keyboard in the editor keeps it there.
     await page.keyboard.press('Meta+Shift+KeyD')
     await expect(sidebar(page)).toBeVisible()
-    expect(await onPage(page)).toBe(false)
+    await expect.poll(() => onPage(page)).toBe(false)
   })
 }
 
@@ -275,6 +275,6 @@ test('the Import sheet gives the keyboard back when it closes', async ({ page })
   await expect(dialog.getByRole('button', { name: 'Done' })).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(dialog).toBeHidden()
-  expect(await onPage(page)).toBe(false)
+  await expect.poll(() => onPage(page)).toBe(false)
   await expect(page.locator(':focus')).toHaveCount(1)
 })

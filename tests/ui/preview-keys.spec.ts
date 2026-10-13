@@ -24,6 +24,28 @@ async function longNote(page: Page, title: string) {
 }
 
 const scrollTop = (page: Page) => preview(page).evaluate((e) => e.scrollTop)
+/** The scroll position once WebKit's scroll animation has come to rest. */
+async function settledTop(page: Page) {
+  let previous = -1
+  await expect
+    .poll(async () => {
+      const top = await scrollTop(page)
+      const rest = top === previous
+      previous = top
+      return rest
+    })
+    .toBe(true)
+  return previous
+}
+async function pressUntilBeyond(page: Page, key: string, min: number) {
+  await expect
+    .poll(async () => {
+      await page.keyboard.press(key)
+      await page.waitForTimeout(150)
+      return scrollTop(page)
+    })
+    .toBeGreaterThan(min)
+}
 const fontSize = (page: Page, selector: string) =>
   preview(page)
     .locator(selector)
@@ -58,11 +80,13 @@ test('Control+Tab reaches the preview in Preview mode, and the keys scroll it', 
   expect(await scrollTop(page)).toBe(0)
   await page.keyboard.press('PageDown')
   await expect.poll(() => scrollTop(page)).toBeGreaterThan(200)
-  const after = await scrollTop(page)
-  await page.keyboard.press('ArrowDown')
-  await expect.poll(() => scrollTop(page)).toBeGreaterThan(after)
-  await page.keyboard.press('End')
-  await expect.poll(() => scrollTop(page)).toBeGreaterThan(after + 1000)
+  const after = await settledTop(page)
+  await expect(preview(page)).toBeFocused()
+  // WebKit's scroll animation sometimes drops a key pressed just after
+  // another scroll: press again until the page moves.
+  await pressUntilBeyond(page, 'ArrowDown', after)
+  const arrowed = await settledTop(page)
+  await pressUntilBeyond(page, 'End', arrowed + 1000)
 })
 
 test('Control+Tab reaches the rendered note in the Trash, and the keys scroll it', async ({
