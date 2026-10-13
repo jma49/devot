@@ -1455,8 +1455,9 @@ pub fn print_html(
     let job: Retained<PrintJob> = unsafe { msg_send![super(job), init] };
     PRINT_JOBS.with(|jobs| jobs.borrow_mut().push(job.clone()));
     let page = NSString::from_str(&with_print_policy(html));
-    // SAFETY: the delegate is kept alive in PRINT_JOBS for the job's
-    // length; the HTML string is copied by WebKit.
+    // SAFETY: the web view's delegate is weak; the job is kept alive in
+    // PRINT_JOBS until `finish`, and then by its pending `releaseWebView`
+    // call, which drops the web view; the HTML string is copied by WebKit.
     unsafe {
         web_view.setNavigationDelegate(Some(ProtocolObject::from_ref(&*job)));
         web_view.loadHTMLString_baseURL(&page, None);
