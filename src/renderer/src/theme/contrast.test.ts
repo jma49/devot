@@ -146,8 +146,27 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
         tertiary: [solid(theme, 'text.tertiary'), plain],
         'primary on a selected row': [solid(theme, 'text.primary'), rows],
         'secondary on a selected row': [solid(theme, 'text.secondary'), rows],
+        hover: [solid(theme, 'text.hover'), [...plain, ...rows]],
+        selected: [solid(theme, 'text.selected'), [...plain, ...rows]],
       }),
     ).toEqual([])
+  })
+
+  it('draws a tag chip label at 4.5:1 on its chip, at rest and under the pointer', () => {
+    // A chip is its tag colour at 10% (20% under the pointer) over a surface
+    // or a selected row (opacity.tag.* tokens).
+    const beneath = backdrops(theme, ['fill.row-selected-unemphasized'])
+    const chips: Record<string, [Rgb, Rgb[]]> = {}
+    for (const key of Object.keys(theme).filter((k) => k.startsWith('color.tag-text.'))) {
+      const hue = key.slice('color.tag-text.'.length)
+      const tag = solid(theme, `tag.${hue}`)
+      const fills = [0.1, 0.2].flatMap((alpha) =>
+        beneath.map((b) => composite({ rgb: tag, alpha }, b)),
+      )
+      chips[hue] = [solid(theme, `tag-text.${hue}`), fills]
+    }
+    expect(Object.keys(chips)).toHaveLength(8)
+    expect(under(4.5, chips)).toEqual([])
   })
 
   it('draws popup text at 4.5:1 on the popover and its selected row', () => {

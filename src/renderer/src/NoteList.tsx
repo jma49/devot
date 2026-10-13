@@ -189,6 +189,18 @@ export const NoteList = memo(function NoteList(props: Props) {
   }, [notes, pinned.length])
   // The row with the keyboard focus, which a windowed list keeps rendered.
   const [focusedRow, setFocusedRow] = useState<string>()
+  // The rows being dragged, dimmed until the drag ends (dropped or not).
+  const [dragged, setDragged] = useState<ReadonlySet<string>>()
+  useEffect(() => {
+    if (!dragged) return
+    const end = () => setDragged(undefined)
+    window.addEventListener('dragend', end, true)
+    window.addEventListener('drop', end, true)
+    return () => {
+      window.removeEventListener('dragend', end, true)
+      window.removeEventListener('drop', end, true)
+    }
+  }, [dragged])
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map())
   const [metrics, setMetrics] = useState({ gap: 0, padding: 0 })
   const [viewport, setViewport] = useState({ top: 0, height: 0 })
@@ -577,6 +589,7 @@ export const NoteList = memo(function NoteList(props: Props) {
     e.dataTransfer.setData(DRAG_NOTE, ids.join('\n'))
     if (props.drag === 'templates') e.dataTransfer.setData(DRAG_TEMPLATE, '')
     e.dataTransfer.effectAllowed = 'move'
+    setDragged(new Set(ids))
   })
   const keyDown = useStable((id: string, e: KeyboardEvent<HTMLLIElement>) =>
     move(e, order.indexOf(id)),
@@ -622,6 +635,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         now={now}
         locale={locale}
         draggable={props.drag !== false}
+        dragging={dragged?.has(n.id) ?? false}
         menu={props.onMenu !== undefined}
         events={rowEvents}
       />

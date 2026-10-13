@@ -950,17 +950,25 @@
       },
       "$description": "The command palette's panel."
     },
-    "sidebar-bar": {
+    "focus-ring": {
       "$type": "dimension",
       "$value": {
-        "value": 3,
+        "value": 2,
         "unit": "px"
       },
-      "$description": "The bar on the left of the selected sidebar row while the sidebar has the keyboard focus."
+      "$description": "The width of the focus ring on custom controls; it sits on the control's edge (offset 0)."
+    },
+    "drop-indicator": {
+      "$type": "dimension",
+      "$value": {
+        "value": 2,
+        "unit": "px"
+      },
+      "$description": "The line between rows where a dragged row will go, and the dashed outline of a notebook a drag goes into."
     }
   },
   "motion": {
-    "$description": "How floating panels and controls move. Reduce Motion keeps the fades and drops every scale (app.css).",
+    "$description": "How things move: hover, toggles, colour changes and pop-ups each have one duration, and Reduce Motion drops every movement (app.css).",
     "duration": {
       "$type": "duration",
       "color": {
@@ -968,18 +976,18 @@
           "value": 400,
           "unit": "ms"
         },
-        "$description": "A floating bar button's text colour easing to its hover or pressed colour."
+        "$description": "A colour change that should be noticed rather than seen: a floating bar button's text, a theme switch."
       },
       "ring": {
         "$value": {
           "value": 200,
           "unit": "ms"
         },
-        "$description": "A floating bar button's outline ring coming and going."
+        "$description": "A floating bar button's outline ring coming and going (the toggle duration)."
       },
       "popover": {
         "$value": {
-          "value": 300,
+          "value": 150,
           "unit": "ms"
         },
         "$description": "A pop-up (bar, menu, tooltip) growing out of its notch or anchor as it fades in."
@@ -989,7 +997,7 @@
           "value": 400,
           "unit": "ms"
         },
-        "$description": "A control over the content (a code block's copy button) fading in."
+        "$description": "A floating bar (the selection toolbar, the image size bar, a code block's copy button) fading in."
       },
       "pane": {
         "$value": {
@@ -997,6 +1005,20 @@
           "unit": "ms"
         },
         "$description": "The sidebar and note list sliding in and out."
+      },
+      "hover": {
+        "$value": {
+          "value": 180,
+          "unit": "ms"
+        },
+        "$description": "A control's fill and colour coming and going under the pointer or a press: list rows, toolbar buttons, segments, chips, menu rows."
+      },
+      "toggle": {
+        "$value": {
+          "value": 200,
+          "unit": "ms"
+        },
+        "$description": "A two-state change: a disclosure chevron turning, a section opening, a selection bar or focus ring appearing."
       }
     },
     "easing": {
@@ -1013,8 +1035,19 @@
     "scale": {
       "$type": "number",
       "popover-enter": {
-        "$value": 0.8,
+        "$value": 0.92,
         "$description": "The size a pop-up starts at before growing to full size."
+      }
+    },
+    "delay": {
+      "$type": "duration",
+      "$description": "How long something waits before it shows.",
+      "tooltip": {
+        "$value": {
+          "value": 400,
+          "unit": "ms"
+        },
+        "$description": "The pointer resting on a toolbar button before its tooltip shows; it hides at once when the pointer leaves or presses."
       }
     }
   },
@@ -1037,6 +1070,40 @@
       "$value": {
         "value": 10,
         "unit": "px"
+      }
+    }
+  },
+  "opacity": {
+    "$type": "number",
+    "$description": "How strongly a colour shows: tag chips mix their tag colour with transparent at these strengths, in both appearances.",
+    "disabled": {
+      "$value": 0.45,
+      "$description": "A control that cannot be used."
+    },
+    "dragged": {
+      "$value": 0.5,
+      "$description": "A row while it is being dragged."
+    },
+    "tag": {
+      "fill": {
+        "$value": 0.1,
+        "$description": "A tag chip's background: its tag colour at this strength."
+      },
+      "border": {
+        "$value": 0.2,
+        "$description": "A tag chip's 1 px edge."
+      },
+      "fill-active": {
+        "$value": 0.2,
+        "$description": "A tag chip's background under the pointer or pressed."
+      },
+      "border-active": {
+        "$value": 0.3,
+        "$description": "A tag chip's edge under the pointer or pressed."
+      },
+      "dot": {
+        "$value": 0.3,
+        "$description": "A tag colour dot's fill; its edge is the solid tag colour."
       }
     }
   }

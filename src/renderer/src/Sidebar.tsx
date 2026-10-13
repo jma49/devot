@@ -21,6 +21,7 @@ import { useContextMenu, type MenuPoint } from './contextMenu'
 import type { IconName } from './icons/symbols'
 import type { MessageKey } from './i18n'
 import { currentLocale, format as fill, t } from './i18n'
+import { Chevron } from './Chevron'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
@@ -28,6 +29,7 @@ import { copyText } from './noteMenu'
 import { TAG_MENU, colorOfAction, tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
 import { MoveBookDialog } from './MoveBookDialog'
 import { SidebarFooter } from './SidebarFooter'
+import { reveal } from './reveal'
 import { currentSectionStore, type CollapsibleSection, type SectionStore } from './sidebarSections'
 import { TagDot } from './TagEditor'
 import { TagSettingsDialog } from './TagSettingsDialog'
@@ -301,8 +303,15 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   // Status and Tags fold; the choice is a view preference kept per window.
   const sections = useMemo(() => props.sectionStore ?? currentSectionStore(), [props.sectionStore])
   const [folded, setFolded] = useState<ReadonlySet<CollapsibleSection>>(() => sections.load())
+  // The sections the user just opened: they grow in once (reveal.ts).
+  const revealNext = useRef(new Set<string>())
+  /** A ref for the list of section `key`: it grows in if the user just opened it. */
+  const revealed = (key: string) => (el: HTMLElement | null) => {
+    if (el && revealNext.current.delete(key)) reveal(el)
+  }
   const toggleSection = (section: CollapsibleSection, open?: boolean) => {
     const next = new Set(folded)
+    if (open ?? next.has(section)) revealNext.current.add(`section:${section}`)
     if (open ?? next.has(section)) next.delete(section)
     else next.add(section)
     setFolded(next)
@@ -316,6 +325,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const [dropAt, setDropAt] = useState<DropAt>()
   // The notebook being dragged from this sidebar with its sub-notebooks: where it cannot go.
   const dragging = useRef<ReadonlySet<string> | undefined>(undefined)
+  // The notebook row being dragged: it dims until the drag ends.
+  const [draggedBook, setDraggedBook] = useState<string>()
   const [editingTag, setEditingTag] = useState<string>()
   // The notebook whose context menu is open: outlined, not selected.
   const [menuTarget, setMenuTarget] = useState<string>()
@@ -524,7 +535,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   /** An open notebook with sub-notebooks: a notebook after it goes below all of them. */
   const openParent = (node: BookNode) => node.children.length > 0 && !collapsed.has(node.id)
 
-  const toggle = (id: string, open?: boolean) =>
+  const toggle = (id: string, open?: boolean) => {
+    if (open ?? collapsed.has(id)) revealNext.current.add(`book:${id}`)
     setCollapsed((set) => {
       const next = new Set(set)
       const isOpen = !next.has(id)
@@ -532,6 +544,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       else next.add(id)
       return next
     })
+  }
 
   const focusBook = (id: string) => {
     props.onSelect({ kind: 'book', id })
@@ -688,6 +701,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     const clear = () => {
       setDropAt(undefined)
       setNoteDrop(undefined)
+      setDraggedBook(undefined)
     }
     window.addEventListener('dragend', clear, true)
     window.addEventListener('drop', clear, true)
@@ -737,11 +751,13 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           e.dataTransfer.setData(DRAG_BOOK, node.id)
           e.dataTransfer.effectAllowed = 'move'
           dragging.current = subtree(tree, node.id)
+          setDraggedBook(node.id)
         }}
         onDragEnd={(e) => {
           e.stopPropagation()
           dragging.current = undefined
           setDropAt(undefined)
+          setDraggedBook(undefined)
         }}
         onKeyDown={(e) => onKey(e, node)}
         onClick={(e) => {
@@ -751,6 +767,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       >
         <div
           className={`book-row${dropClasses(node, 'row')}${menuTarget === node.id ? ' menu-target' : ''}`}
+          data-dragging={draggedBook === node.id || undefined}
           onDoubleClick={() => setEditing(node.id)}
           onMouseDown={(e) => {
             // A right-click (or Control-click) leaves the keyboard where it
@@ -779,9 +796,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
               if (node.children.length > 0) toggle(node.id)
             }}
           >
-            {node.children.length > 0 ? (
-              <Icon name={isOpen ? 'disclosure.open' : 'disclosure.closed'} size="sm" />
-            ) : null}
+            {node.children.length > 0 ? <Chevron open={isOpen} closed="right" /> : null}
           </span>
           <Icon name="notebook" size="md" />
           {editingThis ? (
@@ -820,7 +835,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           <span className="source-count">{format(counts.get(node.id) ?? 0)}</span>
         </div>
         {node.children.length > 0 && isOpen ? (
-          <ul role="group">{node.children.map(renderNode)}</ul>
+          <ul role="group" ref={revealed(`book:${node.id}`)}>
+            {node.children.map(renderNode)}
+          </ul>
         ) : null}
       </li>
     )
@@ -869,7 +886,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
               }
             }}
           >
-            <Icon name={isFolded ? 'disclosure.up' : 'disclosure.open'} size="sm" />
+            <Chevron open={!isFolded} closed="up" />
           </button>
         </span>
       </div>
@@ -961,7 +978,12 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       </ul>
       {sectionHeader('status', 'statuses-heading', t('sidebar.statuses'), 'statuses-list', null)}
       {folded.has('status') ? null : (
-        <ul id="statuses-list" className="sources" aria-labelledby="statuses-heading">
+        <ul
+          id="statuses-list"
+          className="sources"
+          aria-labelledby="statuses-heading"
+          ref={revealed('section:status')}
+        >
           {STATUSES.map((s) => (
             <li key={s.status}>
               {filterRow(
@@ -993,7 +1015,12 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             </button>,
           )}
           {folded.has('tags') ? null : (
-            <ul id="tags-list" className="sources tags" aria-labelledby="tags-heading">
+            <ul
+              id="tags-list"
+              className="sources tags"
+              aria-labelledby="tags-heading"
+              ref={revealed('section:tags')}
+            >
               {props.tags.map((tag) => (
                 <li
                   key={tag.id}

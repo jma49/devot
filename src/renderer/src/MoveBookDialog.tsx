@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import { moveTargets, type BookNode } from '../../core/books'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
+import { fieldStep } from './Picker'
 
 const optionId = (i: number) => `move-book-option-${i}`
 
@@ -49,11 +50,10 @@ export function MoveBookDialog(props: {
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
-    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
-    if (step) {
+    const at = fieldStep(e.key, enabled.indexOf(active), enabled.length)
+    if (at !== undefined) {
       e.preventDefault()
-      const at = enabled.indexOf(active)
-      const next = enabled[Math.max(0, Math.min(enabled.length - 1, at + step))]
+      const next = enabled[at]
       if (next !== undefined) setActive(next)
     } else if (e.key === 'Enter') {
       e.preventDefault()

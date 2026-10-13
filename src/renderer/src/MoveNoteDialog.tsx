@@ -1,3 +1,4 @@
+import { fieldStep } from './Picker'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { BookNode } from '../../core/books'
 import { bookOptions, currentBookOption, NO_BOOK } from './BookPicker'
@@ -60,10 +61,10 @@ export function MoveNoteDialog(props: {
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     // Keys an input method composes with (picking a candidate) are its own.
     if (isImeKey(e.nativeEvent)) return
-    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
-    if (step) {
+    const next = fieldStep(e.key, index, matches.length)
+    if (next !== undefined) {
       e.preventDefault()
-      setActive(Math.max(0, Math.min(matches.length - 1, index + step)))
+      if (next >= 0) setActive(next)
     } else if (e.key === 'Enter') {
       e.preventDefault()
       const chosen = matches[index]

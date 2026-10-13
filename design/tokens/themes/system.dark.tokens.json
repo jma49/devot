@@ -58,6 +58,26 @@
         "$description": "Floating lists in the editor: the slash menu and the completion popups."
       }
     },
+    "ink": {
+      "text": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9804, 0.9804, 0.9804],
+          "hex": "#fafafa"
+        },
+        "$description": "The one colour every text tier is drawn from: each color.text tier is this colour at its tier's strength over the editor (`tier` in its extensions), moved toward white only where contrast needs it."
+      },
+      "line": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9608, 0.9608, 0.9608],
+          "hex": "#f5f5f5"
+        },
+        "$description": "The one colour lines are drawn from: borders at 15% (light) or 10% (dark), internal dividers at 10%."
+      }
+    },
     "text": {
       "primary": {
         "$type": "color",
@@ -66,7 +86,12 @@
           "components": [0.8588, 0.8588, 0.8588],
           "hex": "#dbdbdb"
         },
-        "$description": "Page text: hsl(0 0% 98%) at 87% over the editor, opaque."
+        "$description": "Page text: hsl(0 0% 98%) at 87% over the editor, opaque.",
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.87
+          }
+        }
       },
       "secondary": {
         "$type": "color",
@@ -75,7 +100,12 @@
           "components": [0.6392, 0.6392, 0.6392],
           "hex": "#a3a3a3"
         },
-        "$description": "Secondary text. Spec hsl(0 0% 98%) at 60% (#9a9a9a), lightened 9% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
+        "$description": "Secondary text. Spec hsl(0 0% 98%) at 60% (#9a9a9a), lightened 9% toward white so it keeps 4.5:1 on the editor, the active line and the selection.",
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.6
+          }
+        }
       },
       "tertiary": {
         "$type": "color",
@@ -84,7 +114,12 @@
           "components": [0.5647, 0.5647, 0.5647],
           "hex": "#909090"
         },
-        "$description": "De-emphasised text: section labels, rules, fences, key hints in popups. Spec hsl(0 0% 98%) at 40% (#6a6a6a), lightened 26% toward white so it keeps 4.5:1 on every surface and the popover (3:1 on the selection)."
+        "$description": "De-emphasised text: section labels, rules, fences, key hints in popups. Spec hsl(0 0% 98%) at 40% (#6a6a6a), lightened 26% toward white so it keeps 4.5:1 on every surface and the popover (3:1 on the selection).",
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.4
+          }
+        }
       },
       "editor": {
         "$type": "color",
@@ -104,10 +139,57 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.3725, 0.3608, 0.3333],
-          "hex": "#5f5c55"
+          "components": [0.4157, 0.4157, 0.4157],
+          "hex": "#6a6a6a"
         },
-        "$description": "Ghost text in an empty line or note; decorative, not held to text contrast."
+        "$description": "Placeholder text in a field: the 40% tier, for placeholders and disabled text only; not held to text contrast.",
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.4
+          }
+        }
+      },
+      "hover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7922, 0.7922, 0.7922],
+          "hex": "#cacaca"
+        },
+        "$description": "Text under the pointer: the 80% tier, a little softer than body text.",
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.8
+          }
+        }
+      },
+      "selected": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9333, 0.9333, 0.9333],
+          "hex": "#eeeeee"
+        },
+        "$description": "Text of a selected or pressed item: the 95% tier.",
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.95
+          }
+        }
+      },
+      "disabled": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4157, 0.4157, 0.4157],
+          "hex": "#6a6a6a"
+        },
+        "$description": "Text of a control that cannot be used: the 40% tier; not held to text contrast.",
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.4
+          }
+        }
       }
     },
     "line": {
@@ -118,17 +200,28 @@
           "components": [0.9608, 0.9608, 0.9608],
           "hex": "#f5f5f5",
           "alpha": 0.1
-        }
+        },
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.1
+          }
+        },
+        "$description": "Borders: pane dividers, field and button edges. The line ink at 10%."
       },
       "separator": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.149, 0.149, 0.149],
-          "hex": "#262626",
-          "alpha": 0.75
+          "components": [0.9608, 0.9608, 0.9608],
+          "hex": "#f5f5f5",
+          "alpha": 0.1
         },
-        "$description": "Between rows of the note list."
+        "$description": "Internal dividers: between note list rows, inside panels. The line ink at 10%.",
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.1
+          }
+        }
       },
       "match": {
         "$type": "color",
@@ -862,9 +955,9 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0, 0, 0],
+          "components": [0.0, 0.0, 0.0],
           "hex": "#000000",
-          "alpha": 0.36
+          "alpha": 0.2
         },
         "$description": "The close, sharp layer of a pop-up's shadow."
       },
@@ -872,11 +965,95 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0, 0, 0],
+          "components": [0.0, 0.0, 0.0],
           "hex": "#000000",
-          "alpha": 0.45
+          "alpha": 0.3
         },
         "$description": "The wide, soft layer of a pop-up's shadow."
+      }
+    },
+    "focus": {
+      "ring": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2706, 0.4627, 0.698],
+          "hex": "#4576b2",
+          "alpha": 0.97
+        },
+        "$description": "The focus ring on custom controls (2 px, offset 0): the accent fill. Design value 30%, raised to 97% so the ring keeps 3:1 on every surface.",
+        "$extensions": {
+          "app.devot": {
+            "source": "system-accent"
+          }
+        }
+      }
+    },
+    "tag-text": {
+      "$description": "A tag chip's label: its tag colour moved toward white only as far as 4.5:1 on the chip needs (contrast.test.ts).",
+      "red": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.5843, 0.5608],
+          "hex": "#ff958f"
+        }
+      },
+      "orange": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.7059, 0.251],
+          "hex": "#ffb440"
+        }
+      },
+      "yellow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.8392, 0.0392],
+          "hex": "#ffd60a"
+        }
+      },
+      "green": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.349, 0.8745, 0.4275],
+          "hex": "#59df6d"
+        }
+      },
+      "blue": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4706, 0.7333, 1.0],
+          "hex": "#78bbff"
+        }
+      },
+      "purple": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.8588, 0.6314, 0.9725],
+          "hex": "#dba1f8"
+        }
+      },
+      "pink": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.5608, 0.6471],
+          "hex": "#ff8fa5"
+        }
+      },
+      "gray": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7412, 0.7412, 0.7529],
+          "hex": "#bdbdc0"
+        }
       }
     }
   }

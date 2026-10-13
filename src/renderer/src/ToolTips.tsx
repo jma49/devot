@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { t } from './i18n'
+import { sizes } from './theme/tokens'
 
-/** How long the pointer rests on a button before its tooltip shows, in ms. */
-const SHOW_AFTER_MS = 600
+/** How long the pointer rests on a button before its tooltip shows (`motion.delay.tooltip`), in ms. */
+export const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
 
 /** The toolbar buttons whose tooltips show as bubbles. */
 const TOOLS = '.toolbar .tool[title], .toolbar .tool[data-tip]'

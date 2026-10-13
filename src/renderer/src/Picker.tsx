@@ -38,6 +38,15 @@ export function pickerStep(key: string, from: number, count: number): number | u
 }
 
 /**
+ * The row Up or Down moves to from a typing field over a list (a dialog's
+ * search, the tag field): the same steps as `pickerStep`, while Home and End
+ * stay with the field's text.
+ */
+export function fieldStep(key: string, from: number, count: number): number | undefined {
+  return key === 'ArrowDown' || key === 'ArrowUp' ? pickerStep(key, from, count) : undefined
+}
+
+/**
  * Open state for a pop-up button: what opens and closes it, and a click
  * anywhere outside `box` closing it.
  */

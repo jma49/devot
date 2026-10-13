@@ -35,9 +35,11 @@ import { writeClipboardText } from '../clipboard'
 import { t } from '../i18n'
 import { iconElement } from '../icons/Icon'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
+import { barsMayShow } from './barRules'
 import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
 import { fadeIn, motionKeyframes } from './motion'
 import { withLook } from './popupLook'
+import { toolbarStateExtension } from './toolbarState'
 
 /**
  * A line of a fenced block: where it starts, whether it is the box's top or
@@ -209,8 +211,12 @@ class CopyButton extends WidgetType {
   }
 }
 
-/** The block the selection is in, for its copy button: the main range's both ends inside it. */
-function selectedBlock(state: EditorState): SyntaxNode | null {
+/**
+ * The block whose copy button shows: the one the selection is in (the main
+ * range's both ends inside it), while the floating bars may show (barRules.ts).
+ */
+export function copyBlock(state: EditorState): SyntaxNode | null {
+  if (!barsMayShow(state)) return null
   const { main } = state.selection
   const block = blockAt(state, main.head)
   if (!block || inQuote(block)) return null
@@ -221,7 +227,7 @@ function selectedBlock(state: EditorState): SyntaxNode | null {
 function decorations(view: EditorView): DecorationSet {
   const { state } = view
   const builder = new RangeSetBuilder<Decoration>()
-  const active = selectedBlock(state)
+  const active = copyBlock(state)
   for (const { from, to } of view.visibleRanges) {
     for (const block of fencedBlocks(state, from, to)) {
       const { first, last, closed } = blockLines(state, block)
@@ -268,6 +274,7 @@ const boxes = ViewPlugin.fromClass(
         update.docChanged ||
         update.viewportChanged ||
         update.selectionSet ||
+        barsMayShow(update.state) !== barsMayShow(update.startState) ||
         syntaxTree(update.state) !== syntaxTree(update.startState)
       )
         this.decorations = decorations(update.view)
@@ -571,5 +578,5 @@ const theme = EditorView.theme({
 
 /** The code block boxes, fence colours and copy button, for the note editor. */
 export function codeBlocks(): Extension {
-  return [boxes, gutterLines, typingKeys, theme]
+  return [toolbarStateExtension, boxes, gutterLines, typingKeys, theme]
 }
