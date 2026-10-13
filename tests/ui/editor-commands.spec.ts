@@ -90,13 +90,13 @@ test.beforeEach(async ({ page }) => {
   await page.reload()
 })
 
-test('Shift+Cmd+- inserts a horizontal rule under the line, and the palette offers it', async ({
+test('Shift+Cmd+H inserts a horizontal rule under the line, and the palette offers it', async ({
   page,
 }) => {
   await newNote(page, 'Above\nBelow')
   await line(page, 0).click()
   await page.keyboard.press('End')
-  await page.keyboard.press('ControlOrMeta+Shift+Minus')
+  await page.keyboard.press('ControlOrMeta+Shift+h')
   expect(await lines(page)).toEqual(['Above', '', '---', '', 'Below'])
   // The cursor waits on the new line under the rule.
   await page.keyboard.insertText('typed')
@@ -110,7 +110,7 @@ test('Shift+Cmd+- inserts a horizontal rule under the line, and the palette offe
   await page.keyboard.press('End')
   await search(page, 'horizontal rule')
   await expect(commandOptions(page).first()).toContainText('Horizontal Rule')
-  await expect(commandOptions(page).first()).toContainText('⇧⌘-')
+  await expect(commandOptions(page).first()).toContainText('⇧⌘H')
   await paletteField(page).press('Enter')
   expect(await lines(page)).toEqual(['Above', 'Below', '', '---', ''])
   await expect(body(page)).toBeFocused()

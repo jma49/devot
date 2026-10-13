@@ -18,7 +18,7 @@ describe('the selection toolbar buttons', () => {
 
   it('show the command name and its key from the registry', () => {
     expect(tipOf('bold')).toEqual({ title: 'Bold', key: '⌘B' })
-    expect(tipOf('link')).toEqual({ title: 'Link', key: '⌘K' })
+    expect(tipOf('link')).toEqual({ title: 'Link', key: '⌥⌘K' })
     expect(tipOf('codeBlock')).toEqual({ title: 'Code Block', key: '⇧⌘C' })
   })
 
