@@ -91,6 +91,7 @@ async fn attachment(db: &Db, id: String) -> Result<FileRecord, String> {
 /// decoded (as TIFF, four bytes a pixel), and decoding takes a few copies
 /// more, so a larger one would take gigabytes, which a file of a few MB can
 /// ask for. Twice a 48-megapixel photo; Save Image As… takes any size.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const MAX_COPY_PIXELS: u64 = 100_000_000;
 
 /// Puts an attachment on the general pasteboard as image data.
