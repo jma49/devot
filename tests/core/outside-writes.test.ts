@@ -399,4 +399,44 @@ describe('a write made before the window hears of an outside write', () => {
     expect((await sqlite.getNote(id))?.bodyMd).toBe(`start middle${numbers}`)
     expect(problems.at(-1)).toEqual([])
   })
+
+  it('lets a note go when the other deletes it for good before the write is made again', async () => {
+    const path = join(tempDir('devot-outside-'), 'devot.sqlite')
+    const other = openSqliteAdapter(path)
+    open.push(other)
+    const sqlite = openSqliteAdapter(path)
+    open.push(sqlite)
+    // While `racing`, the other process writes the note just before this
+    // one's write, and deletes it for good just before this one reads it again.
+    let racing = false
+    const storage = Object.assign(Object.create(sqlite) as SqliteAdapter, {
+      async putNote(record: NoteRecord) {
+        if (racing) await appendStored(other, record.id, ' theirs')
+        await sqlite.putNote(record)
+      },
+      async getNote(id: string, options?: { trashed?: boolean }) {
+        if (racing) {
+          racing = false
+          await other.purgeNote(id, Date.now(), '9999999999999999-0000-zz')
+        }
+        return sqlite.getNote(id, options)
+      },
+    })
+    const notes = createNoteService({
+      storage,
+      clock: createClock('a1'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+    })
+    const id = await notes.create('Plan')
+    await notes.setBody(id, 'mine')
+    await notes.flush()
+
+    racing = true
+    await notes.setBody(id, 'mine, more')
+    // Storage would take no write of it: nothing is left to save or report.
+    await notes.flush()
+    await expect(notes.open(id)).rejects.toThrow('E_NOTE_NOT_FOUND')
+    expect(await sqlite.getNote(id, { trashed: true })).toBeNull()
+  })
 })
