@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import type { ImportProblem, ImportReport } from '../../core'
 import { countOf, noteCount } from './format'
 import { currentLocale, format, t } from './i18n'
@@ -53,9 +53,11 @@ export function ImportDialog(props: { state: ImportState; onClose: () => void })
     props.onClose()
   }
 
-  useEffect(() => {
+  // Closing it (not only removing it) gives the keyboard back to what had it.
+  useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
+    return () => el?.close()
   }, [])
 
   let content
@@ -123,7 +125,9 @@ export function ImportDialog(props: { state: ImportState; onClose: () => void })
       // WebKit stops honouring preventDefault after a few Escapes in a row
       // and closes the dialog itself: reopen it while importing.
       onClose={() => {
-        if (running) dialog.current?.showModal()
+        // Closed by the window going away (see the layout effect): it is gone.
+        if (!dialog.current || dialog.current.open) return
+        if (running) dialog.current.showModal()
         else close()
       }}
     >

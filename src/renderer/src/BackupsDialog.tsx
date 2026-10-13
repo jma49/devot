@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { backupNow, errorCode, listBackups, type BackupInfo } from './backups'
 import { ConfirmDialog } from './ConfirmDialog'
 import { fileSize } from './format'
@@ -13,6 +13,7 @@ export function BackupsDialog(props: {
   onClose: () => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
+  const done = useRef<HTMLButtonElement>(null)
   const [backups, setBackups] = useState<BackupInfo[]>()
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
@@ -31,9 +32,16 @@ export function BackupsDialog(props: {
     [],
   )
 
-  useEffect(() => {
+  // Opens on Done, so Return dismisses the sheet and never takes a backup.
+  // Closing it (not only removing it) gives the keyboard back to what had it.
+  useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
+    done.current?.focus()
+    return () => el?.close()
+  }, [])
+
+  useEffect(() => {
     void load()
   }, [load])
 
@@ -62,7 +70,9 @@ export function BackupsDialog(props: {
       // and closes the dialog itself: reopen it while busy, else tell App.
       onClose={(e) => {
         if (e.target !== e.currentTarget) return
-        if (busy) dialog.current?.showModal()
+        // Closed by the window going away (see the layout effect): it is gone.
+        if (!dialog.current || dialog.current.open) return
+        if (busy) dialog.current.showModal()
         else props.onClose()
       }}
     >
@@ -88,9 +98,11 @@ export function BackupsDialog(props: {
                 <button
                   type="button"
                   className="button"
-                  disabled={busy}
+                  aria-disabled={busy}
                   aria-label={format(t('backups.restoreLabel'), { date })}
-                  onClick={() => setConfirm(b)}
+                  onClick={() => {
+                    if (!busy) setConfirm(b)
+                  }}
                 >
                   {t('backups.restore')}
                 </button>
@@ -103,12 +115,22 @@ export function BackupsDialog(props: {
         <button
           type="button"
           className="button"
-          disabled={busy}
-          onClick={() => void run(() => backupNow().then(load))}
+          aria-disabled={busy}
+          onClick={() => {
+            if (!busy) void run(() => backupNow().then(load))
+          }}
         >
           {t('backups.now')}
         </button>
-        <button type="button" className="button" disabled={busy} onClick={props.onClose} autoFocus>
+        <button
+          type="button"
+          className="button"
+          aria-disabled={busy}
+          ref={done}
+          onClick={() => {
+            if (!busy) props.onClose()
+          }}
+        >
           {t('backups.done')}
         </button>
       </div>

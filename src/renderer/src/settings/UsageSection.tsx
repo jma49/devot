@@ -125,21 +125,26 @@ export function UsageSection() {
           </table>
         </>
       )}
+      {/* aria-disabled, not disabled: clearing leaves the keyboard on Clear. */}
       <div className="settings-actions">
         <button
           type="button"
           className="button"
           aria-expanded={shown && count > 0}
-          disabled={count === 0}
-          onClick={() => setShown((s) => !s)}
+          aria-disabled={count === 0}
+          onClick={() => {
+            if (count > 0) setShown((s) => !s)
+          }}
         >
           {shown && count > 0 ? t('usage.hide') : t('usage.show')}
         </button>
         <button
           type="button"
           className="button"
-          disabled={count === 0}
-          onClick={() => setConfirming(true)}
+          aria-disabled={count === 0}
+          onClick={() => {
+            if (count > 0) setConfirming(true)
+          }}
         >
           {t('usage.clear')}
         </button>

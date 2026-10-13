@@ -74,6 +74,7 @@ import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, type Core } from './core-client'
 import { currentFocusStore, currentSidebarStore } from './focus'
+import { useFocusRescue } from './focusRescue'
 import { currentLastStateStore, restorePlan, type LastState, type NoteState } from './lastState'
 import type { FindTarget } from './find/target'
 import { useFind } from './find/useFind'
@@ -1549,6 +1550,8 @@ export function App() {
     if (to) targets[to]?.()
   }
   usePaneTab(moveArea)
+  // The keyboard never stays on the page when what had it goes away.
+  useFocusRescue(() => editorRef.current)
 
   // Hiding or showing the sidebar. Focus mode hides it too, so showing it
   // leaves focus mode. When it hides with the keyboard, the list takes it;
@@ -1900,13 +1903,17 @@ export function App() {
     setSelected(id)
   })
   const trashKey = useStable((action: TrashAction, id: string) => void trashAction(action, id))
-  const askEmptyTrash = useStable(() => setConfirm({ kind: 'empty' }))
+  const askEmptyTrash = useStable(() => {
+    if (trash.length > 0) setConfirm({ kind: 'empty' })
+  })
+  // aria-disabled, not disabled: a disabled button would drop the keyboard
+  // when the Trash is emptied from it.
   const emptyTrashButton = useMemo(
     () => (
       <button
         type="button"
         className="button"
-        disabled={trash.length === 0}
+        aria-disabled={trash.length === 0}
         onClick={askEmptyTrash}
       >
         {t('trash.empty')}
