@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, reloadApp, test } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -69,7 +69,7 @@ const stored = (page: Page) =>
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await reloadApp(page)
 })
 
 test('pasting an image stores it and inserts a devot://file link', async ({ page }) => {
@@ -126,7 +126,8 @@ test('a file that only claims to be an image is refused', async ({ page }) => {
       bytes: [...new TextEncoder().encode('<svg onload=alert(1)>')],
     },
   ])
-  await page.waitForTimeout(300)
+  // The refusal is reported: the app acted on the file before the checks below.
+  await expect(page.getByRole('alert')).toHaveText(/\(E_FILE_TYPE_REFUSED\)/)
   await expect(body(page)).not.toContainText('devot://file/')
   expect(await stored(page)).toEqual([])
 })

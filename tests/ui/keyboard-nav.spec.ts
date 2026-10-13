@@ -5,7 +5,7 @@
 // registry's Mod matches metaKey on every platform); editor keys are
 // platform-neutral, and the caret is placed by typing and clicking only.
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, test, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, reloadApp, test, type TestWindow } from './fixtures'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
@@ -94,7 +94,7 @@ const pickViewHideSidebar = (page: Page) =>
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await reloadApp(page)
 })
 
 test.describe('Back and Forward', () => {
@@ -242,7 +242,7 @@ test('Return on a row edits the title, Cmd+Return the body', async ({ page }) =>
   // shows the editor. (The window starts with no note open: it forgets where
   // it was.)
   await page.addInitScript(() => localStorage.removeItem('devot.lastState.main'))
-  await page.reload()
+  await reloadApp(page)
   await expect(titleField(page)).toBeHidden()
   await noteRow(page, 'Beta').focus()
   await page.keyboard.press('Enter')
@@ -450,7 +450,7 @@ test.describe('the sidebar', () => {
     const show = page.getByRole('button', { name: 'Show Sidebar' })
     await expect(show).toHaveAttribute('title', 'Show Sidebar (⌘/)')
 
-    await page.reload()
+    await reloadApp(page)
     await expect(page.getByRole('region', { name: 'Notes' })).toBeVisible()
     await expect(sidebar(page)).toBeHidden()
     await expect
@@ -466,7 +466,7 @@ test.describe('the sidebar', () => {
     await expect(sidebar(page)).toBeHidden()
     await page.keyboard.press('Meta+Slash')
     await expect(sidebar(page)).toBeVisible()
-    await page.reload()
+    await reloadApp(page)
     await expect(sidebar(page)).toBeVisible()
   })
 

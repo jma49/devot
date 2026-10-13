@@ -16,6 +16,8 @@ interface StoredNote {
   bodyMd: string
   bookId: string | null
   pinned: boolean
+  /** Empty until the pin was written once. */
+  pinnedHlc: string
   deletedAt: number | null
 }
 
@@ -424,9 +426,16 @@ test('pressing P twice quickly pins and then unpins', async ({ page }) => {
       row.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', bubbles: true }))
     }
   })
-  await page.waitForTimeout(500)
+  // The positive signal first: the pin was written (its clock is set) and
+  // is off again, so both presses ran. A swallowed second press would leave
+  // it pinned; a swallowed first one leaves the clock empty.
+  await expect
+    .poll(async () => {
+      const note = (await stored(page))[0]
+      return { pinned: note?.pinned, written: (note?.pinnedHlc ?? '') !== '' }
+    })
+    .toEqual({ pinned: false, written: true })
   await expect(pinnedHeader(page)).toHaveCount(0)
-  await expect.poll(async () => (await stored(page))[0]?.pinned).toBe(false)
 })
 
 test('fast arrow keys reach the last row while notes are still opening', async ({ page }) => {

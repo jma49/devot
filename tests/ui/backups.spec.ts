@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, openApp, test, type TestWindow } from './fixtures'
 
 const OLD = {
   id: 'devot-2026-10-08T09-00-00-000Z.sqlite',
@@ -16,7 +16,7 @@ async function open(page: Page, mocks: Record<string, unknown>) {
   await page.addInitScript((m) => {
     ;(globalThis as unknown as TestWindow).devotIpcMocks = m
   }, mocks)
-  await page.goto('/')
+  await openApp(page)
 }
 
 // The app listens for the menu event only once it has started; dispatching
@@ -144,7 +144,7 @@ test('stays open through repeated Escapes while busy, then closes', async ({ pag
       },
     }
   }, NEW)
-  await page.goto('/')
+  await openApp(page)
   await showBackups(page)
   const dialog = page.getByRole('dialog', { name: 'Backups' })
   await dialog.getByRole('button', { name: 'Back Up Now' }).click()
