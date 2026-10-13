@@ -168,8 +168,16 @@ describe('the editor keymap', () => {
     const window = COMMANDS.flatMap((c) =>
       c.scope === 'window' ? c.keys.map(shortcutCodeMirror) : [],
     )
-    expect(window).toEqual(expect.arrayContaining(['Mod-k', 'Mod-p', 'Shift-Mod-]', 'Mod-/']))
-    expect(keys.filter((key) => key !== undefined && window.includes(key))).toEqual([])
+    expect(window).toEqual(
+      expect.arrayContaining(['Mod-k', 'Mod-p', 'Shift-Mod-]', 'Mod-/', 'Mod-[', 'Mod-]']),
+    )
+    // An arrow key stays the editor's: Cmd+Left and Cmd+Right move the caret
+    // (Back and Forward take them only outside text fields).
+    const moving = window.filter((key) => /(^|-)Arrow/.test(key))
+    expect(moving).toEqual(['Mod-ArrowLeft', 'Mod-ArrowRight'])
+    expect(
+      keys.filter((key) => key !== undefined && window.includes(key) && !moving.includes(key)),
+    ).toEqual([])
   })
 
   it('indents with Tab and outdents with Shift+Tab', () => {

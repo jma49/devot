@@ -156,6 +156,9 @@ export const coreApi = {
   setBook: (id: string, bookId: string | null) => required().setBook(id, bookId),
   setStatus: (id: string, status: NoteStatus) => required().setStatus(id, status),
   setPinned: (id: string, pinned: boolean) => required().setPinned(id, pinned),
+  /** Sets a note's created and/or updated date by hand (the preview's info card). */
+  setNoteDates: (id: string, dates: { createdAt?: number; updatedAt?: number }) =>
+    required().setDates(id, dates),
   /** One change to several notes, note by note (see applyBatch). */
   batch: (ids: string[], change: BatchChange) =>
     applyBatch({ notes: required(), tags: requiredTags() }, ids, change),
@@ -208,6 +211,12 @@ export const coreApi = {
   /** Makes a note from a template at `now`; it goes to `bookId` unless the template names one. */
   applyTemplate: (id: string, now: number, bookId: string | null) =>
     requiredTemplates().apply(id, { now }, bookId),
+  /**
+   * Fills note `noteId` from a template at `now`, keeping the note's own
+   * title, text, tags and status (the empty note's "Choose a template").
+   */
+  applyTemplateTo: (id: string, noteId: string, now: number) =>
+    requiredTemplates().applyTo(id, noteId, { now }),
   listBooks: () => requiredBooks().list(),
   createBook: (name: string, parentId: string | null) => requiredBooks().create(name, parentId),
   renameBook: (id: string, name: string) => requiredBooks().rename(id, name),

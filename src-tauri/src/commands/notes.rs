@@ -40,6 +40,9 @@ pub struct NoteDto {
     pub pinned_hlc: String,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Empty when the dates were never set by hand.
+    #[serde(default)]
+    pub dates_hlc: String,
     pub deleted_at: Option<i64>,
     pub deleted_hlc: Option<String>,
 }
@@ -61,6 +64,7 @@ impl From<NoteRecord> for NoteDto {
             pinned_hlc: note.pinned_hlc,
             created_at: note.created_at,
             updated_at: note.updated_at,
+            dates_hlc: note.dates_hlc,
             deleted_at: note.deleted_at,
             deleted_hlc: note.deleted_hlc,
         }
@@ -100,7 +104,10 @@ impl NoteDto {
             return Err("E_NOTE_STATUS_INVALID");
         }
         let optional_hlc = |hlc: &str| hlc.is_empty() || valid_hlc(hlc);
-        if !optional_hlc(&self.status_hlc) || !optional_hlc(&self.pinned_hlc) {
+        if !optional_hlc(&self.status_hlc)
+            || !optional_hlc(&self.pinned_hlc)
+            || !optional_hlc(&self.dates_hlc)
+        {
             return Err("E_NOTE_HLC_INVALID");
         }
         if self.body_md.len() > MAX_BODY_BYTES {
@@ -133,6 +140,7 @@ impl NoteDto {
             pinned_hlc: self.pinned_hlc,
             created_at: self.created_at,
             updated_at: self.updated_at,
+            dates_hlc: self.dates_hlc,
             deleted_at: self.deleted_at,
             deleted_hlc: self.deleted_hlc,
         })
@@ -274,6 +282,7 @@ mod tests {
             pinned_hlc: "0001728000000003-0000-node".into(),
             created_at: 1,
             updated_at: 2,
+            dates_hlc: "0001728000000004-0000-node".into(),
             deleted_at: None,
             deleted_hlc: None,
         }
@@ -340,8 +349,9 @@ mod tests {
     #[test]
     fn rejects_bad_fields() {
         type Case = (fn(&mut NoteDto), &'static str);
-        let cases: [Case; 15] = [
+        let cases: [Case; 16] = [
             (|n| n.status = "urgent".into(), "E_NOTE_STATUS_INVALID"),
+            (|n| n.dates_hlc = "x".repeat(65), "E_NOTE_HLC_INVALID"),
             (
                 |n| n.pinned_hlc = "bad hlc ".repeat(20),
                 "E_NOTE_HLC_INVALID",

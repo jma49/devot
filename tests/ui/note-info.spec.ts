@@ -44,3 +44,33 @@ test('leaves Progress out for a note without tasks', async ({ page }) => {
   await expect(card(page)).toContainText('Created at')
   await expect(card(page)).not.toContainText('Progress')
 })
+
+test('a date on the card is edited in a date-time field: Return saves, Escape cancels', async ({
+  page,
+}) => {
+  await newNote(page, 'Dated', 'Some text.')
+  await showPreview(page)
+  const created = card(page).locator('time[data-info="created"]')
+  const updated = card(page).locator('time[data-info="updated"]')
+  await expect(created).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+  const updatedBefore = await updated.textContent()
+
+  await created.click()
+  const field = card(page).locator('input[data-info-edit="created"]')
+  await expect(field).toBeFocused()
+  await field.fill('2020-01-02T03:04:05')
+  await page.keyboard.press('Enter')
+  await expect(field).toHaveCount(0)
+  await expect(created).toHaveText('2020-01-02 03:04:05')
+  // Setting the creation date leaves the update date as it was.
+  await expect(updated).toHaveText(updatedBefore ?? '')
+
+  // Escape puts the date back and writes nothing.
+  await updated.click()
+  const other = card(page).locator('input[data-info-edit="updated"]')
+  await other.fill('2021-05-06T07:08:09')
+  await page.keyboard.press('Escape')
+  await expect(other).toHaveCount(0)
+  await expect(updated).toHaveText(updatedBefore ?? '')
+  await expect(created).toHaveText('2020-01-02 03:04:05')
+})

@@ -274,7 +274,8 @@ export interface TemplateService {
    * Fills note `noteId` from template `id`, keeping what the note has: its
    * tags and status stay (the template's tags are added; its status is used
    * only while the note has none), its title stays unless empty, and the
-   * template's body goes after the note's own text.
+   * template's body goes after the note's own text (with its own copies
+   * of the template's images).
    */
   applyTo(id: string, noteId: string, clock: TemplateClock): Promise<void>
   /**
@@ -376,8 +377,12 @@ export function createTemplateService(options: TemplateServiceOptions): Template
       await notes.flush()
       const status = (await storage.listNotes()).find((n) => n.id === noteId)?.status ?? 'none'
       if (note.title === '' && made.title !== '') await notes.setTitle(noteId, made.title)
+      // The note gets its own copies of the template's images, as a new note does.
+      const copies = newFileCopies(made.body, newId)
+      if (copies.length > 0) await storage.copyFiles(noteId, copies)
+      const body = replaceFileLinks(made.body, copies)
       const own = note.bodyMd.trimEnd()
-      await notes.setBody(noteId, own === '' ? made.body : `${own}\n\n${made.body}`)
+      await notes.setBody(noteId, own === '' ? body : `${own}\n\n${body}`)
       if (made.status !== null && made.status !== 'none' && status === 'none') {
         await notes.setStatus(noteId, made.status)
       }

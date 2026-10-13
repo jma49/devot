@@ -19,6 +19,7 @@ fn note(id: &str, title: &str, updated_at: i64) -> NoteRecord {
         pinned_hlc: String::new(),
         created_at: 1,
         updated_at,
+        dates_hlc: String::new(),
         deleted_at: None,
         deleted_hlc: None,
     }
@@ -232,6 +233,27 @@ fn put_replaces_an_existing_note_but_keeps_created_at() {
     let stored = store.get_note("a", false).unwrap().unwrap();
     assert_eq!(stored.title, "New");
     assert_eq!(stored.created_at, 1, "created_at is set once");
+}
+
+#[test]
+fn hand_set_dates_with_a_newer_hlc_replace_both_dates() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "A", 50), &[]).unwrap();
+    let mut set = based_on(1, note("a", "A", 50));
+    set.created_at = 5;
+    set.updated_at = 20;
+    set.dates_hlc = "0000000000060-0000-test".into();
+    store.put_note(&set, &[]).unwrap();
+    let stored = store.get_note("a", false).unwrap().unwrap();
+    assert_eq!((stored.created_at, stored.updated_at), (5, 20));
+
+    // A stale write (older dates HLC) keeps them; its update time only moves on.
+    let mut stale = based_on(2, note("a", "A", 30));
+    stale.created_at = 1;
+    store.put_note(&stale, &[]).unwrap();
+    let stored = store.get_note("a", false).unwrap().unwrap();
+    assert_eq!((stored.created_at, stored.updated_at), (5, 30));
+    assert_eq!(stored.dates_hlc, "0000000000060-0000-test");
 }
 
 #[test]

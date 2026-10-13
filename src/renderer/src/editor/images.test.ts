@@ -115,7 +115,7 @@ describe('setting an image size', () => {
     const change = imageSizeChange(s, image, 'small')
     expect(change).not.toBeNull()
     s = s.update(change!).state
-    expect(s.doc.toString()).toBe(`Look: ![a w:30%](${FILE} "T") here`)
+    expect(s.doc.toString()).toBe(`Look: ![a w:240](${FILE} "T") here`)
     s = s.update(imageSizeChange(s, findImages(s)[0]!, 'auto')!).state
     expect(s.doc.toString()).toBe(doc)
     s = s.update(imageSizeChange(s, findImages(s)[0]!, 'full')!).state
@@ -140,7 +140,7 @@ describe('setting an image size', () => {
     // An image whose URL has another fragment takes a size too.
     let t = state('![x](y.png#page)')
     t = t.update(imageSizeChange(t, findImages(t)[0]!, 'small')!).state
-    expect(t.doc.toString()).toBe('![x w:30%](y.png#page)')
+    expect(t.doc.toString()).toBe('![x w:240](y.png#page)')
   })
 
   it('does nothing when the image has changed since it was found', () => {

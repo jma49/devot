@@ -91,6 +91,7 @@ mod tests {
             pinned_hlc: String::new(),
             created_at: 1,
             updated_at: 1,
+            dates_hlc: String::new(),
             deleted_at: None,
             deleted_hlc: None,
         }
