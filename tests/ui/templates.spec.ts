@@ -14,8 +14,11 @@ const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).lo
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const picker = (page: Page) => page.getByRole('dialog', { name: 'New Note from Template' })
+// The user's own templates; the built-in group is counted apart.
 const pickerOptions = (page: Page) =>
-  picker(page).getByRole('listbox', { name: 'Templates' }).getByRole('option')
+  picker(page).locator('[role="group"]:not([aria-label="Built-in"]) [role="option"]')
+const builtInOptions = (page: Page) =>
+  picker(page).getByRole('group', { name: 'Built-in' }).getByRole('option')
 const preview = (page: Page) => picker(page).getByRole('region', { name: 'Preview' })
 
 /** Makes a template in the Templates view (shown first) with a title and a body. */
@@ -207,17 +210,40 @@ test('the command palette offers New Note from Template', async ({ page }) => {
   await expect(pickerOptions(page)).toHaveText(['Daily'])
 })
 
-test('with no templates the picker says how to add one', async ({ page }) => {
+test('with no templates of your own the picker offers the built-in ones', async ({ page }) => {
   // Cmd+T works once the core is up, as New Note does.
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
   await page.keyboard.press('Meta+KeyT')
-  await expect(picker(page)).toContainText('No templates yet')
-  await expect(picker(page).getByRole('button', { name: 'Create' })).toBeDisabled()
+  await expect(pickerOptions(page)).toHaveCount(0)
+  await expect(builtInOptions(page)).toHaveText([
+    'Brainstorming',
+    'Debugging',
+    'Learning',
+    'Planning',
+    'Daily Report',
+  ])
+  // The instruction quote shows in the template's own preview, not in the note.
+  await expect(picker(page).getByRole('button', { name: 'Create' })).toBeEnabled()
+  await picker(page).getByRole('combobox', { name: 'Filter templates' }).fill('daily')
   await page.keyboard.press('Enter')
-  await expect(picker(page)).toBeVisible()
-  await page.keyboard.press('Escape')
   await expect(picker(page)).toHaveCount(0)
-  await expect(noteRows(page)).toHaveCount(0)
+  await expect(titleField(page)).toHaveValue(/^Daily Report \d{4}-\d\d-\d\d$/)
+  await expect(body(page)).not.toContainText('!Instructions')
+  await expect(noteRows(page)).toHaveCount(1)
+})
+
+test('built-in templates are read-only in the Templates view; Edit a Copy makes one of your own', async ({
+  page,
+}) => {
+  await templatesRow(page).click()
+  const group = page.getByRole('group', { name: 'Built-in' })
+  await expect(group.getByRole('button')).toHaveCount(5)
+  await group.getByRole('button', { name: 'Planning' }).click()
+  await expect(page.getByRole('region', { name: 'Planning' })).toContainText('!Instructions')
+  await page.getByRole('button', { name: 'Edit a Copy' }).click()
+  await expect(titleField(page)).toHaveValue('Planning')
+  await expect(noteRows(page)).toHaveCount(1)
+  await expect(templatesRow(page)).toHaveText(/1$/)
 })
 
 test('keys that end or steer an input method composition make no note', async ({ page }) => {

@@ -194,6 +194,12 @@ export const coreApi = {
   listWithTemplates: () => requiredTemplates().listWithNotes(),
   createTemplate: () => requiredTemplates().create(),
   /**
+   * Saves an edit of a template; a built-in one is read-only, so the edit
+   * goes to a new template of the user's own (its ID is returned).
+   */
+  saveTemplate: (id: string, edit: { title?: string; body?: string }) =>
+    requiredTemplates().save(id, edit),
+  /**
    * What a note made from a template at `now` (the page's clock) would get,
    * and its notebook (`bookId` unless the template names one).
    */

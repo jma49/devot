@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { NoteSummary } from '../../../core'
 import type { BookNode } from '../../../core/books'
-import { commandEntries, libraryEntries } from './entries'
+import { commandEntries, libraryEntries, outlineEntries, withTagClause } from './entries'
 
 const node = (id: string, name: string, children: BookNode[] = [], depth = 0): BookNode => ({
   id,
@@ -78,9 +78,72 @@ describe('commandEntries', () => {
       (key) => `<${key}>`,
     )
     expect(list).toEqual([
-      { kind: 'command', id: 'note.pin', label: '<note.unpin>', shortcut: 'P' },
-      { kind: 'command', id: 'note.copyId', label: '<noteMenu.copyId>' },
-      { kind: 'command', id: 'view.focus', label: '<mode.focus>', shortcut: '\u21e7\u2318D' },
+      {
+        kind: 'command',
+        id: 'note.pin',
+        label: '<note.unpin>',
+        description: '<palette.group.note>',
+        shortcut: 'P',
+      },
+      {
+        kind: 'command',
+        id: 'note.copyId',
+        label: '<noteMenu.copyId>',
+        description: '<palette.group.note>',
+      },
+      {
+        kind: 'command',
+        id: 'view.focus',
+        label: '<mode.focus>',
+        description: '<palette.group.view>',
+        shortcut: '\u21e7\u2318D',
+      },
     ])
+  })
+})
+
+describe('outlineEntries', () => {
+  const doc = [
+    '---',
+    '# not a heading',
+    '---',
+    '# Title',
+    '',
+    '- [ ] first',
+    '## Part',
+    '```',
+    '# in code',
+    '- [ ] in code',
+    '```',
+    '- [x] done',
+    '  - [ ] nested',
+    '### Deep ###',
+    'text',
+    '#NoSpace',
+  ].join('\n')
+
+  it('lists headings and tasks in document order, with their levels and lines', () => {
+    expect(
+      outlineEntries(doc).map((e) => [e.label, e.line, e.level, e.depth, e.done ?? null]),
+    ).toEqual([
+      ['Title', 4, 1, 0, null],
+      ['first', 6, 0, 1, false],
+      ['Part', 7, 2, 1, null],
+      ['done', 12, 0, 2, true],
+      ['nested', 13, 0, 3, false],
+      ['Deep', 14, 3, 2, null],
+    ])
+  })
+
+  it('is empty for a note without headings or tasks', () => {
+    expect(outlineEntries('just text\n\nmore')).toEqual([])
+  })
+})
+
+describe('withTagClause', () => {
+  it('adds a tag clause once, quoting names with spaces', () => {
+    expect(withTagClause('', 'urgent')).toBe('tag:urgent ')
+    expect(withTagClause('milk', 'deep focus')).toBe('milk tag:"deep focus" ')
+    expect(withTagClause('tag:urgent ', 'urgent')).toBe('tag:urgent ')
   })
 })

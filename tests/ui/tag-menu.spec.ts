@@ -106,7 +106,7 @@ test('right-click shows the native tag menu with a Colour submenu', async ({ pag
   await setUp(page)
   await openMenu(page, 'sync')
   expect(await shownMenu(page)).toEqual([
-    'Rename F2',
+    'Tag Settings…',
     'Colour >',
     '  None [x]',
     '  Red [ ]',
@@ -206,10 +206,10 @@ test('keys set in Settings filter by a tag and copy its ID from its row', async 
   await expect(header(page)).toHaveText('All Notes')
 })
 
-test('Rename edits the name in place; the chips follow', async ({ page }) => {
+test('F2 edits the name in place; the chips follow', async ({ page }) => {
   await setUp(page)
-  await openMenu(page, 'idea')
-  await pickMenuItem(page, 'Rename')
+  await tagRow(page, 'idea').focus()
+  await page.keyboard.press('F2')
   const field = sidebar(page).getByRole('textbox', { name: 'Tag name' })
   await expect(field).toBeFocused()
   await expect(field).toHaveValue('idea')
@@ -237,4 +237,18 @@ test('Delete Tag asks first, then removes it from the sidebar and every note', a
   await expect(tagRow(page, 'sync')).toHaveText(/1$/)
   await expect(noteRows(page).locator('.chip', { hasText: 'idea' })).toHaveCount(0)
   await expect(editorTags(page)).not.toContainText('idea')
+})
+
+test('Tag Settings sets the name and the colour from the tag palette', async ({ page }) => {
+  await setUp(page)
+  await openMenu(page, 'idea')
+  await pickMenuItem(page, 'Tag Settings…')
+  const dialog = page.getByRole('dialog', { name: 'Tag Settings' })
+  await expect(dialog.getByRole('textbox', { name: 'Tag name' })).toHaveValue('idea')
+  await dialog.getByRole('textbox', { name: 'Tag name' }).fill('thoughts')
+  await dialog.getByRole('radio', { name: 'Blue' }).click()
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(tagRow(page, 'thoughts')).toBeVisible()
+  expect((await storedTags(page)).find((t) => t.name === 'thoughts')?.color).toBe('blue')
 })

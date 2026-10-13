@@ -7,6 +7,7 @@ import {
   type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react'
 import { MAX_BOOK_NAME_CHARS, type BookNode } from '../../core/books'
 import type { NoteStatus, TagColor, TagRecord } from '../../core/storage'
@@ -19,13 +20,17 @@ import { titleWithKey } from './commands/titles'
 import { useContextMenu, type MenuPoint } from './contextMenu'
 import type { IconName } from './icons/symbols'
 import type { MessageKey } from './i18n'
-import { currentLocale, t } from './i18n'
+import { currentLocale, format as fill, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
 import { copyText } from './noteMenu'
 import { TAG_MENU, colorOfAction, tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
+import { MoveBookDialog } from './MoveBookDialog'
+import { SidebarFooter } from './SidebarFooter'
+import { currentSectionStore, type CollapsibleSection, type SectionStore } from './sidebarSections'
 import { TagDot } from './TagEditor'
+import { TagSettingsDialog } from './TagSettingsDialog'
 
 export type Selection =
   | { kind: 'all' }
@@ -159,6 +164,12 @@ interface Props {
   trashCount: number
   /** Hides the sidebar (its title bar's button). */
   onHide: () => void
+  /** Opens the command palette scoped to notebooks (the Notebooks header's search button). */
+  onSearchBooks: () => void
+  /** Opens the command palette scoped to tags (the Tags header's search button). */
+  onSearchTags: () => void
+  /** Where the collapsed sections are kept; this window's local storage by default. */
+  sectionStore?: SectionStore
 }
 
 const STATUSES: { status: NoteStatus; icon: IconName; label: MessageKey }[] = [
@@ -279,6 +290,20 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   useKeymap()
   const { tree, counts, selection, renaming } = props
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
+  // Status and Tags fold; the choice is a view preference kept per window.
+  const sections = useMemo(() => props.sectionStore ?? currentSectionStore(), [props.sectionStore])
+  const [folded, setFolded] = useState<ReadonlySet<CollapsibleSection>>(() => sections.load())
+  const toggleSection = (section: CollapsibleSection, open?: boolean) => {
+    const next = new Set(folded)
+    if (open ?? next.has(section)) next.delete(section)
+    else next.add(section)
+    setFolded(next)
+    sections.save(next)
+  }
+  const sectionToggles = useRef(new Map<CollapsibleSection, HTMLButtonElement>())
+  // A notebook whose Move dialog is open, and a tag whose settings are.
+  const [movingBook, setMovingBook] = useState<PlacedNode>()
+  const [tagSettings, setTagSettings] = useState<string>()
   const [editing, setEditing] = useState<string>()
   const [dropAt, setDropAt] = useState<DropAt>()
   // The notebook being dragged from this sidebar with its sub-notebooks: where it cannot go.
@@ -400,12 +425,16 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const rowOrder: Row[] = [
     libraryRow({ kind: 'all' }),
     filterRowOf({ kind: 'pinned' }),
-    ...rowList.map((n) => libraryRow({ kind: 'book', id: n.id })),
-    ...STATUSES.map((s) => filterRowOf({ kind: 'status', status: s.status })),
-    ...props.tags.flatMap((tag) =>
-      tag.id === editingTag ? [] : [filterRowOf({ kind: 'tag', tagId: tag.id })],
-    ),
     libraryRow({ kind: 'templates' }),
+    ...rowList.map((n) => libraryRow({ kind: 'book', id: n.id })),
+    ...(folded.has('status')
+      ? []
+      : STATUSES.map((s) => filterRowOf({ kind: 'status', status: s.status }))),
+    ...(folded.has('tags')
+      ? []
+      : props.tags.flatMap((tag) =>
+          tag.id === editingTag ? [] : [filterRowOf({ kind: 'tag', tagId: tag.id })],
+        )),
     libraryRow({ kind: 'trash' }),
   ]
   const shownKey = props.filter
@@ -441,6 +470,19 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     const key = event.target instanceof HTMLElement ? event.target.dataset['sidebarRow'] : undefined
     if (key === undefined || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
       return
+    // Left folds the Status or Tags section a row is in, and the keyboard
+    // moves to the section's chevron; Right there unfolds it.
+    const section: CollapsibleSection | undefined = key.startsWith('status:')
+      ? 'status'
+      : key.startsWith('tag:')
+        ? 'tags'
+        : undefined
+    if (section && event.key === 'ArrowLeft') {
+      event.preventDefault()
+      toggleSection(section, false)
+      sectionToggles.current.get(section)?.focus()
+      return
+    }
     const at = rowOrder.findIndex((r) => r.key === key)
     const moves: Record<string, Row | undefined> = {
       ArrowDown: rowOrder[at + 1],
@@ -479,6 +521,10 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   /** Runs a notebook action, from the menu or a key, on that notebook. */
   const runAction = (action: BookAction, node: PlacedNode) => {
     switch (action) {
+      case 'copyId':
+        return void copyText(node.id).catch(() => console.warn('W_BOOK_COPY_FAILED', node.id))
+      case 'move':
+        return setMovingBook(node)
       case 'newInside':
         // Open it, so the new notebook shows inside.
         toggle(node.id, true)
@@ -514,6 +560,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     switch (action) {
       case 'rename':
         return setEditingTag(tag.id)
+      case 'settings':
+        return setTagSettings(tag.id)
       case 'filter':
         return props.onFilter(tag.filtered ? null : { kind: 'tag', tagId: tag.id })
       case 'copyId':
@@ -758,6 +806,56 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     )
   }
 
+  const settingsTag = props.tags.find((tag) => tag.id === tagSettings)
+
+  /**
+   * A section's header: its name, `tools` before the chevron, and (for Status
+   * and Tags) the chevron that folds it: down while it is open, up while it
+   * is folded.
+   */
+  const sectionHeader = (
+    section: CollapsibleSection,
+    headingId: string,
+    label: string,
+    listId: string,
+    tools: ReactNode,
+  ) => {
+    const isFolded = folded.has(section)
+    return (
+      <div className="section-header">
+        <span id={headingId}>{label}</span>
+        <span className="section-tools">
+          {tools}
+          <button
+            type="button"
+            className="tool tool-small"
+            ref={(el) => {
+              if (el) sectionToggles.current.set(section, el)
+              else sectionToggles.current.delete(section)
+            }}
+            aria-label={fill(t(isFolded ? 'sidebar.expandSection' : 'sidebar.collapseSection'), {
+              section: label,
+            })}
+            aria-expanded={!isFolded}
+            aria-controls={isFolded ? undefined : listId}
+            onClick={() => toggleSection(section)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight' && isFolded) {
+                e.preventDefault()
+                toggleSection(section, true)
+              } else if (e.key === 'ArrowLeft' && !isFolded) {
+                e.preventDefault()
+                toggleSection(section, false)
+              }
+            }}
+          >
+            <Icon name={isFolded ? 'disclosure.up' : 'disclosure.open'} size="sm" />
+          </button>
+        </span>
+      </div>
+    )
+  }
+
   return (
     <nav
       className="sidebar"
@@ -794,100 +892,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         <li>
           {filterRow({ kind: 'pinned' }, 'notes.pinned', t('sidebar.pinned'), props.pinnedCount)}
         </li>
-      </ul>
-      <div
-        className={`section-header${dropAt && dropAt.id === null ? ' drop-target' : ''}`}
-        onDragEnter={(e) => onDragOver(e, null)}
-        onDragOver={(e) => onDragOver(e, null)}
-        onDragLeave={(e) => onDragLeave(e, null)}
-        onDrop={(e) => onDrop(e, null)}
-      >
-        <span id="notebooks-heading">{t('sidebar.notebooks')}</span>
-        <button
-          type="button"
-          className="tool tool-small"
-          aria-label={t('book.new')}
-          title={t('book.new')}
-          onClick={() => props.onCreateBook?.(null)}
-          disabled={!props.onCreateBook}
-        >
-          <Icon name="notebook.new" size="sm" />
-        </button>
-      </div>
-      <ul className="books" role="tree" aria-labelledby="notebooks-heading">
-        {tree.map(renderNode)}
-      </ul>
-      <div className="section-header">
-        <span id="statuses-heading">{t('sidebar.statuses')}</span>
-      </div>
-      <ul className="sources" aria-labelledby="statuses-heading">
-        {STATUSES.map((s) => (
-          <li key={s.status}>
-            {filterRow(
-              { kind: 'status', status: s.status },
-              s.icon,
-              t(s.label),
-              props.statusCounts.get(s.status) ?? 0,
-              `status-${s.status}`,
-            )}
-          </li>
-        ))}
-      </ul>
-      {props.tags.length > 0 ? (
-        <>
-          <div className="section-header">
-            <span id="tags-heading">{t('sidebar.tags')}</span>
-          </div>
-          <ul className="sources tags" aria-labelledby="tags-heading">
-            {props.tags.map((tag) => (
-              <li
-                key={tag.id}
-                onDoubleClick={() => setEditingTag(tag.id)}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget.firstElementChild) return
-                  if (heldCommandKey(e)) return e.preventDefault()
-                  if (commandMatches('sidebar.rowMenu', e)) {
-                    e.preventDefault()
-                    return void openTagMenu(tag, below(e.target as Element))
-                  }
-                  const action = tagShortcut(e)
-                  if (!action) return
-                  e.preventDefault()
-                  runTagAction(action, tagTarget(tag))
-                }}
-              >
-                {editingTag === tag.id ? (
-                  <div className="source tag-row">
-                    <TagGlyph color={tag.color} />
-                    <NameField
-                      name={tag.name}
-                      max={MAX_TAG_NAME_CHARS}
-                      label="tag.nameLabel"
-                      onDone={(name) => {
-                        setEditingTag(undefined)
-                        const clean = name === null ? '' : trimWhitespace(name)
-                        if (clean && clean !== tag.name) {
-                          props.onRenameTag(tag.id, clean)
-                        }
-                      }}
-                    />
-                  </div>
-                ) : (
-                  filterRow(
-                    { kind: 'tag', tagId: tag.id },
-                    'tag',
-                    tag.name,
-                    props.tagCounts.get(tag.id) ?? 0,
-                    `tag-row${tagMenuTarget === tag.id ? ' menu-target' : ''}`,
-                    { color: tag.color, onMenu: () => void openTagMenu(tag) },
-                  )
-                )}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      <ul className="sources trash-source">
         <li>
           <button
             type="button"
@@ -901,6 +905,125 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             <span className="source-count">{format(props.templatesCount)}</span>
           </button>
         </li>
+      </ul>
+      <div
+        className={`section-header${dropAt && dropAt.id === null ? ' drop-target' : ''}`}
+        onDragEnter={(e) => onDragOver(e, null)}
+        onDragOver={(e) => onDragOver(e, null)}
+        onDragLeave={(e) => onDragLeave(e, null)}
+        onDrop={(e) => onDrop(e, null)}
+      >
+        <span id="notebooks-heading">{t('sidebar.notebooks')}</span>
+        <span className="section-tools">
+          <button
+            type="button"
+            className="tool tool-small"
+            aria-label={t('sidebar.searchNotebooks')}
+            title={t('sidebar.searchNotebooks')}
+            onClick={props.onSearchBooks}
+          >
+            <Icon name="search" size="sm" />
+          </button>
+          <button
+            type="button"
+            className="tool tool-small"
+            aria-label={t('book.new')}
+            title={t('book.new')}
+            onClick={() => props.onCreateBook?.(null)}
+            disabled={!props.onCreateBook}
+          >
+            <Icon name="notebook.new" size="sm" />
+          </button>
+        </span>
+      </div>
+      <ul className="books" role="tree" aria-labelledby="notebooks-heading">
+        {tree.map(renderNode)}
+      </ul>
+      {sectionHeader('status', 'statuses-heading', t('sidebar.statuses'), 'statuses-list', null)}
+      {folded.has('status') ? null : (
+        <ul id="statuses-list" className="sources" aria-labelledby="statuses-heading">
+          {STATUSES.map((s) => (
+            <li key={s.status}>
+              {filterRow(
+                { kind: 'status', status: s.status },
+                s.icon,
+                t(s.label),
+                props.statusCounts.get(s.status) ?? 0,
+                `status-${s.status}`,
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {props.tags.length > 0 ? (
+        <>
+          {sectionHeader(
+            'tags',
+            'tags-heading',
+            t('sidebar.tags'),
+            'tags-list',
+            <button
+              type="button"
+              className="tool tool-small"
+              aria-label={t('sidebar.searchTags')}
+              title={t('sidebar.searchTags')}
+              onClick={props.onSearchTags}
+            >
+              <Icon name="search" size="sm" />
+            </button>,
+          )}
+          {folded.has('tags') ? null : (
+            <ul id="tags-list" className="sources tags" aria-labelledby="tags-heading">
+              {props.tags.map((tag) => (
+                <li
+                  key={tag.id}
+                  onDoubleClick={() => setEditingTag(tag.id)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget.firstElementChild) return
+                    if (heldCommandKey(e)) return e.preventDefault()
+                    if (commandMatches('sidebar.rowMenu', e)) {
+                      e.preventDefault()
+                      return void openTagMenu(tag, below(e.target as Element))
+                    }
+                    const action = tagShortcut(e)
+                    if (!action) return
+                    e.preventDefault()
+                    runTagAction(action, tagTarget(tag))
+                  }}
+                >
+                  {editingTag === tag.id ? (
+                    <div className="source tag-row">
+                      <TagGlyph color={tag.color} />
+                      <NameField
+                        name={tag.name}
+                        max={MAX_TAG_NAME_CHARS}
+                        label="tag.nameLabel"
+                        onDone={(name) => {
+                          setEditingTag(undefined)
+                          const clean = name === null ? '' : trimWhitespace(name)
+                          if (clean && clean !== tag.name) {
+                            props.onRenameTag(tag.id, clean)
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    filterRow(
+                      { kind: 'tag', tagId: tag.id },
+                      'tag',
+                      tag.name,
+                      props.tagCounts.get(tag.id) ?? 0,
+                      `tag-row${tagMenuTarget === tag.id ? ' menu-target' : ''}`,
+                      { color: tag.color, onMenu: () => void openTagMenu(tag) },
+                    )
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : null}
+      <ul className="sources trash-source">
         <li>
           <button
             type="button"
@@ -916,6 +1039,29 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           </button>
         </li>
       </ul>
+      <SidebarFooter />
+      {movingBook ? (
+        <MoveBookDialog
+          tree={tree}
+          book={movingBook}
+          onMove={(parentId) => {
+            props.onMoveBook(movingBook.id, parentId)
+            setMovingBook(undefined)
+          }}
+          onCancel={() => setMovingBook(undefined)}
+        />
+      ) : null}
+      {settingsTag ? (
+        <TagSettingsDialog
+          tag={settingsTag}
+          onSave={({ name, color }) => {
+            if (name !== settingsTag.name) props.onRenameTag(settingsTag.id, name)
+            if (color !== settingsTag.color) props.onSetTagColor(settingsTag.id, color)
+            setTagSettings(undefined)
+          }}
+          onCancel={() => setTagSettings(undefined)}
+        />
+      ) : null}
     </nav>
   )
 })

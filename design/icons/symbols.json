@@ -80,6 +80,9 @@
     "image.size.auto": "photo",
     "image.size.small": "square.grid.3x3.topleft.filled",
     "image.size.half": "square.lefthalf.filled",
-    "image.size.full": "square.fill"
+    "image.size.full": "square.fill",
+    "terminal": "terminal",
+    "disclosure.up": "chevron.up",
+    "outline": "list.bullet.indent"
   }
 }

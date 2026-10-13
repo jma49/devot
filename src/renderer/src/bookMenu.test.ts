@@ -21,15 +21,15 @@ const actions = (book: BookMenuTarget) =>
 describe('BOOK_MENU', () => {
   it('groups the actions; Move to Top Level only for a nested notebook', () => {
     expect(actions(top)).toEqual([
-      ['newInside'],
-      ['rename'],
+      ['copyId', 'newInside'],
+      ['rename', 'move'],
       ['aiAccess'],
       ['exportMarkdown', 'exportHtml'],
       ['delete'],
     ])
     expect(actions(nested)).toEqual([
-      ['newInside'],
-      ['rename', 'moveToTop'],
+      ['copyId', 'newInside'],
+      ['rename', 'move', 'moveToTop'],
       ['aiAccess'],
       ['exportMarkdown', 'exportHtml'],
       ['delete'],
@@ -38,14 +38,15 @@ describe('BOOK_MENU', () => {
 
   it('offers Move Up and Move Down only when there is a sibling that way', () => {
     expect(actions({ ...top, nextId: 'c' })).toEqual([
-      ['newInside'],
-      ['rename', 'moveDown'],
+      ['copyId', 'newInside'],
+      ['rename', 'move', 'moveDown'],
       ['aiAccess'],
       ['exportMarkdown', 'exportHtml'],
       ['delete'],
     ])
     expect(actions({ ...nested, previousId: 'c', nextId: 'd' })[1]).toEqual([
       'rename',
+      'move',
       'moveUp',
       'moveDown',
       'moveToTop',
@@ -60,8 +61,10 @@ describe('BOOK_MENU', () => {
 
   it('labels every item from the catalog', () => {
     expect(BOOK_MENU.flat().map((entry) => entry.label)).toEqual([
+      'bookMenu.copyId',
       'bookMenu.newInside',
       'bookMenu.rename',
+      'bookMenu.move',
       'bookMenu.moveUp',
       'bookMenu.moveDown',
       'bookMenu.moveToTop',

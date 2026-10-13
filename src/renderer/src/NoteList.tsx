@@ -55,6 +55,8 @@ interface Props {
   createLabel?: string | undefined
   /** Replaces the New Note button (the Trash shows Empty Trash). */
   headerAction?: ReactNode
+  /** Shown under the list, outside its scrolling (the Templates view's Built-in group). */
+  after?: ReactNode
   /**
    * A note shortcut pressed in the list (see `noteShortcut`), for the selected
    * note; none in the Trash.
@@ -734,6 +736,7 @@ export const NoteList = memo(function NoteList(props: Props) {
           return out
         })}
       </ul>
+      {props.after}
     </section>
   )
 })

@@ -15,6 +15,7 @@ export const sizes = {
   "font.size.editor-h1": "22px",
   "font.size.editor-h2": "18px",
   "font.size.editor-h3": "15px",
+  "font.size.row": "14px",
   "font.weight.regular": "400",
   "font.weight.semibold": "600",
   "font.weight.bold": "700",
@@ -62,7 +63,9 @@ export const sizes = {
   "size.icon-toolbar": "18px",
   "size.float-toolbar-height": "37px",
   "size.float-button": "28px",
-  "size.link-dialog-width": "300px"
+  "size.link-dialog-width": "300px",
+  "size.palette-width": "650px",
+  "size.sidebar-bar": "3px"
 } as const
 
 export const light = {

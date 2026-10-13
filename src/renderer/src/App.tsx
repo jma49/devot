@@ -68,8 +68,14 @@ import { titleWithKey } from './commands/titles'
 import { ToolTips } from './ToolTips'
 import { COMMANDS, formatOf, insertOf, tableOf, type CommandHandlers } from './commands/registry'
 import { CommandPalette, type PaletteActions } from './palette/CommandPalette'
-import { commandEntries, libraryEntries } from './palette/entries'
-import type { PaletteEntry } from './palette/results'
+import {
+  commandEntries,
+  libraryEntries,
+  outlineEntries,
+  sourceEntries,
+  withTagClause,
+} from './palette/entries'
+import type { PaletteEntry, PaletteSource } from './palette/results'
 import { bookDeleteDetail, noteCount } from './format'
 import { openAfter, selectAll, type ListSelection } from './listSelection'
 import { SelectionSummary } from './SelectionSummary'
@@ -77,6 +83,8 @@ import { TrashView } from './TrashView'
 import { Icon } from './icons/Icon'
 import { StatusPicker } from './StatusPicker'
 import { TagEditor } from './TagEditor'
+import { BuiltInTemplate, BuiltInTemplates } from './BuiltInTemplates'
+import { markWrite } from './lastWrite'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, stopCore, type Core } from './core-client'
@@ -257,6 +265,8 @@ export function App() {
   const [trash, setTrash] = useState<TrashedNote[]>([])
   // Notes in Templates: listed in their own view, never in the library.
   const [templates, setTemplates] = useState<NoteSummary[]>([])
+  // The built-in (starter) template shown read-only in the Templates view.
+  const [builtIn, setBuiltIn] = useState<string>()
   // The template picker (New Note from Template), and the templates used
   // last on this device.
   // The recently used ones are read when it opens.
@@ -419,6 +429,10 @@ export function App() {
   }, [mode, syncScroll, editorPane, previewPane])
   // The command palette, and where the keyboard goes back to when it closes.
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // The source the palette opens scoped to (the sidebar's search buttons), and
+  // the open note's Markdown as it was then (the outline source lists it).
+  const [paletteScope, setPaletteScope] = useState<PaletteSource | undefined>()
+  const [paletteText, setPaletteText] = useState('')
   // Whether the editor's cursor was in a table when the palette opened: the
   // palette offers the table commands then.
   const [paletteInTable, setPaletteInTable] = useState(false)
@@ -463,6 +477,8 @@ export function App() {
   // the reload takes it out, and the keyboard would go to the wrong row.
   const reloadsPending = useRef(0)
   const showWrites = useCallback((writes: ReadonlyMap<string, number>) => {
+    // The sidebar's footer shows when the last write was.
+    for (const at of writes.values()) markWrite(at)
     if (reloadsPending.current > 0) return
     setNotes((list) => withWrites(list, writes))
     setTemplates((list) => withWrites(list, writes))
@@ -1103,6 +1119,8 @@ export function App() {
     // Opening a note shows it alone, unless the selection itself moved the
     // open note (`keepSelection`).
     if (!keepSelection) setMulti(undefined)
+    // A built-in template shown gives way to the note.
+    setBuiltIn(undefined)
     const open = startOpening(id)
     await saveEdits(core)
     // A link may point at a note that is gone; leave the selection alone then.
@@ -1390,6 +1408,27 @@ export function App() {
     await showMade(core, id, await refresh(core))
     await select(id, { keyboard: true })
   }
+
+  /** Saves a copy of a built-in template as the user's own, shows it and opens it. */
+  const editBuiltInCopy = async (id: string) => {
+    if (!core) return
+    await saveEdits(core)
+    const copy = await core.saveTemplate(id, {}).catch(() => undefined)
+    if (!copy) return console.warn('W_TEMPLATE_COPY_FAILED', id)
+    setBuiltIn(undefined)
+    await showMade(core, copy, await refresh(core))
+    await select(copy, { keyboard: true })
+  }
+  const useBuiltIn = (id: string) => {
+    setBuiltIn(undefined)
+    return createFromTemplate(id)
+  }
+  const showBuiltIn = useStable((id: string) => {
+    setSelected(undefined)
+    setBuiltIn(id)
+  })
+  // A built-in template shows only in the Templates view, with no note open.
+  const shownBuiltIn = selected === undefined && inTemplates ? builtIn : undefined
 
   /**
    * Copies a note (title with "copy" after it, body, notebook, status, tags;
@@ -1820,7 +1859,7 @@ export function App() {
     field?.setSelectionRange(field.value.length, field.value.length)
   })
 
-  const openPalette = () => {
+  const openPalette = (scope?: PaletteSource) => {
     if (sheetOpen()) return
     const element = document.activeElement
     paletteReturn.current = {
@@ -1830,6 +1869,8 @@ export function App() {
     setPaletteInTable(editorRef.current?.inTable() ?? false)
     setPaletteSelection(editorRef.current?.hasSelection() ?? false)
     setPaletteImage(editorRef.current?.imageAtCursor() ?? null)
+    setPaletteText(editorRef.current?.text() ?? '')
+    setPaletteScope(scope)
     setPaletteOpen(true)
   }
   /**
@@ -1879,7 +1920,7 @@ export function App() {
       Array.from(tools).find(visible)?.focus()
     }
   }, [paletteDone])
-  useMenuEvent('devot://show-palette', SHOW_PALETTE, openPalette)
+  useMenuEvent('devot://show-palette', SHOW_PALETTE, () => openPalette())
 
   // Cmd+E: editor and preview swap; from split, the pane that has the
   // keyboard is the one that stays.
@@ -1902,8 +1943,8 @@ export function App() {
   // the palette and the native menu run them.
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
   const handlers: CommandHandlers = {
-    'palette.open': { run: openPalette },
-    'palette.openOutsideEditor': { run: openPalette },
+    'palette.open': { run: () => openPalette() },
+    'palette.openOutsideEditor': { run: () => openPalette() },
     'search.view': { run: () => startSearch('view') },
     'search.all': { run: () => startSearch('all') },
     'view.focus': { run: toggleFocus },
@@ -2092,9 +2133,12 @@ export function App() {
     [paletteOpen, tree, tags, notes, paletteHeadlines],
   )
 
-  /** What Return and Option+Return do on a palette result. */
+  /** What Return, Shift+Return and Command+Return do on a palette result. */
   const paletteActions = (entry: PaletteEntry): PaletteActions => {
     switch (entry.kind) {
+      case 'source':
+        // The palette opens a source itself.
+        return { primary: { label: t('palette.openSource'), run: () => undefined } }
       case 'command': {
         const handler = handlers[entry.id as keyof CommandHandlers]
         return {
@@ -2104,13 +2148,13 @@ export function App() {
       case 'book':
         return {
           primary: {
-            label: t('palette.open'),
+            label: t('palette.openNotebook'),
             run: () => showLibrary({ kind: 'book', id: entry.id }),
           },
-          secondary:
+          shift:
             openNote && openNote.bookId !== entry.id
               ? {
-                  label: t('palette.moveHere'),
+                  label: t('palette.moveNoteHere'),
                   run: () => moveNote(openNote.id, entry.id),
                 }
               : undefined,
@@ -2121,13 +2165,24 @@ export function App() {
             label: t('palette.showTag'),
             run: () => showFilter({ kind: 'tag', tagId: entry.id }),
           },
-          secondary:
+          meta: {
+            label: t('palette.addToFilter'),
+            run: () => changeQuery(withTagClause(query, entry.label)),
+          },
+          shift:
             openNote && !selectedIsTemplate && !openNote.tagIds.includes(entry.id)
               ? {
-                  label: t('palette.addTag'),
+                  label: t('palette.addTagToNote'),
                   run: () => putTagOnNotes([openNote.id], entry.id),
                 }
               : undefined,
+        }
+      case 'outline':
+        return {
+          primary: {
+            label: t('palette.goToLine'),
+            run: () => editorRef.current?.goToLine(entry.line ?? 1),
+          },
         }
       case 'note':
         return {
@@ -2251,6 +2306,8 @@ export function App() {
   const sidebarSetTagColor = useStable(
     (id: string, color: TagColor | null) => void changeBooks((c) => c.setTagColor(id, color)),
   )
+  const sidebarSearchBooks = useStable(() => openPalette('book'))
+  const sidebarSearchTags = useStable(() => openPalette('tag'))
   const sidebarDeleteTag = useStable((id: string) =>
     setConfirm({
       kind: 'tag',
@@ -2304,6 +2361,8 @@ export function App() {
         templatesCount={templates.length}
         trashCount={trash.length}
         onHide={toggleSidebarNow}
+        onSearchBooks={sidebarSearchBooks}
+        onSearchTags={sidebarSearchTags}
       />
       {searching ? (
         <NoteList
@@ -2381,6 +2440,7 @@ export function App() {
           excerpts={loadExcerpts}
           progress={loadProgress}
           drag="templates"
+          after={<BuiltInTemplates selected={shownBuiltIn} onSelect={showBuiltIn} />}
         />
       ) : (
         <NoteList
@@ -2599,6 +2659,12 @@ export function App() {
               )}
             </div>
           </>
+        ) : shownBuiltIn ? (
+          <BuiltInTemplate
+            id={shownBuiltIn}
+            onUse={(id) => void useBuiltIn(id)}
+            onEditCopy={(id) => void editBuiltInCopy(id)}
+          />
         ) : null}
       </main>
       {importState ? (
@@ -2674,9 +2740,12 @@ export function App() {
         <CommandPalette
           entries={{
             command: commandEntries(handlers, t),
+            source: sourceEntries(t),
+            outline: outlineEntries(paletteText),
             ...(paletteLibrary ?? NO_LIBRARY),
           }}
           actions={paletteActions}
+          initialScope={paletteScope}
           onClose={closePalette}
         />
       ) : null}

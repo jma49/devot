@@ -160,6 +160,32 @@ export function flattenBookTree(nodes: readonly BookNode[]): BookNode[] {
   return nodes.flatMap((n) => [n, ...flattenBookTree(n.children)])
 }
 
+/** A notebook a Move Notebook dialog lists, and whether it can take the moved one. */
+export interface MoveTarget {
+  id: string
+  name: string
+  depth: number
+  /** The notebook itself and every notebook below it: a notebook cannot go inside them. */
+  disabled: boolean
+}
+
+/**
+ * The notebooks a notebook can move into, in tree order with their depth.
+ * The notebook itself and its sub-notebooks are listed but disabled.
+ */
+export function moveTargets(tree: readonly BookNode[], movingId: string): MoveTarget[] {
+  const out: MoveTarget[] = []
+  const walk = (nodes: readonly BookNode[], disabled: boolean) => {
+    for (const node of nodes) {
+      const off = disabled || node.id === movingId
+      out.push({ id: node.id, name: node.name, depth: node.depth, disabled: off })
+      walk(node.children, off)
+    }
+  }
+  walk(tree, false)
+  return out
+}
+
 /**
  * The sort key that puts a notebook at `index` among `siblings` (sorted,
  * without it), and new keys for siblings when there is no room: their keys

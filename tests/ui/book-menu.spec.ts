@@ -73,9 +73,11 @@ test('right-click shows the native notebook menu for that notebook', async ({ pa
   await setUp(page)
   await openMenu(page, 'Work')
   expect(await shownMenu(page)).toEqual([
+    'Copy Notebook ID',
     'New Notebook Inside',
     '---',
     'Rename Enter',
+    'Move Notebook…',
     'Move Up Alt+ArrowUp',
     '---',
     'Allow AI Access [ ]',
@@ -88,9 +90,11 @@ test('right-click shows the native notebook menu for that notebook', async ({ pa
   // A nested notebook can also move to the top level; the same menu updates.
   await openMenu(page, 'Devot')
   expect(await shownMenu(page)).toEqual([
+    'Copy Notebook ID',
     'New Notebook Inside',
     '---',
     'Rename Enter',
+    'Move Notebook…',
     'Move to Top Level',
     '---',
     'Allow AI Access [ ]',
@@ -360,4 +364,28 @@ test('Allow AI Access switches the clicked notebook alone and shows on its row',
   await expect(aiBadge(page, 'Work')).toHaveCount(0)
   await openMenu(page, 'Work')
   expect(await shownMenu(page)).toContain('Allow AI Access [ ]')
+})
+
+test('Move Notebook opens a dialog that lists the tree and disables the notebook and its sub-notebooks', async ({
+  page,
+}) => {
+  await setUp(page)
+  await openMenu(page, 'Work')
+  await pickMenuItem(page, 'Move Notebook…')
+  const dialog = page.getByRole('dialog', { name: 'Move Notebook' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('option', { name: 'Work' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  )
+  await expect(dialog.getByRole('option', { name: 'Devot' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  )
+  await expect(dialog.getByRole('option', { name: 'Home' })).not.toHaveAttribute(
+    'aria-disabled',
+    'true',
+  )
+  await dialog.getByRole('option', { name: 'Home' }).click()
+  await expect(dialog).toHaveCount(0)
 })

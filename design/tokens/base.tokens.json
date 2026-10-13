@@ -573,6 +573,14 @@
           "value": 15,
           "unit": "px"
         }
+      },
+      "row": {
+        "$type": "dimension",
+        "$value": {
+          "value": 14,
+          "unit": "px"
+        },
+        "$description": "A sidebar row's label."
       }
     },
     "weight": {
@@ -925,6 +933,22 @@
         "value": 300,
         "unit": "px"
       }
+    },
+    "palette-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 650,
+        "unit": "px"
+      },
+      "$description": "The command palette's panel."
+    },
+    "sidebar-bar": {
+      "$type": "dimension",
+      "$value": {
+        "value": 3,
+        "unit": "px"
+      },
+      "$description": "The bar on the left of the selected sidebar row while the sidebar has the keyboard focus."
     }
   }
 }

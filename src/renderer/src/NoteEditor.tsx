@@ -92,6 +92,10 @@ export interface EditorHandle {
   format: (id: FormatId) => void
   /** Focuses the editor and inserts at its selection (an image, a table, a note link). */
   insert: (id: InsertId) => void
+  /** The note's Markdown as the editor shows it now (the palette's outline reads it). */
+  text: () => string
+  /** Puts the caret at the start of line `line` (1 is the first) and scrolls it into view. */
+  goToLine: (line: number) => void
   /** Whether the cursor is in a table. */
   inTable: () => boolean
   /** Focuses the editor and runs a table command on the table at the cursor. */
@@ -718,6 +722,16 @@ export function NoteEditor({
             insert: (id) => {
               ready.focus()
               insertCommand(id)(ready)
+            },
+            text: () => ready.state.doc.toString(),
+            goToLine: (line) => {
+              const text = ready.state.doc
+              const at = text.line(Math.min(text.lines, Math.max(1, Math.floor(line)))).from
+              ready.focus()
+              ready.dispatch({
+                selection: EditorSelection.cursor(at),
+                effects: EditorView.scrollIntoView(at, { y: 'start', yMargin: 24 }),
+              })
             },
             inTable: () => inTable(ready.state),
             table: (id) => {

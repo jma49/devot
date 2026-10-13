@@ -1,11 +1,70 @@
-// What the command palette lists for a query: commands, notebooks, tags and
-// notes that match it (fuzzy, see core/fuzzy.ts), grouped by kind.
+// What the command palette lists for what is typed. With nothing typed the
+// root lists the sources; a key and a space (`b `) scope the palette to one
+// source; any other text at the root matches commands, notebooks, tags and
+// notes together (fuzzy, see core/fuzzy.ts), grouped by kind.
 import { fuzzyRank } from '../../../core/fuzzy'
 
-export type PaletteKind = 'command' | 'book' | 'tag' | 'note'
+/** What a scoped palette searches. */
+export type PaletteSource = 'command' | 'book' | 'tag' | 'outline' | 'note'
 
-/** The kinds in the order they show when nothing is typed (and on a tie). */
+/** The sources in the order the root lists them. */
+export const PALETTE_SOURCES: readonly PaletteSource[] = [
+  'command',
+  'book',
+  'tag',
+  'outline',
+  'note',
+]
+
+/** The key that scopes the palette to a source (notes have none). */
+export const SOURCE_KEYS: Readonly<Record<PaletteSource, string | undefined>> = {
+  command: '>',
+  book: 'b',
+  tag: 't',
+  outline: '#',
+  note: undefined,
+}
+
+/** What a result is; `source` rows are the root's list of sources. */
+export type PaletteKind = PaletteSource | 'source'
+
+/** The kinds the root's search matches, in the order they show (and on a tie). */
 export const PALETTE_KINDS: readonly PaletteKind[] = ['command', 'book', 'tag', 'note']
+
+/** Where the palette is: scoped to a source (null: the root) with a query typed. */
+export interface PaletteState {
+  scope: PaletteSource | null
+  query: string
+}
+
+export const ROOT: PaletteState = { scope: null, query: '' }
+
+const SCOPE_PREFIX = /^(>|b|t|#) (.*)$/s
+
+/**
+ * The state after the field's text becomes `text`. At the root a source's
+ * key and a space scope the palette to it (`b ` and the rest of the text as
+ * the query); anywhere else the text is the query.
+ */
+export function typeInto(state: PaletteState, text: string): PaletteState {
+  if (state.scope === null) {
+    const match = SCOPE_PREFIX.exec(text)
+    const key = match?.[1]
+    const scope = PALETTE_SOURCES.find((source) => SOURCE_KEYS[source] === key)
+    if (match && scope) return { scope, query: match[2] ?? '' }
+  }
+  return { ...state, query: text }
+}
+
+/**
+ * Escape steps back: a query is cleared (the scope stays), a scope returns
+ * to the root, and at the root with nothing typed the palette closes (null).
+ */
+export function escapeStep(state: PaletteState): PaletteState | null {
+  if (state.query !== '') return { ...state, query: '' }
+  if (state.scope !== null) return ROOT
+  return null
+}
 
 /** Something the palette can list. */
 export interface PaletteEntry {
@@ -15,8 +74,18 @@ export interface PaletteEntry {
   label: string
   /** Shown after the label, dimmed: a notebook's parent, a note's notebook. */
   detail?: string
-  /** A command's key, as macOS shows it. */
+  /** A command's key, as macOS shows it; a source's key. */
   shortcut?: string
+  /** A command's description, shown after its name. */
+  description?: string
+  /** An outline entry: its line in the note (1 is the first). */
+  line?: number
+  /** An outline entry: a heading's level (1 to 6); 0 for a task. */
+  level?: number
+  /** An outline entry: how far it is indented (headings by level, tasks below them). */
+  depth?: number
+  /** An outline task: whether it is ticked. */
+  done?: boolean
 }
 
 export interface PaletteResult extends PaletteEntry {
@@ -35,6 +104,8 @@ const QUERY_LIMIT: Readonly<Record<PaletteKind, number>> = {
   book: 20,
   tag: 20,
   note: 20,
+  outline: 200,
+  source: 10,
 }
 
 /** With nothing typed: every command, and a few of each other kind. */
@@ -43,6 +114,16 @@ const BROWSE_LIMIT: Readonly<Record<PaletteKind, number>> = {
   book: 5,
   tag: 5,
   note: 5,
+  outline: Infinity,
+  source: Infinity,
+}
+
+/** A scoped palette with nothing typed lists more than the root's glimpse. */
+const SCOPED_BROWSE_LIMIT: Readonly<Record<PaletteKind, number>> = {
+  ...BROWSE_LIMIT,
+  book: 100,
+  tag: 100,
+  note: 30,
 }
 
 /**
@@ -53,19 +134,39 @@ const BROWSE_LIMIT: Readonly<Record<PaletteKind, number>> = {
 export function paletteGroups(
   query: string,
   entries: Readonly<Record<PaletteKind, readonly PaletteEntry[]>>,
+  kinds: readonly PaletteKind[] = PALETTE_KINDS,
+  browseLimit: Readonly<Record<PaletteKind, number>> = BROWSE_LIMIT,
 ): PaletteGroup[] {
   const browsing = query.trim() === ''
-  const groups = PALETTE_KINDS.map((kind) => {
-    const ranked = fuzzyRank(query, entries[kind], (e) => e.label).slice(
-      0,
-      (browsing ? BROWSE_LIMIT : QUERY_LIMIT)[kind],
-    )
-    return {
-      kind,
-      best: ranked[0]?.score ?? -Infinity,
-      results: ranked.map((r): PaletteResult => ({ ...r.item, ranges: r.ranges })),
-    }
-  }).filter((g) => g.results.length > 0)
+  const groups = kinds
+    .map((kind) => {
+      const ranked = fuzzyRank(query, entries[kind], (e) => e.label).slice(
+        0,
+        (browsing ? browseLimit : QUERY_LIMIT)[kind],
+      )
+      return {
+        kind,
+        best: ranked[0]?.score ?? -Infinity,
+        results: ranked.map((r): PaletteResult => ({ ...r.item, ranges: r.ranges })),
+      }
+    })
+    .filter((g) => g.results.length > 0)
   if (!browsing) groups.sort((a, b) => b.best - a.best)
   return groups.map(({ kind, results }) => ({ kind, results }))
+}
+
+/**
+ * What the palette lists in `state`: the sources at the root with nothing
+ * typed; one source's matches when scoped (an outline keeps document order
+ * until something is typed); every kind's matches for text typed at the root.
+ */
+export function paletteResults(
+  state: PaletteState,
+  entries: Readonly<Record<PaletteKind, readonly PaletteEntry[]>>,
+): PaletteGroup[] {
+  if (state.scope !== null) {
+    return paletteGroups(state.query, entries, [state.scope], SCOPED_BROWSE_LIMIT)
+  }
+  if (state.query.trim() === '') return paletteGroups('', entries, ['source'])
+  return paletteGroups(state.query, entries)
 }
