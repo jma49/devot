@@ -191,6 +191,18 @@ const readableWidth = EditorView.theme({
 
 /** Room under the last line so the end of the note can scroll up the page (the host element scrolls). */
 const pastEnd = EditorView.theme({ '&.cm-editor .cm-content': { paddingBottom: '50vh' } })
+/** Lines kept under the caret on the last line, so typing there does not sit at the window's edge. */
+const LAST_LINE_ROOM = 4
+
+/**
+ * The pixels kept above and below the caret when it scrolls into view: the
+ * setting, and with Scroll Past End a few lines below it, so the last line
+ * scrolls up from the bottom of the window.
+ */
+export function scrollMarginsOf(s: EditorSettings): { top: number; bottom: number } {
+  const room = s.scrollPastEnd ? Math.round(s.fontSize * s.lineHeight * LAST_LINE_ROOM) : 0
+  return { top: s.cursorScrollMargin, bottom: Math.max(s.cursorScrollMargin, room) }
+}
 /** Drawn spaces and tabs in a muted colour, and tinted trailing ones (`--color-trailing-space`). */
 const whitespaceTheme = EditorView.theme({
   '.cm-highlightSpace': {
@@ -220,13 +232,10 @@ const PARTS = {
   images: (s: EditorSettings): Extension => (s.inlineImages ? inlineImages : []),
   toolbar: (s: EditorSettings): Extension => (s.toolbar ? [] : toolbarOff.of(true)),
   scrollPastEnd: (s: EditorSettings): Extension => (s.scrollPastEnd ? pastEnd : []),
-  scrollMargin: (s: EditorSettings): Extension =>
-    s.cursorScrollMargin > 0
-      ? EditorView.scrollMargins.of(() => ({
-          top: s.cursorScrollMargin,
-          bottom: s.cursorScrollMargin,
-        }))
-      : [],
+  scrollMargin: (s: EditorSettings): Extension => {
+    const { top, bottom } = scrollMarginsOf(s)
+    return top > 0 || bottom > 0 ? EditorView.scrollMargins.of(() => ({ top, bottom })) : []
+  },
   invisibles: (s: EditorSettings): Extension => (s.showInvisibles ? invisibles : []),
   trailing: (s: EditorSettings): Extension =>
     s.highlightTrailingWhitespace ? trailingWhitespace : [],
@@ -247,7 +256,7 @@ const READS: Readonly<Record<Part, readonly (keyof EditorSettings)[]>> = {
   images: ['inlineImages'],
   toolbar: ['toolbar'],
   scrollPastEnd: ['scrollPastEnd'],
-  scrollMargin: ['cursorScrollMargin'],
+  scrollMargin: ['cursorScrollMargin', 'scrollPastEnd', 'fontSize', 'lineHeight'],
   invisibles: ['showInvisibles'],
   trailing: ['highlightTrailingWhitespace'],
 }
