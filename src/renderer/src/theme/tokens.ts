@@ -78,6 +78,9 @@ export const sizes = {
   "size.picker-min-width": "220px",
   "size.picker-min-height": "200px",
   "size.popover-margin": "8px",
+  "size.switch-width": "36px",
+  "size.switch-height": "20px",
+  "size.switch-inset": "2px",
   "motion.duration.color": "400ms",
   "motion.duration.ring": "200ms",
   "motion.duration.popover": "150ms",
@@ -217,7 +220,8 @@ export const light = {
   "color.tag-text.blue": "#004a9c",
   "color.tag-text.purple": "#6b3287",
   "color.tag-text.pink": "#8f1930",
-  "color.tag-text.gray": "#505052"
+  "color.tag-text.gray": "#505052",
+  "color.switch.handle": "#ffffff"
 } as const
 
 export const dark = {
@@ -328,7 +332,8 @@ export const dark = {
   "color.tag-text.blue": "#78bbff",
   "color.tag-text.purple": "#dba1f8",
   "color.tag-text.pink": "#ff8fa5",
-  "color.tag-text.gray": "#bdbdc0"
+  "color.tag-text.gray": "#bdbdc0",
+  "color.switch.handle": "#f2f2f2"
 } as const
 
 export const ivoryLight = {
@@ -439,7 +444,8 @@ export const ivoryLight = {
   "color.tag-text.blue": "#28507c",
   "color.tag-text.purple": "#5d3e81",
   "color.tag-text.pink": "#7c3751",
-  "color.tag-text.gray": "#51514c"
+  "color.tag-text.gray": "#51514c",
+  "color.switch.handle": "#ffffff"
 } as const
 
 export const ivoryDark = {
@@ -550,7 +556,8 @@ export const ivoryDark = {
   "color.tag-text.blue": "#c1d9f1",
   "color.tag-text.purple": "#ded1f2",
   "color.tag-text.pink": "#f3ccda",
-  "color.tag-text.gray": "#d8d7d3"
+  "color.tag-text.gray": "#d8d7d3",
+  "color.switch.handle": "#f2efe8"
 } as const
 
 export type ThemeColor = keyof typeof light

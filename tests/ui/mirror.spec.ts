@@ -61,7 +61,7 @@ test.describe('Settings > Markdown Mirror', () => {
     ).toBeVisible()
     await expect(section(page)).toContainText('The mirror is off.')
     await expect(section(page)).toContainText('edits made there are not read back')
-    await expect(section(page).getByRole('checkbox', { name: 'Include Attachments' })).toBeChecked()
+    await expect(section(page).getByRole('switch', { name: 'Include Attachments' })).toBeChecked()
     await expect(section(page).getByRole('button', { name: 'Turn Off' })).toHaveCount(0)
 
     // Cancelled: nothing changes.
@@ -100,7 +100,7 @@ test.describe('Settings > Markdown Mirror', () => {
     await openWith(page, '/settings.html', ON)
     await expect(section(page)).toContainText('~/Notes')
     await expect(section(page)).toContainText('Size on disk: 12.3 MB')
-    const include = section(page).getByRole('checkbox', { name: 'Include Attachments' })
+    const include = section(page).getByRole('switch', { name: 'Include Attachments' })
     await include.uncheck()
     await expect(include).not.toBeChecked()
     await section(page).getByRole('button', { name: 'Turn Off' }).click()

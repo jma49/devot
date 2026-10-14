@@ -46,6 +46,8 @@ export const SearchField = forwardRef<
           type="button"
           className="search-clear"
           aria-label={t('search.clear')}
+          // Pressing it must not pull focus out of the field.
+          onMouseDown={(e) => e.preventDefault()}
           onClick={onClear}
         >
           <Icon name="tag.remove" size="sm" />
