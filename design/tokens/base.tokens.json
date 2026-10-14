@@ -965,6 +965,30 @@
         "unit": "px"
       },
       "$description": "The line between rows where a dragged row will go, and the dashed outline of a notebook a drag goes into."
+    },
+    "picker-min-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 220,
+        "unit": "px"
+      },
+      "$description": "The narrowest a dropdown list is."
+    },
+    "picker-min-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 200,
+        "unit": "px"
+      },
+      "$description": "A dropdown list is as tall as half the window, but never shorter than this (it scrolls past it)."
+    },
+    "popover-margin": {
+      "$type": "dimension",
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      },
+      "$description": "The least space between a dropdown list and the window edge."
     }
   },
   "motion": {
@@ -1019,6 +1043,20 @@
           "unit": "ms"
         },
         "$description": "A two-state change: a disclosure chevron turning, a section opening, a selection bar or focus ring appearing."
+      },
+      "dialog": {
+        "$value": {
+          "value": 200,
+          "unit": "ms"
+        },
+        "$description": "A modal dialog growing and fading in."
+      },
+      "backdrop": {
+        "$value": {
+          "value": 2000,
+          "unit": "ms"
+        },
+        "$description": "The dim behind a modal dialog fading in."
       }
     },
     "easing": {
@@ -1041,6 +1079,10 @@
       "popover-exit": {
         "$value": 0.9,
         "$description": "The size a pop-up shrinks to, toward its notch or anchor, as it fades out."
+      },
+      "dialog-enter": {
+        "$value": 0.8,
+        "$description": "The size a modal dialog starts at before growing to full size."
       }
     },
     "delay": {

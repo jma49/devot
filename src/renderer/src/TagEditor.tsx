@@ -216,7 +216,6 @@ export function TagEditor(props: {
                 className={row.kind === 'create' ? 'tag-suggestion tag-create' : 'tag-suggestion'}
                 // The field keeps the keyboard.
                 onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setActive(i)}
                 onClick={() => pick(row)}
               >
                 {row.kind === 'tag' ? (

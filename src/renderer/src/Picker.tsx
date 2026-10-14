@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useId,
   useRef,
   useState,
@@ -8,6 +9,7 @@ import {
   type RefObject,
 } from 'react'
 import { closingRef } from './closing'
+import { placeDropdown } from './dropdownPlacement'
 import { isImeKey } from './ime'
 
 /** One row of a picker's pop-over. */
@@ -81,7 +83,11 @@ export function PickerList(props: {
   value: string | undefined
   onPick: (id: string) => void
   onClose: () => void
-  search?: { placeholder: string; query: string; onQuery: (query: string) => void }
+  search?: {
+    placeholder: string
+    query: string
+    onQuery: (query: string) => void
+  }
   /** Shown when no row is left. */
   empty?: string
 }) {
@@ -95,6 +101,25 @@ export function PickerList(props: {
   useEffect(() => {
     if (field.current) field.current.focus()
     else list.current?.focus()
+  }, [])
+  // Measured once it is on the page: flipped over the button when there is
+  // no room below, kept inside the window, and no taller than the room left.
+  useLayoutEffect(() => {
+    const panel = list.current?.closest<HTMLElement>('.picker-popover')
+    const anchor = panel?.parentElement
+    if (!panel || !anchor) return
+    const css = getComputedStyle(panel)
+    const px = (name: string) => Number.parseFloat(css.getPropertyValue(name))
+    const a = anchor.getBoundingClientRect()
+    const p = placeDropdown(
+      a,
+      { width: panel.offsetWidth, height: panel.offsetHeight },
+      { width: window.innerWidth, height: window.innerHeight },
+      { gap: px('--space-2') || 4, margin: px('--size-popover-margin') || 8 },
+    )
+    panel.dataset['side'] = p.side
+    panel.style.left = `${p.shift}px`
+    panel.style.setProperty('--picker-room', `${p.room}px`)
   }, [])
   // A narrower list keeps the keyboard on a row that is still there.
   const shownActive = active >= options.length ? options.length - 1 : active
@@ -169,12 +194,13 @@ export function PickerList(props: {
             className={`picker-option${o.className ? ` ${o.className}` : ''}`}
             style={
               o.depth
-                ? { paddingInlineStart: `calc(var(--space-4) + ${o.depth} * var(--space-6))` }
+                ? {
+                    paddingInlineStart: `calc(var(--space-4) + ${o.depth} * var(--space-6))`,
+                  }
                 : undefined
             }
             // The field or list keeps the keyboard.
             onMouseDown={(e) => e.preventDefault()}
-            onMouseEnter={() => setActive(i)}
             onClick={() => props.onPick(o.id)}
           >
             {o.content}
