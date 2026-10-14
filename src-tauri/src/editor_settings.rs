@@ -35,7 +35,9 @@ const NOTEBOOK_ID_MAX: usize = 64;
 
 const INVALID: &str = "E_EDITOR_SETTINGS_INVALID";
 
-/// The editor's font: the system font or one of the monospaced system fonts.
+/// The editor's font: the system font, one of the monospaced system fonts,
+/// a font installed on this Mac (`installed_font`) or a font file the user
+/// imported (`imported_font`, see `fonts`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FontFamily {
@@ -44,6 +46,8 @@ pub enum FontFamily {
     Menlo,
     Monaco,
     CourierNew,
+    Installed,
+    Imported,
 }
 
 /// What one level of indentation inserts.
@@ -122,6 +126,10 @@ pub struct EditorSettings {
     pub readable_width: bool,
     pub font_size: u64,
     pub font_family: FontFamily,
+    /// The family name of the installed font the editor uses.
+    pub installed_font: Option<String>,
+    /// The file name of the imported font the editor uses (in `fonts::DIR`).
+    pub imported_font: Option<String>,
     pub line_height: f64,
     pub indent_unit: IndentUnit,
     pub tab_width: u64,
@@ -169,6 +177,8 @@ impl Default for EditorSettings {
             readable_width: false,
             font_size: 13,
             font_family: FontFamily::Mono,
+            installed_font: None,
+            imported_font: None,
             line_height: 1.5,
             indent_unit: IndentUnit::Spaces2,
             tab_width: 2,
@@ -221,6 +231,15 @@ fn notebook_id(value: &Value) -> Result<Option<String>, &'static str> {
     }
 }
 
+/// A string that `valid` accepts, or null.
+fn name_or_null(value: &Value, valid: fn(&str) -> bool) -> Result<Option<String>, &'static str> {
+    match value {
+        Value::Null => Ok(None),
+        Value::String(name) if valid(name) => Ok(Some(name.clone())),
+        _ => Err(INVALID),
+    }
+}
+
 fn choice<T: for<'de> Deserialize<'de>>(value: &Value) -> Result<T, &'static str> {
     T::deserialize(value).map_err(|_| INVALID)
 }
@@ -234,6 +253,10 @@ impl EditorSettings {
             "readableWidth" => self.readable_width = flag(value)?,
             "fontSize" => self.font_size = whole(value, FONT_SIZE_MIN, FONT_SIZE_MAX)?,
             "fontFamily" => self.font_family = choice(value)?,
+            "installedFont" => {
+                self.installed_font = name_or_null(value, crate::fonts::valid_family_name)?
+            }
+            "importedFont" => self.imported_font = name_or_null(value, crate::fonts::valid_id)?,
             "lineHeight" => {
                 self.line_height = value
                     .as_f64()
@@ -312,8 +335,9 @@ pub const INITIAL_GLOBAL: &str = "devotInitialEditorSettings";
 /// editor's font) instead of the defaults. The page still reads the settings
 /// and takes any newer revision.
 pub fn initial_script(snapshot: &Snapshot) -> String {
-    // JSON is a JavaScript literal; the values are booleans, numbers and a
-    // few fixed words, so nothing in it can end the statement early.
+    // JSON is a JavaScript literal; the values are booleans, numbers, a few
+    // fixed words and names checked when set (no quotes or backslashes), so
+    // nothing in it can end the statement early.
     let json = serde_json::to_string(snapshot).unwrap_or_else(|_| String::from("null"));
     format!("window.{INITIAL_GLOBAL} = {json};")
 }
@@ -542,6 +566,8 @@ mod tests {
                 "readableWidth": false,
                 "fontSize": 13,
                 "fontFamily": "mono",
+                "installedFont": null,
+                "importedFont": null,
                 "lineHeight": 1.5,
                 "indentUnit": "spaces2",
                 "tabWidth": 2,
@@ -641,7 +667,7 @@ mod tests {
                 .paste_url,
             PasteUrl::Autolink
         );
-        for family in ["system", "mono", "menlo", "monaco"] {
+        for family in ["system", "mono", "menlo", "monaco", "installed", "imported"] {
             assert!(
                 EditorSettings::default()
                     .with(&patch(json!({ "fontFamily": family })))
@@ -660,6 +686,32 @@ mod tests {
     }
 
     #[test]
+    fn takes_an_installed_or_imported_font_and_clears_it_with_null() {
+        let next = EditorSettings::default()
+            .with(&patch(json!({
+                "fontFamily": "imported",
+                "installedFont": "Fira Code",
+                "importedFont": "\u{9716}\u{9e5c} Mono.woff2",
+            })))
+            .unwrap();
+        assert_eq!(next.font_family, FontFamily::Imported);
+        assert_eq!(next.installed_font.as_deref(), Some("Fira Code"));
+        assert_eq!(
+            next.imported_font.as_deref(),
+            Some("\u{9716}\u{9e5c} Mono.woff2")
+        );
+        let cleared = next
+            .with(&patch(
+                json!({ "installedFont": null, "importedFont": null }),
+            ))
+            .unwrap();
+        assert_eq!(
+            (cleared.installed_font, cleared.imported_font),
+            (None, None)
+        );
+    }
+
+    #[test]
     fn refuses_unknown_keys_and_bad_values_as_a_whole() {
         let bad = [
             json!({ "theme": "dark" }),
@@ -673,6 +725,13 @@ mod tests {
             json!({ "fontFamily": "Comic Sans MS" }),
             json!({ "fontFamily": "url(https://example.com/x.woff)" }),
             json!({ "fontFamily": null }),
+            json!({ "installedFont": "" }),
+            json!({ "installedFont": "Fira\"; } body { color: red" }),
+            json!({ "installedFont": ".AppleSystemUIFont" }),
+            json!({ "installedFont": 3 }),
+            json!({ "importedFont": "../editor-settings.json" }),
+            json!({ "importedFont": "font.exe" }),
+            json!({ "importedFont": "Fira Code.TTF" }),
             json!({ "lineHeight": 0.9 }),
             json!({ "lineHeight": 2.6 }),
             json!({ "lineHeight": "1.5" }),
@@ -793,6 +852,20 @@ mod tests {
             }
         );
         assert!(!dir.path().join(FILE).exists());
+    }
+
+    #[test]
+    fn keeps_the_chosen_font_after_reopening() {
+        let dir = tempfile::tempdir().unwrap();
+        store(&dir)
+            .update(&patch(
+                json!({ "fontFamily": "installed", "installedFont": "PT Mono" }),
+            ))
+            .unwrap();
+        let read = store(&dir).get().unwrap().settings;
+        assert_eq!(read.font_family, FontFamily::Installed);
+        assert_eq!(read.installed_font.as_deref(), Some("PT Mono"));
+        assert_eq!(read.imported_font, None);
     }
 
     #[test]

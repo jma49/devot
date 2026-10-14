@@ -281,6 +281,25 @@ pub fn symbol_png(name: &str, point_size: f64) -> Option<Vec<u8>> {
     .flatten()
 }
 
+/// The font families installed on this Mac, as AppKit names them. Must run
+/// on the main thread; none when it is not.
+pub fn font_families() -> Vec<String> {
+    let Some(mtm) = objc2::MainThreadMarker::new() else {
+        return Vec::new();
+    };
+    catch_unwind(AssertUnwindSafe(|| {
+        objc2::rc::autoreleasepool(|_| {
+            let manager = objc2_app_kit::NSFontManager::sharedFontManager(mtm);
+            manager
+                .availableFontFamilies()
+                .iter()
+                .map(|name| name.to_string())
+                .collect()
+        })
+    }))
+    .unwrap_or_default()
+}
+
 /// Replaces the general pasteboard's contents with plain text.
 pub fn write_clipboard_text(text: &str) -> bool {
     catch_unwind(|| {

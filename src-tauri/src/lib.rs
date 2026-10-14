@@ -14,6 +14,7 @@ mod editor_settings;
 mod exit;
 mod export;
 mod external;
+mod fonts;
 mod format_menu;
 mod import;
 mod keyboard_shortcuts;
@@ -104,6 +105,10 @@ pub fn run() {
             settings::settings_show_backups,
             editor_settings::editor_settings_get,
             editor_settings::editor_settings_set,
+            fonts::font_import,
+            fonts::fonts_list,
+            fonts::fonts_installed,
+            fonts::font_read,
             sidebar_material::sidebar_material_sync,
             menu::sidebar_menu_set,
             menu::command_menu_set,
@@ -166,6 +171,7 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         &data_dir.join(editor_settings::FILE),
     ));
     app.manage(std::sync::Arc::clone(&editor_settings));
+    app.manage(std::sync::Arc::new(fonts::Fonts::new(data_dir)));
     app.manage(std::sync::Arc::new(
         keyboard_shortcuts::KeyboardShortcutsStore::new(&data_dir.join(keyboard_shortcuts::FILE)),
     ));

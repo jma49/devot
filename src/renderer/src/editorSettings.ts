@@ -12,23 +12,14 @@ import {
   parseEditorSettings,
   stepFontSize,
   type EditorSettings,
-  type FontFamilyId,
 } from '../../core/editorSettings'
+import { fontStack, syncImportedFont } from './fonts'
 import { sizes } from './theme/tokens'
 import { createSyncedStore } from './syncedStore'
 import { invoke } from './ipc'
 
 export const EDITOR_SETTINGS_CHANGED = 'devot:editor-settings-changed'
 const TAURI_EVENT = 'devot://editor-settings-changed'
-
-/** Each font as a CSS font list; the monospaced ones fall back to SF Mono. */
-const FONT_STACKS: Readonly<Record<FontFamilyId, string>> = {
-  system: 'var(--font-family-ui)',
-  mono: 'var(--font-family-mono)',
-  menlo: 'Menlo, var(--font-family-mono)',
-  monaco: 'Monaco, var(--font-family-mono)',
-  courierNew: "'Courier New', var(--font-family-mono)",
-}
 
 /** The type scale's preview size in pixels (what a preview scale of 1 is). */
 const PREVIEW_BASE_SIZE = parseFloat(sizes['font.size.preview'])
@@ -44,7 +35,7 @@ export function applyEditorStyle(settings: EditorSettings, style: StyleTarget): 
   // The preview's own size: 1 is the type scale's preview size.
   style.setProperty('--preview-scale', String(settings.previewFontSize / PREVIEW_BASE_SIZE))
   style.setProperty('--editor-line-height', String(settings.lineHeight))
-  style.setProperty('--editor-font-family', FONT_STACKS[settings.fontFamily])
+  style.setProperty('--editor-font-family', fontStack(settings))
 }
 
 /** A snapshot from Rust: the settings and their revision (higher is newer). */
@@ -159,8 +150,12 @@ let loaded: Promise<void> = Promise.resolve()
 export function startEditorSettings(style: StyleTarget = document.documentElement.style): void {
   if (started) return
   started = true
-  applyEditorStyle(store.current(), style)
-  subscribeEditorSettings(() => applyEditorStyle(store.current(), style))
+  const apply = () => {
+    applyEditorStyle(store.current(), style)
+    syncImportedFont(store.current())
+  }
+  apply()
+  subscribeEditorSettings(apply)
   window.addEventListener(EDITOR_SETTINGS_CHANGED, (e) =>
     store.confirm(reported(readSnapshot((e as CustomEvent<unknown>).detail))),
   )

@@ -5,7 +5,19 @@
 // own file (src-tauri/src/editor_settings.rs, which checks the same lists and
 // ranges as this module) and they never sync.
 
-export type FontFamilyId = 'system' | 'mono' | 'menlo' | 'monaco' | 'courierNew'
+/**
+ * The editor's font: the system font, one of the monospaced system fonts, a
+ * font installed on this Mac (`installedFont`) or a font file the user
+ * imported (`importedFont`).
+ */
+export type FontFamilyId =
+  | 'system'
+  | 'mono'
+  | 'menlo'
+  | 'monaco'
+  | 'courierNew'
+  | 'installed'
+  | 'imported'
 export type IndentUnitId = 'spaces2' | 'spaces4' | 'tab'
 export type ListMarker = '-' | '*' | '+'
 /** The weight of the editor's text: the font's normal one or a CSS weight. */
@@ -27,6 +39,10 @@ export interface EditorSettings {
   /** In CSS pixels. */
   fontSize: number
   fontFamily: FontFamilyId
+  /** The family name of the installed font the editor uses (`fontFamily` `installed`), or none. */
+  installedFont: string | null
+  /** The file name of the imported font the editor uses (`fontFamily` `imported`), or none. */
+  importedFont: string | null
   lineHeight: number
   indentUnit: IndentUnitId
   /** How many columns a tab character takes. */
@@ -75,6 +91,8 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   readableWidth: false,
   fontSize: 13,
   fontFamily: 'mono',
+  installedFont: null,
+  importedFont: null,
   lineHeight: 1.5,
   indentUnit: 'spaces2',
   tabWidth: 2,
@@ -103,6 +121,8 @@ export const FONT_FAMILIES: readonly FontFamilyId[] = [
   'menlo',
   'monaco',
   'courierNew',
+  'installed',
+  'imported',
 ]
 export const INDENT_UNITS: readonly IndentUnitId[] = ['spaces2', 'spaces4', 'tab']
 export const LIST_MARKERS: readonly ListMarker[] = ['*', '-', '+']
@@ -135,6 +155,26 @@ const isFlag = (v: unknown) => typeof v === 'boolean'
 const isNotebookId = (v: unknown) =>
   v === null || (typeof v === 'string' && /^[\w-]{1,64}$/.test(v))
 
+/**
+ * An installed font's family name: letters, digits, spaces and `-_.&+()`,
+ * up to 128 of them, not starting with a space or `.` (the system's hidden
+ * families). The same check runs in Rust (src-tauri/src/fonts.rs).
+ */
+export const isFontFamilyName = (v: unknown): v is string =>
+  typeof v === 'string' &&
+  /^[\p{Alphabetic}\p{N}\-_&+()][\p{Alphabetic}\p{N} \-_.&+()]{0,127}$/u.test(v)
+
+/**
+ * An imported font's file name: a stem of letters, digits, spaces, `-` and
+ * `_` (up to 64, not starting with a space) and a font extension, lowercase.
+ * The same check runs in Rust (src-tauri/src/fonts.rs).
+ */
+export const isFontFileName = (v: unknown): v is string =>
+  typeof v === 'string' &&
+  /^[\p{Alphabetic}\p{N}\-_][\p{Alphabetic}\p{N} \-_]{0,63}\.(ttf|otf|woff|woff2)$/u.test(v)
+
+const orNull = (check: (v: unknown) => boolean) => (v: unknown) => v === null || check(v)
+
 /** What each setting accepts. */
 const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } = {
   lineNumbers: isFlag,
@@ -142,6 +182,8 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   readableWidth: isFlag,
   fontSize: wholeIn(FONT_SIZE_MIN, FONT_SIZE_MAX),
   fontFamily: oneOf(FONT_FAMILIES),
+  installedFont: orNull(isFontFamilyName),
+  importedFont: orNull(isFontFileName),
   lineHeight: (v) =>
     typeof v === 'number' && Number.isFinite(v) && v >= LINE_HEIGHT_MIN && v <= LINE_HEIGHT_MAX,
   indentUnit: oneOf(INDENT_UNITS),

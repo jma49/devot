@@ -58,6 +58,9 @@ pub const SETTINGS: &str = "Settings…";
 pub const BACKUPS: &str = "Backups…";
 pub const SETTINGS_TITLE: &str = "Settings";
 pub const MIRROR_FOLDER_TITLE: &str = "Choose a Folder for the Markdown Mirror";
+pub const FONT_IMPORT_TITLE: &str = "Import a Font for the Editor";
+/// The file type the font panel offers.
+pub const FONT_FILTER: &str = "Fonts";
 /// What a mirrored file edited outside Devot is kept as: `Plan (edited outside Devot).md`.
 pub const MIRROR_EDITED_SUFFIX: &str = " (edited outside Devot)";
 /// A launch that cannot open the notes (`startup.rs`): the alert's title,

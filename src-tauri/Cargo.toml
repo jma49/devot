@@ -93,6 +93,8 @@ objc2-app-kit = { version = "0.3", features = [
   "NSImageRep",
   "NSBitmapImageRep",
   "NSFontDescriptor",
+  # The font families Settings offers for the editor (fonts.rs).
+  "NSFontManager",
   "NSColor",
   "NSColorSpace",
   "NSAppearance",
