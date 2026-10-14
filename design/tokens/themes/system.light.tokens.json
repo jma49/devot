@@ -250,6 +250,16 @@
           "alpha": 0.14
         },
         "$description": "The soft shadow under floating panels."
+      },
+      "float-bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0902, 0.0902, 0.0902],
+          "hex": "#171717",
+          "alpha": 0.1
+        },
+        "$description": "A floating bar's outline: barely visible. The line ink at 10%."
       }
     },
     "fill": {
@@ -991,6 +1001,16 @@
           "alpha": 0.15
         },
         "$description": "The wide, soft layer of a pop-up's shadow."
+      },
+      "float-bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.18
+        },
+        "$description": "The soft shadow under a floating bar."
       }
     },
     "focus": {

@@ -25,14 +25,15 @@ describe('floating bar motion and states', () => {
     expect(transition).not.toContain('background')
   })
 
-  it('is one element: surface, a 1 px ring and two soft box shadow layers, no filter and no animation', () => {
+  it('is one element: surface, a 1 px outline and one soft box shadow layer, no filter and no animation', () => {
     const bar = rule('.cm-tooltip.cm-float-bar')
     expect(bar.outline).toBeUndefined()
-    expect(bar.boxShadow).toMatch(/^0 0 0 1px var\(--color-line-hairline\), /)
+    expect(bar.boxShadow).toMatch(/^0 0 0 1px var\(--color-line-float-bar\), /)
     expect(bar.border).toBe('0')
     expect(bar.backgroundColor).toBe('var(--color-surface-popover)')
-    expect(bar.boxShadow!.split('), ')).toHaveLength(3)
-    expect(bar.boxShadow).toContain('var(--color-shadow-popover-key)')
+    expect(bar.boxShadow!.split('), ')).toHaveLength(2)
+    expect(bar.boxShadow).toContain('var(--color-shadow-float-bar)')
+    expect(bar.boxShadow).not.toContain('popover')
     expect(bar.filter).toBeUndefined()
     expect(bar.animation).toBeUndefined()
     expect(floatStyles['@keyframes cm-fade-in']).toEqual({
@@ -45,6 +46,22 @@ describe('floating bar motion and states', () => {
     expect(separator.width).toBe('0')
     expect(separator.borderLeft).toBe('1px solid var(--color-line-separator)')
     expect(rule('.cm-float-buttons').gap).toBeUndefined()
+    expect(separator.height).toBe('var(--size-float-separator-height)')
+  })
+
+  it('is a near pill with the notch clear of the corner', async () => {
+    const { BAR_RADIUS, NOTCH_X, NOTCH_WIDTH, NOTCH_HEIGHT } = await import('./notch')
+    const { sizes } = await import('../theme/tokens')
+    const height = Number.parseFloat(sizes['size.float-toolbar-height'])
+    // Near a pill: the radius is over a third of the height, under half of it.
+    expect(BAR_RADIUS).toBeGreaterThan(height / 3)
+    expect(BAR_RADIUS).toBeLessThan(height / 2)
+    // The notch is small and shallow; its base starts where the corner ends.
+    expect([NOTCH_WIDTH, NOTCH_HEIGHT]).toEqual([12, 6])
+    expect(NOTCH_X - NOTCH_WIDTH / 2).toBeGreaterThanOrEqual(BAR_RADIUS)
+    // The buttons are 28 px apart, in a bar 38 px tall.
+    expect(sizes['size.float-button']).toBe('28px')
+    expect(height).toBe(38)
   })
 
   it('shows a button icon at its own size, never scaled by the mask', () => {
@@ -65,7 +82,7 @@ describe('floating bar motion and states', () => {
   })
 
   it('lets a bar hold its notch on the anchor when the bar is held back', () => {
-    expect(rule('.cm-float-notch').left).toContain('var(--float-notch-x, 18px)')
+    expect(rule('.cm-float-notch').left).toContain('var(--float-notch-x, 20px)')
   })
 
   it('gives the tooltip bubble a notch toward its button', () => {
