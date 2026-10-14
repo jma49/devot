@@ -50,7 +50,7 @@
     "format.bulletList": "list.bullet",
     "format.numberedList": "list.number",
     "format.taskList": "checkmark.square",
-    "format.quote": "quote.opening",
+    "format.quote": "text.quote",
     "format.alert": "megaphone",
     "code.copy": "doc.on.doc",
     "code.copied": "checkmark",

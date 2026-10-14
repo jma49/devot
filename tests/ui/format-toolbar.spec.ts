@@ -134,9 +134,9 @@ test('the toolbar shows for a selection, with named SF Symbol buttons in three g
     ['Code Block', 'curlybraces'],
     ['Bulleted List', 'list.bullet'],
     ['Numbered List', 'list.number'],
-    ['Task List', 'checklist'],
+    ['Task List', 'checkmark.square'],
     ['Quote', 'text.quote'],
-    ['Alert', 'exclamationmark.bubble'],
+    ['Alert', 'megaphone'],
   ]
   await expect(toolbar(page).getByRole('button')).toHaveCount(names.length)
   for (const [name, symbol] of names) {
