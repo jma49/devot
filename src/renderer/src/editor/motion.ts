@@ -28,9 +28,15 @@ export const popoverIn =
  */
 export const fadeIn = 'cm-fade-in var(--motion-duration-fade) var(--motion-easing-standard)'
 
+/** A button tooltip only fades, as the app's other tooltips (`.tool-tip`). */
+export const tipIn = 'cm-fade-in var(--motion-duration-popover) var(--motion-easing-standard)'
+
 /** Shrinks back toward its notch or anchor as it fades out (closing.ts keeps a copy for it). */
 export const popoverOut =
   'cm-popover-out var(--motion-duration-popover) var(--motion-easing-standard) forwards'
+
+/** A button tooltip only fades out. */
+const tipOut = 'cm-fade-out var(--motion-duration-popover) var(--motion-easing-standard) forwards'
 
 /** Only fades out: the floating bars and the completion lists. */
 export const fadeOut =
@@ -45,9 +51,9 @@ export const closingStyles = {
     pointerEvents: 'none',
     animation: fadeOut,
   },
-  '.cm-float-tip[data-closing][data-closing-motion="scale"]': {
+  '.cm-float-tip[data-closing][data-closing-motion="fade"]': {
     pointerEvents: 'none',
-    animation: popoverOut,
+    animation: tipOut,
   },
 }
 
