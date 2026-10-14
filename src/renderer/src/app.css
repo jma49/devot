@@ -1468,6 +1468,11 @@ button {
   min-width: calc(var(--size-list-min-width) - 1px);
 }
 
+/* The resize edge stays a thin strip. */
+.list > .list-resize {
+  min-width: 0;
+}
+
 .window[data-pane-motion] > .sidebar,
 .window[data-pane-motion] > .list {
   transition:
