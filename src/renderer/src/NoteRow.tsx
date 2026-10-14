@@ -82,6 +82,8 @@ export interface RowProps {
   position: number | undefined
   setSize: number | undefined
   selected: boolean
+  /** The note is open in the editor: its row has the focus bar while the list has the keyboard. */
+  open: boolean
   /** The row takes Tab (see `tabStop`). */
   tabbable: boolean
   tags: ReadonlyMap<string, TagRecord>
@@ -128,6 +130,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
       data-note-id={id}
       role="option"
       aria-selected={props.selected}
+      data-open={props.open || undefined}
       aria-posinset={props.position}
       aria-setsize={props.setSize}
       tabIndex={props.tabbable ? 0 : -1}

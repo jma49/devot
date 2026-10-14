@@ -4,9 +4,11 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent,
   type ReactNode,
   type Ref,
 } from 'react'
@@ -25,6 +27,9 @@ import {
   type ListSelection,
 } from './listSelection'
 import { useHeadlines, type HeadlineLoader } from './headlines'
+import { dragCardLines, setDragCard } from './listDrag'
+import { listEmpty, type ListEmptyKind } from './listEmpty'
+import { LIST_MAX_WIDTH, LIST_MIN_WIDTH, clampListWidth, currentListWidthStore } from './listWidth'
 import { entryOffsets, spacerHeight, windowRuns } from './listWindow'
 import { noteShortcut, trashShortcut, type NoteAction, type TrashAction } from './noteMenu'
 import { DRAG_NOTE, DRAG_TEMPLATE } from './Sidebar'
@@ -110,6 +115,8 @@ interface Props {
   excerpts?: HeadlineLoader | undefined
   /** Looks up each note's task progress, "done/total" (see NoteService.progress). */
   progress?: HeadlineLoader | undefined
+  /** What the list says when it has no rows (see listEmpty.ts). */
+  empty?: ListEmptyKind | undefined
 }
 
 const MINUTE = 60_000
@@ -170,6 +177,28 @@ export const NoteList = memo(function NoteList(props: Props) {
   const list = useRef<HTMLUListElement>(null)
   const now = useNow()
   const locale = currentLocale()
+
+  // The width the user dragged the right edge to, saved when the drag ends.
+  const [width, setWidth] = useState(() => currentListWidthStore().read())
+  const resizing = useRef<{ x: number; width: number } | null>(null)
+  const resizeStart = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    resizing.current = { x: e.clientX, width }
+  }
+  const resizeMove = (e: PointerEvent<HTMLDivElement>) => {
+    const from = resizing.current
+    if (from) setWidth(clampListWidth(from.width + e.clientX - from.x))
+  }
+  const resizeEnd = (e: PointerEvent<HTMLDivElement>) => {
+    const from = resizing.current
+    if (!from) return
+    resizing.current = null
+    const next = clampListWidth(from.width + e.clientX - from.x)
+    setWidth(next)
+    currentListWidthStore().write(next)
+  }
 
   // A long list renders only the entries near the part that shows (see
   // WINDOW_FROM), placed by their measured heights; the open note's row, the
@@ -589,6 +618,11 @@ export const NoteList = memo(function NoteList(props: Props) {
     e.dataTransfer.setData(DRAG_NOTE, ids.join('\n'))
     if (props.drag === 'templates') e.dataTransfer.setData(DRAG_TEMPLATE, '')
     e.dataTransfer.effectAllowed = 'move'
+    const byId = new Map(notes.map((n) => [n.id, n]))
+    const titles = ids.map(
+      (noteId) => byId.get(noteId)?.title || headlines.get(noteId) || t('note.untitled'),
+    )
+    setDragCard(e.dataTransfer, dragCardLines(titles, locale))
     setDragged(new Set(ids))
   })
   const keyDown = useStable((id: string, e: KeyboardEvent<HTMLLIElement>) =>
@@ -626,6 +660,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         position={windowed ? entry.index + 1 : undefined}
         setSize={windowed ? notes.length : undefined}
         selected={chosen ? chosen.has(n.id) : n.id === selected}
+        open={n.id === selected}
         tabbable={n.id === tabStop || (!tabStop && entry.index === 0)}
         tags={tags}
         highlight={props.highlight}
@@ -650,7 +685,12 @@ export const NoteList = memo(function NoteList(props: Props) {
     : noteCount(notes.length, currentLocale())
 
   return (
-    <section className="list" data-devot-part="list" aria-label={t('noteList.label')}>
+    <section
+      className="list"
+      data-devot-part="list"
+      aria-label={t('noteList.label')}
+      style={{ '--list-width': `${width}px` } as CSSProperties}
+    >
       <div
         className="toolbar list-header"
         data-devot-part="toolbar"
@@ -749,8 +789,33 @@ export const NoteList = memo(function NoteList(props: Props) {
           }
           return out
         })}
+        {entries.length === 0 && props.empty ? <EmptyList kind={props.empty} /> : null}
       </ul>
       {props.after}
+      <div
+        className="list-resize"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('noteList.resize')}
+        aria-valuenow={width}
+        aria-valuemin={LIST_MIN_WIDTH}
+        aria-valuemax={LIST_MAX_WIDTH}
+        onPointerDown={resizeStart}
+        onPointerMove={resizeMove}
+        onPointerUp={resizeEnd}
+        onPointerCancel={resizeEnd}
+      />
     </section>
   )
 })
+
+/** The empty list's message, and a tip for some views. */
+function EmptyList({ kind }: { kind: ListEmptyKind }) {
+  const { message, tip } = listEmpty(kind)
+  return (
+    <li className="list-empty" role="presentation">
+      <span className="list-empty-message">{t(message)}</span>
+      {tip ? <span className="list-empty-tip">{t(tip)}</span> : null}
+    </li>
+  )
+}

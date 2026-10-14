@@ -41,7 +41,14 @@
   --radius-dialog: 12px;
   --size-sidebar-width: 232px;
   --size-list-width: 320px;
-  --size-list-min-width: 224px;
+  --size-list-min-width: 220px;
+  --size-list-default-width: 300px;
+  --size-list-max-width: 500px;
+  --size-list-resize-handle: 4px;
+  --size-list-focus-bar: 5px;
+  --size-list-row-inset: 14px;
+  --size-drag-card-min-width: 60px;
+  --size-drag-card-max-width: 300px;
   --size-pane-min-width: 240px;
   --size-sidebar-collapse-width: 1000px;
   --size-popup-max-width: 240px;
@@ -94,6 +101,7 @@
   --tooltip-arrow-inset: 15px;
   --opacity-disabled: 0.45;
   --opacity-dragged: 0.5;
+  --opacity-list-selected: 0.2;
   --opacity-tag-fill: 0.1;
   --opacity-tag-border: 0.2;
   --opacity-tag-fill-active: 0.2;

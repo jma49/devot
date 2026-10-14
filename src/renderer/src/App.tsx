@@ -2450,6 +2450,7 @@ export function App() {
           scope={results?.search.scope ? format(t('search.in'), { view: viewName }) : undefined}
           highlight={highlight}
           onFind={findAgain}
+          empty="search"
           pinned={NO_NOTES}
           notes={shownResults}
           tags={tagsById}
@@ -2473,6 +2474,7 @@ export function App() {
           view={listView}
           title={t('sidebar.trash')}
           icon="trash"
+          empty="trash"
           filter={filterField}
           pinned={NO_NOTES}
           notes={trashRows}
@@ -2496,6 +2498,7 @@ export function App() {
           view={listView}
           title={t('sidebar.templates')}
           icon="templates"
+          empty="templates"
           filter={filterField}
           pinned={templateRows.pinned}
           notes={templateRows.others}
@@ -2532,6 +2535,7 @@ export function App() {
                   ? 'tag'
                   : 'notes.all'
           }
+          empty={activeFilter ? 'filter' : libraryBook ? 'notebook' : 'all'}
           filter={filterField}
           scope={filterLabel !== undefined ? libraryBook?.name : undefined}
           pinned={activeFilter?.kind === 'pinned' ? NO_NOTES : groups.pinned}

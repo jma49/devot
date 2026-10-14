@@ -1,6 +1,6 @@
-// The sidebar and the note list draw a selected row the same way: an accent
-// wash while the list does not have the keyboard, a solid accent fill with
-// the on-fill text while it does.
+// The sidebar draws a selected row as an accent wash while it does not have
+// the keyboard and a solid accent fill while it does; the note list keeps its
+// wash either way and marks the open row with a bar while it has the keyboard.
 import type { Locator, Page } from '@playwright/test'
 import { light } from '../../src/renderer/src/theme/tokens'
 import { expect, openApp, test } from './fixtures'
@@ -21,7 +21,7 @@ const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).ge
 const allNotes = (page: Page) =>
   page.getByRole('navigation', { name: 'Sidebar' }).getByRole('button', { name: /^All Notes/ })
 
-test('a selected row has the same fill in the sidebar and the note list, focused or not', async ({
+test('a selected row is washed in the sidebar and the note list; only the sidebar fills it when focused', async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
@@ -36,16 +36,17 @@ test('a selected row has the same fill in the sidebar and the note list, focused
   await page.getByRole('textbox', { name: 'Title' }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toBeFocused()
   const wash = await background(row)
+  const sidebarWash = await background(allNotes(page))
   expect(wash).not.toBe('rgba(0, 0, 0, 0)')
-  expect(await background(allNotes(page))).toBe(wash)
+  expect(sidebarWash).not.toBe('rgba(0, 0, 0, 0)')
 
-  // The note list has it: its selection is the accent fill, the sidebar's stays washed.
+  // The note list has it: its selection keeps the wash, the sidebar's too.
   await row.click()
   await expect(row).toBeFocused()
-  await expect.poll(() => background(row)).toBe(rgb(light['color.accent.fill']))
-  await expect.poll(() => background(allNotes(page))).toBe(wash)
+  await expect.poll(() => background(row)).toBe(wash)
+  await expect.poll(() => background(allNotes(page))).toBe(sidebarWash)
 
-  // The sidebar has it: the same accent fill there, the wash in the list.
+  // The sidebar has it: the accent fill there, the wash in the list.
   await allNotes(page).focus()
   await expect.poll(() => background(allNotes(page))).toBe(rgb(light['color.accent.fill']))
   await expect.poll(() => background(row)).toBe(wash)

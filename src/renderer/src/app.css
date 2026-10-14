@@ -349,14 +349,27 @@ button {
 }
 
 /* The selected row of the sidebar (a pressed filter, the view shown, the
-   selected notebook) and of the note list, the same in both: an accent wash,
-   and while the list has the keyboard focus a solid accent fill with the
-   on-fill colour for its text and marks. */
+   selected notebook): an accent wash, and while the sidebar has the keyboard
+   focus a solid accent fill with the on-fill colour for its text and marks. */
 .source.filter[aria-pressed='true'],
 .source[aria-current='true'],
-.books [aria-selected='true'] > .book-row,
-.row[aria-selected='true'] {
+.books [aria-selected='true'] > .book-row {
   background: var(--color-fill-row-selected-unemphasized);
+}
+
+/* A selected note row: a wash of the accent, focused or not; its text keeps
+   its colours. While the list has the keyboard the open note's row also has
+   a solid accent bar on its left edge. */
+.row[aria-selected='true'] {
+  background: color-mix(
+    in srgb,
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
+  );
+}
+
+.rows:focus-within .row[data-open] {
+  box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
 }
 
 .sidebar:focus-within
@@ -364,8 +377,7 @@ button {
     .source.filter[aria-pressed='true'],
     .source[aria-current='true'],
     .books [aria-selected='true'] > .book-row
-  ),
-.rows:focus-within .row[aria-selected='true'] {
+  ) {
   background: var(--color-accent-fill);
   color: var(--color-accent-on-fill);
 }
@@ -376,8 +388,7 @@ button {
     .source[aria-current='true'],
     .books [aria-selected='true'] > .book-row
   )
-  :is(.source-count, .book-ai, .disclosure),
-.rows:focus-within .row[aria-selected='true'] :is(.row-excerpt, .row-time, .row-progress) {
+  :is(.source-count, .book-ai, .disclosure) {
   color: var(--color-accent-on-fill);
 }
 
@@ -387,8 +398,7 @@ button {
     .source[aria-current='true'],
     .books [aria-selected='true'] > .book-row
   )
-  .icon,
-.rows:focus-within .row[aria-selected='true'] :is(.row-status .icon, .progress-fill) {
+  .icon {
   background-color: var(--color-accent-on-fill);
 }
 
@@ -790,8 +800,11 @@ button {
 }
 
 /* Note list. */
+/* The width the user dragged its right edge to (NoteList sets --list-width). */
 .list {
-  width: var(--size-list-width);
+  position: relative;
+  width: var(--list-width, var(--size-list-default-width));
+  max-width: var(--size-list-max-width);
   /* The list gives way to the editor in a narrow window, down to its minimum. */
   flex-shrink: 1;
   min-width: var(--size-list-min-width);
@@ -904,23 +917,33 @@ button {
 .row {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-5) var(--space-6);
+  padding: var(--space-1) 0 var(--space-5) var(--size-list-row-inset);
   border-bottom: 1px solid var(--color-line-separator);
   border-radius: 0;
   outline: none;
 }
 
+/* Up to two lines; a long word breaks rather than overflows. */
 .row-title {
+  display: -webkit-box;
+  margin: var(--space-4) var(--space-4) var(--space-4) 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+/* An untitled row starts with its excerpt: the same space above it as a title has. */
+.row > .row-meta:first-child {
+  margin-top: var(--space-4);
 }
 
 /* One line of the body, Markdown and line breaks out (see listExcerpt). */
 .row-excerpt {
+  padding: calc(var(--space-2) - 1px) var(--space-4) 1px 0;
   overflow: hidden;
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
@@ -1002,6 +1025,71 @@ button {
   border-radius: var(--radius-capsule);
   background: var(--color-fill-track);
   font-size: var(--font-size-caption);
+  white-space: nowrap;
+}
+
+/* An empty list says why, in the middle of the pane. */
+.list-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-7) var(--space-7) var(--space-10);
+  color: var(--color-text-tertiary);
+  text-align: center;
+  list-style: none;
+}
+
+.list-empty-message {
+  font-size: var(--font-size-title3);
+  font-weight: var(--font-weight-semibold);
+}
+
+.list-empty-tip {
+  font-size: var(--font-size-footnote);
+}
+
+/* The right edge: drag it to make the list wider or narrower. */
+.list-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  width: var(--size-list-resize-handle);
+  cursor: col-resize;
+}
+
+/* The card under the pointer while notes are dragged (listDrag.ts), drawn
+   off screen for the drag's picture. The holder's padding is its distance
+   from the pointer. */
+.drag-card-holder {
+  position: fixed;
+  top: 0;
+  left: calc(-1 * var(--size-drag-card-max-width) * 2);
+  padding: var(--space-6);
+}
+
+.drag-card {
+  box-sizing: border-box;
+  min-width: var(--size-drag-card-min-width);
+  max-width: var(--size-drag-card-max-width);
+  padding: var(--space-4);
+  overflow: hidden;
+  border: 1px solid var(--color-line-control);
+  border-radius: var(--radius-field);
+  background: var(--color-surface-popover);
+  box-shadow: var(--popover-shadow);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+}
+
+.drag-card-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1111,13 +1199,6 @@ button {
     var(--tag-color) calc(var(--opacity-tag-fill-active) * 100%),
     transparent
   );
-}
-
-/* On the focused list's selection, a chip takes the on-fill colour. */
-.rows:focus-within .row[aria-selected='true'] .chip {
-  border-color: var(--color-accent-on-fill);
-  background: transparent;
-  color: var(--color-accent-on-fill);
 }
 
 .template-hint {
