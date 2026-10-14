@@ -265,7 +265,7 @@ test('notebook drops show their insertion line and indent under the policy', asy
   const to = await box('Alpha')
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
   await page.mouse.down()
-  // After the open Alpha: the line is on its item, under Charlie, at Alpha's indent.
+  // After the open Alpha: the line is on its item, under Charlie, across Alpha's width.
   await page.mouse.move(to.x + to.width / 2, to.y + to.height - 2, { steps: 4 })
   const alphaItem = page.getByRole('treeitem', { name: /^Alpha\b/ })
   await expect(alphaItem).toHaveClass(/drop-after/)
