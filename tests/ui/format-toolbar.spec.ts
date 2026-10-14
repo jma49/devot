@@ -220,7 +220,7 @@ test('the bar is one outlined box with a separate notch, and its icons sit on wh
   expect(look.filter).toBe('none')
   expect(look.notch).toEqual([14, 7])
   // Whole pixels, and the mask is exactly the box: nothing is scaled.
-  for (const px of look.size) expect(Number.parseFloat(px) % 1).toBe(0)
+  for (const px of look.size) expect(Number.isInteger(Number.parseFloat(px ?? ''))).toBe(true)
   expect(look.mask).toBe(look.size.join(' '))
 })
 

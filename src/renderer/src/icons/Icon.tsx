@@ -3,11 +3,10 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { shownAppearance, subscribeAppearance } from '../theme/appearance'
 import {
   createSymbolCache,
-  evenPixels,
-  PIXELS_PER_POINT,
-  inkBounds,
+  canvasPixels,
+  fitInCanvas,
+  renderPoints,
   symbolFor,
-  symbolSize,
   symbolStyle,
   type Appearance,
   type IconName,
@@ -33,55 +32,60 @@ const BOXES = { xs: 10, sm: 14, md: 17, toolbar: 18, lg: 22 } as const
 const boxPoints = (box: number) => Math.round(box * 0.8)
 
 /**
- * Reads where a rendered symbol's ink is. A PNG with an odd side gets one
- * transparent pixel (copied pixel for pixel, never resampled) so it is
- * exactly twice a whole CSS size.
+ * Draws a rendered symbol into the one square canvas every symbol of a box
+ * shares (`box` x `ratio` device pixels), centred on whole pixels, copied
+ * pixel for pixel. It is shown at `box` CSS pixels, so it is never resampled.
  */
-async function measure(rendered: string): Promise<SymbolImage> {
-  const fallback = symbolSize(rendered) ?? { width: 0, height: 0 }
+async function compose(rendered: string, box: number, ratio: number): Promise<SymbolImage> {
+  const whole = { x: 0, y: 0, width: box, height: box }
   const image = new Image()
   image.src = rendered
   await image.decode()
-  const pixelsWide = evenPixels(image.naturalWidth)
-  const pixelsHigh = evenPixels(image.naturalHeight)
+  const side = canvasPixels(box, ratio)
   const canvas = document.createElement('canvas')
-  canvas.width = pixelsWide
-  canvas.height = pixelsHigh
-  const size = {
-    width: pixelsWide / PIXELS_PER_POINT,
-    height: pixelsHigh / PIXELS_PER_POINT,
-  }
+  canvas.width = side
+  canvas.height = side
   const context = canvas.getContext('2d')
-  const whole = { x: 0, y: 0, ...size }
-  if (!context) return { url: rendered, ...fallback, ink: whole }
-  context.drawImage(image, 0, 0)
-  const { data } = context.getImageData(0, 0, pixelsWide, pixelsHigh)
-  const alpha = new Uint8ClampedArray(pixelsWide * pixelsHigh)
-  for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3] ?? 0
-  const padded = pixelsWide !== image.naturalWidth || pixelsHigh !== image.naturalHeight
-  return {
-    url: padded ? canvas.toDataURL('image/png') : rendered,
-    ...size,
-    ink: inkBounds(alpha, pixelsWide, pixelsHigh) ?? whole,
-  }
+  if (!context) return { url: rendered, width: box, height: box, ink: whole }
+  const at = fitInCanvas(image.naturalWidth, image.naturalHeight, side)
+  context.drawImage(image, at.x, at.y, at.width, at.height)
+  return { url: canvas.toDataURL('image/png'), width: box, height: box, ink: whole }
 }
 
 const placed = new Map<string, Promise<SymbolImage>>()
 
 /**
- * A symbol rendered for a box (every symbol for a box at one point size and
- * weight), with where its ink is. Never scaled in the page.
+ * A symbol drawn for a box at a device pixel ratio (every symbol at one point
+ * size and weight, in one canvas size). Never scaled in the page.
  */
-function placedSymbol(symbol: string, box: number, appearance: Appearance): Promise<SymbolImage> {
-  const key = `${symbol}@${box}/${appearance}`
+function placedSymbol(
+  symbol: string,
+  box: number,
+  appearance: Appearance,
+  ratio: number,
+): Promise<SymbolImage> {
+  const key = `${symbol}@${box}x${ratio}/${appearance}`
   let entry = placed.get(key)
   if (!entry) {
-    entry = (async () => measure(await cache.get(symbol, boxPoints(box), appearance)))()
+    entry = (async () =>
+      compose(
+        await cache.get(symbol, renderPoints(boxPoints(box), ratio), appearance),
+        box,
+        ratio,
+      ))()
     entry.catch(() => placed.delete(key))
     placed.set(key, entry)
   }
   return entry
 }
+
+/** The window's device pixel ratio; a change (another display) renders the symbols again. */
+function subscribeRatio(notify: () => void) {
+  const query = matchMedia(`(resolution: ${devicePixelRatio}dppx)`)
+  query.addEventListener('change', notify)
+  return () => query.removeEventListener('change', notify)
+}
+const currentRatio = () => (typeof devicePixelRatio === 'number' ? devicePixelRatio : 2)
 
 /** The appearance the page shows: the one chosen in Settings, else the system's. */
 export function useAppearance(): Appearance {
@@ -101,18 +105,19 @@ export function Icon({ name, size }: { name: IconName; size: keyof typeof BOXES 
   const appearance = useAppearance()
   const symbol = symbolFor(name)
   const box = BOXES[size]
+  const ratio = useSyncExternalStore(subscribeRatio, currentRatio, () => 2)
   const [image, setImage] = useState<SymbolImage>()
 
   useEffect(() => {
     let current = true
-    placedSymbol(symbol, box, appearance).then(
+    placedSymbol(symbol, box, appearance, ratio).then(
       (next) => current && setImage(next),
       () => console.warn('W_SYMBOL_UNAVAILABLE', symbol),
     )
     return () => {
       current = false
     }
-  }, [symbol, box, appearance])
+  }, [symbol, box, appearance, ratio])
 
   return (
     <span
@@ -135,7 +140,7 @@ export function iconElement(name: IconName, box: number): HTMLElement {
   span.className = 'icon'
   span.dataset['symbol'] = symbol
   span.setAttribute('aria-hidden', 'true')
-  placedSymbol(symbol, box, shownAppearance()).then(
+  placedSymbol(symbol, box, shownAppearance(), currentRatio()).then(
     (image) => {
       // React's names to CSS's (`WebkitMaskImage` is `-webkit-mask-image`).
       for (const [key, value] of Object.entries(symbolStyle(image, box)))

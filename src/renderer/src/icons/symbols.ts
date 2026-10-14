@@ -109,9 +109,26 @@ export function inkBounds(alpha: ArrayLike<number>, width: number, height: numbe
   }
 }
 
-/** The pixels of a symbol's PNG along one side, grown to an even count so CSS pixels are whole. */
-export function evenPixels(pixels: number): number {
-  return pixels + (pixels % 2)
+/**
+ * The point size to ask Rust for so a symbol's pixels are `ratio` per point
+ * (Rust renders `PIXELS_PER_POINT` pixels per point): one point size and
+ * weight for every symbol of a box, so strokes match across icons.
+ */
+export const renderPoints = (points: number, ratio: number) => (points * ratio) / PIXELS_PER_POINT
+
+/** The side, in device pixels, of the square canvas every symbol of a `box` is drawn into. */
+export const canvasPixels = (box: number, ratio: number) => Math.round(box * ratio)
+
+/**
+ * Where a rendered symbol of `width` by `height` device pixels goes in a
+ * square canvas of `canvas` pixels: centred on whole pixels, and scaled down
+ * (never up, never stretched) only when its larger side exceeds the canvas.
+ */
+export function fitInCanvas(width: number, height: number, canvas: number) {
+  const scale = Math.min(1, canvas / Math.max(width, height))
+  const w = Math.max(1, Math.round(width * scale))
+  const h = Math.max(1, Math.round(height * scale))
+  return { x: Math.floor((canvas - w) / 2), y: Math.floor((canvas - h) / 2), width: w, height: h }
 }
 
 /**

@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import symbolsJson from '../../../../design/icons/symbols.json'
 import {
   createSymbolCache,
-  evenPixels,
+  canvasPixels,
+  fitInCanvas,
+  renderPoints,
   ICONS,
   symbolFor,
   inkBounds,
@@ -103,10 +105,40 @@ describe('ink', () => {
   })
 })
 
-describe('even pixels', () => {
-  it('grows an odd side by one pixel, so a CSS size is whole', () => {
-    expect(evenPixels(31)).toBe(32)
-    expect(evenPixels(32)).toBe(32)
+describe('the shared canvas', () => {
+  it('is the same square for every toolbar icon, at any pixel ratio', () => {
+    // Symbols differ in width and height (device pixels at ratio 2).
+    const sources = [
+      [29, 31],
+      [36, 28],
+      [22, 33],
+      [35, 35],
+    ] as const
+    for (const ratio of [1, 2, 3]) {
+      const side = canvasPixels(18, ratio)
+      expect(side).toBe(18 * ratio)
+      for (const [w, h] of sources) {
+        const at = fitInCanvas(w, h, side)
+        // Whole pixels, inside the canvas, centred on both axes.
+        for (const n of Object.values(at)) expect(Number.isInteger(n)).toBe(true)
+        expect(at.x).toBeGreaterThanOrEqual(0)
+        expect(at.x + at.width).toBeLessThanOrEqual(side)
+        expect(at.y + at.height).toBeLessThanOrEqual(side)
+        expect(Math.abs(at.x * 2 + at.width - side)).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+
+  it('draws a symbol that fits as it is, and fits a larger one by its larger side', () => {
+    expect(fitInCanvas(29, 31, 36)).toEqual({ x: 3, y: 2, width: 29, height: 31 })
+    const big = fitInCanvas(72, 36, 36)
+    expect(big).toEqual({ x: 0, y: 9, width: 36, height: 18 })
+  })
+
+  it('asks Rust for one point size per box and ratio', () => {
+    expect(renderPoints(14, 2)).toBe(14)
+    expect(renderPoints(14, 3)).toBe(21)
+    expect(renderPoints(14, 1)).toBe(7)
   })
 })
 
