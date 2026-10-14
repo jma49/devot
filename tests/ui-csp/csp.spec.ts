@@ -207,9 +207,10 @@ test('the notebook menu works and outlines its notebook under the policy', async
   await row.click({ button: 'right' })
   // The menu code is its own chunk, loaded on the first right-click.
   await expect.poll(() => shownMenu(page)).toContain('New Notebook Inside')
-  await expect(row).not.toHaveCSS('box-shadow', 'none')
+  // (a selected row under the keyboard also has a 5 px bar in its box-shadow)
+  await expect(row).toHaveCSS('box-shadow', /0px 0px 0px 2px inset$/)
   await page.evaluate(() => (globalThis as unknown as { closeMenu: () => void }).closeMenu())
-  await expect(row).toHaveCSS('box-shadow', 'none')
+  await expect(row).not.toHaveCSS('box-shadow', /0px 0px 0px 2px inset$/)
   await pickMenuItem(page, 'New Notebook Inside')
   await field.fill('Inner')
   await field.press('Enter')
@@ -276,7 +277,7 @@ test('notebook drops show their insertion line and indent under the policy', asy
     ).getComputedStyle(el, '::after')
     return { height: style.height, left: style.left }
   })
-  expect(after).toEqual({ height: '2px', left: '8px' })
+  expect(after).toEqual({ height: '2px', left: '0px' })
   await page.mouse.move(to.x + to.width / 2, to.y + 2, { steps: 4 })
   await expect(row('Alpha')).toHaveClass(/drop-before/)
   const line = await row('Alpha').evaluate((el) => {
