@@ -25,12 +25,29 @@ describe('floating bar motion and states', () => {
     expect(transition).not.toContain('background')
   })
 
-  it('fades a bar in without growing it, so CodeMirror measures its full size', () => {
+  it('is one element: surface, 1 px outline and a two-layer box shadow, no filter and no animation', () => {
     const bar = rule('.cm-tooltip.cm-float-bar')
-    expect(bar.animation).toBe(
-      'cm-fade-in var(--motion-duration-fade) var(--motion-easing-standard)',
-    )
-    expect(floatStyles['@keyframes cm-fade-in']).toEqual({ from: { opacity: '0' } })
+    expect(bar.outline).toBe('1px solid var(--color-line-hairline)')
+    expect(bar.border).toBe('0')
+    expect(bar.backgroundColor).toBe('var(--color-surface-popover)')
+    expect(bar.boxShadow!.split('), ')).toHaveLength(2)
+    expect(bar.boxShadow).toContain('var(--color-shadow-popover-key)')
+    expect(bar.filter).toBeUndefined()
+    expect(bar.animation).toBeUndefined()
+    expect(floatStyles['@keyframes cm-fade-in']).toEqual({
+      from: { opacity: '0' },
+    })
+  })
+
+  it('has zero-width separators with a left border and buttons with no gap', () => {
+    const separator = rule('.cm-float-separator')
+    expect(separator.width).toBe('0')
+    expect(separator.borderLeft).toBe('1px solid var(--color-line-separator)')
+    expect(rule('.cm-float-buttons').gap).toBeUndefined()
+  })
+
+  it('shows a button icon at its own size, never scaled by the mask', () => {
+    expect(JSON.stringify(rule('.cm-float-button .icon'))).not.toMatch(/contain|mask/i)
   })
 
   it('fades a button tooltip in and out like the app tooltips, above its button with the app gap', () => {
@@ -47,15 +64,7 @@ describe('floating bar motion and states', () => {
   })
 
   it('lets a bar hold its notch on the anchor when the bar is held back', () => {
-    const notch = rule('.cm-tooltip.cm-float-bar::after')
-    expect(notch.left).toContain('var(--float-notch-x, 13px)')
-  })
-
-  it('fades a closing bar out', () => {
-    expect(rule('.cm-tooltip[data-closing][data-closing-motion="fade"]').animation).toBe(
-      'cm-fade-out var(--motion-duration-fade) var(--motion-easing-standard) forwards',
-    )
-    expect(floatStyles['@keyframes cm-fade-out']).toEqual({ to: { opacity: '0' } })
+    expect(rule('.cm-float-notch').left).toContain('var(--float-notch-x, 14px)')
   })
 
   it('gives the tooltip bubble a notch toward its button', () => {

@@ -733,7 +733,7 @@
     "floating-bar": {
       "$type": "dimension",
       "$value": {
-        "value": 14,
+        "value": 11,
         "unit": "px"
       },
       "$description": "The selection toolbar and the image size bar."
@@ -980,14 +980,30 @@
     "float-toolbar-height": {
       "$type": "dimension",
       "$value": {
-        "value": 37,
+        "value": 38,
         "unit": "px"
       }
+    },
+    "float-notch-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "The notch of a floating bar: its width (the tip is centred on the anchor)."
+    },
+    "float-notch-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 7,
+        "unit": "px"
+      },
+      "$description": "The notch of a floating bar: how far it reaches out of the bar."
     },
     "float-button": {
       "$type": "dimension",
       "$value": {
-        "value": 28,
+        "value": 30,
         "unit": "px"
       }
     },

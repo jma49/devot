@@ -10,16 +10,11 @@ import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
 import { closingRef } from '../closing'
 import { sizes } from '../theme/tokens'
-import { closingStyles, closingTooltips, fadeIn, motionKeyframes, tipIn } from './motion'
+import { closingStyles, closingTooltips, motionKeyframes, tipIn } from './motion'
+import { BAR_GAP, NOTCH_X, notchElement, notchStyles } from './notch'
 import type { Tip } from './toolbarButtons'
 
-/**
- * How far the bar sits from its anchor's left edge: the notch's middle is
- * this far from the bar's left edge, so it points at the anchor.
- */
-export const NOTCH_X = 13
-/** The gap between a bar and the text it belongs to. */
-export const BAR_GAP = 10
+export { BAR_GAP, NOTCH_X }
 
 /** How long the pointer rests on a button before its tooltip shows (the app's tooltip delay), in ms. */
 const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
@@ -123,22 +118,31 @@ export function FloatButton(props: FloatButtonProps) {
 }
 
 export function FloatSeparator(): ReactNode {
-  return <div role="separator" aria-orientation="vertical" className="cm-float-separator" />
+  return <span role="separator" aria-orientation="vertical" className="cm-float-separator" />
 }
 
 /**
- * The bar and its notch read as one shape: one hairline round both (the
- * notch lies over the bar's edge, its fill hiding the bar's hairline where
- * they join, and draws the hairline on its two outer sides), and one shadow
- * that follows the painted shape (a filter, not a box shadow).
+ * One bar element holds the surface, a 1 px outline and a two-layer box
+ * shadow (on the bar only, no filter); its notch is a separate element
+ * behind it (`notch.ts`).
  */
+const outline = '1px solid var(--color-line-hairline)'
+/** A tooltip bubble's own notch: a turned square on its edge, pointing at its button. */
 const hairline = '0.5px solid var(--color-line-hairline)'
 const notchSize = 'var(--space-4)'
 const notchOut = 'calc(var(--space-4) / -2)'
 const popoverShadow = [
-  'drop-shadow(0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key))',
-  'drop-shadow(0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient))',
-].join(' ')
+  '0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key)',
+  '0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient)',
+].join(', ')
+
+/** A bar's content row: the element React renders into, beside the notch. */
+export function barContent(dom: HTMLElement): HTMLElement {
+  const content = document.createElement('div')
+  content.className = 'cm-float-content'
+  dom.append(content, notchElement())
+  return content
+}
 
 /** The bars' styles (exported for the tests); `floatTheme` is the extension. */
 export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
@@ -151,43 +155,18 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     height: 'var(--size-float-toolbar-height)',
     padding: 'var(--space-2) var(--space-3)',
     border: '0',
+    outline,
     borderRadius: 'var(--radius-floating-bar)',
     backgroundColor: 'var(--color-surface-popover)',
-    boxShadow: '0 0 0 0.5px var(--color-line-hairline)',
-    filter: popoverShadow,
+    boxShadow: popoverShadow,
     color: 'var(--color-text-secondary)',
     fontFamily: 'var(--font-family-ui)',
-    // A bar only fades in; its tooltip grows out of its notch.
-    animation: fadeIn,
   },
-  // The notch: a turned square centred on the bar's edge, over it.
-  '.cm-tooltip.cm-float-bar::after': {
-    content: '""',
-    position: 'absolute',
-    zIndex: '1',
-    boxSizing: 'border-box',
-    // `--float-notch-x` is set by a bar held back at an edge, so the tip stays on its anchor.
-    left: `calc(var(--float-notch-x, ${NOTCH_X}px) - ${notchSize} / 2)`,
-    width: notchSize,
-    height: notchSize,
-    backgroundColor: 'var(--color-surface-popover)',
-    transform: 'rotate(45deg)',
-    pointerEvents: 'none',
-  },
-  '.cm-tooltip-above.cm-float-bar::after': {
-    bottom: notchOut,
-    borderRight: hairline,
-    borderBottom: hairline,
-  },
-  '.cm-tooltip-below.cm-float-bar::after': {
-    top: notchOut,
-    borderLeft: hairline,
-    borderTop: hairline,
-  },
+  '.cm-float-content': { display: 'flex', alignItems: 'center', minWidth: '0' },
+  ...notchStyles,
   '.cm-float-buttons': {
     display: 'flex',
     alignItems: 'center',
-    gap: 'var(--space-1)',
     minWidth: '0',
   },
   '.cm-float-button': {
@@ -218,13 +197,15 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     backgroundColor: 'var(--color-fill-tool-hover)',
     color: 'var(--color-accent-text)',
   },
+  // Zero width, a left border only.
   '.cm-float-separator': {
     alignSelf: 'center',
     flexShrink: '0',
-    width: '1px',
+    display: 'block',
+    width: '0',
     height: 'var(--size-icon-toolbar)',
     margin: '0 var(--space-3)',
-    background: 'var(--color-line-hairline)',
+    borderLeft: '1px solid var(--color-line-separator)',
   },
   '.cm-float-label': {
     flexShrink: '0',
@@ -234,17 +215,11 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     whiteSpace: 'nowrap',
   },
   // The app's icon rules do not reach into the editor's shadow root.
+  // Its size, mask size and place are set from the rendered image (`symbolStyle`).
   '.cm-float-button .icon': {
-    display: 'inline-block',
-    width: 'var(--size-icon-toolbar)',
-    height: 'var(--size-icon-toolbar)',
+    display: 'block',
+    flexShrink: '0',
     backgroundColor: 'currentColor',
-    maskSize: 'contain',
-    maskRepeat: 'no-repeat',
-    maskPosition: 'center',
-    WebkitMaskSize: 'contain',
-    WebkitMaskRepeat: 'no-repeat',
-    WebkitMaskPosition: 'center',
   },
   '.cm-float-tip': {
     position: 'absolute',
@@ -256,8 +231,8 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     padding: 'var(--space-3) var(--space-5)',
     borderRadius: 'var(--radius-card)',
     backgroundColor: 'var(--color-surface-popover)',
-    // Inside the bar: the bar's shadow (a filter) reaches it too.
-    boxShadow: '0 0 0 0.5px var(--color-line-hairline)',
+    outline,
+    boxShadow: popoverShadow,
     color: 'var(--color-text-secondary)',
     fontSize: 'var(--font-size-footnote)',
     whiteSpace: 'nowrap',
