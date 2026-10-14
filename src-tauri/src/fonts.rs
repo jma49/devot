@@ -25,6 +25,8 @@ pub const DIR: &str = "fonts";
 pub const MAX_BYTES: u64 = 50 * 1024 * 1024;
 /// The longest file stem a font is stored under, in characters.
 const STEM_MAX: usize = 64;
+/// How many names an import tries (`Name.ttf`, `Name 2.ttf`, ...).
+const NAME_TRIES: u32 = 100;
 /// The longest installed font family name, in characters.
 const FAMILY_MAX: usize = 128;
 /// The extensions accepted, lowercase; a file's first bytes must match.
@@ -66,10 +68,23 @@ impl Fonts {
         let bytes = read_limited(std::fs::File::open(path).map_err(|_| INVALID)?)?;
         check_bytes(&id, &bytes)?;
         std::fs::create_dir_all(&self.dir).map_err(|_| FAILED)?;
-        self.folder()?
-            .write(&id, &bytes, Place::Replace)
-            .map_err(|_| FAILED)?;
-        Ok(entry(id))
+        let folder = self.folder()?;
+        // A stored font is never replaced: a window may have it loaded, and
+        // only a new name makes it load the new one. The same file again
+        // keeps its name.
+        for n in 1..=NAME_TRIES {
+            let id = numbered(&id, n);
+            match folder.write(&id, &bytes, Place::New) {
+                Ok(()) => return Ok(entry(id)),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    if self.read(&id).is_ok_and(|stored| stored == bytes) {
+                        return Ok(entry(id));
+                    }
+                }
+                Err(_) => return Err(FAILED),
+            }
+        }
+        Err(FAILED)
     }
 
     /// The stored fonts, by name; none when the folder does not exist yet.
@@ -189,6 +204,17 @@ fn stored_name(file_name: &str) -> Option<String> {
     valid_id(&id).then_some(id)
 }
 
+/// `id` with ` n` after its stem from 2 on, the stem cut to keep it valid.
+fn numbered(id: &str, n: u32) -> String {
+    if n == 1 {
+        return id.to_string();
+    }
+    let (stem, ext) = id.rsplit_once('.').unwrap_or((id, ""));
+    let suffix = format!(" {n}");
+    let stem: String = stem.chars().take(STEM_MAX - suffix.len()).collect();
+    format!("{stem}{suffix}.{ext}")
+}
+
 /// The file's first bytes match its extension: an OpenType or TrueType font
 /// for `.ttf` and `.otf` (either outline kind, as files are often named
 /// for the other), WOFF or WOFF2.
@@ -300,6 +326,25 @@ mod tests {
         assert_eq!(font.name, "Fira Code");
         assert_eq!(fonts.list(), vec![font]);
         assert_eq!(fonts.read("Fira Code.ttf").unwrap(), TTF);
+    }
+
+    #[test]
+    fn a_new_file_under_a_taken_name_gets_a_new_name_and_the_same_file_keeps_it() {
+        let data = tempfile::tempdir().unwrap();
+        let picked = tempfile::tempdir().unwrap();
+        let fonts = Fonts::new(data.path());
+        let first = fonts.import(&file(&picked, "Mono.ttf", TTF)).unwrap();
+        assert_eq!(
+            fonts.import(&file(&picked, "Mono.ttf", TTF)).unwrap(),
+            first
+        );
+        let changed = [TTF, b"v2"].concat();
+        let second = fonts.import(&file(&picked, "Mono.ttf", &changed)).unwrap();
+        assert_eq!(second.id, "Mono 2.ttf");
+        assert_eq!(fonts.read("Mono.ttf").unwrap(), TTF);
+        assert_eq!(fonts.read("Mono 2.ttf").unwrap(), changed);
+        let long = format!("{}.otf", "x".repeat(STEM_MAX));
+        assert!(valid_id(&numbered(&long, 12)));
     }
 
     #[test]

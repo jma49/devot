@@ -80,4 +80,16 @@ describe('importedFontLoader', () => {
     expect(await second).toBe(true)
     expect(added.size).toBe(1)
   })
+
+  it('keeps one face when the choice goes away and back while loading', async () => {
+    const { fake, added } = env({ 'a.ttf': 'font', 'b.ttf': 'font' })
+    const loader = importedFontLoader(fake)
+    const results = await Promise.all([
+      loader.use('a.ttf'),
+      loader.use('b.ttf'),
+      loader.use('a.ttf'),
+    ])
+    expect(results).toEqual([false, false, true])
+    expect(added.size).toBe(1)
+  })
 })

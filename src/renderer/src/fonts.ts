@@ -55,30 +55,31 @@ const pageEnv = (): FontEnv => ({
 /**
  * Keeps one imported font loaded: the file the settings name, or none.
  * `use` resolves to whether that font is in place; a newer call wins over
- * one still loading.
+ * one still loading. A stored file is never replaced (Rust gives a changed
+ * file a new name), so a name loaded once stays right.
  */
 export function importedFontLoader(env: FontEnv = pageEnv()) {
   let wanted: string | null = null
+  /** Counts calls that change the font; a load whose call is not the latest drops its face. */
+  let generation = 0
   let face: FontFace | undefined
-  let loaded: string | null = null
   return {
     async use(id: string | null): Promise<boolean> {
-      if (id === wanted) return id === null || loaded === id
+      if (id === wanted) return id === null || face !== undefined
       wanted = id
+      const mine = ++generation
       if (face) env.remove(face)
       face = undefined
-      loaded = null
       if (id === null) return true
       try {
         const next = await env.load(IMPORTED_FONT_FAMILY, await env.read(id))
-        if (wanted !== id) return false
+        if (mine !== generation) return false
         env.add(next)
         face = next
-        loaded = id
         return true
       } catch {
         // SF Mono shows instead (the font list ends with it).
-        if (wanted === id) console.warn('W_FONT_LOAD_FAILED')
+        if (mine === generation) console.warn('W_FONT_LOAD_FAILED')
         return false
       }
     },
