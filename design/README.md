@@ -11,6 +11,8 @@ Everything in this folder is meant to be publishable as an open-source asset lib
 | `tokens/base.tokens.json`                | Primitives: palette, font families, type scale, spacing, radii, sizes |
 | `tokens/themes/system.light.tokens.json` | The default theme, light appearance                                   |
 | `tokens/themes/system.dark.tokens.json`  | The default theme, dark appearance                                    |
+| `tokens/themes/ivory.light.tokens.json`  | The Ivory theme, light appearance                                     |
+| `tokens/themes/ivory.dark.tokens.json`   | The Ivory theme, dark appearance                                      |
 | `icons/symbols.json`                     | Devot icon names mapped to SF Symbol names                            |
 | `icons/languages.json`                   | Language marks for code block headers (third party, see below)        |
 | `app-icon/dove.svg`                      | The Devot dove: the logo mark, one teal vector path                   |
@@ -121,4 +123,42 @@ Floating things move by the `motion.*` tokens; a policy test rejects literal dur
 
 - **Default**: Devot's palette in the appearance chosen in Settings (the system's by default), optionally with the system accent.
 - **Other themes:** fully independent of the system accent. Each provides a light and a dark appearance and follows the system's light/dark switch, unless it declares a single appearance.
-- Themes are DTCG token files with the same structure as the System theme. Custom CSS for advanced themes comes in phase 2 (see `docs/architecture.md`).
+- Themes are DTCG token files with the same structure as the System theme: every colour token of `system.*.tokens.json` and no other (a test fails on a missing or an extra one). Custom CSS for advanced themes comes in phase 2 (see `docs/architecture.md`).
+- **Choosing one:** Settings > Appearance > Theme offers Default and Ivory as cards that show each in both appearances. The choice is the `theme` editor setting; a chosen theme other than Default is `data-theme` on the root element, and each built-in theme's rules in `tokens.css` are scoped by it (`scripts/tokens/themes.ts` lists them). An element with `data-theme-preview="ivory"` and `data-appearance-preview="light|dark"` shows that theme's tokens inside it. The default theme's output does not change when a theme is added.
+
+### Ivory
+
+A warm theme: ivory surfaces and warm near-black text (light), warm charcoal and ivory text (dark). Typography and icons are the default theme's. The accent is Devot's own blue, the System theme's accent tokens; Ivory does not follow the macOS accent colour, so "Use the system accent colour" is disabled, with a hint, while Ivory is chosen. Row selection follows the System theme's recipe (an accent wash on an unfocused list, the solid accent fill on a focused one, the same strengths), and the pop-up shadow uses the System theme's strengths cast from `#1f1e1d`.
+
+| Token                                                    | Light                          | Dark                                          |
+| -------------------------------------------------------- | ------------------------------ | --------------------------------------------- |
+| `color.surface.sidebar` (material)                       | `#f5f4ed` at 70%               | `#1f1e1d` at 70%                              |
+| `color.surface.sidebar-opaque`                           | `#f5f4ed`                      | `#1f1e1d`                                     |
+| `color.surface.list`                                     | `#faf9f5`                      | `#262624`                                     |
+| `color.surface.editor`                                   | `#ffffff`                      | `#30302e`                                     |
+| `color.surface.popover`                                  | `#ffffff`                      | `#353533`                                     |
+| `color.text.primary`, `color.text.editor`                | `#141413`                      | `#faf9f5`                                     |
+| `color.text.secondary`                                   | `#3d3d3a`                      | `#c2c0b6`                                     |
+| `color.text.tertiary`                                    | `#696862` (design `#73726c`)   | `#aba9a2` (design `#9c9a92`)                  |
+| `color.text.placeholder`, `.disabled`                    | primary at 50% over the editor | primary at 50% over the editor                |
+| `color.line.hairline`, `.separator`                      | `#1f1e1d` at 15%               | `#faf9f5` at 10%                              |
+| `color.line.control`                                     | `#1f1e1d` at 30%               | `#faf9f5` at 30%                              |
+| `color.alert.note` (info)                                | `#2e5d9d` (design `#3266ad`)   | `#80aadd`                                     |
+| `color.alert.caution`, destructive (danger)              | `#7f2c28`                      | `#ee8a86` (design `#ee8884`); label `#f3a9a6` |
+| `color.alert.tip`, `color.status.done` (success)         | `#265b19`                      | `#7ab948`; status `#9aca74`                   |
+| `color.alert.warning`, `color.status.hold` (warning)     | `#5a4815`                      | `#d1a041`; status `#dcb870`                   |
+| `color.status.active`                                    | `#5e5d59`                      | `#bebcb7`                                     |
+| `color.status.dropped`                                   | `#7f2c28`                      | `#f3aba8`                                     |
+| `color.alert.important`                                  | `#6b4a9a`                      | `#b8a3e3`                                     |
+| `color.accent.fill` (text on it: `color.accent.on-fill`) | `#3472d6` (white)              | `#5884ba` (`#141413`)                         |
+| `color.accent.text`                                      | `#2856a2`                      | `#a2bfe3`                                     |
+| `color.accent.selection` / `-inactive`                   | `#e3d6fb` / `#efe7fd`          | `#1c1828` / `#27262b`                         |
+
+The tag colours keep their hues in warm, softer tints (red `#c8483c`, orange `#d97a2b`, yellow `#c99a1f`, green `#4f9a3a`, blue `#3f7fc4`, purple `#8a5cc0`, pink `#cc5a85`, gray `#8a8982` in light; `#e5776d`, `#e8955a`, `#d9ae4a`, `#82c261`, `#6aa3de`, `#b394e0`, `#e48aab`, `#a3a199` in dark); each chip label is the tag colour moved toward black (light) or white (dark) as far as 4.5:1 on its chip needs. Syntax colours are the default theme's, warm-shifted only for quote and comment (warm greys), and moved only where a pair failed. The menu row hover (`color.fill.hover`) is the warm ink at 5% (light) or 8% (dark), and the dim behind a dialog (`color.fill.backdrop`) is `#1f1e1d` at 30% (light) or 50% (dark; the dark surfaces are close to that ink, so it needs more). The kit's "strong" line (40%) has no counterpart token, so no token uses it.
+
+Ivory is held to the same pairs as the default theme in `contrast.test.ts` (4.5:1 for text, 3:1 for marks), in light and dark. The palette values above are the design values; these moved, each only as far as the pair needed:
+
+- Light: `color.text.tertiary` `#73726c` to `#696862` (3.32:1 on the lightest tinted fill it sits on); `color.alert.note` `#3266ad` to `#2e5d9d` (3.97:1 on the selection); `color.syntax.comment` and `.markup` by a step (4.48 and 4.43).
+- Dark: the editor is lighter than the default theme's, so more had to move. `color.text.tertiary` `#9c9a92` to `#aba9a2` (3.80:1 on the unfocused selected row); `color.text.destructive` `#ee8884` to `#f3a9a6` (2.70:1 on a raised button face; the face is the primary text at 14% over the surface, a lighter step than the default theme's 22%); the status colours `active`, `hold`, `done` and `dropped` to `#bebcb7`, `#dcb870`, `#9aca74` and `#f3aba8` (3.0 to 3.6:1 on the selected-row wash); `color.alert.caution` and `color.syntax.list-alt` by a step.
+- Dark accent: white text on the System theme's dark blue `#4576b2` (4.5:1) and that blue against the lighter editor (3:1) cannot both hold, so the fill is lightened to `#5884ba` and the text on it is the warm ink `#141413`; the accent text and links become `#a2bfe3` (3.40:1 on the selected-row wash). The focus ring is the fill at 90% (the least that keeps 3:1 on every surface; the System theme's is 97% of its own fill).
+- Dark selection: the System theme's `#29233a` stands only 1.14:1 from the lighter editor, so the selection is `#1c1828`, a recessed tint (1.3:1 from the editor and from the active line); the inactive one is the same tint at 13/30 of its strength.

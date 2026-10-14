@@ -114,10 +114,17 @@ export const cssVarName = (path: string) => `--${path.replaceAll('.', '-')}`
  * `color.accent.fill`: the app sets each role to the system colour adjusted
  * to read in it (theme/accent.ts).
  */
-function themeDeclaration(token: FlatToken, appearance: 'light' | 'dark'): string {
+function themeDeclaration(
+  token: FlatToken,
+  appearance: 'light' | 'dark',
+  followsSystemAccent = true,
+): string {
   const value = cssValue(token)
   const role = token.path.split('.').at(-1)
-  const css = token.systemAccent ? `var(--system-accent-${role}-${appearance}, ${value})` : value
+  const css =
+    token.systemAccent && followsSystemAccent
+      ? `var(--system-accent-${role}-${appearance}, ${value})`
+      : value
   return `  ${cssVarName(token.path)}: ${css};`
 }
 
@@ -145,20 +152,87 @@ const FOLLOWS_SYSTEM = ":root:not([data-appearance='light'])"
 const CHOSEN = (appearance: 'light' | 'dark') =>
   `:root[data-appearance='${appearance}'], [data-appearance-preview='${appearance}']`
 
+/** A built-in theme besides the default: its token trees for each appearance. */
+export interface ThemeTokens {
+  /** The theme's ID: the `data-theme` value on the root element (a plain lowercase word). */
+  id: string
+  light: TokenTree
+  dark: TokenTree
+}
+
+const THEME_ID = /^[a-z][a-z0-9]*$/
+
+/** The rules of a built-in theme, in the order that makes them win (see `compile`). */
+function themeRules(id: string, light: FlatToken[], dark: FlatToken[]): string[] {
+  // A theme is independent of the system accent: its accent tokens are its own values.
+  const lightDeclarations = light.map((t) => themeDeclaration(t, 'light', false))
+  const darkDeclarations = dark.map((t) => themeDeclaration(t, 'dark', false))
+  const root = `:root[data-theme='${id}']`
+  // A theme's rules are one attribute heavier than the default theme's wherever the
+  // two could both apply, and come after them, so the theme wins in every context.
+  // An element with `data-theme-preview` shows the theme in the appearance its
+  // `data-appearance-preview` names (the theme cards in Settings).
+  const chosen = (appearance: 'light' | 'dark') =>
+    `${root}[data-appearance='${appearance}'], [data-theme-preview='${id}'][data-appearance-preview='${appearance}']`
+  return [
+    `${root} {`,
+    ...lightDeclarations,
+    '}',
+    '',
+    `@media ${DARK_QUERY} {`,
+    `  ${root}:not([data-appearance='light']) {`,
+    ...darkDeclarations.map((d) => `  ${d}`),
+    '  }',
+    '}',
+    '',
+    `${chosen('dark')} {`,
+    '  color-scheme: dark;',
+    ...darkDeclarations,
+    '}',
+    '',
+    `${chosen('light')} {`,
+    '  color-scheme: light;',
+    ...lightDeclarations,
+    '}',
+    '',
+  ]
+}
+
 /**
  * Builds the stylesheet and constants. Only theme colours and non-colour
- * base tokens are exported: components never use primitive colours.
+ * base tokens are exported: components never use primitive colours. `light`
+ * and `dark` are the default theme; each of `themes` follows it, scoped by
+ * `data-theme` on the root element, with the same colour tokens.
  */
-export function compile(base: TokenTree, light: TokenTree, dark: TokenTree): CompiledTokens {
+export function compile(
+  base: TokenTree,
+  light: TokenTree,
+  dark: TokenTree,
+  themes: readonly ThemeTokens[] = [],
+): CompiledTokens {
   const baseFlat = flatten(base)
   const shared = baseFlat.filter((t) => t.type !== 'color')
-  const lightTheme = resolve(flatten(light), baseFlat).filter((t) => t.type === 'color')
-  const darkTheme = resolve(flatten(dark), baseFlat).filter((t) => t.type === 'color')
+  const colours = (tree: TokenTree) =>
+    resolve(flatten(tree), baseFlat).filter((t) => t.type === 'color')
+  const lightTheme = colours(light)
+  const darkTheme = colours(dark)
 
-  const lightPaths = lightTheme.map((t) => t.path).join()
-  if (lightPaths !== darkTheme.map((t) => t.path).join()) {
+  const paths = (list: FlatToken[]) =>
+    list
+      .map((t) => t.path)
+      .sort()
+      .join()
+  if (paths(lightTheme) !== paths(darkTheme)) {
     throw new Error('E_TOKEN_THEMES_DIFFER')
   }
+  const builtIn = themes.map((theme) => {
+    if (!THEME_ID.test(theme.id)) throw new Error(`E_TOKEN_THEME_ID ${theme.id}`)
+    const own = { id: theme.id, light: colours(theme.light), dark: colours(theme.dark) }
+    if (paths(own.light) !== paths(lightTheme) || paths(own.dark) !== paths(lightTheme)) {
+      throw new Error(`E_TOKEN_THEMES_DIFFER ${theme.id}`)
+    }
+    return own
+  })
 
   const lightDeclarations = lightTheme.map((t) => themeDeclaration(t, 'light'))
   const darkDeclarations = darkTheme.map((t) => themeDeclaration(t, 'dark'))
@@ -187,6 +261,10 @@ export function compile(base: TokenTree, light: TokenTree, dark: TokenTree): Com
     ...lightDeclarations,
     '}',
     '',
+    ...builtIn.flatMap((theme) => [
+      `/* The ${theme.id} theme: data-theme='${theme.id}' on the root element. */`,
+      ...themeRules(theme.id, theme.light, theme.dark),
+    ]),
   ].join('\n')
 
   const constants = (list: FlatToken[]) =>
@@ -200,6 +278,12 @@ export function compile(base: TokenTree, light: TokenTree, dark: TokenTree): Com
     '',
     `export const dark = ${JSON.stringify(constants(darkTheme), null, 2)} as const`,
     '',
+    ...builtIn.flatMap((theme) => [
+      `export const ${theme.id}Light = ${JSON.stringify(constants(theme.light), null, 2)} as const`,
+      '',
+      `export const ${theme.id}Dark = ${JSON.stringify(constants(theme.dark), null, 2)} as const`,
+      '',
+    ]),
     'export type ThemeColor = keyof typeof light',
     '',
     '/** The CSS custom property for a theme colour, for inline styles. */',

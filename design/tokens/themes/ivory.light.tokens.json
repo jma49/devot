@@ -1,0 +1,1056 @@
+{
+  "$description": "Ivory theme, light appearance: a warm ivory palette with Devot's own blue accent (independent of the system accent colour; Settings > Appearance).",
+  "$extensions": {
+    "app.devot": {
+      "theme": "ivory",
+      "appearance": "light"
+    }
+  },
+  "color": {
+    "surface": {
+      "sidebar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9608, 0.9569, 0.9294],
+          "hex": "#f5f4ed",
+          "alpha": 0.7
+        },
+        "$extensions": {
+          "app.devot": {
+            "material": "sidebar"
+          }
+        },
+        "$description": "Design value #f5f4ed."
+      },
+      "sidebar-opaque": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9608, 0.9569, 0.9294],
+          "hex": "#f5f4ed"
+        },
+        "$description": "The sidebar when the window material is turned off (Settings > Appearance): the material tint, opaque. Design value #f5f4ed."
+      },
+      "list": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9804, 0.9765, 0.9608],
+          "hex": "#faf9f5"
+        },
+        "$description": "Design value #faf9f5."
+      },
+      "editor": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        },
+        "$description": "Design value #ffffff."
+      },
+      "popover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        },
+        "$description": "Floating lists in the editor: the slash menu and the completion popups. Design value #ffffff."
+      }
+    },
+    "ink": {
+      "text": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0784, 0.0784, 0.0745],
+          "hex": "#141413"
+        },
+        "$description": "The warm ink the text is drawn from: the primary text colour. Design value #141413."
+      },
+      "line": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d"
+        },
+        "$description": "The one colour lines are drawn from: borders at 15% (light) or 10% (dark), internal dividers at 10%. Design value #1f1e1d."
+      }
+    },
+    "text": {
+      "primary": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0784, 0.0784, 0.0745],
+          "hex": "#141413"
+        },
+        "$description": "Page text. Design value #141413."
+      },
+      "secondary": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2392, 0.2392, 0.2275],
+          "hex": "#3d3d3a"
+        },
+        "$description": "Secondary text. Design value #3d3d3a."
+      },
+      "tertiary": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4118, 0.4078, 0.3843],
+          "hex": "#696862"
+        },
+        "$description": "De-emphasised text: section labels, rules, fences. Design value #73726c, moved to #696862 so it keeps 4.5:1 on every surface and the popover (3:1 on the selection)."
+      },
+      "editor": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0784, 0.0784, 0.0745],
+          "hex": "#141413"
+        },
+        "$description": "Text in the note editor. Design value #141413."
+      },
+      "destructive": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.498, 0.1725, 0.1569],
+          "hex": "#7f2c28"
+        },
+        "$type": "color",
+        "$description": "The label of a destructive action (Delete, Empty Trash). Design value #7f2c28."
+      },
+      "placeholder": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5412, 0.5412, 0.5373],
+          "hex": "#8a8a89"
+        },
+        "$description": "Placeholder text in a field: the 40% tier, for placeholders and disabled text only; not held to text contrast. Design value #8a8a89."
+      },
+      "hover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1647, 0.1647, 0.1569],
+          "hex": "#2a2a28"
+        },
+        "$description": "Text under the pointer: the 80% tier, a little softer than body text. Design value #2a2a28."
+      },
+      "selected": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0471, 0.0471, 0.0431],
+          "hex": "#0c0c0b"
+        },
+        "$description": "Text of a selected or pressed item: the 95% tier. Design value #0c0c0b."
+      },
+      "disabled": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5412, 0.5412, 0.5373],
+          "hex": "#8a8a89"
+        },
+        "$description": "Text of a control that cannot be used: the 40% tier; not held to text contrast. Design value #8a8a89."
+      }
+    },
+    "line": {
+      "hairline": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.15
+        },
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.15
+          }
+        },
+        "$description": "Borders: pane dividers, field and button edges. The line ink at 15%."
+      },
+      "separator": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.15
+        },
+        "$description": "Internal dividers: between note list rows, inside panels. The line ink at 10%.",
+        "$extensions": {
+          "app.devot": {
+            "tier": 0.1
+          }
+        }
+      },
+      "match": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9608, 0.6235, 0.0392],
+          "hex": "#f59f0a"
+        },
+        "$description": "The outline of the current find match in a note."
+      },
+      "control": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.3
+        },
+        "$description": "The outline ring of a floating toolbar button under the pointer."
+      },
+      "shadow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.14
+        },
+        "$description": "The soft shadow under floating panels."
+      }
+    },
+    "fill": {
+      "track": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.055
+        }
+      },
+      "scrollbar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.25
+        },
+        "$description": "The thumb of a scroll bar."
+      },
+      "row-selected-unemphasized": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0275, 0.3412, 0.5137],
+          "hex": "#075783",
+          "alpha": 0.2
+        }
+      },
+      "segment-on": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        }
+      },
+      "match": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9608, 0.6235, 0.0392],
+          "hex": "#f59f0a",
+          "alpha": 0.25
+        },
+        "$description": "Behind words a search matched in the note list, and find matches in a note."
+      },
+      "match-current": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9608, 0.6235, 0.0392],
+          "hex": "#f59f0a",
+          "alpha": 0.5
+        },
+        "$description": "Behind the current find match in a note (with `line.match` around it)."
+      },
+      "button": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9137, 0.8784],
+          "hex": "#ebe9e0"
+        }
+      },
+      "completion-selected": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9059, 0.9961],
+          "hex": "#ebe7fe"
+        },
+        "$description": "The selected row of a completion popup: a light violet."
+      },
+      "card": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.065
+        },
+        "$description": "The preview's note info card."
+      },
+      "row-selected": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.12
+        },
+        "$description": "A selected note list row."
+      },
+      "tool-hover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.09
+        },
+        "$description": "A toolbar button under the pointer."
+      },
+      "hover": {
+        "$type": "color",
+        "$description": "A menu or picker row under the pointer (separate from the keyboard highlight).",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.05
+        }
+      },
+      "backdrop": {
+        "$type": "color",
+        "$description": "The dim behind a modal dialog.",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.3
+        }
+      }
+    },
+    "accent": {
+      "fill": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2039, 0.4471, 0.8392],
+          "hex": "#3472d6"
+        },
+        "$description": "Behind white text: buttons, the focused list's selection."
+      },
+      "text": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1569, 0.3373, 0.6353],
+          "hex": "#2856a2"
+        },
+        "$description": "Accent text and links."
+      },
+      "hover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1412, 0.3882, 0.9216],
+          "hex": "#2463eb"
+        },
+        "$description": "An accent control under the pointer."
+      },
+      "selection": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.8902, 0.8392, 0.9843],
+          "hex": "#e3d6fb"
+        },
+        "$description": "Behind selected text in the focused editor: the caret colour (hsl(262 83% 58%)) at 21% over the editor, solid; the least that stands 1.3:1 from the editor and from the active line (spec 30%, lowered so the syntax colours lose less contrast)."
+      },
+      "selection-inactive": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9373, 0.9059, 0.9922],
+          "hex": "#efe7fd"
+        },
+        "$description": "Behind selected text when the editor does not have focus: the same tint at 13/30 of its strength."
+      },
+      "on-fill": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff"
+        }
+      }
+    },
+    "editor": {
+      "caret": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4863, 0.2314, 0.9294],
+          "hex": "#7c3bed"
+        }
+      },
+      "active-line": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.03
+        },
+        "$description": "The line with the cursor."
+      },
+      "placeholder": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.5
+        }
+      },
+      "completion-selected": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9216, 0.9059, 0.9961],
+          "hex": "#ebe7fe"
+        },
+        "$description": "The selected item of a completion list or the slash menu."
+      },
+      "code-fill": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.04
+        },
+        "$description": "Behind inline code, code blocks and tables in the editor."
+      },
+      "code-border": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.15
+        },
+        "$description": "Around inline code, code blocks and tables in the editor."
+      },
+      "quote-bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6588, 0.651, 0.6118],
+          "hex": "#a8a69c"
+        },
+        "$description": "The bar beside quote lines."
+      },
+      "mark-fill": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9059, 0.6902, 0.0314],
+          "hex": "#e7b008",
+          "alpha": 0.3
+        },
+        "$description": "Behind highlighted (`<mark>`) text."
+      },
+      "mark-line": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9059, 0.6902, 0.0314],
+          "hex": "#e7b008"
+        },
+        "$description": "Under highlighted (`<mark>`) text."
+      }
+    },
+    "status": {
+      "active": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3686, 0.3647, 0.349],
+          "hex": "#5e5d59"
+        },
+        "$description": "The active note status. Design value #5e5d59."
+      },
+      "hold": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3529, 0.2824, 0.0824],
+          "hex": "#5a4815"
+        },
+        "$description": "The on-hold note status. Design value #5a4815."
+      },
+      "done": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.149, 0.3569, 0.098],
+          "hex": "#265b19"
+        },
+        "$description": "The done note status. Design value #265b19."
+      },
+      "dropped": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.498, 0.1725, 0.1569],
+          "hex": "#7f2c28"
+        },
+        "$description": "The dropped note status. Design value #7f2c28."
+      }
+    },
+    "alert": {
+      "note": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1804, 0.3647, 0.6157],
+          "hex": "#2e5d9d"
+        },
+        "$description": "The note alert: its bar and its [!KIND] label. Design value #3266ad, moved to #2e5d9d so it keeps 4.5:1 on the editor, the active line and the selection."
+      },
+      "tip": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.149, 0.3569, 0.098],
+          "hex": "#265b19"
+        },
+        "$description": "The tip alert: its bar and its [!KIND] label. Design value #265b19."
+      },
+      "important": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4196, 0.2902, 0.6039],
+          "hex": "#6b4a9a"
+        },
+        "$description": "The important alert: its bar and its [!KIND] label. Design value #6b4a9a."
+      },
+      "warning": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3529, 0.2824, 0.0824],
+          "hex": "#5a4815"
+        },
+        "$description": "The warning alert: its bar and its [!KIND] label. Design value #5a4815."
+      },
+      "caution": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.498, 0.1725, 0.1569],
+          "hex": "#7f2c28"
+        },
+        "$description": "The caution alert: its bar and its [!KIND] label. Design value #7f2c28."
+      }
+    },
+    "tag": {
+      "red": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7843, 0.2824, 0.2353],
+          "hex": "#c8483c"
+        },
+        "$type": "color"
+      },
+      "orange": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.851, 0.4784, 0.1686],
+          "hex": "#d97a2b"
+        },
+        "$type": "color"
+      },
+      "yellow": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7882, 0.6039, 0.1216],
+          "hex": "#c99a1f"
+        },
+        "$type": "color"
+      },
+      "green": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3098, 0.6039, 0.2275],
+          "hex": "#4f9a3a"
+        },
+        "$type": "color"
+      },
+      "blue": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2471, 0.498, 0.7686],
+          "hex": "#3f7fc4"
+        },
+        "$type": "color"
+      },
+      "purple": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5412, 0.3608, 0.7529],
+          "hex": "#8a5cc0"
+        },
+        "$type": "color"
+      },
+      "pink": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.8, 0.3529, 0.5216],
+          "hex": "#cc5a85"
+        },
+        "$type": "color"
+      },
+      "gray": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5412, 0.5373, 0.5098],
+          "hex": "#8a8982"
+        },
+        "$type": "color"
+      }
+    },
+    "syntax": {
+      "keyword": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4275, 0.2039, 0.8196],
+          "hex": "#6d34d1"
+        },
+        "$description": "Keywords and operators."
+      },
+      "function": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0235, 0.3882, 0.4824],
+          "hex": "#06637b"
+        },
+        "$description": "Function names."
+      },
+      "string": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0549, 0.4118, 0.1843],
+          "hex": "#0e692f"
+        },
+        "$description": "Strings."
+      },
+      "inserted": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0549, 0.4118, 0.1843],
+          "hex": "#0e692f"
+        },
+        "$description": "Inserted text and literals in the editor: the string colour."
+      },
+      "deleted": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6392, 0.2196, 0.1843],
+          "hex": "#a3382f"
+        },
+        "$description": "Deleted text in the editor: the invalid colour."
+      },
+      "heading": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6706, 0.1255, 0.3686],
+          "hex": "#ab205e"
+        },
+        "$description": "Heading lines, and class names in code."
+      },
+      "markup": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1725, 0.3608, 0.6392],
+          "hex": "#2c5ca3"
+        },
+        "$description": "Markdown marks (`**`, `` ` ``, `#`, `[ ]`, fences, table pipes) and HTML tags. Design value #2d5ea6, moved to #2c5ca3 so it keeps 4.5:1 on the editor, the active line and the selection."
+      },
+      "list": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.298, 0.3059, 0.7216],
+          "hex": "#4c4eb8"
+        },
+        "$description": "List marks at levels 1, 3, 5...."
+      },
+      "list-alt": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5765, 0.2667, 0.0471],
+          "hex": "#93440c"
+        },
+        "$description": "List marks at levels 2, 4, 6...."
+      },
+      "link": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0353, 0.4, 0.3725],
+          "hex": "#09665f"
+        },
+        "$description": "Link text and URLs."
+      },
+      "quote": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3686, 0.3647, 0.349],
+          "hex": "#5e5d59"
+        },
+        "$description": "Quote text."
+      },
+      "comment": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3686, 0.3647, 0.3412],
+          "hex": "#5e5d57"
+        },
+        "$description": "Comments and metadata in code. Design value #5f5e58, moved to #5e5d57 so it keeps 4.5:1 on the editor, the active line and the selection."
+      },
+      "invalid": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6392, 0.2196, 0.1843],
+          "hex": "#a3382f"
+        },
+        "$description": "Invalid code."
+      },
+      "class": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6706, 0.1255, 0.3686],
+          "hex": "#ab205e"
+        },
+        "$description": "Class and type names in code: the heading colour."
+      }
+    },
+    "diff": {
+      "added": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2902, 0.5412, 0.2078],
+          "hex": "#4a8a35",
+          "alpha": 0.14
+        },
+        "$description": "Background of a line added since a version (revision history)."
+      },
+      "removed": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7255, 0.2706, 0.2392],
+          "hex": "#b9453d",
+          "alpha": 0.14
+        },
+        "$description": "Background of a line removed since a version (revision history)."
+      }
+    },
+    "activity": {
+      "level-0": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.07
+        },
+        "$description": "An idle day in the activity heatmap."
+      },
+      "level-1": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0549, 0.4196, 0.3843],
+          "hex": "#0e6b62",
+          "alpha": 0.25
+        },
+        "$description": "A day with the least writing in the activity heatmap."
+      },
+      "level-2": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0549, 0.4196, 0.3843],
+          "hex": "#0e6b62",
+          "alpha": 0.45
+        },
+        "$description": "A day with some writing in the activity heatmap."
+      },
+      "level-3": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0549, 0.4196, 0.3843],
+          "hex": "#0e6b62",
+          "alpha": 0.7
+        },
+        "$description": "A day with more writing in the activity heatmap."
+      },
+      "level-4": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0549, 0.4196, 0.3843],
+          "hex": "#0e6b62"
+        },
+        "$description": "A day with the most writing in the activity heatmap."
+      }
+    },
+    "code-block": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.03
+        },
+        "$description": "A fenced code block's box in the editor; translucent so the selection shows through."
+      },
+      "border": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.1
+        }
+      }
+    },
+    "code-header": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.05
+        },
+        "$description": "The header bar of a code block with a language or a file name."
+      }
+    },
+    "table": {
+      "head": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.075
+        },
+        "$description": "A table's header row in the preview."
+      },
+      "stripe": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.03
+        },
+        "$description": "Every other body row of a table in the preview."
+      }
+    },
+    "quote": {
+      "bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.18
+        },
+        "$description": "The left bar of a blockquote in the preview."
+      }
+    },
+    "mark": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9176, 0.702, 0.0314],
+          "hex": "#eab308",
+          "alpha": 0.3
+        },
+        "$description": "Highlighted text (<mark>) in the preview."
+      }
+    },
+    "match": {
+      "bg": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9529, 0.8824, 0.7333],
+          "hex": "#f3e1bb"
+        },
+        "$description": "The box behind a word a filter matched in the note list."
+      },
+      "border": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.851, 0.7216, 0.4431],
+          "hex": "#d9b871"
+        },
+        "$description": "The outline of that box, a shade darker."
+      }
+    },
+    "trailing-space": {
+      "$type": "color",
+      "$description": "Behind spaces and tabs at the end of a line when the editor highlights trailing whitespace.",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0.7059, 0.2745, 0.2471],
+        "hex": "#b4463f",
+        "alpha": 0.25
+      }
+    },
+    "shadow": {
+      "popover-key": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.12
+        },
+        "$description": "The close, sharp layer of a pop-up's shadow."
+      },
+      "popover-ambient": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.15
+        },
+        "$description": "The wide, soft layer of a pop-up's shadow."
+      }
+    },
+    "focus": {
+      "ring": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2039, 0.4471, 0.8392],
+          "hex": "#3472d6",
+          "alpha": 0.79
+        },
+        "$description": "The focus ring on custom controls (2 px, offset 0): the accent fill. The fill at the least strength that keeps 3:1 on every surface: 0.79 in the system theme, 0.79 here."
+      }
+    },
+    "tag-text": {
+      "$description": "A tag chip's label: its tag colour moved toward black only as far as 4.5:1 on the chip needs (contrast.test.ts).",
+      "red": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5137, 0.1843, 0.1529],
+          "hex": "#832f27"
+        }
+      },
+      "orange": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4706, 0.2627, 0.0941],
+          "hex": "#784318"
+        }
+      },
+      "yellow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4078, 0.3098, 0.0627],
+          "hex": "#684f10"
+        }
+      },
+      "green": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1804, 0.3529, 0.1333],
+          "hex": "#2e5a22"
+        }
+      },
+      "blue": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1569, 0.3137, 0.4863],
+          "hex": "#28507c"
+        }
+      },
+      "purple": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3647, 0.2431, 0.5059],
+          "hex": "#5d3e81"
+        }
+      },
+      "pink": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4863, 0.2157, 0.3176],
+          "hex": "#7c3751"
+        }
+      },
+      "gray": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3176, 0.3176, 0.298],
+          "hex": "#51514c"
+        }
+      }
+    }
+  }
+}
