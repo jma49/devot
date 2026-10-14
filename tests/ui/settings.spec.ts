@@ -393,6 +393,8 @@ test('every editor setting has a labelled control showing its stored value', asy
     'Menlo',
     'Monaco',
     'Courier New',
+    'Installed Font',
+    'Imported Font',
   ])
   await expect(select(page, 'Font Weight').getByRole('option')).toHaveText([
     'normal',
