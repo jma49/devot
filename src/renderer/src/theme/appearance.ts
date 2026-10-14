@@ -1,10 +1,12 @@
-// The appearance a window shows (Settings > Appearance): the system's, or
-// always light or dark. The setting is stored with the editor settings. A
-// chosen appearance is `data-appearance` on the root element, which the
-// generated tokens read (tokens.css); Rust also gives every window that
-// theme, so the window's material and `prefers-color-scheme` follow it.
-// Without one, the tokens follow `prefers-color-scheme`.
-import type { AppearanceChoice } from '../../../core/editorSettings'
+// The appearance and theme a window shows (Settings > Appearance). The
+// appearance is the system's, or always light or dark; the theme is Devot's
+// default or a built-in one such as Ivory. Both are stored with the editor
+// settings. A chosen appearance is `data-appearance` on the root element and
+// a chosen theme is `data-theme`; the generated tokens read them
+// (tokens.css). Rust also gives every window the appearance, so the window's
+// material and `prefers-color-scheme` follow it. Without one, the tokens
+// follow `prefers-color-scheme`.
+import type { AppearanceChoice, ThemeChoice } from '../../../core/editorSettings'
 import { editorSettings, subscribeEditorSettings } from '../editorSettings'
 
 export type Appearance = 'light' | 'dark'
@@ -13,7 +15,7 @@ export interface AppearanceTarget {
   dataset: Record<string, string | undefined>
 }
 
-/** Sent on the window after the chosen appearance changed. */
+/** Sent on the window after the chosen appearance or theme changed. */
 export const APPEARANCE_CHANGED = 'devot:appearance-changed'
 
 const DARK = '(prefers-color-scheme: dark)'
@@ -22,6 +24,12 @@ const DARK = '(prefers-color-scheme: dark)'
 export function applyAppearance(choice: AppearanceChoice, root: AppearanceTarget): void {
   if (choice === 'system') delete root.dataset['appearance']
   else root.dataset['appearance'] = choice
+}
+
+/** Marks `root` with the chosen theme; the default theme leaves it unmarked. */
+export function applyTheme(choice: ThemeChoice, root: AppearanceTarget): void {
+  if (choice === 'default') delete root.dataset['theme']
+  else root.dataset['theme'] = choice
 }
 
 const rootTarget = () => document.documentElement as unknown as AppearanceTarget
@@ -47,19 +55,23 @@ export function subscribeAppearance(onChange: () => void): () => void {
 let started = false
 
 /**
- * Shows the stored appearance and follows changes made in any window. Once
- * per page, after `startEditorSettings`.
+ * Shows the stored appearance and theme and follows changes made in any
+ * window. Once per page, after `startEditorSettings`.
  */
 export function startAppearance(root: AppearanceTarget = rootTarget()): void {
   if (started) return
   started = true
   let shown = editorSettings().appearance
+  let theme = editorSettings().theme
   applyAppearance(shown, root)
+  applyTheme(theme, root)
   subscribeEditorSettings(() => {
-    const next = editorSettings().appearance
-    if (next === shown) return
-    shown = next
-    applyAppearance(next, root)
+    const next = editorSettings()
+    if (next.appearance === shown && next.theme === theme) return
+    shown = next.appearance
+    theme = next.theme
+    applyAppearance(shown, root)
+    applyTheme(theme, root)
     window.dispatchEvent(new Event(APPEARANCE_CHANGED))
   })
 }

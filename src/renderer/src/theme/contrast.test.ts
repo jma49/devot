@@ -8,15 +8,21 @@ import {
   type Rgb,
   type Rgba,
 } from './contrast'
-import { dark, light } from './tokens'
+import { dark, ivoryDark, ivoryLight, light } from './tokens'
 import { applyAccent, SELECTION_CONTRAST, type StyleTarget } from './accent'
 
 // WCAG AA, from the token values: text needs 4.5:1, graphics 3:1. The pairs
 // below are the ones the UI draws (see app.css, preview/content.css and the
-// editor theme), so a later token edit cannot drop one under the line.
+// editor theme), so a later token edit cannot drop one under the line. Every
+// built-in theme is held to the same pairs, in both appearances.
 
 type Theme = Record<string, string>
-const themes = { light: light as Theme, dark: dark as Theme }
+const themes = {
+  light: light as Theme,
+  dark: dark as Theme,
+  'ivory light': ivoryLight as Theme,
+  'ivory dark': ivoryDark as Theme,
+}
 const WHITE: Rgb = [255, 255, 255]
 
 const colour = (theme: Theme, path: string): { rgb: Rgb; alpha: number } => {

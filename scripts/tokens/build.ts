@@ -3,6 +3,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { compile, type TokenTree } from './compile.ts'
+import { BUILT_IN_THEMES } from './themes.ts'
 
 const root = join(import.meta.dirname, '../..')
 const read = (path: string) => JSON.parse(readFileSync(join(root, path), 'utf8')) as TokenTree
@@ -11,6 +12,11 @@ const { css, ts } = compile(
   read('design/tokens/base.tokens.json'),
   read('design/tokens/themes/system.light.tokens.json'),
   read('design/tokens/themes/system.dark.tokens.json'),
+  BUILT_IN_THEMES.map(({ id }) => ({
+    id,
+    light: read(`design/tokens/themes/${id}.light.tokens.json`),
+    dark: read(`design/tokens/themes/${id}.dark.tokens.json`),
+  })),
 )
 
 const outputs: [string, string][] = [

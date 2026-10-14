@@ -6,6 +6,7 @@ import {
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
   APPEARANCES,
+  THEMES,
   INDENT_UNITS,
   LINE_HEIGHTS,
   LIST_MARKERS,
@@ -15,6 +16,7 @@ import {
   indentText,
   parseEditorSettings,
   stepFontSize,
+  themeFollowsSystemAccent,
 } from '../../src/core/editorSettings'
 
 describe('editor settings', () => {
@@ -40,6 +42,8 @@ describe('editor settings', () => {
       inlineImages: true,
       // The system's appearance, with Devot's own accent.
       appearance: 'system',
+      // Devot's own theme.
+      theme: 'default',
       systemAccent: false,
       toolbar: true,
       scrollPastEnd: true,
@@ -68,6 +72,7 @@ describe('editor settings', () => {
     expect(FONT_WEIGHTS).toEqual(['normal', '300', '400', '500', '600', '700'])
     expect(PASTE_URL_STYLES).toEqual(['plain', 'autolink', 'link'])
     expect(APPEARANCES).toEqual(['light', 'dark', 'system'])
+    expect(THEMES).toEqual(['default', 'ivory'])
     expect([FONT_SIZE_MIN, FONT_SIZE_MAX]).toEqual([10, 32])
     for (const h of LINE_HEIGHTS) expect(h >= 1 && h <= 2.5).toBe(true)
     expect(LINE_HEIGHTS).toContain(DEFAULT_EDITOR_SETTINGS.lineHeight)
@@ -208,6 +213,27 @@ describe('editor settings', () => {
     for (const appearance of ['Dark', 'auto', '', 1, null])
       expect(parseEditorSettings({ appearance }).appearance).toBe('system')
     expect(parseEditorSettings({ systemAccent: true }).systemAccent).toBe(true)
+  })
+
+  it('reads the theme as default or ivory, and anything else as default', () => {
+    for (const theme of ['default', 'ivory'] as const) {
+      expect(parseEditorSettings({ theme }).theme).toBe(theme)
+      expect(checkEditorSettingsPatch({ theme })).toEqual({ theme })
+    }
+    for (const theme of ['Ivory', 'dark', 'system', '', 1, null, true]) {
+      expect(parseEditorSettings({ theme }).theme).toBe('default')
+      expect(() => checkEditorSettingsPatch({ theme })).toThrow('E_EDITOR_SETTINGS_INVALID')
+    }
+    // A theme with a bad value does not spoil the settings beside it.
+    expect(parseEditorSettings({ theme: 'nope', appearance: 'dark' })).toMatchObject({
+      theme: 'default',
+      appearance: 'dark',
+    })
+  })
+
+  it('lets only the default theme follow the system accent', () => {
+    expect(themeFollowsSystemAccent('default')).toBe(true)
+    expect(themeFollowsSystemAccent('ivory')).toBe(false)
   })
 
   it('steps the font size within its range', () => {

@@ -1,5 +1,11 @@
 import { useId } from 'react'
-import { APPEARANCES, type AppearanceChoice } from '../../../core/editorSettings'
+import {
+  APPEARANCES,
+  THEMES,
+  themeFollowsSystemAccent,
+  type AppearanceChoice,
+  type ThemeChoice,
+} from '../../../core/editorSettings'
 import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { SettingToggle, SettingsSection, useSettingsChange } from './controls'
@@ -10,13 +16,30 @@ const CARD_LABELS: Readonly<Record<AppearanceChoice, MessageKey>> = {
   system: 'appearanceSettings.system',
 }
 
+const THEME_LABELS: Readonly<Record<ThemeChoice, MessageKey>> = {
+  default: 'appearanceSettings.themeDefault',
+  ivory: 'appearanceSettings.themeIvory',
+}
+
 /**
- * A few lines of Markdown in one appearance's colours, whatever the window
- * shows (`data-appearance-preview`, read by the generated tokens).
+ * A few lines of Markdown in one theme's and appearance's colours, whatever
+ * the window shows (`data-appearance-preview` and `data-theme-preview`, read
+ * by the generated tokens; the default theme needs no theme mark).
  */
-function Preview({ appearance }: { appearance: 'light' | 'dark' }) {
+function Preview({
+  appearance,
+  theme = 'default',
+}: {
+  appearance: 'light' | 'dark'
+  theme?: ThemeChoice
+}) {
   return (
-    <span className="theme-preview" data-appearance-preview={appearance} aria-hidden="true">
+    <span
+      className="theme-preview"
+      data-appearance-preview={appearance}
+      data-theme-preview={theme === 'default' ? undefined : theme}
+      aria-hidden="true"
+    >
       <span className="theme-preview-heading">
         <span className="theme-preview-markup">#</span> {t('appearanceSettings.previewHeading')}
       </span>
@@ -34,7 +57,9 @@ function Preview({ appearance }: { appearance: 'light' | 'dark' }) {
 
 /**
  * Settings > Appearance: Light, Dark or Match System (the default), as
- * cards with a small preview; whether the accent follows the macOS accent
+ * cards with a small preview; the theme, Default or Ivory, as cards that show
+ * each in both appearances (Ivory has its own accent, so the system accent
+ * option is off while it is chosen); whether the accent follows the macOS accent
  * colour (off by default: Devot's palette); and whether the window shows the
  * sidebar material (on by default). Off, the sidebar paints an opaque
  * surface and the main window drops its effect (sidebarMaterial.ts). Every
@@ -43,6 +68,7 @@ function Preview({ appearance }: { appearance: 'light' | 'dark' }) {
  */
 export function AppearanceSection() {
   const appearance = useEditorSetting('appearance')
+  const theme = useEditorSetting('theme')
   const systemAccent = useEditorSetting('systemAccent')
   const material = useEditorSetting('sidebarMaterial')
   const [error, change] = useSettingsChange()
@@ -77,14 +103,35 @@ export function AppearanceSection() {
               <span className="theme-card-previews">
                 {choice === 'system' ? (
                   <>
-                    <Preview appearance="light" />
-                    <Preview appearance="dark" />
+                    <Preview appearance="light" theme={theme} />
+                    <Preview appearance="dark" theme={theme} />
                   </>
                 ) : (
-                  <Preview appearance={choice} />
+                  <Preview appearance={choice} theme={theme} />
                 )}
               </span>
               <span className="theme-card-name">{t(CARD_LABELS[choice])}</span>
+            </label>
+          ))}
+        </div>
+      </SettingsSection>
+      <SettingsSection icon="settings.appearance" title="appearanceSettings.theme">
+        <div className="theme-cards" role="radiogroup" aria-label={t('appearanceSettings.theme')}>
+          {THEMES.map((choice) => (
+            <label key={choice} className="theme-card">
+              <input
+                type="radio"
+                className="visually-hidden"
+                name={`${id}-theme`}
+                value={choice}
+                checked={theme === choice}
+                onChange={() => change({ theme: choice })}
+              />
+              <span className="theme-card-previews">
+                <Preview appearance="light" theme={choice} />
+                <Preview appearance="dark" theme={choice} />
+              </span>
+              <span className="theme-card-name">{t(THEME_LABELS[choice])}</span>
             </label>
           ))}
         </div>
@@ -93,6 +140,10 @@ export function AppearanceSection() {
         <SettingToggle
           label="appearanceSettings.systemAccent"
           description="appearanceSettings.systemAccentHint"
+          note={
+            themeFollowsSystemAccent(theme) ? undefined : 'appearanceSettings.systemAccentOwnTheme'
+          }
+          disabled={!themeFollowsSystemAccent(theme)}
           checked={systemAccent}
           onChange={(checked) => change({ systemAccent: checked })}
         />

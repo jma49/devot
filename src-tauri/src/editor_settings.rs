@@ -107,6 +107,16 @@ pub enum Appearance {
     Dark,
 }
 
+/// The colour theme the windows show (Settings > Appearance): Devot's
+/// default, or Ivory. The page applies it (the tokens read `data-theme` on
+/// the root element); Rust validates and stores it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Theme {
+    Default,
+    Ivory,
+}
+
 impl Appearance {
     /// The theme a window takes: `None` follows the system.
     pub fn window_theme(self) -> Option<tauri::Theme> {
@@ -146,6 +156,8 @@ pub struct EditorSettings {
     pub inline_images: bool,
     /// Light, Dark, or the system's appearance (the default).
     pub appearance: Appearance,
+    /// Devot's default colour theme, or Ivory (which ignores the system accent).
+    pub theme: Theme,
     /// The accent follows the macOS accent colour instead of Devot's palette.
     pub system_accent: bool,
     /// The selection toolbar shows over selected text.
@@ -168,7 +180,7 @@ pub struct EditorSettings {
 impl Default for EditorSettings {
     /// The editor's defaults (SF Mono), the sidebar material on, synced
     /// scrolling on, images shown under their lines, and the system's
-    /// appearance with Devot's own accent. A default applies only to a
+    /// appearance with Devot's own theme and accent. A default applies only to a
     /// setting the user never set (see `EditorSettingsStore`).
     fn default() -> Self {
         Self {
@@ -190,6 +202,7 @@ impl Default for EditorSettings {
             sync_scroll: true,
             inline_images: true,
             appearance: Appearance::System,
+            theme: Theme::Default,
             system_accent: false,
             toolbar: true,
             scroll_past_end: true,
@@ -273,6 +286,7 @@ impl EditorSettings {
             "syncScroll" => self.sync_scroll = flag(value)?,
             "inlineImages" => self.inline_images = flag(value)?,
             "appearance" => self.appearance = choice(value)?,
+            "theme" => self.theme = choice(value)?,
             "systemAccent" => self.system_accent = flag(value)?,
             "toolbar" => self.toolbar = flag(value)?,
             "scrollPastEnd" => self.scroll_past_end = flag(value)?,
@@ -552,6 +566,8 @@ mod tests {
         assert!(d.inline_images);
         // The system's appearance, with Devot's own accent.
         assert_eq!(d.appearance, Appearance::System);
+        // Devot's own theme.
+        assert_eq!(d.theme, Theme::Default);
         assert!(!d.system_accent);
     }
 
@@ -579,6 +595,7 @@ mod tests {
                 "syncScroll": true,
                 "inlineImages": true,
                 "appearance": "system",
+                "theme": "default",
                 "systemAccent": false,
                 "toolbar": true,
                 "scrollPastEnd": true,
@@ -612,6 +629,7 @@ mod tests {
                 "syncScroll": false,
                 "inlineImages": false,
                 "appearance": "dark",
+                "theme": "ivory",
                 "systemAccent": true,
                 "toolbar": false,
                 "scrollPastEnd": false,
@@ -624,6 +642,7 @@ mod tests {
             })))
             .unwrap();
         assert_eq!(next.appearance, Appearance::Dark);
+        assert_eq!(next.theme, Theme::Ivory);
         assert!(next.system_accent);
         for (appearance, theme) in [
             ("light", Some(tauri::Theme::Light)),
@@ -771,6 +790,11 @@ mod tests {
             json!({ "appearance": "auto" }),
             json!({ "appearance": "Dark" }),
             json!({ "appearance": true }),
+            json!({ "theme": "Ivory" }),
+            json!({ "theme": "dark" }),
+            json!({ "theme": "" }),
+            json!({ "theme": null }),
+            json!({ "theme": 1 }),
             json!({ "systemAccent": "on" }),
             // One bad value spoils the good ones with it.
             json!({ "lineNumbers": false, "fontSize": 99 }),
@@ -852,6 +876,52 @@ mod tests {
             }
         );
         assert!(!dir.path().join(FILE).exists());
+    }
+
+    #[test]
+    fn keeps_the_chosen_theme_after_reopening() {
+        let dir = tempfile::tempdir().unwrap();
+        store(&dir)
+            .update(&patch(json!({ "theme": "ivory", "appearance": "dark" })))
+            .unwrap();
+        let read = store(&dir).get().unwrap().settings;
+        assert_eq!(read.theme, Theme::Ivory);
+        assert_eq!(read.appearance, Appearance::Dark);
+        // A refused theme changes nothing.
+        let held = store(&dir);
+        assert_eq!(
+            held.update(&patch(json!({ "theme": "other" }))),
+            Err(INVALID)
+        );
+        assert_eq!(held.get().unwrap().settings.theme, Theme::Ivory);
+    }
+
+    #[test]
+    fn reads_an_unknown_stored_theme_as_the_default_one() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(FILE),
+            br#"{ "theme": "other", "appearance": "light" }"#,
+        )
+        .unwrap();
+        let held = store(&dir);
+        let read = held.get().unwrap().settings;
+        assert_eq!(read.theme, Theme::Default);
+        // The settings beside it still apply.
+        assert_eq!(read.appearance, Appearance::Light);
+        // The stored value is dropped, not carried into the next write.
+        held.update(&patch(json!({ "lineNumbers": true }))).unwrap();
+        let file = std::fs::read_to_string(dir.path().join(FILE)).unwrap();
+        assert!(!file.contains("other"), "{file}");
+        // A stored file reads the same value by value.
+        assert_eq!(
+            EditorSettings::from_stored(&json!({ "theme": "ivory", "fontSize": 99 })).theme,
+            Theme::Ivory
+        );
+        assert_eq!(
+            EditorSettings::from_stored(&json!({ "theme": 7 })).theme,
+            Theme::Default
+        );
     }
 
     #[test]

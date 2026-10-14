@@ -13,6 +13,11 @@ const read = (path: string) => JSON.parse(readFileSync(path, 'utf8')) as TokenTr
 const base = read('design/tokens/base.tokens.json')
 const light = read('design/tokens/themes/system.light.tokens.json')
 const dark = read('design/tokens/themes/system.dark.tokens.json')
+const ivory = {
+  id: 'ivory',
+  light: read('design/tokens/themes/ivory.light.tokens.json'),
+  dark: read('design/tokens/themes/ivory.dark.tokens.json'),
+}
 
 const color = (hex: string, alpha?: number) => ({
   colorSpace: 'srgb',
@@ -135,5 +140,84 @@ describe('token compiler', () => {
   it('refuses themes whose colour sets differ', () => {
     const partial = { color: { text: { primary: { $type: 'color', $value: color('#000000') } } } }
     expect(() => compile(base, light, partial)).toThrow('E_TOKEN_THEMES_DIFFER')
+  })
+
+  describe('built-in themes', () => {
+    const { css, ts } = compile(base, light, dark, [ivory])
+
+    /** The declarations of the rule that opens with `selector`. */
+    const rule = (selector: string) => {
+      const start = css.indexOf(`${selector} {`)
+      expect(start > -1 ? '' : `missing rule ${selector}`).toBe('')
+      const ends = ['\n}', '\n  }'].map((end) => css.indexOf(end, start)).filter((i) => i > -1)
+      return css.slice(start, Math.min(...ends))
+    }
+
+    it('leaves the default theme as it is, with or without other themes', () => {
+      const plain = compile(base, light, dark)
+      expect(plain.css).not.toContain('data-theme')
+      // The default theme's rules come first, as the same text.
+      expect(css.startsWith(plain.css.trimEnd())).toBe(true)
+      expect(ts.startsWith(plain.ts.split('export type ThemeColor')[0]!.trimEnd())).toBe(true)
+    })
+
+    it('scopes a theme to the root attribute: light, then dark where dark applies', () => {
+      expect(rule(":root[data-theme='ivory']")).toContain('--color-surface-editor: #ffffff;')
+      expect(rule(":root[data-theme='ivory']")).not.toContain('--font-size-body')
+      const media = css.slice(css.lastIndexOf('@media (prefers-color-scheme: dark)'))
+      expect(media).toContain(":root[data-theme='ivory']:not([data-appearance='light']) {")
+      expect(media).toContain('--color-surface-editor: #30302e;')
+      expect(
+        rule(
+          ":root[data-theme='ivory'][data-appearance='dark'], [data-theme-preview='ivory'][data-appearance-preview='dark']",
+        ),
+      ).toContain('--color-surface-editor: #30302e;')
+      expect(
+        rule(
+          ":root[data-theme='ivory'][data-appearance='light'], [data-theme-preview='ivory'][data-appearance-preview='light']",
+        ),
+      ).toContain('--color-surface-editor: #ffffff;')
+    })
+
+    it('shows a theme in a preview card, in the appearance the card names', () => {
+      // A card with `data-theme-preview` shows that theme whatever theme the page has;
+      // one without it keeps the default theme's rules (`data-appearance-preview` alone).
+      expect(css).toContain("[data-theme-preview='ivory'][data-appearance-preview='dark']")
+      expect(css).not.toContain(":root[data-theme='ivory'] [data-appearance-preview")
+    })
+
+    it('comes after the default theme, and is heavier wherever a default rule could win', () => {
+      const lastDefault = css.indexOf(
+        ":root[data-appearance='light'], [data-appearance-preview='light'] {",
+      )
+      expect(css.indexOf(":root[data-theme='ivory'] {")).toBeGreaterThan(lastDefault)
+      // The dark rules name the theme and the appearance: more than a default rule's one attribute.
+      expect(css).toContain(":root[data-theme='ivory'][data-appearance='dark']")
+    })
+
+    it('does not follow the system accent', () => {
+      const themed = css.slice(css.indexOf(":root[data-theme='ivory'] {"))
+      expect(themed).not.toContain('--system-accent')
+      expect(themed).toContain('--color-accent-fill: #3472d6;')
+    })
+
+    it("exports a theme's colours next to the default ones", () => {
+      expect(ts).toContain('export const ivoryLight = {')
+      expect(ts).toContain('export const ivoryDark = {')
+      expect(ts).toContain('"color.surface.editor": "#30302e"')
+    })
+
+    it('refuses a theme whose colours differ from the default theme', () => {
+      const partial = { color: { text: { primary: { $type: 'color', $value: color('#000000') } } } }
+      expect(() =>
+        compile(base, light, dark, [{ id: 'other', light: partial, dark: partial }]),
+      ).toThrow('E_TOKEN_THEMES_DIFFER')
+    })
+
+    it('refuses a theme id that is not a plain word', () => {
+      expect(() => compile(base, light, dark, [{ ...ivory, id: "a'] {" }])).toThrow(
+        'E_TOKEN_THEME_ID',
+      )
+    })
   })
 })
