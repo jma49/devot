@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { BAR_GAP, EDGE, NOTCH_WIDTH, NOTCH_HEIGHT, NOTCH_X, notchLeft, notchStyles } from './notch'
+import {
+  BAR_GAP,
+  BAR_RADIUS,
+  EDGE,
+  NOTCH_WIDTH,
+  NOTCH_HEIGHT,
+  NOTCH_X,
+  notchLeft,
+  notchStyles,
+} from './notch'
 import { notchOffset } from './toolbarPlacement'
 
 const rule = (selector: string) =>
@@ -11,9 +20,10 @@ describe('notch geometry', () => {
     expect(BAR_GAP).toBe(7)
   })
 
-  it('puts the tip on the anchor at rest: the bar starts a notch width left of it', () => {
-    expect(NOTCH_X).toBe(14)
-    expect(notchLeft(`${NOTCH_X}px`, NOTCH_WIDTH)).toBe('calc(14px - 7px)')
+  it('puts the tip on the anchor at rest, its base clear of the rounded corner', () => {
+    expect(BAR_RADIUS).toBe(11)
+    expect(NOTCH_X).toBe(BAR_RADIUS + NOTCH_WIDTH / 2)
+    expect(notchLeft(`${NOTCH_X}px`, NOTCH_WIDTH)).toBe('calc(18px - 7px)')
   })
 
   it('keeps the tip on the anchor when the bar is held back at the window edge', () => {
@@ -21,6 +31,7 @@ describe('notch geometry', () => {
     expect(notchOffset(40, 0, 300, NOTCH_X)).toBe(40)
     // It stays on the straight edge, not on a rounded corner.
     expect(notchOffset(3, 0, 300, NOTCH_X)).toBe(NOTCH_X)
+    expect(NOTCH_X - NOTCH_WIDTH / 2).toBeGreaterThanOrEqual(BAR_RADIUS)
     expect(notchOffset(299, 0, 300, NOTCH_X)).toBe(300 - NOTCH_X)
   })
 
@@ -44,7 +55,7 @@ describe('notch geometry', () => {
 
   it('closes the seam with a fill strip over the outline at the notch base', () => {
     const strip = rule('.cm-tooltip.cm-float-bar::after')
-    expect(strip.height).toBe('1px')
+    expect(strip.height).toBe('2px')
     expect(strip.width).toBe('12px')
     expect(strip.backgroundColor).toBe('var(--color-surface-popover)')
     expect(Number(strip.zIndex)).toBeGreaterThan(0)

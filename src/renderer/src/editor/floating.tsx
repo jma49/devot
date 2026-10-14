@@ -122,16 +122,16 @@ export function FloatSeparator(): ReactNode {
 }
 
 /**
- * One bar element holds the surface, a 1 px outline and a two-layer box
- * shadow (on the bar only, no filter); its notch is a separate element
- * behind it (`notch.ts`).
+ * One bar element holds the surface and a box shadow (on the bar only, no
+ * filter): a 1 px ring for the outline, then two soft layers; its notch is a
+ * separate element behind it (`notch.ts`).
  */
-const outline = '1px solid var(--color-line-hairline)'
 /** A tooltip bubble's own notch: a turned square on its edge, pointing at its button. */
 const hairline = '0.5px solid var(--color-line-hairline)'
 const notchSize = 'var(--space-4)'
 const notchOut = 'calc(var(--space-4) / -2)'
 const popoverShadow = [
+  '0 0 0 1px var(--color-line-hairline)',
   '0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key)',
   '0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient)',
 ].join(', ')
@@ -155,7 +155,6 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     height: 'var(--size-float-toolbar-height)',
     padding: 'var(--space-2) var(--space-3)',
     border: '0',
-    outline,
     borderRadius: 'var(--radius-floating-bar)',
     backgroundColor: 'var(--color-surface-popover)',
     boxShadow: popoverShadow,
@@ -231,7 +230,6 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     padding: 'var(--space-3) var(--space-5)',
     borderRadius: 'var(--radius-card)',
     backgroundColor: 'var(--color-surface-popover)',
-    outline,
     boxShadow: popoverShadow,
     color: 'var(--color-text-secondary)',
     fontSize: 'var(--font-size-footnote)',

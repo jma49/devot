@@ -25,12 +25,13 @@ describe('floating bar motion and states', () => {
     expect(transition).not.toContain('background')
   })
 
-  it('is one element: surface, 1 px outline and a two-layer box shadow, no filter and no animation', () => {
+  it('is one element: surface, a 1 px ring and two soft box shadow layers, no filter and no animation', () => {
     const bar = rule('.cm-tooltip.cm-float-bar')
-    expect(bar.outline).toBe('1px solid var(--color-line-hairline)')
+    expect(bar.outline).toBeUndefined()
+    expect(bar.boxShadow).toMatch(/^0 0 0 1px var\(--color-line-hairline\), /)
     expect(bar.border).toBe('0')
     expect(bar.backgroundColor).toBe('var(--color-surface-popover)')
-    expect(bar.boxShadow!.split('), ')).toHaveLength(2)
+    expect(bar.boxShadow!.split('), ')).toHaveLength(3)
     expect(bar.boxShadow).toContain('var(--color-shadow-popover-key)')
     expect(bar.filter).toBeUndefined()
     expect(bar.animation).toBeUndefined()
@@ -64,7 +65,7 @@ describe('floating bar motion and states', () => {
   })
 
   it('lets a bar hold its notch on the anchor when the bar is held back', () => {
-    expect(rule('.cm-float-notch').left).toContain('var(--float-notch-x, 14px)')
+    expect(rule('.cm-float-notch').left).toContain('var(--float-notch-x, 18px)')
   })
 
   it('gives the tooltip bubble a notch toward its button', () => {

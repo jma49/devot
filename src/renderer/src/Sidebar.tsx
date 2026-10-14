@@ -953,7 +953,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             {...rowProps('all')}
             className="source"
             aria-current={selection?.kind === 'all' && props.filter === null}
-            onClick={() => props.onSelect({ kind: 'all' })}
+            onClick={() => props.onSelect({ kind: 'all' }, { clearFilter: true })}
           >
             <Icon name="notes.all" size="md" />
             <span className="source-label">{t('sidebar.allNotes')}</span>
