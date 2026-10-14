@@ -349,12 +349,18 @@ button {
 }
 
 /* The selected row of the sidebar (a pressed filter, the view shown, the
-   selected notebook): an accent wash, and while the sidebar has the keyboard
-   focus a solid accent fill with the on-fill colour for its text and marks. */
+   selected notebook): the same accent wash as a selected note row, focused or
+   not, with the text keeping its colours. While the sidebar has the keyboard
+   the row also has a solid accent bar on its left edge, drawn inside the row
+   so nothing shifts; a row the keyboard stands on has it too. */
 .source.filter[aria-pressed='true'],
 .source[aria-current='true'],
 .books [aria-selected='true'] > .book-row {
-  background: var(--color-fill-row-selected-unemphasized);
+  background: color-mix(
+    in srgb,
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
+  );
 }
 
 /* A selected note row: a wash of the accent, focused or not; its text keeps
@@ -377,29 +383,16 @@ button {
     .source.filter[aria-pressed='true'],
     .source[aria-current='true'],
     .books [aria-selected='true'] > .book-row
-  ) {
-  background: var(--color-accent-fill);
-  color: var(--color-accent-on-fill);
+  ),
+.sidebar .source:focus-visible,
+.books li:focus-visible > .book-row {
+  box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
 }
 
-.sidebar:focus-within
-  :is(
-    .source.filter[aria-pressed='true'],
-    .source[aria-current='true'],
-    .books [aria-selected='true'] > .book-row
-  )
-  :is(.source-count, .book-ai, .disclosure) {
-  color: var(--color-accent-on-fill);
-}
-
-.sidebar:focus-within
-  :is(
-    .source.filter[aria-pressed='true'],
-    .source[aria-current='true'],
-    .books [aria-selected='true'] > .book-row
-  )
-  .icon {
-  background-color: var(--color-accent-on-fill);
+/* Buttons in the sidebar (section tools, the footer) show a ring when the keyboard is on them. */
+.sidebar :is(.tool, .footer-toggle):focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
 .status-active {
@@ -549,16 +542,16 @@ button {
   border-radius: var(--radius-button);
 }
 
-/* Where a dragged notebook will go: a line on the row's top or bottom edge,
-   from the row's own indent; after an open notebook, under its sub-notebooks
-   (the line is on the notebook's item). */
+/* Where a dragged notebook will go: a square-ended line across the row's full
+   width, just outside its top or bottom edge, above the rows; after an open
+   notebook, under its sub-notebooks (the line is on the notebook's item). */
 .drop-before::before,
 .drop-after::after {
   content: '';
   position: absolute;
-  inset-inline: var(--book-indent) var(--space-2);
+  inset-inline: 0;
+  z-index: 1;
   height: var(--size-drop-indicator);
-  border-radius: var(--radius-capsule);
   background: var(--color-accent-fill);
   pointer-events: none;
 }
@@ -632,6 +625,21 @@ button {
 .drop-target {
   outline: var(--size-drop-indicator) dashed var(--color-accent-fill);
   outline-offset: calc(-1 * var(--size-drop-indicator));
+}
+
+/* Notes dragged onto a row that takes them: the row fills with the accent. */
+/* (in step with the selected-row rules above) */
+.sidebar :is(.source, .book-row).drop-fill {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.sidebar .drop-fill :is(.source-count, .book-ai, .disclosure) {
+  color: var(--color-accent-on-fill);
+}
+
+.sidebar .drop-fill .icon {
+  background-color: var(--color-accent-on-fill);
 }
 
 /* The notebook or tag whose context menu is open. */

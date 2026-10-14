@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { revealFrames, revealTiming } from './reveal'
+import { concealFrames, revealFrames, revealTiming } from './reveal'
 import { sizes } from './theme/tokens'
 
 describe('a section opening', () => {
@@ -19,6 +19,15 @@ describe('a section opening', () => {
     expect(revealFrames(84)).toEqual([
       { height: '0px', opacity: 0 },
       { height: '84px', opacity: 1 },
+    ])
+  })
+})
+
+describe('a section closing', () => {
+  it('shrinks to nothing, fading out, over the same timing', () => {
+    expect(concealFrames(84)).toEqual([
+      { height: '84px', opacity: 1 },
+      { height: '0px', opacity: 0 },
     ])
   })
 })

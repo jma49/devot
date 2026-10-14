@@ -29,7 +29,8 @@ import { copyText } from './noteMenu'
 import { TAG_MENU, colorOfAction, tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
 import { MoveBookDialog } from './MoveBookDialog'
 import { SidebarFooter } from './SidebarFooter'
-import { reveal } from './reveal'
+import { setDragCard } from './listDrag'
+import { conceal, reveal } from './reveal'
 import { currentSectionStore, type CollapsibleSection, type SectionStore } from './sidebarSections'
 import { TagDot } from './TagEditor'
 import { TagSettingsDialog } from './TagSettingsDialog'
@@ -64,6 +65,8 @@ type DropZone = 'before' | 'inside' | 'after'
 interface DropAt {
   id: string | null
   zone: DropZone
+  /** Notes are over the row (not a notebook): it fills rather than outlines. */
+  notes: boolean
 }
 
 function zoneAt(event: DragEvent): DropZone {
@@ -302,23 +305,42 @@ export function stepSidebarRow(by: 1 | -1): void {
 export const Sidebar = memo(function Sidebar(props: Props) {
   useKeymap()
   const { tree, counts, selection, renaming } = props
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
-  // Status and Tags fold; the choice is a view preference kept per window.
+  // Status and Tags fold, and so do notebooks; the choice is a view preference kept per window.
   const sections = useMemo(() => props.sectionStore ?? currentSectionStore(), [props.sectionStore])
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => sections.loadBooks())
   const [folded, setFolded] = useState<ReadonlySet<CollapsibleSection>>(() => sections.load())
   // The sections the user just opened: they grow in once (reveal.ts).
   const revealNext = useRef(new Set<string>())
   /** A ref for the list of section `key`: it grows in if the user just opened it. */
+  const lists = useRef(new Map<string, HTMLElement>())
+  // The lists shrinking away before they unmount (a second toggle waits).
+  const closing = useRef(new Set<string>())
   const revealed = (key: string) => (el: HTMLElement | null) => {
-    if (el && revealNext.current.delete(key)) reveal(el)
+    if (!el) return void lists.current.delete(key)
+    lists.current.set(key, el)
+    if (revealNext.current.delete(key)) reveal(el)
+  }
+  /** Runs `change` now to open a list, or after the list `key` has shrunk away to close it. */
+  const animated = (key: string, opening: boolean, change: () => void) => {
+    if (closing.current.has(key)) return
+    if (opening) return change()
+    closing.current.add(key)
+    conceal(lists.current.get(key), () => {
+      closing.current.delete(key)
+      change()
+    })
   }
   const toggleSection = (section: CollapsibleSection, open?: boolean) => {
-    const next = new Set(folded)
-    if (open ?? next.has(section)) revealNext.current.add(`section:${section}`)
-    if (open ?? next.has(section)) next.delete(section)
-    else next.add(section)
-    setFolded(next)
-    sections.save(next)
+    const opening = open ?? folded.has(section)
+    animated(`section:${section}`, opening, () => {
+      const next = new Set(folded)
+      if (opening) {
+        revealNext.current.add(`section:${section}`)
+        next.delete(section)
+      } else next.add(section)
+      setFolded(next)
+      sections.save(next)
+    })
   }
   const sectionToggles = useRef(new Map<CollapsibleSection, HTMLButtonElement>())
   // A notebook whose Move dialog is open, and a tag whose settings are.
@@ -361,7 +383,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       setNoteDrop(key)
     }
     return {
-      className: noteDrop === key ? ' drop-target' : '',
+      className: noteDrop === key ? ' drop-fill' : '',
       handlers: {
         onDragEnter: over,
         onDragOver: over,
@@ -539,13 +561,15 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const openParent = (node: BookNode) => node.children.length > 0 && !collapsed.has(node.id)
 
   const toggle = (id: string, open?: boolean) => {
-    if (open ?? collapsed.has(id)) revealNext.current.add(`book:${id}`)
-    setCollapsed((set) => {
-      const next = new Set(set)
-      const isOpen = !next.has(id)
-      if (open ?? !isOpen) next.delete(id)
+    const opening = open ?? collapsed.has(id)
+    if (opening === !collapsed.has(id)) return
+    animated(`book:${id}`, opening, () => {
+      if (opening) revealNext.current.add(`book:${id}`)
+      const next = new Set(collapsed)
+      if (opening) next.delete(id)
       else next.add(id)
-      return next
+      setCollapsed(next)
+      sections.saveBooks(next)
     })
   }
 
@@ -667,8 +691,11 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     const next: DropAt = {
       id: node?.id ?? null,
       zone: isBook && node ? zoneAt(event) : 'inside',
+      notes: !isBook,
     }
-    setDropAt((at) => (at?.id === next.id && at.zone === next.zone ? at : next))
+    setDropAt((at) =>
+      at?.id === next.id && at.zone === next.zone && at.notes === next.notes ? at : next,
+    )
   }
 
   const onDrop = (event: DragEvent, node: BookNode | null) => {
@@ -725,7 +752,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     if (dropAt?.id !== node.id) return ''
     const onItem = dropAt.zone === 'after' && openParent(node)
     if ((part === 'item') !== onItem) return ''
-    if (dropAt.zone === 'inside') return ' drop-target'
+    if (dropAt.zone === 'inside') return dropAt.notes ? ' drop-fill' : ' drop-target'
     if (dropAt.zone === 'before') return ' drop-before'
     return ' drop-after'
   }
@@ -758,6 +785,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           e.dataTransfer.effectAllowed = 'move'
           dragging.current = subtree(tree, node.id)
           setDraggedBook(node.id)
+          setDragCard(e.dataTransfer, [node.name])
         }}
         onDragEnd={(e) => {
           e.stopPropagation()
