@@ -91,7 +91,10 @@ function neighbours(
   const out = new Map<string, { previousId: string | null; nextId: string | null }>()
   const walk = (nodes: BookNode[]) =>
     nodes.forEach((n, i) => {
-      out.set(n.id, { previousId: nodes[i - 1]?.id ?? null, nextId: nodes[i + 1]?.id ?? null })
+      out.set(n.id, {
+        previousId: nodes[i - 1]?.id ?? null,
+        nextId: nodes[i + 1]?.id ?? null,
+      })
       walk(n.children)
     })
   walk(tree)
@@ -661,7 +664,10 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
-    const next: DropAt = { id: node?.id ?? null, zone: isBook && node ? zoneAt(event) : 'inside' }
+    const next: DropAt = {
+      id: node?.id ?? null,
+      zone: isBook && node ? zoneAt(event) : 'inside',
+    }
     setDropAt((at) => (at?.id === next.id && at.zone === next.zone ? at : next))
   }
 
@@ -943,133 +949,139 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           </button>
         </li>
       </ul>
-      <div
-        className={`section-header${dropAt && dropAt.id === null ? ' drop-target' : ''}`}
-        onDragEnter={(e) => onDragOver(e, null)}
-        onDragOver={(e) => onDragOver(e, null)}
-        onDragLeave={(e) => onDragLeave(e, null)}
-        onDrop={(e) => onDrop(e, null)}
-      >
-        <span id="notebooks-heading">{t('sidebar.notebooks')}</span>
-        <span className="section-tools">
-          <button
-            type="button"
-            className="tool tool-small"
-            aria-label={t('sidebar.searchNotebooks')}
-            title={t('sidebar.searchNotebooks')}
-            onClick={props.onSearchBooks}
-          >
-            <Icon name="search" size="sm" />
-          </button>
-          <button
-            type="button"
-            className="tool tool-small"
-            aria-label={t('book.new')}
-            title={t('book.new')}
-            onClick={() => props.onCreateBook?.(null)}
-            disabled={!props.onCreateBook}
-          >
-            <Icon name="notebook.new" size="sm" />
-          </button>
-        </span>
-      </div>
-      <ul className="books" role="tree" aria-labelledby="notebooks-heading">
-        {tree.map(renderNode)}
-      </ul>
-      {sectionHeader('status', 'statuses-heading', t('sidebar.statuses'), 'statuses-list', null)}
-      {folded.has('status') ? null : (
-        <ul
-          id="statuses-list"
-          className="sources"
-          aria-labelledby="statuses-heading"
-          ref={revealed('section:status')}
+      {/* Notebooks, statuses and tags scroll; the top block, Trash and the footer stay put. */}
+      <div className="sidebar-scroll">
+        <div
+          className={`section-header${dropAt && dropAt.id === null ? ' drop-target' : ''}`}
+          onDragEnter={(e) => onDragOver(e, null)}
+          onDragOver={(e) => onDragOver(e, null)}
+          onDragLeave={(e) => onDragLeave(e, null)}
+          onDrop={(e) => onDrop(e, null)}
         >
-          {STATUSES.map((s) => (
-            <li key={s.status}>
-              {filterRow(
-                { kind: 'status', status: s.status },
-                s.icon,
-                t(s.label),
-                props.statusCounts.get(s.status) ?? 0,
-                `status-${s.status}`,
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {props.tags.length > 0 ? (
-        <>
-          {sectionHeader(
-            'tags',
-            'tags-heading',
-            t('sidebar.tags'),
-            'tags-list',
+          <span id="notebooks-heading">{t('sidebar.notebooks')}</span>
+          <span className="section-tools">
             <button
               type="button"
               className="tool tool-small"
-              aria-label={t('sidebar.searchTags')}
-              title={t('sidebar.searchTags')}
-              onClick={props.onSearchTags}
+              aria-label={t('sidebar.searchNotebooks')}
+              title={t('sidebar.searchNotebooks')}
+              onClick={props.onSearchBooks}
             >
               <Icon name="search" size="sm" />
-            </button>,
-          )}
-          {folded.has('tags') ? null : (
-            <ul
-              id="tags-list"
-              className="sources tags"
-              aria-labelledby="tags-heading"
-              ref={revealed('section:tags')}
+            </button>
+            <button
+              type="button"
+              className="tool tool-small"
+              aria-label={t('book.new')}
+              title={t('book.new')}
+              onClick={() => props.onCreateBook?.(null)}
+              disabled={!props.onCreateBook}
             >
-              {props.tags.map((tag) => (
-                <li
-                  key={tag.id}
-                  onDoubleClick={() => setEditingTag(tag.id)}
-                  onKeyDown={(e) => {
-                    if (e.target !== e.currentTarget.firstElementChild) return
-                    if (heldCommandKey(e)) return e.preventDefault()
-                    if (commandMatches('sidebar.rowMenu', e)) {
+              <Icon name="notebook.new" size="sm" />
+            </button>
+          </span>
+        </div>
+        <ul className="books" role="tree" aria-labelledby="notebooks-heading">
+          {tree.map(renderNode)}
+        </ul>
+        {sectionHeader('status', 'statuses-heading', t('sidebar.statuses'), 'statuses-list', null)}
+        {folded.has('status') ? null : (
+          <ul
+            id="statuses-list"
+            className="sources"
+            aria-labelledby="statuses-heading"
+            ref={revealed('section:status')}
+          >
+            {STATUSES.map((s) => (
+              <li key={s.status}>
+                {filterRow(
+                  { kind: 'status', status: s.status },
+                  s.icon,
+                  t(s.label),
+                  props.statusCounts.get(s.status) ?? 0,
+                  `status-${s.status}`,
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {props.tags.length > 0 ? (
+          <>
+            {sectionHeader(
+              'tags',
+              'tags-heading',
+              t('sidebar.tags'),
+              'tags-list',
+              <button
+                type="button"
+                className="tool tool-small"
+                aria-label={t('sidebar.searchTags')}
+                title={t('sidebar.searchTags')}
+                onClick={props.onSearchTags}
+              >
+                <Icon name="search" size="sm" />
+              </button>,
+            )}
+            {folded.has('tags') ? null : (
+              <ul
+                id="tags-list"
+                className="sources tags"
+                aria-labelledby="tags-heading"
+                ref={revealed('section:tags')}
+              >
+                {props.tags.map((tag) => (
+                  <li
+                    key={tag.id}
+                    onDoubleClick={() => setEditingTag(tag.id)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget.firstElementChild) return
+                      if (heldCommandKey(e)) return e.preventDefault()
+                      if (commandMatches('sidebar.rowMenu', e)) {
+                        e.preventDefault()
+                        return void openTagMenu(tag, below(e.target as Element))
+                      }
+                      const action = tagShortcut(e)
+                      if (!action) return
                       e.preventDefault()
-                      return void openTagMenu(tag, below(e.target as Element))
-                    }
-                    const action = tagShortcut(e)
-                    if (!action) return
-                    e.preventDefault()
-                    runTagAction(action, tagTarget(tag))
-                  }}
-                >
-                  {editingTag === tag.id ? (
-                    <div className="source tag-row">
-                      <TagGlyph color={tag.color} />
-                      <NameField
-                        name={tag.name}
-                        max={MAX_TAG_NAME_CHARS}
-                        label="tag.nameLabel"
-                        onDone={(name) => {
-                          setEditingTag(undefined)
-                          const clean = name === null ? '' : trimWhitespace(name)
-                          if (clean && clean !== tag.name) {
-                            props.onRenameTag(tag.id, clean)
-                          }
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    filterRow(
-                      { kind: 'tag', tagId: tag.id },
-                      'tag',
-                      tag.name,
-                      props.tagCounts.get(tag.id) ?? 0,
-                      `tag-row${tagMenuTarget === tag.id ? ' menu-target' : ''}`,
-                      { color: tag.color, onMenu: () => void openTagMenu(tag) },
-                    )
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      ) : null}
+                      runTagAction(action, tagTarget(tag))
+                    }}
+                  >
+                    {editingTag === tag.id ? (
+                      <div className="source tag-row">
+                        <TagGlyph color={tag.color} />
+                        <NameField
+                          name={tag.name}
+                          max={MAX_TAG_NAME_CHARS}
+                          label="tag.nameLabel"
+                          onDone={(name) => {
+                            setEditingTag(undefined)
+                            const clean = name === null ? '' : trimWhitespace(name)
+                            if (clean && clean !== tag.name) {
+                              props.onRenameTag(tag.id, clean)
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      filterRow(
+                        { kind: 'tag', tagId: tag.id },
+                        'tag',
+                        tag.name,
+                        props.tagCounts.get(tag.id) ?? 0,
+                        `tag-row${tagMenuTarget === tag.id ? ' menu-target' : ''}`,
+                        {
+                          color: tag.color,
+                          onMenu: () => void openTagMenu(tag),
+                        },
+                      )
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : null}
+      </div>
       <ul className="sources trash-source">
         <li>
           <button
