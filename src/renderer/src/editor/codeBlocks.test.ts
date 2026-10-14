@@ -161,13 +161,29 @@ describe('typing in a block', () => {
     return tr && show(s.update(tr).state)
   }
 
-  it('starts a new line with no indent of its own', () => {
-    expect(run('```\n    ab^\n```', codeReturn)).toBe('```\n    ab\n^\n```')
+  it('starts a new line with the indent of the line before', () => {
+    expect(run('```\n    ab^\n```', codeReturn)).toBe('```\n    ab\n    ^\n```')
+    expect(run('```\n\tab^\n```', codeReturn)).toBe('```\n\tab\n\t^\n```')
+    // Only the indent before the cursor: Return inside it adds no more.
+    expect(run('```\n  ^  ab\n```', codeReturn)).toBe('```\n  \n  ^  ab\n```')
     expect(run('```js^\n```', codeReturn)).toBe('```js\n^\n```')
     // In a list item the line keeps the item's indent, so it stays in the block.
     expect(run('- a\n  ```\n  x^\n  ```', codeReturn)).toBe('- a\n  ```\n  x\n  ^\n  ```')
+    expect(run('- a\n  ```\n    x^\n  ```', codeReturn)).toBe('- a\n  ```\n    x\n    ^\n  ```')
+    expect(run('> ```\n>   x^\n> ```', codeReturn)).toBe('> ```\n>   x\n>   ^\n> ```')
     expect(run('```\nx\n```^', codeReturn)).toBeNull()
     expect(run('text^', codeReturn)).toBeNull()
+  })
+
+  it('indents one unit more after an opening bracket', () => {
+    expect(run('```\nif (a) {^\n```', codeReturn)).toBe('```\nif (a) {\n  ^\n```')
+    expect(run('```\n  xs = [^\n```', codeReturn)).toBe('```\n  xs = [\n    ^\n```')
+    expect(run('```\nf(  ^\n```', codeReturn)).toBe('```\nf(\n  ^\n```')
+  })
+
+  it('puts the closing bracket on its own line between a pair', () => {
+    expect(run('```\n  f() {^}\n```', codeReturn)).toBe('```\n  f() {\n    ^\n  }\n```')
+    expect(run('```\n[^]\n```', codeReturn)).toBe('```\n[\n  ^\n]\n```')
   })
 
   it('inserts the indent unit at the cursor on Tab', () => {

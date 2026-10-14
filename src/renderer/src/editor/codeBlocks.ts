@@ -445,14 +445,40 @@ function inBlockText(state: EditorState): { pos: number; prefix: string; body: b
   return { pos: main.head, prefix, body: line.number > openLine.number }
 }
 
-/** Return in a block: a new line with no indent of its own (only the block's container prefix). */
+const CLOSERS: Readonly<Record<string, string>> = { '(': ')', '[': ']', '{': '}' }
+
+/**
+ * Return in a block: a new line with the block's container prefix (a quote's
+ * or a list item's) and the indent the line has before the cursor, one
+ * indent unit more after an opening bracket. Between a bracket pair the
+ * closing one goes to a line of its own, at the line's indent.
+ */
 export function codeReturn(state: EditorState) {
   const at = inBlockText(state)
   if (!at) return null
-  const insert = `\n${at.prefix}`
+  const line = state.doc.lineAt(at.pos)
+  const before = line.text.slice(0, at.pos - line.from)
+  const indent = at.body ? /^[ \t]*/.exec(before.slice(at.prefix.length))![0] : ''
+  const text = before.trimEnd()
+  const opener = at.body && text.length > at.prefix.length + indent.length ? text.at(-1)! : ''
+  const closer = CLOSERS[opener]
+  if (!closer) {
+    const insert = `\n${at.prefix}${indent}`
+    return {
+      changes: { from: at.pos, insert },
+      selection: { anchor: at.pos + insert.length },
+      scrollIntoView: true,
+      userEvent: 'input',
+    }
+  }
+  // The spaces typed after the bracket go; the new line is a step in.
+  const from = line.from + text.length
+  const inner = `\n${at.prefix}${indent}${state.facet(indentUnit)}`
+  const pair = line.text.slice(at.pos - line.from).startsWith(closer)
+  const insert = pair ? `${inner}\n${at.prefix}${indent}` : inner
   return {
-    changes: { from: at.pos, insert },
-    selection: { anchor: at.pos + insert.length },
+    changes: { from, to: at.pos, insert },
+    selection: { anchor: from + inner.length },
     scrollIntoView: true,
     userEvent: 'input',
   }
