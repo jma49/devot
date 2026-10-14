@@ -34,6 +34,7 @@ function row(over: Partial<RowProps> = {}): string {
     position: undefined,
     setSize: undefined,
     selected: false,
+    open: false,
     tabbable: true,
     tags: new Map<string, TagRecord>(),
     highlight: undefined,
@@ -52,6 +53,12 @@ function row(over: Partial<RowProps> = {}): string {
 }
 
 describe('NoteRow', () => {
+  it('marks the open note, which gets the focus bar while the list has the keyboard', () => {
+    expect(row({ open: true, selected: true })).toContain('data-open="true"')
+    expect(row({ open: false, selected: true })).not.toContain('data-open')
+    expect(row({ selected: true })).toContain('aria-selected="true"')
+  })
+
   it('shows the title, the time since the change and one line of body', () => {
     const html = row({ preview: 'tomato rows and beans' })
     expect(html).toContain('<span class="row-title">Garden plan</span>')

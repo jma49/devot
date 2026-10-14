@@ -764,10 +764,66 @@
     "list-min-width": {
       "$type": "dimension",
       "$value": {
-        "value": 224,
+        "value": 220,
         "unit": "px"
       },
-      "$description": "The narrowest the note list shrinks to when the window is narrow."
+      "$description": "The narrowest the note list is dragged or shrinks to when the window is narrow."
+    },
+    "list-default-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 300,
+        "unit": "px"
+      },
+      "$description": "The note list's width until the user drags its right edge."
+    },
+    "list-max-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 500,
+        "unit": "px"
+      },
+      "$description": "The widest the note list is dragged to."
+    },
+    "list-resize-handle": {
+      "$type": "dimension",
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      },
+      "$description": "The strip on the note list's right edge that resizes it."
+    },
+    "list-focus-bar": {
+      "$type": "dimension",
+      "$value": {
+        "value": 5,
+        "unit": "px"
+      },
+      "$description": "The bar on the left edge of the note row that has the keyboard."
+    },
+    "list-row-inset": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "A note row's text inset from its left edge."
+    },
+    "drag-card-min-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 60,
+        "unit": "px"
+      },
+      "$description": "The narrowest the card under the pointer is while notes are dragged."
+    },
+    "drag-card-max-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 300,
+        "unit": "px"
+      },
+      "$description": "The widest the card under the pointer is while notes are dragged."
     },
     "pane-min-width": {
       "$type": "dimension",
@@ -1154,6 +1210,10 @@
     "dragged": {
       "$value": 0.5,
       "$description": "A row while it is being dragged."
+    },
+    "list-selected": {
+      "$value": 0.2,
+      "$description": "A selected note row's background: the accent fill at this strength."
     },
     "tag": {
       "fill": {

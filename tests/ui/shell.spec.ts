@@ -18,10 +18,12 @@ const css = (locator: Locator, property: string) =>
 const alpha = (color: string) => {
   const parts =
     color
-      .match(/rgba?\(([^)]*)\)/)?.[1]
+      .match(/(?:rgba?|color)\(([^)]*)\)/)?.[1]
       ?.split(/[\s,/]+/)
       .filter(Boolean) ?? []
-  return parts.length === 4 ? Number(parts[3]) : 1
+  // rgb(r g b / a) or color(srgb r g b / a)
+  const channels = parts[0] === 'srgb' ? parts.slice(1) : parts
+  return channels.length === 4 ? Number(channels[3]) : 1
 }
 
 async function freshStart(page: Page) {
@@ -51,7 +53,7 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   await expect(editor).toBeVisible()
 
   expect((await sidebar.boundingBox())?.width).toBe(232)
-  expect((await list.boundingBox())?.width).toBe(320)
+  expect((await list.boundingBox())?.width).toBe(300)
   expect(await css(page.locator('body'), 'font-size')).toBe('13px')
 
   const allNotes = sidebar.getByRole('button', { name: /All Notes/ })
@@ -109,7 +111,7 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
   expect((await requests()).filter((r) => r === 'square.and.pencil@14')).toHaveLength(2)
 })
 
-test('the note list selection is an accent wash, and the accent fill while the list has the keyboard', async ({
+test('the note list selection is an accent wash, with a bar on the open row while the list has the keyboard', async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: 'light' })
@@ -122,14 +124,21 @@ test('the note list selection is an accent wash, and the accent fill while the l
   const alphaRow = rows.getByRole('option', { name: /Alpha/ })
   await expect(beta).toHaveAttribute('aria-selected', 'true')
 
-  // Typing in the title: the list is not focused, the selection is a wash.
-  await expect.poll(() => css(beta, 'background-color')).toBe('rgba(7, 87, 131, 0.2)')
+  // Typing in the title: the list is not focused, the selection is a wash, no bar.
+  const wash = await css(beta, 'background-color')
+  expect(alpha(wash)).toBeCloseTo(0.2, 2)
+  expect(await css(beta, 'box-shadow')).toBe('none')
+  const text = await css(beta, 'color')
 
   await beta.click()
   await expect(beta).toBeFocused()
-  // Focused: the accent fill with the on-fill text.
-  await expect.poll(() => css(beta, 'background-color')).toBe(rgb(light['color.accent.fill']))
-  await expect.poll(() => css(beta, 'color')).toBe(rgb(light['color.accent.on-fill']))
+  // Focused: the same wash and text, and a 5 px accent bar on the left edge.
+  await expect
+    .poll(() => css(beta, 'box-shadow'))
+    .toBe(`${rgb(light['color.accent.fill'])} 5px 0px 0px 0px inset`)
+  expect(await css(beta, 'background-color')).toBe(wash)
+  expect(await css(beta, 'color')).toBe(text)
+  expect(await css(alphaRow, 'box-shadow')).toBe('none')
 
   // Arrow keys move the selection and open the note.
   await page.keyboard.press('ArrowDown')
