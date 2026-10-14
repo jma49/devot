@@ -180,7 +180,7 @@ test('the bottom edge of an open notebook puts a notebook after it', async ({ pa
   await drop(row(page, 'Plan'), row(page, 'Work'), 'middle')
   await expect.poll(() => shown(page)).toEqual(['Home', 'Work', '  Plan'])
 
-  // The line runs under Work's sub-notebooks, at Work's indent.
+  // The line runs under Work's sub-notebooks, across Work's width.
   const source = await row(page, 'Home').boundingBox()
   const target = await row(page, 'Work').boundingBox()
   const last = await row(page, 'Plan').boundingBox()
@@ -198,7 +198,7 @@ test('the bottom edge of an open notebook puts a notebook after it', async ({ pa
     ).getComputedStyle(el, '::after')
     return { height: style.height, left: style.left, bottom: style.bottom }
   })
-  expect(drawn).toEqual({ height: '2px', left: '8px', bottom: '-1px' })
+  expect(drawn).toEqual({ height: '2px', left: '0px', bottom: '-1px' })
   const work = await book(page, 'Work').boundingBox()
   expect(work && Math.round(work.y + work.height)).toBe(Math.round(last.y + last.height))
   await page.mouse.up()
@@ -232,10 +232,10 @@ test('a cancelled note drag leaves no drop highlight', async ({ page }) => {
   const at = { dataTransfer: data, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2 }
   await target.dispatchEvent('dragenter', at)
   await target.dispatchEvent('dragover', at)
-  await expect(target).toHaveClass(/drop-target/)
+  await expect(target).toHaveClass(/drop-fill/)
   await target.dispatchEvent('dragleave', at)
   await note.dispatchEvent('dragend', { dataTransfer: data })
-  await expect(target).not.toHaveClass(/drop-target/)
+  await expect(target).not.toHaveClass(/drop-fill/)
 })
 
 test('notebooks from before sort keys keep their name order and get keys', async ({ page }) => {

@@ -14,6 +14,7 @@ type KeyValue = Pick<Storage, 'getItem' | 'setItem'>
 /** Reads and writes one window's collapsed sections; storage failures mean "none collapsed". */
 export function sectionStore(storage: KeyValue | undefined, label: string) {
   const key = `devot.sidebarCollapsed.${label}`
+  const booksKey = `devot.sidebarBooksCollapsed.${label}`
   return {
     load(): ReadonlySet<CollapsibleSection> {
       try {
@@ -30,6 +31,22 @@ export function sectionStore(storage: KeyValue | undefined, label: string) {
         storage?.setItem(key, JSON.stringify(SECTIONS.filter((s) => collapsed.has(s))))
       } catch {
         console.warn('W_SIDEBAR_SECTIONS_SAVE_FAILED')
+      }
+    },
+    /** The IDs of the notebooks folded shut; an ID of a deleted notebook is harmless. */
+    loadBooks(): ReadonlySet<string> {
+      try {
+        const value: unknown = JSON.parse(storage?.getItem(booksKey) ?? '[]')
+        return new Set(Array.isArray(value) ? value.filter((id) => typeof id === 'string') : [])
+      } catch {
+        return new Set()
+      }
+    },
+    saveBooks(folded: ReadonlySet<string>) {
+      try {
+        storage?.setItem(booksKey, JSON.stringify([...folded]))
+      } catch {
+        console.warn('W_SIDEBAR_BOOKS_SAVE_FAILED')
       }
     },
   }

@@ -1,8 +1,6 @@
-// The sidebar draws a selected row as an accent wash while it does not have
-// the keyboard and a solid accent fill while it does; the note list keeps its
-// wash either way and marks the open row with a bar while it has the keyboard.
+// Both lists draw a selected row as an accent wash, focused or not, and mark
+// it with a bar on its left edge while the list has the keyboard.
 import type { Locator, Page } from '@playwright/test'
-import { light } from '../../src/renderer/src/theme/tokens'
 import { expect, openApp, test } from './fixtures'
 
 type Styles = { getComputedStyle(el: unknown): { getPropertyValue(p: string): string } }
@@ -12,16 +10,11 @@ const background = (locator: Locator) =>
     (globalThis as unknown as Styles).getComputedStyle(el).getPropertyValue('background-color'),
   )
 
-function rgb(hex: string): string {
-  const n = Number.parseInt(hex.slice(1), 16)
-  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
-}
-
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const allNotes = (page: Page) =>
   page.getByRole('navigation', { name: 'Sidebar' }).getByRole('button', { name: /^All Notes/ })
 
-test('a selected row is washed in the sidebar and the note list; only the sidebar fills it when focused', async ({
+test('a selected row is washed in the sidebar and the note list; both bar it when focused', async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
@@ -46,8 +39,9 @@ test('a selected row is washed in the sidebar and the note list; only the sideba
   await expect.poll(() => background(row)).toBe(wash)
   await expect.poll(() => background(allNotes(page))).toBe(sidebarWash)
 
-  // The sidebar has it: the accent fill there, the wash in the list.
+  // The sidebar has it: the same wash, plus the bar on the row's left edge.
   await allNotes(page).focus()
-  await expect.poll(() => background(allNotes(page))).toBe(rgb(light['color.accent.fill']))
+  await expect.poll(() => background(allNotes(page))).toBe(sidebarWash)
+  await expect(allNotes(page)).toHaveCSS('box-shadow', /^rgb.* 5px 0px 0px 0px inset$/)
   await expect.poll(() => background(row)).toBe(wash)
 })

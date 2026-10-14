@@ -41,6 +41,37 @@ describe('sectionStore', () => {
   })
 })
 
+describe('sectionStore notebook folds', () => {
+  it('remembers the folded notebooks for the window, apart from the sections', () => {
+    const storage = memory()
+    sectionStore(storage, 'main').saveBooks(new Set(['b1', 'b2']))
+    expect([...sectionStore(storage, 'main').loadBooks()]).toEqual(['b1', 'b2'])
+    expect([...sectionStore(storage, 'other').loadBooks()]).toEqual([])
+    expect([...sectionStore(storage, 'main').load()]).toEqual([])
+    sectionStore(storage, 'main').saveBooks(new Set())
+    expect([...sectionStore(storage, 'main').loadBooks()]).toEqual([])
+  })
+
+  it('reads damaged or unavailable storage as none folded', () => {
+    const storage = memory()
+    storage.setItem('devot.sidebarBooksCollapsed.main', '{"x":1}')
+    expect([...sectionStore(storage, 'main').loadBooks()]).toEqual([])
+    storage.setItem('devot.sidebarBooksCollapsed.main', '["b1",7,null]')
+    expect([...sectionStore(storage, 'main').loadBooks()]).toEqual(['b1'])
+    expect([...sectionStore(undefined, 'main').loadBooks()]).toEqual([])
+    const broken = {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {
+        throw new Error('blocked')
+      },
+    }
+    expect([...sectionStore(broken, 'main').loadBooks()]).toEqual([])
+    expect(() => sectionStore(broken, 'main').saveBooks(new Set(['b1']))).not.toThrow()
+  })
+})
+
 describe('lastWrite', () => {
   it('keeps the newest write time and writes it as HH:MM:SS', () => {
     const at = new Date(2026, 2, 3, 9, 5, 7).getTime()

@@ -42,11 +42,11 @@ const tag = (id: string, name: string): TagRecord => ({
 
 const noop = () => undefined
 
-function render(store: SectionStore) {
+function render(store: SectionStore, tree: BookNode[] = [book]) {
   return renderToStaticMarkup(
     <Sidebar
       total={4}
-      tree={[book]}
+      tree={tree}
       counts={new Map([['b1', 1]])}
       selection={{ kind: 'all' }}
       renaming={undefined}
@@ -110,6 +110,23 @@ describe('Sidebar sections', () => {
     expect(collapsed).toContain('aria-label="Expand Tags"')
     // The other sections stay open.
     expect(collapsed).toContain('Active')
+  })
+
+  it('keeps a folded notebook shut after a restart', () => {
+    const child: BookNode = {
+      ...book,
+      id: 'b2',
+      name: 'Receipts',
+      parentId: 'b1',
+      depth: 1,
+    }
+    const parent: BookNode = { ...book, children: [child] }
+    const storage = memory()
+    expect(render(sectionStore(storage, 'main'), [parent])).toContain('Receipts')
+    sectionStore(storage, 'main').saveBooks(new Set(['b1']))
+    const folded = render(sectionStore(storage, 'main'), [parent])
+    expect(folded).not.toContain('Receipts')
+    expect(folded).toContain('aria-expanded="false"')
   })
 
   it('turns one chevron: down while a section is open, up while it is folded', () => {
