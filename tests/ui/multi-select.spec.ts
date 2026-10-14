@@ -673,9 +673,9 @@ test('status, tag and Trash rows show where notes will drop', async ({ page }) =
     const target = sourceRow(page, name)
     await target.dispatchEvent('dragenter', { dataTransfer: data })
     await target.dispatchEvent('dragover', { dataTransfer: data })
-    await expect(target).toHaveClass(/drop-target/)
+    await expect(target).toHaveClass(/drop-fill/)
     await noteRow(page, 'Wanderer').dispatchEvent('dragend', { dataTransfer: data })
-    await expect(target).not.toHaveClass(/drop-target/)
+    await expect(target).not.toHaveClass(/drop-fill/)
   }
   // All Notes takes no notes.
   const all = page.getByRole('button', { name: /All Notes/ })
@@ -733,7 +733,7 @@ test('templates drop on notebooks and the Trash, not on a status or a tag', asyn
     const target = sourceRow(page, name)
     await target.dispatchEvent('dragenter', { dataTransfer: data })
     await target.dispatchEvent('dragover', { dataTransfer: data })
-    await expect(target).not.toHaveClass(/drop-target/)
+    await expect(target).not.toHaveClass(/drop-fill/)
   }
   await noteRow(page, 'Four').dispatchEvent('dragend', { dataTransfer: data })
   // Dropped there anyway: nothing changes.

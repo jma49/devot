@@ -232,10 +232,10 @@ test('a cancelled note drag leaves no drop highlight', async ({ page }) => {
   const at = { dataTransfer: data, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2 }
   await target.dispatchEvent('dragenter', at)
   await target.dispatchEvent('dragover', at)
-  await expect(target).toHaveClass(/drop-target/)
+  await expect(target).toHaveClass(/drop-fill/)
   await target.dispatchEvent('dragleave', at)
   await note.dispatchEvent('dragend', { dataTransfer: data })
-  await expect(target).not.toHaveClass(/drop-target/)
+  await expect(target).not.toHaveClass(/drop-fill/)
 })
 
 test('notebooks from before sort keys keep their name order and get keys', async ({ page }) => {

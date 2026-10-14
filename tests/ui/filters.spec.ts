@@ -168,11 +168,12 @@ test('the count on a selected filter row stays a number while the sidebar has th
 
   const count = filter(page, 'Active').locator('.source-count')
   await expect(count).toHaveText('1')
-  // While the sidebar has the keyboard the selected row is the accent fill:
-  // the count takes the on-fill colour and no background, and the icon keeps
-  // its mask fill.
+  // While the sidebar has the keyboard the selected row is the accent wash
+  // with a bar on its left edge: the count keeps its colour and has no
+  // background, and the icon keeps its mask fill.
   await expect(count).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-  await expect(count).toHaveCSS('color', rgb(light['color.accent.on-fill']))
+  await expect(count).not.toHaveCSS('color', rgb(light['color.accent.on-fill']))
+  await expect(filter(page, 'Active')).toHaveCSS('box-shadow', /^rgb.* 5px 0px 0px 0px inset$/)
   await expect(filter(page, 'Active').locator('.icon')).not.toHaveCSS(
     'background-color',
     'rgba(0, 0, 0, 0)',
