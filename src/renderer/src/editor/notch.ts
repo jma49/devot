@@ -2,7 +2,8 @@
 // zero-size border triangles, the edge colour and the fill colour shifted one
 // pixel, so the edge shows as a one pixel outline along the slanted sides.
 // The box sits at the bar's edge, outside its rectangle; a fill strip over the
-// bar's outline at the notch base closes the seam where the two meet.
+// bar's outline (a box-shadow ring, `floating.tsx`) at the notch base closes
+// the seam where the two meet, the same on both sides of the bar.
 import { sizes } from '../theme/tokens'
 
 /** The notch's width and height in pixels (the `--size-float-notch-*` tokens). */
@@ -11,11 +12,14 @@ export const NOTCH_HEIGHT = Number.parseFloat(sizes['size.float-notch-height'])
 /** The outline's width, in pixels. */
 export const EDGE = 1
 
+/** The bar's corner radius, in pixels (the `--radius-floating-bar` token). */
+export const BAR_RADIUS = Number.parseFloat(sizes['radius.floating-bar'])
 /**
- * How far the notch's tip is from the bar's left edge at rest: the bar starts
- * one notch width left of the anchor, and the notch box one half width in.
+ * How far the notch's tip is from the bar's left edge at rest, and the least it
+ * is from either end: the notch's base (half its width each side of the tip)
+ * stays on the straight part of the edge, clear of the rounded corners.
  */
-export const NOTCH_X = NOTCH_WIDTH
+export const NOTCH_X = BAR_RADIUS + NOTCH_WIDTH / 2
 /** The gap between a bar and the line it belongs to: the notch's height. */
 export const BAR_GAP = NOTCH_HEIGHT
 
@@ -68,15 +72,17 @@ export const notchStyles = {
     bottom: `-${EDGE}px`,
     borderBottom: `${NOTCH_HEIGHT}px solid ${fill}`,
   },
-  // The seam: a strip of the fill over the bar's outline at the notch base,
-  // a pixel short of the slanted edges at each end.
+  // The seam: a strip of the fill over the bar's outline at the notch base, a
+  // pixel short of the slanted edges at each end. It is two pixels tall, one
+  // outside the bar and one inside, so it covers the outline whichever pixel
+  // row a fractional bar position puts it on.
   '.cm-tooltip.cm-float-bar::after': {
     content: '""',
     position: 'absolute',
     zIndex: '1',
     left: notchLeft(tip, NOTCH_WIDTH - 2 * EDGE),
     width: `${NOTCH_WIDTH - 2 * EDGE}px`,
-    height: `${EDGE}px`,
+    height: `${2 * EDGE}px`,
     backgroundColor: fill,
     pointerEvents: 'none',
   },

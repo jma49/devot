@@ -209,14 +209,15 @@ test('the bar is one outlined box with a separate notch, and its icons sit on wh
     const box = root.querySelector('.cm-float-notch')!.getBoundingClientRect()
     const icon = style(root.querySelector('.cm-float-button .icon'))
     return {
-      outline: style(el).outlineWidth,
+      shadow: style(el).boxShadow,
       filter: style(el).filter,
       notch: [box.width, box.height],
       size: [icon.width, icon.height],
       mask: icon.getPropertyValue('mask-size') || icon.getPropertyValue('-webkit-mask-size'),
     }
   })
-  expect(look.outline).toBe('1px')
+  // The outline is a 1 px ring in the box shadow (no spread blur), under the notch's strip.
+  expect(look.shadow).toMatch(/0px 0px 0px 1px/)
   expect(look.filter).toBe('none')
   expect(look.notch).toEqual([14, 7])
   // Whole pixels, and the mask is exactly the box: nothing is scaled.
