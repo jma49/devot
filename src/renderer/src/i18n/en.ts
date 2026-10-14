@@ -303,6 +303,19 @@ export const en = {
   'editorSettings.font.menlo': 'Menlo',
   'editorSettings.font.monaco': 'Monaco',
   'editorSettings.font.courierNew': 'Courier New',
+  'editorSettings.font.installed': 'Installed Font',
+  'editorSettings.font.imported': 'Imported Font',
+  'editorSettings.chooseFont': 'Choose a Font',
+  'editorSettings.installedFont': 'Installed Font',
+  'editorSettings.installedFontHint':
+    'A font installed on this Mac. Text it cannot show appears in SF Mono.',
+  'editorSettings.importedFont': 'Imported Font',
+  'editorSettings.importedFontHint':
+    'A font file you imported (TTF, OTF, WOFF or WOFF2, up to 50 MB). It stays on this Mac.',
+  'editorSettings.importedFontMissing':
+    'This font file is missing, so the editor shows SF Mono. Import it again to use it.',
+  'editorSettings.importFont': 'Import Font…',
+  'editorSettings.importFontFailed': 'The font could not be imported ({code}).',
   'editorSettings.fontWeight': 'Font Weight',
   'editorSettings.fontWeightHint': 'The weight of the editor text.',
   'editorSettings.weight.normal': 'normal',

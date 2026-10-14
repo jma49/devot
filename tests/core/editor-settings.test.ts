@@ -25,6 +25,8 @@ describe('editor settings', () => {
       readableWidth: false,
       fontSize: 13,
       fontFamily: 'mono',
+      installedFont: null,
+      importedFont: null,
       lineHeight: 1.5,
       indentUnit: 'spaces2',
       tabWidth: 2,
@@ -52,7 +54,15 @@ describe('editor settings', () => {
 
   it('offers choices that the Rust side accepts', () => {
     // The same lists and ranges as src-tauri/src/editor_settings.rs.
-    expect(FONT_FAMILIES).toEqual(['system', 'mono', 'menlo', 'monaco', 'courierNew'])
+    expect(FONT_FAMILIES).toEqual([
+      'system',
+      'mono',
+      'menlo',
+      'monaco',
+      'courierNew',
+      'installed',
+      'imported',
+    ])
     expect(INDENT_UNITS).toEqual(['spaces2', 'spaces4', 'tab'])
     expect(LIST_MARKERS).toEqual(['*', '-', '+'])
     expect(FONT_WEIGHTS).toEqual(['normal', '300', '400', '500', '600', '700'])
@@ -159,6 +169,34 @@ describe('editor settings', () => {
       { systemAccent: 'on' },
     ]) {
       expect(() => checkEditorSettingsPatch(bad)).toThrow('E_EDITOR_SETTINGS_INVALID')
+    }
+  })
+
+  it('takes an installed font by family name and an imported one by file name', () => {
+    const fonts = {
+      fontFamily: 'imported',
+      installedFont: 'Fira Code',
+      importedFont: '\u9716\u9e5c Mono.woff2',
+    }
+    expect(checkEditorSettingsPatch(fonts)).toEqual(fonts)
+    expect(checkEditorSettingsPatch({ installedFont: null, importedFont: null })).toEqual({
+      installedFont: null,
+      importedFont: null,
+    })
+    expect(parseEditorSettings(fonts)).toMatchObject(fonts)
+    for (const bad of [
+      { installedFont: '' },
+      { installedFont: 'Fira"; } body { color: red' },
+      { installedFont: "It's" },
+      { installedFont: '.AppleSystemUIFont' },
+      { installedFont: 'x'.repeat(129) },
+      { importedFont: '../editor-settings.json' },
+      { importedFont: 'font.exe' },
+      { importedFont: 'Font.TTF' },
+      { importedFont: ' lead.ttf' },
+    ]) {
+      expect(() => checkEditorSettingsPatch(bad)).toThrow('E_EDITOR_SETTINGS_INVALID')
+      expect(parseEditorSettings(bad)).toMatchObject({ installedFont: null, importedFont: null })
     }
   })
 

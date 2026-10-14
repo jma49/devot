@@ -67,6 +67,10 @@ describe('Tauri command permissions', () => {
     expect(settings.flatMap(permissionIds).sort()).toEqual([
       'allow-editor-settings-get',
       'allow-editor-settings-set',
+      'allow-font-import',
+      'allow-font-read',
+      'allow-fonts-installed',
+      'allow-fonts-list',
       'allow-keyboard-shortcuts-get',
       'allow-keyboard-shortcuts-set',
       'allow-mirror-choose',
@@ -81,6 +85,13 @@ describe('Tauri command permissions', () => {
       'core:event:allow-listen',
       'core:event:allow-unlisten',
     ])
+  })
+
+  it('lets only the Settings window import and list fonts, and both windows load one', () => {
+    for (const command of ['font-import', 'fonts-list', 'fonts-installed']) {
+      expect(windowsWith(`allow-${command}`)).toEqual(['settings'])
+    }
+    expect(windowsWith('allow-font-read')).toEqual(['main', 'settings'])
   })
 
   it('lets only the Settings window open the data folder and ask for the Backups dialog', () => {

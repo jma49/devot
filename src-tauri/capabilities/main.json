@@ -56,6 +56,7 @@
     "allow-usage-record",
     "allow-editor-settings-get",
     "allow-editor-settings-set",
+    "allow-font-read",
     "allow-sidebar-material-sync",
     "allow-sidebar-menu-set",
     "allow-command-menu-set",

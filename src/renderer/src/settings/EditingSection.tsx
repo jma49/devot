@@ -22,6 +22,7 @@ import { useKeymap } from '../commands/shortcutSettings'
 import { useEditorSettings } from '../editorSettings'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
+import { FontChoice } from './FontChoice'
 import { useTypedNumber } from './typedNumber'
 
 const FONT_LABELS: Readonly<Record<FontFamilyId, MessageKey>> = {
@@ -30,6 +31,8 @@ const FONT_LABELS: Readonly<Record<FontFamilyId, MessageKey>> = {
   menlo: 'editorSettings.font.menlo',
   monaco: 'editorSettings.font.monaco',
   courierNew: 'editorSettings.font.courierNew',
+  installed: 'editorSettings.font.installed',
+  imported: 'editorSettings.font.imported',
 }
 
 const INDENT_LABELS: Readonly<Record<IndentUnitId, MessageKey>> = {
@@ -320,6 +323,7 @@ export function EditingSection() {
             ))}
           </select>
         </Setting>
+        <FontChoice settings={settings} change={change} id={id} />
         <Setting
           label="editorSettings.fontWeight"
           description={t('editorSettings.fontWeightHint')}
