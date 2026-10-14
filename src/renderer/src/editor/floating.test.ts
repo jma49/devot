@@ -33,28 +33,29 @@ describe('floating bar motion and states', () => {
     expect(floatStyles['@keyframes cm-fade-in']).toEqual({ from: { opacity: '0' } })
   })
 
-  it('grows a tooltip bubble out of its notch as it fades in, on its own layer', () => {
+  it('fades a button tooltip in and out like the app tooltips, above its button with the app gap', () => {
     const tip = rule('.cm-float-tip')
     expect(tip.animation).toBe(
-      'cm-popover-in var(--motion-duration-popover) var(--motion-easing-standard)',
+      'cm-fade-in var(--motion-duration-popover) var(--motion-easing-standard)',
     )
-    expect(tip.backfaceVisibility).toBe('hidden')
-    expect(rule('.cm-float-tip[data-side="below"]').transformOrigin).toBe('center top')
-    expect(rule('.cm-float-tip[data-side="above"]').transformOrigin).toBe('center bottom')
-    const enter = floatStyles['@keyframes cm-popover-in'] as Record<string, Rule>
-    expect(enter.from).toEqual({ opacity: '0', scale: 'var(--popover-enter-scale)' })
+    expect(tip.transform).toBe('translateX(-50%)')
+    expect(rule('.cm-float-tip[data-side="above"]').bottom).toBe('calc(100% + var(--tooltip-gap))')
+    expect(rule('.cm-float-tip[data-side="below"]').top).toBe('calc(100% + var(--tooltip-gap))')
+    expect(rule('.cm-float-tip[data-closing][data-closing-motion="fade"]').animation).toBe(
+      'cm-fade-out var(--motion-duration-popover) var(--motion-easing-standard) forwards',
+    )
   })
 
-  it('fades a closing bar out, and shrinks a closing tooltip back toward its notch', () => {
+  it('lets a bar hold its notch on the anchor when the bar is held back', () => {
+    const notch = rule('.cm-tooltip.cm-float-bar::after')
+    expect(notch.left).toContain('var(--float-notch-x, 13px)')
+  })
+
+  it('fades a closing bar out', () => {
     expect(rule('.cm-tooltip[data-closing][data-closing-motion="fade"]').animation).toBe(
       'cm-fade-out var(--motion-duration-fade) var(--motion-easing-standard) forwards',
     )
-    expect(rule('.cm-float-tip[data-closing][data-closing-motion="scale"]').animation).toBe(
-      'cm-popover-out var(--motion-duration-popover) var(--motion-easing-standard) forwards',
-    )
     expect(floatStyles['@keyframes cm-fade-out']).toEqual({ to: { opacity: '0' } })
-    const exit = floatStyles['@keyframes cm-popover-out'] as Record<string, Rule>
-    expect(exit.to).toEqual({ opacity: '0', scale: 'var(--popover-exit-scale)' })
   })
 
   it('gives the tooltip bubble a notch toward its button', () => {

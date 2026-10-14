@@ -1,4 +1,4 @@
-// The selection toolbar: a CodeMirror tooltip above the selection whose
+// The selection toolbar: a CodeMirror tooltip above the selection's start whose
 // buttons run the format commands, in three groups: inline formats and the
 // link, code, then block formats. CodeMirror positions it through the CSSOM
 // and styles it with constructed sheets, so it works under the production
@@ -27,6 +27,7 @@ import { BAR_GAP, FloatButton, FloatSeparator, floatTheme, NOTCH_X, useFloatTip 
 import { formatCommand, formatState, selectionHasLink, type ToolbarFormat } from './formats'
 import { openLinkDialog } from './LinkDialog'
 import { TOOLBAR_GROUPS, toolbarTip } from './toolbarButtons'
+import { anchorRect, notchOffset } from './toolbarPlacement'
 import {
   hideToolbar,
   toolbarOff,
@@ -97,22 +98,12 @@ function FormatToolbar(props: ToolbarProps) {
 }
 
 /**
- * The selection's box: from the top of its first line to the bottom of its
- * last, so the toolbar goes above or below it, never over it.
+ * The editor's box, which scrolls and clips its popups (see the note
+ * editor's tooltip space): the visible area the selection's start must be in.
  */
-function selectionRect(view: EditorView): Rect | null {
-  const { from, to } = view.state.selection.main
-  const start = view.coordsAtPos(from, 1)
-  const end = view.coordsAtPos(to, -1)
-  if (!start && !end) return null
-  const left = start?.left ?? end?.left ?? 0
-  return {
-    left,
-    right: left,
-    // A start scrolled out of view: only the space below the end is free.
-    top: start ? Math.min(start.top, end?.top ?? start.top) : -Infinity,
-    bottom: end ? Math.max(end.bottom, start?.bottom ?? end.bottom) : (start?.bottom ?? 0),
-  }
+function visibleArea(view: EditorView): Rect {
+  const root = view.dom.getRootNode()
+  return (root instanceof ShadowRoot ? root.host : view.dom).getBoundingClientRect()
 }
 
 function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipView {
@@ -128,6 +119,13 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
     dom.style.maxWidth = max
     return true
   }
+  // The notch follows the anchor when the bar is held back at an edge.
+  let anchorX = 0
+  const aimNotch = () => {
+    const box = dom.getBoundingClientRect()
+    const x = notchOffset(anchorX, box.left, box.width, NOTCH_X)
+    dom.style.setProperty('--float-notch-x', `${x}px`)
+  }
   return {
     dom,
     // Rendered and sized before CodeMirror measures it, so it is placed by its real size.
@@ -138,6 +136,7 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
     // The editor's width changed (a resized window): wrap again and place it anew.
     positioned: (space) => {
       if (fit(space.right - space.left)) view.requestMeasure()
+      aimNotch()
     },
     update: (update) => {
       // A tree that reached further may settle buttons the parser had not
@@ -150,8 +149,13 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
       )
         render(update.state)
     },
-    // Null (nothing of the selection is drawn) makes CodeMirror hide it.
-    getCoords: () => selectionRect(view) as Rect,
+    // The line box at the selection's start; null (scrolled out of the
+    // editor's box) makes CodeMirror hide the bar until it scrolls back in.
+    getCoords: (pos) => {
+      const anchor = anchorRect(view.coordsAtPos(pos, 1), visibleArea(view))
+      anchorX = anchor?.left ?? anchorX
+      return anchor as Rect
+    },
     // The notch points at the selection's start, a little away from its line.
     offset: { x: -NOTCH_X, y: BAR_GAP },
     resize: false,
@@ -165,7 +169,9 @@ const toolbarTooltip = (showAlertMenu: ShowAlertMenu) => {
   return showTooltip.compute(
     [toolbarState, toolbarOff, 'selection', 'doc'],
     (state): Tooltip | null =>
-      toolbarVisible(state) ? { pos: state.selection.main.from, above: true, create } : null,
+      toolbarVisible(state)
+        ? { pos: state.selection.main.from, above: true, strictSide: true, create }
+        : null,
   )
 }
 

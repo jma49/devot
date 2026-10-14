@@ -5,11 +5,12 @@
 // sheets (they live in the editor's shadow root); positions go through the
 // CSSOM, which the production CSP allows.
 import { EditorView } from '@codemirror/view'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
 import { closingRef } from '../closing'
-import { closingStyles, closingTooltips, fadeIn, motionKeyframes, popoverIn } from './motion'
+import { sizes } from '../theme/tokens'
+import { closingStyles, closingTooltips, fadeIn, motionKeyframes, tipIn } from './motion'
 import type { Tip } from './toolbarButtons'
 
 /**
@@ -20,10 +21,13 @@ export const NOTCH_X = 13
 /** The gap between a bar and the text it belongs to. */
 export const BAR_GAP = 10
 
-/** Room a tooltip bubble needs below its button, with its gap. */
+/** How long the pointer rests on a button before its tooltip shows (the app's tooltip delay), in ms. */
+const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
+
+/** Room a tooltip bubble needs over its button (its height, gap and the window margin). */
 const TIP_ROOM = 64
 
-/** Where the bar's tooltip shows: under the button, or over it when there is no room. */
+/** Where the bar's tooltip shows: over the button, or under it when there is no room. */
 interface ShownTip {
   tip: Tip
   x: number
@@ -42,24 +46,35 @@ function popupSpace(view: EditorView): DOMRect {
  */
 export function useFloatTip(view: EditorView) {
   const [shown, setShown] = useState<ShownTip | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const hide = () => {
+    clearTimeout(timer.current)
+    timer.current = undefined
+    setShown(null)
+  }
+  useEffect(() => () => clearTimeout(timer.current), [])
   const show = (button: HTMLElement, tip: Tip) => {
     const bar = button.closest('.cm-tooltip')
     if (!bar) return
-    const b = button.getBoundingClientRect()
-    const box = bar.getBoundingClientRect()
-    setShown({
-      tip,
-      x: b.left + b.width / 2 - box.left,
-      below: b.bottom + TIP_ROOM <= popupSpace(view).bottom,
-    })
+    clearTimeout(timer.current)
+    // After a rest on the button, as the app's other tooltips.
+    timer.current = setTimeout(() => {
+      if (!button.isConnected) return
+      const b = button.getBoundingClientRect()
+      const box = bar.getBoundingClientRect()
+      setShown({
+        tip,
+        x: b.left + b.width / 2 - box.left,
+        below: b.top - TIP_ROOM < popupSpace(view).top,
+      })
+    }, SHOW_AFTER_MS)
   }
-  const hide = () => setShown(null)
   const bubble = shown ? <FloatTip {...shown} /> : null
   return { show, hide, bubble }
 }
 
-/** A bar button's tooltip shrinks toward its notch as it goes. */
-const floatTipRef = closingRef('scale', 'cm-float-tip')
+/** A bar button's tooltip fades out as it goes. */
+const floatTipRef = closingRef('fade', 'cm-float-tip')
 
 function FloatTip({ tip, x, below }: ShownTip) {
   return (
@@ -151,7 +166,8 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     position: 'absolute',
     zIndex: '1',
     boxSizing: 'border-box',
-    left: `calc(${NOTCH_X}px - ${notchSize} / 2)`,
+    // `--float-notch-x` is set by a bar held back at an edge, so the tip stays on its anchor.
+    left: `calc(var(--float-notch-x, ${NOTCH_X}px) - ${notchSize} / 2)`,
     width: notchSize,
     height: notchSize,
     backgroundColor: 'var(--color-surface-popover)',
@@ -247,16 +263,13 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     whiteSpace: 'nowrap',
     pointerEvents: 'none',
     transform: 'translateX(-50%)',
-    backfaceVisibility: 'hidden',
-    animation: popoverIn,
+    animation: tipIn,
   },
   '.cm-float-tip[data-side="below"]': {
-    top: 'calc(100% + var(--space-4))',
-    transformOrigin: 'center top',
+    top: 'calc(100% + var(--tooltip-gap))',
   },
   '.cm-float-tip[data-side="above"]': {
-    bottom: 'calc(100% + var(--space-4))',
-    transformOrigin: 'center bottom',
+    bottom: 'calc(100% + var(--tooltip-gap))',
   },
   // The tooltip's notch, pointing at its button, like the bar's.
   '.cm-float-tip::before': {

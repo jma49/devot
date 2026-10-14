@@ -208,7 +208,7 @@ test('the toolbar hides on Escape, a collapsed selection and typing', async ({ p
 
 test('the toolbar follows the selection and never covers it', async ({ page }) => {
   await newNote(page, 'first line\nsecond line of the note\nthird line\nfourth line')
-  // The first line has no room above it inside the editor: the toolbar goes below.
+  // The toolbar keeps to the side above the start, even on the first line.
   await selectWord(page, 1, 'first')
   await expectBesideSelection(page)
 
@@ -399,4 +399,112 @@ test('bold next to punctuation keeps it outside the markers and toggles off agai
   // The same key again takes it off, not a second pair on.
   await page.keyboard.press('ControlOrMeta+KeyB')
   expect(await lines(page)).toEqual([`${x}${x}${y}${y}${stop}${x}${x}`])
+})
+
+const manyLines = Array.from({ length: 90 }, (_, i) => `line ${i + 1} of the note`).join('\n')
+const editorBox = (page: Page) => page.locator('[data-devot-part="editor-body"]')
+
+test('the toolbar sits above the selection start and never flips below', async ({ page }) => {
+  await newNote(page, manyLines)
+  await page.keyboard.press('ControlOrMeta+Home')
+  await selectWord(page, 1, 'line')
+  const start = (await page.locator('.cm-selectionBackground').first().boundingBox())!
+  const bar = (await toolbar(page).boundingBox())!
+  // Even with no room above the first line inside the editor, it is not placed below.
+  expect(bar.y + bar.height).toBeLessThanOrEqual(start.y + 1)
+})
+
+test('the toolbar hides when the selection start scrolls out and returns when it scrolls back', async ({
+  page,
+}) => {
+  await newNote(page, manyLines)
+  await page.keyboard.press('ControlOrMeta+Home')
+  await selectWord(page, 6, 'note')
+  await expect(toolbar(page)).toBeInViewport()
+  await editorBox(page).evaluate((el) => {
+    ;(el as unknown as { scrollTop: number }).scrollTop = 1500
+  })
+  await expect(toolbar(page)).not.toBeInViewport()
+  await editorBox(page).evaluate((el) => {
+    ;(el as unknown as { scrollTop: number }).scrollTop = 0
+  })
+  await expect(toolbar(page)).toBeInViewport()
+})
+
+test('the notch keeps pointing at the selection start when the bar is held back at the edge', async ({
+  page,
+}) => {
+  const words = Array.from({ length: 70 }, (_, i) => `w${String(i + 10)}`)
+  await newNote(page, `intro\n${words.join(' ')}`)
+  // The last word that fits on the first row of the wrapped paragraph.
+  const word = await page
+    .locator('.cm-line')
+    .nth(1)
+    .evaluate((line, all) => {
+      const doc = (
+        globalThis as unknown as {
+          document: {
+            createTreeWalker(root: unknown, show: number): { nextNode(): { data: string } | null }
+            createRange(): {
+              setStart(node: unknown, offset: number): void
+              setEnd(node: unknown, offset: number): void
+              getBoundingClientRect(): { top: number; left: number }
+            }
+          }
+        }
+      ).document
+      const node = doc.createTreeWalker(line, 4).nextNode()
+      if (!node) return null
+      let best: string | null = null
+      let top: number | null = null
+      for (const w of all) {
+        const at = node.data.indexOf(w)
+        const range = doc.createRange()
+        range.setStart(node, at)
+        range.setEnd(node, at + w.length)
+        const r = range.getBoundingClientRect()
+        top ??= r.top
+        if (r.top > top + 1) break
+        best = w
+      }
+      return best
+    }, words)
+  if (!word) throw new Error('E_TEST_NO_WORD')
+  await selectWord(page, 2, word)
+  const bar = page.locator('.cm-format-toolbar')
+  await expect
+    .poll(async () => {
+      const [placed, sel] = await Promise.all([
+        bar.evaluate((el) => {
+          const r = (el as unknown as { getBoundingClientRect(): Box }).getBoundingClientRect()
+          const value = (
+            globalThis as unknown as {
+              getComputedStyle(el: unknown): { getPropertyValue(n: string): string }
+            }
+          )
+            .getComputedStyle(el)
+            .getPropertyValue('--float-notch-x')
+          return { left: r.x, notch: Number.parseFloat(value) }
+        }),
+        page.locator('.cm-selectionBackground').first().boundingBox(),
+      ])
+      if (!sel || Number.isNaN(placed.notch)) return false
+      // The bar is held back (the notch is past its resting place) and still on the start.
+      return placed.notch > 20 && Math.abs(placed.left + placed.notch - sel.x) < 2
+    })
+    .toBe(true)
+})
+
+test('a toolbar button tooltip waits, then shows above its button', async ({ page }) => {
+  await newNote(page, manyLines)
+  await page.keyboard.press('ControlOrMeta+Home')
+  await selectWord(page, 12, 'note')
+  const bold = button(page, 'Bold')
+  await bold.hover()
+  const tip = page.getByRole('tooltip')
+  await expect(tip).toBeVisible()
+  await expect(tip).toHaveAttribute('data-side', 'above')
+  const [b, t] = await Promise.all([bold.boundingBox(), tip.boundingBox()])
+  if (!b || !t) throw new Error('missing boxes')
+  expect(t.y + t.height).toBeLessThanOrEqual(b.y - 11)
 })
