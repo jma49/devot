@@ -95,8 +95,8 @@ describe('whenClosed', () => {
 })
 
 describe('tooltipMotion', () => {
-  it('fades the floating bars and the completion lists out', () => {
-    expect(tooltipMotion(['cm-tooltip', 'cm-float-bar', 'cm-format-toolbar'])).toBe('fade')
+  it('fades the completion lists out, and the floating bars not at all', () => {
+    expect(tooltipMotion(['cm-tooltip', 'cm-float-bar', 'cm-format-toolbar'])).toBeNull()
     expect(tooltipMotion(['cm-tooltip', 'cm-tooltip-autocomplete', 'cm-popup-slash'])).toBe('fade')
   })
 

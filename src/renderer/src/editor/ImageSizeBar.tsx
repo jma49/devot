@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client'
 import { IMAGE_SIZES, type ImageSize } from '../../../core/images'
 import { t, type MessageKey } from '../i18n'
 import type { IconName } from '../icons/symbols'
-import { BAR_GAP, FloatButton, floatTheme, NOTCH_X, useFloatTip } from './floating'
+import { BAR_GAP, barContent, FloatButton, floatTheme, NOTCH_X, useFloatTip } from './floating'
 import { imageAtCaret, imageSizeChange, type EditorImage } from './images'
 import { barsMayShow } from './barRules'
 import { toolbarState, toolbarStateExtension } from './toolbarState'
@@ -55,7 +55,7 @@ function ImageSizeBar({ view, image }: { view: EditorView; image: EditorImage })
 function createBar(view: EditorView): TooltipView {
   const dom = document.createElement('div')
   dom.className = 'cm-float-bar cm-image-size-bar'
-  const root = createRoot(dom)
+  const root = createRoot(barContent(dom))
   const render = (state: EditorState) => {
     const image = imageAtCaret(state)
     // Re-rendered for the image the caret is in now; the tooltip goes away without one.
@@ -67,7 +67,7 @@ function createBar(view: EditorView): TooltipView {
     update: (update) => {
       if (update.docChanged || update.selectionSet) render(update.state)
     },
-    offset: { x: -NOTCH_X, y: BAR_GAP / 2 },
+    offset: { x: -NOTCH_X, y: BAR_GAP },
     destroy: () => queueMicrotask(() => root.unmount()),
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import symbolsJson from '../../../../design/icons/symbols.json'
 import {
   createSymbolCache,
+  evenPixels,
   ICONS,
   symbolFor,
   inkBounds,
@@ -92,28 +93,44 @@ describe('ink', () => {
   it('is the bounds of the pixels more than a quarter opaque, in CSS pixels', () => {
     // 4 by 3 pixels: ink from (1, 0) to (2, 2); a faint pixel at (3, 2) does not count.
     const alpha = [0, 255, 0, 0, 0, 200, 255, 0, 0, 0, 255, 40]
-    expect(inkBounds(alpha, 4, 3)).toEqual({ x: 0.5, y: 0, width: 1, height: 1.5 })
+    expect(inkBounds(alpha, 4, 3)).toEqual({
+      x: 0.5,
+      y: 0,
+      width: 1,
+      height: 1.5,
+    })
     expect(inkBounds([0, 10, 64], 3, 1)).toBeNull()
   })
 })
 
+describe('even pixels', () => {
+  it('grows an odd side by one pixel, so a CSS size is whole', () => {
+    expect(evenPixels(31)).toBe(32)
+    expect(evenPixels(32)).toBe(32)
+  })
+})
+
 describe('placing a symbol in its box', () => {
-  it('centres the ink on the box, on the half-pixel grid, keeping the box in the layout', () => {
-    const image = {
-      url: 'data:x',
-      width: 20,
-      height: 16,
-      ink: { x: 1, y: 2, width: 17, height: 11 },
-    }
-    expect(symbolStyle(image, 18)).toEqual({
-      maskImage: 'url("data:x")',
-      WebkitMaskImage: 'url("data:x")',
-      maskSize: '100% 100%',
-      WebkitMaskSize: '100% 100%',
-      width: '20px',
-      height: '16px',
-      // Ink centre (9.5, 7.5) onto (9, 9): left -0.5 (snapped from -0.5), top 1.5.
-      margin: '1.5px -1.5px 0.5px -0.5px',
-    })
+  const image = {
+    url: 'data:x',
+    width: 20,
+    height: 16,
+    ink: { x: 1, y: 2, width: 17, height: 11 },
+  }
+
+  it('shows the PNG at its exact CSS size, mask size included, never scaled', () => {
+    const style = symbolStyle(image, 18)
+    expect(style.width).toBe('20px')
+    expect(style.height).toBe('16px')
+    expect(style.maskSize).toBe('20px 16px')
+    expect(style.WebkitMaskSize).toBe('20px 16px')
+    expect(JSON.stringify(style)).not.toMatch(/contain|%/)
+  })
+
+  it('centres the ink on the box on whole pixels, keeping the box in the layout', () => {
+    // Ink centre (9.5, 7.5) onto (9, 9): left -0.5 rounds to 0 (-0 shown as 0), top 1.5 rounds to 2.
+    for (const px of symbolStyle(image, 18).margin!.split(' '))
+      expect(Number.isInteger(Number.parseFloat(px))).toBe(true)
+    expect(symbolStyle(image, 18).margin).toBe('2px -2px 0px 0px')
   })
 })

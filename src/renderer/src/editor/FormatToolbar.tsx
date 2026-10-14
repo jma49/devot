@@ -23,7 +23,15 @@ import { formatKeyRan } from '../commands/formatMenu'
 import { editorFormatKeys } from '../commands/registry'
 import { registryKeys } from './registryKeys'
 import type { ShowAlertMenu } from './alertMenu'
-import { BAR_GAP, FloatButton, FloatSeparator, floatTheme, NOTCH_X, useFloatTip } from './floating'
+import {
+  BAR_GAP,
+  barContent,
+  FloatButton,
+  FloatSeparator,
+  floatTheme,
+  NOTCH_X,
+  useFloatTip,
+} from './floating'
 import { formatCommand, formatState, selectionHasLink, type ToolbarFormat } from './formats'
 import { openLinkDialog } from './LinkDialog'
 import { TOOLBAR_GROUPS, toolbarTip } from './toolbarButtons'
@@ -46,7 +54,10 @@ interface ToolbarProps {
 function headingFromToolbar(view: EditorView) {
   if (!formatCommand('heading')(view)) return
   const line = view.state.doc.lineAt(view.state.selection.main.head)
-  view.dispatch({ selection: EditorSelection.cursor(line.to), scrollIntoView: true })
+  view.dispatch({
+    selection: EditorSelection.cursor(line.to),
+    scrollIntoView: true,
+  })
 }
 
 function press(view: EditorView, id: ToolbarFormat, button: HTMLElement, props: ToolbarProps) {
@@ -109,7 +120,7 @@ function visibleArea(view: EditorView): Rect {
 function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipView {
   const dom = document.createElement('div')
   dom.className = 'cm-float-bar cm-format-toolbar'
-  const root = createRoot(dom)
+  const root = createRoot(barContent(dom))
   const render = (state: EditorState) =>
     root.render(<FormatToolbar view={view} state={state} showAlertMenu={showAlertMenu} />)
   // Through the CSSOM (the production CSP allows no style attributes).
@@ -212,8 +223,13 @@ const theme = EditorView.theme({
     // buttons on one row and scrolls them sideways.
     width: 'max-content',
   },
-  '.cm-format-toolbar .cm-float-buttons': { overflowX: 'auto', scrollbarWidth: 'none' },
-  '.cm-format-toolbar .cm-float-buttons::-webkit-scrollbar': { display: 'none' },
+  '.cm-format-toolbar .cm-float-buttons': {
+    overflowX: 'auto',
+    scrollbarWidth: 'none',
+  },
+  '.cm-format-toolbar .cm-float-buttons::-webkit-scrollbar': {
+    display: 'none',
+  },
 })
 
 /**

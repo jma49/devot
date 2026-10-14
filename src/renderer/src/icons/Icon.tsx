@@ -3,6 +3,8 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { shownAppearance, subscribeAppearance } from '../theme/appearance'
 import {
   createSymbolCache,
+  evenPixels,
+  PIXELS_PER_POINT,
   inkBounds,
   symbolFor,
   symbolSize,
@@ -30,23 +32,38 @@ const BOXES = { xs: 10, sm: 14, md: 17, toolbar: 18, lg: 22 } as const
  */
 const boxPoints = (box: number) => Math.round(box * 0.8)
 
-/** Reads where a rendered symbol's ink is. */
-async function measure(url: string): Promise<SymbolImage> {
-  const size = symbolSize(url) ?? { width: 0, height: 0 }
+/**
+ * Reads where a rendered symbol's ink is. A PNG with an odd side gets one
+ * transparent pixel (copied pixel for pixel, never resampled) so it is
+ * exactly twice a whole CSS size.
+ */
+async function measure(rendered: string): Promise<SymbolImage> {
+  const fallback = symbolSize(rendered) ?? { width: 0, height: 0 }
   const image = new Image()
-  image.src = url
+  image.src = rendered
   await image.decode()
+  const pixelsWide = evenPixels(image.naturalWidth)
+  const pixelsHigh = evenPixels(image.naturalHeight)
   const canvas = document.createElement('canvas')
-  canvas.width = image.naturalWidth
-  canvas.height = image.naturalHeight
+  canvas.width = pixelsWide
+  canvas.height = pixelsHigh
+  const size = {
+    width: pixelsWide / PIXELS_PER_POINT,
+    height: pixelsHigh / PIXELS_PER_POINT,
+  }
   const context = canvas.getContext('2d')
   const whole = { x: 0, y: 0, ...size }
-  if (!context) return { url, ...size, ink: whole }
+  if (!context) return { url: rendered, ...fallback, ink: whole }
   context.drawImage(image, 0, 0)
-  const { data } = context.getImageData(0, 0, canvas.width, canvas.height)
-  const alpha = new Uint8ClampedArray(canvas.width * canvas.height)
+  const { data } = context.getImageData(0, 0, pixelsWide, pixelsHigh)
+  const alpha = new Uint8ClampedArray(pixelsWide * pixelsHigh)
   for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3] ?? 0
-  return { url, ...size, ink: inkBounds(alpha, canvas.width, canvas.height) ?? whole }
+  const padded = pixelsWide !== image.naturalWidth || pixelsHigh !== image.naturalHeight
+  return {
+    url: padded ? canvas.toDataURL('image/png') : rendered,
+    ...size,
+    ink: inkBounds(alpha, pixelsWide, pixelsHigh) ?? whole,
+  }
 }
 
 const placed = new Map<string, Promise<SymbolImage>>()

@@ -75,7 +75,10 @@ export function symbolSize(dataUrl: string): { width: number; height: number } |
       (header.charCodeAt(i + 2) << 8) |
       header.charCodeAt(i + 3)) >>>
     0
-  return { width: at(16) / PIXELS_PER_POINT, height: at(20) / PIXELS_PER_POINT }
+  return {
+    width: at(16) / PIXELS_PER_POINT,
+    height: at(20) / PIXELS_PER_POINT,
+  }
 }
 
 /**
@@ -98,25 +101,40 @@ export function inkBounds(alpha: ArrayLike<number>, width: number, height: numbe
     }
   if (right < 0) return null
   const k = PIXELS_PER_POINT
-  return { x: left / k, y: top / k, width: (right - left + 1) / k, height: (bottom - top + 1) / k }
+  return {
+    x: left / k,
+    y: top / k,
+    width: (right - left + 1) / k,
+    height: (bottom - top + 1) / k,
+  }
+}
+
+/** The pixels of a symbol's PNG along one side, grown to an even count so CSS pixels are whole. */
+export function evenPixels(pixels: number): number {
+  return pixels + (pixels % 2)
 }
 
 /**
- * How a symbol sits in its `box` (CSS pixels, square): at its own size, its
- * ink centred on the box, on the half-pixel grid (whole device pixels on a
- * Retina screen). The margins keep the box's place in the layout; a symbol
- * larger than the box overhangs it.
+ * How a symbol sits in its `box` (CSS pixels, square): its PNG is exactly
+ * twice its CSS size (`width` and `height` are whole), shown at that size
+ * with a mask of the same size, never scaled; its ink is centred on the box
+ * on whole CSS pixels (whole device pixels on a Retina screen). The margins
+ * keep the box's place in the layout; a symbol larger than the box overhangs it.
  */
 export function symbolStyle(image: SymbolImage, box: number): Record<string, string> {
-  const snap = (n: number) => Math.round(n * 2) / 2
-  const left = snap(box / 2 - (image.ink.x + image.ink.width / 2))
-  const top = snap(box / 2 - (image.ink.y + image.ink.height / 2))
+  const left = Math.round(box / 2 - (image.ink.x + image.ink.width / 2))
+  const top = Math.round(box / 2 - (image.ink.y + image.ink.height / 2))
   const mask = `url("${image.url}")`
+  const size = `${image.width}px ${image.height}px`
   return {
     maskImage: mask,
     WebkitMaskImage: mask,
-    maskSize: '100% 100%',
-    WebkitMaskSize: '100% 100%',
+    maskSize: size,
+    WebkitMaskSize: size,
+    maskRepeat: 'no-repeat',
+    WebkitMaskRepeat: 'no-repeat',
+    maskPosition: '0px 0px',
+    WebkitMaskPosition: '0px 0px',
     width: `${image.width}px`,
     height: `${image.height}px`,
     margin: `${top}px ${box - image.width - left}px ${box - image.height - top}px ${left}px`,

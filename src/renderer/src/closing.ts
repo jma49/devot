@@ -65,11 +65,11 @@ export function whenClosed(target: ClosingTarget, done: () => void, fallbackMs: 
   return stop
 }
 
-/** The editor tooltips that fade out when they close (by their classes), or null. */
+/** The editor tooltips that fade out when they close (by their classes), or null. The floating bars do not: they vanish with the selection. */
 export function tooltipMotion(classes: Iterable<string>): CloseMotion | null {
   const list = new Set(classes)
   if (!list.has('cm-tooltip')) return null
-  return list.has('cm-float-bar') || list.has('cm-tooltip-autocomplete') ? 'fade' : null
+  return list.has('cm-tooltip-autocomplete') ? 'fade' : null
 }
 
 /** Removes the closing copies of `kind` among `parent`'s children. */

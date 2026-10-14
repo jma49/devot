@@ -190,6 +190,40 @@ test('a button tooltip shows its name and key; Heading and Highlight have no key
   await expect(tip).toBeHidden()
 })
 
+test('the bar is one outlined box with a separate notch, and its icons sit on whole pixels', async ({
+  page,
+}) => {
+  await newNote(page, 'alpha beta gamma')
+  await selectAll(page)
+  const bar = page.locator('.cm-format-toolbar')
+  await expect(bar).toBeVisible()
+  const look = await bar.evaluate((el) => {
+    type Style = Record<string, string> & { getPropertyValue(n: string): string }
+    type El = {
+      getBoundingClientRect(): { width: number; height: number }
+      querySelector(s: string): El | null
+    }
+    const style = (target: unknown) =>
+      (globalThis as unknown as { getComputedStyle(t: unknown): Style }).getComputedStyle(target)
+    const root = el as unknown as El
+    const box = root.querySelector('.cm-float-notch')!.getBoundingClientRect()
+    const icon = style(root.querySelector('.cm-float-button .icon'))
+    return {
+      outline: style(el).outlineWidth,
+      filter: style(el).filter,
+      notch: [box.width, box.height],
+      size: [icon.width, icon.height],
+      mask: icon.getPropertyValue('mask-size') || icon.getPropertyValue('-webkit-mask-size'),
+    }
+  })
+  expect(look.outline).toBe('1px')
+  expect(look.filter).toBe('none')
+  expect(look.notch).toEqual([14, 7])
+  // Whole pixels, and the mask is exactly the box: nothing is scaled.
+  for (const px of look.size) expect(Number.parseFloat(px) % 1).toBe(0)
+  expect(look.mask).toBe(look.size.join(' '))
+})
+
 test('the toolbar hides on Escape, a collapsed selection and typing', async ({ page }) => {
   await newNote(page, 'alpha beta gamma')
   await selectAll(page)
