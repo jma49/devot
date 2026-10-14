@@ -1,13 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { closingRef } from './closing'
 import { t } from './i18n'
 import { sizes } from './theme/tokens'
+import { placeTip, type Box } from './tipPlacement'
 
 /** How long the pointer rests on a button before its tooltip shows (`motion.delay.tooltip`), in ms. */
 export const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
 
-/** The toolbar buttons whose tooltips show as bubbles. */
-const TOOLS = '.toolbar .tool[title], .toolbar .tool[data-tip]'
+/** Every icon or command button with a tooltip shows it as a bubble. */
+const TOOLS = 'button[title], button[data-tip]'
+
+const LIMITS = {
+  gap: Number.parseFloat(sizes['tooltip.gap']),
+  edge: Number.parseFloat(sizes['tooltip.edge']),
+  arrowInset: Number.parseFloat(sizes['tooltip.arrow-inset']),
+}
 
 /**
  * A tooltip split into the command's name and its key, as `titleWithKey`
@@ -25,24 +32,35 @@ export function splitTip(title: string): { name: string; key: string | undefined
   return name !== undefined && key !== undefined ? { name, key } : { name: title, key: undefined }
 }
 
-/** A tooltip shrinks back toward its notch as it goes. */
-const tipRef = closingRef('scale', 'tool-tip')
+/** A tooltip fades out as it goes. */
+const closeRef = closingRef('fade', 'tool-tip')
 
 interface Shown {
   name: string
   key: string | undefined
-  x: number
-  y: number
+  anchor: Box
+}
+
+function boxOf(el: Element): Box {
+  const r = el.getBoundingClientRect()
+  return { left: r.left, top: r.top, width: r.width, height: r.height }
 }
 
 /**
- * Tooltips of the panes' toolbar buttons as bubbles: the name, then the key
- * in a chip. While one shows, its button's `title` waits in `data-tip`, so
- * the system tooltip does not show over it; it comes back when the bubble
- * goes (the pointer leaves, a click, a key, a scroll).
+ * Tooltips of icon and command buttons as bubbles: the name, then the key in
+ * a chip, above the button with a notch (below when there is no room), kept
+ * inside the window. A button's `title` moves to `data-tip` as the pointer
+ * enters it, so the system tooltip never shows beside the bubble (the button
+ * keeps its name as `aria-label`); it comes back when the pointer leaves or
+ * presses. The bubble follows its button through scroll and resize.
  */
 export function ToolTips() {
   const [shown, setShown] = useState<Shown>()
+  const tipEl = useRef<HTMLDivElement | null>(null)
+  const bubbleRef = useCallback((el: HTMLDivElement | null) => {
+    tipEl.current = el
+    return closeRef(el)
+  }, [])
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
     let target: HTMLElement | undefined
@@ -61,33 +79,64 @@ export function ToolTips() {
       if (el === target) return
       hide()
       if (!el) return
+      const title = el.getAttribute('title')
+      if (!title) return
       target = el
+      if (!el.hasAttribute('aria-label')) el.setAttribute('aria-label', title)
+      el.dataset['tip'] = title
+      el.removeAttribute('title')
       timer = setTimeout(() => {
-        const title = el.getAttribute('title')
-        if (!title || !el.isConnected) return
-        el.dataset['tip'] = title
-        el.removeAttribute('title')
-        const box = el.getBoundingClientRect()
-        setShown({ ...splitTip(title), x: box.left + box.width / 2, y: box.bottom })
+        if (!el.isConnected) return hide()
+        setShown({ ...splitTip(title), anchor: boxOf(el) })
       }, SHOW_AFTER_MS)
     }
+    const follow = () => {
+      if (!target) return
+      if (!target.isConnected) return hide()
+      const anchor = boxOf(target)
+      setShown((s) => (s ? { ...s, anchor } : s))
+    }
+    const leave = (e: PointerEvent) => {
+      if (e.relatedTarget === null) hide()
+    }
     document.addEventListener('pointerover', over)
+    document.addEventListener('pointerout', leave)
     document.addEventListener('pointerdown', hide, true)
-    document.addEventListener('keydown', hide, true)
-    document.addEventListener('scroll', hide, true)
+    document.addEventListener('scroll', follow, true)
+    window.addEventListener('resize', follow)
     window.addEventListener('blur', hide)
     return () => {
       hide()
       document.removeEventListener('pointerover', over)
+      document.removeEventListener('pointerout', leave)
       document.removeEventListener('pointerdown', hide, true)
-      document.removeEventListener('keydown', hide, true)
-      document.removeEventListener('scroll', hide, true)
+      document.removeEventListener('scroll', follow, true)
+      window.removeEventListener('resize', follow)
       window.removeEventListener('blur', hide)
     }
   }, [])
+  // The bubble is drawn hidden, measured, then placed and shown, so it never jumps.
+  useLayoutEffect(() => {
+    const el = tipEl.current
+    if (!shown || !el) return
+    const placed = placeTip(
+      shown.anchor,
+      { width: el.offsetWidth, height: el.offsetHeight },
+      {
+        width: document.documentElement.clientWidth,
+        height: document.documentElement.clientHeight,
+      },
+      LIMITS,
+    )
+    el.style.left = `${placed.left}px`
+    el.style.top = `${placed.top}px`
+    el.style.setProperty('--tip-arrow-x', `${placed.arrowX}px`)
+    el.dataset['side'] = placed.side
+    el.style.visibility = 'visible'
+  }, [shown])
   if (!shown) return null
   return (
-    <div ref={tipRef} className="tool-tip" role="tooltip" style={{ left: shown.x, top: shown.y }}>
+    <div ref={bubbleRef} className="tool-tip" role="tooltip" style={{ visibility: 'hidden' }}>
       <span>{shown.name}</span>
       {shown.key ? <kbd className="tool-tip-key">{shown.key}</kbd> : null}
     </div>

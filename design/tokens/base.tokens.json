@@ -1077,6 +1077,31 @@
       }
     }
   },
+  "tooltip": {
+    "$type": "dimension",
+    "$description": "A tooltip bubble's placement: it sits above its button (below only when there is no room), and stays inside the window.",
+    "gap": {
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "Between the button and the bubble's edge (the notch points across it)."
+    },
+    "edge": {
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      },
+      "$description": "The least space kept between the bubble and the window's edge."
+    },
+    "arrow-inset": {
+      "$value": {
+        "value": 15,
+        "unit": "px"
+      },
+      "$description": "The least distance from the notch's centre to the bubble's corner."
+    }
+  },
   "opacity": {
     "$type": "number",
     "$description": "How strongly a colour shows: tag chips mix their tag colour with transparent at these strengths, in both appearances.",
