@@ -505,7 +505,7 @@ export function codeTab(state: EditorState) {
   if (!at?.body) return null
   const insert = blockIndentUnit(state, at)
   return {
-    changes: { from: at.pos, insert },
+    changes: { from: at.pos, to: at.pos, insert },
     selection: { anchor: at.pos + insert.length },
     scrollIntoView: true,
     userEvent: 'input',
