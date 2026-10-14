@@ -1,4 +1,4 @@
-// The selection toolbar: a CodeMirror tooltip above the selection's start whose
+// The selection toolbar: a CodeMirror tooltip above the selection's start (below the selection only where the editor has no room above) whose
 // buttons run the format commands, in three groups: inline formats and the
 // link, code, then block formats. CodeMirror positions it through the CSSOM
 // and styles it with constructed sheets, so it works under the production
@@ -152,7 +152,11 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
     // The line box at the selection's start; null (scrolled out of the
     // editor's box) makes CodeMirror hide the bar until it scrolls back in.
     getCoords: (pos) => {
-      const anchor = anchorRect(view.coordsAtPos(pos, 1), visibleArea(view))
+      const anchor = anchorRect(
+        view.coordsAtPos(pos, 1),
+        view.coordsAtPos(view.state.selection.main.to, -1),
+        visibleArea(view),
+      )
       anchorX = anchor?.left ?? anchorX
       return anchor as Rect
     },
@@ -169,9 +173,7 @@ const toolbarTooltip = (showAlertMenu: ShowAlertMenu) => {
   return showTooltip.compute(
     [toolbarState, toolbarOff, 'selection', 'doc'],
     (state): Tooltip | null =>
-      toolbarVisible(state)
-        ? { pos: state.selection.main.from, above: true, strictSide: true, create }
-        : null,
+      toolbarVisible(state) ? { pos: state.selection.main.from, above: true, create } : null,
   )
 }
 

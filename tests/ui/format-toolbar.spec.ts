@@ -208,7 +208,7 @@ test('the toolbar hides on Escape, a collapsed selection and typing', async ({ p
 
 test('the toolbar follows the selection and never covers it', async ({ page }) => {
   await newNote(page, 'first line\nsecond line of the note\nthird line\nfourth line')
-  // The toolbar keeps to the side above the start, even on the first line.
+  // The first line has no room above it inside the editor: the toolbar goes below.
   await selectWord(page, 1, 'first')
   await expectBesideSelection(page)
 
@@ -404,14 +404,18 @@ test('bold next to punctuation keeps it outside the markers and toggles off agai
 const manyLines = Array.from({ length: 90 }, (_, i) => `line ${i + 1} of the note`).join('\n')
 const editorBox = (page: Page) => page.locator('[data-devot-part="editor-body"]')
 
-test('the toolbar sits above the selection start and never flips below', async ({ page }) => {
+test('the toolbar sits above the selection start when there is room, and stays reachable on the first line', async ({
+  page,
+}) => {
   await newNote(page, manyLines)
   await page.keyboard.press('ControlOrMeta+Home')
-  await selectWord(page, 1, 'line')
+  await selectWord(page, 6, 'note')
   const start = (await page.locator('.cm-selectionBackground').first().boundingBox())!
   const bar = (await toolbar(page).boundingBox())!
-  // Even with no room above the first line inside the editor, it is not placed below.
   expect(bar.y + bar.height).toBeLessThanOrEqual(start.y + 1)
+  await selectWord(page, 1, 'line')
+  await expectBesideSelection(page)
+  await expect(toolbar(page)).toBeInViewport()
 })
 
 test('the toolbar hides when the selection start scrolls out and returns when it scrolls back', async ({
