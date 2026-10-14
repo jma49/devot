@@ -62,7 +62,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.0, 0.0, 0.0],
+          "components": [0, 0, 0],
           "hex": "#000000"
         },
         "$description": "The one colour every text tier is drawn from: each color.text tier is this colour at its tier's strength over the editor (`tier` in its extensions), moved toward black only where contrast needs it."
@@ -355,6 +355,26 @@
           "alpha": 0.09
         },
         "$description": "A toolbar button under the pointer."
+      },
+      "hover": {
+        "$type": "color",
+        "$description": "A menu or picker row under the pointer (separate from the keyboard highlight).",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "hex": "#000000",
+          "alpha": 0.05
+        }
+      },
+      "backdrop": {
+        "$type": "color",
+        "$description": "The dim behind a modal dialog.",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "hex": "#000000",
+          "alpha": 0.3
+        }
       }
     },
     "accent": {
@@ -956,7 +976,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.0, 0.0, 0.0],
+          "components": [0, 0, 0],
           "hex": "#000000",
           "alpha": 0.12
         },
@@ -966,7 +986,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.0, 0.0, 0.0],
+          "components": [0, 0, 0],
           "hex": "#000000",
           "alpha": 0.15
         },
@@ -1004,7 +1024,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.4706, 0.2745, 0.0],
+          "components": [0.4706, 0.2745, 0],
           "hex": "#784600"
         }
       },
@@ -1012,7 +1032,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.4196, 0.3373, 0.0],
+          "components": [0.4196, 0.3373, 0],
           "hex": "#6b5600"
         }
       },
@@ -1028,7 +1048,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.0, 0.2902, 0.6118],
+          "components": [0, 0.2902, 0.6118],
           "hex": "#004a9c"
         }
       },

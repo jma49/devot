@@ -61,12 +61,16 @@ it('pop-ups grow and shrink only through the scale variables, which Reduce Motio
     .filter(isColorChecked)
     .flatMap((file) => readFileSync(file, 'utf8').match(/(?<![\w-])scale[:(][^;\n]*/g) ?? [])
   expect(scales.length).toBeGreaterThan(0)
-  expect(scales.filter((s) => !/var\(--popover-(enter|exit)-scale\)/.test(s))).toEqual([])
+  expect(
+    scales.filter((s) => !/var\(--(popover-(enter|exit)|dialog-enter)-scale\)/.test(s)),
+  ).toEqual([])
 
   const css = readFileSync(`${UI_ROOT}/app.css`, 'utf8')
   expect(css).toMatch(/--popover-enter-scale:\s*var\(--motion-scale-popover-enter\)/)
   expect(css).toMatch(/--popover-exit-scale:\s*var\(--motion-scale-popover-exit\)/)
+  expect(css).toMatch(/--dialog-enter-scale:\s*var\(--motion-scale-dialog-enter\)/)
   const reduced = css.split('@media (prefers-reduced-motion: reduce)').slice(1).join('')
   expect(reduced).toMatch(/--popover-enter-scale:\s*1;/)
   expect(reduced).toMatch(/--popover-exit-scale:\s*1;/)
+  expect(reduced).toMatch(/--dialog-enter-scale:\s*1;/)
 })

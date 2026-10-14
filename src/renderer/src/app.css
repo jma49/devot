@@ -10,6 +10,8 @@
   --popover-enter-scale: var(--motion-scale-popover-enter);
   /* They shrink to this scale, back toward the notch or anchor, as they fade out. */
   --popover-exit-scale: var(--motion-scale-popover-exit);
+  /* A modal dialog grows from this scale around its centre as it fades in. */
+  --dialog-enter-scale: var(--motion-scale-dialog-enter);
   --popover-shadow:
     0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
     0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
@@ -20,6 +22,7 @@
   :root {
     --popover-enter-scale: 1;
     --popover-exit-scale: 1;
+    --dialog-enter-scale: 1;
   }
 }
 
@@ -27,6 +30,13 @@
   from {
     opacity: 0;
     scale: var(--popover-enter-scale);
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    scale: var(--dialog-enter-scale);
   }
 }
 
@@ -48,6 +58,22 @@
 [data-closing][data-closing-motion='scale'] {
   pointer-events: none;
   animation: popover-out var(--motion-duration-popover) var(--motion-easing-standard) forwards;
+}
+
+/* Modal dialogs open by growing out of their centre while the page dims. */
+dialog[open].confirm,
+dialog[open].sheet,
+dialog[open].link-dialog,
+dialog[open].palette {
+  transform-origin: center;
+  animation: dialog-in var(--motion-duration-dialog) var(--motion-easing-standard);
+}
+
+.confirm::backdrop,
+.sheet::backdrop,
+.link-dialog::backdrop {
+  background: var(--color-fill-backdrop);
+  animation: fade-in var(--motion-duration-backdrop) var(--motion-easing-standard);
 }
 
 html,
@@ -1955,11 +1981,9 @@ button {
   border-radius: var(--radius-card);
   background: var(--color-surface-editor);
   color: var(--color-text-primary);
-  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
-}
-
-.confirm::backdrop {
-  background: var(--color-fill-row-selected-unemphasized);
+  box-shadow:
+    0 0 0 0.5px var(--color-line-hairline),
+    var(--popover-shadow);
 }
 
 .confirm-message {
@@ -1989,12 +2013,8 @@ button {
   color: var(--color-text-primary);
   box-shadow:
     0 0 0 0.5px var(--color-line-hairline),
-    0 8px 28px var(--color-line-shadow);
+    var(--popover-shadow);
   overflow: hidden;
-}
-
-.link-dialog::backdrop {
-  background: transparent;
 }
 
 .link-dialog-title {
@@ -2077,11 +2097,9 @@ button {
   border-radius: var(--radius-card);
   background: var(--color-surface-editor);
   color: var(--color-text-primary);
-  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
-}
-
-.sheet::backdrop {
-  background: var(--color-fill-row-selected-unemphasized);
+  box-shadow:
+    0 0 0 0.5px var(--color-line-hairline),
+    var(--popover-shadow);
 }
 
 .sheet-title {
@@ -3043,7 +3061,7 @@ button {
   color: var(--color-text-primary);
   box-shadow:
     0 0 0 0.5px var(--color-line-hairline),
-    0 var(--space-2) var(--space-9) var(--color-line-hairline);
+    var(--popover-shadow);
 }
 
 .palette::backdrop {
@@ -3326,8 +3344,8 @@ button.popup:focus-visible {
   left: 0;
   z-index: 10;
   box-sizing: border-box;
-  min-width: calc(var(--space-10) * 6);
-  max-height: calc(var(--space-10) * 10);
+  min-width: var(--size-picker-min-width);
+  max-height: min(max(50vh, var(--size-picker-min-height)), var(--picker-room, 100vh));
   overflow: auto;
   margin: 0;
   padding: var(--space-2);
@@ -3344,6 +3362,13 @@ button.popup:focus-visible {
   transform-origin: top left;
   backface-visibility: hidden;
   animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
+}
+
+/* With no room below its button a picker opens over it, growing out of the button's top edge. */
+.picker-popover[data-side='above'] {
+  top: auto;
+  bottom: calc(100% + var(--space-2));
+  transform-origin: bottom left;
 }
 
 .picker-search {
@@ -3381,6 +3406,11 @@ button.popup:focus-visible {
   border-radius: var(--radius-button);
   white-space: nowrap;
   cursor: default;
+}
+
+.picker-option:hover,
+.tag-suggestion:hover {
+  background: var(--color-fill-hover);
 }
 
 .picker-option[aria-selected='true'],

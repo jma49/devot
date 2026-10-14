@@ -68,6 +68,9 @@
   --size-palette-width: 650px;
   --size-focus-ring: 2px;
   --size-drop-indicator: 2px;
+  --size-picker-min-width: 220px;
+  --size-picker-min-height: 200px;
+  --size-popover-margin: 8px;
   --motion-duration-color: 400ms;
   --motion-duration-ring: 200ms;
   --motion-duration-popover: 150ms;
@@ -75,10 +78,13 @@
   --motion-duration-pane: 220ms;
   --motion-duration-hover: 180ms;
   --motion-duration-toggle: 200ms;
+  --motion-duration-dialog: 200ms;
+  --motion-duration-backdrop: 2000ms;
   --motion-easing-standard: cubic-bezier(0.42, 0, 0.58, 1);
   --motion-easing-out: cubic-bezier(0, 0, 0.58, 1);
   --motion-scale-popover-enter: 0.92;
   --motion-scale-popover-exit: 0.9;
+  --motion-scale-dialog-enter: 0.8;
   --motion-delay-tooltip: 400ms;
   --shadow-popover-y: 2px;
   --shadow-popover-key-blur: 4px;
@@ -125,6 +131,8 @@
   --color-fill-card: rgb(28 27 25 / 0.065);
   --color-fill-row-selected: rgb(28 27 25 / 0.12);
   --color-fill-tool-hover: rgb(28 27 25 / 0.09);
+  --color-fill-hover: rgb(0 0 0 / 0.05);
+  --color-fill-backdrop: rgb(0 0 0 / 0.3);
   --color-accent-fill: var(--system-accent-fill-light, #3472d6);
   --color-accent-text: var(--system-accent-text-light, #2856a2);
   --color-accent-hover: #2463eb;
@@ -235,6 +243,8 @@
     --color-fill-card: rgb(235 232 226 / 0.08);
     --color-fill-row-selected: rgb(235 232 226 / 0.14);
     --color-fill-tool-hover: rgb(235 232 226 / 0.12);
+    --color-fill-hover: rgb(255 255 255 / 0.08);
+    --color-fill-backdrop: rgb(0 0 0 / 0.3);
     --color-accent-fill: var(--system-accent-fill-dark, #4576b2);
     --color-accent-text: var(--system-accent-text-dark, #7ea6d8);
     --color-accent-hover: #2463eb;
@@ -346,6 +356,8 @@
   --color-fill-card: rgb(235 232 226 / 0.08);
   --color-fill-row-selected: rgb(235 232 226 / 0.14);
   --color-fill-tool-hover: rgb(235 232 226 / 0.12);
+  --color-fill-hover: rgb(255 255 255 / 0.08);
+  --color-fill-backdrop: rgb(0 0 0 / 0.3);
   --color-accent-fill: var(--system-accent-fill-dark, #4576b2);
   --color-accent-text: var(--system-accent-text-dark, #7ea6d8);
   --color-accent-hover: #2463eb;
@@ -456,6 +468,8 @@
   --color-fill-card: rgb(28 27 25 / 0.065);
   --color-fill-row-selected: rgb(28 27 25 / 0.12);
   --color-fill-tool-hover: rgb(28 27 25 / 0.09);
+  --color-fill-hover: rgb(0 0 0 / 0.05);
+  --color-fill-backdrop: rgb(0 0 0 / 0.3);
   --color-accent-fill: var(--system-accent-fill-light, #3472d6);
   --color-accent-text: var(--system-accent-text-light, #2856a2);
   --color-accent-hover: #2463eb;
