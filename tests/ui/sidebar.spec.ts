@@ -134,8 +134,10 @@ test('the sidebar scrolls when its notebooks and tags overflow, and focus reveal
   }
   const area = sidebar(page).locator('.sidebar-scroll')
   await expect(sidebar(page).getByRole('button', { name: /^tag29 \d+$/ })).toBeAttached()
-  const sizes = () => area.evaluate((el) => [el.scrollHeight, el.clientHeight])
-  const [scrollHeight, clientHeight] = await sizes()
+  const { scrollHeight, clientHeight } = await area.evaluate((el) => ({
+    scrollHeight: el.scrollHeight,
+    clientHeight: el.clientHeight,
+  }))
   expect(scrollHeight).toBeGreaterThan(clientHeight)
   // The sidebar itself does not grow past the window, so Trash stays reachable.
   const [navScroll, navClient] = await sidebar(page).evaluate((el) => [
