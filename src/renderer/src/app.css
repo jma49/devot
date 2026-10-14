@@ -383,9 +383,9 @@ button {
     .source.filter[aria-pressed='true'],
     .source[aria-current='true'],
     .books [aria-selected='true'] > .book-row
-  ),
-.sidebar .source:focus-visible,
-.books li:focus-visible > .book-row {
+  ):not(.menu-target),
+.sidebar .source:focus-visible:not(.menu-target),
+.books li:focus-visible > .book-row:not(.menu-target) {
   box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
 }
 
