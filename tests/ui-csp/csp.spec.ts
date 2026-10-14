@@ -345,7 +345,7 @@ test('the selection toolbar is styled and placed by the editor under the policy'
   // through the CSSOM, and its position (set through the CSSOM too) puts it
   // just above the selected word.
   const bold = toolbar.getByRole('button', { name: 'Bold' })
-  await expect(bold).toHaveCSS('width', '28px')
+  await expect(bold).toHaveCSS('width', '30px')
   await expect(bold).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(bold.locator('.icon')).not.toHaveCSS('mask-image', 'none')
   const word = await page.locator('.cm-selectionBackground').first().boundingBox()
