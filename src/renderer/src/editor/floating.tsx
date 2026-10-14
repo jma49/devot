@@ -112,7 +112,7 @@ export function FloatButton(props: FloatButtonProps) {
       onMouseLeave={props.onHideTip}
       onClick={(e) => props.onPress(e.currentTarget)}
     >
-      <Icon name={props.icon} size="toolbar" weight="light" />
+      <Icon name={props.icon} size="toolbar" weight="thin" />
     </button>
   )
 }
