@@ -1045,6 +1045,30 @@
         "unit": "px"
       },
       "$description": "The least space between a dropdown list and the window edge."
+    },
+    "switch-width": {
+      "$type": "dimension",
+      "$description": "An on/off switch: the lane width.",
+      "$value": {
+        "value": 36,
+        "unit": "px"
+      }
+    },
+    "switch-height": {
+      "$type": "dimension",
+      "$description": "An on/off switch: the lane height; the knob is this less twice the inset.",
+      "$value": {
+        "value": 20,
+        "unit": "px"
+      }
+    },
+    "switch-inset": {
+      "$type": "dimension",
+      "$description": "An on/off switch: the gap between the knob and the lane edge.",
+      "$value": {
+        "value": 2,
+        "unit": "px"
+      }
     }
   },
   "motion": {

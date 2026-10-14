@@ -151,7 +151,7 @@ test.describe('the Theme choice in Settings', () => {
     page,
   }) => {
     await openSettings(page, 'Appearance')
-    const accent = page.getByRole('checkbox', { name: 'Use the system accent colour' })
+    const accent = page.getByRole('switch', { name: 'Use the system accent colour' })
     const hint = page.getByText('This theme uses its own accent colour.')
     await expect(accent).toBeEnabled()
     await expect(hint).toHaveCount(0)

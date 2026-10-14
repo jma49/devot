@@ -305,7 +305,7 @@ test('General offers the notebooks as the default for new notes', async ({ page 
 // The Editing section.
 
 const editor = (page: Page) => page.getByRole('region', { name: 'Editing' })
-const checkbox = (page: Page, name: string) => editor(page).getByRole('checkbox', { name })
+const checkbox = (page: Page, name: string) => editor(page).getByRole('switch', { name })
 const select = (page: Page, name: string) => editor(page).getByRole('combobox', { name })
 const fontSize = (page: Page) => editor(page).getByRole('spinbutton', { name: 'Font Size' })
 
@@ -627,7 +627,7 @@ test('Preview has its own font size (15 px) and synced scrolling', async ({ page
   })
   await openSettings(page, 'Preview')
   const size = preview(page).getByRole('spinbutton', { name: 'Font Size' })
-  const sync = preview(page).getByRole('checkbox', { name: 'Synced Scrolling' })
+  const sync = preview(page).getByRole('switch', { name: 'Synced Scrolling' })
   await expect(size).toHaveValue('15')
   await expect(sync).toBeChecked()
   await sync.uncheck()
@@ -636,5 +636,5 @@ test('Preview has its own font size (15 px) and synced scrolling', async ({ page
   await expect.poll(() => setCalls(page)).toEqual([{ syncScroll: false }, { previewFontSize: 18 }])
   // The editor pane no longer has the synced scrolling switch.
   await tab(page, 'Editing').click()
-  await expect(editor(page).getByRole('checkbox', { name: 'Synced Scrolling' })).toHaveCount(0)
+  await expect(editor(page).getByRole('switch', { name: 'Synced Scrolling' })).toHaveCount(0)
 })

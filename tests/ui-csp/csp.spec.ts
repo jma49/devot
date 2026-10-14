@@ -460,7 +460,7 @@ test('the editor settings work under the policy in both windows', async ({ page 
   await start(page, '/settings.html')
   await settingsTab(page, 'Editing').click()
   const editor = page.getByRole('region', { name: 'Editing' }).first()
-  await editor.getByRole('checkbox', { name: 'Spellcheck' }).check()
+  await editor.getByRole('switch', { name: 'Spellcheck' }).check()
   await editor.getByRole('combobox', { name: 'Font Family' }).selectOption('Menlo')
   await editor.getByRole('spinbutton', { name: 'Font Size' }).fill('18')
   await expect(editor.getByRole('combobox', { name: 'Line Height' })).toHaveValue('1.5')

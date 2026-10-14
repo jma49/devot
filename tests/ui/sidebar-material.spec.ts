@@ -27,7 +27,7 @@ const root = (page: Page) => page.locator('html')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const appearance = (page: Page) => page.getByRole('region', { name: 'Appearance' }).first()
 const translucent = (page: Page) =>
-  appearance(page).getByRole('checkbox', { name: 'Translucent sidebar' })
+  appearance(page).getByRole('switch', { name: 'Translucent sidebar' })
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(

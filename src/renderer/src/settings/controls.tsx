@@ -88,7 +88,7 @@ export function Setting({
 }
 
 /**
- * A setting that is on or off: a checkbox, its bold label and the grey
+ * A setting that is on or off: a switch, its label and the grey
  * description under it. A `note` replaces the description while the setting
  * cannot be changed (it says why).
  */
@@ -113,6 +113,7 @@ export function SettingToggle({
       <input
         id={`${id}-box`}
         type="checkbox"
+        role="switch"
         checked={checked}
         disabled={disabled}
         aria-labelledby={`${id}-label`}

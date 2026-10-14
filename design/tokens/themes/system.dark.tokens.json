@@ -1075,6 +1075,17 @@
           "hex": "#bdbdc0"
         }
       }
+    },
+    "switch": {
+      "handle": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.949, 0.949, 0.949],
+          "hex": "#f2f2f2"
+        },
+        "$description": "The knob of an on/off switch, on its lane in either state."
+      }
     }
   }
 }

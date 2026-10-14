@@ -45,7 +45,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
+          "components": [1, 1, 1],
           "hex": "#ffffff"
         },
         "$description": "Design value #ffffff."
@@ -54,7 +54,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
+          "components": [1, 1, 1],
           "hex": "#ffffff"
         },
         "$description": "Floating lists in the editor: the slash menu and the completion popups. Design value #ffffff."
@@ -257,7 +257,7 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
+          "components": [1, 1, 1],
           "hex": "#ffffff"
         }
       },
@@ -1050,6 +1050,17 @@
           "components": [0.3176, 0.3176, 0.298],
           "hex": "#51514c"
         }
+      }
+    },
+    "switch": {
+      "handle": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff"
+        },
+        "$description": "The knob of an on/off switch, on its lane in either state."
       }
     }
   }

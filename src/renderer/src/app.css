@@ -245,13 +245,31 @@ button {
   .history-row,
   .settings-tab,
   .builtin-row,
-  .button
+  .button,
+  .search-field,
+  .find-field,
+  .link-dialog-field,
+  .tag-input,
+  .shortcuts-search,
+  .settings-number
 ) {
   transition:
     background-color var(--motion-duration-hover) var(--motion-easing-out),
     border-color var(--motion-duration-hover) var(--motion-easing-out),
+    box-shadow var(--motion-duration-hover) var(--motion-easing-out),
     color var(--motion-duration-hover) var(--motion-easing-out),
     opacity var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+/* The keyboard is on a button: the focus ring on its edge (a segment sits
+   inside its frame, which clips, so its ring is drawn just inside). */
+:is(.tool, .button, .popup, .segment, .search-clear):focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+
+.segment:focus-visible {
+  outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
 /* The panes' toolbars: a rounder, stronger hover. */
@@ -277,6 +295,7 @@ button {
 .tool:disabled,
 .tool[aria-disabled='true'] {
   opacity: var(--opacity-disabled);
+  pointer-events: none;
 }
 
 /* Sidebar: the window material shows through its tint. */
@@ -1304,6 +1323,7 @@ button {
 
 .tag-input:focus {
   background: var(--color-fill-track);
+  box-shadow: inset 0 0 0 1px var(--color-focus-ring);
 }
 
 /* Pop-up button: a native select dressed as an AppKit pop-up. */
@@ -1813,7 +1833,7 @@ button {
 }
 
 .find-field:focus {
-  box-shadow: 0 0 0 2px var(--color-accent-fill);
+  box-shadow: 0 0 0 1px var(--color-focus-ring);
 }
 
 .find-field[aria-invalid='true'] {
@@ -1995,7 +2015,12 @@ button {
   box-sizing: border-box;
   border-radius: var(--radius-field);
   background: var(--color-fill-track);
+  box-shadow: inset 0 0 0 1px transparent;
   color: var(--color-text-secondary);
+}
+
+.search-field:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-focus-ring);
 }
 
 .search-field input {
@@ -2059,9 +2084,19 @@ button {
   white-space: nowrap;
 }
 
+.button:hover:not(:disabled, [aria-disabled='true']) {
+  background: color-mix(in srgb, var(--color-fill-segment-on), var(--color-text-primary) 6%);
+}
+
+.button:active:not(:disabled, [aria-disabled='true']) {
+  background: color-mix(in srgb, var(--color-fill-segment-on), var(--color-text-primary) 12%);
+}
+
 .button:disabled,
 .button[aria-disabled='true'] {
   opacity: var(--opacity-disabled);
+  box-shadow: none;
+  pointer-events: none;
 }
 
 .button-destructive {
@@ -2149,7 +2184,7 @@ button {
 
 .link-dialog-field:focus {
   box-shadow:
-    inset 0 0 0 1px var(--color-accent-fill),
+    inset 0 0 0 1px var(--color-focus-ring),
     0 0 0 3px var(--color-accent-selection);
 }
 
@@ -2296,6 +2331,14 @@ button {
 .button-default {
   background: var(--color-accent-fill);
   color: var(--color-accent-on-fill);
+}
+
+.button-default:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-accent-hover);
+}
+
+.button-default:active:not(:disabled, [aria-disabled='true']) {
+  background: color-mix(in srgb, var(--color-accent-hover), var(--color-text-primary) 12%);
 }
 
 /* New Note from Template: the templates beside a preview of the note. */
@@ -2930,6 +2973,62 @@ button {
   margin: var(--space-2) 0 0;
 }
 
+/* The switch: a lane with a knob that slides across it; the native
+   checkbox underneath keeps the keyboard, the state and the label. */
+.setting-toggle input[role='switch'] {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--size-switch-width);
+  height: var(--size-switch-height);
+  margin: var(--space-1) 0 0;
+  border-radius: var(--size-switch-height);
+  background: var(--color-fill-track);
+  box-shadow: inset 0 0 0 1px var(--color-line-hairline);
+  appearance: none;
+  -webkit-appearance: none;
+  transition:
+    background-color var(--motion-duration-toggle) var(--motion-easing-out),
+    box-shadow var(--motion-duration-toggle) var(--motion-easing-out);
+}
+
+.setting-toggle input[role='switch']::after {
+  content: '';
+  position: absolute;
+  top: var(--size-switch-inset);
+  left: var(--size-switch-inset);
+  width: calc(var(--size-switch-height) - 2 * var(--size-switch-inset));
+  height: calc(var(--size-switch-height) - 2 * var(--size-switch-inset));
+  border-radius: 50%;
+  background: var(--color-switch-handle);
+  box-shadow: 0 1px 2px var(--color-shadow-popover-key);
+  transition: translate var(--motion-duration-toggle) var(--motion-easing-out);
+}
+
+.setting-toggle input[role='switch']:checked {
+  background: var(--color-accent-fill);
+  box-shadow: none;
+}
+
+.setting-toggle input[role='switch']:checked::after {
+  translate: calc(var(--size-switch-width) - var(--size-switch-height)) 0;
+}
+
+.setting-toggle input[role='switch']:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: var(--size-focus-ring);
+}
+
+.setting-toggle input[role='switch']:disabled {
+  opacity: var(--opacity-disabled);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setting-toggle input[role='switch'],
+  .setting-toggle input[role='switch']::after {
+    transition: none;
+  }
+}
+
 .setting-toggle:has(input:disabled) .setting-label {
   color: var(--color-text-secondary);
 }
@@ -2945,7 +3044,24 @@ button {
 }
 
 .settings-number {
+  box-sizing: border-box;
   width: calc(var(--space-10) * 2);
+  height: var(--size-field-height);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-field);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.settings-number:focus {
+  outline: none;
+  border-color: var(--color-focus-ring);
+}
+
+.settings-number:disabled {
+  opacity: var(--opacity-disabled);
 }
 
 .settings-hint {
@@ -2987,6 +3103,11 @@ button {
   border-radius: var(--radius-field);
   background: var(--color-surface-editor);
   color: var(--color-text-primary);
+}
+
+.shortcuts-search:focus {
+  outline: none;
+  border-color: var(--color-focus-ring);
 }
 
 .shortcuts {
