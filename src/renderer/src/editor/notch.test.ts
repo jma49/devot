@@ -15,15 +15,15 @@ const rule = (selector: string) =>
   notchStyles[selector as keyof typeof notchStyles] as Record<string, string>
 
 describe('notch geometry', () => {
-  it('is 14 by 7 pixels, and the bar sits one notch height off its anchor', () => {
-    expect([NOTCH_WIDTH, NOTCH_HEIGHT]).toEqual([14, 7])
-    expect(BAR_GAP).toBe(7)
+  it('is 12 by 6 pixels, and the bar sits one notch height off its anchor', () => {
+    expect([NOTCH_WIDTH, NOTCH_HEIGHT]).toEqual([12, 6])
+    expect(BAR_GAP).toBe(6)
   })
 
   it('puts the tip on the anchor at rest, its base clear of the rounded corner', () => {
-    expect(BAR_RADIUS).toBe(11)
+    expect(BAR_RADIUS).toBe(14)
     expect(NOTCH_X).toBe(BAR_RADIUS + NOTCH_WIDTH / 2)
-    expect(notchLeft(`${NOTCH_X}px`, NOTCH_WIDTH)).toBe('calc(18px - 7px)')
+    expect(notchLeft(`${NOTCH_X}px`, NOTCH_WIDTH)).toBe('calc(20px - 6px)')
   })
 
   it('keeps the tip on the anchor when the bar is held back at the window edge', () => {
@@ -38,13 +38,13 @@ describe('notch geometry', () => {
   it('draws two zero-size border triangles, the fill one pixel in from the edge one', () => {
     const edge = rule('.cm-tooltip-above > .cm-float-notch::before')
     const fill = rule('.cm-tooltip-above > .cm-float-notch::after')
-    expect(edge.borderTop).toBe('7px solid var(--color-line-hairline)')
-    expect(fill.borderTop).toBe('7px solid var(--color-surface-popover)')
+    expect(edge.borderTop).toBe('6px solid var(--color-line-float-bar)')
+    expect(fill.borderTop).toBe('6px solid var(--color-surface-popover)')
     expect(fill.top).toBe(`-${EDGE}px`)
     const both = rule('.cm-float-notch::before, .cm-float-notch::after')
     expect([both.width, both.height]).toEqual(['0', '0'])
-    expect(both.borderLeft).toBe('7px solid transparent')
-    expect(both.borderRight).toBe('7px solid transparent')
+    expect(both.borderLeft).toBe('6px solid transparent')
+    expect(both.borderRight).toBe('6px solid transparent')
     expect(rule('.cm-float-notch').overflow).toBe('hidden')
     expect(rule('.cm-float-notch').zIndex).toBe('-1')
   })
@@ -56,7 +56,7 @@ describe('notch geometry', () => {
   it('closes the seam with a fill strip over the outline at the notch base', () => {
     const strip = rule('.cm-tooltip.cm-float-bar::after')
     expect(strip.height).toBe('2px')
-    expect(strip.width).toBe('12px')
+    expect(strip.width).toBe('10px')
     expect(strip.backgroundColor).toBe('var(--color-surface-popover)')
     expect(Number(strip.zIndex)).toBeGreaterThan(0)
     expect(rule('.cm-tooltip-above.cm-float-bar::after').bottom).toBe('-1px')

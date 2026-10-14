@@ -28,7 +28,7 @@ export const notchLeft = (tip: string, width: number) => `calc(${tip} - ${width 
 
 const tip = `var(--float-notch-x, ${NOTCH_X}px)`
 const half = NOTCH_WIDTH / 2
-const edge = 'var(--color-line-hairline)'
+const edge = 'var(--color-line-float-bar)'
 const fill = 'var(--color-surface-popover)'
 
 /** The bar's outline colour and fill, and the notch and strip rules, as theme styles. */

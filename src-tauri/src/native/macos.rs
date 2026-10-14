@@ -13,7 +13,9 @@ use objc2::runtime::{AnyClass, AnyObject, Bool};
 use objc2::sel;
 use objc2::{AllocAnyThread, ClassType, msg_send};
 use objc2_app_kit::{
-    NSBitmapImageFileType, NSBitmapImageRep, NSFontWeightRegular, NSImage,
+    NSBitmapImageFileType, NSBitmapImageRep, NSFontWeightBlack, NSFontWeightBold,
+    NSFontWeightHeavy, NSFontWeightLight, NSFontWeightMedium, NSFontWeightRegular,
+    NSFontWeightSemibold, NSFontWeightThin, NSFontWeightUltraLight, NSImage,
     NSImageSymbolConfiguration, NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeString,
     NSPasteboardTypeTIFF,
 };
@@ -252,7 +254,7 @@ unsafe fn responds(object: *mut AnyObject, selector: objc2::runtime::Sel) -> boo
 /// the main thread, one call at a time (`native::render_one_at_a_time`);
 /// AppKit's temporaries go in an autorelease pool of the call's own, as a
 /// blocking thread has none to empty.
-pub fn symbol_png(name: &str, point_size: f64) -> Option<Vec<u8>> {
+pub fn symbol_png(name: &str, point_size: f64, weight: &str) -> Option<Vec<u8>> {
     catch_unwind(|| {
         objc2::rc::autoreleasepool(|_| {
             // SAFETY: these are public AppKit APIs (macOS 11+) called with
@@ -264,7 +266,7 @@ pub fn symbol_png(name: &str, point_size: f64) -> Option<Vec<u8>> {
                 )?;
                 let configuration = NSImageSymbolConfiguration::configurationWithPointSize_weight(
                     point_size * 2.0,
-                    NSFontWeightRegular,
+                    symbol_weight(weight),
                 );
                 let image = image.imageWithSymbolConfiguration(&configuration)?;
                 let tiff = image.TIFFRepresentation()?;
@@ -279,6 +281,26 @@ pub fn symbol_png(name: &str, point_size: f64) -> Option<Vec<u8>> {
     })
     .ok()
     .flatten()
+}
+
+/// AppKit's font weight for a validated weight name (`native::SYMBOL_WEIGHTS`);
+/// regular for any other.
+fn symbol_weight(name: &str) -> f64 {
+    // SAFETY: these are immutable AppKit constants (macOS 10.11+), valid for
+    // the life of the process.
+    unsafe {
+        match name {
+            "ultralight" => NSFontWeightUltraLight,
+            "thin" => NSFontWeightThin,
+            "light" => NSFontWeightLight,
+            "medium" => NSFontWeightMedium,
+            "semibold" => NSFontWeightSemibold,
+            "bold" => NSFontWeightBold,
+            "heavy" => NSFontWeightHeavy,
+            "black" => NSFontWeightBlack,
+            _ => NSFontWeightRegular,
+        }
+    }
 }
 
 /// The font families installed on this Mac, as AppKit names them. Must run

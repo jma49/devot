@@ -4,7 +4,7 @@ import { expect, test } from './fixtures'
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const bar = (page: Page) => page.locator('.cm-tooltip.cm-float-bar')
-const RADIUS = 11
+const RADIUS = 14
 
 type Pixels = { width: number; height: number; at: (x: number, y: number) => number[] }
 
@@ -114,7 +114,7 @@ for (const scheme of ['light', 'dark'] as const) {
           const edgeY = Math.round(placement === 'below' ? box.y : box.y + box.height)
           let baseY = edgeY
           let strongest = 0
-          for (let y = edgeY - 3; y <= edgeY + 2; y++) {
+          for (let y = edgeY - 1; y <= edgeY; y++) {
             const d = distance(shot.at(x0 - 4, y), [r, g, b])
             if (d > strongest) [strongest, baseY] = [d, y]
           }

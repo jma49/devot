@@ -37,7 +37,7 @@
   --radius-pill: 12px;
   --radius-capsule: 999px;
   --radius-popover: 8px;
-  --radius-floating-bar: 11px;
+  --radius-floating-bar: 14px;
   --radius-dialog: 12px;
   --size-sidebar-width: 232px;
   --size-list-width: 320px;
@@ -70,9 +70,9 @@
   --size-icon-menu: 16px;
   --size-icon-toolbar: 18px;
   --size-float-toolbar-height: 38px;
-  --size-float-notch-width: 14px;
-  --size-float-notch-height: 7px;
-  --size-float-button: 30px;
+  --size-float-notch-width: 12px;
+  --size-float-notch-height: 6px;
+  --size-float-button: 28px;
   --size-link-dialog-width: 300px;
   --size-palette-width: 650px;
   --size-focus-ring: 2px;
@@ -83,6 +83,7 @@
   --size-switch-width: 36px;
   --size-switch-height: 20px;
   --size-switch-inset: 2px;
+  --size-float-separator-height: 20px;
   --motion-duration-color: 400ms;
   --motion-duration-ring: 200ms;
   --motion-duration-popover: 150ms;
@@ -101,6 +102,8 @@
   --shadow-popover-y: 2px;
   --shadow-popover-key-blur: 4px;
   --shadow-popover-ambient-blur: 10px;
+  --shadow-float-bar-y: 2px;
+  --shadow-float-bar-blur: 12px;
   --tooltip-gap: 12px;
   --tooltip-edge: 8px;
   --tooltip-arrow-inset: 15px;
@@ -133,6 +136,7 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(28 27 25 / 0.2);
   --color-line-shadow: rgb(0 0 0 / 0.14);
+  --color-line-float-bar: rgb(23 23 23 / 0.1);
   --color-fill-track: rgb(23 23 23 / 0.055);
   --color-fill-scrollbar: rgb(23 23 23 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -211,6 +215,7 @@
   --color-trailing-space: rgb(175 59 54 / 0.25);
   --color-shadow-popover-key: rgb(0 0 0 / 0.12);
   --color-shadow-popover-ambient: rgb(0 0 0 / 0.15);
+  --color-shadow-float-bar: rgb(0 0 0 / 0.18);
   --color-focus-ring: var(--system-accent-ring-light, rgb(52 114 214 / 0.79));
   --color-tag-text-red: #8f211b;
   --color-tag-text-orange: #784600;
@@ -246,6 +251,7 @@
     --color-line-match: #f59f0a;
     --color-line-control: rgb(235 232 226 / 0.18);
     --color-line-shadow: rgb(0 0 0 / 0.45);
+    --color-line-float-bar: rgb(245 245 245 / 0.1);
     --color-fill-track: rgb(245 245 245 / 0.07);
     --color-fill-scrollbar: rgb(245 245 245 / 0.25);
     --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -324,6 +330,7 @@
     --color-trailing-space: rgb(233 120 115 / 0.3);
     --color-shadow-popover-key: rgb(0 0 0 / 0.2);
     --color-shadow-popover-ambient: rgb(0 0 0 / 0.3);
+    --color-shadow-float-bar: rgb(0 0 0 / 0.4);
     --color-focus-ring: var(--system-accent-ring-dark, rgb(69 118 178 / 0.97));
     --color-tag-text-red: #ff958f;
     --color-tag-text-orange: #ffb440;
@@ -360,6 +367,7 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(235 232 226 / 0.18);
   --color-line-shadow: rgb(0 0 0 / 0.45);
+  --color-line-float-bar: rgb(245 245 245 / 0.1);
   --color-fill-track: rgb(245 245 245 / 0.07);
   --color-fill-scrollbar: rgb(245 245 245 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -438,6 +446,7 @@
   --color-trailing-space: rgb(233 120 115 / 0.3);
   --color-shadow-popover-key: rgb(0 0 0 / 0.2);
   --color-shadow-popover-ambient: rgb(0 0 0 / 0.3);
+  --color-shadow-float-bar: rgb(0 0 0 / 0.4);
   --color-focus-ring: var(--system-accent-ring-dark, rgb(69 118 178 / 0.97));
   --color-tag-text-red: #ff958f;
   --color-tag-text-orange: #ffb440;
@@ -473,6 +482,7 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(28 27 25 / 0.2);
   --color-line-shadow: rgb(0 0 0 / 0.14);
+  --color-line-float-bar: rgb(23 23 23 / 0.1);
   --color-fill-track: rgb(23 23 23 / 0.055);
   --color-fill-scrollbar: rgb(23 23 23 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -551,6 +561,7 @@
   --color-trailing-space: rgb(175 59 54 / 0.25);
   --color-shadow-popover-key: rgb(0 0 0 / 0.12);
   --color-shadow-popover-ambient: rgb(0 0 0 / 0.15);
+  --color-shadow-float-bar: rgb(0 0 0 / 0.18);
   --color-focus-ring: var(--system-accent-ring-light, rgb(52 114 214 / 0.79));
   --color-tag-text-red: #8f211b;
   --color-tag-text-orange: #784600;
@@ -586,6 +597,7 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(31 30 29 / 0.3);
   --color-line-shadow: rgb(31 30 29 / 0.14);
+  --color-line-float-bar: rgb(31 30 29 / 0.1);
   --color-fill-track: rgb(31 30 29 / 0.055);
   --color-fill-scrollbar: rgb(31 30 29 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -664,6 +676,7 @@
   --color-trailing-space: rgb(180 70 63 / 0.25);
   --color-shadow-popover-key: rgb(31 30 29 / 0.12);
   --color-shadow-popover-ambient: rgb(31 30 29 / 0.15);
+  --color-shadow-float-bar: rgb(31 30 29 / 0.18);
   --color-focus-ring: rgb(52 114 214 / 0.79);
   --color-tag-text-red: #832f27;
   --color-tag-text-orange: #784318;
@@ -699,6 +712,7 @@
     --color-line-match: #f59f0a;
     --color-line-control: rgb(250 249 245 / 0.3);
     --color-line-shadow: rgb(31 30 29 / 0.45);
+    --color-line-float-bar: rgb(250 249 245 / 0.1);
     --color-fill-track: rgb(250 249 245 / 0.07);
     --color-fill-scrollbar: rgb(250 249 245 / 0.25);
     --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -777,6 +791,7 @@
     --color-trailing-space: rgb(238 136 132 / 0.3);
     --color-shadow-popover-key: rgb(31 30 29 / 0.2);
     --color-shadow-popover-ambient: rgb(31 30 29 / 0.3);
+    --color-shadow-float-bar: rgb(31 30 29 / 0.5);
     --color-focus-ring: rgb(88 132 186 / 0.9);
     --color-tag-text-red: #f4c6c2;
     --color-tag-text-orange: #f5d0b6;
@@ -813,6 +828,7 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(250 249 245 / 0.3);
   --color-line-shadow: rgb(31 30 29 / 0.45);
+  --color-line-float-bar: rgb(250 249 245 / 0.1);
   --color-fill-track: rgb(250 249 245 / 0.07);
   --color-fill-scrollbar: rgb(250 249 245 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -891,6 +907,7 @@
   --color-trailing-space: rgb(238 136 132 / 0.3);
   --color-shadow-popover-key: rgb(31 30 29 / 0.2);
   --color-shadow-popover-ambient: rgb(31 30 29 / 0.3);
+  --color-shadow-float-bar: rgb(31 30 29 / 0.5);
   --color-focus-ring: rgb(88 132 186 / 0.9);
   --color-tag-text-red: #f4c6c2;
   --color-tag-text-orange: #f5d0b6;
@@ -926,6 +943,7 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(31 30 29 / 0.3);
   --color-line-shadow: rgb(31 30 29 / 0.14);
+  --color-line-float-bar: rgb(31 30 29 / 0.1);
   --color-fill-track: rgb(31 30 29 / 0.055);
   --color-fill-scrollbar: rgb(31 30 29 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -1004,6 +1022,7 @@
   --color-trailing-space: rgb(180 70 63 / 0.25);
   --color-shadow-popover-key: rgb(31 30 29 / 0.12);
   --color-shadow-popover-ambient: rgb(31 30 29 / 0.15);
+  --color-shadow-float-bar: rgb(31 30 29 / 0.18);
   --color-focus-ring: rgb(52 114 214 / 0.79);
   --color-tag-text-red: #832f27;
   --color-tag-text-orange: #784318;

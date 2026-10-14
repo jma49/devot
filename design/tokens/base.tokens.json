@@ -733,7 +733,7 @@
     "floating-bar": {
       "$type": "dimension",
       "$value": {
-        "value": 11,
+        "value": 14,
         "unit": "px"
       },
       "$description": "The selection toolbar and the image size bar."
@@ -987,7 +987,7 @@
     "float-notch-width": {
       "$type": "dimension",
       "$value": {
-        "value": 14,
+        "value": 12,
         "unit": "px"
       },
       "$description": "The notch of a floating bar: its width (the tip is centred on the anchor)."
@@ -995,7 +995,7 @@
     "float-notch-height": {
       "$type": "dimension",
       "$value": {
-        "value": 7,
+        "value": 6,
         "unit": "px"
       },
       "$description": "The notch of a floating bar: how far it reaches out of the bar."
@@ -1003,7 +1003,7 @@
     "float-button": {
       "$type": "dimension",
       "$value": {
-        "value": 30,
+        "value": 28,
         "unit": "px"
       }
     },
@@ -1085,6 +1085,14 @@
         "value": 2,
         "unit": "px"
       }
+    },
+    "float-separator-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 20,
+        "unit": "px"
+      },
+      "$description": "The divider between a floating bar's button groups: its height."
     }
   },
   "motion": {
@@ -1213,6 +1221,19 @@
         "value": 10,
         "unit": "px"
       }
+    },
+    "float-bar-y": {
+      "$value": {
+        "value": 2,
+        "unit": "px"
+      }
+    },
+    "float-bar-blur": {
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "The soft single shadow under a floating bar (the selection toolbar, the image size bar); its colour is color.shadow.float-bar."
     }
   },
   "tooltip": {

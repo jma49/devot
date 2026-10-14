@@ -112,7 +112,7 @@ export function FloatButton(props: FloatButtonProps) {
       onMouseLeave={props.onHideTip}
       onClick={(e) => props.onPress(e.currentTarget)}
     >
-      <Icon name={props.icon} size="toolbar" />
+      <Icon name={props.icon} size="toolbar" weight="light" />
     </button>
   )
 }
@@ -123,13 +123,18 @@ export function FloatSeparator(): ReactNode {
 
 /**
  * One bar element holds the surface and a box shadow (on the bar only, no
- * filter): a 1 px ring for the outline, then two soft layers; its notch is a
- * separate element behind it (`notch.ts`).
+ * filter): a 1 px ring for the outline, then one soft layer; its notch is a
+ * separate element behind it (`notch.ts`). A tooltip bubble has its own
+ * notch: a turned square on its edge, pointing at its button.
  */
-/** A tooltip bubble's own notch: a turned square on its edge, pointing at its button. */
 const hairline = '0.5px solid var(--color-line-hairline)'
 const notchSize = 'var(--space-4)'
 const notchOut = 'calc(var(--space-4) / -2)'
+/** A bar's own look: a clear 1 px outline, then one soft shadow, close to the bar. */
+const barShadow = [
+  '0 0 0 1px var(--color-line-float-bar)',
+  '0 var(--shadow-float-bar-y) var(--shadow-float-bar-blur) var(--color-shadow-float-bar)',
+].join(', ')
 const popoverShadow = [
   '0 0 0 1px var(--color-line-hairline)',
   '0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key)',
@@ -157,7 +162,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     border: '0',
     borderRadius: 'var(--radius-floating-bar)',
     backgroundColor: 'var(--color-surface-popover)',
-    boxShadow: popoverShadow,
+    boxShadow: barShadow,
     color: 'var(--color-text-secondary)',
     fontFamily: 'var(--font-family-ui)',
   },
@@ -202,7 +207,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     flexShrink: '0',
     display: 'block',
     width: '0',
-    height: 'var(--size-icon-toolbar)',
+    height: 'var(--size-float-separator-height)',
     margin: '0 var(--space-3)',
     borderLeft: '1px solid var(--color-line-separator)',
   },

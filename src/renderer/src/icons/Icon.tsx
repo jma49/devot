@@ -11,10 +11,11 @@ import {
   type Appearance,
   type IconName,
   type SymbolImage,
+  type SymbolWeight,
 } from './symbols'
 
-const cache = createSymbolCache((name, pointSize) =>
-  invoke<string>('symbol_png', { name, pointSize }),
+const cache = createSymbolCache((name, pointSize, weight) =>
+  invoke<string>('symbol_png', { name, pointSize, weight }),
 )
 
 /**
@@ -63,13 +64,14 @@ function placedSymbol(
   box: number,
   appearance: Appearance,
   ratio: number,
+  weight: SymbolWeight = 'regular',
 ): Promise<SymbolImage> {
-  const key = `${symbol}@${box}x${ratio}/${appearance}`
+  const key = `${symbol}@${box}x${ratio}/${appearance}/${weight}`
   let entry = placed.get(key)
   if (!entry) {
     entry = (async () =>
       compose(
-        await cache.get(symbol, renderPoints(boxPoints(box), ratio), appearance),
+        await cache.get(symbol, renderPoints(boxPoints(box), ratio), appearance, weight),
         box,
         ratio,
       ))()
@@ -98,10 +100,19 @@ export function useAppearance(): Appearance {
 }
 
 /**
- * An SF Symbol, coloured with the text colour of its parent. Decorative: the
+ * An SF Symbol, coloured with the text colour of its parent, at `weight` (regular unless given). Decorative: the
  * control that holds it carries the accessible name.
  */
-export function Icon({ name, size }: { name: IconName; size: keyof typeof BOXES }) {
+export function Icon({
+  name,
+  size,
+  weight,
+}: {
+  name: IconName
+  size: keyof typeof BOXES
+  /** The stroke weight; regular when left out. */
+  weight?: SymbolWeight
+}) {
   const appearance = useAppearance()
   const symbol = symbolFor(name)
   const box = BOXES[size]
@@ -110,14 +121,14 @@ export function Icon({ name, size }: { name: IconName; size: keyof typeof BOXES 
 
   useEffect(() => {
     let current = true
-    placedSymbol(symbol, box, appearance, ratio).then(
+    placedSymbol(symbol, box, appearance, ratio, weight).then(
       (next) => current && setImage(next),
       () => console.warn('W_SYMBOL_UNAVAILABLE', symbol),
     )
     return () => {
       current = false
     }
-  }, [symbol, box, appearance, ratio])
+  }, [symbol, box, appearance, ratio, weight])
 
   return (
     <span

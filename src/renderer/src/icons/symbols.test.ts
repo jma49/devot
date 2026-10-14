@@ -25,6 +25,15 @@ describe('symbol cache', () => {
     expect(render).toHaveBeenCalledTimes(1)
   })
 
+  it('renders each weight apart and passes it on, regular by default', async () => {
+    const render = vi.fn<RenderSymbol>(ok)
+    const cache = createSymbolCache(render)
+    await cache.get('pin', 17, 'light')
+    await cache.get('pin', 17, 'light', 'light')
+    await cache.get('pin', 17, 'light', 'regular')
+    expect(render.mock.calls.map((c) => c[2])).toEqual(['regular', 'light'])
+  })
+
   it('renders again for another size or appearance', async () => {
     const render = vi.fn<RenderSymbol>(ok)
     const cache = createSymbolCache(render)

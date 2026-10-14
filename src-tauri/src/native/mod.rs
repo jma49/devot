@@ -127,8 +127,22 @@ pub async fn system_accent(app: tauri::AppHandle) -> Result<AccentInfo, String> 
 const MAX_SYMBOL_NAME_LEN: usize = 64;
 const POINT_SIZE_RANGE: std::ops::RangeInclusive<f64> = 1.0..=128.0;
 
+/// The stroke weights a symbol may be drawn at, as AppKit's font weights
+/// (`macos::symbol_weight`); a request without one is `regular`.
+const SYMBOL_WEIGHTS: [&str; 9] = [
+    "ultralight",
+    "thin",
+    "light",
+    "regular",
+    "medium",
+    "semibold",
+    "bold",
+    "heavy",
+    "black",
+];
+
 /// Checks a symbol request before it reaches native code.
-fn validate_symbol_request(name: &str, point_size: f64) -> Result<(), &'static str> {
+fn validate_symbol_request(name: &str, point_size: f64, weight: &str) -> Result<(), &'static str> {
     let name_ok = !name.is_empty()
         && name.len() <= MAX_SYMBOL_NAME_LEN
         && name
@@ -139,6 +153,9 @@ fn validate_symbol_request(name: &str, point_size: f64) -> Result<(), &'static s
     }
     if !POINT_SIZE_RANGE.contains(&point_size) {
         return Err("E_SYMBOL_SIZE_INVALID");
+    }
+    if !SYMBOL_WEIGHTS.contains(&weight) {
+        return Err("E_SYMBOL_WEIGHT_INVALID");
     }
     Ok(())
 }
@@ -169,15 +186,20 @@ async fn render_one_at_a_time<T: Send + 'static>(
 }
 
 /// Renders an SF Symbol as a base64 PNG at twice `point_size` pixels, off
-/// the main thread (`render_one_at_a_time`).
+/// the main thread (`render_one_at_a_time`), at `weight` (default regular).
 #[tauri::command]
-pub async fn symbol_png(name: String, point_size: f64) -> Result<String, String> {
-    validate_symbol_request(&name, point_size).map_err(String::from)?;
+pub async fn symbol_png(
+    name: String,
+    point_size: f64,
+    weight: Option<String>,
+) -> Result<String, String> {
+    let weight = weight.unwrap_or_else(|| String::from("regular"));
+    validate_symbol_request(&name, point_size, &weight).map_err(String::from)?;
     #[cfg(target_os = "macos")]
     {
         use base64::Engine as _;
         render_one_at_a_time(move || {
-            macos::symbol_png(&name, point_size)
+            macos::symbol_png(&name, point_size, &weight)
                 .map(|png| base64::engine::general_purpose::STANDARD.encode(png))
         })
         .await
@@ -426,16 +448,33 @@ mod tests {
 
     #[test]
     fn accepts_real_symbol_names() {
-        assert!(validate_symbol_request("square.and.pencil", 17.0).is_ok());
-        assert!(validate_symbol_request("rectangle.split.2x1", 15.0).is_ok());
+        assert!(validate_symbol_request("square.and.pencil", 17.0, "regular").is_ok());
+        assert!(validate_symbol_request("rectangle.split.2x1", 15.0, "regular").is_ok());
     }
 
     #[test]
     fn rejects_malformed_names() {
         for name in ["", "Square", "a/b", "a b", "../x", &"a".repeat(65)] {
             assert_eq!(
-                validate_symbol_request(name, 17.0),
+                validate_symbol_request(name, 17.0, "regular"),
                 Err("E_SYMBOL_NAME_INVALID")
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_every_listed_weight() {
+        for weight in SYMBOL_WEIGHTS {
+            assert!(validate_symbol_request("pin", 17.0, weight).is_ok());
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_weights() {
+        for weight in ["", "Light", "extra-light", "400", "light ", "../x"] {
+            assert_eq!(
+                validate_symbol_request("pin", 17.0, weight),
+                Err("E_SYMBOL_WEIGHT_INVALID")
             );
         }
     }
@@ -444,7 +483,7 @@ mod tests {
     fn rejects_out_of_range_sizes() {
         for size in [0.0, -1.0, 129.0, f64::NAN, f64::INFINITY] {
             assert_eq!(
-                validate_symbol_request("pin", size),
+                validate_symbol_request("pin", size, "regular"),
                 Err("E_SYMBOL_SIZE_INVALID")
             );
         }
@@ -484,22 +523,28 @@ mod tests {
 
     #[test]
     fn the_command_refuses_a_bad_request_before_rendering() {
-        let ask = |name: &str, size: f64| {
-            tauri::async_runtime::block_on(symbol_png(name.into(), size)).unwrap_err()
+        let ask = |name: &str, size: f64, weight: Option<&str>| {
+            tauri::async_runtime::block_on(symbol_png(name.into(), size, weight.map(String::from)))
+                .unwrap_err()
         };
-        assert_eq!(ask("../x", 17.0), "E_SYMBOL_NAME_INVALID");
-        assert_eq!(ask("pin", 0.0), "E_SYMBOL_SIZE_INVALID");
+        assert_eq!(ask("../x", 17.0, None), "E_SYMBOL_NAME_INVALID");
+        assert_eq!(ask("pin", 0.0, None), "E_SYMBOL_SIZE_INVALID");
+        assert_eq!(ask("pin", 17.0, Some("flimsy")), "E_SYMBOL_WEIGHT_INVALID");
     }
 
     #[cfg(target_os = "macos")]
     #[test]
     fn renders_a_known_symbol_as_png() {
         use base64::Engine as _;
-        let png = macos::symbol_png("square.and.pencil", 17.0).expect("symbol renders");
+        let png = macos::symbol_png("square.and.pencil", 17.0, "light").expect("symbol renders");
         assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
         // What the page gets: the same, as base64.
-        let answer =
-            tauri::async_runtime::block_on(symbol_png("square.and.pencil".into(), 17.0)).unwrap();
+        let answer = tauri::async_runtime::block_on(symbol_png(
+            "square.and.pencil".into(),
+            17.0,
+            Some("light".into()),
+        ))
+        .unwrap();
         let png = base64::engine::general_purpose::STANDARD
             .decode(answer)
             .unwrap();
