@@ -34,6 +34,7 @@ import { fuzzyRank } from '../../../core/fuzzy'
 import { writeClipboardText } from '../clipboard'
 import { t } from '../i18n'
 import { iconElement } from '../icons/Icon'
+import { blockUnit, codeStyle, nextLine } from './codeIndent'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
 import { barsMayShow } from './barRules'
 import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
@@ -429,7 +430,20 @@ export function openLanguageList(view: EditorView): void {
  * (its quote markers, and spaces for its list markers), or null: one empty
  * cursor past the opening fence and before the closing one.
  */
-function inBlockText(state: EditorState): { pos: number; prefix: string; body: boolean } | null {
+/** Where the cursor is in a block's text, with what Return and Tab need of the block. */
+interface BlockText {
+  pos: number
+  /** The block's container prefix (a quote's markers, a list item's indent) as spaces and `>`. */
+  prefix: string
+  /** The cursor is below the opening fence. */
+  body: boolean
+  /** The opening fence's info string (`js`, `py title="x"`). */
+  info: string
+  /** The block's lines, their container prefix removed. */
+  lines: string[]
+}
+
+function inBlockText(state: EditorState): BlockText | null {
   const { ranges, main } = state.selection
   if (ranges.length > 1 || !main.empty) return null
   const block = blockAt(state, main.head)
@@ -439,56 +453,57 @@ function inBlockText(state: EditorState): { pos: number; prefix: string; body: b
   const { doc } = state
   const line = doc.lineAt(main.head)
   const close = marks.length > 1 ? marks.at(-1) : undefined
-  if (close && line.number >= doc.lineAt(close.from).number) return null
+  const last = close ? doc.lineAt(close.from).number - 1 : doc.lines
+  if (close && line.number > last) return null
   const openLine = doc.lineAt(open.from)
   const prefix = openLine.text.slice(0, open.from - openLine.from).replace(/[^>\s]/g, ' ')
-  return { pos: main.head, prefix, body: line.number > openLine.number }
+  const info = state.sliceDoc(open.to, openLine.to)
+  const lines: string[] = []
+  for (let n = openLine.number + 1; n <= last; n++)
+    lines.push(doc.line(n).text.slice(prefix.length))
+  return { pos: main.head, prefix, body: line.number > openLine.number, info, lines }
 }
 
-const CLOSERS: Readonly<Record<string, string>> = { '(': ')', '[': ']', '{': '}' }
+/** The indent unit in a block: its own, else its language's, else the editor's. */
+function blockIndentUnit(state: EditorState, at: BlockText): string {
+  return blockUnit(at.lines) ?? codeStyle(at.info).unit ?? state.facet(indentUnit)
+}
 
 /**
  * Return in a block: a new line with the block's container prefix (a quote's
- * or a list item's) and the indent the line has before the cursor, one
- * indent unit more after an opening bracket. Between a bracket pair the
- * closing one goes to a line of its own, at the line's indent.
+ * or a list item's) and the indent the block's language gives it (see
+ * codeIndent.ts): the line's own, a level in after what opens one, a level
+ * out after what ends one. Between a pair (brackets, tags) the closing one
+ * goes to a line of its own at the line's indent.
  */
 export function codeReturn(state: EditorState) {
   const at = inBlockText(state)
   if (!at) return null
   const line = state.doc.lineAt(at.pos)
-  const before = line.text.slice(0, at.pos - line.from)
-  const indent = at.body ? /^[ \t]*/.exec(before.slice(at.prefix.length))![0] : ''
-  const text = before.trimEnd()
-  const opener = at.body && text.length > at.prefix.length + indent.length ? text.at(-1)! : ''
-  const closer = CLOSERS[opener]
-  if (!closer) {
-    const insert = `\n${at.prefix}${indent}`
-    return {
-      changes: { from: at.pos, insert },
-      selection: { anchor: at.pos + insert.length },
-      scrollIntoView: true,
-      userEvent: 'input',
-    }
-  }
-  // The spaces typed after the bracket go; the new line is a step in.
-  const from = line.from + text.length
-  const inner = `\n${at.prefix}${indent}${state.facet(indentUnit)}`
-  const pair = line.text.slice(at.pos - line.from).startsWith(closer)
-  const insert = pair ? `${inner}\n${at.prefix}${indent}` : inner
+  const before = line.text.slice(at.prefix.length, at.pos - line.from)
+  const after = line.text.slice(at.pos - line.from)
+  const { indent, closing } = at.body
+    ? nextLine(codeStyle(at.info), blockIndentUnit(state, at), before, after)
+    : { indent: '' }
+  // Spaces typed at the end of a line that opens a level go.
+  const typed = at.body && indent.length > /^[ \t]*/.exec(before)![0].length
+  const from = typed ? line.from + at.prefix.length + before.trimEnd().length : at.pos
+  const inner = `\n${at.prefix}${indent}`
+  const own = /^[ \t]*/.exec(before)![0]
+  const insert = closing ? `${inner}\n${at.prefix}${own}` : inner
   return {
-    changes: { from, to: at.pos, insert },
-    selection: { anchor: from + inner.length },
+    changes: { from: Math.min(from, at.pos), to: at.pos, insert },
+    selection: { anchor: Math.min(from, at.pos) + inner.length },
     scrollIntoView: true,
     userEvent: 'input',
   }
 }
 
-/** Tab in a block's text: the indent unit at the cursor. */
+/** Tab in a block's text: the block's indent unit at the cursor. */
 export function codeTab(state: EditorState) {
   const at = inBlockText(state)
   if (!at?.body) return null
-  const insert = state.facet(indentUnit)
+  const insert = blockIndentUnit(state, at)
   return {
     changes: { from: at.pos, insert },
     selection: { anchor: at.pos + insert.length },

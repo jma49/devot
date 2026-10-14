@@ -186,6 +186,34 @@ describe('typing in a block', () => {
     expect(run('```\n[^]\n```', codeReturn)).toBe('```\n[\n  ^\n]\n```')
   })
 
+  it("indents by the block's language", () => {
+    // Python: four spaces after a colon, a level out after return.
+    expect(run('```py\ndef f(x):^\n```', codeReturn)).toBe('```py\ndef f(x):\n    ^\n```')
+    expect(run('```python\ndef f(x):\n    return x^\n```', codeReturn)).toBe(
+      '```python\ndef f(x):\n    return x\n^\n```',
+    )
+    // Go: a tab.
+    expect(run('```go\nfunc main() {^}\n```', codeReturn)).toBe('```go\nfunc main() {\n\t^\n}\n```')
+    // YAML after a key, in a list item.
+    expect(run('- a\n  ```yaml\n  jobs:^\n  ```', codeReturn)).toBe(
+      '- a\n  ```yaml\n  jobs:\n    ^\n  ```',
+    )
+  })
+
+  it("follows the indent the block's lines already use", () => {
+    expect(run('```py\nif a:\n  b = 1\nif c:^\n```', codeReturn)).toBe(
+      '```py\nif a:\n  b = 1\nif c:\n  ^\n```',
+    )
+    expect(run('```js\nif (a) {\n\tb()\n}\nif (c) {^\n```', codeReturn)).toBe(
+      '```js\nif (a) {\n\tb()\n}\nif (c) {\n\t^\n```',
+    )
+  })
+
+  it("inserts the block's indent unit on Tab", () => {
+    expect(run('```go\n^x\n```', codeTab)).toBe('```go\n\t^x\n```')
+    expect(run('```py\n^x\n```', codeTab)).toBe('```py\n    ^x\n```')
+  })
+
   it('inserts the indent unit at the cursor on Tab', () => {
     expect(run('```\na^b\n```', codeTab)).toBe('```\na  ^b\n```')
     expect(run('```^\n```', codeTab)).toBeNull()
