@@ -68,7 +68,9 @@ test('the Tags chevron turns up over the toggle duration and back down, and Redu
       (el, p) =>
         (
           globalThis as unknown as {
-            getComputedStyle(e: unknown): { getPropertyValue(n: string): string }
+            getComputedStyle(e: unknown): {
+              getPropertyValue(n: string): string
+            }
           }
         )
           .getComputedStyle(el)
@@ -117,4 +119,36 @@ test('the footer shows when the last note was saved', async ({ page }) => {
   await expect(sidebar(page)).toContainText(/Saved at \d\d:\d\d:\d\d/)
   await sidebar(page).getByRole('button', { name: 'Backup and mirror status' }).click()
   await expect(sidebar(page).getByRole('group', { name: 'Backup and mirror status' })).toBeVisible()
+})
+
+test('the sidebar scrolls when its notebooks and tags overflow, and focus reveals an off-screen row', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1200, height: 500 })
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(noteRows(page)).toHaveCount(1)
+  const field = page.getByRole('combobox', { name: 'Add Tag' })
+  for (let i = 0; i < 30; i++) {
+    await field.fill(`tag${String(i).padStart(2, '0')}`)
+    await field.press('Enter')
+  }
+  const area = sidebar(page).locator('.sidebar-scroll')
+  await expect(sidebar(page).getByRole('button', { name: /^tag29 \d+$/ })).toBeAttached()
+  const { scrollHeight, clientHeight } = await area.evaluate((el) => ({
+    scrollHeight: el.scrollHeight,
+    clientHeight: el.clientHeight,
+  }))
+  expect(scrollHeight).toBeGreaterThan(clientHeight)
+  // The sidebar itself does not grow past the window, so Trash stays reachable.
+  const [navScroll, navClient] = await sidebar(page).evaluate((el) => [
+    el.scrollHeight,
+    el.clientHeight,
+  ])
+  expect(navScroll).toBe(navClient)
+  await expect(sidebar(page).getByRole('button', { name: /^Trash \d+$/ })).toBeInViewport()
+  // Focusing the last tag scrolls it into view.
+  const last = sidebar(page).getByRole('button', { name: /^tag29 \d+$/ })
+  await last.focus()
+  await expect(last).toBeInViewport()
+  expect(await area.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
 })

@@ -275,6 +275,12 @@ button {
   background: var(--color-surface-sidebar-opaque);
 }
 
+.sidebar-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .sources {
   list-style: none;
   margin: 0;
