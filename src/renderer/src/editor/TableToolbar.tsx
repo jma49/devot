@@ -1,7 +1,9 @@
 // The table bar: while the caret is in a Markdown table, a floating bar above
 // the caret's row runs the table commands (format, align, move, add, delete).
-// It shows under the same rules as the selection toolbar: the editor has the
-// keyboard focus, nothing is selected, and Settings > Editing > Toolbar is on.
+// It shows while the editor has the keyboard focus, one caret and no selection
+// are in the table, no completion list is open, and Settings > Editing >
+// Toolbar is on.
+import { completionStatus } from '@codemirror/autocomplete'
 import type { EditorState, Extension } from '@codemirror/state'
 import { EditorView, showTooltip, type Tooltip, type TooltipView } from '@codemirror/view'
 import { Fragment } from 'react'
@@ -73,21 +75,20 @@ export function tableBarTip(b: TableBarButton): Tip {
 
 /**
  * Where the bar goes: the start of the caret's row, or null when it must not
- * show (not focused, toolbar off, text selected, caret outside a table).
+ * show (not focused, toolbar off, text or several carets selected, a completion
+ * list open, caret outside a table).
  */
 export function tableBarAt(state: EditorState): { pos: number } | null {
   if (!barsMayShow(state) || state.facet(toolbarOff)) return null
-  if (!state.selection.ranges.every((r) => r.empty) || !inTable(state)) return null
+  const { ranges } = state.selection
+  if (ranges.length > 1 || !ranges[0]!.empty || completionStatus(state) === 'active') return null
+  if (!inTable(state)) return null
   return { pos: state.doc.lineAt(state.selection.main.head).from }
 }
 
 function press(view: EditorView, id: TableBarId) {
   const tr = TABLE_COMMANDS[id](view.state)
   if (tr) view.dispatch(tr)
-  // Several carets collapse to the main one, the one the table was edited at.
-  if (view.state.selection.ranges.length > 1) {
-    view.dispatch({ selection: { anchor: view.state.selection.main.head } })
-  }
   view.focus()
 }
 

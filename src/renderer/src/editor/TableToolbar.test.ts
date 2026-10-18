@@ -1,7 +1,8 @@
 import { EditorSelection, EditorState, type Extension } from '@codemirror/state'
 import { describe, expect, it, afterEach } from 'vitest'
 import { effectiveKeymap } from '../commands/keymap'
-import { setCommandKeys } from '../commands/registry'
+import { setCommandKeys, command } from '../commands/registry'
+import { ICONS } from '../icons/symbols'
 import { noteMarkdown } from './markdown'
 import { TABLE_BAR_GROUPS, tableBarAt, tableBarTip } from './TableToolbar'
 import { setToolbarFocus, toolbarOff, toolbarState } from './toolbarState'
@@ -37,6 +38,16 @@ describe('tableBarAt', () => {
     expect(tableBarAt(make(rowStart + 4, { anchor: rowStart + 2 }))).toBeNull()
   })
 
+  it('is null with several carets', () => {
+    const s = make(rowStart + 4).update({
+      selection: EditorSelection.create([
+        EditorSelection.cursor(rowStart + 2),
+        EditorSelection.cursor(rowStart + 4),
+      ]),
+    }).state
+    expect(tableBarAt(s)).toBeNull()
+  })
+
   it('is null while the editor is not focused', () => {
     expect(tableBarAt(make(rowStart + 4, { focused: false }))).toBeNull()
   })
@@ -57,6 +68,13 @@ describe('the table bar buttons', () => {
       ['insertRowBelow', 'insertColumnRight'],
       ['deleteRow', 'deleteColumn'],
     ])
+  })
+
+  it('have a registry command and an icon each', () => {
+    for (const b of TABLE_BAR_GROUPS.flat()) {
+      expect(command(b.command)).toBeDefined()
+      expect(ICONS).toContain(b.icon)
+    }
   })
 
   it('show the command name and its key in effect', () => {
