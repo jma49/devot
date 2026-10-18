@@ -458,6 +458,9 @@ export const en = {
   'appearanceSettings.sidebarMaterial': 'Translucent Window',
   'appearanceSettings.sidebarMaterialHint':
     'The desktop shows through the whole window. Turn this off for an opaque window.',
+  'appearanceSettings.windowTransparency': 'Transparency',
+  'appearanceSettings.windowTransparencyHint':
+    'How much of the desktop shows through the sidebar, the note list and the editor.',
   'appearanceSettings.failed': 'The appearance settings could not be saved ({code}).',
   'mirror.title': 'Markdown Mirror',
   'mirror.detail':

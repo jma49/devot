@@ -87,6 +87,15 @@
           "hex": "#353533"
         },
         "$description": "Floating lists in the editor: the slash menu and the completion popups. Design value #353533."
+      },
+      "float-bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2078, 0.2078, 0.2],
+          "hex": "#353533"
+        },
+        "$description": "The floating bars over the editor (the selection toolbar, the image size bar) and their notch. Design value #353533."
       }
     },
     "ink": {

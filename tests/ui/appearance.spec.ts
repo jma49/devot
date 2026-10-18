@@ -1,8 +1,9 @@
-import type { Locator, Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import {
   changeEditorSettingsElsewhere,
   expect,
   openSettings,
+  paintedBackground,
   test,
   type TestWindow,
 } from './fixtures'
@@ -73,20 +74,22 @@ test.describe('with the system in dark', () => {
 // scope each built-in theme by it, so the surfaces change at once, in both
 // appearances, and the choice reaches every window like the appearance does.
 
-/** The editor and the sidebar as painted (`color.surface.*`), per theme and appearance. */
+/**
+ * The editor pane and the sidebar as painted over the window material
+ * (`color.surface.editor-wash` and `sidebar`), per theme and appearance.
+ */
 const SURFACES = {
   default: {
-    light: { editor: 'rgb(255, 255, 255)', sidebar: 'rgba(243, 244, 246, 0.7)' },
-    dark: { editor: 'rgb(10, 10, 10)', sidebar: 'rgba(23, 23, 23, 0.7)' },
+    light: { editor: 'rgba(255, 255, 255, 0.7)', sidebar: 'rgba(255, 255, 255, 0.02)' },
+    dark: { editor: 'rgba(10, 10, 10, 0.6)', sidebar: 'rgba(0, 0, 0, 0.1)' },
   },
   ivory: {
-    light: { editor: 'rgb(255, 255, 255)', sidebar: 'rgba(245, 244, 237, 0.7)' },
-    dark: { editor: 'rgb(48, 48, 46)', sidebar: 'rgba(31, 30, 29, 0.7)' },
+    light: { editor: 'rgba(255, 255, 255, 0.7)', sidebar: 'rgba(245, 244, 237, 0.02)' },
+    dark: { editor: 'rgba(48, 48, 46, 0.6)', sidebar: 'rgba(31, 30, 29, 0.1)' },
   },
 } as const
 
-const background = (element: Locator) =>
-  element.evaluate((el) => getComputedStyle(el).backgroundColor)
+const background = paintedBackground
 
 const shownSurfaces = async (page: Page) => ({
   editor: await background(page.locator('main.content')),

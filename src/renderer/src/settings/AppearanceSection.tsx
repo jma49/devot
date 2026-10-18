@@ -1,14 +1,17 @@
-import { useId } from 'react'
+import { useId, useMemo } from 'react'
 import {
   APPEARANCES,
   THEMES,
+  WINDOW_TRANSPARENCY_MAX,
+  WINDOW_TRANSPARENCY_STEP,
   themeFollowsSystemAccent,
   type AppearanceChoice,
   type ThemeChoice,
 } from '../../../core/editorSettings'
 import { useEditorSetting } from '../editorSettings'
-import { format, t, type MessageKey } from '../i18n'
-import { SettingToggle, SettingsSection, useSettingsChange } from './controls'
+import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
+import { useDraggedNumber } from './draggedNumber'
 
 const CARD_LABELS: Readonly<Record<AppearanceChoice, MessageKey>> = {
   light: 'appearanceSettings.light',
@@ -61,8 +64,10 @@ function Preview({
  * each in both appearances (Ivory has its own accent, so the system accent
  * option is off while it is chosen); whether the accent follows the macOS accent
  * colour (off by default: Devot's palette); and whether the whole window shows
- * the material (on by default). Off, every region paints an opaque surface
- * and the main window drops its effect (sidebarMaterial.ts). Every
+ * the material (on by default), and how see-through its regions are (a
+ * slider, applied while it is dragged; off while the material is). Off, every
+ * region paints an opaque surface and the main window drops its effect
+ * (sidebarMaterial.ts). Every
  * change applies at once, without a restart. The settings are stored with
  * the editor settings, so changes made elsewhere show here as they happen.
  */
@@ -73,6 +78,12 @@ export function AppearanceSection() {
   const material = useEditorSetting('sidebarMaterial')
   const [error, change] = useSettingsChange()
   const id = useId()
+  const transparency = useDraggedNumber({
+    stored: useEditorSetting('windowTransparency'),
+    store: (windowTransparency) => change({ windowTransparency }),
+  })
+  const locale = currentLocale()
+  const percent = useMemo(() => new Intl.NumberFormat(locale, { style: 'percent' }), [locale])
 
   return (
     <section className="settings-section" aria-labelledby="appearance-title">
@@ -155,6 +166,33 @@ export function AppearanceSection() {
           checked={material}
           onChange={(sidebarMaterial) => change({ sidebarMaterial })}
         />
+        <Setting
+          label="appearanceSettings.windowTransparency"
+          description={t('appearanceSettings.windowTransparencyHint')}
+          htmlFor={`${id}-transparency`}
+          descriptionId={`${id}-transparency-hint`}
+        >
+          <div className="setting-range">
+            <input
+              id={`${id}-transparency`}
+              type="range"
+              min={0}
+              max={WINDOW_TRANSPARENCY_MAX}
+              step={WINDOW_TRANSPARENCY_STEP}
+              value={transparency.value}
+              disabled={!material}
+              aria-describedby={`${id}-transparency-hint`}
+              aria-valuetext={percent.format(transparency.value / 100)}
+              onChange={(e) => transparency.drag(Number(e.currentTarget.value))}
+              onPointerUp={transparency.release}
+              onKeyUp={transparency.release}
+              onBlur={transparency.release}
+            />
+            <output htmlFor={`${id}-transparency`} className="setting-range-value">
+              {percent.format(transparency.value / 100)}
+            </output>
+          </div>
+        </Setting>
       </SettingsSection>
     </section>
   )

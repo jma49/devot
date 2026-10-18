@@ -85,6 +85,15 @@
           "hex": "#ffffff"
         },
         "$description": "Floating lists in the editor: the slash menu and the completion popups."
+      },
+      "float-bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff"
+        },
+        "$description": "The floating bars over the editor (the selection toolbar, the image size bar) and their notch."
       }
     },
     "ink": {

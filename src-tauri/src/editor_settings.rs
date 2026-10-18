@@ -30,6 +30,7 @@ pub const LINE_HEIGHT_MAX: f64 = 2.5;
 pub const TAB_WIDTH_MIN: u64 = 1;
 pub const TAB_WIDTH_MAX: u64 = 8;
 pub const CURSOR_SCROLL_MARGIN_MAX: u64 = 200;
+pub const WINDOW_TRANSPARENCY_MAX: u64 = 100;
 /// The longest notebook ID the default notebook may name.
 const NOTEBOOK_ID_MAX: usize = 64;
 
@@ -179,6 +180,9 @@ pub struct EditorSettings {
     /// The whole window shows the material (the key keeps its old name); off,
     /// the window is opaque.
     pub sidebar_material: bool,
+    /// How see-through the regions' washes are, 0 (opaque) to 100; 50 is the
+    /// design value (Settings > Appearance > Transparency).
+    pub window_transparency: u64,
     pub paste_url: PasteUrl,
     /// Split mode keeps the editor and the preview at the same line
     /// (View > Synced Scrolling).
@@ -239,6 +243,7 @@ impl Default for EditorSettings {
             spell_check: true,
             highlight_active_line: false,
             sidebar_material: true,
+            window_transparency: 50,
             paste_url: PasteUrl::Link,
             sync_scroll: true,
             inline_images: true,
@@ -339,6 +344,9 @@ impl EditorSettings {
             "spellCheck" => self.spell_check = flag(value)?,
             "highlightActiveLine" => self.highlight_active_line = flag(value)?,
             "sidebarMaterial" => self.sidebar_material = flag(value)?,
+            "windowTransparency" => {
+                self.window_transparency = whole(value, 0, WINDOW_TRANSPARENCY_MAX)?
+            }
             "pasteUrl" => self.paste_url = choice(value)?,
             "syncScroll" => self.sync_scroll = flag(value)?,
             "inlineImages" => self.inline_images = flag(value)?,
@@ -626,6 +634,8 @@ mod tests {
         assert_eq!(d.list_marker, ListMarker::Star);
         // The window shows the sidebar material unless turned off.
         assert!(d.sidebar_material);
+        // The washes at their design strength.
+        assert_eq!(d.window_transparency, 50);
         assert_eq!(d.paste_url, PasteUrl::Link);
         assert!(d.toolbar && d.scroll_past_end);
         assert_eq!(d.cursor_scroll_margin, 0);
@@ -673,6 +683,7 @@ mod tests {
                 "spellCheck": true,
                 "highlightActiveLine": false,
                 "sidebarMaterial": true,
+                "windowTransparency": 50,
                 "pasteUrl": "link",
                 "syncScroll": true,
                 "inlineImages": true,
@@ -709,6 +720,7 @@ mod tests {
                 "spellCheck": true,
                 "highlightActiveLine": false,
                 "sidebarMaterial": false,
+                "windowTransparency": 100,
                 "pasteUrl": "link",
                 "syncScroll": false,
                 "inlineImages": false,
@@ -743,6 +755,7 @@ mod tests {
         }
         assert!(!next.toolbar && !next.scroll_past_end);
         assert_eq!(next.cursor_scroll_margin, 200);
+        assert_eq!(next.window_transparency, 100);
         assert_eq!(next.font_weight, FontWeight::W700);
         assert!(next.show_invisibles && next.highlight_trailing_whitespace);
         assert_eq!(next.preview_font_size, 32);
@@ -931,6 +944,10 @@ mod tests {
             json!({ "sidebarMaterial": "off" }),
             json!({ "sidebarMaterial": 0 }),
             json!({ "sidebarMaterial": null }),
+            json!({ "windowTransparency": 101 }),
+            json!({ "windowTransparency": -5 }),
+            json!({ "windowTransparency": 50.5 }),
+            json!({ "windowTransparency": "50" }),
             json!({ "syncScroll": "off" }),
             json!({ "syncScroll": 0 }),
             json!({ "inlineImages": "on" }),
@@ -1083,6 +1100,24 @@ mod tests {
         assert_eq!(
             EditorSettings::from_stored(&json!({ "theme": 7 })).theme,
             Theme::Default
+        );
+    }
+
+    #[test]
+    fn reads_a_file_from_before_the_transparency_setting_at_the_design_strength() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(FILE), br#"{ "sidebarMaterial": true }"#).unwrap();
+        let read = store(&dir).get().unwrap().settings;
+        assert!(read.sidebar_material);
+        assert_eq!(read.window_transparency, 50);
+        // An out-of-range stored value reads as the default too.
+        assert_eq!(
+            EditorSettings::from_stored(&json!({ "windowTransparency": 101 })).window_transparency,
+            50
+        );
+        assert_eq!(
+            EditorSettings::from_stored(&json!({ "windowTransparency": 0 })).window_transparency,
+            0
         );
     }
 

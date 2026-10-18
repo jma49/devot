@@ -3,6 +3,7 @@ import {
   changeEditorSettingsElsewhere,
   expect,
   openSettings,
+  paintedBackground,
   test,
   type TestWindow,
 } from './fixtures'
@@ -63,9 +64,9 @@ async function expectShown(page: Page, material: boolean, scheme: 'light' | 'dar
   await expect(root(page)).toHaveAttribute('data-sidebar-material', material ? 'on' : 'off')
   const shown = material ? 'material' : 'opaque'
   const surfaces = SURFACES[scheme]
-  await expect(sidebar(page)).toHaveCSS('background-color', surfaces.sidebar[shown])
-  await expect(list(page)).toHaveCSS('background-color', surfaces.list[shown])
-  await expect(editor(page)).toHaveCSS('background-color', surfaces.editor[shown])
+  await expect.poll(() => paintedBackground(sidebar(page))).toBe(surfaces.sidebar[shown])
+  await expect.poll(() => paintedBackground(list(page))).toBe(surfaces.list[shown])
+  await expect.poll(() => paintedBackground(editor(page))).toBe(surfaces.editor[shown])
   // Behind every pane: clear over the material, opaque without it.
   await expect(root(page)).toHaveCSS('background-color', material ? CLEAR : surfaces.window)
 }
@@ -344,4 +345,44 @@ test('a change that cannot be stored is reported and dropped', async ({ page }) 
   await translucent(page).click()
   await expect(appearance(page).getByRole('alert')).toContainText('E_EDITOR_SETTINGS_WRITE_FAILED')
   await expect(translucent(page)).toBeChecked()
+})
+
+const transparency = (page: Page) => appearance(page).getByRole('slider', { name: 'Transparency' })
+
+test('the transparency scales every wash: opaque at 0, the design value at 50, twice as clear at 100', async ({
+  page,
+}) => {
+  await stored(page, { windowTransparency: 0 })
+  await page.goto('/')
+  await expect(root(page)).toHaveAttribute('data-sidebar-material', 'on')
+  await expect.poll(() => paintedBackground(sidebar(page))).toBe('rgb(255, 255, 255)')
+  await expect.poll(() => paintedBackground(list(page))).toBe('rgb(245, 245, 244)')
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 100 })
+  await expect.poll(() => paintedBackground(sidebar(page))).toBe('rgba(255, 255, 255, 0)')
+  await expect.poll(() => paintedBackground(list(page))).toBe('rgba(245, 245, 244, 0.6)')
+  await expect.poll(() => paintedBackground(editor(page))).toBe('rgba(255, 255, 255, 0.4)')
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 50 })
+  await expectShown(page, true)
+  // Turned off, the regions are opaque whatever the transparency.
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 100, sidebarMaterial: false })
+  await expectShown(page, false)
+})
+
+test('the Settings window sets the transparency with a slider, off while the window is opaque', async ({
+  page,
+}) => {
+  await openSettings(page, 'Appearance')
+  await expect(transparency(page)).toHaveValue('50')
+  await expect(transparency(page)).toHaveAttribute('aria-valuetext', '50%')
+  await expect(transparency(page)).toHaveAccessibleDescription(/shows through/)
+  await transparency(page).fill('70')
+  await expect(transparency(page)).toHaveAttribute('aria-valuetext', '70%')
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { windowTransparency: 70 } }])
+
+  await translucent(page).uncheck()
+  await expect(transparency(page)).toBeDisabled()
+  await translucent(page).check()
+  await expect(transparency(page)).toBeEnabled()
 })

@@ -30,7 +30,7 @@ describe('floating bar motion and states', () => {
     expect(bar.outline).toBeUndefined()
     expect(bar.boxShadow).toMatch(/^0 0 0 1px var\(--color-line-float-bar\), /)
     expect(bar.border).toBe('0')
-    expect(bar.backgroundColor).toBe('var(--color-surface-popover)')
+    expect(bar.backgroundColor).toBe('var(--color-surface-float-bar)')
     expect(bar.boxShadow!.split('), ')).toHaveLength(2)
     expect(bar.boxShadow).toContain('var(--color-shadow-float-bar)')
     expect(bar.boxShadow).not.toContain('popover')
