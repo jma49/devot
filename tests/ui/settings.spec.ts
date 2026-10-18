@@ -414,7 +414,7 @@ test('the Editing pane has Interface, Markdown, Text Appearance and font section
     '700',
   )
   // Each section has its symbol, and each setting a label and a description.
-  await expect(editor(page).locator('h3 [data-symbol]')).toHaveCount(3)
+  await expect(editor(page).locator('h3 [data-symbol]')).toHaveCount(6)
   await expect(checkbox(page, 'Toolbar')).toHaveAccessibleDescription(
     'Whether the toolbar shows over selected text and above the current table row.',
   )
