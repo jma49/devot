@@ -34,11 +34,11 @@ describe('tag colour palette', () => {
     expect(counts).toEqual(TAG_COLORS.map(() => 4 * THEME_IDS.length))
   })
 
-  it('styles every colour: a class sets the dot colour and the chip label from their tokens', () => {
+  it('styles every colour: a class sets the dot colour, the chip label and the notebook icon from their tokens', () => {
     const css = read('src/renderer/src/app.css')
     for (const id of TAG_COLORS) {
       expect(css).toContain(
-        `.tag-color-${id} {\n  --tag-color: var(--color-tag-${id});\n  --tag-text: var(--color-tag-text-${id});\n}`,
+        `.tag-color-${id} {\n  --tag-color: var(--color-tag-${id});\n  --tag-text: var(--color-tag-text-${id});\n  --tag-icon: var(--color-tag-icon-${id});\n}`,
       )
     }
   })

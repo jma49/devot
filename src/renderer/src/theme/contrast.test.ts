@@ -175,6 +175,20 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     expect(under(4.5, chips)).toEqual([])
   })
 
+  it('draws notebook icons in every tag colour at 3:1 on the sidebar, lists, editor and popovers', () => {
+    // Icons are graphics; the picker grid and the palette sit on popovers.
+    const beneath = [...backdrops(theme), solid(theme, 'surface.popover')]
+    const icons: Record<string, [Rgb, Rgb[]]> = {}
+    for (const key of Object.keys(theme).filter((k) => k.startsWith('color.tag-icon.'))) {
+      icons[key.slice('color.tag-icon.'.length)] = [
+        solid(theme, key.slice('color.'.length)),
+        beneath,
+      ]
+    }
+    expect(Object.keys(icons)).toHaveLength(8)
+    expect(under(3, icons)).toEqual([])
+  })
+
   it('draws popup text at 4.5:1 on the popover and its selected row', () => {
     // The slash menu, completion popups and the floating toolbar: labels are
     // primary, group headers secondary, key hints tertiary. On the selected
