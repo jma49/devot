@@ -97,6 +97,14 @@ pub enum PasteUrl {
     Link,
 }
 
+/// How the note list shows a note's date: how long ago, or the date itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ListDates {
+    Relative,
+    Absolute,
+}
+
 /// The appearance the windows show (Settings > Appearance): the system's,
 /// or always light or dark.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -175,6 +183,8 @@ pub struct EditorSettings {
     pub preview_font_size: u64,
     /// The notebook a new note goes to when the view has none.
     pub default_notebook: Option<String>,
+    /// The note list shows how long ago a note changed, or its date.
+    pub list_dates: ListDates,
 }
 
 impl Default for EditorSettings {
@@ -212,6 +222,7 @@ impl Default for EditorSettings {
             highlight_trailing_whitespace: false,
             preview_font_size: 15,
             default_notebook: None,
+            list_dates: ListDates::Relative,
         }
     }
 }
@@ -300,6 +311,7 @@ impl EditorSettings {
                 self.preview_font_size = whole(value, FONT_SIZE_MIN, FONT_SIZE_MAX)?
             }
             "defaultNotebook" => self.default_notebook = notebook_id(value)?,
+            "listDates" => self.list_dates = choice(value)?,
             _ => return Err(INVALID),
         }
         Ok(())
@@ -560,6 +572,7 @@ mod tests {
         assert!(!d.show_invisibles && !d.highlight_trailing_whitespace);
         assert_eq!(d.preview_font_size, 15);
         assert_eq!(d.default_notebook, None);
+        assert_eq!(d.list_dates, ListDates::Relative);
         // Split mode scrolls the editor and the preview together.
         assert!(d.sync_scroll);
         // Images show under their lines unless turned off.
@@ -605,6 +618,7 @@ mod tests {
                 "highlightTrailingWhitespace": false,
                 "previewFontSize": 15,
                 "defaultNotebook": null,
+                "listDates": "relative",
             })
         );
     }
@@ -639,6 +653,7 @@ mod tests {
                 "highlightTrailingWhitespace": true,
                 "previewFontSize": 32,
                 "defaultNotebook": "0b0c-1d_2",
+                "listDates": "absolute",
             })))
             .unwrap();
         assert_eq!(next.appearance, Appearance::Dark);
@@ -660,6 +675,7 @@ mod tests {
         assert!(next.show_invisibles && next.highlight_trailing_whitespace);
         assert_eq!(next.preview_font_size, 32);
         assert_eq!(next.default_notebook.as_deref(), Some("0b0c-1d_2"));
+        assert_eq!(next.list_dates, ListDates::Absolute);
         let plus = EditorSettings::default()
             .with(&patch(
                 json!({ "listMarker": "+", "defaultNotebook": null }),
@@ -774,6 +790,9 @@ mod tests {
             json!({ "defaultNotebook": 5 }),
             json!({ "defaultNotebook": "x".repeat(65) }),
             json!({ "listMarker": "- " }),
+            json!({ "listDates": "Absolute" }),
+            json!({ "listDates": "never" }),
+            json!({ "listDates": true }),
             json!({ "pasteUrl": "markdown" }),
             json!({ "pasteUrl": "Plain" }),
             json!({ "pasteUrl": true }),

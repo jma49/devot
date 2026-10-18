@@ -42,6 +42,7 @@ import { entryOffsets, spacerHeight, windowRuns } from './listWindow'
 import { noteShortcut, trashShortcut, type NoteAction, type TrashAction } from './noteMenu'
 import { DRAG_NOTE, DRAG_TEMPLATE } from './Sidebar'
 import { useStable } from './stable'
+import { useEditorSetting } from './editorSettings'
 import { NoteRow, type RowEvents } from './NoteRow'
 import { isImeKey } from './ime'
 
@@ -188,6 +189,7 @@ export const NoteList = memo(function NoteList(props: Props) {
   const list = useRef<HTMLUListElement>(null)
   const now = useNow()
   const locale = currentLocale()
+  const dates = useEditorSetting('listDates')
 
   // The width the user dragged the right edge to, saved when the drag ends.
   const [width, setWidth] = useState(() => currentListWidthStore().read())
@@ -696,6 +698,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         progress={progress.get(n.id)}
         now={now}
         locale={locale}
+        dates={dates}
         draggable={props.drag !== false}
         dragging={dragged?.has(n.id) ?? false}
         menu={props.onMenu !== undefined}

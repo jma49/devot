@@ -517,6 +517,14 @@ export const COMMANDS = [
     scope: 'window',
     keys: [],
   },
+  // The note list's date style (an editor setting; also in the sort pop-up).
+  {
+    id: 'view.toggleListDates',
+    label: 'command.showAbsoluteDates',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
   { id: 'view.focus', label: 'mode.focus', group: 'view', scope: 'window', keys: ['Mod+Shift+D'] },
   // The note list's sort pop-up, from the palette (its button is not a Tab stop).
   { id: 'view.sort', label: 'command.sort', group: 'view', scope: 'window', keys: [] },

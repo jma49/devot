@@ -43,6 +43,7 @@ function row(over: Partial<RowProps> = {}): string {
     progress: undefined,
     now,
     locale: 'en',
+    dates: 'relative',
     draggable: true,
     dragging: false,
     menu: true,
@@ -53,6 +54,14 @@ function row(over: Partial<RowProps> = {}): string {
 }
 
 describe('NoteRow', () => {
+  it('shows how long ago, or the date, by the dates style', () => {
+    expect(row()).toContain('>7 minutes</time>')
+    expect(row({ dates: 'absolute' })).toMatch(/>\d{1,2}:\d{2}[^<]*<\/time>/)
+    expect(row({ dates: 'absolute', note: note({ updatedAt: now - 3 * 86_400_000 }) })).toContain(
+      '>Oct 7, 2026</time>',
+    )
+  })
+
   it('marks the open note, which gets the focus bar while the list has the keyboard', () => {
     expect(row({ open: true, selected: true })).toContain('data-open="true"')
     expect(row({ open: false, selected: true })).not.toContain('data-open')

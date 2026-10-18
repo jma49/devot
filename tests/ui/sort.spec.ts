@@ -34,11 +34,18 @@ const ORDERS = [
 ]
 
 /** The order menu as shown, with `checked` ticked and every other order not. */
-const menuWith = (checked: string, followsDefault: boolean | undefined) => [
+const menuWith = (
+  checked: string,
+  followsDefault: boolean | undefined,
+  dates: 'Relative' | 'Absolute' = 'Relative',
+) => [
   ...ORDERS.map((line) => (line === '---' ? line : `${line} ${line === checked ? '[x]' : '[ ]'}`)),
   ...(followsDefault === undefined
     ? []
     : ['---', `Use as Default ${followsDefault ? '[x]' : '[ ]'}`]),
+  '---',
+  `Relative Dates ${dates === 'Relative' ? '[x]' : '[ ]'}`,
+  `Absolute Dates ${dates === 'Absolute' ? '[x]' : '[ ]'}`,
 ]
 
 const popups = (page: Page) =>
@@ -282,4 +289,20 @@ test('the Trash has no sort button and keeps its deletion order', async ({ page 
     .click()
   await expect(header(page)).toHaveText('Trash')
   await expect(sortButton(page)).toHaveCount(0)
+})
+
+test('the sort menu switches the list between relative and absolute dates', async ({ page }) => {
+  await page.goto('/')
+  await createNote(page, 'Dated')
+  const time = noteRows(page).filter({ hasText: 'Dated' }).locator('.row-time')
+  await expect(time).toHaveText(/^a few seconds$/)
+  await openSortMenu(page)
+  expect(await shownMenu(page)).toEqual(menuWith('Date Updated (Newest First)', true))
+  await pickMenuItem(page, 'Absolute Dates')
+  // A note changed today shows its time.
+  await expect(time).toHaveText(/^\d{1,2}:\d{2}/)
+  await openSortMenu(page)
+  expect(await shownMenu(page)).toEqual(menuWith('Date Updated (Newest First)', true, 'Absolute'))
+  await pickMenuItem(page, 'Relative Dates')
+  await expect(time).toHaveText('a few seconds')
 })

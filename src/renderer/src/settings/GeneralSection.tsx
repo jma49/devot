@@ -1,5 +1,6 @@
 import { useId, useState, useSyncExternalStore } from 'react'
 import { errorCode } from '../backups'
+import type { ListDatesStyle } from '../../../core/editorSettings'
 import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { readNotebooks, subscribeNotebooks } from '../notebookChoices'
@@ -27,6 +28,7 @@ export function GeneralSection() {
   const [saveError, change] = useSettingsChange()
   const ids = useId()
   const stored = useEditorSetting('defaultNotebook')
+  const listDates = useEditorSetting('listDates')
   const notebooks = JSON.parse(
     useSyncExternalStore(subscribeNotebooks, notebooksJson),
   ) as ReturnType<typeof readNotebooks>
@@ -75,6 +77,22 @@ export function GeneralSection() {
                 {indented(n.name, n.depth)}
               </option>
             ))}
+          </select>
+        </Setting>
+        <Setting
+          label="generalSettings.listDates"
+          description={t('generalSettings.listDatesHint')}
+          htmlFor={`${ids}-dates`}
+          descriptionId={`${ids}-dates-hint`}
+        >
+          <select
+            id={`${ids}-dates`}
+            value={listDates}
+            aria-describedby={`${ids}-dates-hint`}
+            onChange={(e) => change({ listDates: e.currentTarget.value as ListDatesStyle })}
+          >
+            <option value="relative">{t('generalSettings.listDates.relative')}</option>
+            <option value="absolute">{t('generalSettings.listDates.absolute')}</option>
           </select>
         </Setting>
       </SettingsSection>

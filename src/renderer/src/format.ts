@@ -53,6 +53,19 @@ export function relativeTime(updatedAt: number, now: number, locale: string): st
   return noteDate(updatedAt, now, locale)
 }
 
+/**
+ * The date a list row shows: how long ago (`relative`), or the date itself
+ * (`absolute`: the time for today, the medium date otherwise).
+ */
+export function rowDate(
+  at: number,
+  now: number,
+  locale: string,
+  style: 'relative' | 'absolute',
+): string {
+  return style === 'absolute' ? noteDate(at, now, locale) : relativeTime(at, now, locale)
+}
+
 /** A note's date and time in full, for tooltips. */
 export function fullDate(updatedAt: number, locale: string): string {
   return kept(
