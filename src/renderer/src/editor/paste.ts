@@ -1,15 +1,18 @@
 // Pasting in the note editor. A URL pasted over selected text makes that
 // text a link to it; a lone URL (nothing selected) goes in as the setting
-// says: as copied, as an autolink (`<url>`) or as a link with empty text
-// (`[](url)`). Paste as Plain Text inserts the clipboard's text as it is,
+// says: as copied, as an autolink (`<url>`), as a link with empty text
+// (`[](url)`), or as copied with the paste chooser open on it
+// (pasteChooser.ts; Paste URL As… opens it too). Paste as Plain Text inserts the clipboard's text as it is,
 // with none of this (nor images). This replaces the Markdown language's own
 // paste-as-link, so a paste is handled once.
+import { syntaxTree } from '@codemirror/language'
 import { EditorSelection, Facet, type EditorState, type TransactionSpec } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import type { PasteUrlStyle } from '../../../core/editorSettings'
 import { context, inFrontMatter, LITERAL_BLOCKS, nodeAt, type Cx } from './formatContext'
 import { escapeBangBefore, linkAddress, linkTo } from './formats'
+import { chooserOn, chooserPaste, showChooser } from './pasteChooser'
 
 /** How a lone URL is pasted (Settings > Editing); a link by default. */
 export const pasteUrlStyle = Facet.define<PasteUrlStyle, PasteUrlStyle>({
@@ -63,6 +66,12 @@ function urlAtCursors(
   style: PasteUrlStyle,
 ): TransactionSpec | null {
   if (style === 'plain' || state.selection.ranges.some((r) => !r.empty)) return null
+  // The chooser belongs to one cursor; with more, the URL goes in as copied.
+  if (style === 'choose') {
+    const cx = context(state)
+    const one = state.selection.ranges.length === 1
+    return one && cx && !asCopiedAt(cx, state.selection.main.head) ? chooserPaste(state, url) : null
+  }
   // An autolink cannot hold angle brackets.
   if (style === 'autolink' && /[<>]/.test(url)) return null
   const cx = context(state)
@@ -122,6 +131,42 @@ export const pasteUrls = EditorView.domEventHandlers({
     if (!spec) return false
     event.preventDefault()
     view.dispatch(spec)
+    showChooser(view)
     return true
   },
 })
+
+/** A link at `pos`: the whole Link, Autolink or bare URL node, and its address. */
+function linkRangeAt(
+  state: EditorState,
+  pos: number,
+): { from: number; to: number; url: string } | null {
+  const tree = syntaxTree(state)
+  for (const side of [-1, 1] as const) {
+    for (let node: SyntaxNode | null = tree.resolveInner(pos, side); node; node = node.parent) {
+      if (node.name !== 'Link' && node.name !== 'Autolink' && node.name !== 'URL') continue
+      // A Link's address is its URL child; `[text]` alone (a reference) has none.
+      const urlNode = node.name === 'URL' ? node : node.getChild('URL')
+      const parent = node.name === 'URL' ? node.parent : null
+      // An image's or a reference definition's address is not a link to reformat.
+      if (parent?.name === 'Image' || parent?.name === 'LinkReference') return null
+      const link = parent?.name === 'Link' || parent?.name === 'Autolink' ? parent : node
+      const url = urlNode && state.sliceDoc(urlNode.from, urlNode.to).replace(/^<|>$/g, '').trim()
+      if (url) return { from: link.from, to: link.to, url }
+    }
+  }
+  return null
+}
+
+/**
+ * Paste URL As…: pastes the clipboard's URL as copied with the chooser open
+ * on it, or, when the clipboard holds none that can go here, opens the
+ * chooser on the link at the caret. Null when there is neither.
+ */
+export function pasteUrlAs(state: EditorState, clipboardText: string): TransactionSpec | null {
+  const url = pastedUrl(clipboardText)
+  const spec = url === null ? null : urlAtCursors(state, url, 'choose')
+  if (spec) return spec
+  const link = linkRangeAt(state, state.selection.main.head)
+  return link && chooserOn(state, link.from, link.to, link.url)
+}

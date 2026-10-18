@@ -99,13 +99,15 @@ pub enum LineWrapping {
 }
 
 /// What pasting a lone URL inserts: the URL as copied, an autolink
-/// (`<url>`) or a link with empty text (`[](url)`).
+/// (`<url>`), a link with empty text (`[](url)`), or the URL with a list of
+/// formats to choose from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PasteUrl {
     Plain,
     Autolink,
     Link,
+    Choose,
 }
 
 /// How the note list shows a note's date: how long ago, or the date itself.
@@ -734,6 +736,13 @@ mod tests {
                 .unwrap()
                 .paste_url,
             PasteUrl::Autolink
+        );
+        assert_eq!(
+            EditorSettings::default()
+                .with(&patch(json!({ "pasteUrl": "choose" })))
+                .unwrap()
+                .paste_url,
+            PasteUrl::Choose
         );
         for family in ["system", "mono", "menlo", "monaco", "installed", "imported"] {
             assert!(

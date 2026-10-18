@@ -6,7 +6,7 @@ import type { Completion } from '@codemirror/autocomplete'
 import type { IconName } from '../icons/symbols'
 import type { AlertKind } from './blocks'
 
-export type PopupList = 'slash' | 'language' | 'emoji' | 'alert'
+export type PopupList = 'slash' | 'language' | 'emoji' | 'alert' | 'paste'
 
 export interface OptionLook {
   list: PopupList

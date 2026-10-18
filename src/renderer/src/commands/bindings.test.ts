@@ -65,6 +65,7 @@ const BOUND_IN: Partial<Record<CommandId, [file: string, call: string]>> = {
   'find.previousInEditor': ['../editor/find.ts', '...commandKeys'],
   'edit.pastePlain': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'edit.contextMenu': ['../editor/editorMenu.ts', 'editorCommandKeys'],
+  'edit.pasteUrlAs': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'note.newFromSelection': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'note.newFromLink': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'image.view': ['../NoteEditor.tsx', 'editorCommandKeys'],

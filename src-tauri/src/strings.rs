@@ -61,6 +61,7 @@ pub const SHOW_SPLIT: &str = "Show Editor and Preview";
 pub const SYNC_SCROLL: &str = "Synced Scrolling";
 pub const MENU_WINDOW: &str = "Window";
 pub const MENU_HELP: &str = "Help";
+pub const REBUILD_SEARCH_INDEX: &str = "Rebuild Search Index";
 pub const EXPORT_DIAGNOSTICS: &str = "Export Diagnostics…";
 pub const QUIT: &str = "Quit Devot";
 pub const SETTINGS: &str = "Settings…";

@@ -15,6 +15,7 @@ import {
 import { EditorState, StateEffect, StateField } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { noteLink } from '../../core/links'
+import { unlessChoosing } from './editor/pasteChooser'
 import {
   blockAround,
   context as syntaxContext,
@@ -195,7 +196,8 @@ const infoTheme = EditorView.theme({
 export function linkCompletion(sources: LinkSources) {
   // One source for the editor's life: CodeMirror keeps results per source
   // function, so a new function on every lookup would discard each result.
-  const source = linkCompletionSource(sources)
+  // Nothing while the paste chooser is open: its list stands alone.
+  const source = unlessChoosing(linkCompletionSource(sources))
   return [
     EditorState.languageData.of(() => [{ autocomplete: source }]),
     pendingPicks,

@@ -402,13 +402,26 @@ mod tests {
     }
 
     #[test]
+    fn reads_pinned_as_null_true_or_false() {
+        let pinned = |value: serde_json::Value| {
+            query(serde_json::json!({ "text": [], "sets": [], "pinned": value })).pinned
+        };
+        assert_eq!(pinned(serde_json::Value::Null), None);
+        assert_eq!(pinned(serde_json::json!(true)), Some(true));
+        assert_eq!(pinned(serde_json::json!(false)), Some(false));
+        let wrong: Result<NoteQuery, _> =
+            serde_json::from_value(serde_json::json!({ "text": [], "sets": [], "pinned": "yes" }));
+        assert!(wrong.is_err(), "pinned is a boolean or null");
+    }
+
+    #[test]
     fn validates_search_queries() {
         let text =
             |value: &str| serde_json::json!({ "field": "any", "value": value, "negate": false });
         let set = |kind: &str, ids: &[&str]| serde_json::json!({ "kind": kind, "ids": ids, "negate": true });
         let check = |text: Vec<serde_json::Value>, sets: Vec<serde_json::Value>| {
             validate_query(&query(
-                serde_json::json!({ "text": text, "sets": sets, "pinned": false }),
+                serde_json::json!({ "text": text, "sets": sets, "pinned": null }),
             ))
         };
         assert_eq!(check(vec![text("sync"), text("a b")], vec![]), Ok(()));

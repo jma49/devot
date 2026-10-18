@@ -479,8 +479,8 @@ pub struct NoteSummary {
 pub struct NoteQuery {
     pub text: Vec<TextCondition>,
     pub sets: Vec<SetCondition>,
-    /// Pinned notes only.
-    pub pinned: bool,
+    /// Only pinned notes (`Some(true)`), only notes not pinned (`Some(false)`), or either (`None`).
+    pub pinned: Option<bool>,
 }
 
 /// Text the note must (or, with `negate`, must not) contain, case-insensitively.
@@ -961,8 +961,10 @@ fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
             ),
         });
     }
-    if query.pinned {
-        clauses.push("n.pinned = 1".into());
+    match query.pinned {
+        Some(true) => clauses.push("n.pinned = 1".into()),
+        Some(false) => clauses.push("n.pinned = 0".into()),
+        None => {}
     }
     let hits = if ranked.is_empty() {
         String::new()
@@ -1100,6 +1102,25 @@ impl Store {
             .conn
             .pragma_query_value(None, "integrity_check", |row| row.get(0))?;
         Ok(result == "ok")
+    }
+
+    /// Rebuilds the search index from the notes table in one statement
+    /// (FTS5 reports no progress), then checks it against the table, all in
+    /// one transaction: a failed check rolls the rebuild back. Returns how
+    /// many notes (trashed ones too) the index covers.
+    pub fn rebuild_search_index(&mut self) -> Result<u32> {
+        let tx = self.conn.transaction()?;
+        tx.execute_batch(
+            "INSERT INTO notes_fts (notes_fts) VALUES ('rebuild');
+             INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1);",
+        )?;
+        let notes = tx.query_row(
+            "SELECT count(*) FROM notes WHERE purged_at IS NULL",
+            [],
+            |row| row.get(0),
+        )?;
+        tx.commit()?;
+        Ok(notes)
     }
 
     /// Notes not in the trash, most recently updated first.

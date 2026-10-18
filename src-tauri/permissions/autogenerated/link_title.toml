@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-link-title"
+description = "Enables the link_title command without any pre-configured scope."
+commands.allow = ["link_title"]
+
+[[permission]]
+identifier = "deny-link-title"
+description = "Denies the link_title command without any pre-configured scope."
+commands.deny = ["link_title"]

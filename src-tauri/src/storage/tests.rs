@@ -82,7 +82,7 @@ fn words(terms: &[&str]) -> NoteQuery {
             })
             .collect(),
         sets: Vec::new(),
-        pinned: false,
+        pinned: None,
     }
 }
 
@@ -1069,7 +1069,7 @@ fn short_search_terms_ignore_case_in_every_script() {
             negate,
         }],
         sets: Vec::new(),
-        pinned: false,
+        pinned: None,
     };
     assert_eq!(ids(field(TextField::Any, "\u{c9}M", true)), ["b"]);
     assert_eq!(ids(field(TextField::Title, "\u{e9}m", false)), ["a"]);
@@ -1162,7 +1162,7 @@ fn short_terms_find_what_folding_finds_in_every_way_of_scanning() {
         NoteQuery {
             text: vec![],
             sets: vec![],
-            pinned: false,
+            pinned: None,
         },
         50,
     );
@@ -1190,7 +1190,7 @@ fn short_terms_find_what_folding_finds_in_every_way_of_scanning() {
                     .flatten()
                     .collect(),
                     sets: vec![],
-                    pinned: false,
+                    pinned: None,
                 };
                 let want = expected(term, field, negate, &by_rank);
                 assert_eq!(
@@ -1386,7 +1386,7 @@ fn found(store: &Store, text: Vec<TextCondition>, sets: Vec<SetCondition>) -> Ve
             &NoteQuery {
                 text,
                 sets,
-                pinned: false,
+                pinned: None,
             },
             50,
         )
@@ -1505,7 +1505,7 @@ fn keeps_only_pinned_notes_when_asked() {
     let query = NoteQuery {
         text: vec![text(TextField::Any, "plan", false)],
         sets: vec![],
-        pinned: true,
+        pinned: Some(true),
     };
     let ids: Vec<String> = store
         .search_notes(&query, 50)
@@ -1514,6 +1514,36 @@ fn keeps_only_pinned_notes_when_asked() {
         .map(|n| n.id)
         .collect();
     assert_eq!(ids, ["week"]);
+}
+
+#[test]
+fn keeps_only_unpinned_notes_when_asked() {
+    let (_dir, mut store) = search_world();
+    let mut pinned = store.get_note("week", false).unwrap().unwrap();
+    pinned.pinned = true;
+    pinned.pinned_hlc = "0000000000000020-0000-a".into();
+    store.put_note(&pinned, &[]).unwrap();
+    let ids = |pinned| -> Vec<String> {
+        let query = NoteQuery {
+            text: vec![text(TextField::Any, "plan", false)],
+            sets: vec![],
+            pinned,
+        };
+        let mut ids: Vec<String> = store
+            .search_notes(&query, 50)
+            .unwrap()
+            .into_iter()
+            .map(|n| n.id)
+            .collect();
+        ids.sort();
+        ids
+    };
+    let all = ids(None);
+    let unpinned = ids(Some(false));
+    assert!(all.contains(&"week".to_string()));
+    assert!(!unpinned.contains(&"week".to_string()));
+    assert_eq!(unpinned.len() + 1, all.len());
+    assert_eq!(ids(Some(true)), ["week"]);
 }
 
 #[test]
@@ -1527,7 +1557,7 @@ fn applies_every_condition_before_the_limit() {
     let query = |sets| NoteQuery {
         text: vec![text(TextField::Any, "plan", false)],
         sets,
-        pinned: false,
+        pinned: None,
     };
     assert_eq!(store.search_notes(&query(vec![]), 50).unwrap().len(), 50);
     let mut ids: Vec<String> = store
@@ -1578,7 +1608,7 @@ fn returns_the_body_around_the_first_searched_word_found() {
         excerpt(NoteQuery {
             text: vec![text(TextField::Title, "short", false)],
             sets: vec![],
-            pinned: false,
+            pinned: None,
         }),
         None,
         "a title search shows no excerpt"
@@ -1708,7 +1738,7 @@ fn lists_and_searches_read_covering_indexes() {
     let qualifiers = NoteQuery {
         text: vec![],
         sets: vec![set(SetKind::Status, &["active"], false)],
-        pinned: true,
+        pinned: Some(true),
     };
     let (sql, values) = search_sql(&qualifiers, 200);
     let sets = plan(&sql, &values);
@@ -1736,7 +1766,7 @@ fn search_orders_notes_saved_at_the_same_moment_by_id_as_the_list() {
     let none = NoteQuery {
         text: vec![],
         sets: vec![],
-        pinned: false,
+        pinned: None,
     };
     assert_eq!(ids(store.search_notes(&none, 2).unwrap()), ["c", "b"]);
 }
@@ -2654,4 +2684,30 @@ fn lists_activity_since_a_time() {
             revisions: Vec::new()
         }
     );
+}
+
+#[test]
+fn rebuilding_the_search_index_restores_search() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "Relay plan", 10), &[]).unwrap();
+    store.put_note(&note("b", "Launch day", 20), &[]).unwrap();
+    let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 10).unwrap().len();
+    assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
+
+    // Empty the index behind the table's back.
+    store
+        .conn
+        .execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('delete-all')")
+        .unwrap();
+    assert_eq!((found(&store, "relay"), found(&store, "launch")), (0, 0));
+
+    assert_eq!(store.rebuild_search_index().unwrap(), 2);
+    assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
+    store
+        .conn
+        .execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
+        .unwrap();
+    // Rebuilding an intact index changes nothing.
+    assert_eq!(store.rebuild_search_index().unwrap(), 2);
+    assert_eq!(found(&store, "relay"), 1);
 }

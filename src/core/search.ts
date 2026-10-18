@@ -5,15 +5,19 @@
 //   book:Name              the note is in that notebook or one of its sub-notebooks
 //   tag:Name               the note has that tag
 //   status:Name            the note has that status (an ID such as on_hold, or a name such as "On Hold")
+//   bookId:ID  tagId:ID    like book: and tag:, by ID (a malformed ID is searched as text)
+//   pinned:true|false      the note is pinned (or not); yes, no, 1 and 0 also work
 //   -anything              excludes what the clause matches
 //
-// Names match in any case; values with spaces are quoted (book:"Weekly notes").
+// Names match in any case; values with spaces are quoted (book:"Weekly notes"
+// or book:'Weekly notes').
 // Anything the parser cannot read (an unknown qualifier, an empty value, a
 // status that does not exist) is searched for as plain text, so a query
 // never fails. Storage uses its trigram index for text of three characters
 // or more and scans for shorter text (common two-character Chinese words).
 
 import { bookWithDescendants, MAX_BOOK_NAME_CHARS, TEMPLATES_BOOK_ID } from './books'
+import { UUID_V7 } from './ids'
 import { FRONT_MATTER_FENCE, readableText } from './readable'
 import {
   NOTE_STATUSES,
@@ -36,9 +40,21 @@ export const MAX_SEARCH_TERMS = 10
 export const MAX_TERM_CHARS = 100
 export const SEARCH_LIMIT = 200
 
-export type SearchField = 'any' | 'title' | 'body' | 'book' | 'tag' | 'status'
+export type SearchField =
+  | 'any'
+  | 'title'
+  | 'body'
+  | 'book'
+  | 'tag'
+  | 'status'
+  | 'bookId'
+  | 'tagId'
+  | 'pinned'
 
-/** One clause of a query. A status clause holds the status ID. */
+/**
+ * One clause of a query. A status clause holds the status ID, a bookId or
+ * tagId clause an ID, and a pinned clause `true` or `false`.
+ */
 export interface SearchClause {
   field: SearchField
   value: string
@@ -51,7 +67,17 @@ export interface SearchScope {
   filter: NoteFilter | null
 }
 
-const QUALIFIERS = new Set<SearchField>(['title', 'body', 'book', 'tag', 'status'])
+/** Qualifier names (lower case) and the field each reads. */
+const QUALIFIERS = new Map<string, SearchField>([
+  ['title', 'title'],
+  ['body', 'body'],
+  ['book', 'book'],
+  ['tag', 'tag'],
+  ['status', 'status'],
+  ['bookid', 'bookId'],
+  ['tagid', 'tagId'],
+  ['pinned', 'pinned'],
+])
 const QUALIFIER = /^([A-Za-z]+):/
 const SPACE = /\s/
 
@@ -63,6 +89,14 @@ export function statusFromName(name: string): NoteStatus | null {
     .replace(/[\s_-]+/g, '_')
   if (key === 'no_status') return 'none'
   return (NOTE_STATUSES as readonly string[]).includes(key) ? (key as NoteStatus) : null
+}
+
+/** `true` or `false` for a pinned value (true, false, yes, no, 1, 0, in any case); null for any other. */
+export function pinnedFromValue(value: string): 'true' | 'false' | null {
+  const key = value.trim().toLowerCase()
+  if (key === 'true' || key === 'yes' || key === '1') return 'true'
+  if (key === 'false' || key === 'no' || key === '0') return 'false'
+  return null
 }
 
 /** `text` with each lone surrogate (which cannot cross to storage as text) replaced by U+FFFD. */
@@ -86,9 +120,26 @@ export function parseSearch(query: string): SearchClause[] {
   const clauses: SearchClause[] = []
   let at = 0
 
+  /**
+   * Where the single quote that closes a phrase opened at `from` is: the next
+   * one at the end of the text or before a space, so an apostrophe inside
+   * ('don't stop') does not close it. -1 for none.
+   */
+  const closeSingle = (from: number) => {
+    for (let i = text.indexOf("'", from + 1); i >= 0; i = text.indexOf("'", i + 1)) {
+      if (i + 1 === text.length || SPACE.test(text[i + 1]!)) return i
+    }
+    return -1
+  }
+  /**
+   * Whether a phrase opens at `at`: a double quote always (an unclosed one
+   * runs to the end); a single quote only when a closing one follows, so
+   * don't and 'tis stay words.
+   */
+  const opensPhrase = () => text[at] === '"' || (text[at] === "'" && closeSingle(at) >= 0)
   /** Reads a quoted value from `at` (on the opening quote) to its closing quote or the end. */
   const quoted = () => {
-    const close = text.indexOf('"', at + 1)
+    const close = text[at] === "'" ? closeSingle(at) : text.indexOf('"', at + 1)
     const end = close < 0 ? text.length : close
     const value = text.slice(at + 1, end)
     at = close < 0 ? text.length : close + 1
@@ -114,16 +165,16 @@ export function parseSearch(query: string): SearchClause[] {
     let field: SearchField = 'any'
     let value: string
     let qualified = false
-    if (text[at] === '"') {
+    if (opensPhrase()) {
       value = quoted()
     } else {
       const key = QUALIFIER.exec(text.slice(at, at + 12))
-      const name = key?.[1]?.toLowerCase() as SearchField | undefined
-      if (key && name && QUALIFIERS.has(name)) {
+      const name = key?.[1] ? QUALIFIERS.get(key[1].toLowerCase()) : undefined
+      if (key && name) {
         qualified = true
         field = name
         at += key[0].length
-        value = text[at] === '"' ? quoted() : word()
+        value = opensPhrase() ? quoted() : word()
       } else {
         value = word()
       }
@@ -133,6 +184,11 @@ export function parseSearch(query: string): SearchClause[] {
     if (field === 'status') {
       const status = statusFromName(clean)
       clean = status ?? ''
+    } else if (field === 'bookId' || field === 'tagId') {
+      clean = clean.toLowerCase()
+      if (!UUID_V7.test(clean)) clean = ''
+    } else if (field === 'pinned') {
+      clean = pinnedFromValue(clean) ?? ''
     }
     if (qualified && clean === '') {
       // Malformed: search for what was typed, as text.
@@ -431,14 +487,15 @@ export interface ResolveContext {
   tags: readonly TagRecord[]
   /** The view the search narrows. */
   scope?: SearchScope | undefined
-  /** The notebooks `book:` may name (default: all of `books`). */
+  /** The notebooks `book:` and `bookId:` may name (default: all of `books`). */
   nameable?: readonly BookRecord[] | undefined
 }
 
 /**
  * The query storage runs for `clauses`: notebook and tag names become IDs,
  * and the view adds its own conditions. Null when nothing can match (a
- * `book:` or `tag:` naming nothing).
+ * `book:`, `bookId:`, `tag:` or `tagId:` naming nothing, or pinned clauses
+ * that contradict each other or the view).
  */
 export function resolveSearch(
   clauses: readonly SearchClause[],
@@ -448,32 +505,48 @@ export function resolveSearch(
   const nameable = context.nameable ?? books
   const text: TextCondition[] = []
   const sets: SetCondition[] = []
+  let pinned: boolean | null = null
 
   if (scope?.bookId)
     sets.push({ kind: 'book', ids: [...bookWithDescendants(books, scope.bookId)], negate: false })
   const filter = scope?.filter
   if (filter?.kind === 'status') sets.push({ kind: 'status', ids: [filter.status], negate: false })
   if (filter?.kind === 'tag') sets.push({ kind: 'tag', ids: [filter.tagId], negate: false })
+  if (filter?.kind === 'pinned') pinned = true
 
   for (const c of clauses) {
     if (c.field === 'any' || c.field === 'title' || c.field === 'body') {
       text.push({ field: c.field, value: c.value, negate: c.negate })
       continue
     }
+    if (c.field === 'pinned') {
+      // `-pinned:true` is `pinned:false`. Two clauses that disagree (or one
+      // that disagrees with the view's Pinned filter) match nothing.
+      const want = (c.value === 'true') !== c.negate
+      if (pinned !== null && pinned !== want) return null
+      pinned = want
+      continue
+    }
     let ids: string[]
     if (c.field === 'status') ids = [c.value]
     else if (c.field === 'tag') ids = tags.filter((t) => sameName(t.name, c.value)).map((t) => t.id)
-    else {
+    else if (c.field === 'tagId') ids = tags.some((t) => t.id === c.value) ? [c.value] : []
+    else if (c.field === 'bookId') {
+      // Only a notebook the context may name (so AI cannot reach a hidden
+      // one by its ID), with its sub-notebooks, as `book:` does.
+      ids = nameable.some((b) => b.id === c.value) ? [...bookWithDescendants(books, c.value)] : []
+    } else {
       const found = new Set<string>()
       for (const named of nameable.filter((b) => sameName(b.name, c.value))) {
         for (const id of bookWithDescendants(books, named.id)) found.add(id)
       }
       ids = [...found]
     }
-    if (ids.length > 0) sets.push({ kind: c.field, ids, negate: c.negate })
+    const kind = c.field === 'bookId' ? 'book' : c.field === 'tagId' ? 'tag' : c.field
+    if (ids.length > 0) sets.push({ kind, ids, negate: c.negate })
     else if (!c.negate) return null
   }
-  return { text, sets, pinned: filter?.kind === 'pinned' }
+  return { text, sets, pinned }
 }
 
 /**

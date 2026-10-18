@@ -34,6 +34,8 @@ import {
 } from '../../core/workspace'
 import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
 import { BackupNotice } from './BackupNotice'
+import { SearchIndexNotice } from './SearchIndexNotice'
+import { REBUILD_SEARCH_INDEX, rebuildSearchIndex, type RebuildState } from './searchIndex'
 import { ChangeNotice } from './ChangeNotice'
 import { ImageNotice } from './ImageNotice'
 import { MAX_LINK_NOTES } from './linkCompletion'
@@ -440,6 +442,9 @@ export function App() {
   // The backups dialog, and the code of a failed automatic backup.
   const [backupsOpen, setBackupsOpen] = useState(false)
   const [backupNotice, setBackupNotice] = useState<string>()
+  // The search index rebuild: running, then its result for a few seconds.
+  const [indexState, setIndexState] = useState<RebuildState>()
+  const indexRunning = useRef(false)
   // The code of a notebook, tag or note change that was refused, shown in a notice.
   const [changeNotice, setChangeNotice] = useState<string>()
   // The codes of pasted or dropped images that could not be stored, shown in a notice.
@@ -1088,6 +1093,49 @@ export function App() {
     searchField.current?.focus()
     searchField.current?.select()
   }, [searchRequest])
+
+  // Help > Rebuild Search Index and the palette command. The notes stay usable
+  // meanwhile; their reads and saves wait for the one statement. Rust refuses
+  // a second rebuild while one runs, but the window does not ask.
+  const rebuildIndex = useCallback(async () => {
+    if (!core || indexRunning.current) return
+    indexRunning.current = true
+    try {
+      await rebuildSearchIndex(setIndexState, () => refresh(core))
+    } finally {
+      indexRunning.current = false
+    }
+  }, [core, refresh])
+  const rebuildIndexRef = useRef(rebuildIndex)
+  useEffect(() => {
+    rebuildIndexRef.current = rebuildIndex
+  }, [rebuildIndex])
+  useEffect(() => {
+    const run = () => void rebuildIndexRef.current()
+    window.addEventListener(REBUILD_SEARCH_INDEX, run)
+    let stopped = false
+    let unlisten: (() => void) | undefined
+    if (!DEVOT_UI_TEST) {
+      void import('@tauri-apps/api/event').then(async ({ listen }) => {
+        const stop = await listen('devot://rebuild-search-index', () =>
+          window.dispatchEvent(new CustomEvent(REBUILD_SEARCH_INDEX)),
+        )
+        if (stopped) stop()
+        else unlisten = stop
+      })
+    }
+    return () => {
+      stopped = true
+      window.removeEventListener(REBUILD_SEARCH_INDEX, run)
+      unlisten?.()
+    }
+  }, [])
+  // A finished rebuild's notice clears itself.
+  useEffect(() => {
+    if (indexState?.phase !== 'done') return
+    const timer = setTimeout(() => setIndexState(undefined), 5000)
+    return () => clearTimeout(timer)
+  }, [indexState])
 
   // Backups: the menu opens the dialog; a failed backup shows a notice.
   useEffect(() => {
@@ -2333,6 +2381,7 @@ export function App() {
     'app.backups': { run: showBackups },
     'app.exportAllMarkdown': { run: () => exportAll('exportMarkdown') },
     'app.exportAllHtml': { run: () => exportAll('exportHtml') },
+    'app.rebuildSearchIndex': { run: rebuildIndex },
     'mirror.chooseFolder': { run: mirror.choose },
   }
   if (mirror.status.folder !== null) handlers['mirror.turnOff'] = { run: mirror.turnOff }
@@ -2466,6 +2515,9 @@ export function App() {
         handlers[commandId] = { run: () => editorRef.current?.runLine(commandId) }
       }
       handlers['edit.goToLine'] = { run: () => openPalette('line') }
+      handlers['edit.pasteUrlAs'] = {
+        run: () => editorRef.current?.pasteUrlAs(),
+      }
       if (paletteOpen && paletteSelection) {
         handlers['note.newFromSelection'] = {
           run: () => noteFromSelection(id),
@@ -3152,6 +3204,7 @@ export function App() {
       {backupsOpen ? <BackupsDialog onRestore={restore} onClose={closeBackups} /> : null}
       {(backupNotice && !backupsOpen) ||
       exportNotice ||
+      indexState ||
       changeNotice ||
       batchFailed ||
       coreFailure ||
@@ -3183,6 +3236,13 @@ export function App() {
               failure={exportNotice.failure}
               code={exportNotice.code}
               onDismiss={() => setExportNotice(undefined)}
+            />
+          ) : null}
+          {indexState ? (
+            <SearchIndexNotice
+              state={indexState}
+              locale={currentLocale()}
+              onDismiss={() => setIndexState(undefined)}
             />
           ) : null}
           {mirror.notices}
