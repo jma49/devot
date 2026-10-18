@@ -66,19 +66,25 @@ export function leavesEditor(target: { closest(selector: string): unknown } | nu
 }
 
 /**
- * Focus leaving the editor and its bars ends the editor's focus. One listener
- * on the editor's box sees the content and every bar button blur.
+ * Focus leaving the editor and its bars ends the editor's focus. The bars
+ * may sit outside the editor's box (in a popup layer beside it), so one
+ * listener on the editor's root sees the content and every bar button blur.
  */
 const focusOut = ViewPlugin.define((view) => {
-  const onOut = (event: FocusEvent) => {
-    const to = event.relatedTarget
+  const onOut = (event: Event) => {
+    const from = event.target
+    if (!(from instanceof Node && view.dom.contains(from)) && leavesEditor(asElement(from))) return
+    const to = (event as FocusEvent).relatedTarget
     if (to instanceof Node && view.dom.contains(to)) return
-    if (!leavesEditor(to instanceof Element ? to : null)) return
+    if (!leavesEditor(asElement(to))) return
     view.dispatch({ effects: setToolbarFocus.of(false) })
   }
-  view.dom.addEventListener('focusout', onOut)
-  return { destroy: () => view.dom.removeEventListener('focusout', onOut) }
+  const root = view.dom.getRootNode()
+  root.addEventListener('focusout', onOut)
+  return { destroy: () => root.removeEventListener('focusout', onOut) }
 })
+
+const asElement = (target: EventTarget | null) => (target instanceof Element ? target : null)
 
 /** The field plus the focus tracking it needs from the view. */
 export const toolbarStateExtension = [

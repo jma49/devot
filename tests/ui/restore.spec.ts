@@ -24,8 +24,8 @@ const book = (page: Page, name: string) =>
 const modeButton = (page: Page, name: string) =>
   page.getByRole('group', { name: 'View mode' }).getByRole('button', { name, exact: true })
 const backButton = (page: Page) => page.getByRole('button', { name: 'Back', exact: true })
-/** The editor's box, which scrolls (CodeMirror is inside it, in a shadow root). */
-const scroller = (page: Page) => page.locator('[data-devot-part="editor-body"]')
+/** The editor's scroll box (in its shadow root, around CodeMirror). */
+const scroller = (page: Page) => page.locator('[data-devot-part="editor-scroll"]')
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 /**
  * The scroll position once it stopped moving. CodeMirror corrects a position
