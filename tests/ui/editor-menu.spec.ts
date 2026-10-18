@@ -129,9 +129,11 @@ test('New Note from Selection in the menu moves the text into a note', async ({ 
 })
 
 test('a right-click away from the selection moves the caret there first', async ({ page }) => {
-  await newNote(page, 'keep this\nmove this')
-  await selectLine(page, 1)
-  await rightClick(page, 'keep', 0)
+  // The selection toolbar sits beside the selection and covers the lines next
+  // to it: the line clicked is far enough away to stay clear of it.
+  await newNote(page, 'move this\n\n\nkeep this')
+  await selectLine(page, 0)
+  await rightClick(page, 'keep', 3)
   // The selection is gone with the caret moved: no Look Up for it.
   expect((await menu(page)).slice(0, 2)).toEqual(['Undo', 'Redo'])
 })

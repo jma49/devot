@@ -234,9 +234,10 @@ describe('HTML pages', () => {
     expect(mapped.html).toContain('<a href="../Other%20note.html">Other note</a>')
   })
 
-  it('simple HTML has no classes, styles or data attributes', async () => {
+  it('simple HTML has no classes, styles, data attributes or heading ids', async () => {
     const { html, images } = await page({ simple: true, island: () => SVG })
     expect(html).not.toMatch(/\s(?:class|style|data-[a-z-]+)=/)
+    expect(html).toContain('<h1>Plan</h1>')
     expect(html).not.toContain('<svg')
     expect(html).not.toContain('tags: [work]')
     expect(html).toContain('<blockquote><p><strong>Warning</strong></p>')

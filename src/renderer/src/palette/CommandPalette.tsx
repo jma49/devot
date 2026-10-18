@@ -147,6 +147,10 @@ export function CommandPalette(props: {
   useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
+    // showModal focuses the dialog's first control, which is the Back button
+    // when the palette opens scoped (Go to Line, the sidebar's search
+    // buttons): the field keeps the keyboard.
+    input.current?.focus()
     return () => el?.close()
   }, [])
 

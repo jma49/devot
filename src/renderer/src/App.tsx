@@ -1659,6 +1659,9 @@ export function App() {
       console.warn('W_NOTE_EXTRACT_NOT_LINKED', sourceId, dropped)
       await dropNote(core, dropped)
     }
+    // Edits save after a short delay (a title just typed, the link put in):
+    // write them first, or the reload shows the notes as last stored.
+    await saveEdits(core)
     await refresh(core)
   }
 
@@ -1676,20 +1679,13 @@ export function App() {
     if (!core || !editor || !link) return
     let made: string | undefined
     const moved = await editor.moveRange(link.from, link.to, async () => {
-      const note = await core.extract(sourceId, link.href).catch((e: unknown) => {
+      // Named in the same write: the lists read right after show the title.
+      const note = await core.extract(sourceId, link.href, link.text).catch((e: unknown) => {
         console.warn('W_NOTE_EXTRACT_FAILED', sourceId, errorCode(e))
       })
       if (!note) return null
       made = note.id
-      const titled = await core.setTitle(note.id, link.text).then(
-        () => true,
-        (e: unknown) => {
-          console.warn('W_NOTE_TITLE_FAILED', note.id, errorCode(e))
-          return false
-        },
-      )
-      if (!titled) return null
-      return noteLink(clipTitle(link.text), note.id)
+      return noteLink(note.title, note.id)
     })
     if (made === undefined) return
     if (moved) {
@@ -1699,6 +1695,9 @@ export function App() {
       console.warn('W_NOTE_EXTRACT_NOT_LINKED', sourceId, dropped)
       await dropNote(core, dropped)
     }
+    // Edits save after a short delay (a title just typed, the link put in):
+    // write them first, or the reload shows the notes as last stored.
+    await saveEdits(core)
     await refresh(core)
   }
 
