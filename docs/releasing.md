@@ -9,7 +9,7 @@ Until 1.0 every build ships as a GitHub prerelease on the beta channel. A releas
 - Each release gets a new tag and a new prerelease. Never replace an existing release or move an existing tag.
 - A feature batch landing on `main` raises MINOR and starts at `beta.1` (`v0.3.0-beta.1`, then `v0.4.0-beta.1`, ...).
 - A release with only fixes on top of the latest minor raises N (`v0.3.0-beta.2`, ...).
-- Stable releases start at 1.0. Until then the update feed's `stable.json` stays empty and only `beta.json` is published. A stable release goes in both feeds (see Update feed).
+- Stable releases start at 1.0. Until then the update feed has no `stable.json` (the first stable release writes it) and only `beta.json` is published. A stable release goes in both feeds (see Update feed).
 - Apple Silicon only.
 
 ## When to release
