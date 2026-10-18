@@ -1719,7 +1719,6 @@ button {
    this padding (NoteEditor.tsx); the host clips nothing, so a popup over the
    first lines can reach up over the title. */
 .editor {
-  position: relative;
   min-height: 0;
   /* The content pads its lines by space-2 (room for boxes, editor/boxes.ts)
      and a line its text by space-3: the text lines up with the title. */

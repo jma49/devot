@@ -430,8 +430,12 @@ const frameStyles = (() => {
     if (!sheet) {
       sheet = new CSSStyleSheet()
       sheet.replaceSync(`
-        .editor-frame,
-        .editor-scroll { position: absolute; inset: 0; }
+        /* Grid stretching, not percentages: the scroll box is as tall as
+           the host when the window's layout gives it a height. */
+        :host,
+        .editor-frame { display: grid; min-height: 0; }
+        .editor-frame { position: relative; }
+        .editor-scroll { min-height: 0; }
         /* CodeMirror's popup layer covers the editor: only the popups in it
            take the pointer. */
         .editor-frame { pointer-events: none; }

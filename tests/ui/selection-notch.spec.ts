@@ -82,7 +82,8 @@ for (const scheme of ['light', 'dark'] as const) {
       )
     })
 
-    // line 1 has no room above: the bar goes below it; line 3 puts it above.
+    // Line 3 puts the bar above. In Split the panes' sideways scrolling
+    // clips above line 1, so the bar goes below it there.
     for (const [placement, line] of [
       ['below', 1],
       ['above', 3],
@@ -92,6 +93,12 @@ for (const scheme of ['light', 'dark'] as const) {
         ['in the middle of the line', 10],
       ] as const) {
         test(`one continuous shape ${placement} the selection, ${where}`, async ({ page }) => {
+          if (placement === 'below') {
+            await page
+              .getByRole('group', { name: 'View mode' })
+              .getByRole('button', { name: 'Split' })
+              .click()
+          }
           await selectAt(page, line, skip)
           const el = bar(page)
           await expect(el).toHaveClass(new RegExp(`cm-tooltip-${placement}`))
