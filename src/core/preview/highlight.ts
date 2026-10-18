@@ -6,6 +6,7 @@
 // nodes, built from the code as text: note content never becomes markup.
 import type { ElementContent } from 'hast'
 import { createLowlight } from 'lowlight'
+import { joinOperatorRunsInHast } from '../operatorRuns'
 import { GRAMMARS, GRAMMAR_ALIASES } from './grammars'
 
 const lowlight = createLowlight()
@@ -38,11 +39,15 @@ function ensure(name: string): Promise<void> {
   return pending
 }
 
-/** `code` highlighted as `language`, or null when there is no such grammar. */
+/**
+ * `code` highlighted as `language`, or null when there is no such grammar.
+ * Each operator (`!=`, `=>`) stays in one element, so a code font can draw
+ * it as a ligature.
+ */
 export async function highlight(language: string, code: string): Promise<ElementContent[] | null> {
   const name = grammarName(language)
   if (!name) return null
   await ensure(name)
   if (!lowlight.registered(name)) return null
-  return lowlight.highlight(name, code).children as ElementContent[]
+  return joinOperatorRunsInHast(lowlight.highlight(name, code).children as ElementContent[])
 }

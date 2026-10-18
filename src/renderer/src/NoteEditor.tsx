@@ -1,4 +1,3 @@
-import { syntaxHighlighting } from '@codemirror/language'
 import { isolateHistory } from '@codemirror/commands'
 import { EditorSelection } from '@codemirror/state'
 import { Facet, Prec, type Extension } from '@codemirror/state'
@@ -44,6 +43,7 @@ import { moveRange, moveSelection, selectedText, trackExtract } from './editor/e
 import { editorFind, editorFindTarget } from './editor/find'
 import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
+import { noteHighlighting } from './editor/highlighting'
 import { systemMenus, systemMenusAvailable } from './editor/systemMenu'
 import { imageSizeBar } from './editor/ImageSizeBar'
 import { tableToolbar } from './editor/TableToolbar'
@@ -918,7 +918,8 @@ export function NoteEditor({
               // No keymap acts on the keys an input method composes with.
               imeKeys(),
               theme,
-              syntaxHighlighting(noteHighlightStyle),
+              // Operators in code keep one style each, so code fonts form ligatures.
+              noteHighlighting(noteHighlightStyle),
               // Heading sizes, list levels, code chips, quotes, alerts and tables.
               markdownLineStyles,
               // The GFM dialect (strikethrough, tables, task lists) and front matter.
