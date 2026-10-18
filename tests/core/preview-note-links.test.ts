@@ -15,6 +15,10 @@ const labels: PreviewLabels = {
   videoTitle: 'Embedded video',
   untitled: 'Untitled',
   missingNote: 'Note not found',
+  codeLines: 'Lines {start} to {end}',
+  codeLine: 'Line {n}',
+  codeRef: 'in {ref}',
+  codeSource: 'Open source',
 }
 
 const A = '0192a6f0-0000-7000-8000-00000000000a'

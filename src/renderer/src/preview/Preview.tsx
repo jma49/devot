@@ -43,6 +43,10 @@ export function previewLabels(): PreviewLabels {
     videoTitle: t('embed.videoTitle'),
     untitled: t('note.untitled'),
     missingNote: t('preview.missingNote'),
+    codeLines: t('preview.codeLines'),
+    codeLine: t('preview.codeLine'),
+    codeRef: t('preview.codeRef'),
+    codeSource: t('preview.codeSource'),
   }
 }
 

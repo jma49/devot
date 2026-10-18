@@ -22,6 +22,10 @@ const labels: PreviewLabels = {
   videoTitle: 'Embedded video',
   untitled: 'Untitled',
   missingNote: 'Note not found',
+  codeLines: 'Lines {start} to {end}',
+  codeLine: 'Line {n}',
+  codeRef: 'in {ref}',
+  codeSource: 'Open source',
 }
 
 const NONCE = '0123456789abcdef0123456789abcdef'
@@ -80,7 +84,7 @@ async function page(options: Partial<PageOptions> = {}) {
 describe('HTML pages', () => {
   it('keeps the preview markup with its classes, without the attributes it uses itself', async () => {
     const { html } = await page()
-    expect(html).toContain('<h1>Plan</h1>')
+    expect(html).toContain('<h1 id="plan">Plan</h1>')
     expect(html).toContain(
       '<div class="alert alert-warning"><p class="alert-title"><svg class="glyph alert-icon"',
     )
