@@ -862,6 +862,22 @@
       },
       "$description": "A window narrower than this hides the sidebar until it is asked for (the sidebar, a shrunken list and the editor's toolbar no longer fit together)."
     },
+    "window-controls-inset": {
+      "$type": "dimension",
+      "$value": {
+        "value": 70,
+        "unit": "px"
+      },
+      "$description": "The room a toolbar leaves for the window controls when they sit over it: the note list's while the sidebar is hidden, the editor's in focus mode."
+    },
+    "sidebar-toggle-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 44,
+        "unit": "px"
+      },
+      "$description": "The width of the sidebar toggle in the note list's header."
+    },
     "popup-max-width": {
       "$type": "dimension",
       "$value": {
@@ -1194,7 +1210,21 @@
           "value": 220,
           "unit": "ms"
         },
-        "$description": "The sidebar and note list sliding in and out."
+        "$description": "The sidebar's rows sliding in and out as a workspace opens or closes."
+      },
+      "slide": {
+        "$value": {
+          "value": 400,
+          "unit": "ms"
+        },
+        "$description": "Panes moving to where a hidden or shown sidebar leaves them, and the sidebar fading as it goes or comes."
+      },
+      "inset": {
+        "$value": {
+          "value": 300,
+          "unit": "ms"
+        },
+        "$description": "A toolbar's room for the window controls opening or closing as the sidebar or focus mode comes and goes."
       },
       "hover": {
         "$value": {
@@ -1242,6 +1272,10 @@
       "out": {
         "$value": [0, 0, 0.58, 1],
         "$description": "Starts quick and settles (CSS ease-out)."
+      },
+      "slide": {
+        "$value": [0.4, 0, 0.1, 1],
+        "$description": "Starts gently and settles long: things moving to a new place."
       }
     },
     "scale": {

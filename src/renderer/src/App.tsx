@@ -40,6 +40,7 @@ import { ChangeNotice } from './ChangeNotice'
 import { ImageNotice } from './ImageNotice'
 import { MAX_LINK_NOTES } from './linkCompletion'
 import { useNarrowWindow } from './narrowWindow'
+import { measurePanes, movePanes, type PaneBoxes, shownPanes } from './paneMotion'
 import { ExportNotice, failureOf, type ExportFailure } from './ExportNotice'
 import { SaveNotice } from './SaveNotice'
 import { isImeKey } from './ime'
@@ -170,7 +171,6 @@ import { Sidebar, stepSidebarRow, type Selection, type SidebarWorkspace } from '
 import { useKept, useStable } from './stable'
 import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
-import { sizes } from './theme/tokens'
 import { restartNow, useUpdates } from './UpdateNotice'
 import { checkForUpdates } from './updates'
 import { track } from './usage'
@@ -210,8 +210,8 @@ const ALL_NOTES: Selection = { kind: 'all' }
  */
 const LIST_TITLE_MS = 150
 
-/** How long `data-pane-motion` stays on: the slide (`motion.duration.pane`) plus a margin. */
-const PANE_MOTION_MS = Number.parseFloat(sizes['motion.duration.pane']) + 80
+/** How long after the panes change the editor measures its lines again. */
+const EDITOR_REMEASURE_MS = 100
 
 /** View > Hide Sidebar in the menu bar; App re-sends the Tauri event as this. */
 export const TOGGLE_SIDEBAR = 'devot:toggle-sidebar'
@@ -235,20 +235,26 @@ const LAST_STATE_SAVE_MS = 400
  */
 const saveEdits = (core: Core) => core.flush().catch(() => {})
 
-/** Shows the hidden sidebar again, from the list's toolbar. */
-function ShowSidebarButton({ onClick }: { onClick: () => void }) {
+/**
+ * Hides or shows the sidebar, from the start of the list's header. While the
+ * sidebar is hidden, the window controls sit before it (app.css).
+ */
+function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
   // The tooltip names the key in effect.
   useKeymap()
   return (
-    <button
-      type="button"
-      className="tool sidebar-show"
-      aria-label={t('command.showSidebar')}
-      title={titleWithKey('sidebar.showTitle', 'view.sidebar')}
-      onClick={onClick}
-    >
-      <Icon name="sidebar.toggle" size="lg" />
-    </button>
+    <>
+      <span className="window-inset" aria-hidden="true" data-tauri-drag-region />
+      <button
+        type="button"
+        className="tool sidebar-toggle"
+        aria-label={t(shown ? 'command.hideSidebar' : 'command.showSidebar')}
+        title={titleWithKey(shown ? 'sidebar.hideTitle' : 'sidebar.showTitle', 'view.sidebar')}
+        onClick={onClick}
+      >
+        <Icon name="sidebar.toggle" size="lg" />
+      </button>
+    </>
   )
 }
 
@@ -389,21 +395,26 @@ export function App() {
   if (!narrow && askedIn !== null) setAskedIn(null)
   const sidebarOff = sidebarHidden || (narrow && askedIn !== narrow)
   const sidebarShown = !focus && !sidebarOff
-  // Hiding or showing the sidebar and the list slides them (app.css). The
-  // window carries `data-pane-motion` for the length of the slide only, so a
-  // first paint never animates. The panes are inert from the first frame of a
-  // hide, so the keyboard leaves them as it did when they vanished at once.
+  // Hiding or showing the sidebar or the list fades it and slides the panes
+  // that stay (paneMotion.ts): where they were is measured while the window
+  // still shows it, as the change renders, and played back once it is laid
+  // out. The panes are inert from the first frame of a hide, so the keyboard
+  // leaves them as it did when they vanished at once.
   const [panesSeen, setPanesSeen] = useState({ focus, sidebarOff })
-  const [paneMotion, setPaneMotion] = useState(false)
+  const panesBefore = useRef<PaneBoxes | null>(null)
   if (panesSeen.focus !== focus || panesSeen.sidebarOff !== sidebarOff) {
+    panesBefore.current = measurePanes(shownPanes(panesSeen))
     setPanesSeen({ focus, sidebarOff })
-    setPaneMotion(true)
   }
-  useEffect(() => {
-    if (!paneMotion) return
-    const timer = setTimeout(() => setPaneMotion(false), PANE_MOTION_MS)
+  useLayoutEffect(() => {
+    const before = panesBefore.current
+    panesBefore.current = null
+    if (!before) return
+    movePanes(before, shownPanes(panesSeen))
+    // The editor lays out its lines again once it has its new width.
+    const timer = setTimeout(() => editorRef.current?.remeasure(), EDITOR_REMEASURE_MS)
     return () => clearTimeout(timer)
-  }, [paneMotion, panesSeen])
+  }, [panesSeen])
   useLayoutEffect(() => {
     document.querySelector('.window > .sidebar')?.toggleAttribute('inert', focus || sidebarOff)
     document.querySelector('.window > .list')?.toggleAttribute('inert', focus)
@@ -1218,7 +1229,13 @@ export function App() {
       if (seenImports.current.has(scan.id)) return
       seenImports.current.add(scan.id)
       if (update(scan.id, (job) => ({ ...job, scan }))) return
-      add({ id: scan.id, name: scan.name, kind: scan.kind, scan, failed: null })
+      add({
+        id: scan.id,
+        name: scan.name,
+        kind: scan.kind,
+        scan,
+        failed: null,
+      })
     }
     const failed = (e: Event) => {
       const detail = (e as CustomEvent<{ id: number | null; code: unknown } | string>).detail
@@ -2199,7 +2216,7 @@ export function App() {
 
   // Hiding or showing the sidebar. Focus mode hides it too, so showing it
   // leaves focus mode. When it hides with the keyboard, the list takes it;
-  // shown from its Show Sidebar button (which goes away), the sidebar does.
+  // shown from the toggle in the list's header, the sidebar does.
   const sidebarKeyEcho = useRef(-Infinity)
   const toggleSidebar = () => {
     if (sidebarShown) {
@@ -2213,7 +2230,7 @@ export function App() {
       if (hadKeyboard) requestFocus({ kind: 'area', area: 'list' })
       return
     }
-    if (document.activeElement?.closest('.sidebar-show')) {
+    if (document.activeElement?.closest('.sidebar-toggle')) {
       requestFocus({ kind: 'area', area: 'sidebar' })
     }
     if (focus) {
@@ -2361,7 +2378,9 @@ export function App() {
       },
       label: sidebarShown ? 'command.hideSidebar' : 'command.showSidebar',
     },
-    'view.focusNoteList': { run: () => requestFocus({ kind: 'area', area: 'list' }) },
+    'view.focusNoteList': {
+      run: () => requestFocus({ kind: 'area', area: 'list' }),
+    },
     'view.nextSidebarRow': { run: () => stepSidebarRow(1) },
     'view.previousSidebarRow': { run: () => stepSidebarRow(-1) },
     'view.nextArea': { run: () => moveArea(1) },
@@ -2498,7 +2517,9 @@ export function App() {
     }
     const bookId = currentBookOption(bookOptions(tree), openNote.bookId)
     if (bookId !== NO_BOOK && !selectedIsTemplate) {
-      handlers['note.showNotebook'] = { run: () => showLibrary({ kind: 'book', id: bookId }) }
+      handlers['note.showNotebook'] = {
+        run: () => showLibrary({ kind: 'book', id: bookId }),
+      }
     }
     handlers['view.edit'] = { run: () => setMode('edit') }
     handlers['view.togglePreview'] = {
@@ -2522,7 +2543,9 @@ export function App() {
         run: () => editorRef.current?.pastePlain(),
       }
       for (const commandId of LINE_COMMANDS) {
-        handlers[commandId] = { run: () => editorRef.current?.runLine(commandId) }
+        handlers[commandId] = {
+          run: () => editorRef.current?.runLine(commandId),
+        }
       }
       handlers['edit.goToLine'] = { run: () => openPalette('line') }
       handlers['edit.pasteUrlAs'] = {
@@ -2581,7 +2604,9 @@ export function App() {
     switch (entry.kind) {
       case 'source':
         // The palette opens a source itself.
-        return { primary: { label: t('palette.openSource'), run: () => undefined } }
+        return {
+          primary: { label: t('palette.openSource'), run: () => undefined },
+        }
       case 'command': {
         const handler = handlers[entry.id as keyof CommandHandlers]
         return {
@@ -2594,7 +2619,10 @@ export function App() {
             label: t('palette.openNotebook'),
             run: () => showLibrary({ kind: 'book', id: entry.id }),
           },
-          meta: { label: t('palette.openWorkspace'), run: () => stableOpenWorkspace(entry.id) },
+          meta: {
+            label: t('palette.openWorkspace'),
+            run: () => stableOpenWorkspace(entry.id),
+          },
           shift:
             openNote && openNote.bookId !== entry.id
               ? {
@@ -2655,11 +2683,10 @@ export function App() {
   // render while it does not change: both are memoized, so typing in a note,
   // or anything else they do not show, renders neither of them.
   const toggleSidebarNow = useStable(toggleSidebar)
-  // While the sidebar is hidden (not in focus mode), the list's toolbar
-  // shows it again.
-  const showSidebarButton = useMemo(
-    () => (sidebarOff && !focus ? <ShowSidebarButton onClick={toggleSidebarNow} /> : null),
-    [sidebarOff, focus, toggleSidebarNow],
+  // The list's header hides and shows the sidebar.
+  const sidebarToggle = useMemo(
+    () => <SidebarToggle shown={sidebarShown} onClick={toggleSidebarNow} />,
+    [sidebarShown, toggleSidebarNow],
   )
   // The Filter field under the list's header: the search, scoped to the view.
   const changeQueryStable = useStable((next: string) => changeQuery(next))
@@ -2700,7 +2727,12 @@ export function App() {
       return
     }
     const id = link.id
-    const target = noteTarget(id, { listed: listedSet, notes, templates, trash })
+    const target = noteTarget(id, {
+      listed: listedSet,
+      notes,
+      templates,
+      trash,
+    })
     if (target.kind === 'missing') {
       // Not in the lists (yet: another writer may have made it a moment
       // ago, before the window took the change in): ask the core.
@@ -2731,7 +2763,11 @@ export function App() {
   // when the Trash is emptied from it.
   const showTrashMenu = useTrashMenu((action, target) => void trashAction(action, target.id))
   const trashRowMenu = useStable(
-    (id: string) => void showTrashMenu({ id, count: multiIds?.includes(id) ? multiIds.length : 1 }),
+    (id: string) =>
+      void showTrashMenu({
+        id,
+        count: multiIds?.includes(id) ? multiIds.length : 1,
+      }),
   )
   const emptyTrashButton = useMemo(
     () => (
@@ -2866,7 +2902,6 @@ export function App() {
       data-ready={restored || undefined}
       data-sidebar-hidden={sidebarOff || undefined}
       data-narrow={narrow || undefined}
-      data-pane-motion={paneMotion || undefined}
     >
       <ToolTips />
       <Sidebar
@@ -2903,7 +2938,6 @@ export function App() {
         onDeleteTag={sidebarDeleteTag}
         templatesCount={templates.length}
         trashCount={trash.length}
-        onHide={toggleSidebarNow}
         onSearchBooks={sidebarSearchBooks}
         onSearchTags={sidebarSearchTags}
         onEmptyTrash={askEmptyTrash}
@@ -2933,7 +2967,7 @@ export function App() {
           sort={sortButton}
           sortButtonRef={sortButtonRef}
           onEdit={editFromList}
-          leading={showSidebarButton}
+          leading={sidebarToggle}
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
@@ -2962,7 +2996,7 @@ export function App() {
           onFind={findEverywhere}
           onTrashAction={trashKey}
           onMenu={trashRowMenu}
-          leading={showSidebarButton}
+          leading={sidebarToggle}
           headerAction={emptyTrashButton}
         />
       ) : inTemplates ? (
@@ -2985,7 +3019,7 @@ export function App() {
           sortButtonRef={sortButtonRef}
           onFind={findEverywhere}
           onEdit={editFromList}
-          leading={showSidebarButton}
+          leading={sidebarToggle}
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
@@ -3022,7 +3056,7 @@ export function App() {
           sortButtonRef={sortButtonRef}
           onFind={findInView}
           onEdit={editFromList}
-          leading={showSidebarButton}
+          leading={sidebarToggle}
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}

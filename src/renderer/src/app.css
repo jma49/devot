@@ -977,10 +977,11 @@ button {
   padding: 0 var(--space-6) 0 var(--space-8);
 }
 
-/* The list's header: sidebar toggle at the start, the view centred, New Note at the end. */
+/* The list's header: sidebar toggle at the start, the view centred, New Note
+   at the end. The sides never shrink below their buttons; the view gives way. */
 .list-header {
   display: grid;
-  grid-template-columns: minmax(var(--space-10), 1fr) minmax(0, auto) minmax(var(--space-10), 1fr);
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
   align-items: center;
   border-bottom: 0;
 }
@@ -1693,103 +1694,72 @@ button {
   flex: 1;
 }
 
-/* A hidden sidebar: the list's toolbar clears the window controls and
-   shows the sidebar's button. */
-
-.window[data-sidebar-hidden] .list .toolbar {
-  padding-left: calc(var(--space-10) * 2 + var(--space-7));
+/* The list's header: the window controls' room, the sidebar toggle, the
+   view and New Note. The room opens while the sidebar is hidden, when the
+   window controls sit over the list. */
+.list .list-header {
+  padding: 0 var(--space-1);
 }
 
-.sidebar-show {
-  margin-right: var(--space-4);
+.window-inset {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 0;
+  transition: width var(--motion-duration-inset) var(--motion-easing-out);
 }
 
-/* Hiding or showing the sidebar and the list (the toggle, focus mode) slides
-   them: the width runs to zero and the editor, which fills the rest, follows.
-   The panes keep their inner width while they shrink, so text does not
-   reflow, and they are inert from the first frame (App.tsx). `data-pane-motion`
-   is on the window only for the length of a toggle, so a resize or the first
-   paint never animates. */
+.window[data-sidebar-hidden] .list-header .window-inset {
+  width: var(--size-window-controls-inset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .window-inset,
+  .editor-toolbar {
+    transition: none;
+  }
+}
+
+.sidebar-toggle.tool {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: var(--size-sidebar-toggle-width);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* Hiding or showing the sidebar and the list (the toggle, focus mode): a pane
+   that goes leaves the layout at once and one that comes takes its room at
+   once, and the panes that stay slide to their new places (paneMotion.ts).
+   A hidden pane keeps its size, out of the layout and out of sight, so it can
+   fade out where it was; the panes that stay paint over it as they slide. */
+
+.window {
+  position: relative;
+}
 
 .sidebar,
 .list {
   overflow: clip;
 }
 
-/* The content keeps the width of the open sidebar while it slides shut, but
-   never more than the sidebar can have in this window (its max-width above,
-   floored at its minimum): a wider one would spill under the note list. */
-.sidebar > * {
-  min-width: calc(
-    max(
-        var(--size-sidebar-min-width),
-        min(
-          var(--sidebar-width, var(--size-sidebar-width)),
-          100vw - var(--size-list-min-width) - var(--size-pane-min-width) * 2
-        )
-      ) -
-      var(--space-5) * 2 - 1px
-  );
-}
-
-.list > * {
-  min-width: calc(var(--size-list-min-width) - 1px);
-}
-
-/* The resize edge stays a thin strip. */
-.list > .list-resize,
-.sidebar-resize {
-  min-width: 0;
-}
-
-.window[data-pane-motion] > .sidebar,
-.window[data-pane-motion] > .list {
-  transition:
-    width var(--motion-duration-pane) var(--motion-easing-standard),
-    min-width var(--motion-duration-pane) var(--motion-easing-standard),
-    padding var(--motion-duration-pane) var(--motion-easing-standard),
-    border-right-width var(--motion-duration-pane) var(--motion-easing-standard),
-    visibility 0s linear;
-}
-
 .window[data-sidebar-hidden] > .sidebar,
 .window[data-focus] > .sidebar,
 .window[data-focus] > .list {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
   visibility: hidden;
-  width: 0;
-  min-width: 0;
-  padding-inline: 0;
-  border-right-width: 0;
-}
-
-/* Hidden panes leave the page once the slide is done. */
-.window[data-pane-motion][data-sidebar-hidden] > .sidebar,
-.window[data-pane-motion][data-focus] > .sidebar,
-.window[data-pane-motion][data-focus] > .list {
-  transition:
-    width var(--motion-duration-pane) var(--motion-easing-standard),
-    min-width var(--motion-duration-pane) var(--motion-easing-standard),
-    padding var(--motion-duration-pane) var(--motion-easing-standard),
-    border-right-width var(--motion-duration-pane) var(--motion-easing-standard),
-    visibility 0s linear var(--motion-duration-pane);
-}
-
-/* As specific as the hiding rules above, so it wins over them too. */
-@media (prefers-reduced-motion: reduce) {
-  .window[data-pane-motion] > .sidebar,
-  .window[data-pane-motion] > .list,
-  .window[data-pane-motion][data-sidebar-hidden] > .sidebar,
-  .window[data-pane-motion][data-focus] > .sidebar,
-  .window[data-pane-motion][data-focus] > .list {
-    transition: none;
-  }
+  opacity: 0;
 }
 
 /* Focus mode: only the editor shows, at a reading width in the middle. */
 
 /* Clear the window controls, which now sit over the editor toolbar. */
+.editor-toolbar {
+  transition: padding-left var(--motion-duration-inset) var(--motion-easing-out);
+}
+
 .window[data-focus] .editor-toolbar {
-  padding-left: calc(var(--space-10) * 2 + var(--space-7));
+  padding-left: var(--size-window-controls-inset);
 }
 
 .window[data-focus] .content > :not(.toolbar) {

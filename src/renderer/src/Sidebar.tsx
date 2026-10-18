@@ -207,8 +207,6 @@ interface Props {
   /** Templates (notes in the Templates notebook), apart from the library. */
   templatesCount: number
   trashCount: number
-  /** Hides the sidebar (its title bar's button). */
-  onHide: () => void
   /** Opens the command palette scoped to notebooks (the Notebooks header's search button). */
   onSearchBooks: () => void
   /** Opens the command palette scoped to tags (the Tags header's search button). */
@@ -1217,17 +1215,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       onKeyDown={onRowsKey}
     >
       {/* The traffic lights sit here; the bar drags the window. */}
-      <div className="titlebar" data-devot-part="sidebar-titlebar" data-tauri-drag-region>
-        <button
-          type="button"
-          className="tool"
-          aria-label={t('command.hideSidebar')}
-          title={titleWithKey('sidebar.hideTitle', 'view.sidebar')}
-          onClick={props.onHide}
-        >
-          <Icon name="sidebar.toggle" size="lg" />
-        </button>
-      </div>
+      <div className="titlebar" data-devot-part="sidebar-titlebar" data-tauri-drag-region />
       {ws ? workspaceTitle(ws) : null}
       <ul className="sources">
         <li>

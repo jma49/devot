@@ -128,6 +128,8 @@ export interface EditorHandle {
   focus: () => void
   /** Focuses the editor with the caret at the start of the body. */
   focusStart: () => void
+  /** Measures the editor's lines again (after the panes beside it changed). */
+  remeasure: () => void
   /** Focuses the editor and applies a format to its selection. */
   format: (id: FormatId) => void
   /** Focuses the editor and inserts at its selection (an image, a table, a note link). */
@@ -1040,6 +1042,7 @@ export function NoteEditor({
               ready.focus()
               ready.dispatch({ selection: { anchor: 0 }, scrollIntoView: true })
             },
+            remeasure: () => ready.requestMeasure(),
             format: (id) => {
               ready.focus()
               formatCommand(id)(ready)

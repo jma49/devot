@@ -54,6 +54,8 @@
   --size-drag-card-max-width: 300px;
   --size-pane-min-width: 240px;
   --size-sidebar-collapse-width: 1000px;
+  --size-window-controls-inset: 70px;
+  --size-sidebar-toggle-width: 44px;
   --size-popup-max-width: 240px;
   --size-reading-width: 740px;
   --size-settings-nav-width: 155px;
@@ -97,6 +99,8 @@
   --motion-duration-popover: 150ms;
   --motion-duration-fade: 400ms;
   --motion-duration-pane: 220ms;
+  --motion-duration-slide: 400ms;
+  --motion-duration-inset: 300ms;
   --motion-duration-hover: 180ms;
   --motion-duration-toggle: 200ms;
   --motion-duration-dialog: 200ms;
@@ -104,6 +108,7 @@
   --motion-duration-icon: 300ms;
   --motion-easing-standard: cubic-bezier(0.42, 0, 0.58, 1);
   --motion-easing-out: cubic-bezier(0, 0, 0.58, 1);
+  --motion-easing-slide: cubic-bezier(0.4, 0, 0.1, 1);
   --motion-scale-popover-enter: 0.92;
   --motion-scale-popover-exit: 0.9;
   --motion-scale-dialog-enter: 0.8;
