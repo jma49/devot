@@ -100,7 +100,9 @@ test('Control+Tab reaches the rendered note in the Trash, and the keys scroll it
   await expect(trashRow(page)).toHaveText(/1$/)
   await trashRow(page).click()
   await noteRows(page).first().click()
-  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'This note is in the Trash.' }),
+  ).toContainText('This note is in the Trash.')
   await expect(preview(page).getByText('Paragraph 120', { exact: true })).toBeAttached()
   await noteRows(page).first().focus()
   await page.keyboard.press('Control+Tab')
@@ -114,7 +116,9 @@ test('Tab reaches the preview from the Trash buttons, with a focus ring', async 
   await pickNoteMore(page, 'Move to Trash')
   await trashRow(page).click()
   await noteRows(page).first().click()
-  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'This note is in the Trash.' }),
+  ).toContainText('This note is in the Trash.')
   await page.getByRole('button', { name: 'Delete Permanently' }).focus()
   await page.keyboard.press('Tab')
   await expect(preview(page)).toBeFocused()

@@ -180,7 +180,9 @@ test('Delete Permanently in the Trash list opens the next trashed note', async (
   await expect(next).toHaveText(third ?? '')
   await expect(next).toHaveAttribute('aria-selected', 'true')
   await expect(next).toBeFocused()
-  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'This note is in the Trash.' }),
+  ).toContainText('This note is in the Trash.')
   // The Trash list's keys still work on it.
   await page.keyboard.press('Meta+Backspace')
   await expect(page.getByRole('dialog')).toContainText('Permanently delete')

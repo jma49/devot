@@ -294,7 +294,9 @@ test('a finished import closes the trashed note that was open', async ({ page })
     .getByRole('button', { name: /^Trash \d+$/ })
     .click()
   await noteRows(page).filter({ hasText: 'Doomed' }).click()
-  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'This note is in the Trash.' }),
+  ).toContainText('This note is in the Trash.')
 
   await send(page, 'devot:import-ready', SCAN)
   await expect(dialog(page)).toContainText('Imported 3 notes into 3 notebooks.')
