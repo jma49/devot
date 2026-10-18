@@ -19,7 +19,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/devot-dark.png">
     <source media="(prefers-color-scheme: light)" srcset="docs/images/devot-light.png">
-    <img src="docs/images/devot-light.png" alt="Devot: the sidebar, the note list and a note open in the editor">
+    <img src="docs/images/devot-light.png" alt="Devot: the sidebar, the note list and a note in the preview">
   </picture>
 </p>
 
