@@ -30,6 +30,7 @@ function setup(doc: string, head: number) {
     create: vi.fn<LinkSources['create']>(() => made.promise),
     discard: vi.fn<LinkSources['discard']>(async () => {}),
     linked: vi.fn<LinkSources['linked']>(),
+    preview: vi.fn<NonNullable<LinkSources['preview']>>(async () => null),
   } satisfies LinkSources
   let state = EditorState.create({
     doc,
@@ -87,6 +88,43 @@ describe('where the [[ popup opens', () => {
     // After the front matter it opens again.
     const after = '---\ntags: x\n---\nSee [[]]'
     expect(await setup(after, after.indexOf('[[') + 2).source()).not.toBeNull()
+  })
+})
+
+describe('the card beside a highlighted note', () => {
+  /** Just enough of a document to build the card. */
+  const fakeDocument = () => ({
+    createElement: () => ({
+      className: '',
+      textContent: '',
+      children: [] as unknown[],
+      append(...nodes: unknown[]) {
+        this.children.push(...nodes)
+      },
+    }),
+  })
+  type Info = (completion: Completion) => Promise<{ children: { textContent: string }[] } | null>
+
+  it('shows the note title and the start of its body', async () => {
+    vi.stubGlobal('document', fakeDocument())
+    try {
+      const { source, sources } = setup('See [[gro]]', 9)
+      sources.preview.mockResolvedValue({ title: 'Groceries', excerpt: 'Milk, eggs' })
+      const [first] = await options(source)
+      const node = await (first!.info as unknown as Info)(first!)
+      expect(sources.preview).toHaveBeenCalledWith(ID)
+      expect(node?.children.map((c) => c.textContent)).toEqual(['Groceries', 'Milk, eggs'])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('shows nothing when the note cannot load, and none for New Note', async () => {
+    const { source, sources } = setup('See [[gro]]', 9)
+    sources.preview.mockRejectedValue(new Error('down'))
+    const list = await options(source)
+    expect(await (list[0]!.info as unknown as Info)(list[0]!)).toBeNull()
+    expect(list[list.length - 1]?.info).toBeUndefined()
   })
 })
 

@@ -39,6 +39,9 @@ export async function menuLines<A extends string, T>(
     async separator() {
       return { text: '---', id: '' } satisfies Item as unknown as NativeItem
     },
+    async predefined(kind) {
+      return { text: kind, id: '' } satisfies Item as unknown as NativeItem
+    },
     async submenu({ id, text, items }) {
       return { id, text, items: items as Item[] } satisfies Item as unknown as NativeItem
     },

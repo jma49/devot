@@ -66,6 +66,7 @@ const BOUND_IN: Partial<Record<CommandId, [file: string, call: string]>> = {
   'edit.pastePlain': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'edit.contextMenu': ['../editor/editorMenu.ts', 'editorCommandKeys'],
   'note.newFromSelection': ['../NoteEditor.tsx', 'editorCommandKeys'],
+  'note.newFromLink': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'image.view': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'sidebar.rowMenu': ['../Sidebar.tsx', 'commandMatches'],
 }

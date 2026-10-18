@@ -102,7 +102,7 @@ export function editorMenuTarget(
 ): EditorMenuTarget {
   const selected = selectedText(state)
   return {
-    link: pos === null ? null : (linkAt(state, pos) ?? null),
+    link: pos === null ? null : (linkAt(state, pos)?.href ?? null),
     selection: lookUpSelection(state.sliceDoc(state.selection.main.from, state.selection.main.to)),
     canMakeNote: canMakeNote && selected !== null,
   }

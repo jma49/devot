@@ -497,6 +497,7 @@ export function App() {
   // Whether text was selected in the editor when the palette opened: the
   // palette offers New Note from Selection then.
   const [paletteSelection, setPaletteSelection] = useState(false)
+  const [paletteLink, setPaletteLink] = useState(false)
   // The image at the editor's cursor when the palette opened: the palette
   // offers the image commands for it then.
   const [paletteImage, setPaletteImage] = useState<ImageMenuTarget | null>(null)
@@ -1661,6 +1662,54 @@ export function App() {
     await refresh(core)
   }
 
+  /**
+   * New Note from Link: the link at the caret becomes a note titled after
+   * its text (in the open note's notebook), and a note link takes the
+   * link's place, as one undo step. The new note starts with the link's
+   * address as its first line. The open note stays open. When the link
+   * cannot be replaced (it was edited meanwhile, or another note was
+   * opened), the new note is deleted again.
+   */
+  const noteFromLink = async (sourceId: string) => {
+    const editor = editorRef.current
+    const link = editor?.linkAtCursor()
+    if (!core || !editor || !link) return
+    let made: string | undefined
+    const moved = await editor.moveRange(link.from, link.to, async () => {
+      const note = await core.extract(sourceId, link.href).catch((e: unknown) => {
+        console.warn('W_NOTE_EXTRACT_FAILED', sourceId, errorCode(e))
+      })
+      if (!note) return null
+      made = note.id
+      const titled = await core.setTitle(note.id, link.text).then(
+        () => true,
+        (e: unknown) => {
+          console.warn('W_NOTE_TITLE_FAILED', note.id, errorCode(e))
+          return false
+        },
+      )
+      if (!titled) return null
+      return noteLink(clipTitle(link.text), note.id)
+    })
+    if (made === undefined) return
+    if (moved) {
+      track('note.created', { from: 'link' })
+    } else {
+      const dropped = made
+      console.warn('W_NOTE_EXTRACT_NOT_LINKED', sourceId, dropped)
+      await dropNote(core, dropped)
+    }
+    await refresh(core)
+  }
+
+  /** Close Note: the open note, a multiple selection or a template shown goes; the editor is empty. */
+  const closeNote = async () => {
+    if (core) await saveEdits(core)
+    setMulti(undefined)
+    setBuiltIn(undefined)
+    setSelected(undefined)
+  }
+
   /** Deletes a note made for a link that could not go in, for good. */
   const dropNote = (c: Core, id: string) =>
     c
@@ -2045,6 +2094,7 @@ export function App() {
     }
     setPaletteInTable(editorRef.current?.inTable() ?? false)
     setPaletteSelection(editorRef.current?.hasSelection() ?? false)
+    setPaletteLink(editorRef.current?.linkAtCursor() != null)
     setPaletteImage(editorRef.current?.imageAtCursor() ?? null)
     const text = editorRef.current?.text() ?? ''
     setPaletteText(text)
@@ -2228,6 +2278,8 @@ export function App() {
       },
     }
     handlers['notebook.new'] = { run: () => createBook(null) }
+    if (selected !== undefined || multiIds || builtIn !== undefined)
+      handlers['note.close'] = { run: closeNote }
     if (backAt !== undefined) handlers['note.back'] = { run: () => step(-1) }
     if (forwardAt !== undefined) handlers['note.forward'] = { run: () => step(1) }
     if (nextId !== undefined) handlers['note.next'] = { run: () => openListed(1) }
@@ -2289,6 +2341,11 @@ export function App() {
       if (paletteOpen && paletteSelection) {
         handlers['note.newFromSelection'] = {
           run: () => noteFromSelection(id),
+        }
+      }
+      if (paletteOpen && paletteLink) {
+        handlers['note.newFromLink'] = {
+          run: () => noteFromLink(id),
         }
       }
       const image = paletteOpen ? paletteImage : null
@@ -2900,6 +2957,7 @@ export function App() {
                 initialPlace={takeEditorPlace(selected)}
                 onPlace={editorPlaced}
                 onNewFromSelection={inTrash ? undefined : () => void noteFromSelection(selected)}
+                onNewFromLink={inTrash ? undefined : () => void noteFromLink(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
                 onChooseTemplate={() =>

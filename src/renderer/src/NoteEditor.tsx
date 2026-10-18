@@ -16,7 +16,13 @@ import { BOX_HANG } from './editor/boxes'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys, type CommandId } from './commands/registry'
 import { invoke } from './ipc'
-import { linkOpener, lineCommands, runEditCommand } from './editor/lineCommands'
+import {
+  linkOpener,
+  lineCommands,
+  linkForNewNote,
+  runEditCommand,
+  type LinkAt,
+} from './editor/lineCommands'
 import { overwrite } from './editor/overwrite'
 import {
   EDITOR_MENU,
@@ -30,12 +36,15 @@ import { useContextMenu, type MenuPoint } from './contextMenu'
 import { copyText } from './noteMenu'
 import { lookUp, startSpeaking, stopSpeaking } from './textServices'
 import type { ShowAlertMenu } from './editor/alertMenu'
-import { moveSelection, selectedText, trackExtract } from './editor/extract'
+import { moveRange, moveSelection, selectedText, trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
 import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
 import { imageSizeBar } from './editor/ImageSizeBar'
 import { tableToolbar } from './editor/TableToolbar'
+import { linkTooltip } from './editor/linkTooltip'
+import { noteLinkHover } from './editor/noteLinkHover'
+import { previewsFor } from './notePreview'
 import { formatKeyAvailability } from './editor/formatKeys'
 import { imeKeys } from './editor/imeKeys'
 import { editorScrollPane } from './editor/scrollPane'
@@ -133,6 +142,17 @@ export interface EditorHandle {
    * note link) in its place, as one undo step (see editor/extract.ts).
    */
   moveSelection: (make: (text: string) => Promise<string | null>) => Promise<boolean>
+  /** The link at the cursor (New Note from Link acts on it), or null. */
+  linkAtCursor: () => LinkAt | null
+  /**
+   * Hands the text of the range to `make` and puts the text it resolves to
+   * (a note link) in its place, as one undo step (see editor/extract.ts).
+   */
+  moveRange: (
+    from: number,
+    to: number,
+    make: (text: string) => Promise<string | null>,
+  ) => Promise<boolean>
   /** Focuses the editor and pastes the clipboard's text as it is. */
   pastePlain: () => Promise<void>
   /** Focuses the editor and runs a line or selection command (`edit.*`, see editor/lineCommands.ts). */
@@ -201,6 +221,26 @@ const newFromSelectionKeys = registryKeys(() =>
         key,
         run: (view: EditorView) =>
           selectedText(view.state) !== null && (view.state.facet(newFromSelection)?.() ?? false),
+        preventDefault: true,
+      })),
+    ),
+  ),
+)
+
+/** What New Note from Link does in this editor (the window makes the note); false when it cannot. */
+const newFromLink = Facet.define<() => boolean, (() => boolean) | undefined>({
+  combine: (all) => all[0],
+})
+
+/** The New Note from Link keys (from the registry): they act only with the caret on a link. */
+const newFromLinkKeys = registryKeys(() =>
+  Prec.high(
+    keymap.of(
+      editorCommandKeys('note.newFromLink').map((key) => ({
+        key,
+        run: (view: EditorView) =>
+          linkForNewNote(view.state, view.state.selection.main.head) !== undefined &&
+          (view.state.facet(newFromLink)?.() ?? false),
         preventDefault: true,
       })),
     ),
@@ -574,6 +614,7 @@ interface Props {
   onPlace?: (noteId: string, place: EditorPlace) => void
   /** Makes a note of the selected text (New Note from Selection's keys). */
   onNewFromSelection?: (() => void) | undefined
+  onNewFromLink?: (() => void) | undefined
   /** Pasted or dropped images could not be stored: the code of each. */
   onImagesRefused?: (codes: string[]) => void
   /** The core could not open the note (it is gone or in the Trash): the error's code. */
@@ -603,6 +644,7 @@ export function NoteEditor({
   initialPlace,
   onPlace,
   onNewFromSelection,
+  onNewFromLink,
   onImagesRefused,
   onOpenFailed,
   onChooseTemplate,
@@ -632,6 +674,7 @@ export function NoteEditor({
   const placeAsked = useRef(initialPlace)
   const placeReport = useRef(onPlace)
   const fromSelection = useRef(onNewFromSelection)
+  const fromLink = useRef(onNewFromLink)
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
   const chooseTemplateRef = useRef(onChooseTemplate)
@@ -696,6 +739,7 @@ export function NoteEditor({
     findHandle.current = onFind
     scrollHandle.current = onScrollPane
     fromSelection.current = onNewFromSelection
+    fromLink.current = onNewFromLink
     imagesRefused.current = onImagesRefused
     openFailed.current = onOpenFailed
     noteOpener.current = onOpenNote
@@ -806,6 +850,7 @@ export function NoteEditor({
               pastePlainKeys(),
               newFromSelectionKeys(),
               editorMenu((target, at, pos) => menuOpener.current(target, at, pos)),
+              newFromLinkKeys(),
               lineCommands((href) => {
                 const note = /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)
                 if (note?.[1]) noteOpener.current?.(note[1])
@@ -822,11 +867,17 @@ export function NoteEditor({
                 run?.()
                 return run !== undefined
               }),
+              newFromLink.of(() => {
+                const run = fromLink.current
+                run?.()
+                return run !== undefined
+              }),
               trackExtract,
               linkCompletion({
                 find: (query) => linkSources.current.find(query),
                 create: (title) => linkSources.current.create(title),
                 discard: (id) => linkSources.current.discard(id),
+                preview: (id) => previewsFor(core)(id),
                 linked: (id) => linkSources.current.linked(id),
               }),
               editorCompletions({
@@ -836,6 +887,8 @@ export function NoteEditor({
               formatToolbar(showAlertMenu),
               imageSizeBar,
               tableToolbar,
+              linkTooltip,
+              noteLinkHover(previewsFor(core)),
               formatKeyAvailability(setInertFormats),
               tableKeymap(),
               tableTyping(),
@@ -936,6 +989,9 @@ export function NoteEditor({
             },
             hasSelection: () => selectedText(ready.state) !== null,
             moveSelection: (make) => moveSelection(ready, make, () => !cancelled),
+            linkAtCursor: () =>
+              linkForNewNote(ready.state, ready.state.selection.main.head) ?? null,
+            moveRange: (from, to, make) => moveRange(ready, from, to, make, () => !cancelled),
             pastePlain: () => {
               ready.focus()
               return pastePlain(ready)

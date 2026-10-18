@@ -13,7 +13,7 @@ import {
   type CompletionSource,
 } from '@codemirror/autocomplete'
 import { EditorState, StateEffect, StateField } from '@codemirror/state'
-import type { EditorView } from '@codemirror/view'
+import { EditorView } from '@codemirror/view'
 import { noteLink } from '../../core/links'
 import {
   blockAround,
@@ -23,6 +23,8 @@ import {
   COMMAND_PARSE_MS,
 } from './editor/formatContext'
 import { format, t } from './i18n'
+import { noteCardDom, noteCardTheme } from './noteCard'
+import type { NotePreview } from './notePreview'
 
 export interface LinkTarget {
   id: string
@@ -36,6 +38,8 @@ export interface LinkSources {
   create: (title: string) => Promise<string>
   /** Deletes a note `create` made that could not be linked after all. */
   discard: (id: string) => Promise<void>
+  /** The card the popup shows beside a highlighted note: its title and the start of its body. */
+  preview?: (id: string) => Promise<NotePreview | null>
   /** A note `create` made has been linked. */
   linked: (id: string) => void
 }
@@ -136,6 +140,12 @@ function createAndLink(sources: LinkSources, view: EditorView, from: number, tit
   })
 }
 
+/** The card beside a highlighted note; none when it cannot load. */
+async function noteInfo(sources: LinkSources, id: string): Promise<Node | null> {
+  const preview = await sources.preview?.(id).catch(() => undefined)
+  return preview === undefined ? null : noteCardDom(preview)
+}
+
 export function linkCompletionSource(sources: LinkSources): CompletionSource {
   return async (completion: CompletionContext) => {
     const match = completion.matchBefore(LINK_TRIGGER)
@@ -153,6 +163,7 @@ export function linkCompletionSource(sources: LinkSources): CompletionSource {
       label: note.title || t('note.untitled'),
       type: 'text',
       apply: (view) => insertLink(view, match.from, note.title, note.id),
+      info: () => noteInfo(sources, note.id),
     }))
     const title = query.trim()
     options.push({
@@ -169,10 +180,26 @@ export function linkCompletionSource(sources: LinkSources): CompletionSource {
   }
 }
 
+/** The card's panel beside the popup: the popup's surface. */
+const infoTheme = EditorView.theme({
+  '.cm-tooltip.cm-completionInfo': {
+    border: '0',
+    borderRadius: 'var(--radius-popover)',
+    backgroundColor: 'var(--color-surface-popover)',
+    boxShadow: '0 0 0 1px var(--color-line-hairline), var(--popover-shadow)',
+    padding: '0',
+  },
+})
+
 /** The `[[` completion for the editor, alongside any other sources. */
 export function linkCompletion(sources: LinkSources) {
   // One source for the editor's life: CodeMirror keeps results per source
   // function, so a new function on every lookup would discard each result.
   const source = linkCompletionSource(sources)
-  return [EditorState.languageData.of(() => [{ autocomplete: source }]), pendingPicks]
+  return [
+    EditorState.languageData.of(() => [{ autocomplete: source }]),
+    pendingPicks,
+    noteCardTheme,
+    infoTheme,
+  ]
 }

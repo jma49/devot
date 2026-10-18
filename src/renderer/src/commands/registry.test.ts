@@ -351,6 +351,8 @@ describe('COMMANDS', () => {
     })
     expect(formatOf('format.horizontalRule')).toBe('horizontalRule')
     expect(command('note.newFromSelection')).toMatchObject({ scope: 'editor', keys: [] })
+    expect(command('note.newFromLink')).toMatchObject({ scope: 'editor', keys: [] })
+    expect(command('note.close')).toMatchObject({ scope: 'window', group: 'note', keys: [] })
     expect(command('edit.pastePlain')).toMatchObject({
       scope: 'editor',
       keys: ['Mod+Alt+Shift+V'],

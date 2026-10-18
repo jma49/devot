@@ -17,6 +17,8 @@ import {
 import { imageMenuHasItems, type ImageMenuTarget } from '../imageMenu'
 import type { ViewedImage } from '../ImageViewer'
 import type { Core } from '../core-client'
+import { previewsFor } from '../notePreview'
+import { NoteHover } from './NoteHover'
 import { useText, type TextStore } from '../textStore'
 import type { FindTarget } from '../find/target'
 import { t } from '../i18n'
@@ -411,6 +413,7 @@ export function Preview({
         <div ref={host} className="preview-body" />
       </article>
       <CodeCopyButtons blocks={codes} />
+      <NoteHover pane={pane} load={previewsFor(core)} />
     </>
   )
 }

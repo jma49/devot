@@ -1,7 +1,7 @@
 import { history, undo } from '@codemirror/commands'
 import { EditorSelection, EditorState, Transaction, type TransactionSpec } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
-import { moveSelection, selectedText, trackExtract, type ExtractView } from './extract'
+import { moveRange, moveSelection, selectedText, trackExtract, type ExtractView } from './extract'
 import { noteMarkdown } from './markdown'
 
 /** A stand-in for the editor view: its state, and dispatch. */
@@ -145,5 +145,41 @@ describe('moveSelection', () => {
     expect(calls).toBe(0)
     first.settle('[Move me](devot://note/x)')
     expect(await moving).toBe(true)
+  })
+})
+
+describe('moveRange', () => {
+  it('replaces the range, wherever the selection is, as one undo step', async () => {
+    const doc = 'See [Foo](https://x.test) now'
+    const view = viewOf(doc, 0, 0)
+    const seen: string[] = []
+    const moved = await moveRange(view, 4, 25, async (text) => {
+      seen.push(text)
+      return '[Foo](devot://note/x)'
+    })
+    expect(moved).toBe(true)
+    expect(seen).toEqual(['[Foo](https://x.test)'])
+    expect(view.state.doc.toString()).toBe('See [Foo](devot://note/x) now')
+    expect(view.state.selection.main.head).toBe(4 + '[Foo](devot://note/x)'.length)
+    undo({ state: view.state, dispatch: (tr) => view.dispatch(tr) })
+    expect(view.state.doc.toString()).toBe(doc)
+  })
+
+  it('follows edits before it and leaves the note alone when the range changed', async () => {
+    const view = viewOf('See [Foo](a) now', 0, 0)
+    const made = later<string | null>()
+    const moving = moveRange(view, 4, 12, () => made.promise)
+    view.dispatch({ changes: { from: 0, insert: '>> ' } })
+    made.settle('L')
+    expect(await moving).toBe(true)
+    expect(view.state.doc.toString()).toBe('>> See L now')
+
+    const edited = viewOf('See [Foo](a) now', 0, 0)
+    const again = later<string | null>()
+    const second = moveRange(edited, 4, 12, () => again.promise)
+    edited.dispatch({ changes: { from: 10, insert: 'b' } })
+    again.settle('L')
+    expect(await second).toBe(false)
+    expect(edited.state.doc.toString()).toBe('See [Foo](ba) now')
   })
 })
