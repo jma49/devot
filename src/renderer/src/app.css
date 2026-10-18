@@ -3188,6 +3188,21 @@ button {
   overflow-wrap: anywhere;
 }
 
+/* Settings > Integrations: a client config, as it is copied. */
+.integration-config {
+  margin: 0 0 var(--space-6);
+  padding: var(--space-6);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-editor);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-footnote);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
 /* A block of a pane: its title (17 px, bold, with a symbol) over its
    settings; blocks are set apart by a hairline. */
 .settings-block + .settings-block {

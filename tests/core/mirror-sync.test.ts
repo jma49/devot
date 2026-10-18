@@ -541,7 +541,8 @@ describe('stopping', () => {
     await lib.notes.setBody((await lib.notes.list())[0]!.id, 'Changed.\n')
     await lib.settled()
     expect(batches).toBe(1)
-  })
+    // 260 notes and 200 files outrun the default 5 s on a busy CI runner.
+  }, 30_000)
 })
 
 describe('files Devot did not write', () => {

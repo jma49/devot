@@ -71,6 +71,8 @@ import { IMPORT_PICKS, type ImportAction } from './bookMenu'
 import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoreNotice } from './CoreNotice'
+import { DeepLinkNotice, type DeepLinkProblem } from './DeepLinkNotice'
+import { noteTarget, useDeepLinks } from './deepLink'
 import { StartFailure } from './StartFailure'
 import {
   IMAGE_COMMANDS,
@@ -169,6 +171,8 @@ import { useKept, useStable } from './stable'
 import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
 import { sizes } from './theme/tokens'
+import { restartNow, useUpdates } from './UpdateNotice'
+import { checkForUpdates } from './updates'
 import { track } from './usage'
 
 /** File > Export > All Notes (`markdown` or `html`), from Rust's menu. */
@@ -449,6 +453,10 @@ export function App() {
   const [changeNotice, setChangeNotice] = useState<string>()
   // The codes of pasted or dropped images that could not be stored, shown in a notice.
   const [imageNotice, setImageNotice] = useState<string[]>()
+  // A link from another app that could not be followed.
+  const [linkNotice, setLinkNotice] = useState<DeepLinkProblem>()
+  // Updates: Rust checks and downloads; the notice offers the restart.
+  const updates = useUpdates()
   const [exportNotice, setExportNotice] = useState<{
     failure: ExportFailure
     code: string
@@ -2379,6 +2387,7 @@ export function App() {
     'view.templates': { run: () => showLibrary({ kind: 'templates' }) },
     'view.trash': { run: () => showLibrary({ kind: 'trash' }) },
     'app.backups': { run: showBackups },
+    'app.checkForUpdates': { run: checkForUpdates },
     'app.exportAllMarkdown': { run: () => exportAll('exportMarkdown') },
     'app.exportAllHtml': { run: () => exportAll('exportHtml') },
     'app.rebuildSearchIndex': { run: rebuildIndex },
@@ -2386,6 +2395,7 @@ export function App() {
   }
   if (mirror.status.folder !== null) handlers['mirror.turnOff'] = { run: mirror.turnOff }
   if (workspaceNode) handlers['view.leaveWorkspace'] = { run: leaveWorkspace }
+  if (updates.status.state === 'ready') handlers['app.restartToUpdate'] = { run: restartNow }
   // Sort Notes… opens the sort pop-up under the list's button.
   if (!focus && !inTrash) {
     handlers['view.sort'] = {
@@ -2678,6 +2688,40 @@ export function App() {
   const openTrashed = useStable((id: string) => {
     setMulti(undefined)
     setSelected(id)
+  })
+  // Links other apps open (devot://note/<id>, devot://command/<id>), from
+  // the moment the window has restored its view; sheets hold them back.
+  useDeepLinks(restored && core !== undefined, (link) => {
+    setLinkNotice(undefined)
+    if (link.kind === 'command') {
+      const handler = handlers[link.id]
+      if (handler) void handler.run()
+      else setLinkNotice('commandUnavailable')
+      return
+    }
+    const id = link.id
+    const target = noteTarget(id, { listed: listedSet, notes, templates, trash })
+    if (target.kind === 'missing') {
+      // Not in the lists (yet: another writer may have made it a moment
+      // ago, before the window took the change in): ask the core.
+      core?.title(id).then(
+        () => {
+          showLibraryRef.current?.({ kind: 'all' }, { clearFilter: true })
+          void select(id)
+        },
+        () => setLinkNotice('noteNotFound'),
+      )
+      return
+    }
+    // A note in the Trash opens there, as the Trash's own list opens it.
+    if (target.kind === 'trash') {
+      if (!inTrash) showLibrary({ kind: 'trash' })
+      openTrashed(id)
+      return
+    }
+    // A note outside the list shown: the library that lists it first.
+    if (target.kind === 'library') showLibrary({ kind: target.library }, { clearFilter: true })
+    void select(id)
   })
   const trashKey = useStable((action: TrashAction, id: string) => void trashAction(action, id))
   const askEmptyTrash = useStable(() => {
@@ -3209,7 +3253,9 @@ export function App() {
       batchFailed ||
       coreFailure ||
       imageNotice ||
+      linkNotice ||
       saveNoticeShown ||
+      updates.notice ||
       mirror.notices.length > 0 ? (
         // One corner for every notice, stacked, so none covers another.
         <div className="notices">
@@ -3246,6 +3292,7 @@ export function App() {
             />
           ) : null}
           {mirror.notices}
+          {updates.notice}
           {changeNotice ? (
             <ChangeNotice code={changeNotice} onDismiss={() => setChangeNotice(undefined)} />
           ) : null}
@@ -3257,6 +3304,9 @@ export function App() {
           ) : null}
           {imageNotice ? (
             <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />
+          ) : null}
+          {linkNotice ? (
+            <DeepLinkNotice problem={linkNotice} onDismiss={() => setLinkNotice(undefined)} />
           ) : null}
         </div>
       ) : null}

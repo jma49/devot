@@ -46,8 +46,11 @@ export interface TagService {
   remove(id: string): Promise<void>
 }
 
-/** A tag name trimmed as Rust trims it (src-tauri/src/commands/tags.rs checks the same). */
-function cleanName(name: string): string {
+/**
+ * A tag name trimmed as Rust trims it (src-tauri/src/commands/tags.rs checks
+ * the same); E_TAG_NAME_INVALID for a name that cannot be one.
+ */
+export function cleanTagName(name: string): string {
   const trimmed = trimWhitespace(name)
   if (!trimmed || /[\r\n]/.test(trimmed) || charCount(trimmed) > MAX_TAG_NAME_CHARS) {
     throw new Error('E_TAG_NAME_INVALID')
@@ -110,7 +113,7 @@ export function createTagService(options: TagServiceOptions): TagService {
     },
 
     async ensure(name) {
-      const clean = cleanName(name)
+      const clean = cleanTagName(name)
       let tag = (await listTags()).find((t) => sameName(t.name, clean))
       if (!tag) {
         const at = now()
@@ -136,7 +139,7 @@ export function createTagService(options: TagServiceOptions): TagService {
     },
 
     async rename(id, name) {
-      const clean = cleanName(name)
+      const clean = cleanTagName(name)
       const all = await listTags()
       const tag = all.find((t) => t.id === id)
       if (!tag) throw new Error('E_TAG_NOT_FOUND')

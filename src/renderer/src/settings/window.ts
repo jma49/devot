@@ -1,7 +1,8 @@
 // What the Settings window asks of Rust beyond the settings themselves
-// (src-tauri/src/settings.rs): opening the app's data folder in Finder and
-// showing the Backups dialog.
+// (src-tauri/src/settings.rs): opening the app's data folder in Finder,
+// showing the Backups dialog and where devot-mcp is.
 import { invoke } from '../ipc'
+import { asMcpSetup, type McpSetup } from './mcpConfigs'
 
 /** Shows the folder Devot keeps its data in, in Finder. */
 export function openDataFolder(): Promise<void> {
@@ -11,4 +12,11 @@ export function openDataFolder(): Promise<void> {
 /** Brings the main window to the front with its Backups dialog. */
 export function showBackups(): Promise<void> {
   return invoke('settings_show_backups')
+}
+
+/** Where devot-mcp and the database are, for Settings > Integrations. */
+export async function mcpSetup(): Promise<McpSetup> {
+  const setup = asMcpSetup(await invoke<unknown>('settings_mcp_setup'))
+  if (!setup) throw new Error('E_MCP_SETUP_INVALID')
+  return setup
 }

@@ -3,13 +3,14 @@
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import Database from 'better-sqlite3'
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { once } from 'node:events'
 import { join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { build } from 'vite'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { openSqliteAdapter, SCHEMA_VERSION } from '../../src/mcp/sqlite'
+import { SERVER_VERSION } from '../../src/mcp/version'
 import { HIDDEN, makeWorld } from './support'
 import { tempDir } from '../support/temp-dirs'
 
@@ -101,13 +102,46 @@ const setUserVersion = (path: string, version: number) => {
   db.close()
 }
 
+describe('the npm package', () => {
+  it('is the bundle with a manifest, README and licence, ready to publish', () => {
+    const manifest = JSON.parse(readFileSync(join(OUT, 'package.json'), 'utf8')) as Record<
+      string,
+      unknown
+    >
+    const root = JSON.parse(
+      readFileSync(resolve(import.meta.dirname, '../../package.json'), 'utf8'),
+    ) as { dependencies: Record<string, string>; engines: unknown }
+    expect(manifest).toMatchObject({
+      name: 'devot-mcp',
+      version: SERVER_VERSION,
+      bin: { 'devot-mcp': 'devot-mcp.mjs' },
+      files: ['devot-mcp.mjs', 'README.md', 'LICENSE'],
+      engines: root.engines,
+      // The bundle leaves only the native driver out, at the version the app tests.
+      dependencies: { 'better-sqlite3': root.dependencies['better-sqlite3'] },
+    })
+    expect(manifest['private']).toBeUndefined()
+    for (const file of ['README.md', 'LICENSE']) expect(existsSync(join(OUT, file))).toBe(true)
+    expect(readFileSync(BUNDLE, 'utf8').startsWith('#!/usr/bin/env node')).toBe(true)
+  })
+})
+
 describe('devot-mcp over stdio', () => {
   it('searches, reads and creates notes, seeing only notebooks with AI access', async () => {
     const world = await makeWorld()
     const mcp = await start(['--db', world.path])
     const { result } = await mcp.request('tools/list', {})
     const names = ((result?.['tools'] ?? []) as { name: string }[]).map((t) => t.name).sort()
-    expect(names).toEqual(['create_note', 'list_notebooks', 'read_note', 'search_notes'])
+    expect(names).toEqual([
+      'create_note',
+      'create_notebook',
+      'list_notebooks',
+      'list_tags',
+      'read_note',
+      'search_notes',
+      'trash_note',
+      'update_note',
+    ])
 
     const found = await mcp.tool('search_notes', { query: 'kiwi' })
     expect(((found.value?.['results'] ?? []) as { id: string }[]).map((r) => r.id)).toEqual([

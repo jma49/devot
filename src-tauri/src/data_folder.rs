@@ -1,7 +1,7 @@
 //! Which folders the app keeps its data in. A release build uses the ones
 //! named after its bundle identifier: `<app data>` is
 //! `~/Library/Application Support/io.github.jma49.devot`. A debug build
-//! (`pnpm dev`, `pnpm tauri build --debug`, every test build) adds `.dev`
+//! (`pnpm dev`, `pnpm build:debug`, every test build) adds `.dev`
 //! to that name, so development never opens, migrates or deletes the notes
 //! of an installed Devot. Everything under `<app data>` follows: the
 //! database, backups, logs, crash reports, usage events and the settings

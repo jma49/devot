@@ -198,6 +198,8 @@ pub struct EditorSettings {
     pub default_notebook: Option<String>,
     /// The note list shows how long ago a note changed, or its date.
     pub list_dates: ListDates,
+    /// An update found downloads in the background (see `updates`).
+    pub auto_download_updates: bool,
 }
 
 impl Default for EditorSettings {
@@ -236,6 +238,7 @@ impl Default for EditorSettings {
             preview_font_size: 15,
             default_notebook: None,
             list_dates: ListDates::Relative,
+            auto_download_updates: true,
         }
     }
 }
@@ -325,6 +328,7 @@ impl EditorSettings {
             }
             "defaultNotebook" => self.default_notebook = notebook_id(value)?,
             "listDates" => self.list_dates = choice(value)?,
+            "autoDownloadUpdates" => self.auto_download_updates = flag(value)?,
             _ => return Err(INVALID),
         }
         Ok(())
@@ -598,6 +602,8 @@ mod tests {
         assert_eq!(d.list_dates, ListDates::Relative);
         // Split mode scrolls the editor and the preview together.
         assert!(d.sync_scroll);
+        // Updates download in the background unless turned off.
+        assert!(d.auto_download_updates);
         // Images show under their lines unless turned off.
         assert!(d.inline_images);
         // The system's appearance, with Devot's own accent.
@@ -642,6 +648,7 @@ mod tests {
                 "previewFontSize": 15,
                 "defaultNotebook": null,
                 "listDates": "relative",
+                "autoDownloadUpdates": true,
             })
         );
     }
@@ -677,8 +684,10 @@ mod tests {
                 "previewFontSize": 32,
                 "defaultNotebook": "0b0c-1d_2",
                 "listDates": "absolute",
+                "autoDownloadUpdates": false,
             })))
             .unwrap();
+        assert!(!next.auto_download_updates);
         assert_eq!(next.appearance, Appearance::Dark);
         assert_eq!(next.theme, Theme::Ivory);
         assert!(next.system_accent);
@@ -857,6 +866,9 @@ mod tests {
             json!({ "theme": null }),
             json!({ "theme": 1 }),
             json!({ "systemAccent": "on" }),
+            json!({ "autoDownloadUpdates": "on" }),
+            json!({ "autoDownloadUpdates": 1 }),
+            json!({ "autoDownloadUpdates": null }),
             // Line wrapping is a mode; the old on/off values are refused.
             json!({ "lineWrapping": true }),
             json!({ "lineWrapping": false }),

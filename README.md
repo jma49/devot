@@ -12,7 +12,7 @@ A local-first Markdown note-taking app for macOS 26 and later, built with Tauri.
 - **Look:** light and dark themes, and an option for an opaque sidebar. A local activity heatmap shows when you write; usage events stay on your device.
 - **Bring notes in and out:** import a Markdown folder; export to Markdown or HTML; print; keep a Markdown mirror folder up to date (below).
 - **Stay safe:** automatic daily local backups with restore (Devot > Backups…), and local logs that carry codes and IDs, never note content.
-- **Work with AI, on your terms:** devot-mcp gives Claude and other MCP clients read access (search, read) and note creation, only in notebooks you allow (below).
+- **Work with AI, on your terms:** devot-mcp lets Claude and other MCP clients search, read, create, edit and trash notes, only in notebooks you allow (below).
 - **Crash reports (optional):** off unless a build is made with a Sentry DSN (below).
 
 ## Development
@@ -26,7 +26,7 @@ pnpm dev                              # run the app with hot reload
 pnpm check                            # everything CI runs, plus the dependency audit
 ```
 
-Debug builds (`pnpm dev`, `pnpm tauri build --debug`) keep their data in `~/Library/Application Support/io.github.jma49.devot.dev`, apart from the release app's `io.github.jma49.devot`, so development never touches the notes of an installed Devot. Scripts that start the app never use the release folder (`docs/architecture.md`, App data folder).
+Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Application Support/io.github.jma49.devot.dev`, apart from the release app's `io.github.jma49.devot`, so development never touches the notes of an installed Devot. Scripts that start the app never use the release folder (`docs/architecture.md`, App data folder).
 
 | Script                          | What it does                                                                       |
 | ------------------------------- | ---------------------------------------------------------------------------------- |
@@ -45,7 +45,7 @@ Debug builds (`pnpm dev`, `pnpm tauri build --debug`) keep their data in `~/Libr
 | `pnpm format`                   | oxfmt                                                                              |
 | `pnpm typecheck`                | TypeScript for tooling, tests, the core and the UI                                 |
 
-`pnpm smoke:quit` runs the debug bundle (`pnpm tauri build --debug --bundles app`) on the debug builds' data folder, never on an installed Devot's: it starts the app with HOME in a temporary folder in which only that folder is real, so a bundle built before debug builds had a folder of their own opens a new database there, and the script stops. Each check starts from an empty database: a dev database that is there first is copied aside with SQLite's online backup (into `smoke-backups/` in that folder) and put back at the end, and the script refuses to start while another process has it open.
+`pnpm smoke:quit` runs the debug bundle (`pnpm build:debug --bundles app`) on the debug builds' data folder, never on an installed Devot's: it starts the app with HOME in a temporary folder in which only that folder is real, so a bundle built before debug builds had a folder of their own opens a new database there, and the script stops. Each check starts from an empty database: a dev database that is there first is copied aside with SQLite's online backup (into `smoke-backups/` in that folder) and put back at the end, and the script refuses to start while another process has it open.
 
 ## Layout
 
@@ -83,11 +83,13 @@ The folder is written by Devot and never read back: edit notes in Devot. A mirro
 
 ## Claude and other MCP clients (devot-mcp)
 
-devot-mcp lets Claude Code, Claude Desktop and other MCP clients search, read and create Devot notes. It is a small Node program that clients start over stdio; it reads Devot's database directly, so it works whether Devot is open or not. Notes it creates appear in an open Devot within a second.
+devot-mcp lets Claude Code, Codex, Claude Desktop and other MCP clients search, read, create and edit Devot notes. It is a small Node program that clients start over stdio; it reads and writes Devot's database directly, so it works whether Devot is open or not. Its changes appear in an open Devot within a second, merged into a note you are editing without moving the caret or touching your undo history.
 
 **Only notebooks with Allow AI Access on are visible.** Right-click a notebook in the sidebar and choose Allow AI Access; a sparkle marks the notebooks that have it. The switch is per notebook: a sub-notebook needs its own. Notes in the Trash and notes in no notebook are never visible.
 
-Tools: `list_notebooks`, `search_notes` (full text, with snippets), `read_note` (Markdown and metadata) and `create_note` (in an allowed notebook, by ID or exact name).
+Tools: `list_notebooks`, `search_notes` (full text, with snippets), `read_note` (Markdown and metadata), `list_tags`, `create_note` (in an allowed notebook, by ID or exact name), `update_note` (title, the whole body or exact passages, notebook, tags, status), `trash_note` and `create_notebook` (with Allow AI Access on).
+
+Edits apply directly. Before each one, Devot keeps the note's text as it was in its Revision History (the note's menu), so you can restore it; `trash_note` only moves a note to the Trash.
 
 Build it once from this checkout (and again after pulling changes):
 
@@ -98,6 +100,8 @@ pnpm mcp:build        # writes dist-mcp/devot-mcp.mjs
 
 Run Devot once before using it, so the database exists and is up to date; devot-mcp never creates or upgrades the database itself. It reads the release app's `~/Library/Application Support/io.github.jma49.devot/devot.sqlite`; pass `--db <path>` to use another file, such as a debug build's in `io.github.jma49.devot.dev`.
 
+**Settings > Integrations** in Devot shows the configs below, ready to copy, with this checkout's path filled in when the app was built from it.
+
 **Claude Code:**
 
 ```sh
@@ -105,6 +109,14 @@ claude mcp add --scope user devot -- node "$PWD/dist-mcp/devot-mcp.mjs"
 ```
 
 Run it from the repository root. `claude mcp list` shows whether it connected.
+
+**Codex:** add this to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.devot]
+command = "node"
+args = ["/absolute/path/to/devot/dist-mcp/devot-mcp.mjs"]
+```
 
 **Claude Desktop:** add this to `~/Library/Application Support/Claude/claude_desktop_config.json` (Settings > Developer > Edit Config), with absolute paths, then restart Claude Desktop:
 

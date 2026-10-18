@@ -161,6 +161,8 @@ export async function mockTauri(page: Page): Promise<void> {
             if (typeof mock === 'object' && mock !== null && 'error' in mock) throw mock.error
             return typeof mock === 'function' ? (mock as (a: unknown) => unknown)(args) : mock
           }
+          // No link from another app waits at launch (deep-links.spec.ts).
+          if (cmd === 'deep_link_take') return []
           if (
             cmd === 'clipboard_write_text' ||
             cmd === 'usage_record' ||

@@ -76,6 +76,11 @@
     "allow-mirror-apply",
     "allow-mirror-bodies",
     "allow-mirror-files",
-    "allow-mirror-hashes"
+    "allow-mirror-hashes",
+    "allow-update-status",
+    "allow-update-check",
+    "allow-update-download",
+    "allow-update-restart",
+    "allow-deep-link-take"
   ]
 }

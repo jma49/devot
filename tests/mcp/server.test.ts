@@ -61,18 +61,35 @@ async function call(client: Client, name: string, args: Record<string, unknown> 
 }
 
 describe('devot-mcp tools', () => {
-  it('offers list, search, read and create', async () => {
+  it('offers reading, creating, editing and trashing tools', async () => {
     const world = await makeWorld()
     const { client } = await connect(world.path)
     const { tools } = await client.listTools()
     expect(tools.map((t) => t.name).sort()).toEqual([
       'create_note',
+      'create_notebook',
       'list_notebooks',
+      'list_tags',
       'read_note',
       'search_notes',
+      'trash_note',
+      'update_note',
     ])
     const readOnly = tools.filter((t) => t.annotations?.readOnlyHint).map((t) => t.name)
-    expect(readOnly.sort()).toEqual(['list_notebooks', 'read_note', 'search_notes'])
+    expect(readOnly.sort()).toEqual(['list_notebooks', 'list_tags', 'read_note', 'search_notes'])
+    const destructive = tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name)
+    expect(destructive).toEqual(['trash_note'])
+    const update = tools.find((t) => t.name === 'update_note')!
+    expect(Object.keys(update.inputSchema.properties ?? {}).sort()).toEqual([
+      'id',
+      'markdown',
+      'notebook',
+      'patches',
+      'status',
+      'tags',
+      'title',
+    ])
+    expect(update.inputSchema.required).toEqual(['id'])
   })
 
   it('lists only notebooks with AI access', async () => {
@@ -212,6 +229,104 @@ describe('devot-mcp tools', () => {
       'W_MCP_TOOL_FAILED search_notes E_SEARCH_QUERY_EMPTY',
     ])
     expect(logs.join('\n')).not.toContain('secret')
+  })
+})
+
+describe('editing tools', () => {
+  it('updates a visible note by patch, with tags and status, and logs only its ID', async () => {
+    const world = await makeWorld()
+    const { client, storage, logs } = await connect(world.path)
+    const updated = await call(client, 'update_note', {
+      id: world.ids.shared,
+      patches: [{ find: 'shared kiwi', replace: 'edited kiwi' }],
+      tags: ['fruit'],
+      status: 'completed',
+    })
+    expect(updated.value).toMatchObject({
+      id: world.ids.shared,
+      markdown: 'A edited kiwi note.',
+      tags: ['fruit'],
+      status: 'completed',
+    })
+    expect(updated.value?.['updatedAt']).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect((await storage.getNote(world.ids.shared))?.bodyMd).toBe('A edited kiwi note.')
+    expect(await call(client, 'list_tags')).toEqual({
+      value: { tags: [{ name: 'fruit', notes: 1 }] },
+    })
+    expect(logs).toEqual([`I_MCP_NOTE_UPDATED ${world.ids.shared}`])
+  })
+
+  it('refuses a body given both ways, an empty update and unmatched patches, by code', async () => {
+    const world = await makeWorld()
+    const { client } = await connect(world.path)
+    const id = world.ids.shared
+    const both = await call(client, 'update_note', {
+      id,
+      markdown: 'x',
+      patches: [{ find: 'kiwi', replace: 'y' }],
+    })
+    expect(both.error).toMatch(/^E_AI_BODY_CONFLICT: /)
+    expect((await call(client, 'update_note', { id })).error).toMatch(/^E_AI_UPDATE_EMPTY: /)
+    const missing = await call(client, 'update_note', {
+      id,
+      patches: [{ find: 'banana', replace: 'y' }],
+    })
+    expect(missing.error).toMatch(/^E_AI_PATCH_NOT_FOUND: /)
+    const twice = await call(client, 'update_note', { id, patches: [{ find: 'e', replace: 'y' }] })
+    expect(twice.error).toMatch(/^E_AI_PATCH_AMBIGUOUS: /)
+    // The schema refuses a status the app does not know.
+    const status = await call(client, 'update_note', { id, status: 'later' })
+    expect(status.error).toBeDefined()
+  })
+
+  it('never edits or trashes a hidden note, and errors give nothing away', async () => {
+    const world = await makeWorld()
+    const { client, storage } = await connect(world.path)
+    for (const key of HIDDEN) {
+      const id = world.ids[key]
+      expect(await call(client, 'update_note', { id, title: 'Taken' })).toEqual({
+        error: 'E_NOTE_NOT_FOUND: No note with this ID is available to AI.',
+      })
+      expect(await call(client, 'trash_note', { id })).toEqual({
+        error: 'E_NOTE_NOT_FOUND: No note with this ID is available to AI.',
+      })
+    }
+    expect((await storage.getNote(world.ids.priv))?.title).toBe('Private kiwi')
+    const moved = await call(client, 'update_note', {
+      id: world.ids.shared,
+      notebook: 'Private',
+    })
+    expect(moved.error).toMatch(/^E_BOOK_NOT_FOUND: /)
+  })
+
+  it('trashes a note without deleting it', async () => {
+    const world = await makeWorld()
+    const { client, storage, logs } = await connect(world.path)
+    const trashed = await call(client, 'trash_note', { id: world.ids.shared })
+    expect(trashed.value).toEqual({ id: world.ids.shared, title: 'Shared kiwi', trashed: true })
+    expect(await storage.getNote(world.ids.shared)).toBeNull()
+    expect((await storage.getNote(world.ids.shared, { trashed: true }))?.bodyMd).toBe(
+      'A shared kiwi note.',
+    )
+    expect(logs).toEqual([`I_MCP_NOTE_TRASHED ${world.ids.shared}`])
+  })
+
+  it('creates a notebook AI can use at once', async () => {
+    const world = await makeWorld()
+    const { client, logs } = await connect(world.path)
+    const made = await call(client, 'create_notebook', { name: 'Research', parent: 'Shared' })
+    const id = made.value?.['id'] as string
+    expect(made.value).toEqual({ id, name: 'Research' })
+    const listed = await call(client, 'list_notebooks')
+    expect(listed.value?.['notebooks']).toEqual([
+      { id: world.books.shared, name: 'Shared', notes: 1 },
+      { id, name: 'Research', notes: 0 },
+    ])
+    const hidden = await call(client, 'create_notebook', { name: 'X', parent: 'Private' })
+    expect(hidden.error).toMatch(/^E_BOOK_NOT_FOUND: /)
+    const taken = await call(client, 'create_notebook', { name: 'Shared' })
+    expect(taken.error).toMatch(/^E_BOOK_NAME_TAKEN: /)
+    expect(logs[0]).toBe(`I_MCP_NOTEBOOK_CREATED ${id}`)
   })
 })
 

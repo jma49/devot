@@ -102,6 +102,12 @@ fn main() {
             "mirror_hashes",
             "settings_open_data_folder",
             "settings_show_backups",
+            "update_status",
+            "update_check",
+            "update_download",
+            "update_restart",
+            "deep_link_take",
+            "settings_mcp_setup",
         ]),
     ))
     .expect("E_TAURI_BUILD");

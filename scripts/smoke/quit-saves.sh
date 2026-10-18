@@ -3,7 +3,7 @@
 # the window (Cmd+W) immediately, before autosave fires, then check that the
 # text reached the database.
 #
-# Needs macOS, a debug build (`pnpm tauri build --debug --bundles app`) and
+# Needs macOS, a debug build (`pnpm build:debug --bundles app`) and
 # Accessibility permission for the terminal (System Settings > Privacy &
 # Security > Accessibility). It runs only that debug build, which keeps its
 # data in the debug builds' own folder (scripts/app-data.sh), never in an
@@ -24,7 +24,7 @@ APP="$ROOT/src-tauri/target/debug/bundle/macos/Devot.app"
 # shellcheck source=SCRIPTDIR/../app-data.sh
 source "$ROOT/scripts/app-data.sh"
 
-[ -d "$APP" ] || { echo "Build first: pnpm tauri build --debug --bundles app" >&2; exit 1; }
+[ -d "$APP" ] || { echo "Build first: pnpm build:debug --bundles app" >&2; exit 1; }
 BACKUP="$(dev_data_begin)"
 [ -z "$BACKUP" ] || echo "I_SMOKE_DEV_DATA_COPY: the dev notes are copied to $BACKUP"
 

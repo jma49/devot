@@ -82,7 +82,12 @@ fn decide(exit_code: Option<i32>, ready: bool, already_asked: bool) -> Decision 
 
 fn exit_now(app: &AppHandle) {
     app.state::<ExitGate>().ready.store(true, Ordering::SeqCst);
-    app.exit(0);
+    // Restart to Update restarts into the update it installed (see `updates`).
+    if crate::updates::on_exit(app) {
+        app.request_restart();
+    } else {
+        app.exit(0);
+    }
 }
 
 /// Starts the handshake once; later calls while it runs do nothing.
@@ -149,6 +154,7 @@ pub fn app_exit_ready(app: AppHandle) {
 pub fn app_exit_cancel(app: AppHandle) {
     log::warn!("W_EXIT_CALLED_OFF");
     app.state::<ExitGate>().call_off();
+    crate::updates::restart_called_off(&app);
 }
 
 #[cfg(test)]

@@ -41,8 +41,11 @@ export interface BookServiceOptions {
 export interface BookService {
   /** Notebooks that are not deleted (never Templates, see TEMPLATES_BOOK_ID). */
   list(): Promise<BookRecord[]>
-  /** Creates a notebook after the others in `parentId` (null: top level). */
-  create(name: string, parentId: string | null): Promise<string>
+  /**
+   * Creates a notebook after the others in `parentId` (null: top level),
+   * with Allow AI Access off unless `aiAccess` is on.
+   */
+  create(name: string, parentId: string | null, options?: { aiAccess?: boolean }): Promise<string>
   rename(id: string, name: string): Promise<void>
   /** Moves a notebook under `parentId` (null: top level), after the others there. */
   move(id: string, parentId: string | null): Promise<void>
@@ -398,7 +401,7 @@ export function createBookService(options: BookServiceOptions): BookService {
   return {
     list: listBooks,
 
-    async create(name, parentId) {
+    async create(name, parentId, extra) {
       const clean = cleanName(name)
       const books = await listBooks()
       if (parentId !== null) findIn(books, parentId)
@@ -417,8 +420,8 @@ export function createBookService(options: BookServiceOptions): BookService {
         updatedAt: at,
         deletedAt: null,
         deletedHlc: null,
-        aiAccess: false,
-        aiAccessHlc: '',
+        aiAccess: extra?.aiAccess === true,
+        aiAccessHlc: extra?.aiAccess === true ? hlc : '',
         sortKey: key,
         sortKeyHlc: hlc,
         icon: null,

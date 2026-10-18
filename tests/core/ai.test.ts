@@ -7,6 +7,7 @@ import { Worker } from 'node:worker_threads'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import {
+  applyPatches,
   BODY,
   createAiService,
   createBookService,
@@ -18,6 +19,8 @@ import {
   parseHlc,
   snippet,
   MAX_AI_BODY_BYTES,
+  MAX_AI_PATCHES,
+  MAX_AI_TAGS,
   MAX_NOTE_LINKS,
   noteLink,
 } from '../../src/core'
@@ -49,6 +52,9 @@ function setup() {
 }
 
 type Setup = ReturnType<typeof setup>
+
+/** The notes of `world` AI must never see. */
+const HIDDEN_NOTES = ['inside', 'priv', 'loose', 'trashed', 'purged', 'orphan'] as const
 
 async function note({ notes }: Setup, title: string, body: string, bookId: string | null) {
   const id = await notes.create(title, bookId)
@@ -393,6 +399,285 @@ async function appWriter(path: string, bookId: string) {
     },
   }
 }
+
+/** The texts of a note's stored body versions, oldest first. */
+async function versionTexts(s: Setup, id: string): Promise<string[]> {
+  const texts: string[] = []
+  for (const summary of (await s.storage.listRevisions(id)).filter((r) => r.kind === 'body')) {
+    const revision = await s.storage.getRevision(summary.id)
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, revision!.ydoc!)
+    texts.unshift(doc.getText(BODY).toString())
+  }
+  return texts
+}
+
+describe('editing notes', () => {
+  it('changes the body, title, notebook and status, keeping the old body as a version', async () => {
+    const s = setup()
+    const { books, ids } = await world(s)
+    const other = await s.books.create('Other', null)
+    await s.books.setAiAccess(other, true)
+    expect(await versionTexts(s, ids.shared)).not.toContain('A shared kiwi note.')
+
+    const updated = await s.ai.update({
+      id: ids.shared,
+      title: '  Renamed  ',
+      body: { markdown: 'A new body.\r\nTwo lines.' },
+      notebook: 'Other',
+      status: 'active',
+    })
+    expect(updated).toMatchObject({
+      id: ids.shared,
+      title: 'Renamed',
+      markdown: 'A new body.\nTwo lines.',
+      notebook: { id: other, name: 'Other' },
+      status: 'active',
+    })
+    const record = (await s.storage.getNote(ids.shared))!
+    // The snapshot is what the Yjs document holds, written by devot-mcp's clock.
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, record.ydoc)
+    expect(doc.getText(BODY).toString()).toBe('A new body.\nTwo lines.')
+    expect(parseHlc(record.titleHlc).node).toBe('mcptest')
+    expect(parseHlc(record.bookHlc).node).toBe('mcptest')
+    // History can bring the text from before the edit back.
+    expect(await versionTexts(s, ids.shared)).toContain('A shared kiwi note.')
+    const kinds = (await s.storage.listRevisions(ids.shared)).map((r) => r.kind)
+    expect(kinds).toEqual(expect.arrayContaining(['title', 'book', 'status']))
+    expect(books.shared).not.toBe(other)
+  })
+
+  it('keeps the text from before each edit, one version per edit', async () => {
+    const s = setup()
+    const { ids } = await world(s)
+    await s.ai.update({ id: ids.shared, body: { markdown: 'First edit.' } })
+    await s.ai.update({ id: ids.shared, body: { markdown: 'Second edit.' } })
+    const texts = await versionTexts(s, ids.shared)
+    expect(texts).toEqual(expect.arrayContaining(['A shared kiwi note.', 'First edit.']))
+    expect(texts).not.toContain('Second edit.')
+    expect((await s.ai.read(ids.shared)).markdown).toBe('Second edit.')
+  })
+
+  it('replaces exact passages in order, and refuses one found never or twice', async () => {
+    const s = setup()
+    const { ids } = await world(s)
+    await s.ai.update({ id: ids.shared, body: { markdown: 'one two\nthree two' } })
+    const updated = await s.ai.update({
+      id: ids.shared,
+      body: {
+        patches: [
+          { find: 'one two', replace: 'ONE' },
+          // Found once now that the first patch replaced the other.
+          { find: 'two', replace: '2\r\n' },
+        ],
+      },
+    })
+    expect(updated.markdown).toBe('ONE\nthree 2\n')
+    const versions = (await s.storage.listRevisions(ids.shared)).length
+    for (const [patches, code] of [
+      [[{ find: 'missing', replace: 'x' }], 'E_AI_PATCH_NOT_FOUND'],
+      [[{ find: 'e', replace: 'x' }], 'E_AI_PATCH_AMBIGUOUS'],
+      // A later patch failing leaves the earlier ones unwritten.
+      [
+        [
+          { find: 'ONE', replace: 'x' },
+          { find: 'ONE', replace: 'y' },
+        ],
+        'E_AI_PATCH_NOT_FOUND',
+      ],
+      [[], 'E_AI_PATCHES_INVALID'],
+      [[{ find: '', replace: 'x' }], 'E_AI_PATCHES_INVALID'],
+    ] as const) {
+      await expect(s.ai.update({ id: ids.shared, body: { patches } })).rejects.toThrow(code)
+    }
+    expect((await s.ai.read(ids.shared)).markdown).toBe('ONE\nthree 2\n')
+    expect((await s.storage.listRevisions(ids.shared)).length).toBe(versions)
+  })
+
+  it('patches a note larger than one call may send, but limits what is sent', async () => {
+    const s = setup()
+    const { books } = await world(s)
+    const big = `Head.\n${'x'.repeat(MAX_AI_BODY_BYTES + 10)}\n`
+    const id = await note(s, 'Big', big, books.shared)
+    const updated = await s.ai.update({
+      id,
+      body: { patches: [{ find: 'Head.', replace: 'Top.' }] },
+    })
+    expect(updated.markdown.startsWith('Top.\n')).toBe(true)
+    await expect(
+      s.ai.update({
+        id,
+        body: { patches: [{ find: 'Top.', replace: 'y'.repeat(MAX_AI_BODY_BYTES + 1) }] },
+      }),
+    ).rejects.toThrow('E_NOTE_BODY_TOO_LARGE')
+  })
+
+  it('answers hidden notes as unknown, and moves notes only to allowed notebooks', async () => {
+    const s = setup()
+    const { books, ids } = await world(s)
+    for (const key of HIDDEN_NOTES) {
+      await expect(s.ai.update({ id: ids[key], title: 'x' })).rejects.toThrow('E_NOTE_NOT_FOUND')
+      await expect(s.ai.trash(ids[key])).rejects.toThrow('E_NOTE_NOT_FOUND')
+    }
+    await expect(s.ai.update({ id: 'nope', title: 'x' })).rejects.toThrow('E_NOTE_NOT_FOUND')
+    for (const notebook of [books.priv, books.inside, books.gone, 'Private', 'Inside']) {
+      await expect(s.ai.update({ id: ids.shared, title: 'Moved', notebook })).rejects.toThrow(
+        'E_BOOK_NOT_FOUND',
+      )
+    }
+    // Nothing of a refused update is written.
+    expect(await s.ai.read(ids.shared)).toMatchObject({
+      title: 'Shared kiwi',
+      notebook: { id: books.shared },
+    })
+    expect((await s.notes.read(ids.priv)).title).toBe('Private kiwi')
+  })
+
+  it('refuses an empty update and bad values before writing anything', async () => {
+    const s = setup()
+    const { ids } = await world(s)
+    await expect(s.ai.update({ id: ids.shared })).rejects.toThrow('E_AI_UPDATE_EMPTY')
+    await expect(s.ai.update({ id: ids.shared, title: 'a\nb' })).rejects.toThrow(
+      'E_NOTE_TITLE_INVALID',
+    )
+    await expect(s.ai.update({ id: ids.shared, status: 'later' as never })).rejects.toThrow(
+      'E_NOTE_STATUS_INVALID',
+    )
+    await expect(s.ai.update({ id: ids.shared, tags: ['ok', ' '] })).rejects.toThrow(
+      'E_TAG_NAME_INVALID',
+    )
+    const many = Array.from({ length: MAX_AI_TAGS + 1 }, (_, i) => `t${i}`)
+    await expect(s.ai.update({ id: ids.shared, tags: many })).rejects.toThrow('E_AI_TAGS_TOO_MANY')
+    await expect(
+      s.ai.update({ id: ids.shared, body: { markdown: 'x'.repeat(MAX_AI_BODY_BYTES + 1) } }),
+    ).rejects.toThrow('E_NOTE_BODY_TOO_LARGE')
+    expect(await s.ai.read(ids.shared)).toMatchObject({ title: 'Shared kiwi', tags: [] })
+    expect(await s.tags.list()).toEqual([])
+  })
+
+  it('sets the tags by name, reusing tags in any case and creating new ones', async () => {
+    const s = setup()
+    const { ids } = await world(s)
+    const work = await s.tags.addToNote(ids.priv, 'Work')
+    const updated = await s.ai.update({ id: ids.shared, tags: ['work', ' Fresh ', 'fresh'] })
+    expect(updated.tags).toEqual(['Fresh', 'Work'])
+    const all = await s.tags.list()
+    expect(all.map((t) => t.name).sort()).toEqual(['Fresh', 'Work'])
+    expect(all.find((t) => t.name === 'Work')?.id).toBe(work)
+
+    expect((await s.ai.update({ id: ids.shared, tags: ['Work'] })).tags).toEqual(['Work'])
+    expect((await s.ai.update({ id: ids.shared, tags: [] })).tags).toEqual([])
+    // The hidden note keeps its tag.
+    expect(await s.storage.noteTags(ids.priv)).toEqual([{ id: work, name: 'Work' }])
+  })
+
+  it('merges with edits the app holds of the open note', async () => {
+    const s = setup()
+    const { ids } = await world(s)
+    // The app holds the note, with typing not saved yet.
+    s.notes.hold(ids.shared)
+    await s.notes.insertAt(ids.shared, null, ' Typed in the app.')
+    await s.ai.update({
+      id: ids.shared,
+      body: { patches: [{ find: 'A shared', replace: 'An edited' }] },
+    })
+    await s.notes.mergeStored()
+    await s.notes.flush()
+    const expected = 'An edited kiwi note. Typed in the app.'
+    expect((await s.notes.read(ids.shared)).bodyMd).toBe(expected)
+    expect((await s.storage.getNote(ids.shared))!.bodyMd).toBe(expected)
+    s.notes.unhold(ids.shared)
+  })
+})
+
+describe('trashing notes', () => {
+  it('moves a visible note to the Trash, where the app can restore it', async () => {
+    const s = setup()
+    const { ids } = await world(s)
+    expect(await s.ai.trash(ids.shared)).toEqual({ id: ids.shared, title: 'Shared kiwi' })
+    await expect(s.ai.read(ids.shared)).rejects.toThrow('E_NOTE_NOT_FOUND')
+    await expect(s.ai.trash(ids.shared)).rejects.toThrow('E_NOTE_NOT_FOUND')
+    expect((await s.notes.listTrash()).map((n) => n.id)).toContain(ids.shared)
+    // Never purged: the note and its body stay.
+    await s.notes.restore(ids.shared)
+    expect((await s.ai.read(ids.shared)).markdown).toBe('A shared kiwi note.')
+  })
+})
+
+describe('listing tags', () => {
+  it('lists only tags on visible notes, with how many carry each', async () => {
+    const s = setup()
+    const { books, ids } = await world(s)
+    const second = await note(s, 'Second', 'Another.', books.shared)
+    await s.tags.addToNote(ids.shared, 'kiwi')
+    await s.tags.addToNote(second, 'kiwi')
+    await s.tags.addToNote(second, 'Alpha')
+    for (const key of HIDDEN_NOTES.filter((k) => k !== 'purged')) {
+      await s.tags.addToNote(ids[key], `secret-${key}`)
+    }
+    await s.tags.addToNote(ids.priv, 'kiwi')
+    expect(await s.ai.tags()).toEqual([
+      { name: 'Alpha', notes: 1 },
+      { name: 'kiwi', notes: 2 },
+    ])
+  })
+
+  it('lists nothing when no notebook allows AI access', async () => {
+    const s = setup()
+    const priv = await s.books.create('Private', null)
+    const id = await note(s, 'Private', 'x', priv)
+    await s.tags.addToNote(id, 'secret')
+    expect(await s.ai.tags()).toEqual([])
+  })
+})
+
+describe('creating notebooks', () => {
+  it('creates a notebook with AI access on, top level or inside an allowed one', async () => {
+    const s = setup()
+    const { books } = await world(s)
+    const top = await s.ai.createNotebook({ name: '  Projects ' })
+    expect(top.name).toBe('Projects')
+    const inner = await s.ai.createNotebook({ name: 'Ideas', parent: 'Shared' })
+    const all = await s.books.list()
+    expect(all.find((b) => b.id === top.id)).toMatchObject({ parentId: null, aiAccess: true })
+    expect(all.find((b) => b.id === inner.id)).toMatchObject({
+      parentId: books.shared,
+      aiAccess: true,
+    })
+    expect((await s.ai.notebooks()).map((b) => b.name)).toEqual(['Shared', 'Ideas', 'Projects'])
+    // Notes can go in it at once.
+    const created = await s.ai.create({ title: 'Plan', markdown: 'x', notebook: 'Ideas' })
+    expect(created.notebook.id).toBe(inner.id)
+  })
+
+  it('refuses hidden parents, names AI already sees and bad names', async () => {
+    const s = setup()
+    const { books } = await world(s)
+    for (const parent of [books.priv, books.inside, books.gone, 'Private']) {
+      await expect(s.ai.createNotebook({ name: 'X', parent })).rejects.toThrow('E_BOOK_NOT_FOUND')
+    }
+    await expect(s.ai.createNotebook({ name: 'Shared' })).rejects.toThrow('E_BOOK_NAME_TAKEN')
+    await expect(s.ai.createNotebook({ name: ' ' })).rejects.toThrow('E_BOOK_NAME_INVALID')
+    // A hidden notebook's name is no reason to refuse: that would reveal it.
+    const named = await s.ai.createNotebook({ name: 'Private' })
+    expect(named.name).toBe('Private')
+    expect((await s.books.list()).filter((b) => b.name === 'X')).toEqual([])
+  })
+})
+
+describe('applyPatches', () => {
+  it('applies patches in turn, line breaks as \\n', () => {
+    expect(applyPatches('a b c', [{ find: 'b', replace: 'B' }])).toBe('a B c')
+    expect(applyPatches('x\ny', [{ find: 'x\r\ny', replace: 'z' }])).toBe('z')
+    // Overlapping matches count as two.
+    expect(() => applyPatches('aaa', [{ find: 'aa', replace: 'b' }])).toThrow(
+      'E_AI_PATCH_AMBIGUOUS',
+    )
+    const many = Array.from({ length: MAX_AI_PATCHES + 1 }, () => ({ find: 'a', replace: 'a' }))
+    expect(() => applyPatches('a', many)).toThrow('E_AI_PATCHES_INVALID')
+  })
+})
 
 describe('creating notes beside a long history', () => {
   it('thins no history and holds the write lock briefly, while the app writes', async (context) => {
