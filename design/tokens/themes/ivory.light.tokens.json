@@ -232,6 +232,16 @@
           "alpha": 0.1
         },
         "$description": "A floating bar's outline: barely visible. The line ink at 10%."
+      },
+      "field": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.1
+        },
+        "$description": "The Filter field's 1px border."
       }
     },
     "fill": {
@@ -357,6 +367,15 @@
           "hex": "#1f1e1d",
           "alpha": 0.3
         }
+      },
+      "field": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        },
+        "$description": "The note list's Filter field."
       }
     },
     "accent": {

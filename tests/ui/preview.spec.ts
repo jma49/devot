@@ -185,7 +185,7 @@ test('diagrams keep their styles under a CSP without inline styles', async ({ pa
   const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
   expect(
     await sidebar.evaluate((el) => (globalThis as unknown as Styles).getComputedStyle(el).width),
-  ).not.toBe('232px')
+  ).not.toBe('200px')
 
   const node = preview(page).locator('.island-mermaid svg .node rect').first()
   await expect(node).toBeVisible()

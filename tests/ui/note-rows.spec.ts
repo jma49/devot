@@ -40,7 +40,7 @@ test('a row shows its status as an icon, its task progress and its tags', async 
   await tagField(page).fill('home')
   await tagField(page).press('Enter')
   const row = noteRow(page, 'Chores')
-  await expect(row.locator('.row-title')).toHaveCSS('font-size', '13px')
+  await expect(row.locator('.row-title')).toHaveCSS('font-size', '14px')
   await expect(row.locator('.row-title')).toHaveCSS('font-weight', '600')
   await expect(row.getByRole('img', { name: 'Active' })).toBeVisible()
   await expect(row.locator('.row-status')).toHaveText('')

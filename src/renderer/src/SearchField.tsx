@@ -22,7 +22,12 @@ export const SearchField = forwardRef<
 >(function SearchField({ value, onChange, onClear, placeholder, icon = 'filter' }, ref) {
   return (
     <label className="search-field">
-      <Icon name={icon} size="sm" />
+      {/* A typed query takes the icon's place; the clear button shows instead. */}
+      {value ? null : (
+        <span className="search-icon">
+          <Icon name={icon} size="sm" />
+        </span>
+      )}
       <input
         ref={ref}
         type="search"

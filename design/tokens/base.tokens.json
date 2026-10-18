@@ -588,6 +588,10 @@
         "$type": "fontWeight",
         "$value": 400
       },
+      "extralight": {
+        "$type": "fontWeight",
+        "$value": 200
+      },
       "semibold": {
         "$type": "fontWeight",
         "$value": 600
@@ -750,7 +754,7 @@
     "sidebar-width": {
       "$type": "dimension",
       "$value": {
-        "value": 232,
+        "value": 200,
         "unit": "px"
       }
     },
@@ -1118,6 +1122,22 @@
         "unit": "px"
       },
       "$description": "The divider between a floating bar's button groups: its height."
+    },
+    "filter-field-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 30,
+        "unit": "px"
+      },
+      "$description": "The note list's Filter field: its 34px bar less a 2px margin above and below."
+    },
+    "filter-icon-slot": {
+      "$type": "dimension",
+      "$value": {
+        "value": 37.4,
+        "unit": "px"
+      },
+      "$description": "The Filter field's icon slot (the funnel at rest, the clear button with a query): the text starts after it."
     }
   },
   "motion": {
@@ -1186,6 +1206,14 @@
           "unit": "ms"
         },
         "$description": "The dim behind a modal dialog fading in."
+      },
+      "icon": {
+        "$type": "duration",
+        "$value": {
+          "value": 300,
+          "unit": "ms"
+        },
+        "$description": "An icon in a field fading in or out with the field's focus."
       }
     },
     "easing": {
@@ -1322,6 +1350,14 @@
         "$value": 0.3,
         "$description": "A tag colour dot's fill; its edge is the solid tag colour."
       }
+    },
+    "count": {
+      "$value": 0.6,
+      "$description": "Sidebar row counts, on the row's own text colour."
+    },
+    "filter-icon": {
+      "$value": 0.3,
+      "$description": "The Filter field's funnel at rest; it shows fully while the field has the keyboard."
     }
   }
 }

@@ -423,7 +423,20 @@ export async function shownMenu(page: Page): Promise<string[]> {
  * `submenu`, in the submenu with that label.
  */
 export async function pickMenuItem(page: Page, label: string, submenu?: string): Promise<void> {
-  const picked = await page.evaluate(
+  // The click that opens the menu returns before the app has built it: try
+  // again until the item is there.
+  const deadline = Date.now() + 5000
+  while (!(await pickMenuItemNow(page, label, submenu))) {
+    if (Date.now() > deadline) {
+      throw new Error(`E_TEST_NO_MENU_ITEM ${submenu ? `${submenu} > ` : ''}${label}`)
+    }
+    await page.waitForTimeout(50)
+  }
+}
+
+/** Picks the item from the last menu shown, if it is there; whether it was. */
+async function pickMenuItemNow(page: Page, label: string, submenu?: string): Promise<boolean> {
+  return page.evaluate(
     ([text, parent]) => {
       const w = globalThis as unknown as TestWindow
       const popup = w.devotIpcCalls.findLast((c) => c.cmd === 'plugin:menu|popup')
@@ -445,7 +458,6 @@ export async function pickMenuItem(page: Page, label: string, submenu?: string):
     },
     [label, submenu] as const,
   )
-  if (!picked) throw new Error(`E_TEST_NO_MENU_ITEM ${submenu ? `${submenu} > ` : ''}${label}`)
 }
 
 /** The texts written to the clipboard so far, oldest first. */
