@@ -13,6 +13,9 @@ function headings(tree: Root | Element): Element[] {
   return out
 }
 
+// Written as code points: a test file holds no CJK characters.
+const ZH = String.fromCodePoint(0x4e2d, 0x6587)
+
 describe('slug', () => {
   it.each([
     ['Hello World', 'hello-world'],
@@ -20,7 +23,7 @@ describe('slug', () => {
     ['  Trim ', '--trim-'],
     ['snake_case & kebab-case', 'snake_case--kebab-case'],
     ['Café Über', 'café-über'],
-    ['中文 标题', '中文-标题'],
+    [`${ZH} ${ZH}`, `${ZH}-${ZH}`],
     ['Party 🎉 time', 'party--time'],
     ['🎉', ''],
     ['', ''],
@@ -45,14 +48,14 @@ describe('createSlugger', () => {
 describe('heading ids in the preview', () => {
   it('gives every heading an id, repeats a number, and skips an empty slug', async () => {
     const tree = await render(
-      '# Intro\n\n## Intro\n\n> ### **Bold** `code`\n\n#### 🎉\n\n##### 中文',
+      `# Intro\n\n## Intro\n\n> ### **Bold** ${'`code`'}\n\n#### 🎉\n\n##### ${ZH}`,
     )
     expect(headings(tree).map((h) => h.properties['id'])).toEqual([
       'intro',
       'intro-1',
       'bold-code',
       undefined,
-      '中文',
+      ZH,
     ])
   })
 
