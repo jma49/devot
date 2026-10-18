@@ -76,6 +76,8 @@ test('right-click shows the native notebook menu for that notebook', async ({ pa
     'Copy Notebook ID',
     'New Notebook Inside',
     '---',
+    'Open as Workspace',
+    '---',
     'Rename Enter',
     'Change Icon…',
     'Move Notebook…',
@@ -98,6 +100,8 @@ test('right-click shows the native notebook menu for that notebook', async ({ pa
   expect(await shownMenu(page)).toEqual([
     'Copy Notebook ID',
     'New Notebook Inside',
+    '---',
+    'Open as Workspace',
     '---',
     'Rename Enter',
     'Change Icon…',

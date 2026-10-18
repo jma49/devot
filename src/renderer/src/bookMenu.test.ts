@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   BOOK_MENU,
   IMPORT_PICKS,
+  WORKSPACE_MENU,
   bookShortcut,
+  workspaceShortcut,
   type BookCommand,
   type BookMenuTarget,
 } from './bookMenu'
@@ -28,6 +30,7 @@ describe('BOOK_MENU', () => {
   it('groups the actions; Move to Top Level only for a nested notebook', () => {
     expect(actions(top)).toEqual([
       ['copyId', 'newInside'],
+      ['openWorkspace'],
       ['rename', 'changeIcon', 'move'],
       ['aiAccess'],
       ['import', 'export'],
@@ -35,6 +38,7 @@ describe('BOOK_MENU', () => {
     ])
     expect(actions(nested)).toEqual([
       ['copyId', 'newInside'],
+      ['openWorkspace'],
       ['rename', 'changeIcon', 'move', 'moveToTop'],
       ['aiAccess'],
       ['import', 'export'],
@@ -45,12 +49,13 @@ describe('BOOK_MENU', () => {
   it('offers Move Up and Move Down only when there is a sibling that way', () => {
     expect(actions({ ...top, nextId: 'c' })).toEqual([
       ['copyId', 'newInside'],
+      ['openWorkspace'],
       ['rename', 'changeIcon', 'move', 'moveDown'],
       ['aiAccess'],
       ['import', 'export'],
       ['delete'],
     ])
-    expect(actions({ ...nested, previousId: 'c', nextId: 'd' })[1]).toEqual([
+    expect(actions({ ...nested, previousId: 'c', nextId: 'd' })[2]).toEqual([
       'rename',
       'changeIcon',
       'move',
@@ -70,6 +75,7 @@ describe('BOOK_MENU', () => {
     expect(BOOK_MENU.flat().map((entry) => entry.label)).toEqual([
       'bookMenu.copyId',
       'bookMenu.newInside',
+      'bookMenu.openWorkspace',
       'bookMenu.rename',
       'bookMenu.changeIcon',
       'bookMenu.move',
@@ -159,5 +165,21 @@ describe('bookShortcut', () => {
       const name = accelerator.split('+').pop() ?? accelerator
       expect(bookShortcut(key(name, { altKey: accelerator.startsWith('Alt+') }))).toBe(action)
     }
+  })
+})
+
+describe('WORKSPACE_MENU', () => {
+  it('renames, changes the icon of and copies the ID of the workspace notebook', () => {
+    expect(shownGroups(WORKSPACE_MENU, top).map((g) => g.map((e) => e.action))).toEqual([
+      ['rename', 'changeIcon'],
+      ['copyId'],
+    ])
+  })
+
+  it('renames with Return and F2, and never deletes', () => {
+    expect(workspaceShortcut(key('Enter'))).toBe('rename')
+    expect(workspaceShortcut(key('F2'))).toBe('rename')
+    expect(workspaceShortcut(key('Backspace'))).toBeUndefined()
+    expect(workspaceShortcut(key('Delete'))).toBeUndefined()
   })
 })

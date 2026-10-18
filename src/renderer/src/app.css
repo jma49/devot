@@ -517,6 +517,91 @@ button {
 
 /* Notebooks. */
 /* The label is centred on its tools (search, add, the section's chevron). */
+/* A workspace's title (Sidebar.tsx): Go Up a Level, the notebook's icon,
+   and its name under the notebooks above it. It fits the narrowest sidebar:
+   the names shorten with an ellipsis, the back button and icon keep their size. */
+.sidebar-workspace {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  margin-bottom: var(--space-3);
+}
+
+.sidebar-workspace-back {
+  flex-shrink: 0;
+}
+
+.sidebar-workspace-back .icon {
+  background-color: var(--color-text-secondary);
+}
+
+.sidebar-workspace-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-sidebar-row);
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border-radius: var(--radius-button);
+  outline: none;
+}
+
+.sidebar-workspace-title .icon {
+  flex-shrink: 0;
+  background-color: var(--color-accent-text);
+}
+
+.sidebar .sidebar-workspace-title:focus-visible:not(.menu-target) {
+  box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
+}
+
+.sidebar-workspace-names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-workspace-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-semibold);
+}
+
+.sidebar-workspace-path {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--font-size-caption2);
+  color: var(--color-text-tertiary);
+}
+
+.sidebar-workspace-parent {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-workspace-parent:hover {
+  color: var(--color-text-secondary);
+}
+
+.sidebar-workspace-parent + .sidebar-workspace-parent::before {
+  content: '/';
+  padding-inline: var(--space-1);
+}
+
 .section-header {
   display: flex;
   align-items: center;
@@ -630,6 +715,10 @@ button {
 
 .chevron[data-turn='up'] {
   rotate: 180deg;
+}
+
+.chevron[data-turn='left'] {
+  rotate: 90deg;
 }
 
 @media (prefers-reduced-motion: reduce) {

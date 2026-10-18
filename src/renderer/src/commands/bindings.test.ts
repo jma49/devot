@@ -60,6 +60,8 @@ const BOUND_IN: Partial<Record<CommandId, [file: string, call: string]>> = {
   'note.newFromSelection': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'image.view': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'sidebar.rowMenu': ['../Sidebar.tsx', 'commandMatches'],
+  'sidebar.workspaceUp': ['../Sidebar.tsx', 'commandMatches'],
+  'sidebar.workspaceUpFromAnyRow': ['../Sidebar.tsx', 'commandMatches'],
 }
 
 /** Whether the keyboard path for the command's scope runs it on `PRESS`. */

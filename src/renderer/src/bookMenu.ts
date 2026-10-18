@@ -9,6 +9,7 @@ import { commandEntry, type CommandEntryOptions, type MenuGroups } from './conte
 export type BookCommand =
   | 'copyId'
   | 'newInside'
+  | 'openWorkspace'
   | 'rename'
   | 'changeIcon'
   | 'move'
@@ -51,6 +52,7 @@ export interface BookMenuTarget {
 export const BOOK_COMMANDS: Readonly<Record<BookCommand, CommandId>> = {
   copyId: 'notebook.copyId',
   newInside: 'notebook.newInside',
+  openWorkspace: 'notebook.openWorkspace',
   rename: 'notebook.rename',
   changeIcon: 'notebook.changeIcon',
   move: 'notebook.move',
@@ -72,6 +74,7 @@ const entry = (action: BookCommand, more: CommandEntryOptions<BookAction, BookMe
 /** The menu's items, group by group; `bookShortcut` handles the keys shown. */
 export const BOOK_MENU: MenuGroups<BookAction, BookMenuTarget> = [
   [entry('copyId'), entry('newInside')],
+  [entry('openWorkspace')],
   [
     entry('rename'),
     entry('changeIcon'),
@@ -102,6 +105,20 @@ export const BOOK_MENU: MenuGroups<BookAction, BookMenuTarget> = [
   ],
   [entry('delete')],
 ]
+
+/** The actions of a workspace's title: the notebook open as the workspace. */
+export const WORKSPACE_ACTIONS = ['rename', 'changeIcon', 'copyId'] as const satisfies BookCommand[]
+
+/** A workspace title's menu. */
+export const WORKSPACE_MENU: MenuGroups<BookAction, BookMenuTarget> = [
+  [entry('rename'), entry('changeIcon')],
+  [entry('copyId')],
+]
+
+/** The workspace title action a key press asks for, if any (Return renames, as on a row). */
+export function workspaceShortcut(e: KeyPress): (typeof WORKSPACE_ACTIONS)[number] | undefined {
+  return WORKSPACE_ACTIONS.find((action) => commandMatches(BOOK_COMMANDS[action], e))
+}
 
 /** The notebook action a key press on a notebook row asks for, if any. */
 export function bookShortcut(e: KeyPress): BookCommand | undefined {
