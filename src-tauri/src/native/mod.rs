@@ -454,8 +454,29 @@ fn manager_weight(weight: f64) -> isize {
     SCALE[index]
 }
 
+/// The face of a font file with several (a `.ttc`) that Look Up draws in:
+/// of the faces' traits (CoreText's weight, -1 to 1, and italic; None when
+/// unreadable), the one closest to the wanted ones, a matching italic
+/// before a closer weight; the first face when none can be read.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn closest_face(faces: &[Option<(f64, bool)>], weight: f64, italic: bool) -> usize {
+    let distance = |(face_weight, face_italic): (f64, bool)| {
+        let off = (face_weight - weight).abs();
+        (
+            face_italic != italic,
+            if off.is_nan() { f64::INFINITY } else { off },
+        )
+    };
+    faces
+        .iter()
+        .enumerate()
+        .filter_map(|(index, traits)| Some((index, distance((*traits)?))))
+        .min_by(|(_, a), (_, b)| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)))
+        .map_or(0, |(index, _)| index)
+}
+
 /// The style a Look Up draws its word in. Without font information (an
-/// older page, the preview) or with a size out of range, the system font at
+/// older page, a selection out of view) or with a size out of range, the system font at
 /// its usual size; an imported family whose file cannot be read is skipped.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn look_up_style(font: Option<&LookUpFont>, read: impl Fn(&str) -> Option<Vec<u8>>) -> LookUpStyle {
@@ -1261,6 +1282,32 @@ mod tests {
         assert_eq!(manager_weight(700.0), 9);
         assert_eq!(manager_weight(100.0), 2);
         assert_eq!(manager_weight(900.0), 11);
+    }
+
+    #[test]
+    fn look_up_takes_the_closest_face_of_a_font_file() {
+        let regular = Some((0.0, false));
+        let bold = Some((0.4, false));
+        let italic = Some((0.0, true));
+        let bold_italic = Some((0.4, true));
+        let faces = [regular, bold, italic, bold_italic];
+        assert_eq!(closest_face(&faces, 0.0, false), 0);
+        assert_eq!(closest_face(&faces, 0.4, false), 1);
+        assert_eq!(closest_face(&faces, 0.0, true), 2);
+        assert_eq!(closest_face(&faces, 0.3, true), 3);
+        // A matching italic counts before a closer weight.
+        assert_eq!(closest_face(&[bold, italic], 0.4, true), 1);
+        // The nearest weight, the earlier face on a tie.
+        assert_eq!(closest_face(&[regular, bold], 0.23, false), 1);
+        assert_eq!(closest_face(&[bold, Some((-0.4, false))], 0.0, false), 0);
+        // Faces without traits are passed over; with none, the first face.
+        assert_eq!(closest_face(&[None, bold], 0.0, false), 1);
+        assert_eq!(closest_face(&[None, None], 0.4, true), 0);
+        assert_eq!(closest_face(&[], 0.0, false), 0);
+        assert_eq!(
+            closest_face(&[Some((f64::NAN, false)), bold], 0.0, false),
+            1
+        );
     }
 
     #[test]
