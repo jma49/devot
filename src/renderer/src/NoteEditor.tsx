@@ -12,9 +12,9 @@ import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
 import { BOX_HANG } from './editor/boxes'
 import { readClipboardText } from './clipboard'
-import { editorCommandKeys } from './commands/registry'
+import { editorCommandKeys, type CommandId } from './commands/registry'
 import { invoke } from './ipc'
-import { lineCommands } from './editor/lineCommands'
+import { lineCommands, runEditCommand } from './editor/lineCommands'
 import type { ShowAlertMenu } from './editor/alertMenu'
 import { moveSelection, selectedText, trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
@@ -117,6 +117,8 @@ export interface EditorHandle {
   moveSelection: (make: (text: string) => Promise<string | null>) => Promise<boolean>
   /** Focuses the editor and pastes the clipboard's text as it is. */
   pastePlain: () => Promise<void>
+  /** Focuses the editor and runs a line or selection command (`edit.*`, see editor/lineCommands.ts). */
+  runLine: (id: CommandId) => void
   /** The image at the cursor, or the first on its line (the image commands act on it). */
   imageAtCursor: () => ImageMenuTarget | null
   /** Shows that image in the viewer (an attachment only); false when there is none. */
@@ -841,6 +843,10 @@ export function NoteEditor({
             pastePlain: () => {
               ready.focus()
               return pastePlain(ready)
+            },
+            runLine: (id) => {
+              ready.focus()
+              runEditCommand(ready, id)
             },
             imageAtCursor: () => {
               const image = imageAt(ready.state, ready.state.selection.main.head)

@@ -267,3 +267,42 @@ test('a URL pasted over text links it; a lone URL goes in as the setting says', 
   await page.keyboard.insertText('C')
   await expect(line(page, 1)).toHaveText('link: [C](https://c.example)')
 })
+
+test('Ctrl+Shift+Down adds a cursor below, and typing goes to both', async ({ page }) => {
+  await newNote(page, 'one\ntwo')
+  await line(page, 0).click()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Control+Shift+ArrowDown')
+  await page.keyboard.type('- ')
+  expect(await lines(page)).toEqual(['- one', '- two'])
+})
+
+test('the palette lists the editing commands and runs them at the caret', async ({ page }) => {
+  await newNote(page, 'a big day\n- [ ] task')
+  await line(page, 0).click()
+  await page.keyboard.press('Home')
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight')
+  await search(page, 'convert to uppercase')
+  await expect(commandOptions(page).first()).toContainText('Convert to Uppercase')
+  await paletteField(page).press('Enter')
+  await expect(line(page, 0)).toHaveText('a BIG day')
+  await expect(body(page)).toBeFocused()
+
+  // Commands that were only keys before are listed too.
+  await search(page, 'sort lines')
+  await expect(commandOptions(page).filter({ hasText: 'Sort Lines' }).first()).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toBeHidden()
+
+  await line(page, 1).click()
+  await search(page, 'toggle task')
+  await expect(commandOptions(page).first()).toContainText('Toggle Task')
+  await paletteField(page).press('Enter')
+  await expect(line(page, 1)).toHaveText('- [x] task')
+
+  await line(page, 0).click()
+  await search(page, 'make heading smaller')
+  await paletteField(page).press('Enter')
+  await expect(line(page, 0)).toHaveText('# a BIG day')
+})

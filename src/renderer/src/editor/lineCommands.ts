@@ -1,12 +1,17 @@
-// The editor's line commands, on keys from the command registry (the
-// `edit.*` commands): a plain new line, blank lines above and below, delete,
-// select, move, copy, indent, join and sort lines, and open the link under the
-// caret. Typing a backtick over a selection wraps it too. The keys sit in a
+// The editor's line and selection commands, on keys from the command
+// registry (the `edit.*` commands): a plain new line, blank lines above and
+// below, delete, select, move, copy, indent, join and sort lines, open the
+// link under the caret, more cursors and selections, matching brackets, case
+// and task boxes. The palette runs them too (`runEditCommand`). Typing a
+// backtick over a selection wraps it too. The keys sit in a
 // compartment, so a change in Settings > Keyboard rebinds them in the open
 // editor (see registryKeys.ts).
 import {
+  addCursorAbove,
+  addCursorBelow,
   copyLineDown,
   copyLineUp,
+  cursorMatchingBracket,
   deleteLine,
   indentLess,
   indentMore,
@@ -14,13 +19,18 @@ import {
   insertNewline,
   moveLineDown,
   moveLineUp,
+  redoSelection,
   selectLine,
+  selectMatchingBracket,
+  undoSelection,
 } from '@codemirror/commands'
 import { syntaxTree } from '@codemirror/language'
+import { SearchCursor, selectNextOccurrence, selectSelectionMatches } from '@codemirror/search'
 import {
   EditorSelection,
   EditorState,
   Facet,
+  type SelectionRange,
   Prec,
   type ChangeSpec,
   type Extension,
@@ -175,6 +185,181 @@ const backtickWrap = Prec.highest(
   }),
 )
 
+/**
+ * The next match of the selected text after the last range (from the start
+ * again past the end) that is not selected yet; a whole word matches only
+ * whole words. Null when every range does not hold the same text, or there is
+ * no other match.
+ */
+function nextOccurrence(state: EditorState): { from: number; to: number } | null {
+  const { ranges } = state.selection
+  const first = ranges[0]!
+  const text = state.sliceDoc(first.from, first.to)
+  if (text === '' || ranges.some((r) => state.sliceDoc(r.from, r.to) !== text)) return null
+  const word = state.wordAt(first.from)
+  const wholeWord = word !== null && word.from === first.from && word.to === first.to
+  const start = ranges[ranges.length - 1]!.to
+  for (const [from, to] of [
+    [start, state.doc.length],
+    [0, start],
+  ] as const) {
+    const cursor = new SearchCursor(state.doc, text, from, to)
+    while (!cursor.next().done) {
+      const match = cursor.value
+      if (ranges.some((r) => r.from === match.from)) continue
+      if (wholeWord) {
+        const at = state.wordAt(match.from)
+        if (!at || at.from !== match.from || at.to !== match.to) continue
+      }
+      return match
+    }
+  }
+  return null
+}
+
+/**
+ * Skip and Select Next Occurrence: with a caret, selects the word there (as
+ * Select Next Occurrence does); otherwise the last selection gives way to
+ * the next match of its text.
+ */
+export function skipNextOccurrence(view: EditorView): boolean {
+  const { state } = view
+  const { ranges } = state.selection
+  if (ranges.some((r) => r.empty)) return selectNextOccurrence(view)
+  const match = nextOccurrence(state)
+  if (!match) return false
+  const kept = ranges.slice(0, -1)
+  view.dispatch({
+    selection: EditorSelection.create(
+      [...kept, EditorSelection.range(match.from, match.to)],
+      kept.length,
+    ),
+    effects: EditorView.scrollIntoView(match.to),
+    userEvent: 'select.search',
+  })
+  return true
+}
+
+/**
+ * Split Selection into Lines: a range per line each selection covers (a last
+ * line it only reaches the start of is left out); carets stay.
+ */
+export function splitSelectionIntoLines(view: EditorView): boolean {
+  const { state } = view
+  const out: SelectionRange[] = []
+  for (const range of state.selection.ranges) {
+    if (range.empty) {
+      out.push(range)
+      continue
+    }
+    const first = state.doc.lineAt(range.from).number
+    const last = state.doc.lineAt(range.to).number
+    for (let n = first; n <= last; n++) {
+      const line = state.doc.line(n)
+      if (n > first && line.from === range.to) break
+      out.push(EditorSelection.range(Math.max(range.from, line.from), Math.min(range.to, line.to)))
+    }
+  }
+  view.dispatch({
+    selection: EditorSelection.create(out, out.length - 1),
+    userEvent: 'select',
+  })
+  return true
+}
+
+/**
+ * Upper or lower case for each selection, or the word at each caret; the
+ * selection stays on the same text (the caret stays put). False when nothing
+ * changes.
+ */
+export function changeCase(upper: boolean) {
+  return (view: EditorView): boolean => {
+    const { state } = view
+    if (state.readOnly) return false
+    // The text each range changes; two carets in one word change it once.
+    const spans: { from: number; to: number; insert: string }[] = []
+    for (const range of state.selection.ranges) {
+      const span = range.empty ? state.wordAt(range.head) : range
+      if (!span || spans.some((d) => d.from < span.to && span.from < d.to)) continue
+      const text = state.sliceDoc(span.from, span.to)
+      const insert = upper ? text.toUpperCase() : text.toLowerCase()
+      if (insert !== text) spans.push({ from: span.from, to: span.to, insert })
+    }
+    if (spans.length === 0) return false
+    const changes = state.changes(spans)
+    // A position in a changed span keeps its offset there (within the new text).
+    const map = (pos: number, assoc: -1 | 1) => {
+      const span = spans.find((d) => d.from <= pos && pos <= d.to)
+      if (!span) return changes.mapPos(pos, assoc)
+      const from = changes.mapPos(span.from, -1)
+      if (pos === span.to) return from + span.insert.length
+      return from + Math.min(pos - span.from, span.insert.length)
+    }
+    const ranges = state.selection.ranges.map((r) =>
+      r.empty
+        ? EditorSelection.cursor(map(r.head, 1))
+        : EditorSelection.range(
+            map(r.anchor, r.anchor < r.head ? -1 : 1),
+            map(r.head, r.anchor < r.head ? 1 : -1),
+          ),
+    )
+    view.dispatch({
+      changes,
+      selection: EditorSelection.create(ranges, state.selection.mainIndex),
+      userEvent: 'input.case',
+    })
+    return true
+  }
+}
+
+/** The offset of the mark in the task box on `line` (`[ ]`), if the syntax tree has one there. */
+function taskMarkOn(state: EditorState, line: { from: number; to: number }): number | null {
+  let mark: number | null = null
+  syntaxTree(state).iterate({
+    from: line.from,
+    to: line.to,
+    enter: (node) => {
+      if (mark !== null) return false
+      if (node.name === 'TaskMarker' && node.from >= line.from && node.to <= line.to) {
+        mark = node.from + 1
+        return false
+      }
+      return undefined
+    },
+  })
+  return mark
+}
+
+/**
+ * Ticks the task box on each line with a caret or selection, or unticks them
+ * all when every one is ticked. False when no such line is a task.
+ */
+export function toggleTaskAtCaret(view: EditorView): boolean {
+  const { state } = view
+  if (state.readOnly) return false
+  const marks: number[] = []
+  const seen = new Set<number>()
+  for (const range of state.selection.ranges) {
+    const first = state.doc.lineAt(range.from).number
+    const last = state.doc.lineAt(range.to).number
+    for (let n = first; n <= last; n++) {
+      if (seen.has(n)) continue
+      seen.add(n)
+      const line = state.doc.line(n)
+      if (n > first && line.from === range.to) continue
+      const mark = taskMarkOn(state, line)
+      if (mark !== null) marks.push(mark)
+    }
+  }
+  if (marks.length === 0) return false
+  const tick = marks.some((at) => state.sliceDoc(at, at + 1) === ' ')
+  const changes = marks
+    .filter((at) => (state.sliceDoc(at, at + 1) === ' ') === tick)
+    .map((at) => ({ from: at, to: at + 1, insert: tick ? 'x' : ' ' }))
+  view.dispatch({ changes, userEvent: 'input.task' })
+  return true
+}
+
 const RUN: Partial<Record<CommandId, (view: EditorView) => boolean>> = {
   'edit.plainNewline': insertNewline,
   'edit.lineBelow': insertBlankLine,
@@ -193,10 +378,29 @@ const RUN: Partial<Record<CommandId, (view: EditorView) => boolean>> = {
   'edit.sortLinesCase': sortLines({ caseSensitive: true, reverse: false }),
   'edit.sortLinesCaseReverse': sortLines({ caseSensitive: true, reverse: true }),
   'edit.joinLines': joinLines,
+  'edit.addCursorAbove': addCursorAbove,
+  'edit.addCursorBelow': addCursorBelow,
+  'edit.selectNextOccurrence': selectNextOccurrence,
+  'edit.skipNextOccurrence': skipNextOccurrence,
+  'edit.selectAllMatches': selectSelectionMatches,
+  'edit.splitSelectionIntoLines': splitSelectionIntoLines,
+  'edit.undoSelection': undoSelection,
+  'edit.redoSelection': redoSelection,
+  'edit.goToBracket': cursorMatchingBracket,
+  'edit.selectToBracket': selectMatchingBracket,
+  'edit.upperCase': changeCase(true),
+  'edit.lowerCase': changeCase(false),
+  'edit.toggleTask': toggleTaskAtCaret,
 }
 
 /** The commands this module runs. */
 export const LINE_COMMANDS = Object.keys(RUN) as readonly CommandId[]
+
+/** Runs one of them on `view` (the palette); false when it did nothing or is not one of them. */
+export function runEditCommand(view: EditorView, id: CommandId): boolean {
+  const run = RUN[id]
+  return run ? run(view) : false
+}
 
 /** Their keys in effect, in CodeMirror key notation. */
 export function lineKeys(): { id: CommandId; key: string }[] {

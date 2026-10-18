@@ -106,6 +106,7 @@ import { headline } from '../../core/extract'
 import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
+import { LINE_COMMANDS } from './editor/lineCommands'
 import { NoteEditor, type ApplyRestore, type EditorHandle, type EditorPlace } from './NoteEditor'
 import {
   changeEditorSettings,
@@ -2239,6 +2240,9 @@ export function App() {
       }
       handlers['edit.pastePlain'] = {
         run: () => editorRef.current?.pastePlain(),
+      }
+      for (const commandId of LINE_COMMANDS) {
+        handlers[commandId] = { run: () => editorRef.current?.runLine(commandId) }
       }
       if (paletteOpen && paletteSelection) {
         handlers['note.newFromSelection'] = {

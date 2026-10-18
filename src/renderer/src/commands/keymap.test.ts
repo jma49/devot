@@ -331,6 +331,7 @@ describe('shortcutOfPress', () => {
       '-': 'Minus',
       '[': 'BracketLeft',
       ']': 'BracketRight',
+      '\\': 'Backslash',
     }
     for (const c of COMMANDS) {
       for (const key of c.keys as readonly string[]) {
