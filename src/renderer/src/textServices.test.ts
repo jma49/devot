@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_SPEECH_CHARS,
   leadingSpace,
+  lookUpFont,
   lookUpLabel,
   lookUpOrigin,
   lookUpSelection,
@@ -39,5 +40,39 @@ describe('lookUpOrigin', () => {
     expect(leadingSpace('word')).toBe(0)
     expect(leadingSpace('  \n\tword ')).toBe(4)
     expect(leadingSpace('   ')).toBe(3)
+  })
+})
+
+describe('lookUpFont', () => {
+  const style = (fontSize: string, fontWeight = '400', fontStyle = 'normal') => ({
+    fontFamily: '"Devot Font Hand ttf", SFMono-Regular, monospace',
+    fontSize,
+    fontWeight,
+    fontStyle,
+  })
+
+  it('is the computed font list, size, weight and style of the character', () => {
+    expect(lookUpFont(style('15px'))).toEqual({
+      family: '"Devot Font Hand ttf", SFMono-Regular, monospace',
+      size: 15,
+      weight: 400,
+      italic: false,
+    })
+    expect(lookUpFont(style('22.5px', '700', 'italic'))).toMatchObject({
+      size: 22.5,
+      weight: 700,
+      italic: true,
+    })
+    expect(lookUpFont(style('13px', 'bold', 'oblique 10deg'))).toMatchObject({
+      weight: 700,
+      italic: true,
+    })
+    expect(lookUpFont(style('13px', 'normal'))).toMatchObject({ weight: 400 })
+  })
+
+  it('is nothing without a size or a font list (the system font then)', () => {
+    expect(lookUpFont(style(''))).toBeNull()
+    expect(lookUpFont(style('0px'))).toBeNull()
+    expect(lookUpFont({ ...style('13px'), fontFamily: ' ' })).toBeNull()
   })
 })

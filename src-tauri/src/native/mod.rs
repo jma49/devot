@@ -322,6 +322,171 @@ fn validate_look_up(text: &str, x: f64, y: f64) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// Longest CSS font list Look Up reads, in characters.
+const MAX_LOOK_UP_FONT_LIST: usize = 2_048;
+
+/// Most families of a font list Look Up tries.
+const MAX_LOOK_UP_FAMILIES: usize = 16;
+
+/// The font size range Look Up takes, in CSS pixels.
+const LOOK_UP_FONT_SIZES: std::ops::RangeInclusive<f64> = 1.0..=512.0;
+
+/// The family name the page loads an imported font under starts with this
+/// (`importedFontFamily` in src/renderer/src/fonts.ts).
+const IMPORTED_FAMILY_PREFIX: &str = "Devot Font ";
+
+/// The computed font of the selection's first character, as the page sends
+/// it with a Look Up: the CSS font list, the size in pixels, the weight
+/// (100 to 900) and whether it is italic.
+#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+pub struct LookUpFont {
+    pub family: String,
+    pub size: f64,
+    pub weight: f64,
+    #[serde(default)]
+    pub italic: bool,
+}
+
+/// A family of the page's font list, as Look Up resolves it.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LookUpFamily {
+    /// The system font (`-apple-system`, `system-ui`, `sans-serif`).
+    System,
+    /// The monospaced system font (`ui-monospace`, `SFMono-Regular`).
+    Monospaced,
+    /// A font installed on this Mac, by family name.
+    Installed(String),
+    /// An imported font, by its file in the fonts folder.
+    Imported(String),
+}
+
+/// Where a Look Up font comes from, in the order to try: an imported font
+/// is its file's bytes, read (and checked) before AppKit is asked.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FontSource {
+    System,
+    Monospaced,
+    Installed(String),
+    File(Vec<u8>),
+}
+
+/// The font AppKit draws the Look Up word in: the sources to try, then the
+/// system font at `size` when none resolves.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct LookUpStyle {
+    pub sources: Vec<FontSource>,
+    /// In points (a CSS pixel each); None for the system font size.
+    pub size: Option<f64>,
+    /// A weight name of `SYMBOL_WEIGHTS`.
+    pub weight: &'static str,
+    /// AppKit's font manager weight (0 to 15; 5 is regular, 9 bold).
+    pub manager_weight: isize,
+    pub italic: bool,
+}
+
+/// The families of a CSS font list Look Up can try, in order: system and
+/// generic keywords, imported fonts (`Devot Font <id>`) and installed
+/// families. A name is checked like the other font names (no quotes or
+/// backslashes, a length limit) and skipped when it fails; so is the whole
+/// list when it is too long.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn look_up_families(list: &str) -> Vec<LookUpFamily> {
+    if list.chars().count() > MAX_LOOK_UP_FONT_LIST {
+        return Vec::new();
+    }
+    list.split(',')
+        .filter_map(|name| {
+            let name = name.trim();
+            let name = ['"', '\'']
+                .into_iter()
+                .find_map(|q| name.strip_prefix(q)?.strip_suffix(q))
+                .unwrap_or(name);
+            look_up_family(name)
+        })
+        .take(MAX_LOOK_UP_FAMILIES)
+        .collect()
+}
+
+/// One family name of a font list (quotes taken off), or None when Look Up
+/// cannot use it.
+fn look_up_family(name: &str) -> Option<LookUpFamily> {
+    match name.to_ascii_lowercase().as_str() {
+        "-apple-system" | "system-ui" | "blinkmacsystemfont" | "sans-serif" | "ui-sans-serif" => {
+            return Some(LookUpFamily::System);
+        }
+        "ui-monospace" | "sfmono-regular" | "sf mono" | "monospace" => {
+            return Some(LookUpFamily::Monospaced);
+        }
+        _ => {}
+    }
+    if let Some(rest) = name.strip_prefix(IMPORTED_FAMILY_PREFIX) {
+        // The page names a file `Name.ttf` as `Devot Font Name ttf`: its
+        // extension's dot is the last space.
+        let (stem, ext) = rest.rsplit_once(' ')?;
+        let id = format!("{stem}.{ext}");
+        return crate::fonts::valid_id(&id).then_some(LookUpFamily::Imported(id));
+    }
+    crate::fonts::valid_family_name(name).then(|| LookUpFamily::Installed(name.to_string()))
+}
+
+/// The weight name of a CSS weight: the nearest hundred, from `ultralight`
+/// (100) to `black` (900); regular when it is not a number.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn css_weight_name(weight: f64) -> &'static str {
+    if !weight.is_finite() {
+        return "regular";
+    }
+    let index = (weight / 100.0).round().clamp(1.0, 9.0) as usize - 1;
+    SYMBOL_WEIGHTS[index]
+}
+
+/// AppKit's font manager weight for a CSS weight: 5 for 400, 9 for 700.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn manager_weight(weight: f64) -> isize {
+    const SCALE: [isize; 9] = [2, 3, 4, 5, 6, 8, 9, 10, 11];
+    let index = SYMBOL_WEIGHTS
+        .iter()
+        .position(|name| *name == css_weight_name(weight))
+        .unwrap_or(3);
+    SCALE[index]
+}
+
+/// The style a Look Up draws its word in. Without font information (an
+/// older page, the preview) or with a size out of range, the system font at
+/// its usual size; an imported family whose file cannot be read is skipped.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn look_up_style(font: Option<&LookUpFont>, read: impl Fn(&str) -> Option<Vec<u8>>) -> LookUpStyle {
+    let fallback = LookUpStyle {
+        sources: Vec::new(),
+        size: None,
+        weight: "regular",
+        manager_weight: 5,
+        italic: false,
+    };
+    let Some(font) = font.filter(|f| LOOK_UP_FONT_SIZES.contains(&f.size)) else {
+        return fallback;
+    };
+    let sources = look_up_families(&font.family)
+        .into_iter()
+        .filter_map(|family| match family {
+            LookUpFamily::System => Some(FontSource::System),
+            LookUpFamily::Monospaced => Some(FontSource::Monospaced),
+            LookUpFamily::Installed(name) => Some(FontSource::Installed(name)),
+            LookUpFamily::Imported(id) => read(&id).map(FontSource::File),
+        })
+        .collect();
+    LookUpStyle {
+        sources,
+        size: Some(font.size),
+        weight: css_weight_name(font.weight),
+        manager_weight: manager_weight(font.weight),
+        italic: font.italic,
+    }
+}
+
 /// What a speech request asks for.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Debug, PartialEq, Eq)]
@@ -353,13 +518,15 @@ fn validate_speech(action: &str, text: Option<String>) -> Result<SpeechRequest, 
 }
 
 /// Shows the system dictionary for `text` at a point in the window (CSS
-/// pixels from the top-left corner of the page).
+/// pixels from the top-left corner of the page), drawing the word in `font`
+/// (the system font without it).
 #[tauri::command]
 pub async fn text_look_up(
     app: tauri::AppHandle,
     text: String,
     x: f64,
     y: f64,
+    font: Option<LookUpFont>,
 ) -> Result<(), String> {
     validate_look_up(&text, x, y).map_err(String::from)?;
     #[cfg(target_os = "macos")]
@@ -368,10 +535,17 @@ pub async fn text_look_up(
         let window = app
             .get_webview_window(crate::MAIN_WINDOW)
             .ok_or_else(|| String::from("E_NATIVE_MAIN_WINDOW_MISSING"))?;
+        // An imported font's file is read here, off the main thread.
+        let fonts = std::sync::Arc::clone(&app.state::<std::sync::Arc<crate::fonts::Fonts>>());
+        let style = tauri::async_runtime::spawn_blocking(move || {
+            look_up_style(font.as_ref(), |id| fonts.read(id).ok())
+        })
+        .await
+        .map_err(|_| String::from("E_LOOK_UP_FAILED"))?;
         let (reply, answer) = tokio::sync::oneshot::channel();
         window
             .with_webview(move |webview| {
-                let _ = reply.send(macos::look_up(&webview, &text, x, y));
+                let _ = reply.send(macos::look_up(&webview, &text, x, y, &style));
             })
             .map_err(|_| String::from("E_NATIVE_MAIN_THREAD_UNAVAILABLE"))?;
         match answer.await {
@@ -381,7 +555,7 @@ pub async fn text_look_up(
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = app;
+        let _ = (app, font);
         Err(String::from("E_LOOK_UP_UNSUPPORTED"))
     }
 }
@@ -1026,6 +1200,117 @@ mod tests {
             .decode(answer)
             .unwrap();
         assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    }
+
+    #[test]
+    fn look_up_reads_the_families_of_a_css_font_list_in_order() {
+        use LookUpFamily::*;
+        assert_eq!(
+            look_up_families(
+                "\"Devot Font My Hand ttf\", SFMono-Regular, ui-monospace, 'Courier New', Menlo, monospace"
+            ),
+            [
+                Imported("My Hand.ttf".into()),
+                Monospaced,
+                Monospaced,
+                Installed("Courier New".into()),
+                Installed("Menlo".into()),
+                Monospaced,
+            ]
+        );
+        assert_eq!(
+            look_up_families("-apple-system, BlinkMacSystemFont, system-ui, sans-serif"),
+            [System, System, System, System]
+        );
+        assert_eq!(look_up_families(""), []);
+    }
+
+    #[test]
+    fn look_up_skips_font_names_that_fail_the_checks() {
+        use LookUpFamily::*;
+        // Quotes or backslashes inside a name, a hidden family, a bad file
+        // name and a name over the limit are skipped; the rest stay.
+        let long = "x".repeat(200);
+        let list = format!(
+            "\"A\\\"B\", 'It\'s', .Hidden, \"Devot Font a b c\", \"Devot Font ttf\", {long}, Menlo"
+        );
+        assert_eq!(look_up_families(&list), [Installed("Menlo".into())]);
+        // An imported name keeps its stem's spaces; only the last one is the dot.
+        assert_eq!(
+            look_up_families("\"Devot Font a b otf\""),
+            [Imported("a b.otf".into())]
+        );
+        // A list over the limit is not read at all; so many families are cut short.
+        assert_eq!(look_up_families(&"a,".repeat(MAX_LOOK_UP_FONT_LIST)), []);
+        assert_eq!(
+            look_up_families(&"Menlo,".repeat(40)).len(),
+            MAX_LOOK_UP_FAMILIES
+        );
+    }
+
+    #[test]
+    fn look_up_weights_follow_css_hundreds() {
+        assert_eq!(css_weight_name(400.0), "regular");
+        assert_eq!(css_weight_name(700.0), "bold");
+        assert_eq!(css_weight_name(100.0), "ultralight");
+        assert_eq!(css_weight_name(950.0), "black");
+        assert_eq!(css_weight_name(0.0), "ultralight");
+        assert_eq!(css_weight_name(f64::NAN), "regular");
+        assert_eq!(css_weight_name(649.0), "semibold");
+        assert_eq!(manager_weight(400.0), 5);
+        assert_eq!(manager_weight(700.0), 9);
+        assert_eq!(manager_weight(100.0), 2);
+        assert_eq!(manager_weight(900.0), 11);
+    }
+
+    #[test]
+    fn look_up_style_tries_the_families_in_order_and_falls_back_to_the_system_font() {
+        let font = |family: &str, size: f64| LookUpFont {
+            family: family.into(),
+            size,
+            weight: 700.0,
+            italic: true,
+        };
+        let read = |id: &str| (id == "Hand.ttf").then(|| vec![1, 2, 3]);
+        let style = look_up_style(
+            Some(&font(
+                "\"Devot Font Gone ttf\", \"Devot Font Hand ttf\", Menlo, ui-monospace",
+                24.0,
+            )),
+            read,
+        );
+        // A file that cannot be read is skipped; the rest keep their order.
+        assert_eq!(
+            style.sources,
+            [
+                FontSource::File(vec![1, 2, 3]),
+                FontSource::Installed("Menlo".into()),
+                FontSource::Monospaced,
+            ]
+        );
+        assert_eq!(style.size, Some(24.0));
+        assert_eq!(
+            (style.weight, style.manager_weight, style.italic),
+            ("bold", 9, true)
+        );
+        // No font information (an older page) or a size out of range: the
+        // system font at its usual size.
+        let system = look_up_style(None, read);
+        assert_eq!(system.sources, []);
+        assert_eq!(system.size, None);
+        assert_eq!((system.weight, system.italic), ("regular", false));
+        for size in [0.0, -3.0, 10_000.0, f64::NAN, f64::INFINITY] {
+            assert_eq!(look_up_style(Some(&font("Menlo", size)), read), system);
+        }
+    }
+
+    #[test]
+    fn look_up_font_is_upright_unless_it_says_italic() {
+        let font: LookUpFont = serde_json::from_value(serde_json::json!({
+            "family": "Menlo", "size": 13.0, "weight": 400.0
+        }))
+        .unwrap();
+        assert!(!font.italic);
     }
 
     #[test]

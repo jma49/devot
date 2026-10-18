@@ -13,9 +13,9 @@ use objc2::runtime::{AnyClass, AnyObject, Bool};
 use objc2::sel;
 use objc2::{AllocAnyThread, ClassType, msg_send};
 use objc2_app_kit::{
-    NSBitmapImageFileType, NSBitmapImageRep, NSFontWeightBlack, NSFontWeightBold,
-    NSFontWeightHeavy, NSFontWeightLight, NSFontWeightMedium, NSFontWeightRegular,
-    NSFontWeightSemibold, NSFontWeightThin, NSFontWeightUltraLight, NSImage,
+    NSBitmapImageFileType, NSBitmapImageRep, NSFont, NSFontManager, NSFontTraitMask,
+    NSFontWeightBlack, NSFontWeightBold, NSFontWeightHeavy, NSFontWeightLight, NSFontWeightMedium,
+    NSFontWeightRegular, NSFontWeightSemibold, NSFontWeightThin, NSFontWeightUltraLight, NSImage,
     NSImageSymbolConfiguration, NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeString,
     NSPasteboardTypeTIFF,
 };
@@ -1200,12 +1200,13 @@ pub fn look_up(
     text: &str,
     x: f64,
     y: f64,
+    style: &super::LookUpStyle,
 ) -> Result<(), &'static str> {
     let web_view: *mut AnyObject = webview.inner().cast();
     guarded("W_NATIVE_LOOK_UP_FAILED", || {
         // SAFETY: `inner()` is the live WKWebView owned by the window; the
         // call runs on the main thread (`with_webview`).
-        Some(unsafe { look_up_in(web_view, text, x, y) })
+        Some(unsafe { look_up_in(web_view, text, x, y, style) })
     })
     .unwrap_or(Err("E_LOOK_UP_FAILED"))
 }
@@ -1217,6 +1218,7 @@ unsafe fn look_up_in(
     text: &str,
     x: f64,
     y: f64,
+    style: &super::LookUpStyle,
 ) -> Result<(), &'static str> {
     // SAFETY: `web_view` is null or live (caller contract).
     if !unsafe { text_services(web_view) }.look_up {
@@ -1229,11 +1231,19 @@ unsafe fn look_up_in(
     }
     let class = AnyClass::get(c"NSAttributedString").ok_or("E_LOOK_UP_UNAVAILABLE")?;
     let string = NSString::from_str(text);
-    // SAFETY: `alloc` and `initWithString:` are NSAttributedString's own
-    // designated pair; `string` is an NSString; the result is owned.
+    // The word is drawn in the text's own font, so the highlight covers it.
+    let font = look_up_font(style);
+    // SAFETY: `NSFontAttributeName` is an immutable AppKit constant, valid
+    // for the life of the process.
+    let key = unsafe { objc2_app_kit::NSFontAttributeName };
+    let attributes = NSDictionary::<NSString, AnyObject>::from_slices(&[key], &[font.as_ref()]);
+    // SAFETY: `alloc` and `initWithString:attributes:` are
+    // NSAttributedString's own designated pair; `string` is an NSString,
+    // `attributes` maps NSFontAttributeName to an NSFont; the result is owned.
     let attributed: Option<Retained<AnyObject>> = unsafe {
         let fresh: *mut AnyObject = msg_send![class, alloc];
-        let made: *mut AnyObject = msg_send![fresh, initWithString: &*string];
+        let made: *mut AnyObject =
+            msg_send![fresh, initWithString: &*string, attributes: &*attributes];
         Retained::from_raw(made)
     };
     let attributed = attributed.ok_or("E_LOOK_UP_UNAVAILABLE")?;
@@ -1247,6 +1257,85 @@ unsafe fn look_up_in(
         ];
     }
     Ok(())
+}
+
+/// The font a Look Up draws its word in: the first of the style's sources
+/// that resolves, else the system font at its size. Main thread.
+fn look_up_font(style: &super::LookUpStyle) -> Retained<NSFont> {
+    let size = style.size.unwrap_or_else(NSFont::systemFontSize);
+    let weight = symbol_weight(style.weight);
+    let found = style.sources.iter().find_map(|source| match source {
+        super::FontSource::System => Some(NSFont::systemFontOfSize_weight(size, weight)),
+        super::FontSource::Monospaced => {
+            Some(NSFont::monospacedSystemFontOfSize_weight(size, weight))
+        }
+        super::FontSource::Installed(family) => installed_font(family, style, size),
+        super::FontSource::File(bytes) => file_font(bytes, size),
+    });
+    let font = found.unwrap_or_else(|| NSFont::systemFontOfSize_weight(size, weight));
+    if !style.italic {
+        return font;
+    }
+    let mtm = objc2::MainThreadMarker::new();
+    match mtm {
+        // An installed family was asked for italic already; for the others
+        // the font manager finds the italic face, or keeps the font.
+        Some(mtm) => NSFontManager::sharedFontManager(mtm)
+            .convertFont_toHaveTrait(&font, NSFontTraitMask::ItalicFontMask),
+        None => font,
+    }
+}
+
+/// An installed family at the style's weight (and italic), or the family's
+/// regular face when it has no such face; None when it is not installed.
+fn installed_font(family: &str, style: &super::LookUpStyle, size: f64) -> Option<Retained<NSFont>> {
+    let manager = NSFontManager::sharedFontManager(objc2::MainThreadMarker::new()?);
+    let family = NSString::from_str(family);
+    let mut traits = NSFontTraitMask::empty();
+    if style.italic {
+        traits |= NSFontTraitMask::ItalicFontMask;
+    }
+    if style.manager_weight >= 9 {
+        traits |= NSFontTraitMask::BoldFontMask;
+    }
+    manager
+        .fontWithFamily_traits_weight_size(&family, traits, style.manager_weight, size)
+        .or_else(|| {
+            manager.fontWithFamily_traits_weight_size(&family, NSFontTraitMask::empty(), 5, size)
+        })
+}
+
+#[link(name = "CoreText", kind = "framework")]
+unsafe extern "C" {
+    /// Returns a new CFArray of CTFontDescriptor (empty for data that is
+    /// not a font); registers nothing.
+    fn CTFontManagerCreateFontDescriptorsFromData(data: *const AnyObject) -> *mut AnyObject;
+    /// Returns a new CTFont (toll-free bridged with NSFont).
+    fn CTFontCreateWithFontDescriptor(
+        descriptor: *const AnyObject,
+        size: f64,
+        matrix: *const std::ffi::c_void,
+    ) -> *mut AnyObject;
+}
+
+/// The first face of an imported font file's (checked) bytes at `size`,
+/// made for this call only: nothing is registered with the system.
+fn file_font(bytes: &[u8], size: f64) -> Option<Retained<NSFont>> {
+    let data = NSData::with_bytes(bytes);
+    // SAFETY: NSData is toll-free bridged with CFData; the function returns
+    // a +1 CFArray (toll-free bridged with NSArray) or null, owned here.
+    let descriptors: Retained<objc2_foundation::NSArray<AnyObject>> = unsafe {
+        let made = CTFontManagerCreateFontDescriptorsFromData(Retained::as_ptr(&data).cast());
+        Retained::from_raw(made.cast())?
+    };
+    let descriptor = descriptors.firstObject()?;
+    // SAFETY: `descriptor` is a CTFontDescriptor from the array above; a null
+    // matrix is the identity; the result is a +1 CTFont, which is an NSFont.
+    unsafe {
+        let made =
+            CTFontCreateWithFontDescriptor(Retained::as_ptr(&descriptor), size, std::ptr::null());
+        Retained::from_raw(made.cast())
+    }
 }
 
 /// Starts or stops speaking. The web view speaks its own selection when it
@@ -1367,9 +1456,10 @@ pub fn self_test_look_up_speech() -> Result<(), &'static str> {
     if !services.start_speaking || !services.stop_speaking {
         return Err("E_SPEECH_SELECTORS_MISSING");
     }
+    let style = super::look_up_style(None, |_| None);
     // A point outside the view is refused before anything shows.
     // SAFETY: `object` is the live web view retained above.
-    let outside = unsafe { look_up_in(object, "word", 10_000.0, 10_000.0) };
+    let outside = unsafe { look_up_in(object, "word", 10_000.0, 10_000.0, &style) };
     if outside != Err("E_LOOK_UP_OUTSIDE_VIEW") {
         return Err("E_LOOK_UP_OUTSIDE_NOT_REFUSED");
     }
@@ -1378,7 +1468,8 @@ pub fn self_test_look_up_speech() -> Result<(), &'static str> {
     let plain: Retained<objc2_foundation::NSObject> = objc2_foundation::NSObject::new();
     let plain_object = Retained::as_ptr(&plain).cast::<AnyObject>().cast_mut();
     // SAFETY: `plain_object` is the live object retained above.
-    if unsafe { look_up_in(plain_object, "word", 1.0, 1.0) } != Err("E_LOOK_UP_UNAVAILABLE") {
+    if unsafe { look_up_in(plain_object, "word", 1.0, 1.0, &style) } != Err("E_LOOK_UP_UNAVAILABLE")
+    {
         return Err("E_LOOK_UP_NOT_GUARDED");
     }
     // SAFETY: as above; stopping speech with nothing speaking is harmless.
@@ -1388,6 +1479,74 @@ pub fn self_test_look_up_speech() -> Result<(), &'static str> {
     // SAFETY: as above.
     if unsafe { speak_in(plain_object, true, None) } != Err("E_SPEECH_NOTHING_TO_SAY") {
         return Err("E_SPEECH_START_NOT_GUARDED");
+    }
+    Ok(())
+}
+
+/// Checks that a Look Up style resolves to the font it names: the system
+/// and monospaced fonts, an installed family with its weight and italic, a
+/// font file's own face, and the system font for anything else. Main thread
+/// only.
+#[doc(hidden)]
+pub fn self_test_look_up_fonts() -> Result<(), &'static str> {
+    use super::{FontSource, LookUpFont, look_up_style};
+    MainThreadMarker::new().ok_or("E_NATIVE_NOT_MAIN_THREAD")?;
+    let font = |family: &str, weight: f64, italic: bool, file: Option<Vec<u8>>| {
+        let request = LookUpFont {
+            family: family.to_string(),
+            size: 21.0,
+            weight,
+            italic,
+        };
+        look_up_font(&look_up_style(Some(&request), |_| file.clone()))
+    };
+    let family = |font: &NSFont| font.familyName().map(|name| name.to_string());
+    let traits = |font: &NSFont| {
+        let mtm = MainThreadMarker::new().expect("main thread");
+        NSFontManager::sharedFontManager(mtm).traitsOfFont(font)
+    };
+    let menlo = font("Menlo, monospace", 400.0, false, None);
+    if family(&menlo).as_deref() != Some("Menlo") || menlo.pointSize() != 21.0 {
+        return Err("E_LOOK_UP_FONT_INSTALLED");
+    }
+    let bold_italic = font("\"Menlo\"", 700.0, true, None);
+    let wanted = NSFontTraitMask::BoldFontMask | NSFontTraitMask::ItalicFontMask;
+    if !traits(&bold_italic).contains(wanted) {
+        return Err("E_LOOK_UP_FONT_TRAITS");
+    }
+    let system = NSFont::systemFontOfSize(21.0);
+    for list in [
+        "-apple-system",
+        "No Such Font Family",
+        "\"Devot Font Gone ttf\"",
+    ] {
+        if family(&font(list, 400.0, false, None)) != family(&system) {
+            return Err("E_LOOK_UP_FONT_FALLBACK");
+        }
+    }
+    let mono = NSFont::monospacedSystemFontOfSize_weight(21.0, symbol_weight("regular"));
+    if family(&font("ui-monospace, Menlo", 400.0, false, None)) != family(&mono) {
+        return Err("E_LOOK_UP_FONT_MONOSPACED");
+    }
+    // Bytes that are not a font fall through to the next family.
+    let garbage = font(
+        "\"Devot Font X ttf\", Menlo",
+        400.0,
+        false,
+        Some(vec![0; 64]),
+    );
+    if family(&garbage).as_deref() != Some("Menlo") {
+        return Err("E_LOOK_UP_FONT_FILE_INVALID");
+    }
+    // A font file's face, read from its bytes only.
+    if let Ok(bytes) = std::fs::read("/System/Library/Fonts/Menlo.ttc") {
+        let from_file = look_up_font(&super::LookUpStyle {
+            sources: vec![FontSource::File(bytes)],
+            ..look_up_style(None, |_| None)
+        });
+        if family(&from_file).as_deref() != Some("Menlo") {
+            return Err("E_LOOK_UP_FONT_FILE");
+        }
     }
     Ok(())
 }
