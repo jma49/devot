@@ -4,6 +4,7 @@ import { effectiveKeymap } from '../commands/keymap'
 import { setCommandKeys, command } from '../commands/registry'
 import { ICONS } from '../icons/symbols'
 import { noteMarkdown } from './markdown'
+import { tableBarStatus } from './tableCommands'
 import { TABLE_BAR_GROUPS, tableBarAt, tableBarTip } from './TableToolbar'
 import { setToolbarFocus, toolbarOff, toolbarState } from './toolbarState'
 
@@ -87,5 +88,53 @@ describe('the table bar buttons', () => {
     expect(tip('format').key).toBeUndefined()
     setCommandKeys(effectiveKeymap({ 'table.format': ['Mod+Alt+J'] }))
     expect(tip('format')).toEqual({ title: 'Format Table', key: '⌥⌘J' })
+  })
+})
+
+describe('tableBarStatus', () => {
+  const BIG = '| a | b |\n| :-- | --: |\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |'
+  const at = (doc: string, head: number) =>
+    tableBarStatus(
+      EditorState.create({ doc, selection: { anchor: head }, extensions: [noteMarkdown] }),
+    )
+  const off = (doc: string, head: number) => [...at(doc, head)!.disabled].sort()
+
+  it('is null outside a table', () => {
+    expect(at('plain text', 3)).toBeNull()
+  })
+
+  it('disables the moves that cannot act on the first row and column', () => {
+    expect(off(BIG, BIG.indexOf('| 1') + 2)).toEqual(['moveColumnLeft', 'moveRowUp'])
+  })
+
+  it('disables Move Row Down on the last row and Move Column Right on the last column', () => {
+    expect(off(BIG, BIG.indexOf('6'))).toEqual(['moveColumnRight', 'moveRowDown'])
+  })
+
+  it('disables every row command on the header row', () => {
+    expect(off(BIG, 2)).toEqual(['deleteRow', 'moveColumnLeft', 'moveRowDown', 'moveRowUp'])
+  })
+
+  it('disables Delete Row on the only row and Delete Column on the only column', () => {
+    const one = '| a |\n| - |\n| 1 |'
+    expect(off(one, one.indexOf('1'))).toEqual([
+      'deleteColumn',
+      'deleteRow',
+      'moveColumnLeft',
+      'moveColumnRight',
+      'moveRowDown',
+      'moveRowUp',
+    ])
+  })
+
+  it('leaves everything on in the middle of a larger table', () => {
+    const grid = '| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |\n| 7 | 8 | 9 |'
+    expect(off(grid, grid.indexOf('5'))).toEqual([])
+  })
+
+  it('reports the alignment of the cursor column', () => {
+    expect(at(BIG, BIG.indexOf('| 1') + 2)!.align).toBe('left')
+    expect(at(BIG, BIG.indexOf('2'))!.align).toBe('right')
+    expect(at(DOC, rowStart + 2)!.align).toBe('none')
   })
 })

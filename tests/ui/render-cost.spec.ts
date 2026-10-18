@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { cpus, loadavg } from 'node:os'
+import { budgetScale } from '../support/budget'
 import { expect, test } from './fixtures'
 import { countRenders, renderCounts, resetRenderCounts, seedNotes } from './renders'
 
@@ -79,7 +80,11 @@ test('opening another note renders only the rows whose selection changed', async
 })
 
 // Benchmark: with 10,000 notes listed, a keystroke is handled and painted
-// within BUDGET_MS (median), and renders no row.
+// within BUDGET_MS (median), and renders no row. BUDGET_MS is written for a
+// developer's Mac; on a hosted CI runner it stretches by the shared factor
+// (tests/support/budget.ts), as every other time budget does. The render
+// counts below are exact on every machine and catch a re-render regression
+// without depending on timing.
 const NOTES = 10_000
 const KEYS = 'abcdefghijklmnopqrst'
 const BUDGET_MS = 30
@@ -127,9 +132,10 @@ test('with 10,000 notes a keystroke stays within its budget and renders no row',
     () => (globalThis as unknown as { devotKeyMs: number[] }).devotKeyMs,
   )
   const median = [...times].sort((a, b) => a - b)[Math.floor(times.length / 2)]!
+  const budget = BUDGET_MS * budgetScale(process.env)
   // A local machine running several suites at once cannot hold a budget; CI
   // always enforces it.
   const overloaded = !process.env['CI'] && loadavg()[0]! > cpus().length
-  test.skip(median >= BUDGET_MS && overloaded, `machine overloaded (${median.toFixed(1)} ms)`)
-  expect(median).toBeLessThan(BUDGET_MS)
+  test.skip(median >= budget && overloaded, `machine overloaded (${median.toFixed(1)} ms)`)
+  expect(median).toBeLessThan(budget)
 })

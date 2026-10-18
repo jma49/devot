@@ -221,3 +221,24 @@ test('the table bar follows the Toolbar setting', async ({ page }) => {
   await body(page).click()
   await expect(bar(page)).toBeVisible()
 })
+
+test('the table bar disables commands that cannot act and marks the alignment', async ({
+  page,
+}) => {
+  await newNote(page, TABLE)
+  await expect(bar(page)).toBeVisible()
+  const button = (name: string) => bar(page).getByRole('button', { name })
+  // The note ends in the last cell of the table: the last column, the only row.
+  await expect(button('Move Column Right')).toBeDisabled()
+  await expect(button('Delete Row')).toBeDisabled()
+  await expect(button('Move Column Left')).toBeEnabled()
+  await expect(button('Insert Row Below')).toBeEnabled()
+  // The Align buttons mark the column's alignment, and follow a change.
+  await expect(bar(page).locator('button[aria-pressed="true"]')).toHaveCount(1)
+  await button('Align Column Center').click()
+  await expect(button('Align Column Center')).toHaveAttribute('aria-pressed', 'true')
+  // Left cell: the first column.
+  await page.keyboard.press('Shift+Tab')
+  await expect(button('Move Column Left')).toBeDisabled()
+  await expect(button('Move Column Right')).toBeEnabled()
+})

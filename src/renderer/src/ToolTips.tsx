@@ -74,8 +74,7 @@ export function ToolTips() {
       target = undefined
       setShown(undefined)
     }
-    const over = (e: PointerEvent) => {
-      const el = e.target instanceof Element ? e.target.closest<HTMLElement>(TOOLS) : null
+    const engage = (el: HTMLElement | null) => {
       if (el === target) return
       hide()
       if (!el) return
@@ -90,6 +89,13 @@ export function ToolTips() {
         setShown({ ...splitTip(title), anchor: boxOf(el) })
       }, SHOW_AFTER_MS)
     }
+    const over = (e: PointerEvent) =>
+      engage(e.target instanceof Element ? e.target.closest<HTMLElement>(TOOLS) : null)
+    // Keyboard focus shows the same bubble (the shortcut included) as the pointer does.
+    const focused = (e: FocusEvent) => {
+      const el = e.target instanceof Element ? e.target.closest<HTMLElement>(TOOLS) : null
+      if (el?.matches(':focus-visible')) engage(el)
+    }
     const follow = () => {
       if (!target) return
       if (!target.isConnected) return hide()
@@ -100,6 +106,8 @@ export function ToolTips() {
       if (e.relatedTarget === null) hide()
     }
     document.addEventListener('pointerover', over)
+    document.addEventListener('focusin', focused)
+    document.addEventListener('focusout', hide)
     document.addEventListener('pointerout', leave)
     document.addEventListener('pointerdown', hide, true)
     document.addEventListener('scroll', follow, true)
@@ -108,6 +116,8 @@ export function ToolTips() {
     return () => {
       hide()
       document.removeEventListener('pointerover', over)
+      document.removeEventListener('focusin', focused)
+      document.removeEventListener('focusout', hide)
       document.removeEventListener('pointerout', leave)
       document.removeEventListener('pointerdown', hide, true)
       document.removeEventListener('scroll', follow, true)

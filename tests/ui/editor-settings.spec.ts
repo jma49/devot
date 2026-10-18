@@ -357,6 +357,23 @@ test('prose only never wraps code blocks and tables, wherever the caret is', asy
   await expect.poll(() => rows(page, 'end |')).toBeGreaterThan(1)
 })
 
+test('with the reading width an unwrapped table scrolls inside the column', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 700 })
+  await newNote(page, `Prose before.\n\n${TABLE}\n\nProse after.`)
+  await changed(page, { lineWrapping: 'prose', readableWidth: true })
+  await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(3)
+  const box = await content(page).evaluate((el) => ({
+    scrolls: el.scrollWidth > el.clientWidth,
+    overflowX: getComputedStyle(el).overflowX,
+    right: el.getBoundingClientRect().right,
+    editorRight: el.closest('.cm-scroller')!.getBoundingClientRect().right,
+  }))
+  expect(box.overflowX).toBe('auto')
+  expect(box.scrolls).toBe(true)
+  // The column stays inside the editor: nothing reaches into the margin.
+  expect(box.right).toBeLessThanOrEqual(box.editorRight)
+})
+
 test('the caret line keeps its place on screen when its block unwraps', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 600 })
   const filler = Array.from({ length: 60 }, (_, i) => `Line ${i}`).join('\n')
@@ -374,4 +391,26 @@ test('the caret line keeps its place on screen when its block unwraps', async ({
       Math.abs((await fence.evaluate((el) => el.getBoundingClientRect().top)) - before),
     )
     .toBeLessThan(2)
+})
+
+test('typing at the end of a long unwrapped line keeps the caret inside the column', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1400, height: 700 })
+  await newNote(page, `\`\`\`\nconst x = '${LONG_CELL}${LONG_CELL}'\n\`\`\``)
+  await changed(page, { lineWrapping: 'prose', readableWidth: true })
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('End')
+  await page.keyboard.type('!')
+  const inside = await content(page).evaluate((el) => {
+    const sel = getSelection()!
+    const caret = sel.getRangeAt(0).getBoundingClientRect()
+    const box = el.getBoundingClientRect()
+    return {
+      scrolled: el.scrollLeft > 0,
+      left: caret.left >= box.left,
+      right: caret.right <= box.right + 1,
+    }
+  })
+  expect(inside).toEqual({ scrolled: true, left: true, right: true })
 })

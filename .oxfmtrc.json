@@ -10,6 +10,7 @@
     "src-tauri/gen/**",
     "playwright-report/**",
     "test-results/**",
-    "src/renderer/src/theme/tokens.*"
+    "src/renderer/src/theme/tokens.*",
+    "tests/core/fixtures/html-import/**"
   ]
 }
