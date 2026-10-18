@@ -16,8 +16,8 @@ Until 1.0 every build ships as a GitHub prerelease on the beta channel. A releas
 
 Release only when both are true:
 
-1. CI is green on the merge commit on `main`.
-2. The batch was accepted by the reviewer who merged it.
+1. CI is green on the head commit of the pull request that was merged. CI runs on pull requests only, not on `main`.
+2. The tree of `main` equals the tree of that head commit (`git diff --quiet <head commit> origin/main`), so the build is of exactly what CI checked.
 
 ## Release
 
@@ -40,6 +40,16 @@ The workflow then, on a macOS 26 Apple Silicon runner:
 5. Writes the feeds the release goes in and uploads them to the fixed `updater` release, which it creates on first use: `beta.json` for a beta; `stable.json` and `beta.json` for a stable release (`scripts/release/release.ts feeds`). Each feed is replaced only by a release newer than the one it offers, so tags pushed close together, whose runs may overlap, leave the newest one in each feed, and a stable release never takes `beta.json` back from a newer beta. A feed that cannot be read (other than one not there yet) fails the run rather than being replaced. A failed run can be run again: a release already made gets its files uploaded again instead (`tests/policy/release-workflow.test.ts`).
 
 Watch the run in the Actions tab; when it fails, fix the cause and release under a new tag.
+
+## After a release
+
+Once the new beta's release is published and `beta.json` offers it, delete the previous beta releases together with their tags:
+
+```sh
+gh release delete <tag> --yes --cleanup-tag
+```
+
+Only the newest beta release is kept. Never delete the `updater` release (see Update feed).
 
 ## Update feed
 

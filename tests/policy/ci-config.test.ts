@@ -159,8 +159,8 @@ it('the pre-push hook checks formatting', () => {
   expect(push).toContain('cargo fmt --check')
 })
 
-it('the README lists the audit script', () => {
-  expect(read('README.md')).toContain('pnpm deps:audit')
+it('the development guide lists the audit script', () => {
+  expect(read('docs/development.md')).toContain('pnpm deps:audit')
 })
 
 // scripts/ci/changed-code.sh decides which CI jobs a pull request needs.
