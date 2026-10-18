@@ -40,7 +40,7 @@ import { setInertFormats } from './commands/formatMenu'
 import { subscribeKeymap } from './commands/shortcutSettings'
 import { useEditorSettings } from './editorSettings'
 import type { FindTarget } from './find/target'
-import { keyboardIsFree } from './focus'
+import { keyboardIsFree, typingElsewhere } from './focus'
 import { t } from './i18n'
 import {
   imageActionApplies,
@@ -783,7 +783,12 @@ export function NoteEditor({
             },
           }
         }
-        if (focusOnOpen.current && (!focusOnlyIfFree.current || keyboardIsFree())) view.focus()
+        // The body took a while to load: a title or palette field the user
+        // went to meanwhile keeps the keyboard.
+        const take = focusOnlyIfFree.current
+          ? keyboardIsFree()
+          : !typingElsewhere(document.activeElement, host.current)
+        if (focusOnOpen.current && take) view.focus()
         // A hidden editor goes to its place when it shows (see above).
         if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
       },
