@@ -23,7 +23,7 @@ Tokens use the [W3C Design Tokens (DTCG)](https://www.designtokens.org/) format.
 
 ## Look
 
-- **Window:** the window is transparent with the system `sidebar` effect; the sidebar shows the material through a light warm tint (`color.surface.sidebar`), while the note list and editor are opaque. Settings > Appearance can turn the material off: the sidebar then paints `color.surface.sidebar-opaque`, the same tint without transparency. The traffic lights and the sidebar toggle sit in the sidebar's top bar; a unified 52 px toolbar runs over the list and editor, and the traffic lights sit on its centre line.
+- **Window:** the window is transparent with the system under-window background material behind all of it, always active; each region shows it through its own wash: the sidebar `color.surface.sidebar`, the note list `color.surface.list-wash`, the editor pane `color.surface.editor-wash` (the editor itself is transparent). The toolbar has no wash of its own; pop-ups and menus stay opaque. Settings > Appearance > Transparency, a slider from Opaque to Transparent that starts at these washes (with a Reset back to them), adjusts every wash's alpha a to 1 - (1 - a) x (1 + level / 100), clamped, for a level from -100 (opaque) through 0 (as designed) to 100 (twice as clear). Settings > Appearance can turn the material off: the window then paints `color.surface.window` and the regions `color.surface.sidebar-opaque`, `color.surface.list` and `color.surface.editor`. The traffic lights and the sidebar toggle sit in the sidebar's top bar; a unified 52 px toolbar runs over the list and editor, and the traffic lights sit on its centre line.
 - **Type:** the system UI font (SF Pro) and SF Mono, not bundled. Body 13 pt, captions and section headers 11 pt, sidebar rows 30 px with no gap between them. Scroll bars are 6 px wide.
 - **Selection:** the sidebar draws a selected row with an accent wash (`color.fill.row-selected-unemphasized`) while it does not have the keyboard, a solid `color.accent.fill` with `color.accent.on-fill` text and marks while it does. The note list draws every selected row with a wash of `color.accent.fill` at `opacity.list-selected`, focused or not, and its text keeps its colours; while the list has the keyboard, the open note's row also has a `size.list-focus-bar` bar in `color.accent.fill` on its left edge.
 - **Text and lines:** tiers of one ink per appearance (`color.ink.text`, `color.ink.line`). Text: body 87%, under the pointer 80%, secondary 60%, placeholders and disabled 40%, selected 95% (`color.text.*`, each naming its tier); a tier is the ink over the editor, moved toward black or white only where contrast needs it. Lines: borders 15% (light) or 10% (dark), internal dividers 10% (`color.line.hairline`, `color.line.separator`).
@@ -31,7 +31,7 @@ Tokens use the [W3C Design Tokens (DTCG)](https://www.designtokens.org/) format.
 - **Focus:** custom controls show one ring, `size.focus-ring` wide in `color.focus.ring` on their edge (just inside a control that clips, such as a scroll list); native form controls keep the system ring. The ring is the accent fill at a design strength of 40% (light) or 30% (dark), raised to the least that keeps 3:1 on every surface (79% and 97%); with the system accent it is worked out the same way (`theme/accent.ts`).
 - **Disabled:** a control that cannot be used shows at `opacity.disabled`.
 - **Controls:** segmented controls, pop-up buttons and search fields follow AppKit sizes and shapes. A segmented control's selected segment is a raised neutral segment, not an accent fill.
-- **Floating bars:** the selection toolbar and the image size bar float over the editor on `color.surface.popover` (`radius.floating-bar`, a soft `color.line.shadow`), with a notch pointing at the text; a button under the pointer gets a round `color.line.control` ring, and tooltips show the command's key in a chip. The link dialog uses the same surface with `radius.dialog`.
+- **Floating bars:** the selection toolbar and the image size bar float over the editor on `color.surface.float-bar` (`radius.floating-bar`, a soft `color.line.shadow`), with a notch pointing at the text; a button under the pointer gets a round `color.line.control` ring, and tooltips show the command's key in a chip. The link dialog uses the same surface with `radius.dialog`.
 - **Menus:** the menu bar and every context menu are native. Settings live in the app menu (Devot ▸ Settings…, ⌘,), not in the window.
 
 ## Tag colours
@@ -132,11 +132,15 @@ A warm theme: ivory surfaces and warm near-black text (light), warm charcoal and
 
 | Token                                                    | Light                          | Dark                                          |
 | -------------------------------------------------------- | ------------------------------ | --------------------------------------------- |
-| `color.surface.sidebar` (material)                       | `#f5f4ed` at 70%               | `#1f1e1d` at 70%                              |
+| `color.surface.sidebar` (material)                       | `#f5f4ed` at 2%                | `#1f1e1d` at 10%                              |
 | `color.surface.sidebar-opaque`                           | `#f5f4ed`                      | `#1f1e1d`                                     |
 | `color.surface.list`                                     | `#faf9f5`                      | `#262624`                                     |
+| `color.surface.list-wash` (material)                     | `#faf9f5` at 80%               | `#262624` at 50%                              |
 | `color.surface.editor`                                   | `#ffffff`                      | `#30302e`                                     |
+| `color.surface.editor-wash` (material)                   | `#ffffff` at 70%               | `#30302e` at 60%                              |
+| `color.surface.window`                                   | `#ffffff`                      | `#1f1e1d`                                     |
 | `color.surface.popover`                                  | `#ffffff`                      | `#353533`                                     |
+| `color.surface.float-bar`                                | `#ffffff`                      | `#353533`                                     |
 | `color.text.primary`, `color.text.editor`                | `#141413`                      | `#faf9f5`                                     |
 | `color.text.secondary`                                   | `#3d3d3a`                      | `#c2c0b6`                                     |
 | `color.text.tertiary`                                    | `#696862` (design `#73726c`)   | `#aba9a2` (design `#9c9a92`)                  |

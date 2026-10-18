@@ -129,11 +129,15 @@ export const sizes = {
 } as const
 
 export const light = {
-  "color.surface.sidebar": "rgb(243 244 246 / 0.7)",
+  "color.surface.sidebar": "rgb(255 255 255 / 0.02)",
   "color.surface.sidebar-opaque": "#f3f4f6",
   "color.surface.list": "#fafaf9",
+  "color.surface.list-wash": "rgb(245 245 244 / 0.8)",
   "color.surface.editor": "#ffffff",
+  "color.surface.editor-wash": "rgb(255 255 255 / 0.7)",
+  "color.surface.window": "#ffffff",
   "color.surface.popover": "#ffffff",
+  "color.surface.float-bar": "#ffffff",
   "color.ink.text": "#000000",
   "color.ink.line": "#171717",
   "color.text.primary": "#212121",
@@ -254,11 +258,15 @@ export const light = {
 } as const
 
 export const dark = {
-  "color.surface.sidebar": "rgb(23 23 23 / 0.7)",
+  "color.surface.sidebar": "rgb(0 0 0 / 0.1)",
   "color.surface.sidebar-opaque": "#171717",
   "color.surface.list": "#111111",
+  "color.surface.list-wash": "rgb(23 23 23 / 0.5)",
   "color.surface.editor": "#0a0a0a",
-  "color.surface.popover": "#2a2927",
+  "color.surface.editor-wash": "rgb(10 10 10 / 0.6)",
+  "color.surface.window": "#000000",
+  "color.surface.popover": "#171717",
+  "color.surface.float-bar": "#2a2927",
   "color.ink.text": "#fafafa",
   "color.ink.line": "#f5f5f5",
   "color.text.primary": "#dbdbdb",
@@ -379,11 +387,15 @@ export const dark = {
 } as const
 
 export const ivoryLight = {
-  "color.surface.sidebar": "rgb(245 244 237 / 0.7)",
+  "color.surface.sidebar": "rgb(245 244 237 / 0.02)",
   "color.surface.sidebar-opaque": "#f5f4ed",
   "color.surface.list": "#faf9f5",
+  "color.surface.list-wash": "rgb(250 249 245 / 0.8)",
   "color.surface.editor": "#ffffff",
+  "color.surface.editor-wash": "rgb(255 255 255 / 0.7)",
+  "color.surface.window": "#ffffff",
   "color.surface.popover": "#ffffff",
+  "color.surface.float-bar": "#ffffff",
   "color.ink.text": "#141413",
   "color.ink.line": "#1f1e1d",
   "color.text.primary": "#141413",
@@ -504,11 +516,15 @@ export const ivoryLight = {
 } as const
 
 export const ivoryDark = {
-  "color.surface.sidebar": "rgb(31 30 29 / 0.7)",
+  "color.surface.sidebar": "rgb(31 30 29 / 0.1)",
   "color.surface.sidebar-opaque": "#1f1e1d",
   "color.surface.list": "#262624",
+  "color.surface.list-wash": "rgb(38 38 36 / 0.5)",
   "color.surface.editor": "#30302e",
+  "color.surface.editor-wash": "rgb(48 48 46 / 0.6)",
+  "color.surface.window": "#1f1e1d",
   "color.surface.popover": "#353533",
+  "color.surface.float-bar": "#353533",
   "color.ink.text": "#faf9f5",
   "color.ink.line": "#faf9f5",
   "color.text.primary": "#faf9f5",

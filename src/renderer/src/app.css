@@ -298,7 +298,11 @@ button {
   pointer-events: none;
 }
 
-/* Sidebar: the window material shows through its tint. */
+/* Sidebar: the window material shows through its wash. Each region's wash
+   has its token's alpha a, adjusted by Settings > Appearance > Transparency
+   (--window-transparency, -100 to 100, set from the editor settings): 0
+   keeps a, -100 is opaque, 100 lets twice as much through
+   (1 - (1 - a) * (1 + level / 100), clamped). */
 .sidebar {
   position: relative;
   /* The width the user dragged its right edge to (Sidebar sets --sidebar-width). */
@@ -312,18 +316,32 @@ button {
   flex-direction: column;
   padding: 0 var(--space-5) var(--space-6);
   box-sizing: border-box;
-  background: var(--color-surface-sidebar);
+  background: color(
+    from var(--color-surface-sidebar) srgb r g b /
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
+  );
   border-right: 1px solid var(--color-line-hairline);
   font-size: var(--font-size-row);
 }
 
 /* Settings > Appearance turned the material off (sidebarMaterial.ts): the
-   window draws no effect, so the sidebar paints its own opaque surface, and
+   window draws no effect, so every region paints its own opaque surface, and
    so does the root, behind every pane, before they render or while one
    changes. */
-:root[data-sidebar-material='off'],
+:root[data-sidebar-material='off'] {
+  background: var(--color-surface-window);
+}
+
 :root[data-sidebar-material='off'] .sidebar {
   background: var(--color-surface-sidebar-opaque);
+}
+
+:root[data-sidebar-material='off'] .list {
+  background: var(--color-surface-list);
+}
+
+:root[data-sidebar-material='off'] .content {
+  background: var(--color-surface-editor);
 }
 
 .sidebar-scroll {
@@ -947,7 +965,11 @@ button {
   flex-direction: column;
   min-height: 0;
   box-sizing: border-box;
-  background: var(--color-surface-list);
+  /* The window material shows through (opaque when it is off, above). */
+  background: color(
+    from var(--color-surface-list-wash) srgb r g b /
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
+  );
   border-right: 1px solid var(--color-line-hairline);
 }
 
@@ -1318,7 +1340,11 @@ button {
   min-width: calc(var(--size-pane-min-width) * 2);
   display: flex;
   flex-direction: column;
-  background: var(--color-surface-editor);
+  /* The window material shows through; the editor itself is transparent. */
+  background: color(
+    from var(--color-surface-editor-wash) srgb r g b /
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
+  );
 }
 
 .window[data-narrow]:not([data-sidebar-hidden]) .content {
@@ -2445,7 +2471,7 @@ button {
   padding: 0;
   border: 0;
   border-radius: var(--radius-dialog);
-  background: var(--color-surface-popover);
+  background: var(--color-surface-float-bar);
   color: var(--color-text-primary);
   box-shadow:
     0 0 0 0.5px var(--color-line-hairline),
@@ -2480,7 +2506,7 @@ button {
   border-radius: var(--radius-field);
   outline: none;
   box-shadow: inset 0 0 0 1px var(--color-line-control);
-  background: var(--color-surface-popover);
+  background: var(--color-surface-float-bar);
   color: var(--color-text-primary);
   font: inherit;
 }
@@ -3141,7 +3167,8 @@ button {
   padding-top: var(--space-2);
   overflow-y: auto;
   border-right: 1px solid var(--color-line-hairline);
-  background: var(--color-surface-sidebar);
+  /* The Settings window has no material: its sidebar is opaque. */
+  background: var(--color-surface-sidebar-opaque);
 }
 
 /* A row: its name on the left and an outline symbol on the right. The
@@ -3340,6 +3367,22 @@ button {
 
 /* A pop-up in the window's text size, as tall as the push buttons beside it,
    with the same corners. */
+.setting-range {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The slider's end labels, in the description's size and colour. */
+.setting-range-end {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+}
+
+.setting-range input:disabled ~ .setting-range-end {
+  opacity: var(--opacity-disabled);
+}
+
 .setting-control select {
   box-sizing: border-box;
   height: var(--size-segment-height);

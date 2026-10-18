@@ -3,31 +3,45 @@ import {
   changeEditorSettingsElsewhere,
   expect,
   openSettings,
+  paintedBackground,
   test,
   type TestWindow,
 } from './fixtures'
 
-// The sidebar material (Settings > Appearance). With it on (the default) the
-// sidebar lets the window's material show through a light tint; turned off,
-// the sidebar and the root paint an opaque surface, in light and dark, and
-// the page asks Rust (`sidebar_material_sync`) to drop the window effect.
-// The order keeps the desktop from showing through a bare tint: off paints
+// The window material (Settings > Appearance). With it on (the default) the
+// sidebar, the note list and the editor let the window's material show
+// through their washes; turned off, they and the root paint opaque surfaces,
+// in light and dark, and the page asks Rust (`sidebar_material_sync`) to drop
+// the window effect. The order keeps the desktop from showing through a bare
+// wash: off paints
 // opaque before Rust drops the effect, on waits for Rust to restore it. The
 // setting is stored with the editor settings, so a change in the Settings
 // window reaches the main window as `devot:editor-settings-changed`.
 
-/** The sidebar's surfaces (`color.surface.sidebar` and `-opaque`). */
+/** Each region's wash over the material and its opaque surface, and the window's. */
 const SURFACES = {
-  light: { material: 'rgba(243, 244, 246, 0.7)', opaque: 'rgb(243, 244, 246)' },
-  dark: { material: 'rgba(23, 23, 23, 0.7)', opaque: 'rgb(23, 23, 23)' },
+  light: {
+    sidebar: { material: 'rgba(255, 255, 255, 0.02)', opaque: 'rgb(243, 244, 246)' },
+    list: { material: 'rgba(245, 245, 244, 0.8)', opaque: 'rgb(250, 250, 249)' },
+    editor: { material: 'rgba(255, 255, 255, 0.7)', opaque: 'rgb(255, 255, 255)' },
+    window: 'rgb(255, 255, 255)',
+  },
+  dark: {
+    sidebar: { material: 'rgba(0, 0, 0, 0.1)', opaque: 'rgb(23, 23, 23)' },
+    list: { material: 'rgba(23, 23, 23, 0.5)', opaque: 'rgb(17, 17, 17)' },
+    editor: { material: 'rgba(10, 10, 10, 0.6)', opaque: 'rgb(10, 10, 10)' },
+    window: 'rgb(0, 0, 0)',
+  },
 } as const
 const CLEAR = 'rgba(0, 0, 0, 0)'
 
 const root = (page: Page) => page.locator('html')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
+const list = (page: Page) => page.getByRole('region', { name: 'Notes' })
+const editor = (page: Page) => page.getByRole('main')
 const appearance = (page: Page) => page.getByRole('region', { name: 'Appearance' }).first()
 const translucent = (page: Page) =>
-  appearance(page).getByRole('switch', { name: 'Translucent sidebar' })
+  appearance(page).getByRole('switch', { name: 'Translucent window' })
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
@@ -48,10 +62,13 @@ const stored = (page: Page, settings: Record<string, unknown>) =>
 
 async function expectShown(page: Page, material: boolean, scheme: 'light' | 'dark' = 'light') {
   await expect(root(page)).toHaveAttribute('data-sidebar-material', material ? 'on' : 'off')
-  const surface = SURFACES[scheme][material ? 'material' : 'opaque']
-  await expect(sidebar(page)).toHaveCSS('background-color', surface)
+  const shown = material ? 'material' : 'opaque'
+  const surfaces = SURFACES[scheme]
+  await expect.poll(() => paintedBackground(sidebar(page))).toBe(surfaces.sidebar[shown])
+  await expect.poll(() => paintedBackground(list(page))).toBe(surfaces.list[shown])
+  await expect.poll(() => paintedBackground(editor(page))).toBe(surfaces.editor[shown])
   // Behind every pane: clear over the material, opaque without it.
-  await expect(root(page)).toHaveCSS('background-color', material ? CLEAR : SURFACES[scheme].opaque)
+  await expect(root(page)).toHaveCSS('background-color', material ? CLEAR : surfaces.window)
 }
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -296,7 +313,7 @@ test('the Settings window turns the material off and on', async ({ page }) => {
   await openSettings(page, 'Appearance')
   await expect(appearance(page).getByRole('heading', { name: 'Appearance' }).first()).toBeVisible()
   await expect(translucent(page)).toBeChecked()
-  await expect(translucent(page)).toHaveAccessibleDescription(/opaque sidebar/)
+  await expect(translucent(page)).toHaveAccessibleDescription(/opaque window/)
 
   await translucent(page).uncheck()
   await expect(translucent(page)).not.toBeChecked()
@@ -328,4 +345,55 @@ test('a change that cannot be stored is reported and dropped', async ({ page }) 
   await translucent(page).click()
   await expect(appearance(page).getByRole('alert')).toContainText('E_EDITOR_SETTINGS_WRITE_FAILED')
   await expect(translucent(page)).toBeChecked()
+})
+
+const transparency = (page: Page) => appearance(page).getByRole('slider', { name: 'Transparency' })
+const reset = (page: Page) => appearance(page).getByRole('button', { name: 'Reset' })
+
+test('the transparency adjusts every wash: opaque at one end, the design in the middle, twice as clear at the other', async ({
+  page,
+}) => {
+  await stored(page, { windowTransparency: -100 })
+  await page.goto('/')
+  await expect(root(page)).toHaveAttribute('data-sidebar-material', 'on')
+  await expect.poll(() => paintedBackground(sidebar(page))).toBe('rgb(255, 255, 255)')
+  await expect.poll(() => paintedBackground(list(page))).toBe('rgb(245, 245, 244)')
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 100 })
+  await expect.poll(() => paintedBackground(sidebar(page))).toBe('rgba(255, 255, 255, 0)')
+  await expect.poll(() => paintedBackground(list(page))).toBe('rgba(245, 245, 244, 0.6)')
+  await expect.poll(() => paintedBackground(editor(page))).toBe('rgba(255, 255, 255, 0.4)')
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 0 })
+  await expectShown(page, true)
+  // Turned off, the regions are opaque whatever the transparency.
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 100, sidebarMaterial: false })
+  await expectShown(page, false)
+})
+
+test('the Settings window adjusts the transparency with a slider and resets it, off while the window is opaque', async ({
+  page,
+}) => {
+  await openSettings(page, 'Appearance')
+  await expect(transparency(page)).toHaveValue('0')
+  await expect(transparency(page)).toHaveAttribute('aria-valuetext', 'Default')
+  await expect(transparency(page)).toHaveAccessibleDescription(/shows through/)
+  await expect(appearance(page).getByText('Opaque', { exact: true })).toBeVisible()
+  await expect(appearance(page).getByText('Transparent', { exact: true })).toBeVisible()
+  await expect(reset(page)).toHaveCount(0)
+
+  await transparency(page).fill('40')
+  await expect(transparency(page)).toHaveAttribute('aria-valuetext', /More transparent/)
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { windowTransparency: 40 } }])
+  await reset(page).click()
+  await expect(transparency(page)).toHaveValue('0')
+  await expect(reset(page)).toHaveCount(0)
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { windowTransparency: 40 } }, { patch: { windowTransparency: 0 } }])
+
+  await translucent(page).uncheck()
+  await expect(transparency(page)).toBeDisabled()
+  await translucent(page).check()
+  await expect(transparency(page)).toBeEnabled()
 })

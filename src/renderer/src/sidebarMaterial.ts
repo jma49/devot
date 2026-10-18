@@ -1,13 +1,13 @@
-// The sidebar material in the main window (Settings > Appearance). The
-// setting is stored with the editor settings; this module decides what the
-// window shows and keeps the page and Rust's window effect in an order that
-// never lets the desktop show through a bare tint:
+// The window material in the main window (Settings > Appearance). The
+// setting is stored with the editor settings (still `sidebarMaterial`); this
+// module decides what the window shows and keeps the page and Rust's window
+// effect in an order that never lets the desktop show through a bare wash:
 //
-// - turned off, the page paints the sidebar (and the root, behind every
+// - turned off, the page paints every region (and the root, behind every
 //   pane) opaque first and, once that has been painted, asks Rust to drop
 //   the effect;
 // - turned on, it asks Rust to restore the effect first and turns the
-//   sidebar translucent only once Rust has applied it.
+//   regions translucent only once Rust has applied it.
 //
 // The root element carries `data-sidebar-material="on|off"`, which the CSS
 // reads (app.css).
@@ -47,7 +47,7 @@ async function follow() {
   try {
     shown = await sync()
   } catch {
-    // Off: the sidebar is opaque whatever the window does. On: it stays
+    // Off: the regions are opaque whatever the window does. On: they stay
     // opaque, which looks right over the effect as well as without it.
     console.warn('W_SIDEBAR_MATERIAL_SYNC_FAILED')
     return

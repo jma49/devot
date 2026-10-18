@@ -163,7 +163,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     padding: 'var(--space-2) var(--space-3)',
     border: '0',
     borderRadius: 'var(--radius-floating-bar)',
-    backgroundColor: 'var(--color-surface-popover)',
+    backgroundColor: 'var(--color-surface-float-bar)',
     boxShadow: barShadow,
     color: 'var(--color-text-secondary)',
     fontFamily: 'var(--font-family-ui)',

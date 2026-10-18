@@ -74,8 +74,14 @@ export interface EditorSettings {
   listMarker: ListMarker
   spellCheck: boolean
   highlightActiveLine: boolean
-  /** The window shows the sidebar material; off, the sidebar is opaque. */
+  /** The whole window shows the material (the key keeps its old name); off, the window is opaque. */
   sidebarMaterial: boolean
+  /**
+   * An adjustment of the regions' washes from their design values
+   * (Settings > Appearance > Transparency): 0 is the design, -100 opaque,
+   * 100 twice as see-through.
+   */
+  windowTransparency: number
   pasteUrl: PasteUrlStyle
   /** Split mode keeps the editor and the preview at the same line (View > Synced Scrolling). */
   syncScroll: boolean
@@ -136,6 +142,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   spellCheck: true,
   highlightActiveLine: false,
   sidebarMaterial: true,
+  windowTransparency: 0,
   pasteUrl: 'link',
   syncScroll: true,
   inlineImages: true,
@@ -223,6 +230,10 @@ const LINE_HEIGHT_MAX = 2.5
 const TAB_WIDTH_MIN = 1
 const TAB_WIDTH_MAX = 8
 export const CURSOR_SCROLL_MARGIN_MAX = 200
+/** How far the window transparency goes from the design washes, either way. */
+export const WINDOW_TRANSPARENCY_MAX = 100
+/** The Transparency slider's step. */
+export const WINDOW_TRANSPARENCY_STEP = 5
 /** The line heights the Settings window offers. */
 export const LINE_HEIGHTS: readonly number[] = [1.2, 1.4, 1.5, 1.6, 1.8, 2]
 /** The tab widths the Settings window offers. */
@@ -284,6 +295,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   spellCheck: isFlag,
   highlightActiveLine: isFlag,
   sidebarMaterial: isFlag,
+  windowTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),
   pasteUrl: oneOf(PASTE_URL_STYLES),
   syncScroll: isFlag,
   inlineImages: isFlag,

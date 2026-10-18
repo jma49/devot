@@ -16,6 +16,7 @@ describe('applyEditorStyle', () => {
     const set = styled(DEFAULT_EDITOR_SETTINGS.fontSize)
     expect(set.get('--editor-font-size')).toBe('13px')
     expect(set.get('--editor-font-weight')).toBe('normal')
+    expect(set.get('--window-transparency')).toBe('0')
     // The editor's size no longer moves the preview; its own size does.
     expect(set.get('--preview-scale')).toBe(styled(26).get('--preview-scale'))
     expect(Number(set.get('--preview-scale'))).toBeCloseTo(15 / 13.5, 5)

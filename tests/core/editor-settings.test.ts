@@ -47,6 +47,8 @@ describe('editor settings', () => {
       spellCheck: true,
       highlightActiveLine: false,
       sidebarMaterial: true,
+      // The washes as designed.
+      windowTransparency: 0,
       pasteUrl: 'link',
       // Split mode scrolls the editor and the preview together unless turned off.
       syncScroll: true,
@@ -144,6 +146,10 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ listMarker: '+' }).listMarker).toBe('+')
     expect(parseEditorSettings({ defaultNotebook: 'a b' }).defaultNotebook).toBeNull()
     expect(parseEditorSettings({ sidebarMaterial: 'off' }).sidebarMaterial).toBe(true)
+    // Settings from before the transparency setting read it as the design.
+    expect(parseEditorSettings({ sidebarMaterial: true }).windowTransparency).toBe(0)
+    expect(parseEditorSettings({ windowTransparency: -40 }).windowTransparency).toBe(-40)
+    expect(parseEditorSettings({ windowTransparency: 101 }).windowTransparency).toBe(0)
     expect(parseEditorSettings({ autoDownloadUpdates: false }).autoDownloadUpdates).toBe(false)
     expect(parseEditorSettings({ autoDownloadUpdates: 'no' }).autoDownloadUpdates).toBe(true)
   })
@@ -166,6 +172,8 @@ describe('editor settings', () => {
       listMarker: '*',
     })
     expect(checkEditorSettingsPatch({ sidebarMaterial: false })).toEqual({ sidebarMaterial: false })
+    for (const windowTransparency of [-100, 0, 35, 100])
+      expect(checkEditorSettingsPatch({ windowTransparency })).toEqual({ windowTransparency })
     expect(checkEditorSettingsPatch({ inlineImages: false })).toEqual({ inlineImages: false })
     for (const listDates of LIST_DATES_STYLES)
       expect(checkEditorSettingsPatch({ listDates })).toEqual({ listDates })
@@ -204,6 +212,10 @@ describe('editor settings', () => {
       { theme: 'dark' },
       { sidebarMaterial: 'off' },
       { sidebarMaterial: null },
+      { windowTransparency: -105 },
+      { windowTransparency: 105 },
+      { windowTransparency: 52.5 },
+      { windowTransparency: '50' },
       { syncScroll: 'on' },
       { syncScroll: 1 },
       { inlineImages: 'on' },

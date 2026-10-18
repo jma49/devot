@@ -3,7 +3,7 @@
 // `devot://editor-settings-changed` with the full settings to every window,
 // which re-sends it in the page as `devot:editor-settings-changed` (the UI
 // tests send that one). The fonts (the app's, the notes' and code's), size,
-// weight and line height reach the page as CSS variables on the root element, set through CSSOM (the CSP allows no
+// weight, line height and the window transparency reach the page as CSS variables on the root element, set through CSSOM (the CSP allows no
 // inline styles); the rest reconfigure the editor (editor/settings.ts).
 import { useSyncExternalStore } from 'react'
 import {
@@ -42,6 +42,8 @@ export function applyEditorStyle(
   // The preview's own size: 1 is the type scale's preview size.
   style.setProperty('--preview-scale', String(settings.previewFontSize / PREVIEW_BASE_SIZE))
   style.setProperty('--editor-line-height', String(settings.lineHeight))
+  // How see-through the regions' washes are over the window material (app.css).
+  style.setProperty('--window-transparency', String(settings.windowTransparency))
   for (const [name, value] of fontVariables(settings, loaded)) style.setProperty(name, value)
 }
 

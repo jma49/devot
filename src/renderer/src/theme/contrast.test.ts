@@ -193,7 +193,7 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     // The slash menu, completion popups and the floating toolbar: labels are
     // primary, group headers secondary, key hints tertiary. On the selected
     // row the hint turns secondary (editor/completions.ts).
-    const popover = [solid(theme, 'surface.popover')]
+    const popover = [solid(theme, 'surface.popover'), solid(theme, 'surface.float-bar')]
     const selected = [solid(theme, 'fill.completion-selected')]
     expect(
       under(4.5, {

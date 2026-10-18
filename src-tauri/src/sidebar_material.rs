@@ -1,14 +1,16 @@
-//! The sidebar material (Settings > Appearance > Translucent sidebar). The
-//! main window is transparent and draws the system `sidebar` material behind
-//! the web view (`windowEffects` in `tauri.conf.json`); the sidebar shows it
-//! through a light tint. Turned off, the window drops the effect and the
-//! sidebar paints an opaque surface instead, so the window is opaque.
+//! The window material (Settings > Appearance > Translucent window). The
+//! main window is transparent and draws the system under-window background
+//! material behind the whole web view, always active (`windowEffects` in
+//! `tauri.conf.json`); the sidebar, the note list and the editor show it
+//! through their own washes. Turned off, the window drops the effect and the
+//! page paints every region opaque instead, so the window is opaque.
 //!
-//! The setting lives with the editor settings (`editor_settings`). The main
-//! window is built with the effect only when it is on; after a change the
-//! main window's page calls `sidebar_material_sync`, which removes or
-//! restores the effect at once, without a restart. Tauri's `set_effects`
-//! does the AppKit work on the main thread.
+//! The setting lives with the editor settings (`editor_settings`, still
+//! `sidebarMaterial`). The main window is built with the effect only when it
+//! is on; after a change the main window's page calls
+//! `sidebar_material_sync`, which removes or restores the effect at once,
+//! without a restart. Tauri's `set_effects` does the AppKit work on the main
+//! thread.
 
 use crate::MAIN_WINDOW;
 use crate::editor_settings::{EditorSettingsStore, Snapshot};
@@ -16,8 +18,8 @@ use std::sync::{Arc, Mutex};
 use tauri::utils::config::WindowEffectsConfig;
 use tauri::{AppHandle, Manager, State};
 
-/// The main window's effects: the configured ones (the `sidebar` material)
-/// when the material is on, none when it is off.
+/// The main window's effects: the configured ones (the under-window
+/// background material) when the material is on, none when it is off.
 pub fn effects_for(
     material: bool,
     configured: Option<&WindowEffectsConfig>,
@@ -99,11 +101,11 @@ impl SidebarMaterial {
     }
 }
 
-/// Brings the main window's effect in line with the stored sidebar material
+/// Brings the main window's effect in line with the stored window material
 /// (main window only; no arguments). The page calls it after a change: when
-/// the material goes off, once its sidebar is painted opaque, and when it
-/// comes back, before its sidebar turns translucent, so the window never
-/// shows the desktop through a bare tint. It returns once the main thread has
+/// the material goes off, once its regions are painted opaque, and when it
+/// comes back, before they turn translucent, so the window never shows the
+/// desktop through a bare wash. It returns once the main thread has
 /// applied the change, with the material the window shows.
 #[tauri::command]
 pub async fn sidebar_material_sync(
@@ -148,10 +150,11 @@ mod tests {
     }
 
     #[test]
-    fn the_main_window_is_configured_with_the_sidebar_material() {
+    fn the_main_window_is_configured_with_the_under_window_material() {
         let effects = configured();
-        assert_eq!(effects.effects, vec![Effect::Sidebar]);
-        assert_eq!(effects.state, Some(EffectState::FollowsWindowActiveState));
+        assert_eq!(effects.effects, vec![Effect::UnderWindowBackground]);
+        // Active also while the window is inactive, so it never turns grey.
+        assert_eq!(effects.state, Some(EffectState::Active));
     }
 
     #[test]

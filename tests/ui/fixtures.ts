@@ -676,3 +676,21 @@ export async function pickBook(scope: Page | Locator, label: string): Promise<vo
     .getByRole('option', { name: label, exact: true })
     .click()
 }
+
+/**
+ * A computed colour as `rgb(r, g, b)` or `rgba(r, g, b, a)`, whichever way the
+ * browser wrote it: a colour worked out from a token (`color(from ...)`, the
+ * window washes) is written `color(srgb r g b / a)` with 0-1 channels.
+ */
+export function paintedColour(css: string): string {
+  const srgb = /^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.e-]+))?\)$/.exec(css)
+  if (!srgb) return css
+  const [r, g, b] = srgb.slice(1, 4).map((c) => Math.round(Number(c) * 255))
+  const alpha = srgb[4] === undefined ? 1 : Math.round(Number(srgb[4]) * 1000) / 1000
+  return alpha === 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+/** The background colour `element` paints (see `paintedColour`). */
+export async function paintedBackground(element: Locator): Promise<string> {
+  return paintedColour(await element.evaluate((el) => getComputedStyle(el).backgroundColor))
+}

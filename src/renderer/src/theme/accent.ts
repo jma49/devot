@@ -50,7 +50,7 @@ export const GRAPHIC_CONTRAST = 3
 /** What a focus ring can sit on: the surfaces. */
 export function ringSurfaces(appearance: Appearance): Rgb[] {
   const theme = THEMES[appearance]
-  return (['list', 'editor', 'sidebar-opaque', 'popover'] as const).map(
+  return (['list', 'editor', 'sidebar-opaque', 'popover', 'float-bar'] as const).map(
     (name) => parseColor(theme[`color.surface.${name}`]).rgb,
   )
 }

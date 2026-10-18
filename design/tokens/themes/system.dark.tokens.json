@@ -12,15 +12,16 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.0902, 0.0902, 0.0902],
-          "hex": "#171717",
-          "alpha": 0.7
+          "components": [0, 0, 0],
+          "hex": "#000000",
+          "alpha": 0.1
         },
         "$extensions": {
           "app.devot": {
             "material": "sidebar"
           }
-        }
+        },
+        "$description": "The sidebar's wash over the window material."
       },
       "sidebar-opaque": {
         "$type": "color",
@@ -29,7 +30,7 @@
           "components": [0.0902, 0.0902, 0.0902],
           "hex": "#171717"
         },
-        "$description": "The sidebar when the window material is turned off (Settings > Appearance): the material tint, opaque."
+        "$description": "The sidebar when the window material is turned off (Settings > Appearance), and the sidebar of the Settings window."
       },
       "list": {
         "$type": "color",
@@ -40,6 +41,16 @@
         },
         "$description": "hsl(0 0% 9% / 50%) over the editor, opaque."
       },
+      "list-wash": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0902, 0.0902, 0.0902],
+          "hex": "#171717",
+          "alpha": 0.5
+        },
+        "$description": "The note list's wash over the window material."
+      },
       "editor": {
         "$type": "color",
         "$value": {
@@ -48,14 +59,42 @@
           "hex": "#0a0a0a"
         }
       },
+      "editor-wash": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0392, 0.0392, 0.0392],
+          "hex": "#0a0a0a",
+          "alpha": 0.6
+        },
+        "$description": "The editor pane's wash over the window material."
+      },
+      "window": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "hex": "#000000"
+        },
+        "$description": "Behind every pane when the window material is turned off (Settings > Appearance)."
+      },
       "popover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0902, 0.0902, 0.0902],
+          "hex": "#171717"
+        },
+        "$description": "Floating lists in the editor: the slash menu and the completion popups."
+      },
+      "float-bar": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
           "components": [0.1647, 0.1608, 0.1529],
           "hex": "#2a2927"
         },
-        "$description": "Floating lists in the editor: the slash menu and the completion popups."
+        "$description": "The floating bars over the editor (the selection toolbar, the image size bar) and their notch."
       }
     },
     "ink": {
