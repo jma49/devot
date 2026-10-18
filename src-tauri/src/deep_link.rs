@@ -17,9 +17,9 @@
 //! such a URL if another app sends one.
 //!
 //! Links wait in an [`Inbox`] until the main window has started and asked for
-//! them (`deep_link_take`), and while the Settings window is open: they are
-//! delivered, in order, once it has closed. Sheets inside the main window
-//! hold links back in the page itself (`deepLink.ts`).
+//! them (`deep_link_take`; again after a reload), and while the Settings
+//! window is open: they are delivered, in order, once it has closed. Sheets
+//! inside the main window hold links back in the page itself (`deepLink.ts`).
 //!
 //! A second launch of the app (its binary started again, with a URL among its
 //! arguments or none) does not open the data folder: the single-instance
@@ -30,6 +30,7 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use serde::Serialize;
+use tauri::webview::{PageLoadEvent, PageLoadPayload};
 use tauri::{AppHandle, Emitter, Manager, Runtime, Window, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -113,32 +114,46 @@ pub(crate) fn parse(url: &str, scheme: &str) -> Result<Link, &'static str> {
 /// Links on their way to the main window.
 #[derive(Debug, Default)]
 pub(crate) struct Inbox {
-    /// The window has asked for the links (it listens from then on).
+    /// The page has asked for the links (it listens from then on), and has
+    /// not reloaded since.
     ready: bool,
+    /// The Settings window is open (set as it opens and once it is gone).
+    settings_open: bool,
     held: VecDeque<Link>,
 }
 
 impl Inbox {
     /// A link has come: the links to deliver now, in order (none while the
-    /// window is not ready or Settings is open: the link is held then).
-    fn arrive(&mut self, link: Link, settings_open: bool) -> Vec<Link> {
+    /// page is not ready or Settings is open: the link is held then).
+    fn arrive(&mut self, link: Link) -> Vec<Link> {
         if self.held.len() < MAX_HELD {
             self.held.push_back(link);
         } else {
             log::warn!("W_DEEP_LINK_DROPPED");
         }
-        self.release(settings_open)
+        self.release()
     }
 
-    /// The window asks for the links held; it is ready from now on.
-    fn take(&mut self, settings_open: bool) -> Vec<Link> {
+    /// The page asks for the links held; it is ready from now on.
+    fn take(&mut self) -> Vec<Link> {
         self.ready = true;
-        self.release(settings_open)
+        self.release()
+    }
+
+    /// The page is loading again (a reload): it listens only once it asks.
+    fn page_started(&mut self) {
+        self.ready = false;
+    }
+
+    /// Settings opened or closed: the links held, once it has closed.
+    fn settings(&mut self, open: bool) -> Vec<Link> {
+        self.settings_open = open;
+        self.release()
     }
 
     /// The links held, when they can be delivered now.
-    fn release(&mut self, settings_open: bool) -> Vec<Link> {
-        if !self.ready || settings_open {
+    fn release(&mut self) -> Vec<Link> {
+        if !self.ready || self.settings_open {
             return Vec::new();
         }
         self.held.drain(..).collect()
@@ -157,6 +172,18 @@ impl DeepLinks {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         f(&mut inbox)
     }
+
+    /// Changes the inbox and sends what it releases, under its lock, so links
+    /// reach the page in the order they came, whatever thread they came on.
+    fn update<R: Runtime>(&self, app: &AppHandle<R>, f: impl FnOnce(&mut Inbox) -> Vec<Link>) {
+        self.with(|inbox| {
+            for link in f(inbox) {
+                if app.emit_to(MAIN_WINDOW, EVENT, &link).is_err() {
+                    log::warn!("W_DEEP_LINK_EMIT_FAILED");
+                }
+            }
+        });
+    }
 }
 
 /// Follows the URLs macOS opens the app with (`RunEvent::Opened`, through the
@@ -171,20 +198,17 @@ pub(crate) fn listen(app: &tauri::App) {
     });
 }
 
-/// Another launch of the app handed over its arguments and ended: each URL of
-/// this build's scheme among them is taken; Devot comes forward either way.
+/// Another launch of the app handed over its arguments and ended: Devot
+/// comes forward, and each URL of this build's scheme among them is taken.
 pub(crate) fn on_second_instance<R: Runtime>(app: &AppHandle<R>, args: Vec<String>, _cwd: String) {
+    bring_forward(app);
     let prefix = format!("{SCHEME}:");
-    let urls: Vec<&String> = args
+    for url in args
         .iter()
         .skip(1)
         .filter(|arg| arg.starts_with(&prefix))
         .take(MAX_PER_EVENT)
-        .collect();
-    if urls.is_empty() {
-        bring_forward(app);
-    }
-    for url in urls {
+    {
         receive(app, url);
     }
 }
@@ -199,16 +223,9 @@ fn receive<R: Runtime>(app: &AppHandle<R>, url: &str) {
         }
     };
     bring_forward(app);
-    let open = settings_open(app);
-    let now = app
-        .state::<DeepLinks>()
-        .with(|inbox| inbox.arrive(link, open));
-    deliver(app, now);
-}
-
-/// Whether the Settings window is open (links wait until it closes).
-fn settings_open<R: Runtime>(app: &AppHandle<R>) -> bool {
-    app.get_webview_window(settings::LABEL).is_some()
+    if let Some(links) = app.try_state::<DeepLinks>() {
+        links.update(app, |inbox| inbox.arrive(link));
+    }
 }
 
 /// Shows the window the user should see: Settings while it is open,
@@ -230,33 +247,77 @@ fn bring_forward<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-fn deliver<R: Runtime>(app: &AppHandle<R>, links: Vec<Link>) {
-    for link in links {
-        if app.emit_to(MAIN_WINDOW, EVENT, &link).is_err() {
-            log::warn!("W_DEEP_LINK_EMIT_FAILED");
-        }
+/// The Settings window has opened (`settings::open`): links wait for it.
+pub(crate) fn settings_opened<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(links) = app.try_state::<DeepLinks>() {
+        links.update(app, |inbox| inbox.settings(true));
     }
 }
 
-/// Delivers the links held while Settings was open, once it has closed.
+/// Delivers the links held while Settings was open, once it is gone.
 pub(crate) fn on_window_event(window: &Window, event: &WindowEvent) {
     if window.label() != settings::LABEL || !matches!(event, WindowEvent::Destroyed) {
         return;
     }
     let app = window.app_handle();
-    let Some(links) = app.try_state::<DeepLinks>() else {
+    if let Some(links) = app.try_state::<DeepLinks>() {
+        links.update(app, |inbox| inbox.settings(false));
+    }
+}
+
+/// The main window's page has started loading (again, after a reload): links
+/// wait until it asks for them.
+pub(crate) fn on_page_load<R: Runtime>(webview: &tauri::Webview<R>, payload: &PageLoadPayload<'_>) {
+    if webview.label() != MAIN_WINDOW || payload.event() != PageLoadEvent::Started {
         return;
-    };
-    let now = links.with(|inbox| inbox.release(false));
-    deliver(app, now);
+    }
+    if let Some(links) = webview.try_state::<DeepLinks>() {
+        links.with(Inbox::page_started);
+    }
 }
 
 /// The main window has started (its last view restored) and listens for
 /// links from now on: the links held for it.
 #[tauri::command]
-pub fn deep_link_take(app: AppHandle, links: tauri::State<'_, DeepLinks>) -> Vec<Link> {
-    let open = settings_open(&app);
-    links.with(|inbox| inbox.take(open))
+pub fn deep_link_take(links: tauri::State<'_, DeepLinks>) -> Vec<Link> {
+    links.with(Inbox::take)
+}
+
+/// Where the single-instance plugin keeps its socket for `identifier`
+/// (its own naming, in the shared `/tmp`).
+fn single_instance_socket(identifier: &str) -> std::path::PathBuf {
+    let name = identifier.replace(['.', '-'], "_");
+    std::path::PathBuf::from(format!("/tmp/{name}_si.sock"))
+}
+
+/// Whether a file already at the socket's place may be trusted: none, or a
+/// socket of the user Devot runs for (`uid`, unknown: trust nothing there).
+/// Anything else (another user's socket in the shared `/tmp`, a plain file, a
+/// link) would make every launch hand its arguments to that file's owner and
+/// quit.
+fn socket_trusted(found: Option<(bool, u32)>, uid: Option<u32>) -> bool {
+    found.is_none_or(|(is_socket, owner)| is_socket && Some(owner) == uid)
+}
+
+/// Whether the single-instance plugin may run: see [`socket_trusted`]. The
+/// user Devot runs for is the owner of its home folder (where its data
+/// lives). When the plugin may not run, the data-folder lock still keeps a
+/// second Devot out.
+pub(crate) fn single_instance_socket_trusted(identifier: &str) -> bool {
+    use std::os::unix::fs::{FileTypeExt, MetadataExt};
+    let found = match std::fs::symlink_metadata(single_instance_socket(identifier)) {
+        Ok(meta) => Some((meta.file_type().is_socket(), meta.uid())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(_) => Some((false, u32::MAX)),
+    };
+    let uid = std::env::var_os("HOME")
+        .and_then(|home| std::fs::metadata(home).ok())
+        .map(|meta| meta.uid());
+    let trusted = socket_trusted(found, uid);
+    if !trusted {
+        log::warn!("W_SINGLE_INSTANCE_SOCKET_FOREIGN");
+    }
+    trusted
 }
 
 #[cfg(test)]
@@ -404,51 +465,78 @@ mod tests {
     #[test]
     fn holds_links_until_the_window_asks_for_them() {
         let mut inbox = Inbox::default();
-        assert!(inbox.arrive(note(), false).is_empty());
-        assert!(inbox.arrive(command("view.trash"), false).is_empty());
-        assert_eq!(inbox.take(false), vec![note(), command("view.trash")]);
+        assert!(inbox.arrive(note()).is_empty());
+        assert!(inbox.arrive(command("view.trash")).is_empty());
+        assert_eq!(inbox.take(), vec![note(), command("view.trash")]);
         // From then on a link goes straight through.
-        assert_eq!(
-            inbox.arrive(command("note.new"), false),
-            vec![command("note.new")]
-        );
-        assert!(inbox.take(false).is_empty());
+        assert_eq!(inbox.arrive(command("note.new")), vec![command("note.new")]);
+        assert!(inbox.take().is_empty());
     }
 
     #[test]
     fn holds_links_while_settings_is_open() {
         let mut inbox = Inbox::default();
-        assert!(inbox.take(false).is_empty());
-        assert!(inbox.arrive(note(), true).is_empty());
-        assert!(inbox.arrive(command("view.focus"), true).is_empty());
+        assert!(inbox.take().is_empty());
+        assert!(inbox.settings(true).is_empty());
+        assert!(inbox.arrive(note()).is_empty());
+        assert!(inbox.arrive(command("view.focus")).is_empty());
         // Settings closed: delivered in order, once.
-        assert_eq!(inbox.release(false), vec![note(), command("view.focus")]);
-        assert!(inbox.release(false).is_empty());
+        assert_eq!(inbox.settings(false), vec![note(), command("view.focus")]);
+        assert!(inbox.release().is_empty());
     }
 
     #[test]
     fn a_window_asking_while_settings_is_open_gets_its_links_when_it_closes() {
         let mut inbox = Inbox::default();
-        inbox.arrive(note(), false);
-        assert!(inbox.take(true).is_empty());
-        assert_eq!(inbox.release(false), vec![note()]);
+        inbox.settings(true);
+        inbox.arrive(note());
+        assert!(inbox.take().is_empty());
+        assert_eq!(inbox.settings(false), vec![note()]);
     }
 
     #[test]
     fn closing_settings_before_the_window_is_ready_delivers_nothing() {
         let mut inbox = Inbox::default();
-        inbox.arrive(note(), true);
-        assert!(inbox.release(false).is_empty());
-        assert_eq!(inbox.take(false), vec![note()]);
+        inbox.settings(true);
+        inbox.arrive(note());
+        assert!(inbox.settings(false).is_empty());
+        assert_eq!(inbox.take(), vec![note()]);
+    }
+
+    #[test]
+    fn a_reloading_page_gets_the_links_that_came_meanwhile_when_it_asks() {
+        let mut inbox = Inbox::default();
+        assert!(inbox.take().is_empty());
+        inbox.page_started();
+        assert!(inbox.arrive(note()).is_empty());
+        assert_eq!(inbox.take(), vec![note()]);
     }
 
     #[test]
     fn holds_a_bounded_number_of_links() {
         let mut inbox = Inbox::default();
         for _ in 0..MAX_HELD + 5 {
-            inbox.arrive(note(), false);
+            inbox.arrive(note());
         }
-        assert_eq!(inbox.take(false).len(), MAX_HELD);
+        assert_eq!(inbox.take().len(), MAX_HELD);
+    }
+
+    #[test]
+    fn names_the_socket_as_the_single_instance_plugin_does() {
+        assert_eq!(
+            single_instance_socket("io.github.jma49.devot.dev"),
+            std::path::PathBuf::from("/tmp/io_github_jma49_devot_dev_si.sock")
+        );
+    }
+
+    #[test]
+    fn trusts_no_socket_or_one_of_this_users_only() {
+        assert!(socket_trusted(None, Some(501)));
+        assert!(socket_trusted(None, None));
+        assert!(socket_trusted(Some((true, 501)), Some(501)));
+        assert!(!socket_trusted(Some((true, 502)), Some(501)));
+        assert!(!socket_trusted(Some((false, 501)), Some(501)));
+        assert!(!socket_trusted(Some((true, 501)), None));
     }
 
     #[test]

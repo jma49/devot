@@ -2,9 +2,10 @@
 // `devot://command/<id>` runs one of `URL_COMMANDS` (`devot-dev://` in a
 // debug build). Rust checks every URL and sends the main window only what it
 // asks for, as a link (`src-tauri/src/deep_link.rs`); the window reads it
-// again here and takes nothing else. Links wait while a sheet is up and run,
-// in order, once none is.
+// again here and takes nothing else. Links run one at a time, each once the
+// window has shown what the one before did, and wait while a sheet is up.
 import { useEffect, useRef } from 'react'
+import { UUID_V7 } from '../../core/ids'
 import { sheetOpen } from './commands/dispatch'
 import type { CommandId } from './commands/registry'
 import { invoke } from './ipc'
@@ -33,9 +34,6 @@ export type DeepLink =
   | { readonly kind: 'note'; readonly id: string }
   | { readonly kind: 'command'; readonly id: UrlCommand }
 
-/** A note ID as Rust accepts one: a canonical, lowercase UUIDv7. */
-const NOTE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
-
 const isUrlCommand = (id: unknown): id is UrlCommand =>
   typeof id === 'string' && (URL_COMMANDS as readonly string[]).includes(id)
 
@@ -43,7 +41,7 @@ const isUrlCommand = (id: unknown): id is UrlCommand =>
 export function readDeepLink(value: unknown): DeepLink | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { kind, id } = value as { kind?: unknown; id?: unknown }
-  if (kind === 'note' && typeof id === 'string' && NOTE_ID.test(id)) return { kind, id }
+  if (kind === 'note' && typeof id === 'string' && UUID_V7.test(id)) return { kind, id }
   if (kind === 'command' && isUrlCommand(id)) return { kind, id }
   return undefined
 }
@@ -77,12 +75,17 @@ export function noteTarget(id: string, known: Known): NoteTarget {
 }
 
 /**
- * Runs links in the order they came, holding them while `blocked()` (a sheet
- * is up). `watch` calls back on each change that may end that, until the
- * function it returns is called; it runs only while links wait.
+ * Runs links in the order they came, one at a time: after running one it
+ * waits until the window has rendered what that did (`settled`, called after
+ * each render it commits, or `settleLater` for a link that changed nothing),
+ * so the next sees the view and the sheets the last one left. Links wait
+ * while `blocked()` (a sheet is up); `watch` calls back now and then until
+ * the function it returns is called, and runs only while links wait.
  */
 export class LinkQueue {
   private readonly waiting: DeepLink[] = []
+  private busy = false
+  private cancelSettle: (() => void) | undefined
   private unwatch: (() => void) | undefined
   private stopped = false
 
@@ -90,6 +93,7 @@ export class LinkQueue {
     private readonly run: (link: DeepLink) => void,
     private readonly blocked: () => boolean,
     private readonly watch: (changed: () => void) => () => void,
+    private readonly settleLater: (done: () => void) => () => void,
   ) {}
 
   push(link: DeepLink): void {
@@ -98,38 +102,57 @@ export class LinkQueue {
     this.flush()
   }
 
-  /** Runs what waits, unless blocked; watches for the end of the block otherwise. */
+  /** The window has rendered: the link run last has taken effect. */
+  settled(): void {
+    this.busy = false
+    this.cancelSettle?.()
+    this.cancelSettle = undefined
+    this.flush()
+  }
+
+  /** Runs the next link, unless one is still taking effect or a sheet is up. */
   flush(): void {
-    while (!this.stopped && this.waiting.length > 0 && !this.blocked()) {
-      const link = this.waiting.shift()
-      if (link) this.run(link)
-    }
-    if (this.waiting.length > 0 && !this.stopped) {
+    if (this.stopped || this.busy) return
+    if (this.waiting.length === 0 || !this.blocked()) this.stopWatching()
+    const link = this.waiting[0]
+    if (!link) return
+    if (this.blocked()) {
       this.unwatch ??= this.watch(() => this.flush())
-    } else {
-      this.unwatch?.()
-      this.unwatch = undefined
+      return
     }
+    this.waiting.shift()
+    this.busy = true
+    this.cancelSettle = this.settleLater(() => this.settled())
+    this.run(link)
   }
 
   stop(): void {
     this.stopped = true
     this.waiting.length = 0
+    this.cancelSettle?.()
+    this.cancelSettle = undefined
+    this.stopWatching()
+  }
+
+  private stopWatching(): void {
     this.unwatch?.()
     this.unwatch = undefined
   }
 }
 
-/** Calls back when a sheet (a `<dialog>`) may have closed. */
-function watchSheets(changed: () => void): () => void {
-  const observer = new MutationObserver(changed)
-  observer.observe(document.body, {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    attributeFilter: ['open'],
-  })
-  return () => observer.disconnect()
+/** How often a link waiting behind a sheet looks again (closing one renders too). */
+const SHEET_CHECK_MS = 200
+/** How long a link that changed nothing on screen holds the next one back. */
+const SETTLE_MS = 200
+
+const every = (changed: () => void) => {
+  const timer = setInterval(changed, SHEET_CHECK_MS)
+  return () => clearInterval(timer)
+}
+
+const after = (done: () => void) => {
+  const timer = setTimeout(done, SETTLE_MS)
+  return () => clearTimeout(timer)
 }
 
 /** The page event a link arrives as (Rust's `devot://open-url`, re-sent; tests send it too). */
@@ -143,12 +166,16 @@ const TAURI_EVENT = 'devot://open-url'
  */
 export function useDeepLinks(ready: boolean, handle: (link: DeepLink) => void): void {
   const latest = useRef(handle)
+  const queueRef = useRef<LinkQueue>(undefined)
   useEffect(() => {
     latest.current = handle
+    // After every render: the link run last has taken effect.
+    queueRef.current?.settled()
   })
   useEffect(() => {
     if (!ready) return
-    const queue = new LinkQueue((link) => latest.current(link), sheetOpen, watchSheets)
+    const queue = new LinkQueue((link) => latest.current(link), sheetOpen, every, after)
+    queueRef.current = queue
     const take = (value: unknown) => {
       const link = readDeepLink(value)
       if (link) queue.push(link)
@@ -182,6 +209,7 @@ export function useDeepLinks(ready: boolean, handle: (link: DeepLink) => void): 
       window.removeEventListener(OPEN_URL, onEvent)
       unlisten?.()
       queue.stop()
+      queueRef.current = undefined
     }
   }, [ready])
 }

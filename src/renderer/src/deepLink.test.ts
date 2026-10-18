@@ -61,88 +61,103 @@ describe('noteTarget', () => {
 describe('LinkQueue', () => {
   const note = (id: string): DeepLink => ({ kind: 'note', id })
 
-  function setup() {
+  function setup(onRun: (link: DeepLink) => void = () => undefined) {
     const ran: DeepLink[] = []
-    let blocked = false
-    let changed: (() => void) | undefined
-    let watches = 0
+    const state = { blocked: false, watching: false, settling: false }
+    let watched: (() => void) | undefined
+    let settle: (() => void) | undefined
     const queue = new LinkQueue(
-      (link) => ran.push(link),
-      () => blocked,
-      (callback) => {
-        watches += 1
-        changed = callback
+      (link) => {
+        ran.push(link)
+        onRun(link)
+      },
+      () => state.blocked,
+      (changed) => {
+        state.watching = true
+        watched = changed
         return () => {
-          changed = undefined
+          state.watching = false
+        }
+      },
+      (done) => {
+        state.settling = true
+        settle = done
+        return () => {
+          state.settling = false
         }
       },
     )
-    return {
-      queue,
-      ran,
-      block: (value: boolean) => {
-        blocked = value
-      },
-      change: () => changed?.(),
-      watching: () => changed !== undefined,
-      watches: () => watches,
-    }
+    return { queue, ran, state, tick: () => watched?.(), timeout: () => settle?.() }
   }
 
   it('runs a link at once when nothing blocks it', () => {
     const q = setup()
     q.queue.push(note('a'))
     expect(q.ran).toEqual([note('a')])
-    expect(q.watching()).toBe(false)
+    expect(q.state.watching).toBe(false)
+  })
+
+  it('runs the next link only once the window has rendered the last one', () => {
+    const q = setup()
+    q.queue.push(note('a'))
+    q.queue.push(note('b'))
+    expect(q.ran).toEqual([note('a')])
+    q.queue.settled()
+    expect(q.ran).toEqual([note('a'), note('b')])
+    // Settling stops the fallback timer of the link before.
+    expect(q.state.settling).toBe(true)
+    q.queue.settled()
+    expect(q.state.settling).toBe(false)
+  })
+
+  it('goes on after a while when a link renders nothing', () => {
+    const q = setup()
+    q.queue.push(note('a'))
+    q.queue.push(note('b'))
+    q.timeout()
+    expect(q.ran).toEqual([note('a'), note('b')])
   })
 
   it('holds links while a sheet is up and runs them in order once it closes', () => {
     const q = setup()
-    q.block(true)
+    q.state.blocked = true
     q.queue.push(note('a'))
     q.queue.push(note('b'))
     expect(q.ran).toEqual([])
-    expect(q.watching()).toBe(true)
-    expect(q.watches()).toBe(1)
-    // A change that leaves the sheet up keeps them waiting.
-    q.change()
+    expect(q.state.watching).toBe(true)
+    // A look that finds the sheet still up keeps them waiting.
+    q.tick()
     expect(q.ran).toEqual([])
-    q.block(false)
-    q.change()
+    q.state.blocked = false
+    q.queue.settled() // The render that closed the sheet.
+    expect(q.ran).toEqual([note('a')])
+    expect(q.state.watching).toBe(false)
+    q.queue.settled()
     expect(q.ran).toEqual([note('a'), note('b')])
-    expect(q.watching()).toBe(false)
   })
 
-  it('stops at a link that puts a sheet up and waits again', () => {
-    const ran: DeepLink[] = []
-    let blocked = true
-    const queue = new LinkQueue(
-      (link) => {
-        ran.push(link)
-        blocked = true // The link opened the palette, say.
-      },
-      () => blocked,
-      () => () => undefined,
-    )
-    queue.push(note('a'))
-    queue.push(note('b'))
-    blocked = false
-    queue.flush()
-    expect(ran).toEqual([note('a')])
-    blocked = false
-    queue.flush()
-    expect(ran).toEqual([note('a'), note('b')])
+  it('holds the next link behind a sheet the last one put up', () => {
+    const q = setup()
+    q.queue.push(note('a'))
+    q.queue.push(note('b'))
+    q.state.blocked = true // The link opened the palette, say.
+    q.queue.settled()
+    expect(q.ran).toEqual([note('a')])
+    expect(q.state.watching).toBe(true)
+    q.state.blocked = false
+    q.tick()
+    expect(q.ran).toEqual([note('a'), note('b')])
   })
 
   it('drops what waits when stopped', () => {
     const q = setup()
-    q.block(true)
+    q.state.blocked = true
     q.queue.push(note('a'))
     q.queue.stop()
-    expect(q.watching()).toBe(false)
-    q.block(false)
+    expect(q.state.watching).toBe(false)
+    q.state.blocked = false
     q.queue.push(note('b'))
-    q.queue.flush()
+    q.queue.settled()
     expect(q.ran).toEqual([])
   })
 })

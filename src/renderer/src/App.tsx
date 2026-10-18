@@ -2430,7 +2430,15 @@ export function App() {
     const id = link.id
     const target = noteTarget(id, { listed: listedSet, notes, templates, trash })
     if (target.kind === 'missing') {
-      setLinkNotice('noteNotFound')
+      // Not in the lists (yet: another writer may have made it a moment
+      // ago, before the window took the change in): ask the core.
+      core?.title(id).then(
+        () => {
+          showLibraryRef.current?.({ kind: 'all' }, { clearFilter: true })
+          void select(id)
+        },
+        () => setLinkNotice('noteNotFound'),
+      )
       return
     }
     // A note in the Trash opens there, as the Trash's own list opens it.
