@@ -121,26 +121,59 @@ export function insertLineAbove(view: EditorView): boolean {
   return true
 }
 
-/** The address of the link at `pos`: `[text](address)`, `<address>` or a bare one; undefined elsewhere. */
-export function linkAt(state: EditorState, pos: number): string | undefined {
+/** A link in the note: its source range, its label and its address. */
+export interface LinkAt {
+  /** The link's Markdown, `[text](address)`, `<address>` or the bare address. */
+  from: number
+  to: number
+  /** The label of a `[text](address)` link; the address for the others. */
+  text: string
+  href: string
+}
+
+/** The link at `pos`: `[text](address)`, `<address>` or a bare one; undefined elsewhere. */
+export function linkAt(state: EditorState, pos: number): LinkAt | undefined {
   const tree = syntaxTree(state)
   for (const side of [-1, 1] as const) {
     for (let node: SyntaxNode | null = tree.resolveInner(pos, side); node; node = node.parent) {
-      if (node.name === 'URL') return addressOf(state.sliceDoc(node.from, node.to))
-      if (node.name === 'Link' || node.name === 'Autolink') {
-        const url = node.getChild('URL')
-        if (url) return addressOf(state.sliceDoc(url.from, url.to))
+      const link =
+        node.name === 'Link' || node.name === 'Autolink'
+          ? node
+          : node.name === 'URL' &&
+              (node.parent?.name === 'Link' || node.parent?.name === 'Autolink')
+            ? node.parent
+            : undefined
+      const url = link ? link.getChild('URL') : node.name === 'URL' ? node : null
+      if (!url) continue
+      const href = addressOf(state.sliceDoc(url.from, url.to))
+      if (href === undefined) continue
+      const range = link ?? url
+      return {
+        from: range.from,
+        to: range.to,
+        text: (link && labelOf(state, link, url.from)) || href,
+        href,
       }
     }
   }
   return undefined
 }
 
+/** The text between a link's brackets, none for an autolink. */
+function labelOf(state: EditorState, link: SyntaxNode, urlFrom: number): string | undefined {
+  if (link.name !== 'Link') return undefined
+  const marks = link.getChildren('LinkMark')
+  const close = marks.find((m) => m.from < urlFrom && state.sliceDoc(m.from, m.to) === ']')
+  const open = marks[0]
+  if (!open || !close) return undefined
+  return state.sliceDoc(open.to, close.from) || undefined
+}
+
 const addressOf = (text: string) => text.replace(/^<|>$/g, '').trim() || undefined
 
 /** Opens the link under the caret; false where there is none. */
 export function openLinkAtCaret(view: EditorView): boolean {
-  const href = linkAt(view.state, view.state.selection.main.head)
+  const href = linkAt(view.state, view.state.selection.main.head)?.href
   const open = view.state.facet(linkOpener)
   if (href === undefined || !open) return false
   open(href)

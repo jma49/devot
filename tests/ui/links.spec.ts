@@ -239,3 +239,68 @@ test('a link survives renaming its target', async ({ page }) => {
   await page.getByRole('link', { name: 'Groceries' }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Food')
 })
+
+/** A note "Groceries" with a body, then "Weekly plan" linking to it, the caret after a typed word. */
+async function linkedPair(page: Page) {
+  await createNote(page, 'Groceries')
+  await body(page).click()
+  await page.keyboard.type('Milk and eggs')
+  await createNote(page, 'Weekly plan')
+  await startLink(page, 'Groc')
+  await waitForResults(page, 'Groc')
+  await page.keyboard.press('Enter')
+  await expect(popup(page)).toBeHidden()
+  await expect(body(page)).toContainText('devot://note/')
+}
+
+test('the caret in a note link shows Open Note, which opens it', async ({ page }) => {
+  await linkedPair(page)
+  // Typing hid the tooltip; moving the caret inside the link shows it.
+  await page.keyboard.press('ArrowLeft')
+  const tip = page.locator('.cm-link-tip')
+  await expect(tip.getByRole('button', { name: 'Open Note' })).toBeVisible()
+  await tip.getByRole('button', { name: 'Open Note' }).hover()
+  await expect(page.locator('.cm-float-tip .cm-float-kbd')).toBeVisible()
+  await tip.getByRole('button', { name: 'Open Note' }).click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Groceries')
+})
+
+test('the caret in a web link shows Open URL, and none outside a link', async ({ page }) => {
+  await createNote(page, 'Web')
+  await body(page).click()
+  await page.keyboard.insertText('See [docs](https://example.com/a) and more')
+  await page.keyboard.press('Home')
+  await expect(page.locator('.cm-link-tip')).toHaveCount(0)
+  for (let n = 0; n < 6; n++) await page.keyboard.press('ArrowRight')
+  await expect(page.locator('.cm-link-tip').getByRole('button', { name: 'Open URL' })).toBeVisible()
+  await page.keyboard.press('End')
+  await expect(page.locator('.cm-link-tip')).toHaveCount(0)
+})
+
+test('hovering a note link in the editor shows its title and excerpt', async ({ page }) => {
+  await linkedPair(page)
+  await page.keyboard.type(' later')
+  await body(page).getByText('Groceries').hover()
+  const card = page.locator('.cm-note-card-tip')
+  await expect(card).toContainText('Groceries')
+  await expect(card).toContainText('Milk and eggs')
+})
+
+test('hovering a note link in the preview shows its title and excerpt', async ({ page }) => {
+  await linkedPair(page)
+  await page.getByRole('button', { name: 'Preview' }).click()
+  await page.getByRole('link', { name: 'Groceries' }).hover()
+  const card = page.locator('.note-card-pop')
+  await expect(card).toContainText('Groceries')
+  await expect(card).toContainText('Milk and eggs')
+})
+
+test('the highlighted note of the [[ popup shows its card', async ({ page }) => {
+  await createNote(page, 'Groceries')
+  await body(page).click()
+  await page.keyboard.type('Milk and eggs')
+  await createNote(page, 'Weekly plan')
+  await startLink(page, 'Groc')
+  await waitForResults(page, 'Groc')
+  await expect(page.locator('.cm-completionInfo')).toContainText('Milk and eggs')
+})

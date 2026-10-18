@@ -22,6 +22,9 @@ import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
 import { imageSizeBar } from './editor/ImageSizeBar'
 import { tableToolbar } from './editor/TableToolbar'
+import { linkTooltip } from './editor/linkTooltip'
+import { noteLinkHover } from './editor/noteLinkHover'
+import { previewsFor } from './notePreview'
 import { formatKeyAvailability } from './editor/formatKeys'
 import { imeKeys } from './editor/imeKeys'
 import { editorScrollPane } from './editor/scrollPane'
@@ -736,6 +739,7 @@ export function NoteEditor({
                 find: (query) => linkSources.current.find(query),
                 create: (title) => linkSources.current.create(title),
                 discard: (id) => linkSources.current.discard(id),
+                preview: (id) => previewsFor(core)(id),
                 linked: (id) => linkSources.current.linked(id),
               }),
               editorCompletions({
@@ -745,6 +749,8 @@ export function NoteEditor({
               formatToolbar(showAlertMenu),
               imageSizeBar,
               tableToolbar,
+              linkTooltip,
+              noteLinkHover(previewsFor(core)),
               formatKeyAvailability(setInertFormats),
               tableKeymap(),
               tableTyping(),

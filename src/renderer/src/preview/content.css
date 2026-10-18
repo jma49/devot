@@ -582,3 +582,28 @@
   box-shadow: 0 0 0 1px var(--color-line-hairline);
   vertical-align: -0.05em;
 }
+
+/* The note link card (also in the editor: noteCard.ts has the same rules). */
+.note-card {
+  box-sizing: border-box;
+  width: var(--size-menu-width);
+  max-width: 100%;
+  padding: var(--space-4) var(--space-5);
+  font-family: var(--font-family-ui);
+  color: var(--color-text-primary);
+}
+
+.note-card-title {
+  overflow: hidden;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-card-excerpt {
+  margin-top: var(--space-2);
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-footnote);
+  color: var(--color-text-secondary);
+}
