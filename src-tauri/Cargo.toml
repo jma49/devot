@@ -109,6 +109,8 @@ objc2-app-kit = { version = "0.3", features = [
   "NSGraphicsContext",
   "NSMenu",
   "NSMenuItem",
+  # Spelling guesses in the editor's menu.
+  "NSSpellChecker",
   "NSResponder",
   "NSWindow",
   "NSView",

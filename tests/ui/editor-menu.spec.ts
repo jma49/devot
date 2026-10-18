@@ -1,8 +1,18 @@
 import type { Page } from '@playwright/test'
-import { clipboardWrites, expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
+import {
+  answerEditorMenu,
+  clipboardWrites,
+  expect,
+  pickMenuItem,
+  shownMenu,
+  test,
+  type TestWindow,
+} from './fixtures'
 
 // The editor's native menu: a right-click in the text, or Shift+F10 at the
-// caret. Cut, Copy, Paste and Select All are the system's own items.
+// caret. Cut, Copy, Paste and Select All are the system's own items; Rust
+// shows the menu and adds the system's spelling guesses for the word sent
+// with it, Writing Tools, Spelling and Grammar and Services.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const line = (page: Page, n: number) => page.locator('.cm-line').nth(n)
@@ -18,8 +28,17 @@ const popups = (page: Page) =>
   page.evaluate(
     () =>
       (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
+        (c) => c.cmd === 'editor_menu_popup',
       ).length,
+  )
+
+/** The word the last menu offered spelling guesses for. */
+const menuWord = (page: Page) =>
+  page.evaluate(
+    () =>
+      (globalThis as unknown as TestWindow).devotIpcCalls.findLast(
+        (c) => c.cmd === 'editor_menu_popup',
+      )?.args['word'],
   )
 
 async function newNote(page: Page, text: string) {
@@ -173,4 +192,35 @@ test('the Menu key opens it too, without a link in plain text', async ({ page })
   await page.keyboard.press('ContextMenu')
   await expect.poll(() => popups(page)).toBe(before + 1)
   expect(await menu(page)).toEqual(EDIT_ITEMS)
+})
+
+/** Opens the menu with Shift+F10, the caret `chars` characters into line `n`. */
+async function menuAtCaret(page: Page, n: number, chars: number) {
+  await line(page, n).click()
+  await page.keyboard.press('Home')
+  for (let i = 0; i < chars; i += 1) await page.keyboard.press('ArrowRight')
+  const before = await popups(page)
+  await page.keyboard.press('Shift+F10')
+  await expect.poll(() => popups(page)).toBe(before + 1)
+}
+
+test('the word at the point goes with the menu, for spelling guesses', async ({ page }) => {
+  await newNote(page, 'plain words\nsecond line')
+  await menuAtCaret(page, 0, 8)
+  expect(await menuWord(page)).toBe('words')
+  // A selection that is not that word: no guesses.
+  await selectLine(page, 1)
+  await page.keyboard.press('Shift+F10')
+  await expect.poll(() => menuWord(page)).toBeNull()
+})
+
+test('a spelling guess picked in the menu replaces the word', async ({ page }) => {
+  await newNote(page, 'I recieve mail')
+  await menuAtCaret(page, 0, 4)
+  expect(await menuWord(page)).toBe('recieve')
+  await answerEditorMenu(page, { kind: 'guess', text: 'receive' })
+  await expect(line(page, 0)).toHaveText('I receive mail')
+  // One step to undo.
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(line(page, 0)).toHaveText('I recieve mail')
 })

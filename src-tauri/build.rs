@@ -30,6 +30,7 @@ fn main() {
             "clipboard_read_text",
             "text_look_up",
             "text_speak",
+            "editor_menu_popup",
             "notes_list",
             "note_get",
             "note_put",

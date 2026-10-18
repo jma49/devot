@@ -2,7 +2,9 @@
 // text (or the menu key at the caret). Links get Open Link and Copy Link
 // Address; a selection gets Look Up and New Note from Selection; the rest is
 // the usual edit items and Speech. Cut, Copy, Paste and Select All are the
-// system's own items, which act on the web view.
+// system's own items, which act on the web view. Rust shows it, adding the
+// system's spelling guesses for the word at the point, Writing Tools,
+// Spelling and Grammar and Services (`systemMenu.ts`).
 import { Facet, Prec, type EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { editorCommandKeys } from '../commands/registry'
@@ -106,6 +108,45 @@ export function editorMenuTarget(
     selection: lookUpSelection(state.sliceDoc(state.selection.main.from, state.selection.main.to)),
     canMakeNote: canMakeNote && selected !== null,
   }
+}
+
+/** The longest word the menu offers spelling guesses for (the same as Rust's). */
+const MAX_SPELLING_WORD = 100
+
+/** A word in the text, from `from` to `to`. */
+export interface WordRange {
+  from: number
+  to: number
+  text: string
+}
+
+/**
+ * The word at `pos` the system may offer spelling guesses for: none away
+ * from the text, or when a selection is something other than that word.
+ */
+export function spellingWordAt(state: EditorState, pos: number | null): WordRange | null {
+  if (pos === null) return null
+  const word = state.wordAt(pos)
+  if (!word) return null
+  const { from, to, empty } = state.selection.main
+  if (!empty && (from !== word.from || to !== word.to)) return null
+  const text = state.sliceDoc(word.from, word.to)
+  if (!/^\p{L}[\p{L}\p{M}'\u2019]*$/u.test(text) || Array.from(text).length > MAX_SPELLING_WORD) {
+    return null
+  }
+  return { from: word.from, to: word.to, text }
+}
+
+/** Puts `guess` in place of `word`, if the text still holds it there; the caret goes after it. */
+export function replaceWord(view: EditorView, word: WordRange, guess: string): boolean {
+  if (view.state.sliceDoc(word.from, word.to) !== word.text) return false
+  view.dispatch({
+    changes: { from: word.from, to: word.to, insert: guess },
+    selection: { anchor: word.from + guess.length },
+    userEvent: 'input.spellcheck',
+  })
+  view.focus()
+  return true
 }
 
 /** What opens the menu for the editor: the window shows it (`pos`: where in the text, if anywhere). */

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-editor-menu-popup"
+description = "Enables the editor_menu_popup command without any pre-configured scope."
+commands.allow = ["editor_menu_popup"]
+
+[[permission]]
+identifier = "deny-editor-menu-popup"
+description = "Denies the editor_menu_popup command without any pre-configured scope."
+commands.deny = ["editor_menu_popup"]

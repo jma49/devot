@@ -227,7 +227,7 @@ export async function createContextMenu<A extends string, T>(
 type TauriItem = MenuItem | CheckMenuItem | PredefinedMenuItem | Submenu
 
 /** The Tauri menu API, loaded when the first menu is needed. */
-async function tauriMenus(): Promise<NativeMenuApi> {
+export async function tauriMenus(): Promise<NativeMenuApi> {
   const [native, { LogicalPosition }] = await Promise.all([
     import('@tauri-apps/api/menu'),
     import('@tauri-apps/api/dpi'),
@@ -257,15 +257,16 @@ async function tauriMenus(): Promise<NativeMenuApi> {
  * A context menu for this window, built on first use and kept for the
  * window's life. Returns `show(target, at?)`, which pops the menu up at `at`
  * (or at the pointer) and resolves once it has closed; a picked item calls
- * `onPick` with that target.
+ * `onPick` with that target. `api` shows the menu (the Tauri menu API).
  */
 export function useContextMenu<A extends string, T>(
   name: string,
   groups: MenuGroups<A, T>,
   onPick: (action: A, target: T) => void,
+  api: () => Promise<NativeMenuApi> = tauriMenus,
 ) {
-  // The menu's name and entries are fixed for the window's life.
-  const spec = useRef({ name, groups })
+  // The menu's name, entries and API are fixed for the window's life.
+  const spec = useRef({ name, groups, api })
   const pick = useRef(onPick)
   useEffect(() => {
     pick.current = onPick
@@ -288,14 +289,14 @@ export function useContextMenu<A extends string, T>(
       void old.then((m) => m.close()).catch(() => {})
     }
     builtWith.current = currentKeymap()
-    menu.current ??= tauriMenus().then((api) =>
+    menu.current ??= spec.current.api().then((native) =>
       createContextMenu(
         spec.current.name,
         spec.current.groups,
         (action) => {
           if (target.current) pick.current(action, target.current.value)
         },
-        api,
+        native,
         next,
       ),
     )
