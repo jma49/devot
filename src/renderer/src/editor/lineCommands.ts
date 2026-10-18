@@ -159,6 +159,25 @@ export function linkAt(state: EditorState, pos: number): LinkAt | undefined {
   return undefined
 }
 
+const NOTE_URI = /^devot:\/\/note\//
+
+/**
+ * The link at `pos` that New Note from Link can turn into a note: not the
+ * address of an image, and not a link to a note already.
+ */
+export function linkForNewNote(state: EditorState, pos: number): LinkAt | undefined {
+  const link = linkAt(state, pos)
+  if (!link || NOTE_URI.test(link.href)) return undefined
+  for (
+    let node: SyntaxNode | null = syntaxTree(state).resolveInner(link.from, 1);
+    node;
+    node = node.parent
+  ) {
+    if (node.name === 'Image') return undefined
+  }
+  return link
+}
+
 /** The text between a link's brackets, none for an autolink. */
 function labelOf(state: EditorState, link: SyntaxNode, urlFrom: number): string | undefined {
   if (link.name !== 'Link') return undefined

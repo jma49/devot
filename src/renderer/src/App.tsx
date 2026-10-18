@@ -1659,7 +1659,14 @@ export function App() {
       })
       if (!note) return null
       made = note.id
-      await core.setTitle(note.id, link.text)
+      const titled = await core.setTitle(note.id, link.text).then(
+        () => true,
+        (e: unknown) => {
+          console.warn('W_NOTE_TITLE_FAILED', note.id, errorCode(e))
+          return false
+        },
+      )
+      if (!titled) return null
       return noteLink(clipTitle(link.text), note.id)
     })
     if (made === undefined) return

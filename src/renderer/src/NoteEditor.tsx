@@ -14,7 +14,7 @@ import { BOX_HANG } from './editor/boxes'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys } from './commands/registry'
 import { invoke } from './ipc'
-import { lineCommands, linkAt, type LinkAt } from './editor/lineCommands'
+import { lineCommands, linkForNewNote, type LinkAt } from './editor/lineCommands'
 import type { ShowAlertMenu } from './editor/alertMenu'
 import { moveRange, moveSelection, selectedText, trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
@@ -214,7 +214,7 @@ const newFromLinkKeys = registryKeys(() =>
       editorCommandKeys('note.newFromLink').map((key) => ({
         key,
         run: (view: EditorView) =>
-          linkAt(view.state, view.state.selection.main.head) !== undefined &&
+          linkForNewNote(view.state, view.state.selection.main.head) !== undefined &&
           (view.state.facet(newFromLink)?.() ?? false),
         preventDefault: true,
       })),
@@ -887,7 +887,8 @@ export function NoteEditor({
             },
             hasSelection: () => selectedText(ready.state) !== null,
             moveSelection: (make) => moveSelection(ready, make, () => !cancelled),
-            linkAtCursor: () => linkAt(ready.state, ready.state.selection.main.head) ?? null,
+            linkAtCursor: () =>
+              linkForNewNote(ready.state, ready.state.selection.main.head) ?? null,
             moveRange: (from, to, make) => moveRange(ready, from, to, make, () => !cancelled),
             pastePlain: () => {
               ready.focus()

@@ -93,7 +93,8 @@ export async function moveRange(
   make: (text: string) => Promise<string | null>,
   alive: () => boolean = () => true,
 ): Promise<boolean> {
-  if (view.state.field(tracked, false) !== null) return false
+  if (from >= to || to > view.state.doc.length || view.state.field(tracked, false) !== null)
+    return false
   const text = view.state.sliceDoc(from, to)
   view.dispatch({ effects: setTracked.of({ from, to }) })
   const replacement = await make(text).catch(() => null)

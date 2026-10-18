@@ -7,6 +7,7 @@ import {
   insertLineAbove,
   joinLines,
   linkAt,
+  linkForNewNote,
   sortLines,
   sortedLines,
   wrapInBackticks,
@@ -161,5 +162,17 @@ describe('other line commands', () => {
       href: 'https://example.com',
     })
     expect(find('[](https://a|.com)')?.text).toBe('https://a.com')
+  })
+})
+
+describe('linkForNewNote', () => {
+  const at = (doc: string, pos: number) =>
+    linkForNewNote(EditorState.create({ doc, extensions: [noteMarkdown] }), pos)?.text
+
+  it('finds web links, not image addresses or note links', () => {
+    expect(at('See [Foo](https://x.test/a) now', 8)).toBe('Foo')
+    expect(at('Go https://x.test/a now', 6)).toBe('https://x.test/a')
+    expect(at('![alt](https://x.test/a.png)', 12)).toBeUndefined()
+    expect(at('[Foo](devot://note/0194e1e4-7b1c-7000-8000-000000000001)', 3)).toBeUndefined()
   })
 })
