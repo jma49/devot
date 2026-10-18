@@ -1281,6 +1281,23 @@ export const COMMANDS = [
     scope: 'editor',
     keys: [],
   },
+  // Opens the palette at Go to Line: from anywhere in the window while a
+  // note is open for editing (the line is the open note's).
+  {
+    id: 'edit.goToLine',
+    label: 'command.goToLine',
+    group: 'edit',
+    scope: 'window',
+    keys: ['Ctrl+G'],
+  },
+  // Typed text replaces the characters after the caret (editor/overwrite.ts).
+  {
+    id: 'edit.toggleOverwrite',
+    label: 'command.toggleOverwrite',
+    group: 'edit',
+    scope: 'editor',
+    keys: [],
+  },
   { id: 'app.backups', label: 'command.backups', group: 'app', scope: 'window', keys: [] },
   // The Markdown mirror (mirror.ts): choose its folder, or turn it off.
   {

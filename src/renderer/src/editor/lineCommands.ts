@@ -2,7 +2,7 @@
 // registry (the `edit.*` commands): a plain new line, blank lines above and
 // below, delete, select, move, copy, indent, join and sort lines, open the
 // link under the caret, more cursors and selections, matching brackets, case
-// and task boxes. The palette runs them too (`runEditCommand`). Typing a
+// and task boxes, overwrite mode. The palette runs them too (`runEditCommand`). Typing a
 // backtick over a selection wraps it too. The keys sit in a
 // compartment, so a change in Settings > Keyboard rebinds them in the open
 // editor (see registryKeys.ts).
@@ -39,6 +39,7 @@ import {
 import { EditorView, keymap } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import { editorCommandKeys, type CommandId } from '../commands/registry'
+import { toggleOverwrite } from './overwrite'
 import { registryKeys } from './registryKeys'
 
 /** What opens a link's address (the window opens a note link or a web page). */
@@ -391,6 +392,7 @@ const RUN: Partial<Record<CommandId, (view: EditorView) => boolean>> = {
   'edit.upperCase': changeCase(true),
   'edit.lowerCase': changeCase(false),
   'edit.toggleTask': toggleTaskAtCaret,
+  'edit.toggleOverwrite': toggleOverwrite,
 }
 
 /** The commands this module runs. */

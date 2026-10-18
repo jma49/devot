@@ -470,6 +470,8 @@ export function App() {
   // the open note's Markdown as it was then (the outline source lists it).
   const [paletteScope, setPaletteScope] = useState<PaletteSource | undefined>()
   const [paletteText, setPaletteText] = useState('')
+  // How many lines that text has (Go to Line), counted once on opening.
+  const [paletteLines, setPaletteLines] = useState(0)
   // Whether the editor's cursor was in a table when the palette opened: the
   // palette offers the table commands then.
   const [paletteInTable, setPaletteInTable] = useState(false)
@@ -2015,7 +2017,11 @@ export function App() {
     setPaletteInTable(editorRef.current?.inTable() ?? false)
     setPaletteSelection(editorRef.current?.hasSelection() ?? false)
     setPaletteImage(editorRef.current?.imageAtCursor() ?? null)
-    setPaletteText(editorRef.current?.text() ?? '')
+    const text = editorRef.current?.text() ?? ''
+    setPaletteText(text)
+    let lines = 1
+    for (let at = text.indexOf('\n'); at !== -1; at = text.indexOf('\n', at + 1)) lines++
+    setPaletteLines(lines)
     setPaletteScope(scope)
     setPaletteOpen(true)
   }
@@ -2244,6 +2250,7 @@ export function App() {
       for (const commandId of LINE_COMMANDS) {
         handlers[commandId] = { run: () => editorRef.current?.runLine(commandId) }
       }
+      handlers['edit.goToLine'] = { run: () => openPalette('line') }
       if (paletteOpen && paletteSelection) {
         handlers['note.newFromSelection'] = {
           run: () => noteFromSelection(id),
@@ -2329,6 +2336,13 @@ export function App() {
                   run: () => putTagOnNotes([openNote.id], entry.id),
                 }
               : undefined,
+        }
+      case 'line':
+        return {
+          primary: {
+            label: t('palette.goToLine'),
+            run: () => editorRef.current?.goToLine(entry.line ?? 1, 'center'),
+          },
         }
       case 'outline':
         return {
@@ -2916,10 +2930,14 @@ export function App() {
             command: commandEntries(handlers, t),
             source: sourceEntries(t),
             outline: outlineEntries(paletteText),
+            // The palette makes the line to go to from what is typed.
+            line: [],
             ...(paletteLibrary ?? NO_LIBRARY),
           }}
           actions={paletteActions}
           initialScope={paletteScope}
+          // Go to Line is for a note open for editing.
+          lineCount={handlers['edit.goToLine'] ? paletteLines : 0}
           onClose={closePalette}
         />
       ) : null}

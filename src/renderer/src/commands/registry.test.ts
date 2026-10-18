@@ -612,6 +612,8 @@ describe('the default keys', () => {
       ['edit.upperCase', []],
       ['edit.lowerCase', []],
       ['edit.toggleTask', []],
+      ['edit.goToLine', ['Ctrl+G']],
+      ['edit.toggleOverwrite', []],
       ['format.headingBigger', []],
       ['format.headingSmaller', []],
       ['table.alignLeft', ['Mod+Alt+ArrowLeft']],
