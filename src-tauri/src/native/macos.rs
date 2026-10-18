@@ -2438,8 +2438,17 @@ fn build_editor_menu(
     }
     builder.add_entries(&menu, entries);
     menu.addItem(&builder.separator());
-    for item in NSMenuItem::writingToolsItems(mtm).to_vec() {
-        menu.addItem(&item);
+    // SAFETY: the class object is a live NSObject class; asking it answers
+    // whether the class method exists on this system.
+    let class = (NSMenuItem::class() as *const AnyClass)
+        .cast_mut()
+        .cast::<AnyObject>();
+    if unsafe { responds(class, sel!(writingToolsItems)) } {
+        for item in NSMenuItem::writingToolsItems(mtm).to_vec() {
+            menu.addItem(&item);
+        }
+    } else {
+        log::warn!("W_NATIVE_WRITING_TOOLS_UNAVAILABLE");
     }
     menu.addItem(&builder.spelling_menu());
     menu.addItem(&builder.separator());
@@ -2448,6 +2457,19 @@ fn build_editor_menu(
     services_item.setSubmenu(Some(&services));
     menu.addItem(&services_item);
     (menu, services)
+}
+
+/// Puts the app's own Services menu back when dropped, so it comes back
+/// however the editor's menu ended (an exception unwinds through it too).
+struct RestoreServices {
+    app: Retained<NSApplication>,
+    menu: Option<Retained<NSMenu>>,
+}
+
+impl Drop for RestoreServices {
+    fn drop(&mut self) {
+        self.app.setServicesMenu(self.menu.as_deref());
+    }
 }
 
 /// The choice of the item picked since the last call, if any.
@@ -2478,12 +2500,15 @@ fn show_editor_menu(
     // AppKit fills the app's Services menu with what the first responder's
     // selection can be sent to: this one for as long as the menu is open.
     let app = NSApplication::sharedApplication(mtm);
-    let app_services = app.servicesMenu();
+    let restore = RestoreServices {
+        menu: app.servicesMenu(),
+        app: app.clone(),
+    };
     app.setServicesMenu(Some(&services));
     EDITOR_MENU_PICK.with(|pick| pick.set(None));
     // The item picked has sent its action by the time this returns.
     menu.popUpMenuPositioningItem_atLocation_inView(None, NSPoint::new(x, y), Some(view));
-    app.setServicesMenu(app_services.as_deref());
+    drop(restore);
     Ok(match picked_choice(&builder.choices) {
         None => None,
         Some(MenuChoice::Item(id)) => Some(EditorMenuPick::Item { id: id.clone() }),

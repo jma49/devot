@@ -117,13 +117,18 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CHANNEL: ${{ steps.version.outputs.channel }}
         run: |
-          flags=()
-          if [ "$CHANNEL" = beta ]; then flags+=(--prerelease); fi
-          gh release create "$TAG" out/* --verify-tag --title "Devot $VERSION" --notes-file notes.md "${flags[@]}"
+          # A rerun of a run that failed later finds the release made: it
+          # uploads the files again instead.
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" out/* --clobber
+          else
+            flags=()
+            if [ "$CHANNEL" = beta ]; then flags+=(--prerelease); fi
+            gh release create "$TAG" out/* --verify-tag --title "Devot $VERSION" --notes-file notes.md "${flags[@]}"
+          fi
       - name: Update the feeds
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CHANNEL: ${{ steps.version.outputs.channel }}
           UPDATER: ${{ steps.files.outputs.updater }}
         run: |
           url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$UPDATER"
@@ -133,15 +138,12 @@ jobs:
           # beta.json too, so a beta install is offered the newest build.
           feeds=$(node scripts/release/release.ts feeds "$TAG")
           # The feed's own release, made once: a prerelease, so it never
-          # shows as the latest release. stable.json stays empty until 1.0.
+          # shows as the latest release. stable.json is not there until the
+          # first stable release writes it (GitHub refuses an empty file).
           if ! gh release view updater > /dev/null 2>&1; then
             # Another run may have made it meanwhile.
             gh release create updater --prerelease --title "Update feed" \
               --notes "The update feed Devot reads. Do not delete." || gh release view updater > /dev/null
-            if [ "$CHANNEL" = beta ]; then
-              mkdir empty && : > empty/stable.json
-              gh release upload updater empty/stable.json --clobber
-            fi
           fi
           # Only a newer release moves a feed.
           # Only a missing file means no feed yet: any other failure stops the

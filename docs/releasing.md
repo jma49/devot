@@ -9,7 +9,7 @@ Until 1.0 every build ships as a GitHub prerelease on the beta channel. A releas
 - Each release gets a new tag and a new prerelease. Never replace an existing release or move an existing tag.
 - A feature batch landing on `main` raises MINOR and starts at `beta.1` (`v0.3.0-beta.1`, then `v0.4.0-beta.1`, ...).
 - A release with only fixes on top of the latest minor raises N (`v0.3.0-beta.2`, ...).
-- Stable releases start at 1.0. Until then the update feed's `stable.json` stays empty and only `beta.json` is published. A stable release goes in both feeds (see Update feed).
+- Stable releases start at 1.0. Until then the update feed has no `stable.json` (the first stable release writes it) and only `beta.json` is published. A stable release goes in both feeds (see Update feed).
 - Apple Silicon only.
 
 ## When to release
@@ -37,7 +37,7 @@ The workflow then, on a macOS 26 Apple Silicon runner:
 2. Builds `app` and `dmg` bundles, ad-hoc signed (`signingIdentity: "-"`; without it the bundle has no seal and downloaded copies are reported as damaged), with the updater's public key built in and the updater bundle (`Devot.app.tar.gz`) signed by the updater key.
 3. Verifies them (`codesign --verify --deep --strict`, `hdiutil verify`), and checks the updater bundle's signature against `TAURI_UPDATER_PUBKEY`: a private key that does not match the public key fails the run instead of shipping updates no install would accept.
 4. Creates the release for the tag (a prerelease for a beta) with the dmg, the updater bundle and its signature.
-5. Writes the feeds the release goes in and uploads them to the fixed `updater` release, which it creates on first use: `beta.json` for a beta; `stable.json` and `beta.json` for a stable release (`scripts/release/release.ts feeds`). Each feed is replaced only by a release newer than the one it offers, so tags pushed close together, whose runs may overlap, leave the newest one in each feed, and a stable release never takes `beta.json` back from a newer beta. A feed that cannot be read (other than one not there yet) fails the run rather than being replaced.
+5. Writes the feeds the release goes in and uploads them to the fixed `updater` release, which it creates on first use: `beta.json` for a beta; `stable.json` and `beta.json` for a stable release (`scripts/release/release.ts feeds`). Each feed is replaced only by a release newer than the one it offers, so tags pushed close together, whose runs may overlap, leave the newest one in each feed, and a stable release never takes `beta.json` back from a newer beta. A feed that cannot be read (other than one not there yet) fails the run rather than being replaced. A failed run can be run again: a release already made gets its files uploaded again instead (`tests/policy/release-workflow.test.ts`).
 
 Watch the run in the Actions tab; when it fails, fix the cause and release under a new tag.
 

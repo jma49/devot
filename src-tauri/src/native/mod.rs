@@ -430,6 +430,8 @@ const MAX_EDITOR_MENU_ITEMS: usize = 64;
 const MAX_EDITOR_MENU_TEXT: usize = 200;
 /// The longest word the editor's menu offers spelling guesses for.
 const MAX_SPELLING_WORD: usize = 100;
+/// The farthest point in the window the editor's menu opens at, in CSS pixels.
+const MAX_EDITOR_MENU_POINT: f64 = 100_000.0;
 /// What every item ID the editor's menu takes starts with.
 const EDITOR_MENU_ID_PREFIX: &str = "devot.editor.";
 
@@ -539,7 +541,7 @@ fn validate_editor_menu(
         Ok(())
     }
     check(items, false, &mut 0)?;
-    if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 {
+    if !(0.0..=MAX_EDITOR_MENU_POINT).contains(&x) || !(0.0..=MAX_EDITOR_MENU_POINT).contains(&y) {
         return Err("E_EDITOR_MENU_POINT_INVALID");
     }
     if let Some(word) = word
@@ -718,7 +720,12 @@ mod tests {
         let many = vec![EditorMenuEntry::Separator; MAX_EDITOR_MENU_ITEMS + 1];
         assert_eq!(bad(many), Err("E_EDITOR_MENU_TOO_LONG"));
         let one = [item("devot.editor.undo", "Undo")];
-        for (x, y) in [(-1.0, 0.0), (0.0, f64::NAN), (f64::INFINITY, 0.0)] {
+        for (x, y) in [
+            (-1.0, 0.0),
+            (0.0, f64::NAN),
+            (f64::INFINITY, 0.0),
+            (0.0, 100_001.0),
+        ] {
             assert_eq!(
                 validate_editor_menu(&one, x, y, None),
                 Err("E_EDITOR_MENU_POINT_INVALID")
