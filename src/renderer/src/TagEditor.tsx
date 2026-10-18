@@ -154,7 +154,7 @@ export function TagEditor(props: {
           role="combobox"
           aria-label={t('note.addTag')}
           aria-expanded={rows.length > 0}
-          aria-controls={listId}
+          aria-controls={rows.length > 0 ? listId : undefined}
           aria-autocomplete="list"
           aria-activedescendant={active >= 0 && rows[active] ? optionId(active) : undefined}
           placeholder={t('note.addTags')}

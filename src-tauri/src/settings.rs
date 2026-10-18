@@ -36,7 +36,12 @@ pub fn open(app: &AppHandle) {
         .try_state::<std::sync::Arc<crate::editor_settings::EditorSettingsStore>>()
         .and_then(|store| store.get().ok())
         .and_then(|stored| stored.settings.appearance.window_theme());
-    let built = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(PAGE.into()))
+    let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(PAGE.into()));
+    // The same WebKit store as the main window (`data_folder`).
+    if let Some(store) = crate::data_folder::this_build_web_data_store() {
+        builder = builder.data_store_identifier(store);
+    }
+    let built = builder
         .title(strings::SETTINGS_TITLE)
         .theme(theme)
         .inner_size(WIDTH, HEIGHT)

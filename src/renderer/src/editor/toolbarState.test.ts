@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { toggleInline } from './formats'
 import { noteMarkdown } from './markdown'
 import {
+  barFocusIsFree,
+  barHoldsFocus,
   hideToolbar,
   leavesEditor,
   releaseToolbar,
@@ -106,5 +108,40 @@ describe('leavesEditor', () => {
   it('leaves the editor for any other element, or for nothing', () => {
     expect(leavesEditor(outside)).toBe(true)
     expect(leavesEditor(null)).toBe(true)
+  })
+})
+
+type Who = 'button' | 'other' | 'host' | 'body' | null
+
+/** A bar inside a shadow root: only the root knows which control has focus. */
+function fakeBar(rootActive: Who, docActive: Who): HTMLElement {
+  const nodes = { button: {}, other: {}, host: {}, body: {} }
+  const pick = (who: Who) => (who ? nodes[who] : null)
+  return {
+    contains: (n: unknown) => n === nodes.button,
+    getRootNode: () => ({ activeElement: pick(rootActive), host: nodes.host }),
+    ownerDocument: { activeElement: pick(docActive), body: nodes.body },
+  } as unknown as HTMLElement
+}
+
+describe('focus on a floating bar in a shadow root', () => {
+  it('sees a bar button the shadow root reports as active', () => {
+    expect(barHoldsFocus(fakeBar('button', 'host'))).toBe(true)
+  })
+
+  it('does not hold focus when another control or nothing is active', () => {
+    expect(barHoldsFocus(fakeBar('other', 'host'))).toBe(false)
+    expect(barHoldsFocus(fakeBar(null, 'host'))).toBe(false)
+  })
+
+  it('is free to take focus back from the bar, from nowhere, or from the host', () => {
+    expect(barFocusIsFree(fakeBar('button', 'host'))).toBe(true)
+    expect(barFocusIsFree(fakeBar(null, 'body'))).toBe(true)
+    expect(barFocusIsFree(fakeBar(null, 'host'))).toBe(true)
+  })
+
+  it('leaves focus alone when the user went to another field', () => {
+    expect(barFocusIsFree(fakeBar('other', 'host'))).toBe(false)
+    expect(barFocusIsFree(fakeBar(null, 'other'))).toBe(false)
   })
 })

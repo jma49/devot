@@ -44,3 +44,16 @@ test('a press hides the bubble', async ({ page }) => {
   await expect(page.getByRole('tooltip')).toBeHidden()
   await page.mouse.up()
 })
+
+test('keyboard focus shows the bubble too, and leaving the button hides it', async ({ page }) => {
+  await openApp(page)
+  const button = page.getByRole('button', { name: 'New Notebook' })
+  // Focus after a key press (not a click) is what makes the focus ring show.
+  await page.keyboard.press('Tab')
+  await button.evaluate((el) => el.focus())
+  const tip = page.getByRole('tooltip')
+  await expect(tip).toBeVisible()
+  await expect(tip).toContainText('New Notebook')
+  await button.evaluate((el) => el.blur())
+  await expect(tip).toBeHidden()
+})

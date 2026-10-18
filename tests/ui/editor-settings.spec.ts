@@ -357,6 +357,23 @@ test('prose only never wraps code blocks and tables, wherever the caret is', asy
   await expect.poll(() => rows(page, 'end |')).toBeGreaterThan(1)
 })
 
+test('with the reading width an unwrapped table scrolls inside the column', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 700 })
+  await newNote(page, `Prose before.\n\n${TABLE}\n\nProse after.`)
+  await changed(page, { lineWrapping: 'prose', readableWidth: true })
+  await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(3)
+  const box = await content(page).evaluate((el) => ({
+    scrolls: el.scrollWidth > el.clientWidth,
+    overflowX: getComputedStyle(el).overflowX,
+    right: el.getBoundingClientRect().right,
+    editorRight: el.closest('.cm-scroller')!.getBoundingClientRect().right,
+  }))
+  expect(box.overflowX).toBe('auto')
+  expect(box.scrolls).toBe(true)
+  // The column stays inside the editor: nothing reaches into the margin.
+  expect(box.right).toBeLessThanOrEqual(box.editorRight)
+})
+
 test('the caret line keeps its place on screen when its block unwraps', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 600 })
   const filler = Array.from({ length: 60 }, (_, i) => `Line ${i}`).join('\n')
@@ -374,4 +391,27 @@ test('the caret line keeps its place on screen when its block unwraps', async ({
       Math.abs((await fence.evaluate((el) => el.getBoundingClientRect().top)) - before),
     )
     .toBeLessThan(2)
+})
+
+test('typing at the end of a long unwrapped line keeps the caret inside the column', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1400, height: 700 })
+  await newNote(page, `\`\`\`\nconst x = '${LONG_CELL}${LONG_CELL}'\n\`\`\``)
+  await changed(page, { lineWrapping: 'prose', readableWidth: true })
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('End')
+  await page.keyboard.type('!')
+  // The drawn cursor: the document's selection only reaches the editor's
+  // shadow host, not the caret inside it.
+  await expect.poll(() => content(page).evaluate((el) => el.scrollLeft > 0)).toBe(true)
+  await expect
+    .poll(async () => {
+      const caret = (await page.locator('.cm-cursor-primary').boundingBox())!
+      const box = (await content(page).boundingBox())!
+      // At the line's end the column is scrolled as far as it goes, so the
+      // caret sits on its right edge: its left side is what must be inside.
+      return caret.x >= box.x && caret.x <= box.x + box.width
+    })
+    .toBe(true)
 })

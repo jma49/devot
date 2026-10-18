@@ -4,7 +4,8 @@ name: Release
 # builds Devot for Apple Silicon, ad-hoc signed, with the updater bundle
 # signed by the updater key; publishes a new release for the tag (a
 # prerelease for a beta) with the dmg and the updater bundle; then points
-# the channel's update feed (beta.json in the fixed `updater` release) at it.
+# the update feeds at it (in the fixed `updater` release: beta.json for a
+# beta, stable.json and beta.json for a stable release).
 #
 # The release notes are the tag's message (`git tag -a <tag> -F notes.md`);
 # a tag without one gets GitHub's generated notes.
@@ -119,7 +120,7 @@ jobs:
           flags=()
           if [ "$CHANNEL" = beta ]; then flags+=(--prerelease); fi
           gh release create "$TAG" out/* --verify-tag --title "Devot $VERSION" --notes-file notes.md "${flags[@]}"
-      - name: Update the feed
+      - name: Update the feeds
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ steps.version.outputs.channel }}
@@ -127,7 +128,10 @@ jobs:
         run: |
           url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$UPDATER"
           mkdir feed
-          node scripts/release/release.ts feed "$TAG" "$url" "out/$UPDATER.sig" notes.md "feed/$CHANNEL.json"
+          node scripts/release/release.ts feed "$TAG" "$url" "out/$UPDATER.sig" notes.md feed/release.json
+          # A beta goes in beta.json; a stable release in stable.json and in
+          # beta.json too, so a beta install is offered the newest build.
+          feeds=$(node scripts/release/release.ts feeds "$TAG")
           # The feed's own release, made once: a prerelease, so it never
           # shows as the latest release. stable.json stays empty until 1.0.
           if ! gh release view updater > /dev/null 2>&1; then
@@ -139,16 +143,19 @@ jobs:
               gh release upload updater empty/stable.json --clobber
             fi
           fi
-          # Only a newer release moves the feed.
+          # Only a newer release moves a feed.
           # Only a missing file means no feed yet: any other failure stops the
-          # run, so an older run never takes the feed back.
+          # run, so an older run never takes a feed back.
           mkdir current
           assets=$(gh release view updater --json assets --jq '.assets[].name')
-          if grep -qx "$CHANNEL.json" <<< "$assets"; then
-            gh release download updater --pattern "$CHANNEL.json" --dir current
-          fi
-          if node scripts/release/release.ts replaces-feed "$TAG" "current/$CHANNEL.json" | grep -qx 'replace=true'; then
-            gh release upload updater "feed/$CHANNEL.json" --clobber
-          else
-            echo "::notice::The feed already offers a newer version; it stays as it is."
-          fi
+          for channel in $feeds; do
+            if grep -qx "$channel.json" <<< "$assets"; then
+              gh release download updater --pattern "$channel.json" --dir current
+            fi
+            if node scripts/release/release.ts replaces-feed "$TAG" "current/$channel.json" | grep -qx 'replace=true'; then
+              cp feed/release.json "feed/$channel.json"
+              gh release upload updater "feed/$channel.json" --clobber
+            else
+              echo "::notice::$channel.json already offers a newer version; it stays as it is."
+            fi
+          done

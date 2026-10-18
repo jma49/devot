@@ -9,7 +9,7 @@ Until 1.0 every build ships as a GitHub prerelease on the beta channel. A releas
 - Each release gets a new tag and a new prerelease. Never replace an existing release or move an existing tag.
 - A feature batch landing on `main` raises MINOR and starts at `beta.1` (`v0.3.0-beta.1`, then `v0.4.0-beta.1`, ...).
 - A release with only fixes on top of the latest minor raises N (`v0.3.0-beta.2`, ...).
-- Stable releases start at 1.0. Until then the update feed's `stable.json` stays empty and only `beta.json` is published.
+- Stable releases start at 1.0. Until then the update feed's `stable.json` stays empty and only `beta.json` is published. A stable release goes in both feeds (see Update feed).
 - Apple Silicon only.
 
 ## When to release
@@ -37,13 +37,15 @@ The workflow then, on a macOS 26 Apple Silicon runner:
 2. Builds `app` and `dmg` bundles, ad-hoc signed (`signingIdentity: "-"`; without it the bundle has no seal and downloaded copies are reported as damaged), with the updater's public key built in and the updater bundle (`Devot.app.tar.gz`) signed by the updater key.
 3. Verifies them (`codesign --verify --deep --strict`, `hdiutil verify`), and checks the updater bundle's signature against `TAURI_UPDATER_PUBKEY`: a private key that does not match the public key fails the run instead of shipping updates no install would accept.
 4. Creates the release for the tag (a prerelease for a beta) with the dmg, the updater bundle and its signature.
-5. Writes the feed for the release's channel (`beta.json`) and uploads it to the fixed `updater` release, which it creates on first use. Only a release newer than the one the feed offers replaces it, so tags pushed close together, whose runs may overlap, leave the newest one in the feed. A feed that cannot be read (other than one not there yet) fails the run rather than being replaced.
+5. Writes the feeds the release goes in and uploads them to the fixed `updater` release, which it creates on first use: `beta.json` for a beta; `stable.json` and `beta.json` for a stable release (`scripts/release/release.ts feeds`). Each feed is replaced only by a release newer than the one it offers, so tags pushed close together, whose runs may overlap, leave the newest one in each feed, and a stable release never takes `beta.json` back from a newer beta. A feed that cannot be read (other than one not there yet) fails the run rather than being replaced.
 
 Watch the run in the Actions tab; when it fails, fix the cause and release under a new tag.
 
 ## Update feed
 
 The app reads `https://github.com/jma49/devot/releases/download/updater/beta.json` (a prerelease build) or `.../stable.json` (a stable build): a release named `updater` that holds one file per channel. It is a prerelease so that it never shows as the latest release. Do not delete it: installed copies would stop finding updates.
+
+A beta install reads `beta.json`, so a stable release also goes there when it is newer than the beta it offers: the beta channel always offers the newest build of either kind (`1.0.0-beta.5` is offered `1.0.0`, but `1.1.0-beta.1` stays when `1.0.1` ships). A stable install reads only `stable.json` and never gets a beta.
 
 Release builds check 30 seconds after launch and then daily, and on Devot > Check for Updates…. With Settings > General > Automatically Download Updates on (the default), an update downloads in the background; then Devot offers Restart to Update, which installs it and restarts once the notes are saved. A plain quit installs nothing; the next launch finds the update again.
 

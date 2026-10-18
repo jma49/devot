@@ -143,7 +143,7 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
   await send(page, 'devot:import-ready', SCAN)
   await expect(dialog(page)).toContainText('Found 3 Markdown files and 1 image')
   const rows = dialog(page)
-    .getByRole('tree', { name: 'Folders found' })
+    .getByRole('list', { name: 'Folders found' })
     .locator('.import-folder-row')
   await expect(rows).toHaveCount(4)
   await expect(rows.nth(0)).toContainText('Vault')

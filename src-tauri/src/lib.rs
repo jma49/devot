@@ -248,6 +248,8 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     main.window_effects = sidebar_material::effects_for(material, configured.as_ref());
     // The appearance chosen in Settings, or the system's.
     main.theme = stored.settings.appearance.window_theme();
+    // A debug build keeps its web data apart from the release app's.
+    main.data_store_identifier = data_folder::this_build_web_data_store();
     app.manage(sidebar_material::SidebarMaterial::new(
         configured,
         sidebar_material::Shown {
