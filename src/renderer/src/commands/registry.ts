@@ -1200,6 +1200,21 @@ export const COMMANDS = [
     keys: ['Ctrl+J'],
   },
   { id: 'app.backups', label: 'command.backups', group: 'app', scope: 'window', keys: [] },
+  // Updates (updates.ts): check now; restart into a downloaded update.
+  {
+    id: 'app.checkForUpdates',
+    label: 'command.checkForUpdates',
+    group: 'app',
+    scope: 'window',
+    keys: [],
+  },
+  {
+    id: 'app.restartToUpdate',
+    label: 'command.restartToUpdate',
+    group: 'app',
+    scope: 'window',
+    keys: [],
+  },
   // File > Export > All Notes (exporter.ts).
   {
     id: 'app.exportAllMarkdown',

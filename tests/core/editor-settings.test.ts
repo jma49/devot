@@ -55,6 +55,8 @@ describe('editor settings', () => {
       highlightTrailingWhitespace: false,
       previewFontSize: 15,
       defaultNotebook: null,
+      // An update found downloads in the background unless turned off.
+      autoDownloadUpdates: true,
     })
   })
 
@@ -131,6 +133,8 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ listMarker: '+' }).listMarker).toBe('+')
     expect(parseEditorSettings({ defaultNotebook: 'a b' }).defaultNotebook).toBeNull()
     expect(parseEditorSettings({ sidebarMaterial: 'off' }).sidebarMaterial).toBe(true)
+    expect(parseEditorSettings({ autoDownloadUpdates: false }).autoDownloadUpdates).toBe(false)
+    expect(parseEditorSettings({ autoDownloadUpdates: 'no' }).autoDownloadUpdates).toBe(true)
   })
 
   it('reads line wrapping as a mode, and the old on/off as unwrap at cursor/off', () => {
@@ -155,7 +159,12 @@ describe('editor settings', () => {
     for (const pasteUrl of PASTE_URL_STYLES)
       expect(checkEditorSettingsPatch({ pasteUrl })).toEqual({ pasteUrl })
     expect(checkEditorSettingsPatch({ syncScroll: false })).toEqual({ syncScroll: false })
+    expect(checkEditorSettingsPatch({ autoDownloadUpdates: false })).toEqual({
+      autoDownloadUpdates: false,
+    })
     for (const bad of [
+      { autoDownloadUpdates: 'on' },
+      { autoDownloadUpdates: null },
       { fontSize: 9 },
       { fontSize: 33 },
       { fontSize: 13.5 },

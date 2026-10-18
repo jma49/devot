@@ -1,6 +1,8 @@
 //! The native menu bar. Quit is a custom item so it can run the save
 //! handshake (see `exit`); Settings opens its own window (see `settings`);
 //! Backups… asks the main window to show its backups dialog;
+//! Check for Updates… checks for an update, and becomes Restart to Update
+//! once one is downloaded (see `updates`);
 //! Help > Export Diagnostics… writes a diagnostics file (see `diagnostics`);
 //! File > Import > Markdown Files…, Markdown Folder… and HTML Files… ask for
 //! what to import (see `import`);
@@ -22,7 +24,7 @@
 //! everything else uses the standard items.
 
 use crate::editor_settings::{self, EditorSettings, EditorSettingsStore, Snapshot};
-use crate::{diagnostics, exit, format_menu, import, settings, strings};
+use crate::{diagnostics, exit, format_menu, import, settings, strings, updates};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -36,6 +38,7 @@ pub const QUIT_ID: &str = "devot.quit";
 pub const SETTINGS_ID: &str = "devot.settings";
 pub const DIAGNOSTICS_ID: &str = "devot.diagnostics";
 pub const BACKUPS_ID: &str = "devot.backups";
+pub const UPDATES_ID: &str = "devot.updates.check";
 pub const IMPORT_MARKDOWN_ID: &str = "devot.import.markdown";
 pub const IMPORT_MARKDOWN_FILES_ID: &str = "devot.import.markdownFiles";
 pub const IMPORT_HTML_FILES_ID: &str = "devot.import.htmlFiles";
@@ -313,8 +316,14 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
     let backups = MenuItemBuilder::with_id(BACKUPS_ID, strings::BACKUPS).build(app)?;
+    let (title, enabled) = updates::menu_item(&app.state::<updates::Updates>().status().state);
+    let check_updates = MenuItemBuilder::with_id(UPDATES_ID, title)
+        .enabled(enabled)
+        .build(app)?;
+    app.manage(updates::UpdatesMenuItem(check_updates.clone()));
     let app_menu = SubmenuBuilder::new(app, strings::APP_NAME)
         .about(None)
+        .item(&check_updates)
         .separator()
         .item(&settings)
         .item(&backups)
@@ -457,6 +466,8 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         exit::request_quit(app);
     } else if event.id() == SETTINGS_ID {
         settings::open(app);
+    } else if event.id() == UPDATES_ID {
+        updates::on_menu(app);
     } else if event.id() == BACKUPS_ID {
         if app.emit_to("main", SHOW_BACKUPS_EVENT, ()).is_err() {
             log::warn!("W_BACKUPS_MENU_EMIT_FAILED");

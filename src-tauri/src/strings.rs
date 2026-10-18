@@ -63,6 +63,11 @@ pub const EXPORT_DIAGNOSTICS: &str = "Export Diagnostics…";
 pub const QUIT: &str = "Quit Devot";
 pub const SETTINGS: &str = "Settings…";
 pub const BACKUPS: &str = "Backups…";
+/// Devot > Check for Updates…, by the updater's state (see `updates`).
+pub const UPDATES_CHECK: &str = "Check for Updates…";
+pub const UPDATES_CHECKING: &str = "Checking for Updates…";
+pub const UPDATES_DOWNLOADING: &str = "Downloading Update…";
+pub const UPDATES_RESTART: &str = "Restart to Update";
 pub const SETTINGS_TITLE: &str = "Settings";
 pub const MIRROR_FOLDER_TITLE: &str = "Choose a Folder for the Markdown Mirror";
 pub const FONT_IMPORT_TITLE: &str = "Import a Font for the Editor";

@@ -1,9 +1,10 @@
-import { useId, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useState, useSyncExternalStore } from 'react'
 import { errorCode } from '../backups'
 import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { readNotebooks, subscribeNotebooks } from '../notebookChoices'
-import { Setting, SettingsSection, useSettingsChange } from './controls'
+import { checkForUpdates, startUpdateStatus, updateStatusText, useUpdateStatus } from '../updates'
+import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
 import { openDataFolder, showBackups } from './window'
 
 /** Indents a sub-notebook's name under its parent in a pop-up (no-break spaces). */
@@ -20,13 +21,19 @@ const notebooksJson = () => JSON.stringify(readNotebooks())
  * shown has no notebook; None by default), Open Data Folder (shows the
  * folder Devot keeps the notes, backups, logs and settings in; only that
  * folder: the command takes no path) and Show Backups… (opens the main
- * window's Backups dialog, as Devot > Backups… does).
+ * window's Backups dialog, as Devot > Backups… does), then Updates:
+ * Automatically Download Updates (on by default) and Check Now, with the
+ * updater's status under it.
  */
 export function GeneralSection() {
   const [error, setError] = useState<{ message: MessageKey; code: string }>()
   const [saveError, change] = useSettingsChange()
   const ids = useId()
   const stored = useEditorSetting('defaultNotebook')
+  const autoDownload = useEditorSetting('autoDownloadUpdates')
+  useEffect(() => startUpdateStatus(), [])
+  const update = useUpdateStatus()
+  const busy = update.state === 'checking' || update.state === 'downloading'
   const notebooks = JSON.parse(
     useSyncExternalStore(subscribeNotebooks, notebooksJson),
   ) as ReturnType<typeof readNotebooks>
@@ -105,6 +112,29 @@ export function GeneralSection() {
             onClick={() => run(showBackups, 'generalSettings.backupsFailed')}
           >
             {t('generalSettings.showBackups')}
+          </button>
+        </Setting>
+      </SettingsSection>
+      <SettingsSection icon="settings.updates" title="generalSettings.updates">
+        <SettingToggle
+          label="generalSettings.autoDownloadUpdates"
+          description="generalSettings.autoDownloadUpdatesHint"
+          checked={autoDownload}
+          onChange={(on) => change({ autoDownloadUpdates: on })}
+        />
+        <Setting
+          label="generalSettings.checkForUpdates"
+          description={updateStatusText(update)}
+          descriptionId={`${ids}-updates`}
+        >
+          <button
+            type="button"
+            className="button"
+            disabled={busy}
+            aria-describedby={`${ids}-updates`}
+            onClick={() => void checkForUpdates()}
+          >
+            {t('generalSettings.checkNow')}
           </button>
         </Setting>
       </SettingsSection>

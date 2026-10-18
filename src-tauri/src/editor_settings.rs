@@ -186,6 +186,8 @@ pub struct EditorSettings {
     pub preview_font_size: u64,
     /// The notebook a new note goes to when the view has none.
     pub default_notebook: Option<String>,
+    /// An update found downloads in the background (see `updates`).
+    pub auto_download_updates: bool,
 }
 
 impl Default for EditorSettings {
@@ -223,6 +225,7 @@ impl Default for EditorSettings {
             highlight_trailing_whitespace: false,
             preview_font_size: 15,
             default_notebook: None,
+            auto_download_updates: true,
         }
     }
 }
@@ -311,6 +314,7 @@ impl EditorSettings {
                 self.preview_font_size = whole(value, FONT_SIZE_MIN, FONT_SIZE_MAX)?
             }
             "defaultNotebook" => self.default_notebook = notebook_id(value)?,
+            "autoDownloadUpdates" => self.auto_download_updates = flag(value)?,
             _ => return Err(INVALID),
         }
         Ok(())
@@ -583,6 +587,8 @@ mod tests {
         assert_eq!(d.default_notebook, None);
         // Split mode scrolls the editor and the preview together.
         assert!(d.sync_scroll);
+        // Updates download in the background unless turned off.
+        assert!(d.auto_download_updates);
         // Images show under their lines unless turned off.
         assert!(d.inline_images);
         // The system's appearance, with Devot's own accent.
@@ -626,6 +632,7 @@ mod tests {
                 "highlightTrailingWhitespace": false,
                 "previewFontSize": 15,
                 "defaultNotebook": null,
+                "autoDownloadUpdates": true,
             })
         );
     }
@@ -660,8 +667,10 @@ mod tests {
                 "highlightTrailingWhitespace": true,
                 "previewFontSize": 32,
                 "defaultNotebook": "0b0c-1d_2",
+                "autoDownloadUpdates": false,
             })))
             .unwrap();
+        assert!(!next.auto_download_updates);
         assert_eq!(next.appearance, Appearance::Dark);
         assert_eq!(next.theme, Theme::Ivory);
         assert!(next.system_accent);
@@ -829,6 +838,9 @@ mod tests {
             json!({ "theme": null }),
             json!({ "theme": 1 }),
             json!({ "systemAccent": "on" }),
+            json!({ "autoDownloadUpdates": "on" }),
+            json!({ "autoDownloadUpdates": 1 }),
+            json!({ "autoDownloadUpdates": null }),
             // Line wrapping is a mode; the old on/off values are refused.
             json!({ "lineWrapping": true }),
             json!({ "lineWrapping": false }),

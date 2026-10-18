@@ -23,6 +23,8 @@
     "allow-symbol-png",
     "allow-system-accent",
     "allow-settings-open-data-folder",
-    "allow-settings-show-backups"
+    "allow-settings-show-backups",
+    "allow-update-status",
+    "allow-update-check"
   ]
 }

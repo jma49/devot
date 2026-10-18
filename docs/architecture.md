@@ -32,7 +32,7 @@ Status: **v2, agreed 2026-10-09** (moved the shell from Electron to Tauri). Item
 | Tooling         | pnpm, oxlint + oxfmt, lefthook; cargo fmt, clippy, cargo-deny              |
 | Testing         | Vitest, fast-check, Playwright (WebKit); cargo test; WebdriverIO (phase 2) |
 | Crash reporting | Sentry (Rust SDK and browser SDK)                                          |
-| Packaging       | `tauri build`, ad-hoc signing, no auto-update in phase 1                   |
+| Packaging       | `tauri build` on tag push, ad-hoc signing, Tauri updater (`releasing.md`)  |
 
 ### Why Tauri
 

@@ -1,15 +1,16 @@
 # Releasing Devot
 
-Until 1.0 every build ships as a GitHub prerelease on the beta channel. These rules hold until the automated release workflow replaces the manual steps; that workflow must follow the same rules.
+Until 1.0 every build ships as a GitHub prerelease on the beta channel. A release is made by pushing a tag: the release workflow (`.github/workflows/release.yml`) builds, signs and publishes it, and points the update feed at it. There is no manual confirm step.
 
 ## Versions and tags
 
 - Tags look like `vMAJOR.MINOR.PATCH-beta.N`, for example `v0.3.0-beta.1`.
-- The tag decides the version. Before building, set the same version (without the leading `v`) in `package.json` and `src-tauri/Cargo.toml`; `tauri.conf.json` takes its version from Cargo.
+- The tag decides the version. The workflow writes it (without the leading `v`) into `package.json` and `src-tauri/Cargo.toml` before building (`scripts/release/release.ts set-version`); `tauri.conf.json` takes its version from Cargo. The committed versions stay `0.0.0`.
 - Each release gets a new tag and a new prerelease. Never replace an existing release or move an existing tag.
 - A feature batch landing on `main` raises MINOR and starts at `beta.1` (`v0.3.0-beta.1`, then `v0.4.0-beta.1`, ...).
 - A release with only fixes on top of the latest minor raises N (`v0.3.0-beta.2`, ...).
 - Stable releases start at 1.0. Until then the update feed's `stable.json` stays empty and only `beta.json` is published.
+- Apple Silicon only.
 
 ## When to release
 
@@ -18,29 +19,49 @@ Release only when both are true:
 1. CI is green on the merge commit on `main`.
 2. The batch was accepted by the reviewer who merged it.
 
-## Build
+## Release
 
-1. `git fetch`, then create a fresh detached worktree of the merge commit on `origin/main`.
-2. Copy `.env.local` into it, then `pnpm install --frozen-lockfile`.
-3. Set the version as described above (a local change in that worktree; the build does not need it committed).
-4. Build an ad-hoc signed bundle for Apple Silicon:
-
-   ```sh
-   PATH="$(brew --prefix rustup)/bin:$PATH" pnpm tauri build --bundles app,dmg \
-     --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
-   ```
-
-   The `"-"` signing identity is required: without it the bundle has no seal, and downloaded copies are reported as damaged.
-
-5. Verify: `codesign --verify --deep --strict <Devot.app>` and `hdiutil verify <dmg>`.
-
-## Publish
+Write the notes in English, one line per issue the release closes (`- #148 Drag notes and notebooks out of the app as links`), then tag the merge commit with them and push the tag:
 
 ```sh
-git tag <tag> <merge commit> && git push origin <tag>
-gh release create <tag> <dmg> --prerelease --title "Devot <version>" --notes-file <notes>
+git fetch origin
+git tag -a <tag> <merge commit> -F notes.md
+git push origin <tag>
 ```
 
-Notes are in English and list the issues the release closes, one line each (`- #148 Drag notes and notebooks out of the app as links`).
+The tag's message becomes the release notes and the update's notes in the app. A tag without a message gets GitHub's generated notes.
 
-Remove the build worktree afterwards.
+The workflow then, on a macOS 26 Apple Silicon runner:
+
+1. Sets the version from the tag (a tag of any other form fails the run).
+2. Builds `app` and `dmg` bundles, ad-hoc signed (`signingIdentity: "-"`; without it the bundle has no seal and downloaded copies are reported as damaged), with the updater's public key built in and the updater bundle (`Devot.app.tar.gz`) signed by the updater key.
+3. Verifies them (`codesign --verify --deep --strict`, `hdiutil verify`).
+4. Creates the release for the tag (a prerelease for a beta) with the dmg, the updater bundle and its signature.
+5. Writes the feed for the release's channel (`beta.json`) and uploads it to the fixed `updater` release, which it creates on first use. Only a release newer than the one the feed offers replaces it, so tags pushed close together, whose runs may overlap, leave the newest one in the feed.
+
+Watch the run in the Actions tab; when it fails, fix the cause and release under a new tag.
+
+## Update feed
+
+The app reads `https://github.com/jma49/devot/releases/download/updater/beta.json` (a prerelease build) or `.../stable.json` (a stable build): a release named `updater` that holds one file per channel. It is a prerelease so that it never shows as the latest release. Do not delete it: installed copies would stop finding updates.
+
+Release builds check 30 seconds after launch and then daily, and on Devot > Check for Updates…. With Settings > General > Automatically Download Updates on (the default), an update downloads in the background; then Devot offers Restart to Update, which installs it and restarts once the notes are saved. A plain quit installs nothing; the next launch finds the update again.
+
+## Signing key
+
+The updater accepts only bundles signed by the updater key. Its private key and password are the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the public key is the repository variable `TAURI_UPDATER_PUBKEY`, passed to the build with `--config`. No key is committed, so local builds have no updater (a manual check says updates are unavailable).
+
+The key pair is made once with `pnpm tauri signer generate -w <path>/devot-updater.key`, which asks for the password and writes the private key there and the public key to `devot-updater.key.pub`. Keep an offline backup of the private key and its password: losing either means installed copies can never update again, and a new key only reaches users who install a new copy by hand.
+
+Optional secrets turn on crash reporting in release builds, as `.env.local` does locally: `DEVOT_SENTRY_DSN` and `SENTRY_AUTH_TOKEN`, with the variables `SENTRY_ORG` and `SENTRY_PROJECT`.
+
+## Building locally
+
+A local build makes the same bundles without the updater:
+
+```sh
+PATH="$(brew --prefix rustup)/bin:$PATH" CI=true pnpm tauri build --bundles app,dmg \
+  --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+```
+
+`CI=true` makes the dmg step skip arranging the disk image window through Finder, which otherwise needs Automation access and can hang. Set a version with `node scripts/release/release.ts set-version <tag>` first if the build should carry one (a local change; do not commit it).

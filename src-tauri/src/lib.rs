@@ -30,6 +30,7 @@ mod storage;
 mod strings;
 #[cfg(test)]
 mod test_log;
+mod updates;
 mod usage;
 mod watch;
 
@@ -125,6 +126,10 @@ pub fn run() {
             mirror::mirror_bodies,
             mirror::mirror_files,
             mirror::mirror_hashes,
+            updates::update_status,
+            updates::update_check,
+            updates::update_download,
+            updates::update_restart,
         ])
         // Attachments: devot://file/<id>, read from the database.
         .register_asynchronous_uri_scheme_protocol("devot", |ctx, request, responder| {
@@ -181,6 +186,14 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     backups::start(app.handle());
     // devot-mcp writes while Devot runs: the window takes the changes in.
     watch::start(app.handle());
+    // The updater, only with the public key the release workflow builds in.
+    let with_updater = updates::configured(app.config().plugins.0.get("updater"))
+        && app
+            .handle()
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .is_ok();
+    let version = app.package_info().version.to_string();
+    app.manage(updates::Updates::new(with_updater, version));
     menu::install(app).map_err(|_| StartupError::new("E_MENU_FAILED"))?;
     // Built here rather than from the config alone, to route pop-ups.
     let mut main = app
@@ -220,5 +233,6 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         .build()
         .map_err(|_| StartupError::new("E_MAIN_WINDOW_FAILED"))?;
     native::configure_main_window(app);
+    updates::start(app.handle());
     Ok(())
 }

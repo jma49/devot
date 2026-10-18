@@ -89,6 +89,8 @@ export interface EditorSettings {
   previewFontSize: number
   /** The notebook a new note goes to when the view has none (an ID), or none. */
   defaultNotebook: string | null
+  /** An update found downloads in the background (Settings > General). */
+  autoDownloadUpdates: boolean
 }
 
 /**
@@ -126,6 +128,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   highlightTrailingWhitespace: false,
   previewFontSize: 15,
   defaultNotebook: null,
+  autoDownloadUpdates: true,
 })
 
 export const FONT_FAMILIES: readonly FontFamilyId[] = [
@@ -230,6 +233,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   highlightTrailingWhitespace: isFlag,
   previewFontSize: wholeIn(FONT_SIZE_MIN, FONT_SIZE_MAX),
   defaultNotebook: isNotebookId,
+  autoDownloadUpdates: isFlag,
 }
 
 const KEYS = Object.keys(VALID) as (keyof EditorSettings)[]

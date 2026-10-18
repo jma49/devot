@@ -149,6 +149,8 @@ import { useKept, useStable } from './stable'
 import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
 import { sizes } from './theme/tokens'
+import { restartNow, useUpdates } from './UpdateNotice'
+import { checkForUpdates } from './updates'
 import { track } from './usage'
 
 /** File > Export > All Notes (`markdown` or `html`), from Rust's menu. */
@@ -416,6 +418,8 @@ export function App() {
   const [changeNotice, setChangeNotice] = useState<string>()
   // The codes of pasted or dropped images that could not be stored, shown in a notice.
   const [imageNotice, setImageNotice] = useState<string[]>()
+  // Updates: Rust checks and downloads; the notice offers the restart.
+  const updates = useUpdates()
   const [exportNotice, setExportNotice] = useState<{
     failure: ExportFailure
     code: string
@@ -2136,11 +2140,13 @@ export function App() {
     'view.templates': { run: () => showLibrary({ kind: 'templates' }) },
     'view.trash': { run: () => showLibrary({ kind: 'trash' }) },
     'app.backups': { run: showBackups },
+    'app.checkForUpdates': { run: checkForUpdates },
     'app.exportAllMarkdown': { run: () => exportAll('exportMarkdown') },
     'app.exportAllHtml': { run: () => exportAll('exportHtml') },
     'mirror.chooseFolder': { run: mirror.choose },
   }
   if (mirror.status.folder !== null) handlers['mirror.turnOff'] = { run: mirror.turnOff }
+  if (updates.status.state === 'ready') handlers['app.restartToUpdate'] = { run: restartNow }
   // Sort Notes… opens the sort pop-up under the list's button.
   if (!focus && !inTrash) {
     handlers['view.sort'] = {
@@ -2885,6 +2891,7 @@ export function App() {
       coreFailure ||
       imageNotice ||
       saveNoticeShown ||
+      updates.notice ||
       mirror.notices.length > 0 ? (
         // One corner for every notice, stacked, so none covers another.
         <div className="notices">
@@ -2914,6 +2921,7 @@ export function App() {
             />
           ) : null}
           {mirror.notices}
+          {updates.notice}
           {changeNotice ? (
             <ChangeNotice code={changeNotice} onDismiss={() => setChangeNotice(undefined)} />
           ) : null}
