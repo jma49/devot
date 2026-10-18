@@ -723,7 +723,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.addInitScript(() => {
       const w = globalThis as unknown as TestWindow
       w.devotEditorRevision = 1
-      w.devotEditorSettings = { lineNumbers: true, lineWrapping: false, highlightActiveLine: true }
+      w.devotEditorSettings = { lineNumbers: true, lineWrapping: 'off', highlightActiveLine: true }
     })
     await start(page)
     await newNote(page, NOTE_FOR_COLOURS)

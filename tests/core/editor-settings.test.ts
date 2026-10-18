@@ -9,6 +9,7 @@ import {
   THEMES,
   INDENT_UNITS,
   LINE_HEIGHTS,
+  LINE_WRAPPING_MODES,
   LIST_MARKERS,
   PASTE_URL_STYLES,
   TAB_WIDTHS,
@@ -23,7 +24,8 @@ describe('editor settings', () => {
   it('has roomy defaults, the new ones for settings the user never set', () => {
     expect(DEFAULT_EDITOR_SETTINGS).toEqual({
       lineNumbers: false,
-      lineWrapping: true,
+      // Everything wraps except the code block or table under the caret.
+      lineWrapping: 'unwrapAtCursor',
       readableWidth: false,
       fontSize: 13,
       fontFamily: 'mono',
@@ -71,6 +73,7 @@ describe('editor settings', () => {
     expect(LIST_MARKERS).toEqual(['*', '-', '+'])
     expect(FONT_WEIGHTS).toEqual(['normal', '300', '400', '500', '600', '700'])
     expect(PASTE_URL_STYLES).toEqual(['plain', 'autolink', 'link'])
+    expect(LINE_WRAPPING_MODES).toEqual(['off', 'all', 'prose', 'unwrapAtCursor'])
     expect(APPEARANCES).toEqual(['light', 'dark', 'system'])
     expect(THEMES).toEqual(['default', 'ivory'])
     expect([FONT_SIZE_MIN, FONT_SIZE_MAX]).toEqual([10, 32])
@@ -128,6 +131,18 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ listMarker: '+' }).listMarker).toBe('+')
     expect(parseEditorSettings({ defaultNotebook: 'a b' }).defaultNotebook).toBeNull()
     expect(parseEditorSettings({ sidebarMaterial: 'off' }).sidebarMaterial).toBe(true)
+  })
+
+  it('reads line wrapping as a mode, and the old on/off as unwrap at cursor/off', () => {
+    for (const lineWrapping of LINE_WRAPPING_MODES)
+      expect(parseEditorSettings({ lineWrapping }).lineWrapping).toBe(lineWrapping)
+    expect(parseEditorSettings({ lineWrapping: true }).lineWrapping).toBe('unwrapAtCursor')
+    expect(parseEditorSettings({ lineWrapping: false }).lineWrapping).toBe('off')
+    expect(parseEditorSettings({ lineWrapping: 'sometimes' }).lineWrapping).toBe('unwrapAtCursor')
+    for (const lineWrapping of LINE_WRAPPING_MODES)
+      expect(checkEditorSettingsPatch({ lineWrapping })).toEqual({ lineWrapping })
+    for (const lineWrapping of [true, false, 'unwrap-at-cursor', null])
+      expect(() => checkEditorSettingsPatch({ lineWrapping })).toThrow('E_EDITOR_SETTINGS_INVALID')
   })
 
   it('accepts a change of valid values only', () => {

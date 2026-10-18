@@ -275,7 +275,12 @@ export const en = {
   'editorSettings.highlightActiveLine': 'Highlight Active Line',
   'editorSettings.highlightActiveLineHint': 'Whether to highlight the line the cursor is on.',
   'editorSettings.lineWrapping': 'Line Wrapping',
-  'editorSettings.lineWrappingHint': 'Whether long lines wrap instead of scrolling sideways.',
+  'editorSettings.lineWrappingHint':
+    'Prose only keeps code blocks and tables on one line each. Unwrap at cursor wraps everything except the code block or table under the cursor.',
+  'editorSettings.lineWrapping.off': 'Off',
+  'editorSettings.lineWrapping.all': 'All lines',
+  'editorSettings.lineWrapping.prose': 'Prose only',
+  'editorSettings.lineWrapping.unwrapAtCursor': 'Unwrap at cursor',
   'editorSettings.inlineImages': 'Inline Image Widgets',
   'editorSettings.inlineImagesHint': 'Whether to show images under their lines in the editor.',
   'editorSettings.readableWidth': 'Readable Line Length',
