@@ -310,6 +310,9 @@ test('the palette lists the editing commands and runs them at the caret', async 
 test('Ctrl+G goes to a line through the palette, and a colon does too', async ({ page }) => {
   await newNote(page, 'one\ntwo\nthree\nfour')
   await line(page, 0).click()
+  // Off macOS, CodeMirror's Mod is Control, so an editor key made of Mod
+  // and G takes Control+G first; press it from the title there.
+  if (!(await page.evaluate(() => /Mac/.test(navigator.platform)))) await title(page).click()
   await page.keyboard.press('Control+KeyG')
   await expect(paletteField(page)).toBeFocused()
   await expect(paletteField(page)).toHaveAttribute('placeholder', 'Type a line number...')

@@ -343,6 +343,8 @@ describe('the menu at the end of a long note', () => {
   ])('lists the same items after a long note as alone: %s', ([, tail = '']) => {
     const listed = (marked: string) => {
       const s = state(marked.replace('^', '/li^'))
+      // A long note is parsed in slices; finish it so a busy machine reads the same tree.
+      expect(ensureSyntaxTree(s, s.doc.length, 30_000)).not.toBeNull()
       const trigger = slashTrigger(s)
       return trigger ? slashItems(s, trigger).map((item) => item.id) : null
     }
