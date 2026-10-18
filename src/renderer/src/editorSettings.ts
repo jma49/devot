@@ -2,8 +2,8 @@
 // keeps them (src-tauri/src/editor_settings.rs); after every change it sends
 // `devot://editor-settings-changed` with the full settings to every window,
 // which re-sends it in the page as `devot:editor-settings-changed` (the UI
-// tests send that one). Font, size, weight and line height reach the editor as CSS
-// variables on the root element, set through CSSOM (the CSP allows no
+// tests send that one). The fonts (the app's, the notes' and code's), size,
+// weight and line height reach the page as CSS variables on the root element, set through CSSOM (the CSP allows no
 // inline styles); the rest reconfigure the editor (editor/settings.ts).
 import { useSyncExternalStore } from 'react'
 import {
@@ -13,7 +13,7 @@ import {
   stepFontSize,
   type EditorSettings,
 } from '../../core/editorSettings'
-import { fontStack, syncImportedFont } from './fonts'
+import { fontVariables, importedFontLoaded, subscribeFontsLoaded, syncImportedFonts } from './fonts'
 import { sizes } from './theme/tokens'
 import { createSyncedStore } from './syncedStore'
 import { invoke } from './ipc'
@@ -28,14 +28,21 @@ export interface StyleTarget {
   setProperty(name: string, value: string): void
 }
 
-/** Sets the CSS variables the editor's theme reads. */
-export function applyEditorStyle(settings: EditorSettings, style: StyleTarget): void {
+/**
+ * Sets the CSS variables the editor's theme and the page read. An imported
+ * font is named once `loaded` says its face is in place.
+ */
+export function applyEditorStyle(
+  settings: EditorSettings,
+  style: StyleTarget,
+  loaded: (id: string) => boolean = importedFontLoaded,
+): void {
   style.setProperty('--editor-font-size', `${settings.fontSize}px`)
   style.setProperty('--editor-font-weight', settings.fontWeight)
   // The preview's own size: 1 is the type scale's preview size.
   style.setProperty('--preview-scale', String(settings.previewFontSize / PREVIEW_BASE_SIZE))
   style.setProperty('--editor-line-height', String(settings.lineHeight))
-  style.setProperty('--editor-font-family', fontStack(settings))
+  for (const [name, value] of fontVariables(settings, loaded)) style.setProperty(name, value)
 }
 
 /** A snapshot from Rust: the settings and their revision (higher is newer). */
@@ -152,10 +159,12 @@ export function startEditorSettings(style: StyleTarget = document.documentElemen
   started = true
   const apply = () => {
     applyEditorStyle(store.current(), style)
-    syncImportedFont(store.current())
+    syncImportedFonts(store.current())
   }
   apply()
   subscribeEditorSettings(apply)
+  // A face that has loaded goes in the font lists.
+  subscribeFontsLoaded(() => applyEditorStyle(store.current(), style))
   window.addEventListener(EDITOR_SETTINGS_CHANGED, (e) =>
     store.confirm(reported(readSnapshot((e as CustomEvent<unknown>).detail))),
   )

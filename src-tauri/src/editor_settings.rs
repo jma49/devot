@@ -35,9 +35,10 @@ const NOTEBOOK_ID_MAX: usize = 64;
 
 const INVALID: &str = "E_EDITOR_SETTINGS_INVALID";
 
-/// The editor's font: the system font, one of the monospaced system fonts,
-/// a font installed on this Mac (`installed_font`) or a font file the user
-/// imported (`imported_font`, see `fonts`).
+/// A font (the app's, the notes' or code's): the system font, one of the
+/// monospaced system fonts, a font installed on this Mac (`installed_font`
+/// and the like) or a font file the user imported (`imported_font` and the
+/// like, see `fonts`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FontFamily {
@@ -161,6 +162,14 @@ pub struct EditorSettings {
     pub installed_font: Option<String>,
     /// The file name of the imported font the editor uses (in `fonts::DIR`).
     pub imported_font: Option<String>,
+    /// The font of the app's own text (the sidebar, the lists, Settings).
+    pub app_font_family: FontFamily,
+    pub app_installed_font: Option<String>,
+    pub app_imported_font: Option<String>,
+    /// The font of code blocks and inline code, in the editor and the preview.
+    pub code_font_family: FontFamily,
+    pub code_installed_font: Option<String>,
+    pub code_imported_font: Option<String>,
     pub line_height: f64,
     pub indent_unit: IndentUnit,
     pub tab_width: u64,
@@ -216,6 +225,12 @@ impl Default for EditorSettings {
             font_family: FontFamily::Mono,
             installed_font: None,
             imported_font: None,
+            app_font_family: FontFamily::System,
+            app_installed_font: None,
+            app_imported_font: None,
+            code_font_family: FontFamily::Mono,
+            code_installed_font: None,
+            code_imported_font: None,
             line_height: 1.5,
             indent_unit: IndentUnit::Spaces2,
             tab_width: 2,
@@ -297,6 +312,20 @@ impl EditorSettings {
                 self.installed_font = name_or_null(value, crate::fonts::valid_family_name)?
             }
             "importedFont" => self.imported_font = name_or_null(value, crate::fonts::valid_id)?,
+            "appFontFamily" => self.app_font_family = choice(value)?,
+            "appInstalledFont" => {
+                self.app_installed_font = name_or_null(value, crate::fonts::valid_family_name)?
+            }
+            "appImportedFont" => {
+                self.app_imported_font = name_or_null(value, crate::fonts::valid_id)?
+            }
+            "codeFontFamily" => self.code_font_family = choice(value)?,
+            "codeInstalledFont" => {
+                self.code_installed_font = name_or_null(value, crate::fonts::valid_family_name)?
+            }
+            "codeImportedFont" => {
+                self.code_imported_font = name_or_null(value, crate::fonts::valid_id)?
+            }
             "lineHeight" => {
                 self.line_height = value
                     .as_f64()
@@ -586,6 +615,10 @@ mod tests {
         assert_eq!(d.line_wrapping, LineWrapping::UnwrapAtCursor);
         assert!(!d.readable_width && d.spell_check);
         assert_eq!(d.font_size, 13);
+        // The app's text in the system font; notes and code in SF Mono.
+        assert_eq!(d.app_font_family, FontFamily::System);
+        assert_eq!(d.font_family, FontFamily::Mono);
+        assert_eq!(d.code_font_family, FontFamily::Mono);
         assert_eq!(d.line_height, 1.5);
         assert_eq!(d.indent_unit, IndentUnit::Spaces2);
         assert_eq!(d.tab_width, 2);
@@ -626,6 +659,12 @@ mod tests {
                 "fontFamily": "mono",
                 "installedFont": null,
                 "importedFont": null,
+                "appFontFamily": "system",
+                "appInstalledFont": null,
+                "appImportedFont": null,
+                "codeFontFamily": "mono",
+                "codeInstalledFont": null,
+                "codeImportedFont": null,
                 "lineHeight": 1.5,
                 "indentUnit": "spaces2",
                 "tabWidth": 2,
@@ -798,6 +837,38 @@ mod tests {
     }
 
     #[test]
+    fn takes_an_app_and_a_code_font_of_their_own() {
+        let next = EditorSettings::default()
+            .with(&patch(json!({
+                "appFontFamily": "installed",
+                "appInstalledFont": "Avenir Next",
+                "appImportedFont": "Inter.otf",
+                "codeFontFamily": "imported",
+                "codeInstalledFont": "PT Mono",
+                "codeImportedFont": "Fira Code.ttf",
+            })))
+            .unwrap();
+        assert_eq!(next.app_font_family, FontFamily::Installed);
+        assert_eq!(next.app_installed_font.as_deref(), Some("Avenir Next"));
+        assert_eq!(next.app_imported_font.as_deref(), Some("Inter.otf"));
+        assert_eq!(next.code_font_family, FontFamily::Imported);
+        assert_eq!(next.code_installed_font.as_deref(), Some("PT Mono"));
+        assert_eq!(next.code_imported_font.as_deref(), Some("Fira Code.ttf"));
+        // The note font is left as it was.
+        assert_eq!(next.font_family, FontFamily::Mono);
+        assert_eq!(next.imported_font, None);
+        let cleared = next
+            .with(&patch(
+                json!({ "appInstalledFont": null, "codeImportedFont": null }),
+            ))
+            .unwrap();
+        assert_eq!(
+            (cleared.app_installed_font, cleared.code_imported_font),
+            (None, None)
+        );
+    }
+
+    #[test]
     fn refuses_unknown_keys_and_bad_values_as_a_whole() {
         let bad = [
             json!({ "theme": "dark" }),
@@ -818,6 +889,13 @@ mod tests {
             json!({ "importedFont": "../editor-settings.json" }),
             json!({ "importedFont": "font.exe" }),
             json!({ "importedFont": "Fira Code.TTF" }),
+            json!({ "appFontFamily": "Comic Sans MS" }),
+            json!({ "appFontFamily": null }),
+            json!({ "appInstalledFont": ".AppleSystemUIFont" }),
+            json!({ "appImportedFont": "../editor-settings.json" }),
+            json!({ "codeFontFamily": "url(https://example.com/x.woff)" }),
+            json!({ "codeInstalledFont": "Fira\"; } body { color: red" }),
+            json!({ "codeImportedFont": "font.exe" }),
             json!({ "lineHeight": 0.9 }),
             json!({ "lineHeight": 2.6 }),
             json!({ "lineHeight": "1.5" }),
@@ -893,6 +971,8 @@ mod tests {
             "lineNumbers": false,
             "fontSize": 99,
             "fontFamily": "menlo",
+            "codeFontFamily": "monaco",
+            "appFontFamily": "papyrus",
             "listMarker": "#",
             "sidebarMaterial": "no",
             "pasteUrl": "html",
@@ -904,7 +984,9 @@ mod tests {
         assert!(read.sidebar_material);
         assert!(!read.sync_scroll);
         assert_eq!(read.font_family, FontFamily::Menlo);
+        assert_eq!(read.code_font_family, FontFamily::Monaco);
         // Bad values take their defaults.
+        assert_eq!(read.app_font_family, FontFamily::System);
         assert_eq!(read.font_size, 13);
         assert_eq!(read.list_marker, ListMarker::Star);
         assert_eq!(read.paste_url, PasteUrl::Link);

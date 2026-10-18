@@ -28,6 +28,7 @@ import {
   EDITOR_MENU,
   editorMenu,
   editorMenuTarget,
+  lookUpPoint,
   replaceWord,
   spellingWordAt,
   type WordRange,
@@ -67,6 +68,8 @@ import { keepUndo, noteState, yjsHistory } from './editor/undo'
 import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
 import { setInertFormats } from './commands/formatMenu'
 import { subscribeKeymap } from './commands/shortcutSettings'
+import { FONT_SLOTS } from '../../core/editorSettings'
+import { subscribeFontsLoaded } from './fonts'
 import { useEditorSettings } from './editorSettings'
 import type { FindTarget } from './find/target'
 import { keyboardIsFree, typingElsewhere } from './focus'
@@ -728,7 +731,7 @@ export function NoteEditor({
   const openFailed = useRef(onOpenFailed)
   const chooseTemplateRef = useRef(onChooseTemplate)
   const noteOpener = useRef(onOpenNote)
-  /** Where the editor's menu was opened (Look Up shows its answer there). */
+  /** Where the editor's menu was opened (Look Up's point when the selection is out of view). */
   const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
   const pickMenuAction = useCallback((action: EditorAction, target: EditorMenuTarget) => {
     const view = open.current?.view
@@ -743,7 +746,9 @@ export function NoteEditor({
         return
       }
       case 'lookUp':
-        if (target.selection !== null) void lookUp(target.selection, menuAt.current)
+        // From the selection's first character, so the highlight covers the word.
+        if (target.selection !== null)
+          void lookUp(target.selection, lookUpPoint(view) ?? menuAt.current)
         return
       case 'newNote':
         view.state.facet(newFromSelection)?.()
@@ -817,15 +822,23 @@ export function NoteEditor({
     [],
   )
 
+  // An imported font face that has loaded changes the text's size: measure again.
+  useEffect(() => subscribeFontsLoaded(() => open.current?.view.requestMeasure()), [])
+
   // Settings changed in any window apply to the open editor as they are.
   useEffect(() => {
     const now = open.current
     if (!now || now.settings === settings) return
     const effects = reconfigureSetup(now.settings, settings)
-    // The font, its size or the line height change the line heights.
-    const remeasure = (['fontFamily', 'fontSize', 'lineHeight'] as const).some(
-      (key) => now.settings[key] !== settings[key],
-    )
+    // The note or code font, its size or the line height change the line heights.
+    const remeasure = (
+      [
+        ...Object.values(FONT_SLOTS.note),
+        ...Object.values(FONT_SLOTS.code),
+        'fontSize',
+        'lineHeight',
+      ] as const
+    ).some((key) => now.settings[key] !== settings[key])
     now.settings = settings
     if (effects.length > 0) now.view.dispatch({ effects })
     // A setting outside the editor (the sidebar material) leaves it alone.

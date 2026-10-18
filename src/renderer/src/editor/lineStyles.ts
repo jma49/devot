@@ -274,6 +274,7 @@ const theme = EditorView.theme({
   '.cm-md-list-alt, .cm-md-list-alt *': { color: token('syntax-list-alt') },
   '.cm-md-task-done, .cm-md-task-done *': { textDecoration: 'line-through' },
   '.cm-md-code': {
+    fontFamily: 'var(--code-font-family, var(--font-family-mono))',
     border: `1px solid ${token('editor-code-border')}`,
     backgroundColor: token('editor-code-fill'),
     borderRadius: 'var(--radius-mark)',

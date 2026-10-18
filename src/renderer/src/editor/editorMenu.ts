@@ -15,7 +15,7 @@ import {
   type MenuGroups,
   type MenuPoint,
 } from '../contextMenu'
-import { lookUpLabel, lookUpSelection } from '../textServices'
+import { leadingSpace, lookUpLabel, lookUpOrigin, lookUpSelection } from '../textServices'
 import { selectedText } from './extract'
 import { linkAt } from './lineCommands'
 import { registryKeys } from './registryKeys'
@@ -202,3 +202,32 @@ export const editorMenu = (open: OpenEditorMenu): Extension => [
   menuKeys(),
   menuClicks,
 ]
+
+/**
+ * Where Look Up gets the main selection (see `lookUpOrigin`): its first
+ * character after any white space, on that character's own line when the
+ * selection wraps; null without a selection or when it is out of view.
+ */
+export function lookUpPoint(view: EditorView): MenuPoint | null {
+  const { from, to, empty } = view.state.selection.main
+  if (empty) return null
+  const start = from + leadingSpace(view.state.sliceDoc(from, to))
+  // Side 1: a start at the end of a visual line is the next line's first character.
+  const box = view.coordsAtPos(start, 1)
+  return box ? lookUpOrigin(box, descentAt(view, start)) : null
+}
+
+/** The descent of the font at a position, in CSS pixels (a fifth of its size when unknown). */
+function descentAt(view: EditorView, pos: number): number {
+  const { node } = view.domAtPos(pos)
+  const element = node instanceof Element ? node : node.parentElement
+  if (!element) return 0
+  const style = getComputedStyle(element)
+  const context = document.createElement('canvas').getContext('2d')
+  if (context && style.font) {
+    context.font = style.font
+    const descent = context.measureText('x').fontBoundingBoxDescent
+    if (Number.isFinite(descent) && descent > 0) return descent
+  }
+  return (parseFloat(style.fontSize) || 0) / 5
+}

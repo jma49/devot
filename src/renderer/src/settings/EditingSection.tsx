@@ -1,7 +1,7 @@
 import { useId, useMemo } from 'react'
 import {
   CURSOR_SCROLL_MARGIN_MAX,
-  FONT_FAMILIES,
+  FONT_SLOT_ORDER,
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
   FONT_WEIGHTS,
@@ -11,7 +11,6 @@ import {
   LIST_MARKERS,
   PASTE_URL_STYLES,
   TAB_WIDTHS,
-  type FontFamilyId,
   type FontWeightId,
   type IndentUnitId,
   type LineWrappingMode,
@@ -24,18 +23,8 @@ import { useKeymap } from '../commands/shortcutSettings'
 import { useEditorSettings } from '../editorSettings'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
-import { FontChoice } from './FontChoice'
+import { FontSection } from './FontChoice'
 import { useTypedNumber } from './typedNumber'
-
-const FONT_LABELS: Readonly<Record<FontFamilyId, MessageKey>> = {
-  system: 'editorSettings.font.system',
-  mono: 'editorSettings.font.mono',
-  menlo: 'editorSettings.font.menlo',
-  monaco: 'editorSettings.font.monaco',
-  courierNew: 'editorSettings.font.courierNew',
-  installed: 'editorSettings.font.installed',
-  imported: 'editorSettings.font.imported',
-}
 
 const INDENT_LABELS: Readonly<Record<IndentUnitId, MessageKey>> = {
   spaces2: 'editorSettings.indent.spaces2',
@@ -127,8 +116,9 @@ function withStored(list: readonly number[], stored: number): number[] {
 }
 
 /**
- * Settings > Editing: how the note editor looks and behaves, in three
- * sections (Interface, Markdown, Text Appearance). Every change is stored at
+ * Settings > Editing: how the note editor looks and behaves, in sections
+ * (Interface, Markdown, Text Appearance, then the App, Note and Code
+ * fonts). Every change is stored at
  * once and applies to the editor in every window; changes made elsewhere
  * (Cmd+= in the main window) show here as they happen.
  */
@@ -331,26 +321,6 @@ export function EditingSection() {
           />
         </Setting>
         <Setting
-          label="editorSettings.fontFamily"
-          description={t('editorSettings.fontFamilyHint')}
-          htmlFor={id('font')}
-          descriptionId={id('font-hint')}
-        >
-          <select
-            id={id('font')}
-            value={settings.fontFamily}
-            aria-describedby={id('font-hint')}
-            onChange={(e) => change({ fontFamily: e.currentTarget.value as FontFamilyId })}
-          >
-            {FONT_FAMILIES.map((f) => (
-              <option key={f} value={f}>
-                {t(FONT_LABELS[f])}
-              </option>
-            ))}
-          </select>
-        </Setting>
-        <FontChoice settings={settings} change={change} id={id} />
-        <Setting
           label="editorSettings.fontWeight"
           description={t('editorSettings.fontWeightHint')}
           htmlFor={id('weight')}
@@ -392,6 +362,9 @@ export function EditingSection() {
         {flag('showInvisibles')}
         {flag('highlightTrailingWhitespace')}
       </SettingsSection>
+      {FONT_SLOT_ORDER.map((slot) => (
+        <FontSection key={slot} slot={slot} settings={settings} change={change} id={id} />
+      ))}
       <p className="settings-note">{t('editorSettings.detail')}</p>
     </section>
   )

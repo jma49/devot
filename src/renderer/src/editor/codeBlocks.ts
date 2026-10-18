@@ -540,7 +540,8 @@ const theme = EditorView.theme({
   '.cm-line.cm-codeblock': {
     position: 'relative',
     zIndex: '0',
-    fontFamily: 'var(--font-family-mono)',
+    // The code font (Settings > Editor), SF Mono by default.
+    fontFamily: 'var(--code-font-family, var(--font-family-mono))',
   },
   // The box is drawn behind the text, inset by the margin on the outer lines.
   // It reaches past the line's sides (as the quote bar does, see lineStyles.ts):

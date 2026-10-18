@@ -1858,6 +1858,8 @@ button {
   padding: var(--space-4) var(--space-9) var(--space-9);
   /* The editor's size keys scale it (--preview-scale, see editorSettings.ts). */
   font-size: calc(var(--font-size-preview) * var(--preview-scale, 1));
+  /* The app's font, or the note font once it is not the default (editorSettings.ts). */
+  font-family: var(--preview-font-family, var(--font-family-ui));
   line-height: 1.65;
   overflow-wrap: anywhere;
   -webkit-user-select: text;

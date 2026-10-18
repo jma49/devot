@@ -84,7 +84,7 @@ export function AppearanceSection() {
           {format(t('appearanceSettings.failed'), { code: error })}
         </p>
       ) : null}
-      <SettingsSection icon="settings.appearance" title="appearanceSettings.appearance">
+      <SettingsSection icon="settings.appearanceMode" title="appearanceSettings.appearance">
         <div
           className="theme-cards"
           role="radiogroup"
@@ -115,7 +115,7 @@ export function AppearanceSection() {
           ))}
         </div>
       </SettingsSection>
-      <SettingsSection icon="settings.appearance" title="appearanceSettings.theme">
+      <SettingsSection icon="settings.theme" title="appearanceSettings.theme">
         <div className="theme-cards" role="radiogroup" aria-label={t('appearanceSettings.theme')}>
           {THEMES.map((choice) => (
             <label key={choice} className="theme-card">
@@ -136,7 +136,7 @@ export function AppearanceSection() {
           ))}
         </div>
       </SettingsSection>
-      <SettingsSection icon="settings.appearance" title="appearanceSettings.accent">
+      <SettingsSection icon="settings.accent" title="appearanceSettings.accent">
         <SettingToggle
           label="appearanceSettings.systemAccent"
           description="appearanceSettings.systemAccentHint"
@@ -148,7 +148,7 @@ export function AppearanceSection() {
           onChange={(checked) => change({ systemAccent: checked })}
         />
       </SettingsSection>
-      <SettingsSection icon="settings.appearance" title="appearanceSettings.sidebar">
+      <SettingsSection icon="settings.sidebar" title="appearanceSettings.sidebar">
         <SettingToggle
           label="appearanceSettings.sidebarMaterial"
           description="appearanceSettings.sidebarMaterialHint"
