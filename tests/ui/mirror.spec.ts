@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test'
 import {
   changeMirrorElsewhere,
   expect,
+  openApp,
   openSettings,
   test,
   type MockMirror,
@@ -48,7 +49,8 @@ async function openWith(page: Page, path: string, mirror?: Partial<MockMirror>) 
     }, mirror)
   }
   if (path === '/settings.html') await openSettings(page, 'Mirror')
-  else await page.goto(path)
+  // A key pressed before the window is ready (Cmd+K for the palette) is lost.
+  else await openApp(page, path)
 }
 
 test.describe('Settings > Markdown Mirror', () => {

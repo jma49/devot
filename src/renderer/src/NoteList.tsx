@@ -1,6 +1,7 @@
 import {
   memo,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -405,7 +406,11 @@ export const NoteList = memo(function NoteList(props: Props) {
   // a move out of the notebook, a change the filter hides) the keyboard would
   // fall to the page: the open note's row takes it if it is still listed;
   // else the next row (or the previous one at the end) takes it, and opens
-  // unless another note is open; else the list itself.
+  // unless another note is open; else the list itself. The hand-off runs in
+  // the commit that removes the row (a layout effect): a passive effect may
+  // run frames later on a loaded machine, after the window's focus rescue
+  // (focusRescue.ts) has put the keyboard on another row, and the next row
+  // would then not open.
   const keyboard = useRef<string>(undefined)
   const shown = useRef<{ view: string; notes: NoteSummary[] }>({
     view: props.view,
@@ -452,7 +457,7 @@ export const NoteList = memo(function NoteList(props: Props) {
       el.removeEventListener('focusout', onFocusOut)
     }
   }, [])
-  useEffect(() => {
+  useLayoutEffect(() => {
     const before = shown.current
     shown.current = { view: props.view, notes }
     const lost = keyboard.current

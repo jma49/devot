@@ -152,9 +152,11 @@ export function useFocusRescue(editor: () => { focus: () => void } | null): void
 
     const schedule = () => {
       if (frame || (!last && !inSheet)) return
-      // Two frames on: React has rendered and run the components' own effects
-      // (the note list moves the keyboard to the next row itself), so the
-      // keyboard is only taken in hand when nobody did.
+      // Two frames on: React has rendered and run the components' own effects,
+      // so the keyboard is only taken in hand when nobody did. Passive effects
+      // can still come later on a loaded machine: a component that moves the
+      // keyboard itself when its element goes (the note list's next row) does
+      // it in a layout effect, in the same commit.
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(check)
       })
