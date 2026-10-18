@@ -11,6 +11,7 @@ import {
   LINE_HEIGHTS,
   LINE_WRAPPING_MODES,
   LIST_MARKERS,
+  LIST_DATES_STYLES,
   PASTE_URL_STYLES,
   TAB_WIDTHS,
   checkEditorSettingsPatch,
@@ -55,6 +56,7 @@ describe('editor settings', () => {
       highlightTrailingWhitespace: false,
       previewFontSize: 15,
       defaultNotebook: null,
+      listDates: 'relative',
     })
   })
 
@@ -74,6 +76,7 @@ describe('editor settings', () => {
     expect(FONT_WEIGHTS).toEqual(['normal', '300', '400', '500', '600', '700'])
     expect(PASTE_URL_STYLES).toEqual(['plain', 'autolink', 'link'])
     expect(LINE_WRAPPING_MODES).toEqual(['off', 'all', 'prose', 'unwrapAtCursor'])
+    expect(LIST_DATES_STYLES).toEqual(['relative', 'absolute'])
     expect(APPEARANCES).toEqual(['light', 'dark', 'system'])
     expect(THEMES).toEqual(['default', 'ivory'])
     expect([FONT_SIZE_MIN, FONT_SIZE_MAX]).toEqual([10, 32])
@@ -152,6 +155,8 @@ describe('editor settings', () => {
     })
     expect(checkEditorSettingsPatch({ sidebarMaterial: false })).toEqual({ sidebarMaterial: false })
     expect(checkEditorSettingsPatch({ inlineImages: false })).toEqual({ inlineImages: false })
+    for (const listDates of LIST_DATES_STYLES)
+      expect(checkEditorSettingsPatch({ listDates })).toEqual({ listDates })
     for (const pasteUrl of PASTE_URL_STYLES)
       expect(checkEditorSettingsPatch({ pasteUrl })).toEqual({ pasteUrl })
     expect(checkEditorSettingsPatch({ syncScroll: false })).toEqual({ syncScroll: false })
@@ -174,6 +179,8 @@ describe('editor settings', () => {
       { previewFontSize: 9 },
       { defaultNotebook: '' },
       { defaultNotebook: 5 },
+      { listDates: 'never' },
+      { listDates: true },
       { pasteUrl: 'markdown' },
       { pasteUrl: true },
       { lineNumbers: 'false' },

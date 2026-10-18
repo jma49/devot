@@ -41,6 +41,9 @@ export type AppearanceChoice = 'system' | 'light' | 'dark'
  */
 export type ThemeChoice = 'default' | 'ivory'
 
+/** How the note list shows a note's date: how long ago, or the date itself. */
+export type ListDatesStyle = 'relative' | 'absolute'
+
 export interface EditorSettings {
   lineNumbers: boolean
   lineWrapping: LineWrappingMode
@@ -89,6 +92,8 @@ export interface EditorSettings {
   previewFontSize: number
   /** The notebook a new note goes to when the view has none (an ID), or none. */
   defaultNotebook: string | null
+  /** The note list shows how long ago a note changed, or its date. */
+  listDates: ListDatesStyle
 }
 
 /**
@@ -126,6 +131,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   highlightTrailingWhitespace: false,
   previewFontSize: 15,
   defaultNotebook: null,
+  listDates: 'relative',
 })
 
 export const FONT_FAMILIES: readonly FontFamilyId[] = [
@@ -147,6 +153,8 @@ export const LINE_WRAPPING_MODES: readonly LineWrappingMode[] = [
   'prose',
   'unwrapAtCursor',
 ]
+
+export const LIST_DATES_STYLES: readonly ListDatesStyle[] = ['relative', 'absolute']
 export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 'link']
 /** The appearances Settings offers, in its order. */
 export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
@@ -230,6 +238,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   highlightTrailingWhitespace: isFlag,
   previewFontSize: wholeIn(FONT_SIZE_MIN, FONT_SIZE_MAX),
   defaultNotebook: isNotebookId,
+  listDates: oneOf(LIST_DATES_STYLES),
 }
 
 const KEYS = Object.keys(VALID) as (keyof EditorSettings)[]

@@ -461,6 +461,7 @@ export function App() {
   // Split mode keeps the editor and the preview at the same line, unless
   // turned off (an editor setting: View > Synced Scrolling, the palette).
   const syncScroll = useEditorSetting('syncScroll')
+  const listDates = useEditorSetting('listDates')
   const [editorPane, setEditorPane] = useState<ScrollPane | null>(null)
   const [previewPane, setPreviewPane] = useState<ScrollPane | null>(null)
   // Coming from Preview, the place being read leads; otherwise the editor does.
@@ -2131,6 +2132,13 @@ export function App() {
           syncScroll: !editorSettings().syncScroll,
         }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
       label: syncScroll ? 'command.syncScrollOff' : 'command.syncScrollOn',
+    },
+    'view.toggleListDates': {
+      run: () =>
+        changeEditorSettings({
+          listDates: editorSettings().listDates === 'absolute' ? 'relative' : 'absolute',
+        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
+      label: listDates === 'absolute' ? 'command.showRelativeDates' : 'command.showAbsoluteDates',
     },
     'view.allNotes': { run: () => showLibrary({ kind: 'all' }) },
     'view.templates': { run: () => showLibrary({ kind: 'templates' }) },

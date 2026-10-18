@@ -9,7 +9,8 @@ import {
 import type { NoteSummary, TagRecord } from '../../core'
 import type { NoteStatus } from '../../core/storage'
 import { matchSegments } from '../../core/search'
-import { fullDate, relativeTime } from './format'
+import type { ListDatesStyle } from '../../core/editorSettings'
+import { fullDate, rowDate } from './format'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
@@ -98,6 +99,8 @@ export interface RowProps {
   /** The time the row's relative date is measured from (see `useNow`). */
   now: number
   locale: string
+  /** Whether the date shows how long ago, or the date itself (Settings > General). */
+  dates: ListDatesStyle
   draggable: boolean
   /** The row is being dragged (with the selection it belongs to): it dims. */
   dragging: boolean
@@ -153,7 +156,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
           dateTime={new Date(n.updatedAt).toISOString()}
           title={fullDate(n.updatedAt, props.locale)}
         >
-          {relativeTime(n.updatedAt, props.now, props.locale)}
+          {rowDate(n.updatedAt, props.now, props.locale, props.dates)}
         </time>
         {n.status !== 'none' ? (
           <span

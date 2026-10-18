@@ -15,7 +15,9 @@ import {
   type SortableNote,
 } from '../../core/sort'
 import type { NoteFilter } from '../../core/tags'
+import type { ListDatesStyle } from '../../core/editorSettings'
 import { useContextMenu, type MenuEntry, type MenuGroups } from './contextMenu'
+import { changeEditorSettings, editorSettings } from './editorSettings'
 import { t } from './i18n'
 
 /** A list order: one of the six, or search relevance (search results only). */
@@ -122,11 +124,13 @@ export function sortLocales(preferred: readonly string[], uiLocale: string): str
 
 // The sort pop-up: a native menu with the orders as check items.
 
-export type SortAction = 'relevance' | 'default' | NoteSortId
+export type SortAction = 'relevance' | 'default' | NoteSortId | 'dates.relative' | 'dates.absolute'
 
 /** What the menu needs to know about the list it sorts. */
 export interface SortMenuTarget extends ViewOrder {
   search: boolean
+  /** How the rows show their dates (the Note List Dates setting). */
+  dates: ListDatesStyle
 }
 
 const orderEntry = (order: NoteSort): MenuEntry<SortAction, SortMenuTarget> => {
@@ -138,7 +142,7 @@ const orderEntry = (order: NoteSort): MenuEntry<SortAction, SortMenuTarget> => {
   }
 }
 
-/** Relevance (search only), the six orders in pairs, then Use as Default. */
+/** Relevance (search only), the six orders in pairs, Use as Default, then the date style. */
 export const SORT_MENU: MenuGroups<SortAction, SortMenuTarget> = [
   [
     {
@@ -157,9 +161,30 @@ export const SORT_MENU: MenuGroups<SortAction, SortMenuTarget> = [
       checked: (target) => target.followsDefault,
     },
   ],
+  [
+    {
+      action: 'dates.relative',
+      label: 'sort.relativeDates',
+      checked: (target) => target.dates === 'relative',
+    },
+    {
+      action: 'dates.absolute',
+      label: 'sort.absoluteDates',
+      checked: (target) => target.dates === 'absolute',
+    },
+  ],
 ]
 
-/** The order a menu item picks; undefined for Use as Default. */
+/** The date style a menu item picks; undefined for the order items. */
+export function datesAction(action: SortAction): ListDatesStyle | undefined {
+  return action === 'dates.relative'
+    ? 'relative'
+    : action === 'dates.absolute'
+      ? 'absolute'
+      : undefined
+}
+
+/** The order a menu item picks; undefined for Use as Default and the date items. */
 export function sortAction(action: SortAction): ListOrder | undefined {
   return action === 'relevance' ? 'relevance' : parseNoteSort(action)
 }
@@ -188,6 +213,14 @@ export function useListOrder(view: string) {
 
   const pick = useCallback(
     (action: SortAction, target: SortMenuTarget & { view: string }) => {
+      const dates = datesAction(action)
+      if (dates) {
+        if (dates !== editorSettings().listDates)
+          changeEditorSettings({ listDates: dates }).catch(() =>
+            console.warn('W_EDITOR_SETTINGS_SAVE_FAILED'),
+          )
+        return
+      }
       const order = sortAction(action)
       if (order) store.choose(target.view, order)
       else store.makeDefault(target.view)
@@ -200,7 +233,7 @@ export function useListOrder(view: string) {
     (anchor: HTMLElement) => {
       const box = anchor.getBoundingClientRect()
       return showMenu(
-        { ...store.load(view), search: view === SEARCH, view },
+        { ...store.load(view), search: view === SEARCH, view, dates: editorSettings().listDates },
         { x: box.left, y: box.bottom },
       )
     },

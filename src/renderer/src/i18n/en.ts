@@ -158,6 +158,8 @@ export const en = {
   'sort.created-desc': 'Date Created (Newest First)',
   'sort.created-asc': 'Date Created (Oldest First)',
   'sort.useAsDefault': 'Use as Default',
+  'sort.relativeDates': 'Relative Dates',
+  'sort.absoluteDates': 'Absolute Dates',
   'book.new': 'New Notebook',
   'bookMenu.newInside': 'New Notebook Inside',
   'bookMenu.rename': 'Rename',
@@ -270,6 +272,11 @@ export const en = {
   'generalSettings.defaultNotebookHint':
     'The notebook a new note goes to when the view shown has no notebook.',
   'generalSettings.noNotebook': 'None',
+  'generalSettings.listDates': 'Note List Dates',
+  'generalSettings.listDatesHint':
+    'Whether the note list shows how long ago a note changed, or its date.',
+  'generalSettings.listDates.relative': 'Relative',
+  'generalSettings.listDates.absolute': 'Absolute',
   'generalSettings.dataFolder': 'Data Folder',
   'generalSettings.openDataFolder': 'Open Data Folder',
   'generalSettings.dataFolderHint':
@@ -725,6 +732,8 @@ export const en = {
   'sidebar.showTitle': 'Show Sidebar',
   'command.nextArea': 'Focus Next Area',
   'command.previousArea': 'Focus Previous Area',
+  'command.showAbsoluteDates': 'Show Absolute Dates',
+  'command.showRelativeDates': 'Show Relative Dates',
   'command.syncScrollOn': 'Turn On Synced Scrolling',
   'command.syncScrollOff': 'Turn Off Synced Scrolling',
   'command.heading1': 'Heading 1',
