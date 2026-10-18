@@ -10,7 +10,16 @@ vi.mock('./importProgress', () => ({ useScanFound: () => ({ files: 0, images: 0 
 
 const BOOK = '01890a5d-ac96-774b-bcce-b302099a8057'
 const tree: BookNode[] = [
-  { id: BOOK, name: 'Inbox', parentId: null, depth: 0, aiAccess: false, children: [] },
+  {
+    id: BOOK,
+    name: 'Inbox',
+    parentId: null,
+    depth: 0,
+    aiAccess: false,
+    icon: null,
+    iconColor: null,
+    children: [],
+  },
 ]
 
 const scan = (kind: ImportScan['kind'], destination?: string | null): ImportScan => ({

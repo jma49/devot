@@ -13,6 +13,7 @@ import {
 import { shortcutLabel } from '../commands/keys'
 import { format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
+import { BookIcon } from '../BookIcon'
 import { isImeKey } from '../ime'
 import type { IconName } from '../icons/symbols'
 import {
@@ -368,18 +369,22 @@ export function CommandPalette(props: {
                   onMouseMove={() => i !== index && setActive(i)}
                   onClick={(e) => pick(r, { shift: e.shiftKey, meta: e.metaKey })}
                 >
-                  <Icon
-                    name={
-                      r.kind === 'source'
-                        ? SOURCE_ICON[r.id as PaletteSource]
-                        : r.kind === 'outline'
-                          ? r.level === 0
-                            ? 'format.taskList'
-                            : 'format.heading'
-                          : ICON[r.kind]
-                    }
-                    size="sm"
-                  />
+                  {r.bookIcon ? (
+                    <BookIcon icon={r.bookIcon.icon} color={r.bookIcon.color} size="sm" />
+                  ) : (
+                    <Icon
+                      name={
+                        r.kind === 'source'
+                          ? SOURCE_ICON[r.id as PaletteSource]
+                          : r.kind === 'outline'
+                            ? r.level === 0
+                              ? 'format.taskList'
+                              : 'format.heading'
+                            : ICON[r.kind]
+                      }
+                      size="sm"
+                    />
+                  )}
                   <span
                     className={`palette-label${r.kind === 'command' ? ' palette-command' : ''}${r.done ? ' palette-done' : ''}`}
                   >

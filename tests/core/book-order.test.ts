@@ -221,6 +221,9 @@ describe('manual notebook order', () => {
       deletedHlc: null,
       aiAccess: false,
       aiAccessHlc: '',
+      icon: null,
+      iconColor: null,
+      iconHlc: '',
       sortKey,
       sortKeyHlc: '',
     })
@@ -376,6 +379,9 @@ describe('the schema v10 migration', () => {
       deletedHlc: null,
       aiAccess: false,
       aiAccessHlc: '',
+      icon: null,
+      iconColor: null,
+      iconHlc: '',
       sortKey: 'a0',
       sortKeyHlc: clock.tick(),
     })

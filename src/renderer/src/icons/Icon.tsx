@@ -1,5 +1,5 @@
 import { invoke } from '../ipc'
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { shownAppearance, subscribeAppearance } from '../theme/appearance'
 import {
   createSymbolCache,
@@ -109,30 +109,81 @@ export function Icon({
   weight,
 }: {
   name: IconName
-  size: keyof typeof BOXES
+  size: IconSize
   /** The stroke weight; regular when left out. */
   weight?: SymbolWeight
 }) {
+  return <SymbolIcon symbol={symbolFor(name)} size={size} {...(weight ? { weight } : {})} />
+}
+
+export type IconSize = keyof typeof BOXES
+
+/**
+ * An SF Symbol by its system name (one Devot lists: `symbols.json` or the
+ * notebook icon catalog), drawn like `Icon`. `lazy` renders it only once it
+ * scrolls into view (a long grid of symbols); `fallback` is drawn instead
+ * when the symbol cannot be rendered.
+ */
+export function SymbolIcon({
+  symbol,
+  size,
+  weight,
+  className,
+  lazy = false,
+  fallback,
+}: {
+  symbol: string
+  size: IconSize
+  weight?: SymbolWeight
+  /** More classes for the icon (a colour). */
+  className?: string
+  lazy?: boolean
+  fallback?: string
+}) {
   const appearance = useAppearance()
-  const symbol = symbolFor(name)
   const box = BOXES[size]
   const ratio = useSyncExternalStore(subscribeRatio, currentRatio, () => 2)
   const [image, setImage] = useState<SymbolImage>()
+  const span = useRef<HTMLSpanElement>(null)
+  const [visible, setVisible] = useState(!lazy)
 
   useEffect(() => {
-    let current = true
-    placedSymbol(symbol, box, appearance, ratio, weight).then(
-      (next) => current && setImage(next),
-      () => console.warn('W_SYMBOL_UNAVAILABLE', symbol),
+    if (visible) return
+    const el = span.current
+    if (!el || typeof IntersectionObserver === 'undefined') return setVisible(true)
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return
+        setVisible(true)
+        observer.disconnect()
+      },
+      // A row ahead, so scrolling shows drawn symbols.
+      { rootMargin: `${box * 3}px` },
     )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visible, box])
+
+  useEffect(() => {
+    if (!visible) return
+    let current = true
+    const show = (next: SymbolImage) => current && setImage(next)
+    placedSymbol(symbol, box, appearance, ratio, weight).then(show, () => {
+      console.warn('W_SYMBOL_UNAVAILABLE', symbol)
+      if (fallback && fallback !== symbol)
+        placedSymbol(fallback, box, appearance, ratio, weight).then(show, () =>
+          console.warn('W_SYMBOL_UNAVAILABLE', fallback),
+        )
+    })
     return () => {
       current = false
     }
-  }, [symbol, box, appearance, ratio, weight])
+  }, [visible, symbol, box, appearance, ratio, weight, fallback])
 
   return (
     <span
-      className={`icon icon-${size}`}
+      ref={span}
+      className={`icon icon-${size}${className ? ` ${className}` : ''}`}
       data-symbol={symbol}
       aria-hidden="true"
       style={image ? symbolStyle(image, box) : { maskImage: 'none', WebkitMaskImage: 'none' }}

@@ -30,6 +30,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0015_search_index_writes.sql"),
     include_str!("../../migrations/0016_body_versions.sql"),
     include_str!("../../migrations/0017_note_dates.sql"),
+    include_str!("../../migrations/0018_book_icons.sql"),
 ];
 
 /// The schema version a fully migrated database reports.
@@ -167,6 +168,29 @@ pub const TAG_COLORS: [&str; 8] = [
     "red", "orange", "yellow", "green", "blue", "purple", "pink", "gray",
 ];
 
+/// The notebook icon catalog: SF Symbol names by category, with search words
+/// (design/icons/notebook-symbols.json). A notebook's icon is one of them.
+const NOTEBOOK_SYMBOLS_JSON: &str = include_str!("../../../design/icons/notebook-symbols.json");
+
+/// Whether `name` is a symbol from the notebook icon catalog.
+pub fn notebook_symbol(name: &str) -> bool {
+    static NAMES: std::sync::OnceLock<std::collections::HashSet<String>> =
+        std::sync::OnceLock::new();
+    NAMES
+        .get_or_init(|| {
+            #[derive(Deserialize)]
+            struct Catalog {
+                symbols: std::collections::HashMap<String, serde_json::Value>,
+            }
+            // The catalog ships inside the binary and a test parses it, so
+            // a failure here is a build mistake: no name is then accepted.
+            serde_json::from_str::<Catalog>(NOTEBOOK_SYMBOLS_JSON)
+                .map(|c| c.symbols.into_keys().collect())
+                .unwrap_or_default()
+        })
+        .contains(name)
+}
+
 /// A tag. Notes carry tags through `NoteTagRecord` rows.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -252,6 +276,18 @@ pub struct BookRecord {
     /// Empty when the notebook was never moved among its siblings.
     #[serde(default)]
     pub sort_key_hlc: String,
+    /// An SF Symbol name from the notebook icon catalog (`NOTEBOOK_SYMBOLS`);
+    /// None for the default icon. Listing reads a name it does not know
+    /// (from a later catalog) as None.
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// A palette ID from `TAG_COLORS` the icon is drawn in; None for the
+    /// text colour. Listing reads an ID it does not know as None.
+    #[serde(default)]
+    pub icon_color: Option<String>,
+    /// One clock for the icon and its colour; empty when never set.
+    #[serde(default)]
+    pub icon_hlc: String,
 }
 
 /// The kinds of revision: a body version or a metadata event.
@@ -1199,10 +1235,13 @@ impl Store {
     pub fn list_books(&self) -> Result<Vec<BookRecord>> {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, name, name_hlc, parent_id, parent_hlc, created_at, updated_at,
-                    deleted_at, deleted_hlc, ai_access, ai_access_hlc, sort_key, sort_key_hlc
+                    deleted_at, deleted_hlc, ai_access, ai_access_hlc, sort_key, sort_key_hlc,
+                    icon, icon_color, icon_hlc
              FROM books WHERE deleted_at IS NULL ORDER BY id",
         )?;
         let rows = statement.query_map([], |row| {
+            let icon: Option<String> = row.get(13)?;
+            let icon_color: Option<String> = row.get(14)?;
             Ok(BookRecord {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -1217,6 +1256,9 @@ impl Store {
                 ai_access_hlc: row.get(10)?,
                 sort_key: row.get(11)?,
                 sort_key_hlc: row.get(12)?,
+                icon: icon.filter(|name| notebook_symbol(name)),
+                icon_color: icon_color.filter(|c| TAG_COLORS.contains(&c.as_str())),
+                icon_hlc: row.get(15)?,
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -1228,8 +1270,8 @@ impl Store {
         tx.execute(
             "INSERT INTO books (id, name, name_hlc, parent_id, parent_hlc, created_at,
                                 updated_at, deleted_at, deleted_hlc, ai_access, ai_access_hlc,
-                                sort_key, sort_key_hlc)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                                sort_key, sort_key_hlc, icon, icon_color, icon_hlc)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
              ON CONFLICT (id) DO UPDATE SET
                name = CASE WHEN excluded.name_hlc > name_hlc THEN excluded.name ELSE name END,
                name_hlc = MAX(excluded.name_hlc, name_hlc),
@@ -1239,6 +1281,10 @@ impl Store {
                ai_access = CASE WHEN excluded.ai_access_hlc > ai_access_hlc
                                 THEN excluded.ai_access ELSE ai_access END,
                ai_access_hlc = MAX(excluded.ai_access_hlc, ai_access_hlc),
+               icon = CASE WHEN excluded.icon_hlc > icon_hlc THEN excluded.icon ELSE icon END,
+               icon_color = CASE WHEN excluded.icon_hlc > icon_hlc
+                                 THEN excluded.icon_color ELSE icon_color END,
+               icon_hlc = MAX(excluded.icon_hlc, icon_hlc),
                -- Equal clocks (keys the core gave old notebooks on two devices):
                -- the greater key wins, so both sides end with the same one.
                sort_key = CASE WHEN excluded.sort_key_hlc > sort_key_hlc
@@ -1264,7 +1310,10 @@ impl Store {
                 book.ai_access,
                 book.ai_access_hlc,
                 book.sort_key,
-                book.sort_key_hlc
+                book.sort_key_hlc,
+                book.icon,
+                book.icon_color,
+                book.icon_hlc
             ],
         )?;
         tx.commit()?;

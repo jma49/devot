@@ -56,6 +56,9 @@ const book = (n: number, name: string, parentId: string | null = null, key = 'a'
   deletedHlc: null,
   aiAccess: false,
   aiAccessHlc: '',
+  icon: null,
+  iconColor: null,
+  iconHlc: '',
   sortKey: key,
   sortKeyHlc: 'h',
 })

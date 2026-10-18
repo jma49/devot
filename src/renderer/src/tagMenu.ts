@@ -28,6 +28,8 @@ export interface TagMenuTarget {
   color: TagColor | null
   /** Whether the list is filtered by this tag now. */
   filtered: boolean
+  /** Shown in a workspace's sidebar, which deletes no tag (it is in notes outside it too). */
+  inWorkspace?: boolean
 }
 
 const COLOR_ITEMS: MenuEntry<TagAction, TagMenuTarget>[] = [
@@ -62,7 +64,7 @@ export const TAG_MENU: MenuGroups<TagAction, TagMenuTarget> = [
   [entry('settings'), { action: 'color', label: 'tagMenu.color', submenu: COLOR_ITEMS }],
   [entry('filter', { checked: (tag) => tag.filtered })],
   [entry('copyId')],
-  [entry('delete')],
+  [entry('delete', { shown: (tag) => !tag.inWorkspace })],
 ]
 
 /** The colour a Colour item picks (null: none), or undefined for other actions. */

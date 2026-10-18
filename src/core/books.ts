@@ -8,7 +8,14 @@
 
 import { receiveStored, type Clock } from './hlc'
 import { compareKeys, isSortKey, keyBetween, MAX_SORT_KEY_LENGTH, sequentialKeys } from './order'
-import type { BookRecord, NoteSummary, StorageAdapter } from './storage'
+import { isNotebookSymbol } from './notebookIcons'
+import {
+  TAG_COLORS,
+  type BookRecord,
+  type NoteSummary,
+  type StorageAdapter,
+  type TagColor,
+} from './storage'
 import { charCount, trimWhitespace } from './text'
 
 export const MAX_BOOK_NAME_CHARS = 200
@@ -49,6 +56,12 @@ export interface BookService {
   /** Turns Allow AI Access on or off for this notebook alone. */
   setAiAccess(id: string, on: boolean): Promise<void>
   /**
+   * Gives a notebook an icon from the catalog (notebookIcons.ts) drawn in
+   * `color` (null: the text colour), or, with `icon` null, the default icon
+   * and no colour. Throws E_BOOK_ICON_INVALID for anything else.
+   */
+  setIcon(id: string, icon: string | null, color: TagColor | null): Promise<void>
+  /**
    * Gives every notebook without a sort key (from before schema v10) one,
    * keeping the order it shows in: by name in the locale's collation, as
    * the sidebar sorted before, ahead of any keyed siblings. The keys get no
@@ -64,7 +77,23 @@ export interface BookNode {
   parentId: string | null
   depth: number
   aiAccess: boolean
+  /** Its own icon (a catalog symbol), or null for the default one. */
+  icon: string | null
+  /** The palette ID its icon is drawn in, or null for the text colour. */
+  iconColor: TagColor | null
   children: BookNode[]
+}
+
+/** A notebook's icon and colour as stored, or null where it is unset or unknown. */
+export function bookIcon(book: Pick<BookRecord, 'icon' | 'iconColor'>): {
+  icon: string | null
+  iconColor: TagColor | null
+} {
+  return {
+    icon: isNotebookSymbol(book.icon) ? book.icon : null,
+    iconColor:
+      book.iconColor !== null && TAG_COLORS.includes(book.iconColor) ? book.iconColor : null,
+  }
 }
 
 /** A notebook name trimmed as Rust trims it (src-tauri/src/commands/books.rs checks the same). */
@@ -134,7 +163,15 @@ export function buildBookTree(books: readonly BookRecord[]): BookNode[] {
   const nodes = new Map<string, BookNode>(
     books.map((b) => [
       b.id,
-      { id: b.id, name: b.name, parentId: null, depth: 0, aiAccess: b.aiAccess, children: [] },
+      {
+        id: b.id,
+        name: b.name,
+        parentId: null,
+        depth: 0,
+        aiAccess: b.aiAccess,
+        ...bookIcon(b),
+        children: [],
+      },
     ]),
   )
   const roots: BookNode[] = []
@@ -165,6 +202,9 @@ export interface MoveTarget {
   id: string
   name: string
   depth: number
+  /** Its icon (null: the default one) and the colour it is drawn in. */
+  icon: string | null
+  iconColor: TagColor | null
   /** The notebook itself and every notebook below it: a notebook cannot go inside them. */
   disabled: boolean
 }
@@ -178,7 +218,14 @@ export function moveTargets(tree: readonly BookNode[], movingId: string): MoveTa
   const walk = (nodes: readonly BookNode[], disabled: boolean) => {
     for (const node of nodes) {
       const off = disabled || node.id === movingId
-      out.push({ id: node.id, name: node.name, depth: node.depth, disabled: off })
+      out.push({
+        id: node.id,
+        name: node.name,
+        depth: node.depth,
+        icon: node.icon,
+        iconColor: node.iconColor,
+        disabled: off,
+      })
       walk(node.children, off)
     }
   }
@@ -274,6 +321,7 @@ const bookStamps = (b: BookRecord) => [
   b.deletedHlc,
   b.aiAccessHlc,
   b.sortKeyHlc,
+  b.iconHlc,
 ]
 
 function findIn(books: readonly BookRecord[], id: string): BookRecord {
@@ -373,6 +421,9 @@ export function createBookService(options: BookServiceOptions): BookService {
         aiAccessHlc: '',
         sortKey: key,
         sortKeyHlc: hlc,
+        icon: null,
+        iconColor: null,
+        iconHlc: '',
       })
       return id
     },
@@ -419,6 +470,18 @@ export function createBookService(options: BookServiceOptions): BookService {
     async setAiAccess(id, on) {
       const book = await find(id)
       await write({ ...book, aiAccess: on, aiAccessHlc: clock.tick() })
+    },
+
+    async setIcon(id, icon, color) {
+      if (
+        (icon !== null && !isNotebookSymbol(icon)) ||
+        (color !== null && !TAG_COLORS.includes(color)) ||
+        (icon === null && color !== null)
+      ) {
+        throw new Error('E_BOOK_ICON_INVALID')
+      }
+      const book = await find(id)
+      await write({ ...book, icon, iconColor: color, iconHlc: clock.tick() })
     },
 
     async settleOrder() {

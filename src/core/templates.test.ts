@@ -196,6 +196,9 @@ const book = (id: string, name: string, parentId: string | null = null): BookRec
   deletedHlc: null,
   aiAccess: false,
   aiAccessHlc: '',
+  icon: null,
+  iconColor: null,
+  iconHlc: '',
   sortKey: '',
   sortKeyHlc: '',
 })

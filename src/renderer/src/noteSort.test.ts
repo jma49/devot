@@ -4,6 +4,7 @@ import { shownGroups } from './contextMenu'
 import { t } from './i18n'
 import {
   SORT_MENU,
+  datesAction,
   sortAction,
   sortLocales,
   sortStore,
@@ -150,34 +151,58 @@ describe('SORT_MENU', () => {
     )
 
   it('lists the six orders, checks the current one, and offers Use as Default', () => {
-    expect(lines({ order: TITLE_AZ, search: false, followsDefault: false })).toEqual([
+    expect(
+      lines({ order: TITLE_AZ, search: false, followsDefault: false, dates: 'relative' }),
+    ).toEqual([
       ['Title (A to Z) [x]', 'Title (Z to A) [ ]'],
       ['Date Updated (Newest First) [ ]', 'Date Updated (Oldest First) [ ]'],
       ['Date Created (Newest First) [ ]', 'Date Created (Oldest First) [ ]'],
       ['Use as Default [ ]'],
+      ['Relative Dates [x]', 'Absolute Dates [ ]'],
     ])
-    expect(lines({ order: DEFAULT_NOTE_SORT, search: false, followsDefault: true })).toEqual([
+    expect(
+      lines({ order: DEFAULT_NOTE_SORT, search: false, followsDefault: true, dates: 'relative' }),
+    ).toEqual([
       ['Title (A to Z) [ ]', 'Title (Z to A) [ ]'],
       ['Date Updated (Newest First) [x]', 'Date Updated (Oldest First) [ ]'],
       ['Date Created (Newest First) [ ]', 'Date Created (Oldest First) [ ]'],
       ['Use as Default [x]'],
+      ['Relative Dates [x]', 'Absolute Dates [ ]'],
     ])
   })
 
   it('offers relevance for search results, and no default', () => {
-    expect(lines({ order: 'relevance', search: true, followsDefault: false })).toEqual([
+    expect(
+      lines({ order: 'relevance', search: true, followsDefault: false, dates: 'relative' }),
+    ).toEqual([
       ['Relevance [x]'],
       ['Title (A to Z) [ ]', 'Title (Z to A) [ ]'],
       ['Date Updated (Newest First) [ ]', 'Date Updated (Oldest First) [ ]'],
       ['Date Created (Newest First) [ ]', 'Date Created (Oldest First) [ ]'],
+      ['Relative Dates [x]', 'Absolute Dates [ ]'],
     ])
+  })
+
+  it('checks the date style in use, and maps its items', () => {
+    const target: SortMenuTarget = {
+      order: TITLE_AZ,
+      search: false,
+      followsDefault: false,
+      dates: 'absolute',
+    }
+    expect(lines(target).at(-1)).toEqual(['Relative Dates [ ]', 'Absolute Dates [x]'])
+    expect(datesAction('dates.relative')).toBe('relative')
+    expect(datesAction('dates.absolute')).toBe('absolute')
+    expect(datesAction('default')).toBeUndefined()
+    expect(sortAction('dates.absolute')).toBeUndefined()
   })
 
   it('maps every order item to its order', () => {
     for (const order of NOTE_SORTS) {
       const entry = SORT_MENU.flat().find(
         (e) =>
-          e.checked?.({ order, search: false, followsDefault: false }) && e.action !== 'default',
+          e.checked?.({ order, search: false, followsDefault: false, dates: 'relative' }) &&
+          e.action !== 'default',
       )
       expect(entry && sortAction(entry.action)).toEqual(order)
     }

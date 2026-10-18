@@ -6,6 +6,7 @@ import {
   noteCount,
   noteDate,
   relativeTime,
+  rowDate,
   stampDate,
   taskCount,
 } from './format'
@@ -67,6 +68,29 @@ describe('noteDate', () => {
     expect(made.count).toBeLessThanOrEqual(2)
     // Another locale gets its own.
     expect(noteDate(new Date(2026, 9, 9).getTime(), now, 'de')).toBe('09.10.2026')
+  })
+})
+
+describe('rowDate', () => {
+  const now = new Date(2026, 9, 10, 15, 30).getTime()
+  const recent = now - 3 * 3_600_000
+
+  it('shows how long ago in relative style', () => {
+    expect(rowDate(recent, now, 'en', 'relative')).toBe('3 hours')
+    expect(rowDate(now - 3 * 86_400_000, now, 'en', 'relative')).toBe('3 days')
+  })
+
+  it('shows the time for today and the medium date otherwise in absolute style', () => {
+    expect(rowDate(new Date(2026, 9, 10, 9, 5).getTime(), now, 'en', 'absolute')).toMatch(
+      /^9:05\sAM$/,
+    )
+    expect(rowDate(now - 3 * 86_400_000, now, 'en', 'absolute')).toBe('Oct 7, 2026')
+    expect(rowDate(new Date(2026, 7, 1).getTime(), now, 'en', 'absolute')).toBe('Aug 1, 2026')
+  })
+
+  it('keeps the relative style beyond a month as the date', () => {
+    const old = new Date(2026, 7, 1).getTime()
+    expect(rowDate(old, now, 'en', 'relative')).toBe(rowDate(old, now, 'en', 'absolute'))
   })
 })
 

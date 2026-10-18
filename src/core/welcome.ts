@@ -84,6 +84,9 @@ export async function seedWelcome(options: WelcomeOptions): Promise<string | nul
     deletedHlc: null,
     aiAccess: false,
     aiAccessHlc: '',
+    icon: null,
+    iconColor: null,
+    iconHlc: '',
     sortKey: '',
     sortKeyHlc: '',
   })

@@ -113,6 +113,7 @@ describe('COMMANDS', () => {
       'trashList',
       'notebookRow',
       'tagRow',
+      'sidebarRow',
     ]
     for (const s of all) expect(scopesOverlap('window', s)).toBe(true)
     for (const s of all) expect(scopesOverlap(s, s)).toBe(true)
@@ -128,6 +129,10 @@ describe('COMMANDS', () => {
     expect(scopesOverlap('notebookRow', 'tagRow')).toBe(false)
     expect(scopesOverlap('noteList', 'notebookRow')).toBe(false)
     expect(scopesOverlap('tagRow', 'list')).toBe(false)
+    // The other rows (All Notes, a status, a workspace's title) are neither.
+    expect(scopesOverlap('sidebarRow', 'notebookRow')).toBe(false)
+    expect(scopesOverlap('sidebarRow', 'tagRow')).toBe(false)
+    expect(scopesOverlap('sidebarRow', 'sidebar')).toBe(true)
     // The panes are the sidebar's rows and the note list, never the editor.
     expect(scopesOverlap('panes', 'sidebar')).toBe(true)
     expect(scopesOverlap('panes', 'trashList')).toBe(true)
@@ -245,7 +250,11 @@ describe('COMMANDS', () => {
         .map((c) => c.ids.find((id) => id !== 'probe'))
     expect(probe('window', 'Mod+Backspace')).toEqual(['note.trash', 'trash.deleteForever'])
     expect(probe('outsideEditor', '/')).toEqual(['search.fromList'])
-    expect(probe('outsideEditor', 'Backspace')).toEqual(['notebook.delete', 'tag.delete'])
+    expect(probe('outsideEditor', 'Backspace')).toEqual([
+      'notebook.delete',
+      'sidebar.workspaceUp',
+      'tag.delete',
+    ])
     expect(probe('list', 'Mod+Backspace')).toEqual(['note.trash', 'trash.deleteForever'])
     expect(probe('tagRow', 'Enter')).toEqual([])
     // Find and the status keys work everywhere, so nothing may take theirs.

@@ -26,11 +26,13 @@ Release only when both are true:
 4. Build an ad-hoc signed bundle for Apple Silicon:
 
    ```sh
-   PATH="$(brew --prefix rustup)/bin:$PATH" pnpm tauri build --bundles app,dmg \
+   CI=true PATH="$(brew --prefix rustup)/bin:$PATH" pnpm tauri build --bundles app,dmg \
      --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
    ```
 
    The `"-"` signing identity is required: without it the bundle has no seal, and downloaded copies are reported as damaged.
+
+   `CI=true` skips the step that lays out the disk image window through Finder; without a logged-in Finder session (an agent or a remote shell) that step fails and no dmg is written.
 
 5. Verify: `codesign --verify --deep --strict <Devot.app>` and `hdiutil verify <dmg>`.
 

@@ -21,6 +21,8 @@ const node = (id: string, depth: number, children: BookNode[] = []): BookNode =>
   parentId: null,
   depth,
   aiAccess: false,
+  icon: null,
+  iconColor: null,
   children,
 })
 

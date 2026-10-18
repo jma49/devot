@@ -318,6 +318,9 @@ export function createTemplateService(options: TemplateServiceOptions): Template
       deletedHlc: null,
       aiAccess: false,
       aiAccessHlc: '',
+      icon: null,
+      iconColor: null,
+      iconHlc: '',
       sortKey: '',
       sortKeyHlc: '',
     })

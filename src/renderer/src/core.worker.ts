@@ -226,6 +226,8 @@ export const coreApi = {
     requiredBooks().place(id, targetId, where),
   removeBook: (id: string) => requiredBooks().remove(id),
   setBookAiAccess: (id: string, on: boolean) => requiredBooks().setAiAccess(id, on),
+  setBookIcon: (id: string, icon: string | null, color: TagColor | null) =>
+    requiredBooks().setIcon(id, icon, color),
   /** Imports a scan into notebook `destination` (null: none); `source` reads its files. */
   importMarkdown: (
     scan: ImportScan,

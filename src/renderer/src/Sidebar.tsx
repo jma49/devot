@@ -11,13 +11,15 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
-import { MAX_BOOK_NAME_CHARS, type BookNode } from '../../core/books'
+import { MAX_BOOK_NAME_CHARS, flattenBookTree, type BookNode } from '../../core/books'
 import type { NoteStatus, TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS, type NoteFilter } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
 import {
   BOOK_MENU,
+  WORKSPACE_MENU,
   bookShortcut,
+  workspaceShortcut,
   type BookAction,
   type BookMenuTarget,
   type ImportAction,
@@ -45,10 +47,14 @@ import {
   type TrashRowTarget,
 } from './sourceMenu'
 import { TAG_MENU, colorOfAction, tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
+import { usePaneResize } from './paneResize'
+import { SIDEBAR_PANE } from './paneWidth'
 import { MoveBookDialog } from './MoveBookDialog'
+import { BookIcon } from './BookIcon'
+import { NotebookIconDialog } from './NotebookIconDialog'
 import { SidebarFooter } from './SidebarFooter'
 import { setDragCard } from './listDrag'
-import { conceal, reveal } from './reveal'
+import { conceal, reveal, slideIn } from './reveal'
 import { currentSectionStore, type CollapsibleSection, type SectionStore } from './sidebarSections'
 import { TagDot } from './TagEditor'
 import { TagSettingsDialog } from './TagSettingsDialog'
@@ -93,6 +99,23 @@ function below(row: Element | null | undefined): MenuPoint | undefined {
   return { x: box.left, y: box.bottom }
 }
 
+/**
+ * A notebook open as a workspace: the sidebar shows only it (its title, its
+ * notes as All Notes, its sub-notebooks, and the statuses and tags of its
+ * notes), and no Pinned, Templates or Trash.
+ */
+export interface SidebarWorkspace {
+  /** The notebook open as the workspace. */
+  book: BookNode
+  /** The notebooks above it, the top-level one first. */
+  parents: readonly BookNode[]
+  /** The whole notebook tree (the Move dialog lists every notebook). */
+  library: readonly BookNode[]
+}
+
+/** The workspace title's row key. */
+const WORKSPACE_ROW = 'workspace'
+
 /** A notebook with the siblings shown just above and below it. */
 type PlacedNode = BookNode & BookMenuTarget
 
@@ -128,6 +151,7 @@ function subtree(tree: BookNode[], id: string): Set<string> {
 
 interface Props {
   total: number
+  /** The notebook tree; in a workspace, the workspace's sub-notebooks. */
   tree: BookNode[]
   counts: ReadonlyMap<string, number>
   /**
@@ -154,6 +178,8 @@ interface Props {
   onPlaceBook: (id: string, targetId: string, where: 'before' | 'after') => void
   /** Turns Allow AI Access on or off for one notebook. */
   onSetAiAccess: (id: string, on: boolean) => void
+  /** Gives a notebook a catalog icon in a colour, or (null) the default icon. */
+  onSetBookIcon: (id: string, icon: string | null, color: TagColor | null) => void
   onDeleteBook: (id: string) => void
   /** Exports a notebook with its sub-notebooks (exporter.ts). */
   onExportBook: (action: 'exportMarkdown' | 'exportHtml', id: string) => void
@@ -193,6 +219,12 @@ interface Props {
   onNewNote?: (() => void) | undefined
   /** Where the collapsed sections are kept; this window's local storage by default. */
   sectionStore?: SectionStore
+  /** The notebook open as a workspace, if any. */
+  workspace?: SidebarWorkspace | undefined
+  /** Opens a notebook as the workspace (its menu, a parent in the workspace's title). */
+  onOpenWorkspace?: (id: string) => void
+  /** Go Up a Level: the parent notebook's workspace, or out of workspaces. */
+  onWorkspaceUp?: () => void
 }
 
 const STATUSES: { status: NoteStatus; icon: IconName; label: MessageKey }[] = [
@@ -319,7 +351,26 @@ export function stepSidebarRow(by: 1 | -1): void {
 
 export const Sidebar = memo(function Sidebar(props: Props) {
   useKeymap()
+  const { width: sidebarWidth, edge: resizeEdge } = usePaneResize(SIDEBAR_PANE)
   const { tree, counts, selection, renaming } = props
+  const ws = props.workspace
+  // All Notes: in a workspace, the notes of the workspace notebook.
+  const allSelection: Selection = ws ? { kind: 'book', id: ws.book.id } : { kind: 'all' }
+  const allKey = libraryRow(allSelection).key
+  const nav = useRef<HTMLElement>(null)
+  // The rows slide in when a workspace opens (from the right) or closes (from the left).
+  const shownWorkspace = useRef(ws?.book.id)
+  useEffect(() => {
+    const before = shownWorkspace.current
+    shownWorkspace.current = ws?.book.id
+    if (before === ws?.book.id || !nav.current) return
+    const deeper =
+      ws !== undefined && (before === undefined || ws.parents.some((p) => p.id === before))
+    slideIn(
+      nav.current.querySelectorAll(':scope > :is(.sidebar-workspace, .sources, .sidebar-scroll)'),
+      deeper ? 1 : -1,
+    )
+  })
   // Status and Tags fold, and so do notebooks; the choice is a view preference kept per window.
   const sections = useMemo(() => props.sectionStore ?? currentSectionStore(), [props.sectionStore])
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => sections.loadBooks())
@@ -365,6 +416,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const sectionToggles = useRef(new Map<CollapsibleSection, HTMLButtonElement>())
   // A notebook whose Move dialog is open, and a tag whose settings are.
   const [movingBook, setMovingBook] = useState<PlacedNode>()
+  /** The notebook whose Change Notebook Icon dialog is open. */
+  const [iconBookId, setIconBookId] = useState<string>()
   const [tagSettings, setTagSettings] = useState<string>()
   const [editing, setEditing] = useState<string>()
   const [dropAt, setDropAt] = useState<DropAt>()
@@ -481,9 +534,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   // renamed has no row then), and the sidebar is one tab stop: the row of
   // the view shown (its filter, else its notebook, Templates, the Trash or All Notes).
   const rowOrder: Row[] = [
-    libraryRow({ kind: 'all' }),
-    filterRowOf({ kind: 'pinned' }),
-    libraryRow({ kind: 'templates' }),
+    libraryRow(allSelection),
+    // A workspace shows no Pinned, Templates or Trash.
+    ...(ws ? [] : [filterRowOf({ kind: 'pinned' }), libraryRow({ kind: 'templates' })]),
     ...rowList.map((n) => libraryRow({ kind: 'book', id: n.id })),
     ...(folded.has('status')
       ? []
@@ -493,12 +546,12 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       : props.tags.flatMap((tag) =>
           tag.id === editingTag ? [] : [filterRowOf({ kind: 'tag', tagId: tag.id })],
         )),
-    libraryRow({ kind: 'trash' }),
+    ...(ws ? [] : [libraryRow({ kind: 'trash' })]),
   ]
   const shownKey = props.filter
     ? filterRowOf(props.filter).key
     : libraryRow(selection ?? { kind: 'all' }).key
-  const tabStop = rowOrder.some((r) => r.key === shownKey) ? shownKey : 'all'
+  const tabStop = rowOrder.some((r) => r.key === shownKey) ? shownKey : allKey
   const rowElements = useRef(new Map<string, HTMLElement>())
   const rowProps = (key: string) => ({
     'data-sidebar-row': key,
@@ -526,16 +579,37 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   /** Up and Down, Home and End on any row. */
   const onRowsKey = (event: KeyboardEvent) => {
     const key = event.target instanceof HTMLElement ? event.target.dataset['sidebarRow'] : undefined
-    // The row-menu key on a fixed row (the notebook and tag rows handle it themselves).
+    // A row that is neither a notebook nor a tag (the `sidebarRow` scope).
+    const fixed =
+      key === allKey ||
+      key === WORKSPACE_ROW ||
+      key === 'pinned' ||
+      key === 'templates' ||
+      key === 'trash' ||
+      key?.startsWith('status:') === true
+    // Go Up a Level in a workspace: Command+Up on any row, Backspace on a
+    // row where it deletes nothing.
+    if (
+      key !== undefined &&
+      ws &&
+      !event.defaultPrevented &&
+      (commandMatches('sidebar.workspaceUpFromAnyRow', event) ||
+        (fixed && commandMatches('sidebar.workspaceUp', event)))
+    ) {
+      event.preventDefault()
+      return props.onWorkspaceUp?.()
+    }
+    // The row-menu key on a fixed row (the notebook and tag rows and the
+    // workspace's title handle it themselves).
     if (
       key !== undefined &&
       !event.defaultPrevented &&
-      (key === 'all' || key === 'pinned' || key === 'trash' || key.startsWith('status:')) &&
+      (key === allKey || key === 'pinned' || key === 'trash' || key.startsWith('status:')) &&
       commandMatches('sidebar.rowMenu', event)
     ) {
       event.preventDefault()
       const at = below(event.target as Element)
-      if (key === 'all') return void openAllNotesMenu(at)
+      if (key === allKey) return void openAllNotesMenu(at)
       if (key === 'trash') return void openTrashMenu(at)
       const filter: FilterRowTarget['filter'] =
         key === 'pinned'
@@ -567,6 +641,10 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
     if (!Object.hasOwn(moves, event.key)) return
     event.preventDefault()
+    // Up from the first row reaches a workspace's title.
+    if (ws && at === 0 && event.key === 'ArrowUp') {
+      return rowElements.current.get(WORKSPACE_ROW)?.focus()
+    }
     const to = moves[event.key]
     if (to !== undefined && to.key !== key) arrive(to)
   }
@@ -621,8 +699,12 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         // Open it, so the new notebook shows inside.
         toggle(node.id, true)
         return props.onCreateBook?.(node.id)
+      case 'openWorkspace':
+        return props.onOpenWorkspace?.(node.id)
       case 'rename':
         return setEditing(node.id)
+      case 'changeIcon':
+        return setIconBookId(node.id)
       case 'moveUp':
         return node.previousId && props.onPlaceBook(node.id, node.previousId, 'before')
       case 'moveDown':
@@ -675,6 +757,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     id: tag.id,
     color: tag.color,
     filtered: sameFilter(props.filter, { kind: 'tag', tagId: tag.id }),
+    inWorkspace: ws !== undefined,
   })
   const openTagMenu = async (tag: TagRecord, at?: MenuPoint) => {
     setTagMenuTarget(tag.id)
@@ -699,7 +782,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   )
   const showAllNotesMenu = useContextMenu('allNotes', ALL_NOTES_MENU, (action: AllNotesAction) => {
     if (action === 'newNote') props.onNewNote?.()
-    else props.onSelect({ kind: 'all' }, { clearFilter: true })
+    else props.onSelect(allSelection, { clearFilter: true })
   })
   const showFilterMenu = useContextMenu(
     'filterRow',
@@ -715,8 +798,11 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     if (props.trashCount === 0) return
     await withRowOutline('trash', () => showTrashMenu({ notes: props.trashCount }, at))
   }
+  const showWorkspaceMenu = useContextMenu('workspace', WORKSPACE_MENU, runAction)
+  const openWorkspaceMenu = (at?: MenuPoint) =>
+    ws ? withRowOutline(WORKSPACE_ROW, () => showWorkspaceMenu(placed(ws.book), at)) : undefined
   const openAllNotesMenu = (at?: MenuPoint) =>
-    withRowOutline('all', () => showAllNotesMenu({ canCreate: props.onNewNote !== undefined }, at))
+    withRowOutline(allKey, () => showAllNotesMenu({ canCreate: props.onNewNote !== undefined }, at))
 
   const onKey = (event: KeyboardEvent, node: BookNode) => {
     if (event.target !== event.currentTarget) return
@@ -737,6 +823,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       case 'ArrowLeft':
         event.preventDefault()
         if (open) toggle(node.id, false)
+        // A workspace's own sub-notebook goes up to All Notes (the workspace notebook).
+        else if (ws && node.parentId === ws.book.id) arrive(libraryRow(allSelection))
         else if (node.parentId) go(rowList.find((n) => n.id === node.parentId))
         return
     }
@@ -780,9 +868,10 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     const book = event.dataTransfer.getData(DRAG_BOOK)
     const note = event.dataTransfer.getData(DRAG_NOTE)
     if (book && node === null) {
-      // The header: first at the top level.
+      // The header: first at the top level (of the workspace: inside its notebook).
       const first = tree[0]
       if (first && first.id !== book) props.onPlaceBook(book, first.id, 'before')
+      else if (!first && ws && ws.book.id !== book) props.onMoveBook(book, ws.book.id)
     } else if (book && node) {
       if (subtree(tree, book).has(node.id)) return
       const zone = zoneAt(event)
@@ -912,7 +1001,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             >
               {node.children.length > 0 ? <Chevron open={isOpen} closed="right" /> : null}
             </span>
-            <Icon name="notebook" size="md" />
+            <BookIcon icon={node.icon} color={node.iconColor} size="md" />
             {editingThis ? (
               <NameField
                 name={node.name}
@@ -965,6 +1054,11 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   }
 
   const settingsTag = props.tags.find((tag) => tag.id === tagSettings)
+  // Closed when the notebook goes (deleted on another device).
+  const iconBook =
+    iconBookId === undefined
+      ? undefined
+      : flattenBookTree(ws?.library ?? tree).find((n) => n.id === iconBookId)
 
   /**
    * A section's header: its name, `tools` before the chevron, and (for Status
@@ -1014,11 +1108,112 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     )
   }
 
+  /**
+   * A workspace's title: Go Up a Level, the notebook's icon and name, and the
+   * notebooks above it (each opens as the workspace). Its menu renames the
+   * notebook, changes its icon or copies its ID.
+   */
+  const workspaceTitle = (space: SidebarWorkspace) => {
+    const { book } = space
+    const editingThis = nameEditing === book.id
+    return (
+      <div
+        className="sidebar-workspace"
+        role="group"
+        aria-label={fill(t('sidebar.workspaceLabel'), { name: book.name })}
+      >
+        <button
+          type="button"
+          className="tool tool-small sidebar-workspace-back"
+          aria-label={t('sidebar.workspaceBack')}
+          title={titleWithKey('sidebar.workspaceBack', 'sidebar.workspaceUpFromAnyRow')}
+          onClick={props.onWorkspaceUp}
+        >
+          <span className="chevron" data-turn="left">
+            <Icon name="disclosure.open" size="sm" />
+          </span>
+        </button>
+        <div
+          {...rowProps(WORKSPACE_ROW)}
+          className={`sidebar-workspace-title${rowMenuTarget === WORKSPACE_ROW ? ' menu-target' : ''}`}
+          onMouseDown={(e) => {
+            if (!editingThis) keepFocusOnMenu(e)
+          }}
+          onDoubleClick={() => setEditing(book.id)}
+          onContextMenu={(e) => {
+            // The name field keeps the web view's text menu.
+            if (editingThis) return
+            e.preventDefault()
+            void openWorkspaceMenu()
+          }}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return
+            if (heldCommandKey(e)) return e.preventDefault()
+            if (commandMatches('sidebar.rowMenu', e)) {
+              e.preventDefault()
+              return void openWorkspaceMenu(below(e.currentTarget))
+            }
+            const action = workspaceShortcut(e)
+            if (!action) return
+            e.preventDefault()
+            runAction(action, placed(book))
+          }}
+        >
+          <BookIcon icon={book.icon} color={book.iconColor} size="md" />
+          <span className="sidebar-workspace-names">
+            {space.parents.length > 0 ? (
+              <span className="sidebar-workspace-path">
+                {space.parents.map((parent) => (
+                  <button
+                    key={parent.id}
+                    type="button"
+                    tabIndex={-1}
+                    className="sidebar-workspace-parent"
+                    aria-label={fill(t('sidebar.workspaceParent'), {
+                      name: parent.name,
+                    })}
+                    title={fill(t('sidebar.workspaceParent'), {
+                      name: parent.name,
+                    })}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      props.onOpenWorkspace?.(parent.id)
+                    }}
+                  >
+                    {parent.name}
+                  </button>
+                ))}
+              </span>
+            ) : null}
+            {editingThis ? (
+              <NameField
+                name={book.name}
+                max={MAX_BOOK_NAME_CHARS}
+                onDone={(name, byKey) => {
+                  setEditing(undefined)
+                  props.onRenameDone()
+                  const clean = name === null ? '' : trimWhitespace(name)
+                  if (clean && clean !== book.name) props.onRenameBook(book.id, clean)
+                  if (byKey) rowElements.current.get(WORKSPACE_ROW)?.focus()
+                }}
+              />
+            ) : (
+              <span className="sidebar-workspace-name">{book.name}</span>
+            )}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <nav
+      ref={nav}
       className="sidebar"
       data-devot-part="sidebar"
+      data-workspace={ws ? '' : undefined}
       aria-label={t('sidebar.label')}
+      style={{ '--sidebar-width': `${sidebarWidth}px` } as CSSProperties}
       onKeyDown={onRowsKey}
     >
       {/* The traffic lights sit here; the bar drags the window. */}
@@ -1033,14 +1228,18 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           <Icon name="sidebar.toggle" size="lg" />
         </button>
       </div>
+      {ws ? workspaceTitle(ws) : null}
       <ul className="sources">
         <li>
           <button
             type="button"
-            {...rowProps('all')}
-            className={`source${rowMenuTarget === 'all' ? ' menu-target' : ''}`}
-            aria-current={selection?.kind === 'all' && props.filter === null}
-            onClick={() => props.onSelect({ kind: 'all' }, { clearFilter: true })}
+            {...rowProps(allKey)}
+            className={`source${rowMenuTarget === allKey ? ' menu-target' : ''}`}
+            aria-current={
+              (ws ? selectedBook === ws.book.id : selection?.kind === 'all') &&
+              props.filter === null
+            }
+            onClick={() => props.onSelect(allSelection, { clearFilter: true })}
             onMouseDown={keepFocusOnMenu}
             onContextMenu={(e) => {
               e.preventDefault()
@@ -1052,22 +1251,31 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             <span className="source-count">{format(props.total)}</span>
           </button>
         </li>
-        <li>
-          {filterRow({ kind: 'pinned' }, 'notes.pinned', t('sidebar.pinned'), props.pinnedCount)}
-        </li>
-        <li>
-          <button
-            type="button"
-            {...rowProps('templates')}
-            className="source"
-            aria-current={selection?.kind === 'templates'}
-            onClick={() => props.onSelect({ kind: 'templates' })}
-          >
-            <Icon name="templates" size="md" />
-            <span className="source-label">{t('sidebar.templates')}</span>
-            <span className="source-count">{format(props.templatesCount)}</span>
-          </button>
-        </li>
+        {ws ? null : (
+          <>
+            <li>
+              {filterRow(
+                { kind: 'pinned' },
+                'notes.pinned',
+                t('sidebar.pinned'),
+                props.pinnedCount,
+              )}
+            </li>
+            <li>
+              <button
+                type="button"
+                {...rowProps('templates')}
+                className="source"
+                aria-current={selection?.kind === 'templates'}
+                onClick={() => props.onSelect({ kind: 'templates' })}
+              >
+                <Icon name="templates" size="md" />
+                <span className="source-label">{t('sidebar.templates')}</span>
+                <span className="source-count">{format(props.templatesCount)}</span>
+              </button>
+            </li>
+          </>
+        )}
       </ul>
       {/* Notebooks, statuses and tags scroll; the top block, Trash and the footer stay put. */}
       <div className="sidebar-scroll">
@@ -1094,7 +1302,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
               className="tool tool-small"
               aria-label={t('book.new')}
               title={t('book.new')}
-              onClick={() => props.onCreateBook?.(null)}
+              onClick={() => props.onCreateBook?.(ws?.book.id ?? null)}
               disabled={!props.onCreateBook}
             >
               <Icon name="notebook.new" size="sm" />
@@ -1161,7 +1369,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                         return void openTagMenu(tag, below(e.target as Element))
                       }
                       const action = tagShortcut(e)
-                      if (!action) return
+                      // A workspace deletes no tag (Backspace there does nothing).
+                      if (!action || (action === 'delete' && ws)) return
                       e.preventDefault()
                       runTagAction(action, tagTarget(tag))
                     }}
@@ -1202,37 +1411,54 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           </>
         ) : null}
       </div>
-      <ul className="sources trash-source">
-        <li>
-          <button
-            type="button"
-            {...rowProps('trash')}
-            {...trashDrop.handlers}
-            className={`source${trashDrop.className}${rowMenuTarget === 'trash' ? ' menu-target' : ''}`}
-            aria-current={selection?.kind === 'trash'}
-            onClick={() => props.onSelect({ kind: 'trash' })}
-            onMouseDown={keepFocusOnMenu}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              void openTrashMenu()
-            }}
-          >
-            <Icon name="trash" size="md" />
-            <span className="source-label">{t('sidebar.trash')}</span>
-            <span className="source-count">{format(props.trashCount)}</span>
-          </button>
-        </li>
-      </ul>
+      {ws ? null : (
+        <ul className="sources trash-source">
+          <li>
+            <button
+              type="button"
+              {...rowProps('trash')}
+              {...trashDrop.handlers}
+              className={`source${trashDrop.className}${rowMenuTarget === 'trash' ? ' menu-target' : ''}`}
+              aria-current={selection?.kind === 'trash'}
+              onClick={() => props.onSelect({ kind: 'trash' })}
+              onMouseDown={keepFocusOnMenu}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                void openTrashMenu()
+              }}
+            >
+              <Icon name="trash" size="md" />
+              <span className="source-label">{t('sidebar.trash')}</span>
+              <span className="source-count">{format(props.trashCount)}</span>
+            </button>
+          </li>
+        </ul>
+      )}
       <SidebarFooter />
       {movingBook ? (
         <MoveBookDialog
-          tree={tree}
+          tree={ws?.library ?? tree}
           book={movingBook}
           onMove={(parentId) => {
             props.onMoveBook(movingBook.id, parentId)
             setMovingBook(undefined)
           }}
           onCancel={() => setMovingBook(undefined)}
+        />
+      ) : null}
+      {iconBook ? (
+        <NotebookIconDialog
+          book={iconBook}
+          onPick={(icon, color) => {
+            if (icon !== iconBook.icon || color !== iconBook.iconColor)
+              props.onSetBookIcon(iconBook.id, icon, color)
+            setIconBookId(undefined)
+          }}
+          onRevert={() => {
+            props.onSetBookIcon(iconBook.id, null, null)
+            setIconBookId(undefined)
+          }}
+          onCancel={() => setIconBookId(undefined)}
         />
       ) : null}
       {settingsTag ? (
@@ -1246,6 +1472,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           onCancel={() => setTagSettings(undefined)}
         />
       ) : null}
+      <div className="sidebar-resize" aria-label={t('sidebar.resize')} {...resizeEdge} />
     </nav>
   )
 })

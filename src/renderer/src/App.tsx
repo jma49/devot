@@ -26,6 +26,12 @@ import {
 import { highlightTerms, parseSearch, searchPattern, type SearchScope } from '../../core/search'
 import { countBucket } from '../../core/usage'
 import { filterNotes, noteGroups, statusCounts, tagCounts, type NoteFilter } from '../../core/tags'
+import {
+  findBookNode,
+  workspaceParent,
+  workspaceParents,
+  workspaceTree,
+} from '../../core/workspace'
 import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
 import { BackupNotice } from './BackupNotice'
 import { ChangeNotice } from './ChangeNotice'
@@ -156,7 +162,7 @@ import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { Activity, useActivityMenu } from './Activity'
 import { choicesFromTree, notebookForNewNote, publishNotebooks } from './notebookChoices'
-import { Sidebar, stepSidebarRow, type Selection } from './Sidebar'
+import { Sidebar, stepSidebarRow, type Selection, type SidebarWorkspace } from './Sidebar'
 import { useKept, useStable } from './stable'
 import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
@@ -242,6 +248,10 @@ function ShowSidebarButton({ onClick }: { onClick: () => void }) {
 
 /** How long a request for an area waits for it to show. */
 const AREA_ASK_MS = 1000
+/** How long after a workspace opens the sidebar takes the keyboard (the slide has begun). */
+const WORKSPACE_FOCUS_MS = 100
+/** How long after a workspace closes the sidebar takes the keyboard. */
+const WORKSPACE_LEAVE_FOCUS_MS = 10
 
 /** Where the keyboard goes once the window has rendered. */
 type FocusRequest =
@@ -290,6 +300,12 @@ export function App() {
   const [notes, setNotes] = useState<NoteSummary[]>([])
   const [books, setBooks] = useState<BookRecord[]>([])
   const [library, setLibrary] = useState<Selection>(() => lastState?.view ?? { kind: 'all' })
+  // The notebook open as a workspace: the sidebar shows only it (see Sidebar's
+  // `workspace`). A view outside it, a note opened outside it, or the
+  // notebook going leaves it.
+  const [workspace, setWorkspace] = useState<string | null>(() =>
+    lastState?.view.kind === 'book' ? (lastState.workspace ?? null) : null,
+  )
   const [tags, setTags] = useState<TagRecord[]>([])
   const [filter, setFilter] = useState<NoteFilter | null>(() =>
     lastState?.view.kind === 'templates' ? null : (lastState?.filter ?? null),
@@ -473,6 +489,7 @@ export function App() {
   // Split mode keeps the editor and the preview at the same line, unless
   // turned off (an editor setting: View > Synced Scrolling, the palette).
   const syncScroll = useEditorSetting('syncScroll')
+  const listDates = useEditorSetting('listDates')
   const [editorPane, setEditorPane] = useState<ScrollPane | null>(null)
   const [previewPane, setPreviewPane] = useState<ScrollPane | null>(null)
   // Coming from Preview, the place being read leads; otherwise the editor does.
@@ -665,6 +682,21 @@ export function App() {
     sameCounts,
   )
   const libraryBook = library.kind === 'book' ? books.find((b) => b.id === library.id) : undefined
+  const workspaceFound = useMemo(
+    () => (workspace === null ? undefined : findBookNode(tree, workspace)),
+    [tree, workspace],
+  )
+  // The workspace notebook with its sub-notebooks.
+  const workspaceIds = useMemo(
+    () => (workspaceFound ? bookWithDescendants(books, workspaceFound.id) : undefined),
+    [books, workspaceFound],
+  )
+  // The workspace, while its notebook exists and the view is in it (a view
+  // outside it leaves it, see `showLibrary`).
+  const workspaceNode =
+    workspaceFound && library.kind === 'book' && workspaceIds?.has(library.id)
+      ? workspaceFound
+      : undefined
   const inTrash = library.kind === 'trash'
   const inTemplates = library.kind === 'templates'
   const keptTrashRows = useRef<NoteSummary[]>([])
@@ -748,13 +780,41 @@ export function App() {
     [results, order, locales],
   )
   const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags])
+  // The sidebar counts statuses and tags over the workspace's notes while one is open.
+  const sidebarNotes = useMemo(
+    () =>
+      workspaceNode && workspaceIds
+        ? notes.filter((n) => n.bookId !== null && workspaceIds.has(n.bookId))
+        : notes,
+    [notes, workspaceNode, workspaceIds],
+  )
   const statuses = useKept(
-    useMemo(() => statusCounts(notes), [notes]),
+    useMemo(() => statusCounts(sidebarNotes), [sidebarNotes]),
     sameCounts,
   )
-  const tagged = useKept(
-    useMemo(() => tagCounts(notes), [notes]),
+  const sidebarTagged = useKept(
+    useMemo(() => tagCounts(sidebarNotes), [sidebarNotes]),
     sameCounts,
+  )
+  // A workspace lists only the tags its notes have.
+  const sidebarTags = useMemo(
+    () => (workspaceNode ? tags.filter((tag) => (sidebarTagged.get(tag.id) ?? 0) > 0) : tags),
+    [workspaceNode, tags, sidebarTagged],
+  )
+  const sidebarTree = useMemo(
+    () => (workspaceNode ? workspaceTree(tree, workspaceNode.id) : tree),
+    [tree, workspaceNode],
+  )
+  const sidebarWorkspace = useMemo<SidebarWorkspace | undefined>(
+    () =>
+      workspaceNode
+        ? {
+            book: workspaceNode,
+            parents: workspaceParents(tree, workspaceNode.id),
+            library: tree,
+          }
+        : undefined,
+    [tree, workspaceNode],
   )
   const pinnedCount = useMemo(() => notes.filter((n) => n.pinned).length, [notes])
   const filterLabel =
@@ -794,6 +854,16 @@ export function App() {
    */
   const showLibrary = (next: Selection, options?: { clearFilter?: boolean }) => {
     const clearFilter = searchingAll || options?.clearFilter || next.kind === 'templates'
+    // A view outside the workspace (All Notes, Templates, the Trash, a
+    // notebook outside it) leaves it.
+    // A workspace no longer shown (its notebook, or the one shown in it, went
+    // or moved out) is dropped on the next change of view too.
+    if (
+      workspace !== null &&
+      (!workspaceNode || !(next.kind === 'book' && workspaceIds?.has(next.id)))
+    ) {
+      setWorkspace(null)
+    }
     clearSearch()
     if ((next.kind === 'trash') !== inTrash) setSelected(undefined)
     if (clearFilter) setFilter(null)
@@ -801,11 +871,35 @@ export function App() {
   }
   /** Turns a filter on or off; it covers every note, whatever view was shown. */
   const showFilter = (next: NoteFilter | null) => {
-    // A search over every note hid its notebook: the filter pressed covers every note.
+    // A search over every note hid its notebook: the filter pressed covers
+    // every note (in a workspace, every note of the workspace).
     const everyNote = searchingAll || inTrash || inTemplates
     clearSearch()
-    if (everyNote) showLibrary({ kind: 'all' })
+    if (everyNote)
+      showLibrary(workspaceNode ? { kind: 'book', id: workspaceNode.id } : { kind: 'all' })
     setFilter(next)
+  }
+  // Opening a workspace selects its first note unless the open note is in it.
+  const firstNoteWanted = useRef(false)
+  /** Opens a notebook as the workspace: it shows, and the sidebar takes the keyboard. */
+  const openWorkspace = (id: string) => {
+    if (!books.some((b) => b.id === id)) return
+    showLibraryRef.current?.({ kind: 'book', id }, { clearFilter: true })
+    setWorkspace(id)
+    firstNoteWanted.current = true
+    setTimeout(() => requestFocus({ kind: 'area', area: 'sidebar' }), WORKSPACE_FOCUS_MS)
+  }
+  /** Back to the whole library; the notebook shown stays. */
+  const leaveWorkspace = () => {
+    setWorkspace(null)
+    setTimeout(() => requestFocus({ kind: 'area', area: 'sidebar' }), WORKSPACE_LEAVE_FOCUS_MS)
+  }
+  /** Go Up a Level: the parent notebook's workspace, or out of workspaces at the top level. */
+  const workspaceUp = () => {
+    if (!workspaceNode) return
+    const parent = workspaceParent(tree, workspaceNode.id)
+    if (parent === null) leaveWorkspace()
+    else openWorkspace(parent)
   }
   useEffect(() => {
     showLibraryRef.current = showLibrary
@@ -962,6 +1056,7 @@ export function App() {
     if ((inTrash || inTemplates) && next.trim()) {
       if (inTrash) setSelected(undefined)
       setLibrary({ kind: 'all' })
+      setWorkspace(null)
       setSearchIn('all')
     }
     // With no query the old results go: typing again must not show them
@@ -1264,8 +1359,32 @@ export function App() {
     setSelected(id)
     setTitle(title)
     if (!fromTrail) moveTrail(visit(trailRef.current, id))
+    // A note opened outside the workspace (a note link, a search over every
+    // note, the palette) leaves it.
+    // A note just made is not listed in this render yet: it was made in the view shown.
+    const opened = notes.find((n) => n.id === id) ?? templates.find((n) => n.id === id)
+    if (workspaceIds && opened && !(opened.bookId && workspaceIds.has(opened.bookId))) {
+      setWorkspace(null)
+    }
     return true
   }
+
+  // Opening a workspace selects its first note, unless the open note is in it.
+  useEffect(() => {
+    if (!firstNoteWanted.current || !workspaceIds || libraryBook?.id !== workspace) return
+    const open = notes.find((n) => n.id === selected)
+    const first = groups.pinned[0] ?? groups.others[0]
+    if ((open?.bookId && workspaceIds.has(open.bookId)) || !first) {
+      firstNoteWanted.current = false
+      return
+    }
+    // A render before the timer fires schedules it again.
+    const timer = setTimeout(() => {
+      firstNoteWanted.current = false
+      void select(first.id)
+    })
+    return () => clearTimeout(timer)
+  })
 
   // The window's last state. Nothing is saved until it has been restored, so
   // a window that is still loading never overwrites it.
@@ -1309,6 +1428,7 @@ export function App() {
       filter: activeFilter,
       mode,
       ...(note ? { note } : {}),
+      ...(workspaceNode ? { workspace: workspaceNode.id } : {}),
     }
     libraryState.current = state
     return state
@@ -1326,7 +1446,7 @@ export function App() {
     saveTimer.current = setTimeout(() => saveNow.current?.(), LAST_STATE_SAVE_MS)
   }, [])
   // A view, note or mode change is saved at once.
-  useEffect(() => saveNow.current?.(), [restored, library, filter, selected, mode])
+  useEffect(() => saveNow.current?.(), [restored, library, filter, selected, mode, workspace])
   // So is the state when the page goes away or out of sight, and the
   // keyboard moving in or out of the editor soon after.
   useEffect(() => {
@@ -1390,6 +1510,7 @@ export function App() {
       if (!plan) return
       setLibrary(plan.view)
       setFilter(plan.filter)
+      setWorkspace(plan.workspace ?? null)
       const note = plan.note
       if (!note) return
       noteState.current = note
@@ -2199,6 +2320,13 @@ export function App() {
         }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
       label: syncScroll ? 'command.syncScrollOff' : 'command.syncScrollOn',
     },
+    'view.toggleListDates': {
+      run: () =>
+        changeEditorSettings({
+          listDates: editorSettings().listDates === 'absolute' ? 'relative' : 'absolute',
+        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
+      label: listDates === 'absolute' ? 'command.showRelativeDates' : 'command.showAbsoluteDates',
+    },
     'view.allNotes': { run: () => showLibrary({ kind: 'all' }) },
     'view.templates': { run: () => showLibrary({ kind: 'templates' }) },
     'view.trash': { run: () => showLibrary({ kind: 'trash' }) },
@@ -2208,6 +2336,7 @@ export function App() {
     'mirror.chooseFolder': { run: mirror.choose },
   }
   if (mirror.status.folder !== null) handlers['mirror.turnOff'] = { run: mirror.turnOff }
+  if (workspaceNode) handlers['view.leaveWorkspace'] = { run: leaveWorkspace }
   // Sort Notes… opens the sort pop-up under the list's button.
   if (!focus && !inTrash) {
     handlers['view.sort'] = {
@@ -2384,6 +2513,7 @@ export function App() {
     [paletteOpen, tree, tags, notes, paletteHeadlines],
   )
 
+  const stableOpenWorkspace = useStable((id: string) => openWorkspace(id))
   /** What Return, Shift+Return and Command+Return do on a palette result. */
   const paletteActions = (entry: PaletteEntry): PaletteActions => {
     switch (entry.kind) {
@@ -2402,6 +2532,7 @@ export function App() {
             label: t('palette.openNotebook'),
             run: () => showLibrary({ kind: 'book', id: entry.id }),
           },
+          meta: { label: t('palette.openWorkspace'), run: () => stableOpenWorkspace(entry.id) },
           shift:
             openNote && openNote.bookId !== entry.id
               ? {
@@ -2537,6 +2668,10 @@ export function App() {
   const sidebarSetAiAccess = useStable(
     (id: string, on: boolean) => void changeBooks((c) => c.setBookAiAccess(id, on)),
   )
+  const sidebarSetBookIcon = useStable(
+    (id: string, icon: string | null, color: TagColor | null) =>
+      void changeBooks((c) => c.setBookIcon(id, icon, color)),
+  )
   // Deleting a notebook asks first: it takes its sub-notebooks with it, and
   // nothing brings them back.
   const sidebarDeleteBook = useStable((id: string) => {
@@ -2615,12 +2750,14 @@ export function App() {
     if (inTrash) showLibrary({ kind: 'all' })
     void create()
   })
+  const sidebarWorkspaceUp = useStable(() => workspaceUp())
   const sidebarDeleteTag = useStable((id: string) =>
     setConfirm({
       kind: 'tag',
       id,
       name: tags.find((tag) => tag.id === id)?.name ?? '',
-      count: tagged.get(id) ?? 0,
+      // Every note with the tag, a workspace's sidebar counting only its own.
+      count: notes.filter((n) => n.tagIds.includes(id)).length,
     }),
   )
 
@@ -2637,8 +2774,8 @@ export function App() {
     >
       <ToolTips />
       <Sidebar
-        total={notes.length}
-        tree={tree}
+        total={workspaceNode ? (counts.get(workspaceNode.id) ?? 0) : notes.length}
+        tree={sidebarTree}
         counts={counts}
         selection={
           searchingAll ? null : libraryBook || inTrash || inTemplates ? library : ALL_NOTES
@@ -2651,6 +2788,7 @@ export function App() {
         onMoveBook={sidebarMoveBook}
         onPlaceBook={sidebarPlaceBook}
         onSetAiAccess={sidebarSetAiAccess}
+        onSetBookIcon={sidebarSetBookIcon}
         onDeleteBook={sidebarDeleteBook}
         onExportBook={sidebarExportBook}
         onImportBook={sidebarImportBook}
@@ -2662,8 +2800,8 @@ export function App() {
         onFilter={sidebarFilter}
         pinnedCount={pinnedCount}
         statusCounts={statuses}
-        tags={tags}
-        tagCounts={tagged}
+        tags={sidebarTags}
+        tagCounts={sidebarTagged}
         onRenameTag={sidebarRenameTag}
         onSetTagColor={sidebarSetTagColor}
         onDeleteTag={sidebarDeleteTag}
@@ -2674,6 +2812,9 @@ export function App() {
         onSearchTags={sidebarSearchTags}
         onEmptyTrash={askEmptyTrash}
         onNewNote={core ? sidebarNewNote : undefined}
+        workspace={sidebarWorkspace}
+        onOpenWorkspace={stableOpenWorkspace}
+        onWorkspaceUp={sidebarWorkspaceUp}
       />
       {searching ? (
         <NoteList

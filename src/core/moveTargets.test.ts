@@ -13,6 +13,9 @@ const book = (id: string, name: string, parentId: string | null, sortKey: string
   deletedHlc: null,
   aiAccess: false,
   aiAccessHlc: '',
+  icon: null,
+  iconColor: null,
+  iconHlc: '',
   sortKey,
   sortKeyHlc: '1',
 })

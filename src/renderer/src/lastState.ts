@@ -1,9 +1,9 @@
 // Where the window was when it closed: the library view and its filter, the
-// open note with its selection and scroll positions, and the view mode, so a
-// restart opens where the user left off. Like focus mode and the hidden
-// sidebar it is a view preference of one window: it lives in the webview's
-// local storage under the window's label, never in the note database, and
-// never syncs. Everything read back is checked; a part that does not check
+// workspace, the open note with its selection and scroll positions, and the
+// view mode, so a restart opens where the user left off. Like focus mode and
+// the hidden sidebar it is a view preference of one window: it lives in the
+// webview's local storage under the window's label, never in the note
+// database, and never syncs. Everything read back is checked; a part that does not check
 // out falls back on its own, and anything gone since (a notebook, a tag, the
 // note) is skipped quietly when restoring (`restorePlan`).
 import { UUID_V7 } from '../../core/ids'
@@ -48,6 +48,8 @@ export interface LastState {
   filter: NoteFilter | null
   mode: Mode
   note?: NoteState
+  /** The notebook open as a workspace (the sidebar shows only it), if any. */
+  workspace?: string
 }
 
 /** The stored format; another one (a later Devot) is not read. */
@@ -117,6 +119,7 @@ export function parseLastState(raw: string | null): LastState | undefined {
   }
   const note = readNote(value['note'])
   if (note) state.note = note
+  if (isId(value['workspace'])) state.workspace = value['workspace']
   return state
 }
 
@@ -161,12 +164,13 @@ export interface LiveLibrary {
 /**
  * What to show for a stored state: a notebook that is gone shows All Notes,
  * a filter on a tag that is gone shows no filter, and a note that is gone
- * (deleted, in the Trash or purged) leaves the view with no note open.
+ * (deleted, in the Trash or purged) leaves the view with no note open. A
+ * workspace opens again only while its notebook exists and a notebook shows.
  */
 export function restorePlan(
   state: LastState,
   live: LiveLibrary,
-): { view: LibraryView; filter: NoteFilter | null; note?: NoteState } {
+): { view: LibraryView; filter: NoteFilter | null; note?: NoteState; workspace?: string } {
   const view: LibraryView =
     state.view.kind === 'book' && !live.books.has(state.view.id) ? { kind: 'all' } : state.view
   const filter =
@@ -175,7 +179,11 @@ export function restorePlan(
       ? null
       : state.filter
   const note = state.note && live.notes.has(state.note.id) ? state.note : undefined
-  return note ? { view, filter, note } : { view, filter }
+  const workspace =
+    state.workspace !== undefined && live.books.has(state.workspace) && view.kind === 'book'
+      ? state.workspace
+      : undefined
+  return { view, filter, ...(note ? { note } : {}), ...(workspace ? { workspace } : {}) }
 }
 
 /** A stored selection, moved inside a document of `length` characters. */

@@ -40,6 +40,9 @@ fn book(id: &str, name: &str, hlc: &str) -> BookRecord {
         ai_access_hlc: String::new(),
         sort_key: "a0".into(),
         sort_key_hlc: hlc.into(),
+        icon: None,
+        icon_color: None,
+        icon_hlc: String::new(),
     }
 }
 
@@ -482,6 +485,114 @@ fn notebooks_merge_their_sort_key_per_field() {
     assert_eq!(books[0].name, "Job");
     assert_eq!(books[0].sort_key, "a0V", "the newer place wins");
     assert_eq!(books[0].sort_key_hlc, "0000000000000030-0000-a");
+}
+
+#[test]
+fn notebooks_have_no_icon_by_default_and_merge_icon_and_colour_together() {
+    let (_dir, mut store) = temp_store();
+    store
+        .put_book(&book("b1", "Work", "0000000000000010-0000-a"))
+        .unwrap();
+    let plain = &store.list_books().unwrap()[0];
+    assert_eq!((plain.icon.clone(), plain.icon_color.clone()), (None, None));
+    assert_eq!(plain.icon_hlc, "");
+
+    let mut iconed = book("b1", "Work", "0000000000000010-0000-a");
+    iconed.icon = Some("leaf".into());
+    iconed.icon_color = Some("green".into());
+    iconed.icon_hlc = "0000000000000030-0000-a".into();
+    store.put_book(&iconed).unwrap();
+
+    // A stale copy: a newer name, but an older icon and no colour.
+    let mut stale = book("b1", "Job", "0000000000000040-0000-b");
+    stale.icon = Some("star".into());
+    stale.icon_hlc = "0000000000000020-0000-b".into();
+    store.put_book(&stale).unwrap();
+    let books = store.list_books().unwrap();
+    assert_eq!(books[0].name, "Job");
+    assert_eq!(
+        books[0].icon.as_deref(),
+        Some("leaf"),
+        "the newer icon wins"
+    );
+    assert_eq!(books[0].icon_color.as_deref(), Some("green"));
+    assert_eq!(books[0].icon_hlc, "0000000000000030-0000-a");
+
+    // Reverted to the default: both go, the clock stays.
+    let mut reverted = book("b1", "Job", "0000000000000040-0000-b");
+    reverted.icon_hlc = "0000000000000050-0000-b".into();
+    store.put_book(&reverted).unwrap();
+    let books = store.list_books().unwrap();
+    assert_eq!(
+        (books[0].icon.clone(), books[0].icon_color.clone()),
+        (None, None)
+    );
+    assert_eq!(books[0].icon_hlc, "0000000000000050-0000-b");
+}
+
+#[test]
+fn notebooks_read_an_unknown_icon_or_colour_as_unset() {
+    let (_dir, mut store) = temp_store();
+    store
+        .put_book(&book("b1", "Work", "0000000000000010-0000-a"))
+        .unwrap();
+    // Written by a later catalog and palette, through sync.
+    store
+        .conn
+        .execute(
+            "UPDATE books SET icon = 'some.future.symbol', icon_color = 'teal',
+                              icon_hlc = '0000000000000030-0000-a'",
+            [],
+        )
+        .unwrap();
+    let books = store.list_books().unwrap();
+    assert_eq!(
+        (books[0].icon.clone(), books[0].icon_color.clone()),
+        (None, None)
+    );
+    // A write from this version keeps the stored values (same clock).
+    let mut renamed = book("b1", "Job", "0000000000000040-0000-a");
+    renamed.icon_hlc = books[0].icon_hlc.clone();
+    store.put_book(&renamed).unwrap();
+    let icon: (String, String) = store
+        .conn
+        .query_row("SELECT icon, icon_color FROM books", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .unwrap();
+    assert_eq!(icon, ("some.future.symbol".into(), "teal".into()));
+}
+
+#[test]
+fn the_book_icon_migration_keeps_the_notebooks() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    {
+        // A version 17 database with a notebook.
+        let conn = Connection::open(&path).unwrap();
+        for (index, sql) in MIGRATIONS.iter().take(17).enumerate() {
+            conn.execute_batch(sql).unwrap();
+            conn.pragma_update(None, "user_version", index as u32 + 1)
+                .unwrap();
+        }
+        conn.execute(
+            "INSERT INTO books (id, name, name_hlc, parent_id, parent_hlc, created_at,
+                                updated_at, deleted_at, deleted_hlc, sort_key, sort_key_hlc)
+             VALUES ('b1', 'Work', 'h', NULL, 'h', 1, 1, NULL, NULL, 'a0', 'h')",
+            [],
+        )
+        .unwrap();
+    }
+    let store = Store::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
+    let books = store.list_books().unwrap();
+    assert_eq!(books.len(), 1);
+    assert_eq!(books[0].name, "Work");
+    assert_eq!(
+        (books[0].icon.clone(), books[0].icon_color.clone()),
+        (None, None)
+    );
+    assert_eq!(books[0].icon_hlc, "");
 }
 
 #[test]

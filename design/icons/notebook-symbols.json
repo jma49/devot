@@ -1,0 +1,862 @@
+{
+  "$description": "The SF Symbols a notebook can show as its icon, by category, with extra words the icon picker's search matches. Names only: the app renders them at runtime through AppKit (the symbol_png command). Every name exists on the oldest supported macOS, and none depicts an Apple product or service (docs/adr/0001-sf-symbols-rendered-at-runtime.md).",
+  "categories": [
+    { "id": "people", "icon": "person" },
+    { "id": "nature", "icon": "leaf" },
+    { "id": "communication", "icon": "bubble.left" },
+    { "id": "media", "icon": "music.note" },
+    { "id": "business", "icon": "briefcase" },
+    { "id": "development", "icon": "chevron.left.forwardslash.chevron.right" },
+    { "id": "design", "icon": "paintbrush" },
+    { "id": "files", "icon": "folder" },
+    { "id": "travel", "icon": "airplane" },
+    { "id": "home", "icon": "house" },
+    { "id": "gaming", "icon": "gamecontroller" },
+    { "id": "tools", "icon": "hammer" }
+  ],
+  "symbols": {
+    "person": {
+      "category": "people",
+      "keywords": ["user", "human", "profile"]
+    },
+    "person.fill": {
+      "category": "people",
+      "keywords": ["user", "human", "profile"]
+    },
+    "person.2": {
+      "category": "people",
+      "keywords": ["team", "group", "friends"]
+    },
+    "person.3": {
+      "category": "people",
+      "keywords": ["team", "group", "family"]
+    },
+    "person.crop.circle": {
+      "category": "people",
+      "keywords": ["account", "avatar"]
+    },
+    "person.crop.square": {
+      "category": "people",
+      "keywords": ["contact", "avatar"]
+    },
+    "figure.walk": { "category": "people", "keywords": ["walking", "move"] },
+    "figure.run": {
+      "category": "people",
+      "keywords": ["running", "sport", "fitness"]
+    },
+    "figure.wave": { "category": "people", "keywords": ["hello", "greeting"] },
+    "figure.stand": { "category": "people", "keywords": ["standing"] },
+    "figure.yoga": {
+      "category": "people",
+      "keywords": ["fitness", "health", "meditation"]
+    },
+    "figure.and.child.holdinghands": {
+      "category": "people",
+      "keywords": ["family", "parent", "kids"]
+    },
+    "hand.raised": { "category": "people", "keywords": ["stop", "volunteer"] },
+    "hand.thumbsup": {
+      "category": "people",
+      "keywords": ["like", "approve", "good"]
+    },
+    "hands.clap": {
+      "category": "people",
+      "keywords": ["applause", "celebrate"]
+    },
+    "face.smiling": {
+      "category": "people",
+      "keywords": ["happy", "smile", "emoji"]
+    },
+    "brain.head.profile": {
+      "category": "people",
+      "keywords": ["mind", "think", "psychology"]
+    },
+    "brain": { "category": "people", "keywords": ["mind", "think", "ideas"] },
+    "heart": {
+      "category": "people",
+      "keywords": ["love", "favourite", "health"]
+    },
+    "heart.fill": {
+      "category": "people",
+      "keywords": ["love", "favourite", "health"]
+    },
+    "graduationcap": {
+      "category": "people",
+      "keywords": ["school", "education", "study"]
+    },
+    "eye": { "category": "people", "keywords": ["see", "watch", "vision"] },
+    "ear": { "category": "people", "keywords": ["hear", "listen"] },
+    "mouth": { "category": "people", "keywords": ["speak", "talk"] },
+
+    "leaf": { "category": "nature", "keywords": ["plant", "green", "eco"] },
+    "leaf.fill": {
+      "category": "nature",
+      "keywords": ["plant", "green", "eco"]
+    },
+    "tree": { "category": "nature", "keywords": ["forest", "plant", "wood"] },
+    "camera.macro": {
+      "category": "nature",
+      "keywords": ["flower", "plant", "garden"]
+    },
+    "sun.max": {
+      "category": "nature",
+      "keywords": ["weather", "summer", "day"]
+    },
+    "moon": { "category": "nature", "keywords": ["night", "sleep"] },
+    "moon.stars": {
+      "category": "nature",
+      "keywords": ["night", "sky", "dream"]
+    },
+    "cloud": { "category": "nature", "keywords": ["weather", "sky"] },
+    "cloud.rain": { "category": "nature", "keywords": ["weather", "rainy"] },
+    "cloud.bolt": {
+      "category": "nature",
+      "keywords": ["weather", "storm", "thunder"]
+    },
+    "snowflake": {
+      "category": "nature",
+      "keywords": ["winter", "cold", "snow"]
+    },
+    "flame": { "category": "nature", "keywords": ["fire", "hot"] },
+    "drop": { "category": "nature", "keywords": ["water", "rain"] },
+    "wind": { "category": "nature", "keywords": ["weather", "air"] },
+    "rainbow": { "category": "nature", "keywords": ["weather", "colour"] },
+    "sparkles": { "category": "nature", "keywords": ["magic", "shine", "new"] },
+    "mountain.2": {
+      "category": "nature",
+      "keywords": ["hike", "outdoors", "landscape"]
+    },
+    "globe.americas": {
+      "category": "nature",
+      "keywords": ["world", "earth", "planet"]
+    },
+    "tortoise": {
+      "category": "nature",
+      "keywords": ["animal", "turtle", "slow"]
+    },
+    "hare": { "category": "nature", "keywords": ["animal", "rabbit", "fast"] },
+    "ladybug": {
+      "category": "nature",
+      "keywords": ["animal", "insect", "bug"]
+    },
+    "ant": { "category": "nature", "keywords": ["animal", "insect"] },
+    "bird": { "category": "nature", "keywords": ["animal"] },
+    "fish": { "category": "nature", "keywords": ["animal", "sea"] },
+    "pawprint": {
+      "category": "nature",
+      "keywords": ["animal", "pet", "dog", "cat"]
+    },
+    "carrot": {
+      "category": "nature",
+      "keywords": ["vegetable", "food", "garden"]
+    },
+
+    "bubble.left": {
+      "category": "communication",
+      "keywords": ["message", "chat", "comment"]
+    },
+    "bubble.left.and.bubble.right": {
+      "category": "communication",
+      "keywords": ["conversation", "chat"]
+    },
+    "quote.bubble": {
+      "category": "communication",
+      "keywords": ["quotation", "say"]
+    },
+    "text.bubble": {
+      "category": "communication",
+      "keywords": ["message", "chat"]
+    },
+    "questionmark.bubble": {
+      "category": "communication",
+      "keywords": ["question", "help", "faq"]
+    },
+    "exclamationmark.bubble": {
+      "category": "communication",
+      "keywords": ["alert", "important"]
+    },
+    "captions.bubble": {
+      "category": "communication",
+      "keywords": ["subtitles", "transcript"]
+    },
+    "envelope": {
+      "category": "communication",
+      "keywords": ["mail", "email", "letter"]
+    },
+    "envelope.open": {
+      "category": "communication",
+      "keywords": ["mail", "email", "letter"]
+    },
+    "tray.and.arrow.down": {
+      "category": "communication",
+      "keywords": ["inbox", "receive"]
+    },
+    "paperplane": { "category": "communication", "keywords": ["send", "mail"] },
+    "phone": { "category": "communication", "keywords": ["call", "telephone"] },
+    "megaphone": {
+      "category": "communication",
+      "keywords": ["announce", "marketing", "loud"]
+    },
+    "bell": {
+      "category": "communication",
+      "keywords": ["notification", "reminder", "alert"]
+    },
+    "at": { "category": "communication", "keywords": ["email", "mention"] },
+    "antenna.radiowaves.left.and.right": {
+      "category": "communication",
+      "keywords": ["broadcast", "signal"]
+    },
+    "person.wave.2": {
+      "category": "communication",
+      "keywords": ["speaking", "presentation"]
+    },
+    "signature": {
+      "category": "communication",
+      "keywords": ["sign", "handwriting"]
+    },
+    "globe": {
+      "category": "communication",
+      "keywords": ["web", "internet", "language"]
+    },
+    "character.bubble": {
+      "category": "communication",
+      "keywords": ["language", "translate"]
+    },
+
+    "music.note": { "category": "media", "keywords": ["song", "audio"] },
+    "music.note.list": {
+      "category": "media",
+      "keywords": ["playlist", "songs"]
+    },
+    "music.mic": { "category": "media", "keywords": ["sing", "karaoke"] },
+    "headphones": {
+      "category": "media",
+      "keywords": ["listen", "audio", "podcast"]
+    },
+    "speaker.wave.2": {
+      "category": "media",
+      "keywords": ["sound", "volume", "audio"]
+    },
+    "mic": { "category": "media", "keywords": ["record", "podcast", "voice"] },
+    "waveform": {
+      "category": "media",
+      "keywords": ["audio", "sound", "voice"]
+    },
+    "guitars": {
+      "category": "media",
+      "keywords": ["music", "instrument", "band"]
+    },
+    "pianokeys": { "category": "media", "keywords": ["music", "instrument"] },
+    "radio": { "category": "media", "keywords": ["broadcast", "station"] },
+    "play.circle": { "category": "media", "keywords": ["video", "start"] },
+    "film": { "category": "media", "keywords": ["movie", "cinema", "video"] },
+    "film.stack": {
+      "category": "media",
+      "keywords": ["movies", "videos", "collection"]
+    },
+    "tv": { "category": "media", "keywords": ["television", "show", "series"] },
+    "camera": { "category": "media", "keywords": ["photo", "picture"] },
+    "photo": {
+      "category": "media",
+      "keywords": ["picture", "image", "gallery"]
+    },
+    "photo.on.rectangle": {
+      "category": "media",
+      "keywords": ["pictures", "album", "gallery"]
+    },
+    "theatermasks": {
+      "category": "media",
+      "keywords": ["theatre", "drama", "arts"]
+    },
+    "ticket": { "category": "media", "keywords": ["event", "concert", "show"] },
+    "book": { "category": "media", "keywords": ["read", "reading", "novel"] },
+    "books.vertical": {
+      "category": "media",
+      "keywords": ["library", "reading"]
+    },
+    "newspaper": {
+      "category": "media",
+      "keywords": ["news", "article", "press"]
+    },
+    "magazine": { "category": "media", "keywords": ["read", "publication"] },
+    "recordingtape": {
+      "category": "media",
+      "keywords": ["cassette", "voicemail"]
+    },
+
+    "briefcase": {
+      "category": "business",
+      "keywords": ["work", "job", "office"]
+    },
+    "building.2": {
+      "category": "business",
+      "keywords": ["company", "office", "city"]
+    },
+    "building.columns": {
+      "category": "business",
+      "keywords": ["bank", "government", "museum"]
+    },
+    "chart.bar": {
+      "category": "business",
+      "keywords": ["graph", "statistics", "report"]
+    },
+    "chart.pie": {
+      "category": "business",
+      "keywords": ["graph", "statistics", "budget"]
+    },
+    "chart.line.uptrend.xyaxis": {
+      "category": "business",
+      "keywords": ["growth", "graph", "stocks"]
+    },
+    "dollarsign.circle": {
+      "category": "business",
+      "keywords": ["money", "finance", "price"]
+    },
+    "eurosign.circle": {
+      "category": "business",
+      "keywords": ["money", "finance", "price"]
+    },
+    "banknote": {
+      "category": "business",
+      "keywords": ["money", "cash", "finance"]
+    },
+    "creditcard": {
+      "category": "business",
+      "keywords": ["payment", "money", "card"]
+    },
+    "cart": {
+      "category": "business",
+      "keywords": ["shopping", "buy", "store"]
+    },
+    "bag": { "category": "business", "keywords": ["shopping", "buy"] },
+    "storefront": {
+      "category": "business",
+      "keywords": ["shop", "store", "retail"]
+    },
+    "calendar": {
+      "category": "business",
+      "keywords": ["date", "schedule", "plan"]
+    },
+    "clock": { "category": "business", "keywords": ["time", "hours"] },
+    "target": { "category": "business", "keywords": ["goal", "aim", "focus"] },
+    "flag": { "category": "business", "keywords": ["milestone", "important"] },
+    "list.clipboard": {
+      "category": "business",
+      "keywords": ["tasks", "checklist", "report"]
+    },
+    "chart.bar.doc.horizontal": {
+      "category": "business",
+      "keywords": ["report", "analysis"]
+    },
+    "percent": {
+      "category": "business",
+      "keywords": ["discount", "tax", "rate"]
+    },
+    "tag": { "category": "business", "keywords": ["label", "price"] },
+    "person.text.rectangle": {
+      "category": "business",
+      "keywords": ["card", "badge", "identity"]
+    },
+    "lightbulb": { "category": "business", "keywords": ["idea", "insight"] },
+
+    "chevron.left.forwardslash.chevron.right": {
+      "category": "development",
+      "keywords": ["code", "html", "programming"]
+    },
+    "terminal": {
+      "category": "development",
+      "keywords": ["shell", "console", "command line"]
+    },
+    "curlybraces": {
+      "category": "development",
+      "keywords": ["code", "json", "programming"]
+    },
+    "function": {
+      "category": "development",
+      "keywords": ["math", "formula", "code"]
+    },
+    "cpu": {
+      "category": "development",
+      "keywords": ["processor", "chip", "hardware"]
+    },
+    "memorychip": {
+      "category": "development",
+      "keywords": ["ram", "hardware"]
+    },
+    "server.rack": {
+      "category": "development",
+      "keywords": ["backend", "hosting", "infrastructure"]
+    },
+    "network": {
+      "category": "development",
+      "keywords": ["connection", "graph"]
+    },
+    "externaldrive": {
+      "category": "development",
+      "keywords": ["disk", "storage", "backup"]
+    },
+    "cylinder.split.1x2": {
+      "category": "development",
+      "keywords": ["database", "storage", "sql"]
+    },
+    "cube": {
+      "category": "development",
+      "keywords": ["package", "3d", "model"]
+    },
+    "square.stack.3d.up": {
+      "category": "development",
+      "keywords": ["layers", "stack"]
+    },
+    "point.3.connected.trianglepath.dotted": {
+      "category": "development",
+      "keywords": ["graph", "nodes", "network"]
+    },
+    "arrow.triangle.branch": {
+      "category": "development",
+      "keywords": ["git", "branch", "version"]
+    },
+    "arrow.triangle.merge": {
+      "category": "development",
+      "keywords": ["git", "merge", "version"]
+    },
+    "arrow.triangle.2.circlepath": {
+      "category": "development",
+      "keywords": ["sync", "refresh", "cycle"]
+    },
+    "number": { "category": "development", "keywords": ["hash", "count"] },
+    "keyboard": { "category": "development", "keywords": ["typing", "input"] },
+    "command": { "category": "development", "keywords": ["shortcut", "key"] },
+    "wifi": {
+      "category": "development",
+      "keywords": ["wireless", "internet", "network"]
+    },
+    "lock.shield": {
+      "category": "development",
+      "keywords": ["security", "privacy"]
+    },
+    "qrcode": { "category": "development", "keywords": ["scan", "code"] },
+    "barcode": { "category": "development", "keywords": ["scan", "product"] },
+    "atom": {
+      "category": "development",
+      "keywords": ["science", "physics", "react"]
+    },
+    "ladybug.fill": {
+      "category": "development",
+      "keywords": ["bug", "debug", "issue"]
+    },
+
+    "paintbrush": {
+      "category": "design",
+      "keywords": ["paint", "art", "style"]
+    },
+    "paintbrush.pointed": {
+      "category": "design",
+      "keywords": ["paint", "art", "draw"]
+    },
+    "paintpalette": {
+      "category": "design",
+      "keywords": ["colour", "art", "paint"]
+    },
+    "swatchpalette": { "category": "design", "keywords": ["colour", "theme"] },
+    "pencil": { "category": "design", "keywords": ["write", "edit", "draw"] },
+    "pencil.line": {
+      "category": "design",
+      "keywords": ["draw", "write", "sketch"]
+    },
+    "pencil.and.outline": {
+      "category": "design",
+      "keywords": ["draw", "sketch"]
+    },
+    "highlighter": { "category": "design", "keywords": ["mark", "highlight"] },
+    "scribble": {
+      "category": "design",
+      "keywords": ["draw", "sketch", "handwriting"]
+    },
+    "scribble.variable": {
+      "category": "design",
+      "keywords": ["draw", "sketch"]
+    },
+    "eyedropper": { "category": "design", "keywords": ["colour", "picker"] },
+    "lasso": { "category": "design", "keywords": ["select", "selection"] },
+    "crop": { "category": "design", "keywords": ["image", "resize"] },
+    "camera.filters": {
+      "category": "design",
+      "keywords": ["colour", "effects"]
+    },
+    "wand.and.stars": {
+      "category": "design",
+      "keywords": ["magic", "effects", "auto"]
+    },
+    "textformat": {
+      "category": "design",
+      "keywords": ["typography", "font", "text"]
+    },
+    "character": {
+      "category": "design",
+      "keywords": ["typography", "font", "letter"]
+    },
+    "square.on.circle": {
+      "category": "design",
+      "keywords": ["shapes", "geometry"]
+    },
+    "triangle": { "category": "design", "keywords": ["shape", "geometry"] },
+    "diamond": { "category": "design", "keywords": ["shape", "geometry"] },
+    "hexagon": { "category": "design", "keywords": ["shape", "geometry"] },
+    "seal": { "category": "design", "keywords": ["badge", "shape"] },
+    "circle.hexagongrid": {
+      "category": "design",
+      "keywords": ["pattern", "grid"]
+    },
+    "square.grid.2x2": {
+      "category": "design",
+      "keywords": ["layout", "grid", "apps"]
+    },
+    "rectangle.3.group": {
+      "category": "design",
+      "keywords": ["layout", "wireframe"]
+    },
+    "perspective": { "category": "design", "keywords": ["3d", "transform"] },
+
+    "folder": { "category": "files", "keywords": ["directory", "files"] },
+    "folder.fill": { "category": "files", "keywords": ["directory", "files"] },
+    "doc": { "category": "files", "keywords": ["document", "file", "page"] },
+    "doc.text": {
+      "category": "files",
+      "keywords": ["document", "file", "text"]
+    },
+    "doc.richtext": {
+      "category": "files",
+      "keywords": ["document", "article"]
+    },
+    "doc.plaintext": { "category": "files", "keywords": ["document", "text"] },
+    "doc.on.doc": {
+      "category": "files",
+      "keywords": ["copy", "documents", "duplicate"]
+    },
+    "doc.zipper": {
+      "category": "files",
+      "keywords": ["archive", "zip", "compressed"]
+    },
+    "lock.doc": {
+      "category": "files",
+      "keywords": ["private", "secure", "document"]
+    },
+    "note.text": { "category": "files", "keywords": ["note", "memo"] },
+    "book.closed": {
+      "category": "files",
+      "keywords": ["notebook", "journal", "default"]
+    },
+    "text.book.closed": {
+      "category": "files",
+      "keywords": ["notebook", "manual", "guide"]
+    },
+    "bookmark": {
+      "category": "files",
+      "keywords": ["saved", "favourite", "later"]
+    },
+    "archivebox": {
+      "category": "files",
+      "keywords": ["archive", "storage", "old"]
+    },
+    "tray": { "category": "files", "keywords": ["inbox", "drawer"] },
+    "tray.full": { "category": "files", "keywords": ["inbox", "drawer"] },
+    "tray.2": { "category": "files", "keywords": ["drawers", "storage"] },
+    "paperclip": { "category": "files", "keywords": ["attachment", "attach"] },
+    "link": { "category": "files", "keywords": ["url", "chain", "web"] },
+    "list.bullet": { "category": "files", "keywords": ["list", "items"] },
+    "checklist": { "category": "files", "keywords": ["todo", "tasks", "done"] },
+    "list.number": {
+      "category": "files",
+      "keywords": ["list", "ordered", "steps"]
+    },
+    "clipboard": { "category": "files", "keywords": ["paste", "notes"] },
+    "menucard": { "category": "files", "keywords": ["menu", "card", "recipe"] },
+    "shippingbox": {
+      "category": "files",
+      "keywords": ["package", "delivery", "box"]
+    },
+    "square.and.arrow.down": {
+      "category": "files",
+      "keywords": ["download", "save", "import"]
+    },
+
+    "airplane": {
+      "category": "travel",
+      "keywords": ["flight", "plane", "trip"]
+    },
+    "airplane.departure": {
+      "category": "travel",
+      "keywords": ["flight", "takeoff", "trip"]
+    },
+    "car": { "category": "travel", "keywords": ["drive", "vehicle", "road"] },
+    "bus": { "category": "travel", "keywords": ["transit", "transport"] },
+    "tram": {
+      "category": "travel",
+      "keywords": ["train", "transit", "transport"]
+    },
+    "train.side.front.car": {
+      "category": "travel",
+      "keywords": ["rail", "transit"]
+    },
+    "ferry": { "category": "travel", "keywords": ["boat", "ship", "sea"] },
+    "sailboat": {
+      "category": "travel",
+      "keywords": ["boat", "sailing", "sea"]
+    },
+    "bicycle": {
+      "category": "travel",
+      "keywords": ["bike", "cycling", "ride"]
+    },
+    "scooter": { "category": "travel", "keywords": ["ride", "transport"] },
+    "fuelpump": { "category": "travel", "keywords": ["gas", "petrol", "fuel"] },
+    "map": {
+      "category": "travel",
+      "keywords": ["navigation", "route", "place"]
+    },
+    "mappin": {
+      "category": "travel",
+      "keywords": ["location", "place", "pin"]
+    },
+    "mappin.and.ellipse": {
+      "category": "travel",
+      "keywords": ["location", "place"]
+    },
+    "location": {
+      "category": "travel",
+      "keywords": ["navigation", "gps", "direction"]
+    },
+    "signpost.right": {
+      "category": "travel",
+      "keywords": ["direction", "road", "way"]
+    },
+    "binoculars": {
+      "category": "travel",
+      "keywords": ["explore", "watch", "search"]
+    },
+    "suitcase": {
+      "category": "travel",
+      "keywords": ["luggage", "trip", "holiday"]
+    },
+    "suitcase.rolling": {
+      "category": "travel",
+      "keywords": ["luggage", "trip", "holiday"]
+    },
+    "tent": { "category": "travel", "keywords": ["camping", "outdoors"] },
+    "beach.umbrella": {
+      "category": "travel",
+      "keywords": ["holiday", "vacation", "summer"]
+    },
+    "globe.europe.africa": {
+      "category": "travel",
+      "keywords": ["world", "earth", "trip"]
+    },
+    "road.lanes": {
+      "category": "travel",
+      "keywords": ["road", "drive", "highway"]
+    },
+    "figure.hiking": {
+      "category": "travel",
+      "keywords": ["hike", "trail", "outdoors"]
+    },
+
+    "house": { "category": "home", "keywords": ["home", "building"] },
+    "house.fill": { "category": "home", "keywords": ["home", "building"] },
+    "bed.double": {
+      "category": "home",
+      "keywords": ["sleep", "bedroom", "hotel"]
+    },
+    "sofa": {
+      "category": "home",
+      "keywords": ["couch", "living room", "furniture"]
+    },
+    "chair": { "category": "home", "keywords": ["seat", "furniture"] },
+    "lamp.desk": { "category": "home", "keywords": ["light", "study"] },
+    "fork.knife": {
+      "category": "home",
+      "keywords": ["food", "eat", "restaurant", "recipe"]
+    },
+    "cup.and.saucer": {
+      "category": "home",
+      "keywords": ["coffee", "tea", "cafe"]
+    },
+    "mug": { "category": "home", "keywords": ["coffee", "tea", "drink"] },
+    "wineglass": { "category": "home", "keywords": ["wine", "drink", "party"] },
+    "birthday.cake": {
+      "category": "home",
+      "keywords": ["birthday", "party", "celebrate"]
+    },
+    "gift": {
+      "category": "home",
+      "keywords": ["present", "birthday", "wishlist"]
+    },
+    "refrigerator": {
+      "category": "home",
+      "keywords": ["fridge", "kitchen", "food"]
+    },
+    "oven": {
+      "category": "home",
+      "keywords": ["kitchen", "baking", "cooking"]
+    },
+    "frying.pan": {
+      "category": "home",
+      "keywords": ["kitchen", "cooking", "recipe"]
+    },
+    "washer": { "category": "home", "keywords": ["laundry", "chores"] },
+    "shower": { "category": "home", "keywords": ["bathroom"] },
+    "bathtub": { "category": "home", "keywords": ["bathroom", "bath"] },
+    "toilet": { "category": "home", "keywords": ["bathroom"] },
+    "door.left.hand.open": {
+      "category": "home",
+      "keywords": ["door", "entrance"]
+    },
+    "fireplace": { "category": "home", "keywords": ["fire", "cosy", "winter"] },
+    "fan": { "category": "home", "keywords": ["air", "cool"] },
+    "tshirt": {
+      "category": "home",
+      "keywords": ["clothes", "fashion", "wardrobe"]
+    },
+    "basket": { "category": "home", "keywords": ["shopping", "groceries"] },
+    "trash": { "category": "home", "keywords": ["bin", "rubbish", "delete"] },
+    "spigot": { "category": "home", "keywords": ["water", "tap", "garden"] },
+
+    "gamecontroller": {
+      "category": "gaming",
+      "keywords": ["game", "play", "console"]
+    },
+    "arcade.stick": {
+      "category": "gaming",
+      "keywords": ["game", "joystick", "retro"]
+    },
+    "dice": {
+      "category": "gaming",
+      "keywords": ["game", "board game", "random"]
+    },
+    "die.face.5": {
+      "category": "gaming",
+      "keywords": ["game", "dice", "random"]
+    },
+    "puzzlepiece": {
+      "category": "gaming",
+      "keywords": ["puzzle", "game", "plugin"]
+    },
+    "suit.heart": { "category": "gaming", "keywords": ["cards", "poker"] },
+    "suit.spade": { "category": "gaming", "keywords": ["cards", "poker"] },
+    "suit.club": { "category": "gaming", "keywords": ["cards", "poker"] },
+    "suit.diamond": { "category": "gaming", "keywords": ["cards", "poker"] },
+    "trophy": {
+      "category": "gaming",
+      "keywords": ["award", "win", "achievement"]
+    },
+    "medal": {
+      "category": "gaming",
+      "keywords": ["award", "win", "achievement"]
+    },
+    "rosette": { "category": "gaming", "keywords": ["award", "prize"] },
+    "crown": { "category": "gaming", "keywords": ["king", "queen", "winner"] },
+    "flag.checkered": { "category": "gaming", "keywords": ["race", "finish"] },
+    "flag.2.crossed": {
+      "category": "gaming",
+      "keywords": ["race", "competition"]
+    },
+    "shield": { "category": "gaming", "keywords": ["defence", "protect"] },
+    "star": {
+      "category": "gaming",
+      "keywords": ["favourite", "rating", "level"]
+    },
+    "bolt": { "category": "gaming", "keywords": ["power", "energy", "fast"] },
+    "soccerball": { "category": "gaming", "keywords": ["football", "sport"] },
+    "basketball": { "category": "gaming", "keywords": ["sport", "ball"] },
+    "football": {
+      "category": "gaming",
+      "keywords": ["american football", "sport"]
+    },
+    "tennis.racket": { "category": "gaming", "keywords": ["sport", "tennis"] },
+    "sportscourt": {
+      "category": "gaming",
+      "keywords": ["sport", "court", "field"]
+    },
+    "figure.bowling": {
+      "category": "gaming",
+      "keywords": ["bowling", "sport"]
+    },
+
+    "hammer": {
+      "category": "tools",
+      "keywords": ["build", "fix", "construction"]
+    },
+    "wrench": {
+      "category": "tools",
+      "keywords": ["fix", "repair", "settings"]
+    },
+    "wrench.and.screwdriver": {
+      "category": "tools",
+      "keywords": ["fix", "repair", "maintenance"]
+    },
+    "screwdriver": { "category": "tools", "keywords": ["fix", "repair"] },
+    "gearshape": {
+      "category": "tools",
+      "keywords": ["settings", "preferences", "config"]
+    },
+    "gearshape.2": {
+      "category": "tools",
+      "keywords": ["settings", "mechanism"]
+    },
+    "slider.horizontal.3": {
+      "category": "tools",
+      "keywords": ["settings", "adjust", "controls"]
+    },
+    "magnifyingglass": {
+      "category": "tools",
+      "keywords": ["search", "find", "research"]
+    },
+    "scissors": { "category": "tools", "keywords": ["cut", "craft"] },
+    "ruler": { "category": "tools", "keywords": ["measure", "length"] },
+    "level": { "category": "tools", "keywords": ["measure", "balance"] },
+    "flashlight.on.fill": {
+      "category": "tools",
+      "keywords": ["torch", "light"]
+    },
+    "pin": { "category": "tools", "keywords": ["pinned", "important"] },
+    "lock": {
+      "category": "tools",
+      "keywords": ["private", "secure", "password"]
+    },
+    "key": {
+      "category": "tools",
+      "keywords": ["password", "access", "secret"]
+    },
+    "stopwatch": { "category": "tools", "keywords": ["time", "timer"] },
+    "timer": { "category": "tools", "keywords": ["time", "countdown"] },
+    "alarm": { "category": "tools", "keywords": ["clock", "wake", "reminder"] },
+    "hourglass": { "category": "tools", "keywords": ["time", "waiting"] },
+    "gauge.with.dots.needle.33percent": {
+      "category": "tools",
+      "keywords": ["speed", "performance", "meter"]
+    },
+    "thermometer.medium": {
+      "category": "tools",
+      "keywords": ["temperature", "weather"]
+    },
+    "bandage": {
+      "category": "tools",
+      "keywords": ["health", "first aid", "medical"]
+    },
+    "cross.case": {
+      "category": "tools",
+      "keywords": ["first aid", "medical", "health"]
+    },
+    "pills": { "category": "tools", "keywords": ["medicine", "health"] },
+    "stethoscope": {
+      "category": "tools",
+      "keywords": ["doctor", "medical", "health"]
+    },
+    "testtube.2": {
+      "category": "tools",
+      "keywords": ["science", "lab", "experiment"]
+    },
+    "flask": {
+      "category": "tools",
+      "keywords": ["science", "lab", "chemistry"]
+    }
+  }
+}

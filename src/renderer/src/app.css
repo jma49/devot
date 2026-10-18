@@ -300,7 +300,13 @@ button {
 
 /* Sidebar: the window material shows through its tint. */
 .sidebar {
-  width: var(--size-sidebar-width);
+  position: relative;
+  /* The width the user dragged its right edge to (Sidebar sets --sidebar-width). */
+  width: var(--sidebar-width, var(--size-sidebar-width));
+  /* In a narrow window the note list shrinks to its minimum first and the
+     editor keeps its two panes; only then does the sidebar give way. */
+  max-width: calc(100% - var(--size-list-min-width) - var(--size-pane-min-width) * 2);
+  min-width: var(--size-sidebar-min-width);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -511,6 +517,91 @@ button {
 
 /* Notebooks. */
 /* The label is centred on its tools (search, add, the section's chevron). */
+/* A workspace's title (Sidebar.tsx): Go Up a Level, the notebook's icon,
+   and its name under the notebooks above it. It fits the narrowest sidebar:
+   the names shorten with an ellipsis, the back button and icon keep their size. */
+.sidebar-workspace {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  margin-bottom: var(--space-3);
+}
+
+.sidebar-workspace-back {
+  flex-shrink: 0;
+}
+
+.sidebar-workspace-back .icon {
+  background-color: var(--color-text-secondary);
+}
+
+.sidebar-workspace-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-sidebar-row);
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border-radius: var(--radius-button);
+  outline: none;
+}
+
+.sidebar-workspace-title .icon {
+  flex-shrink: 0;
+  background-color: var(--color-accent-text);
+}
+
+.sidebar .sidebar-workspace-title:focus-visible:not(.menu-target) {
+  box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
+}
+
+.sidebar-workspace-names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-workspace-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-semibold);
+}
+
+.sidebar-workspace-path {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--font-size-caption2);
+  color: var(--color-text-tertiary);
+}
+
+.sidebar-workspace-parent {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-workspace-parent:hover {
+  color: var(--color-text-secondary);
+}
+
+.sidebar-workspace-parent + .sidebar-workspace-parent::before {
+  content: '/';
+  padding-inline: var(--space-1);
+}
+
 .section-header {
   display: flex;
   align-items: center;
@@ -624,6 +715,10 @@ button {
 
 .chevron[data-turn='up'] {
   rotate: 180deg;
+}
+
+.chevron[data-turn='left'] {
+  rotate: 90deg;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1147,19 +1242,21 @@ button {
   font-size: var(--font-size-footnote);
 }
 
-/* The right edge: drag it to make the list wider or narrower. */
-.list-resize {
+/* The right edge: drag it to make the pane wider or narrower. */
+.list-resize,
+.sidebar-resize {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
   z-index: 1;
-  width: var(--size-list-resize-handle);
+  width: var(--size-pane-resize-handle);
   cursor: col-resize;
 }
 
 /* The keyboard is on the edge: arrow keys resize, Enter resets. */
-.list-resize:focus-visible {
+.list-resize:focus-visible,
+.sidebar-resize:focus-visible {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--size-focus-ring));
 }
@@ -1589,8 +1686,20 @@ button {
   overflow: clip;
 }
 
+/* The content keeps the width of the open sidebar while it slides shut, but
+   never more than the sidebar can have in this window (its max-width above,
+   floored at its minimum): a wider one would spill under the note list. */
 .sidebar > * {
-  min-width: calc(var(--size-sidebar-width) - var(--space-5) * 2 - 1px);
+  min-width: calc(
+    max(
+        var(--size-sidebar-min-width),
+        min(
+          var(--sidebar-width, var(--size-sidebar-width)),
+          100vw - var(--size-list-min-width) - var(--size-pane-min-width) * 2
+        )
+      ) -
+      var(--space-5) * 2 - 1px
+  );
 }
 
 .list > * {
@@ -1598,7 +1707,8 @@ button {
 }
 
 /* The resize edge stays a thin strip. */
-.list > .list-resize {
+.list > .list-resize,
+.sidebar-resize {
   min-width: 0;
 }
 
@@ -3943,6 +4053,95 @@ button.popup:focus-visible {
   background: var(--color-fill-track);
   color: var(--color-text-secondary);
   font: inherit;
+}
+
+/* A notebook icon in a palette colour, wherever it shows (sidebar, pickers,
+   the palette, the icon picker's grid). A selected or drop-target row keeps
+   its own icon colour (those rules are more specific). */
+.icon.book-icon-colored,
+.popup .icon.book-icon-colored:first-child {
+  background-color: var(--tag-color);
+}
+
+/* Change Notebook Icon: search, a tab per category, a grid of symbols. */
+.sheet.notebook-icon {
+  width: calc(var(--size-list-width) * 1.75);
+  max-width: calc(100vw - var(--space-10) * 2);
+}
+
+.icon-tabs {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-4);
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.icon-tab,
+.icon-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.icon-tab {
+  width: var(--space-10);
+  height: var(--space-10);
+  color: var(--color-text-secondary);
+}
+
+.icon-tab:hover,
+.icon-cell:hover {
+  background: var(--color-fill-hover);
+  color: var(--color-text-primary);
+}
+
+.icon-tab[aria-selected='true'],
+.icon-cell[aria-pressed='true'] {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.icon-cell[aria-pressed='true'] .icon {
+  background-color: var(--color-accent-on-fill);
+}
+
+.icon-tab:focus-visible,
+.icon-cell:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+.icon-grid-box {
+  height: calc(var(--size-dialog-row) * 9);
+  overflow-y: auto;
+  padding: var(--space-4) 0;
+}
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--space-10), 1fr));
+  gap: var(--space-2);
+}
+
+.icon-cell {
+  aspect-ratio: 1;
+}
+
+.icon-grid-empty {
+  margin: 0;
+  padding: var(--space-9);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.icon-actions {
+  justify-content: space-between;
 }
 
 /* A note link's hover card in the preview: the tooltip bubble, wider, with its

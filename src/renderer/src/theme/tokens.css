@@ -41,11 +41,13 @@
   --radius-floating-bar: 14px;
   --radius-dialog: 12px;
   --size-sidebar-width: 200px;
+  --size-sidebar-min-width: 170px;
+  --size-sidebar-max-width: 500px;
   --size-list-width: 320px;
   --size-list-min-width: 220px;
   --size-list-default-width: 300px;
   --size-list-max-width: 500px;
-  --size-list-resize-handle: 4px;
+  --size-pane-resize-handle: 4px;
   --size-list-focus-bar: 5px;
   --size-list-row-inset: 15px;
   --size-drag-card-min-width: 60px;

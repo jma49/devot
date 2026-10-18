@@ -22,7 +22,9 @@ import { keyMatches, shortcutAccelerator, shortcutCodeMirror, type KeyPress } fr
  * - `list`: any note list, the Trash's too;
  * - `noteList`: the note list of the library or of search results;
  * - `trashList`: the note list in the Trash;
- * - `notebookRow`, `tagRow`: a notebook or tag row in the sidebar.
+ * - `notebookRow`, `tagRow`: a notebook or tag row in the sidebar;
+ * - `sidebarRow`: any other sidebar row (All Notes, Pinned, a status,
+ *   Templates, the Trash, a workspace's title).
  */
 export type CommandScope =
   | 'window'
@@ -35,6 +37,7 @@ export type CommandScope =
   | 'trashList'
   | 'notebookRow'
   | 'tagRow'
+  | 'sidebarRow'
 
 /** The scope each scope lies within; keys of a scope also work in its parent. */
 const SCOPE_PARENT: Readonly<Record<CommandScope, CommandScope | null>> = {
@@ -48,6 +51,7 @@ const SCOPE_PARENT: Readonly<Record<CommandScope, CommandScope | null>> = {
   trashList: 'list',
   notebookRow: 'sidebar',
   tagRow: 'sidebar',
+  sidebarRow: 'sidebar',
 }
 
 /** How commands are grouped (for a shortcuts list, and the palette's order). */
@@ -364,6 +368,14 @@ export const COMMANDS = [
     palette: false,
   },
   {
+    id: 'notebook.openWorkspace',
+    label: 'bookMenu.openWorkspace',
+    group: 'notebook',
+    scope: 'notebookRow',
+    keys: [],
+    palette: false,
+  },
+  {
     id: 'notebook.copyId',
     label: 'bookMenu.copyId',
     group: 'notebook',
@@ -385,6 +397,14 @@ export const COMMANDS = [
     group: 'notebook',
     scope: 'notebookRow',
     keys: ['Enter', 'F2'],
+    palette: false,
+  },
+  {
+    id: 'notebook.changeIcon',
+    label: 'bookMenu.changeIcon',
+    group: 'notebook',
+    scope: 'notebookRow',
+    keys: [],
     palette: false,
   },
   {
@@ -467,6 +487,25 @@ export const COMMANDS = [
     keys: ['Backspace', 'Delete'],
     palette: false,
   },
+  // In a workspace: up to the parent notebook's workspace, or out of
+  // workspaces at the top level. Backspace on the rows where it deletes
+  // nothing; Command+Up (the enclosing folder) on every row.
+  {
+    id: 'sidebar.workspaceUp',
+    label: 'command.workspaceUp',
+    group: 'view',
+    scope: 'sidebarRow',
+    keys: ['Backspace'],
+    palette: false,
+  },
+  {
+    id: 'sidebar.workspaceUpFromAnyRow',
+    label: 'command.workspaceUp',
+    group: 'view',
+    scope: 'sidebar',
+    keys: ['Mod+ArrowUp'],
+    palette: false,
+  },
   // A tag row in the sidebar.
   {
     id: 'tag.rename',
@@ -524,6 +563,13 @@ export const COMMANDS = [
     keys: [],
   },
   { id: 'view.trash', label: 'command.showTrash', group: 'view', scope: 'window', keys: [] },
+  {
+    id: 'view.leaveWorkspace',
+    label: 'command.leaveWorkspace',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
   { id: 'view.edit', label: 'command.modeEdit', group: 'view', scope: 'window', keys: [] },
   {
     id: 'view.togglePreview',
@@ -545,6 +591,14 @@ export const COMMANDS = [
   {
     id: 'view.syncScroll',
     label: 'command.syncScrollOn',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
+  // The note list's date style (an editor setting; also in the sort pop-up).
+  {
+    id: 'view.toggleListDates',
+    label: 'command.showAbsoluteDates',
     group: 'view',
     scope: 'window',
     keys: [],
@@ -1573,7 +1627,11 @@ export function editorCommandKeys(id: CommandId): string[] {
 const FORMAT_PREFIX = 'format.'
 
 /** The editor's format commands: their ID, the format each applies and their keys. */
-function formatCommands(): { id: CommandId; format: FormatId; keys: readonly string[] }[] {
+function formatCommands(): {
+  id: CommandId
+  format: FormatId
+  keys: readonly string[]
+}[] {
   return COMMANDS.flatMap((c) =>
     c.scope === 'editor' && c.id.startsWith(FORMAT_PREFIX)
       ? [
