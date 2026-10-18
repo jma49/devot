@@ -1270,7 +1270,7 @@ fn look_up_font(style: &super::LookUpStyle) -> Retained<NSFont> {
             Some(NSFont::monospacedSystemFontOfSize_weight(size, weight))
         }
         super::FontSource::Installed(family) => installed_font(family, style, size),
-        super::FontSource::File(bytes) => file_font(bytes, size),
+        super::FontSource::File(bytes) => file_font(bytes, size, weight, style.italic),
     });
     let font = found.unwrap_or_else(|| NSFont::systemFontOfSize_weight(size, weight));
     if !style.italic {
@@ -1316,11 +1316,53 @@ unsafe extern "C" {
         size: f64,
         matrix: *const std::ffi::c_void,
     ) -> *mut AnyObject;
+    /// Returns a new copy of a descriptor's attribute, or null.
+    fn CTFontDescriptorCopyAttribute(
+        descriptor: *const AnyObject,
+        attribute: *const AnyObject,
+    ) -> *mut AnyObject;
+    /// The traits attribute: a CFDictionary of the keys below.
+    #[allow(non_upper_case_globals)]
+    static kCTFontTraitsAttribute: *const AnyObject;
+    /// The weight trait: a CFNumber from -1 to 1 (the NSFontWeight scale).
+    #[allow(non_upper_case_globals)]
+    static kCTFontWeightTrait: *const AnyObject;
+    /// The symbolic traits: a CFNumber of bits (`kCTFontTraitItalic` is 1).
+    #[allow(non_upper_case_globals)]
+    static kCTFontSymbolicTrait: *const AnyObject;
 }
 
-/// The first face of an imported font file's (checked) bytes at `size`,
-/// made for this call only: nothing is registered with the system.
-fn file_font(bytes: &[u8], size: f64) -> Option<Retained<NSFont>> {
+/// `kCTFontTraitItalic`, the italic bit of the symbolic traits.
+const ITALIC_TRAIT: u32 = 1 << 0;
+
+/// A font descriptor's weight trait and whether it is italic; None when it
+/// has no weight to read.
+fn face_traits(descriptor: &AnyObject) -> Option<(f64, bool)> {
+    // SAFETY: `descriptor` is a live CTFontDescriptor and the attribute an
+    // immutable CoreText constant; the result is a +1 CFDictionary (toll-free
+    // bridged with NSDictionary) or null, owned here.
+    let traits: Retained<NSDictionary<NSString, AnyObject>> = unsafe {
+        let made = CTFontDescriptorCopyAttribute(descriptor, kCTFontTraitsAttribute);
+        Retained::from_raw(made.cast())?
+    };
+    let number = |key: *const AnyObject| {
+        // SAFETY: `key` is an immutable CoreText CFString constant (toll-free
+        // bridged with NSString), valid for the life of the process.
+        let key = unsafe { key.cast::<NSString>().as_ref() }?;
+        traits.objectForKey(key)?.downcast::<NSNumber>().ok()
+    };
+    // SAFETY: reading immutable CoreText constants.
+    let (weight_key, symbolic_key) = unsafe { (kCTFontWeightTrait, kCTFontSymbolicTrait) };
+    let weight = number(weight_key)?.as_f64();
+    let symbolic = number(symbolic_key).map_or(0, |bits| bits.as_u32());
+    Some((weight, symbolic & ITALIC_TRAIT != 0))
+}
+
+/// The face of an imported font file's (checked) bytes closest to `weight`
+/// (the NSFontWeight scale) and `italic`, the first when none can be told
+/// apart, at `size`; made for this call only: nothing is registered with
+/// the system.
+fn file_font(bytes: &[u8], size: f64, weight: f64, italic: bool) -> Option<Retained<NSFont>> {
     let data = NSData::with_bytes(bytes);
     // SAFETY: NSData is toll-free bridged with CFData; the function returns
     // a +1 CFArray (toll-free bridged with NSArray) or null, owned here.
@@ -1328,12 +1370,14 @@ fn file_font(bytes: &[u8], size: f64) -> Option<Retained<NSFont>> {
         let made = CTFontManagerCreateFontDescriptorsFromData(Retained::as_ptr(&data).cast());
         Retained::from_raw(made.cast())?
     };
-    let descriptor = descriptors.firstObject()?;
+    let descriptors: Vec<_> = descriptors.iter().collect();
+    let faces: Vec<_> = descriptors.iter().map(|face| face_traits(face)).collect();
+    let descriptor = descriptors.get(super::closest_face(&faces, weight, italic))?;
     // SAFETY: `descriptor` is a CTFontDescriptor from the array above; a null
     // matrix is the identity; the result is a +1 CTFont, which is an NSFont.
     unsafe {
         let made =
-            CTFontCreateWithFontDescriptor(Retained::as_ptr(&descriptor), size, std::ptr::null());
+            CTFontCreateWithFontDescriptor(Retained::as_ptr(descriptor), size, std::ptr::null());
         Retained::from_raw(made.cast())
     }
 }
@@ -1541,11 +1585,22 @@ pub fn self_test_look_up_fonts() -> Result<(), &'static str> {
     // A font file's face, read from its bytes only.
     if let Ok(bytes) = std::fs::read("/System/Library/Fonts/Menlo.ttc") {
         let from_file = look_up_font(&super::LookUpStyle {
-            sources: vec![FontSource::File(bytes)],
+            sources: vec![FontSource::File(bytes.clone())],
             ..look_up_style(None, |_| None)
         });
         if family(&from_file).as_deref() != Some("Menlo") {
             return Err("E_LOOK_UP_FONT_FILE");
+        }
+        // Of its several faces, the one with the text's weight and italic.
+        let bold_italic = font("\"Devot Font Menlo ttf\"", 700.0, true, Some(bytes.clone()));
+        if family(&bold_italic).as_deref() != Some("Menlo")
+            || !traits(&bold_italic).contains(wanted)
+        {
+            return Err("E_LOOK_UP_FONT_FILE_FACE");
+        }
+        let regular = font("\"Devot Font Menlo ttf\"", 400.0, false, Some(bytes));
+        if traits(&regular).intersects(wanted) {
+            return Err("E_LOOK_UP_FONT_FILE_FACE");
         }
     }
     Ok(())

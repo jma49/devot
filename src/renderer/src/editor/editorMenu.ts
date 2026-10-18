@@ -16,6 +16,7 @@ import {
   type MenuPoint,
 } from '../contextMenu'
 import {
+  fontDescent,
   leadingSpace,
   lookUpFont,
   lookUpLabel,
@@ -226,7 +227,7 @@ export function lookUpTarget(view: EditorView): { at: MenuPoint; font: LookUpFon
   const element = elementAt(view, start)
   const style = element ? getComputedStyle(element) : null
   return {
-    at: lookUpOrigin(box, style ? descentOf(style) : 0),
+    at: lookUpOrigin(box, style ? fontDescent(style) : 0),
     font: style ? lookUpFont(style) : null,
   }
 }
@@ -237,15 +238,4 @@ function elementAt(view: EditorView, pos: number): Element | null {
   // A position between an element's children is the start of the next one.
   const at = node instanceof Element ? (node.childNodes[offset] ?? node) : node
   return at instanceof Element ? at : at.parentElement
-}
-
-/** The descent of a computed style's font, in CSS pixels (a fifth of its size when unknown). */
-function descentOf(style: CSSStyleDeclaration): number {
-  const context = document.createElement('canvas').getContext('2d')
-  if (context && style.font) {
-    context.font = style.font
-    const descent = context.measureText('x').fontBoundingBoxDescent
-    if (Number.isFinite(descent) && descent > 0) return descent
-  }
-  return (parseFloat(style.fontSize) || 0) / 5
 }

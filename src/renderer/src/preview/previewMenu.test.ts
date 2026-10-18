@@ -3,6 +3,7 @@ import { shownGroups } from '../contextMenu'
 import { t } from '../i18n'
 import {
   PREVIEW_MENU,
+  firstCharacter,
   openableHref,
   previewMenuTarget,
   type PreviewMenuTarget,
@@ -54,5 +55,36 @@ describe('the links the menu copies', () => {
     })
     expect(previewMenuTarget(null, '   ')).toEqual({ link: null, selection: null })
     expect(previewMenuTarget(null, undefined)).toEqual({ link: null, selection: null })
+  })
+})
+
+describe('the character Look Up starts at in the preview', () => {
+  it('skips white space, across runs, from the start of the selected part', () => {
+    expect(firstCharacter([{ text: 'one two', start: 3, end: 7 }])).toEqual({
+      run: 0,
+      offset: 4,
+      length: 1,
+    })
+    expect(
+      firstCharacter([
+        { text: 'end  ', start: 3, end: 5 },
+        { text: '\n', start: 0, end: 1 },
+        { text: ' next', start: 0, end: 3 },
+      ]),
+    ).toEqual({ run: 2, offset: 1, length: 1 })
+  })
+
+  it('takes a surrogate pair whole', () => {
+    expect(firstCharacter([{ text: ' \u{1d400}b', start: 0, end: 4 }])).toEqual({
+      run: 0,
+      offset: 1,
+      length: 2,
+    })
+  })
+
+  it('is null for white space or nothing', () => {
+    expect(firstCharacter([{ text: 'word  ', start: 4, end: 6 }])).toBeNull()
+    expect(firstCharacter([{ text: 'word', start: 2, end: 2 }])).toBeNull()
+    expect(firstCharacter([])).toBeNull()
   })
 })
