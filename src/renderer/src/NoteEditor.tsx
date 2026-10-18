@@ -774,7 +774,7 @@ export function NoteEditor({
               pasteUrls,
               pastePlainKeys(),
               newFromSelectionKeys(),
-              editorMenu((view, at, pos) => menuOpener.current(view, at, pos)),
+              editorMenu((target, at, pos) => menuOpener.current(target, at, pos)),
               lineCommands((href) => {
                 const note = /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)
                 if (note?.[1]) noteOpener.current?.(note[1])
