@@ -211,7 +211,7 @@ describe('scans of short terms', () => {
     // Search text is trimmed, so only a query built by hand has a short term
     // with a line break: that one may run from the title into the body.
     const across = await storage.searchNotes(
-      { text: [{ field: 'any', value: 'a\n', negate: false }], sets: [], pinned: false },
+      { text: [{ field: 'any', value: 'a\n', negate: false }], sets: [], pinned: null },
       50,
     )
     expect(across.map((n) => ids.get(n.id))).toEqual(expected('a\n', 'any', false, listed))

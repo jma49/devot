@@ -223,7 +223,7 @@ export function searchStatement(
       )
     }
   }
-  if (query.pinned) where.push('n.pinned = 1')
+  if (query.pinned != null) where.push(query.pinned ? 'n.pinned = 1' : 'n.pinned = 0')
   const hits = ranked.length
     ? `WITH hits AS MATERIALIZED (SELECT rowid AS rid, bm25(notes_fts) AS score
           FROM notes_fts WHERE notes_fts MATCH ${param(ftsQuery(ranked))})`

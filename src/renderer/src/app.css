@@ -1050,15 +1050,11 @@ button {
 
 .list-filter .search-field input {
   align-self: stretch;
-  padding-inline: 0 calc(var(--space-6) + var(--space-1));
+  padding-inline: 0;
 }
 
 .list-filter .search-field > input:first-child {
   padding-inline-start: var(--space-4);
-}
-
-.list-filter .search-field:has(.search-clear) input {
-  padding-inline-end: 0;
 }
 
 .sort-chip {
@@ -2276,6 +2272,76 @@ button {
   border: 0;
   background: transparent;
   color: var(--color-text-tertiary);
+}
+
+/* The syntax list a field's "?" button opens: under the field, over the list. */
+.search-field-box {
+  position: relative;
+  width: 100%;
+}
+
+.search-help-button {
+  flex: none;
+  align-self: stretch;
+  width: var(--size-filter-icon-slot);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.search-help-button:hover,
+.search-help-button[aria-expanded='true'] {
+  color: var(--color-text-primary);
+}
+
+.search-help-button:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+
+.search-help {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  left: 0;
+  z-index: 10;
+  box-sizing: border-box;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  box-shadow: var(--popover-shadow);
+  transform-origin: top right;
+  animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
+}
+
+.search-help-intro {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-secondary);
+}
+
+.search-help dl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.search-help dt {
+  font-family: var(--font-family-mono);
+  overflow-wrap: anywhere;
+}
+
+.search-help dd {
+  margin: 0;
+  color: var(--color-text-secondary);
 }
 
 /* Trash. */

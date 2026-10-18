@@ -157,6 +157,57 @@ describe('parseSearch', () => {
     expect(parseSearch('tag:""')).toEqual([any('tag:""')])
   })
 
+  it('reads bookId:, tagId: and pinned:, and excludes them', () => {
+    const id = '0192A6F0-0000-7000-8000-0000000000B1'
+    expect(parseSearch(`bookId:${id} -tagid:${id} PINNED:Yes -pinned:0 pinned:"false"`)).toEqual([
+      { field: 'bookId', value: id.toLowerCase(), negate: false },
+      { field: 'tagId', value: id.toLowerCase(), negate: true },
+      { field: 'pinned', value: 'true', negate: false },
+      { field: 'pinned', value: 'false', negate: true },
+      { field: 'pinned', value: 'false', negate: false },
+    ])
+  })
+
+  it('reads a malformed ID or pinned value as plain text', () => {
+    expect(parseSearch('bookId:abc tagId: pinned:maybe pinned:""')).toEqual([
+      any('bookId:abc'),
+      any('tagId:'),
+      any('pinned:maybe'),
+      any('pinned:""'),
+    ])
+    // A UUID of another version is no ID of Devot's.
+    expect(parseSearch('bookId:0192a6f0-0000-4000-8000-0000000000b1')).toEqual([
+      any('bookId:0192a6f0-0000-4000-8000-0000000000b1'),
+    ])
+  })
+
+  it('reads single-quoted phrases where a clause or a value starts, and apostrophes as letters', () => {
+    expect(parseSearch("'sync plan' -'old plan' book:'Weekly notes' title:'a b'")).toEqual([
+      any('sync plan'),
+      any('old plan', true),
+      { field: 'book', value: 'Weekly notes', negate: false },
+      { field: 'title', value: 'a b', negate: false },
+    ])
+    // The closing quote is the one before a space: 'don't stop' is one phrase.
+    expect(parseSearch("'don't stop' next")).toEqual([any("don't stop"), any('next')])
+    // Double quotes inside single ones, and single inside double, are letters.
+    expect(parseSearch(`'say "hi"' "it's"`)).toEqual([any('say "hi"'), any("it's")])
+    expect(parseSearch("don't 'tis rock'n'roll")).toEqual([
+      any("don't"),
+      any("'tis"),
+      any("rock'n'roll"),
+    ])
+  })
+
+  it('reads an unclosed single quote as text, and an empty phrase as nothing', () => {
+    expect(parseSearch("'unclosed phrase")).toEqual([any("'unclosed"), any('phrase')])
+    expect(parseSearch("book:'unclosed")).toEqual([
+      { field: 'book', value: "'unclosed", negate: false },
+    ])
+    expect(parseSearch("x '' y")).toEqual([any('x'), any('y')])
+    expect(parseSearch("tag:''")).toEqual([any("tag:''")])
+  })
+
   it('keeps at most ten clauses of at most 100 characters', () => {
     expect(parseSearch(Array.from({ length: 12 }, (_, i) => `w${i}`).join(' '))).toHaveLength(10)
     expect(parseSearch(`title:${'x'.repeat(150)}`)[0]?.value).toHaveLength(100)
@@ -205,7 +256,7 @@ describe('resolveSearch', () => {
         { kind: 'tag', ids: ['s'], negate: false },
         { kind: 'tag', ids: ['r'], negate: false },
       ],
-      pinned: false,
+      pinned: null,
     })
   })
 
@@ -214,7 +265,7 @@ describe('resolveSearch', () => {
     expect(resolveSearch(parseSearch('-tag:nowhere plan'), { books, tags })).toEqual({
       text: [{ field: 'any', value: 'plan', negate: false }],
       sets: [],
-      pinned: false,
+      pinned: null,
     })
   })
 
@@ -244,6 +295,61 @@ describe('resolveSearch', () => {
       { kind: 'tag', ids: ['s'], negate: false },
     ])
     expect(view({ bookId: null, filter: { kind: 'pinned' } })?.pinned).toBe(true)
+    expect(view({ bookId: null, filter: null })?.pinned).toBeNull()
+  })
+
+  it('reads pinned: as a three-way choice, and -pinned: as its opposite', () => {
+    const pinned = (q: string, scope?: SearchScope) =>
+      resolveSearch(parseSearch(q), { books, tags, scope })?.pinned
+    expect(pinned('x pinned:true')).toBe(true)
+    expect(pinned('x pinned:false')).toBe(false)
+    expect(pinned('x -pinned:true')).toBe(false)
+    expect(pinned('x -pinned:false')).toBe(true)
+    expect(pinned('x pinned:true pinned:yes')).toBe(true)
+    // Contradictions match nothing, also with the view's Pinned filter.
+    expect(resolveSearch(parseSearch('pinned:true pinned:no'), { books, tags })).toBeNull()
+    const scope: SearchScope = { bookId: null, filter: { kind: 'pinned' } }
+    expect(resolveSearch(parseSearch('pinned:false'), { books, tags, scope })).toBeNull()
+    expect(pinned('pinned:true', scope)).toBe(true)
+  })
+
+  const ids = {
+    work: '0192a6f0-0000-7000-8000-0000000000a1',
+    sub: '0192a6f0-0000-7000-8000-0000000000a2',
+    home: '0192a6f0-0000-7000-8000-0000000000a3',
+    tag: '0192a6f0-0000-7000-8000-0000000000c1',
+  }
+  const byId = [book(ids.work, 'Work'), book(ids.sub, 'Sub', ids.work), book(ids.home, 'Home')]
+  const byIdTags = [tag(ids.tag, 'Sync')]
+
+  it('finds a notebook by ID with its sub-notebooks, and a tag by ID', () => {
+    const q = resolveSearch(parseSearch(`bookId:${ids.work} -tagId:${ids.tag.toUpperCase()}`), {
+      books: byId,
+      tags: byIdTags,
+    })
+    expect(q?.sets).toEqual([
+      { kind: 'book', ids: [ids.work, ids.sub], negate: false },
+      { kind: 'tag', ids: [ids.tag], negate: true },
+    ])
+  })
+
+  it('matches nothing for an unknown ID, and excludes nothing for an excluded one', () => {
+    const unknown = '0192a6f0-0000-7000-8000-0000000000ff'
+    const context = { books: byId, tags: byIdTags }
+    expect(resolveSearch(parseSearch(`bookId:${unknown}`), context)).toBeNull()
+    expect(resolveSearch(parseSearch(`tagId:${unknown}`), context)).toBeNull()
+    expect(
+      resolveSearch(parseSearch(`x -bookId:${unknown} -tagId:${unknown}`), context)?.sets,
+    ).toEqual([])
+  })
+
+  it('names only the notebooks it may name by ID', () => {
+    const nameable = [byId[2]!]
+    const context = { books: byId, tags: byIdTags, nameable }
+    expect(resolveSearch(parseSearch(`bookId:${ids.work}`), context)).toBeNull()
+    expect(resolveSearch(parseSearch(`bookId:${ids.home}`), context)?.sets).toEqual([
+      { kind: 'book', ids: [ids.home], negate: false },
+    ])
   })
 })
 
@@ -413,14 +519,14 @@ describe('qualifiers combined with full-text search on SQLite', () => {
       week: await note(s.notes, 'Week 41', 'plan the week; relay later', weekly),
       loose: await note(s.notes, 'Loose plan', `a ${SYNC} plan in no notebook`, null),
     }
-    await s.tags.addToNote(ids.relay, 'sync')
+    const sync = await s.tags.addToNote(ids.relay, 'sync')
     await s.tags.addToNote(ids.editor, 'Sync')
     await s.tags.addToNote(ids.week, 'to read')
     await s.notes.setStatus(ids.relay, 'active')
     await s.notes.setStatus(ids.week, 'on_hold')
     await s.notes.setPinned(ids.editor, true)
     await s.notes.flush()
-    return { ...s, books: { work, projects, weekly }, ids, bookService: s.books }
+    return { ...s, books: { work, projects, weekly }, tagIds: { sync }, ids, bookService: s.books }
   }
 
   it('narrows by notebook, including sub-notebooks, by name in any case', async () => {
@@ -443,6 +549,25 @@ describe('qualifiers combined with full-text search on SQLite', () => {
     expect(await titles(notes, 'status:on_hold')).toEqual(['Week 41'])
     expect(await titles(notes, 'plan status:"no status"')).toEqual(['Editor plan', 'Loose plan'])
     expect(await titles(notes, 'plan -status:none')).toEqual(['Relay plan', 'Week 41'])
+  })
+
+  it('narrows by pinned state, and by notebook and tag ID', async () => {
+    const { notes, books, tagIds } = await world()
+    expect(await titles(notes, 'plan pinned:true')).toEqual(['Editor plan'])
+    expect(await titles(notes, 'plan -pinned:false')).toEqual(['Editor plan'])
+    expect(await titles(notes, 'plan pinned:no')).toEqual(['Loose plan', 'Relay plan', 'Week 41'])
+    expect(await titles(notes, 'plan -pinned:true')).toEqual([
+      'Loose plan',
+      'Relay plan',
+      'Week 41',
+    ])
+    expect(await titles(notes, 'plan pinned:true pinned:false')).toEqual([])
+    expect(
+      await titles(notes, 'plan pinned:false', { bookId: null, filter: { kind: 'pinned' } }),
+    ).toEqual([])
+    expect(await titles(notes, `bookId:${books.work}`)).toEqual(['Editor plan', 'Relay plan'])
+    expect(await titles(notes, `plan -bookId:${books.work}`)).toEqual(['Loose plan', 'Week 41'])
+    expect(await titles(notes, `tagId:${tagIds.sync} pinned:false`)).toEqual(['Relay plan'])
   })
 
   it('looks in the title or the body only, and excludes words and phrases', async () => {
