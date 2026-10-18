@@ -47,14 +47,55 @@ export function lookUpOrigin(start: { left: number; bottom: number }, descent: n
   return { x: start.left, y: start.bottom - Math.max(0, descent) }
 }
 
-/** Shows the system dictionary for `text` at a point in the window; a failure is logged by code. */
-export function lookUp(selection: string, at: MenuPoint): Promise<void> {
+/**
+ * The font the dictionary draws the word in, so its highlight covers the
+ * text (Rust: `LookUpFont`): the CSS font list, the size in pixels, the
+ * weight and whether it is italic.
+ */
+export interface LookUpFont {
+  family: string
+  size: number
+  weight: number
+  italic: boolean
+}
+
+/** The parts of a computed style Look Up reads its font from. */
+export type FontStyle = Pick<
+  CSSStyleDeclaration,
+  'fontFamily' | 'fontSize' | 'fontWeight' | 'fontStyle'
+>
+
+/**
+ * The Look Up font of a character's computed style; null when it has no
+ * size or font list (Rust then uses the system font).
+ */
+export function lookUpFont(style: FontStyle): LookUpFont | null {
+  const size = parseFloat(style.fontSize)
+  if (!Number.isFinite(size) || size <= 0 || style.fontFamily.trim() === '') return null
+  const weight = style.fontWeight === 'bold' ? 700 : parseFloat(style.fontWeight) || 400
+  return {
+    family: style.fontFamily,
+    size,
+    weight,
+    italic: /^(italic|oblique)\b/.test(style.fontStyle),
+  }
+}
+
+/**
+ * Shows the system dictionary for `text` at a point in the window, the word
+ * drawn in `font` (the system font without it); a failure is logged by code.
+ */
+export function lookUp(
+  selection: string,
+  at: MenuPoint,
+  font: LookUpFont | null = null,
+): Promise<void> {
   // The dictionary takes a word or a phrase; a point above or left of the
   // window (a caret scrolled out of sight) is clamped to its edge.
   const text = Array.from(selection).slice(0, MAX_LOOK_UP_CHARS).join('').trim()
   const x = Math.max(0, at.x)
   const y = Math.max(0, at.y)
-  return invoke<void>('text_look_up', { text, x, y }).catch((error: unknown) =>
+  return invoke<void>('text_look_up', { text, x, y, font }).catch((error: unknown) =>
     console.warn('W_LOOK_UP_FAILED', error instanceof Error ? error.message : ''),
   )
 }

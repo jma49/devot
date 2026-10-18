@@ -28,7 +28,7 @@ import {
   EDITOR_MENU,
   editorMenu,
   editorMenuTarget,
-  lookUpPoint,
+  lookUpTarget,
   replaceWord,
   spellingWordAt,
   type WordRange,
@@ -746,9 +746,11 @@ export function NoteEditor({
         return
       }
       case 'lookUp':
-        // From the selection's first character, so the highlight covers the word.
-        if (target.selection !== null)
-          void lookUp(target.selection, lookUpPoint(view) ?? menuAt.current)
+        // From the selection's first character, in its font, so the highlight covers the word.
+        if (target.selection !== null) {
+          const look = lookUpTarget(view)
+          void lookUp(target.selection, look?.at ?? menuAt.current, look?.font)
+        }
         return
       case 'newNote':
         view.state.facet(newFromSelection)?.()

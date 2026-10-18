@@ -28,6 +28,12 @@ fn main() {
             .expect("a web view answers to Look Up and Speech, and a missing selector is refused");
         println!("main_thread: Look Up and Speech selectors answer on a web view; guards refuse");
 
+        macos::self_test_look_up_fonts()
+            .expect("Look Up draws its word in the font the page names, or the system font");
+        println!(
+            "main_thread: Look Up fonts resolve: system, monospaced, installed with traits, file, fallback"
+        );
+
         macos::self_test_editor_menu()
             .expect("the editor's menu offers guesses, the page's and the system's items");
         println!(

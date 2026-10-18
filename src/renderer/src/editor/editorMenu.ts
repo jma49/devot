@@ -15,7 +15,14 @@ import {
   type MenuGroups,
   type MenuPoint,
 } from '../contextMenu'
-import { leadingSpace, lookUpLabel, lookUpOrigin, lookUpSelection } from '../textServices'
+import {
+  leadingSpace,
+  lookUpFont,
+  lookUpLabel,
+  lookUpOrigin,
+  lookUpSelection,
+  type LookUpFont,
+} from '../textServices'
 import { selectedText } from './extract'
 import { linkAt } from './lineCommands'
 import { registryKeys } from './registryKeys'
@@ -204,25 +211,36 @@ export const editorMenu = (open: OpenEditorMenu): Extension => [
 ]
 
 /**
- * Where Look Up gets the main selection (see `lookUpOrigin`): its first
- * character after any white space, on that character's own line when the
- * selection wraps; null without a selection or when it is out of view.
+ * Where Look Up gets the main selection (see `lookUpOrigin`) and the font it
+ * draws the word in: its first character after any white space, on that
+ * character's own line when the selection wraps; null without a selection
+ * or when it is out of view.
  */
-export function lookUpPoint(view: EditorView): MenuPoint | null {
+export function lookUpTarget(view: EditorView): { at: MenuPoint; font: LookUpFont | null } | null {
   const { from, to, empty } = view.state.selection.main
   if (empty) return null
   const start = from + leadingSpace(view.state.sliceDoc(from, to))
   // Side 1: a start at the end of a visual line is the next line's first character.
   const box = view.coordsAtPos(start, 1)
-  return box ? lookUpOrigin(box, descentAt(view, start)) : null
+  if (!box) return null
+  const element = elementAt(view, start)
+  const style = element ? getComputedStyle(element) : null
+  return {
+    at: lookUpOrigin(box, style ? descentOf(style) : 0),
+    font: style ? lookUpFont(style) : null,
+  }
 }
 
-/** The descent of the font at a position, in CSS pixels (a fifth of its size when unknown). */
-function descentAt(view: EditorView, pos: number): number {
-  const { node } = view.domAtPos(pos)
-  const element = node instanceof Element ? node : node.parentElement
-  if (!element) return 0
-  const style = getComputedStyle(element)
+/** The element that holds the character at a position. */
+function elementAt(view: EditorView, pos: number): Element | null {
+  const { node, offset } = view.domAtPos(pos)
+  // A position between an element's children is the start of the next one.
+  const at = node instanceof Element ? (node.childNodes[offset] ?? node) : node
+  return at instanceof Element ? at : at.parentElement
+}
+
+/** The descent of a computed style's font, in CSS pixels (a fifth of its size when unknown). */
+function descentOf(style: CSSStyleDeclaration): number {
   const context = document.createElement('canvas').getContext('2d')
   if (context && style.font) {
     context.font = style.font
