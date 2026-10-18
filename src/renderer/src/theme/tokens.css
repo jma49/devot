@@ -17,6 +17,7 @@
   --font-size-editor-h3: 15px;
   --font-size-row: 14px;
   --font-weight-regular: 400;
+  --font-weight-extralight: 200;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
   --space-1: 2px;
@@ -39,7 +40,7 @@
   --radius-popover: 8px;
   --radius-floating-bar: 14px;
   --radius-dialog: 12px;
-  --size-sidebar-width: 232px;
+  --size-sidebar-width: 200px;
   --size-list-width: 320px;
   --size-list-min-width: 220px;
   --size-list-default-width: 300px;
@@ -87,6 +88,8 @@
   --size-switch-height: 20px;
   --size-switch-inset: 2px;
   --size-float-separator-height: 20px;
+  --size-filter-field-height: 30px;
+  --size-filter-icon-slot: 37.4px;
   --motion-duration-color: 400ms;
   --motion-duration-ring: 200ms;
   --motion-duration-popover: 150ms;
@@ -96,6 +99,7 @@
   --motion-duration-toggle: 200ms;
   --motion-duration-dialog: 200ms;
   --motion-duration-backdrop: 2000ms;
+  --motion-duration-icon: 300ms;
   --motion-easing-standard: cubic-bezier(0.42, 0, 0.58, 1);
   --motion-easing-out: cubic-bezier(0, 0, 0.58, 1);
   --motion-scale-popover-enter: 0.92;
@@ -118,6 +122,8 @@
   --opacity-tag-fill-active: 0.2;
   --opacity-tag-border-active: 0.3;
   --opacity-tag-dot: 0.3;
+  --opacity-count: 0.6;
+  --opacity-filter-icon: 0.3;
   --color-surface-sidebar: rgb(243 244 246 / 0.7);
   --color-surface-sidebar-opaque: #f3f4f6;
   --color-surface-list: #fafaf9;
@@ -140,6 +146,7 @@
   --color-line-control: rgb(28 27 25 / 0.2);
   --color-line-shadow: rgb(0 0 0 / 0.14);
   --color-line-float-bar: rgb(23 23 23 / 0.1);
+  --color-line-field: rgb(23 23 23 / 0.1);
   --color-fill-track: rgb(23 23 23 / 0.055);
   --color-fill-scrollbar: rgb(23 23 23 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -153,6 +160,7 @@
   --color-fill-tool-hover: rgb(28 27 25 / 0.09);
   --color-fill-hover: rgb(0 0 0 / 0.05);
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
+  --color-fill-field: #ffffff;
   --color-accent-fill: var(--system-accent-fill-light, #3472d6);
   --color-accent-text: var(--system-accent-text-light, #2856a2);
   --color-accent-hover: #2463eb;
@@ -255,6 +263,7 @@
     --color-line-control: rgb(235 232 226 / 0.18);
     --color-line-shadow: rgb(0 0 0 / 0.45);
     --color-line-float-bar: rgb(245 245 245 / 0.1);
+    --color-line-field: rgb(245 245 245 / 0.1);
     --color-fill-track: rgb(245 245 245 / 0.07);
     --color-fill-scrollbar: rgb(245 245 245 / 0.25);
     --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -268,6 +277,7 @@
     --color-fill-tool-hover: rgb(235 232 226 / 0.12);
     --color-fill-hover: rgb(255 255 255 / 0.08);
     --color-fill-backdrop: rgb(0 0 0 / 0.3);
+    --color-fill-field: #171717;
     --color-accent-fill: var(--system-accent-fill-dark, #4576b2);
     --color-accent-text: var(--system-accent-text-dark, #7ea6d8);
     --color-accent-hover: #2463eb;
@@ -371,6 +381,7 @@
   --color-line-control: rgb(235 232 226 / 0.18);
   --color-line-shadow: rgb(0 0 0 / 0.45);
   --color-line-float-bar: rgb(245 245 245 / 0.1);
+  --color-line-field: rgb(245 245 245 / 0.1);
   --color-fill-track: rgb(245 245 245 / 0.07);
   --color-fill-scrollbar: rgb(245 245 245 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -384,6 +395,7 @@
   --color-fill-tool-hover: rgb(235 232 226 / 0.12);
   --color-fill-hover: rgb(255 255 255 / 0.08);
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
+  --color-fill-field: #171717;
   --color-accent-fill: var(--system-accent-fill-dark, #4576b2);
   --color-accent-text: var(--system-accent-text-dark, #7ea6d8);
   --color-accent-hover: #2463eb;
@@ -486,6 +498,7 @@
   --color-line-control: rgb(28 27 25 / 0.2);
   --color-line-shadow: rgb(0 0 0 / 0.14);
   --color-line-float-bar: rgb(23 23 23 / 0.1);
+  --color-line-field: rgb(23 23 23 / 0.1);
   --color-fill-track: rgb(23 23 23 / 0.055);
   --color-fill-scrollbar: rgb(23 23 23 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -499,6 +512,7 @@
   --color-fill-tool-hover: rgb(28 27 25 / 0.09);
   --color-fill-hover: rgb(0 0 0 / 0.05);
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
+  --color-fill-field: #ffffff;
   --color-accent-fill: var(--system-accent-fill-light, #3472d6);
   --color-accent-text: var(--system-accent-text-light, #2856a2);
   --color-accent-hover: #2463eb;
@@ -601,6 +615,7 @@
   --color-line-control: rgb(31 30 29 / 0.3);
   --color-line-shadow: rgb(31 30 29 / 0.14);
   --color-line-float-bar: rgb(31 30 29 / 0.1);
+  --color-line-field: rgb(31 30 29 / 0.1);
   --color-fill-track: rgb(31 30 29 / 0.055);
   --color-fill-scrollbar: rgb(31 30 29 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -614,6 +629,7 @@
   --color-fill-tool-hover: rgb(31 30 29 / 0.09);
   --color-fill-hover: rgb(31 30 29 / 0.05);
   --color-fill-backdrop: rgb(31 30 29 / 0.3);
+  --color-fill-field: #ffffff;
   --color-accent-fill: #3472d6;
   --color-accent-text: #2856a2;
   --color-accent-hover: #2463eb;
@@ -716,6 +732,7 @@
     --color-line-control: rgb(250 249 245 / 0.3);
     --color-line-shadow: rgb(31 30 29 / 0.45);
     --color-line-float-bar: rgb(250 249 245 / 0.1);
+    --color-line-field: rgb(250 249 245 / 0.1);
     --color-fill-track: rgb(250 249 245 / 0.07);
     --color-fill-scrollbar: rgb(250 249 245 / 0.25);
     --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -729,6 +746,7 @@
     --color-fill-tool-hover: rgb(250 249 245 / 0.12);
     --color-fill-hover: rgb(250 249 245 / 0.08);
     --color-fill-backdrop: rgb(31 30 29 / 0.5);
+    --color-fill-field: #1f1e1d;
     --color-accent-fill: #5884ba;
     --color-accent-text: #a2bfe3;
     --color-accent-hover: #2463eb;
@@ -832,6 +850,7 @@
   --color-line-control: rgb(250 249 245 / 0.3);
   --color-line-shadow: rgb(31 30 29 / 0.45);
   --color-line-float-bar: rgb(250 249 245 / 0.1);
+  --color-line-field: rgb(250 249 245 / 0.1);
   --color-fill-track: rgb(250 249 245 / 0.07);
   --color-fill-scrollbar: rgb(250 249 245 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -845,6 +864,7 @@
   --color-fill-tool-hover: rgb(250 249 245 / 0.12);
   --color-fill-hover: rgb(250 249 245 / 0.08);
   --color-fill-backdrop: rgb(31 30 29 / 0.5);
+  --color-fill-field: #1f1e1d;
   --color-accent-fill: #5884ba;
   --color-accent-text: #a2bfe3;
   --color-accent-hover: #2463eb;
@@ -947,6 +967,7 @@
   --color-line-control: rgb(31 30 29 / 0.3);
   --color-line-shadow: rgb(31 30 29 / 0.14);
   --color-line-float-bar: rgb(31 30 29 / 0.1);
+  --color-line-field: rgb(31 30 29 / 0.1);
   --color-fill-track: rgb(31 30 29 / 0.055);
   --color-fill-scrollbar: rgb(31 30 29 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -960,6 +981,7 @@
   --color-fill-tool-hover: rgb(31 30 29 / 0.09);
   --color-fill-hover: rgb(31 30 29 / 0.05);
   --color-fill-backdrop: rgb(31 30 29 / 0.3);
+  --color-fill-field: #ffffff;
   --color-accent-fill: #3472d6;
   --color-accent-text: #2856a2;
   --color-accent-hover: #2463eb;

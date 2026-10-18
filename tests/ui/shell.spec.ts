@@ -52,13 +52,30 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   await expect(list).toBeVisible()
   await expect(editor).toBeVisible()
 
-  expect((await sidebar.boundingBox())?.width).toBe(232)
+  expect((await sidebar.boundingBox())?.width).toBe(200)
   expect((await list.boundingBox())?.width).toBe(300)
   expect(await css(page.locator('body'), 'font-size')).toBe('13px')
 
   const allNotes = sidebar.getByRole('button', { name: /All Notes/ })
   expect((await allNotes.boundingBox())?.height).toBe(30)
   await expect(allNotes).toHaveAttribute('aria-current', 'true')
+  // Row counts: small, light, faded on the row's own colour.
+  const count = allNotes.locator('.source-count')
+  expect(await css(count, 'font-size')).toBe('10px')
+  expect(await css(count, 'font-weight')).toBe('200')
+  expect(await css(count, 'opacity')).toBe('0.6')
+
+  // The Filter field: 30 tall, a funnel slot at rest; a query swaps it for
+  // the clear button at the end.
+  const field = list.locator('.search-field')
+  expect((await field.boundingBox())?.height).toBe(30)
+  await expect(field.locator('.search-icon')).toHaveCount(1)
+  expect((await field.locator('.search-icon').boundingBox())?.width).toBeCloseTo(37.4, 0)
+  await field.locator('input').fill('x')
+  await expect(field.locator('.search-icon')).toHaveCount(0)
+  await expect(field.getByRole('button', { name: 'Clear search' })).toBeVisible()
+  expect(await css(field.locator('input'), 'padding-left')).toBe('8px')
+  await field.locator('input').fill('')
 
   // The unified toolbar over list and editor, and the sidebar's title bar.
   const bars = page.locator('[data-devot-part=toolbar], [data-devot-part=sidebar-titlebar]')

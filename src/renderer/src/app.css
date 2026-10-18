@@ -364,9 +364,11 @@ button {
 }
 
 .source-count {
-  font-size: var(--font-size-footnote);
+  margin-inline: var(--space-2);
+  font-size: var(--font-size-caption2);
+  font-weight: var(--font-weight-extralight);
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-tertiary);
+  opacity: var(--opacity-count);
 }
 
 /* The selected row of the sidebar (a pressed filter, the view shown, the
@@ -917,6 +919,53 @@ button {
   width: 100%;
 }
 
+/* The note list's Filter field: an outlined white field (dark: near black).
+   At rest a faint funnel sits in a slot at its start; once a query is typed
+   the funnel goes and the clear button takes a slot at its end, so the text
+   moves to the start. */
+.list-filter .search-field {
+  gap: 0;
+  height: var(--size-filter-field-height);
+  margin-block: var(--space-1);
+  padding: 0;
+  background: var(--color-fill-field);
+  box-shadow: inset 0 0 0 1px var(--color-line-field);
+}
+
+.list-filter .search-field:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-focus-ring);
+}
+
+.list-filter .search-icon,
+.list-filter .search-clear {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  width: var(--size-filter-icon-slot);
+}
+
+.list-filter .search-icon {
+  opacity: var(--opacity-filter-icon);
+  transition: opacity var(--motion-duration-icon) var(--motion-easing-standard);
+}
+
+.list-filter .search-field:focus-within > .search-icon {
+  opacity: 1;
+}
+
+.list-filter .search-field input {
+  align-self: stretch;
+  padding-inline: 0 calc(var(--space-6) + var(--space-1));
+}
+
+.list-filter .search-field > input:first-child {
+  padding-inline-start: var(--space-4);
+}
+
+.list-filter .search-field:has(.search-clear) input {
+  padding-inline-end: 0;
+}
+
 .sort-chip {
   height: calc(var(--space-8) + var(--space-1));
   padding: 0 var(--space-4);
@@ -979,7 +1028,7 @@ button {
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow-wrap: anywhere;
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-row);
   font-weight: var(--font-weight-semibold);
 }
 
