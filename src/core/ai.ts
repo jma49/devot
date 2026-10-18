@@ -16,7 +16,7 @@ import { buildBookTree, createBookService, flattenBookTree, TEMPLATES_BOOK_ID } 
 import type { Clock } from './hlc'
 import { UUID_V7 } from './ids'
 import { MAX_NOTE_LINKS, noteLinks } from './links'
-import { MAX_TITLE_CHARS } from './noteLimits'
+import { MAX_BODY_BYTES, MAX_TITLE_CHARS } from './noteLimits'
 import { createNoteService } from './notes'
 import { escapeRegExp, highlightTerms, parseSearch, resolveSearch } from './search'
 import {
@@ -27,8 +27,8 @@ import {
   type NoteSummary,
   type StorageAdapter,
 } from './storage'
-import { createTagService, MAX_TAG_NAME_CHARS, sameName } from './tags'
-import { charCount, lineFeeds, trimWhitespace } from './text'
+import { cleanTagName, createTagService, sameName } from './tags'
+import { lineFeeds, trimWhitespace } from './text'
 
 export const AI_SEARCH_LIMIT = 20
 export const MAX_AI_SEARCH_LIMIT = 50
@@ -202,11 +202,15 @@ function cleanTitle(title: string): string {
   return clean
 }
 
-/** Throws unless the app could save `body` (size, note links). */
-function checkBody(body: string): void {
-  if (new TextEncoder().encode(body).length > MAX_AI_BODY_BYTES) {
-    throw new Error('E_NOTE_BODY_TOO_LARGE')
-  }
+const bytes = (text: string) => new TextEncoder().encode(text).length
+
+/**
+ * Throws unless the app could save `body`: at most `limit` bytes (what AI
+ * may send as a whole body, or what a note may hold once patched) and no
+ * more note links than the app saves.
+ */
+function checkBody(body: string, limit = MAX_AI_BODY_BYTES): void {
+  if (bytes(body) > limit) throw new Error('E_NOTE_BODY_TOO_LARGE')
   // The app would refuse to save the note again (E_NOTE_LINKS_TOO_MANY).
   if (noteLinks(body).length > MAX_NOTE_LINKS) throw new Error('E_NOTE_LINKS_TOO_MANY')
 }
@@ -220,6 +224,9 @@ export function applyPatches(body: string, patches: readonly AiPatch[]): string 
   if (patches.length === 0 || patches.length > MAX_AI_PATCHES) {
     throw new Error('E_AI_PATCHES_INVALID')
   }
+  // What AI sends is limited as a whole body is; the note may be larger.
+  const sent = patches.reduce((sum, p) => sum + bytes(p.find) + bytes(p.replace), 0)
+  if (sent > MAX_AI_BODY_BYTES) throw new Error('E_NOTE_BODY_TOO_LARGE')
   let text = body
   for (const patch of patches) {
     const find = lineFeeds(patch.find)
@@ -240,11 +247,7 @@ function cleanTagNames(names: readonly string[]): string[] {
   if (names.length > MAX_AI_TAGS) throw new Error('E_AI_TAGS_TOO_MANY')
   const out: string[] = []
   for (const name of names) {
-    const clean = trimWhitespace(name)
-    // As the tag service checks it, before anything is written.
-    if (!clean || /[\r\n]/.test(clean) || charCount(clean) > MAX_TAG_NAME_CHARS) {
-      throw new Error('E_TAG_NAME_INVALID')
-    }
+    const clean = cleanTagName(name)
     if (!out.some((n) => sameName(n, clean))) out.push(clean)
   }
   return out
@@ -296,17 +299,25 @@ export function createAiService(options: AiServiceOptions): AiService {
     return { record, book }
   }
 
-  /** Makes the note's tags exactly `names` (see AiNoteUpdate.tags). */
-  const setTags = async (noteId: string, names: readonly string[]) => {
-    const wanted = cleanTagNames(names)
+  /**
+   * Makes the note's tags exactly `wanted` (clean names, see cleanTagNames).
+   * Tag names are unique: a name an existing tag has, in any case, puts that
+   * tag on the note, wherever else it is used.
+   */
+  const setTags = async (noteId: string, wanted: readonly string[]) => {
     const current = await storage.noteTags(noteId)
     for (const tag of current) {
       if (!wanted.some((name) => sameName(name, tag.name))) {
         await tagService.removeFromNote(noteId, tag.id)
       }
     }
-    for (const name of wanted) {
-      if (!current.some((tag) => sameName(tag.name, name))) await tagService.addToNote(noteId, name)
+    const missing = wanted.filter((name) => !current.some((tag) => sameName(tag.name, name)))
+    if (missing.length === 0) return
+    const all = await tagService.list()
+    for (const name of missing) {
+      const existing = all.find((tag) => sameName(tag.name, name))
+      const tagId = existing?.id ?? (await tagService.ensure(name))
+      await tagService.putOnNote(noteId, tagId)
     }
   }
 
@@ -397,17 +408,21 @@ export function createAiService(options: AiServiceOptions): AiService {
       if (status !== undefined && !NOTE_STATUSES.includes(status)) {
         throw new Error('E_NOTE_STATUS_INVALID')
       }
-      if (tags !== undefined) cleanTagNames(tags)
+      const wantedTags = tags === undefined ? undefined : cleanTagNames(tags)
+      if (body !== undefined && 'markdown' in body) checkBody(lineFeeds(body.markdown))
       await atomically(async () => {
         const { record, book } = await visible(id)
         const target = notebook === undefined ? book : await resolveBook(notebook)
         let markdown: string | undefined
         if (body !== undefined) {
-          markdown =
-            'markdown' in body
-              ? lineFeeds(body.markdown)
-              : applyPatches(record.bodyMd, body.patches)
-          checkBody(markdown)
+          if ('markdown' in body) {
+            markdown = lineFeeds(body.markdown)
+          } else {
+            // Patched as the note's document holds the text, which the
+            // edit is the difference from.
+            markdown = applyPatches((await notes.read(id)).bodyMd, body.patches)
+            checkBody(markdown, MAX_BODY_BYTES)
+          }
         }
         // Each change goes in as the app makes it; the release writes them
         // as one save, after the body as it was is kept as a version.
@@ -421,7 +436,7 @@ export function createAiService(options: AiServiceOptions): AiService {
         } finally {
           await notes.release(id)
         }
-        if (tags !== undefined) await setTags(id, tags)
+        if (wantedTags !== undefined) await setTags(id, wantedTags)
       })
       return service.read(id)
     },
@@ -452,8 +467,7 @@ export function createAiService(options: AiServiceOptions): AiService {
         if ([...(await allowed()).values()].some((b) => b.name === clean)) {
           throw new Error('E_BOOK_NAME_TAKEN')
         }
-        const id = await bookService.create(clean, parentBook?.id ?? null)
-        await bookService.setAiAccess(id, true)
+        const id = await bookService.create(clean, parentBook?.id ?? null, { aiAccess: true })
         return { id, name: clean }
       })
     },

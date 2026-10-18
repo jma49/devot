@@ -495,6 +495,24 @@ describe('editing notes', () => {
     expect((await s.storage.listRevisions(ids.shared)).length).toBe(versions)
   })
 
+  it('patches a note larger than one call may send, but limits what is sent', async () => {
+    const s = setup()
+    const { books } = await world(s)
+    const big = `Head.\n${'x'.repeat(MAX_AI_BODY_BYTES + 10)}\n`
+    const id = await note(s, 'Big', big, books.shared)
+    const updated = await s.ai.update({
+      id,
+      body: { patches: [{ find: 'Head.', replace: 'Top.' }] },
+    })
+    expect(updated.markdown.startsWith('Top.\n')).toBe(true)
+    await expect(
+      s.ai.update({
+        id,
+        body: { patches: [{ find: 'Top.', replace: 'y'.repeat(MAX_AI_BODY_BYTES + 1) }] },
+      }),
+    ).rejects.toThrow('E_NOTE_BODY_TOO_LARGE')
+  })
+
   it('answers hidden notes as unknown, and moves notes only to allowed notebooks', async () => {
     const s = setup()
     const { books, ids } = await world(s)

@@ -312,6 +312,25 @@ test('Integrations shows a path to replace when devot-mcp is not beside this bui
   )
 })
 
+test('Integrations still offers configs, with a path to replace, when Rust cannot say', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { settings_mcp_setup: { error: 'E_DATA_FOLDER_UNAVAILABLE' } }
+  })
+  await openSettings(page, 'Integrations')
+  const pane = page.getByRole('tabpanel')
+  await expect(pane.getByRole('alert')).toContainText('E_DATA_FOLDER_UNAVAILABLE')
+  await expect(pane).toContainText('pnpm mcp:build')
+  const claude = page.getByRole('region', { name: 'Claude Code' })
+  await expect(claude.locator('code')).toContainText('/path/to/devot/dist-mcp/devot-mcp.mjs')
+  // Copying keeps the problem in view.
+  await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
+  await expect(pane.getByRole('status')).toHaveText('The Claude Code configuration was copied.')
+  await expect(pane.getByRole('alert')).toContainText('E_DATA_FOLDER_UNAVAILABLE')
+})
+
 test('General says when the data folder cannot be opened', async ({ page }) => {
   await page.addInitScript(() => {
     const w = globalThis as unknown as TestWindow

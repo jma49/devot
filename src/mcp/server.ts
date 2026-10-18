@@ -18,14 +18,13 @@ import {
 } from '../core/ai'
 import { MAX_BOOK_NAME_CHARS } from '../core/books'
 import { MAX_NOTE_LINKS } from '../core/links'
-import { MAX_TITLE_CHARS } from '../core/noteLimits'
+import { MAX_BODY_BYTES, MAX_TITLE_CHARS } from '../core/noteLimits'
 import { NOTE_STATUSES } from '../core/storage'
 import { MAX_TAG_NAME_CHARS } from '../core/tags'
 
-import { SERVER_VERSION } from './version'
+import { SERVER_NAME, SERVER_VERSION } from './version'
 
-export { SERVER_VERSION }
-export const SERVER_NAME = 'devot'
+export { SERVER_NAME, SERVER_VERSION }
 
 /** Writes one log line (stderr in the CLI): a code and IDs only. */
 export type Log = (code: string, ...ids: string[]) => void
@@ -43,7 +42,7 @@ const HINTS: Record<string, string> = {
   E_BOOK_AMBIGUOUS: 'Several notebooks that allow AI access have this name; pass the notebook ID.',
   E_SEARCH_QUERY_EMPTY: 'The query has no search terms.',
   E_NOTE_TITLE_INVALID: `The title must be one line of 1 to ${MAX_TITLE_CHARS} characters.`,
-  E_NOTE_BODY_TOO_LARGE: `The Markdown body must be at most ${MAX_AI_BODY_BYTES} bytes.`,
+  E_NOTE_BODY_TOO_LARGE: `The Markdown sent (a body, or all patches together) must be at most ${MAX_AI_BODY_BYTES} bytes, and a patched note at most ${MAX_BODY_BYTES} bytes.`,
   E_NOTE_LINKS_TOO_MANY: `The Markdown body may link to at most ${MAX_NOTE_LINKS} notes.`,
   E_NOTE_STATUS_INVALID: `The status must be one of ${NOTE_STATUSES.join(', ')}.`,
   E_AI_UPDATE_EMPTY:

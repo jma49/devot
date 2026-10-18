@@ -48,21 +48,23 @@ const CLIENTS: readonly {
  */
 export function IntegrationsSection() {
   const ids = useId()
-  const [setup, setSetup] = useState<McpSetup>({ script: null, db: null })
-  const [known, setKnown] = useState(false)
-  const [error, setError] = useState<{ message: MessageKey; code: string }>()
+  // Undefined until Rust answers; the configs show only then.
+  const [setup, setSetup] = useState<McpSetup>()
+  const [setupError, setSetupError] = useState<string>()
+  const [copyError, setCopyError] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
 
   useEffect(() => {
     let live = true
     mcpSetup().then(
       (found) => {
-        if (!live) return
-        setSetup(found)
-        setKnown(true)
+        if (live) setSetup(found)
       },
       (e: unknown) => {
-        if (live) setError({ message: 'integrations.setupFailed', code: errorCode(e) })
+        if (!live) return
+        // The configs still help, with a path to replace.
+        setSetupError(errorCode(e))
+        setSetup({ script: null, db: null })
       },
     )
     return () => {
@@ -74,12 +76,17 @@ export function IntegrationsSection() {
     setAnnouncement('')
     writeClipboardText(text).then(
       () => {
-        setError(undefined)
+        setCopyError(undefined)
         setAnnouncement(format(t('integrations.copied'), { client: t(title) }))
       },
-      (e: unknown) => setError({ message: 'integrations.copyFailed', code: errorCode(e) }),
+      (e: unknown) => setCopyError(errorCode(e)),
     )
   }
+
+  const errors = [
+    setupError && format(t('integrations.setupFailed'), { code: setupError }),
+    copyError && format(t('integrations.copyFailed'), { code: copyError }),
+  ].filter(Boolean)
 
   return (
     <section className="settings-section" aria-labelledby="integrations-title">
@@ -87,18 +94,19 @@ export function IntegrationsSection() {
         {t('integrations.title')}
       </h2>
       <p>{t('integrations.detail')}</p>
-      {known ? (
+      {setup ? (
         <p>{t(setup.script === null ? 'integrations.noScript' : 'integrations.script')}</p>
       ) : null}
-      {error ? (
-        <p role="alert" className="settings-error">
-          {format(t(error.message), { code: error.code })}
+      {errors.map((text) => (
+        <p key={text} role="alert" className="settings-error">
+          {text}
         </p>
-      ) : null}
+      ))}
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
       {CLIENTS.map((client) => {
+        if (!setup) return null
         const text = client.text(setup)
         const hint = `${ids}-${client.id}-hint`
         return (

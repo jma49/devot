@@ -2,6 +2,7 @@
 // Node from a Devot checkout (`node <checkout>/dist-mcp/devot-mcp.mjs`), for
 // Claude Code (a `claude mcp add` command), Codex (`~/.codex/config.toml`)
 // and any client that reads an `mcpServers` JSON file.
+import { SERVER_NAME } from '../../../mcp/version'
 
 /** What Rust says about devot-mcp (`settings_mcp_setup`). */
 export interface McpSetup {
@@ -13,9 +14,6 @@ export interface McpSetup {
 
 /** Shown in place of the script's path when this app does not know it. */
 export const PLACEHOLDER_SCRIPT = '/path/to/devot/dist-mcp/devot-mcp.mjs'
-
-/** The name clients list the server under. */
-export const SERVER_NAME = 'devot'
 
 /** `node`'s arguments: the script, then `--db <path>` when one is needed. */
 export function mcpArgs(setup: McpSetup): string[] {
