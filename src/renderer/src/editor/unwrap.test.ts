@@ -86,7 +86,15 @@ describe('unwrapped blocks', () => {
       unwrapLines(s, [{ from: table, to: table }]).flatMap((b) =>
         b.lines.map((from) => s.doc.lineAt(from).number),
       ),
-    ).toEqual([7, 8, 9])
+    ).toEqual([8])
+    // The block is still found whole: its widths are shared by every line.
+    const [block] = unwrapLines(s, [{ from: table, to: table }])
+    expect([block?.from, block?.to]).toEqual([s.doc.line(7).from, s.doc.line(9).to])
+  })
+
+  it('leaves a fence waiting for its closing one to wrap', () => {
+    expect(unwrapped(state('Text\n\n```\ncode\nmore text'))).toEqual([])
+    expect(unwrapped(state('Text\n\n```\nco^de\nmore', 'active'))).toEqual([])
   })
 
   it('follows the caret through edits', () => {
