@@ -110,6 +110,17 @@ describe('Tauri command permissions', () => {
     }
   })
 
+  it('lets only the main window take the links other apps opened', () => {
+    expect(windowsWith('allow-deep-link-take')).toEqual(['main'])
+  })
+
+  it('grants no window a deep-link or single-instance plugin command', () => {
+    const plugin = capabilities()
+      .flatMap(permissionIds)
+      .filter((p) => p.startsWith('deep-link:') || p.startsWith('single-instance:'))
+    expect(plugin).toEqual([])
+  })
+
   it('lets only the Settings window open the data folder and ask for the Backups dialog', () => {
     for (const command of ['open-data-folder', 'show-backups']) {
       expect(windowsWith(`allow-settings-${command}`)).toEqual(['settings'])

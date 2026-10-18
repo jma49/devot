@@ -49,6 +49,10 @@ sha2 = "0.10"
 # only; already in the tree through tempfile (native-tls).
 rustix = { version = "1.1", default-features = false, features = ["std", "fs"] }
 tauri-plugin-updater = "2"
+# devot:// links from other apps (`deep_link`), and a second launch handing
+# its arguments to the running Devot instead of opening the data folder.
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Native crash reports (DSN builds only): the exception handler in the app,

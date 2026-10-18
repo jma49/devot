@@ -75,6 +75,7 @@
     "allow-update-status",
     "allow-update-check",
     "allow-update-download",
-    "allow-update-restart"
+    "allow-update-restart",
+    "allow-deep-link-take"
   ]
 }

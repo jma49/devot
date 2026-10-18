@@ -55,6 +55,9 @@
       }
     }
   },
+  "plugins": {
+    "deep-link": { "desktop": { "schemes": ["devot"] } }
+  },
   "bundle": {
     "active": true,
     "targets": ["app"],

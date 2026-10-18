@@ -9,6 +9,7 @@ mod crash;
 pub mod crash_reporter;
 mod crash_scrub;
 mod data_folder;
+mod deep_link;
 mod diagnostics;
 mod editor_settings;
 mod exit;
@@ -52,6 +53,13 @@ pub fn run() {
     // Sentry first, so its panic hook sees every panic; off without a DSN.
     let _crash_reporting = crash::init();
     tauri::Builder::default()
+        // First: a second launch hands its arguments (a URL among them) to
+        // the running Devot and ends before it opens the data folder.
+        .plugin(tauri_plugin_single_instance::init(
+            deep_link::on_second_instance,
+        ))
+        // devot:// links from other apps (`deep_link`).
+        .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             native::symbol_png,
             native::system_accent,
@@ -130,6 +138,7 @@ pub fn run() {
             updates::update_check,
             updates::update_download,
             updates::update_restart,
+            deep_link::deep_link_take,
         ])
         // Attachments: devot://file/<id>, read from the database.
         .register_asynchronous_uri_scheme_protocol("devot", |ctx, request, responder| {
@@ -140,13 +149,18 @@ pub fn run() {
         .manage(exit::ExitGate::default())
         .manage(import::Imports::default())
         .manage(export::Exports::default())
-        .on_window_event(exit::on_window_event)
+        .manage(deep_link::DeepLinks::default())
+        .on_window_event(|window, event| {
+            exit::on_window_event(window, event);
+            deep_link::on_window_event(window, event);
+        })
         .setup(|app| {
             // A launch that fails ends here, explained, never in a panic.
             let Ok(data_dir) = app.path().app_data_dir() else {
                 startup::fail(&StartupError::new("E_DATA_FOLDER_UNKNOWN"), None)
             };
             logs::install(&data_dir.join(logs::DIR));
+            deep_link::listen(app);
             if let Err(error) = launch(app, &data_dir) {
                 startup::fail(&error, Some(&data_dir));
             }

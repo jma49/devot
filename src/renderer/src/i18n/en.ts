@@ -508,6 +508,8 @@ export const en = {
   'change.failed': 'The change could not be made ({code}).',
   'images.refusedOne': 'An image could not be added ({code}).',
   'images.refusedOther': '{count} images could not be added ({code}).',
+  'deepLink.noteNotFound': 'The linked note could not be found.',
+  'deepLink.commandUnavailable': 'That command can\u2019t run right now.',
   'change.tagNameTaken': 'Another tag already has that name.',
   'change.tagNameInvalid': 'A tag name is one line of at most {max} characters.',
   'change.bookNameInvalid': 'A notebook name is one line of at most {max} characters.',

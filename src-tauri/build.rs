@@ -101,6 +101,7 @@ fn main() {
             "update_check",
             "update_download",
             "update_restart",
+            "deep_link_take",
         ]),
     ))
     .expect("E_TAURI_BUILD");

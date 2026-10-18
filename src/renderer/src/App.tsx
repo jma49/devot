@@ -53,6 +53,8 @@ import { IMPORT_PICKS, type ImportAction } from './bookMenu'
 import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoreNotice } from './CoreNotice'
+import { DeepLinkNotice, type DeepLinkProblem } from './DeepLinkNotice'
+import { noteTarget, useDeepLinks } from './deepLink'
 import { StartFailure } from './StartFailure'
 import {
   IMAGE_COMMANDS,
@@ -418,6 +420,8 @@ export function App() {
   const [changeNotice, setChangeNotice] = useState<string>()
   // The codes of pasted or dropped images that could not be stored, shown in a notice.
   const [imageNotice, setImageNotice] = useState<string[]>()
+  // A link from another app that could not be followed.
+  const [linkNotice, setLinkNotice] = useState<DeepLinkProblem>()
   // Updates: Rust checks and downloads; the notice offers the restart.
   const updates = useUpdates()
   const [exportNotice, setExportNotice] = useState<{
@@ -2413,6 +2417,32 @@ export function App() {
     setMulti(undefined)
     setSelected(id)
   })
+  // Links other apps open (devot://note/<id>, devot://command/<id>), from
+  // the moment the window has restored its view; sheets hold them back.
+  useDeepLinks(restored && core !== undefined, (link) => {
+    setLinkNotice(undefined)
+    if (link.kind === 'command') {
+      const handler = handlers[link.id]
+      if (handler) void handler.run()
+      else setLinkNotice('commandUnavailable')
+      return
+    }
+    const id = link.id
+    const target = noteTarget(id, { listed: listedSet, notes, templates, trash })
+    if (target.kind === 'missing') {
+      setLinkNotice('noteNotFound')
+      return
+    }
+    // A note in the Trash opens there, as the Trash's own list opens it.
+    if (target.kind === 'trash') {
+      if (!inTrash) showLibrary({ kind: 'trash' })
+      openTrashed(id)
+      return
+    }
+    // A note outside the list shown: the library that lists it first.
+    if (target.kind === 'library') showLibrary({ kind: target.library }, { clearFilter: true })
+    void select(id)
+  })
   const trashKey = useStable((action: TrashAction, id: string) => void trashAction(action, id))
   const askEmptyTrash = useStable(() => {
     if (trash.length > 0) setConfirm({ kind: 'empty' })
@@ -2890,6 +2920,7 @@ export function App() {
       batchFailed ||
       coreFailure ||
       imageNotice ||
+      linkNotice ||
       saveNoticeShown ||
       updates.notice ||
       mirror.notices.length > 0 ? (
@@ -2933,6 +2964,9 @@ export function App() {
           ) : null}
           {imageNotice ? (
             <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />
+          ) : null}
+          {linkNotice ? (
+            <DeepLinkNotice problem={linkNotice} onDismiss={() => setLinkNotice(undefined)} />
           ) : null}
         </div>
       ) : null}
