@@ -484,12 +484,13 @@ pub enum SetKind {
 
 impl TextField {
     /// The text this field searches. With ranked text, a body is read from
-    /// the note's row only once the note has joined the ranked matches
-    /// (`h`), so only the matches' bodies are read; otherwise from the row
-    /// the list's index points to.
+    /// the note's row only once the note has come out of the ranked matches
+    /// (`ranked`, by rank), so only the bodies of the matches up to a page
+    /// of results are read; otherwise from the row the list's index points
+    /// to.
     fn column(self, ranked: bool) -> String {
         let body = if ranked {
-            "(SELECT body_md FROM notes b WHERE b.rowid = h.rid)"
+            "(SELECT body_md FROM notes b WHERE b.rowid = n.rid)"
         } else {
             "n.body_md"
         };
@@ -775,6 +776,78 @@ fn indexable(value: &str) -> bool {
     value.chars().count() >= 3
 }
 
+/// How a scan for a term too short for the trigram index finds what
+/// `devot_fold` would, more cheaply than folding every text it reads (#48;
+/// `scanFolding` in src/core/search.ts, the same).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScanFolding {
+    /// No character folds to any of the term's but itself: the text is read
+    /// as written.
+    None,
+    /// Those and ASCII letters, which only an ASCII capital and the Kelvin
+    /// sign (U+212A, to k) fold to: the text is read through SQLite's
+    /// lower() (ASCII only) with the Kelvin sign replaced by `k`.
+    Ascii,
+    /// Anything else: the text is read through `devot_fold`.
+    Fold,
+}
+
+/// Whether no character but `c` itself folds to `c` (see `fold`): ASCII
+/// other than letters, CJK symbols and punctuation, kana, the CJK
+/// ideographs and Hangul. A test checks every character.
+fn caseless(c: char) -> bool {
+    matches!(c,
+        '\0'..='\x40' | '\x5b'..='\x60' | '\x7b'..='\x7f'
+        | '\u{3000}'..='\u{9fff}' | '\u{ac00}'..='\u{d7a3}' | '\u{f900}'..='\u{faff}'
+        | '\u{20000}'..='\u{3ffff}')
+}
+
+fn scan_folding(text: &str) -> ScanFolding {
+    if text.chars().all(caseless) {
+        ScanFolding::None
+    } else if text.chars().all(|c| c.is_ascii() || caseless(c)) {
+        ScanFolding::Ascii
+    } else {
+        ScanFolding::Fold
+    }
+}
+
+/// The clause for text too short for the trigram index (its parameter
+/// `value`): it scans the field's text, folded as the index folds case
+/// (see `ScanFolding`), the title and the body apart when the text has no
+/// line break (only such text could run from the title into the body).
+/// The TypeScript adapter's `scanClause` builds the same.
+fn scan_clause(t: &TextCondition, ranked: bool, value: &str) -> String {
+    let columns = if t.field == TextField::Any && !t.value.contains('\n') {
+        vec![
+            TextField::Title.column(ranked),
+            TextField::Body.column(ranked),
+        ]
+    } else {
+        vec![t.field.column(ranked)]
+    };
+    let folding = scan_folding(&t.value);
+    // The Kelvin sign matters only to a term with a k.
+    let kelvin = t.value.contains(['k', 'K']);
+    let found: Vec<String> = columns
+        .iter()
+        .map(|c| match folding {
+            ScanFolding::None => format!("instr({c}, {value}) > 0"),
+            ScanFolding::Ascii if kelvin => {
+                format!("instr(lower(replace({c}, char(8490), 'k')), lower({value})) > 0")
+            }
+            ScanFolding::Ascii => format!("instr(lower({c}), lower({value})) > 0"),
+            ScanFolding::Fold => format!("instr(devot_fold({c}), devot_fold({value})) > 0"),
+        })
+        .collect();
+    let any = if found.len() > 1 {
+        format!("({})", found.join(" OR "))
+    } else {
+        found.join("")
+    };
+    if t.negate { format!("NOT {any}") } else { any }
+}
+
 /// A note list or search row (see `NOTES_LIST_SQL` and `search_sql`).
 fn summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
     let tags: Option<String> = row.get(7)?;
@@ -795,7 +868,7 @@ fn summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
 
 /// A search as SQL and its parameters, the same as the TypeScript adapter
 /// builds (src/mcp/sqlite.ts, searchStatement): every condition is one
-/// clause of the WHERE, so the limit applies after all of them. Live notes
+/// clause of a WHERE, so the limit applies after all of them. Live notes
 /// come from the list's index (notes_list), never from their rows: ranked
 /// text (three or more characters) matches the trigram index first (`hits`,
 /// with each match's rank), and the list's index joins them through an
@@ -803,9 +876,12 @@ fn summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
 /// list index even for one match (O(notes), about 2.5 ms for 50,000 notes):
 /// letting the matches drive the join would read each match's row through
 /// its blobs, which costs twice as much once a word is in many notes (see
-/// tests/core/list-cost.test.ts). Shorter text is scanned: it reads the
-/// bodies (of the ranked matches only, when there are some). Ties go to the
-/// newer note, then by ID, as the note list orders them.
+/// tests/core/list-cost.test.ts). Shorter text is scanned: it reads
+/// bodies. With ranked text, the matches meeting every other condition are
+/// put in rank order first (`ranked`), and the scan reads them in that
+/// order, which also gives the results' order: so it stops once a page of
+/// results is full, instead of reading the body of every match (#48). Ties
+/// go to the newer note, then by ID, as the note list orders them.
 fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
     let mut values: Vec<String> = Vec::new();
     // Numbered parameters: the SQL is built out of order.
@@ -822,14 +898,11 @@ fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
         "n.deleted_at IS NULL".to_string(),
         "n.purged_at IS NULL".to_string(),
     ];
+    let mut scans: Vec<String> = Vec::new();
     for t in &query.text {
         if !indexable(&t.value) {
-            clauses.push(format!(
-                "instr(devot_fold({}), devot_fold({})) {} 0",
-                t.field.column(!ranked.is_empty()),
-                param(t.value.clone()),
-                if t.negate { "=" } else { ">" }
-            ));
+            let value = param(t.value.clone());
+            scans.push(scan_clause(t, !ranked.is_empty(), &value));
         } else if t.negate {
             clauses.push(format!(
                 "n.rowid NOT IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH {})",
@@ -855,30 +928,63 @@ fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
     if query.pinned {
         clauses.push("n.pinned = 1".into());
     }
-    let (hits, join, order) = if ranked.is_empty() {
-        (String::new(), "", "n.updated_at DESC, n.id DESC")
+    let hits = if ranked.is_empty() {
+        String::new()
     } else {
         let all: Vec<String> = ranked.iter().map(|t| t.field.fts(&t.value)).collect();
+        format!(
+            "WITH hits AS MATERIALIZED (SELECT rowid AS rid, bm25(notes_fts) AS score
+               FROM notes_fts WHERE notes_fts MATCH {})",
+            param(all.join(" AND "))
+        )
+    };
+    let select = "SELECT n.id, n.title, n.created_at AS createdAt, n.updated_at AS updatedAt, n.book_id AS bookId, n.status, n.pinned,
+                (SELECT group_concat(nt.tag_id) FROM note_tags nt
+                   JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+                  WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds";
+    // Ranked text and a scan: the matches meeting every other condition, in
+    // rank order. The scan reads them in that order and stops at a page only
+    // because SQLite keeps a MATERIALIZED CTE's order and uses it for the
+    // same ORDER BY outside (the results stay right if it did not, only
+    // slower; tests check the plan and how many bodies are read).
+    let early = !hits.is_empty() && !scans.is_empty();
+    let (source, conditions, score) = if early {
         (
             format!(
-                "WITH hits AS MATERIALIZED (SELECT rowid AS rid, bm25(notes_fts) AS score
-                   FROM notes_fts WHERE notes_fts MATCH {})",
-                param(all.join(" AND "))
+                "{hits},
+                 ranked AS MATERIALIZED (SELECT n.rowid AS rid, h.score, n.id, n.title, n.created_at,
+                     n.updated_at, n.book_id, n.status, n.pinned
+                   FROM notes n INDEXED BY notes_list JOIN hits h ON h.rid = n.rowid
+                   WHERE {}
+                   ORDER BY h.score, n.updated_at DESC, n.id DESC)
+                 {select} FROM ranked n",
+                clauses.join(" AND ")
             ),
-            "JOIN hits h ON h.rid = n.rowid",
-            "h.score, n.updated_at DESC, n.id DESC",
+            scans,
+            "n.score, ",
+        )
+    } else if hits.is_empty() {
+        clauses.extend(scans);
+        (
+            format!("{select} FROM notes n INDEXED BY notes_list"),
+            clauses,
+            "",
+        )
+    } else {
+        clauses.extend(scans);
+        (
+            format!(
+                "{hits} {select} FROM notes n INDEXED BY notes_list JOIN hits h ON h.rid = n.rowid"
+            ),
+            clauses,
+            "h.score, ",
         )
     };
     let sql = format!(
-        "{hits}
-         SELECT n.id, n.title, n.created_at AS createdAt, n.updated_at AS updatedAt, n.book_id AS bookId, n.status, n.pinned,
-                (SELECT group_concat(nt.tag_id) FROM note_tags nt
-                   JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
-                  WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds
-         FROM notes n INDEXED BY notes_list {join}
+        "{source}
          WHERE {}
-         ORDER BY {order} LIMIT {limit}",
-        clauses.join(" AND ")
+         ORDER BY {score}n.updated_at DESC, n.id DESC LIMIT {limit}",
+        conditions.join(" AND ")
     );
     (sql, values)
 }

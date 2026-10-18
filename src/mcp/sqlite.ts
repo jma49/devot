@@ -9,7 +9,14 @@ import type { AiStorage } from '../core/ai'
 import { checkUpload } from '../core/files'
 import { noteLinks } from '../core/links'
 import { checkNote } from '../core/noteLimits'
-import { bodyExcerpt, excerptTerms, foldText, ftsQuery, indexable } from '../core/search'
+import {
+  bodyExcerpt,
+  excerptTerms,
+  foldText,
+  ftsQuery,
+  indexable,
+  scanFolding,
+} from '../core/search'
 import { isTagColor } from '../core/tags'
 import type {
   ActivityData,
@@ -32,13 +39,39 @@ import type {
 
 /**
  * The text a search field looks in. With ranked text, a body is read from
- * the note's row only once the note has joined the ranked matches (`h`), so
- * only the matches' bodies are read; otherwise from the row the list's index
- * points to.
+ * the note's row only once the note has come out of the ranked matches
+ * (`ranked`, by rank), so only the bodies of the matches up to a page of
+ * results are read; otherwise from the row the list's index points to.
  */
 const textColumn = (field: TextCondition['field'], ranked: boolean) => {
-  const body = ranked ? '(SELECT body_md FROM notes b WHERE b.rowid = h.rid)' : 'n.body_md'
+  const body = ranked ? '(SELECT body_md FROM notes b WHERE b.rowid = n.rid)' : 'n.body_md'
   return field === 'title' ? 'n.title' : field === 'body' ? body : `n.title || char(10) || ${body}`
+}
+
+/**
+ * The clause for text too short for the trigram index: it scans the field's
+ * text, folded as the index folds case (`devot_fold`, see `scanFolding`
+ * for the cheaper ways that find the same), the title and the body apart
+ * when the text has no line break (only such text could run from the title
+ * into the body). The Rust store's `scan_clause` builds the same.
+ */
+const scanClause = (t: TextCondition, ranked: boolean, value: string) => {
+  const folding = scanFolding(t.value)
+  const columns =
+    t.field === 'any' && !t.value.includes('\n')
+      ? [textColumn('title', ranked), textColumn('body', ranked)]
+      : [textColumn(t.field, ranked)]
+  // The Kelvin sign matters only to a term with a k.
+  const kelvin = /k/i.test(t.value)
+  const found = columns.map((c) =>
+    folding === 'none'
+      ? `instr(${c}, ${value}) > 0`
+      : folding === 'ascii'
+        ? `instr(lower(${kelvin ? `replace(${c}, char(8490), 'k')` : c}), lower(${value})) > 0`
+        : `instr(devot_fold(${c}), devot_fold(${value})) > 0`,
+  )
+  const any = found.length > 1 ? `(${found.join(' OR ')})` : found[0]!
+  return t.negate ? `NOT ${any}` : any
 }
 
 const files = import.meta.glob<string>('../../src-tauri/migrations/*.sql', {
@@ -134,7 +167,7 @@ export const LIST_SQL = {
 
 /**
  * A search as SQL, the same as the Rust store builds (storage/mod.rs,
- * search_sql): every condition is one clause of the WHERE, so the limit
+ * search_sql): every condition is one clause of a WHERE, so the limit
  * applies after all of them. Live notes come from the list's index
  * (notes_list), never from their rows: ranked text matches the trigram
  * index first (`hits`, with each match's rank), and the list's index joins
@@ -142,9 +175,12 @@ export const LIST_SQL = {
  * walks the whole list index even for one match (O(notes), about 2.5 ms
  * for 50,000 notes): letting the matches drive the join would read each
  * match's row through its blobs, which costs twice as much once a word is
- * in many notes (see list-cost.test.ts). Text under three
- * characters is scanned: it reads the bodies (of the ranked matches only,
- * when there are some). Ties go to the newer note, then by ID, as the note
+ * in many notes (see list-cost.test.ts). Text under three characters is
+ * scanned: it reads bodies. With ranked text, the matches meeting every
+ * other condition are put in rank order first (`ranked`), and the scan
+ * reads them in that order, which also gives the results' order: so it
+ * stops once a page of results is full, instead of reading the body of
+ * every match (#48). Ties go to the newer note, then by ID, as the note
  * list orders them.
  */
 export function searchStatement(
@@ -159,6 +195,7 @@ export function searchStatement(
   }
   const ranked = query.text.filter((t) => !t.negate && indexable(t.value))
   const where = ['n.deleted_at IS NULL', 'n.purged_at IS NULL']
+  const scans: string[] = []
   for (const t of query.text) {
     if (indexable(t.value)) {
       if (t.negate) {
@@ -167,9 +204,7 @@ export function searchStatement(
         )
       }
     } else {
-      where.push(
-        `instr(devot_fold(${textColumn(t.field, ranked.length > 0)}), devot_fold(${param(t.value)})) ${t.negate ? '=' : '>'} 0`,
-      )
+      scans.push(scanClause(t, ranked.length > 0, param(t.value)))
     }
   }
   for (const set of query.sets) {
@@ -188,21 +223,34 @@ export function searchStatement(
     }
   }
   if (query.pinned) where.push('n.pinned = 1')
-  const sql = [
-    ranked.length
-      ? `WITH hits AS MATERIALIZED (SELECT rowid AS rid, bm25(notes_fts) AS score
+  const hits = ranked.length
+    ? `WITH hits AS MATERIALIZED (SELECT rowid AS rid, bm25(notes_fts) AS score
           FROM notes_fts WHERE notes_fts MATCH ${param(ftsQuery(ranked))})`
-      : '',
-    `SELECT n.id, n.title, n.created_at AS createdAt, n.updated_at AS updatedAt, n.book_id AS bookId, n.status, n.pinned,
+    : ''
+  // Ranked text and a scan: the matches meeting every other condition, in
+  // rank order. The scan reads them in that order and stops at a page only
+  // because SQLite keeps a MATERIALIZED CTE's order and uses it for the
+  // same ORDER BY outside (the results stay right if it did not, only
+  // slower; list-cost.test.ts checks the plan and how many bodies are read).
+  const early = hits !== '' && scans.length > 0
+  const select = `SELECT n.id, n.title, n.created_at AS createdAt, n.updated_at AS updatedAt, n.book_id AS bookId, n.status, n.pinned,
             (SELECT group_concat(nt.tag_id) FROM note_tags nt
                JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
-              WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds
-       FROM notes n INDEXED BY notes_list`,
-    ranked.length ? 'JOIN hits h ON h.rid = n.rowid' : '',
-    `WHERE ${where.join('\n  AND ')}`,
-    ranked.length
-      ? 'ORDER BY h.score, n.updated_at DESC, n.id DESC'
-      : 'ORDER BY n.updated_at DESC, n.id DESC',
+              WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds`
+  const source = early
+    ? `${hits},
+        ranked AS MATERIALIZED (SELECT n.rowid AS rid, h.score, n.id, n.title, n.created_at,
+            n.updated_at, n.book_id, n.status, n.pinned
+          FROM notes n INDEXED BY notes_list JOIN hits h ON h.rid = n.rowid
+          WHERE ${where.join('\n  AND ')}
+          ORDER BY h.score, n.updated_at DESC, n.id DESC)
+     ${select} FROM ranked n`
+    : `${hits} ${select} FROM notes n INDEXED BY notes_list${hits ? ' JOIN hits h ON h.rid = n.rowid' : ''}`
+  const conditions = early ? scans : [...where, ...scans]
+  const sql = [
+    source,
+    `WHERE ${conditions.join('\n  AND ')}`,
+    `ORDER BY ${hits ? `${early ? 'n' : 'h'}.score, ` : ''}n.updated_at DESC, n.id DESC`,
     'LIMIT @limit',
   ].join('\n')
   return { sql, params }

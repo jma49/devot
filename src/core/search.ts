@@ -229,6 +229,28 @@ const fold = (chars: readonly string[]) =>
 export const foldText = (text: string) =>
   /[\u0130\u03a3]/.test(text) ? fold([...text]).join('') : text.toLowerCase()
 
+/**
+ * How storage may scan for `text` (a term too short for the trigram index)
+ * and find what `devot_fold` would, more cheaply than folding every text it
+ * reads (#48):
+ * - `none`: no character folds to any of `text`'s but itself (ASCII other
+ *   than letters, CJK symbols and punctuation, kana, the CJK ideographs and
+ *   Hangul), so the text is read as written;
+ * - `ascii`: those and ASCII letters, which only an ASCII capital and the
+ *   Kelvin sign (U+212A, to k) fold to, so the text is read through
+ *   SQLite's lower() (ASCII only) with the Kelvin sign replaced by `k`;
+ * - `fold`: anything else, read through `devot_fold`.
+ * The Rust store's `scan_folding` is the same; tests check every code point.
+ */
+export function scanFolding(text: string): 'none' | 'ascii' | 'fold' {
+  if (CASELESS.test(text)) return 'none'
+  return ASCII_OR_CASELESS.test(text) ? 'ascii' : 'fold'
+}
+/** The caseless characters beyond ASCII (see `scanFolding`), as a character class range. */
+const CASELESS_WIDE = String.raw`\u{3000}-\u{9fff}\u{ac00}-\u{d7a3}\u{f900}-\u{faff}\u{20000}-\u{3ffff}`
+const CASELESS = new RegExp(String.raw`^[\0-\x40\x5b-\x60\x7b-\x7f${CASELESS_WIDE}]*$`, 'u')
+const ASCII_OR_CASELESS = new RegExp(String.raw`^[\0-\x7f${CASELESS_WIDE}]*$`, 'u')
+
 /** UTF-16 index of the code point `count` code points before `at` (or 0). */
 function codePointsBack(text: string, at: number, count: number): number {
   let i = at

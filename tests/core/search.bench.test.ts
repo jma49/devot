@@ -143,15 +143,13 @@ describe(`lists and search across ${NOTES} notes of a few KB`, () => {
   )
 
   // A word found in nearly every note and a two-character word: the
-  // ranked matches are every note, so every body is read. It misses the
-  // budget at these sizes (about 65 ms): a known failure, #48. When it
-  // passes, this test fails; make it an `it` again.
-  it.fails(
+  // ranked matches are every note, so the scan reads them in rank order and
+  // stops at a page of results (#48).
+  it(
     `answers a word and a two-character Chinese word in under ${BUDGET_MS} ms`,
     { timeout: TEST_TIMEOUT_MS },
     async (context) => {
-      // Exact: stretched on a hosted runner, it would pass and end the known failure there.
-      expectWithinBudget(context, await search('merge \u9884\u89c8'), BUDGET_MS, { exact: true })
+      expectWithinBudget(context, await search('merge \u9884\u89c8'), BUDGET_MS)
     },
   )
 
