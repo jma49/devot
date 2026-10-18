@@ -3,7 +3,7 @@ import type { NoteSummary, TaskProgress } from '../../../core'
 import { errorCode } from '../../../core/errors'
 import type { Core } from '../core-client'
 import { displayTitles } from '../headlines'
-import { currentLocale, t } from '../i18n'
+import { currentLocale, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
 import {
@@ -37,17 +37,22 @@ export type SetNoteDates = (
   dates: { createdAt?: number; updatedAt?: number },
 ) => Promise<void>
 
+/** How a date edit ended: written, turned down (the dates would be out of order), or not written. */
+export type DateOutcome = 'saved' | 'refused' | 'failed'
+
 /**
  * A date of the card. With `onSet` a click opens a date-time field: Return
- * saves it, Escape (or leaving the field) puts the date back.
+ * saves it, Escape (or leaving the field) puts the date back. A date that is
+ * not saved keeps the field open and says why.
  */
 function DateValue(props: {
   field: InfoField
   at: number
-  onSet?: ((at: number) => Promise<boolean>) | undefined
+  onSet?: ((at: number) => Promise<DateOutcome>) | undefined
 }) {
   const { field, at, onSet } = props
   const [editing, setEditing] = useState(false)
+  const [problem, setProblem] = useState<MessageKey>()
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (editing) input.current?.focus()
@@ -70,32 +75,48 @@ function DateValue(props: {
       </button>
     )
   }
+  const problemId = `note-info-${field.key}-problem`
   return (
-    <input
-      ref={input}
-      type="datetime-local"
-      step={1}
-      className="note-info-date-input"
-      aria-label={field.label}
-      data-info-edit={field.key}
-      defaultValue={dateInputValue(at)}
-      onBlur={() => setEditing(false)}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault()
-          event.stopPropagation()
-          setEditing(false)
-        } else if (event.key === 'Enter') {
-          event.preventDefault()
-          event.stopPropagation()
-          const next = parseDateInput(event.currentTarget.value)
-          if (next === null) return
-          void onSet(next).then((done) => {
-            if (done) setEditing(false)
-          })
-        }
-      }}
-    />
+    <span className="note-info-date-edit">
+      <input
+        ref={input}
+        type="datetime-local"
+        step={1}
+        className="note-info-date-input"
+        aria-label={field.label}
+        aria-invalid={problem ? true : undefined}
+        aria-describedby={problem ? problemId : undefined}
+        data-info-edit={field.key}
+        defaultValue={dateInputValue(at)}
+        onBlur={() => setEditing(false)}
+        onChange={() => setProblem(undefined)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            setEditing(false)
+          } else if (event.key === 'Enter') {
+            event.preventDefault()
+            event.stopPropagation()
+            const next = parseDateInput(event.currentTarget.value)
+            if (next === null) return setProblem('noteInfo.dateIncomplete')
+            void onSet(next).then((outcome) => {
+              if (outcome === 'saved') setEditing(false)
+              else if (outcome === 'failed') setProblem('noteInfo.dateFailed')
+              else
+                setProblem(
+                  field.key === 'created' ? 'noteInfo.createdTooLate' : 'noteInfo.updatedTooEarly',
+                )
+            })
+          }
+        }}
+      />
+      {problem ? (
+        <span id={problemId} className="note-info-date-problem" role="alert">
+          {t(problem)}
+        </span>
+      ) : null}
+    </span>
   )
 }
 
@@ -117,15 +138,16 @@ export function NoteInfo(props: {
   onSetDates?: SetNoteDates | undefined
 }) {
   const { core, info, tasks, onOpenNote, onSetDates } = props
-  /** Writes field `key` as `at`; false when it is refused (kept open to fix). */
-  const setDate = (key: 'created' | 'updated', at: number): Promise<boolean> => {
+  /** Writes field `key` as `at`; anything but 'saved' keeps the field open to fix. */
+  const setDate = (key: 'created' | 'updated', at: number): Promise<DateOutcome> => {
+    if (!onSetDates) return Promise.resolve('failed')
     const dates = datesEdit(info, key, at)
-    if (!dates || !onSetDates) return Promise.resolve(false)
+    if (!dates) return Promise.resolve('refused')
     return onSetDates(info.noteId, dates).then(
-      () => true,
-      () => {
+      (): DateOutcome => 'saved',
+      (): DateOutcome => {
         console.warn('W_NOTE_DATES_FAILED', info.noteId)
-        return false
+        return 'failed'
       },
     )
   }

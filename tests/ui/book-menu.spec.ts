@@ -402,3 +402,29 @@ test('Move Notebook opens a dialog that lists the tree and disables the notebook
   await dialog.getByRole('option', { name: 'Home' }).click()
   await expect(dialog).toHaveCount(0)
 })
+
+test('Move Notebook keeps the focus on Cancel through a re-render, so Return cancels', async ({
+  page,
+}) => {
+  await setUp(page)
+  await openMenu(page, 'Work')
+  await pickMenuItem(page, 'Move Notebook…')
+  const dialog = page.getByRole('dialog', { name: 'Move Notebook' })
+  const cancel = dialog.getByRole('button', { name: 'Cancel' })
+  await cancel.focus()
+  await expect(cancel).toBeFocused()
+  // The mouse crossing a row re-renders the dialog.
+  await dialog.getByRole('option', { name: 'Top Level' }).hover()
+  await expect(dialog.getByRole('option', { name: 'Top Level' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(cancel).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('treeitem', { name: /^Work\b/ })).toBeVisible()
+  // Work is still at the top level: nothing moved into Home.
+  await expect(
+    page.getByRole('treeitem', { name: /^Home\b/ }).getByRole('treeitem', { name: /^Work\b/ }),
+  ).toHaveCount(0)
+})

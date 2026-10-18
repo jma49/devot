@@ -310,6 +310,10 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const sections = useMemo(() => props.sectionStore ?? currentSectionStore(), [props.sectionStore])
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => sections.loadBooks())
   const [folded, setFolded] = useState<ReadonlySet<CollapsibleSection>>(() => sections.load())
+  // The latest sets: a fold waits for its animation, so two quick folds must each
+  // build on the other's result, not on the sets of the render that began them.
+  const collapsedNow = useRef(collapsed)
+  const foldedNow = useRef(folded)
   // The sections the user just opened: they grow in once (reveal.ts).
   const revealNext = useRef(new Set<string>())
   /** A ref for the list of section `key`: it grows in if the user just opened it. */
@@ -334,11 +338,12 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const toggleSection = (section: CollapsibleSection, open?: boolean) => {
     const opening = open ?? folded.has(section)
     animated(`section:${section}`, opening, () => {
-      const next = new Set(folded)
+      const next = new Set(foldedNow.current)
       if (opening) {
         revealNext.current.add(`section:${section}`)
         next.delete(section)
       } else next.add(section)
+      foldedNow.current = next
       setFolded(next)
       sections.save(next)
     })
@@ -566,9 +571,10 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     if (opening === !collapsed.has(id)) return
     animated(`book:${id}`, opening, () => {
       if (opening) revealNext.current.add(`book:${id}`)
-      const next = new Set(collapsed)
+      const next = new Set(collapsedNow.current)
       if (opening) next.delete(id)
       else next.add(id)
+      collapsedNow.current = next
       setCollapsed(next)
       sections.saveBooks(next)
     })

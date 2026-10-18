@@ -23,9 +23,12 @@ export function MoveBookDialog(props: {
 }) {
   const { book } = props
   const dialog = useRef<HTMLDialogElement>(null)
+  const list = useRef<HTMLUListElement>(null)
   useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
+    // The list takes the keyboard once, so the arrow keys work at once.
+    list.current?.focus({ preventScroll: true })
     // Closing (rather than only removing) the dialog gives the keyboard back.
     return () => el?.close()
   }, [])
@@ -85,8 +88,7 @@ export function MoveBookDialog(props: {
         aria-label={t('sidebar.notebooks')}
         aria-activedescendant={optionId(active)}
         tabIndex={0}
-        // The list takes the keyboard, so the arrow keys work at once.
-        ref={(el) => el?.focus({ preventScroll: true })}
+        ref={list}
         onKeyDown={onKeyDown}
       >
         {options.map((o, i) => (

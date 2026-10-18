@@ -111,6 +111,28 @@ test('moves a note by dragging it onto a notebook, or with the pop-up', async ({
   await expect(book(page, 'Home')).toContainText('0')
 })
 
+test('Home and End in the notebook pop-up search move the caret, not the selection', async ({
+  page,
+}) => {
+  await createBook(page, 'Alpha')
+  await createBook(page, 'Beta')
+  await createNote(page, 'Wanderer')
+  await bookPicker(page).click()
+  const search = page.getByRole('combobox', { name: /^Search notebooks/ })
+  await search.fill('a')
+  const active = await search.getAttribute('aria-activedescendant')
+  // The keys are left to the field (its caret), so nothing cancels them.
+  for (const key of ['Home', 'End']) {
+    const prevented = await search.evaluate((el, name) => {
+      const event = new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true })
+      el.dispatchEvent(event)
+      return event.defaultPrevented
+    }, key)
+    expect(prevented).toBe(false)
+  }
+  await expect(search).toHaveAttribute('aria-activedescendant', active ?? '')
+})
+
 test('deleting a notebook removes its sub-notebooks and keeps every note', async ({ page }) => {
   await createBook(page, 'Old')
   await createNote(page, 'Survivor')

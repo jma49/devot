@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, pickNoteMore } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -118,6 +118,40 @@ test('text typed while New Note is made is kept', async ({ page }) => {
     /^\[Plan B\]\(devot:\/\/note\/[0-9a-f-]{36}\) and more$/,
   )
   await expect(noteRows(page)).toHaveCount(2)
+})
+
+test('a note made from the popup goes to the default notebook when the view has none', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'New Notebook' }).click()
+  const name = page.getByRole('textbox', { name: 'Notebook name' })
+  await name.fill('Inbox')
+  await name.press('Enter')
+  await expect(page.getByRole('treeitem', { name: /^Inbox\b/ })).toBeVisible()
+  const inbox = await page.evaluate(
+    () =>
+      (JSON.parse(localStorage.getItem('devot.test.books') ?? '[]') as { id: string }[])[0]?.id ??
+      '',
+  )
+  expect(inbox).not.toBe('')
+  await changeEditorSettingsElsewhere(page, { defaultNotebook: inbox })
+  await page.getByRole('button', { name: /All Notes/ }).click()
+  await createNote(page, 'Source')
+  await startLink(page, 'Plan B')
+  await waitForResults(page, 'Plan B')
+  await popup(page).getByRole('option', { name: 'New Note \u201cPlan B\u201d' }).click()
+  await expect(noteRows(page)).toHaveCount(2)
+  const made = () =>
+    page.evaluate(
+      () =>
+        (
+          JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
+            title: string
+            bookId: string | null
+          }[]
+        ).find((n) => n.title === 'Plan B')?.bookId ?? null,
+    )
+  await expect.poll(made).toBe(inbox)
 })
 
 test('no note is left unlinked when its brackets were edited meanwhile', async ({ page }) => {

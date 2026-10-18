@@ -163,10 +163,7 @@ function Preview(props: { scan: ImportScan; locale: string }) {
 
 /** The destinations to choose from: No Notebook, then every notebook. */
 function destinationOptions(tree: BookNode[]): BookOption[] {
-  return [
-    { id: NO_BOOK, name: t('note.noBook'), label: t('note.noBook'), depth: 0, ancestors: [] },
-    ...bookOptions(tree),
-  ]
+  return [{ id: NO_BOOK, name: t('note.noBook'), depth: 0, ancestors: [] }, ...bookOptions(tree)]
 }
 
 /**
@@ -242,10 +239,11 @@ function Destination(props: {
             className="pick-row"
             role="option"
             aria-selected={o.id === props.value}
+            style={{ paddingInlineStart: `calc(var(--space-4) + ${o.depth} * var(--space-7))` }}
             onClick={() => props.onChange(o.id)}
             onDoubleClick={props.onSubmit}
           >
-            <span className="pick-name">{o.label}</span>
+            <span className="pick-name">{o.name}</span>
             {o.id === props.value ? <Icon name="check" size="sm" /> : null}
           </li>
         ))}

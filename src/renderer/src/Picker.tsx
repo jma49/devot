@@ -143,7 +143,8 @@ export function PickerList(props: {
       return
     }
     if (e.key === 'Tab') return props.onClose()
-    const next = pickerStep(e.key, shownActive, options.length)
+    // With a search field the focus is in text: Home and End stay with the caret.
+    const next = (props.search ? fieldStep : pickerStep)(e.key, shownActive, options.length)
     if (next === undefined) return
     e.preventDefault()
     setActive(next)

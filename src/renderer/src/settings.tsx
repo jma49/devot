@@ -7,7 +7,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { startShortcutSettings } from './commands/shortcutSettings'
-import { startEditorSettings } from './editorSettings'
+import { editorSettings, startEditorSettings, subscribeEditorSettings } from './editorSettings'
+import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
 import { resolveLocale, setLocale, t } from './i18n'
 import { watchCompositions } from './ime'
@@ -22,6 +23,12 @@ watchCompositions(window)
 startEditorSettings()
 startAppearance()
 startShortcutSettings()
+// The same accent as the main window, so "Match System Accent" shows here too.
+if (!DEVOT_UI_TEST) {
+  void followSystemAccent(document.documentElement.style, () => editorSettings().systemAccent)
+    .then((refresh) => subscribeEditorSettings(refresh))
+    .catch(() => console.warn('W_SYSTEM_ACCENT_FAILED'))
+}
 
 const root = document.getElementById('root')
 if (!root) throw new Error('E_RENDERER_ROOT_MISSING')

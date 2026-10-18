@@ -365,7 +365,8 @@ export function App() {
   useLayoutEffect(() => {
     document.querySelector('.window > .sidebar')?.toggleAttribute('inert', focus || sidebarOff)
     document.querySelector('.window > .list')?.toggleAttribute('inert', focus)
-  }, [focus, sidebarOff])
+    // A start that failed is replaced by a fresh window (Try Again): its panes are new.
+  }, [focus, sidebarOff, startFailure])
   // The notes this window opened, for Back and Forward. The ref moves at
   // once (quick presses each step on); the state renders it.
   const trailRef = useRef<Trail>(EMPTY_TRAIL)
@@ -1640,7 +1641,7 @@ export function App() {
   /** A note created from the `[[` popup; the open note stays open. */
   const createLinkedNote = async (linkTitle: string) => {
     if (!core) throw new Error('E_CORE_NOT_READY')
-    const id = await core.create(linkTitle, libraryBook?.id ?? null)
+    const id = await core.create(linkTitle, newNoteBookId())
     await refresh(core)
     return id
   }

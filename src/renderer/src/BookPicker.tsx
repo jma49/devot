@@ -7,8 +7,6 @@ import { PickerList, usePickerOpen, type PickerOption } from './Picker'
 export interface BookOption {
   id: string
   name: string
-  /** `name` indented by its depth, for flat lists. */
-  label: string
   /** How deep it is nested (0: top level). */
   depth: number
   /** The notebooks it is nested in, outermost first. */
@@ -23,7 +21,6 @@ export function bookOptions(tree: BookNode[]): BookOption[] {
       out.push({
         id: n.id,
         name: n.name,
-        label: `${'   '.repeat(n.depth)}${n.name}`,
         depth: n.depth,
         ancestors,
       })
