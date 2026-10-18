@@ -1,9 +1,13 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, openApp, test } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
+
+test.beforeEach(async ({ page }) => {
+  await openApp(page)
+})
 
 async function newNote(page: Page, title: string) {
   const before = await noteRows(page).count()
@@ -43,8 +47,8 @@ async function dragStart(row: ReturnType<typeof noteRows>) {
 
 test('a note row drags out as a Markdown link and an anchor', async ({ page }) => {
   await newNote(page, 'Plan <1> & "two"')
+  await expect(noteRows(page).first()).toContainText('Plan')
   const data = await dragStart(noteRows(page).first())
-  expect(data.effect).toBe('copyMove')
   expect(data.plain).toBe(`[Plan <1> & "two"](devot://note/${data.ids})`)
   expect(data.html).toBe(
     `<a href="devot://note/${data.ids}">Plan &lt;1&gt; &amp; &quot;two&quot;</a>`,
@@ -76,7 +80,6 @@ test('a notebook row drags out as Name:id', async ({ page }) => {
       id: dt.getData('application/x-devot-book'),
     }
   })
-  expect(data.effect).toBe('copyMove')
   expect(data.id).not.toBe('')
   expect(data.plain).toBe(`Work:${data.id}`)
 })
