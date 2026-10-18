@@ -401,7 +401,7 @@ export function createBookService(options: BookServiceOptions): BookService {
   return {
     list: listBooks,
 
-    async create(name, parentId, options) {
+    async create(name, parentId, extra) {
       const clean = cleanName(name)
       const books = await listBooks()
       if (parentId !== null) findIn(books, parentId)
@@ -420,8 +420,8 @@ export function createBookService(options: BookServiceOptions): BookService {
         updatedAt: at,
         deletedAt: null,
         deletedHlc: null,
-        aiAccess: options?.aiAccess === true,
-        aiAccessHlc: options?.aiAccess === true ? hlc : '',
+        aiAccess: extra?.aiAccess === true,
+        aiAccessHlc: extra?.aiAccess === true ? hlc : '',
         sortKey: key,
         sortKeyHlc: hlc,
         icon: null,
