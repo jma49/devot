@@ -2544,3 +2544,29 @@ fn lists_activity_since_a_time() {
         }
     );
 }
+
+#[test]
+fn rebuilding_the_search_index_restores_search() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "Relay plan", 10), &[]).unwrap();
+    store.put_note(&note("b", "Launch day", 20), &[]).unwrap();
+    let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 10).unwrap().len();
+    assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
+
+    // Empty the index behind the table's back.
+    store
+        .conn
+        .execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('delete-all')")
+        .unwrap();
+    assert_eq!((found(&store, "relay"), found(&store, "launch")), (0, 0));
+
+    assert_eq!(store.rebuild_search_index().unwrap(), 2);
+    assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
+    store
+        .conn
+        .execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
+        .unwrap();
+    // Rebuilding an intact index changes nothing.
+    assert_eq!(store.rebuild_search_index().unwrap(), 2);
+    assert_eq!(found(&store, "relay"), 1);
+}

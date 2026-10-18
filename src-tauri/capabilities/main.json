@@ -41,6 +41,7 @@
     "allow-image-save",
     "allow-log-write",
     "allow-backups-list",
+    "allow-search-index-rebuild",
     "allow-backup-now",
     "allow-backup-restore",
     "allow-import-read",

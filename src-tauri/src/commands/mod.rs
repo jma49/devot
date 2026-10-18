@@ -7,4 +7,5 @@ pub mod files;
 pub mod images;
 pub mod notes;
 pub mod revisions;
+pub mod search_index;
 pub mod tags;
