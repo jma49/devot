@@ -422,9 +422,353 @@ pub async fn text_speak(
     }
 }
 
+// ---- The editor's menu -------------------------------------------------------
+
+/// The most items the editor's menu takes from the page (submenu items too).
+const MAX_EDITOR_MENU_ITEMS: usize = 64;
+/// The longest item text or ID the editor's menu takes, in characters.
+const MAX_EDITOR_MENU_TEXT: usize = 200;
+/// The longest word the editor's menu offers spelling guesses for.
+const MAX_SPELLING_WORD: usize = 100;
+/// What every item ID the editor's menu takes starts with.
+const EDITOR_MENU_ID_PREFIX: &str = "devot.editor.";
+
+/// An item of the editor's menu as the page lays it out (`editorMenu.ts`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum EditorMenuEntry {
+    /// An item the page handles: picking it returns its ID.
+    Item {
+        id: String,
+        text: String,
+        /// Shown beside the item (`CmdOrCtrl+Z`); the page handles the key.
+        #[serde(default)]
+        accelerator: Option<String>,
+        #[serde(default)]
+        checked: Option<bool>,
+    },
+    Separator,
+    /// One of the system's own items, which act on the web view.
+    Predefined {
+        item: SystemItem,
+    },
+    /// A submenu of items (no deeper submenus).
+    Submenu {
+        id: String,
+        text: String,
+        items: Vec<EditorMenuEntry>,
+    },
+}
+
+/// The system's own items the page may put in the editor's menu.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+pub enum SystemItem {
+    Cut,
+    Copy,
+    Paste,
+    SelectAll,
+}
+
+/// What was picked in the editor's menu, when the page has to act on it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum EditorMenuPick {
+    /// One of the page's items.
+    Item { id: String },
+    /// A spelling guess: the page puts it in place of the word.
+    Guess { text: String },
+}
+
+fn valid_menu_text(text: &str) -> bool {
+    !text.trim().is_empty()
+        && text.chars().count() <= MAX_EDITOR_MENU_TEXT
+        && !text.chars().any(char::is_control)
+}
+
+fn valid_menu_id(id: &str) -> bool {
+    id.len() <= MAX_EDITOR_MENU_TEXT
+        && id.strip_prefix(EDITOR_MENU_ID_PREFIX).is_some_and(|rest| {
+            !rest.is_empty() && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')
+        })
+}
+
+/// Checks the editor's menu the page sends: at most `MAX_EDITOR_MENU_ITEMS`
+/// items, each with an ID of the editor's and a sane text, submenus one
+/// level deep; a point with finite, non-negative coordinates; and a word
+/// (to offer spelling guesses for) that is one word.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn validate_editor_menu(
+    items: &[EditorMenuEntry],
+    x: f64,
+    y: f64,
+    word: Option<&str>,
+) -> Result<(), &'static str> {
+    fn check(
+        items: &[EditorMenuEntry],
+        nested: bool,
+        count: &mut usize,
+    ) -> Result<(), &'static str> {
+        for item in items {
+            *count += 1;
+            if *count > MAX_EDITOR_MENU_ITEMS {
+                return Err("E_EDITOR_MENU_TOO_LONG");
+            }
+            match item {
+                EditorMenuEntry::Item {
+                    id,
+                    text,
+                    accelerator,
+                    ..
+                } => {
+                    if !valid_menu_id(id) || !valid_menu_text(text) {
+                        return Err("E_EDITOR_MENU_ITEM_INVALID");
+                    }
+                    if accelerator.as_deref().is_some_and(|a| !valid_menu_text(a)) {
+                        return Err("E_EDITOR_MENU_ITEM_INVALID");
+                    }
+                }
+                EditorMenuEntry::Submenu { id, text, items } => {
+                    if nested || !valid_menu_id(id) || !valid_menu_text(text) {
+                        return Err("E_EDITOR_MENU_ITEM_INVALID");
+                    }
+                    check(items, true, count)?;
+                }
+                EditorMenuEntry::Separator | EditorMenuEntry::Predefined { .. } => {}
+            }
+        }
+        Ok(())
+    }
+    check(items, false, &mut 0)?;
+    if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 {
+        return Err("E_EDITOR_MENU_POINT_INVALID");
+    }
+    if let Some(word) = word
+        && (word.is_empty()
+            || word.chars().count() > MAX_SPELLING_WORD
+            || word.chars().any(|c| c.is_whitespace() || c.is_control()))
+    {
+        return Err("E_EDITOR_MENU_WORD_INVALID");
+    }
+    Ok(())
+}
+
+/// A menu item's key as AppKit shows it: the key equivalent and its modifiers.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub struct KeyEquivalent {
+    pub key: String,
+    pub command: bool,
+    pub shift: bool,
+    pub option: bool,
+    pub control: bool,
+}
+
+/// Reads an accelerator as the page writes it (`Ctrl+Shift+Alt+CmdOrCtrl+K`,
+/// `shortcutAccelerator`); `None` for a key AppKit has no equivalent for.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn key_equivalent(accelerator: &str) -> Option<KeyEquivalent> {
+    let mut parts: Vec<&str> = accelerator.split('+').collect();
+    // `CmdOrCtrl++` names the plus key.
+    if accelerator.ends_with("++") {
+        parts.truncate(parts.len().saturating_sub(2));
+        parts.push("+");
+    }
+    let (name, modifiers) = parts.split_last()?;
+    let mut out = KeyEquivalent::default();
+    for modifier in modifiers {
+        match *modifier {
+            "CmdOrCtrl" | "Cmd" | "Command" | "Super" => out.command = true,
+            "Ctrl" | "Control" => out.control = true,
+            "Shift" => out.shift = true,
+            "Alt" | "Option" => out.option = true,
+            _ => return None,
+        }
+    }
+    let function = |n: u32| char::from_u32(0xF704 + n - 1);
+    let key = match *name {
+        "Enter" => '\r',
+        "Tab" => '\t',
+        "Space" => ' ',
+        "Backspace" => '\u{8}',
+        "Delete" => '\u{7f}',
+        "Escape" => '\u{1b}',
+        "ArrowUp" | "Up" => '\u{F700}',
+        "ArrowDown" | "Down" => '\u{F701}',
+        "ArrowLeft" | "Left" => '\u{F702}',
+        "ArrowRight" | "Right" => '\u{F703}',
+        "Home" => '\u{F729}',
+        "End" => '\u{F72B}',
+        "PageUp" => '\u{F72C}',
+        "PageDown" => '\u{F72D}',
+        other => {
+            let mut chars = other.chars();
+            match (chars.next(), chars.next()) {
+                (Some(c), None) => c.to_ascii_lowercase(),
+                _ => {
+                    let n: u32 = other.strip_prefix('F')?.parse().ok()?;
+                    if !(1..=20).contains(&n) {
+                        return None;
+                    }
+                    function(n)?
+                }
+            }
+        }
+    };
+    out.key = key.to_string();
+    Some(out)
+}
+
+/// Shows the editor's menu at a point in the window (CSS pixels from the
+/// top-left corner of the page) and waits until it closes: the page's
+/// items, the system's spelling guesses for `word` when it is misspelled,
+/// and the system's Spelling and Grammar, Writing Tools and Services.
+/// Returns what the page has to act on, if anything was picked.
+#[tauri::command]
+pub async fn editor_menu_popup(
+    app: tauri::AppHandle,
+    items: Vec<EditorMenuEntry>,
+    x: f64,
+    y: f64,
+    word: Option<String>,
+) -> Result<Option<EditorMenuPick>, String> {
+    validate_editor_menu(&items, x, y, word.as_deref()).map_err(String::from)?;
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::Manager;
+        let window = app
+            .get_webview_window(crate::MAIN_WINDOW)
+            .ok_or_else(|| String::from("E_NATIVE_MAIN_WINDOW_MISSING"))?;
+        let (reply, answer) = tokio::sync::oneshot::channel();
+        window
+            .with_webview(move |webview| {
+                let _ = reply.send(macos::editor_menu(&webview, &items, x, y, word.as_deref()));
+            })
+            .map_err(|_| String::from("E_NATIVE_MAIN_THREAD_UNAVAILABLE"))?;
+        match answer.await {
+            Ok(result) => result.map_err(String::from),
+            Err(_) => Err(String::from("E_EDITOR_MENU_FAILED")),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, items, word);
+        Err(String::from("E_EDITOR_MENU_UNSUPPORTED"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn item(id: &str, text: &str) -> EditorMenuEntry {
+        EditorMenuEntry::Item {
+            id: id.into(),
+            text: text.into(),
+            accelerator: None,
+            checked: None,
+        }
+    }
+
+    #[test]
+    fn takes_the_editor_menu_the_page_lays_out() {
+        let speech = EditorMenuEntry::Submenu {
+            id: "devot.editor.speech".into(),
+            text: "Speech".into(),
+            items: vec![item("devot.editor.startSpeaking", "Start Speaking")],
+        };
+        let items = vec![
+            item("devot.editor.undo", "Undo"),
+            EditorMenuEntry::Separator,
+            EditorMenuEntry::Predefined {
+                item: SystemItem::Cut,
+            },
+            speech,
+        ];
+        assert_eq!(validate_editor_menu(&items, 0.0, 10.5, Some("teh")), Ok(()));
+        assert_eq!(validate_editor_menu(&items, 0.0, 10.5, None), Ok(()));
+    }
+
+    #[test]
+    fn refuses_an_editor_menu_that_is_not_the_editors() {
+        let bad = |items: Vec<EditorMenuEntry>| validate_editor_menu(&items, 1.0, 1.0, None);
+        for id in ["devot.note.trash", "devot.editor.", "devot.editor.a b", "x"] {
+            assert_eq!(
+                bad(vec![item(id, "Undo")]),
+                Err("E_EDITOR_MENU_ITEM_INVALID"),
+                "{id}"
+            );
+        }
+        for text in ["", "  ", "a\nb", &"x".repeat(MAX_EDITOR_MENU_TEXT + 1)] {
+            assert_eq!(
+                bad(vec![item("devot.editor.undo", text)]),
+                Err("E_EDITOR_MENU_ITEM_INVALID")
+            );
+        }
+        let inner = EditorMenuEntry::Submenu {
+            id: "devot.editor.b".into(),
+            text: "B".into(),
+            items: vec![],
+        };
+        let nested = EditorMenuEntry::Submenu {
+            id: "devot.editor.a".into(),
+            text: "A".into(),
+            items: vec![inner],
+        };
+        assert_eq!(bad(vec![nested]), Err("E_EDITOR_MENU_ITEM_INVALID"));
+        let many = vec![EditorMenuEntry::Separator; MAX_EDITOR_MENU_ITEMS + 1];
+        assert_eq!(bad(many), Err("E_EDITOR_MENU_TOO_LONG"));
+        let one = [item("devot.editor.undo", "Undo")];
+        for (x, y) in [(-1.0, 0.0), (0.0, f64::NAN), (f64::INFINITY, 0.0)] {
+            assert_eq!(
+                validate_editor_menu(&one, x, y, None),
+                Err("E_EDITOR_MENU_POINT_INVALID")
+            );
+        }
+        for word in ["", "two words", "a\tb", &"x".repeat(MAX_SPELLING_WORD + 1)] {
+            assert_eq!(
+                validate_editor_menu(&one, 0.0, 0.0, Some(word)),
+                Err("E_EDITOR_MENU_WORD_INVALID")
+            );
+        }
+    }
+
+    #[test]
+    fn reads_the_pages_accelerators_as_key_equivalents() {
+        let key = |k: &str, command, shift, option, control| KeyEquivalent {
+            key: k.into(),
+            command,
+            shift,
+            option,
+            control,
+        };
+        assert_eq!(
+            key_equivalent("CmdOrCtrl+Z"),
+            Some(key("z", true, false, false, false))
+        );
+        assert_eq!(
+            key_equivalent("Ctrl+Shift+Alt+CmdOrCtrl+V"),
+            Some(key("v", true, true, true, true))
+        );
+        assert_eq!(
+            key_equivalent("Shift+F10"),
+            Some(key("\u{F70D}", false, true, false, false))
+        );
+        assert_eq!(
+            key_equivalent("CmdOrCtrl+Enter"),
+            Some(key("\r", true, false, false, false))
+        );
+        assert_eq!(
+            key_equivalent("CmdOrCtrl++"),
+            Some(key("+", true, false, false, false))
+        );
+        assert_eq!(
+            key_equivalent("CmdOrCtrl+,"),
+            Some(key(",", true, false, false, false))
+        );
+        assert_eq!(key_equivalent("Hyper+K"), None);
+        assert_eq!(key_equivalent("CmdOrCtrl+Fn"), None);
+        assert_eq!(key_equivalent("F99"), None);
+    }
 
     #[test]
     fn reads_the_pasteboard_text_as_it_is() {

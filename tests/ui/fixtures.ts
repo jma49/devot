@@ -25,11 +25,20 @@ export interface MockMenu {
   handler?: { onmessage: (id: unknown) => void }
 }
 
+/** An item of the editor's menu as the page sends it to Rust (`editor_menu_popup`). */
+export type EditorMenuEntry =
+  | { kind: 'item'; id: string; text: string; accelerator?: string; checked?: boolean }
+  | { kind: 'separator' }
+  | { kind: 'predefined'; item: string }
+  | { kind: 'submenu'; id: string; text: string; items: EditorMenuEntry[] }
+
 /** The page's globals these tests touch (this config has no DOM types). */
 export interface TestWindow {
   devotIpcCalls: IpcCall[]
   devotIpcMocks?: Record<string, unknown>
   devotMenus: Record<number, MockMenu>
+  /** The editor's menu while it is open: Rust's answer, once something is picked. */
+  devotEditorMenu?: { items: EditorMenuEntry[]; answer: (pick: unknown) => void } | undefined
   /** The stored editor settings (only those set; the rest are defaults). */
   devotEditorSettings?: Record<string, unknown>
   /** Their revision, counted up with each change as Rust does. */
@@ -173,6 +182,14 @@ export async function mockTauri(page: Page): Promise<void> {
             cmd === 'text_speak'
           )
             return null
+          // The editor's menu stays open until an item is picked in it
+          // (`pickMenuItem`, `answerEditorMenu`) or another menu opens.
+          if (cmd === 'editor_menu_popup') {
+            w.devotEditorMenu?.answer(null)
+            return new Promise((answer) => {
+              w.devotEditorMenu = { items: args['items'] as EditorMenuEntry[], answer }
+            })
+          }
           if (cmd === 'keyboard_shortcuts_get')
             return {
               revision: w.devotShortcutRevision ?? 0,
@@ -407,7 +424,27 @@ export function symbolRequests(calls: IpcCall[]): string[] {
 export async function shownMenu(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const w = globalThis as unknown as TestWindow
-    const popup = w.devotIpcCalls.findLast((c) => c.cmd === 'plugin:menu|popup')
+    const shown = w.devotIpcCalls.findLast(
+      (c) => c.cmd === 'plugin:menu|popup' || c.cmd === 'editor_menu_popup',
+    )
+    if (shown?.cmd === 'editor_menu_popup') {
+      // Rust adds the system's items (spelling, Writing Tools, Services).
+      const system: Record<string, string> = { SelectAll: 'Select All' }
+      const lines = (items: EditorMenuEntry[], indent: string): string[] =>
+        items.flatMap((item) => {
+          if (item.kind === 'separator') return ['---']
+          if (item.kind === 'predefined') return [`${indent}${system[item.item] ?? item.item}`]
+          if (item.kind === 'submenu') {
+            return [`${indent}${item.text} >`, ...lines(item.items, `${indent}  `)]
+          }
+          const line = item.accelerator ? `${item.text} ${item.accelerator}` : item.text
+          return [
+            `${indent}${item.checked === undefined ? line : `${line} ${item.checked ? '[x]' : '[ ]'}`}`,
+          ]
+        })
+      return lines(shown.args['items'] as EditorMenuEntry[], '')
+    }
+    const popup = shown
     const menu = popup ? w.devotMenus[popup.args['rid'] as number] : undefined
     const lines = (items: [number, string][], indent: string): string[] =>
       items.flatMap(([rid]) => {
@@ -428,6 +465,18 @@ export async function shownMenu(page: Page): Promise<string[]> {
       })
     return lines(menu?.options.items ?? [], '')
   })
+}
+
+/** Answers the open editor's menu as Rust would (a spelling guess, say); fails when none is open. */
+export async function answerEditorMenu(page: Page, pick: unknown): Promise<void> {
+  const answered = await page.evaluate((p) => {
+    const w = globalThis as unknown as TestWindow
+    const open = w.devotEditorMenu
+    w.devotEditorMenu = undefined
+    open?.answer(p)
+    return open !== undefined
+  }, pick)
+  if (!answered) throw new Error('E_TEST_NO_EDITOR_MENU')
 }
 
 /**
@@ -451,7 +500,24 @@ async function pickMenuItemNow(page: Page, label: string, submenu?: string): Pro
   return page.evaluate(
     ([text, parent]) => {
       const w = globalThis as unknown as TestWindow
-      const popup = w.devotIpcCalls.findLast((c) => c.cmd === 'plugin:menu|popup')
+      const shown = w.devotIpcCalls.findLast(
+        (c) => c.cmd === 'plugin:menu|popup' || c.cmd === 'editor_menu_popup',
+      )
+      if (shown?.cmd === 'editor_menu_popup') {
+        const open = w.devotEditorMenu
+        if (!open) return false
+        let items = open.items
+        if (parent !== undefined) {
+          const sub = items.find((i) => i.kind === 'submenu' && i.text === parent)
+          items = sub?.kind === 'submenu' ? sub.items : []
+        }
+        const item = items.find((i) => i.kind === 'item' && i.text === text)
+        if (item?.kind !== 'item') return false
+        w.devotEditorMenu = undefined
+        open.answer({ kind: 'item', id: item.id })
+        return true
+      }
+      const popup = shown
       let menu = popup ? w.devotMenus[popup.args['rid'] as number] : undefined
       if (parent !== undefined) {
         const rid = menu?.options.items?.find(

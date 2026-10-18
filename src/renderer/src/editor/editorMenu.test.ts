@@ -2,7 +2,13 @@ import { EditorSelection, EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { shownGroups } from '../contextMenu'
 import { t } from '../i18n'
-import { EDITOR_MENU, editorMenuShows, editorMenuTarget, type EditorMenuTarget } from './editorMenu'
+import {
+  EDITOR_MENU,
+  editorMenuShows,
+  editorMenuTarget,
+  spellingWordAt,
+  type EditorMenuTarget,
+} from './editorMenu'
 import { noteMarkdown } from './markdown'
 
 /** A state with the main selection from `from` to `to`. */
@@ -89,5 +95,25 @@ describe('the menu target', () => {
       selection: 'word',
       canMakeNote: false,
     })
+  })
+})
+
+describe('the word the menu offers spelling guesses for', () => {
+  it('is the word at the point, with no selection or with that word selected', () => {
+    expect(spellingWordAt(state('I recieve mail', 4), 4)).toEqual({
+      from: 2,
+      to: 9,
+      text: 'recieve',
+    })
+    expect(spellingWordAt(state('I recieve mail', 2, 9), 5)?.text).toBe('recieve')
+    expect(spellingWordAt(state('un caf\u00e9', 5), 5)?.text).toBe('caf\u00e9')
+  })
+
+  it('is none away from a word, with another selection, or for what is not a word', () => {
+    expect(spellingWordAt(state('one two', 0), null)).toBeNull()
+    expect(spellingWordAt(state('one  two', 4), 4)).toBeNull()
+    expect(spellingWordAt(state('one two', 0, 7), 1)).toBeNull()
+    expect(spellingWordAt(state('abc123 x', 1), 1)).toBeNull()
+    expect(spellingWordAt(state('x'.repeat(101), 1), 1)).toBeNull()
   })
 })

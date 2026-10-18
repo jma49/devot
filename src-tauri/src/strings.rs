@@ -97,3 +97,18 @@ pub const STARTUP_OTHER: &str = "Something went wrong while Devot was starting."
 /// code, filled in for `{folder}` and `{code}`.
 pub const STARTUP_FOLDER: &str = "Data folder: {folder}";
 pub const STARTUP_CODE: &str = "Code: {code}";
+
+// The editor's menu: the system items Rust adds to the page's.
+pub const EDIT_CUT: &str = "Cut";
+pub const EDIT_COPY: &str = "Copy";
+pub const EDIT_PASTE: &str = "Paste";
+pub const EDIT_SELECT_ALL: &str = "Select All";
+pub const SPELLING_NO_GUESSES: &str = "No Guesses Found";
+pub const SPELLING_LEARN: &str = "Learn Spelling";
+pub const MENU_SPELLING: &str = "Spelling and Grammar";
+pub const SPELLING_SHOW_PANEL: &str = "Show Spelling and Grammar";
+pub const SPELLING_CHECK_NOW: &str = "Check Document Now";
+pub const SPELLING_WHILE_TYPING: &str = "Check Spelling While Typing";
+pub const SPELLING_GRAMMAR: &str = "Check Grammar With Spelling";
+pub const SPELLING_CORRECT_AUTOMATICALLY: &str = "Correct Spelling Automatically";
+pub const MENU_SERVICES: &str = "Services";
