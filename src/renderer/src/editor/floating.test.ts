@@ -6,7 +6,7 @@ const rule = (selector: string) => floatStyles[selector] as Rule
 
 describe('floating bar motion and states', () => {
   it('shows hover and pressed the same way: an outline ring over a fill', () => {
-    const hover = rule('.cm-float-button:hover')
+    const hover = rule('.cm-float-button:hover:not(:disabled)')
     const pressed = rule('.cm-float-button[aria-pressed="true"]')
     for (const state of [hover, pressed]) {
       expect(state.borderColor).toBe('var(--color-line-control)')

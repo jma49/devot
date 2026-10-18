@@ -367,6 +367,31 @@ export const TABLE_COMMANDS = Object.fromEntries(
   ]),
 ) as Record<TableCommandId, FormatCommand>
 
+/** What the table bar shows for the cursor: the commands that cannot act, and the column's alignment. */
+export interface TableBarStatus {
+  disabled: ReadonlySet<TableCommandId>
+  align: Align
+}
+
+/** The commands the bar disables: those that do nothing at the cursor, and Delete Row on the only row. */
+const BAR_CHECKED: readonly TableCommandId[] = [
+  'moveRowUp',
+  'moveRowDown',
+  'moveColumnLeft',
+  'moveColumnRight',
+  'deleteRow',
+  'deleteColumn',
+]
+
+/** The table bar's state at the main cursor, or null outside a table. */
+export function tableBarStatus(state: EditorState): TableBarStatus | null {
+  const at = locate(state)
+  if (!at) return null
+  const disabled = new Set(BAR_CHECKED.filter((id) => EDITS[id](at) === null))
+  if (at.table.rows.length < 2) disabled.add('deleteRow')
+  return { disabled, align: at.table.align[at.column] ?? 'none' }
+}
+
 /** Whether the main cursor is in a table (the palette offers the table commands then). */
 export function inTable(state: EditorState): boolean {
   return locate(state) !== null

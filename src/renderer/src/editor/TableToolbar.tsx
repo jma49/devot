@@ -22,7 +22,8 @@ import {
   NOTCH_X,
   useFloatTip,
 } from './floating'
-import { TABLE_COMMANDS, inTable, type TableCommandId } from './tableCommands'
+import type { Align } from './table'
+import { TABLE_COMMANDS, inTable, tableBarStatus, type TableCommandId } from './tableCommands'
 import { commandTip, type Tip } from './toolbarButtons'
 import { releaseBarFocus, toolbarOff, toolbarState, toolbarStateExtension } from './toolbarState'
 
@@ -86,6 +87,14 @@ export function tableBarAt(state: EditorState): { pos: number } | null {
   return { pos: state.doc.lineAt(state.selection.main.head).from }
 }
 
+/** The alignment each Align button sets. */
+const ALIGN_OF: Partial<Record<TableBarId, Align>> = {
+  alignLeft: 'left',
+  alignCenter: 'center',
+  alignRight: 'right',
+  alignNone: 'none',
+}
+
 function press(view: EditorView, id: TableBarId) {
   const tr = TABLE_COMMANDS[id](view.state)
   if (tr) view.dispatch(tr)
@@ -94,6 +103,7 @@ function press(view: EditorView, id: TableBarId) {
 
 function TableBar({ view }: { view: EditorView }) {
   const tip = useFloatTip(view)
+  const status = tableBarStatus(view.state)
   return (
     <>
       <div role="toolbar" aria-label={t('tableBar.label')} className="cm-float-buttons">
@@ -106,6 +116,10 @@ function TableBar({ view }: { view: EditorView }) {
                 label={label(b)}
                 icon={b.icon}
                 tip={tableBarTip(b)}
+                disabled={status?.disabled.has(b.id)}
+                pressed={
+                  ALIGN_OF[b.id] === undefined ? undefined : ALIGN_OF[b.id] === status?.align
+                }
                 onShowTip={tip.show}
                 onHideTip={tip.hide}
                 onPress={() => {
@@ -144,9 +158,14 @@ function createBar(view: EditorView): TooltipView {
     positioned: (space) => {
       if (fit(space.right - space.left)) view.requestMeasure()
     },
-    // Rebound keys (a reconfigured editor) change the tooltips.
+    // The caret moving or the table changing changes which buttons can act.
     update: (update) => {
-      if (update.transactions.some((tr) => tr.reconfigured)) render()
+      if (
+        update.docChanged ||
+        update.selectionSet ||
+        update.transactions.some((tr) => tr.reconfigured)
+      )
+        render()
     },
     offset: { x: -NOTCH_X, y: BAR_GAP },
     resize: false,

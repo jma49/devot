@@ -69,3 +69,12 @@ describe('ImportDialog with a notebook preset', () => {
     expect(render(scan('files'))).toContain('role="listbox"')
   })
 })
+
+describe('ImportDialog folder list', () => {
+  it('is a plain nested list a screen reader can walk, not an unfocusable tree', () => {
+    const html = render(scan('folder', null))
+    expect(html).toContain('class="import-tree"')
+    expect(html).not.toMatch(/role="(tree|treeitem|group)"/)
+    expect(html).not.toContain('aria-selected')
+  })
+})

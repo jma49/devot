@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   channelOf,
   compareVersions,
+  feedChannels,
   replacesFeed,
   updateFeed,
   verifySignature,
@@ -106,6 +107,28 @@ describe('feed order', () => {
     expect(replacesFeed('0.3.0-beta.1', '')).toBe(true)
     expect(replacesFeed('0.3.0-beta.1', '{}')).toBe(true)
     expect(replacesFeed('0.3.0-beta.1', '{"version":"latest"}')).toBe(true)
+  })
+
+  it('puts a stable release in the beta feed too', () => {
+    // A beta install reads beta.json, so it is offered the newest build of
+    // either kind; a stable install never gets a beta.
+    expect(feedChannels('1.0.0')).toEqual(['stable', 'beta'])
+    expect(feedChannels('1.0.0-beta.3')).toEqual(['beta'])
+    // The beta feed moves only when the stable release is newer than it.
+    expect(replacesFeed('1.0.0', JSON.stringify({ version: '1.0.0-beta.5' }))).toBe(true)
+    expect(replacesFeed('1.0.0', JSON.stringify({ version: '1.1.0-beta.1' }))).toBe(false)
+  })
+
+  it('prints the feeds a tag writes, one per line', () => {
+    const feeds = (tag: string) =>
+      spawnSync(process.execPath, [join(root, 'scripts/release/release.ts'), 'feeds', tag], {
+        encoding: 'utf8',
+      })
+    expect(feeds('v1.0.0').stdout).toBe('stable\nbeta\n')
+    expect(feeds('v1.1.0-beta.2').stdout).toBe('beta\n')
+    const bad = feeds('v1.0')
+    expect(bad.status).toBe(1)
+    expect(bad.stderr).toContain('E_RELEASE_TAG_INVALID')
   })
 })
 

