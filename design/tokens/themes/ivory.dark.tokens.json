@@ -14,14 +14,14 @@
           "colorSpace": "srgb",
           "components": [0.1216, 0.1176, 0.1137],
           "hex": "#1f1e1d",
-          "alpha": 0.7
+          "alpha": 0.1
         },
         "$extensions": {
           "app.devot": {
             "material": "sidebar"
           }
         },
-        "$description": "Design value #1f1e1d."
+        "$description": "The sidebar's wash over the window material: the sidebar colour at the default theme's strength."
       },
       "sidebar-opaque": {
         "$type": "color",
@@ -30,7 +30,7 @@
           "components": [0.1216, 0.1176, 0.1137],
           "hex": "#1f1e1d"
         },
-        "$description": "The sidebar when the window material is turned off (Settings > Appearance): the material tint, opaque. Design value #1f1e1d."
+        "$description": "The sidebar when the window material is turned off (Settings > Appearance), and the sidebar of the Settings window. Design value #1f1e1d."
       },
       "list": {
         "$type": "color",
@@ -41,6 +41,16 @@
         },
         "$description": "hsl(0 0% 9% / 50%) over the editor, opaque. Design value #262624."
       },
+      "list-wash": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.149, 0.149, 0.1412],
+          "hex": "#262624",
+          "alpha": 0.5
+        },
+        "$description": "The note list's wash over the window material: the list colour at the default theme's strength."
+      },
       "editor": {
         "$type": "color",
         "$value": {
@@ -49,6 +59,25 @@
           "hex": "#30302e"
         },
         "$description": "Design value #30302e."
+      },
+      "editor-wash": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1882, 0.1882, 0.1804],
+          "hex": "#30302e",
+          "alpha": 0.6
+        },
+        "$description": "The editor pane's wash over the window material: the editor colour at the default theme's strength."
+      },
+      "window": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d"
+        },
+        "$description": "Behind every pane when the window material is turned off (Settings > Appearance)."
       },
       "popover": {
         "$type": "color",

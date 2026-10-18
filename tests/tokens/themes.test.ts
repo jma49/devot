@@ -157,6 +157,21 @@ describe('Ivory', () => {
     )
   })
 
+  it('washes each region with its own colour at the default theme strength', () => {
+    for (const appearance of APPEARANCES) {
+      const system: Record<string, string> = appearance === 'light' ? light : dark
+      for (const [wash, base] of [
+        ['sidebar', 'sidebar-opaque'],
+        ['list-wash', 'list'],
+        ['editor-wash', 'editor'],
+      ] as const) {
+        const colour = rgb(appearance, `color.surface.${wash}`)
+        expect(colour.rgb).toEqual(rgb(appearance, `color.surface.${base}`).rgb)
+        expect(colour.alpha).toBe(parseColor(system[`color.surface.${wash}`]!).alpha)
+      }
+    }
+  })
+
   it('steps the surfaces: sidebar, note list, editor', () => {
     const black: Rgb = [0, 0, 0]
     const level = (appearance: Appearance, name: string) =>

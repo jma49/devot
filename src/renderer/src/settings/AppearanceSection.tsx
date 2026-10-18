@@ -60,9 +60,9 @@ function Preview({
  * cards with a small preview; the theme, Default or Ivory, as cards that show
  * each in both appearances (Ivory has its own accent, so the system accent
  * option is off while it is chosen); whether the accent follows the macOS accent
- * colour (off by default: Devot's palette); and whether the window shows the
- * sidebar material (on by default). Off, the sidebar paints an opaque
- * surface and the main window drops its effect (sidebarMaterial.ts). Every
+ * colour (off by default: Devot's palette); and whether the whole window shows
+ * the material (on by default). Off, every region paints an opaque surface
+ * and the main window drops its effect (sidebarMaterial.ts). Every
  * change applies at once, without a restart. The settings are stored with
  * the editor settings, so changes made elsewhere show here as they happen.
  */

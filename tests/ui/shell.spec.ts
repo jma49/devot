@@ -86,12 +86,16 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   }
 })
 
-test('the sidebar shows the window material; list and editor are opaque', async ({ page }) => {
+test('the sidebar, list and editor show the window material through their washes', async ({
+  page,
+}) => {
   await freshStart(page)
   const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
   expect(alpha(await css(sidebar, 'background-color'))).toBeLessThan(1)
-  expect(alpha(await css(page.getByRole('region', { name: 'Notes' }), 'background-color'))).toBe(1)
-  expect(alpha(await css(page.getByRole('main'), 'background-color'))).toBe(1)
+  expect(
+    alpha(await css(page.getByRole('region', { name: 'Notes' }), 'background-color')),
+  ).toBeLessThan(1)
+  expect(alpha(await css(page.getByRole('main'), 'background-color'))).toBeLessThan(1)
 })
 
 test('counts notes in the sidebar and the list header', async ({ page }) => {

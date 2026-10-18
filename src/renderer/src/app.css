@@ -298,7 +298,7 @@ button {
   pointer-events: none;
 }
 
-/* Sidebar: the window material shows through its tint. */
+/* Sidebar: the window material shows through its wash. */
 .sidebar {
   position: relative;
   /* The width the user dragged its right edge to (Sidebar sets --sidebar-width). */
@@ -318,12 +318,23 @@ button {
 }
 
 /* Settings > Appearance turned the material off (sidebarMaterial.ts): the
-   window draws no effect, so the sidebar paints its own opaque surface, and
+   window draws no effect, so every region paints its own opaque surface, and
    so does the root, behind every pane, before they render or while one
    changes. */
-:root[data-sidebar-material='off'],
+:root[data-sidebar-material='off'] {
+  background: var(--color-surface-window);
+}
+
 :root[data-sidebar-material='off'] .sidebar {
   background: var(--color-surface-sidebar-opaque);
+}
+
+:root[data-sidebar-material='off'] .list {
+  background: var(--color-surface-list);
+}
+
+:root[data-sidebar-material='off'] .content {
+  background: var(--color-surface-editor);
 }
 
 .sidebar-scroll {
@@ -947,7 +958,8 @@ button {
   flex-direction: column;
   min-height: 0;
   box-sizing: border-box;
-  background: var(--color-surface-list);
+  /* The window material shows through (opaque when it is off, above). */
+  background: var(--color-surface-list-wash);
   border-right: 1px solid var(--color-line-hairline);
 }
 
@@ -1318,7 +1330,8 @@ button {
   min-width: calc(var(--size-pane-min-width) * 2);
   display: flex;
   flex-direction: column;
-  background: var(--color-surface-editor);
+  /* The window material shows through; the editor itself is transparent. */
+  background: var(--color-surface-editor-wash);
 }
 
 .window[data-narrow]:not([data-sidebar-hidden]) .content {
@@ -3141,7 +3154,8 @@ button {
   padding-top: var(--space-2);
   overflow-y: auto;
   border-right: 1px solid var(--color-line-hairline);
-  background: var(--color-surface-sidebar);
+  /* The Settings window has no material: its sidebar is opaque. */
+  background: var(--color-surface-sidebar-opaque);
 }
 
 /* A row: its name on the left and an outline symbol on the right. The

@@ -454,10 +454,10 @@ export const en = {
   'appearanceSettings.systemAccentHint':
     'Buttons, links and selections follow the accent colour chosen in System Settings.',
   'appearanceSettings.systemAccentOwnTheme': 'This theme uses its own accent colour.',
-  'appearanceSettings.sidebar': 'Sidebar',
-  'appearanceSettings.sidebarMaterial': 'Translucent Sidebar',
+  'appearanceSettings.sidebar': 'Window',
+  'appearanceSettings.sidebarMaterial': 'Translucent Window',
   'appearanceSettings.sidebarMaterialHint':
-    'The desktop shows through the sidebar. Turn this off for an opaque sidebar and window.',
+    'The desktop shows through the whole window. Turn this off for an opaque window.',
   'appearanceSettings.failed': 'The appearance settings could not be saved ({code}).',
   'mirror.title': 'Markdown Mirror',
   'mirror.detail':

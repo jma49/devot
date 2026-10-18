@@ -74,7 +74,7 @@ export interface EditorSettings {
   listMarker: ListMarker
   spellCheck: boolean
   highlightActiveLine: boolean
-  /** The window shows the sidebar material; off, the sidebar is opaque. */
+  /** The whole window shows the material (the key keeps its old name); off, the window is opaque. */
   sidebarMaterial: boolean
   pasteUrl: PasteUrlStyle
   /** Split mode keeps the editor and the preview at the same line (View > Synced Scrolling). */

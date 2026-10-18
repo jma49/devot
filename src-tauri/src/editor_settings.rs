@@ -176,7 +176,8 @@ pub struct EditorSettings {
     pub list_marker: ListMarker,
     pub spell_check: bool,
     pub highlight_active_line: bool,
-    /// The window shows the sidebar material; off, the sidebar is opaque.
+    /// The whole window shows the material (the key keeps its old name); off,
+    /// the window is opaque.
     pub sidebar_material: bool,
     pub paste_url: PasteUrl,
     /// Split mode keeps the editor and the preview at the same line
