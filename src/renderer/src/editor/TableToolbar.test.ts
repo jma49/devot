@@ -10,7 +10,11 @@ import { setToolbarFocus, toolbarOff, toolbarState } from './toolbarState'
 const DOC = 'intro\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nafter'
 
 function make(head: number, opts: { focused?: boolean; off?: boolean; anchor?: number } = {}) {
-  const extensions: Extension[] = [toolbarState, noteMarkdown]
+  const extensions: Extension[] = [
+    toolbarState,
+    noteMarkdown,
+    EditorState.allowMultipleSelections.of(true),
+  ]
   if (opts.off) extensions.push(toolbarOff.of(true))
   let state = EditorState.create({
     doc: DOC,
