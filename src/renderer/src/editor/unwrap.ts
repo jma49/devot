@@ -140,6 +140,45 @@ function verticalScroller(view: EditorView): HTMLElement {
 const caretOffset = (view: EditorView, scroller: HTMLElement, head: number) =>
   view.documentTop + view.lineBlockAt(head).top - scroller.getBoundingClientRect().top
 
+/** The box that scrolls the lines sideways: the content itself in the reading column, else the editor's scroller. */
+function sidewaysScroller(view: EditorView): HTMLElement {
+  const content = view.contentDOM
+  return getComputedStyle(content).overflowX === 'auto' ? content : view.scrollDOM
+}
+
+/** Scrolls the lines sideways so the caret box (`caret`, in screen pixels) is inside the scroller's edges. */
+export function revealSideways(
+  view: EditorView,
+  caret: { left: number; right: number },
+  margin = 0,
+) {
+  const scroller = sidewaysScroller(view)
+  const box = scroller.getBoundingClientRect()
+  if (caret.left < box.left + margin) scroller.scrollLeft -= box.left + margin - caret.left
+  else if (caret.right > box.right - margin) scroller.scrollLeft += caret.right - box.right + margin
+}
+
+/** After the caret moves or text changes, keeps the caret inside the sideways scroller. */
+export const keepCaretInColumn = ViewPlugin.fromClass(
+  class {
+    update(update: ViewUpdate) {
+      if (!update.selectionSet && !update.docChanged) return
+      const view = update.view
+      view.requestMeasure({
+        key: this,
+        read: (v) => {
+          if (sidewaysScroller(v) !== v.contentDOM) return null
+          return v.coordsAtPos(v.state.selection.main.head)
+        },
+        write: (caret, v) => {
+          if (caret) revealSideways(v, caret, CARET_MARGIN)
+        },
+      })
+    }
+  },
+)
+const CARET_MARGIN = 8
+
 /**
  * Keeps the caret's line at its screen position across a rewrap: `hold`
  * reads where it is (before the editor draws the change), then each round
@@ -195,24 +234,19 @@ class CaretKeeper {
         const held = this.held
         if (!held) return null
         const caret = view.coordsAtPos(held.head)
-        const box = view.scrollDOM.getBoundingClientRect()
         return {
           held,
           drift: caretOffset(view, held.scroller, held.head) - held.offset,
           caret,
-          box,
         }
       },
       write: (measured, view) => {
         if (!measured || measured.held !== this.held) return
-        const { held, drift, caret, box } = measured
+        const { held, drift, caret } = measured
         if (Math.abs(drift) >= 0.5) held.scroller.scrollTop += drift
         this.expected = held.scroller.scrollTop
         // Once, sideways too, so a caret that ends up past an edge shows.
-        if (first && caret) {
-          if (caret.left < box.left) view.scrollDOM.scrollLeft -= box.left - caret.left
-          else if (caret.right > box.right) view.scrollDOM.scrollLeft += caret.right - box.right
-        }
+        if (first && caret) revealSideways(view, caret)
         this.rounds++
         clearTimeout(this.timer)
         if (this.rounds >= KEEP_ROUNDS || Date.now() - this.started >= KEEP_MS) return this.letGo()

@@ -392,3 +392,25 @@ test('the caret line keeps its place on screen when its block unwraps', async ({
     )
     .toBeLessThan(2)
 })
+
+test('typing at the end of a long unwrapped line keeps the caret inside the column', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1400, height: 700 })
+  await newNote(page, `\`\`\`\nconst x = '${LONG_CELL}${LONG_CELL}'\n\`\`\``)
+  await changed(page, { lineWrapping: 'prose', readableWidth: true })
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('End')
+  await page.keyboard.type('!')
+  const inside = await content(page).evaluate((el) => {
+    const sel = getSelection()!
+    const caret = sel.getRangeAt(0).getBoundingClientRect()
+    const box = el.getBoundingClientRect()
+    return {
+      scrolled: el.scrollLeft > 0,
+      left: caret.left >= box.left,
+      right: caret.right <= box.right + 1,
+    }
+  })
+  expect(inside).toEqual({ scrolled: true, left: true, right: true })
+})

@@ -46,7 +46,7 @@ import { inlineImages } from './images'
 import { pasteUrlStyle } from './paste'
 import { registryKeys } from './registryKeys'
 import { toolbarOff } from './toolbarState'
-import { keepCaretLine, wrappingModes } from './unwrap'
+import { keepCaretInColumn, keepCaretLine, wrappingModes } from './unwrap'
 
 /** Whether CodeMirror binds keys as on macOS (Mod is Command), as it decides that. */
 const MAC =
@@ -232,7 +232,9 @@ const PARTS = {
   // Only wrapped lines can keep to a width; an unwrapped block scrolls inside it.
   width: (s: EditorSettings): Extension => {
     if (!s.readableWidth || s.lineWrapping === 'off') return []
-    return s.lineWrapping === 'all' ? readableWidth : [readableWidth, readableWidthScroll]
+    return s.lineWrapping === 'all'
+      ? readableWidth
+      : [readableWidth, readableWidthScroll, keepCaretInColumn]
   },
   indent: (s: EditorSettings): Extension => [
     indentUnit.of(indentText(s.indentUnit)),
