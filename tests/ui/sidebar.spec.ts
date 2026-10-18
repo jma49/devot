@@ -56,6 +56,25 @@ test('the chevron folds Tags, points up while folded, and the choice is kept aft
   await expect(row).toBeVisible()
 })
 
+test.describe('two folds in quick succession', () => {
+  test.use({ reducedMotion: 'no-preference' })
+
+  test('both stay folded and both are kept after a reload', async ({ page }) => {
+    await createTag(page, 'urgent')
+    // Both clicks land inside the shrink animation of the first.
+    await sidebar(page).evaluate((nav) => {
+      for (const name of ['Collapse Status', 'Collapse Tags']) {
+        nav.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)?.click()
+      }
+    })
+    await expect(sidebar(page).getByRole('button', { name: 'Expand Status' })).toBeVisible()
+    await expect(sidebar(page).getByRole('button', { name: 'Expand Tags' })).toBeVisible()
+    await page.reload()
+    await expect(sidebar(page).getByRole('button', { name: 'Expand Status' })).toBeVisible()
+    await expect(sidebar(page).getByRole('button', { name: 'Expand Tags' })).toBeVisible()
+  })
+})
+
 test('the Tags chevron turns up over the toggle duration and back down, and Reduce Motion turns it at once', async ({
   page,
 }) => {

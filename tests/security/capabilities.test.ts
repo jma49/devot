@@ -80,11 +80,16 @@ describe('Tauri command permissions', () => {
       'allow-settings-open-data-folder',
       'allow-settings-show-backups',
       'allow-symbol-png',
+      'allow-system-accent',
       'allow-usage-clear',
       'allow-usage-list',
       'core:event:allow-listen',
       'core:event:allow-unlisten',
     ])
+  })
+
+  it('lets both windows read the system accent colour', () => {
+    expect(windowsWith('allow-system-accent')).toEqual(['main', 'settings'])
   })
 
   it('lets only the Settings window import and list fonts, and both windows load one', () => {

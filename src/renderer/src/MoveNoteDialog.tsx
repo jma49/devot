@@ -1,7 +1,7 @@
 import { fieldStep } from './Picker'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { BookNode } from '../../core/books'
-import { bookOptions, currentBookOption, NO_BOOK } from './BookPicker'
+import { bookOptions, currentBookOption, filterBooks, NO_BOOK } from './BookPicker'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
@@ -37,15 +37,12 @@ export function MoveNoteDialog(props: {
   }, [])
 
   const all = [
-    { id: NO_BOOK, name: t('note.noBook'), label: t('note.noBook'), depth: 0, ancestors: [] },
+    { id: NO_BOOK, name: t('note.noBook'), depth: 0, ancestors: [] },
     ...bookOptions(props.tree),
   ]
   const needle = query.trim().toLocaleLowerCase()
-  const matches = needle
-    ? all
-        .filter((o) => o.name.toLocaleLowerCase().includes(needle))
-        .map((o) => ({ ...o, label: o.name }))
-    : all
+  // The notebooks a name is nested in stay, so equal names can be told apart.
+  const matches = needle ? filterBooks(all, query) : all
   const current = props.value === undefined ? undefined : currentBookOption(all, props.value)
   const index = Math.min(active, matches.length - 1)
 
@@ -125,10 +122,11 @@ export function MoveNoteDialog(props: {
             role="option"
             aria-selected={i === index}
             aria-checked={o.id === current}
+            style={{ paddingInlineStart: `calc(var(--space-4) + ${o.depth} * var(--space-7))` }}
             onMouseMove={() => setActive(i)}
             onClick={() => pick(o.id)}
           >
-            <span className="pick-name">{o.label}</span>
+            <span className="pick-name">{o.name}</span>
             {o.id === current ? <Icon name="check" size="sm" /> : null}
           </li>
         ))}

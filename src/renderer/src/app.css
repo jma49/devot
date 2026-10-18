@@ -1841,6 +1841,23 @@ button {
   font: inherit;
 }
 
+.note-info-date-edit {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.note-info-date-input[aria-invalid='true'] {
+  border-color: var(--color-status-dropped);
+}
+
+.note-info-date-problem {
+  color: var(--color-status-dropped);
+  font-size: var(--font-size-footnote);
+  white-space: normal;
+}
+
 .note-info-value {
   display: inline-flex;
   align-items: center;

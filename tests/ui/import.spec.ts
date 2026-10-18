@@ -274,6 +274,30 @@ test('imports into the notebook chosen, the open one to begin with', async ({ pa
   await expect(noteRows(page)).toHaveCount(3)
 })
 
+test('shows a sub-notebook indented under its parent in the destination list', async ({ page }) => {
+  await open(page)
+  for (const name of ['Work', 'Notes']) {
+    await page.getByRole('button', { name: 'New Notebook' }).click()
+    const field = page.getByRole('textbox', { name: 'Notebook name' })
+    await field.fill(name)
+    await field.press('Enter')
+    await expect(book(page, name)).toBeVisible()
+  }
+  await book(page, 'Notes').locator('> .book-row').dragTo(book(page, 'Work').locator('> .book-row'))
+
+  await send(page, 'devot:import-ready', SCAN)
+  await button(page, 'Continue').click()
+  const indent = (name: string) =>
+    destinations(page)
+      .getByRole('option', { name })
+      .evaluate((el) => parseFloat(getComputedStyle(el).paddingInlineStart))
+  const work = await indent('Work')
+  expect(await indent('Notes')).toBeGreaterThan(work)
+  // A filter keeps the notebook it is nested in.
+  await dialog(page).getByRole('combobox', { name: 'Filter notebooks' }).fill('notes')
+  await expect(destinations(page).getByRole('option')).toHaveText(['Work', 'Notes'])
+})
+
 test('can be cancelled at every step before Import, which ends the session', async ({ page }) => {
   await open(page)
   // While scanning.

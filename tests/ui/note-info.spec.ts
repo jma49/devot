@@ -83,3 +83,32 @@ test('a date on the card is edited in a date-time field: Return saves, Escape ca
   await expect(updated).toHaveText(updatedBefore ?? '')
   await expect(created).toHaveText('2020-01-02 03:04:05')
 })
+
+test('a date the card turns down stays open and says why', async ({ page }) => {
+  await newNote(page, 'Dated', 'Some text.')
+  await showPreview(page)
+  const updated = card(page).locator('time[data-info="updated"]')
+  // The typed body is saved a moment later and moves the update date.
+  await expect
+    .poll(async () => {
+      const first = await updated.textContent()
+      await page.waitForTimeout(1100)
+      return first === (await updated.textContent())
+    })
+    .toBe(true)
+  await updated.click()
+  const field = card(page).locator('input[data-info-edit="updated"]')
+  // Earlier than the creation date.
+  await field.fill('2020-01-01T10:00:05')
+  await page.keyboard.press('Enter')
+  await expect(card(page).getByRole('alert')).toHaveText('Updated cannot be earlier than Created.')
+  await expect(field).toHaveAttribute('aria-invalid', 'true')
+  await expect(field).toBeFocused()
+  // Changing the value takes the message away; an empty one is another problem.
+  await field.fill('')
+  await expect(card(page).getByRole('alert')).toHaveCount(0)
+  await page.keyboard.press('Enter')
+  await expect(card(page).getByRole('alert')).toHaveText('Enter a complete date and time.')
+  await page.keyboard.press('Escape')
+  await expect(field).toHaveCount(0)
+})
