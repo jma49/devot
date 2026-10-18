@@ -268,7 +268,8 @@ export const en = {
   'editorSettings.markdown': 'Markdown',
   'editorSettings.textAppearance': 'Text Appearance',
   'editorSettings.toolbar': 'Toolbar',
-  'editorSettings.toolbarHint': 'Whether the toolbar shows over selected text.',
+  'editorSettings.toolbarHint':
+    'Whether the toolbar shows over selected text and above the current table row.',
   'editorSettings.lineNumbers': 'Line Numbers',
   'editorSettings.lineNumbersHint': 'Whether to show line numbers to the left of the editor.',
   'editorSettings.highlightActiveLine': 'Highlight Active Line',
@@ -651,6 +652,7 @@ export const en = {
   'linkDialog.url': 'URL',
   'linkDialog.urlPlaceholder': 'https://',
   'linkDialog.insert': 'Insert',
+  'tableBar.label': 'Table',
   'imageBar.label': 'Image Size',
   'imageBar.auto': 'Auto',
   'imageBar.small': 'Small (240 px)',
