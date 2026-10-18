@@ -278,6 +278,7 @@ export const en = {
   'noteInfo.created': 'Created at',
   'noteInfo.updated': 'Updated at',
   'noteInfo.editDate': 'Change the date',
+  'noteInfo.editDateNamed': '{field}: {date}. Change the date',
   'noteInfo.dateIncomplete': 'Enter a complete date and time.',
   'noteInfo.createdTooLate': 'Created cannot be later than Updated.',
   'noteInfo.updatedTooEarly': 'Updated cannot be earlier than Created.',

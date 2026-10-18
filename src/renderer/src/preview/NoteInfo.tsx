@@ -3,7 +3,7 @@ import type { NoteSummary, TaskProgress } from '../../../core'
 import { errorCode } from '../../../core/errors'
 import type { Core } from '../core-client'
 import { displayTitles } from '../headlines'
-import { currentLocale, t, type MessageKey } from '../i18n'
+import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
 import {
@@ -45,7 +45,7 @@ export type DateOutcome = 'saved' | 'refused' | 'failed'
  * saves it, Escape (or leaving the field) puts the date back. A date that is
  * not saved keeps the field open and says why.
  */
-function DateValue(props: {
+export function DateValue(props: {
   field: InfoField
   at: number
   onSet?: ((at: number) => Promise<DateOutcome>) | undefined
@@ -69,6 +69,7 @@ function DateValue(props: {
         type="button"
         className="note-info-date"
         title={t('noteInfo.editDate')}
+        aria-label={format(t('noteInfo.editDateNamed'), { field: field.label, date: field.value })}
         onClick={() => setEditing(true)}
       >
         {time}

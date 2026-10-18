@@ -97,11 +97,38 @@ export const toolbarStateExtension = [
 ]
 
 /**
+ * Whether a control inside the bar has focus. The bars live in the editor's
+ * shadow root, where `document.activeElement` is only the shadow host, so the
+ * bar's own root is asked.
+ */
+export function barHoldsFocus(
+  bar: Pick<Node, 'contains' | 'getRootNode' | 'ownerDocument'>,
+): boolean {
+  const root = bar.getRootNode() as Partial<DocumentOrShadowRoot>
+  const active = root.activeElement
+  return !!active && bar.contains(active)
+}
+
+/**
+ * Whether focus is free to return to the editor after a bar's menu closed:
+ * it is on the bar itself, or nowhere (not in another field of the page).
+ */
+export function barFocusIsFree(
+  bar: Pick<Node, 'contains' | 'getRootNode' | 'ownerDocument'>,
+): boolean {
+  if (barHoldsFocus(bar)) return true
+  const root = bar.getRootNode() as Partial<ShadowRoot>
+  if (root.activeElement) return false
+  const outer = bar.ownerDocument?.activeElement
+  return !outer || outer === bar.ownerDocument?.body || outer === root.host
+}
+
+/**
  * Call when a bar goes away: a button of it that still has focus (a screen
  * reader pressed it) would leave focus on nothing, so it returns to the editor.
  */
 export function releaseBarFocus(view: EditorView, bar: HTMLElement): void {
-  const held = bar.contains(bar.ownerDocument.activeElement)
+  const held = barHoldsFocus(bar)
   queueMicrotask(() => {
     if (!view.dom.isConnected) return
     if (held) view.focus()
