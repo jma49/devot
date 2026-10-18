@@ -334,6 +334,14 @@ export const COMMANDS = [
     keys: ['Mod+Ctrl+5'],
   },
   { id: 'notebook.new', label: 'book.new', group: 'notebook', scope: 'window', keys: [] },
+  // Shows the open note's notebook in the sidebar (the note header's notebook menu).
+  {
+    id: 'note.showNotebook',
+    label: 'command.showNotebook',
+    group: 'notebook',
+    scope: 'window',
+    keys: [],
+  },
   // A notebook or tag row in the sidebar: its own menu (every action of the
   // row, the notebook's export and Allow AI Access and the tag's colours
   // too) opens at the row, from the keyboard. Shift+F10 and the menu key as
@@ -1139,6 +1147,16 @@ export const COMMANDS = [
     group: 'edit',
     scope: 'editor',
     keys: ['Ctrl+Shift+O'],
+  },
+  // The editor's menu opens at the caret, from the keyboard (the same keys
+  // as a row's menu in the sidebar, whose scope is a sibling of the editor's).
+  {
+    id: 'edit.contextMenu',
+    label: 'command.editorMenu',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Shift+F10', 'ContextMenu'],
+    palette: false,
   },
   {
     id: 'edit.sortLines',

@@ -56,6 +56,8 @@ pub fn run() {
             native::system_accent,
             native::clipboard_write_text,
             native::clipboard_read_text,
+            native::text_look_up,
+            native::text_speak,
             commands::notes::notes_list,
             commands::notes::note_get,
             commands::notes::note_put,

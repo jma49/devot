@@ -37,7 +37,17 @@ import { SaveNotice } from './SaveNotice'
 import { isImeKey } from './ime'
 import { createQuitGuard, newProblems } from './saving'
 import { BackupsDialog } from './BackupsDialog'
-import { BookPicker } from './BookPicker'
+import { BookPicker, bookOptions, currentBookOption, NO_BOOK } from './BookPicker'
+import { useContextMenu } from './contextMenu'
+import {
+  CHIP_MENU,
+  NOTEBOOK_MENU,
+  type ChipAction,
+  type ChipMenuTarget,
+  type NotebookAction,
+  type NotebookMenuTarget,
+} from './headerMenus'
+import { TagSettingsDialog } from './TagSettingsDialog'
 import { ImportDialog, type ImportJob } from './ImportDialog'
 import { forgetScanFound, setScanFound } from './importProgress'
 import {
@@ -133,6 +143,7 @@ import {
   type NoteAction,
   type NoteMenuAction,
   type TrashAction,
+  copyText,
 } from './noteMenu'
 import { applyOrder, orderChip, orderLabel, sortLocales, sortView, useListOrder } from './noteSort'
 import { LivePreview } from './preview/Preview'
@@ -2219,6 +2230,10 @@ export function App() {
         }
       }
     }
+    const bookId = currentBookOption(bookOptions(tree), openNote.bookId)
+    if (bookId !== NO_BOOK && !selectedIsTemplate) {
+      handlers['note.showNotebook'] = { run: () => showLibrary({ kind: 'book', id: bookId }) }
+    }
     handlers['view.edit'] = { run: () => setMode('edit') }
     handlers['view.togglePreview'] = {
       run: () => {
@@ -2455,6 +2470,37 @@ export function App() {
   const sidebarSetTagColor = useStable(
     (id: string, color: TagColor | null) => void changeBooks((c) => c.setTagColor(id, color)),
   )
+  // The note header's menus: a tag chip's and the notebook label's.
+  const [headerTagSettings, setHeaderTagSettings] = useState<string>()
+  const removeOpenTag = useStable(
+    (tagId: string) =>
+      void (selected !== undefined && changeBooks((c) => c.removeTag(selected, tagId))),
+  )
+  const runChipAction = useStable((action: ChipAction, chip: ChipMenuTarget) => {
+    switch (action) {
+      case 'settings':
+        return setHeaderTagSettings(chip.tagId)
+      case 'remove':
+        return removeOpenTag(chip.tagId)
+      case 'filter':
+        return sidebarFilter(chip.filtered ? null : { kind: 'tag', tagId: chip.tagId })
+      case 'copyId':
+        return void copyText(chip.tagId).catch(() => console.warn('W_TAG_COPY_FAILED', chip.tagId))
+    }
+  })
+  const showChipMenu = useContextMenu('noteTag', CHIP_MENU, runChipAction)
+  const runNotebookAction = useStable((action: NotebookAction, book: NotebookMenuTarget) => {
+    switch (action) {
+      case 'open':
+        return sidebarSelect({ kind: 'book', id: book.bookId })
+      case 'copyId':
+        return void copyText(book.bookId).catch(() =>
+          console.warn('W_BOOK_COPY_FAILED', book.bookId),
+        )
+    }
+  })
+  const showNotebookMenu = useContextMenu('noteBook', NOTEBOOK_MENU, runNotebookAction)
+  const headerTag = tags.find((tag) => tag.id === headerTagSettings)
   const sidebarSearchBooks = useStable(() => openPalette('book'))
   const sidebarSearchTags = useStable(() => openPalette('tag'))
   const sidebarDeleteTag = useStable((id: string) =>
@@ -2744,6 +2790,7 @@ export function App() {
                   tree={tree}
                   value={selectedNote?.bookId ?? null}
                   onChange={(bookId) => void moveNote(selected, bookId)}
+                  onMenu={(bookId, at) => void showNotebookMenu({ bookId }, at)}
                 />
                 <StatusPicker
                   value={selectedNote?.status ?? 'none'}
@@ -2755,6 +2802,15 @@ export function App() {
                   value={selectedNote?.tagIds ?? []}
                   onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}
                   onRemove={(tagId) => void changeBooks((c) => c.removeTag(selected, tagId))}
+                  onChipMenu={(tagId, at) =>
+                    void showChipMenu(
+                      {
+                        tagId,
+                        filtered: activeFilter?.kind === 'tag' && activeFilter.tagId === tagId,
+                      },
+                      at,
+                    )
+                  }
                 />
               </div>
             )}
@@ -2935,6 +2991,17 @@ export function App() {
       {viewing ? <ImageViewer image={viewing} onClose={() => setViewing(null)} /> : null}
       {core && activityOpen ? (
         <Activity core={core} onClose={() => setActivityOpen(false)} />
+      ) : null}
+      {headerTag ? (
+        <TagSettingsDialog
+          tag={headerTag}
+          onSave={({ name, color }) => {
+            if (name !== headerTag.name) sidebarRenameTag(headerTag.id, name)
+            if (color !== headerTag.color) sidebarSetTagColor(headerTag.id, color)
+            setHeaderTagSettings(undefined)
+          }}
+          onCancel={() => setHeaderTagSettings(undefined)}
+        />
       ) : null}
       {confirm?.kind === 'tag' ? (
         <ConfirmDialog
