@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createContextMenu, type MenuGroups } from '../contextMenu'
 import { systemMenus } from './systemMenu'
 
-const invoke = vi.hoisted(() => vi.fn())
+const invoke = vi.hoisted(() =>
+  vi.fn<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>(),
+)
 vi.mock('../ipc', () => ({ invoke }))
 
 type Action = 'undo' | 'copy' | 'speech' | 'speak' | 'look'
@@ -61,7 +63,7 @@ describe('the editor menu Rust shows', () => {
       word: 'recieve',
     })
     await menu.popup({ look: false })
-    const items = invoke.mock.lastCall?.[1].items as { id?: string }[]
+    const items = invoke.mock.lastCall?.[1]?.['items'] as { id?: string }[]
     expect(items[0]?.id).toBe('devot.editor.undo')
   })
 
