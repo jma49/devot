@@ -453,7 +453,6 @@ export const en = {
   'appearanceSettings.systemAccent': 'Use the system accent colour',
   'appearanceSettings.systemAccentHint':
     'Buttons, links and selections follow the accent colour chosen in System Settings.',
-  'appearanceSettings.systemAccentOwnTheme': 'This theme uses its own accent colour.',
   'appearanceSettings.sidebar': 'Window',
   'appearanceSettings.sidebarMaterial': 'Translucent Window',
   'appearanceSettings.sidebarMaterialHint':

@@ -150,21 +150,18 @@ test.describe('the Theme choice in Settings', () => {
     await expect.poll(() => settingsCalls(page)).toEqual([{ theme: 'ivory' }])
   })
 
-  test('turns the system accent option off for Ivory, with a hint, and back on for Default', async ({
+  test('hides the system accent option for Ivory and shows it again for Default', async ({
     page,
   }) => {
     await openSettings(page, 'Appearance')
     const accent = page.getByRole('switch', { name: 'Use the system accent colour' })
-    const hint = page.getByText('This theme uses its own accent colour.')
     await expect(accent).toBeEnabled()
-    await expect(hint).toHaveCount(0)
 
     await changeEditorSettingsElsewhere(page, { theme: 'ivory' })
-    await expect(accent).toBeDisabled()
-    await expect(hint).toBeVisible()
+    await expect(accent).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Accent colour' })).toHaveCount(0)
 
     await changeEditorSettingsElsewhere(page, { theme: 'default' })
     await expect(accent).toBeEnabled()
-    await expect(hint).toHaveCount(0)
   })
 })
