@@ -29,6 +29,7 @@ export const en = {
   'search.results': 'Search Results',
   'search.clear': 'Clear Search',
   'search.help': 'Search Syntax',
+  'search.help.button': '?',
   'search.help.intro': 'Every clause must match. Names ignore case.',
   'search.help.text': 'Title or body contains the words',
   'search.help.part': 'Only the title, or only the body',

@@ -2165,8 +2165,9 @@ button {
 }
 
 /* The syntax list a field's "?" button opens: under the field, over the list. */
-.search-field {
+.search-field-box {
   position: relative;
+  width: 100%;
 }
 
 .search-help-button {

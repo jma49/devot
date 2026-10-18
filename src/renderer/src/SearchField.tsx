@@ -34,13 +34,15 @@ export const SearchField = forwardRef<
     icon?: IconName
   }
 >(function SearchField({ value, onChange, onClear, placeholder, icon = 'filter' }, ref) {
-  const box = useRef<HTMLLabelElement>(null)
+  const box = useRef<HTMLDivElement>(null)
   const helpButton = useRef<HTMLButtonElement>(null)
   const [helpOpen, setHelpOpen] = usePickerOpen(box)
   return (
-    <label
+    // The field and its syntax list sit side by side in a box: a label may not
+    // hold the list, and a click in the list must not focus the field.
+    <div
       ref={box}
-      className="search-field"
+      className="search-field-box"
       // Escape closes the syntax list before anything else reads it (the
       // field would clear the search).
       onKeyDownCapture={(e) => {
@@ -48,59 +50,72 @@ export const SearchField = forwardRef<
         e.preventDefault()
         e.stopPropagation()
         setHelpOpen(false)
-        if (e.target !== e.currentTarget.querySelector('input')) helpButton.current?.focus()
+        if (!(e.target instanceof HTMLInputElement)) helpButton.current?.focus()
+      }}
+      onBlur={(e) => {
+        // Focus left the field and its list (Tab): close the list.
+        if (helpOpen && !e.currentTarget.contains(e.relatedTarget)) setHelpOpen(false)
       }}
     >
-      {/* A typed query takes the icon's place; the clear button shows instead. */}
-      {value ? null : (
-        <span className="search-icon">
-          <Icon name={icon} size="sm" />
-        </span>
-      )}
-      <input
-        ref={ref}
-        type="search"
-        // Queries are not prose: no autocorrect, capitalisation or spelling marks.
-        autoCorrect="off"
-        autoCapitalize="off"
-        spellCheck={false}
-        aria-label={t('search.label')}
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape' && !isImeKey(e.nativeEvent)) {
-            e.preventDefault()
-            onClear()
-          }
-        }}
-      />
-      {value ? (
+      <label className="search-field">
+        {/* A typed query takes the icon's place; the clear button shows instead. */}
+        {value ? null : (
+          <span className="search-icon">
+            <Icon name={icon} size="sm" />
+          </span>
+        )}
+        <input
+          ref={ref}
+          type="search"
+          // Queries are not prose: no autocorrect, capitalisation or spelling marks.
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          aria-label={t('search.label')}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && !isImeKey(e.nativeEvent)) {
+              e.preventDefault()
+              onClear()
+            }
+          }}
+        />
+        {value ? (
+          <button
+            type="button"
+            className="search-clear"
+            aria-label={t('search.clear')}
+            // Pressing it must not pull focus out of the field.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onClear}
+          >
+            <Icon name="tag.remove" size="sm" />
+          </button>
+        ) : null}
         <button
+          ref={helpButton}
           type="button"
-          className="search-clear"
-          aria-label={t('search.clear')}
-          // Pressing it must not pull focus out of the field.
+          className="search-help-button"
+          aria-label={t('search.help')}
+          aria-expanded={helpOpen}
+          aria-controls="search-help"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={onClear}
+          onClick={() => setHelpOpen((open) => !open)}
         >
-          <Icon name="tag.remove" size="sm" />
+          {t('search.help.button')}
         </button>
-      ) : null}
-      <button
-        ref={helpButton}
-        type="button"
-        className="search-help-button"
-        aria-label={t('search.help')}
-        aria-expanded={helpOpen}
-        aria-controls="search-help"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setHelpOpen((open) => !open)}
-      >
-        ?
-      </button>
+      </label>
       {helpOpen ? (
-        <div id="search-help" className="search-help" role="dialog" aria-label={t('search.help')}>
+        <div
+          id="search-help"
+          className="search-help"
+          role="dialog"
+          aria-label={t('search.help')}
+          // Focusable, so a click in it keeps the box's focus.
+          tabIndex={-1}
+        >
           <p className="search-help-intro">{t('search.help.intro')}</p>
           <dl>
             {SYNTAX.map((row) => (
@@ -112,6 +127,6 @@ export const SearchField = forwardRef<
           </dl>
         </div>
       ) : null}
-    </label>
+    </div>
   )
 })
