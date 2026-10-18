@@ -109,7 +109,7 @@ test('notes dropped on the editor insert their links as one undo step', async ({
   })
   await expect(body(page)).toContainText('[One](devot://note/a)')
   await expect(body(page)).toContainText('[Two](devot://note/b)')
-  await body(page).press('Meta+z')
+  await page.keyboard.press('ControlOrMeta+z')
   await expect(body(page)).not.toContainText('devot://note/a')
   await expect(body(page)).toContainText('before')
 })
