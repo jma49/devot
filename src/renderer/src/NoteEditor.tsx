@@ -28,6 +28,9 @@ import {
   EDITOR_MENU,
   editorMenu,
   editorMenuTarget,
+  replaceWord,
+  spellingWordAt,
+  type WordRange,
   type EditorAction,
   type EditorMenuTarget,
 } from './editor/editorMenu'
@@ -40,6 +43,7 @@ import { moveRange, moveSelection, selectedText, trackExtract } from './editor/e
 import { editorFind, editorFindTarget } from './editor/find'
 import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
+import { systemMenus } from './editor/systemMenu'
 import { imageSizeBar } from './editor/ImageSizeBar'
 import { tableToolbar } from './editor/TableToolbar'
 import { linkTooltip } from './editor/linkTooltip'
@@ -766,12 +770,24 @@ export function NoteEditor({
       default:
     }
   }, [])
-  const showEditorMenu = useContextMenu('editor', EDITOR_MENU, pickMenuAction)
+  /** The word the open editor menu offers spelling guesses for, and its editor. */
+  const menuWord = useRef<{ view: EditorView; word: WordRange } | null>(null)
+  const showEditorMenu = useContextMenu('editor', EDITOR_MENU, pickMenuAction, async () =>
+    systemMenus({
+      word: () => menuWord.current?.word.text ?? null,
+      replace: (guess) => {
+        const at = menuWord.current
+        if (at && !replaceWord(at.view, at.word, guess)) console.warn('W_SPELLING_WORD_CHANGED')
+      },
+    }),
+  )
   const menuOpener = useRef<(view: EditorView, at: MenuPoint, pos: number | null) => void>(() => {})
   useEffect(() => {
     menuOpener.current = (view, at, pos) => {
       menuAt.current = at
       const target = editorMenuTarget(view.state, pos, fromSelection.current !== undefined)
+      const word = spellingWordAt(view.state, pos)
+      menuWord.current = word ? { view, word } : null
       void showEditorMenu(target, at)
     }
     chooseTemplateRef.current = onChooseTemplate

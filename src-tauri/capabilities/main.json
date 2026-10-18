@@ -13,6 +13,7 @@
     "allow-clipboard-read-text",
     "allow-text-look-up",
     "allow-text-speak",
+    "allow-editor-menu-popup",
     "allow-notes-list",
     "allow-note-get",
     "allow-note-put",

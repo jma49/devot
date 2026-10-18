@@ -74,6 +74,7 @@ pub fn run() {
             native::clipboard_read_text,
             native::text_look_up,
             native::text_speak,
+            native::editor_menu_popup,
             commands::notes::notes_list,
             commands::notes::note_get,
             commands::notes::note_put,

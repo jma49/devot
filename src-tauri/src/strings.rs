@@ -97,3 +97,31 @@ pub const STARTUP_OTHER: &str = "Something went wrong while Devot was starting."
 /// code, filled in for `{folder}` and `{code}`.
 pub const STARTUP_FOLDER: &str = "Data folder: {folder}";
 pub const STARTUP_CODE: &str = "Code: {code}";
+
+// The editor's menu: the system items Rust adds to the page's (macOS only).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const EDIT_CUT: &str = "Cut";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const EDIT_COPY: &str = "Copy";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const EDIT_PASTE: &str = "Paste";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const EDIT_SELECT_ALL: &str = "Select All";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const SPELLING_NO_GUESSES: &str = "No Guesses Found";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const SPELLING_LEARN: &str = "Learn Spelling";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const MENU_SPELLING: &str = "Spelling and Grammar";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const SPELLING_SHOW_PANEL: &str = "Show Spelling and Grammar";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const SPELLING_CHECK_NOW: &str = "Check Document Now";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const SPELLING_WHILE_TYPING: &str = "Check Spelling While Typing";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const SPELLING_GRAMMAR: &str = "Check Grammar With Spelling";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const SPELLING_CORRECT_AUTOMATICALLY: &str = "Correct Spelling Automatically";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const MENU_SERVICES: &str = "Services";

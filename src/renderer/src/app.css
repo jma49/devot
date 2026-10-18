@@ -457,41 +457,49 @@ button {
 .tag-color-red {
   --tag-color: var(--color-tag-red);
   --tag-text: var(--color-tag-text-red);
+  --tag-icon: var(--color-tag-icon-red);
 }
 
 .tag-color-orange {
   --tag-color: var(--color-tag-orange);
   --tag-text: var(--color-tag-text-orange);
+  --tag-icon: var(--color-tag-icon-orange);
 }
 
 .tag-color-yellow {
   --tag-color: var(--color-tag-yellow);
   --tag-text: var(--color-tag-text-yellow);
+  --tag-icon: var(--color-tag-icon-yellow);
 }
 
 .tag-color-green {
   --tag-color: var(--color-tag-green);
   --tag-text: var(--color-tag-text-green);
+  --tag-icon: var(--color-tag-icon-green);
 }
 
 .tag-color-blue {
   --tag-color: var(--color-tag-blue);
   --tag-text: var(--color-tag-text-blue);
+  --tag-icon: var(--color-tag-icon-blue);
 }
 
 .tag-color-purple {
   --tag-color: var(--color-tag-purple);
   --tag-text: var(--color-tag-text-purple);
+  --tag-icon: var(--color-tag-icon-purple);
 }
 
 .tag-color-pink {
   --tag-color: var(--color-tag-pink);
   --tag-text: var(--color-tag-text-pink);
+  --tag-icon: var(--color-tag-icon-pink);
 }
 
 .tag-color-gray {
   --tag-color: var(--color-tag-gray);
   --tag-text: var(--color-tag-text-gray);
+  --tag-icon: var(--color-tag-icon-gray);
 }
 
 /* A tag's colour dot: the colour at the dot strength inside a solid edge. */
@@ -4137,11 +4145,11 @@ button.popup:focus-visible {
 }
 
 /* A notebook icon in a palette colour, wherever it shows (sidebar, pickers,
-   the palette, the icon picker's grid). A selected or drop-target row keeps
+   the palette, the icon picker's grid), at 3:1 on what it sits on. A selected or drop-target row keeps
    its own icon colour (those rules are more specific). */
 .icon.book-icon-colored,
 .popup .icon.book-icon-colored:first-child {
-  background-color: var(--tag-color);
+  background-color: var(--tag-icon);
 }
 
 /* Change Notebook Icon: search, a tab per category, a grid of symbols. */

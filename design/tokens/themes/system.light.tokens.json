@@ -1123,6 +1123,57 @@
         }
       }
     },
+    "tag-icon": {
+      "$description": "A notebook icon in a tag colour: the tag colour, moved toward black only as far as 3:1 on the sidebar, lists, editor and popovers needs (contrast.test.ts).",
+      "red": {
+        "$value": "{color.tag.red}",
+        "$type": "color"
+      },
+      "orange": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.8, 0.4667, 0.0],
+          "hex": "#cc7700"
+        }
+      },
+      "yellow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6706, 0.5373, 0.0],
+          "hex": "#ab8900"
+        }
+      },
+      "green": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1255, 0.6353, 0.2],
+          "hex": "#20a233"
+        }
+      },
+      "blue": {
+        "$value": "{color.tag.blue}",
+        "$type": "color"
+      },
+      "purple": {
+        "$value": "{color.tag.purple}",
+        "$type": "color"
+      },
+      "pink": {
+        "$value": "{color.tag.pink}",
+        "$type": "color"
+      },
+      "gray": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5529, 0.5529, 0.5725],
+          "hex": "#8d8d92"
+        }
+      }
+    },
     "switch": {
       "handle": {
         "$type": "color",
