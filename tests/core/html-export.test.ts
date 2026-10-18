@@ -84,7 +84,7 @@ async function page(options: Partial<PageOptions> = {}) {
 describe('HTML pages', () => {
   it('keeps the preview markup with its classes, without the attributes it uses itself', async () => {
     const { html } = await page()
-    expect(html).toContain('<h1>Plan</h1>')
+    expect(html).toContain('<h1 id="plan">Plan</h1>')
     expect(html).toContain(
       '<div class="alert alert-warning"><p class="alert-title"><svg class="glyph alert-icon"',
     )
