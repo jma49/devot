@@ -395,6 +395,13 @@ describe('math', () => {
     expect(find(tree, 'pre')).toHaveLength(0)
   })
 
+  it('keeps the TeX source in the MathML, so an exported page imports as math again', async () => {
+    const tree = await render('Energy $E = mc^2$')
+    const [annotation] = find(tree, 'annotation')
+    expect(annotation?.properties['encoding']).toBe('application/x-tex')
+    expect(annotation && text(annotation)).toBe('E = mc^2')
+  })
+
   it('renders ```math blocks', async () => {
     expect(byClass(await render('```math\nx_1\n```'), 'math-display')).toHaveLength(1)
   })

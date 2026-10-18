@@ -512,9 +512,10 @@ fn link_problem(root: &Path, link: &Path, name: &str) -> Option<&'static str> {
 
 /// A file inside `root` named by a relative path: only plain, visible path
 /// components, and the resolved file (links followed) must be inside `root`
-/// and not hidden there either.
+/// and not hidden there either. A `\` is an ordinary name character here, as
+/// it is on disk (only `/` separates components).
 pub fn resolve(root: &Path, rel: &str) -> Result<(PathBuf, u64), &'static str> {
-    if rel.is_empty() || rel.len() > MAX_PATH_BYTES || rel.contains(['\0', '\\']) {
+    if rel.is_empty() || rel.len() > MAX_PATH_BYTES || rel.contains('\0') {
         return Err("E_IMPORT_PATH_INVALID");
     }
     for component in Path::new(rel).components() {
@@ -1216,7 +1217,6 @@ mod tests {
             "/etc/passwd",
             ".hidden.md",
             ".git/config.md",
-            "a\\b.md",
             "a\0b.md",
         ] {
             assert_eq!(resolve(&root, bad), Err("E_IMPORT_PATH_INVALID"), "{bad:?}");
@@ -1230,6 +1230,29 @@ mod tests {
             Err("E_IMPORT_FILE_NOT_FOUND")
         );
         assert_eq!(resolve(&root, "Projects"), Err("E_IMPORT_FILE_NOT_FOUND"));
+    }
+
+    #[test]
+    fn reads_names_with_a_backslash_as_they_are() {
+        let dir = sample();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        write(&root, "C\\C++ notes.md", b"# C\n");
+        write(&root, "shots\\one.png", PNG);
+        assert_eq!(read_note(&root, "C\\C++ notes.md").as_deref(), Ok("# C\n"));
+        // What the scan lists, its session reads.
+        let imports = Imports::default();
+        let found = imports.start(scan(&root).unwrap());
+        assert!(found.files.iter().any(|f| f.path == "C\\C++ notes.md"));
+        let (at, rel) = imports.root_for(found.id, "C\\C++ notes.md", true).unwrap();
+        assert_eq!(read_note(&at, &rel).as_deref(), Ok("# C\n"));
+        assert!(resolve(&root, "shots\\one.png").is_ok());
+        // Not a separator: no way out of the folder, or into a hidden one.
+        assert_eq!(resolve(&root, "a\\b.md"), Err("E_IMPORT_FILE_NOT_FOUND"));
+        assert_eq!(resolve(&root, "..\\x.md"), Err("E_IMPORT_PATH_INVALID"));
+        assert_eq!(
+            resolve(&root, "Projects\\..\\..\\Inbox.md"),
+            Err("E_IMPORT_FILE_NOT_FOUND")
+        );
     }
 
     #[test]

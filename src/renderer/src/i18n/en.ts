@@ -537,6 +537,7 @@ export const en = {
   'import.reason.name': 'The name is not valid text',
   'import.reason.linkHidden': 'A link to a hidden file or folder',
   'import.reason.unlocated': 'Its link could not be changed to the imported image',
+  'import.reason.htmlDropped': 'Left out: HTML content a note cannot hold',
   'import.reason.incomplete': 'Imported in part; check this note',
   'import.reason.session': 'The import ended before this file was read',
   'import.reason.stopped': 'The import stopped before this file',

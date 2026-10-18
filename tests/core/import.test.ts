@@ -326,6 +326,94 @@ describe('Markdown folder import', () => {
     expect([...tags.values()].sort()).toEqual(['#later', 'work'])
   })
 
+  it('stores images an HTML page embeds and lists what it could not keep', async () => {
+    const { sqlite, services } = await setup()
+    const png = Buffer.from(PNG).toString('base64')
+    const files = {
+      'page.html':
+        `<body><h1>Page</h1><p><img src="data:image/png;base64,${png}" alt="Shot"></p>` +
+        '<p>Diagram <svg><text>A</text></svg> and <math display="block"><semantics><mi>x</mi>' +
+        '<annotation encoding="application/x-tex">x^2</annotation></semantics></math></p></body>',
+    }
+    const report = await importMarkdown({
+      ...services,
+      files: sqlite,
+      scan: scanOf(files, { kind: 'files' }),
+      source: sourceFor(sqlite, files, {}).source,
+    })
+    expect(report).toMatchObject({ notes: 1, attachments: 1 })
+    expect(report.problems).toEqual([
+      { path: 'page.html', image: '<svg>', code: 'E_IMPORT_HTML_CONTENT_DROPPED' },
+    ])
+    const page = await noteByTitle(sqlite, 'Page')
+    const stored = sqlite.db.prepare('SELECT id, note_id AS noteId, name, mime FROM files').all()
+    expect(stored).toEqual([
+      { id: expect.any(String), noteId: page.summary.id, name: 'image.png', mime: 'image/png' },
+    ])
+    const { id } = stored[0] as { id: string }
+    expect(page.record.bodyMd).toBe(`# Page\n\n![Shot](devot://file/${id})\n\nDiagram and $x^2$\n`)
+  })
+
+  it('lists only the failure for a file that fails, not what it found on the way', async () => {
+    const { sqlite, services } = await setup()
+    const files = { 'page.html': '<h1>P</h1><svg></svg><img src="missing.png">' }
+    const report = await importMarkdown({
+      ...services,
+      notes: { ...services.notes, setBody: () => Promise.reject(new Error('E_TEST_BODY')) },
+      files: sqlite,
+      scan: scanOf(files, { kind: 'files' }),
+      source: sourceFor(sqlite, files, {}).source,
+    })
+    expect(report).toMatchObject({ notes: 0 })
+    expect(report.problems).toEqual([{ path: 'page.html', code: 'E_TEST_BODY' }])
+  })
+
+  it('lists an embedded image it could not store, and leaves no link to it', async () => {
+    const { sqlite, services } = await setup()
+    const png = Buffer.from(PNG).toString('base64')
+    const files = { 'page.html': `<h1>P</h1><img src="data:image/png;base64,${png}" alt="Shot">` }
+    const refusing = { putFile: () => Promise.reject(new Error('E_FILE_SIZE_INVALID')) }
+    const report = await importMarkdown({
+      ...services,
+      files: refusing,
+      scan: scanOf(files, { kind: 'files' }),
+      source: sourceFor(sqlite, files, {}).source,
+    })
+    expect(report).toMatchObject({ notes: 1, attachments: 0 })
+    expect(report.problems).toEqual([
+      { path: 'page.html', image: 'data:image/png', code: 'E_FILE_SIZE_INVALID' },
+    ])
+    expect((await noteByTitle(sqlite, 'P')).record.bodyMd).toBe('# P\n\n![Shot]()\n')
+  })
+
+  it('without a store for them, lists embedded images as left out', async () => {
+    const { sqlite, services } = await setup()
+    const png = Buffer.from(PNG).toString('base64')
+    const files = { 'page.html': `<img src="data:image/png;base64,${png}">` }
+    const report = await importMarkdown({
+      ...services,
+      scan: scanOf(files, { kind: 'files' }),
+      source: sourceFor(sqlite, files, {}).source,
+    })
+    expect(report.problems).toEqual([
+      { path: 'page.html', image: 'data:image/png', code: 'E_IMPORT_HTML_CONTENT_DROPPED' },
+    ])
+  })
+
+  it('reads a backslash in an image link as part of a file name', async () => {
+    const { sqlite, services } = await setup()
+    const files = { 'C\\C++ notes.md': '# C\n\n![a](shots\\one.png) ![b](shots\\two.png)\n' }
+    const { source, attached } = sourceFor(sqlite, files, { 'shots\\one.png': PNG })
+    const report = await importMarkdown({ ...services, scan: scanOf(files), source })
+    expect(report).toMatchObject({ notes: 1, attachments: 1 })
+    expect(report.problems).toEqual([
+      { path: 'C\\C++ notes.md', image: 'shots\\two.png', code: 'E_IMPORT_FILE_NOT_FOUND' },
+    ])
+    expect((await noteByTitle(sqlite, 'C')).record.bodyMd).toBe(
+      `# C\n\n![a](devot://file/${attached[0]!.id}) ![b](shots\\two.png)\n`,
+    )
+  })
+
   it('imports picked HTML files as Markdown, with their images as attachments', async () => {
     const { sqlite, services, vault } = await setup()
     const files = {
