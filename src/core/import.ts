@@ -50,7 +50,7 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { isMap, isScalar, isSeq, parseDocument } from 'yaml'
 import { htmlToMarkdown } from './htmlImport'
-import { isHtmlFile, noteFolder } from './importTree'
+import { folderOf, isHtmlFile, noteFolder } from './importTree'
 import { MAX_BOOK_NAME_CHARS, type BookService } from './books'
 import { errorCode } from './errors'
 import { fileUri } from './files'
@@ -457,7 +457,7 @@ function ownMeta(markdown: string): { meta: FrontMatterMeta; body: string; title
 /** The title an imported Markdown file gets (see the rules at the top). */
 export function importTitle(markdown: string, path: string): string {
   const own = ownMeta(markdown)
-  return own.title ?? titleOf(parse(own.body), NO_META, path)
+  return own.title ?? titleOf(parse(own.body), path)
 }
 
 /**
@@ -490,8 +490,6 @@ export interface MarkdownFacts {
   unlocated: string[]
   /** The front matter, as `frontMatter` finds it. */
   frontMatter: string | null
-  /** What the front matter says, as `readFrontMatter` reads it. */
-  meta: FrontMatterMeta
   /** The title import gives the note from a file at `path` (`importTitle`). */
   title(path: string): string
 }
@@ -509,30 +507,25 @@ export function markdownFacts(markdown: string): MarkdownFacts {
       links: [],
       unlocated: [],
       frontMatter: null,
-      meta: metaOf(null),
       title: (path) => clip(oneLine(baseName(path)), MAX_TITLE_CHARS),
     }
   }
   const tree = parse(markdown)
   const yaml = yamlOf(tree)
-  const meta = metaOf(yaml)
   const found = images ? imagesOf(tree, markdown) : { links: [], unlocated: [] }
+  // Only Devot's own front matter can give the title (exactly, only cut to
+  // the limit); the tree's first heading is the body's, after that block.
+  const own = yaml !== null && isExportBlock(yaml) ? metaOf(yaml, true).title : null
   return {
     links: found.links,
     unlocated: found.unlocated,
     frontMatter: yaml,
-    meta,
-    // Only Devot's own front matter can give the title.
-    title: (path) =>
-      yaml !== null && isExportBlock(yaml)
-        ? importTitle(markdown, path)
-        : titleOf(tree, NO_META, path),
+    title: (path) => (own === null ? titleOf(tree, path) : clipTitle(own)),
   }
 }
 
-function titleOf(tree: Root, meta: FrontMatterMeta, path: string): string {
-  const fromYaml = noteTitle(meta.title ?? '')
-  if (fromYaml) return fromYaml
+/** The first level-one heading's text, else the file name without its extension. */
+function titleOf(tree: Root, path: string): string {
   const heading = tree.children.find(
     (node) => node.type === 'heading' && node.depth === 1 && oneLine(plainText(node)) !== '',
   )
@@ -894,8 +887,6 @@ function bookName(name: string): string {
   return clip(oneLine(name.replace(/\p{Cc}/gu, ' ')), MAX_BOOK_NAME_CHARS) || '_'
 }
 
-const folderOf = (path: string) => path.split('/').slice(0, -1).join('/')
-
 /** Imports a scan (see the rules at the top of this file). */
 export async function importMarkdown(options: ImportOptions): Promise<ImportReport> {
   const { notes, books, tags, newId, scan, source, onProgress, stopped } = options
@@ -937,8 +928,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       const text = own.body
       const tree = parse(text)
       const meta = own.meta
-      const title =
-        own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, NO_META, path))
+      const title = own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, path))
       id = await notes.create(title, await folder(noteFolder(scan.kind, path), made))
       const noteId = id
 

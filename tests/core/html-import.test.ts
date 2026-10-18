@@ -31,6 +31,12 @@ describe('HTML to Markdown for import', () => {
     expect(htmlToMarkdown('')).toEqual({ title: null, markdown: '' })
   })
 
+  it("takes the title from the page's head only, never from an SVG in its body", () => {
+    const svg = '<body><svg><title>Icon label</title></svg><h1>Heading</h1></body>'
+    expect(htmlToMarkdown(svg).title).toBeNull()
+    expect(htmlToMarkdown(`<head><title>Page</title></head>${svg}`).title).toBe('Page')
+  })
+
   it('neutralises hostile HTML: no script, handler, javascript: link or raw HTML survives', () => {
     const hostile = [
       '<script>alert(1)</script>',

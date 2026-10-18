@@ -8,6 +8,9 @@ import type { ImportKind, ImportScan } from './import'
 // No runtime import of import.ts here: the window shows this tree without
 // loading the Markdown pipeline.
 
+/** The folder a file is in (relative, `/`-separated); `''` at the top. */
+export const folderOf = (path: string) => path.split('/').slice(0, -1).join('/')
+
 /** Whether a picked file is HTML (else it is Markdown). */
 export const isHtmlFile = (path: string) => /\.html?$/i.test(path)
 
@@ -16,7 +19,7 @@ export const isHtmlFile = (path: string) => /\.html?$/i.test(path)
  * into; `''` is the destination itself (see the rules at the top of import.ts).
  */
 export function noteFolder(kind: ImportKind, path: string): string {
-  return kind === 'files' ? '' : path.split('/').slice(0, -1).join('/')
+  return kind === 'files' ? '' : folderOf(path)
 }
 
 export interface ImportFolder {
@@ -51,7 +54,7 @@ export function importTree(scan: ImportScan): ImportFolder {
     const known = byPath.get(path)
     if (known) return known
     const cut = path.lastIndexOf('/')
-    const parent = folderAt(cut === -1 ? '' : path.slice(0, cut))
+    const parent = folderAt(folderOf(path))
     const made: ImportFolder = {
       name: path.slice(cut + 1),
       path,
@@ -76,7 +79,7 @@ export function importTree(scan: ImportScan): ImportFolder {
         if (at !== '') node.notebook = true
       } else node.images += 1
       node.bytes += bytes
-      at = at === '' ? null : at.includes('/') ? at.slice(0, at.lastIndexOf('/')) : ''
+      at = at === '' ? null : folderOf(at)
     }
   }
   for (const file of scan.files) add(file.path, file.bytes, true)

@@ -39,8 +39,10 @@ function find(node: Nodes, tag: string): Element | null {
  */
 export function htmlToMarkdown(html: string): { title: string | null; markdown: string } {
   const page = fromHtml(html)
-  const head = find(page, 'title')
-  const title = head ? textOf(head).replace(/\s+/g, ' ').trim() || null : null
+  // The page's own title is in its head; an SVG `<title>` in the body is not it.
+  const head = find(page, 'head')
+  const named = head ? find(head, 'title') : null
+  const title = named ? textOf(named).replace(/\s+/g, ' ').trim() || null : null
   const body = find(page, 'body')
   const root: Root = { type: 'root', children: body ? body.children : [] }
   const clean = sanitize(root, SCHEMA)

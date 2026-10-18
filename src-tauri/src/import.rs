@@ -312,23 +312,29 @@ fn walk(
         if watch.cancelled.load(Ordering::Relaxed) {
             return Err("E_IMPORT_CANCELLED");
         }
-        let Ok(list) = std::fs::read_dir(&dir).map(|l| {
-            // Sorted, so the same folder always gives the same result.
-            let mut list: Vec<_> = l.flatten().collect();
-            list.sort_by_key(|e| e.file_name());
-            list
-        }) else {
+        let Ok(read) = std::fs::read_dir(&dir) else {
             lists.skipped.push(Problem {
                 path: rel,
                 code: "E_IMPORT_UNREADABLE",
             });
             continue;
         };
-        for entry in list {
+        // Counted and checked while listing, so one huge folder fails fast
+        // and a cancel is seen before it has all been read.
+        let mut list = Vec::new();
+        for entry in read.flatten() {
             lists.entries += 1;
             if lists.entries > limits.entries {
                 return Err("E_IMPORT_FOLDER_TOO_LARGE");
             }
+            if watch.cancelled.load(Ordering::Relaxed) {
+                return Err("E_IMPORT_CANCELLED");
+            }
+            list.push(entry);
+        }
+        // Sorted, so the same folder always gives the same result.
+        list.sort_by_key(|e| e.file_name());
+        for entry in list {
             if lists
                 .reported
                 .is_none_or(|at| at.elapsed() >= PROGRESS_EVERY)
@@ -408,7 +414,7 @@ pub fn pick_found(paths: &[PathBuf], html: bool) -> Result<Found, &'static str> 
     let mut parents: Vec<PathBuf> = Vec::new();
     let mut picked = Vec::new();
     let mut skipped = Vec::new();
-    for path in paths.iter().take(MAX_FILES + 1) {
+    for path in paths {
         let shown = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
@@ -442,10 +448,10 @@ pub fn pick_found(paths: &[PathBuf], html: bool) -> Result<Found, &'static str> 
             skipped.push((Some(at), name, "E_IMPORT_FILE_TOO_LARGE"));
         } else {
             picked.push((at, name, meta.len()));
+            if picked.len() > MAX_FILES {
+                return Err("E_IMPORT_TOO_MANY_FILES");
+            }
         }
-    }
-    if picked.len() > MAX_FILES {
-        return Err("E_IMPORT_TOO_MANY_FILES");
     }
     let mut taken = HashSet::new();
     let mut roots: Vec<Root> = parents
@@ -602,6 +608,34 @@ pub fn read_image(root: &Path, rel: &str) -> Result<Image, &'static str> {
 struct Session {
     roots: Vec<Root>,
     files: HashSet<String>,
+    /// Picked files: their images may only be next to them (see `SHALLOW`).
+    shallow: bool,
+}
+
+/// How deep an image of a picked file may be: in the file's own folder or
+/// one folder below it (`shot.png`, `img/shot.png`, a saved page's
+/// `Page_files/shot.png`), never deeper, so picking one file never opens
+/// the rest of a large folder (all of Downloads, say) to the import.
+pub const SHALLOW: usize = 2;
+
+/// Reads the image at `rel` for a session: as `read_image`, and for picked
+/// files (`shallow`) only an image file (by its extension) whose real path,
+/// links followed, is at most `SHALLOW` components inside `root`.
+pub fn read_session_image(root: &Path, rel: &str, shallow: bool) -> Result<Image, &'static str> {
+    if shallow {
+        let (path, _) = resolve(root, rel)?;
+        let inside = path
+            .strip_prefix(root)
+            .map_err(|_| "E_IMPORT_PATH_OUTSIDE")?;
+        let name = inside
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
+        if inside.components().count() > SHALLOW || !has_extension(name, IMAGES) {
+            return Err("E_IMPORT_PATH_OUTSIDE");
+        }
+    }
+    read_image(root, rel)
 }
 
 #[derive(Default)]
@@ -626,15 +660,21 @@ impl Imports {
     /// Keeps what scan `id` found as its session; None when it was
     /// cancelled meanwhile.
     pub fn ready(&self, id: u64, found: Found) -> Option<Scan> {
-        let flag = self.pending.lock().ok()?.remove(&id)?;
+        // The pending entry goes and the session comes under the one lock
+        // `finish` takes first, so a finish never falls between them (and
+        // the session it was meant to end is never left open).
+        let mut pending = self.pending.lock().ok()?;
+        let flag = pending.remove(&id)?;
         if flag.load(Ordering::Relaxed) {
             return None;
         }
         let session = Session {
+            shallow: found.kind == Kind::Files,
             roots: found.roots,
             files: found.files.iter().map(|f| f.path.clone()).collect(),
         };
         self.sessions.lock().ok()?.insert(id, session);
+        drop(pending);
         Some(Scan {
             id,
             name: found.name,
@@ -667,20 +707,32 @@ impl Imports {
 
     /// The folder `rel` is in, and `rel` inside it.
     fn root_for(&self, id: u64, rel: &str, note: bool) -> Result<(PathBuf, String), &'static str> {
+        self.place(id, rel, note).map(|(root, rel, _)| (root, rel))
+    }
+
+    /// The folder `rel` is in, `rel` inside it, and whether the session's
+    /// images must be next to their notes (picked files).
+    fn place(
+        &self,
+        id: u64,
+        rel: &str,
+        note: bool,
+    ) -> Result<(PathBuf, String, bool), &'static str> {
         let sessions = self.sessions.lock().map_err(|_| "E_IMPORT_SESSION")?;
         let session = sessions.get(&id).ok_or("E_IMPORT_SESSION")?;
         if note && !session.files.contains(rel) {
             return Err("E_IMPORT_PATH_UNKNOWN");
         }
+        let shallow = session.shallow;
         for root in &session.roots {
             if root.prefix.is_empty() {
-                return Ok((root.path.clone(), rel.to_owned()));
+                return Ok((root.path.clone(), rel.to_owned(), shallow));
             }
             if let Some(inside) = rel
                 .strip_prefix(root.prefix.as_str())
                 .and_then(|r| r.strip_prefix('/'))
             {
-                return Ok((root.path.clone(), inside.to_owned()));
+                return Ok((root.path.clone(), inside.to_owned(), shallow));
             }
         }
         Err("E_IMPORT_PATH_OUTSIDE")
@@ -737,8 +789,8 @@ pub async fn import_attach(
     if path.is_empty() || path.len() > MAX_PATH_BYTES {
         return Err("E_IMPORT_PATH_INVALID".into());
     }
-    let (root, rel) = imports.root_for(id, &path, false)?;
-    let image = blocking(move || read_image(&root, &rel)).await?;
+    let (root, rel, shallow) = imports.place(id, &path, false)?;
+    let image = blocking(move || read_session_image(&root, &rel, shallow)).await?;
     let upload = Upload {
         id: file_id,
         note_id,
@@ -1414,5 +1466,79 @@ mod tests {
             imports.root_for(scan.id, "Saved/.secret.html", true),
             Err("E_IMPORT_PATH_UNKNOWN")
         );
+    }
+
+    #[test]
+    fn a_finish_racing_a_ready_scan_never_leaves_its_session_open() {
+        let dir = sample();
+        let found = scan(dir.path()).unwrap();
+        let imports = Arc::new(Imports::default());
+        for _ in 0..500 {
+            let (id, _) = imports.begin();
+            let finisher = {
+                let imports = imports.clone();
+                std::thread::spawn(move || imports.finish(id))
+            };
+            imports.ready(id, found.clone());
+            finisher.join().unwrap();
+            // Either the finish came first (no session) or it ended the
+            // session the scan opened: none is left either way.
+            assert!(imports.sessions.lock().unwrap().is_empty());
+            assert!(imports.pending.lock().unwrap().is_empty());
+        }
+    }
+
+    #[test]
+    fn a_pick_of_too_many_files_is_refused_however_they_are_ordered() {
+        let dir = notes(MAX_FILES + 1);
+        write(dir.path(), "a.txt", b"not markdown");
+        let mut paths = vec![dir.path().join("a.txt")];
+        paths.extend((0..=MAX_FILES).map(|i| dir.path().join(format!("{i:05}.md"))));
+        assert_eq!(
+            pick_found(&paths, false).map(|f| f.files.len()),
+            Err("E_IMPORT_TOO_MANY_FILES")
+        );
+        paths.pop();
+        assert_eq!(pick_found(&paths, false).unwrap().files.len(), MAX_FILES);
+    }
+
+    #[test]
+    fn a_picked_file_reads_images_only_next_to_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        write(root, "notes.md", b"# Notes\n");
+        write(root, "shot.png", PNG);
+        write(root, "img/board.png", PNG);
+        write(root, "Pictures/private/x.png", PNG);
+        write(root, "img/notes.txt", PNG);
+        let imports = Imports::default();
+        let scan = imports.start(pick_found(&[root.join("notes.md")], false).unwrap());
+        let image = |rel: &str| {
+            let (at, rel, shallow) = imports.place(scan.id, rel, false)?;
+            assert!(shallow);
+            read_session_image(&at, &rel, shallow)
+        };
+        assert!(image("shot.png").is_ok());
+        assert!(image("img/board.png").is_ok());
+        assert_eq!(
+            image("Pictures/private/x.png"),
+            Err("E_IMPORT_PATH_OUTSIDE")
+        );
+        // Only image files, by their name.
+        assert_eq!(image("img/notes.txt"), Err("E_IMPORT_PATH_OUTSIDE"));
+        // A link next to the file cannot reach deeper either.
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(root.join("Pictures/private/x.png"), root.join("peek.png"))
+                .unwrap();
+            assert_eq!(image("peek.png"), Err("E_IMPORT_PATH_OUTSIDE"));
+        }
+        // A picked folder keeps reading images at any depth inside it.
+        let folder = imports.start(super::scan(root).unwrap());
+        let (at, rel, shallow) = imports
+            .place(folder.id, "Pictures/private/x.png", false)
+            .unwrap();
+        assert!(!shallow);
+        assert!(read_session_image(&at, &rel, shallow).is_ok());
     }
 }

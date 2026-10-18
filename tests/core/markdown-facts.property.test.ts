@@ -6,7 +6,6 @@ import {
   EXPORT_HEADER,
   importTitle,
   markdownFacts,
-  readFrontMatter,
   unlocatedImages,
 } from '../../src/core/import'
 
@@ -29,6 +28,10 @@ const LINES = [
   '=x',
   '---',
   'title: From front matter',
+  // Devot's own block: its title is the note's.
+  '# Devot metadata',
+  "title: 'Own title'",
+  'title: ""',
   'tags: [a, b]',
   '> # In a quote',
   '- # In a list',
@@ -47,8 +50,14 @@ const LINES = [
 ]
 
 const markdown = fc
-  .array(fc.oneof(fc.constantFrom(...LINES), fc.string({ maxLength: 12 })), { maxLength: 12 })
-  .map((lines) => lines.join('\n'))
+  .tuple(
+    fc.boolean(),
+    fc.array(fc.oneof(fc.constantFrom(...LINES), fc.string({ maxLength: 12 })), {
+      maxLength: 12,
+    }),
+  )
+  // Some start as Devot's own block does, so its title is read too.
+  .map(([own, lines]) => (own ? `---\n${EXPORT_HEADER}\n` : '') + lines.join('\n'))
 
 describe('markdownFacts', () => {
   it('answers like the parsing functions, parsed or not', () => {
@@ -58,7 +67,6 @@ describe('markdownFacts', () => {
         expect(facts.links).toEqual(imageLinks(md))
         expect(facts.unlocated).toEqual(unlocatedImages(md))
         expect(facts.frontMatter).toBe(frontMatter(md))
-        expect(facts.meta).toEqual(readFrontMatter(md))
         expect(facts.title(path)).toBe(importTitle(md, path))
       }),
       { numRuns: 400 },

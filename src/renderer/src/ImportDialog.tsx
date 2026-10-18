@@ -12,11 +12,12 @@ import type { ImportKind, ImportProblem, ImportReport, ImportScan } from '../../
 // pull in the Markdown pipeline.
 import { importTree, isHtmlFile, type ImportFolder } from '../../core/importTree'
 import type { BookNode } from '../../core/books'
-import { bookOptions, filterBooks, NO_BOOK } from './BookPicker'
+import { bookOptions, filterBooks, NO_BOOK, type BookOption } from './BookPicker'
 import { countOf, fileSize, noteCount } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
+import { useScanFound } from './importProgress'
 import { importReason } from './importReasons'
 import { fieldStep } from './Picker'
 
@@ -31,8 +32,6 @@ export interface ImportJob {
   kind: ImportKind
   /** What the scan found; null while it runs. */
   scan: ImportScan | null
-  /** How much the running scan has found so far. */
-  found: { files: number; images: number }
   /** Why the scan failed. */
   failed: string | null
 }
@@ -162,21 +161,28 @@ function Preview(props: { scan: ImportScan; locale: string }) {
   )
 }
 
-/** The notebook the import goes into: type to filter, arrow keys or a click to choose. */
+/** The destinations to choose from: No Notebook, then every notebook. */
+function destinationOptions(tree: BookNode[]): BookOption[] {
+  return [
+    { id: NO_BOOK, name: t('note.noBook'), label: t('note.noBook'), depth: 0, ancestors: [] },
+    ...bookOptions(tree),
+  ]
+}
+
+/**
+ * The notebook the import goes into: type to filter, arrow keys or a click
+ * to choose. The filter (`query`) is the sheet's, so it knows whether the
+ * choice is shown: one the filter hides is never imported into.
+ */
 function Destination(props: {
-  tree: BookNode[]
+  all: BookOption[]
+  query: string
+  onQuery: (query: string) => void
   value: string
   onChange: (id: string) => void
   onSubmit: () => void
 }) {
-  const [query, setQuery] = useState('')
-  const all = useMemo(
-    () => [
-      { id: NO_BOOK, name: t('note.noBook'), label: t('note.noBook'), depth: 0, ancestors: [] },
-      ...bookOptions(props.tree),
-    ],
-    [props.tree],
-  )
+  const { all, query } = props
   const matches = filterBooks(all, query)
   const index = matches.findIndex((o) => o.id === props.value)
 
@@ -216,7 +222,7 @@ function Destination(props: {
         autoFocus
         value={query}
         onChange={(e) => {
-          setQuery(e.target.value)
+          props.onQuery(e.target.value)
           // The choice stays while it matches; else the first match is chosen.
           const left = filterBooks(all, e.target.value)
           if (left[0] && !left.some((o) => o.id === props.value)) props.onChange(left[0].id)
@@ -289,6 +295,11 @@ export function ImportDialog(props: {
       ? props.initialDestination
       : NO_BOOK,
   )
+  const [query, setQuery] = useState('')
+  const all = useMemo(() => destinationOptions(props.tree), [props.tree])
+  // Import goes only into a destination the filter shows.
+  const chosenShown = filterBooks(all, query).some((o) => o.id === destination)
+  const found = useScanFound(job.id)
   const running = stage.kind === 'running'
   const closed = useRef(false)
   const close = (cancelled: boolean) => {
@@ -315,7 +326,7 @@ export function ImportDialog(props: {
       : stage
 
   const start = () => {
-    if (!scan || files === 0) return
+    if (!scan || files === 0 || !chosenShown) return
     const chosen = destination === NO_BOOK ? null : destination
     setStage({ kind: 'running', done: 0, total: files })
     const progress = (done: number, total: number) =>
@@ -357,13 +368,8 @@ export function ImportDialog(props: {
         <progress className="import-progress" aria-label={t('import.scanLabel')} />
         <p className="sheet-detail import-count" aria-live="polite">
           {format(t('import.scanFound'), {
-            files: countOf(job.found.files, locale, 'import.markdownOne', 'import.markdownOther'),
-            images: countOf(
-              job.found.images,
-              locale,
-              'import.imageCountOne',
-              'import.imageCountOther',
-            ),
+            files: countOf(found.files, locale, 'import.markdownOne', 'import.markdownOther'),
+            images: countOf(found.images, locale, 'import.imageCountOne', 'import.imageCountOther'),
           })}
         </p>
       </>
@@ -401,7 +407,9 @@ export function ImportDialog(props: {
           {format(t('import.destinationDetail'), { notes: noteCount(files, locale) })}
         </p>
         <Destination
-          tree={props.tree}
+          all={all}
+          query={query}
+          onQuery={setQuery}
           value={destination}
           onChange={setDestination}
           onSubmit={start}
@@ -419,7 +427,12 @@ export function ImportDialog(props: {
           </button>
         )}
         {cancelButton}
-        <button type="button" className="button button-default" onClick={start}>
+        <button
+          type="button"
+          className="button button-default"
+          onClick={start}
+          disabled={!chosenShown}
+        >
           {t('import.import')}
         </button>
       </>

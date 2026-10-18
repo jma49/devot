@@ -39,6 +39,7 @@ import { createQuitGuard, newProblems } from './saving'
 import { BackupsDialog } from './BackupsDialog'
 import { BookPicker } from './BookPicker'
 import { ImportDialog, type ImportJob } from './ImportDialog'
+import { forgetScanFound, setScanFound } from './importProgress'
 import {
   IMPORT_FAILED,
   IMPORT_PROGRESS,
@@ -610,6 +611,7 @@ export function App() {
   const closeImport = (cancelled: boolean) => {
     // Cancelled before Import: the session (or the scan still running) ends.
     const id = importJob?.id ?? null
+    if (id !== null) forgetScanFound(id)
     if (cancelled && id !== null) {
       seenImports.current.add(id)
       void finishImport(id)
@@ -1017,22 +1019,23 @@ export function App() {
         e as CustomEvent<Pick<ImportJob, 'name' | 'kind'> & { id: number }>
       ).detail
       if (seenImports.current.has(id) || update(id, (job) => job)) return
-      add({ id, name, kind, scan: null, found: { files: 0, images: 0 }, failed: null })
+      add({ id, name, kind, scan: null, failed: null })
     }
     const progress = (e: Event) => {
       const { id, files, images } = (
         e as CustomEvent<{ id: number; files: number; images: number }>
       ).detail
       if (seenImports.current.has(id)) return
-      update(id, (job) => ({ ...job, found: { files, images } }))
+      // Kept out of App state: only the sheet showing it renders again.
+      const known = shownImport.current === id || importJobs.current.some((job) => job.id === id)
+      if (known) setScanFound(id, { files, images })
     }
     const ready = (e: Event) => {
       const scan = (e as CustomEvent<ImportScan>).detail
       if (seenImports.current.has(scan.id)) return
       seenImports.current.add(scan.id)
       if (update(scan.id, (job) => ({ ...job, scan }))) return
-      const found = { files: scan.files.length, images: scan.images.length }
-      add({ id: scan.id, name: scan.name, kind: scan.kind, scan, found, failed: null })
+      add({ id: scan.id, name: scan.name, kind: scan.kind, scan, failed: null })
     }
     const failed = (e: Event) => {
       const detail = (e as CustomEvent<{ id: number | null; code: unknown } | string>).detail
@@ -1048,7 +1051,6 @@ export function App() {
         name: '',
         kind: 'folder',
         scan: null,
-        found: { files: 0, images: 0 },
         failed: code,
       })
     }
@@ -1138,7 +1140,10 @@ export function App() {
     )
     // Folders picked meanwhile were never imported: close their sessions.
     for (const job of importJobs.current.splice(0)) {
-      if (job.id !== null) await finishImport(job.id)
+      if (job.id !== null) {
+        forgetScanFound(job.id)
+        await finishImport(job.id)
+      }
     }
     window.location.reload()
   }
