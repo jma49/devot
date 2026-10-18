@@ -67,3 +67,15 @@ export function keyboardIsFree(): boolean {
   const active = document.activeElement
   return active === null || active === document.body
 }
+
+/**
+ * Whether the keyboard is in a text field outside `host` (a title, a tag,
+ * the palette): an editor that finishes loading then leaves it there, so
+ * what the user types goes where they put it.
+ */
+export function typingElsewhere(active: Element | null, host: Node | null): boolean {
+  if (!active || host?.contains(active)) return false
+  const { tagName } = active
+  if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return true
+  return (active as Partial<HTMLElement>).isContentEditable === true
+}

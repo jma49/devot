@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { focusStore, sidebarStore, windowLabel } from './focus'
+import { focusStore, sidebarStore, typingElsewhere, windowLabel } from './focus'
 
 function memoryStorage() {
   const items = new Map<string, string>()
@@ -76,5 +76,27 @@ describe('sidebarStore', () => {
     }
     expect(sidebarStore(broken, 'main').load()).toBe(false)
     expect(() => sidebarStore(broken, 'main').save(true)).not.toThrow()
+  })
+})
+
+describe('typingElsewhere', () => {
+  const element = (tagName: string, isContentEditable = false) =>
+    ({ tagName, isContentEditable }) as unknown as Element
+  const host = (...inside: Element[]) => ({ contains: (e: Element) => inside.includes(e) }) as Node
+
+  it('is true for a text field outside the editor', () => {
+    for (const tag of ['INPUT', 'TEXTAREA', 'SELECT']) {
+      expect(typingElsewhere(element(tag), host())).toBe(true)
+    }
+    expect(typingElsewhere(element('DIV', true), host())).toBe(true)
+    expect(typingElsewhere(element('INPUT'), null)).toBe(true)
+  })
+
+  it('is false for nothing, a button or a row, or a field inside the editor', () => {
+    expect(typingElsewhere(null, host())).toBe(false)
+    expect(typingElsewhere(element('BODY'), host())).toBe(false)
+    expect(typingElsewhere(element('BUTTON'), host())).toBe(false)
+    const own = element('DIV', true)
+    expect(typingElsewhere(own, host(own))).toBe(false)
   })
 })
