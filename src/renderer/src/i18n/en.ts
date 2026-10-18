@@ -1030,6 +1030,7 @@ export const en = {
     'Could not find this file on GitHub. Only public repositories can be fetched.',
   'pasteFormat.rateLimited': 'GitHub is limiting requests. Try again later.',
   'pasteFormat.tooLarge': 'The file is too large.',
+  'pasteFormat.noLines': 'The file has no such lines.',
   'pasteFormat.failed': 'Could not fetch this link.',
   // The slash menu (editor/slashMenu.ts): its groups and the items with labels of their own.
   'slash.groupBasic': 'Basic Formatting',

@@ -42,6 +42,9 @@ async function paste(page: Page, text: string) {
   }, text)
 }
 
+/** Waits past CodeMirror's `interactionDelay` (75 ms), during which keys go to the editor. */
+const settleList = (page: Page) => page.waitForTimeout(150)
+
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
     (name) =>
@@ -84,6 +87,7 @@ test('a pasted URL offers its formats; the title is fetched only once highlighte
   expect(await calls(page, 'link_title')).toBe(0)
 
   // Highlighted: fetched, loading, then shown in the URL's place.
+  await settleList(page)
   await page.keyboard.press('ArrowDown')
   await expect(previewOf(page)).toHaveText('Loading…')
   await expect(previewOf(page)).toHaveText('[Example \\[Docs\\]](https://example.com/docs)')
@@ -127,6 +131,8 @@ test('a failed fetch says why in the preview', async ({ page }) => {
   await body(page).click()
   await page.keyboard.press('End')
   await paste(page, 'https://example.com/file.pdf')
+  await expect(formats(page)).toHaveCount(4)
+  await settleList(page)
   await page.keyboard.press('ArrowDown')
   await expect(previewOf(page)).toHaveText('Could not get the page title: the page is not HTML.')
   await page.keyboard.press('Enter')
@@ -152,6 +158,7 @@ test('a GitHub file link pastes as a fenced snippet', async ({ page }) => {
     'With Empty Title',
     'With Angle Brackets',
   ])
+  await settleList(page)
   await page.keyboard.press('ArrowDown')
   await expect(previewOf(page)).toContainText('```ts line=2-3 branch=main')
   await page.keyboard.press('Enter')
@@ -174,6 +181,7 @@ test('Paste URL As… opens the chooser for the clipboard URL', async ({ page })
   await page.keyboard.press('Enter')
   await expect(line(page, 0)).toHaveText('go https://a.example/')
   await expect(formats(page)).toHaveCount(4)
+  await settleList(page)
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowDown')

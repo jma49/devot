@@ -229,6 +229,32 @@ describe('the paste chooser', () => {
   })
 })
 
+describe('the snippet format', () => {
+  const link = 'https://github.com/o/r/blob/main/a.ts#L2'
+
+  it('is offered only where a block can go', () => {
+    for (const marked of ['> quote |', '- item |', '| a | b |\n| - | - |\n| x | |y |']) {
+      const ed = editor(marked)
+      ed.paste(link)
+      expect(chooserOf(ed.state)?.formats.map((f) => f.type) ?? []).not.toContain('snippet')
+    }
+    const top = editor('|')
+    top.paste(link)
+    expect(chooserOf(top.state)?.formats.map((f) => f.type)).toContain('snippet')
+  })
+
+  it('reads lines the file lacks as an error, keeping the URL', async () => {
+    const ed = editor('|', { title: vi.fn<PasteFetcher['title']>(), snippet: async () => 'one' })
+    ed.paste(link.replace('#L2', '#L9'))
+    fetchFor(ed, 'snippet')
+    await settle()
+    expect(chooserOf(ed.state)?.fetches.get('snippet')).toEqual({
+      status: 'error',
+      message: 'pasteFormat.noLines',
+    })
+  })
+})
+
 describe('Paste URL As', () => {
   it('pastes the clipboard URL with the chooser open', () => {
     const ed = editor('x |')
@@ -257,5 +283,8 @@ describe('Paste URL As', () => {
 
   it('does nothing without a URL on the clipboard or at the caret', () => {
     expect(pasteUrlAs(editor('plain |text').state, 'words')).toBeNull()
+    // An image's address, or a reference definition's, is no link to reformat.
+    expect(pasteUrlAs(editor(`![alt](${URL}|)`).state, '')).toBeNull()
+    expect(pasteUrlAs(editor(`[ref]: ${URL}|`).state, '')).toBeNull()
   })
 })

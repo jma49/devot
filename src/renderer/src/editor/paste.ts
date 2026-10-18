@@ -148,7 +148,9 @@ function linkRangeAt(
       // A Link's address is its URL child; `[text]` alone (a reference) has none.
       const urlNode = node.name === 'URL' ? node : node.getChild('URL')
       const parent = node.name === 'URL' ? node.parent : null
-      const link = parent && (parent.name === 'Link' || parent.name === 'Autolink') ? parent : node
+      // An image's or a reference definition's address is not a link to reformat.
+      if (parent?.name === 'Image' || parent?.name === 'LinkReference') return null
+      const link = parent?.name === 'Link' || parent?.name === 'Autolink' ? parent : node
       const url = urlNode && state.sliceDoc(urlNode.from, urlNode.to).replace(/^<|>$/g, '').trim()
       if (url) return { from: link.from, to: link.to, url }
     }
@@ -166,5 +168,5 @@ export function pasteUrlAs(state: EditorState, clipboardText: string): Transacti
   const spec = url === null ? null : urlAtCursors(state, url, 'choose')
   if (spec) return spec
   const link = linkRangeAt(state, state.selection.main.head)
-  return link && chooserOn(link.from, link.to, link.url)
+  return link && chooserOn(state, link.from, link.to, link.url)
 }

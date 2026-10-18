@@ -45,12 +45,16 @@ const FORMATS: readonly PasteFormat[] = [
 /**
  * The formats `url` can take, in list order. A page title is fetched over
  * https only; a snippet needs a github.com file link (and no backtick, which
- * a fence's info string cannot hold); an autolink cannot hold `<` or `>`.
+ * a fence's info string cannot hold) and a place a block can go (`block`:
+ * not in a quote, a list or a table); an autolink cannot hold `<` or `>`.
  */
-export function pasteFormats(url: string): PasteFormat[] {
+export function pasteFormats(
+  url: string,
+  { block = true }: { block?: boolean } = {},
+): PasteFormat[] {
   const https = /^https:\/\//i.test(url)
   return FORMATS.filter((f) => {
-    if (f.type === 'snippet') return parseGithubBlobUrl(url) !== null && !url.includes('`')
+    if (f.type === 'snippet') return block && parseGithubBlobUrl(url) !== null && !url.includes('`')
     if (f.type === 'title') return https
     if (f.type === 'autolink') return !/[<>]/.test(url)
     return true
@@ -59,7 +63,7 @@ export function pasteFormats(url: string): PasteFormat[] {
 
 /** Text that goes between a link's brackets as it reads: Markdown punctuation escaped. */
 export function escapeLinkText(text: string): string {
-  return text.replace(/[\\`{}[\]()<>|*]/g, (c) => `\\${c}`)
+  return text.replace(/[\\`{}[\]()<>|*_~]/g, (c) => `\\${c}`)
 }
 
 /** Whether the line around the URL has text before it and after it. */
@@ -143,9 +147,11 @@ const REF = /^[\w./-]{1,100}$/
  * A fenced code block of a GitHub file, or of the lines the link's `#L5` or
  * `#L5-L9` names, with the source in its info string:
  * ```ts line=5-9 branch=main url=https://github.com/o/r/blob/main/a.ts#L5-L9
+ * Null when the file has no such lines.
  */
-export function snippetFence(code: string, blob: GithubBlob, url: string): string {
+export function snippetFence(code: string, blob: GithubBlob, url: string): string | null {
   let lines = code.replace(/\r\n?/g, '\n').split('\n')
+  if (blob.lines && blob.lines.start > lines.length) return null
   if (blob.lines) lines = lines.slice(blob.lines.start - 1, blob.lines.end ?? blob.lines.start)
   else if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop()
   const body = lines.join('\n')

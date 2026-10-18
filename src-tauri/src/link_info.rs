@@ -56,7 +56,7 @@ fn fetch_title(url: &Url) -> Result<Option<String>, &'static str> {
     if !is_html(page.content_type.as_deref()) {
         return Err("E_LINK_NOT_HTML");
     }
-    Ok(page_title(&String::from_utf8_lossy(&page.body)))
+    Ok(utf8_text(&page.body).and_then(page_title))
 }
 
 fn fetch_snippet(api: &Url) -> Result<String, &'static str> {
@@ -80,6 +80,17 @@ fn fetch_snippet(api: &Url) -> Result<String, &'static str> {
         return Err("E_GITHUB_BINARY");
     }
     String::from_utf8(file.body).map_err(|_| "E_GITHUB_BINARY")
+}
+
+/// A page's text when it is UTF-8 (its last character may be cut off by the
+/// byte cap); None for another encoding, whose title would come out garbled.
+fn utf8_text(bytes: &[u8]) -> Option<&str> {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => Some(text),
+        // Only an incomplete character at the very end: the cap cut it.
+        Err(e) if e.error_len().is_none() => std::str::from_utf8(&bytes[..e.valid_up_to()]).ok(),
+        Err(_) => None,
+    }
 }
 
 /// Whether a `Content-Type` is an HTML page.
@@ -117,7 +128,16 @@ fn github_contents_url(url: &str) -> Result<Url, &'static str> {
         || !plain_segment(repo, 100)
         || !plain_segment(git_ref, 255)
         || path.is_empty()
-        || path.iter().any(|s| s.is_empty() || *s == "." || *s == "..")
+        || path.iter().any(|s| {
+            // An encoded `/` or `\` would reach another API path once decoded.
+            let lower = s.to_ascii_lowercase();
+            s.is_empty()
+                || *s == "."
+                || *s == ".."
+                || lower.contains("%2f")
+                || lower.contains("%5c")
+                || lower.contains("%2e")
+        })
     {
         return Err(INVALID);
     }
@@ -332,6 +352,16 @@ mod tests {
     }
 
     #[test]
+    fn reads_utf8_pages_only() {
+        assert_eq!(utf8_text("caf\u{e9}".as_bytes()), Some("caf\u{e9}"));
+        // Cut inside the last character by the byte cap.
+        let cut = &"a\u{e9}".as_bytes()[..2];
+        assert_eq!(utf8_text(cut), Some("a"));
+        // windows-1252 or Latin-1 bytes.
+        assert_eq!(utf8_text(b"caf\xe9 au lait"), None);
+    }
+
+    #[test]
     fn knows_html_content_types() {
         assert!(is_html(Some("text/html")));
         assert!(is_html(Some("text/html; charset=utf-8")));
@@ -367,6 +397,9 @@ mod tests {
             "https://github.com/o/r/blob/main/a/../../../x",
             "https://github.com/o?x/r/blob/main/a.ts",
             "https://user@github.com/o/r/blob/main/a.ts",
+            "https://github.com/o/r/blob/main/a%2F..%2F..%2Fx",
+            "https://github.com/o/r/blob/main/a%5Cb",
+            "https://github.com/o/r/blob/main/%2e%2e/x",
         ] {
             assert!(github_contents_url(url).is_err(), "{url}");
         }

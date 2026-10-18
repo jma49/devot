@@ -17,10 +17,12 @@ import {
   type CompletionSource,
 } from '@codemirror/autocomplete'
 import { isolateHistory, undo } from '@codemirror/commands'
+import { syntaxTree } from '@codemirror/language'
 import {
   EditorSelection,
   EditorState,
   Facet,
+  Prec,
   StateEffect,
   StateField,
   type Extension,
@@ -30,6 +32,7 @@ import {
 import {
   Decoration,
   EditorView,
+  keymap,
   ViewPlugin,
   WidgetType,
   type DecorationSet,
@@ -81,7 +84,13 @@ export interface Chooser {
   pasted: boolean
 }
 
-const openEffect = StateEffect.define<{ from: number; to: number; url: string; pasted: boolean }>()
+const openEffect = StateEffect.define<{
+  from: number
+  to: number
+  url: string
+  pasted: boolean
+  block: boolean
+}>()
 const closeEffect = StateEffect.define<null>()
 const fetchEffect = StateEffect.define<{ id: number; kind: PasteFetch; state: FetchState }>()
 const pickEffect = StateEffect.define<{ id: number; type: PasteFormatType }>()
@@ -107,14 +116,14 @@ const chooserField = StateField.define<Chooser | null>({
     }
     for (const effect of tr.effects) {
       if (effect.is(openEffect)) {
-        const { from, to, url, pasted } = effect.value
+        const { from, to, url, pasted, block } = effect.value
         lastId += 1
         next = {
           id: lastId,
           from,
           to,
           url,
-          formats: pasteFormats(url),
+          formats: pasteFormats(url, { block }),
           fetches: new Map(),
           picked: null,
           pasted,
@@ -139,6 +148,16 @@ export function chooserOf(state: EditorState): Chooser | null {
   return state.field(chooserField, false) ?? null
 }
 
+/** Blocks a fenced snippet cannot go into without ending or breaking them. */
+const CONTAINERS = new Set(['Blockquote', 'ListItem', 'BulletList', 'OrderedList', 'Table'])
+
+/** Whether a block (a fenced snippet) can go at `pos`: not inside a quote, a list or a table. */
+function blockFits(state: EditorState, pos: number): boolean {
+  for (let node = syntaxTree(state).resolveInner(pos, -1); node.parent; node = node.parent)
+    if (CONTAINERS.has(node.name)) return false
+  return true
+}
+
 /**
  * Inserts `url` as copied at the cursor and opens the chooser on it; the
  * paste is its own undo event, so a pick can take its place.
@@ -151,16 +170,21 @@ export function chooserPaste(state: EditorState, url: string): TransactionSpec {
     selection: EditorSelection.cursor(to),
     userEvent: 'input.paste',
     annotations: isolateHistory.of('full'),
-    effects: openEffect.of({ from: at, to, url, pasted: true }),
+    effects: openEffect.of({ from: at, to, url, pasted: true, block: blockFits(state, at) }),
     scrollIntoView: true,
   }
 }
 
 /** Opens the chooser on text already in the note (a link at the caret). */
-export function chooserOn(from: number, to: number, url: string): TransactionSpec {
+export function chooserOn(
+  state: EditorState,
+  from: number,
+  to: number,
+  url: string,
+): TransactionSpec {
   return {
     selection: EditorSelection.cursor(to),
-    effects: openEffect.of({ from, to, url, pasted: false }),
+    effects: openEffect.of({ from, to, url, pasted: false, block: blockFits(state, from) }),
   }
 }
 
@@ -191,7 +215,8 @@ const formatIn = (c: Chooser, type: PasteFormatType) => c.formats.find((f) => f.
 function lineAround(state: EditorState, from: number, to: number) {
   const line = state.doc.lineAt(from)
   return {
-    before: state.sliceDoc(line.from, from).trim() !== '',
+    // Even spaces before it: an indented fence could read as indented code.
+    before: from > line.from,
     after: state.sliceDoc(to, state.doc.lineAt(to).to).trim() !== '',
   }
 }
@@ -267,9 +292,9 @@ export function fetchFor(
           )
       : fetcher.snippet(url).then((code) => {
           const blob = parseGithubBlobUrl(url)
-          return blob
-            ? { status: 'done', text: snippetFence(code, blob, url) }
-            : { status: 'error', message: 'pasteFormat.failed' }
+          const fence = blob && snippetFence(code, blob, url)
+          if (fence) return { status: 'done', text: fence }
+          return { status: 'error', message: blob ? 'pasteFormat.noLines' : 'pasteFormat.failed' }
         })
   work.then(settle, (error: unknown) => settle({ status: 'error', message: errorMessage(error) }))
 }
@@ -303,7 +328,7 @@ export function pickFormat(
 
 const formatOfOption = new WeakMap<Completion, PasteFormatType>()
 
-/** The views whose plugin is gone: their late fetch results are dropped. */
+/** The views whose chooser plugin is live; late fetch results for any other are dropped. */
 const liveViews = new WeakSet<EditorView>()
 
 /** The chooser's list, while it is open and the caret is right after the URL. */
@@ -447,6 +472,19 @@ export function pasteChooser(fetcher: PasteFetcher | null): Extension {
     previewPlugin,
     theme,
     fetcher ? pasteFetcher.of(fetcher) : [],
+    // A pick waiting on its fetch has no list left to close: Esc gives up on it.
+    Prec.highest(
+      keymap.of([
+        {
+          key: 'Escape',
+          run: (view) => {
+            if (!chooserOf(view.state)?.picked) return false
+            close(view)
+            return true
+          },
+        },
+      ]),
+    ),
     EditorState.languageData.of(() => [{ autocomplete: chooserSource }]),
   ]
 }

@@ -1,12 +1,12 @@
 //! Outbound web requests: the one small blocking client every feature that
 //! fetches from the web goes through (link titles, GitHub snippets, and
-//! later provider calls). https only, redirects included (ureq checks every
-//! hop), at most a few redirects, one time cap for the whole call, and a cap
+//! later provider calls). https only and public hosts only, redirects
+//! included (each hop is checked here), at most a few redirects, one time cap for the whole call, and a cap
 //! on the bytes read. The same TLS stack as the crash reporter. Errors are
 //! codes, never URLs. Call it from a blocking task, never the main thread.
 
 use std::io::Read;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::Url;
 
 /// The longest URL Devot sends a request to.
@@ -66,52 +66,140 @@ fn error_code(error: &ureq::Error) -> &'static str {
     }
 }
 
-/// Sends `get` and reads at most `max_bytes` of the answer.
-pub fn get(get: &Get) -> Result<Fetched, &'static str> {
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .tls_config(
-            ureq::tls::TlsConfig::builder()
-                .provider(ureq::tls::TlsProvider::NativeTls)
-                .build(),
-        )
-        .https_only(true)
-        .max_redirects(MAX_REDIRECTS)
-        .timeout_global(Some(get.timeout))
-        .http_status_as_error(false)
-        .build()
-        .into();
-    let mut request = agent
-        .get(get.url.as_str())
-        .header("User-Agent", USER_AGENT)
-        .header("Accept", get.accept);
-    for (name, value) in get.headers {
-        request = request.header(*name, *value);
+/// Whether a URL's host may be fetched: a public name or address, never
+/// this machine, the local network or a link-local address, so a pasted link
+/// (or a redirect) cannot make Devot read a router's or a local service's
+/// page. A name is not resolved first, so a public name that points inside
+/// still gets through; only a title or a file comes back from it.
+fn public_host(url: &Url) -> bool {
+    use std::net::{Ipv4Addr, Ipv6Addr};
+    let v4 = |ip: Ipv4Addr| {
+        let [a, b, ..] = ip.octets();
+        !(ip.is_loopback()
+            || ip.is_private()
+            || ip.is_link_local()
+            || ip.is_unspecified()
+            || ip.is_broadcast()
+            || a == 0
+            // Carrier-grade NAT, 100.64.0.0/10.
+            || (a == 100 && (64..128).contains(&b)))
+    };
+    let v6 = |ip: Ipv6Addr| {
+        let first = ip.segments()[0];
+        match ip.to_ipv4_mapped() {
+            Some(mapped) => v4(mapped),
+            None => {
+                !(ip.is_loopback()
+                    || ip.is_unspecified()
+                    // Unique local fc00::/7 and link-local fe80::/10.
+                    || (first & 0xfe00) == 0xfc00
+                    || (first & 0xffc0) == 0xfe80)
+            }
+        }
+    };
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let bare = host.trim_start_matches('[').trim_end_matches(']');
+    match bare.parse::<std::net::IpAddr>() {
+        Ok(std::net::IpAddr::V4(ip)) => v4(ip),
+        Ok(std::net::IpAddr::V6(ip)) => v6(ip),
+        Err(_) => {
+            let name = host.trim_end_matches('.').to_ascii_lowercase();
+            !(name.is_empty()
+                || name == "localhost"
+                || name.ends_with(".localhost")
+                || name.ends_with(".local"))
+        }
     }
-    let mut response = request.call().map_err(|e| error_code(&e))?;
-    let status = response.status().as_u16();
-    let content_type = response
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .map(str::to_ascii_lowercase);
-    let mut body = Vec::new();
-    let limit = u64::try_from(get.max_bytes)
-        .unwrap_or(u64::MAX)
-        .saturating_add(1);
-    response
-        .body_mut()
-        .as_reader()
-        .take(limit)
-        .read_to_end(&mut body)
-        .map_err(|_| "E_NET_FAILED")?;
-    let truncated = body.len() > get.max_bytes;
-    body.truncate(get.max_bytes);
-    Ok(Fetched {
-        status,
-        content_type,
-        body,
-        truncated,
-    })
+}
+
+/// The next URL of a redirect answer, checked like the first; None when the
+/// answer is no redirect.
+fn redirect_target(
+    from: &Url,
+    status: u16,
+    location: Option<&str>,
+) -> Option<Result<Url, &'static str>> {
+    if !matches!(status, 301 | 302 | 303 | 307 | 308) {
+        return None;
+    }
+    let Some(location) = location else {
+        return Some(Err("E_NET_FAILED"));
+    };
+    Some(
+        from.join(location)
+            .map_err(|_| "E_NET_FAILED")
+            .and_then(|next| https_url(next.as_str())),
+    )
+}
+
+/// Sends `get` and reads at most `max_bytes` of the answer. Redirects are
+/// followed here, each target checked like the first URL.
+pub fn get(get: &Get) -> Result<Fetched, &'static str> {
+    let deadline = Instant::now() + get.timeout;
+    let mut url = get.url.clone();
+    for _ in 0..=MAX_REDIRECTS {
+        if !public_host(&url) {
+            return Err("E_NET_HOST_REFUSED");
+        }
+        let left = deadline
+            .checked_duration_since(Instant::now())
+            .filter(|d| !d.is_zero())
+            .ok_or("E_NET_TIMEOUT")?;
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .tls_config(
+                ureq::tls::TlsConfig::builder()
+                    .provider(ureq::tls::TlsProvider::NativeTls)
+                    .build(),
+            )
+            .https_only(true)
+            .max_redirects(0)
+            .timeout_global(Some(left))
+            .http_status_as_error(false)
+            .build()
+            .into();
+        let mut request = agent
+            .get(url.as_str())
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", get.accept);
+        for (name, value) in get.headers {
+            request = request.header(*name, *value);
+        }
+        let mut response = request.call().map_err(|e| error_code(&e))?;
+        let status = response.status().as_u16();
+        let header = |name: &str| {
+            response
+                .headers()
+                .get(name)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string)
+        };
+        if let Some(next) = redirect_target(&url, status, header("location").as_deref()) {
+            url = next?;
+            continue;
+        }
+        let content_type = header("content-type").map(|t| t.to_ascii_lowercase());
+        let mut body = Vec::new();
+        let limit = u64::try_from(get.max_bytes)
+            .unwrap_or(u64::MAX)
+            .saturating_add(1);
+        response
+            .body_mut()
+            .as_reader()
+            .take(limit)
+            .read_to_end(&mut body)
+            .map_err(|_| "E_NET_FAILED")?;
+        let truncated = body.len() > get.max_bytes;
+        body.truncate(get.max_bytes);
+        return Ok(Fetched {
+            status,
+            content_type,
+            body,
+            truncated,
+        });
+    }
+    Err("E_NET_TOO_MANY_REDIRECTS")
 }
 
 #[cfg(test)]
@@ -139,10 +227,76 @@ mod tests {
     }
 
     #[test]
+    fn refuses_hosts_on_this_machine_or_the_local_network() {
+        for url in [
+            "https://localhost/",
+            "https://app.localhost/",
+            "https://printer.local/",
+            "https://127.0.0.1/",
+            "https://10.0.0.1/",
+            "https://172.16.5.4/",
+            "https://192.168.1.1/",
+            "https://169.254.169.254/",
+            "https://100.64.0.1/",
+            "https://0.0.0.0/",
+            "https://[::1]/",
+            "https://[fd00::1]/",
+            "https://[fe80::1]/",
+            "https://[::ffff:192.168.1.1]/",
+        ] {
+            assert!(!public_host(&Url::parse(url).unwrap()), "{url}");
+            let result = get(&Get {
+                url: &Url::parse(url).unwrap(),
+                accept: "*/*",
+                headers: &[],
+                timeout: Duration::from_secs(1),
+                max_bytes: 10,
+            });
+            assert_eq!(result.unwrap_err(), "E_NET_HOST_REFUSED", "{url}");
+        }
+        for url in [
+            "https://example.com/",
+            "https://8.8.8.8/",
+            "https://[2001:db8::1]/",
+        ] {
+            assert!(public_host(&Url::parse(url).unwrap()), "{url}");
+        }
+    }
+
+    #[test]
+    fn checks_every_redirect_target() {
+        let from = Url::parse("https://example.com/a/b").unwrap();
+        assert!(redirect_target(&from, 200, Some("/x")).is_none());
+        assert_eq!(
+            redirect_target(&from, 302, Some("c"))
+                .unwrap()
+                .unwrap()
+                .as_str(),
+            "https://example.com/a/c"
+        );
+        assert_eq!(
+            redirect_target(&from, 301, Some("http://example.com/"))
+                .unwrap()
+                .unwrap_err(),
+            "E_URL_SCHEME_REFUSED"
+        );
+        assert_eq!(
+            redirect_target(&from, 307, Some("https://u:p@example.com/"))
+                .unwrap()
+                .unwrap_err(),
+            "E_URL_CREDENTIALS_REFUSED"
+        );
+        assert_eq!(
+            redirect_target(&from, 308, None).unwrap().unwrap_err(),
+            "E_NET_FAILED"
+        );
+    }
+
+    #[test]
     fn refuses_http_on_every_hop_before_connecting() {
         // The agent checks the scheme of every request it sends, redirects
         // included, before it connects: an http URL fails without a socket.
-        let url = Url::parse("http://127.0.0.1:9/").unwrap();
+        let url = Url::parse("http://93.184.215.14:9/").unwrap();
         let result = get(&Get {
             url: &url,
             accept: "*/*",

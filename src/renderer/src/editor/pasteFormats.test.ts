@@ -22,6 +22,10 @@ describe('pasteFormats', () => {
     ])
     expect(types('https://example.com/a')).toEqual(['plain', 'title', 'emptyText', 'autolink'])
     expect(types('https://github.com/o/r/tree/main/src')).not.toContain('snippet')
+    // No block where the place cannot hold one.
+    expect(
+      pasteFormats('https://github.com/o/r/blob/main/a.ts', { block: false }).map((f) => f.type),
+    ).not.toContain('snippet')
   })
 
   it('fetches titles over https only, and leaves out what a URL cannot be', () => {
@@ -37,6 +41,7 @@ describe('escapeLinkText', () => {
     expect(escapeLinkText('a [b] (c) `d` {e} <f> g|h *i* \\j')).toBe(
       'a \\[b\\] \\(c\\) \\`d\\` \\{e\\} \\<f\\> g\\|h \\*i\\* \\\\j',
     )
+    expect(escapeLinkText('~~x~~ _y_')).toBe('\\~\\~x\\~\\~ \\_y\\_')
     expect(escapeLinkText('Plain title')).toBe('Plain title')
   })
 })
@@ -110,6 +115,11 @@ describe('snippetFence', () => {
     expect(snippetFence(code, blob(one), one)).toBe(
       `\`\`\`py line=4 branch=v1.0 url=${one}\nfour\n\`\`\``,
     )
+  })
+
+  it('gives nothing for lines the file does not have', () => {
+    const past = 'https://github.com/o/r/blob/main/a.py#L9'
+    expect(snippetFence(code, blob(past), past)).toBeNull()
   })
 
   it('makes the fence longer than any backtick run in the code', () => {
