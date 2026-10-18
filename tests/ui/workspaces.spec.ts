@@ -43,7 +43,9 @@ async function createNote(page: Page, title: string, more: { active?: boolean; t
     const tagField = page.getByRole('combobox', { name: 'Add Tag' })
     await tagField.fill(more.tag)
     await tagField.press('Enter')
-    await expect(page.getByRole('group', { name: 'Tags' }).getByText(more.tag)).toBeVisible()
+    await expect(
+      page.getByRole('group', { name: 'Tags' }).getByText(more.tag, { exact: true }),
+    ).toBeVisible()
   }
   if (more.active) {
     await titleField(page).focus()
