@@ -282,3 +282,65 @@ test('switching views from the keyboard opens no note', async ({ page }) => {
   await expect(list(page).locator('[aria-selected="true"]')).toHaveCount(0)
   await expect(titleField(page)).toHaveValue('Gamma')
 })
+
+/**
+ * Makes the window act as on a loaded machine: React's scheduler yields after
+ * every task (its clock jumps 50 ms a read), and the focus rescue's animation
+ * frames (focusRescue.ts) come at once. The rescue then looks for the keyboard
+ * before React has run the list's effects of the render that removed a row.
+ * Takes effect from the next load while `devotRescueFirst` is set.
+ */
+async function rescueFirst(page: Page) {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as { devotRescueFirst?: boolean }
+    const now = performance.now.bind(performance)
+    let skew = 0
+    performance.now = () => (w.devotRescueFirst ? (skew += 50) : skew) + now()
+    const frame = window.requestAnimationFrame.bind(window)
+    let id = 0
+    window.requestAnimationFrame = (callback) => {
+      if (!w.devotRescueFirst || !new Error().stack?.includes('focusRescue')) return frame(callback)
+      queueMicrotask(() => callback(performance.now()))
+      return --id
+    }
+  })
+  await page.reload()
+}
+
+const setRescueFirst = (page: Page, on: boolean) =>
+  page.evaluate((v) => {
+    ;(globalThis as unknown as { devotRescueFirst?: boolean }).devotRescueFirst = v
+  }, on)
+
+test('the next row opens even when the focus rescue looks before the list', async ({ page }) => {
+  await rescueFirst(page)
+  await threeNotes(page)
+  await focusRow(page, 'Beta')
+  await setRescueFirst(page, true)
+  await page.keyboard.press('Meta+Backspace')
+  await trashCount(page, 1)
+  await expectOpenAndFocused(page, 'Alpha')
+  await setRescueFirst(page, false)
+})
+
+test('a row the filter hides hands over even when the focus rescue looks first', async ({
+  page,
+}) => {
+  await rescueFirst(page)
+  await threeNotes(page)
+  for (const title of ['Alpha', 'Beta', 'Gamma']) {
+    await focusRow(page, title)
+    await page.keyboard.press('KeyP')
+    await expect(noteRow(page, title)).toBeFocused()
+  }
+  await sidebar(page)
+    .getByRole('button', { name: /^Pinned \d+$/ })
+    .click()
+  await expect(noteRows(page)).toHaveCount(3)
+  await focusRow(page, 'Beta')
+  await setRescueFirst(page, true)
+  await page.keyboard.press('KeyP')
+  await expect(noteRows(page)).toHaveCount(2)
+  await expectOpenAndFocused(page, 'Alpha')
+  await setRescueFirst(page, false)
+})
