@@ -1,3 +1,4 @@
+import { DRAG_BOOK, DRAG_NOTE, DRAG_TEMPLATE, setBookDragData } from './dragData'
 import {
   Fragment,
   memo,
@@ -41,15 +42,6 @@ export type Selection =
   | { kind: 'book'; id: string }
   | { kind: 'templates' }
   | { kind: 'trash' }
-
-/**
- * Drag payloads: note rows (their IDs, one per line) or a notebook row. A
- * drag of templates also carries DRAG_TEMPLATE: a status or tag row does not
- * take templates (their own status and tags are not used).
- */
-export const DRAG_NOTE = 'application/x-devot-note'
-export const DRAG_TEMPLATE = 'application/x-devot-template'
-const DRAG_BOOK = 'application/x-devot-book'
 
 /** The note IDs a drag carries. */
 const draggedNotes = (event: DragEvent) =>
@@ -793,8 +785,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           draggable={!editingThis}
           onDragStart={(e) => {
             e.stopPropagation()
-            e.dataTransfer.setData(DRAG_BOOK, node.id)
-            e.dataTransfer.effectAllowed = 'move'
+            setBookDragData(e.dataTransfer, node)
             dragging.current = subtree(tree, node.id)
             setDraggedBook(node.id)
             setDragCard(e.dataTransfer, [node.name])

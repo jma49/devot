@@ -103,6 +103,7 @@ import { currentLastStateStore, restorePlan, type LastState, type NoteState } fr
 import type { FindTarget } from './find/target'
 import { useFind } from './find/useFind'
 import { headline } from '../../core/extract'
+import { DRAG_NOTE } from './dragData'
 import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
@@ -2719,6 +2720,10 @@ export function App() {
               placeholder={t('note.untitled')}
               value={title}
               onChange={(e) => rename(e.target.value)}
+              onDrop={(e) => {
+                // Notes dropped here would put their link text into the title.
+                if (e.dataTransfer.types.includes(DRAG_NOTE)) e.preventDefault()
+              }}
               onKeyDown={(e) => {
                 // Return finishes the title and goes on to the tags (the body,
                 // for a template); Down Arrow goes to the start of the body.

@@ -40,7 +40,7 @@ import {
 } from './listWidth'
 import { entryOffsets, spacerHeight, windowRuns } from './listWindow'
 import { noteShortcut, trashShortcut, type NoteAction, type TrashAction } from './noteMenu'
-import { DRAG_NOTE, DRAG_TEMPLATE } from './Sidebar'
+import { DRAG_TEMPLATE, setNoteDragData } from './dragData'
 import { useStable } from './stable'
 import { NoteRow, type RowEvents } from './NoteRow'
 import { isImeKey } from './ime'
@@ -642,14 +642,20 @@ export const NoteList = memo(function NoteList(props: Props) {
   const dragStart = useStable((id: string, e: DragEvent<HTMLLIElement>) => {
     // A selected row takes the whole selection with it.
     const ids = chosen?.has(id) ? (selection?.ids ?? [id]) : [id]
-    e.dataTransfer.setData(DRAG_NOTE, ids.join('\n'))
-    if (props.drag === 'templates') e.dataTransfer.setData(DRAG_TEMPLATE, '')
-    e.dataTransfer.effectAllowed = 'move'
     const byId = new Map(notes.map((n) => [n.id, n]))
-    const titles = ids.map(
-      (noteId) => byId.get(noteId)?.title || headlines.get(noteId) || t('note.untitled'),
+    const picked = ids.map((noteId) => ({
+      id: noteId,
+      title: byId.get(noteId)?.title || headlines.get(noteId) || t('note.untitled'),
+    }))
+    setNoteDragData(e.dataTransfer, picked)
+    if (props.drag === 'templates') e.dataTransfer.setData(DRAG_TEMPLATE, '')
+    setDragCard(
+      e.dataTransfer,
+      dragCardLines(
+        picked.map((n) => n.title),
+        locale,
+      ),
     )
-    setDragCard(e.dataTransfer, dragCardLines(titles, locale))
     setDragged(new Set(ids))
   })
   const keyDown = useStable((id: string, e: KeyboardEvent<HTMLLIElement>) =>
