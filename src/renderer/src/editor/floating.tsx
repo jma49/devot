@@ -90,7 +90,8 @@ export interface FloatButtonProps {
   label: string
   icon: IconName
   tip: Tip
-  pressed?: boolean
+  pressed?: boolean | undefined
+  disabled?: boolean | undefined
   popup?: boolean
   onShowTip: (button: HTMLElement, tip: Tip) => void
   onHideTip: () => void
@@ -106,6 +107,7 @@ export function FloatButton(props: FloatButtonProps) {
       tabIndex={-1}
       aria-label={props.label}
       aria-pressed={props.pressed}
+      disabled={props.disabled}
       aria-haspopup={props.popup ? 'menu' : undefined}
       onMouseDown={(e) => e.preventDefault()}
       onMouseEnter={(e) => props.onShowTip(e.currentTarget, props.tip)}
@@ -192,10 +194,11 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     ].join(', '),
   },
   // Under the pointer and pressed (a format that applies) look the same: a ring over a fill.
-  '.cm-float-button:hover': {
+  '.cm-float-button:hover:not(:disabled)': {
     borderColor: 'var(--color-line-control)',
     backgroundColor: 'var(--color-fill-tool-hover)',
   },
+  '.cm-float-button:disabled': { opacity: 'var(--opacity-disabled)' },
   '.cm-float-button[aria-pressed="true"]': {
     borderColor: 'var(--color-line-control)',
     backgroundColor: 'var(--color-fill-tool-hover)',

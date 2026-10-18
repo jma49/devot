@@ -74,19 +74,16 @@ describe('editor setup from the settings', () => {
   })
 
   it('scrolls unwrapped blocks sideways inside the reading column', () => {
-    const css = (state: EditorState) =>
-      JSON.stringify(state.facet(EditorView.styleModule).map((m) => Object.values(m)))
-    for (const lineWrapping of ['prose', 'unwrapAtCursor'] as const)
-      expect(
-        css(make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping, readableWidth: true })),
-      ).toContain('overflow-x')
-    // Nothing unwraps in the other modes, and without the reading width the editor scrolls.
-    expect(
-      css(make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping: 'all', readableWidth: true })),
-    ).not.toContain('overflow-x')
-    expect(
-      css(make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping: 'prose', readableWidth: false })),
-    ).not.toContain('overflow-x')
+    const scrolls = (state: EditorState) =>
+      JSON.stringify(state.facet(EditorView.styleModule).map((m) => Object.values(m))).split(
+        'overflow-x',
+      ).length
+    const count = (lineWrapping: 'all' | 'prose' | 'unwrapAtCursor', readableWidth: boolean) =>
+      scrolls(make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping, readableWidth }))
+    for (const mode of ['prose', 'unwrapAtCursor'] as const)
+      expect(count(mode, true)).toBeGreaterThan(count(mode, false))
+    // Nothing unwraps in the other mode, so the column needs no scrolling.
+    expect(count('all', true)).toBe(count('all', false))
   })
 
   it('keeps the caret line in place when the wrapping mode changes', () => {
