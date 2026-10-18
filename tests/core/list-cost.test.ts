@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  foldText,
   ftsQuery,
   indexable,
   NOTE_STATUSES,
@@ -38,6 +39,24 @@ function sqlite(): SqliteAdapter {
 }
 
 type Params = Record<string, string | number>
+
+/**
+ * For each sort in a plan, the step at the top of the plan it sits under
+ * ('' for a sort of the whole statement's result).
+ */
+const sortsUnder = (db: Database.Database, sql: string, params: Params = {}) => {
+  const rows = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(params) as {
+    id: number
+    parent: number
+    detail: string
+  }[]
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const top = (r: (typeof rows)[number]): string => {
+    const parent = byId.get(r.parent)
+    return parent ? top(parent) : r.parent === 0 && r.detail.includes('TEMP B-TREE') ? '' : r.detail
+  }
+  return rows.filter((r) => r.detail.includes('TEMP B-TREE')).map(top)
+}
 
 const plan = (db: Database.Database, sql: string, params: Params = {}) =>
   (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(params) as { detail: string }[])
@@ -212,11 +231,19 @@ describe('lists and search read covering indexes', () => {
       expect(ranked).not.toMatch(/INTEGER PRIMARY KEY|SCAN n$/m)
     }
     // Text under three characters reads the bodies: of the ranked matches
-    // only, when there are some.
+    // only, when there are some, in rank order (sorted once, before the
+    // scan), so a page of results stops it (#48).
     const short = explain(query([text('any', 'snapshot'), text('body', 'zz', true)]))
+    expect(short).toMatch(/MATERIALIZE ranked/)
+    expect(short).toMatch(/SEARCH h USING AUTOMATIC (PARTIAL )?COVERING INDEX \(rid=\?\)/)
     expect(short).toMatch(
-      /SEARCH h USING AUTOMATIC (PARTIAL )?COVERING INDEX \(rid=\?\)\n.*\nSEARCH b USING INTEGER PRIMARY KEY/,
+      /^SCAN n\nCORRELATED SCALAR SUBQUERY \d+\nSEARCH b USING INTEGER PRIMARY KEY/m,
     )
+    const { sql, params } = searchStatement(
+      query([text('any', 'snapshot'), text('body', 'zz', true)]),
+      200,
+    )
+    expect(sortsUnder(db, sql, params)).toEqual(['MATERIALIZE ranked'])
     // Without ranked text the index gives the order, and a page stops early
     // (a scan reads each body from the row the index points to).
     const sets = explain(query([text('any', 'zz', true)], [set('status', ['active'])]))
@@ -334,6 +361,35 @@ describe('lists and search answer as before', () => {
       { numRuns: 100 },
     )
   }, 120_000)
+
+  it('reads the bodies of ranked matches only up to a page of results', async () => {
+    // Every note has the ranked word and the short text: a page of 5 reads
+    // about 5 bodies (and titles), not 1,000. The term needs devot_fold, so
+    // counting its calls counts the texts read.
+    const storage = sqlite()
+    storage.db.transaction(() => {
+      for (let i = 0; i < 1000; i += 1) {
+        void storage.putNote(
+          record(`n${String(i).padStart(4, '0')}`, {
+            title: `note ${i}`,
+            bodyMd: `merge \u{e9}a ${'word '.repeat(i % 7)}`,
+            updatedAt: i,
+          }),
+        )
+      }
+    })()
+    let reads = 0
+    storage.db.function('devot_fold', { deterministic: true }, (value) => {
+      reads += 1
+      return typeof value === 'string' ? foldText(value) : value
+    })
+    const found = await storage.searchNotes(
+      query([text('any', 'merge'), text('any', '\u{e9}a')]),
+      5,
+    )
+    expect(found).toHaveLength(5)
+    expect(reads).toBeLessThan(30)
+  })
 
   it('orders notes saved at the same moment by ID, as the note list does', async () => {
     const storage = sqlite()

@@ -967,6 +967,177 @@ fn short_search_terms_ignore_case_in_every_script() {
 }
 
 #[test]
+fn scans_without_folding_only_text_that_folding_cannot_change() {
+    // `None`: no other character folds to a caseless one; `Ascii`: only the
+    // Kelvin sign folds to ASCII from outside it.
+    for c in (0..=0x10ffff_u32).filter_map(char::from_u32) {
+        let f = fold(c);
+        if caseless(f) {
+            assert_eq!(c, f, "U+{:04X} folds to a caseless character", c as u32);
+        }
+        if caseless(c) {
+            assert_eq!(f, c, "caseless U+{:04X} folds", c as u32);
+        }
+        if f.is_ascii() && !c.is_ascii() {
+            assert_eq!(c, '\u{212a}', "U+{:04X} folds to ASCII", c as u32);
+        }
+    }
+    assert_eq!(scan_folding("\u{9884}\u{89c8}"), ScanFolding::None);
+    assert_eq!(scan_folding("1-"), ScanFolding::None);
+    assert_eq!(scan_folding("a\u{9884}"), ScanFolding::Ascii);
+    assert_eq!(scan_folding("Qz"), ScanFolding::Ascii);
+    assert_eq!(scan_folding("\u{e9}m"), ScanFolding::Fold);
+    assert_eq!(scan_folding("\u{212a}"), ScanFolding::Fold);
+    assert_eq!(scan_folding("\u{ff21}"), ScanFolding::Fold);
+    // SQLite's lower() folds A-Z alone, so the `Ascii` scan folds no more.
+    let (_dir, store) = temp_store();
+    let others: String = (0x80..=0x10ffff_u32).filter_map(char::from_u32).collect();
+    let same: bool = store
+        .conn
+        .query_row("SELECT lower(?1) = ?1", [&others], |row| row.get(0))
+        .unwrap();
+    assert!(same);
+    let ascii: String = (0..0x80_u8).map(char::from).collect();
+    let lower: String = store
+        .conn
+        .query_row("SELECT lower(?1)", [&ascii], |row| row.get(0))
+        .unwrap();
+    assert_eq!(lower, ascii.to_ascii_lowercase());
+}
+
+#[test]
+fn short_terms_find_what_folding_finds_in_every_way_of_scanning() {
+    let (_dir, mut store) = temp_store();
+    let bodies = [
+        ("a", "Merge AB", "the \u{9884}\u{89c8} pane"),
+        ("b", "merge", "THE \u{212a}elvin a\u{9884} line"),
+        ("c", "Merge \u{ff21}\u{ff22}", "ab\nkb"),
+        ("d", "merge ends a", "\u{9884}\u{89c8}"),
+        ("e", "plain", "merge only 1-2"),
+    ];
+    for (i, (id, title, body)) in bodies.iter().enumerate() {
+        let mut n = note(id, title, 10 + i as i64);
+        n.body_md = (*body).into();
+        store.put_note(&n, &[]).unwrap();
+    }
+    let ids = |query: NoteQuery, limit: u32| -> Vec<String> {
+        store
+            .search_notes(&query, limit)
+            .unwrap()
+            .into_iter()
+            .map(|n| n.id)
+            .collect()
+    };
+    // What folding the title, a line break and the body finds, in the order
+    // of `ranked` (the notes' ranks for `merge`, or the list's order).
+    let expected = |term: &str, field: TextField, negate: bool, ranked: &[String]| {
+        let wanted = fold_text(term);
+        ranked
+            .iter()
+            .filter(|id| {
+                let (_, title, body) = bodies.iter().find(|b| b.0 == id.as_str()).unwrap();
+                let haystack = match field {
+                    TextField::Any => format!("{title}\n{body}"),
+                    TextField::Title => title.to_string(),
+                    TextField::Body => body.to_string(),
+                };
+                fold_text(&haystack).contains(&wanted) != negate
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let by_rank = ids(words(&["merge"]), 50);
+    let listed = ids(
+        NoteQuery {
+            text: vec![],
+            sets: vec![],
+            pinned: false,
+        },
+        50,
+    );
+    for term in [
+        "\u{9884}\u{89c8}",
+        "a\u{9884}",
+        "ab",
+        "AB",
+        "k",
+        "K",
+        "\u{ff41}",
+        "1-",
+        "a\n",
+        "s a",
+        "e\n",
+    ] {
+        for field in [TextField::Any, TextField::Title, TextField::Body] {
+            for negate in [false, true] {
+                let query = |ranked: bool| NoteQuery {
+                    text: [
+                        ranked.then(|| text(TextField::Any, "merge", false)),
+                        Some(text(field, term, negate)),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+                    sets: vec![],
+                    pinned: false,
+                };
+                let want = expected(term, field, negate, &by_rank);
+                assert_eq!(
+                    ids(query(true), 50),
+                    want,
+                    "merge {term:?} {field:?} {negate}"
+                );
+                // A page stops early, in rank order.
+                let first: Vec<String> = want.iter().take(1).cloned().collect();
+                assert_eq!(
+                    ids(query(true), 1),
+                    first,
+                    "merge {term:?} {field:?} {negate}"
+                );
+                let want = expected(term, field, negate, &listed);
+                assert_eq!(ids(query(false), 50), want, "{term:?} {field:?} {negate}");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_ranked_search_reads_bodies_only_up_to_a_page_of_results() {
+    // Every note has the ranked word and the short text: a page of 5 reads
+    // about 5 bodies (and titles), not 1,000. The term needs devot_fold, so
+    // counting its calls counts the texts read.
+    use rusqlite::functions::FunctionFlags;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let (_dir, mut store) = temp_store();
+    for i in 0..1000 {
+        let mut n = note(&format!("n{i:04}"), &format!("note {i}"), i);
+        n.body_md = format!("merge \u{e9}a {}", "word ".repeat(i as usize % 7));
+        store.put_note(&n, &[]).unwrap();
+    }
+    let reads = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&reads);
+    store
+        .conn
+        .create_scalar_function(
+            "devot_fold",
+            1,
+            FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+            move |ctx| {
+                counter.fetch_add(1, Ordering::Relaxed);
+                Ok(fold_text(&ctx.get::<String>(0)?))
+            },
+        )
+        .unwrap();
+    let found = store
+        .search_notes(&words(&["merge", "\u{e9}a"]), 5)
+        .unwrap();
+    assert_eq!(found.len(), 5);
+    let reads = reads.load(Ordering::Relaxed);
+    assert!(reads < 30, "{reads} texts read");
+}
+
+#[test]
 fn devot_fold_agrees_with_the_shared_cases() {
     #[derive(serde::Deserialize)]
     struct Case {
@@ -1385,6 +1556,43 @@ fn lists_and_searches_read_covering_indexes() {
         "{ranked}"
     );
     assert!(!ranked.contains("INTEGER PRIMARY KEY"), "{ranked}");
+    // Ranked text and a scan: the matches in rank order first, and the scan
+    // reads them in that order (one sort, none after the scan), so a page
+    // stops it early.
+    let (sql, values) = search_sql(&words(&["snapshot", "\u{540c}\u{6b65}"]), 200);
+    let scanned = plan(&sql, &values);
+    assert!(scanned.contains("MATERIALIZE ranked"), "{scanned}");
+    // Each sort's step at the top of the plan: under `ranked`, none of the
+    // whole result.
+    let sorts: Vec<String> = {
+        let mut statement = store
+            .conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+            .unwrap();
+        let rows: Vec<(i64, i64, String)> = statement
+            .query_map(rusqlite::params_from_iter(values.iter()), |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(3)?))
+            })
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        let parent = |id: i64| rows.iter().find(|r| r.0 == id);
+        rows.iter()
+            .filter(|r| r.2.contains("TEMP B-TREE"))
+            .map(|r| {
+                let mut at = r;
+                while let Some(up) = parent(at.1) {
+                    at = up;
+                }
+                if std::ptr::eq(at, r) {
+                    String::new()
+                } else {
+                    at.2.clone()
+                }
+            })
+            .collect()
+    };
+    assert_eq!(sorts, ["MATERIALIZE ranked"], "{scanned}");
     // Qualifiers alone: the index's order, so a page stops early.
     let qualifiers = NoteQuery {
         text: vec![],
