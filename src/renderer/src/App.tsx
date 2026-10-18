@@ -46,8 +46,10 @@ import {
   IMPORT_READY,
   IMPORT_SCANNING,
   finishImport,
+  pickImport,
   runImport,
 } from './importer'
+import { IMPORT_PICKS, type ImportAction } from './bookMenu'
 import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoreNotice } from './CoreNotice'
@@ -2440,6 +2442,15 @@ export function App() {
   const sidebarExportBook = useStable(
     (action: 'exportMarkdown' | 'exportHtml', id: string) => void exportBook(action, id),
   )
+  const sidebarImportBook = useStable((action: ImportAction, id: string) => {
+    const kind = IMPORT_PICKS[action]
+    // A failure shows in the import sheet, as one from File > Import does.
+    pickImport(kind, id).catch((e: unknown) => {
+      const code = errorCode(e)
+      console.warn('W_IMPORT_PICK_FAILED', code)
+      window.dispatchEvent(new CustomEvent(IMPORT_FAILED, { detail: { id: null, code } }))
+    })
+  })
   const sidebarMoveNotes = useStable((ids: string[], bookId: string) => void moveNotes(ids, bookId))
   const sidebarTagNotes = useStable(
     (ids: string[], tagId: string) => void putTagOnNotes(ids, tagId),
@@ -2495,6 +2506,7 @@ export function App() {
         onSetAiAccess={sidebarSetAiAccess}
         onDeleteBook={sidebarDeleteBook}
         onExportBook={sidebarExportBook}
+        onImportBook={sidebarImportBook}
         onMoveNotes={sidebarMoveNotes}
         onTagNotes={sidebarTagNotes}
         onSetNotesStatus={sidebarSetNotesStatus}

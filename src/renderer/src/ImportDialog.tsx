@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -268,7 +269,10 @@ export function resultCounts(report: ImportReport, skipped: number) {
  * be cancelled), what it found as a tree, the notebook to import into,
  * then the import with its progress and its result. Nothing is written
  * before Import is pressed; Cancel ends the session at any step before
- * that. Picked files skip the tree. Give each job its own `key`.
+ * that. Picked files skip the tree. An import started from a notebook's
+ * menu (`scan.destination`) skips choosing a notebook: a folder's tree
+ * offers Import into that notebook, and picked files import at once. Give
+ * each job its own `key`.
  */
 export function ImportDialog(props: {
   job: ImportJob
@@ -298,7 +302,6 @@ export function ImportDialog(props: {
   // Import goes only into a destination the filter shows.
   const chosenShown = filterBooks(all, query).some((o) => o.id === destination)
   const found = useScanFound(job.id)
-  const running = stage.kind === 'running'
   const closed = useRef(false)
   const close = (cancelled: boolean) => {
     if (closed.current) return
@@ -317,24 +320,56 @@ export function ImportDialog(props: {
 
   const scan = job.scan
   const files = scan?.files.length ?? 0
-  // Picked files have no tree to look at: they start at the destination.
+  // Started from a notebook's menu: it goes there, with no notebook to
+  // choose (unless that notebook has gone meanwhile).
+  const presetId = scan?.destination ?? null
+  const preset = useMemo(
+    () => (presetId === null ? undefined : bookOptions(props.tree).find((o) => o.id === presetId)),
+    [presetId, props.tree],
+  )
+  // Picked files come with their scan, so whether they import at once is
+  // settled when the sheet opens (the notebook going later changes nothing).
+  const [autoInto] = useState(() =>
+    scan?.kind === 'files' && files > 0 && preset ? preset.id : undefined,
+  )
+  const autoStart = autoInto !== undefined
+  // Picked files have no tree to look at: they start at the destination,
+  // or straight away into the notebook they were picked for.
   const step =
     stage.kind === 'review' && scan && scan.kind === 'files' && files > 0
-      ? ({ kind: 'destination' } as const)
+      ? autoStart
+        ? ({ kind: 'running', done: 0, total: files } as const)
+        : ({ kind: 'destination' } as const)
       : stage
+  const running = step.kind === 'running'
 
-  const start = () => {
-    if (!scan || files === 0 || !chosenShown) return
-    const chosen = destination === NO_BOOK ? null : destination
-    setStage({ kind: 'running', done: 0, total: files })
+  const started = useRef(false)
+  /** Imports into `chosen`; the stage follows from here (once only). */
+  const launch = (from: ImportScan, chosen: string | null) => {
+    started.current = true
     const progress = (done: number, total: number) =>
-      setStage((s) => (s.kind === 'running' ? { kind: 'running', done, total } : s))
-    props.onImport(scan, chosen, progress).then(
+      setStage((s) =>
+        s.kind === 'done' || s.kind === 'failed' ? s : { kind: 'running', done, total },
+      )
+    props.onImport(from, chosen, progress).then(
       (report) => setStage({ kind: 'done', report }),
       (e: unknown) =>
         setStage({ kind: 'failed', code: e instanceof Error ? e.message : 'E_IMPORT_FAILED' }),
     )
   }
+  const start = () => {
+    if (!scan || files === 0 || started.current) return
+    if (!preset && !chosenShown) return
+    setStage({ kind: 'running', done: 0, total: files })
+    launch(scan, preset ? preset.id : destination === NO_BOOK ? null : destination)
+  }
+
+  // Picked files for a notebook import as soon as the sheet shows them (the
+  // step already shows them running).
+  const launchNow = useEffectEvent(launch)
+  useEffect(() => {
+    if (autoInto !== undefined && scan && !started.current) launchNow(scan, autoInto)
+  }, [autoInto, scan])
 
   let content
   let actions
@@ -387,14 +422,20 @@ export function ImportDialog(props: {
       actions = (
         <>
           {cancelButton}
-          <button
-            type="button"
-            className="button button-default"
-            onClick={() => setStage({ kind: 'destination' })}
-            autoFocus
-          >
-            {t('import.continue')}
-          </button>
+          {preset ? (
+            <button type="button" className="button button-default" onClick={start} autoFocus>
+              {format(t('import.importInto'), { name: preset.name })}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="button button-default"
+              onClick={() => setStage({ kind: 'destination' })}
+              autoFocus
+            >
+              {t('import.continue')}
+            </button>
+          )}
         </>
       )
     }

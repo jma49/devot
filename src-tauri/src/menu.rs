@@ -464,11 +464,11 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     } else if event.id() == SYNC_SCROLL_ID {
         toggle_sync_scroll(app);
     } else if event.id() == IMPORT_MARKDOWN_ID {
-        import::pick(app, import::Pick::MarkdownFolders);
+        import::pick(app, import::Pick::MarkdownFolders, None);
     } else if event.id() == IMPORT_MARKDOWN_FILES_ID {
-        import::pick(app, import::Pick::MarkdownFiles);
+        import::pick(app, import::Pick::MarkdownFiles, None);
     } else if event.id() == IMPORT_HTML_FILES_ID {
-        import::pick(app, import::Pick::HtmlFiles);
+        import::pick(app, import::Pick::HtmlFiles, None);
     } else if event.id() == DIAGNOSTICS_ID {
         match diagnostics::export(app) {
             Ok(_) => log::info!("I_DIAGNOSTICS_EXPORTED"),

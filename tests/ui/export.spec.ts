@@ -391,7 +391,7 @@ test("a notebook's menu exports it with its sub-notebooks, as Markdown or HTML",
     await expect.poll(() => popups(page)).toBe(before + 1)
   }
   await openBookMenu()
-  await pickMenuItem(page, 'Export as Markdown…')
+  await pickMenuItem(page, 'as Markdown…', 'Export')
   await expect.poll(async () => (await calls(page, 'export_finish')).length).toBe(1)
   expect((await calls(page, 'export_begin'))[0]?.args).toEqual({
     kind: 'notebook',
@@ -403,7 +403,7 @@ test("a notebook's menu exports it with its sub-notebooks, as Markdown or HTML",
   expect(written[1]!['text']).toContain('![Board](../attachments/board.png)')
 
   await openBookMenu()
-  await pickMenuItem(page, 'Export as HTML…')
+  await pickMenuItem(page, 'as HTML…', 'Export')
   await expect.poll(async () => (await calls(page, 'export_finish')).length).toBe(2)
   const pages = (await calls(page, 'export_write')).slice(2).map((c) => c.args)
   expect(pages.map((p) => (p as Record<string, string>)['path'])).toEqual([

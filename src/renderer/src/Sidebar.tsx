@@ -14,7 +14,13 @@ import { MAX_BOOK_NAME_CHARS, type BookNode } from '../../core/books'
 import type { NoteStatus, TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS, type NoteFilter } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
-import { BOOK_MENU, bookShortcut, type BookAction, type BookMenuTarget } from './bookMenu'
+import {
+  BOOK_MENU,
+  bookShortcut,
+  type BookAction,
+  type BookMenuTarget,
+  type ImportAction,
+} from './bookMenu'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import { useKeymap } from './commands/shortcutSettings'
 import { titleWithKey } from './commands/titles'
@@ -149,6 +155,8 @@ interface Props {
   onDeleteBook: (id: string) => void
   /** Exports a notebook with its sub-notebooks (exporter.ts). */
   onExportBook: (action: 'exportMarkdown' | 'exportHtml', id: string) => void
+  /** Imports into a notebook: the panel for `action`, then the import sheet. */
+  onImportBook: (action: ImportAction, id: string) => void
   /** Notes dropped on a notebook row: they move there. */
   onMoveNotes: (noteIds: string[], bookId: string) => void
   /** Notes dropped on a tag row: they get that tag. */
@@ -606,9 +614,17 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         return props.onMoveBook(node.id, null)
       case 'aiAccess':
         return props.onSetAiAccess(node.id, !node.aiAccess)
+      case 'importMarkdownFiles':
+      case 'importMarkdownFolder':
+      case 'importHtmlFiles':
+        return props.onImportBook(action, node.id)
       case 'exportMarkdown':
       case 'exportHtml':
         return props.onExportBook(action, node.id)
+      case 'import':
+      case 'export':
+        // They only name the submenus.
+        return
       case 'delete':
         return props.onDeleteBook(node.id)
     }
