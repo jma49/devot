@@ -10,9 +10,14 @@
 //     Prints `replace=true` when the release is newer than the feed's (or the
 //     file is empty or missing), `replace=false` otherwise.
 //
+//   node scripts/release/release.ts feeds <tag>
+//     Prints the channel feeds the release goes in, one per line: `beta` for
+//     a beta, `stable` and `beta` for a stable release, so a beta install is
+//     offered the newest build of either kind.
+//
 //   node scripts/release/release.ts feed <tag> <url> <signature file> <notes file> <out file>
 //     Writes the update feed for the release: what the app's updater reads
-//     from the channel file in the `updater` release (beta.json until 1.0).
+//     from a channel file in the `updater` release (beta.json until 1.0).
 //
 //   node scripts/release/release.ts verify-signature <file> <signature file> <public key>
 //     Checks that the signature (the .sig Tauri wrote) is the file's, made
@@ -72,6 +77,15 @@ export function replacesFeed(version: string, feed: string): boolean {
 
 /** The update channel of a version: beta for a prerelease. */
 export const channelOf = (version: string): Channel => (version.includes('-') ? 'beta' : 'stable')
+
+/**
+ * The channel feeds a release of `version` goes in: its own channel's, and
+ * for a stable release the beta feed too, so the beta channel offers the
+ * newest build of either kind. Each feed still moves only when the release
+ * is newer than what it offers (`replacesFeed`).
+ */
+export const feedChannels = (version: string): Channel[] =>
+  channelOf(version) === 'stable' ? ['stable', 'beta'] : ['beta']
 
 /** Cargo.toml with `version` in its [package] table; throws when it has none. */
 export function withCargoVersion(toml: string, version: string): string {
@@ -173,6 +187,10 @@ function main(args: string[]) {
     console.log(`version=${version}\nchannel=${channelOf(version)}`)
     return
   }
+  if (command === 'feeds' && tag && rest.length === 0) {
+    console.log(feedChannels(versionFromTag(tag)).join('\n'))
+    return
+  }
   if (command === 'replaces-feed' && tag && rest.length === 1) {
     let feed = ''
     try {
@@ -202,7 +220,7 @@ function main(args: string[]) {
     return
   }
   throw new Error(
-    'E_RELEASE_USAGE: set-version <tag> | replaces-feed <tag> <feed> | feed <tag> <url> <sig> <notes> <out> | verify-signature <file> <sig> <pubkey>',
+    'E_RELEASE_USAGE: set-version <tag> | feeds <tag> | replaces-feed <tag> <feed> | feed <tag> <url> <sig> <notes> <out> | verify-signature <file> <sig> <pubkey>',
   )
 }
 
