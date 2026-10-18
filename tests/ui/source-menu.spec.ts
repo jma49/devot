@@ -25,6 +25,15 @@ async function createNote(page: Page, title: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
+/** The menu's lines without their keys. */
+async function labels(page: Page): Promise<string[]> {
+  return (await shownMenu(page)).map((line) =>
+    line.replace(/ (?:(?:Cmd|Ctrl|Alt|Shift|Super|CmdOrCtrl)\+)*(?:Backspace|\S\S*)$/, (m) =>
+      /\+|Backspace/.test(m) ? '' : m,
+    ),
+  )
+}
+
 const popups = (page: Page) =>
   page.evaluate(
     () =>
@@ -96,11 +105,7 @@ test('a Trash list row offers Restore and Delete Permanently', async ({ page }) 
   await row(page, 'Trash').click()
 
   await popUp(page, () => noteRow(page, 'Keep').click({ button: 'right' }))
-  expect((await shownMenu(page)).map((line) => line.replace(/ \S+$/, ''))).toEqual([
-    'Restore from Trash',
-    '---',
-    'Delete Permanently',
-  ])
+  expect(await labels(page)).toEqual(['Restore from Trash', '---', 'Delete Permanently'])
   await pickMenuItem(page, 'Restore from Trash')
   await expect(noteRows(page)).toHaveText([/^Goner/])
   await expect(row(page, 'Trash')).toHaveText(/1$/)
@@ -113,16 +118,16 @@ test('a Trash list row offers Restore and Delete Permanently', async ({ page }) 
 })
 
 test('on a selection, the Trash list menu acts on every selected note', async ({ page }) => {
-  for (const title of ['A', 'B', 'C']) {
+  for (const title of ['Alpha', 'Bravo', 'Charlie']) {
     await createNote(page, title)
     await trashOpenNote(page)
   }
   await row(page, 'Trash').click()
-  await noteRow(page, 'A').click()
-  await noteRow(page, 'B').click({ modifiers: ['Meta'] })
+  await noteRow(page, 'Alpha').click()
+  await noteRow(page, 'Bravo').click({ modifiers: ['Meta'] })
 
-  await popUp(page, () => noteRow(page, 'A').click({ button: 'right' }))
-  expect((await shownMenu(page)).map((line) => line.replace(/ \S+$/, ''))).toEqual([
+  await popUp(page, () => noteRow(page, 'Alpha').click({ button: 'right' }))
+  expect(await labels(page)).toEqual([
     'Restore Selected Notes',
     '---',
     'Delete Selected Notes Permanently',
@@ -138,11 +143,7 @@ test('All Notes offers Show Notes and New Note', async ({ page }) => {
   await expect(header(page)).toHaveText('Trash')
 
   await popUp(page, () => row(page, 'All Notes').click({ button: 'right' }))
-  expect((await shownMenu(page)).map((line) => line.replace(/ \S+$/, ''))).toEqual([
-    'Show Notes',
-    '---',
-    'New Note',
-  ])
+  expect(await labels(page)).toEqual(['Show Notes', '---', 'New Note'])
   await pickMenuItem(page, 'Show Notes')
   await expect(header(page)).toHaveText('All Notes')
 
@@ -173,7 +174,7 @@ test('the Status row filters by its status from the menu, and again clears it', 
 test('the Pinned row shows only pinned notes from the menu', async ({ page }) => {
   await createNote(page, 'Plain')
   await createNote(page, 'Starred')
-  await pickNoteMore(page, 'Pin')
+  await pickNoteMore(page, 'Pin to Top')
 
   await popUp(page, () => row(page, 'Pinned').click({ button: 'right' }))
   expect(await shownMenu(page)).toEqual(['Show Pinned Notes [ ]'])
