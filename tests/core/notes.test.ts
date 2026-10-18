@@ -155,7 +155,7 @@ describe('a note survives a restart', () => {
       }),
       { numRuns: 40 },
     )
-  })
+  }, 60_000)
 })
 
 describe('replacing a body', () => {

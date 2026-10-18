@@ -46,6 +46,7 @@ import { inlineImages } from './images'
 import { pasteUrlStyle } from './paste'
 import { registryKeys } from './registryKeys'
 import { toolbarOff } from './toolbarState'
+import { keepCaretLine, wrappingModes } from './unwrap'
 
 /** Whether CodeMirror binds keys as on macOS (Mod is Command), as it decides that. */
 const MAC =
@@ -219,9 +220,10 @@ const PARTS = {
   gutter: (s: EditorSettings): Extension =>
     s.lineNumbers ? [gutterOn, s.highlightActiveLine ? activeLineGutter : []] : [],
   activeLine: (s: EditorSettings): Extension => (s.highlightActiveLine ? activeLine : []),
-  wrapping: (s: EditorSettings): Extension => (s.lineWrapping ? EditorView.lineWrapping : []),
-  // Only wrapped lines can keep to a width.
-  width: (s: EditorSettings): Extension => (s.readableWidth && s.lineWrapping ? readableWidth : []),
+  wrapping: (s: EditorSettings): Extension => wrappingModes[s.lineWrapping],
+  // Only wrapped lines can keep to a width (an unwrapped block reaches past it).
+  width: (s: EditorSettings): Extension =>
+    s.readableWidth && s.lineWrapping !== 'off' ? readableWidth : [],
   indent: (s: EditorSettings): Extension => [
     indentUnit.of(indentText(s.indentUnit)),
     EditorState.tabSize.of(s.tabWidth),
@@ -272,9 +274,14 @@ export function editorSetup(settings: EditorSettings): Extension {
   return [NAMES.map((n) => compartments[n].of(PARTS[n](settings))), fixedSetup, builtInKeys()]
 }
 
-/** The effects that take an editor set up for `from` to `to`. */
+/**
+ * The effects that take an editor set up for `from` to `to`. A new line
+ * wrapping mode also keeps the caret's line where it is on screen.
+ */
 export function reconfigureSetup(from: EditorSettings, to: EditorSettings): StateEffect<unknown>[] {
-  return NAMES.filter((n) => READS[n].some((key) => from[key] !== to[key])).map((n) =>
-    compartments[n].reconfigure(PARTS[n](to)),
-  )
+  const effects: StateEffect<unknown>[] = NAMES.filter((n) =>
+    READS[n].some((key) => from[key] !== to[key]),
+  ).map((n) => compartments[n].reconfigure(PARTS[n](to)))
+  if (from.lineWrapping !== to.lineWrapping) effects.push(keepCaretLine.of(null))
+  return effects
 }

@@ -46,8 +46,10 @@ import {
   IMPORT_READY,
   IMPORT_SCANNING,
   finishImport,
+  pickImport,
   runImport,
 } from './importer'
+import { IMPORT_PICKS, type ImportAction } from './bookMenu'
 import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoreNotice } from './CoreNotice'
@@ -103,6 +105,7 @@ import { currentLastStateStore, restorePlan, type LastState, type NoteState } fr
 import type { FindTarget } from './find/target'
 import { useFind } from './find/useFind'
 import { headline } from '../../core/extract'
+import { refuseTextDrops } from './dragData'
 import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
@@ -125,6 +128,7 @@ import {
   type ListView,
 } from './listUpdates'
 import { useNoteActions } from './noteActions'
+import { useTrashMenu } from './trashMenu'
 import {
   NOTE_COMMANDS,
   SELECTION_ONLY,
@@ -146,6 +150,9 @@ import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
 import { sizes } from './theme/tokens'
 import { track } from './usage'
+
+/** File > Export > All Notes (`markdown` or `html`), from Rust's menu. */
+const EXPORT_ALL = 'devot:export-all'
 
 /** A query and the view it narrows (none: every note). */
 interface Search {
@@ -319,6 +326,7 @@ export function App() {
   }>()
   // How many notes the last batch change could not change (a notice).
   const [batchFailed, setBatchFailed] = useState<number>()
+  useEffect(() => refuseTextDrops(window), [])
   const [title, setTitle] = useState('')
   // The note whose editor takes the keyboard when it opens: one just created,
   // or one a palette action opened while the editor had the keyboard. Opening
@@ -1825,6 +1833,15 @@ export function App() {
     runExport(failureOf(action), (exporter) => exporter.runNoteExport(core!, action, id))
   const exportBook = (action: 'exportMarkdown' | 'exportHtml', id: string) =>
     runExport('export', (exporter) => exporter.runBookExport(core!, action, id))
+  const exportNotes = (action: 'exportMarkdown' | 'exportHtml', ids: readonly string[]) =>
+    runExport('export', (exporter) => exporter.runSelectionExport(core!, action, ids))
+  const exportAll = (action: 'exportMarkdown' | 'exportHtml') =>
+    runExport('export', (exporter) => exporter.runAllExport(core!, action))
+  // File > Export > All Notes: Rust sends `markdown` or `html`.
+  useMenuEvent('devot://export-all', EXPORT_ALL, (format) => {
+    if (format === 'markdown') void exportAll('exportMarkdown')
+    else if (format === 'html') void exportAll('exportHtml')
+  })
   const noteActions = useNoteActions({
     headlines: loadHeadlines,
     notes: listedNotes,
@@ -1834,6 +1851,7 @@ export function App() {
     duplicate,
     history: showHistory,
     exportNote,
+    exportNotes,
     copyFailed: (failure, code) => setExportNotice({ failure, code }),
     move: moveNotes,
     setPinned: setNotesPinned,
@@ -2118,6 +2136,8 @@ export function App() {
     'view.templates': { run: () => showLibrary({ kind: 'templates' }) },
     'view.trash': { run: () => showLibrary({ kind: 'trash' }) },
     'app.backups': { run: showBackups },
+    'app.exportAllMarkdown': { run: () => exportAll('exportMarkdown') },
+    'app.exportAllHtml': { run: () => exportAll('exportHtml') },
     'mirror.chooseFolder': { run: mirror.choose },
   }
   if (mirror.status.folder !== null) handlers['mirror.turnOff'] = { run: mirror.turnOff }
@@ -2393,6 +2413,10 @@ export function App() {
   })
   // aria-disabled, not disabled: a disabled button would drop the keyboard
   // when the Trash is emptied from it.
+  const showTrashMenu = useTrashMenu((action, target) => void trashAction(action, target.id))
+  const trashRowMenu = useStable(
+    (id: string) => void showTrashMenu({ id, count: multiIds?.includes(id) ? multiIds.length : 1 }),
+  )
   const emptyTrashButton = useMemo(
     () => (
       <button
@@ -2440,6 +2464,15 @@ export function App() {
   const sidebarExportBook = useStable(
     (action: 'exportMarkdown' | 'exportHtml', id: string) => void exportBook(action, id),
   )
+  const sidebarImportBook = useStable((action: ImportAction, id: string) => {
+    const kind = IMPORT_PICKS[action]
+    // A failure shows in the import sheet, as one from File > Import does.
+    pickImport(kind, id).catch((e: unknown) => {
+      const code = errorCode(e)
+      console.warn('W_IMPORT_PICK_FAILED', code)
+      window.dispatchEvent(new CustomEvent(IMPORT_FAILED, { detail: { id: null, code } }))
+    })
+  })
   const sidebarMoveNotes = useStable((ids: string[], bookId: string) => void moveNotes(ids, bookId))
   const sidebarTagNotes = useStable(
     (ids: string[], tagId: string) => void putTagOnNotes(ids, tagId),
@@ -2457,6 +2490,11 @@ export function App() {
   )
   const sidebarSearchBooks = useStable(() => openPalette('book'))
   const sidebarSearchTags = useStable(() => openPalette('tag'))
+  const sidebarNewNote = useStable(() => {
+    // As New Note does: a new note goes to the library, not the Trash.
+    if (inTrash) showLibrary({ kind: 'all' })
+    void create()
+  })
   const sidebarDeleteTag = useStable((id: string) =>
     setConfirm({
       kind: 'tag',
@@ -2495,6 +2533,7 @@ export function App() {
         onSetAiAccess={sidebarSetAiAccess}
         onDeleteBook={sidebarDeleteBook}
         onExportBook={sidebarExportBook}
+        onImportBook={sidebarImportBook}
         onMoveNotes={sidebarMoveNotes}
         onTagNotes={sidebarTagNotes}
         onSetNotesStatus={sidebarSetNotesStatus}
@@ -2513,6 +2552,8 @@ export function App() {
         onHide={toggleSidebarNow}
         onSearchBooks={sidebarSearchBooks}
         onSearchTags={sidebarSearchTags}
+        onEmptyTrash={askEmptyTrash}
+        onNewNote={core ? sidebarNewNote : undefined}
       />
       {searching ? (
         <NoteList
@@ -2563,6 +2604,7 @@ export function App() {
           drag={false}
           onFind={findEverywhere}
           onTrashAction={trashKey}
+          onMenu={trashRowMenu}
           leading={showSidebarButton}
           headerAction={emptyTrashButton}
         />

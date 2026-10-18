@@ -103,7 +103,7 @@ test('the menu key opens the menu of a tag row, with the Colour submenu', async 
   await expect(tagRow(page, 'idea')).toBeFocused()
   // A row without a menu does nothing.
   await sidebar(page)
-    .getByRole('button', { name: /^All Notes/ })
+    .getByRole('button', { name: /^Templates/ })
     .focus()
   await page.keyboard.press('Shift+F10')
   await page.waitForTimeout(200)

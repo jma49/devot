@@ -79,7 +79,7 @@ test('a change from another window applies to the open editor at once', async ({
   await markEditor(page)
   await changed(page, {
     lineNumbers: false,
-    lineWrapping: false,
+    lineWrapping: 'off',
     readableWidth: true,
     fontSize: 20,
     fontFamily: 'menlo',
@@ -298,4 +298,80 @@ test('turning Toolbar off hides the selection toolbar', async ({ page }) => {
   await changed(page, { toolbar: true })
   await page.keyboard.press('ControlOrMeta+a')
   await expect(toolbar).toBeVisible()
+})
+
+/** The line holding `text`, and how many rows it takes on screen. */
+const rows = (page: Page, text: string) =>
+  page
+    .locator('.cm-line', { hasText: text })
+    .first()
+    .evaluate((el) => {
+      const lineHeight = parseFloat(getComputedStyle(el).lineHeight)
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      return Math.round(range.getBoundingClientRect().height / lineHeight)
+    })
+
+const LONG_CELL = 'cell '.repeat(80).trim()
+const TABLE = ['| a | b |', '| - | - |', `| ${LONG_CELL} | end |`].join('\n')
+
+test('unwrap at cursor keeps the table under the caret on one line per row', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 700 })
+  await newNote(page, `Prose before.\n\n${TABLE}\n\nProse after.`)
+  // The default mode. The caret is after the table: the long row wraps.
+  await expect(content(page)).toHaveClass(/cm-lineWrapping/)
+  await expect.poll(() => rows(page, 'end |')).toBeGreaterThan(1)
+  await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(0)
+
+  // Into the table: its three lines unwrap, each as wide as the widest.
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(3)
+  await expect.poll(() => rows(page, 'end |')).toBe(1)
+  const widths = await page
+    .locator('.cm-line.cm-unwrap')
+    .evaluateAll((lines) => lines.map((l) => Math.round(l.getBoundingClientRect().width)))
+  expect(new Set(widths).size).toBe(1)
+
+  // Out again: it wraps.
+  await page.keyboard.press('ControlOrMeta+End')
+  await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(0)
+  await expect.poll(() => rows(page, 'end |')).toBeGreaterThan(1)
+})
+
+test('prose only never wraps code blocks and tables, wherever the caret is', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 700 })
+  await newNote(
+    page,
+    `Prose ${LONG_CELL}.\n\n${TABLE}\n\n\`\`\`\nconst x = '${LONG_CELL}'\n\`\`\`\n\nEnd.`,
+  )
+  await changed(page, { lineWrapping: 'prose' })
+  await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(6)
+  await expect.poll(() => rows(page, 'end |')).toBe(1)
+  await expect.poll(() => rows(page, 'const x')).toBe(1)
+  // Prose still wraps.
+  await expect.poll(() => rows(page, 'Prose cell')).toBeGreaterThan(1)
+
+  await changed(page, { lineWrapping: 'all' })
+  await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(0)
+  await expect.poll(() => rows(page, 'end |')).toBeGreaterThan(1)
+})
+
+test('the caret line keeps its place on screen when its block unwraps', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 600 })
+  const filler = Array.from({ length: 60 }, (_, i) => `Line ${i}`).join('\n')
+  const code = Array.from({ length: 4 }, (_, i) => `code${i} ${LONG_CELL}`).join('\n')
+  await newNote(page, `${filler}\n\n\`\`\`\n${code}\n\`\`\`\nlast`)
+  await page.keyboard.press('ControlOrMeta+End')
+  const fence = page.locator('.cm-line.cm-codeblock-closing')
+  const before = await fence.evaluate((el) => el.getBoundingClientRect().top)
+  // Onto the closing fence: the long lines above it unwrap and shrink.
+  await page.keyboard.press('ArrowUp')
+  await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(6)
+  await expect.poll(() => rows(page, 'code0')).toBe(1)
+  await expect
+    .poll(async () =>
+      Math.abs((await fence.evaluate((el) => el.getBoundingClientRect().top)) - before),
+    )
+    .toBeLessThan(2)
 })

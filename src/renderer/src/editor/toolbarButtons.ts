@@ -37,10 +37,14 @@ export interface Tip {
   key?: string
 }
 
+/** A tooltip of `title` with the first key in effect for a registry command, none if it has none. */
+export function commandTip(id: CommandId, title: string): Tip {
+  const key = commandKeys(id)[0]
+  return key === undefined ? { title } : { title, key: shortcutLabel(key) }
+}
+
 /** The tooltip of a toolbar button, with the format command's first key in effect. */
 export function toolbarTip(b: ToolbarButton): Tip {
   const title = t(b.title)
-  if (NO_KEY.has(b.id)) return { title }
-  const key = commandKeys(`format.${b.id}` as CommandId)[0]
-  return key === undefined ? { title } : { title, key: shortcutLabel(key) }
+  return NO_KEY.has(b.id) ? { title } : commandTip(`format.${b.id}` as CommandId, title)
 }

@@ -59,6 +59,7 @@ function render(store: SectionStore, tree: BookNode[] = [book]) {
       onSetAiAccess={noop}
       onDeleteBook={noop}
       onExportBook={noop}
+      onImportBook={noop}
       onMoveNotes={noop}
       filter={null}
       onFilter={noop}
@@ -74,6 +75,7 @@ function render(store: SectionStore, tree: BookNode[] = [book]) {
       onHide={noop}
       onSearchBooks={noop}
       onSearchTags={noop}
+      onEmptyTrash={noop}
       sectionStore={store}
     />,
   )

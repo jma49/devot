@@ -10,6 +10,7 @@ import { currentLocale, format, t } from './i18n'
 import { MoveNoteDialog } from './MoveNoteDialog'
 import {
   EXPORT_ACTIONS,
+  SELECTION_EXPORTS,
   noteClipboardText,
   noteLinks,
   useNoteMenu,
@@ -47,6 +48,8 @@ export function useNoteActions(deps: {
   trash: (ids: readonly string[]) => Promise<void>
   /** Exports or prints a note (exporter.ts); one note at a time. */
   exportNote: (action: ExportAction, id: string) => Promise<void>
+  /** Exports several notes side by side (Markdown or HTML). */
+  exportNotes: (action: 'exportMarkdown' | 'exportHtml', ids: readonly string[]) => Promise<void>
   /** Shows that a copy did not complete, with its code (a notice). */
   copyFailed: (failure: ExportFailure, code: string) => void
   /** Looks up the first line of notes with no title, which name them (headlines.ts). */
@@ -126,9 +129,12 @@ export function useNoteActions(deps: {
         if (many) return
         return copy(noteClipboardText(action as 'copyUri' | 'copyId', first), 'copy')
       default:
-        // Export and print act on one note only.
-        if (!many && (EXPORT_ACTIONS as readonly string[]).includes(action)) {
-          return deps.exportNote(action as ExportAction, first.id)
+        if (!(EXPORT_ACTIONS as readonly string[]).includes(action)) return
+        if (!many) return deps.exportNote(action as ExportAction, first.id)
+        // Several notes: Markdown and HTML export them; print, PDF and copy
+        // act on one note only.
+        if (SELECTION_EXPORTS.has(action as ExportAction)) {
+          return deps.exportNotes(action as 'exportMarkdown' | 'exportHtml', noteIds)
         }
     }
   }

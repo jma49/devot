@@ -28,6 +28,11 @@ export type FontWeightId = 'normal' | '300' | '400' | '500' | '600' | '700'
  * over selected text always makes that text a link.
  */
 export type PasteUrlStyle = 'plain' | 'autolink' | 'link'
+/**
+ * How long lines wrap: never, always, everywhere but code blocks and tables
+ * (`prose`), or everywhere but the code block or table under the caret.
+ */
+export type LineWrappingMode = 'off' | 'all' | 'prose' | 'unwrapAtCursor'
 /** The appearance the windows show (Settings > Appearance): the system's, or always light or dark. */
 export type AppearanceChoice = 'system' | 'light' | 'dark'
 /**
@@ -38,7 +43,7 @@ export type ThemeChoice = 'default' | 'ivory'
 
 export interface EditorSettings {
   lineNumbers: boolean
-  lineWrapping: boolean
+  lineWrapping: LineWrappingMode
   /** Lines no wider than the reading width (`size.reading-width`). */
   readableWidth: boolean
   /** In CSS pixels. */
@@ -94,7 +99,7 @@ export interface EditorSettings {
  */
 export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   lineNumbers: false,
-  lineWrapping: true,
+  lineWrapping: 'unwrapAtCursor',
   readableWidth: false,
   fontSize: 13,
   fontFamily: 'mono',
@@ -135,6 +140,13 @@ export const FONT_FAMILIES: readonly FontFamilyId[] = [
 export const INDENT_UNITS: readonly IndentUnitId[] = ['spaces2', 'spaces4', 'tab']
 export const LIST_MARKERS: readonly ListMarker[] = ['*', '-', '+']
 export const FONT_WEIGHTS: readonly FontWeightId[] = ['normal', '300', '400', '500', '600', '700']
+/** The line wrapping modes Settings offers, in its order. */
+export const LINE_WRAPPING_MODES: readonly LineWrappingMode[] = [
+  'off',
+  'all',
+  'prose',
+  'unwrapAtCursor',
+]
 export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 'link']
 /** The appearances Settings offers, in its order. */
 export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
@@ -190,7 +202,7 @@ const orNull = (check: (v: unknown) => boolean) => (v: unknown) => v === null ||
 /** What each setting accepts. */
 const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } = {
   lineNumbers: isFlag,
-  lineWrapping: isFlag,
+  lineWrapping: oneOf(LINE_WRAPPING_MODES),
   readableWidth: isFlag,
   fontSize: wholeIn(FONT_SIZE_MIN, FONT_SIZE_MAX),
   fontFamily: oneOf(FONT_FAMILIES),
@@ -225,9 +237,15 @@ const KEYS = Object.keys(VALID) as (keyof EditorSettings)[]
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
 
+/** Line wrapping was on/off before it became a mode: on is unwrap at cursor. */
+function migrate(from: Record<string, unknown>): Record<string, unknown> {
+  const old = from.lineWrapping
+  return typeof old === 'boolean' ? { ...from, lineWrapping: old ? 'unwrapAtCursor' : 'off' } : from
+}
+
 /** Settings from storage or an event: each valid value, defaults for the rest. */
 export function parseEditorSettings(value: unknown): EditorSettings {
-  const from = record(value)
+  const from = migrate(record(value))
   const out: Record<string, unknown> = { ...DEFAULT_EDITOR_SETTINGS }
   for (const key of KEYS) {
     if (Object.hasOwn(from, key) && VALID[key](from[key])) out[key] = from[key]

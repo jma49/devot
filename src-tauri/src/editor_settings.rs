@@ -87,6 +87,17 @@ pub enum FontWeight {
     W700,
 }
 
+/// How long lines wrap: never, always, everywhere but code blocks and
+/// tables (prose), or everywhere but the code block or table under the caret.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LineWrapping {
+    Off,
+    All,
+    Prose,
+    UnwrapAtCursor,
+}
+
 /// What pasting a lone URL inserts: the URL as copied, an autolink
 /// (`<url>`) or a link with empty text (`[](url)`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -132,7 +143,7 @@ impl Appearance {
 #[serde(rename_all = "camelCase")]
 pub struct EditorSettings {
     pub line_numbers: bool,
-    pub line_wrapping: bool,
+    pub line_wrapping: LineWrapping,
     pub readable_width: bool,
     pub font_size: u64,
     pub font_family: FontFamily,
@@ -160,7 +171,7 @@ pub struct EditorSettings {
     pub theme: Theme,
     /// The accent follows the macOS accent colour instead of Devot's palette.
     pub system_accent: bool,
-    /// The selection toolbar shows over selected text.
+    /// The toolbar shows over selected text and above the current table row.
     pub toolbar: bool,
     /// The editor scrolls past the end of the note.
     pub scroll_past_end: bool,
@@ -185,7 +196,7 @@ impl Default for EditorSettings {
     fn default() -> Self {
         Self {
             line_numbers: false,
-            line_wrapping: true,
+            line_wrapping: LineWrapping::UnwrapAtCursor,
             readable_width: false,
             font_size: 13,
             font_family: FontFamily::Mono,
@@ -262,7 +273,7 @@ impl EditorSettings {
     fn set(&mut self, key: &str, value: &Value) -> Result<(), &'static str> {
         match key {
             "lineNumbers" => self.line_numbers = flag(value)?,
-            "lineWrapping" => self.line_wrapping = flag(value)?,
+            "lineWrapping" => self.line_wrapping = choice(value)?,
             "readableWidth" => self.readable_width = flag(value)?,
             "fontSize" => self.font_size = whole(value, FONT_SIZE_MIN, FONT_SIZE_MAX)?,
             "fontFamily" => self.font_family = choice(value)?,
@@ -395,6 +406,14 @@ impl EditorSettingsStore {
                 Map::new()
             }
         };
+        let mut stored = stored;
+        // Line wrapping was on/off before it became a mode: on means
+        // unwrap at cursor, off means off. The mode stays in `stored`, so
+        // the next write replaces the old value.
+        if let Some(old) = stored.get("lineWrapping").and_then(Value::as_bool) {
+            let mode = if old { "unwrapAtCursor" } else { "off" };
+            stored.insert("lineWrapping".into(), Value::from(mode));
+        }
         // Only values that are valid and known stay in `stored`.
         let mut settings = EditorSettings::default();
         let stored = stored
@@ -544,7 +563,9 @@ mod tests {
     #[test]
     fn defaults_are_roomy_and_helpful() {
         let d = EditorSettings::default();
-        assert!(!d.line_numbers && d.line_wrapping && !d.highlight_active_line);
+        assert!(!d.line_numbers && !d.highlight_active_line);
+        // Everything wraps except the code block or table under the caret.
+        assert_eq!(d.line_wrapping, LineWrapping::UnwrapAtCursor);
         assert!(!d.readable_width && d.spell_check);
         assert_eq!(d.font_size, 13);
         assert_eq!(d.line_height, 1.5);
@@ -578,7 +599,7 @@ mod tests {
             value,
             json!({
                 "lineNumbers": false,
-                "lineWrapping": true,
+                "lineWrapping": "unwrapAtCursor",
                 "readableWidth": false,
                 "fontSize": 13,
                 "fontFamily": "mono",
@@ -614,7 +635,7 @@ mod tests {
         let next = EditorSettings::default()
             .with(&patch(json!({
                 "lineNumbers": false,
-                "lineWrapping": false,
+                "lineWrapping": "off",
                 "readableWidth": true,
                 "fontSize": 32,
                 "fontFamily": "courierNew",
@@ -669,7 +690,19 @@ mod tests {
         assert_eq!(plus.default_notebook, None);
         assert_eq!(next.paste_url, PasteUrl::Link);
         assert!(!next.inline_images);
-        assert!(!next.line_numbers && !next.line_wrapping && !next.highlight_active_line);
+        assert!(!next.line_numbers && !next.highlight_active_line);
+        assert_eq!(next.line_wrapping, LineWrapping::Off);
+        for (name, mode) in [
+            ("off", LineWrapping::Off),
+            ("all", LineWrapping::All),
+            ("prose", LineWrapping::Prose),
+            ("unwrapAtCursor", LineWrapping::UnwrapAtCursor),
+        ] {
+            let read = EditorSettings::default()
+                .with(&patch(json!({ "lineWrapping": name })))
+                .unwrap();
+            assert_eq!(read.line_wrapping, mode);
+        }
         assert!(!next.sidebar_material);
         assert!(!next.sync_scroll);
         assert!(next.readable_width && next.spell_check);
@@ -796,6 +829,12 @@ mod tests {
             json!({ "theme": null }),
             json!({ "theme": 1 }),
             json!({ "systemAccent": "on" }),
+            // Line wrapping is a mode; the old on/off values are refused.
+            json!({ "lineWrapping": true }),
+            json!({ "lineWrapping": false }),
+            json!({ "lineWrapping": "unwrap-at-cursor" }),
+            json!({ "lineWrapping": "On" }),
+            json!({ "lineWrapping": null }),
             // One bad value spoils the good ones with it.
             json!({ "lineNumbers": false, "fontSize": 99 }),
         ];
@@ -922,6 +961,43 @@ mod tests {
             EditorSettings::from_stored(&json!({ "theme": 7 })).theme,
             Theme::Default
         );
+    }
+
+    #[test]
+    fn reads_an_old_on_off_line_wrapping_as_a_mode_and_stores_it() {
+        let dir = tempfile::tempdir().unwrap();
+        for (old, mode, name) in [
+            ("true", LineWrapping::UnwrapAtCursor, "unwrapAtCursor"),
+            ("false", LineWrapping::Off, "off"),
+        ] {
+            std::fs::write(
+                dir.path().join(FILE),
+                format!(r#"{{ "lineWrapping": {old}, "tabWidth": 4 }}"#),
+            )
+            .unwrap();
+            let held = store(&dir);
+            let read = held.get().unwrap().settings;
+            assert_eq!(read.line_wrapping, mode, "{old}");
+            assert_eq!(read.tab_width, 4);
+            // The next write stores the mode in place of the old value.
+            held.update(&patch(json!({ "lineNumbers": true }))).unwrap();
+            let written: Value =
+                serde_json::from_slice(&std::fs::read(dir.path().join(FILE)).unwrap()).unwrap();
+            assert_eq!(
+                written,
+                json!({ "lineWrapping": name, "tabWidth": 4, "lineNumbers": true })
+            );
+        }
+        // An unknown stored mode takes the default and is dropped.
+        std::fs::write(dir.path().join(FILE), br#"{ "lineWrapping": "sometimes" }"#).unwrap();
+        let held = store(&dir);
+        assert_eq!(
+            held.get().unwrap().settings.line_wrapping,
+            LineWrapping::UnwrapAtCursor
+        );
+        held.update(&patch(json!({ "lineNumbers": true }))).unwrap();
+        let file = std::fs::read_to_string(dir.path().join(FILE)).unwrap();
+        assert!(!file.contains("sometimes"), "{file}");
     }
 
     #[test]

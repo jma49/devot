@@ -4,6 +4,9 @@
 pub const APP_NAME: &str = "Devot";
 pub const MENU_FILE: &str = "File";
 pub const MENU_IMPORT: &str = "Import";
+pub const MENU_EXPORT: &str = "Export";
+pub const EXPORT_ALL_MARKDOWN: &str = "All Notes as Markdown…";
+pub const EXPORT_ALL_HTML: &str = "All Notes as HTML…";
 pub const IMPORT_MARKDOWN_FILES: &str = "Markdown Files…";
 pub const IMPORT_MARKDOWN_FOLDER: &str = "Markdown Folder…";
 pub const IMPORT_HTML_FILES: &str = "HTML Files…";

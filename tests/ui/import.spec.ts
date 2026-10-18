@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow, pickNoteMore } from './fixtures'
+import { expect, pickMenuItem, test, type TestWindow, pickNoteMore } from './fixtures'
 
 const FILES: Record<string, string> = {
   // Front matter of its own: kept in the note, nothing read from it.
@@ -77,6 +77,7 @@ async function open(page: Page, options: { hold?: boolean } = {}) {
           return null
         },
         import_finish: null,
+        import_pick: null,
         backups_list: { backups: [], lastError: null },
       }
     },
@@ -352,6 +353,51 @@ test('picked Markdown files go straight to the destination, then show the same r
   await expect(dialog(page)).toContainText('1 imported \u00b7 1 skipped \u00b7 0 failed')
   await button(page, 'Done').click()
   await expect(noteRows(page).filter({ hasText: 'Inbox' })).toHaveCount(1)
+})
+
+test("a notebook's Import menu imports into that notebook without asking where", async ({
+  page,
+}) => {
+  await open(page)
+  for (const name of ['Work', 'Home']) {
+    await page.getByRole('button', { name: 'New Notebook' }).click()
+    const field = page.getByRole('textbox', { name: 'Notebook name' })
+    await field.fill(name)
+    await field.press('Enter')
+    await expect(book(page, name)).toBeVisible()
+  }
+  const menus = () => calls(page, 'plugin:menu|popup').then((c) => c.length)
+  const before = await menus()
+  await book(page, 'Work').locator('> .book-row').click({ button: 'right' })
+  await expect.poll(menus).toBe(before + 1)
+  await pickMenuItem(page, 'Markdown Files…', 'Import')
+  await expect.poll(async () => (await calls(page, 'import_pick')).length).toBe(1)
+  const args = (await calls(page, 'import_pick'))[0]!.args as { kind: string; bookId: string }
+  expect(args.kind).toBe('markdownFiles')
+
+  // Rust answers with the session, its destination set: picked files import at once.
+  await send(page, 'devot:import-ready', {
+    id: 21,
+    name: 'Inbox.md',
+    kind: 'files',
+    files: [{ path: 'Inbox.md', bytes: 64 }],
+    images: [],
+    skipped: [],
+    destination: args.bookId,
+  })
+  await expect(dialog(page)).toContainText('Imported 1 note.')
+  await expect(destinations(page)).toHaveCount(0)
+  await button(page, 'Done').click()
+  await book(page, 'Work').locator('> .book-row').click()
+  await expect(noteRows(page).filter({ hasText: 'Inbox' })).toHaveCount(1)
+
+  // A folder shows its tree first, then imports into the notebook in one step.
+  await send(page, 'devot:import-ready', { ...SCAN, id: 22, destination: args.bookId })
+  await expect(button(page, 'Continue')).toHaveCount(0)
+  await button(page, 'Import into “Work”').click()
+  await expect(dialog(page)).toContainText('Imported 3 notes into 2 notebooks.')
+  await button(page, 'Done').click()
+  await expect(header(page)).toHaveText('Work')
 })
 
 test('picked HTML files become Markdown notes, with no script left', async ({ page }) => {

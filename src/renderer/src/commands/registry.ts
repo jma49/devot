@@ -412,6 +412,30 @@ export const COMMANDS = [
     palette: false,
   },
   {
+    id: 'notebook.importMarkdownFiles',
+    label: 'bookMenu.importMarkdownFiles',
+    group: 'notebook',
+    scope: 'notebookRow',
+    keys: [],
+    palette: false,
+  },
+  {
+    id: 'notebook.importMarkdownFolder',
+    label: 'bookMenu.importMarkdownFolder',
+    group: 'notebook',
+    scope: 'notebookRow',
+    keys: [],
+    palette: false,
+  },
+  {
+    id: 'notebook.importHtmlFiles',
+    label: 'bookMenu.importHtmlFiles',
+    group: 'notebook',
+    scope: 'notebookRow',
+    keys: [],
+    palette: false,
+  },
+  {
     id: 'notebook.exportMarkdown',
     label: 'bookMenu.exportMarkdown',
     group: 'notebook',
@@ -1176,6 +1200,21 @@ export const COMMANDS = [
     keys: ['Ctrl+J'],
   },
   { id: 'app.backups', label: 'command.backups', group: 'app', scope: 'window', keys: [] },
+  // File > Export > All Notes (exporter.ts).
+  {
+    id: 'app.exportAllMarkdown',
+    label: 'command.exportAllMarkdown',
+    group: 'app',
+    scope: 'window',
+    keys: [],
+  },
+  {
+    id: 'app.exportAllHtml',
+    label: 'command.exportAllHtml',
+    group: 'app',
+    scope: 'window',
+    keys: [],
+  },
   // The Markdown mirror (mirror.ts): choose its folder, or turn it off.
   {
     id: 'mirror.chooseFolder',

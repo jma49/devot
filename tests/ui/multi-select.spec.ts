@@ -415,6 +415,9 @@ test('the context menu of a selected row acts on the whole selection', async ({ 
     '---',
     'Copy Note Links CmdOrCtrl+C',
     '---',
+    'Export Selected Notes as HTML…',
+    'Export Selected Notes as Markdown…',
+    '---',
     'Move Selected Notes to Trash CmdOrCtrl+Backspace',
   ])
   await pickMenuItem(page, 'Completed', 'Status')

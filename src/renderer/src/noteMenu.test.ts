@@ -123,6 +123,7 @@ describe('NOTE_MENU', () => {
       ['pin'],
       ['status', 'addTag', 'removeTag'],
       ['copyLink'],
+      ['exportHtml', 'exportMarkdown'],
       ['trash'],
     ])
     expect(labels(many)).toEqual([
@@ -132,6 +133,8 @@ describe('NOTE_MENU', () => {
       'batch.addTag',
       'batch.removeTag',
       'batch.copyLinks',
+      'noteMenu.exportSelectionHtml',
+      'noteMenu.exportSelectionMarkdown',
       'batch.trash',
     ])
     expect(labels({ ...many, pinned: true })).toContain('batch.unpin')
@@ -145,11 +148,19 @@ describe('NOTE_MENU', () => {
     ])
   })
 
-  it('hides the export and print items for several notes or templates', () => {
+  it('keeps only Export as Markdown and HTML for several notes or templates', () => {
     for (const many of [target([ID, 'b']), target([ID, 'b'], { templates: true })]) {
       const actions = shown(many).flat()
-      for (const action of EXPORT_ACTIONS) expect(actions).not.toContain(action)
+      expect(EXPORT_ACTIONS.filter((action) => actions.includes(action))).toEqual([
+        'exportHtml',
+        'exportMarkdown',
+      ])
     }
+    expect(labels(target([ID])).filter((l) => l.startsWith('noteMenu.export'))).toEqual([
+      'noteMenu.exportHtml',
+      'noteMenu.exportMarkdown',
+      'noteMenu.exportPdf',
+    ])
     // One template exports like a note.
     expect(shown(target([ID], { templates: true })).flat()).toEqual(
       expect.arrayContaining([...EXPORT_ACTIONS]),
@@ -165,6 +176,7 @@ describe('NOTE_MENU', () => {
       ['move'],
       ['pin'],
       ['copyLink'],
+      ['exportHtml', 'exportMarkdown'],
       ['trash'],
     ])
   })

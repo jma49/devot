@@ -1,9 +1,12 @@
 //! Markdown and HTML import (File > Import > Markdown Files…, Markdown
-//! Folder…, HTML Files…). Rust picks what to import, lists the files and
+//! Folder…, HTML Files…, and the same items in a notebook's Import menu,
+//! which `import_pick` opens with that notebook as the destination). Rust
+//! picks what to import, lists the files and
 //! reads them; the core worker turns them into notebooks and notes
 //! (`src/core/import.ts`).
 //!
-//! The web view never names a path: the user picks folders or files in a
+//! The web view never names a path (only the kind of pick and a notebook
+//! ID): the user picks folders or files in a
 //! native panel and Rust keeps them as an import session. The UI asks for
 //! files by session ID and a path relative to what was picked (starting with
 //! a folder's name when several were picked), and Rust only reads files
@@ -21,7 +24,7 @@ use crate::commands::files::{MAX_FILE_BYTES, Upload, store_upload};
 use crate::commands::notes::valid_note_id;
 use crate::storage::Db;
 use crate::strings;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
@@ -100,6 +103,10 @@ pub struct Scan {
     pub files: Vec<Item>,
     pub images: Vec<Item>,
     pub skipped: Vec<Problem>,
+    /// The notebook the import goes into when it was started from that
+    /// notebook's menu (the sheet then skips choosing one); None from
+    /// File > Import.
+    pub destination: Option<String>,
 }
 
 /// A scan that has started (the wizard opens on it).
@@ -658,9 +665,9 @@ impl Imports {
         (id, cancelled)
     }
 
-    /// Keeps what scan `id` found as its session; None when it was
-    /// cancelled meanwhile.
-    pub fn ready(&self, id: u64, found: Found) -> Option<Scan> {
+    /// Keeps what scan `id` found as its session, to be imported into
+    /// `destination` when one was given; None when it was cancelled meanwhile.
+    pub fn ready(&self, id: u64, found: Found, destination: Option<String>) -> Option<Scan> {
         // The pending entry goes and the session comes under the one lock
         // `finish` takes first, so a finish never falls between them (and
         // the session it was meant to end is never left open).
@@ -683,19 +690,22 @@ impl Imports {
             files: found.files,
             images: found.images,
             skipped: found.skipped,
+            destination,
         })
     }
 
     /// A session for what was found straight away (picked files).
-    pub fn start(&self, found: Found) -> Scan {
+    pub fn start(&self, found: Found, destination: Option<String>) -> Scan {
         let (id, _) = self.begin();
-        self.ready(id, found).unwrap_or(Scan {
+        // A session just begun is never cancelled: the fallback is not used.
+        self.ready(id, found, destination).unwrap_or_else(|| Scan {
             id,
             name: String::new(),
             kind: Kind::Files,
             files: Vec::new(),
             images: Vec::new(),
             skipped: Vec::new(),
+            destination: None,
         })
     }
 
@@ -805,8 +815,9 @@ pub fn import_finish(imports: State<'_, Imports>, id: u64) {
     imports.finish(id);
 }
 
-/// What the user can pick from File > Import.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What the user can pick from File > Import (or a notebook's Import menu).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Pick {
     MarkdownFiles,
     MarkdownFolders,
@@ -824,9 +835,27 @@ fn fail(app: &AppHandle, id: Option<u64>, code: &'static str) {
     emit(app, FAILED_EVENT, Failed { id, code });
 }
 
+/// The notebook a web view's import names, checked: an ID or none.
+fn pick_destination(book_id: Option<String>) -> Result<Option<String>, &'static str> {
+    match book_id {
+        Some(id) if !valid_note_id(&id) => Err("E_BOOK_ID_INVALID"),
+        other => Ok(other),
+    }
+}
+
+/// Starts an import from the web view (a notebook's Import menu): the same
+/// panel and session as File > Import, with the session's destination set
+/// to `book_id`. A cancelled panel sends nothing, so no preset outlives it.
+#[tauri::command]
+pub fn import_pick(app: AppHandle, kind: Pick, book_id: Option<String>) -> Result<(), String> {
+    let destination = pick_destination(book_id)?;
+    pick(&app, kind, destination);
+    Ok(())
+}
+
 /// Shows the panel for `pick`; what the user picks is scanned and sent to
-/// the window as a session.
-pub fn pick(app: &AppHandle, pick: Pick) {
+/// the window as a session, to be imported into `destination` if given.
+pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>) {
     let title = match pick {
         Pick::MarkdownFiles => strings::IMPORT_MARKDOWN_FILES_TITLE,
         Pick::MarkdownFolders => strings::IMPORT_MARKDOWN_TITLE,
@@ -843,7 +872,7 @@ pub fn pick(app: &AppHandle, pick: Pick) {
             let paths: Result<Vec<PathBuf>, _> =
                 folders.into_iter().map(|f| f.into_path()).collect();
             match paths {
-                Ok(paths) if !paths.is_empty() => scan_in_background(app, paths),
+                Ok(paths) if !paths.is_empty() => scan_in_background(app, paths, destination),
                 _ => fail(&app, None, "E_IMPORT_ROOT_INVALID"),
             }
         }),
@@ -860,7 +889,7 @@ pub fn pick(app: &AppHandle, pick: Pick) {
                 };
                 match pick_found(&paths, html) {
                     Ok(found) => {
-                        let scan = app.state::<Imports>().start(found);
+                        let scan = app.state::<Imports>().start(found, destination);
                         log::info!(
                             "I_IMPORT_PICKED {} files={} skipped={}",
                             scan.id,
@@ -878,7 +907,7 @@ pub fn pick(app: &AppHandle, pick: Pick) {
 
 /// Scans picked folders on a thread of their own, telling the window when
 /// it starts, how far it has got, and what it found.
-fn scan_in_background(app: AppHandle, paths: Vec<PathBuf>) {
+fn scan_in_background(app: AppHandle, paths: Vec<PathBuf>, destination: Option<String>) {
     let (id, cancelled) = app.state::<Imports>().begin();
     let name = paths
         .first()
@@ -921,7 +950,7 @@ fn scan_in_background(app: AppHandle, paths: Vec<PathBuf>) {
             };
             let imports = app.state::<Imports>();
             match scan_folders(&paths, Limits::DEFAULT, &watch) {
-                Ok(found) => match imports.ready(id, found) {
+                Ok(found) => match imports.ready(id, found, destination) {
                     Some(scan) => {
                         log::info!(
                             "I_IMPORT_SCANNED {} files={} images={} skipped={}",
@@ -1241,7 +1270,7 @@ mod tests {
         assert_eq!(read_note(&root, "C\\C++ notes.md").as_deref(), Ok("# C\n"));
         // What the scan lists, its session reads.
         let imports = Imports::default();
-        let found = imports.start(scan(&root).unwrap());
+        let found = imports.start(scan(&root).unwrap(), None);
         assert!(found.files.iter().any(|f| f.path == "C\\C++ notes.md"));
         let (at, rel) = imports.root_for(found.id, "C\\C++ notes.md", true).unwrap();
         assert_eq!(read_note(&at, &rel).as_deref(), Ok("# C\n"));
@@ -1306,7 +1335,7 @@ mod tests {
     fn sessions_read_only_their_own_scanned_notes() {
         let dir = sample();
         let imports = Imports::default();
-        let scan = imports.start(scan(dir.path()).unwrap());
+        let scan = imports.start(scan(dir.path()).unwrap(), None);
         assert_eq!(scan.id, 1);
         assert_eq!(scan.files.len(), 3);
         assert!(imports.root_for(scan.id, "Inbox.md", true).is_ok());
@@ -1324,7 +1353,7 @@ mod tests {
             imports.root_for(scan.id + 1, "Inbox.md", true),
             Err("E_IMPORT_SESSION")
         );
-        let second = imports.start(super::scan(dir.path()).unwrap());
+        let second = imports.start(super::scan(dir.path()).unwrap(), None);
         assert_eq!(second.id, 2);
         imports.finish(scan.id);
         assert_eq!(
@@ -1365,7 +1394,7 @@ mod tests {
 
         // A session reads each path from its own folder.
         let imports = Imports::default();
-        let scan = imports.start(found);
+        let scan = imports.start(found, None);
         let (root, rel) = imports.root_for(scan.id, "Work 2/List.md", true).unwrap();
         assert_eq!(read_note(&root, &rel).as_deref(), Ok("# List\n"));
         let (root, rel) = imports.root_for(scan.id, "Home/cat.png", false).unwrap();
@@ -1418,14 +1447,14 @@ mod tests {
         let (id, cancelled) = imports.begin();
         imports.finish(id);
         assert!(cancelled.load(Ordering::Relaxed));
-        assert_eq!(imports.ready(id, scan(dir.path()).unwrap()), None);
+        assert_eq!(imports.ready(id, scan(dir.path()).unwrap(), None), None);
         assert_eq!(
             imports.root_for(id, "Inbox.md", true),
             Err("E_IMPORT_SESSION")
         );
         // A scan that finishes first opens its session.
         let (id, _) = imports.begin();
-        assert!(imports.ready(id, scan(dir.path()).unwrap()).is_some());
+        assert!(imports.ready(id, scan(dir.path()).unwrap(), None).is_some());
         assert!(imports.root_for(id, "Inbox.md", true).is_ok());
     }
 
@@ -1479,7 +1508,7 @@ mod tests {
             ]
         );
         let imports = Imports::default();
-        let scan = imports.start(found);
+        let scan = imports.start(found, None);
         let (at, rel) = imports.root_for(scan.id, "Saved/page.html", true).unwrap();
         assert_eq!(read_note(&at, &rel).as_deref(), Ok("<p>x</p>"));
         // Its images are read from its folder, and nowhere above it.
@@ -1502,7 +1531,7 @@ mod tests {
                 let imports = imports.clone();
                 std::thread::spawn(move || imports.finish(id))
             };
-            imports.ready(id, found.clone());
+            imports.ready(id, found.clone(), None);
             finisher.join().unwrap();
             // Either the finish came first (no session) or it ended the
             // session the scan opened: none is left either way.
@@ -1535,7 +1564,7 @@ mod tests {
         write(root, "Pictures/private/x.png", PNG);
         write(root, "img/notes.txt", PNG);
         let imports = Imports::default();
-        let scan = imports.start(pick_found(&[root.join("notes.md")], false).unwrap());
+        let scan = imports.start(pick_found(&[root.join("notes.md")], false).unwrap(), None);
         let image = |rel: &str| {
             let (at, rel, shallow) = imports.place(scan.id, rel, false)?;
             assert!(shallow);
@@ -1557,11 +1586,46 @@ mod tests {
             assert_eq!(image("peek.png"), Err("E_IMPORT_PATH_OUTSIDE"));
         }
         // A picked folder keeps reading images at any depth inside it.
-        let folder = imports.start(super::scan(root).unwrap());
+        let folder = imports.start(super::scan(root).unwrap(), None);
         let (at, rel, shallow) = imports
             .place(folder.id, "Pictures/private/x.png", false)
             .unwrap();
         assert!(!shallow);
         assert!(read_session_image(&at, &rel, shallow).is_ok());
+    }
+
+    #[test]
+    fn a_notebook_import_checks_its_kind_and_notebook() {
+        let kind = |k: &str| serde_json::from_value::<Pick>(serde_json::json!(k)).ok();
+        assert_eq!(kind("markdownFiles"), Some(Pick::MarkdownFiles));
+        assert_eq!(kind("markdownFolders"), Some(Pick::MarkdownFolders));
+        assert_eq!(kind("htmlFiles"), Some(Pick::HtmlFiles));
+        assert_eq!(kind("pdfFiles"), None);
+        assert_eq!(kind("MarkdownFiles"), None);
+        let id = "01890a5d-ac96-774b-bcce-b302099a8057".to_string();
+        assert_eq!(pick_destination(None), Ok(None));
+        assert_eq!(pick_destination(Some(id.clone())), Ok(Some(id)));
+        for bad in ["", "nope", "../x", "01890A5D-AC96-774B-BCCE-B302099A8057"] {
+            assert_eq!(pick_destination(Some(bad.into())), Err("E_BOOK_ID_INVALID"));
+        }
+    }
+
+    #[test]
+    fn a_session_carries_its_destination_to_the_window() {
+        let dir = sample();
+        let imports = Imports::default();
+        let id = "01890a5d-ac96-774b-bcce-b302099a8057";
+        let picked = imports.start(scan(dir.path()).unwrap(), Some(id.into()));
+        assert_eq!(picked.destination.as_deref(), Some(id));
+        let json = serde_json::to_value(&picked).unwrap();
+        assert_eq!(json["destination"], id);
+        let (next, _) = imports.begin();
+        let scanned = imports
+            .ready(next, scan(dir.path()).unwrap(), None)
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&scanned).unwrap()["destination"],
+            serde_json::Value::Null
+        );
     }
 }

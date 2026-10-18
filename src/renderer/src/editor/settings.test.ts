@@ -30,6 +30,7 @@ import { inlineImageField } from './images'
 import { pasteUrlStyle } from './paste'
 import { toolbarOff } from './toolbarState'
 import { codeMirrorKey, editorSetup, reconfigureSetup } from './settings'
+import { keepCaretLine, unwrapMode } from './unwrap'
 
 const make = (settings: EditorSettings) =>
   EditorState.create({ doc: 'a', extensions: editorSetup(settings) })
@@ -41,6 +42,54 @@ const attrs = (state: EditorState) =>
   )
 
 describe('editor setup from the settings', () => {
+  it('wraps lines as the line wrapping mode says', () => {
+    const wrapClass = (state: EditorState) =>
+      state
+        .facet(EditorView.contentAttributes)
+        .some((a) => typeof a === 'object' && /cm-lineWrapping/.test(a['class'] ?? ''))
+    const mode = (lineWrapping: EditorSettings['lineWrapping']) =>
+      make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping })
+    expect(wrapClass(mode('off'))).toBe(false)
+    expect(mode('off').facet(unwrapMode)).toBeNull()
+    expect(wrapClass(mode('all'))).toBe(true)
+    expect(mode('all').facet(unwrapMode)).toBeNull()
+    expect(wrapClass(mode('prose'))).toBe(true)
+    expect(mode('prose').facet(unwrapMode)).toBe('all')
+    expect(wrapClass(mode('unwrapAtCursor'))).toBe(true)
+    expect(mode('unwrapAtCursor').facet(unwrapMode)).toBe('active')
+    // The default unwraps the block under the caret.
+    expect(make(DEFAULT_EDITOR_SETTINGS).facet(unwrapMode)).toBe('active')
+  })
+
+  it('keeps lines to the reading width in any wrapping mode but off', () => {
+    const css = (state: EditorState) =>
+      JSON.stringify(state.facet(EditorView.styleModule).map((m) => Object.values(m)))
+    for (const lineWrapping of ['all', 'prose', 'unwrapAtCursor'] as const)
+      expect(
+        css(make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping, readableWidth: true })),
+      ).toContain('--size-reading-width')
+    expect(
+      css(make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping: 'off', readableWidth: true })),
+    ).not.toContain('--size-reading-width')
+  })
+
+  it('keeps the caret line in place when the wrapping mode changes', () => {
+    const effects = reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
+      ...DEFAULT_EDITOR_SETTINGS,
+      lineWrapping: 'prose',
+    })
+    expect(effects.some((e) => e.is(keepCaretLine))).toBe(true)
+    const after = make(DEFAULT_EDITOR_SETTINGS).update({ effects }).state
+    expect(after.facet(unwrapMode)).toBe('all')
+    // The wrapping part and the reading width part (which reads the mode too).
+    expect(effects.filter((e) => !e.is(keepCaretLine))).toHaveLength(2)
+    expect(
+      reconfigureSetup(DEFAULT_EDITOR_SETTINGS, { ...DEFAULT_EDITOR_SETTINGS, fontSize: 14 }).some(
+        (e) => e.is(keepCaretLine),
+      ),
+    ).toBe(false)
+  })
+
   it('sets the indent unit, the tab width, the bullet and spell checking', () => {
     const state = make({
       ...DEFAULT_EDITOR_SETTINGS,

@@ -18,6 +18,16 @@ export const IMPORT_READY = 'devot:import-ready'
 /** Why a scan failed: `{ id, code }` (`id` null before it had a session). */
 export const IMPORT_FAILED = 'devot:import-failed'
 
+/** What a notebook's Import menu can pick (Rust's `Pick`). */
+export type ImportPick = 'markdownFiles' | 'markdownFolders' | 'htmlFiles'
+
+/**
+ * Opens the panel for `kind`, as File > Import does, with the session's
+ * destination set to notebook `bookId`: the sheet then skips choosing one.
+ */
+export const pickImport = (kind: ImportPick, bookId: string) =>
+  invoke('import_pick', { kind, bookId }).then(() => undefined)
+
 /** Ends an import session in Rust; its folder can no longer be read. */
 export const finishImport = (id: number) =>
   invoke('import_finish', { id }).then(

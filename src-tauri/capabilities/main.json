@@ -46,6 +46,7 @@
     "allow-import-read",
     "allow-import-attach",
     "allow-import-finish",
+    "allow-import-pick",
     "allow-export-begin",
     "allow-export-attach",
     "allow-export-write",

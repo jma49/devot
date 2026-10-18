@@ -182,7 +182,7 @@ test('split mode gives the editor and the preview half each, with no rule and no
 }) => {
   await page.setViewportSize({ width: 1800, height: 900 })
   await openNote(page, 'text')
-  await changeEditorSettingsElsewhere(page, { lineWrapping: true, readableWidth: true })
+  await changeEditorSettingsElsewhere(page, { lineWrapping: 'all', readableWidth: true })
   const content = page.locator('.cm-content')
   // Outside split, the readable width holds.
   await expect(content).toHaveCSS('max-width', '740px')

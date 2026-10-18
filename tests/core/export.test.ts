@@ -25,6 +25,7 @@ import {
   type ImportScan,
   type ImportSource,
   type NoteStatus,
+  TEMPLATES_BOOK_ID,
 } from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
@@ -690,6 +691,144 @@ const ACUTE = String.fromCodePoint(0x301)
 const SHARP_S = String.fromCodePoint(0xdf)
 const CAPITAL_SHARP_S = String.fromCodePoint(0x1e9e)
 const FI = String.fromCodePoint(0xfb01)
+
+describe('exporting every note, or chosen notes', () => {
+  /** The sample library, plus notes in no notebook, a template and a trashed note. */
+  async function everything() {
+    const sample = await sampleLibrary()
+    const { notes, books } = sample.lib.services
+    const add = async (title: string, book: string | null, body = `# ${title}\n`) => {
+      const id = await notes.create(title, book)
+      await notes.setBody(id, body)
+      await notes.release(id)
+      return id
+    }
+    const loose = await add('Loose', null)
+    // A note in no notebook named like a notebook's folder, and one named
+    // like the attachments folder: the files and folders never clash.
+    await add('Work', null)
+    await add('attachments', null)
+    // A top-level notebook named like the attachments folder is numbered.
+    await add('Kept', await books.create('attachments', null))
+    await add('Template', TEMPLATES_BOOK_ID)
+    const gone = await add('Gone', null)
+    await notes.trash(gone)
+    return { ...sample, loose }
+  }
+
+  it('writes every top-level notebook as a folder, notes in no notebook at the top', async () => {
+    const { lib } = await everything()
+    const plan = await planExport({
+      ...lib.services,
+      target: { kind: 'all', name: 'Devot Notes' },
+      untitled: 'Untitled',
+    })
+    expect(plan.name).toBe('Devot Notes')
+    const paths = plan.entries.map((e) => [...e.folder, e.stem].join('/'))
+    expect([...paths].sort()).toEqual([
+      'Elsewhere/Not exported',
+      'Loose',
+      'Work',
+      'Work/Inbox',
+      'Work/Own matter',
+      'Work/Plans 2026/Deep/Spec',
+      'Work/Plans 2026/Deep/Spec 2',
+      'Work/Plans 2026/Deep/a b',
+      'Work/Plans 2026/Launch plan',
+      'Work/attachments/Untitled',
+      'attachments',
+      'attachments 2/Kept',
+    ])
+    // Notes in no notebook first, then the notebooks in sidebar order.
+    expect(paths.slice(0, 3)).toEqual(['Loose', 'Work', 'attachments'])
+    const tops = [...new Set(plan.entries.slice(3).map((e) => e.folder[0]))]
+    expect(tops).toEqual(['Work', 'Elsewhere', 'attachments 2'])
+  })
+
+  it('round-trips: importing every note gives the same notes, notebooks and images', async () => {
+    const { lib } = await everything()
+    lib.sqlite.db.prepare("UPDATE files SET name = id || '.' || substr(mime, 7)").run()
+    const root = join(tempDir('devot-export-out-'), 'Devot Notes')
+    const report = await exportMarkdown({
+      ...lib.services,
+      target: { kind: 'all', name: 'Devot Notes' },
+      untitled: 'Untitled',
+      sink: folderSink(lib.sqlite, root).sink,
+    })
+    expect(report).toMatchObject({ notes: 12, problems: [] })
+
+    const fresh = library()
+    const imported = await importFolder(fresh, root, 'Devot Notes')
+    expect(imported.problems).toEqual([])
+    const safe = (book: string) =>
+      [
+        'Devot Notes',
+        book.replace('Plans: 2026', 'Plans 2026').replace(/^attachments$/, 'attachments 2'),
+      ]
+        .filter(Boolean)
+        .join('/')
+    const before = (await snapshot(lib))
+      .filter((n) => n.title !== 'Template')
+      .map((n) => ({ ...n, book: safe(n.book) }))
+    expect(await snapshot(fresh)).toEqual(before.sort(byPlace))
+  })
+
+  it('asks where every note goes before reading any; a chosen note deleted since is left out', async () => {
+    const { lib, loose } = await everything()
+    let reads = 0
+    const notes = {
+      ...lib.services.notes,
+      read: (id: string) => (reads++, lib.services.notes.read(id)),
+    }
+    const asked: string[] = []
+    const cancelled = await exportMarkdown({
+      ...lib.services,
+      notes,
+      target: { kind: 'all', name: 'Devot Notes' },
+      untitled: 'Untitled',
+      sink: {
+        begin: async (name) => (asked.push(name), null),
+        attach: async () => '',
+        write: async () => {},
+      },
+    })
+    expect(cancelled).toBeNull()
+    expect(asked).toEqual(['Devot Notes'])
+    expect(reads).toBe(0)
+
+    const missing = '0192a6f0-0000-7000-8000-0000000000ff'
+    const plan = await planExport({
+      ...lib.services,
+      target: { kind: 'notes', noteIds: [missing, loose], name: 'Devot Export' },
+      untitled: 'Untitled',
+    })
+    expect(plan.entries.map((e) => e.noteId)).toEqual([loose])
+  })
+
+  it('writes chosen notes side by side in the order chosen, same titles numbered', async () => {
+    const { lib, loose } = await everything()
+    const listed = await lib.sqlite.listNotes()
+    const id = (title: string) => listed.filter((n) => n.title === title).map((n) => n.id)
+    const [spec1, spec2] = id('Spec')
+    const plan = await planExport({
+      ...lib.services,
+      target: {
+        kind: 'notes',
+        noteIds: [spec2!, loose, spec1!, ...id('Launch plan'), spec2!],
+        name: 'Devot Export',
+      },
+      untitled: 'Untitled',
+    })
+    expect(plan.name).toBe('Devot Export')
+    expect(plan.entries.map((e) => [e.folder, e.stem, e.noteId])).toEqual([
+      [[], 'Spec', spec2],
+      [[], 'Loose', loose],
+      [[], 'Spec 2', spec1],
+      [[], 'Launch plan', id('Launch plan')[0]],
+    ])
+    expect(plan.entries[3]).toMatchObject({ tags: ["q4's goals", 'work'], status: 'on_hold' })
+  })
+})
 
 describe('names macOS takes for one', () => {
   it('clash whatever their case, accents or ligatures', () => {
