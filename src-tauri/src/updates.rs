@@ -4,7 +4,7 @@
 //! once a day; Devot > Check for Updates… (or the command palette, or
 //! Settings > General) checks at once. The feed is a channel file in the
 //! repository's fixed `updater` release: a prerelease build (a version with
-//! a `-beta.N` part) reads `beta.json`, any other build `stable.json`.
+//! a `-betaN` part) reads `beta.json`, any other build `stable.json`.
 //!
 //! An update found downloads in the background when the
 //! `autoDownloadUpdates` editor setting is on (the default); otherwise the
@@ -46,7 +46,7 @@ pub enum Channel {
 }
 
 /// The channel of a build of `version`: beta for a prerelease
-/// (`0.3.0-beta.1`), stable otherwise. Build metadata (`+…`) is ignored.
+/// (`0.9.1-beta1`), stable otherwise. Build metadata (`+…`) is ignored.
 pub fn channel_for(version: &str) -> Channel {
     let version = version.split('+').next().unwrap_or_default();
     if version.contains('-') {
@@ -604,7 +604,8 @@ mod tests {
 
     #[test]
     fn a_prerelease_build_follows_the_beta_channel() {
-        assert_eq!(channel_for("0.3.0-beta.1"), Channel::Beta);
+        assert_eq!(channel_for("0.9.1-beta1"), Channel::Beta);
+        assert_eq!(channel_for("0.9.0-beta.1"), Channel::Beta);
         assert_eq!(channel_for("1.0.0-rc.2+abc"), Channel::Beta);
         assert_eq!(channel_for("1.0.0"), Channel::Stable);
         assert_eq!(channel_for("1.2.3+build-7"), Channel::Stable);

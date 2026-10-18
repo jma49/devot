@@ -20,21 +20,26 @@ const root = join(import.meta.dirname, '../..')
 
 describe('release versions', () => {
   it('takes the version from a release tag', () => {
-    expect(versionFromTag('v0.3.0-beta.1')).toBe('0.3.0-beta.1')
-    expect(versionFromTag('v0.10.2-beta.12')).toBe('0.10.2-beta.12')
+    expect(versionFromTag('v0.9.1-beta1')).toBe('0.9.1-beta1')
+    expect(versionFromTag('v0.10.12-beta9')).toBe('0.10.12-beta9')
     expect(versionFromTag('v1.0.0')).toBe('1.0.0')
   })
 
   it('refuses any other tag', () => {
     for (const tag of [
-      '0.3.0-beta.1',
-      'v0.3.0-beta',
-      'v0.3.0-rc.1',
-      'v0.3-beta.1',
-      'v0.3.0-beta.1 ',
-      'v01.3.0',
-      'v0.3.0-beta.01',
-      'v0.2.1-beta',
+      '0.9.1-beta1',
+      'v0.9.1-beta',
+      'v0.9.1-rc1',
+      'v0.9-beta1',
+      'v0.9.1-beta1 ',
+      'v01.9.1',
+      'v0.9.01-beta1',
+      'v0.9.1-beta0',
+      'v0.9.1-beta01',
+      // One digit only: `beta10` would sort before `beta2`.
+      'v0.9.1-beta10',
+      // The old form, from before tags dropped the dot.
+      'v0.9.0-beta.1',
       'updater',
       '',
     ])
@@ -42,7 +47,7 @@ describe('release versions', () => {
   })
 
   it('puts a prerelease on the beta channel', () => {
-    expect(channelOf('0.3.0-beta.1')).toBe('beta')
+    expect(channelOf('0.9.1-beta1')).toBe('beta')
     expect(channelOf('1.0.0')).toBe('stable')
   })
 
@@ -87,22 +92,30 @@ describe('feed order', () => {
       '0.3.0-beta.2',
       '0.3.0-beta.10',
       '0.3.0',
-      '0.4.0-beta.1',
+      '0.9.0-beta.1',
+      '0.9.1-beta1',
+      '0.9.1-beta2',
+      '0.9.1',
+      '0.9.2-beta1',
       '1.0.0',
     ]
     for (let i = 1; i < sorted.length; i++) {
       expect(compareVersions(sorted[i - 1]!, sorted[i]!)).toBe(-1)
       expect(compareVersions(sorted[i]!, sorted[i - 1]!)).toBe(1)
     }
-    expect(compareVersions('0.3.0-beta.2', '0.3.0-beta.2')).toBe(0)
+    expect(compareVersions('0.9.1-beta2', '0.9.1-beta2')).toBe(0)
     expect(() => compareVersions('0.3', '0.3.0')).toThrow('E_RELEASE_VERSION_INVALID')
   })
 
   it('lets only a newer release replace the feed', () => {
-    const feed = JSON.stringify({ version: '0.4.0-beta.1' })
-    expect(replacesFeed('0.4.0-beta.2', feed)).toBe(true)
-    expect(replacesFeed('0.4.0-beta.1', feed)).toBe(false)
-    expect(replacesFeed('0.3.0-beta.9', feed)).toBe(false)
+    const feed = JSON.stringify({ version: '0.9.1-beta1' })
+    expect(replacesFeed('0.9.1-beta2', feed)).toBe(true)
+    expect(replacesFeed('0.9.1-beta1', feed)).toBe(false)
+    expect(replacesFeed('0.9.0', feed)).toBe(false)
+    // A feed written before tags dropped the dot.
+    const old = JSON.stringify({ version: '0.9.0-beta.1' })
+    expect(replacesFeed('0.9.1-beta1', old)).toBe(true)
+    expect(replacesFeed('0.8.9-beta1', old)).toBe(false)
     // No feed yet, an empty file, or one without a version.
     expect(replacesFeed('0.3.0-beta.1', '')).toBe(true)
     expect(replacesFeed('0.3.0-beta.1', '{}')).toBe(true)
@@ -113,10 +126,10 @@ describe('feed order', () => {
     // A beta install reads beta.json, so it is offered the newest build of
     // either kind; a stable install never gets a beta.
     expect(feedChannels('1.0.0')).toEqual(['stable', 'beta'])
-    expect(feedChannels('1.0.0-beta.3')).toEqual(['beta'])
+    expect(feedChannels('1.0.0-beta3')).toEqual(['beta'])
     // The beta feed moves only when the stable release is newer than it.
-    expect(replacesFeed('1.0.0', JSON.stringify({ version: '1.0.0-beta.5' }))).toBe(true)
-    expect(replacesFeed('1.0.0', JSON.stringify({ version: '1.1.0-beta.1' }))).toBe(false)
+    expect(replacesFeed('1.0.0', JSON.stringify({ version: '1.0.0-beta5' }))).toBe(true)
+    expect(replacesFeed('1.0.0', JSON.stringify({ version: '1.0.1-beta1' }))).toBe(false)
   })
 
   it('prints the feeds a tag writes, one per line', () => {
@@ -125,7 +138,7 @@ describe('feed order', () => {
         encoding: 'utf8',
       })
     expect(feeds('v1.0.0').stdout).toBe('stable\nbeta\n')
-    expect(feeds('v1.1.0-beta.2').stdout).toBe('beta\n')
+    expect(feeds('v1.0.1-beta2').stdout).toBe('beta\n')
     const bad = feeds('v1.0')
     expect(bad.status).toBe(1)
     expect(bad.stderr).toContain('E_RELEASE_TAG_INVALID')
@@ -134,16 +147,16 @@ describe('feed order', () => {
 
 describe('update feed', () => {
   const input = {
-    version: '0.3.0-beta.2',
+    version: '0.9.1-beta2',
     notes: '- #166 Automatic updates\n',
     date: new Date(Date.UTC(2026, 9, 18, 9)),
-    url: 'https://github.com/jma49/devot/releases/download/v0.3.0-beta.2/Devot.app.tar.gz',
+    url: 'https://github.com/jma49/devot/releases/download/v0.9.1-beta2/Devot.app.tar.gz',
     signature: 'dW50cnVzdGVkIGNvbW1lbnQ6\n',
   }
 
   it('lists the Apple Silicon bundle in the format the updater reads', () => {
     expect(updateFeed(input)).toEqual({
-      version: '0.3.0-beta.2',
+      version: '0.9.1-beta2',
       notes: '- #166 Automatic updates',
       pub_date: '2026-10-18T09:00:00.000Z',
       platforms: {
@@ -173,7 +186,7 @@ describe('update feed', () => {
       [
         join(root, 'scripts/release/release.ts'),
         'feed',
-        'v0.3.0-beta.2',
+        'v0.9.1-beta2',
         input.url,
         sig,
         notes,
@@ -184,7 +197,7 @@ describe('update feed', () => {
     expect(run.stderr).toBe('')
     expect(run.status).toBe(0)
     const feed = JSON.parse(readFileSync(out, 'utf8')) as ReturnType<typeof updateFeed>
-    expect(feed.version).toBe('0.3.0-beta.2')
+    expect(feed.version).toBe('0.9.1-beta2')
     expect(feed.platforms['darwin-aarch64'].url).toBe(input.url)
     const bad = spawnSync(
       process.execPath,

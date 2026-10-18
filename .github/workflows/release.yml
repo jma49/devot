@@ -1,6 +1,6 @@
 name: Release
 
-# Pushing a release tag (vMAJOR.MINOR.PATCH-beta.N, see docs/releasing.md)
+# Pushing a release tag (vMAJOR.MINOR.PATCH-betaN, see docs/releasing.md)
 # builds Devot for Apple Silicon, ad-hoc signed, with the updater bundle
 # signed by the updater key; publishes a new release for the tag (a
 # prerelease for a beta) with the dmg and the updater bundle; then points
