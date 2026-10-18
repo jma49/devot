@@ -10,19 +10,11 @@ import type { Completion, CompletionContext, CompletionResult } from '@codemirro
 import { startCompletion } from '@codemirror/autocomplete'
 import { indentUnit, syntaxTree } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
-import {
-  Prec,
-  RangeSetBuilder,
-  StateField,
-  type EditorState,
-  type Extension,
-  type RangeSet,
-} from '@codemirror/state'
+import { Prec, RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state'
 import {
   Decoration,
   EditorView,
   GutterMarker,
-  gutterLineClass,
   keymap,
   ViewPlugin,
   WidgetType,
@@ -37,6 +29,7 @@ import { iconElement } from '../icons/Icon'
 import { blockUnit, codeStyle, nextLine } from './codeIndent'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
 import { barsMayShow } from './barRules'
+import { markerField, type MarkerScan } from './gutterMarkers'
 import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
 import { fadeIn, motionKeyframes } from './motion'
 import { withLook } from './popupLook'
@@ -225,12 +218,22 @@ export function copyBlock(state: EditorState): SyntaxNode | null {
   return block
 }
 
-function decorations(view: EditorView): DecorationSet {
-  const { state } = view
+/**
+ * The decorations of the blocks in `ranges` (the view's visible ranges). A
+ * fold or a line gap splits the ranges around a block, so two can share it:
+ * each block is decorated once.
+ */
+export function blockDecorations(
+  state: EditorState,
+  ranges: readonly { from: number; to: number }[],
+): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>()
   const active = copyBlock(state)
-  for (const { from, to } of view.visibleRanges) {
+  const seen = new Set<number>()
+  for (const { from, to } of ranges) {
     for (const block of fencedBlocks(state, from, to)) {
+      if (seen.has(block.from)) continue
+      seen.add(block.from)
       const { first, last, closed } = blockLines(state, block)
       const marks: { from: number; to: number; deco: Decoration }[] = []
       for (const mark of block.getChildren('CodeMark'))
@@ -264,6 +267,10 @@ function decorations(view: EditorView): DecorationSet {
   return builder.finish()
 }
 
+function decorations(view: EditorView): DecorationSet {
+  return blockDecorations(view.state, view.visibleRanges)
+}
+
 const boxes = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet
@@ -293,23 +300,14 @@ class FirstLineGutter extends GutterMarker {
 }
 const firstLineGutter = new FirstLineGutter()
 
-function firstLines(state: EditorState): RangeSet<GutterMarker> {
-  const builder = new RangeSetBuilder<GutterMarker>()
-  for (const block of fencedBlocks(state, 0, state.doc.length)) {
-    const { from } = state.doc.lineAt(block.from)
-    builder.add(from, from, firstLineGutter)
+const scanFirstLines: MarkerScan = (state, from, to, mark, touch) => {
+  for (const block of fencedBlocks(state, from, to)) {
+    touch(block.from, block.to)
+    mark(state.doc.lineAt(block.from).from, firstLineGutter)
   }
-  return builder.finish()
 }
 
-const gutterLines = StateField.define<RangeSet<GutterMarker>>({
-  create: firstLines,
-  update: (value, tr) =>
-    tr.docChanged || syntaxTree(tr.state) !== syntaxTree(tr.startState)
-      ? firstLines(tr.state)
-      : value,
-  provide: (field) => gutterLineClass.from(field),
-})
+const gutterLines = markerField(scanFirstLines)
 
 // Languages
 
@@ -457,11 +455,15 @@ function inBlockText(state: EditorState): BlockText | null {
   if (close && line.number > last) return null
   const openLine = doc.lineAt(open.from)
   const prefix = openLine.text.slice(0, open.from - openLine.from).replace(/[^>\s]/g, ' ')
+  const body = line.number > openLine.number
+  // Left of a body line's container prefix, the default command applies: the
+  // caret is outside the block's text.
+  if (body && main.head - line.from < prefix.length) return null
   const info = state.sliceDoc(open.to, openLine.to)
   const lines: string[] = []
   for (let n = openLine.number + 1; n <= last; n++)
     lines.push(doc.line(n).text.slice(prefix.length))
-  return { pos: main.head, prefix, body: line.number > openLine.number, info, lines }
+  return { pos: main.head, prefix, body, info, lines }
 }
 
 /** The indent unit in a block: its own, else its language's, else the editor's. */

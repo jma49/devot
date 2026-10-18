@@ -5,6 +5,7 @@ import { gutterLineClass } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import {
   blockAt,
+  blockDecorations,
   codeBlockLines,
   codeBlocks,
   codeReturn,
@@ -217,5 +218,48 @@ describe('typing in a block', () => {
   it('inserts the indent unit at the cursor on Tab', () => {
     expect(run('```\na^b\n```', codeTab)).toBe('```\na  ^b\n```')
     expect(run('```^\n```', codeTab)).toBeNull()
+  })
+})
+
+describe('a block split by a fold or a line gap', () => {
+  /** The line decorations of the block's lines when the view shows `ranges`. */
+  const lineDecos = (doc: string, ranges: { from: number; to: number }[]) => {
+    const found: number[] = []
+    for (let c = blockDecorations(state(doc), ranges).iter(); c.value; c.next())
+      if (c.from === c.to && c.value.spec.class?.includes('cm-codeblock')) found.push(c.from)
+    return found
+  }
+
+  it('decorates each line once when two visible ranges share the block', () => {
+    const doc = 'a\n\n```js\nx\ny\n```\n\nb'
+    // Folded: the view shows up to the end of the opening line, then from the block's end.
+    const fold = [
+      { from: 0, to: 8 },
+      { from: 16, to: doc.length },
+    ]
+    expect(lineDecos(doc, fold)).toEqual([3, 9, 11, 13])
+    expect(lineDecos(doc, [{ from: 0, to: doc.length }])).toEqual([3, 9, 11, 13])
+  })
+})
+
+describe('Return and Tab in the prefix of a nested block line', () => {
+  const run = (marked: string, command: typeof codeReturn) => {
+    const s = state(marked)
+    return command(s)
+  }
+
+  it('leave the default command to a caret left of the quote marker or the item indent', () => {
+    expect(run('> ```\n^> foo\n> ```', codeReturn)).toBeNull()
+    expect(run('> ```\n^> foo\n> ```', codeTab)).toBeNull()
+    expect(run('> ```\n>^ foo\n> ```', codeReturn)).toBeNull()
+    expect(run('- a\n  ```\n^  npm i\n  ```', codeReturn)).toBeNull()
+    expect(run('- a\n  ```\n ^ npm i\n  ```', codeTab)).toBeNull()
+  })
+
+  it('still work from the first column of the block text', () => {
+    const s = state('> ```\n> ^foo\n> ```')
+    expect(show(s.update(codeReturn(s)!).state)).toBe('> ```\n> \n> ^foo\n> ```')
+    const t = state('> ```\n> ^foo\n> ```')
+    expect(show(t.update(codeTab(t)!).state)).toBe('> ```\n>   ^foo\n> ```')
   })
 })
