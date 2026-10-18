@@ -191,7 +191,7 @@ test('the table bar shows above the caret row and runs a command', async ({ page
   const row = await page.locator('.cm-line', { hasText: '| 1' }).boundingBox()
   expect(barBox!.y + barBox!.height).toBeLessThanOrEqual(row!.y + 1)
   await bar(page).getByRole('button', { name: 'Align Column Center' }).click()
-  expect(await lines(page)).toContain('| :-: | --- |')
+  expect(await lines(page)).toContain('| --- | :-: |')
   await expect(body(page)).toBeFocused()
 })
 
