@@ -74,7 +74,7 @@ function Preview({
  * Settings > Appearance: Light, Dark or Match System (the default), as
  * cards with a small preview; the theme, Default or Ivory, as cards that show
  * each in both appearances (Ivory has its own accent, so the system accent
- * option is off while it is chosen); whether the accent follows the macOS accent
+ * option is hidden while it is chosen); whether the accent follows the macOS accent
  * colour (off by default: Devot's palette); and whether the whole window shows
  * the material (on by default), and how see-through its regions are (a
  * slider from Opaque to Transparent that starts at the design washes and
@@ -159,18 +159,16 @@ export function AppearanceSection() {
           ))}
         </div>
       </SettingsSection>
-      <SettingsSection icon="settings.accent" title="appearanceSettings.accent">
-        <SettingToggle
-          label="appearanceSettings.systemAccent"
-          description="appearanceSettings.systemAccentHint"
-          note={
-            themeFollowsSystemAccent(theme) ? undefined : 'appearanceSettings.systemAccentOwnTheme'
-          }
-          disabled={!themeFollowsSystemAccent(theme)}
-          checked={systemAccent}
-          onChange={(checked) => change({ systemAccent: checked })}
-        />
-      </SettingsSection>
+      {themeFollowsSystemAccent(theme) ? (
+        <SettingsSection icon="settings.accent" title="appearanceSettings.accent">
+          <SettingToggle
+            label="appearanceSettings.systemAccent"
+            description="appearanceSettings.systemAccentHint"
+            checked={systemAccent}
+            onChange={(checked) => change({ systemAccent: checked })}
+          />
+        </SettingsSection>
+      ) : null}
       <SettingsSection icon="settings.sidebar" title="appearanceSettings.sidebar">
         <SettingToggle
           label="appearanceSettings.sidebarMaterial"
