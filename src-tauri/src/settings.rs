@@ -4,8 +4,10 @@
 //! only what its panes need: the editor settings (see `editor_settings`),
 //! the keyboard shortcuts, the Markdown mirror's setting, reading and
 //! clearing the local usage events, opening the app's data folder in Finder
-//! (`settings_open_data_folder`, which takes no path) and showing the main
-//! window's Backups dialog (`settings_show_backups`).
+//! (`settings_open_data_folder`, which takes no path), showing the main
+//! window's Backups dialog (`settings_show_backups`) and where devot-mcp
+//! and the database are, for the Integrations pane's client configs
+//! (`settings_mcp_setup`).
 
 use std::path::Path;
 use std::process::Command;
@@ -90,10 +92,76 @@ pub fn settings_show_backups(app: AppHandle) -> Result<(), String> {
         .map_err(|_| String::from("E_SETTINGS_BACKUPS_FAILED"))
 }
 
+/// What Settings > Integrations writes devot-mcp's client configs with.
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpSetup {
+    /// devot-mcp as `pnpm mcp:build` writes it in the checkout this app was
+    /// built from, when it is there; none for a build made elsewhere.
+    script: Option<String>,
+    /// The database to pass with `--db`: a debug build's only, since
+    /// devot-mcp opens the release app's by default.
+    db: Option<String>,
+}
+
+/// The setup for an app built from `checkout`, keeping its data in `data_dir`.
+fn mcp_setup(checkout: &Path, data_dir: &Path, debug: bool) -> McpSetup {
+    let script = checkout.join("dist-mcp").join("devot-mcp.mjs");
+    let text = |path: &Path| path.to_str().map(String::from);
+    McpSetup {
+        script: if script.is_file() {
+            text(&script)
+        } else {
+            None
+        },
+        db: if debug {
+            text(&data_dir.join(crate::startup::DB_FILE))
+        } else {
+            None
+        },
+    }
+}
+
+/// Settings > Integrations: where devot-mcp and the database are, for the
+/// configs the pane offers to copy. Takes no arguments.
+#[tauri::command]
+pub fn settings_mcp_setup(app: AppHandle) -> Result<McpSetup, String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| String::from("E_DATA_FOLDER_UNAVAILABLE"))?;
+    // The crate is `src-tauri` inside the checkout.
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let checkout = manifest.parent().unwrap_or(manifest);
+    Ok(mcp_setup(checkout, &data_dir, cfg!(debug_assertions)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::ffi::OsStr;
+
+    #[test]
+    fn finds_devot_mcp_in_the_checkout_and_names_a_debug_database() {
+        let checkout = tempfile::tempdir().unwrap();
+        let data = Path::new("/Users/me/Library/Application Support/io.github.jma49.devot.dev");
+        assert_eq!(
+            mcp_setup(checkout.path(), data, false),
+            McpSetup {
+                script: None,
+                db: None
+            },
+        );
+        let dist = checkout.path().join("dist-mcp");
+        std::fs::create_dir(&dist).unwrap();
+        std::fs::write(dist.join("devot-mcp.mjs"), "").unwrap();
+        let setup = mcp_setup(checkout.path(), data, true);
+        assert_eq!(setup.script.as_deref(), dist.join("devot-mcp.mjs").to_str(),);
+        assert_eq!(
+            setup.db.as_deref(),
+            Some("/Users/me/Library/Application Support/io.github.jma49.devot.dev/devot.sqlite"),
+        );
+    }
 
     #[test]
     fn opens_the_data_folder_itself_with_open() {

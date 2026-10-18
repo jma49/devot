@@ -4,6 +4,7 @@ import { t } from '../i18n'
 import { AppearanceSection } from './AppearanceSection'
 import { EditingSection } from './EditingSection'
 import { GeneralSection } from './GeneralSection'
+import { IntegrationsSection } from './IntegrationsSection'
 import { KeyboardSection } from './KeyboardSection'
 import { MirrorSection } from './MirrorSection'
 import { currentPaneStore, PANES, PANE_TABS, paneAfterKey, type PaneId } from './panes'
@@ -17,6 +18,7 @@ const SECTIONS: Readonly<Record<PaneId, () => React.JSX.Element>> = {
   appearance: AppearanceSection,
   keyboard: KeyboardSection,
   mirror: MirrorSection,
+  integrations: IntegrationsSection,
   usage: UsageSection,
 }
 

@@ -440,9 +440,16 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
      WHERE deleted_at IS NULL AND book_id IN (SELECT value FROM json_each(?))
      GROUP BY book_id`,
   )
-  const tagNames = db.prepare<[string], { name: string }>(
-    `SELECT t.name FROM note_tags nt JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+  const tagsOf = db.prepare<[string], { id: string; name: string }>(
+    `SELECT t.id, t.name FROM note_tags nt JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
      WHERE nt.note_id = ? AND nt.present = 1`,
+  )
+  const tagsInBooks = db.prepare<[string], { id: string; name: string; notes: number }>(
+    `SELECT t.id, t.name, count(*) AS notes FROM notes n
+     JOIN note_tags nt ON nt.note_id = n.id AND nt.present = 1
+     JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+     WHERE n.deleted_at IS NULL AND n.book_id IN (SELECT value FROM json_each(?))
+     GROUP BY t.id`,
   )
   const list = db.prepare<[], SummaryRow>(LIST_SQL.notes)
   const get = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL')
@@ -687,7 +694,8 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
           ).map((row) => ({ ...toSummary(row), bodyMd: bodyOf(row.id) })),
     countNotesInBooks: async (bookIds) =>
       new Map(countInBooks.all(JSON.stringify(bookIds)).map((r) => [r.bookId, r.notes])),
-    noteTagNames: async (noteId) => tagNames.all(noteId).map((r) => r.name),
+    noteTags: async (noteId) => tagsOf.all(noteId),
+    tagsInBooks: async (bookIds) => tagsInBooks.all(JSON.stringify(bookIds)),
     async putFile(meta, data) {
       const mime = checkUpload(meta, data)
       // The note's check and the file in one transaction, as the Rust store's.

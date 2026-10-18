@@ -125,6 +125,7 @@ pub fn run() {
             usage::usage_clear,
             settings::settings_open_data_folder,
             settings::settings_show_backups,
+            settings::settings_mcp_setup,
             editor_settings::editor_settings_get,
             editor_settings::editor_settings_set,
             fonts::font_import,

@@ -1,4 +1,30 @@
-import { defineConfig } from 'vite'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { defineConfig, type Plugin } from 'vite'
+import { npmManifest, npmReadme, type RootPackage } from './src/mcp/npmPackage'
+
+/**
+ * Writes the npm package's manifest, README and licence beside the bundle,
+ * so the output folder is the devot-mcp package (see src/mcp/npmPackage.ts).
+ */
+function npmPackage(): Plugin {
+  return {
+    name: 'devot-mcp-package',
+    generateBundle() {
+      const root = JSON.parse(
+        readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf8'),
+      ) as RootPackage
+      const files = {
+        'package.json': `${JSON.stringify(npmManifest(root), null, 2)}\n`,
+        'README.md': npmReadme(),
+        LICENSE: readFileSync(resolve(import.meta.dirname, 'LICENSE'), 'utf8'),
+      }
+      for (const [fileName, source] of Object.entries(files)) {
+        this.emitFile({ type: 'asset', fileName, source })
+      }
+    },
+  }
+}
 
 // devot-mcp: one ES module for Node, run as `node dist-mcp/devot-mcp.mjs`.
 // Everything is bundled (the core, Yjs, the MCP SDK, the migrations) except
@@ -8,6 +34,7 @@ export default defineConfig({
   publicDir: false,
   clearScreen: false,
   logLevel: 'warn',
+  plugins: [npmPackage()],
   ssr: { noExternal: true, external: ['better-sqlite3'] },
   build: {
     ssr: 'src/mcp/main.ts',

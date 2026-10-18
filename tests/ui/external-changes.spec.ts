@@ -199,3 +199,50 @@ test('typing saved before the window hears of an outside write keeps both', asyn
   await signalChange(page)
   await expect(body).toHaveText('From Claude. Typed here. More.')
 })
+
+/** The text selected in the page (the editor's selection while it has focus). */
+const selectedText = (page: Page) =>
+  page.evaluate(() => String((globalThis as unknown as { getSelection(): unknown }).getSelection()))
+
+test('an outside edit to the open note keeps the caret, the selection and undo', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  const body = page.getByRole('textbox', { name: 'Note body' })
+  await page.getByRole('textbox', { name: 'Title' }).fill('Shared')
+  await body.click()
+  await page.keyboard.type('Alpha Beta Gamma')
+  await expect.poll(async () => (await storedNotes(page))[0]?.bodyMd).toBe('Alpha Beta Gamma')
+  const [{ id }] = (await storedNotes(page)) as [StoredNote]
+  // Select "Beta", in the middle of the text.
+  await page.keyboard.press('End')
+  for (let i = 0; i < ' Gamma'.length; i += 1) await page.keyboard.press('ArrowLeft')
+  for (let i = 0; i < 'Beta'.length; i += 1) await page.keyboard.press('Shift+ArrowLeft')
+  await expect.poll(() => selectedText(page)).toBe('Beta')
+
+  // devot-mcp's update_note: text lands before and after the selection.
+  await editOutside(page, id, (doc) => {
+    const text = doc.getText('body')
+    text.insert(text.length, ' End.')
+    text.insert(0, 'Start. ')
+  })
+  await signalChange(page)
+  await expect(body).toHaveText('Start. Alpha Beta Gamma End.')
+  // The selection moved with its text and the editor kept focus.
+  await expect(body).toBeFocused()
+  expect(await selectedText(page)).toBe('Beta')
+  await settle(page)
+
+  // Typing replaces the selection where it is now.
+  await page.keyboard.type('X')
+  await expect(body).toHaveText('Start. Alpha X Gamma End.')
+  // Undo takes back only the typing: the outside text stays, the selection returns.
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(body).toHaveText('Start. Alpha Beta Gamma End.')
+  await expect
+    .poll(async () => (await storedNotes(page))[0]?.bodyMd)
+    .toBe('Start. Alpha Beta Gamma End.')
+  // Undo never takes back the outside edit.
+  for (let i = 0; i < 20; i += 1) await page.keyboard.press('ControlOrMeta+z')
+  await expect.poll(async () => (await storedNotes(page))[0]?.bodyMd).toBe('Start.  End.')
+})

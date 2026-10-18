@@ -60,6 +60,7 @@ describe('navigation keys', () => {
       'appearance',
       'keyboard',
       'mirror',
+      'integrations',
       'usage',
     ])
   })

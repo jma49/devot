@@ -182,10 +182,11 @@ test('a navigation column of panes on the left, General first', async ({ page })
     'Appearance',
     'Keyboard',
     'Mirror',
+    'Integrations',
     'Usage',
   ])
   // Each row shows its symbol on the right of its name.
-  await expect(tabs(page).locator('[data-symbol]')).toHaveCount(7)
+  await expect(tabs(page).locator('[data-symbol]')).toHaveCount(8)
   await expect(tabs(page)).toHaveCSS('width', '155px')
   await expect(tabs(page)).toHaveAttribute('aria-orientation', 'vertical')
   await expect(tab(page, 'General')).toHaveAttribute('aria-selected', 'true')
@@ -264,6 +265,51 @@ test('General opens the data folder and the Backups dialog', async ({ page }) =>
   ])
   expect(await calls(page, 'settings_show_backups')).toHaveLength(1)
   await expect(general.getByRole('alert')).toHaveCount(0)
+})
+
+test('Integrations offers devot-mcp configs to copy for each client', async ({ page }) => {
+  const script = '/Users/me/Code/devot/dist-mcp/devot-mcp.mjs'
+  const db = '/Users/me/Library/Application Support/io.github.jma49.devot.dev/devot.sqlite'
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = { settings_mcp_setup: setup }
+    },
+    { script, db },
+  )
+  await openSettings(page, 'Integrations')
+  const claude = page.getByRole('region', { name: 'Claude Code' })
+  const command = `claude mcp add --scope user devot -- node ${script} --db '${db}'`
+  await expect(claude.locator('code')).toHaveText(command)
+  await expect(page.getByRole('region', { name: 'Codex' })).toContainText('[mcp_servers.devot]')
+  await expect(page.getByRole('region', { name: 'Other MCP Clients' })).toContainText(
+    '"mcpServers"',
+  )
+  await expect(page.getByRole('tabpanel')).toContainText('from the Devot checkout')
+
+  await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
+  await expect(page.getByRole('tabpanel').getByRole('status')).toHaveText(
+    'The Claude Code configuration was copied.',
+  )
+  expect(await calls(page, 'clipboard_write_text')).toEqual([
+    { cmd: 'clipboard_write_text', args: { text: command } },
+  ])
+  // The command takes no arguments.
+  expect(await calls(page, 'settings_mcp_setup')).toEqual([{ cmd: 'settings_mcp_setup', args: {} }])
+})
+
+test('Integrations shows a path to replace when devot-mcp is not beside this build', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { settings_mcp_setup: { script: null, db: null } }
+  })
+  await openSettings(page, 'Integrations')
+  await expect(page.getByRole('tabpanel')).toContainText('pnpm mcp:build')
+  await expect(page.getByRole('region', { name: 'Codex' })).toContainText(
+    'args = ["/path/to/devot/dist-mcp/devot-mcp.mjs"]',
+  )
 })
 
 test('General says when the data folder cannot be opened', async ({ page }) => {

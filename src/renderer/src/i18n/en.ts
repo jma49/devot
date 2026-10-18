@@ -305,6 +305,7 @@ export const en = {
   'settings.pane.appearance': 'Appearance',
   'settings.pane.keyboard': 'Keyboard',
   'settings.pane.mirror': 'Mirror',
+  'settings.pane.integrations': 'Integrations',
   'settings.pane.usage': 'Usage',
   'generalSettings.title': 'General',
   'generalSettings.defaults': 'Defaults',
@@ -481,6 +482,25 @@ export const en = {
   'mirror.keptOne': 'A file edited outside Devot was kept under a new name: {files}.',
   'mirror.keptOther': '{count} files edited outside Devot were kept under new names: {files}.',
   'mirror.keptMore': '{count} more',
+  'integrations.title': 'Integrations',
+  'integrations.detail':
+    'devot-mcp lets Claude Code, Codex and other MCP clients search, read, create, edit and trash your notes. It sees only notebooks with Allow AI Access on, and Devot keeps the text from before each edit in the note\u2019s Revision History. It runs with Node, whether Devot is open or not.',
+  'integrations.script':
+    'These configs run devot-mcp from the Devot checkout this app was built from.',
+  'integrations.noScript':
+    'Build devot-mcp in a Devot checkout (pnpm install, then pnpm mcp:build), and put the path of its dist-mcp/devot-mcp.mjs in place of the one below.',
+  'integrations.setupFailed': 'Where devot-mcp is could not be found out ({code}).',
+  'integrations.claudeCode': 'Claude Code',
+  'integrations.claudeCodeHint': 'Run this command in Terminal.',
+  'integrations.codex': 'Codex',
+  'integrations.codexHint': 'Add this to ~/.codex/config.toml.',
+  'integrations.json': 'Other MCP Clients',
+  'integrations.jsonHint':
+    'Add this to the client\u2019s MCP configuration file (mcpServers). If the client cannot find node, put its full path instead (which node in Terminal prints it).',
+  'integrations.copy': 'Copy',
+  'integrations.copyLabel': 'Copy the {client} configuration',
+  'integrations.copied': 'The {client} configuration was copied.',
+  'integrations.copyFailed': 'The configuration could not be copied ({code}).',
   'usage.title': 'Usage Data',
   'usage.detail':
     'Devot keeps a record of how it is used on this Mac, such as how many notes are created and how many results a search finds. It never includes note content, titles or names, and nothing leaves this Mac.',
