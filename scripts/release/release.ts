@@ -1,7 +1,7 @@
 // The release workflow's steps (.github/workflows/release.yml, docs/releasing.md):
 //
 //   node scripts/release/release.ts set-version <tag>
-//     Checks the tag (vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-beta.N) and
+//     Checks the tag (vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-betaN) and
 //     writes its version to package.json and src-tauri/Cargo.toml; Tauri
 //     takes the app's version from Cargo. Prints the version and channel as
 //     `version=…` and `channel=…` lines (for $GITHUB_OUTPUT).
@@ -33,26 +33,34 @@ import { fileURLToPath } from 'node:url'
 
 export type Channel = 'stable' | 'beta'
 
-const TAG = /^v(\d+)\.(\d+)\.(\d+)(-beta\.(\d+))?$/
+// N is one digit: as a semver prerelease identifier `beta10` would sort
+// before `beta2`.
+const TAG = /^v(\d+)\.(\d+)\.(\d+)(-beta([1-9]))?$/
+// A version a feed may offer: a release tag's, or one from before tags
+// dropped the dot (`0.9.0-beta.1`).
+const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-beta(?:([1-9])|\.(\d+)))?$/
 
 /** The version a release tag names, without its `v`; throws for any other tag. */
 export function versionFromTag(tag: string): string {
   const match = TAG.exec(tag)
   // No leading zeros: semver refuses them, and the updater compares semver.
-  const parts = match?.slice(1, 4).concat(match[5] ?? []) ?? []
+  const parts = match?.slice(1, 4) ?? []
   if (!match || parts.some((n) => n.length > 1 && n.startsWith('0'))) {
     throw new Error(`E_RELEASE_TAG_INVALID: ${JSON.stringify(tag)}`)
   }
   return tag.slice(1)
 }
 
-/** Orders two release versions (as `versionFromTag` gives them): negative when `a` is older. */
+/**
+ * Orders two release versions (as `versionFromTag` gives them, or an older
+ * `-beta.N` one from a feed): negative when `a` is older.
+ */
 export function compareVersions(a: string, b: string): number {
   const parse = (v: string) => {
-    const tag = TAG.exec(`v${v}`)
-    if (!tag) throw new Error(`E_RELEASE_VERSION_INVALID: ${JSON.stringify(v)}`)
+    const match = VERSION.exec(v)
+    if (!match) throw new Error(`E_RELEASE_VERSION_INVALID: ${JSON.stringify(v)}`)
     // A release comes after every beta of the same version.
-    return [tag[1], tag[2], tag[3], tag[5] ?? Infinity].map(Number)
+    return [match[1], match[2], match[3], match[4] ?? match[5] ?? Infinity].map(Number)
   }
   const [x, y] = [parse(a), parse(b)]
   for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i]! < y[i]! ? -1 : 1
@@ -71,7 +79,7 @@ export function replacesFeed(version: string, feed: string): boolean {
   } catch {
     return true
   }
-  if (typeof current !== 'string' || !TAG.test(`v${current}`)) return true
+  if (typeof current !== 'string' || !VERSION.test(current)) return true
   return compareVersions(version, current) > 0
 }
 

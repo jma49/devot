@@ -4,11 +4,12 @@ Until 1.0 every build ships as a GitHub prerelease on the beta channel. A releas
 
 ## Versions and tags
 
-- Tags look like `vMAJOR.MINOR.PATCH-beta.N`, for example `v0.3.0-beta.1`.
+- Tags look like `vMAJOR.MINOR.PATCH-betaN`, for example `v0.9.1-beta1`. Stable tags (from 1.0) are `vMAJOR.MINOR.PATCH`.
 - The tag decides the version. The workflow writes it (without the leading `v`) into `package.json` and `src-tauri/Cargo.toml` before building (`scripts/release/release.ts set-version`); `tauri.conf.json` takes its version from Cargo. The committed versions stay `0.0.0`.
 - Each release gets a new tag and a new prerelease. Never replace an existing release or move an existing tag.
-- A feature batch landing on `main` raises MINOR and starts at `beta.1` (`v0.3.0-beta.1`, then `v0.4.0-beta.1`, ...).
-- A release with only fixes on top of the latest minor raises N (`v0.3.0-beta.2`, ...).
+- Every release raises PATCH and starts at `beta1` (`v0.9.1-beta1`, then `v0.9.2-beta1`, ...).
+- N goes up only for a rebuild of the same version (`v0.9.1-beta2`). It stays a single digit, 1 to 9: as a semver prerelease identifier `beta10` would sort before `beta2`, so `set-version` refuses it.
+- Releases before `v0.9.1-beta1` used `vMAJOR.MINOR.PATCH-beta.N` (the last was `v0.9.0-beta.1`). The feed comparison still reads that form, so a feed that offers one is replaced by a newer release.
 - Stable releases start at 1.0. Until then the update feed has no `stable.json` (the first stable release writes it) and only `beta.json` is published. A stable release goes in both feeds (see Update feed).
 - Apple Silicon only.
 
@@ -55,7 +56,7 @@ Only the newest beta release is kept. Never delete the `updater` release (see Up
 
 The app reads `https://github.com/jma49/devot/releases/download/updater/beta.json` (a prerelease build) or `.../stable.json` (a stable build): a release named `updater` that holds one file per channel. It is a prerelease so that it never shows as the latest release. Do not delete it: installed copies would stop finding updates.
 
-A beta install reads `beta.json`, so a stable release also goes there when it is newer than the beta it offers: the beta channel always offers the newest build of either kind (`1.0.0-beta.5` is offered `1.0.0`, but `1.1.0-beta.1` stays when `1.0.1` ships). A stable install reads only `stable.json` and never gets a beta.
+A beta install reads `beta.json`, so a stable release also goes there when it is newer than the beta it offers: the beta channel always offers the newest build of either kind (`1.0.0-beta5` is offered `1.0.0`, but `1.0.2-beta1` stays when `1.0.1` ships). A stable install reads only `stable.json` and never gets a beta.
 
 Release builds check 30 seconds after launch and then daily, and on Devot > Check for Updates…. With Settings > General > Automatically Download Updates on (the default), an update downloads in the background; then Devot offers Restart to Update, which installs it and restarts once the notes are saved. A plain quit installs nothing; the next launch finds the update again.
 
