@@ -1,6 +1,7 @@
-import { useId, useMemo } from 'react'
+import { useId } from 'react'
 import {
   APPEARANCES,
+  DEFAULT_EDITOR_SETTINGS,
   THEMES,
   WINDOW_TRANSPARENCY_MAX,
   WINDOW_TRANSPARENCY_STEP,
@@ -9,9 +10,20 @@ import {
   type ThemeChoice,
 } from '../../../core/editorSettings'
 import { useEditorSetting } from '../editorSettings'
-import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { format, t, type MessageKey } from '../i18n'
 import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
 import { useDraggedNumber } from './draggedNumber'
+
+/** What the Transparency slider says it shows: the design washes, or more or less of the desktop. */
+function transparencyText(value: number): string {
+  const design = DEFAULT_EDITOR_SETTINGS.windowTransparency
+  if (value === design) return t('appearanceSettings.windowTransparencyDefault')
+  return t(
+    value < design
+      ? 'appearanceSettings.windowTransparencyMoreOpaque'
+      : 'appearanceSettings.windowTransparencyMoreClear',
+  )
+}
 
 const CARD_LABELS: Readonly<Record<AppearanceChoice, MessageKey>> = {
   light: 'appearanceSettings.light',
@@ -65,7 +77,9 @@ function Preview({
  * option is off while it is chosen); whether the accent follows the macOS accent
  * colour (off by default: Devot's palette); and whether the whole window shows
  * the material (on by default), and how see-through its regions are (a
- * slider, applied while it is dragged; off while the material is). Off, every
+ * slider from Opaque to Transparent that starts at the design washes and
+ * applies while it is dragged, with a Reset back to them; off while the
+ * material is). Off, every
  * region paints an opaque surface and the main window drops its effect
  * (sidebarMaterial.ts). Every
  * change applies at once, without a restart. The settings are stored with
@@ -82,8 +96,6 @@ export function AppearanceSection() {
     stored: useEditorSetting('windowTransparency'),
     store: (windowTransparency) => change({ windowTransparency }),
   })
-  const locale = currentLocale()
-  const percent = useMemo(() => new Intl.NumberFormat(locale, { style: 'percent' }), [locale])
 
   return (
     <section className="settings-section" aria-labelledby="appearance-title">
@@ -173,25 +185,45 @@ export function AppearanceSection() {
           descriptionId={`${id}-transparency-hint`}
         >
           <div className="setting-range">
+            <span className="setting-range-end" aria-hidden="true">
+              {t('appearanceSettings.windowTransparencyOpaque')}
+            </span>
             <input
               id={`${id}-transparency`}
               type="range"
-              min={0}
+              min={-WINDOW_TRANSPARENCY_MAX}
               max={WINDOW_TRANSPARENCY_MAX}
               step={WINDOW_TRANSPARENCY_STEP}
+              list={`${id}-transparency-default`}
               value={transparency.value}
               disabled={!material}
               aria-describedby={`${id}-transparency-hint`}
-              aria-valuetext={percent.format(transparency.value / 100)}
+              aria-valuetext={transparencyText(transparency.value)}
               onChange={(e) => transparency.drag(Number(e.currentTarget.value))}
               onPointerUp={transparency.release}
               onKeyUp={transparency.release}
               onBlur={transparency.release}
             />
-            <output htmlFor={`${id}-transparency`} className="setting-range-value">
-              {percent.format(transparency.value / 100)}
-            </output>
+            {/* A tick at the design washes, where the thumb starts. */}
+            <datalist id={`${id}-transparency-default`}>
+              <option value={DEFAULT_EDITOR_SETTINGS.windowTransparency} />
+            </datalist>
+            <span className="setting-range-end" aria-hidden="true">
+              {t('appearanceSettings.windowTransparencyClear')}
+            </span>
           </div>
+          {transparency.value !== DEFAULT_EDITOR_SETTINGS.windowTransparency && (
+            <button
+              type="button"
+              className="button"
+              disabled={!material}
+              onClick={() =>
+                change({ windowTransparency: DEFAULT_EDITOR_SETTINGS.windowTransparency })
+              }
+            >
+              {t('appearanceSettings.windowTransparencyReset')}
+            </button>
+          )}
         </Setting>
       </SettingsSection>
     </section>

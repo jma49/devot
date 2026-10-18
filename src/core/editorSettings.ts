@@ -77,8 +77,9 @@ export interface EditorSettings {
   /** The whole window shows the material (the key keeps its old name); off, the window is opaque. */
   sidebarMaterial: boolean
   /**
-   * How see-through the regions' washes are, 0 (opaque) to 100; 50 is the
-   * design value (Settings > Appearance > Transparency).
+   * An adjustment of the regions' washes from their design values
+   * (Settings > Appearance > Transparency): 0 is the design, -100 opaque,
+   * 100 twice as see-through.
    */
   windowTransparency: number
   pasteUrl: PasteUrlStyle
@@ -141,7 +142,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   spellCheck: true,
   highlightActiveLine: false,
   sidebarMaterial: true,
-  windowTransparency: 50,
+  windowTransparency: 0,
   pasteUrl: 'link',
   syncScroll: true,
   inlineImages: true,
@@ -229,6 +230,7 @@ const LINE_HEIGHT_MAX = 2.5
 const TAB_WIDTH_MIN = 1
 const TAB_WIDTH_MAX = 8
 export const CURSOR_SCROLL_MARGIN_MAX = 200
+/** How far the window transparency goes from the design washes, either way. */
 export const WINDOW_TRANSPARENCY_MAX = 100
 /** The Transparency slider's step. */
 export const WINDOW_TRANSPARENCY_STEP = 5
@@ -293,7 +295,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   spellCheck: isFlag,
   highlightActiveLine: isFlag,
   sidebarMaterial: isFlag,
-  windowTransparency: wholeIn(0, WINDOW_TRANSPARENCY_MAX),
+  windowTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),
   pasteUrl: oneOf(PASTE_URL_STYLES),
   syncScroll: isFlag,
   inlineImages: isFlag,

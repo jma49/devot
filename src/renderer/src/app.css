@@ -298,13 +298,11 @@ button {
   pointer-events: none;
 }
 
-/* Each region's wash over the window material. Settings > Appearance >
-   Transparency (--window-transparency, 0 to 100, set from the editor
-   settings) scales how see-through a wash is: at 50 it has the token's
-   alpha a, at 0 it is opaque, at 100 it lets twice as much through
-   (1 - (1 - a) * level / 50, clamped). */
-
-/* Sidebar: the window material shows through its wash. */
+/* Sidebar: the window material shows through its wash. Each region's wash
+   has its token's alpha a, adjusted by Settings > Appearance > Transparency
+   (--window-transparency, -100 to 100, set from the editor settings): 0
+   keeps a, -100 is opaque, 100 lets twice as much through
+   (1 - (1 - a) * (1 + level / 100), clamped). */
 .sidebar {
   position: relative;
   /* The width the user dragged its right edge to (Sidebar sets --sidebar-width). */
@@ -320,7 +318,7 @@ button {
   box-sizing: border-box;
   background: color(
     from var(--color-surface-sidebar) srgb r g b /
-      clamp(0, 1 - (1 - alpha) * var(--window-transparency, 50) / 50, 1)
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
   );
   border-right: 1px solid var(--color-line-hairline);
   font-size: var(--font-size-row);
@@ -970,7 +968,7 @@ button {
   /* The window material shows through (opaque when it is off, above). */
   background: color(
     from var(--color-surface-list-wash) srgb r g b /
-      clamp(0, 1 - (1 - alpha) * var(--window-transparency, 50) / 50, 1)
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
   );
   border-right: 1px solid var(--color-line-hairline);
 }
@@ -1345,7 +1343,7 @@ button {
   /* The window material shows through; the editor itself is transparent. */
   background: color(
     from var(--color-surface-editor-wash) srgb r g b /
-      clamp(0, 1 - (1 - alpha) * var(--window-transparency, 50) / 50, 1)
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
   );
 }
 
@@ -3375,15 +3373,13 @@ button {
   gap: var(--space-3);
 }
 
-/* The slider's value beside it, as wide for 0% as for 100%. */
-.setting-range-value {
-  min-width: 4ch;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+/* The slider's end labels, in the description's size and colour. */
+.setting-range-end {
+  font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
 }
 
-.setting-range input:disabled + .setting-range-value {
+.setting-range input:disabled ~ .setting-range-end {
   opacity: var(--opacity-disabled);
 }
 

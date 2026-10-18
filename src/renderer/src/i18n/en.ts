@@ -461,6 +461,12 @@ export const en = {
   'appearanceSettings.windowTransparency': 'Transparency',
   'appearanceSettings.windowTransparencyHint':
     'How much of the desktop shows through the sidebar, the note list and the editor.',
+  'appearanceSettings.windowTransparencyOpaque': 'Opaque',
+  'appearanceSettings.windowTransparencyClear': 'Transparent',
+  'appearanceSettings.windowTransparencyReset': 'Reset',
+  'appearanceSettings.windowTransparencyDefault': 'Default',
+  'appearanceSettings.windowTransparencyMoreOpaque': 'More opaque than the default',
+  'appearanceSettings.windowTransparencyMoreClear': 'More transparent than the default',
   'appearanceSettings.failed': 'The appearance settings could not be saved ({code}).',
   'mirror.title': 'Markdown Mirror',
   'mirror.detail':

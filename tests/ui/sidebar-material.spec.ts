@@ -348,11 +348,12 @@ test('a change that cannot be stored is reported and dropped', async ({ page }) 
 })
 
 const transparency = (page: Page) => appearance(page).getByRole('slider', { name: 'Transparency' })
+const reset = (page: Page) => appearance(page).getByRole('button', { name: 'Reset' })
 
-test('the transparency scales every wash: opaque at 0, the design value at 50, twice as clear at 100', async ({
+test('the transparency adjusts every wash: opaque at one end, the design in the middle, twice as clear at the other', async ({
   page,
 }) => {
-  await stored(page, { windowTransparency: 0 })
+  await stored(page, { windowTransparency: -100 })
   await page.goto('/')
   await expect(root(page)).toHaveAttribute('data-sidebar-material', 'on')
   await expect.poll(() => paintedBackground(sidebar(page))).toBe('rgb(255, 255, 255)')
@@ -361,25 +362,35 @@ test('the transparency scales every wash: opaque at 0, the design value at 50, t
   await expect.poll(() => paintedBackground(sidebar(page))).toBe('rgba(255, 255, 255, 0)')
   await expect.poll(() => paintedBackground(list(page))).toBe('rgba(245, 245, 244, 0.6)')
   await expect.poll(() => paintedBackground(editor(page))).toBe('rgba(255, 255, 255, 0.4)')
-  await changeEditorSettingsElsewhere(page, { windowTransparency: 50 })
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 0 })
   await expectShown(page, true)
   // Turned off, the regions are opaque whatever the transparency.
   await changeEditorSettingsElsewhere(page, { windowTransparency: 100, sidebarMaterial: false })
   await expectShown(page, false)
 })
 
-test('the Settings window sets the transparency with a slider, off while the window is opaque', async ({
+test('the Settings window adjusts the transparency with a slider and resets it, off while the window is opaque', async ({
   page,
 }) => {
   await openSettings(page, 'Appearance')
-  await expect(transparency(page)).toHaveValue('50')
-  await expect(transparency(page)).toHaveAttribute('aria-valuetext', '50%')
+  await expect(transparency(page)).toHaveValue('0')
+  await expect(transparency(page)).toHaveAttribute('aria-valuetext', 'Default')
   await expect(transparency(page)).toHaveAccessibleDescription(/shows through/)
-  await transparency(page).fill('70')
-  await expect(transparency(page)).toHaveAttribute('aria-valuetext', '70%')
+  await expect(appearance(page).getByText('Opaque', { exact: true })).toBeVisible()
+  await expect(appearance(page).getByText('Transparent', { exact: true })).toBeVisible()
+  await expect(reset(page)).toHaveCount(0)
+
+  await transparency(page).fill('40')
+  await expect(transparency(page)).toHaveAttribute('aria-valuetext', /More transparent/)
   await expect
     .poll(() => calls(page, 'editor_settings_set'))
-    .toEqual([{ patch: { windowTransparency: 70 } }])
+    .toEqual([{ patch: { windowTransparency: 40 } }])
+  await reset(page).click()
+  await expect(transparency(page)).toHaveValue('0')
+  await expect(reset(page)).toHaveCount(0)
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { windowTransparency: 40 } }, { patch: { windowTransparency: 0 } }])
 
   await translucent(page).uncheck()
   await expect(transparency(page)).toBeDisabled()
