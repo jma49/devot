@@ -241,6 +241,8 @@ export const coreApi = {
       newId,
       scan,
       source,
+      // Images an HTML file embeds are stored as pasted ones are.
+      files: mirrorStorage,
       destination,
       onProgress,
       stopped: () => stopImport,

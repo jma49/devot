@@ -261,6 +261,11 @@ describe('resolving image paths', () => {
     expect(resolveImagePath('n.md', 'bad%zz.png')).toBe('bad%zz.png')
   })
 
+  it('reads a backslash as part of a name (an ordinary file name character)', () => {
+    expect(resolveImagePath('C\\C++/n.md', 'shots\\one.png')).toBe('C\\C++/shots\\one.png')
+    expect(resolveImagePath('n.md', '..\\a.png')).toBe('..\\a.png')
+  })
+
   it('refuses paths outside the folder, remote URLs and empty ones', () => {
     expect(resolveImagePath('Projects/plan.md', '../../a.png')).toBeNull()
     expect(resolveImagePath('plan.md', '..')).toBeNull()

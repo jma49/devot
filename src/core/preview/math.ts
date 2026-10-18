@@ -18,7 +18,14 @@ export async function loadMathEngine(): Promise<MathEngine> {
   ])
   return {
     render: (tex, display) =>
-      temml.renderToString(tex, { displayMode: display, throwOnError: true, trust: false }),
+      // `annotate` keeps the TeX in the MathML (shown by no browser), so an
+      // exported page imports as math again (htmlImport.ts).
+      temml.renderToString(tex, {
+        displayMode: display,
+        throwOnError: true,
+        trust: false,
+        annotate: true,
+      }),
     parse: (html) => fromHtml(html, { fragment: true }),
   }
 }
@@ -91,6 +98,8 @@ const MATHML_ATTRIBUTES = new Set([
   'encoding',
 ])
 const SAFE_VALUE = /^[\w .,%#+-]*$/
+/** The encoding of the TeX source annotation (it has a `/`, which SAFE_VALUE refuses). */
+const TEX_ENCODING = 'application/x-tex'
 
 /** Keeps only allowlisted MathML elements and attributes; no styles, no links. */
 function cleanMath(node: RootContent): ElementContent[] {
@@ -100,7 +109,10 @@ function cleanMath(node: RootContent): ElementContent[] {
   const properties: Properties = {}
   for (const [key, value] of Object.entries(node.properties)) {
     const name = key.toLowerCase()
-    if (MATHML_ATTRIBUTES.has(name) && SAFE_VALUE.test(String(value))) properties[name] = value
+    if (!MATHML_ATTRIBUTES.has(name)) continue
+    if (SAFE_VALUE.test(String(value)) || (name === 'encoding' && value === TEX_ENCODING)) {
+      properties[name] = value
+    }
   }
   return [{ ...node, properties, children: node.children.flatMap(cleanMath) }]
 }

@@ -19,6 +19,7 @@ const REASONS: Record<string, MessageKey> = {
   E_IMPORT_ROOT_INVALID: 'import.reason.folderInvalid',
   E_IMPORT_LINK_HIDDEN: 'import.reason.linkHidden',
   E_IMPORT_IMAGE_UNLOCATED: 'import.reason.unlocated',
+  E_IMPORT_HTML_CONTENT_DROPPED: 'import.reason.htmlDropped',
   E_IMPORT_INCOMPLETE: 'import.reason.incomplete',
   E_IMPORT_SESSION: 'import.reason.session',
   E_IMPORT_STOPPED: 'import.reason.stopped',

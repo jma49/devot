@@ -61,6 +61,7 @@
     "highlight.js": "11.11.1",
     "lowlight": "3.3.0",
     "mdast-util-gfm": "3.1.0",
+    "mdast-util-math": "3.0.0",
     "mdast-util-to-markdown": "2.2.0",
     "mermaid": "12.1.0",
     "property-information": "7.2.0",

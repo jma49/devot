@@ -24,6 +24,10 @@
 //   keeps the heading.
 // - An HTML file (`.html`, `.htm`) is sanitized and converted to Markdown
 //   (htmlImport.ts) first; from there it imports as a Markdown file does.
+//   The images it embeds as `data:` URIs become attachments too; what the
+//   conversion left out (inline SVG, say) is listed as not imported
+//   (E_IMPORT_HTML_CONTENT_DROPPED), as is an embedded image that could not
+//   be stored (its link is left empty).
 // - Local images (`![](path)`, reference definitions that images use, and
 //   the `src` of an `<img>` in raw HTML) become attachments, and only their
 //   destinations are rewritten to `devot://file/<id>`, keeping a size preset
@@ -53,12 +57,12 @@ import { htmlToMarkdown } from './htmlImport'
 import { folderOf, isHtmlFile, noteFolder } from './importTree'
 import { MAX_BOOK_NAME_CHARS, type BookService } from './books'
 import { errorCode } from './errors'
-import { fileUri } from './files'
+import { checkUpload, fileUri } from './files'
 import { splitImageSize, withImageSize } from './images'
 import { clipTitle, MAX_TITLE_CHARS } from './noteLimits'
 import type { NoteService } from './notes'
 import { statusFromName } from './search'
-import type { NoteStatus } from './storage'
+import type { NoteStatus, StorageAdapter } from './storage'
 import type { TagService } from './tags'
 import { MAX_TAG_NAME_CHARS } from './tags'
 import { charCount, lineFeeds, replaceRanges, trimWhitespace, type TextEdit } from './text'
@@ -131,6 +135,11 @@ export interface ImportOptions {
   newId: () => string
   scan: ImportScan
   source: ImportSource
+  /**
+   * Stores the images an HTML file embeds as `data:` URIs; without it they
+   * are listed as not imported.
+   */
+  files?: Pick<StorageAdapter, 'putFile'> | undefined
   /** The notebook the notes (and the notebooks made for folders) go into; null or left out for none. */
   destination?: string | null
   /** Called before the first file and after each one. */
@@ -847,8 +856,7 @@ function resolve(notePath: string, url: string): Resolved {
     /^[a-z][a-z0-9+.-]*:/i.test(url) ||
     url.startsWith('//') ||
     url.startsWith('#') ||
-    url.startsWith('?') ||
-    url.includes('\\')
+    url.startsWith('?')
   ) {
     return { kind: 'remote' }
   }
@@ -883,13 +891,23 @@ export function resolveImagePath(notePath: string, url: string): string | null {
 
 // --- Import -----------------------------------------------------------------
 
+/** The file name extension of an image an HTML file embeds, by its type. */
+const EXTENSIONS: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+  'image/heic': 'heic',
+}
+
 function bookName(name: string): string {
   return clip(oneLine(name.replace(/\p{Cc}/gu, ' ')), MAX_BOOK_NAME_CHARS) || '_'
 }
 
 /** Imports a scan (see the rules at the top of this file). */
 export async function importMarkdown(options: ImportOptions): Promise<ImportReport> {
-  const { notes, books, tags, newId, scan, source, onProgress, stopped } = options
+  const { notes, books, tags, newId, scan, source, onProgress, stopped, files: store } = options
   const destination = options.destination ?? null
   const problems: ImportProblem[] = [...scan.skipped]
   // Notebooks are made when their first note is imported; `made` collects
@@ -919,18 +937,45 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
     let id: string | undefined
     let stored = 0
     const made: string[] = []
+    // What a file's import found wrong in it (images, content left out),
+    // listed once the file is in; a file that fails is listed for that only.
+    const found: ImportProblem[] = []
     try {
       const raw = lineFeeds(await source.read(path))
-      const html = isHtmlFile(path) ? htmlToMarkdown(raw) : null
+      const html = isHtmlFile(path) ? htmlToMarkdown(raw, store ? newId : undefined) : null
       // Front matter export added is not part of the note; other front
       // matter is the note's own text.
       const own = ownMeta(html ? html.markdown : raw)
-      const text = own.body
-      const tree = parse(text)
+      let text = own.body
+      let tree = parse(text)
       const meta = own.meta
       const title = own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, path))
       id = await notes.create(title, await folder(noteFolder(scan.kind, path), made))
       const noteId = id
+      for (const dropped of html?.dropped ?? []) {
+        found.push({ path, image: dropped, code: 'E_IMPORT_HTML_CONTENT_DROPPED' })
+      }
+      if (html && store) {
+        let refused = false
+        for (const image of html.images) {
+          const file = { id: image.id, noteId, name: `image.${EXTENSIONS[image.mime] ?? 'png'}` }
+          try {
+            checkUpload(file, image.data)
+            await store.putFile(file, image.data)
+            stored += 1
+          } catch (error) {
+            // The link would show nothing: it is left empty, and listed.
+            text = text.replaceAll(fileUri(image.id), '')
+            refused = true
+            found.push({
+              path,
+              image: `data:${image.mime}`,
+              code: errorCode(error, 'E_IMPORT_FAILED'),
+            })
+          }
+        }
+        if (refused) tree = parse(text)
+      }
 
       // Each image once per note; its links all point at the one attachment.
       const files = new Map<string, string | null>()
@@ -941,16 +986,16 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       for (const url of images.unlocated) {
         const target = resolve(path, url)
         if (target.kind === 'outside') {
-          problems.push({ path, image: url, code: 'E_IMPORT_PATH_OUTSIDE' })
+          found.push({ path, image: url, code: 'E_IMPORT_PATH_OUTSIDE' })
         } else if (target.kind === 'path') {
-          problems.push({ path, image: target.path, code: 'E_IMPORT_IMAGE_UNLOCATED' })
+          found.push({ path, image: target.path, code: 'E_IMPORT_IMAGE_UNLOCATED' })
         }
       }
       for (const link of images.links) {
         const target = resolve(path, link.url)
         if (target.kind === 'remote') continue
         if (target.kind === 'outside') {
-          problems.push({ path, image: link.url, code: 'E_IMPORT_PATH_OUTSIDE' })
+          found.push({ path, image: link.url, code: 'E_IMPORT_PATH_OUTSIDE' })
           continue
         }
         if (!files.has(target.path)) {
@@ -961,7 +1006,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
             stored += 1
           } catch (error) {
             files.set(target.path, null)
-            problems.push({ path, image: target.path, code: errorCode(error, 'E_IMPORT_FAILED') })
+            found.push({ path, image: target.path, code: errorCode(error, 'E_IMPORT_FAILED') })
           }
         }
         const fileId = files.get(target.path)
@@ -978,6 +1023,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       await notes.release(noteId)
       imported += 1
       attachments += stored
+      problems.push(...found)
     } catch (error) {
       problems.push({ path, code: errorCode(error, 'E_IMPORT_FAILED') })
       if (!(await discard(id, made))) problems.push({ path, code: 'E_IMPORT_INCOMPLETE' })
