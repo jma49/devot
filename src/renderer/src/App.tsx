@@ -126,6 +126,7 @@ import {
   type ListView,
 } from './listUpdates'
 import { useNoteActions } from './noteActions'
+import { useTrashMenu } from './trashMenu'
 import {
   NOTE_COMMANDS,
   SELECTION_ONLY,
@@ -2395,6 +2396,10 @@ export function App() {
   })
   // aria-disabled, not disabled: a disabled button would drop the keyboard
   // when the Trash is emptied from it.
+  const showTrashMenu = useTrashMenu((action, target) => void trashAction(action, target.id))
+  const trashRowMenu = useStable(
+    (id: string) => void showTrashMenu({ id, count: multiIds?.includes(id) ? multiIds.length : 1 }),
+  )
   const emptyTrashButton = useMemo(
     () => (
       <button
@@ -2459,6 +2464,11 @@ export function App() {
   )
   const sidebarSearchBooks = useStable(() => openPalette('book'))
   const sidebarSearchTags = useStable(() => openPalette('tag'))
+  const sidebarNewNote = useStable(() => {
+    // As New Note does: a new note goes to the library, not the Trash.
+    if (inTrash) showLibrary({ kind: 'all' })
+    void create()
+  })
   const sidebarDeleteTag = useStable((id: string) =>
     setConfirm({
       kind: 'tag',
@@ -2515,6 +2525,8 @@ export function App() {
         onHide={toggleSidebarNow}
         onSearchBooks={sidebarSearchBooks}
         onSearchTags={sidebarSearchTags}
+        onEmptyTrash={askEmptyTrash}
+        onNewNote={core ? sidebarNewNote : undefined}
       />
       {searching ? (
         <NoteList
@@ -2565,6 +2577,7 @@ export function App() {
           drag={false}
           onFind={findEverywhere}
           onTrashAction={trashKey}
+          onMenu={trashRowMenu}
           leading={showSidebarButton}
           headerAction={emptyTrashButton}
         />

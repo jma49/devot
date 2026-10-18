@@ -28,6 +28,16 @@ import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
 import { copyText } from './noteMenu'
+import {
+  ALL_NOTES_MENU,
+  FILTER_ROW_MENU,
+  TRASH_ROW_MENU,
+  type AllNotesAction,
+  type FilterRowAction,
+  type FilterRowTarget,
+  type TrashRowAction,
+  type TrashRowTarget,
+} from './sourceMenu'
 import { TAG_MENU, colorOfAction, tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
 import { MoveBookDialog } from './MoveBookDialog'
 import { SidebarFooter } from './SidebarFooter'
@@ -169,6 +179,10 @@ interface Props {
   onSearchBooks: () => void
   /** Opens the command palette scoped to tags (the Tags header's search button). */
   onSearchTags: () => void
+  /** Asks to empty the Trash (the Trash row's menu). */
+  onEmptyTrash: () => void
+  /** Makes a new note (the All Notes row's menu); absent while the library is not open. */
+  onNewNote?: (() => void) | undefined
   /** Where the collapsed sections are kept; this window's local storage by default. */
   sectionStore?: SectionStore
 }
@@ -356,6 +370,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
 
   // The tag whose context menu is open: outlined.
   const [tagMenuTarget, setTagMenuTarget] = useState<string>()
+  // The fixed row (its row key) whose context menu is open: outlined.
+  const [rowMenuTarget, setRowMenuTarget] = useState<string>()
   // The status, tag or Trash row notes are dragged over (its row key).
   const [noteDrop, setNoteDrop] = useState<string>()
 
@@ -430,25 +446,17 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         type="button"
         {...rowProps(key)}
         {...drop.handlers}
-        className={`source filter${extra ? ` ${extra}` : ''}${drop.className}`}
+        className={`source filter${extra ? ` ${extra}` : ''}${drop.className}${rowMenuTarget === key ? ' menu-target' : ''}`}
         aria-pressed={sameFilter(props.filter, filter)}
         onClick={() => props.onFilter(sameFilter(props.filter, filter) ? null : filter)}
-        onMouseDown={
-          tag
-            ? (e) => {
-                // A right-click (or Control-click) leaves the keyboard where it was.
-                if (e.button === 2 || e.ctrlKey) e.preventDefault()
-              }
-            : undefined
-        }
-        onContextMenu={
-          tag
-            ? (e) => {
-                e.preventDefault()
-                tag.onMenu()
-              }
-            : undefined
-        }
+        onMouseDown={keepFocusOnMenu}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          if (tag) tag.onMenu()
+          else if (filter.kind === 'pinned' || filter.kind === 'status') {
+            void openFilterRowMenu(key, filter)
+          }
+        }}
       >
         {tag ? <TagGlyph color={tag.color} /> : <Icon name={icon} size="md" />}
         <span className="source-label">{label}</span>
@@ -510,6 +518,23 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   /** Up and Down, Home and End on any row. */
   const onRowsKey = (event: KeyboardEvent) => {
     const key = event.target instanceof HTMLElement ? event.target.dataset['sidebarRow'] : undefined
+    // The row-menu key on a fixed row (the notebook and tag rows handle it themselves).
+    if (
+      key !== undefined &&
+      !event.defaultPrevented &&
+      (key === 'all' || key === 'pinned' || key === 'trash' || key.startsWith('status:')) &&
+      commandMatches('sidebar.rowMenu', event)
+    ) {
+      event.preventDefault()
+      const at = below(event.target as Element)
+      if (key === 'all') return void openAllNotesMenu(at)
+      if (key === 'trash') return void openTrashMenu(at)
+      const filter: FilterRowTarget['filter'] =
+        key === 'pinned'
+          ? { kind: 'pinned' }
+          : { kind: 'status', status: key.slice('status:'.length) as NoteStatus }
+      return void openFilterRowMenu(key, filter, at)
+    }
     if (key === undefined || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
       return
     // Left folds the Status or Tags section a row is in, and the keyboard
@@ -640,6 +665,42 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     await showTagMenu(tagTarget(tag), at)
     setTagMenuTarget((id) => (id === tag.id ? undefined : id))
   }
+
+  /** A right-click (or Control-click) on a menu row leaves the keyboard where it was. */
+  const keepFocusOnMenu = (e: { button: number; ctrlKey: boolean; preventDefault(): void }) => {
+    if (e.button === 2 || e.ctrlKey) e.preventDefault()
+  }
+  /** Shows a menu for a fixed row: the row is outlined while it is open. */
+  const withRowOutline = async (key: string, show: () => Promise<void>) => {
+    setRowMenuTarget(key)
+    await show()
+    setRowMenuTarget((open) => (open === key ? undefined : open))
+  }
+  const showTrashMenu = useContextMenu<TrashRowAction, TrashRowTarget>(
+    'trashRow',
+    TRASH_ROW_MENU,
+    () => props.onEmptyTrash(),
+  )
+  const showAllNotesMenu = useContextMenu('allNotes', ALL_NOTES_MENU, (action: AllNotesAction) => {
+    if (action === 'newNote') props.onNewNote?.()
+    else props.onSelect({ kind: 'all' }, { clearFilter: true })
+  })
+  const showFilterMenu = useContextMenu(
+    'filterRow',
+    FILTER_ROW_MENU,
+    (_: FilterRowAction, row: FilterRowTarget) => props.onFilter(row.filtered ? null : row.filter),
+  )
+  const openFilterRowMenu = (key: string, filter: FilterRowTarget['filter'], at?: MenuPoint) =>
+    withRowOutline(key, () =>
+      showFilterMenu({ filter, filtered: sameFilter(props.filter, filter) }, at),
+    )
+  const openTrashMenu = async (at?: MenuPoint) => {
+    // An empty Trash has nothing to offer.
+    if (props.trashCount === 0) return
+    await withRowOutline('trash', () => showTrashMenu({ notes: props.trashCount }, at))
+  }
+  const openAllNotesMenu = (at?: MenuPoint) =>
+    withRowOutline('all', () => showAllNotesMenu({ canCreate: props.onNewNote !== undefined }, at))
 
   const onKey = (event: KeyboardEvent, node: BookNode) => {
     if (event.target !== event.currentTarget) return
@@ -961,9 +1022,14 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           <button
             type="button"
             {...rowProps('all')}
-            className="source"
+            className={`source${rowMenuTarget === 'all' ? ' menu-target' : ''}`}
             aria-current={selection?.kind === 'all' && props.filter === null}
             onClick={() => props.onSelect({ kind: 'all' }, { clearFilter: true })}
+            onMouseDown={keepFocusOnMenu}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              void openAllNotesMenu()
+            }}
           >
             <Icon name="notes.all" size="md" />
             <span className="source-label">{t('sidebar.allNotes')}</span>
@@ -1126,9 +1192,14 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             type="button"
             {...rowProps('trash')}
             {...trashDrop.handlers}
-            className={`source${trashDrop.className}`}
+            className={`source${trashDrop.className}${rowMenuTarget === 'trash' ? ' menu-target' : ''}`}
             aria-current={selection?.kind === 'trash'}
             onClick={() => props.onSelect({ kind: 'trash' })}
+            onMouseDown={keepFocusOnMenu}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              void openTrashMenu()
+            }}
           >
             <Icon name="trash" size="md" />
             <span className="source-label">{t('sidebar.trash')}</span>

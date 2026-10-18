@@ -364,19 +364,26 @@ test('a copied link opens its note from the preview', async ({ page }) => {
   await expect(titleField(page)).toHaveValue('Target')
 })
 
-test('the Trash offers no note menu or note shortcuts', async ({ page }) => {
+test('the Trash offers only its own menu and no note shortcuts', async ({ page }) => {
   await createNote(page, 'Old')
   await focusRow(page, 'Old')
   await page.keyboard.press('Meta+Backspace')
   await page.getByRole('button', { name: /^Trash\b/ }).click()
   await expect(noteRow(page, 'Old')).toHaveCount(1)
+  // The right-click menu holds the Trash's actions only, no note items.
   await noteRow(page, 'Old').click({ button: 'right' })
+  await expect.poll(() => popups(page)).toBe(1)
+  expect(await shownMenu(page)).toEqual([
+    'Restore from Trash',
+    '---',
+    expect.stringMatching(/^Delete Permanently/),
+  ])
   await noteRow(page, 'Old').click()
   await page.keyboard.press('KeyP')
   await page.keyboard.press('Meta+KeyC')
   await page.keyboard.press('Meta+KeyD')
   await page.waitForTimeout(300)
-  expect(await popups(page)).toBe(0)
+  expect(await popups(page)).toBe(1)
   expect(await clipboardWrites(page)).toEqual([])
   expect(await stored(page)).toHaveLength(1)
 })

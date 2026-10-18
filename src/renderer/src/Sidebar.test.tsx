@@ -74,6 +74,7 @@ function render(store: SectionStore, tree: BookNode[] = [book]) {
       onHide={noop}
       onSearchBooks={noop}
       onSearchTags={noop}
+      onEmptyTrash={noop}
       sectionStore={store}
     />,
   )
