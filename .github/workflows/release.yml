@@ -117,9 +117,15 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CHANNEL: ${{ steps.version.outputs.channel }}
         run: |
-          flags=()
-          if [ "$CHANNEL" = beta ]; then flags+=(--prerelease); fi
-          gh release create "$TAG" out/* --verify-tag --title "Devot $VERSION" --notes-file notes.md "${flags[@]}"
+          # A rerun of a run that failed later finds the release made: it
+          # uploads the files again instead.
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" out/* --clobber
+          else
+            flags=()
+            if [ "$CHANNEL" = beta ]; then flags+=(--prerelease); fi
+            gh release create "$TAG" out/* --verify-tag --title "Devot $VERSION" --notes-file notes.md "${flags[@]}"
+          fi
       - name: Update the feeds
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
