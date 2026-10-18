@@ -167,6 +167,19 @@ export interface BookRecord {
   sortKey: string
   /** HLC of the last move among siblings; '' when never set. */
   sortKeyHlc: string
+  /**
+   * An SF Symbol from the notebook icon catalog (notebookIcons.ts), or null
+   * for the default icon. Storage reads a name it does not know (from a
+   * later catalog, through sync) as null.
+   */
+  icon: string | null
+  /**
+   * A palette ID the icon is drawn in, or null for the text colour. Storage
+   * reads an ID it does not know as null.
+   */
+  iconColor: TagColor | null
+  /** HLC of the last icon change (icon and colour together); '' when never set. */
+  iconHlc: string
 }
 
 /**

@@ -9,6 +9,7 @@ import type { AiStorage } from '../core/ai'
 import { checkUpload } from '../core/files'
 import { noteLinks } from '../core/links'
 import { checkNote } from '../core/noteLimits'
+import { isNotebookSymbol } from '../core/notebookIcons'
 import {
   bodyExcerpt,
   excerptTerms,
@@ -360,6 +361,9 @@ interface BookRow {
   ai_access_hlc: string
   sort_key: string
   sort_key_hlc: string
+  icon: string | null
+  icon_color: string | null
+  icon_hlc: string
 }
 
 export interface SqliteAdapter extends StorageAdapter, AiStorage {
@@ -563,9 +567,11 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   )
   const putBook = db.prepare(
     `INSERT INTO books (id, name, name_hlc, parent_id, parent_hlc, created_at, updated_at,
-                        deleted_at, deleted_hlc, ai_access, ai_access_hlc, sort_key, sort_key_hlc)
+                        deleted_at, deleted_hlc, ai_access, ai_access_hlc, sort_key, sort_key_hlc,
+                        icon, icon_color, icon_hlc)
      VALUES (@id, @name, @nameHlc, @parentId, @parentHlc, @createdAt, @updatedAt,
-             @deletedAt, @deletedHlc, @aiAccess, @aiAccessHlc, @sortKey, @sortKeyHlc)
+             @deletedAt, @deletedHlc, @aiAccess, @aiAccessHlc, @sortKey, @sortKeyHlc,
+             @icon, @iconColor, @iconHlc)
      ON CONFLICT (id) DO UPDATE SET
        name = CASE WHEN excluded.name_hlc > name_hlc THEN excluded.name ELSE name END,
        name_hlc = MAX(excluded.name_hlc, name_hlc),
@@ -574,6 +580,9 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
        ai_access = CASE WHEN excluded.ai_access_hlc > ai_access_hlc
                         THEN excluded.ai_access ELSE ai_access END,
        ai_access_hlc = MAX(excluded.ai_access_hlc, ai_access_hlc),
+       icon = CASE WHEN excluded.icon_hlc > icon_hlc THEN excluded.icon ELSE icon END,
+       icon_color = CASE WHEN excluded.icon_hlc > icon_hlc THEN excluded.icon_color ELSE icon_color END,
+       icon_hlc = MAX(excluded.icon_hlc, icon_hlc),
        -- Equal clocks (keys the core gave old notebooks on two devices):
        -- the greater key wins, so both sides end with the same one.
        sort_key = CASE WHEN excluded.sort_key_hlc > sort_key_hlc
@@ -763,6 +772,10 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         aiAccessHlc: row.ai_access_hlc,
         sortKey: row.sort_key,
         sortKeyHlc: row.sort_key_hlc,
+        // A name or palette ID from a later version reads as unset, as in Rust.
+        icon: isNotebookSymbol(row.icon) ? row.icon : null,
+        iconColor: isTagColor(row.icon_color) ? row.icon_color : null,
+        iconHlc: row.icon_hlc,
       })),
     async putBook(book) {
       putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })

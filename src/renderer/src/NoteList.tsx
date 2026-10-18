@@ -9,7 +9,6 @@ import {
   type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
-  type PointerEvent,
   type ReactNode,
   type Ref,
 } from 'react'
@@ -30,14 +29,8 @@ import {
 import { useHeadlines, type HeadlineLoader } from './headlines'
 import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
-import {
-  LIST_DEFAULT_WIDTH,
-  LIST_MAX_WIDTH,
-  LIST_MIN_WIDTH,
-  clampListWidth,
-  currentListWidthStore,
-  listWidthForKey,
-} from './listWidth'
+import { usePaneResize } from './paneResize'
+import { LIST_PANE } from './paneWidth'
 import { entryOffsets, spacerHeight, windowRuns } from './listWindow'
 import { noteShortcut, trashShortcut, type NoteAction, type TrashAction } from './noteMenu'
 import { DRAG_TEMPLATE, setNoteDragData } from './dragData'
@@ -192,37 +185,7 @@ export const NoteList = memo(function NoteList(props: Props) {
   const dates = useEditorSetting('listDates')
 
   // The width the user dragged the right edge to, saved when the drag ends.
-  const [width, setWidth] = useState(() => currentListWidthStore().read())
-  const resizing = useRef<{ x: number; width: number } | null>(null)
-  const resizeStart = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
-    e.preventDefault()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    resizing.current = { x: e.clientX, width }
-  }
-  const resizeMove = (e: PointerEvent<HTMLDivElement>) => {
-    const from = resizing.current
-    if (from) setWidth(clampListWidth(from.width + e.clientX - from.x))
-  }
-  const resizeEnd = (e: PointerEvent<HTMLDivElement>) => {
-    const from = resizing.current
-    if (!from) return
-    resizing.current = null
-    const next = clampListWidth(from.width + e.clientX - from.x)
-    setWidth(next)
-    currentListWidthStore().write(next)
-  }
-  const setWidthAndKeep = (next: number) => {
-    setWidth(next)
-    currentListWidthStore().write(next)
-  }
-  const resizeKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.metaKey || e.ctrlKey || e.altKey) return
-    const next = listWidthForKey(e.key, e.shiftKey, width)
-    if (next === undefined) return
-    e.preventDefault()
-    setWidthAndKeep(next)
-  }
+  const { width, edge } = usePaneResize(LIST_PANE)
 
   // A long list renders only the entries near the part that shows (see
   // WINDOW_FROM), placed by their measured heights; the open note's row, the
@@ -837,22 +800,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         {entries.length === 0 && props.empty ? <EmptyList kind={props.empty} /> : null}
       </ul>
       {props.after}
-      <div
-        className="list-resize"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t('noteList.resize')}
-        aria-valuenow={width}
-        aria-valuemin={LIST_MIN_WIDTH}
-        aria-valuemax={LIST_MAX_WIDTH}
-        tabIndex={0}
-        onKeyDown={resizeKey}
-        onDoubleClick={() => setWidthAndKeep(LIST_DEFAULT_WIDTH)}
-        onPointerDown={resizeStart}
-        onPointerMove={resizeMove}
-        onPointerUp={resizeEnd}
-        onPointerCancel={resizeEnd}
-      />
+      <div className="list-resize" aria-label={t('noteList.resize')} {...edge} />
     </section>
   )
 })

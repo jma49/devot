@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
 import type { BookNode } from '../../core/books'
+import type { TagColor } from '../../core/storage'
+import { BookIcon } from './BookIcon'
 import { t } from './i18n'
 import { Icon } from './icons/Icon'
 import { PickerList, usePickerOpen, type PickerOption } from './Picker'
@@ -11,6 +13,9 @@ export interface BookOption {
   depth: number
   /** The notebooks it is nested in, outermost first. */
   ancestors: string[]
+  /** Its icon (null: the default one) and the colour it is drawn in. */
+  icon: string | null
+  iconColor: TagColor | null
 }
 
 /** Notebooks in tree order; nesting shown by indentation in the menu. */
@@ -23,6 +28,8 @@ export function bookOptions(tree: BookNode[]): BookOption[] {
         name: n.name,
         depth: n.depth,
         ancestors,
+        icon: n.icon,
+        iconColor: n.iconColor,
       })
       walk(n.children, [...ancestors, n.id])
     })
@@ -73,7 +80,8 @@ export function BookPicker(props: {
   const list = bookOptions(props.tree)
   const value = currentBookOption(list, props.value)
   // A long name is cut off in the control; the tooltip has the whole name.
-  const current = list.find((o) => o.id === value)?.name ?? t('note.noBook')
+  const chosen = list.find((o) => o.id === value)
+  const current = chosen?.name ?? t('note.noBook')
   const shown = filterBooks(list, query)
   const noBook = t('note.noBook')
   const options: PickerOption[] = [
@@ -96,7 +104,7 @@ export function BookPicker(props: {
       depth: o.depth,
       content: (
         <>
-          <Icon name="notebook" size="sm" />
+          <BookIcon icon={o.icon} color={o.iconColor} size="sm" />
           <span className="picker-name">{o.name}</span>
         </>
       ),
@@ -128,7 +136,7 @@ export function BookPicker(props: {
           toggle(true)
         }}
       >
-        <Icon name="notebook" size="sm" />
+        <BookIcon icon={chosen?.icon ?? null} color={chosen?.iconColor ?? null} size="sm" />
         <span className="popup-value">{current}</span>
         <Icon name="popup.chevron" size="xs" />
       </button>

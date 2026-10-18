@@ -4,6 +4,7 @@ import type { BookNode } from '../../core/books'
 import { bookOptions, currentBookOption, filterBooks, NO_BOOK } from './BookPicker'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
+import { BookIcon } from './BookIcon'
 import { isImeKey } from './ime'
 
 const optionId = (i: number) => `move-note-option-${i}`
@@ -37,7 +38,14 @@ export function MoveNoteDialog(props: {
   }, [])
 
   const all = [
-    { id: NO_BOOK, name: t('note.noBook'), depth: 0, ancestors: [] },
+    {
+      id: NO_BOOK,
+      name: t('note.noBook'),
+      depth: 0,
+      ancestors: [],
+      icon: null,
+      iconColor: null,
+    },
     ...bookOptions(props.tree),
   ]
   const needle = query.trim().toLocaleLowerCase()
@@ -126,6 +134,12 @@ export function MoveNoteDialog(props: {
             onMouseMove={() => setActive(i)}
             onClick={() => pick(o.id)}
           >
+            {o.id === NO_BOOK ? (
+              // An empty icon slot, so its name lines up with the notebooks'.
+              <span className="picker-icon-slot" aria-hidden="true" />
+            ) : (
+              <BookIcon icon={o.icon} color={o.iconColor} size="sm" />
+            )}
             <span className="pick-name">{o.name}</span>
             {o.id === current ? <Icon name="check" size="sm" /> : null}
           </li>

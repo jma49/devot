@@ -15,4 +15,5 @@ SF Symbols come with Apple's SF Symbols licence (part of the Xcode and Apple SDK
 ## Consequences
 
 - A new icon is a new entry in `symbols.json` naming an existing symbol; there is no icon artwork to review or license.
+- Notebook icons the user picks come from a curated catalog of symbol names (`design/icons/notebook-symbols.json`), checked to exist on the oldest supported macOS and to depict no Apple product or service; Rust refuses any other name.
 - Icons in content that leaves the app (exported HTML, a printed note) cannot be SF Symbols; they are Devot's own drawings (`src/core/preview/glyphs.ts`).

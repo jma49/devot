@@ -176,6 +176,9 @@ describe('resolveSearch', () => {
     deletedHlc: null,
     aiAccess: false,
     aiAccessHlc: '',
+    icon: null,
+    iconColor: null,
+    iconHlc: '',
     sortKey: '',
     sortKeyHlc: '',
   })

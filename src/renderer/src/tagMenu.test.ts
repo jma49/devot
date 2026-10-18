@@ -86,6 +86,12 @@ describe('TAG_MENU', () => {
     expect(lines).toContain('Filter by Tag [x]')
   })
 
+  it('leaves Delete Tag out in a workspace', async () => {
+    const { lines } = await shown({ id: 't', color: null, filtered: false, inWorkspace: true })
+    expect(lines.slice(-2)).toEqual(['---', 'Copy Tag ID'])
+    expect(lines.some((line) => line.startsWith('Delete Tag'))).toBe(false)
+  })
+
   it('has one colour item per palette colour, each picking its colour', async () => {
     const picked: TagAction[] = []
     const { click } = await shown({ id: 't', color: null, filtered: false }, (a) => picked.push(a))

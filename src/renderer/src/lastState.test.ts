@@ -12,6 +12,7 @@ import {
 const NOTE = '019a0000-0000-7000-8000-000000000001'
 const BOOK = '019a0000-0000-7000-8000-0000000000b1'
 const TAG = '019a0000-0000-7000-8000-0000000000a1'
+const PARENT = '019a0000-0000-7000-8000-0000000000b0'
 
 function memoryStorage() {
   const items = new Map<string, string>()
@@ -47,6 +48,15 @@ describe('parseLastState', () => {
       note: { id: NOTE, keyboard: false },
     }
     expect(parseLastState(serializeLastState(templates))).toEqual(templates)
+  })
+
+  it('reads back the workspace, and drops one that is not a notebook ID', () => {
+    const inWorkspace: LastState = { ...full, workspace: PARENT }
+    expect(parseLastState(serializeLastState(inWorkspace))).toEqual(inWorkspace)
+    const raw = JSON.parse(serializeLastState(inWorkspace)) as Record<string, unknown>
+    for (const workspace of ['nope', 42, null, { id: PARENT }]) {
+      expect(parseLastState(JSON.stringify({ ...raw, workspace }))).toEqual(full)
+    }
   })
 
   it('reads every filter kind', () => {
@@ -197,6 +207,22 @@ describe('restorePlan', () => {
     expect(plan.note).toBeUndefined()
     expect(plan.view).toEqual(full.view)
     expect(plan.filter).toEqual(full.filter)
+  })
+
+  it('opens the workspace again while its notebook exists', () => {
+    const state: LastState = { ...full, workspace: PARENT }
+    const books = new Set([BOOK, PARENT])
+    expect(restorePlan(state, { ...library, books }).workspace).toBe(PARENT)
+  })
+
+  it('leaves the workspace when its notebook is gone, or no notebook is shown', () => {
+    const state: LastState = { ...full, workspace: PARENT }
+    expect(restorePlan(state, library)).not.toHaveProperty('workspace')
+    const books = new Set([BOOK, PARENT])
+    const all: LastState = { ...state, view: { kind: 'all' } }
+    expect(restorePlan(all, { ...library, books })).not.toHaveProperty('workspace')
+    const goneView = restorePlan(state, { ...library, books: new Set([PARENT]) })
+    expect(goneView).not.toHaveProperty('workspace')
   })
 
   it('shows Templates without a filter', () => {

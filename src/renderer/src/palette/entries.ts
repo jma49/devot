@@ -53,6 +53,7 @@ export function libraryEntries(source: {
         kind: 'book',
         id: n.id,
         label: n.name,
+        bookIcon: { icon: n.icon, color: n.iconColor },
         ...(parent === undefined ? {} : { detail: parent }),
       })
       walk(n.children, n.name)

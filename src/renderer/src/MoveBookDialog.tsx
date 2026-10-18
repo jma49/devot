@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import { moveTargets, type BookNode } from '../../core/books'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
+import { BookIcon } from './BookIcon'
 import { fieldStep } from './Picker'
 
 const optionId = (i: number) => `move-book-option-${i}`
@@ -34,7 +35,14 @@ export function MoveBookDialog(props: {
   }, [])
 
   const options = [
-    { id: TOP, name: t('moveBook.topLevel'), depth: 0, disabled: false },
+    {
+      id: TOP,
+      name: t('moveBook.topLevel'),
+      depth: 0,
+      icon: null,
+      iconColor: null,
+      disabled: false,
+    },
     ...moveTargets(props.tree, book.id),
   ]
   const current = book.parentId ?? TOP
@@ -104,6 +112,11 @@ export function MoveBookDialog(props: {
             onMouseMove={() => !o.disabled && setActive(i)}
             onClick={() => pick(i)}
           >
+            {o.id === TOP ? (
+              <span className="picker-icon-slot" aria-hidden="true" />
+            ) : (
+              <BookIcon icon={o.icon} color={o.iconColor} size="sm" />
+            )}
             <span className="pick-name">{o.name}</span>
             {o.id === current ? <Icon name="check" size="sm" /> : null}
           </li>

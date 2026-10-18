@@ -60,3 +60,28 @@ export function conceal(el: HTMLElement | undefined, done: () => void): void {
   shrink.addEventListener('finish', end)
   shrink.addEventListener('cancel', end)
 }
+
+/** How far the sidebar's rows slide when a workspace opens or closes, in pixels. */
+const SLIDE_PX = 24
+
+/** A slide in from the right (`1`: deeper, into a workspace) or the left (`-1`: back out), fading in. */
+export const slideFrames = (from: 1 | -1): Keyframe[] => [
+  { transform: `translateX(${from * SLIDE_PX}px)`, opacity: 0 },
+  { transform: 'none', opacity: 1 },
+]
+
+/** The timing of the slide, or null when nothing should move. */
+export function slideTiming(reduced: boolean): KeyframeAnimationOptions | null {
+  if (reduced) return null
+  return {
+    duration: Number.parseFloat(sizes['motion.duration.pane']),
+    easing: sizes['motion.easing.standard'],
+  }
+}
+
+/** Slides the sidebar's rows in after a workspace opened (`1`) or closed (`-1`). */
+export function slideIn(els: Iterable<Element>, from: 1 | -1): void {
+  const timing = slideTiming(reducedMotion())
+  if (!timing) return
+  for (const el of els) if (typeof el.animate === 'function') el.animate(slideFrames(from), timing)
+}

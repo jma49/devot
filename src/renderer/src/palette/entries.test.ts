@@ -9,6 +9,8 @@ const node = (id: string, name: string, children: BookNode[] = [], depth = 0): B
   parentId: null,
   depth,
   aiAccess: false,
+  icon: null,
+  iconColor: null,
   children,
 })
 
@@ -29,7 +31,8 @@ const note = (
 })
 
 describe('libraryEntries', () => {
-  const tree = [node('w', 'Work', [node('p', 'Projects', [], 1)]), node('h', 'Home')]
+  const projects = { ...node('p', 'Projects', [], 1), icon: 'leaf', iconColor: 'green' as const }
+  const tree = [node('w', 'Work', [projects]), node('h', 'Home')]
   const entries = libraryEntries({
     tree,
     tags: [{ id: 't', name: 'urgent' }],
@@ -44,11 +47,18 @@ describe('libraryEntries', () => {
     ]),
   })
 
-  it('lists notebooks in tree order, each with its parent', () => {
+  it('lists notebooks in tree order, each with its parent and its icon', () => {
+    const none = { icon: null, color: null }
     expect(entries.book).toEqual([
-      { kind: 'book', id: 'w', label: 'Work' },
-      { kind: 'book', id: 'p', label: 'Projects', detail: 'Work' },
-      { kind: 'book', id: 'h', label: 'Home' },
+      { kind: 'book', id: 'w', label: 'Work', bookIcon: none },
+      {
+        kind: 'book',
+        id: 'p',
+        label: 'Projects',
+        detail: 'Work',
+        bookIcon: { icon: 'leaf', color: 'green' },
+      },
+      { kind: 'book', id: 'h', label: 'Home', bookIcon: none },
     ])
   })
 
