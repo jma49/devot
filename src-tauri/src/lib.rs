@@ -87,6 +87,7 @@ pub fn run() {
             external::open_external,
             format_menu::format_menu_set,
             logs::log_write,
+            commands::search_index::search_index_rebuild,
             backups::backups_list,
             backups::backup_now,
             backups::backup_restore,

@@ -60,6 +60,7 @@ fn main() {
             "format_menu_set",
             "log_write",
             "backups_list",
+            "search_index_rebuild",
             "backup_now",
             "backup_restore",
             "import_read",

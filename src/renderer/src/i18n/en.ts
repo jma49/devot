@@ -513,6 +513,10 @@ export const en = {
   'backups.autoFailed': 'The automatic backup failed ({code}).',
   'backups.show': 'Show Backups',
   'notice.dismiss': 'Dismiss',
+  'searchIndex.rebuilding': 'Rebuilding search index\u2026',
+  'searchIndex.rebuiltOne': 'Search index rebuilt ({count} note).',
+  'searchIndex.rebuiltOther': 'Search index rebuilt ({count} notes).',
+  'searchIndex.failed': 'The search index could not be rebuilt ({code}).',
   'save.failedOne': 'Changes to {count} note could not be saved ({code}). Devot keeps trying.',
   'save.failedOther': 'Changes to {count} notes could not be saved ({code}). Devot keeps trying.',
   'save.quitHeldOne':
@@ -794,6 +798,7 @@ export const en = {
   'command.exportAllMarkdown': 'Export All Notes as Markdown\u2026',
   'command.exportAllHtml': 'Export All Notes as HTML\u2026',
   'command.mirrorChooseFolder': 'Choose Markdown Mirror Folder\u2026',
+  'command.rebuildSearchIndex': 'Rebuild Search Index',
   'command.mirrorTurnOff': 'Turn Off Markdown Mirror',
   'command.newNoteFromSelection': 'New Note from Selection',
   'command.newNoteFromLink': 'New Note from Link',

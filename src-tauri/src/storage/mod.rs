@@ -1104,6 +1104,25 @@ impl Store {
         Ok(result == "ok")
     }
 
+    /// Rebuilds the search index from the notes table in one statement
+    /// (FTS5 reports no progress), then checks it against the table, all in
+    /// one transaction: a failed check rolls the rebuild back. Returns how
+    /// many notes (trashed ones too) the index covers.
+    pub fn rebuild_search_index(&mut self) -> Result<u32> {
+        let tx = self.conn.transaction()?;
+        tx.execute_batch(
+            "INSERT INTO notes_fts (notes_fts) VALUES ('rebuild');
+             INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1);",
+        )?;
+        let notes = tx.query_row(
+            "SELECT count(*) FROM notes WHERE purged_at IS NULL",
+            [],
+            |row| row.get(0),
+        )?;
+        tx.commit()?;
+        Ok(notes)
+    }
+
     /// Notes not in the trash, most recently updated first.
     pub fn list_notes(&self) -> Result<Vec<NoteSummary>> {
         let mut statement = self.conn.prepare_cached(NOTES_LIST_SQL)?;

@@ -35,6 +35,8 @@ use tauri::{App, AppHandle, Emitter, Manager, State, Window, Wry};
 pub const QUIT_ID: &str = "devot.quit";
 pub const SETTINGS_ID: &str = "devot.settings";
 pub const DIAGNOSTICS_ID: &str = "devot.diagnostics";
+pub const REBUILD_INDEX_ID: &str = "devot.search.rebuild";
+pub const REBUILD_INDEX_EVENT: &str = "devot://rebuild-search-index";
 pub const BACKUPS_ID: &str = "devot.backups";
 pub const IMPORT_MARKDOWN_ID: &str = "devot.import.markdown";
 pub const IMPORT_MARKDOWN_FILES_ID: &str = "devot.import.markdownFiles";
@@ -432,7 +434,10 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .build()?;
     let diagnostics =
         MenuItemBuilder::with_id(DIAGNOSTICS_ID, strings::EXPORT_DIAGNOSTICS).build(app)?;
+    let rebuild_index =
+        MenuItemBuilder::with_id(REBUILD_INDEX_ID, strings::REBUILD_SEARCH_INDEX).build(app)?;
     let help = SubmenuBuilder::new(app, strings::MENU_HELP)
+        .item(&rebuild_index)
         .item(&diagnostics)
         .build()?;
     let menu = MenuBuilder::new(app)
@@ -496,6 +501,10 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     } else if let Some(format) = export_all_format(event.id().as_ref()) {
         if app.emit_to("main", EXPORT_ALL_EVENT, format).is_err() {
             log::warn!("W_EXPORT_MENU_EMIT_FAILED");
+        }
+    } else if event.id() == REBUILD_INDEX_ID {
+        if app.emit_to("main", REBUILD_INDEX_EVENT, ()).is_err() {
+            log::warn!("W_REBUILD_INDEX_MENU_EMIT_FAILED");
         }
     } else if event.id() == DIAGNOSTICS_ID {
         match diagnostics::export(app) {

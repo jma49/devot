@@ -1429,6 +1429,13 @@ export const COMMANDS = [
     scope: 'window',
     keys: [],
   },
+  {
+    id: 'app.rebuildSearchIndex',
+    label: 'command.rebuildSearchIndex',
+    group: 'app',
+    scope: 'window',
+    keys: [],
+  },
   // The Markdown mirror (mirror.ts): choose its folder, or turn it off.
   {
     id: 'mirror.chooseFolder',
