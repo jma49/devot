@@ -42,8 +42,10 @@ pub fn open(app: &AppHandle) {
         .minimizable(false)
         .maximizable(false)
         .build();
-    if built.is_err() {
-        log::warn!("W_SETTINGS_OPEN_FAILED");
+    match built {
+        // Links from other apps wait until it closes (`deep_link`).
+        Ok(_) => crate::deep_link::settings_opened(app),
+        Err(_) => log::warn!("W_SETTINGS_OPEN_FAILED"),
     }
 }
 

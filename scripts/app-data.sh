@@ -6,7 +6,7 @@
 # that an app a script started opened the database it should, and ending
 # only the processes a script started.
 #
-# Debug builds (`pnpm dev`, `pnpm tauri build --debug`) keep their data in a
+# Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in a
 # folder of their own, never in the release app's (src-tauri/src/data_folder.rs).
 # Scripts use that folder or a temporary one and never name the release
 # folder (tests/policy/data-folder.test.ts). The folder comes from HOME alone,

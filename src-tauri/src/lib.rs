@@ -9,6 +9,7 @@ mod crash;
 pub mod crash_reporter;
 mod crash_scrub;
 mod data_folder;
+mod deep_link;
 mod diagnostics;
 mod editor_settings;
 mod exit;
@@ -32,6 +33,7 @@ mod storage;
 mod strings;
 #[cfg(test)]
 mod test_log;
+mod updates;
 mod usage;
 mod watch;
 
@@ -52,7 +54,19 @@ pub fn crash_reporter_main() -> Option<i32> {
 pub fn run() {
     // Sentry first, so its panic hook sees every panic; off without a DSN.
     let _crash_reporting = crash::init();
-    tauri::Builder::default()
+    let context = data_folder::context();
+    let mut builder = tauri::Builder::default();
+    // First: a second launch hands its arguments (a URL among them) to the
+    // running Devot and ends before it opens the data folder. Not when the
+    // plugin's socket is someone else's: the data-folder lock decides then.
+    if deep_link::single_instance_socket_trusted(&context.config().identifier) {
+        builder = builder.plugin(tauri_plugin_single_instance::init(
+            deep_link::on_second_instance,
+        ));
+    }
+    builder
+        // devot:// links from other apps (`deep_link`).
+        .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             native::symbol_png,
             native::system_accent,
@@ -132,6 +146,11 @@ pub fn run() {
             mirror::mirror_bodies,
             mirror::mirror_files,
             mirror::mirror_hashes,
+            updates::update_status,
+            updates::update_check,
+            updates::update_download,
+            updates::update_restart,
+            deep_link::deep_link_take,
         ])
         // Attachments: devot://file/<id>, read from the database.
         .register_asynchronous_uri_scheme_protocol("devot", |ctx, request, responder| {
@@ -142,19 +161,25 @@ pub fn run() {
         .manage(exit::ExitGate::default())
         .manage(import::Imports::default())
         .manage(export::Exports::default())
-        .on_window_event(exit::on_window_event)
+        .manage(deep_link::DeepLinks::default())
+        .on_page_load(deep_link::on_page_load)
+        .on_window_event(|window, event| {
+            exit::on_window_event(window, event);
+            deep_link::on_window_event(window, event);
+        })
         .setup(|app| {
             // A launch that fails ends here, explained, never in a panic.
             let Ok(data_dir) = app.path().app_data_dir() else {
                 startup::fail(&StartupError::new("E_DATA_FOLDER_UNKNOWN"), None)
             };
             logs::install(&data_dir.join(logs::DIR));
+            deep_link::listen(app);
             if let Err(error) = launch(app, &data_dir) {
                 startup::fail(&error, Some(&data_dir));
             }
             Ok(())
         })
-        .build(data_folder::context())
+        .build(context)
         .expect("E_TAURI_BUILD")
         .run(|app, event| exit::on_run_event(app, &event));
 }
@@ -188,6 +213,14 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     backups::start(app.handle());
     // devot-mcp writes while Devot runs: the window takes the changes in.
     watch::start(app.handle());
+    // The updater, only with the public key the release workflow builds in.
+    let with_updater = updates::configured(app.config().plugins.0.get("updater"))
+        && app
+            .handle()
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .is_ok();
+    let version = app.package_info().version.to_string();
+    app.manage(updates::Updates::new(with_updater, version));
     menu::install(app).map_err(|_| StartupError::new("E_MENU_FAILED"))?;
     // Built here rather than from the config alone, to route pop-ups.
     let mut main = app
@@ -227,5 +260,6 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         .build()
         .map_err(|_| StartupError::new("E_MAIN_WINDOW_FAILED"))?;
     native::configure_main_window(app);
+    updates::start(app.handle());
     Ok(())
 }

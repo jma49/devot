@@ -1,0 +1,141 @@
+name: Release
+
+# Pushing a release tag (vMAJOR.MINOR.PATCH-beta.N, see docs/releasing.md)
+# builds Devot for Apple Silicon, ad-hoc signed, with the updater bundle
+# signed by the updater key; publishes a new release for the tag (a
+# prerelease for a beta) with the dmg and the updater bundle; then points
+# the channel's update feed (beta.json in the fixed `updater` release) at it.
+#
+# The release notes are the tag's message (`git tag -a <tag> -F notes.md`);
+# a tag without one gets GitHub's generated notes.
+#
+# Needs, in the repository settings:
+#   secrets.TAURI_SIGNING_PRIVATE_KEY           the updater's private key
+#   secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
+#   vars.TAURI_UPDATER_PUBKEY                   the matching public key, built into the app
+# Optional (crash reporting, as in a local build's .env.local):
+#   secrets.DEVOT_SENTRY_DSN, secrets.SENTRY_AUTH_TOKEN, vars.SENTRY_ORG, vars.SENTRY_PROJECT
+on:
+  push:
+    tags: ['v*']
+
+# No concurrency group: GitHub would drop a tag's run that waits behind
+# another. Runs may overlap instead; a run only moves the feed forward
+# (`replaces-feed`), so the newest release keeps it.
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Apple Silicon with the macOS 26 SDK (minimumSystemVersion is 26.0).
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+      # Checkout may leave an annotated tag as a plain one; fetch it again
+      # so its message (the release notes) is there.
+      - name: Fetch the tag
+        run: git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Set the version from the tag
+        id: version
+        run: node scripts/release/release.ts set-version "$TAG" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          DEVOT_SENTRY_DSN: ${{ secrets.DEVOT_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          if [ -z "$PUBKEY" ] || [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::The updater key is not set up (see docs/releasing.md)."
+            exit 1
+          fi
+          # The "-" identity signs ad hoc: without a seal, downloaded copies
+          # are reported as damaged. The public key turns the updater on.
+          config=$(jq -nc --arg key "$PUBKEY" '{
+            bundle: { createUpdaterArtifacts: true, macOS: { signingIdentity: "-" } },
+            plugins: { updater: { pubkey: $key } }
+          }')
+          pnpm tauri build --bundles app,dmg --config "$config"
+      - name: Verify and collect the files
+        id: files
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bundle=src-tauri/target/release/bundle
+          codesign --verify --deep --strict "$bundle/macos/Devot.app"
+          dmg=$(ls "$bundle"/dmg/*.dmg)
+          hdiutil verify "$dmg"
+          mkdir out
+          cp "$dmg" "out/Devot_${VERSION}_aarch64.dmg"
+          cp "$bundle/macos/Devot.app.tar.gz" "out/Devot_${VERSION}_aarch64.app.tar.gz"
+          cp "$bundle/macos/Devot.app.tar.gz.sig" "out/Devot_${VERSION}_aarch64.app.tar.gz.sig"
+          echo "updater=Devot_${VERSION}_aarch64.app.tar.gz" >> "$GITHUB_OUTPUT"
+      # The token goes only to the steps that publish.
+      - name: Write the release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # An annotated tag's message, without a signature block (PGP, SSH or
+          # X.509); a lightweight tag has none (its "contents" would be the
+          # commit message).
+          : > notes.md
+          if [ "$(git cat-file -t "refs/tags/$TAG")" = tag ]; then
+            git tag -l --format='%(contents)' "$TAG" | sed '/^-----BEGIN [A-Z0-9 ]*SIGNATURE-----$/,$d' > notes.md
+          fi
+          if ! grep -q '[^[:space:]]' notes.md; then
+            gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG" --jq .body > notes.md
+          fi
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CHANNEL: ${{ steps.version.outputs.channel }}
+        run: |
+          flags=()
+          if [ "$CHANNEL" = beta ]; then flags+=(--prerelease); fi
+          gh release create "$TAG" out/* --verify-tag --title "Devot $VERSION" --notes-file notes.md "${flags[@]}"
+      - name: Update the feed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ steps.version.outputs.channel }}
+          UPDATER: ${{ steps.files.outputs.updater }}
+        run: |
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$UPDATER"
+          mkdir feed
+          node scripts/release/release.ts feed "$TAG" "$url" "out/$UPDATER.sig" notes.md "feed/$CHANNEL.json"
+          # The feed's own release, made once: a prerelease, so it never
+          # shows as the latest release. stable.json stays empty until 1.0.
+          if ! gh release view updater > /dev/null 2>&1; then
+            # Another run may have made it meanwhile.
+            gh release create updater --prerelease --title "Update feed" \
+              --notes "The update feed Devot reads. Do not delete." || gh release view updater > /dev/null
+            if [ "$CHANNEL" = beta ]; then
+              mkdir empty && : > empty/stable.json
+              gh release upload updater empty/stable.json --clobber
+            fi
+          fi
+          # Only a newer release moves the feed.
+          mkdir current
+          gh release download updater --pattern "$CHANNEL.json" --dir current || true
+          if node scripts/release/release.ts replaces-feed "$TAG" "current/$CHANNEL.json" | grep -qx 'replace=true'; then
+            gh release upload updater "feed/$CHANNEL.json" --clobber
+          else
+            echo "::notice::The feed already offers a newer version; it stays as it is."
+          fi

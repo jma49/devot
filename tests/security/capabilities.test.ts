@@ -81,6 +81,8 @@ describe('Tauri command permissions', () => {
       'allow-settings-show-backups',
       'allow-symbol-png',
       'allow-system-accent',
+      'allow-update-check',
+      'allow-update-status',
       'allow-usage-clear',
       'allow-usage-list',
       'core:event:allow-listen',
@@ -97,6 +99,26 @@ describe('Tauri command permissions', () => {
       expect(windowsWith(`allow-${command}`)).toEqual(['settings'])
     }
     expect(windowsWith('allow-font-read')).toEqual(['main', 'settings'])
+  })
+
+  it('lets both windows check for updates, and only the main window download and restart', () => {
+    for (const command of ['status', 'check']) {
+      expect(windowsWith(`allow-update-${command}`)).toEqual(['main', 'settings'])
+    }
+    for (const command of ['download', 'restart']) {
+      expect(windowsWith(`allow-update-${command}`)).toEqual(['main'])
+    }
+  })
+
+  it('lets only the main window take the links other apps opened', () => {
+    expect(windowsWith('allow-deep-link-take')).toEqual(['main'])
+  })
+
+  it('grants no window a deep-link or single-instance plugin command', () => {
+    const plugin = capabilities()
+      .flatMap(permissionIds)
+      .filter((p) => p.startsWith('deep-link:') || p.startsWith('single-instance:'))
+    expect(plugin).toEqual([])
   })
 
   it('lets only the Settings window open the data folder and ask for the Backups dialog', () => {

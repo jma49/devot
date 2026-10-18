@@ -95,6 +95,8 @@ export interface EditorSettings {
   defaultNotebook: string | null
   /** The note list shows how long ago a note changed, or its date. */
   listDates: ListDatesStyle
+  /** An update found downloads in the background (Settings > General). */
+  autoDownloadUpdates: boolean
 }
 
 /**
@@ -133,6 +135,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   previewFontSize: 15,
   defaultNotebook: null,
   listDates: 'relative',
+  autoDownloadUpdates: true,
 })
 
 export const FONT_FAMILIES: readonly FontFamilyId[] = [
@@ -240,6 +243,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   previewFontSize: wholeIn(FONT_SIZE_MIN, FONT_SIZE_MAX),
   defaultNotebook: isNotebookId,
   listDates: oneOf(LIST_DATES_STYLES),
+  autoDownloadUpdates: isFlag,
 }
 
 const KEYS = Object.keys(VALID) as (keyof EditorSettings)[]

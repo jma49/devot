@@ -26,7 +26,7 @@ pnpm dev                              # run the app with hot reload
 pnpm check                            # everything CI runs, plus the dependency audit
 ```
 
-Debug builds (`pnpm dev`, `pnpm tauri build --debug`) keep their data in `~/Library/Application Support/io.github.jma49.devot.dev`, apart from the release app's `io.github.jma49.devot`, so development never touches the notes of an installed Devot. Scripts that start the app never use the release folder (`docs/architecture.md`, App data folder).
+Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Application Support/io.github.jma49.devot.dev`, apart from the release app's `io.github.jma49.devot`, so development never touches the notes of an installed Devot. Scripts that start the app never use the release folder (`docs/architecture.md`, App data folder).
 
 | Script                          | What it does                                                                       |
 | ------------------------------- | ---------------------------------------------------------------------------------- |
@@ -45,7 +45,7 @@ Debug builds (`pnpm dev`, `pnpm tauri build --debug`) keep their data in `~/Libr
 | `pnpm format`                   | oxfmt                                                                              |
 | `pnpm typecheck`                | TypeScript for tooling, tests, the core and the UI                                 |
 
-`pnpm smoke:quit` runs the debug bundle (`pnpm tauri build --debug --bundles app`) on the debug builds' data folder, never on an installed Devot's: it starts the app with HOME in a temporary folder in which only that folder is real, so a bundle built before debug builds had a folder of their own opens a new database there, and the script stops. Each check starts from an empty database: a dev database that is there first is copied aside with SQLite's online backup (into `smoke-backups/` in that folder) and put back at the end, and the script refuses to start while another process has it open.
+`pnpm smoke:quit` runs the debug bundle (`pnpm build:debug --bundles app`) on the debug builds' data folder, never on an installed Devot's: it starts the app with HOME in a temporary folder in which only that folder is real, so a bundle built before debug builds had a folder of their own opens a new database there, and the script stops. Each check starts from an empty database: a dev database that is there first is copied aside with SQLite's online backup (into `smoke-backups/` in that folder) and put back at the end, and the script refuses to start while another process has it open.
 
 ## Layout
 

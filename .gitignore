@@ -5,6 +5,8 @@ node_modules/
 dist/
 out/
 release/
+# ...but not the release workflow's script.
+!scripts/release/
 
 # Test output
 playwright-report/
