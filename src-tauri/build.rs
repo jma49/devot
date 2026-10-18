@@ -63,6 +63,7 @@ fn main() {
             "import_read",
             "import_attach",
             "import_finish",
+            "import_pick",
             "export_begin",
             "export_attach",
             "export_write",

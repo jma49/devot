@@ -96,6 +96,11 @@ export interface ImportScan {
   images: ImportItem[]
   /** Files Rust left out, with the reason's code. */
   skipped: ImportProblem[]
+  /**
+   * The notebook to import into when the import started from its menu
+   * (the sheet skips choosing one); null or missing from File > Import.
+   */
+  destination?: string | null
 }
 
 export interface ImportProblem {

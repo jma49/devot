@@ -91,6 +91,7 @@ pub fn run() {
             import::import_read,
             import::import_attach,
             import::import_finish,
+            import::import_pick,
             export::export_begin,
             export::export_attach,
             export::export_write,

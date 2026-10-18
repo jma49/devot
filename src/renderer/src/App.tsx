@@ -46,8 +46,10 @@ import {
   IMPORT_READY,
   IMPORT_SCANNING,
   finishImport,
+  pickImport,
   runImport,
 } from './importer'
+import { IMPORT_PICKS, type ImportAction } from './bookMenu'
 import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoreNotice } from './CoreNotice'
@@ -148,6 +150,9 @@ import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
 import { sizes } from './theme/tokens'
 import { track } from './usage'
+
+/** File > Export > All Notes (`markdown` or `html`), from Rust's menu. */
+const EXPORT_ALL = 'devot:export-all'
 
 /** A query and the view it narrows (none: every note). */
 interface Search {
@@ -1828,6 +1833,15 @@ export function App() {
     runExport(failureOf(action), (exporter) => exporter.runNoteExport(core!, action, id))
   const exportBook = (action: 'exportMarkdown' | 'exportHtml', id: string) =>
     runExport('export', (exporter) => exporter.runBookExport(core!, action, id))
+  const exportNotes = (action: 'exportMarkdown' | 'exportHtml', ids: readonly string[]) =>
+    runExport('export', (exporter) => exporter.runSelectionExport(core!, action, ids))
+  const exportAll = (action: 'exportMarkdown' | 'exportHtml') =>
+    runExport('export', (exporter) => exporter.runAllExport(core!, action))
+  // File > Export > All Notes: Rust sends `markdown` or `html`.
+  useMenuEvent('devot://export-all', EXPORT_ALL, (format) => {
+    if (format === 'markdown') void exportAll('exportMarkdown')
+    else if (format === 'html') void exportAll('exportHtml')
+  })
   const noteActions = useNoteActions({
     headlines: loadHeadlines,
     notes: listedNotes,
@@ -1837,6 +1851,7 @@ export function App() {
     duplicate,
     history: showHistory,
     exportNote,
+    exportNotes,
     copyFailed: (failure, code) => setExportNotice({ failure, code }),
     move: moveNotes,
     setPinned: setNotesPinned,
@@ -2121,6 +2136,8 @@ export function App() {
     'view.templates': { run: () => showLibrary({ kind: 'templates' }) },
     'view.trash': { run: () => showLibrary({ kind: 'trash' }) },
     'app.backups': { run: showBackups },
+    'app.exportAllMarkdown': { run: () => exportAll('exportMarkdown') },
+    'app.exportAllHtml': { run: () => exportAll('exportHtml') },
     'mirror.chooseFolder': { run: mirror.choose },
   }
   if (mirror.status.folder !== null) handlers['mirror.turnOff'] = { run: mirror.turnOff }
@@ -2447,6 +2464,15 @@ export function App() {
   const sidebarExportBook = useStable(
     (action: 'exportMarkdown' | 'exportHtml', id: string) => void exportBook(action, id),
   )
+  const sidebarImportBook = useStable((action: ImportAction, id: string) => {
+    const kind = IMPORT_PICKS[action]
+    // A failure shows in the import sheet, as one from File > Import does.
+    pickImport(kind, id).catch((e: unknown) => {
+      const code = errorCode(e)
+      console.warn('W_IMPORT_PICK_FAILED', code)
+      window.dispatchEvent(new CustomEvent(IMPORT_FAILED, { detail: { id: null, code } }))
+    })
+  })
   const sidebarMoveNotes = useStable((ids: string[], bookId: string) => void moveNotes(ids, bookId))
   const sidebarTagNotes = useStable(
     (ids: string[], tagId: string) => void putTagOnNotes(ids, tagId),
@@ -2507,6 +2533,7 @@ export function App() {
         onSetAiAccess={sidebarSetAiAccess}
         onDeleteBook={sidebarDeleteBook}
         onExportBook={sidebarExportBook}
+        onImportBook={sidebarImportBook}
         onMoveNotes={sidebarMoveNotes}
         onTagNotes={sidebarTagNotes}
         onSetNotesStatus={sidebarSetNotesStatus}

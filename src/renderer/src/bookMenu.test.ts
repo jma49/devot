@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { BOOK_MENU, bookShortcut, type BookAction, type BookMenuTarget } from './bookMenu'
+import {
+  BOOK_MENU,
+  IMPORT_PICKS,
+  bookShortcut,
+  type BookCommand,
+  type BookMenuTarget,
+} from './bookMenu'
 import { shownGroups } from './contextMenu'
 
 type Keys = Parameters<typeof bookShortcut>[0]
@@ -24,14 +30,14 @@ describe('BOOK_MENU', () => {
       ['copyId', 'newInside'],
       ['rename', 'move'],
       ['aiAccess'],
-      ['exportMarkdown', 'exportHtml'],
+      ['import', 'export'],
       ['delete'],
     ])
     expect(actions(nested)).toEqual([
       ['copyId', 'newInside'],
       ['rename', 'move', 'moveToTop'],
       ['aiAccess'],
-      ['exportMarkdown', 'exportHtml'],
+      ['import', 'export'],
       ['delete'],
     ])
   })
@@ -41,7 +47,7 @@ describe('BOOK_MENU', () => {
       ['copyId', 'newInside'],
       ['rename', 'move', 'moveDown'],
       ['aiAccess'],
-      ['exportMarkdown', 'exportHtml'],
+      ['import', 'export'],
       ['delete'],
     ])
     expect(actions({ ...nested, previousId: 'c', nextId: 'd' })[1]).toEqual([
@@ -69,16 +75,46 @@ describe('BOOK_MENU', () => {
       'bookMenu.moveDown',
       'bookMenu.moveToTop',
       'bookMenu.aiAccess',
-      'bookMenu.exportMarkdown',
-      'bookMenu.exportHtml',
+      'bookMenu.import',
+      'bookMenu.export',
       'bookMenu.delete',
     ])
+  })
+
+  it('puts the Import submenu above the Export submenu, with short labels', () => {
+    const group = BOOK_MENU.find((g) => g.some((e) => e.action === 'import'))
+    const items = group?.map((e) => [e.action, e.submenu?.map((s) => [s.action, s.label])])
+    expect(items).toEqual([
+      [
+        'import',
+        [
+          ['importMarkdownFiles', 'bookMenu.importMarkdownFilesItem'],
+          ['importMarkdownFolder', 'bookMenu.importMarkdownFolderItem'],
+          ['importHtmlFiles', 'bookMenu.importHtmlFilesItem'],
+        ],
+      ],
+      [
+        'export',
+        [
+          ['exportMarkdown', 'bookMenu.exportMarkdownItem'],
+          ['exportHtml', 'bookMenu.exportHtmlItem'],
+        ],
+      ],
+    ])
+  })
+
+  it('opens the panel each Import item names', () => {
+    expect(IMPORT_PICKS).toEqual({
+      importMarkdownFiles: 'markdownFiles',
+      importMarkdownFolder: 'markdownFolders',
+      importHtmlFiles: 'htmlFiles',
+    })
   })
 })
 
 describe('bookShortcut', () => {
   it('renames with Return or F2, moves with Option and the arrows, and deletes with Delete or Backspace', () => {
-    const cases: [Keys, BookAction][] = [
+    const cases: [Keys, BookCommand][] = [
       [key('Enter'), 'rename'],
       [key('F2'), 'rename'],
       [key('ArrowUp', { altKey: true }), 'moveUp'],
