@@ -219,6 +219,13 @@ export interface NoteService {
    */
   insertAt(id: string, anchor: Uint8Array | null, markdown: string): Promise<void>
   /**
+   * Fills the note from a template in one step on the live text, so what the
+   * user types meanwhile stays: `title` is set only while the note has none,
+   * and `markdown` goes after the body as it is now, set off by a blank line
+   * (it becomes the body when that is empty). Schedules a save.
+   */
+  fill(id: string, content: { title: string; markdown: string }): Promise<void>
+  /**
    * Makes the body `markdown` by applying the text difference as Yjs
    * operations (never by writing the snapshot), then schedules a save.
    */
@@ -1384,6 +1391,22 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       }),
 
     setBody: (id, markdown) => using(id, (note) => replaceBody(note, markdown)),
+
+    fill: (id, { title, markdown }) =>
+      using(id, (note) => {
+        if (note.record.title === '' && title !== '') {
+          note.record = { ...note.record, title: clipTitle(title), titleHlc: clock.tick() }
+          schedule(note)
+        }
+        const text = note.doc.getText(BODY)
+        const own = text.toString()
+        if (own.trim() === '') return replaceBody(note, markdown)
+        const breaks = /\n*$/.exec(own)?.[0].length ?? 0
+        editBody(note, () =>
+          text.insert(text.length, `${'\n'.repeat(Math.max(0, 2 - breaks))}${markdown}`),
+        )
+        schedule(note)
+      }),
 
     insertAt: (id, anchor, markdown) =>
       using(id, (note) => {

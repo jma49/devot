@@ -442,4 +442,38 @@ describe('applying a template to a note', () => {
     // No second note is made.
     expect((await d.storage.listNotes()).filter((n) => n.id !== t).map((n) => n.id)).toEqual([note])
   })
+
+  it('names a titled note in {{title}}, not the template', async () => {
+    const d = device(freshPath())
+    const t = await template(d, 'Brainstorming', '# {{title}}\n\nIdeas\n')
+    const note = await d.notes.create('Q3 planning', null)
+    await d.templates.applyTo(t, note, CLOCK)
+    await d.notes.flush()
+    const read = await d.notes.read(note)
+    expect(read.title).toBe('Q3 planning')
+    expect(read.bodyMd).toBe('# Q3 planning\n\nIdeas\n')
+  })
+
+  it('keeps text and a title typed while the fill runs', async () => {
+    const d = device(freshPath())
+    const t = await template(d, 'Daily', '# {{title}}\n\nPlan\n')
+    const note = await d.notes.create('', null)
+    // The user types between the fill's read and its write.
+    const listNotes = d.storage.listNotes.bind(d.storage)
+    let typed = false
+    d.storage.listNotes = async (...args: Parameters<typeof listNotes>) => {
+      if (!typed) {
+        typed = true
+        await d.notes.setBody(note, 'Typed')
+        await d.notes.setTitle(note, 'Mine')
+      }
+      return listNotes(...args)
+    }
+    await d.templates.applyTo(t, note, CLOCK)
+    await d.notes.flush()
+    expect(typed).toBe(true)
+    const read = await d.notes.read(note)
+    expect(read.title).toBe('Mine')
+    expect(read.bodyMd).toBe('Typed\n\n# Daily\n\nPlan\n')
+  })
 })
