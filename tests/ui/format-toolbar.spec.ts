@@ -243,9 +243,11 @@ test('the toolbar hides on Escape, a collapsed selection and typing', async ({ p
 
 test('the toolbar follows the selection and never covers it', async ({ page }) => {
   await newNote(page, 'first line\nsecond line of the note\nthird line\nfourth line')
-  // The first line has no room above it inside the editor: the toolbar goes below.
+  // The first line: the toolbar reaches up over the meta line, still above it.
   await selectWord(page, 1, 'first')
-  await expectBesideSelection(page)
+  const onFirst = await expectBesideSelection(page)
+  const firstLine = (await page.locator('.cm-selectionBackground').first().boundingBox())!
+  expect(onFirst.y + onFirst.height).toBeLessThanOrEqual(firstLine.y + 1)
 
   await selectWord(page, 3, 'third')
   const atStart = await expectBesideSelection(page)
@@ -437,11 +439,9 @@ test('bold next to punctuation keeps it outside the markers and toggles off agai
 })
 
 const manyLines = Array.from({ length: 90 }, (_, i) => `line ${i + 1} of the note`).join('\n')
-const editorBox = (page: Page) => page.locator('[data-devot-part="editor-body"]')
+const editorBox = (page: Page) => page.locator('[data-devot-part="editor-scroll"]')
 
-test('the toolbar sits above the selection start when there is room, and stays reachable on the first line', async ({
-  page,
-}) => {
+test('the toolbar sits above the selection start, on the first line too', async ({ page }) => {
   await newNote(page, manyLines)
   await page.keyboard.press('ControlOrMeta+Home')
   await selectWord(page, 6, 'note')
@@ -449,8 +449,13 @@ test('the toolbar sits above the selection start when there is room, and stays r
   const bar = (await toolbar(page).boundingBox())!
   expect(bar.y + bar.height).toBeLessThanOrEqual(start.y + 1)
   await selectWord(page, 1, 'line')
-  await expectBesideSelection(page)
-  await expect(toolbar(page)).toBeInViewport()
+  const first = (await page.locator('.cm-selectionBackground').first().boundingBox())!
+  const onFirst = await expectBesideSelection(page)
+  expect(onFirst.y + onFirst.height).toBeLessThanOrEqual(first.y + 1)
+  // Whole and clear of the window's toolbar.
+  const top = (await page.locator('.editor-toolbar').boundingBox())!
+  expect(onFirst.y).toBeGreaterThanOrEqual(top.y + top.height)
+  await expect(toolbar(page)).toBeInViewport({ ratio: 1 })
 })
 
 test('the toolbar hides when the selection start scrolls out and returns when it scrolls back', async ({

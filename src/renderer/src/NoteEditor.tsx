@@ -231,8 +231,8 @@ const imageCommandKeys = registryKeys(() =>
 
 /**
  * The line at the top of the editor and how far it is scrolled past that
- * line's top. The editor's box (`scroller`, the shadow host) scrolls, not
- * CodeMirror's own scroller.
+ * line's top. The editor's scroll box (`scroller`, inside the shadow root)
+ * scrolls, not CodeMirror's own scroller.
  */
 function editorTop(view: EditorView, scroller: HTMLElement): EditorTop | undefined {
   // Hidden (preview mode): it shows nothing, so it keeps the place it had.
@@ -392,28 +392,101 @@ const theme = EditorView.theme({
 })
 
 /**
- * Popups (the `[[` list, the selection toolbar) stay inside the editor's
- * box: WebKit positions them absolutely there, and the host's scrolling
- * clips anything outside it, so a popup with no room above a line opens
- * below it instead.
+ * Popups (the `[[` list, the selection toolbar) live in the frame around the
+ * editor's scroll box, so the scrolling does not clip them: one over the
+ * first lines may reach up over the note's title and meta line, as far as
+ * the editor's toolbar. Any box further out that clips (the split view's
+ * sideways scrolling) holds them in as well; a popup with no room above a
+ * line opens below it.
  */
-const popupSpace = tooltips({
-  tooltipSpace: (view) => {
-    const root = view.dom.getRootNode()
-    return (root instanceof ShadowRoot ? root.host : view.dom).getBoundingClientRect()
-  },
-})
+const popupSpace = (frame: HTMLElement) =>
+  tooltips({
+    parent: frame,
+    tooltipSpace: (view) => {
+      const root = view.dom.getRootNode()
+      const host = root instanceof ShadowRoot ? (root.host as HTMLElement) : view.dom
+      const box = host.getBoundingClientRect()
+      const pane = host.closest('[data-devot-part="editor"]')
+      const toolbar = pane?.querySelector('[data-devot-part="toolbar"]')
+      if (!pane || !toolbar) return box
+      let top = toolbar.getBoundingClientRect().bottom
+      for (let el = host.parentElement; el && el !== pane; el = el.parentElement) {
+        if (getComputedStyle(el).overflowY !== 'visible') {
+          top = Math.max(top, el.getBoundingClientRect().top)
+        }
+      }
+      return { left: box.left, right: box.right, top: Math.min(top, box.top), bottom: box.bottom }
+    },
+  })
 
+/**
+ * The editor's own styles in its shadow root, where the window's stylesheet
+ * does not reach: the frame that holds the popups and the box that scrolls,
+ * padded by the host's `--editor-padding`, with the window's thin scroll bars.
+ */
+const frameStyles = (() => {
+  let sheet: CSSStyleSheet | undefined
+  return () => {
+    if (!sheet) {
+      sheet = new CSSStyleSheet()
+      sheet.replaceSync(`
+        /* Grid stretching, not percentages: the scroll box is as tall as
+           the host when the window's layout gives it a height. */
+        :host,
+        .editor-frame { display: grid; min-height: 0; }
+        .editor-frame { position: relative; }
+        .editor-scroll { min-height: 0; }
+        /* CodeMirror's popup layer covers the editor: only the popups in it
+           take the pointer. */
+        .editor-frame { pointer-events: none; }
+        .editor-scroll,
+        .editor-frame .cm-tooltip { pointer-events: auto; }
+        .editor-scroll {
+          box-sizing: border-box;
+          overflow: auto;
+          padding: var(--editor-padding);
+        }
+        .editor-scroll::-webkit-scrollbar {
+          width: var(--size-scrollbar);
+          height: var(--size-scrollbar);
+          background: transparent;
+        }
+        .editor-scroll::-webkit-scrollbar-thumb {
+          border-radius: var(--radius-capsule);
+          background: var(--color-fill-scrollbar);
+        }
+      `)
+    }
+    return sheet
+  }
+})()
+
+/**
+ * The editor's shadow root: a frame (where popups go) around the box that
+ * scrolls, around CodeMirror's parent.
+ */
 function shadowContainer(host: HTMLElement): {
   root: ShadowRoot
+  frame: HTMLElement
+  scroller: HTMLElement
   parent: HTMLElement
 } {
   const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' })
   root.replaceChildren()
+  if (!root.adoptedStyleSheets.includes(frameStyles())) {
+    root.adoptedStyleSheets = [...root.adoptedStyleSheets, frameStyles()]
+  }
+  const frame = document.createElement('div')
+  frame.className = 'editor-frame'
+  const scroller = document.createElement('div')
+  scroller.className = 'editor-scroll'
+  scroller.dataset['devotPart'] = 'editor-scroll'
   const parent = document.createElement('div')
   parent.className = 'editor-root'
-  root.appendChild(parent)
-  return { root, parent }
+  scroller.appendChild(parent)
+  frame.appendChild(scroller)
+  root.appendChild(frame)
+  return { root, frame, scroller, parent }
 }
 
 interface Props {
@@ -591,8 +664,7 @@ export function NoteEditor({
         const text = doc.getText(BODY)
         report.current(text.toString())
         text.observe(() => report.current(text.toString()))
-        const scroller = host.current
-        const { root, parent } = shadowContainer(scroller)
+        const { root, frame, scroller, parent } = shadowContainer(host.current)
         // True while a restored version is applied: an undo step of its own,
         // where every other change from the Yjs document is none (editor/undo.ts).
         let restoring = false
@@ -679,7 +751,7 @@ export function NoteEditor({
                 open: (image) => imageHandlers.current.open?.(image),
                 menu: (image, at) => imageHandlers.current.menu?.(imageMenuTarget(image), at),
               }),
-              popupSpace,
+              popupSpace(frame),
               // Undo is CodeMirror's history alone: no Yjs undo manager.
               yCollab(text, null, { undoManager: false }),
               yjsHistory(() => restoring),
@@ -726,8 +798,8 @@ export function NoteEditor({
         open.current = { view, settings: setupFor, scroller, place }
         untrackEditor = trackOpenEditor(noteId, view, doc, text)
         findHandle.current?.(editorFindTarget(view))
-        // The host element scrolls: the editor grows with its text.
-        scrollHandle.current?.(editorScrollPane(view, host.current))
+        // The scroll box scrolls: the editor grows with its text.
+        scrollHandle.current?.(editorScrollPane(view, scroller))
         const ready = view
         if (handleRef) {
           handleRef.current = {

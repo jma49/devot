@@ -1708,19 +1708,21 @@ button {
 /* Editor and preview stand apart by a small gutter of whitespace, no rule. */
 .panes-split .editor {
   --editor-reading-width: none;
-  padding-right: var(--space-4);
+  --editor-padding: 0 var(--space-4) 0 calc(var(--space-9) - var(--space-3) - var(--space-2));
 }
 
 .panes-split .preview {
   padding-left: var(--space-6);
 }
 
+/* The host of the editor's shadow root. The box inside it scrolls and takes
+   this padding (NoteEditor.tsx); the host clips nothing, so a popup over the
+   first lines can reach up over the title. */
 .editor {
   min-height: 0;
-  overflow: auto;
   /* The content pads its lines by space-2 (room for boxes, editor/boxes.ts)
      and a line its text by space-3: the text lines up with the title. */
-  padding: 0 calc(var(--space-9) - var(--space-2)) 0
+  --editor-padding: 0 calc(var(--space-9) - var(--space-2)) 0
     calc(var(--space-9) - var(--space-3) - var(--space-2));
 }
 

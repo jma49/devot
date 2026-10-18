@@ -543,9 +543,11 @@ const dismissal = EditorView.domEventObservers({
     if (event.key === 'Escape' && !isImeKey(event)) noteDismissal(view)
   },
   blur(event, view) {
-    // Not when the focus goes into the list itself (a click on an item).
+    // Not when the focus goes into the list itself (a click on an item), in
+    // the editor or in the popup layer beside it.
     const to = event.relatedTarget
-    if (!(to instanceof Node && view.dom.contains(to))) noteDismissal(view)
+    const inList = to instanceof Element && to.closest('.cm-tooltip') !== null
+    if (!(to instanceof Node && view.dom.contains(to)) && !inList) noteDismissal(view)
   },
 })
 

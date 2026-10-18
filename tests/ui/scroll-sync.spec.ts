@@ -15,8 +15,9 @@ interface DomNode {
   readonly clientTop: number
   readonly textContent: string | null
   readonly shadowRoot: {
-    querySelectorAll(selector: string): ArrayLike<DomNode>
+    querySelector(selector: string): DomNode | null
   } | null
+  querySelectorAll(selector: string): ArrayLike<DomNode>
   getBoundingClientRect(): { top: number }
   closest(selector: string): DomNode | null
   querySelector(selector: string): DomNode | null
@@ -63,21 +64,23 @@ async function openLongNote(page: Page) {
 async function scrollEditorTo(page: Page, text: string) {
   await page.evaluate(async (wanted) => {
     const win = globalThis as unknown as PageGlobals
-    const host = win.document.querySelector('[data-devot-part="editor-body"]')!
+    const box = win.document
+      .querySelector('[data-devot-part="editor-body"]')!
+      .shadowRoot!.querySelector('.editor-scroll')!
     const frame = () => new Promise<void>((done) => win.requestAnimationFrame(() => done()))
     const number = (s: string) => Number(/(\d+)$/.exec(s)?.[1] ?? NaN)
     const target = number(wanted)
     for (let step = 0; step < 60; step += 1) {
-      const lines = Array.from(host.shadowRoot!.querySelectorAll('.cm-line'))
+      const lines = Array.from(box.querySelectorAll('.cm-line'))
       const line = lines.find((l) => l.textContent === wanted)
-      const top = host.getBoundingClientRect().top + host.clientTop
+      const top = box.getBoundingClientRect().top + box.clientTop
       if (line) {
         const delta = line.getBoundingClientRect().top - top
         if (Math.abs(delta) < 1) return
-        host.scrollTop += delta
+        box.scrollTop += delta
       } else {
         const shown = lines.map((l) => l.textContent ?? '').find((t) => t.startsWith('## '))
-        host.scrollTop += (shown && number(shown) > target ? -0.5 : 0.5) * host.clientHeight
+        box.scrollTop += (shown && number(shown) > target ? -0.5 : 0.5) * box.clientHeight
       }
       await frame()
     }
@@ -111,21 +114,23 @@ function previewOffset(page: Page, name: string) {
 function editorOffset(page: Page, text: string) {
   return page.evaluate((wanted) => {
     const win = globalThis as unknown as PageGlobals
-    const host = win.document.querySelector('[data-devot-part="editor-body"]')!
-    const line = Array.from(host.shadowRoot!.querySelectorAll('.cm-line')).find(
-      (l) => l.textContent === wanted,
-    )
+    const box = win.document
+      .querySelector('[data-devot-part="editor-body"]')!
+      .shadowRoot!.querySelector('.editor-scroll')!
+    const line = Array.from(box.querySelectorAll('.cm-line')).find((l) => l.textContent === wanted)
     if (!line) return null
-    return line.getBoundingClientRect().top - host.getBoundingClientRect().top - host.clientTop
+    return line.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientTop
   }, text)
 }
 
 const scrollTops = (page: Page) =>
   page.evaluate(() => {
     const win = globalThis as unknown as PageGlobals
-    const host = win.document.querySelector('[data-devot-part="editor-body"]')!
+    const box = win.document
+      .querySelector('[data-devot-part="editor-body"]')!
+      .shadowRoot!.querySelector('.editor-scroll')!
     const pane = win.document.querySelector('.preview')!
-    return { editor: host.scrollTop, preview: pane.scrollTop }
+    return { editor: box.scrollTop, preview: pane.scrollTop }
   })
 
 const near = (value: number | null) => value !== null && Math.abs(value) <= 3
@@ -145,11 +150,11 @@ test('scrolling the editor brings the preview to the same line', async ({ page }
   await scrollEditorTo(page, '## Section 1')
   await expect.poll(() => previewOffset(page, 'Section 1').then(near)).toBe(true)
   // The very top and the very bottom line up too.
-  await page.locator('[data-devot-part="editor-body"]').evaluate((host) => (host.scrollTop = 0))
+  await page.locator('[data-devot-part="editor-scroll"]').evaluate((box) => (box.scrollTop = 0))
   await expect.poll(async () => (await scrollTops(page)).preview).toBe(0)
   await page
-    .locator('[data-devot-part="editor-body"]')
-    .evaluate((host) => (host.scrollTop = host.scrollHeight))
+    .locator('[data-devot-part="editor-scroll"]')
+    .evaluate((box) => (box.scrollTop = box.scrollHeight))
   await expect
     .poll(() =>
       preview(page).evaluate((pane) => pane.scrollHeight - pane.clientHeight - pane.scrollTop),
@@ -177,12 +182,14 @@ test('a wheel over either pane scrolls both, and the follower never scrolls back
   const settled = await page.evaluate(async () => {
     const win = globalThis as unknown as PageGlobals
     const frame = () => new Promise<void>((done) => win.requestAnimationFrame(() => done()))
-    const host = win.document.querySelector('[data-devot-part="editor-body"]')!
+    const box = win.document
+      .querySelector('[data-devot-part="editor-body"]')!
+      .shadowRoot!.querySelector('.editor-scroll')!
     const pane = win.document.querySelector('.preview')!
     for (let i = 0; i < 10; i += 1) await frame()
     let events = 0
     const count = () => (events += 1)
-    host.addEventListener('scroll', count)
+    box.addEventListener('scroll', count)
     pane.addEventListener('scroll', count)
     for (let i = 0; i < 20; i += 1) await frame()
     return events
@@ -214,9 +221,11 @@ test('wheel steps move the preview in the same event, never back, to the matchin
   // Bring the next heading in the editor to its top with one more wheel step.
   const next = await page.evaluate(() => {
     const win = globalThis as unknown as PageGlobals
-    const host = win.document.querySelector('[data-devot-part="editor-body"]')!
-    const top = host.getBoundingClientRect().top + host.clientTop
-    for (const line of Array.from(host.shadowRoot!.querySelectorAll('.cm-line'))) {
+    const box = win.document
+      .querySelector('[data-devot-part="editor-body"]')!
+      .shadowRoot!.querySelector('.editor-scroll')!
+    const top = box.getBoundingClientRect().top + box.clientTop
+    for (const line of Array.from(box.querySelectorAll('.cm-line'))) {
       const offset = line.getBoundingClientRect().top - top
       if (offset > 20 && (line.textContent ?? '').startsWith('## ')) {
         return { text: line.textContent!, offset }

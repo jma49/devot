@@ -4,9 +4,10 @@ import type { Rect } from '@codemirror/view'
 
 /**
  * The toolbar's anchor: from the top of the selection's start line to the
- * bottom of its last line drawn, at the start's x. The bar goes above it;
- * only where the editor's box has no room above (the first lines) does it go
- * below the whole selection, never over it. Null when the start is not drawn
+ * bottom of its last line drawn, at the start's x. The bar goes above it,
+ * over the note's title and meta line for the first lines; only where even
+ * that has no room (a split view's first lines) does it go below the whole
+ * selection, never over it. Null when the start is not drawn
  * or has scrolled out of the visible area, which hides the bar (it comes back
  * as the start scrolls back in).
  */

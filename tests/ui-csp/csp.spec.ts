@@ -557,8 +557,8 @@ test('code blocks get a styled copy button and split mode scrolls together under
   await expect(preview.getByRole('button', { name: 'Copied' })).toBeVisible()
   // The editor scrolls; the preview follows.
   await page
-    .locator('[data-devot-part="editor-body"]')
-    .evaluate((host) => (host.scrollTop = host.scrollHeight / 2))
+    .locator('[data-devot-part="editor-scroll"]')
+    .evaluate((box) => (box.scrollTop = box.scrollHeight / 2))
   await expect.poll(() => preview.evaluate((el) => el.scrollTop)).toBeGreaterThan(100)
   expect(await violations(page)).toEqual([])
 })
