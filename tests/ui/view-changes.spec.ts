@@ -127,7 +127,9 @@ test('a tag from the palette, during a search over every note, drops the hidden 
   const tagField = page.getByRole('combobox', { name: 'Add Tag' })
   await tagField.fill('urgent')
   await tagField.press('Enter')
-  await expect(page.getByRole('group', { name: 'Tags' }).getByText('urgent')).toBeVisible()
+  await expect(
+    page.getByRole('group', { name: 'Tags' }).getByText('urgent', { exact: true }),
+  ).toBeVisible()
   await createBook(page, 'Work')
   await createNote(page, 'Work plan')
 
