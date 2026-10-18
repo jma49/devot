@@ -5,24 +5,18 @@
 // syntax tree and drawn as decorations over the source; the text is never
 // changed.
 import { syntaxTree } from '@codemirror/language'
-import {
-  RangeSetBuilder,
-  StateField,
-  type EditorState,
-  type Range,
-  type RangeSet,
-} from '@codemirror/state'
+import { type EditorState, type Range, type RangeSet } from '@codemirror/state'
 import {
   Decoration,
   EditorView,
   GutterMarker,
-  gutterLineClass,
   ViewPlugin,
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { ALERT_KINDS, type AlertKind } from './blocks'
+import { markerField, scanMarkers, type MarkerScan } from './gutterMarkers'
 import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
 
 /** One piece of styling: a class on whole lines from `from` to `to`, or on that text. */
@@ -208,39 +202,38 @@ class TableGutter extends GutterMarker {
 }
 const tableGutter = new TableGutter()
 
-/** The gutter's classes: every line of a heading of levels 1 to 3, and each table's first line. */
-export function markdownGutterLines(state: EditorState): RangeSet<GutterMarker> {
-  const builder = new RangeSetBuilder<GutterMarker>()
+/** The gutter's classes in `from` to `to`: every line of a heading of levels 1 to 3, and each table's first line. */
+const scanMarkdownGutter: MarkerScan = (state, from, to, mark, touch) => {
   syntaxTree(state).iterate({
+    from,
+    to,
     enter: (ref) => {
       if (ref.name === 'Paragraph' || ref.name === 'FencedCode') return false
       if (ref.name === 'Table') {
-        const { from } = state.doc.lineAt(ref.from)
-        builder.add(from, from, tableGutter)
+        touch(ref.from, ref.to)
+        mark(state.doc.lineAt(ref.from).from, tableGutter)
         return false
       }
       const level = Number(HEADING.exec(ref.name)?.[1] ?? 0)
       if (level < 1 || level > 3) return undefined
+      touch(ref.from, ref.to)
       const marker = headingGutters[level as 1 | 2 | 3]
       for (let at = ref.from; at <= ref.to;) {
         const line = state.doc.lineAt(at)
-        builder.add(line.from, line.from, marker)
+        mark(line.from, marker)
         at = line.to + 1
       }
       return false
     },
   })
-  return builder.finish()
 }
 
-const headingGutter = StateField.define<RangeSet<GutterMarker>>({
-  create: markdownGutterLines,
-  update: (value, tr) =>
-    tr.docChanged || syntaxTree(tr.state) !== syntaxTree(tr.startState)
-      ? markdownGutterLines(tr.state)
-      : value,
-  provide: (field) => gutterLineClass.from(field),
-})
+/** The gutter's classes: every line of a heading of levels 1 to 3, and each table's first line. */
+export function markdownGutterLines(state: EditorState): RangeSet<GutterMarker> {
+  return scanMarkers(state, scanMarkdownGutter)
+}
+
+const headingGutter = markerField(scanMarkdownGutter)
 
 const token = (name: string) => `var(--color-${name})`
 /** A heading size, grown and shrunk with the editor's text (13 px is 1). */
