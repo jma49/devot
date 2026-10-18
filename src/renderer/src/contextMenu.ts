@@ -24,7 +24,18 @@ export interface MenuEntry<A extends string, T> {
    * it). Submenu entries always show; they may be relabelled and checked.
    */
   submenu?: readonly MenuEntry<A, T>[]
+  /**
+   * Makes the item a system item (Cut, Copy, Paste, Select All): the system
+   * titles it and acts on the web view itself, so a pick never reaches the
+   * menu's owner and `label` is not shown.
+   */
+  predefined?: PredefinedKind
+  /** The item's text for the target, in place of `label` (already translated). */
+  text?: (target: T) => string
 }
+
+/** The system items a menu may hold (Tauri's predefined menu items). */
+export type PredefinedKind = 'Cut' | 'Copy' | 'Paste' | 'SelectAll'
 
 /** What `commandEntry` may add to a command's entry. */
 export type CommandEntryOptions<A extends string, T> = Pick<
@@ -68,7 +79,7 @@ export function shownGroups<A extends string, T>(
 }
 
 const labelFor = <A extends string, T>(entry: MenuEntry<A, T>, target: T): string =>
-  t(typeof entry.label === 'function' ? entry.label(target) : entry.label)
+  entry.text?.(target) ?? t(typeof entry.label === 'function' ? entry.label(target) : entry.label)
 
 export interface NativeItemOptions {
   id: string
@@ -102,6 +113,7 @@ export interface NativeMenu {
 export interface NativeMenuApi {
   item(options: NativeItemOptions): Promise<NativeItem>
   separator(): Promise<NativeItem>
+  predefined(kind: PredefinedKind): Promise<NativeItem>
   submenu(options: { id: string; text: string; items: NativeItem[] }): Promise<NativeItem>
   menu(items: NativeItem[]): Promise<NativeMenu>
 }
@@ -134,6 +146,10 @@ export async function createContextMenu<A extends string, T>(
   const build = async (entry: MenuEntry<A, T>): Promise<Slot> => {
     const text = labelFor(entry, first)
     const id = `devot.${name}.${entry.action}`
+    if (entry.predefined) {
+      // The system's own title and action; there is nothing to relabel.
+      return { entry, item: await api.predefined(entry.predefined), text, checked: undefined }
+    }
     if (entry.submenu) {
       const children = await Promise.all(entry.submenu.map(build))
       nested.push(...children)
@@ -190,6 +206,7 @@ export async function createContextMenu<A extends string, T>(
         current.splice(i, 0, item)
       }
       for (const slot of [...slots.flat(), ...nested]) {
+        if (slot.entry.predefined) continue
         const text = labelFor(slot.entry, target)
         if (text !== slot.text) {
           await slot.item.setText?.(text)
@@ -221,6 +238,7 @@ async function tauriMenus(): Promise<NativeMenuApi> {
         ? native.MenuItem.new(options)
         : native.CheckMenuItem.new({ ...options, checked }),
     separator: () => native.PredefinedMenuItem.new({ item: 'Separator' }),
+    predefined: (kind) => native.PredefinedMenuItem.new({ item: kind }),
     submenu: ({ items, ...options }) =>
       native.Submenu.new({ ...options, items: items as TauriItem[] }),
     async menu(items) {

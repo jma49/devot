@@ -3,7 +3,7 @@ import { isolateHistory } from '@codemirror/commands'
 import { EditorSelection } from '@codemirror/state'
 import { Facet, Prec, type Extension } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
-import { useEffect, useRef, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import { yCollab } from 'y-codemirror.next'
 import * as Y from 'yjs'
 import type { ImageSize } from '../../core/images'
@@ -16,8 +16,19 @@ import { BOX_HANG } from './editor/boxes'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys, type CommandId } from './commands/registry'
 import { invoke } from './ipc'
-import { lineCommands, runEditCommand } from './editor/lineCommands'
+import { linkOpener, lineCommands, runEditCommand } from './editor/lineCommands'
 import { overwrite } from './editor/overwrite'
+import {
+  EDITOR_MENU,
+  editorMenu,
+  editorMenuTarget,
+  type EditorAction,
+  type EditorMenuTarget,
+} from './editor/editorMenu'
+import { redo, undo } from '@codemirror/commands'
+import { useContextMenu, type MenuPoint } from './contextMenu'
+import { copyText } from './noteMenu'
+import { lookUp, startSpeaking, stopSpeaking } from './textServices'
 import type { ShowAlertMenu } from './editor/alertMenu'
 import { moveSelection, selectedText, trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
@@ -625,7 +636,56 @@ export function NoteEditor({
   const openFailed = useRef(onOpenFailed)
   const chooseTemplateRef = useRef(onChooseTemplate)
   const noteOpener = useRef(onOpenNote)
+  /** Where the editor's menu was opened (Look Up shows its answer there). */
+  const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
+  const pickMenuAction = useCallback((action: EditorAction, target: EditorMenuTarget) => {
+    const view = open.current?.view
+    if (!view) return
+    switch (action) {
+      case 'openLink':
+        if (target.link !== null) view.state.facet(linkOpener)?.(target.link)
+        return
+      case 'copyLink': {
+        const link = target.link
+        if (link !== null) void copyText(link).catch(() => console.warn('W_LINK_COPY_FAILED'))
+        return
+      }
+      case 'lookUp':
+        if (target.selection !== null) void lookUp(target.selection, menuAt.current)
+        return
+      case 'newNote':
+        view.state.facet(newFromSelection)?.()
+        return
+      case 'undo':
+        undo(view)
+        view.focus()
+        return
+      case 'redo':
+        redo(view)
+        view.focus()
+        return
+      case 'pastePlain':
+        view.focus()
+        void pastePlain(view)
+        return
+      case 'startSpeaking':
+        void startSpeaking(target.selection)
+        return
+      case 'stopSpeaking':
+        void stopSpeaking()
+        return
+      // The system's own items act on the web view; the submenu only holds items.
+      default:
+    }
+  }, [])
+  const showEditorMenu = useContextMenu('editor', EDITOR_MENU, pickMenuAction)
+  const menuOpener = useRef<(view: EditorView, at: MenuPoint, pos: number | null) => void>(() => {})
   useEffect(() => {
+    menuOpener.current = (view, at, pos) => {
+      menuAt.current = at
+      const target = editorMenuTarget(view.state, pos, fromSelection.current !== undefined)
+      void showEditorMenu(target, at)
+    }
     chooseTemplateRef.current = onChooseTemplate
     placeAsked.current = initialPlace
     placeReport.current = onPlace
@@ -745,6 +805,7 @@ export function NoteEditor({
               pasteUrls,
               pastePlainKeys(),
               newFromSelectionKeys(),
+              editorMenu((target, at, pos) => menuOpener.current(target, at, pos)),
               lineCommands((href) => {
                 const note = /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)
                 if (note?.[1]) noteOpener.current?.(note[1])

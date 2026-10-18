@@ -18,6 +18,8 @@ export interface MockMenu {
     accelerator?: string
     checked?: boolean
     items?: [number, string][]
+    /** A predefined item: `Separator`, or a system item such as `Copy`. */
+    item?: string
   }
   /** The item's action channel: a message on it is a click on the item. */
   handler?: { onmessage: (id: unknown) => void }
@@ -69,8 +71,8 @@ export interface MockMirror {
  * Tauri's IPC mocked: commands are recorded in
  * `window.devotIpcCalls` and `symbol_png` answers with a tiny PNG. Native
  * menus are kept in `window.devotMenus` (see `shownMenu`, `pickMenuItem`);
- * `clipboard_write_text`, `usage_record`, `format_menu_set` and
- * `sidebar_menu_set` succeed, and
+ * `clipboard_write_text`, `usage_record`, `format_menu_set`,
+ * `text_look_up`, `text_speak` and `sidebar_menu_set` succeed, and
  * `sidebar_material_sync` answers with the stored sidebar material. The editor settings live
  * in `window.devotEditorSettings` (revision `devotEditorRevision`; see
  * `changeEditorSettingsElsewhere`): `editor_settings_set` merges its change
@@ -164,7 +166,9 @@ export async function mockTauri(page: Page): Promise<void> {
             cmd === 'usage_record' ||
             cmd === 'format_menu_set' ||
             cmd === 'sidebar_menu_set' ||
-            cmd === 'command_menu_set'
+            cmd === 'command_menu_set' ||
+            cmd === 'text_look_up' ||
+            cmd === 'text_speak'
           )
             return null
           if (cmd === 'keyboard_shortcuts_get')
@@ -406,7 +410,13 @@ export async function shownMenu(page: Page): Promise<string[]> {
     const lines = (items: [number, string][], indent: string): string[] =>
       items.flatMap(([rid]) => {
         const item = w.devotMenus[rid]
-        if (!item || item.kind === 'Predefined') return ['---']
+        if (!item) return ['---']
+        if (item.kind === 'Predefined') {
+          // The system titles its own items.
+          const system: Record<string, string> = { SelectAll: 'Select All' }
+          const kind = item.options.item ?? 'Separator'
+          return [kind === 'Separator' ? '---' : `${indent}${system[kind] ?? kind}`]
+        }
         const { text = '', accelerator, checked } = item.options
         if (item.kind === 'Submenu') {
           return [`${indent}${text} >`, ...lines(item.options.items ?? [], `${indent}  `)]

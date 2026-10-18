@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-text-look-up"
+description = "Enables the text_look_up command without any pre-configured scope."
+commands.allow = ["text_look_up"]
+
+[[permission]]
+identifier = "deny-text-look-up"
+description = "Denies the text_look_up command without any pre-configured scope."
+commands.deny = ["text_look_up"]
