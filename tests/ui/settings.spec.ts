@@ -348,7 +348,7 @@ test('every editor setting has a labelled control showing its stored value', asy
     toolbar: false,
     lineNumbers: true,
     highlightActiveLine: true,
-    lineWrapping: true,
+    lineWrapping: 'prose',
     inlineImages: false,
     readableWidth: true,
     scrollPastEnd: false,
@@ -368,7 +368,7 @@ test('every editor setting has a labelled control showing its stored value', asy
   await expect(checkbox(page, 'Toolbar')).not.toBeChecked()
   await expect(checkbox(page, 'Line Numbers')).toBeChecked()
   await expect(checkbox(page, 'Highlight Active Line')).toBeChecked()
-  await expect(checkbox(page, 'Line Wrapping')).toBeChecked()
+  await expect(select(page, 'Line Wrapping')).toHaveValue('prose')
   await expect(checkbox(page, 'Inline Image Widgets')).not.toBeChecked()
   await expect(checkbox(page, 'Readable Line Length')).toBeChecked()
   await expect(checkbox(page, 'Scroll Past End')).not.toBeChecked()
@@ -387,6 +387,12 @@ test('every editor setting has a labelled control showing its stored value', asy
   await expect(checkbox(page, 'Show Invisible Characters')).toBeChecked()
   await expect(checkbox(page, 'Highlight Trailing Whitespace')).toBeChecked()
   // Option labels come from the catalog too.
+  await expect(select(page, 'Line Wrapping').getByRole('option')).toHaveText([
+    'Off',
+    'All lines',
+    'Prose only',
+    'Unwrap at cursor',
+  ])
   await expect(select(page, 'Font Family').getByRole('option')).toHaveText([
     'System',
     'SF Mono',
@@ -465,7 +471,7 @@ test('each control stores its change at once', async ({ page }) => {
   await checkbox(page, 'Highlight Active Line').check()
   // Readable Line Length applies only to wrapped lines: set it first.
   await checkbox(page, 'Readable Line Length').check()
-  await checkbox(page, 'Line Wrapping').uncheck()
+  await select(page, 'Line Wrapping').selectOption('Off')
   await checkbox(page, 'Inline Image Widgets').uncheck()
   await checkbox(page, 'Scroll Past End').uncheck()
   await checkbox(page, 'Spellcheck').uncheck()
@@ -486,7 +492,7 @@ test('each control stores its change at once', async ({ page }) => {
       { lineNumbers: true },
       { highlightActiveLine: true },
       { readableWidth: true },
-      { lineWrapping: false },
+      { lineWrapping: 'off' },
       { inlineImages: false },
       { scrollPastEnd: false },
       { spellCheck: false },
@@ -513,16 +519,16 @@ test('the readable width setting is off limits while lines do not wrap, and says
   await expect(width).toBeEnabled()
   await expect(editor(page)).not.toContainText('Applies only when lines wrap.')
 
-  await checkbox(page, 'Line Wrapping').uncheck()
+  await select(page, 'Line Wrapping').selectOption('Off')
   await expect(width).toBeDisabled()
   // It still shows the stored value, which applies again once lines wrap.
   await expect(width).toBeChecked()
   await expect(width).toHaveAccessibleDescription('Applies only when lines wrap.')
 
-  await changedElsewhere(page, { lineWrapping: true, readableWidth: true })
+  await changedElsewhere(page, { lineWrapping: 'all', readableWidth: true })
   await expect(width).toBeEnabled()
   await expect(width).toHaveAccessibleDescription(/Limits the width of the editor to 740 pixels/)
-  expect(await setCalls(page)).toEqual([{ lineWrapping: false }])
+  expect(await setCalls(page)).toEqual([{ lineWrapping: 'off' }])
 })
 
 /** How long the number fields wait for typing to pause, and a little more. */

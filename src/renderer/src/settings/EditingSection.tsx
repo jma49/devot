@@ -7,12 +7,14 @@ import {
   FONT_WEIGHTS,
   INDENT_UNITS,
   LINE_HEIGHTS,
+  LINE_WRAPPING_MODES,
   LIST_MARKERS,
   PASTE_URL_STYLES,
   TAB_WIDTHS,
   type FontFamilyId,
   type FontWeightId,
   type IndentUnitId,
+  type LineWrappingMode,
   type ListMarker,
   type PasteUrlStyle,
 } from '../../../core/editorSettings'
@@ -47,6 +49,13 @@ const MARKER_LABELS: Readonly<Record<ListMarker, MessageKey>> = {
   '+': 'editorSettings.marker.plus',
 }
 
+const WRAPPING_LABELS: Readonly<Record<LineWrappingMode, MessageKey>> = {
+  off: 'editorSettings.lineWrapping.off',
+  all: 'editorSettings.lineWrapping.all',
+  prose: 'editorSettings.lineWrapping.prose',
+  unwrapAtCursor: 'editorSettings.lineWrapping.unwrapAtCursor',
+}
+
 const PASTE_URL_LABELS: Readonly<Record<PasteUrlStyle, MessageKey>> = {
   plain: 'editorSettings.pasteUrl.plain',
   autolink: 'editorSettings.pasteUrl.autolink',
@@ -57,7 +66,6 @@ type Flag =
   | 'toolbar'
   | 'lineNumbers'
   | 'highlightActiveLine'
-  | 'lineWrapping'
   | 'inlineImages'
   | 'readableWidth'
   | 'scrollPastEnd'
@@ -72,7 +80,6 @@ const FLAGS: Readonly<Record<Flag, { label: MessageKey; hint: MessageKey }>> = {
     label: 'editorSettings.highlightActiveLine',
     hint: 'editorSettings.highlightActiveLineHint',
   },
-  lineWrapping: { label: 'editorSettings.lineWrapping', hint: 'editorSettings.lineWrappingHint' },
   inlineImages: { label: 'editorSettings.inlineImages', hint: 'editorSettings.inlineImagesHint' },
   readableWidth: {
     label: 'editorSettings.readableWidth',
@@ -177,12 +184,30 @@ export function EditingSection() {
         {flag('toolbar')}
         {flag('lineNumbers')}
         {flag('highlightActiveLine')}
-        {flag('lineWrapping')}
+        <Setting
+          label="editorSettings.lineWrapping"
+          description={t('editorSettings.lineWrappingHint')}
+          htmlFor={id('line-wrapping')}
+          descriptionId={id('line-wrapping-hint')}
+        >
+          <select
+            id={id('line-wrapping')}
+            value={settings.lineWrapping}
+            aria-describedby={id('line-wrapping-hint')}
+            onChange={(e) => change({ lineWrapping: e.currentTarget.value as LineWrappingMode })}
+          >
+            {LINE_WRAPPING_MODES.map((m) => (
+              <option key={m} value={m}>
+                {t(WRAPPING_LABELS[m])}
+              </option>
+            ))}
+          </select>
+        </Setting>
         {flag('inlineImages')}
         {/* Only wrapped lines can keep to a width (see editor/settings.ts). */}
         {flag(
           'readableWidth',
-          settings.lineWrapping ? undefined : 'editorSettings.readableWidthNote',
+          settings.lineWrapping !== 'off' ? undefined : 'editorSettings.readableWidthNote',
         )}
         {flag('scrollPastEnd')}
         <Setting
