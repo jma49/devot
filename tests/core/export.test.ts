@@ -234,12 +234,12 @@ describe('Markdown files', () => {
     expect(exportHeader(untitled)?.meta.title).toBe('')
   })
 
-  it('sets the keys that disagree in a note with front matter of its own', () => {
+  it("never changes a note's own front matter: Devot's block goes before it", () => {
     const own = ['---', 'title: Plan', 'tags:', '  - work', 'author: me', '---', 'Text', ''].join(
       '\n',
     )
-    // It already says everything: kept as written.
-    expect(markdownFile(entry(own, { tags: ['work'] }), 'x.md', new Map())).toBe(own)
+    // Its title is its file name's, and it has no tags or status: kept as written.
+    expect(markdownFile(entry(own, { title: 'x' }), 'x.md', new Map())).toBe(own)
     const out = markdownFile(
       entry(own, { title: 'Renamed', tags: ['work', 'new'], status: 'active' }),
       'x.md',
@@ -248,16 +248,15 @@ describe('Markdown files', () => {
     expect(out).toBe(
       [
         '---',
-        'author: me',
+        EXPORT_HEADER,
         "title: 'Renamed'",
         "tags: ['work', 'new']",
         'status: active',
         '---',
-        'Text',
-        '',
+        own,
       ].join('\n'),
     )
-    expect(exportHeader(out)).toBeNull()
+    expect(exportHeader(out)?.body).toBe(own)
   })
 })
 
@@ -321,7 +320,14 @@ function walk(root: string, rel = ''): string[] {
 /** Imports the folder at `root` as Rust would scan it (Markdown files, sorted). */
 async function importFolder(lib: Library, root: string, name: string) {
   const files = walk(root).filter((p) => p.endsWith('.md'))
-  const scan: ImportScan = { id: 1, name, files, skipped: [] }
+  const scan: ImportScan = {
+    id: 1,
+    name,
+    kind: 'folder',
+    files: files.map((path) => ({ path, bytes: 0 })),
+    images: [],
+    skipped: [],
+  }
   const source: ImportSource = {
     read: async (path) => readFileSync(join(root, path), 'utf8'),
     async attach(path, file) {
@@ -331,7 +337,9 @@ async function importFolder(lib: Library, root: string, name: string) {
       )
     },
   }
-  return importMarkdown({ ...lib.services, newId: lib.newId, scan, source })
+  // The picked folder's notes go into the notebook picked for them.
+  const destination = await lib.services.books.create(name, null)
+  return importMarkdown({ ...lib.services, newId: lib.newId, scan, source, destination })
 }
 
 /** A note's body with each attachment link showing its bytes instead of its ID. */
@@ -767,7 +775,14 @@ async function importOne(fileName: string, text: string) {
   const report = await importMarkdown({
     ...lib.services,
     newId: lib.newId,
-    scan: { id: 1, name: 'Folder', files: [fileName], skipped: [] },
+    scan: {
+      id: 1,
+      name: 'Folder',
+      kind: 'folder',
+      files: [{ path: fileName, bytes: 0 }],
+      images: [],
+      skipped: [],
+    },
     source: {
       read: async () => text,
       attach: async () => Promise.reject(new Error('E_IMPORT_FILE_NOT_FOUND')),
@@ -829,7 +844,7 @@ describe("Devot's metadata", () => {
   it('compares tags exactly, case included', async () => {
     const own = ['---', 'tags: [work]', '---', '# Plan', ''].join('\n')
     const out = markdownFile(entry(own, { tags: ['Work'] }), 'Plan.md', new Map())
-    expect(out).toBe(['---', "tags: ['Work']", '---', '# Plan', ''].join('\n'))
+    expect(exportHeader(out)?.body).toBe(own)
     expect((await importOne('Plan.md', out)).tags).toEqual(['Work'])
   })
 

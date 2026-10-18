@@ -24,6 +24,8 @@ const REASONS: Record<string, MessageKey> = {
   E_IMPORT_STOPPED: 'import.reason.stopped',
   E_IMPORT_PATH_UNKNOWN: 'import.reason.path',
   E_FILE_NAME_INVALID: 'import.reason.name',
+  E_IMPORT_FILE_TYPE: 'import.reason.fileType',
+  E_IMPORT_CANCELLED: 'import.reason.cancelled',
 }
 
 /** Why a file or folder was not imported, for the user. */

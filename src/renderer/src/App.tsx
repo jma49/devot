@@ -38,8 +38,15 @@ import { isImeKey } from './ime'
 import { createQuitGuard, newProblems } from './saving'
 import { BackupsDialog } from './BackupsDialog'
 import { BookPicker } from './BookPicker'
-import { ImportDialog, type ImportState } from './ImportDialog'
-import { IMPORT_FAILED, IMPORT_READY, finishImport, runImport } from './importer'
+import { ImportDialog, type ImportJob } from './ImportDialog'
+import {
+  IMPORT_FAILED,
+  IMPORT_PROGRESS,
+  IMPORT_READY,
+  IMPORT_SCANNING,
+  finishImport,
+  runImport,
+} from './importer'
 import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoreNotice } from './CoreNotice'
@@ -412,11 +419,10 @@ export function App() {
   const saveProblemsRef = useRef<SaveProblem[]>([])
   const quitGuard = useMemo(() => createQuitGuard(), [])
   const saveNoticeShown = saveProblems.length > 0 && !saveNoticeDismissed
-  // Markdown folder imports: folders waiting their turn, and the dialog.
-  const importJobs = useRef<
-    ({ kind: 'scan'; scan: ImportScan } | { kind: 'failed'; code: string })[]
-  >([])
-  const [importState, setImportState] = useState<ImportState>()
+  // Imports: those waiting their turn, and the one the sheet shows (a scan
+  // goes on while it waits; its progress and result update its job).
+  const importJobs = useRef<ImportJob[]>([])
+  const [importJob, setImportJob] = useState<ImportJob>()
   // Each job gets a fresh sheet.
   const [importKey, setImportKey] = useState(0)
   // One sheet at a time: an import never runs while Backups is open (a
@@ -424,7 +430,10 @@ export function App() {
   const importShown = useRef(false)
   const backupsShown = useRef(false)
   const backupsWanted = useRef(false)
+  // Sessions taken (their scan arrived) or closed: later events for them are ignored.
   const seenImports = useRef(new Set<number>())
+  // The session of the job the sheet shows.
+  const shownImport = useRef<number | null>(null)
   const coreRef = useRef<Core>(undefined)
   // The open note's Markdown, mirrored from the editor for the preview. It
   // is not App state: typing renders only the preview, while it shows.
@@ -559,25 +568,24 @@ export function App() {
       return
     }
     importShown.current = true
+    shownImport.current = job.id
     setImportKey((k) => k + 1)
-    if (job.kind === 'failed') {
-      setImportState(job)
-      return
-    }
-    const { scan } = job
-    setImportState({
-      kind: 'running',
-      name: scan.name,
-      done: 0,
-      total: scan.files.length,
-    })
-    const progress = (done: number, total: number) =>
-      setImportState((s) => (s?.kind === 'running' ? { ...s, done, total } : s))
-    void (async () => {
+    setImportJob(job)
+  }, [])
+
+  /** Runs the import the sheet asked for; it shows the result or the failure. */
+  const startImport = useCallback(
+    async (
+      scan: ImportScan,
+      destination: string | null,
+      progress: (done: number, total: number) => void,
+    ) => {
+      const c = coreRef.current
+      if (!c) throw new Error('E_CORE_NOT_READY')
       try {
         await saveEdits(c)
         const started = performance.now()
-        const report = await runImport(c, scan, progress)
+        const report = await runImport(c, scan, destination, progress)
         track('import.finished', {
           notes: report?.notes ?? 0,
           notebooks: report?.books ?? 0,
@@ -589,23 +597,26 @@ export function App() {
         if (report?.bookId) {
           showLibraryRef.current?.({ kind: 'book', id: report.bookId }, { clearFilter: true })
         }
-        setImportState({
-          kind: 'done',
-          name: scan.name,
-          report,
-          skipped: scan.skipped,
-        })
+        return report
       } catch (e) {
         console.warn('W_IMPORT_FAILED', errorCode(e))
         await refresh(c).catch(() => {})
-        setImportState({ kind: 'failed', code: errorCode(e) })
+        throw new Error(errorCode(e), { cause: e })
       }
-    })()
-  }, [refresh])
+    },
+    [refresh],
+  )
 
-  const closeImport = () => {
-    setImportState(undefined)
+  const closeImport = (cancelled: boolean) => {
+    // Cancelled before Import: the session (or the scan still running) ends.
+    const id = importJob?.id ?? null
+    if (cancelled && id !== null) {
+      seenImports.current.add(id)
+      void finishImport(id)
+    }
+    setImportJob(undefined)
     importShown.current = false
+    shownImport.current = null
     nextSheet()
   }
 
@@ -982,36 +993,82 @@ export function App() {
     }
   }, [showBackups])
 
-  // Import: Rust sends the scanned folder, or why it could not be scanned.
-  // Each one waits its turn; a scan is taken once even if sent twice.
+  // Import: Rust says a scan started and how far it got, then sends what it
+  // found (picked files come straight away) or why it failed. Each import
+  // waits its turn; a scan is taken once even if sent twice.
   useEffect(() => {
+    /** Changes the job of session `id`, shown or waiting; false when there is none. */
+    const update = (id: number, change: (job: ImportJob) => ImportJob) => {
+      if (shownImport.current === id) {
+        setImportJob((job) => (job && job.id === id ? change(job) : job))
+        return true
+      }
+      const at = importJobs.current.findIndex((job) => job.id === id)
+      if (at === -1) return false
+      importJobs.current[at] = change(importJobs.current[at]!)
+      return true
+    }
+    const add = (job: ImportJob) => {
+      importJobs.current.push(job)
+      nextSheet()
+    }
+    const scanning = (e: Event) => {
+      const { id, name, kind } = (
+        e as CustomEvent<Pick<ImportJob, 'name' | 'kind'> & { id: number }>
+      ).detail
+      if (seenImports.current.has(id) || update(id, (job) => job)) return
+      add({ id, name, kind, scan: null, found: { files: 0, images: 0 }, failed: null })
+    }
+    const progress = (e: Event) => {
+      const { id, files, images } = (
+        e as CustomEvent<{ id: number; files: number; images: number }>
+      ).detail
+      if (seenImports.current.has(id)) return
+      update(id, (job) => ({ ...job, found: { files, images } }))
+    }
     const ready = (e: Event) => {
       const scan = (e as CustomEvent<ImportScan>).detail
       if (seenImports.current.has(scan.id)) return
       seenImports.current.add(scan.id)
-      importJobs.current.push({ kind: 'scan', scan })
-      nextSheet()
+      if (update(scan.id, (job) => ({ ...job, scan }))) return
+      const found = { files: scan.files.length, images: scan.images.length }
+      add({ id: scan.id, name: scan.name, kind: scan.kind, scan, found, failed: null })
     }
     const failed = (e: Event) => {
-      importJobs.current.push({
-        kind: 'failed',
-        code: errorCode((e as CustomEvent).detail),
+      const detail = (e as CustomEvent<{ id: number | null; code: unknown } | string>).detail
+      const id = typeof detail === 'object' && detail !== null ? detail.id : null
+      const code = errorCode(typeof detail === 'object' && detail !== null ? detail.code : detail)
+      if (id !== null) {
+        if (seenImports.current.has(id)) return
+        seenImports.current.add(id)
+        if (update(id, (job) => ({ ...job, failed: code }))) return
+      }
+      add({
+        id,
+        name: '',
+        kind: 'folder',
+        scan: null,
+        found: { files: 0, images: 0 },
+        failed: code,
       })
-      nextSheet()
     }
+    window.addEventListener(IMPORT_SCANNING, scanning)
+    window.addEventListener(IMPORT_PROGRESS, progress)
     window.addEventListener(IMPORT_READY, ready)
     window.addEventListener(IMPORT_FAILED, failed)
     let stopped = false
     const unlisten: (() => void)[] = []
     if (!DEVOT_UI_TEST) {
       void import('@tauri-apps/api/event').then(async ({ listen }) => {
+        const resend = (from: string, to: string) =>
+          listen<unknown>(from, (e) =>
+            window.dispatchEvent(new CustomEvent(to, { detail: e.payload })),
+          )
         const stops = await Promise.all([
-          listen<ImportScan>('devot://import-ready', (e) =>
-            window.dispatchEvent(new CustomEvent(IMPORT_READY, { detail: e.payload })),
-          ),
-          listen<string>('devot://import-failed', (e) =>
-            window.dispatchEvent(new CustomEvent(IMPORT_FAILED, { detail: e.payload })),
-          ),
+          resend('devot://import-scanning', IMPORT_SCANNING),
+          resend('devot://import-progress', IMPORT_PROGRESS),
+          resend('devot://import-ready', IMPORT_READY),
+          resend('devot://import-failed', IMPORT_FAILED),
         ])
         // Cleaned up before the listeners were ready: stop them now.
         if (stopped) for (const stop of stops) stop()
@@ -1020,6 +1077,8 @@ export function App() {
     }
     return () => {
       stopped = true
+      window.removeEventListener(IMPORT_SCANNING, scanning)
+      window.removeEventListener(IMPORT_PROGRESS, progress)
       window.removeEventListener(IMPORT_READY, ready)
       window.removeEventListener(IMPORT_FAILED, failed)
       for (const stop of unlisten) stop()
@@ -1079,7 +1138,7 @@ export function App() {
     )
     // Folders picked meanwhile were never imported: close their sessions.
     for (const job of importJobs.current.splice(0)) {
-      if (job.kind === 'scan') await finishImport(job.scan.id)
+      if (job.id !== null) await finishImport(job.id)
     }
     window.location.reload()
   }
@@ -2752,8 +2811,15 @@ export function App() {
           />
         ) : null}
       </main>
-      {importState ? (
-        <ImportDialog key={importKey} state={importState} onClose={closeImport} />
+      {importJob ? (
+        <ImportDialog
+          key={importKey}
+          job={importJob}
+          tree={tree}
+          initialDestination={library.kind === 'book' ? library.id : null}
+          onImport={startImport}
+          onClose={closeImport}
+        />
       ) : null}
       {backupsOpen ? <BackupsDialog onRestore={restore} onClose={closeBackups} /> : null}
       {(backupNotice && !backupsOpen) ||

@@ -1,14 +1,21 @@
-//! Markdown folder import (File > Import > Markdown Folder…). Rust picks
-//! the folder, lists its Markdown files and reads them; the core worker
-//! turns them into notebooks and notes (`src/core/import.ts`).
+//! Markdown and HTML import (File > Import > Markdown Files…, Markdown
+//! Folder…, HTML Files…). Rust picks what to import, lists the files and
+//! reads them; the core worker turns them into notebooks and notes
+//! (`src/core/import.ts`).
 //!
-//! The web view never names a folder: the user picks it in a native panel
-//! and Rust keeps it as an import session. The UI asks for files by session
-//! ID and a path relative to the folder, and Rust only reads files inside
-//! it: hidden files and folders are skipped, the scan never walks symbolic
-//! links (an image may be reached through one, but only to a visible file
-//! inside the folder), and files over 10 MB are left out. Images are stored
-//! as attachments straight from disk, so their bytes never cross IPC.
+//! The web view never names a path: the user picks folders or files in a
+//! native panel and Rust keeps them as an import session. The UI asks for
+//! files by session ID and a path relative to what was picked (starting with
+//! a folder's name when several were picked), and Rust only reads files
+//! inside it: hidden files and folders are skipped, the scan never walks
+//! symbolic links (an image may be reached through one, but only to a
+//! visible file inside the folder), and files over 10 MB are left out.
+//! Images are stored as attachments straight from disk, so their bytes
+//! never cross IPC.
+//!
+//! A folder scan runs on its own thread and reports its progress; closing
+//! the session (`import_finish`) cancels a scan still running. Nothing is
+//! written until the UI imports the scan.
 
 use crate::commands::files::{MAX_FILE_BYTES, Upload, store_upload};
 use crate::commands::notes::valid_note_id;
@@ -18,8 +25,9 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
@@ -33,7 +41,11 @@ pub const MAX_ENTRIES: usize = 200_000;
 pub const MAX_DEPTH: usize = 64;
 const MAX_PATH_BYTES: usize = 4096;
 const MAX_NAME_CHARS: usize = 200;
+/// How often a scan reports its progress.
+const PROGRESS_EVERY: Duration = Duration::from_millis(100);
 
+pub const SCANNING_EVENT: &str = "devot://import-scanning";
+pub const PROGRESS_EVENT: &str = "devot://import-progress";
 pub const READY_EVENT: &str = "devot://import-ready";
 pub const FAILED_EVENT: &str = "devot://import-failed";
 
@@ -43,13 +55,39 @@ pub struct Problem {
     pub code: &'static str,
 }
 
-/// What a scan found: Markdown files (relative, `/`-separated, sorted) and
-/// the files it left out.
+/// A file found, by its path relative to what was picked, and its size.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Item {
+    pub path: String,
+    pub bytes: u64,
+}
+
+/// What was picked; it decides which folders become notebooks (import.ts).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Kind {
+    Folder,
+    Folders,
+    Files,
+}
+
+/// A picked folder (or a picked file's folder) and the first path
+/// component that stands for it (`""` when it is the only one).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Root {
+    pub prefix: String,
+    pub path: PathBuf,
+}
+
+/// What a scan found: notes and images (relative, `/`-separated, sorted)
+/// and the files it left out.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Found {
-    pub root: PathBuf,
+    pub roots: Vec<Root>,
     pub name: String,
-    pub files: Vec<String>,
+    pub kind: Kind,
+    pub files: Vec<Item>,
+    pub images: Vec<Item>,
     pub skipped: Vec<Problem>,
 }
 
@@ -58,15 +96,55 @@ pub struct Found {
 pub struct Scan {
     pub id: u64,
     pub name: String,
-    pub files: Vec<String>,
+    pub kind: Kind,
+    pub files: Vec<Item>,
+    pub images: Vec<Item>,
     pub skipped: Vec<Problem>,
 }
 
-fn is_markdown(name: &str) -> bool {
+/// A scan that has started (the wizard opens on it).
+#[derive(Debug, Clone, Serialize)]
+struct Scanning<'a> {
+    id: u64,
+    name: &'a str,
+    kind: Kind,
+}
+
+/// How far a scan has got.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct Progress {
+    pub files: usize,
+    pub images: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ProgressEvent {
+    id: u64,
+    files: usize,
+    images: usize,
+}
+
+/// Why a scan failed; `id` is null when it failed before it had one.
+#[derive(Debug, Clone, Serialize)]
+struct Failed {
+    id: Option<u64>,
+    code: &'static str,
+}
+
+fn has_extension(name: &str, extensions: &[&str]) -> bool {
     Path::new(name)
         .extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|e| e.eq_ignore_ascii_case("md") || e.eq_ignore_ascii_case("markdown"))
+        .is_some_and(|e| extensions.iter().any(|x| e.eq_ignore_ascii_case(x)))
+}
+
+const MARKDOWN: &[&str] = &["md", "markdown"];
+const HTML: &[&str] = &["html", "htm"];
+/// Image files a scan counts (attachments check the bytes themselves).
+const IMAGES: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "avif", "heic", "heif"];
+
+fn is_markdown(name: &str) -> bool {
+    has_extension(name, MARKDOWN)
 }
 
 fn join(rel: &str, name: &str) -> String {
@@ -96,47 +174,171 @@ impl Limits {
     };
 }
 
-/// Lists the Markdown files under `root`.
+/// What a running scan watches: whether it was cancelled, and who hears
+/// its progress.
+pub struct Watch<'a> {
+    pub cancelled: &'a AtomicBool,
+    pub progress: &'a dyn Fn(Progress),
+}
+
+#[cfg(test)]
+impl Watch<'_> {
+    /// A watch that never cancels and hears nothing.
+    fn idle<T>(f: impl FnOnce(&Watch<'_>) -> T) -> T {
+        let cancelled = AtomicBool::new(false);
+        f(&Watch {
+            cancelled: &cancelled,
+            progress: &|_| {},
+        })
+    }
+}
+
+/// Lists the Markdown files and images under `root`.
+#[cfg(test)]
 pub fn scan(root: &Path) -> Result<Found, &'static str> {
     scan_with(root, Limits::DEFAULT)
 }
 
-/// Lists the Markdown files under `root`, within `limits`.
+/// Lists the Markdown files and images under `root`, within `limits`.
+#[cfg(test)]
 pub fn scan_with(root: &Path, limits: Limits) -> Result<Found, &'static str> {
-    let root = std::fs::canonicalize(root).map_err(|_| "E_IMPORT_ROOT_INVALID")?;
-    if !root.is_dir() {
-        return Err("E_IMPORT_ROOT_INVALID");
+    Watch::idle(|watch| scan_folders(&[root.to_path_buf()], limits, watch))
+}
+
+/// `name`, or `name 2`, `name 3`… when it is taken (in any case).
+fn unique(name: &str, taken: &mut HashSet<String>) -> String {
+    // A path component the UI sends back must not be hidden.
+    let base = match name.trim_start_matches('.') {
+        "" => "Folder",
+        rest => rest,
+    };
+    let mut candidate = base.to_owned();
+    let mut n = 1;
+    while !taken.insert(candidate.to_lowercase()) {
+        n += 1;
+        candidate = format!("{base} {n}");
     }
-    let name = root
+    candidate
+}
+
+fn folder_name(root: &Path) -> Result<String, &'static str> {
+    Ok(root
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or("E_IMPORT_ROOT_INVALID")?
-        .to_owned();
-    let mut files = Vec::new();
-    let mut skipped = Vec::new();
-    let mut entries = 0usize;
-    let mut stack = vec![(root.clone(), String::new(), 0usize)];
+        .to_owned())
+}
+
+/// Lists the Markdown files and images under each of `roots`. One folder's
+/// paths are relative to it; several folders' start with each one's name
+/// (made unique). `limits` hold for all of them together.
+pub fn scan_folders(
+    roots: &[PathBuf],
+    limits: Limits,
+    watch: &Watch<'_>,
+) -> Result<Found, &'static str> {
+    let mut picked = Vec::new();
+    let mut taken = HashSet::new();
+    for root in roots {
+        let path = std::fs::canonicalize(root).map_err(|_| "E_IMPORT_ROOT_INVALID")?;
+        if !path.is_dir() {
+            return Err("E_IMPORT_ROOT_INVALID");
+        }
+        let name = folder_name(&path)?;
+        let prefix = if roots.len() == 1 {
+            String::new()
+        } else {
+            unique(&name, &mut taken)
+        };
+        picked.push((Root { prefix, path }, name));
+    }
+    let name = picked.first().ok_or("E_IMPORT_ROOT_INVALID")?.1.clone();
+    let mut lists = Lists::default();
+    for (root, _) in &picked {
+        walk(root, limits, watch, &mut lists)?;
+    }
+    (watch.progress)(lists.progress());
+    Ok(lists.found(
+        picked.into_iter().map(|(root, _)| root).collect(),
+        name,
+        if roots.len() == 1 {
+            Kind::Folder
+        } else {
+            Kind::Folders
+        },
+    ))
+}
+
+#[derive(Default)]
+struct Lists {
+    files: Vec<Item>,
+    images: Vec<Item>,
+    skipped: Vec<Problem>,
+    entries: usize,
+    reported: Option<Instant>,
+}
+
+impl Lists {
+    fn progress(&self) -> Progress {
+        Progress {
+            files: self.files.len(),
+            images: self.images.len(),
+        }
+    }
+
+    fn found(mut self, roots: Vec<Root>, name: String, kind: Kind) -> Found {
+        self.files.sort_by(|a, b| a.path.cmp(&b.path));
+        self.images.sort_by(|a, b| a.path.cmp(&b.path));
+        self.skipped.sort_by(|a, b| a.path.cmp(&b.path));
+        Found {
+            roots,
+            name,
+            kind,
+            files: self.files,
+            images: self.images,
+            skipped: self.skipped,
+        }
+    }
+}
+
+fn walk(
+    root: &Root,
+    limits: Limits,
+    watch: &Watch<'_>,
+    lists: &mut Lists,
+) -> Result<(), &'static str> {
+    let mut stack = vec![(root.path.clone(), root.prefix.clone(), 0usize)];
     while let Some((dir, rel, depth)) = stack.pop() {
+        if watch.cancelled.load(Ordering::Relaxed) {
+            return Err("E_IMPORT_CANCELLED");
+        }
         let Ok(list) = std::fs::read_dir(&dir).map(|l| {
             // Sorted, so the same folder always gives the same result.
             let mut list: Vec<_> = l.flatten().collect();
             list.sort_by_key(|e| e.file_name());
             list
         }) else {
-            skipped.push(Problem {
+            lists.skipped.push(Problem {
                 path: rel,
                 code: "E_IMPORT_UNREADABLE",
             });
             continue;
         };
         for entry in list {
-            entries += 1;
-            if entries > limits.entries {
+            lists.entries += 1;
+            if lists.entries > limits.entries {
                 return Err("E_IMPORT_FOLDER_TOO_LARGE");
+            }
+            if lists
+                .reported
+                .is_none_or(|at| at.elapsed() >= PROGRESS_EVERY)
+            {
+                lists.reported = Some(Instant::now());
+                (watch.progress)(lists.progress());
             }
             let file_name = entry.file_name();
             let Some(name) = file_name.to_str() else {
-                skipped.push(Problem {
+                lists.skipped.push(Problem {
                     path: join(&rel, &file_name.to_string_lossy()),
                     code: "E_IMPORT_NAME_INVALID",
                 });
@@ -147,38 +349,46 @@ pub fn scan_with(root: &Path, limits: Limits) -> Result<Found, &'static str> {
             }
             let child = join(&rel, name);
             let Ok(kind) = entry.file_type() else {
-                skipped.push(Problem {
+                lists.skipped.push(Problem {
                     path: child,
                     code: "E_IMPORT_UNREADABLE",
                 });
                 continue;
             };
+            let image = has_extension(name, IMAGES);
             if kind.is_symlink() {
-                if let Some(code) = link_problem(&root, &entry.path(), name) {
-                    skipped.push(Problem { path: child, code });
+                if let Some(code) = link_problem(&root.path, &entry.path(), name) {
+                    lists.skipped.push(Problem { path: child, code });
                 }
             } else if kind.is_dir() {
                 if depth + 1 > limits.depth {
-                    skipped.push(Problem {
+                    lists.skipped.push(Problem {
                         path: child,
                         code: "E_IMPORT_TOO_DEEP",
                     });
                 } else {
                     stack.push((entry.path(), child, depth + 1));
                 }
-            } else if kind.is_file() && is_markdown(name) {
+            } else if kind.is_file() && (is_markdown(name) || image) {
                 match entry.metadata() {
-                    Ok(meta) if meta.len() > MAX_NOTE_BYTES => skipped.push(Problem {
+                    Ok(meta) if meta.len() > MAX_NOTE_BYTES => lists.skipped.push(Problem {
                         path: child,
                         code: "E_IMPORT_FILE_TOO_LARGE",
                     }),
-                    Ok(_) => {
-                        files.push(child);
-                        if files.len() > limits.files {
+                    Ok(meta) if image => lists.images.push(Item {
+                        path: child,
+                        bytes: meta.len(),
+                    }),
+                    Ok(meta) => {
+                        lists.files.push(Item {
+                            path: child,
+                            bytes: meta.len(),
+                        });
+                        if lists.files.len() > limits.files {
                             return Err("E_IMPORT_TOO_MANY_FILES");
                         }
                     }
-                    Err(_) => skipped.push(Problem {
+                    Err(_) => lists.skipped.push(Problem {
                         path: child,
                         code: "E_IMPORT_UNREADABLE",
                     }),
@@ -186,14 +396,90 @@ pub fn scan_with(root: &Path, limits: Limits) -> Result<Found, &'static str> {
             }
         }
     }
-    files.sort();
-    skipped.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(Found {
-        root,
-        name,
-        files,
-        skipped,
-    })
+    Ok(())
+}
+
+/// What the user picked as files: Markdown (`html` false) or HTML. Each
+/// file is read from its folder, which is also where its images may be.
+/// Files from one folder have plain names; from several, each path starts
+/// with its folder's name (made unique).
+pub fn pick_found(paths: &[PathBuf], html: bool) -> Result<Found, &'static str> {
+    let extensions = if html { HTML } else { MARKDOWN };
+    let mut parents: Vec<PathBuf> = Vec::new();
+    let mut picked = Vec::new();
+    let mut skipped = Vec::new();
+    for path in paths.iter().take(MAX_FILES + 1) {
+        let shown = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let checked = std::fs::canonicalize(path)
+            .ok()
+            .and_then(|p| std::fs::metadata(&p).ok().map(|m| (p, m)));
+        let Some((real, meta)) = checked.filter(|(_, m)| m.is_file()) else {
+            skipped.push((None, shown, "E_IMPORT_UNREADABLE"));
+            continue;
+        };
+        let (Some(parent), Some(name)) = (
+            real.parent().map(Path::to_path_buf),
+            real.file_name().and_then(|n| n.to_str()).map(str::to_owned),
+        ) else {
+            skipped.push((None, shown, "E_IMPORT_NAME_INVALID"));
+            continue;
+        };
+        let at = match parents.iter().position(|p| *p == parent) {
+            Some(at) => at,
+            None => {
+                parents.push(parent);
+                parents.len() - 1
+            }
+        };
+        if name.starts_with('.') {
+            skipped.push((Some(at), name, "E_IMPORT_PATH_INVALID"));
+        } else if !has_extension(&name, extensions) {
+            skipped.push((Some(at), name, "E_IMPORT_FILE_TYPE"));
+        } else if meta.len() > MAX_NOTE_BYTES {
+            skipped.push((Some(at), name, "E_IMPORT_FILE_TOO_LARGE"));
+        } else {
+            picked.push((at, name, meta.len()));
+        }
+    }
+    if picked.len() > MAX_FILES {
+        return Err("E_IMPORT_TOO_MANY_FILES");
+    }
+    let mut taken = HashSet::new();
+    let mut roots: Vec<Root> = parents
+        .into_iter()
+        .map(|path| Root {
+            prefix: String::new(),
+            path,
+        })
+        .collect();
+    if roots.len() > 1 {
+        for root in &mut roots {
+            let name = folder_name(&root.path).unwrap_or_default();
+            root.prefix = unique(&name, &mut taken);
+        }
+    }
+    let rel = |at: usize, name: &str| join(&roots[at].prefix, name);
+    let mut lists = Lists::default();
+    for (at, name, bytes) in picked {
+        lists.files.push(Item {
+            path: rel(at, &name),
+            bytes,
+        });
+    }
+    for (at, name, code) in skipped {
+        let path = at.map_or(name.clone(), |at| rel(at, &name));
+        lists.skipped.push(Problem { path, code });
+    }
+    // Named after the first file picked.
+    let name = paths
+        .first()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    Ok(lists.found(roots, name, Kind::Files))
 }
 
 /// Links are never walked: a visible target inside the folder is imported
@@ -314,54 +600,106 @@ pub fn read_image(root: &Path, rel: &str) -> Result<Image, &'static str> {
 }
 
 struct Session {
-    root: PathBuf,
+    roots: Vec<Root>,
     files: HashSet<String>,
 }
 
-/// Import sessions: the folders the user picked, by ID.
 #[derive(Default)]
 pub struct Imports {
     next: AtomicU64,
+    /// Scans still running, with the flag that cancels each.
+    pending: Mutex<HashMap<u64, Arc<AtomicBool>>>,
     sessions: Mutex<HashMap<u64, Session>>,
 }
 
 impl Imports {
-    /// Starts a session for a scanned folder.
-    pub fn start(&self, found: Found) -> Scan {
+    /// A new session ID for a scan about to run, and its cancel flag.
+    pub fn begin(&self) -> (u64, Arc<AtomicBool>) {
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
-        let session = Session {
-            root: found.root,
-            files: found.files.iter().cloned().collect(),
-        };
-        if let Ok(mut sessions) = self.sessions.lock() {
-            sessions.insert(id, session);
+        let cancelled = Arc::new(AtomicBool::new(false));
+        if let Ok(mut pending) = self.pending.lock() {
+            pending.insert(id, cancelled.clone());
         }
-        Scan {
+        (id, cancelled)
+    }
+
+    /// Keeps what scan `id` found as its session; None when it was
+    /// cancelled meanwhile.
+    pub fn ready(&self, id: u64, found: Found) -> Option<Scan> {
+        let flag = self.pending.lock().ok()?.remove(&id)?;
+        if flag.load(Ordering::Relaxed) {
+            return None;
+        }
+        let session = Session {
+            roots: found.roots,
+            files: found.files.iter().map(|f| f.path.clone()).collect(),
+        };
+        self.sessions.lock().ok()?.insert(id, session);
+        Some(Scan {
             id,
             name: found.name,
+            kind: found.kind,
             files: found.files,
+            images: found.images,
             skipped: found.skipped,
+        })
+    }
+
+    /// A session for what was found straight away (picked files).
+    pub fn start(&self, found: Found) -> Scan {
+        let (id, _) = self.begin();
+        self.ready(id, found).unwrap_or(Scan {
+            id,
+            name: String::new(),
+            kind: Kind::Files,
+            files: Vec::new(),
+            images: Vec::new(),
+            skipped: Vec::new(),
+        })
+    }
+
+    /// Scan `id` failed: it has no session.
+    fn failed(&self, id: u64) {
+        if let Ok(mut pending) = self.pending.lock() {
+            pending.remove(&id);
         }
     }
 
-    /// The session's folder, if `rel` may be read as a note (`note`) or an image.
-    fn root_for(&self, id: u64, rel: &str, note: bool) -> Result<PathBuf, &'static str> {
+    /// The folder `rel` is in, and `rel` inside it.
+    fn root_for(&self, id: u64, rel: &str, note: bool) -> Result<(PathBuf, String), &'static str> {
         let sessions = self.sessions.lock().map_err(|_| "E_IMPORT_SESSION")?;
         let session = sessions.get(&id).ok_or("E_IMPORT_SESSION")?;
         if note && !session.files.contains(rel) {
             return Err("E_IMPORT_PATH_UNKNOWN");
         }
-        Ok(session.root.clone())
+        for root in &session.roots {
+            if root.prefix.is_empty() {
+                return Ok((root.path.clone(), rel.to_owned()));
+            }
+            if let Some(inside) = rel
+                .strip_prefix(root.prefix.as_str())
+                .and_then(|r| r.strip_prefix('/'))
+            {
+                return Ok((root.path.clone(), inside.to_owned()));
+            }
+        }
+        Err("E_IMPORT_PATH_OUTSIDE")
     }
 
+    /// Ends session `id`: a scan still running stops, and its files can no
+    /// longer be read.
     pub fn finish(&self, id: u64) {
+        if let Ok(pending) = self.pending.lock()
+            && let Some(flag) = pending.get(&id)
+        {
+            flag.store(true, Ordering::Relaxed);
+        }
         if let Ok(mut sessions) = self.sessions.lock() {
             sessions.remove(&id);
         }
     }
 }
 
-/// Runs file reads off the async runtime's worker threads.
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
 ) -> Result<T, String> {
@@ -371,19 +709,16 @@ async fn blocking<T: Send + 'static>(
         .map_err(String::from)
 }
 
-/// A Markdown file of the session's folder.
 #[tauri::command]
 pub async fn import_read(
     imports: State<'_, Imports>,
     id: u64,
     path: String,
 ) -> Result<String, String> {
-    let root = imports.root_for(id, &path, true)?;
-    blocking(move || read_note(&root, &path)).await
+    let (root, rel) = imports.root_for(id, &path, true)?;
+    blocking(move || read_note(&root, &rel)).await
 }
 
-/// Stores an image of the session's folder as an attachment of a note,
-/// with the same checks as a pasted image.
 #[tauri::command]
 pub async fn import_attach(
     imports: State<'_, Imports>,
@@ -393,15 +728,17 @@ pub async fn import_attach(
     file_id: String,
     note_id: String,
 ) -> Result<(), String> {
-    // Checked again when stored; here so a bad call reads nothing.
     if !valid_note_id(&file_id) {
         return Err("E_FILE_ID_INVALID".into());
     }
     if !valid_note_id(&note_id) {
         return Err("E_NOTE_ID_INVALID".into());
     }
-    let root = imports.root_for(id, &path, false)?;
-    let image = blocking(move || read_image(&root, &path)).await?;
+    if path.is_empty() || path.len() > MAX_PATH_BYTES {
+        return Err("E_IMPORT_PATH_INVALID".into());
+    }
+    let (root, rel) = imports.root_for(id, &path, false)?;
+    let image = blocking(move || read_image(&root, &rel)).await?;
     let upload = Upload {
         id: file_id,
         note_id,
@@ -410,56 +747,154 @@ pub async fn import_attach(
     store_upload(&db, upload, image.data).await
 }
 
-/// Ends a session; its folder can no longer be read.
 #[tauri::command]
 pub fn import_finish(imports: State<'_, Imports>, id: u64) {
     imports.finish(id);
 }
 
-/// Asks for a folder, scans it off the main thread and hands the result to
-/// the main window, which runs the import.
-pub fn pick(app: &AppHandle) {
-    let mut dialog = app
-        .dialog()
-        .file()
-        .set_title(strings::IMPORT_MARKDOWN_TITLE);
+/// What the user can pick from File > Import.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pick {
+    MarkdownFiles,
+    MarkdownFolders,
+    HtmlFiles,
+}
+
+fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {
+    if app.emit_to("main", event, payload).is_err() {
+        log::warn!("W_IMPORT_EVENT_FAILED");
+    }
+}
+
+fn fail(app: &AppHandle, id: Option<u64>, code: &'static str) {
+    log::warn!("W_IMPORT_FAILED {code}");
+    emit(app, FAILED_EVENT, Failed { id, code });
+}
+
+/// Shows the panel for `pick`; what the user picks is scanned and sent to
+/// the window as a session.
+pub fn pick(app: &AppHandle, pick: Pick) {
+    let title = match pick {
+        Pick::MarkdownFiles => strings::IMPORT_MARKDOWN_FILES_TITLE,
+        Pick::MarkdownFolders => strings::IMPORT_MARKDOWN_TITLE,
+        Pick::HtmlFiles => strings::IMPORT_HTML_FILES_TITLE,
+    };
+    let mut dialog = app.dialog().file().set_title(title);
     if let Some(window) = app.get_webview_window("main") {
         dialog = dialog.set_parent(&window);
     }
     let app = app.clone();
-    dialog.pick_folder(move |folder| {
-        let Some(folder) = folder else { return };
-        let fail = |app: &AppHandle, code: &'static str| {
-            log::warn!("W_IMPORT_FAILED {code}");
-            if app.emit_to("main", FAILED_EVENT, code).is_err() {
-                log::warn!("W_IMPORT_EVENT_FAILED");
+    match pick {
+        Pick::MarkdownFolders => dialog.pick_folders(move |folders| {
+            let Some(folders) = folders else { return };
+            let paths: Result<Vec<PathBuf>, _> =
+                folders.into_iter().map(|f| f.into_path()).collect();
+            match paths {
+                Ok(paths) if !paths.is_empty() => scan_in_background(app, paths),
+                _ => fail(&app, None, "E_IMPORT_ROOT_INVALID"),
             }
-        };
-        let Ok(path) = folder.into_path() else {
-            fail(&app, "E_IMPORT_ROOT_INVALID");
-            return;
-        };
-        let spawned = std::thread::Builder::new()
-            .name("devot-import-scan".into())
-            .spawn(move || match scan(&path) {
-                Ok(found) => {
-                    let scan = app.state::<Imports>().start(found);
-                    log::info!(
-                        "I_IMPORT_SCANNED {} files={} skipped={}",
-                        scan.id,
-                        scan.files.len(),
-                        scan.skipped.len()
-                    );
-                    if app.emit_to("main", READY_EVENT, scan).is_err() {
-                        log::warn!("W_IMPORT_EVENT_FAILED");
+        }),
+        Pick::MarkdownFiles | Pick::HtmlFiles => {
+            let html = pick == Pick::HtmlFiles;
+            let filter = if html { HTML } else { MARKDOWN };
+            dialog.add_filter(title, filter).pick_files(move |files| {
+                let Some(files) = files else { return };
+                let paths: Result<Vec<PathBuf>, _> =
+                    files.into_iter().map(|f| f.into_path()).collect();
+                let Ok(paths) = paths else {
+                    fail(&app, None, "E_IMPORT_ROOT_INVALID");
+                    return;
+                };
+                match pick_found(&paths, html) {
+                    Ok(found) => {
+                        let scan = app.state::<Imports>().start(found);
+                        log::info!(
+                            "I_IMPORT_PICKED {} files={} skipped={}",
+                            scan.id,
+                            scan.files.len(),
+                            scan.skipped.len()
+                        );
+                        emit(&app, READY_EVENT, scan);
                     }
+                    Err(code) => fail(&app, None, code),
                 }
-                Err(code) => fail(&app, code),
-            });
-        if spawned.is_err() {
-            log::warn!("W_IMPORT_THREAD_FAILED");
+            })
         }
-    });
+    }
+}
+
+/// Scans picked folders on a thread of their own, telling the window when
+/// it starts, how far it has got, and what it found.
+fn scan_in_background(app: AppHandle, paths: Vec<PathBuf>) {
+    let (id, cancelled) = app.state::<Imports>().begin();
+    let name = paths
+        .first()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let kind = if paths.len() == 1 {
+        Kind::Folder
+    } else {
+        Kind::Folders
+    };
+    emit(
+        &app,
+        SCANNING_EVENT,
+        Scanning {
+            id,
+            name: &name,
+            kind,
+        },
+    );
+    let worker = app.clone();
+    let spawned = std::thread::Builder::new()
+        .name("devot-import-scan".into())
+        .spawn(move || {
+            let app = worker;
+            let progress = |p: Progress| {
+                emit(
+                    &app,
+                    PROGRESS_EVENT,
+                    ProgressEvent {
+                        id,
+                        files: p.files,
+                        images: p.images,
+                    },
+                )
+            };
+            let watch = Watch {
+                cancelled: &cancelled,
+                progress: &progress,
+            };
+            let imports = app.state::<Imports>();
+            match scan_folders(&paths, Limits::DEFAULT, &watch) {
+                Ok(found) => match imports.ready(id, found) {
+                    Some(scan) => {
+                        log::info!(
+                            "I_IMPORT_SCANNED {} files={} images={} skipped={}",
+                            scan.id,
+                            scan.files.len(),
+                            scan.images.len(),
+                            scan.skipped.len()
+                        );
+                        emit(&app, READY_EVENT, scan);
+                    }
+                    None => log::info!("I_IMPORT_SCAN_CANCELLED {id}"),
+                },
+                Err("E_IMPORT_CANCELLED") => {
+                    imports.failed(id);
+                    log::info!("I_IMPORT_SCAN_CANCELLED {id}");
+                }
+                Err(code) => {
+                    imports.failed(id);
+                    fail(&app, Some(id), code);
+                }
+            }
+        });
+    if spawned.is_err() {
+        app.state::<Imports>().failed(id);
+        fail(&app, Some(id), "E_IMPORT_FAILED");
+    }
 }
 
 #[cfg(test)]
@@ -468,6 +903,10 @@ mod tests {
     use std::fs;
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
+
+    fn paths(items: &[Item]) -> Vec<&str> {
+        items.iter().map(|i| i.path.as_str()).collect()
+    }
 
     fn write(root: &Path, rel: &str, data: &[u8]) {
         let path = root.join(rel);
@@ -494,15 +933,30 @@ mod tests {
         let dir = sample();
         let found = scan(dir.path()).unwrap();
         assert_eq!(
-            found.files,
+            paths(&found.files),
             [
                 "Inbox.md",
                 "Projects/Deep/Spec.MD",
                 "Projects/Plan.markdown"
             ]
         );
+        assert_eq!(found.files[0].bytes, 8);
+        assert_eq!(
+            found.images,
+            [Item {
+                path: "Projects/img/board.png".into(),
+                bytes: PNG.len() as u64
+            }]
+        );
         assert!(found.skipped.is_empty());
-        assert_eq!(found.root, fs::canonicalize(dir.path()).unwrap());
+        assert_eq!(found.kind, Kind::Folder);
+        assert_eq!(
+            found.roots,
+            [Root {
+                prefix: String::new(),
+                path: fs::canonicalize(dir.path()).unwrap()
+            }]
+        );
         assert_eq!(
             found.name,
             dir.path().file_name().unwrap().to_str().unwrap()
@@ -530,15 +984,24 @@ mod tests {
         big.set_len(MAX_NOTE_BYTES + 1).unwrap();
         let exact = fs::File::create(dir.path().join("Exact.md")).unwrap();
         exact.set_len(MAX_NOTE_BYTES).unwrap();
+        let big_image = fs::File::create(dir.path().join("Big.png")).unwrap();
+        big_image.set_len(MAX_NOTE_BYTES + 1).unwrap();
         let found = scan(dir.path()).unwrap();
-        assert!(found.files.contains(&"Exact.md".to_string()));
-        assert!(!found.files.contains(&"Big.md".to_string()));
+        assert!(paths(&found.files).contains(&"Exact.md"));
+        assert!(!paths(&found.files).contains(&"Big.md"));
+        assert!(!paths(&found.images).contains(&"Big.png"));
         assert_eq!(
             found.skipped,
-            [Problem {
-                path: "Big.md".into(),
-                code: "E_IMPORT_FILE_TOO_LARGE"
-            }]
+            [
+                Problem {
+                    path: "Big.md".into(),
+                    code: "E_IMPORT_FILE_TOO_LARGE"
+                },
+                Problem {
+                    path: "Big.png".into(),
+                    code: "E_IMPORT_FILE_TOO_LARGE"
+                }
+            ]
         );
     }
 
@@ -570,7 +1033,10 @@ mod tests {
     #[test]
     fn follows_folders_down_to_the_depth_limit_and_reports_deeper_ones() {
         let (dir, rel) = nested(MAX_DEPTH);
-        assert_eq!(scan(dir.path()).unwrap().files, [format!("{rel}/deep.md")]);
+        assert_eq!(
+            paths(&scan(dir.path()).unwrap().files),
+            [format!("{rel}/deep.md")]
+        );
         let (dir, rel) = nested(MAX_DEPTH + 1);
         let found = scan(dir.path()).unwrap();
         assert!(found.files.is_empty());
@@ -634,7 +1100,7 @@ mod tests {
         // Links are not walked: no loop, no duplicates, nothing hidden;
         // links inside the folder to visible notes (Alias.md, Loop) are quiet.
         assert_eq!(
-            found.files,
+            paths(&found.files),
             [
                 "Inbox.md",
                 "Projects/Deep/Spec.MD",
@@ -666,7 +1132,7 @@ mod tests {
                 },
             ]
         );
-        let root = &found.root;
+        let root = &found.roots[0].path;
         assert_eq!(read_note(root, "secret.md"), Err("E_IMPORT_PATH_OUTSIDE"));
         assert_eq!(
             read_note(root, "Escape/secret.md"),
@@ -791,5 +1257,162 @@ mod tests {
             Err("E_IMPORT_SESSION")
         );
         assert!(imports.root_for(second.id, "Inbox.md", true).is_ok());
+    }
+
+    #[test]
+    fn several_folders_each_start_their_paths_with_a_unique_name() {
+        let parent = tempfile::tempdir().unwrap();
+        write(parent.path(), "Work/Plan.md", b"# Plan\n");
+        write(parent.path(), "Work/Q4/Goals.md", b"# Goals\n");
+        write(parent.path(), "other/Work/List.md", b"# List\n");
+        write(parent.path(), "Home/cat.png", PNG);
+        let roots = [
+            parent.path().join("Work"),
+            parent.path().join("other/Work"),
+            parent.path().join("Home"),
+        ];
+        let found = Watch::idle(|w| scan_folders(&roots, Limits::DEFAULT, w)).unwrap();
+        assert_eq!(found.kind, Kind::Folders);
+        assert_eq!(found.name, "Work");
+        assert_eq!(
+            found
+                .roots
+                .iter()
+                .map(|r| r.prefix.as_str())
+                .collect::<Vec<_>>(),
+            ["Work", "Work 2", "Home"]
+        );
+        assert_eq!(
+            paths(&found.files),
+            ["Work 2/List.md", "Work/Plan.md", "Work/Q4/Goals.md"]
+        );
+        assert_eq!(paths(&found.images), ["Home/cat.png"]);
+
+        // A session reads each path from its own folder.
+        let imports = Imports::default();
+        let scan = imports.start(found);
+        let (root, rel) = imports.root_for(scan.id, "Work 2/List.md", true).unwrap();
+        assert_eq!(read_note(&root, &rel).as_deref(), Ok("# List\n"));
+        let (root, rel) = imports.root_for(scan.id, "Home/cat.png", false).unwrap();
+        assert!(read_image(&root, &rel).is_ok());
+        assert_eq!(
+            imports.root_for(scan.id, "Elsewhere/cat.png", false),
+            Err("E_IMPORT_PATH_OUTSIDE")
+        );
+        // The limits hold for all the folders together.
+        let limits = Limits {
+            files: 2,
+            ..Limits::DEFAULT
+        };
+        assert_eq!(
+            Watch::idle(|w| scan_folders(&roots, limits, w)),
+            Err("E_IMPORT_TOO_MANY_FILES")
+        );
+    }
+
+    #[test]
+    fn a_scan_reports_progress_and_stops_when_cancelled() {
+        let dir = sample();
+        let seen = Mutex::new(Vec::new());
+        let progress = |p: Progress| seen.lock().unwrap().push(p);
+        let cancelled = AtomicBool::new(false);
+        let watch = Watch {
+            cancelled: &cancelled,
+            progress: &progress,
+        };
+        scan_folders(&[dir.path().to_path_buf()], Limits::DEFAULT, &watch).unwrap();
+        let last = *seen.lock().unwrap().last().unwrap();
+        assert_eq!(
+            last,
+            Progress {
+                files: 3,
+                images: 1
+            }
+        );
+        cancelled.store(true, Ordering::Relaxed);
+        assert_eq!(
+            scan_folders(&[dir.path().to_path_buf()], Limits::DEFAULT, &watch),
+            Err("E_IMPORT_CANCELLED")
+        );
+    }
+
+    #[test]
+    fn a_session_closed_while_its_scan_runs_never_opens() {
+        let dir = sample();
+        let imports = Imports::default();
+        let (id, cancelled) = imports.begin();
+        imports.finish(id);
+        assert!(cancelled.load(Ordering::Relaxed));
+        assert_eq!(imports.ready(id, scan(dir.path()).unwrap()), None);
+        assert_eq!(
+            imports.root_for(id, "Inbox.md", true),
+            Err("E_IMPORT_SESSION")
+        );
+        // A scan that finishes first opens its session.
+        let (id, _) = imports.begin();
+        assert!(imports.ready(id, scan(dir.path()).unwrap()).is_some());
+        assert!(imports.root_for(id, "Inbox.md", true).is_ok());
+    }
+
+    #[test]
+    fn picked_files_keep_their_names_and_are_read_from_their_folders() {
+        let dir = sample();
+        let root = dir.path();
+        write(root, "Saved/page.html", b"<p>x</p>");
+        write(root, "Saved/img/a.png", PNG);
+        write(root, "Other/b.htm", b"<p>y</p>");
+        write(root, "Saved/.secret.html", b"hidden");
+        let big = fs::File::create(root.join("Saved/huge.html")).unwrap();
+        big.set_len(MAX_NOTE_BYTES + 1).unwrap();
+
+        // From one folder: plain names.
+        let one = pick_found(&[root.join("Inbox.md"), root.join("notes.txt")], false).unwrap();
+        assert_eq!(one.kind, Kind::Files);
+        assert_eq!(paths(&one.files), ["Inbox.md"]);
+        assert_eq!(
+            one.skipped,
+            [Problem {
+                path: "notes.txt".into(),
+                code: "E_IMPORT_FILE_TYPE"
+            }]
+        );
+
+        let picked = [
+            root.join("Saved/page.html"),
+            root.join("Other/b.htm"),
+            root.join("Saved/.secret.html"),
+            root.join("Saved/huge.html"),
+            root.join("Saved/missing.html"),
+        ];
+        let found = pick_found(&picked, true).unwrap();
+        assert_eq!(paths(&found.files), ["Other/b.htm", "Saved/page.html"]);
+        assert_eq!(
+            found.skipped,
+            [
+                Problem {
+                    path: "Saved/.secret.html".into(),
+                    code: "E_IMPORT_PATH_INVALID"
+                },
+                Problem {
+                    path: "Saved/huge.html".into(),
+                    code: "E_IMPORT_FILE_TOO_LARGE"
+                },
+                Problem {
+                    path: "missing.html".into(),
+                    code: "E_IMPORT_UNREADABLE"
+                },
+            ]
+        );
+        let imports = Imports::default();
+        let scan = imports.start(found);
+        let (at, rel) = imports.root_for(scan.id, "Saved/page.html", true).unwrap();
+        assert_eq!(read_note(&at, &rel).as_deref(), Ok("<p>x</p>"));
+        // Its images are read from its folder, and nowhere above it.
+        let (at, rel) = imports.root_for(scan.id, "Saved/img/a.png", false).unwrap();
+        assert!(read_image(&at, &rel).is_ok());
+        assert_eq!(
+            imports.root_for(scan.id, "Saved/.secret.html", true),
+            Err("E_IMPORT_PATH_UNKNOWN")
+        );
     }
 }

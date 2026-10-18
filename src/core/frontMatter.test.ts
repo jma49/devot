@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { importTitle, readFrontMatter } from './import'
+import { EXPORT_HEADER, importTitle, readFrontMatter } from './import'
 
 // A corpus of the front matter people write, read as YAML reads it (comments,
 // escapes, block scalars, multi-line lists), then with Devot's own leniency.
@@ -31,9 +31,9 @@ describe('front matter titles', () => {
     expect(title('title: >\n  A folded\n  title')).toBe('A folded title')
     // A literal block keeps its line break; a note's title is on one line.
     expect(title('title: |\n  A literal\n  title\nother: x')).toBe('A literal\ntitle')
-    expect(importTitle('---\ntitle: |\n  A literal\n  title\n---\n', 'n.md')).toBe(
-      'A literal title',
-    )
+    expect(
+      importTitle(`---\n${EXPORT_HEADER}\ntitle: |\n  A literal\n  title\n---\n`, 'n.md'),
+    ).toBe('A literal title')
     expect(title('title: >-\n  Stripped\n')).toBe('Stripped')
     expect(title('title: A long\n  wrapped title\nstatus: active')).toBe('A long wrapped title')
     expect(title('title: "A quoted\n  wrapped title"')).toBe('A quoted wrapped title')
@@ -78,10 +78,15 @@ describe('front matter titles', () => {
     expect(title('title: Fine\n\tbroken: [')).toBe('Fine')
   })
 
-  it('come from the first heading when YAML gives none', () => {
-    expect(importTitle('---\ntitle: ~\n---\n# Heading\n', 'note.md')).toBe('Heading')
+  it("come from the first heading when Devot's front matter gives none, and never from other front matter", () => {
+    expect(importTitle(`---\n${EXPORT_HEADER}\ntitle: ~\n---\n# Heading\n`, 'note.md')).toBe(
+      'Heading',
+    )
     expect(importTitle('---\ntitle: >\n---\n', 'file-name.md')).toBe('file-name')
-    expect(importTitle('---\ntitle: Plan # draft\n---\n# Heading\n', 'note.md')).toBe('Plan')
+    expect(importTitle('---\ntitle: Plan\n---\n# Heading\n', 'note.md')).toBe('Heading')
+    expect(
+      importTitle(`---\n${EXPORT_HEADER}\ntitle: Plan # draft\n---\n# Heading\n`, 'note.md'),
+    ).toBe('Plan')
   })
 })
 

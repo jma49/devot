@@ -2,7 +2,8 @@
 //! handshake (see `exit`); Settings opens its own window (see `settings`);
 //! Backups… asks the main window to show its backups dialog;
 //! Help > Export Diagnostics… writes a diagnostics file (see `diagnostics`);
-//! File > Import > Markdown Folder… asks for a folder to import (see `import`);
+//! File > Import > Markdown Files…, Markdown Folder… and HTML Files… ask for
+//! what to import (see `import`);
 //! View > Revision History… asks the main window to show the open note's history;
 //! View > Command Palette… asks the main window to open its command palette;
 //! the accelerators of both are the command registry's default keys
@@ -36,6 +37,8 @@ pub const SETTINGS_ID: &str = "devot.settings";
 pub const DIAGNOSTICS_ID: &str = "devot.diagnostics";
 pub const BACKUPS_ID: &str = "devot.backups";
 pub const IMPORT_MARKDOWN_ID: &str = "devot.import.markdown";
+pub const IMPORT_MARKDOWN_FILES_ID: &str = "devot.import.markdownFiles";
+pub const IMPORT_HTML_FILES_ID: &str = "devot.import.htmlFiles";
 pub const SHOW_BACKUPS_EVENT: &str = "devot://show-backups";
 pub const HISTORY_ID: &str = "devot.history";
 pub const SHOW_HISTORY_EVENT: &str = "devot://show-history";
@@ -319,10 +322,17 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .separator()
         .item(&quit)
         .build()?;
+    let import_markdown_files =
+        MenuItemBuilder::with_id(IMPORT_MARKDOWN_FILES_ID, strings::IMPORT_MARKDOWN_FILES)
+            .build(app)?;
     let import_markdown =
         MenuItemBuilder::with_id(IMPORT_MARKDOWN_ID, strings::IMPORT_MARKDOWN_FOLDER).build(app)?;
+    let import_html =
+        MenuItemBuilder::with_id(IMPORT_HTML_FILES_ID, strings::IMPORT_HTML_FILES).build(app)?;
     let import = SubmenuBuilder::new(app, strings::MENU_IMPORT)
+        .item(&import_markdown_files)
         .item(&import_markdown)
+        .item(&import_html)
         .build()?;
     let file = SubmenuBuilder::new(app, strings::MENU_FILE)
         .item(&import)
@@ -454,7 +464,11 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     } else if event.id() == SYNC_SCROLL_ID {
         toggle_sync_scroll(app);
     } else if event.id() == IMPORT_MARKDOWN_ID {
-        import::pick(app);
+        import::pick(app, import::Pick::MarkdownFolders);
+    } else if event.id() == IMPORT_MARKDOWN_FILES_ID {
+        import::pick(app, import::Pick::MarkdownFiles);
+    } else if event.id() == IMPORT_HTML_FILES_ID {
+        import::pick(app, import::Pick::HtmlFiles);
     } else if event.id() == DIAGNOSTICS_ID {
         match diagnostics::export(app) {
             Ok(_) => log::info!("I_DIAGNOSTICS_EXPORTED"),

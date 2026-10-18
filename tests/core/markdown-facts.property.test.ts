@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   frontMatter,
   imageLinks,
+  EXPORT_HEADER,
   importTitle,
   markdownFacts,
   readFrontMatter,
@@ -68,7 +69,10 @@ describe('markdownFacts', () => {
     expect(markdownFacts('Just text.\n').title('Plan.md')).toBe('Plan')
     expect(markdownFacts('Text\n\n# Heading\n').title('Plan.md')).toBe('Heading')
     expect(markdownFacts('Setext\n===\n').title('Plan.md')).toBe('Setext')
-    expect(markdownFacts('---\ntitle: Own\n---\nText\n').title('Plan.md')).toBe('Own')
+    expect(markdownFacts('---\ntitle: Own\n---\nText\n').title('Plan.md')).toBe('Plan')
+    expect(markdownFacts(`---\n${EXPORT_HEADER}\ntitle: Own\n---\nText\n`).title('Plan.md')).toBe(
+      'Own',
+    )
     expect(markdownFacts('    # code\n').title('Plan.md')).toBe('Plan')
     // An image in raw HTML alone is found too.
     const html = '<p><IMG SRC="devot://file/0192a6f0-0000-7000-8000-00000000f003"></p>\n'

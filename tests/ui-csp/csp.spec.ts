@@ -174,11 +174,20 @@ test('a Markdown folder import runs in the built worker under the policy', async
       dispatchEvent(e: unknown): void
       CustomEvent: new (t: string, init: { detail: unknown }) => unknown
     }
-    const scan = { id: 1, name: 'Folder', files: ['Note.md'], skipped: [] }
+    const scan = {
+      id: 1,
+      name: 'Folder',
+      kind: 'folder',
+      files: [{ path: 'Note.md', bytes: 50 }],
+      images: [],
+      skipped: [],
+    }
     w.dispatchEvent(new w.CustomEvent('devot:import-ready', { detail: scan }))
   })
   const dialog = page.getByRole('dialog', { name: 'Import Markdown Folder' })
-  await expect(dialog).toContainText('Imported 1 note into 1 notebook.')
+  await dialog.getByRole('button', { name: 'Continue' }).click()
+  await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+  await expect(dialog).toContainText('Imported 1 note.')
   await dialog.getByRole('button', { name: 'Done' }).click()
   await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').first().click()
   await expect(page.getByRole('textbox', { name: 'Note body' })).toContainText(

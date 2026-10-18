@@ -2743,7 +2743,67 @@ button {
   font-size: var(--font-size-caption);
 }
 
-/* The Markdown folder import: progress, then what was not imported. */
+/* Import: the scan, the folders it found, the notebook to import into, then
+   progress and what was not imported. */
+.sheet.import {
+  width: calc(var(--size-list-width) * 2);
+}
+
+.import-mapping {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+}
+
+.import-tree,
+.import-tree-group {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-tree {
+  max-height: calc(var(--size-dialog-row) * 8);
+  overflow: auto;
+  margin: 0 0 var(--space-7);
+  border-top: 1px solid var(--color-line-hairline);
+}
+
+.import-folder-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-dialog-row);
+  padding-inline-start: calc(var(--space-6) * var(--import-depth, 0));
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.import-folder-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-badge {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.import-folder-counts {
+  margin-inline-start: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.import-counts {
+  font-variant-numeric: tabular-nums;
+}
+
 .import-progress {
   display: block;
   width: 100%;

@@ -916,7 +916,14 @@ describe('the folder going away', () => {
 /** Imports the folder at `root` as Rust would scan it (visible Markdown files, sorted). */
 async function importFolder(lib: Library, root: string, name: string) {
   const files = walk(root).filter((p) => p.endsWith('.md'))
-  const scan: ImportScan = { id: 1, name, files, skipped: [] }
+  const scan: ImportScan = {
+    id: 1,
+    name,
+    kind: 'folder',
+    files: files.map((path) => ({ path, bytes: 0 })),
+    images: [],
+    skipped: [],
+  }
   const source: ImportSource = {
     read: async (path) => readFileSync(join(root, path), 'utf8'),
     async attach(path, file) {
@@ -926,6 +933,8 @@ async function importFolder(lib: Library, root: string, name: string) {
       )
     },
   }
+  // The picked folder's notes go into the notebook picked for them.
+  const destination = await lib.books.create(name, null)
   return importMarkdown({
     notes: lib.notes,
     books: lib.books,
@@ -933,6 +942,7 @@ async function importFolder(lib: Library, root: string, name: string) {
     newId: lib.newId,
     scan,
     source,
+    destination,
   })
 }
 
