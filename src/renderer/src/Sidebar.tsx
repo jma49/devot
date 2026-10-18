@@ -641,6 +641,10 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
     if (!Object.hasOwn(moves, event.key)) return
     event.preventDefault()
+    // Up from the first row reaches a workspace's title.
+    if (ws && at === 0 && event.key === 'ArrowUp') {
+      return rowElements.current.get(WORKSPACE_ROW)?.focus()
+    }
     const to = moves[event.key]
     if (to !== undefined && to.key !== key) arrive(to)
   }
@@ -798,7 +802,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const openWorkspaceMenu = (at?: MenuPoint) =>
     ws ? withRowOutline(WORKSPACE_ROW, () => showWorkspaceMenu(placed(ws.book), at)) : undefined
   const openAllNotesMenu = (at?: MenuPoint) =>
-    withRowOutline('all', () => showAllNotesMenu({ canCreate: props.onNewNote !== undefined }, at))
+    withRowOutline(allKey, () => showAllNotesMenu({ canCreate: props.onNewNote !== undefined }, at))
 
   const onKey = (event: KeyboardEvent, node: BookNode) => {
     if (event.target !== event.currentTarget) return
@@ -819,6 +823,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       case 'ArrowLeft':
         event.preventDefault()
         if (open) toggle(node.id, false)
+        // A workspace's own sub-notebook goes up to All Notes (the workspace notebook).
+        else if (ws && node.parentId === ws.book.id) arrive(libraryRow(allSelection))
         else if (node.parentId) go(rowList.find((n) => n.id === node.parentId))
         return
     }

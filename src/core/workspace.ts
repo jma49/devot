@@ -2,8 +2,7 @@
 // notebook's sub-notebooks, and the status and tag counts of its own notes
 // (its sub-notebooks' included). These helpers work on the notebook tree
 // (`buildBookTree`), whose parents are the effective ones.
-import { flattenBookTree, notesInBook, type BookNode } from './books'
-import type { BookRecord, NoteSummary } from './storage'
+import { flattenBookTree, type BookNode } from './books'
 
 /** The notebook `id` in the tree, if it is there. */
 export function findBookNode(tree: readonly BookNode[], id: string): BookNode | undefined {
@@ -48,13 +47,4 @@ export function workspaceParents(tree: readonly BookNode[], id: string): BookNod
 /** Where Go Up leads from the workspace `id`: its parent notebook, or null (out of workspaces). */
 export function workspaceParent(tree: readonly BookNode[], id: string): string | null {
   return findBookNode(tree, id)?.parentId ?? null
-}
-
-/** The notes a workspace holds: those in the notebook and its sub-notebooks. */
-export function workspaceNotes<T extends Pick<NoteSummary, 'bookId'>>(
-  notes: readonly T[],
-  books: readonly BookRecord[],
-  id: string,
-): T[] {
-  return books.some((b) => b.id === id) ? notesInBook(notes, books, id) : []
 }

@@ -28,7 +28,6 @@ import { countBucket } from '../../core/usage'
 import { filterNotes, noteGroups, statusCounts, tagCounts, type NoteFilter } from '../../core/tags'
 import {
   findBookNode,
-  workspaceNotes,
   workspaceParent,
   workspaceParents,
   workspaceTree,
@@ -765,24 +764,20 @@ export function App() {
     [results, order, locales],
   )
   const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags])
-  const tagged = useKept(
-    useMemo(() => tagCounts(notes), [notes]),
-    sameCounts,
-  )
   // The sidebar counts statuses and tags over the workspace's notes while one is open.
   const sidebarNotes = useMemo(
-    () => (workspaceNode ? workspaceNotes(notes, books, workspaceNode.id) : notes),
-    [notes, books, workspaceNode],
+    () =>
+      workspaceNode && workspaceIds
+        ? notes.filter((n) => n.bookId !== null && workspaceIds.has(n.bookId))
+        : notes,
+    [notes, workspaceNode, workspaceIds],
   )
   const statuses = useKept(
     useMemo(() => statusCounts(sidebarNotes), [sidebarNotes]),
     sameCounts,
   )
   const sidebarTagged = useKept(
-    useMemo(
-      () => (workspaceNode ? tagCounts(sidebarNotes) : tagged),
-      [workspaceNode, sidebarNotes, tagged],
-    ),
+    useMemo(() => tagCounts(sidebarNotes), [sidebarNotes]),
     sameCounts,
   )
   // A workspace lists only the tags its notes have.
@@ -845,7 +840,14 @@ export function App() {
     const clearFilter = searchingAll || options?.clearFilter || next.kind === 'templates'
     // A view outside the workspace (All Notes, Templates, the Trash, a
     // notebook outside it) leaves it.
-    if (workspaceNode && !(next.kind === 'book' && workspaceIds?.has(next.id))) setWorkspace(null)
+    // A workspace no longer shown (its notebook, or the one shown in it, went
+    // or moved out) is dropped on the next change of view too.
+    if (
+      workspace !== null &&
+      (!workspaceNode || !(next.kind === 'book' && workspaceIds?.has(next.id)))
+    ) {
+      setWorkspace(null)
+    }
     clearSearch()
     if ((next.kind === 'trash') !== inTrash) setSelected(undefined)
     if (clearFilter) setFilter(null)
@@ -1343,20 +1345,28 @@ export function App() {
     if (!fromTrail) moveTrail(visit(trailRef.current, id))
     // A note opened outside the workspace (a note link, a search over every
     // note, the palette) leaves it.
-    const home = notes.find((n) => n.id === id)?.bookId
-    if (workspaceIds && !(home && workspaceIds.has(home))) setWorkspace(null)
+    // A note just made is not listed in this render yet: it was made in the view shown.
+    const opened = notes.find((n) => n.id === id) ?? templates.find((n) => n.id === id)
+    if (workspaceIds && opened && !(opened.bookId && workspaceIds.has(opened.bookId))) {
+      setWorkspace(null)
+    }
     return true
   }
 
   // Opening a workspace selects its first note, unless the open note is in it.
   useEffect(() => {
     if (!firstNoteWanted.current || !workspaceIds || libraryBook?.id !== workspace) return
-    firstNoteWanted.current = false
     const open = notes.find((n) => n.id === selected)
-    if (open?.bookId && workspaceIds.has(open.bookId)) return
     const first = groups.pinned[0] ?? groups.others[0]
-    if (!first) return
-    const timer = setTimeout(() => void select(first.id))
+    if ((open?.bookId && workspaceIds.has(open.bookId)) || !first) {
+      firstNoteWanted.current = false
+      return
+    }
+    // A render before the timer fires schedules it again.
+    const timer = setTimeout(() => {
+      firstNoteWanted.current = false
+      void select(first.id)
+    })
     return () => clearTimeout(timer)
   })
 
@@ -2618,7 +2628,8 @@ export function App() {
       kind: 'tag',
       id,
       name: tags.find((tag) => tag.id === id)?.name ?? '',
-      count: tagged.get(id) ?? 0,
+      // Every note with the tag, a workspace's sidebar counting only its own.
+      count: notes.filter((n) => n.tagIds.includes(id)).length,
     }),
   )
 

@@ -3,9 +3,9 @@ import {
   bookCounts,
   buildBookTree,
   findBookNode,
+  notesInBook,
   statusCounts,
   tagCounts,
-  workspaceNotes,
   workspaceParent,
   workspaceParents,
   workspaceTree,
@@ -110,21 +110,16 @@ describe('workspace counts', () => {
   ]
 
   it('holds the notes of the notebook and its sub-notebooks only', () => {
-    expect(workspaceNotes(notes, books, 'work').map((n) => n.id)).toEqual(['a', 'b', 'c'])
-    expect(workspaceNotes(notes, books, 'projects').map((n) => n.id)).toEqual(['b'])
+    expect(notesInBook(notes, books, 'work').map((n) => n.id)).toEqual(['a', 'b', 'c'])
+    expect(notesInBook(notes, books, 'projects').map((n) => n.id)).toEqual(['b'])
   })
 
   it('counts statuses and tags over the workspace notes', () => {
-    const inWork = workspaceNotes(notes, books, 'work')
+    const inWork = notesInBook(notes, books, 'work')
     expect(Object.fromEntries(statusCounts(inWork))).toEqual({ active: 2, completed: 1 })
     expect(Object.fromEntries(tagCounts(inWork))).toEqual({ t1: 1, t2: 1 })
     // A notebook count keeps its sub-notebooks' notes, inside a workspace too.
     expect(bookCounts(inWork, books).get('projects')).toBe(1)
     expect(bookCounts(inWork, books).get('work')).toBe(3)
-  })
-
-  it('holds nothing once the notebook is deleted', () => {
-    const live = books.filter((b) => b.id !== 'projects')
-    expect(workspaceNotes(notes, live, 'projects')).toEqual([])
   })
 })

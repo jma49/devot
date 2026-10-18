@@ -163,3 +163,22 @@ test('opening a note outside the workspace leaves it', async ({ page }) => {
   await expect(titleField(page)).toHaveValue('Chores')
   await expect(anyWorkspace(page)).toHaveCount(0)
 })
+
+test('a new note made in the workspace keeps it open', async ({ page }) => {
+  await setUp(page)
+  await openFromMenu(page, 'Work')
+  await createNote(page, 'Fresh', {})
+  await expect(workspace(page, 'Work')).toBeVisible()
+  await expect(allNotes(page).locator('.source-count')).toHaveText('3')
+})
+
+test('Up from All Notes reaches the title, where Return renames the notebook', async ({ page }) => {
+  await setUp(page)
+  await openFromMenu(page, 'Work')
+  await expect(allNotes(page)).toBeFocused()
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('Enter')
+  await nameField(page).fill('Job')
+  await nameField(page).press('Enter')
+  await expect(workspace(page, 'Job')).toBeVisible()
+})
