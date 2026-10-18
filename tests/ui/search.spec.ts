@@ -74,3 +74,26 @@ test('Shift+Opt+Cmd+F focuses the search field; picking a library clears it', as
   await expect(search(page)).toHaveValue('')
   await expect(noteRows(page)).toHaveCount(1)
 })
+
+test('after clearing a search, the next query does not show the previous results', async ({
+  page,
+}) => {
+  await createNote(page, 'Foo plan')
+  await createNote(page, 'Bar plan')
+  await search(page).fill('foo')
+  await expect(header(page)).toHaveText('Search Results')
+  await expect(noteRows(page)).toHaveText([/^Foo plan/])
+  await search(page).fill('')
+  await expect(header(page)).toHaveText('All Notes')
+
+  // Hold the debounce so the new query's answer cannot arrive.
+  await page.clock.install()
+  await page.clock.pauseAt(new Date(Date.now() + 1000))
+  await search(page).pressSequentially('b')
+  await expect(search(page)).toHaveValue('b')
+  await expect(header(page)).toHaveText('All Notes')
+  await expect(noteRows(page)).toHaveCount(2)
+  await page.clock.resume()
+  await expect(header(page)).toHaveText('Search Results')
+  await expect(noteRows(page)).toHaveText([/^Bar plan/])
+})

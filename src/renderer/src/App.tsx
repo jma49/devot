@@ -892,10 +892,14 @@ export function App() {
         search,
       }),
       // Results that did not change keep their objects (and their rows their render).
-      (next) =>
+      (next) => {
+        // An answer that lands after the field was cleared is not kept: the
+        // next query would first show it.
+        if (!latestSearch.current.query.trim()) return
         setResults((shown) =>
           shown ? { ...next, found: keepUnchanged(shown.found, next.found) } : next,
-        ),
+        )
+      },
       () => console.warn('W_SEARCH_FAILED'),
     )
   }, [core])
@@ -937,9 +941,13 @@ export function App() {
       setLibrary({ kind: 'all' })
       setSearchIn('all')
     }
+    // With no query the old results go: typing again must not show them
+    // while the new search runs.
+    if (!next.trim()) setResults(undefined)
     setQuery(next)
   }
   function clearSearch() {
+    setResults(undefined)
     setQuery('')
     setSearchIn('view')
   }

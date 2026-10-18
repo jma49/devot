@@ -4,6 +4,7 @@ import {
   LIST_MAX_WIDTH,
   LIST_MIN_WIDTH,
   clampListWidth,
+  listWidthForKey,
   listWidthStore,
 } from './listWidth'
 
@@ -63,5 +64,27 @@ describe('the note list width', () => {
     }
     expect(listWidthStore(broken).read()).toBe(300)
     expect(() => listWidthStore(broken).write(400)).not.toThrow()
+  })
+})
+
+describe('listWidthForKey', () => {
+  it('steps with the arrow keys, larger with Shift, within the limits', () => {
+    expect(listWidthForKey('ArrowRight', false, 300)).toBe(310)
+    expect(listWidthForKey('ArrowLeft', false, 300)).toBe(290)
+    expect(listWidthForKey('ArrowRight', true, 300)).toBe(350)
+    expect(listWidthForKey('ArrowLeft', true, 300)).toBe(250)
+    expect(listWidthForKey('ArrowRight', false, 500)).toBe(500)
+    expect(listWidthForKey('ArrowLeft', false, 220)).toBe(220)
+  })
+
+  it('goes to the ends with Home and End and back to the default with Enter', () => {
+    expect(listWidthForKey('Home', false, 400)).toBe(220)
+    expect(listWidthForKey('End', false, 400)).toBe(500)
+    expect(listWidthForKey('Enter', false, 400)).toBe(300)
+  })
+
+  it('leaves other keys alone', () => {
+    expect(listWidthForKey('ArrowUp', false, 300)).toBeUndefined()
+    expect(listWidthForKey('a', false, 300)).toBeUndefined()
   })
 })

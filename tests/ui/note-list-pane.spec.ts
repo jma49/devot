@@ -56,6 +56,34 @@ test('the list is 300 px wide, resizes from 220 to 500 px by its edge and keeps 
   await expect.poll(() => width(page)).toBe(220)
 })
 
+test('the edge resizes with the keyboard and resets to the default', async ({ page }) => {
+  await createNote(page, 'One')
+  await handle(page).focus()
+  await expect(handle(page)).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(() => width(page)).toBe(310)
+  await page.keyboard.press('Shift+ArrowLeft')
+  await expect.poll(() => width(page)).toBe(260)
+  await page.keyboard.press('End')
+  await expect.poll(() => width(page)).toBe(500)
+  await page.keyboard.press('Home')
+  await expect.poll(() => width(page)).toBe(220)
+  await page.keyboard.press('Enter')
+  await expect.poll(() => width(page)).toBe(300)
+
+  // The width is kept like a drag's.
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(() => width(page)).toBe(310)
+  await page.reload()
+  await expect.poll(() => width(page)).toBe(310)
+
+  await dragEdge(page, 60)
+  await expect.poll(() => width(page)).toBe(370)
+  await handle(page).dblclick()
+  await expect.poll(() => width(page)).toBe(300)
+  await expect(handle(page)).toHaveAttribute('aria-valuenow', '300')
+})
+
 test('an empty list says why', async ({ page }) => {
   await page
     .getByRole('navigation', { name: 'Sidebar' })

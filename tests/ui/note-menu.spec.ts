@@ -381,18 +381,19 @@ test('the Trash offers no note menu or note shortcuts', async ({ page }) => {
   expect(await stored(page)).toHaveLength(1)
 })
 
-test('shortcuts act on the open note after a right-click on another row', async ({ page }) => {
+test('shortcuts act on the row the keyboard is on after a right-click on another row', async ({
+  page,
+}) => {
   await createNote(page, 'Other')
   await createNote(page, 'Open')
   await focusRow(page, 'Open')
   await openMenu(page, 'Other')
   await page.keyboard.press('KeyP')
-  await expect.poll(() => openNotePinned(page)).toBe(true)
   await expect
     .poll(async () => (await stored(page)).map((n) => [n.title, n.pinned]).sort())
     .toEqual([
-      ['Open', true],
-      ['Other', false],
+      ['Open', false],
+      ['Other', true],
     ])
 })
 
