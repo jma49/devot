@@ -100,6 +100,8 @@ let lastId = 0
 const chooserField = StateField.define<Chooser | null>({
   create: () => null,
   update(value, tr) {
+    // Typing with no chooser open: nothing to map, nothing to open.
+    if (!value && tr.effects.length === 0) return null
     let next = value
     if (next) {
       if (tr.isUserEvent('undo') || tr.isUserEvent('redo')) next = null
@@ -356,6 +358,9 @@ const chooserSource: CompletionSource = (ctx: CompletionContext): CompletionResu
   return { from: c.to, options, filter: false }
 }
 
+/** The chooser's popup source, as one array for every language data lookup. */
+const chooserSources = [{ autocomplete: chooserSource }]
+
 /** Wraps another completion source so it offers nothing while the chooser is open. */
 export function unlessChoosing(source: CompletionSource): CompletionSource {
   return (ctx) => (chooserOf(ctx.state) ? null : source(ctx))
@@ -423,9 +428,13 @@ const previewPlugin = ViewPlugin.fromClass(
 
     update(update: ViewUpdate) {
       const { state } = update
-      this.decorations = preview(state)
       const c = chooserOf(state)
-      if (!c) return
+      // Typing with no chooser open (nearly every keystroke): nothing to show.
+      if (!c) {
+        this.decorations = Decoration.none
+        return
+      }
+      this.decorations = preview(state)
       const status = completionStatus(state)
       if (status === 'active') this.shown = c.id
       // Esc, a click elsewhere or a blur closed the popup: the URL stays as it is.
@@ -485,6 +494,6 @@ export function pasteChooser(fetcher: PasteFetcher | null): Extension {
         },
       ]),
     ),
-    EditorState.languageData.of(() => [{ autocomplete: chooserSource }]),
+    EditorState.languageData.of(() => chooserSources),
   ]
 }
