@@ -304,3 +304,54 @@ test('the highlighted note of the [[ popup shows its card', async ({ page }) => 
   await waitForResults(page, 'Groc')
   await expect(page.locator('.cm-completionInfo')).toContainText('Milk and eggs')
 })
+
+/** Runs the palette command labelled `label`. */
+async function runCommand(page: Page, label: string) {
+  await page.keyboard.press('Meta+k')
+  const palette = page.getByRole('dialog', { name: 'Command Palette' })
+  await palette.getByRole('combobox').fill(label)
+  await expect(palette.locator('[role="option"][aria-selected="true"] .palette-label')).toHaveText(
+    new RegExp(`^${label}`),
+  )
+  await palette.getByRole('combobox').press('Enter')
+  await expect(palette).toHaveCount(0)
+}
+
+test('New Note from Link makes a note of the link and links it; undo restores the link', async ({
+  page,
+}) => {
+  await createNote(page, 'Source')
+  await body(page).click()
+  await page.keyboard.insertText('See [Foo](https://example.com/a) and more')
+  await page.keyboard.press('Home')
+  for (let n = 0; n < 7; n++) await page.keyboard.press('ArrowRight')
+  await runCommand(page, 'New Note from Link')
+  await expect(noteRows(page)).toHaveCount(2)
+  await expect(
+    noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Foo' }) }),
+  ).toHaveCount(1)
+  await expect(body(page)).toContainText(/See \[Foo\]\(devot:\/\/note\/[0-9a-f-]{36}\) and more/)
+  // The note being edited stays open.
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Source')
+  // The new note keeps the address as its first line.
+  await noteRows(page)
+    .filter({ has: page.locator('.row-title', { hasText: 'Foo' }) })
+    .click()
+  await expect(body(page)).toContainText('https://example.com/a')
+  await noteRows(page)
+    .filter({ has: page.locator('.row-title', { hasText: 'Source' }) })
+    .click()
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(body(page)).toContainText('See [Foo](https://example.com/a) and more')
+})
+
+test('New Note from Link is not offered away from a link', async ({ page }) => {
+  await createNote(page, 'Plain')
+  await body(page).click()
+  await page.keyboard.insertText('no link here')
+  await page.keyboard.press('Meta+k')
+  const palette = page.getByRole('dialog', { name: 'Command Palette' })
+  await palette.getByRole('combobox').fill('New Note from Link')
+  await expect(palette.getByRole('option', { name: /New Note from Link/ })).toHaveCount(0)
+})

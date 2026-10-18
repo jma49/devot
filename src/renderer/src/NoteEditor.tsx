@@ -14,9 +14,9 @@ import { BOX_HANG } from './editor/boxes'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys } from './commands/registry'
 import { invoke } from './ipc'
-import { lineCommands } from './editor/lineCommands'
+import { lineCommands, linkAt, type LinkAt } from './editor/lineCommands'
 import type { ShowAlertMenu } from './editor/alertMenu'
-import { moveSelection, selectedText, trackExtract } from './editor/extract'
+import { moveRange, moveSelection, selectedText, trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
 import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
@@ -119,6 +119,17 @@ export interface EditorHandle {
    * note link) in its place, as one undo step (see editor/extract.ts).
    */
   moveSelection: (make: (text: string) => Promise<string | null>) => Promise<boolean>
+  /** The link at the cursor (New Note from Link acts on it), or null. */
+  linkAtCursor: () => LinkAt | null
+  /**
+   * Hands the text of the range to `make` and puts the text it resolves to
+   * (a note link) in its place, as one undo step (see editor/extract.ts).
+   */
+  moveRange: (
+    from: number,
+    to: number,
+    make: (text: string) => Promise<string | null>,
+  ) => Promise<boolean>
   /** Focuses the editor and pastes the clipboard's text as it is. */
   pastePlain: () => Promise<void>
   /** The image at the cursor, or the first on its line (the image commands act on it). */
@@ -185,6 +196,26 @@ const newFromSelectionKeys = registryKeys(() =>
         key,
         run: (view: EditorView) =>
           selectedText(view.state) !== null && (view.state.facet(newFromSelection)?.() ?? false),
+        preventDefault: true,
+      })),
+    ),
+  ),
+)
+
+/** What New Note from Link does in this editor (the window makes the note); false when it cannot. */
+const newFromLink = Facet.define<() => boolean, (() => boolean) | undefined>({
+  combine: (all) => all[0],
+})
+
+/** The New Note from Link keys (from the registry): they act only with the caret on a link. */
+const newFromLinkKeys = registryKeys(() =>
+  Prec.high(
+    keymap.of(
+      editorCommandKeys('note.newFromLink').map((key) => ({
+        key,
+        run: (view: EditorView) =>
+          linkAt(view.state, view.state.selection.main.head) !== undefined &&
+          (view.state.facet(newFromLink)?.() ?? false),
         preventDefault: true,
       })),
     ),
@@ -536,6 +567,7 @@ interface Props {
   onPlace?: (noteId: string, place: EditorPlace) => void
   /** Makes a note of the selected text (New Note from Selection's keys). */
   onNewFromSelection?: (() => void) | undefined
+  onNewFromLink?: (() => void) | undefined
   /** Pasted or dropped images could not be stored: the code of each. */
   onImagesRefused?: (codes: string[]) => void
   /** The core could not open the note (it is gone or in the Trash): the error's code. */
@@ -565,6 +597,7 @@ export function NoteEditor({
   initialPlace,
   onPlace,
   onNewFromSelection,
+  onNewFromLink,
   onImagesRefused,
   onOpenFailed,
   onChooseTemplate,
@@ -594,6 +627,7 @@ export function NoteEditor({
   const placeAsked = useRef(initialPlace)
   const placeReport = useRef(onPlace)
   const fromSelection = useRef(onNewFromSelection)
+  const fromLink = useRef(onNewFromLink)
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
   const chooseTemplateRef = useRef(onChooseTemplate)
@@ -609,6 +643,7 @@ export function NoteEditor({
     findHandle.current = onFind
     scrollHandle.current = onScrollPane
     fromSelection.current = onNewFromSelection
+    fromLink.current = onNewFromLink
     imagesRefused.current = onImagesRefused
     openFailed.current = onOpenFailed
     noteOpener.current = onOpenNote
@@ -718,6 +753,7 @@ export function NoteEditor({
               pasteUrls,
               pastePlainKeys(),
               newFromSelectionKeys(),
+              newFromLinkKeys(),
               lineCommands((href) => {
                 const note = /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)
                 if (note?.[1]) noteOpener.current?.(note[1])
@@ -731,6 +767,11 @@ export function NoteEditor({
               imageCommandKeys(),
               newFromSelection.of(() => {
                 const run = fromSelection.current
+                run?.()
+                return run !== undefined
+              }),
+              newFromLink.of(() => {
+                const run = fromLink.current
                 run?.()
                 return run !== undefined
               }),
@@ -846,6 +887,8 @@ export function NoteEditor({
             },
             hasSelection: () => selectedText(ready.state) !== null,
             moveSelection: (make) => moveSelection(ready, make, () => !cancelled),
+            linkAtCursor: () => linkAt(ready.state, ready.state.selection.main.head) ?? null,
+            moveRange: (from, to, make) => moveRange(ready, from, to, make, () => !cancelled),
             pastePlain: () => {
               ready.focus()
               return pastePlain(ready)

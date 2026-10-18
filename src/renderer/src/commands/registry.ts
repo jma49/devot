@@ -848,6 +848,25 @@ export const COMMANDS = [
     scope: 'editor',
     keys: [],
   },
+  // The link at the caret becomes a new note titled after its text, linked
+  // from where the link was (App's noteFromLink, editor/extract.ts); the
+  // palette offers it while the caret is on a link.
+  {
+    id: 'note.newFromLink',
+    label: 'command.newNoteFromLink',
+    group: 'note',
+    scope: 'editor',
+    keys: [],
+  },
+  // Closes the open note (or the multiple selection, or the template shown):
+  // the editor is left empty.
+  {
+    id: 'note.close',
+    label: 'command.closeNote',
+    group: 'note',
+    scope: 'window',
+    keys: [],
+  },
   // Pastes the clipboard's text as it is: no link, no image (editor/paste.ts).
   {
     id: 'edit.pastePlain',

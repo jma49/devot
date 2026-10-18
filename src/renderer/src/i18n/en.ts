@@ -717,6 +717,8 @@ export const en = {
   'command.mirrorChooseFolder': 'Choose Markdown Mirror Folder\u2026',
   'command.mirrorTurnOff': 'Turn Off Markdown Mirror',
   'command.newNoteFromSelection': 'New Note from Selection',
+  'command.newNoteFromLink': 'New Note from Link',
+  'command.closeNote': 'Close Note',
   'command.pastePlainText': 'Paste as Plain Text',
   'command.focusNoteList': 'Focus Note List',
   'command.nextSidebarRow': 'Next Sidebar Row',
