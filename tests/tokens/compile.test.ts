@@ -92,7 +92,8 @@ describe('token compiler', () => {
     expect(darkBlock).toContain('--color-surface-list: #111111;')
     expect(lightBlock).toContain('--color-surface-sidebar: rgb(243 244 246 / 0.7);')
     expect(lightBlock).toContain('--font-size-body: 13px;')
-    expect(lightBlock).toContain('--size-sidebar-row: 28px;')
+    expect(lightBlock).toContain('--size-sidebar-row: 30px;')
+    expect(lightBlock).toContain('--size-dialog-row: 28px;')
   })
 
   it('applies an appearance chosen in Settings, or shown by a preview, over the system one', () => {

@@ -208,7 +208,7 @@ function ShowSidebarButton({ onClick }: { onClick: () => void }) {
       title={titleWithKey('sidebar.showTitle', 'view.sidebar')}
       onClick={onClick}
     >
-      <Icon name="sidebar.toggle" size="md" />
+      <Icon name="sidebar.toggle" size="lg" />
     </button>
   )
 }
@@ -2569,7 +2569,7 @@ export function App() {
               aria-pressed={focus}
               onClick={toggleFocus}
             >
-              <Icon name={focus ? 'mode.focus.exit' : 'mode.focus'} size="md" />
+              <Icon name={focus ? 'mode.focus.exit' : 'mode.focus'} size="lg" />
             </button>
             <button
               type="button"
@@ -2579,7 +2579,7 @@ export function App() {
               disabled={backAt === undefined}
               onClick={() => void step(-1)}
             >
-              <Icon name="nav.back" size="md" />
+              <Icon name="nav.back" size="lg" />
             </button>
             <button
               type="button"
@@ -2589,7 +2589,7 @@ export function App() {
               disabled={forwardAt === undefined}
               onClick={() => void step(1)}
             >
-              <Icon name="nav.forward" size="md" />
+              <Icon name="nav.forward" size="lg" />
             </button>
           </div>
           {selected && !inTrash && !multiIds ? (
@@ -2606,7 +2606,7 @@ export function App() {
                   noteActions.menuAt(selected, { x: box.left, y: box.bottom })
                 }}
               >
-                <Icon name="more.vertical" size="md" />
+                <Icon name="more.vertical" size="lg" />
               </button>
             </>
           ) : null}

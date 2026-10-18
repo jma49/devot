@@ -57,7 +57,7 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   expect(await css(page.locator('body'), 'font-size')).toBe('13px')
 
   const allNotes = sidebar.getByRole('button', { name: /All Notes/ })
-  expect((await allNotes.boundingBox())?.height).toBe(28)
+  expect((await allNotes.boundingBox())?.height).toBe(30)
   await expect(allNotes).toHaveAttribute('aria-current', 'true')
 
   // The unified toolbar over list and editor, and the sidebar's title bar.
@@ -99,16 +99,16 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
     page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls).then(symbolRequests)
   await expect.poll(requests).toContain('note.text@14')
   const once = await requests()
-  expect(once.filter((r) => r === 'square.and.pencil@14')).toHaveLength(1)
+  expect(once.filter((r) => r === 'square.and.pencil@18')).toHaveLength(1)
 
   // A new appearance renders again; returning to a seen one uses the cache.
   await page.emulateMedia({ colorScheme: 'dark' })
   await expect
-    .poll(async () => (await requests()).filter((r) => r === 'square.and.pencil@14'))
+    .poll(async () => (await requests()).filter((r) => r === 'square.and.pencil@18'))
     .toHaveLength(2)
   await page.emulateMedia({ colorScheme: 'light' })
   await page.waitForTimeout(100)
-  expect((await requests()).filter((r) => r === 'square.and.pencil@14')).toHaveLength(2)
+  expect((await requests()).filter((r) => r === 'square.and.pencil@18')).toHaveLength(2)
 })
 
 test('the note list selection is an accent wash, with a bar on the open row while the list has the keyboard', async ({
