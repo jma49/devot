@@ -804,10 +804,10 @@
     "list-row-inset": {
       "$type": "dimension",
       "$value": {
-        "value": 14,
+        "value": 15,
         "unit": "px"
       },
-      "$description": "A note row's text inset from its left edge."
+      "$description": "A note row's text inset from its left and right edges."
     },
     "drag-card-min-width": {
       "$type": "dimension",
@@ -874,9 +874,34 @@
     "sidebar-row": {
       "$type": "dimension",
       "$value": {
+        "value": 30,
+        "unit": "px"
+      },
+      "$description": "Every sidebar row: views, filters, tags, notebooks and the footer; rows sit one after the other with no gap."
+    },
+    "dialog-row": {
+      "$type": "dimension",
+      "$value": {
         "value": 28,
         "unit": "px"
-      }
+      },
+      "$description": "A row of a list in a dialog or pop-up (the move picker, the command palette, backups, history, templates, import problems)."
+    },
+    "view-segment-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 44,
+        "unit": "px"
+      },
+      "$description": "A view-mode segment in the editor toolbar."
+    },
+    "view-segment-height": {
+      "$type": "dimension",
+      "$value": {
+        "value": 30,
+        "unit": "px"
+      },
+      "$description": "The height of a view-mode segment in the editor toolbar."
     },
     "segment-height": {
       "$type": "dimension",
@@ -908,7 +933,7 @@
     },
     "icon-lg": {
       "$type": "dimension",
-      "$description": "A Settings toolbar tab's symbol.",
+      "$description": "A Settings toolbar tab's symbol and a pane toolbar button's.",
       "$value": {
         "value": 22,
         "unit": "px"

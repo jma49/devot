@@ -81,7 +81,18 @@ export function BookPicker(props: {
   const noBook = t('note.noBook')
   const options: PickerOption[] = [
     ...(query.trim() === '' || noBook.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
-      ? [{ id: NO_BOOK, content: <span className="picker-name">{noBook}</span> }]
+      ? [
+          {
+            id: NO_BOOK,
+            // An empty icon slot, so its name lines up with the notebooks'.
+            content: (
+              <>
+                <span className="picker-icon-slot" aria-hidden="true" />
+                <span className="picker-name">{noBook}</span>
+              </>
+            ),
+          },
+        ]
       : []),
     ...shown.map((o) => ({
       id: o.id,

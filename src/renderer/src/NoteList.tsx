@@ -735,7 +735,7 @@ export const NoteList = memo(function NoteList(props: Props) {
               onClick={onCreate}
               disabled={!onCreate}
             >
-              <Icon name="note.new" size="md" />
+              <Icon name="note.new" size="lg" />
             </button>
           )}
         </div>

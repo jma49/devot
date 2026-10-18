@@ -956,7 +956,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           title={titleWithKey('sidebar.hideTitle', 'view.sidebar')}
           onClick={props.onHide}
         >
-          <Icon name="sidebar.toggle" size="md" />
+          <Icon name="sidebar.toggle" size="lg" />
         </button>
       </div>
       <ul className="sources">

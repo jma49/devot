@@ -92,10 +92,10 @@ test('a long title runs to two lines, then is cut off', async ({ page }) => {
   const lineHeight = (await short.boundingBox())?.height ?? 0
   await expect.poll(async () => (await long.boundingBox())?.height).toBeCloseTo(lineHeight * 2, 0)
   await expect(long).toHaveCSS('-webkit-line-clamp', '2')
-  // The title starts 14 px in from the row's left edge.
+  // The title starts 15 px in from the row's left edge.
   const rowBox = await noteRow(page, 'Short').boundingBox()
   const titleBox = await short.boundingBox()
-  expect(Math.round((titleBox?.x ?? 0) - (rowBox?.x ?? 0))).toBe(14)
+  expect(Math.round((titleBox?.x ?? 0) - (rowBox?.x ?? 0))).toBe(15)
 })
 
 test('dragging several notes shows a card with their titles, and the count past four', async ({

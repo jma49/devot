@@ -88,9 +88,10 @@ export function Setting({
 }
 
 /**
- * A setting that is on or off: a switch, its label and the grey
- * description under it. A `note` replaces the description while the setting
- * cannot be changed (it says why).
+ * A setting that is on or off: its label and the grey description under it
+ * on the left, like every setting, and its switch on the right. A `note`
+ * replaces the description while the setting cannot be changed (it says
+ * why).
  */
 export function SettingToggle({
   label,
@@ -110,16 +111,6 @@ export function SettingToggle({
   const id = useId()
   return (
     <div className="setting setting-toggle">
-      <input
-        id={`${id}-box`}
-        type="checkbox"
-        role="switch"
-        checked={checked}
-        disabled={disabled}
-        aria-labelledby={`${id}-label`}
-        aria-describedby={`${id}-description`}
-        onChange={(e) => onChange(e.currentTarget.checked)}
-      />
       <div className="setting-text">
         <label id={`${id}-label`} className="setting-label" htmlFor={`${id}-box`}>
           {t(label)}
@@ -127,6 +118,18 @@ export function SettingToggle({
         <span id={`${id}-description`} className="setting-description">
           {t(note ?? description)}
         </span>
+      </div>
+      <div className="setting-control">
+        <input
+          id={`${id}-box`}
+          type="checkbox"
+          role="switch"
+          checked={checked}
+          disabled={disabled}
+          aria-labelledby={`${id}-label`}
+          aria-describedby={`${id}-description`}
+          onChange={(e) => onChange(e.currentTarget.checked)}
+        />
       </div>
     </div>
   )
