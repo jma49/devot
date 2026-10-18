@@ -47,3 +47,22 @@ export function setBookDragData(dt: DataTransfer, book: { id: string; name: stri
   dt.setData('text/plain', `${book.name}:${book.id}`)
   dt.effectAllowed = 'copyMove'
 }
+
+/**
+ * Keeps Devot's own drags from landing as text in a text field: they carry
+ * `text/plain` for other apps, which a field would insert on drop. The editor
+ * handles note drops itself.
+ */
+export function refuseTextDrops(
+  target: EventTarget & { addEventListener: Window['addEventListener'] },
+): () => void {
+  const refuse = (event: Event) => {
+    const e = event as globalThis.DragEvent
+    const types = e.dataTransfer?.types ?? []
+    if (!types.includes(DRAG_NOTE) && !types.includes(DRAG_BOOK)) return
+    const el = e.target as Element | null
+    if (el?.closest('input, textarea')) e.preventDefault()
+  }
+  target.addEventListener('drop', refuse, true)
+  return () => target.removeEventListener('drop', refuse, true)
+}

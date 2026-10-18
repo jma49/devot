@@ -9,7 +9,7 @@ import * as Y from 'yjs'
 import type { ImageSize } from '../../core/images'
 import { BODY } from '../../core/notes'
 import { imageFiles, storeImages } from './attachments'
-import { DRAG_NOTE } from './dragData'
+import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
 import { BOX_HANG } from './editor/boxes'
@@ -324,6 +324,11 @@ function attachImages(
           userEvent: 'input.drop',
         })
         view.focus()
+        return true
+      }
+      // A notebook dropped here: its text is not for the note.
+      if (event.dataTransfer?.types.includes(DRAG_BOOK)) {
+        event.preventDefault()
         return true
       }
       const files = imageFiles(event.dataTransfer)

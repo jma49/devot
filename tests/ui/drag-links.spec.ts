@@ -113,3 +113,22 @@ test('notes dropped on the editor insert their links as one undo step', async ({
   await expect(body(page)).not.toContainText('devot://note/a')
   await expect(body(page)).toContainText('before')
 })
+
+test('a note or notebook dropped on the title field does not insert text', async ({ page }) => {
+  await newNote(page, 'Keep')
+  const title = page.getByRole('textbox', { name: 'Title' })
+  const dropped = await title.evaluate((el) => {
+    const w = globalThis as unknown as {
+      DataTransfer: new () => { setData(type: string, value: string): void }
+      DragEvent: new (type: string, init: object) => Event
+    }
+    const dt = new w.DataTransfer()
+    dt.setData('application/x-devot-book', 'k')
+    dt.setData('text/plain', 'Work:k')
+    const event = new w.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })
+    el.dispatchEvent(event)
+    return event.defaultPrevented
+  })
+  expect(dropped).toBe(true)
+  await expect(title).toHaveValue('Keep')
+})

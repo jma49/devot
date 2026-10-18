@@ -103,7 +103,7 @@ import { currentLastStateStore, restorePlan, type LastState, type NoteState } fr
 import type { FindTarget } from './find/target'
 import { useFind } from './find/useFind'
 import { headline } from '../../core/extract'
-import { DRAG_NOTE } from './dragData'
+import { refuseTextDrops } from './dragData'
 import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
@@ -320,6 +320,7 @@ export function App() {
   }>()
   // How many notes the last batch change could not change (a notice).
   const [batchFailed, setBatchFailed] = useState<number>()
+  useEffect(() => refuseTextDrops(window), [])
   const [title, setTitle] = useState('')
   // The note whose editor takes the keyboard when it opens: one just created,
   // or one a palette action opened while the editor had the keyboard. Opening
@@ -2720,10 +2721,6 @@ export function App() {
               placeholder={t('note.untitled')}
               value={title}
               onChange={(e) => rename(e.target.value)}
-              onDrop={(e) => {
-                // Notes dropped here would put their link text into the title.
-                if (e.dataTransfer.types.includes(DRAG_NOTE)) e.preventDefault()
-              }}
               onKeyDown={(e) => {
                 // Return finishes the title and goes on to the tags (the body,
                 // for a template); Down Arrow goes to the start of the body.
