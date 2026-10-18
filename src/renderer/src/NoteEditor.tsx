@@ -14,9 +14,10 @@ import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
 import { BOX_HANG } from './editor/boxes'
 import { readClipboardText } from './clipboard'
-import { editorCommandKeys } from './commands/registry'
+import { editorCommandKeys, type CommandId } from './commands/registry'
 import { invoke } from './ipc'
-import { lineCommands } from './editor/lineCommands'
+import { lineCommands, runEditCommand } from './editor/lineCommands'
+import { overwrite } from './editor/overwrite'
 import type { ShowAlertMenu } from './editor/alertMenu'
 import { moveSelection, selectedText, trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
@@ -105,8 +106,11 @@ export interface EditorHandle {
   insert: (id: InsertId) => void
   /** The note's Markdown as the editor shows it now (the palette's outline reads it). */
   text: () => string
-  /** Puts the caret at the start of line `line` (1 is the first) and scrolls it into view. */
-  goToLine: (line: number) => void
+  /**
+   * Puts the caret at the start of line `line` (1 is the first) and scrolls
+   * it to the top of the view (an outline entry), or its middle (Go to Line).
+   */
+  goToLine: (line: number, where?: 'start' | 'center') => void
   /** Whether the cursor is in a table. */
   inTable: () => boolean
   /** Focuses the editor and runs a table command on the table at the cursor. */
@@ -120,6 +124,8 @@ export interface EditorHandle {
   moveSelection: (make: (text: string) => Promise<string | null>) => Promise<boolean>
   /** Focuses the editor and pastes the clipboard's text as it is. */
   pastePlain: () => Promise<void>
+  /** Focuses the editor and runs a line or selection command (`edit.*`, see editor/lineCommands.ts). */
+  runLine: (id: CommandId) => void
   /** The image at the cursor, or the first on its line (the image commands act on it). */
   imageAtCursor: () => ImageMenuTarget | null
   /** Shows that image in the viewer (an attachment only); false when there is none. */
@@ -772,6 +778,8 @@ export function NoteEditor({
               formatKeyAvailability(setInertFormats),
               tableKeymap(),
               tableTyping(),
+              // After table typing, whose rules come first in a table.
+              overwrite(),
               editorFind(),
               imageActions.of({
                 open: (image) => imageHandlers.current.open?.(image),
@@ -847,13 +855,16 @@ export function NoteEditor({
               insertCommand(id)(ready)
             },
             text: () => ready.state.doc.toString(),
-            goToLine: (line) => {
+            goToLine: (line, where = 'start') => {
               const text = ready.state.doc
               const at = text.line(Math.min(text.lines, Math.max(1, Math.floor(line)))).from
               ready.focus()
               ready.dispatch({
                 selection: EditorSelection.cursor(at),
-                effects: EditorView.scrollIntoView(at, { y: 'start', yMargin: 24 }),
+                effects: EditorView.scrollIntoView(
+                  at,
+                  where === 'center' ? { y: 'center' } : { y: 'start', yMargin: 24 },
+                ),
               })
             },
             inTable: () => inTable(ready.state),
@@ -867,6 +878,10 @@ export function NoteEditor({
             pastePlain: () => {
               ready.focus()
               return pastePlain(ready)
+            },
+            runLine: (id) => {
+              ready.focus()
+              runEditCommand(ready, id)
             },
             imageAtCursor: () => {
               const image = imageAt(ready.state, ready.state.selection.main.head)

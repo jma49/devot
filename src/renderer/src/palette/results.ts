@@ -1,11 +1,11 @@
 // What the command palette lists for what is typed. With nothing typed the
 // root lists the sources; a key and a space (`b `) scope the palette to one
-// source; any other text at the root matches commands, notebooks, tags and
+// source (`:` takes a digit as well: `:12` goes to line 12); any other text at the root matches commands, notebooks, tags and
 // notes together (fuzzy, see core/fuzzy.ts), grouped by kind.
 import { fuzzyRank } from '../../../core/fuzzy'
 
 /** What a scoped palette searches. */
-export type PaletteSource = 'command' | 'book' | 'tag' | 'outline' | 'note'
+export type PaletteSource = 'command' | 'book' | 'tag' | 'outline' | 'line' | 'note'
 
 /** The sources in the order the root lists them. */
 export const PALETTE_SOURCES: readonly PaletteSource[] = [
@@ -13,6 +13,7 @@ export const PALETTE_SOURCES: readonly PaletteSource[] = [
   'book',
   'tag',
   'outline',
+  'line',
   'note',
 ]
 
@@ -22,6 +23,7 @@ export const SOURCE_KEYS: Readonly<Record<PaletteSource, string | undefined>> = 
   book: 'b',
   tag: 't',
   outline: '#',
+  line: ':',
   note: undefined,
 }
 
@@ -39,7 +41,8 @@ export interface PaletteState {
 
 export const ROOT: PaletteState = { scope: null, query: '' }
 
-const SCOPE_PREFIX = /^(>|b|t|#) (.*)$/s
+// `:` scopes with a space or a digit after it, so `:todo:` stays a search.
+const SCOPE_PREFIX = /^(?:(>|b|t|#) |(:)(?: |(?=\d)))(.*)$/s
 
 /**
  * The state after the field's text becomes `text`. At the root a source's
@@ -49,9 +52,9 @@ const SCOPE_PREFIX = /^(>|b|t|#) (.*)$/s
 export function typeInto(state: PaletteState, text: string): PaletteState {
   if (state.scope === null) {
     const match = SCOPE_PREFIX.exec(text)
-    const key = match?.[1]
+    const key = match?.[1] ?? match?.[2]
     const scope = PALETTE_SOURCES.find((source) => SOURCE_KEYS[source] === key)
-    if (match && scope) return { scope, query: match[2] ?? '' }
+    if (match && scope) return { scope, query: match[3] ?? '' }
   }
   return { ...state, query: text }
 }
@@ -66,6 +69,17 @@ export function escapeStep(state: PaletteState): PaletteState | null {
   return null
 }
 
+/**
+ * The line a Go to Line query names in a note of `lines` lines (past the
+ * last: the last); null unless the query is a whole number of 1 or more.
+ */
+export function lineOfQuery(query: string, lines: number): number | null {
+  const text = query.trim()
+  if (!/^\d+$/.test(text) || lines < 1) return null
+  const n = Number.parseInt(text, 10)
+  return n < 1 ? null : Math.min(n, lines)
+}
+
 /** Something the palette can list. */
 export interface PaletteEntry {
   kind: PaletteKind
@@ -78,7 +92,7 @@ export interface PaletteEntry {
   shortcut?: string
   /** A command's description, shown after its name. */
   description?: string
-  /** An outline entry: its line in the note (1 is the first). */
+  /** An outline entry or a line to go to: its line in the note (1 is the first). */
   line?: number
   /** An outline entry: a heading's level (1 to 6); 0 for a task. */
   level?: number
@@ -105,6 +119,7 @@ const QUERY_LIMIT: Readonly<Record<PaletteKind, number>> = {
   tag: 20,
   note: 20,
   outline: 200,
+  line: 1,
   source: 10,
 }
 
@@ -115,6 +130,7 @@ const BROWSE_LIMIT: Readonly<Record<PaletteKind, number>> = {
   tag: 5,
   note: 5,
   outline: Infinity,
+  line: 1,
   source: Infinity,
 }
 
@@ -164,6 +180,11 @@ export function paletteResults(
   state: PaletteState,
   entries: Readonly<Record<PaletteKind, readonly PaletteEntry[]>>,
 ): PaletteGroup[] {
+  // The line to go to is made from the query, not matched against it.
+  if (state.scope === 'line') {
+    const results = entries.line.map((e): PaletteResult => ({ ...e, ranges: [] }))
+    return results.length > 0 ? [{ kind: 'line', results }] : []
+  }
   if (state.scope !== null) {
     return paletteGroups(state.query, entries, [state.scope], SCOPED_BROWSE_LIMIT)
   }
