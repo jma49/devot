@@ -156,6 +156,16 @@ const theme = EditorView.theme({
   },
 })
 
+/**
+ * The popup sources, each offering nothing while the paste chooser's list is
+ * open (it stands alone). Wrapped once: CodeMirror keeps a list's result only
+ * while its source is the same function, so wrapping on every lookup would
+ * drop each open list on the next keystroke.
+ */
+const popupSources = [slashSource, languageSource, emojiSource, alertSource].map((source) => ({
+  autocomplete: unlessChoosing(source),
+}))
+
 /** What the note editor gives the popups: how to choose image files and a template. */
 export interface CompletionHost {
   chooseImageFiles?: (view: EditorView) => void
@@ -169,13 +179,7 @@ export function editorCompletions(host: CompletionHost = {}): Extension {
     theme,
     // A closing list fades out (the floating bars install the same plugin).
     closingTooltips,
-    EditorState.languageData.of(() => [
-      // The paste chooser's list stands alone while it is open.
-      { autocomplete: unlessChoosing(slashSource) },
-      { autocomplete: unlessChoosing(languageSource) },
-      { autocomplete: unlessChoosing(emojiSource) },
-      { autocomplete: unlessChoosing(alertSource) },
-    ]),
+    EditorState.languageData.of(() => popupSources),
     slashMenu(),
     codeBlocks(),
     editorHints(),
