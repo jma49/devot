@@ -54,7 +54,7 @@ export function noteLinkHover(load: LoadPreview): Extension {
           },
         }
       },
-      { hoverTime: HOVER_MS },
+      { hoverTime: HOVER_MS, hideOnChange: true },
     ),
     theme,
     noteCardTheme,

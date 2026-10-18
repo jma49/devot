@@ -92,6 +92,8 @@ function createBar(view: EditorView): TooltipView {
     dom,
     mount: () => flushSync(() => render(view.state)),
     update: (update) => {
+      // A completion list opens without a change the tooltip's inputs see: hide the bar then.
+      dom.style.display = completionStatus(update.state) === 'active' ? 'none' : ''
       if (
         update.docChanged ||
         update.selectionSet ||
