@@ -374,6 +374,11 @@ test('General offers the notebooks as the default for new notes', async ({ page 
 const editor = (page: Page) => page.getByRole('region', { name: 'Editing' })
 const checkbox = (page: Page, name: string) => editor(page).getByRole('switch', { name })
 const select = (page: Page, name: string) => editor(page).getByRole('combobox', { name })
+/** The Note Font section's Font Family (each font section has one). */
+const noteFont = (page: Page) =>
+  editor(page)
+    .getByRole('region', { name: 'Note Font' })
+    .getByRole('combobox', { name: 'Font Family' })
 const fontSize = (page: Page) => editor(page).getByRole('spinbutton', { name: 'Font Size' })
 
 async function openEditor(page: Page, stored: Record<string, unknown> = {}) {
@@ -388,12 +393,17 @@ async function openEditor(page: Page, stored: Record<string, unknown> = {}) {
 const setCalls = async (page: Page) =>
   (await calls(page, 'editor_settings_set')).map((c) => c.args['patch'])
 
-test('the Editing pane has Interface, Markdown and Text Appearance sections', async ({ page }) => {
+test('the Editing pane has Interface, Markdown, Text Appearance and font sections', async ({
+  page,
+}) => {
   await openEditor(page)
   await expect(editor(page).getByRole('heading', { level: 3 })).toHaveText([
     'Interface',
     'Markdown',
     'Text Appearance',
+    'App Font',
+    'Note Font',
+    'Code Font',
   ])
   await expect(editor(page).getByRole('heading', { level: 3 }).first()).toHaveCSS(
     'font-size',
@@ -448,7 +458,7 @@ test('every editor setting has a labelled control showing its stored value', asy
   await expect(select(page, 'Paste URL as Link')).toHaveValue('autolink')
   await expect(checkbox(page, 'Spellcheck')).not.toBeChecked()
   await expect(fontSize(page)).toHaveValue('15')
-  await expect(select(page, 'Font Family')).toHaveValue('menlo')
+  await expect(noteFont(page)).toHaveValue('menlo')
   await expect(select(page, 'Font Weight')).toHaveValue('600')
   await expect(select(page, 'Line Height')).toHaveValue('1.8')
   await expect(checkbox(page, 'Show Invisible Characters')).toBeChecked()
@@ -460,7 +470,7 @@ test('every editor setting has a labelled control showing its stored value', asy
     'Prose only',
     'Unwrap at cursor',
   ])
-  await expect(select(page, 'Font Family').getByRole('option')).toHaveText([
+  await expect(noteFont(page).getByRole('option')).toHaveText([
     'System',
     'SF Mono',
     'Menlo',
@@ -549,7 +559,7 @@ test('each control stores its change at once', async ({ page }) => {
   await select(page, 'Indent Unit').selectOption('4 spaces')
   await select(page, 'Tab Size').selectOption('4')
   await select(page, 'Paste URL as Link').selectOption('Autolink <URL>')
-  await select(page, 'Font Family').selectOption('System')
+  await noteFont(page).selectOption('System')
   await select(page, 'Font Weight').selectOption('500')
   await select(page, 'Line Height').selectOption('1.6')
   await fontSize(page).fill('16')

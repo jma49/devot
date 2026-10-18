@@ -17,6 +17,7 @@ import {
   checkEditorSettingsPatch,
   indentText,
   parseEditorSettings,
+  slotFont,
   stepFontSize,
   themeFollowsSystemAccent,
 } from '../../src/core/editorSettings'
@@ -32,6 +33,13 @@ describe('editor settings', () => {
       fontFamily: 'mono',
       installedFont: null,
       importedFont: null,
+      // The app's text in the system font, code in SF Mono.
+      appFontFamily: 'system',
+      appInstalledFont: null,
+      appImportedFont: null,
+      codeFontFamily: 'mono',
+      codeInstalledFont: null,
+      codeImportedFont: null,
       lineHeight: 1.5,
       indentUnit: 'spaces2',
       tabWidth: 2,
@@ -233,6 +241,37 @@ describe('editor settings', () => {
     ]) {
       expect(() => checkEditorSettingsPatch(bad)).toThrow('E_EDITOR_SETTINGS_INVALID')
       expect(parseEditorSettings(bad)).toMatchObject({ installedFont: null, importedFont: null })
+    }
+  })
+
+  it('keeps an app and a code font of their own beside the note font', () => {
+    const fonts = {
+      appFontFamily: 'installed',
+      appInstalledFont: 'Avenir Next',
+      codeFontFamily: 'imported',
+      codeImportedFont: 'Fira Code.ttf',
+    } as const
+    const read = parseEditorSettings({ ...fonts, fontFamily: 'menlo' })
+    expect(read).toMatchObject(fonts)
+    expect(slotFont(read, 'app')).toEqual({
+      family: 'installed',
+      installed: 'Avenir Next',
+      imported: null,
+    })
+    expect(slotFont(read, 'note')).toEqual({ family: 'menlo', installed: null, imported: null })
+    expect(slotFont(read, 'code')).toEqual({
+      family: 'imported',
+      installed: null,
+      imported: 'Fira Code.ttf',
+    })
+    // Settings stored before these fonts existed keep the defaults.
+    expect(slotFont(parseEditorSettings({ fontFamily: 'imported' }), 'code').family).toBe('mono')
+    for (const bad of [
+      { appFontFamily: 'Papyrus' },
+      { codeInstalledFont: '.AppleSystemUIFont' },
+      { appImportedFont: 'font.exe' },
+    ]) {
+      expect(() => checkEditorSettingsPatch(bad)).toThrow('E_EDITOR_SETTINGS_INVALID')
     }
   })
 

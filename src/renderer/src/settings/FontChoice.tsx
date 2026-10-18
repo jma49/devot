@@ -1,26 +1,111 @@
 import { useEffect, useState } from 'react'
-import type { EditorSettings } from '../../../core/editorSettings'
+import {
+  FONT_FAMILIES,
+  FONT_SLOTS,
+  slotFont,
+  type EditorSettings,
+  type FontFamilyId,
+  type FontSlot,
+} from '../../../core/editorSettings'
 import { errorCode } from '../../../core/errors'
 import { importFont, importedFonts, installedFonts, type FontFile } from '../fonts'
-import { format, t } from '../i18n'
-import { Setting } from './controls'
+import { format, t, type MessageKey } from '../i18n'
+import type { IconName } from '../icons/symbols'
+import { Setting, SettingsSection } from './controls'
 
-/**
- * The font under Font Family when it names one of the user's own: an
- * installed family, or an imported file with Import Font… beside it. An
- * imported font that is no longer in the fonts folder says the editor shows
- * SF Mono instead.
- */
-export function FontChoice({
+const FONT_LABELS: Readonly<Record<FontFamilyId, MessageKey>> = {
+  system: 'editorSettings.font.system',
+  mono: 'editorSettings.font.mono',
+  menlo: 'editorSettings.font.menlo',
+  monaco: 'editorSettings.font.monaco',
+  courierNew: 'editorSettings.font.courierNew',
+  installed: 'editorSettings.font.installed',
+  imported: 'editorSettings.font.imported',
+}
+
+/** Each font's section: its icon, title and what the font is for. */
+const SLOT_SECTIONS: Readonly<
+  Record<FontSlot, { icon: IconName; title: MessageKey; hint: MessageKey }>
+> = {
+  app: {
+    icon: 'settings.appFont',
+    title: 'editorSettings.appFont',
+    hint: 'editorSettings.appFontHint',
+  },
+  note: {
+    icon: 'settings.noteFont',
+    title: 'editorSettings.noteFont',
+    hint: 'editorSettings.noteFontHint',
+  },
+  code: {
+    icon: 'settings.codeFont',
+    title: 'editorSettings.codeFont',
+    hint: 'editorSettings.codeFontHint',
+  },
+}
+
+/** One font's section (App Font, Note Font, Code Font): its family and the font it names. */
+export function FontSection({
+  slot,
   settings,
   change,
   id,
 }: {
+  slot: FontSlot
   settings: EditorSettings
   change: (patch: Partial<EditorSettings>) => void
   id: (name: string) => string
 }) {
-  const kind = settings.fontFamily
+  const section = SLOT_SECTIONS[slot]
+  const own = (name: string) => id(`${slot}-${name}`)
+  return (
+    <SettingsSection icon={section.icon} title={section.title}>
+      <Setting
+        label="editorSettings.fontFamily"
+        description={t(section.hint)}
+        htmlFor={own('font')}
+        descriptionId={own('font-hint')}
+      >
+        <select
+          id={own('font')}
+          value={slotFont(settings, slot).family}
+          aria-describedby={own('font-hint')}
+          onChange={(e) =>
+            change({ [FONT_SLOTS[slot].family]: e.currentTarget.value as FontFamilyId })
+          }
+        >
+          {FONT_FAMILIES.map((f) => (
+            <option key={f} value={f}>
+              {t(FONT_LABELS[f])}
+            </option>
+          ))}
+        </select>
+      </Setting>
+      <FontChoice slot={slot} settings={settings} change={change} id={own} />
+    </SettingsSection>
+  )
+}
+
+/**
+ * The font under a slot's Font Family when it names one of the user's own:
+ * an installed family, or an imported file with Import Font… beside it. An
+ * imported font that is no longer in the fonts folder says the slot's
+ * default font shows instead.
+ */
+export function FontChoice({
+  slot,
+  settings,
+  change,
+  id,
+}: {
+  slot: FontSlot
+  settings: EditorSettings
+  change: (patch: Partial<EditorSettings>) => void
+  id: (name: string) => string
+}) {
+  const keys = FONT_SLOTS[slot]
+  const font = slotFont(settings, slot)
+  const kind = font.family
   const [installed, setInstalled] = useState<string[]>()
   const [imported, setImported] = useState<FontFile[]>()
   const [importError, setImportError] = useState<string>()
@@ -35,7 +120,7 @@ export function FontChoice({
   }, [kind, imported])
 
   if (kind === 'installed') {
-    const names = withChosen(installed ?? [], settings.installedFont)
+    const names = withChosen(installed ?? [], font.installed)
     return (
       <Setting
         label="editorSettings.installedFont"
@@ -45,9 +130,9 @@ export function FontChoice({
       >
         <select
           id={id('installed-font')}
-          value={settings.installedFont ?? ''}
+          value={font.installed ?? ''}
           aria-describedby={id('installed-font-hint')}
-          onChange={(e) => change({ installedFont: e.currentTarget.value || null })}
+          onChange={(e) => change({ [keys.installed]: e.currentTarget.value || null })}
         >
           <option value="">{t('editorSettings.chooseFont')}</option>
           {names.map((name) => (
@@ -62,15 +147,15 @@ export function FontChoice({
 
   if (kind !== 'imported') return null
   const files = imported ?? []
-  const chosen = settings.importedFont
+  const chosen = font.imported
   const missing = imported !== undefined && chosen !== null && !files.some((f) => f.id === chosen)
   const add = () =>
     void importFont().then(
-      (font) => {
+      (file) => {
         setImportError(undefined)
-        if (!font) return
-        setImported((list) => [...(list ?? []).filter((f) => f.id !== font.id), font])
-        change({ importedFont: font.id })
+        if (!file) return
+        setImported((list) => [...(list ?? []).filter((f) => f.id !== file.id), file])
+        change({ [keys.imported]: file.id })
       },
       (e: unknown) => setImportError(errorCode(e)),
     )
@@ -91,7 +176,7 @@ export function FontChoice({
           id={id('imported-font')}
           value={chosen ?? ''}
           aria-describedby={id('imported-font-hint')}
-          onChange={(e) => change({ importedFont: e.currentTarget.value || null })}
+          onChange={(e) => change({ [keys.imported]: e.currentTarget.value || null })}
         >
           <option value="">{t('editorSettings.chooseFont')}</option>
           {missing ? <option value={chosen}>{chosen}</option> : null}

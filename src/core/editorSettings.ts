@@ -6,9 +6,10 @@
 // ranges as this module) and they never sync.
 
 /**
- * The editor's font: the system font, one of the monospaced system fonts, a
- * font installed on this Mac (`installedFont`) or a font file the user
- * imported (`importedFont`).
+ * A font (the app's, the notes' or code's, see `FONT_SLOTS`): the system
+ * font, one of the monospaced system fonts, a font installed on this Mac
+ * (`installedFont` and the like) or a font file the user imported
+ * (`importedFont` and the like).
  */
 export type FontFamilyId =
   | 'system'
@@ -57,6 +58,14 @@ export interface EditorSettings {
   installedFont: string | null
   /** The file name of the imported font the editor uses (`fontFamily` `imported`), or none. */
   importedFont: string | null
+  /** The font of the app's own text (the sidebar, the lists, menus, Settings). */
+  appFontFamily: FontFamilyId
+  appInstalledFont: string | null
+  appImportedFont: string | null
+  /** The font of code blocks and inline code, in the editor and the preview. */
+  codeFontFamily: FontFamilyId
+  codeInstalledFont: string | null
+  codeImportedFont: string | null
   lineHeight: number
   indentUnit: IndentUnitId
   /** How many columns a tab character takes. */
@@ -100,7 +109,8 @@ export interface EditorSettings {
 }
 
 /**
- * The editor's defaults (SF Mono), the sidebar material on, synced scrolling
+ * The editor's defaults (notes and code in SF Mono, the app's text in the
+ * system font), the sidebar material on, synced scrolling
  * on, images shown under their lines, and the system's appearance with
  * Devot's own theme and accent. A default applies to a setting the user never set:
  * Rust keeps only the values the user set.
@@ -113,6 +123,12 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   fontFamily: 'mono',
   installedFont: null,
   importedFont: null,
+  appFontFamily: 'system',
+  appInstalledFont: null,
+  appImportedFont: null,
+  codeFontFamily: 'mono',
+  codeInstalledFont: null,
+  codeImportedFont: null,
   lineHeight: 1.5,
   indentUnit: 'spaces2',
   tabWidth: 2,
@@ -147,6 +163,40 @@ export const FONT_FAMILIES: readonly FontFamilyId[] = [
   'installed',
   'imported',
 ]
+/**
+ * The three fonts and the settings each is chosen with: the app's text, the
+ * notes' text (the editor, and the preview once it is not the default) and
+ * code (blocks and inline code in both).
+ */
+export type FontSlot = 'app' | 'note' | 'code'
+export const FONT_SLOTS = {
+  app: { family: 'appFontFamily', installed: 'appInstalledFont', imported: 'appImportedFont' },
+  note: { family: 'fontFamily', installed: 'installedFont', imported: 'importedFont' },
+  code: { family: 'codeFontFamily', installed: 'codeInstalledFont', imported: 'codeImportedFont' },
+} as const satisfies Record<
+  FontSlot,
+  { family: keyof EditorSettings; installed: keyof EditorSettings; imported: keyof EditorSettings }
+>
+/** The slots in the order Settings shows them. */
+export const FONT_SLOT_ORDER: readonly FontSlot[] = ['app', 'note', 'code']
+
+/** One slot's font: its family and the installed and imported fonts it can name. */
+export interface SlotFont {
+  family: FontFamilyId
+  installed: string | null
+  imported: string | null
+}
+
+/** The font a slot uses. */
+export function slotFont(settings: EditorSettings, slot: FontSlot): SlotFont {
+  const keys = FONT_SLOTS[slot]
+  return {
+    family: settings[keys.family],
+    installed: settings[keys.installed],
+    imported: settings[keys.imported],
+  }
+}
+
 export const INDENT_UNITS: readonly IndentUnitId[] = ['spaces2', 'spaces4', 'tab']
 export const LIST_MARKERS: readonly ListMarker[] = ['*', '-', '+']
 export const FONT_WEIGHTS: readonly FontWeightId[] = ['normal', '300', '400', '500', '600', '700']
@@ -220,6 +270,12 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   fontFamily: oneOf(FONT_FAMILIES),
   installedFont: orNull(isFontFamilyName),
   importedFont: orNull(isFontFileName),
+  appFontFamily: oneOf(FONT_FAMILIES),
+  appInstalledFont: orNull(isFontFamilyName),
+  appImportedFont: orNull(isFontFileName),
+  codeFontFamily: oneOf(FONT_FAMILIES),
+  codeInstalledFont: orNull(isFontFamilyName),
+  codeImportedFont: orNull(isFontFileName),
   lineHeight: (v) =>
     typeof v === 'number' && Number.isFinite(v) && v >= LINE_HEIGHT_MIN && v <= LINE_HEIGHT_MAX,
   indentUnit: oneOf(INDENT_UNITS),

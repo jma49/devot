@@ -27,4 +27,29 @@ describe('applyEditorStyle', () => {
     expect(Number(bigger.get('--preview-scale'))).toBeCloseTo(2, 5)
     expect(bigger.get('--editor-font-weight')).toBe('600')
   })
+
+  it('sets the three fonts, and the preview takes the note font once it is not the default', () => {
+    const fonts = (patch: Partial<typeof DEFAULT_EDITOR_SETTINGS>, loaded = () => true) => {
+      const set = new Map<string, string>()
+      applyEditorStyle(
+        { ...DEFAULT_EDITOR_SETTINGS, ...patch },
+        { setProperty: (name, value) => void set.set(name, value) },
+        loaded,
+      )
+      return set
+    }
+    const plain = fonts({})
+    expect(plain.get('--font-family-ui')).toMatch(/^-apple-system/)
+    expect(plain.get('--editor-font-family')).toBe('var(--font-family-mono)')
+    expect(plain.get('--code-font-family')).toBe('var(--font-family-mono)')
+    expect(plain.get('--preview-font-family')).toBe('var(--font-family-ui)')
+    const menlo = fonts({ fontFamily: 'menlo' })
+    expect(menlo.get('--preview-font-family')).toBe(menlo.get('--editor-font-family'))
+    // An imported face is named only once it has loaded.
+    const code = { codeFontFamily: 'imported', codeImportedFont: 'Fira Code.ttf' } as const
+    expect(fonts(code, () => false).get('--code-font-family')).toBe('var(--font-family-mono)')
+    expect(fonts(code).get('--code-font-family')).toBe(
+      '"Devot Font Fira Code ttf", var(--font-family-mono)',
+    )
+  })
 })

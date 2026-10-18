@@ -393,7 +393,15 @@ export const en = {
   'editorSettings.fontSizeKeysNone':
     'The command palette changes it too: Increase, Decrease and Reset Font Size.',
   'editorSettings.fontFamily': 'Font Family',
-  'editorSettings.fontFamilyHint': 'The font of the editor text.',
+  'editorSettings.appFont': 'App Font',
+  'editorSettings.appFontHint':
+    'The font of the sidebar, the note list, menus, dialogs and Settings.',
+  'editorSettings.noteFont': 'Note Font',
+  'editorSettings.noteFontHint':
+    'The font of the editor text. The preview text uses it too once it is not SF Mono.',
+  'editorSettings.codeFont': 'Code Font',
+  'editorSettings.codeFontHint':
+    'The font of code blocks and inline code, in the editor and the preview.',
   'editorSettings.font.system': 'System',
   'editorSettings.font.mono': 'SF Mono',
   'editorSettings.font.menlo': 'Menlo',
@@ -404,12 +412,12 @@ export const en = {
   'editorSettings.chooseFont': 'Choose a Font',
   'editorSettings.installedFont': 'Installed Font',
   'editorSettings.installedFontHint':
-    'A font installed on this Mac. Text it cannot show appears in SF Mono.',
+    'A font installed on this Mac. Text it cannot show appears in the default font.',
   'editorSettings.importedFont': 'Imported Font',
   'editorSettings.importedFontHint':
     'A font file you imported (TTF, OTF, WOFF or WOFF2, up to 50 MB). It stays on this Mac.',
   'editorSettings.importedFontMissing':
-    'This font file is missing, so the editor shows SF Mono. Import it again to use it.',
+    'This font file is missing, so the default font shows instead. Import it again to use it.',
   'editorSettings.importFont': 'Import Font…',
   'editorSettings.importFontFailed': 'The font could not be imported ({code}).',
   'editorSettings.fontWeight': 'Font Weight',
