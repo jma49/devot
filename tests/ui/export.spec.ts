@@ -5,6 +5,7 @@ import {
   clipboardWrites,
   expect,
   pickMenuItem,
+  shownMenu,
   test,
   type IpcCall,
   type TestWindow,
@@ -414,4 +415,76 @@ test("a notebook's menu exports it with its sub-notebooks, as Markdown or HTML",
   const [inbox, plan] = pages.map((p) => (p as Record<string, string>)['text']!)
   expect(inbox).toContain('<a href="Plans/Plan.html">Plan</a>')
   expect(plan).toContain('<a href="../Inbox.html">Inbox</a>')
+})
+
+test('Export All Notes writes every notebook as a folder, from the palette and File > Export', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'New Notebook' }).click()
+  const field = page.getByRole('textbox', { name: 'Notebook name' })
+  await field.fill('Work')
+  await field.press('Enter')
+  await bookRow(page, 'Work').click()
+  await createNote(page, 'Plan', '# Plan\n\nText.\n')
+  await mockExport(page, { export_begin: { id: 9, fileName: null } })
+
+  await page.keyboard.press('Meta+KeyK')
+  const palette = page.getByRole('dialog', { name: 'Command Palette' })
+  await palette
+    .getByRole('combobox', { name: 'Command Palette' })
+    .fill('export all notes as markdown')
+  await expect(palette.getByRole('option').first()).toContainText('Export All Notes as Markdown')
+  await page.keyboard.press('Enter')
+  await expect.poll(async () => (await calls(page, 'export_finish')).length).toBe(1)
+  expect((await calls(page, 'export_begin'))[0]?.args).toEqual({
+    kind: 'notebook',
+    format: 'markdown',
+    name: 'Devot Notes',
+  })
+  const paths = async () =>
+    (await calls(page, 'export_write')).map((c) => (c.args as Record<string, string>)['path'])
+  expect(await paths()).toContain('Work/Plan.md')
+
+  // File > Export > All Notes as HTML… (Rust sends the format).
+  await page.evaluate(() =>
+    globalThis.dispatchEvent(new CustomEvent('devot:export-all', { detail: 'html' })),
+  )
+  await expect.poll(async () => (await calls(page, 'export_finish')).length).toBe(2)
+  expect((await calls(page, 'export_begin'))[1]?.args).toMatchObject({
+    format: 'html',
+    name: 'Devot Notes',
+  })
+  expect(await paths()).toContain('Work/Plan.html')
+})
+
+test('Export Selected Notes writes the selected notes side by side', async ({ page }) => {
+  await page.getByRole('button', { name: 'New Notebook' }).click()
+  const field = page.getByRole('textbox', { name: 'Notebook name' })
+  await field.fill('Work')
+  await field.press('Enter')
+  await bookRow(page, 'Work').click()
+  await createNote(page, 'One', 'First.\n')
+  await createNote(page, 'Two', 'Second.\n')
+  await mockExport(page, { export_begin: { id: 9, fileName: null } })
+  await noteRow(page, 'One').click()
+  await noteRow(page, 'Two').click({ modifiers: ['Meta'] })
+
+  const before = await popups(page)
+  await noteRow(page, 'Two').click({ button: 'right' })
+  await expect.poll(() => popups(page)).toBe(before + 1)
+  const menu = await shownMenu(page)
+  expect(menu).toContain('Export Selected Notes as Markdown…')
+  expect(menu).toContain('Export Selected Notes as HTML…')
+  expect(menu).not.toContain('Print…')
+  await pickMenuItem(page, 'Export Selected Notes as Markdown…')
+  await expect.poll(async () => (await calls(page, 'export_finish')).length).toBe(1)
+  expect((await calls(page, 'export_begin'))[0]?.args).toEqual({
+    kind: 'notebook',
+    format: 'markdown',
+    name: 'Devot Export',
+  })
+  const written = (await calls(page, 'export_write')).map(
+    (c) => (c.args as Record<string, string>)['path'],
+  )
+  expect([...written].sort()).toEqual(['One.md', 'Two.md'])
 })

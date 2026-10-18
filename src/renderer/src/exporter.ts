@@ -1,5 +1,5 @@
 // Export and print, from the note and notebook context menus (and the
-// palette, and Shift+Cmd+P for Print). The core plans the files and writes
+// palette, File > Export > All Notes, and Shift+Cmd+P for Print). The core plans the files and writes
 // the Markdown (core/export.ts) and turns the preview into a page
 // (core/htmlExport.ts); this module draws the diagrams, styles the page and
 // hands everything to Rust (src-tauri/src/export.rs), which shows the
@@ -8,7 +8,7 @@ import { invoke } from './ipc'
 import * as Comlink from 'comlink'
 import type { Element, Root, RootContent } from 'hast'
 import type { ExportPlan, ExportReport, ExportSink, ExportTarget, PageImage } from '../../core'
-import { fileStem, relativeHref } from '../../core/export'
+import { exportName, fileStem, relativeHref } from '../../core/export'
 import { htmlDocument, pageBody } from '../../core/htmlExport'
 import { errorCode } from './backups'
 import type { Core } from './core-client'
@@ -20,8 +20,15 @@ import pageCss from './preview/page.css?raw'
 import { previewLabels } from './preview/Preview'
 import { dark, light, sizes } from './theme/tokens'
 
-/** What a notebook's context menu exports it as. */
+/** What a notebook's context menu exports it as (also every note, or chosen notes). */
 export type BookExport = 'exportMarkdown' | 'exportHtml'
+
+/**
+ * The panel Rust shows for a target: a file for a note, else a folder in
+ * which the export makes a folder of its own (`export_begin`'s `notebook`).
+ */
+export const panelKind = (target: ExportTarget): 'note' | 'notebook' =>
+  target.kind === 'note' ? 'note' : 'notebook'
 
 interface Begun {
   id: number
@@ -119,7 +126,7 @@ async function exportMarkdown(core: Core, target: ExportTarget): Promise<ExportR
   const sink: ExportSink = {
     async begin(name) {
       const begun = await invoke<Begun | null>('export_begin', {
-        kind: target.kind,
+        kind: panelKind(target),
         format: 'markdown',
         name,
       })
@@ -144,12 +151,21 @@ async function exportMarkdown(core: Core, target: ExportTarget): Promise<ExportR
  * Null when cancelled.
  */
 async function exportHtml(core: Core, target: ExportTarget): Promise<ExportReport | null> {
-  const plan: ExportPlan = await core.planExport(target, t('note.untitled'))
-  const begun = await invoke<Begun | null>('export_begin', {
-    kind: target.kind,
-    format: 'html',
-    name: plan.name,
-  })
+  // A folder whose name is known asks first, before every note is read.
+  const known = exportName(target)
+  const ask = (name: string) =>
+    invoke<Begun | null>('export_begin', { kind: panelKind(target), format: 'html', name })
+  const asked = known === null ? undefined : await ask(known)
+  if (asked === null) return null
+  let plan: ExportPlan
+  try {
+    plan = await core.planExport(target, t('note.untitled'))
+  } catch (error) {
+    // The session asked for first ends with the failure.
+    if (asked) await finish(asked.id)
+    throw error
+  }
+  const begun = asked ?? (await ask(plan.name))
   if (!begun) return null
   const report: ExportReport = { notes: 0, attachments: 0, problems: [] }
   try {
@@ -224,8 +240,21 @@ export async function runNoteExport(core: Core, action: ExportAction, noteId: st
 }
 
 /** Exports a notebook and its sub-notebooks; rejects like `runNoteExport`. */
-export async function runBookExport(core: Core, action: BookExport, bookId: string) {
-  const target: ExportTarget = { kind: 'notebook', bookId }
+export const runBookExport = (core: Core, action: BookExport, bookId: string) =>
+  runTargetExport(core, action, { kind: 'notebook', bookId })
+
+/**
+ * Exports every note (File > Export > All Notes): each top-level notebook a
+ * folder, notes in no notebook at the top; rejects like `runNoteExport`.
+ */
+export const runAllExport = (core: Core, action: BookExport) =>
+  runTargetExport(core, action, { kind: 'all', name: t('export.allName') })
+
+/** Exports chosen notes side by side in one folder; rejects like `runNoteExport`. */
+export const runSelectionExport = (core: Core, action: BookExport, noteIds: readonly string[]) =>
+  runTargetExport(core, action, { kind: 'notes', noteIds, name: t('export.selectionName') })
+
+async function runTargetExport(core: Core, action: BookExport, target: ExportTarget) {
   const report =
     action === 'exportMarkdown'
       ? await exportMarkdown(core, target)

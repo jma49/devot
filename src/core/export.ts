@@ -5,7 +5,10 @@
 // Rules:
 // - A note is one `.md` file named after its title. A notebook becomes a
 //   folder named after it, each sub-notebook a folder inside it (nested
-//   like the sidebar), each note a file in its notebook's folder. Names are
+//   like the sidebar), each note a file in its notebook's folder. All notes
+//   are every top-level notebook as such a folder, in sidebar order, with
+//   the notes in no notebook at the top (never Templates or the Trash);
+//   chosen notes are files side by side, in the order chosen. Names are
 //   made safe for the file system and numbered when two would be the same
 //   (`Plan.md`, `Plan 2.md`): the same as macOS takes them, whatever their
 //   case or the form of their accents, or (to be safe) a compatibility
@@ -38,7 +41,7 @@
 //   notebooks and images).
 // - Note links (`devot://note/<id>`) stay as they are.
 
-import { bookOrder, type BookService } from './books'
+import { bookOrder, buildBookTree, type BookService } from './books'
 import { errorCode } from './errors'
 import {
   EXPORT_HEADER,
@@ -60,7 +63,17 @@ export const ATTACHMENTS_FOLDER = 'attachments'
 /** File and folder names, in UTF-8 bytes (a name may take 255; numbering adds a few). */
 const MAX_NAME_BYTES = 200
 
-export type ExportTarget = { kind: 'note'; noteId: string } | { kind: 'notebook'; bookId: string }
+/**
+ * What an export writes: a note; a notebook with its sub-notebooks; every
+ * note (`all`: each top-level notebook a folder, notes in no notebook at the
+ * top); or chosen notes (`notes`: flat, in the order given). `name` is the
+ * folder `all` and `notes` are written into.
+ */
+export type ExportTarget =
+  | { kind: 'note'; noteId: string }
+  | { kind: 'notebook'; bookId: string }
+  | { kind: 'all'; name: string }
+  | { kind: 'notes'; noteIds: readonly string[]; name: string }
 
 /** A note as it is exported. */
 export interface ExportEntry {
@@ -185,6 +198,14 @@ export interface PlanOptions {
   untitled: string
 }
 
+/**
+ * The name of the folder an export makes when it is known before planning
+ * (every note, chosen notes); null when it comes from the note or notebook.
+ */
+export function exportName(target: ExportTarget): string | null {
+  return target.kind === 'all' || target.kind === 'notes' ? fileStem(target.name, '_') : null
+}
+
 /** What an export writes: the note, or the notebook's notes, and where. */
 export async function planExport(options: PlanOptions): Promise<ExportPlan> {
   const { notes, books, tags, target, untitled } = options
@@ -214,9 +235,23 @@ export async function planExport(options: PlanOptions): Promise<ExportPlan> {
     return { name: only.stem, entries: [only] }
   }
 
+  if (target.kind === 'notes') {
+    const files = new Set<string>()
+    const entries: ExportEntry[] = []
+    for (const id of new Set(target.noteIds)) {
+      // A chosen note deleted since is left out; the others still export.
+      const read = await entry(id, [], (title) => unique(fileStem(title, untitled), files)).catch(
+        (error: unknown) => {
+          if (errorCode(error) === 'E_NOTE_NOT_FOUND') return null
+          throw error
+        },
+      )
+      if (read) entries.push(read)
+    }
+    return { name: fileStem(target.name, '_'), entries }
+  }
+
   const all = await books.list()
-  const root = all.find((b) => b.id === target.bookId)
-  if (!root) throw new Error('E_BOOK_NOT_FOUND')
   const children = new Map<string, BookRecord[]>()
   for (const book of all) {
     if (book.parentId === null || book.id === book.parentId) continue
@@ -233,32 +268,56 @@ export async function planExport(options: PlanOptions): Promise<ExportPlan> {
   }
   const entries: ExportEntry[] = []
   const seen = new Set<string>()
-  const walk = async (book: BookRecord, folder: string[]) => {
-    // A parent cycle (from concurrent moves) is walked once.
-    if (seen.has(book.id)) return
-    seen.add(book.id)
-    // Per folder: the notes' file names (without extension), and every
-    // name taken there, so a sub-notebook's folder never takes a note's
-    // file name (`Plan.md`) or the attachments folder.
+  /**
+   * Adds `notes` as files in `folder`. Returns every name taken there (by
+   * the notes' files, and at the top by the attachments folder), so a
+   * sub-notebook's folder never takes a note's file name (`Plan.md`) or the
+   * attachments folder.
+   */
+  const fill = async (notesHere: typeof summaries, folder: string[]) => {
     const files = new Set<string>()
     const taken = new Set<string>(folder.length === 0 ? [nameKey(ATTACHMENTS_FOLDER)] : [])
-    const notesHere = [...(byBook.get(book.id) ?? [])].sort(
+    const ordered = [...notesHere].sort(
       (a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1),
     )
-    for (const note of notesHere) {
+    for (const note of ordered) {
       const added = await entry(note.id, folder, (title) =>
         unique(fileStem(title, untitled), files),
       )
       for (const extension of ['md', 'html']) taken.add(nameKey(`${added.stem}.${extension}`))
       entries.push(added)
     }
+    return taken
+  }
+  const walk = async (book: BookRecord, folder: string[]) => {
+    // A parent cycle (from concurrent moves) is walked once.
+    if (seen.has(book.id)) return
+    seen.add(book.id)
+    const taken = await fill(byBook.get(book.id) ?? [], folder)
     const subs = [...(children.get(book.id) ?? [])].sort((a, b) => bookOrder(a, b))
     for (const sub of subs) {
       await walk(sub, [...folder, unique(fileStem(sub.name, '_'), taken)])
     }
   }
-  await walk(root, [])
-  return { name: fileStem(root.name, '_'), entries }
+
+  if (target.kind === 'notebook') {
+    const root = all.find((b) => b.id === target.bookId)
+    if (!root) throw new Error('E_BOOK_NOT_FOUND')
+    await walk(root, [])
+    return { name: fileStem(root.name, '_'), entries }
+  }
+
+  // Everything: notes in no notebook (or in one that is gone) at the top,
+  // then each top-level notebook as the sidebar shows it, a parent cycle's
+  // notebooks among them.
+  const known = new Map(all.map((b) => [b.id, b]))
+  const loose = summaries.filter((n) => n.bookId === null || !known.has(n.bookId))
+  const taken = await fill(loose, [])
+  for (const node of buildBookTree(all)) {
+    const book = known.get(node.id)!
+    await walk(book, [unique(fileStem(book.name, '_'), taken)])
+  }
+  return { name: fileStem(target.name, '_'), entries }
 }
 
 // --- Markdown files ----------------------------------------------------------
@@ -413,9 +472,14 @@ export interface ExportOptions extends PlanOptions {
  * was), is listed as a problem.
  */
 export async function exportMarkdown(options: ExportOptions): Promise<ExportReport | null> {
-  const plan = await planExport(options)
   const { sink } = options
-  const begun = await sink.begin(plan.name)
+  // A folder whose name is known asks first: every note is read only once
+  // the user has chosen where they go.
+  const known = exportName(options.target)
+  const asked = known === null ? undefined : await sink.begin(known)
+  if (asked === null) return null
+  const plan = await planExport(options)
+  const begun = asked ?? (await sink.begin(plan.name))
   if (!begun) return null
   const problems: ExportProblem[] = []
   const copied = new Set<string>()

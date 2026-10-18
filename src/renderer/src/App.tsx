@@ -149,6 +149,9 @@ import { textStore } from './textStore'
 import { sizes } from './theme/tokens'
 import { track } from './usage'
 
+/** File > Export > All Notes (`markdown` or `html`), from Rust's menu. */
+const EXPORT_ALL = 'devot:export-all'
+
 /** A query and the view it narrows (none: every note). */
 interface Search {
   query: string
@@ -1827,6 +1830,15 @@ export function App() {
     runExport(failureOf(action), (exporter) => exporter.runNoteExport(core!, action, id))
   const exportBook = (action: 'exportMarkdown' | 'exportHtml', id: string) =>
     runExport('export', (exporter) => exporter.runBookExport(core!, action, id))
+  const exportNotes = (action: 'exportMarkdown' | 'exportHtml', ids: readonly string[]) =>
+    runExport('export', (exporter) => exporter.runSelectionExport(core!, action, ids))
+  const exportAll = (action: 'exportMarkdown' | 'exportHtml') =>
+    runExport('export', (exporter) => exporter.runAllExport(core!, action))
+  // File > Export > All Notes: Rust sends `markdown` or `html`.
+  useMenuEvent('devot://export-all', EXPORT_ALL, (format) => {
+    if (format === 'markdown') void exportAll('exportMarkdown')
+    else if (format === 'html') void exportAll('exportHtml')
+  })
   const noteActions = useNoteActions({
     headlines: loadHeadlines,
     notes: listedNotes,
@@ -1836,6 +1848,7 @@ export function App() {
     duplicate,
     history: showHistory,
     exportNote,
+    exportNotes,
     copyFailed: (failure, code) => setExportNotice({ failure, code }),
     move: moveNotes,
     setPinned: setNotesPinned,
@@ -2120,6 +2133,8 @@ export function App() {
     'view.templates': { run: () => showLibrary({ kind: 'templates' }) },
     'view.trash': { run: () => showLibrary({ kind: 'trash' }) },
     'app.backups': { run: showBackups },
+    'app.exportAllMarkdown': { run: () => exportAll('exportMarkdown') },
+    'app.exportAllHtml': { run: () => exportAll('exportHtml') },
     'mirror.chooseFolder': { run: mirror.choose },
   }
   if (mirror.status.folder !== null) handlers['mirror.turnOff'] = { run: mirror.turnOff }

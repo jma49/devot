@@ -39,6 +39,11 @@ pub const BACKUPS_ID: &str = "devot.backups";
 pub const IMPORT_MARKDOWN_ID: &str = "devot.import.markdown";
 pub const IMPORT_MARKDOWN_FILES_ID: &str = "devot.import.markdownFiles";
 pub const IMPORT_HTML_FILES_ID: &str = "devot.import.htmlFiles";
+pub const EXPORT_ALL_MARKDOWN_ID: &str = "devot.export.allMarkdown";
+pub const EXPORT_ALL_HTML_ID: &str = "devot.export.allHtml";
+/// File > Export > All Notes: the window exports, in the format sent
+/// (`markdown` or `html`).
+pub const EXPORT_ALL_EVENT: &str = "devot://export-all";
 pub const SHOW_BACKUPS_EVENT: &str = "devot://show-backups";
 pub const HISTORY_ID: &str = "devot.history";
 pub const SHOW_HISTORY_EVENT: &str = "devot://show-history";
@@ -334,8 +339,18 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .item(&import_markdown)
         .item(&import_html)
         .build()?;
+    let export_markdown =
+        MenuItemBuilder::with_id(EXPORT_ALL_MARKDOWN_ID, strings::EXPORT_ALL_MARKDOWN)
+            .build(app)?;
+    let export_html =
+        MenuItemBuilder::with_id(EXPORT_ALL_HTML_ID, strings::EXPORT_ALL_HTML).build(app)?;
+    let export = SubmenuBuilder::new(app, strings::MENU_EXPORT)
+        .item(&export_markdown)
+        .item(&export_html)
+        .build()?;
     let file = SubmenuBuilder::new(app, strings::MENU_FILE)
         .item(&import)
+        .item(&export)
         .build()?;
     let edit = SubmenuBuilder::new(app, strings::MENU_EDIT)
         .undo()
@@ -428,6 +443,15 @@ pub fn install(app: &App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// The format File > Export > All Notes item `id` exports in, if it is one.
+fn export_all_format(id: &str) -> Option<&'static str> {
+    match id {
+        EXPORT_ALL_MARKDOWN_ID => Some("markdown"),
+        EXPORT_ALL_HTML_ID => Some("html"),
+        _ => None,
+    }
+}
+
 fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     if event.id() == QUIT_ID {
         exit::request_quit(app);
@@ -469,6 +493,10 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         import::pick(app, import::Pick::MarkdownFiles, None);
     } else if event.id() == IMPORT_HTML_FILES_ID {
         import::pick(app, import::Pick::HtmlFiles, None);
+    } else if let Some(format) = export_all_format(event.id().as_ref()) {
+        if app.emit_to("main", EXPORT_ALL_EVENT, format).is_err() {
+            log::warn!("W_EXPORT_MENU_EMIT_FAILED");
+        }
     } else if event.id() == DIAGNOSTICS_ID {
         match diagnostics::export(app) {
             Ok(_) => log::info!("I_DIAGNOSTICS_EXPORTED"),
@@ -678,5 +706,13 @@ mod tests {
         assert!(is_newer(6, 5));
         assert!(is_newer(5, 5));
         assert!(!is_newer(5, 6));
+    }
+
+    #[test]
+    fn file_export_items_name_the_format_the_window_exports_in() {
+        assert_eq!(export_all_format(EXPORT_ALL_MARKDOWN_ID), Some("markdown"));
+        assert_eq!(export_all_format(EXPORT_ALL_HTML_ID), Some("html"));
+        assert_eq!(export_all_format(IMPORT_MARKDOWN_ID), None);
+        assert_eq!(export_all_format("devot.export"), None);
     }
 }

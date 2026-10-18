@@ -3,8 +3,8 @@
 // also the keys of the Trash's list. On a row that is part of a multiple
 // selection the menu acts on every selected note: its labels say so, and the
 // items for one note only (Revision History, Duplicate, Copy Note URI and
-// ID, and the export and print items) are hidden, while the status and tag
-// items show.
+// ID, PDF, print and copy as HTML) are hidden, while the status and tag
+// items show, and Export as Markdown and HTML export the selected notes.
 import { useCallback } from 'react'
 import { noteLink, noteUri } from '../../core/links'
 import { NOTE_STATUSES, type NoteStatus } from '../../core/storage'
@@ -17,6 +17,7 @@ import {
   type MenuGroups,
 } from './contextMenu'
 import { displayTitle } from './headlines'
+import type { MessageKey } from './i18n'
 import { invoke } from './ipc'
 import { STATUS_COMMANDS } from './statusKeys'
 
@@ -71,6 +72,20 @@ export const NOTE_COMMANDS: Readonly<Record<NoteAction, CommandId>> = {
   removeTag: 'note.removeTag',
 }
 
+/**
+ * Export actions that also act on several notes (they export them side by
+ * side), with their labels for one note and for several.
+ */
+const SELECTION_EXPORT_LABELS: Partial<Record<ExportAction, readonly [MessageKey, MessageKey]>> = {
+  exportMarkdown: ['noteMenu.exportMarkdown', 'noteMenu.exportSelectionMarkdown'],
+  exportHtml: ['noteMenu.exportHtml', 'noteMenu.exportSelectionHtml'],
+}
+
+/** The export actions that also act on several notes. */
+export const SELECTION_EXPORTS: ReadonlySet<ExportAction> = new Set(
+  Object.keys(SELECTION_EXPORT_LABELS) as ExportAction[],
+)
+
 /** Note actions for several selected notes only (see `NOTE_MENU`). */
 export const SELECTION_ONLY: ReadonlySet<NoteAction> = new Set(['addTag', 'removeTag'])
 
@@ -124,7 +139,12 @@ export const NOTE_MENU: MenuGroups<NoteMenuAction, NoteMenuTarget> = [
     entry('copyUri', { shown: one }),
     entry('copyId', { shown: one }),
   ],
-  EXPORT_ACTIONS.map((action) => entry(action, { shown: one })),
+  EXPORT_ACTIONS.map((action) => {
+    const labels = SELECTION_EXPORT_LABELS[action]
+    return labels
+      ? entry(action, { label: (n) => (one(n) ? labels[0] : labels[1]) })
+      : entry(action, { shown: one })
+  }),
   [entry('trash', { label: (n) => (one(n) ? 'note.moveToTrash' : 'batch.trash') })],
 ]
 
