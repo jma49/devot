@@ -9,6 +9,7 @@ import { copyText } from '../noteMenu'
 import { lookUp, startSpeaking, stopSpeaking } from '../textServices'
 import {
   PREVIEW_MENU,
+  previewLookUpTarget,
   previewMenuTarget,
   selectAllIn,
   type PreviewAction,
@@ -326,7 +327,7 @@ export function Preview({
     event.preventDefault()
     onOpenImage({ src: img.currentSrc || img.src, alt: img.alt })
   }
-  /** Where the menu was opened (Look Up shows its answer there). */
+  /** Where the menu was opened (Look Up's point when the selection has no box). */
   const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
   const pickMenuAction = useCallback((action: PreviewAction, target: PreviewMenuTarget) => {
     switch (action) {
@@ -335,9 +336,14 @@ export function Preview({
         if (link !== null) void copyText(link).catch(() => console.warn('W_LINK_COPY_FAILED'))
         return
       }
-      case 'lookUp':
-        if (target.selection !== null) void lookUp(target.selection, menuAt.current)
+      case 'lookUp': {
+        if (target.selection === null) return
+        const selection = window.getSelection()
+        const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
+        const look = range ? previewLookUpTarget(range) : null
+        void lookUp(target.selection, look?.at ?? menuAt.current, look?.font)
         return
+      }
       case 'selectAll':
         if (pane.current) selectAllIn(pane.current, window.getSelection())
         return

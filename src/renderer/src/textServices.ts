@@ -47,6 +47,17 @@ export function lookUpOrigin(start: { left: number; bottom: number }, descent: n
   return { x: start.left, y: start.bottom - Math.max(0, descent) }
 }
 
+/** The descent of a computed style's font, in CSS pixels (a fifth of its size when unknown). */
+export function fontDescent(style: CSSStyleDeclaration): number {
+  const context = document.createElement('canvas').getContext('2d')
+  if (context && style.font) {
+    context.font = style.font
+    const descent = context.measureText('x').fontBoundingBoxDescent
+    if (Number.isFinite(descent) && descent > 0) return descent
+  }
+  return (parseFloat(style.fontSize) || 0) / 5
+}
+
 /**
  * The font the dictionary draws the word in, so its highlight covers the
  * text (Rust: `LookUpFont`): the CSS font list, the size in pixels, the
