@@ -22,6 +22,10 @@ const labels: PreviewLabels = {
   videoTitle: 'Embedded video',
   untitled: 'Untitled',
   missingNote: 'Note not found',
+  codeLines: 'Lines {start} to {end}',
+  codeLine: 'Line {n}',
+  codeRef: 'in {ref}',
+  codeSource: 'Open source',
 }
 
 const NONCE = '0123456789abcdef0123456789abcdef'

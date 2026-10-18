@@ -23,6 +23,10 @@ const labels: PreviewLabels = {
   videoTitle: 'Embedded video',
   untitled: 'Untitled',
   missingNote: 'Note not found',
+  codeLines: 'Lines {start} to {end}',
+  codeLine: 'Line {n}',
+  codeRef: 'in {ref}',
+  codeSource: 'Open source',
 }
 
 const render = (md: string) => renderPreview(md, { labels, loadedEmbeds: [] })

@@ -50,6 +50,19 @@ body {
     overflow: visible;
   }
 
+  /* Wrapped lines would no longer line up with their numbers. */
+  .preview .code-gutter {
+    display: none;
+  }
+
+  .preview pre.with-line-numbers {
+    display: block;
+  }
+
+  .preview pre.with-line-numbers > code {
+    padding-left: var(--space-7);
+  }
+
   .island,
   .math-display {
     overflow: visible;

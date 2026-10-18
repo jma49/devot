@@ -892,6 +892,13 @@
         }
       }
     },
+    "code-line": {
+      "number": {
+        "$type": "color",
+        "$value": "{color.text.tertiary}",
+        "$description": "The line numbers beside a code block in the preview."
+      }
+    },
     "code-header": {
       "bg": {
         "$type": "color",

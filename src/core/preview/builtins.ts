@@ -14,6 +14,7 @@ import { PREVIEW_API_VERSION, type AlertKind, type PreviewRenderer } from './reg
 import { fillPlaceholders } from '../text'
 import { createCodeRenderer } from './code'
 import { glyph } from './glyphs'
+import { headingIds } from './headingIds'
 import { noteLinkChips } from './noteLinks'
 import { parse, stringify } from 'yaml'
 
@@ -440,6 +441,7 @@ export const BUILTIN_RENDERERS: readonly PreviewRenderer[] = [
   createEmojiRenderer(),
   mermaid,
   createCodeRenderer(),
+  headingIds,
   swatches,
   images,
   links,

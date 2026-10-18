@@ -19,6 +19,12 @@ export interface PreviewLabels {
   untitled: string
   /** The tooltip of a link to a note that does not exist (or is in the Trash). */
   missingNote: string
+  /** A code block's header: `{start}` and `{end}` of its lines, one `{n}`, a `{ref}`. */
+  codeLines: string
+  codeLine: string
+  codeRef: string
+  /** The name of the link to a code block's source. */
+  codeSource: string
 }
 
 export type AlertKind = 'note' | 'tip' | 'important' | 'warning' | 'caution'

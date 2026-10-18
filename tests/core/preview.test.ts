@@ -25,6 +25,10 @@ const labels: PreviewLabels = {
   videoTitle: 'Embedded video',
   untitled: 'Untitled',
   missingNote: 'Note not found',
+  codeLines: 'Lines {start} to {end}',
+  codeLine: 'Line {n}',
+  codeRef: 'in {ref}',
+  codeSource: 'Open source',
 }
 
 const render = (md: string, options: Partial<PreviewOptions> = {}) =>
@@ -369,6 +373,7 @@ describe('preview renderer extension point', () => {
       'devot.emoji',
       'devot.mermaid',
       'devot.code',
+      'devot.headingIds',
       'devot.swatches',
       'devot.images',
       'devot.links',

@@ -94,6 +94,36 @@
   overflow-x: auto;
 }
 
+/*
+ * A fence with `line=N` numbers its lines. The gutter sits beside the code,
+ * outside it, so copying the code never takes the numbers.
+ */
+.preview pre.with-line-numbers {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.preview pre.with-line-numbers > code {
+  padding-left: var(--space-5);
+}
+
+.code-gutter {
+  padding: var(--space-7) 0 var(--space-7) var(--space-7);
+  color: var(--color-code-line-number);
+  font-family: var(--font-family-mono);
+  font-size: inherit;
+  line-height: inherit;
+  text-align: right;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.preview :is(h1, h2, h3, h4, h5, h6)[id] {
+  scroll-margin-top: var(--space-7);
+}
+
 .preview blockquote {
   margin-left: 0;
   padding: 0 0 0 var(--space-6);
@@ -331,6 +361,36 @@
 
 .code-title + .code-lang {
   margin-left: auto;
+}
+
+/* A block that names its source: the link, the lines and the ref, then the language. */
+.code-source {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-source:hover {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+}
+
+.code-lines-label,
+.code-ref {
+  flex: none;
+  white-space: nowrap;
+}
+
+.code-header-source > .code-lang {
+  margin-left: auto;
+}
+
+.code-header-source > .code-lang + .code-copy {
+  margin-left: 0;
 }
 
 /* Highlighted code: the editor's syntax colours. */
