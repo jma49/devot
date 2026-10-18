@@ -80,7 +80,9 @@ test('New Notebook from the Trash closes the trashed note instead of editing it'
   await expect(trashRow(page)).toHaveText(/1$/)
   await trashRow(page).click()
   await noteRow(page, 'Doomed').click()
-  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'This note is in the Trash.' }),
+  ).toContainText('This note is in the Trash.')
 
   await createBook(page, 'Fresh')
   await expect(header(page)).toHaveText('Fresh')
@@ -88,7 +90,9 @@ test('New Notebook from the Trash closes the trashed note instead of editing it'
   // The trashed note is not an editor in the new notebook.
   await expect(titleField(page)).toHaveCount(0)
   await expect(body(page)).toHaveCount(0)
-  await expect(page.getByRole('status')).toHaveCount(0)
+  await expect(
+    page.getByRole('status').filter({ hasText: 'This note is in the Trash.' }),
+  ).toHaveCount(0)
   await expect(noteRows(page)).toHaveCount(0)
 })
 
@@ -123,7 +127,9 @@ test('a tag from the palette, during a search over every note, drops the hidden 
   const tagField = page.getByRole('combobox', { name: 'Add Tag' })
   await tagField.fill('urgent')
   await tagField.press('Enter')
-  await expect(page.getByRole('group', { name: 'Tags' }).getByText('urgent')).toBeVisible()
+  await expect(
+    page.getByRole('group', { name: 'Tags' }).getByText('urgent', { exact: true }),
+  ).toBeVisible()
   await createBook(page, 'Work')
   await createNote(page, 'Work plan')
 

@@ -74,6 +74,13 @@ test('an empty list says why', async ({ page }) => {
   await expect(pane(page)).toContainText('Try other words, or search all notes.')
 })
 
+test('the list announces its note count in a status region', async ({ page }) => {
+  await createNote(page, 'Garden plan')
+  await expect(pane(page).getByRole('status')).toHaveText('1 note')
+  await page.getByRole('searchbox', { name: 'Search notes' }).fill('zzqxv')
+  await expect(pane(page).getByRole('status')).toContainText('0 notes')
+})
+
 test('a long title runs to two lines, then is cut off', async ({ page }) => {
   await createNote(page, 'Short')
   await createNote(

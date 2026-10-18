@@ -124,8 +124,8 @@ test('imports a folder into nested notebooks with tags, status and images', asyn
   // The folder is a notebook, its folders nested inside; it is shown.
   await expect(book(page, 'Vault')).toHaveAttribute('aria-selected', 'true')
   await expect(header(page)).toHaveText('Vault')
-  await expect(book(page, 'Vault').getByRole('treeitem', { name: /^Projects\b/ })).toBeVisible()
-  await expect(book(page, 'Projects').getByRole('treeitem', { name: /^Deep\b/ })).toBeVisible()
+  await expect(book(page, 'Projects')).toBeVisible()
+  await expect(book(page, 'Deep')).toBeVisible()
   await expect(noteRows(page)).toHaveCount(3)
   await expect(sidebar(page).getByRole('button', { name: /^work 1$/ })).toBeVisible()
   await expect(sidebar(page).getByRole('button', { name: /^q4 1$/ })).toBeVisible()
@@ -294,7 +294,9 @@ test('a finished import closes the trashed note that was open', async ({ page })
     .getByRole('button', { name: /^Trash \d+$/ })
     .click()
   await noteRows(page).filter({ hasText: 'Doomed' }).click()
-  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'This note is in the Trash.' }),
+  ).toContainText('This note is in the Trash.')
 
   await send(page, 'devot:import-ready', SCAN)
   await expect(dialog(page)).toContainText('Imported 3 notes into 3 notebooks.')

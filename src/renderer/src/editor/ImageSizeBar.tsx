@@ -12,7 +12,7 @@ import type { IconName } from '../icons/symbols'
 import { BAR_GAP, barContent, FloatButton, floatTheme, NOTCH_X, useFloatTip } from './floating'
 import { imageAtCaret, imageSizeChange, type EditorImage } from './images'
 import { barsMayShow } from './barRules'
-import { toolbarState, toolbarStateExtension } from './toolbarState'
+import { releaseBarFocus, toolbarState, toolbarStateExtension } from './toolbarState'
 
 /** The preset the bar shows as current; none for a size that is no preset. */
 export function currentPreset(image: EditorImage): ImageSize | null {
@@ -42,6 +42,7 @@ function ImageSizeBar({ view, image }: { view: EditorView; image: EditorImage })
               onPress={() => {
                 const change = imageSizeChange(view.state, image, size)
                 if (change) view.dispatch(change)
+                view.focus()
               }}
             />
           )
@@ -68,7 +69,10 @@ function createBar(view: EditorView): TooltipView {
       if (update.docChanged || update.selectionSet) render(update.state)
     },
     offset: { x: -NOTCH_X, y: BAR_GAP },
-    destroy: () => queueMicrotask(() => root.unmount()),
+    destroy: () => {
+      releaseBarFocus(view, dom)
+      queueMicrotask(() => root.unmount())
+    },
   }
 }
 

@@ -40,7 +40,9 @@ test('moves a note to the Trash and restores it with its metadata', async ({ pag
   await trashRow(page).click()
   await expect(page.locator('.list .headline')).toHaveText('Trash')
   await noteRows(page).filter({ hasText: 'Keeper' }).click()
-  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'This note is in the Trash.' }),
+  ).toContainText('This note is in the Trash.')
   await expect(page.getByRole('article', { name: 'Preview' }).getByRole('heading')).toHaveText(
     'Body kept',
   )

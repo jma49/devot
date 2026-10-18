@@ -157,7 +157,9 @@ test('Restore and Delete Permanently in the Trash leave the keyboard on a visibl
   }
   await trashRow(page).click()
   await noteRows(page).first().click()
-  await expect(page.getByRole('status')).toContainText('This note is in the Trash.')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'This note is in the Trash.' }),
+  ).toContainText('This note is in the Trash.')
   await page.getByRole('button', { name: 'Restore' }).focus()
   await page.keyboard.press('Enter')
   await expect(trashRow(page)).toHaveText(/1$/)

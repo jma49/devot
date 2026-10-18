@@ -4,7 +4,7 @@ import { expect, pickMenuItem, shownMenu, test, type TestWindow, bookPicker } fr
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })
-/** A notebook's own row (its treeitem also contains its sub-notebooks). */
+/** A notebook's own row (its treeitem holds only the row; sub-notebooks sit beside it). */
 const row = (page: Page, name: string) => book(page, name).locator('> .book-row')
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
@@ -156,15 +156,28 @@ test('New Notebook Inside creates a sub-notebook of the clicked one and names it
   await nameField(page).fill('Plans')
   await nameField(page).press('Enter')
   await expect(book(page, 'Work')).toHaveAttribute('aria-expanded', 'true')
-  await expect(book(page, 'Work').getByRole('treeitem', { name: /^Plans\b/ })).toHaveAttribute(
-    'aria-level',
-    '2',
-  )
+  await expect(book(page, 'Plans')).toHaveAttribute('aria-level', '2')
   // The new notebook is selected, as one made with the New Notebook button.
   await expect(book(page, 'Plans')).toHaveAttribute('aria-selected', 'true')
   await expect(header(page)).toHaveText('Plans')
   await expect(book(page, 'Home')).toHaveAttribute('aria-level', '1')
-  await expect(book(page, 'Home').getByRole('treeitem')).toHaveCount(0)
+  await expect(book(page, 'Home')).not.toHaveAttribute('aria-expanded')
+})
+
+test('a menu opened at the centre of an expanded notebook acts on that notebook', async ({
+  page,
+}) => {
+  await setUp(page)
+  // Assistive technology presses and opens menus at an element's centre: for
+  // an expanded Work that must still be Work, not its sub-notebook Devot.
+  const before = await popups(page)
+  await book(page, 'Work').click({ button: 'right' })
+  await expect.poll(() => popups(page)).toBe(before + 1)
+  await pickMenuItem(page, 'Rename')
+  await expect(nameField(page)).toHaveValue('Work')
+  // The treeitem owns its sub-notebooks without containing them.
+  await expect(book(page, 'Work')).toHaveAttribute('aria-owns', /.+/)
+  await expect(book(page, 'Work').getByRole('treeitem')).toHaveCount(0)
 })
 
 test('Rename names the clicked notebook, not the selected one', async ({ page }) => {

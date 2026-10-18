@@ -46,7 +46,12 @@ export function isRenderRequest(data: unknown): data is RenderRequest {
 }
 
 export function isFrameMessage(data: unknown): data is FrameMessage {
-  const m = data as Partial<{ type: string; id: number; svg: string; reason: string }> | null
+  const m = data as Partial<{
+    type: string
+    id: number
+    svg: string
+    reason: string
+  }> | null
   if (typeof m !== 'object' || m === null || !Number.isSafeInteger(m.id)) return false
   if (m.type === 'failed') return m.reason === 'parse' || m.reason === 'render'
   return m.type === 'rendered' && typeof m.svg === 'string'
@@ -55,4 +60,70 @@ export function isFrameMessage(data: unknown): data is FrameMessage {
 /** postMessage target: the app's own origin (custom schemes may report "null"). */
 export function targetOrigin(): string {
   return location.origin === 'null' ? '*' : location.origin
+}
+
+const MAX_NAME_LENGTH = 120
+const TITLED_KINDS = new Set([
+  'pie',
+  'gantt',
+  'journey',
+  'timeline',
+  'quadrantChart',
+  'xychart',
+  'xychart-beta',
+])
+
+/**
+ * The name the diagram's author gave it: an `accTitle:` line, a `title:` in
+ * the front matter, or a `title` line (pie, gantt and others); null when
+ * it has none. Screen readers announce it for the drawing.
+ */
+export function diagramName(source: string): string | null {
+  const clean = (value: string | undefined) => {
+    const text = (value ?? '')
+      .replace(/^["']|["']$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    return text ? text.slice(0, MAX_NAME_LENGTH) : null
+  }
+  const lines = source.split(/\r?\n/)
+  let front = 0
+  if (lines[0]?.trim() === '---') {
+    const end = lines.findIndex((line, n) => n > 0 && line.trim() === '---')
+    if (end > 0) front = end + 1
+  }
+  const find = (pattern: RegExp, from: number, to: number) => {
+    for (const line of lines.slice(from, to)) {
+      const name = clean(pattern.exec(line)?.[1])
+      if (name) return name
+    }
+    return null
+  }
+  const first = lines
+    .slice(front)
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith('%%'))
+  const kind = first?.match(/^[A-Za-z][\w-]*/)?.[0]
+  // `title` is a keyword only in some diagram types; in others it may name a node.
+  const titled = kind !== undefined && TITLED_KINDS.has(kind)
+  return (
+    find(/^\s*accTitle\s*:\s*(.+)$/, front, lines.length) ??
+    find(/^\s*title\s*:\s*(.+)$/, 0, front) ??
+    (titled
+      ? find(/^\s*(?:pie\s+(?:showData\s+)?)?title(?:\s*:\s*|\s+)(.+)$/, front, lines.length)
+      : null)
+  )
+}
+
+/**
+ * Gives a drawing one name for assistive technology. Mermaid's own
+ * `aria-labelledby` (from `accTitle`) would override `aria-label`, so it goes.
+ */
+export function labelDiagram(
+  svg: { setAttribute(name: string, value: string): void; removeAttribute(name: string): void },
+  label: string,
+): void {
+  svg.removeAttribute('aria-labelledby')
+  svg.setAttribute('role', 'img')
+  svg.setAttribute('aria-label', label)
 }

@@ -7,7 +7,7 @@ import { expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtur
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })
-/** A notebook's own row (its treeitem also contains its sub-notebooks). */
+/** A notebook's own row (its treeitem holds only the row; sub-notebooks sit beside it). */
 const row = (page: Page, name: string) => book(page, name).locator('> .book-row')
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const nameField = (page: Page) => page.getByRole('textbox', { name: 'Notebook name' })
@@ -188,9 +188,11 @@ test('the bottom edge of an open notebook puts a notebook after it', async ({ pa
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2)
   await page.mouse.down()
   await page.mouse.move(target.x + target.width / 2, target.y + target.height - 2, { steps: 4 })
-  await expect(book(page, 'Work')).toHaveClass(/drop-after/)
+  // The line is on the item holding Work's sub-notebooks, beside Work's own treeitem.
+  const group = book(page, 'Work').locator('+ li')
+  await expect(group).toHaveClass(/drop-after/)
   await expect(row(page, 'Work')).not.toHaveClass(/drop-/)
-  const drawn = await book(page, 'Work').evaluate((el) => {
+  const drawn = await group.evaluate((el) => {
     const style = (
       globalThis as unknown as {
         getComputedStyle(e: unknown, p: string): { height: string; left: string; bottom: string }
@@ -199,8 +201,11 @@ test('the bottom edge of an open notebook puts a notebook after it', async ({ pa
     return { height: style.height, left: style.left, bottom: style.bottom }
   })
   expect(drawn).toEqual({ height: '2px', left: '0px', bottom: '-1px' })
-  const work = await book(page, 'Work').boundingBox()
+  const work = await group.boundingBox()
+  const head = await row(page, 'Work').boundingBox()
   expect(work && Math.round(work.y + work.height)).toBe(Math.round(last.y + last.height))
+  if (!work || !head) throw new Error('E_TEST_NO_BOX')
+  expect(Math.round(work.y)).toBe(Math.round(head.y + head.height))
   await page.mouse.up()
   await expect.poll(() => shown(page)).toEqual(['Work', '  Plan', 'Home'])
   await expect(book(page, 'Work')).not.toHaveClass(/drop-/)
