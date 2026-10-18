@@ -24,7 +24,7 @@
 // - Colour swatches get their colour as an inline style.
 // - Attributes the preview uses for itself (`data-*`) are left out.
 // - Simple HTML (Copy as Simple HTML) also leaves out every class and
-//   style, front matter, swatches, code block headers and highlighting,
+//   style, headings' ids, front matter, swatches, code block headers and highlighting,
 //   and diagrams' drawings (their source shows as code), and alerts become block quotes with a bold title. A
 //   sized image gets no `width` either (Half has no pixel width to give):
 //   it shows at its own size, as in other Markdown tools.
@@ -63,6 +63,8 @@ const NOTE_URL = /^devot:\/\/note\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 const NONCE = /^[0-9a-f]{32}$/
 /** An image from the web (the preview allows no other remote scheme). */
 const WEB_URL = /^https?:/i
+/** A heading element: the preview gives each an id to link to. */
+const HEADING = /^h[1-6]$/
 
 /** SVG elements a drawing never keeps (as the preview's own copy, preview/mermaid.ts). */
 const DROPPED_SVG = new Set(['script', 'foreignObject', 'iframe', 'image', 'use'])
@@ -194,6 +196,7 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
     for (const [key, value] of Object.entries(node.properties)) {
       if (/^data[A-Z]/.test(key)) continue
       if (simple && (key === 'className' || key === 'style')) continue
+      if (simple && key === 'id' && HEADING.test(node.tagName)) continue
       properties[key] = value
     }
     // A task's box can be ticked in the preview only.

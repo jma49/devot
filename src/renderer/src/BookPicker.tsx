@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { BookNode } from '../../core/books'
 import type { TagColor } from '../../core/storage'
 import { BookIcon } from './BookIcon'
+import type { MenuPoint } from './contextMenu'
 import { t } from './i18n'
 import { Icon } from './icons/Icon'
 import { PickerList, usePickerOpen, type PickerOption } from './Picker'
@@ -72,6 +73,8 @@ export function BookPicker(props: {
   tree: BookNode[]
   value: string | null
   onChange: (bookId: string | null) => void
+  /** Right-click on the button: the notebook menu, at the pointer (for a notebook only). */
+  onMenu?: (bookId: string, at: MenuPoint) => void
 }) {
   const box = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
@@ -130,6 +133,11 @@ export function BookPicker(props: {
         aria-expanded={open}
         title={current}
         onClick={() => toggle(!open)}
+        onContextMenu={(e) => {
+          if (value === NO_BOOK || !props.onMenu) return
+          e.preventDefault()
+          props.onMenu(value, { x: e.clientX, y: e.clientY })
+        }}
         onKeyDown={(e) => {
           if (e.key !== 'ArrowDown' || open) return
           e.preventDefault()

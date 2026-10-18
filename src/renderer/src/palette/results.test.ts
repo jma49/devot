@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   escapeStep,
+  lineOfQuery,
   paletteGroups,
   paletteResults,
   ROOT,
@@ -27,6 +28,7 @@ const source = {
   ),
   outline: entries('outline', ['Intro', 'Plan', 'Ship it']),
   source: entries('source', ['Commands', 'Notebooks', 'Tags']),
+  line: [],
 }
 
 const shape = (query: string) =>
@@ -98,6 +100,36 @@ describe('scoping', () => {
     expect(typeInto(ROOT, 'b')).toEqual({ scope: null, query: 'b' })
     expect(typeInto(ROOT, 'bt x')).toEqual({ scope: null, query: 'bt x' })
     expect(typeInto({ scope: 'book', query: '' }, 't x')).toEqual({ scope: 'book', query: 't x' })
+  })
+
+  it('scopes to Go to Line with a colon and a space or a digit', () => {
+    expect(typeInto(ROOT, ': ')).toEqual({ scope: 'line', query: '' })
+    // A colon alone or before other text stays a search (`:todo:`).
+    expect(typeInto(ROOT, ':')).toEqual({ scope: null, query: ':' })
+    expect(typeInto(ROOT, ':todo:')).toEqual({ scope: null, query: ':todo:' })
+    expect(typeInto(ROOT, ':12')).toEqual({ scope: 'line', query: '12' })
+    expect(typeInto(ROOT, ': 12')).toEqual({ scope: 'line', query: '12' })
+    expect(typeInto({ scope: 'line', query: '' }, ':3')).toEqual({ scope: 'line', query: ':3' })
+  })
+
+  it('reads the line a Go to Line query names, clamped to the note', () => {
+    expect(lineOfQuery('12', 40)).toBe(12)
+    expect(lineOfQuery(' 7 ', 40)).toBe(7)
+    expect(lineOfQuery('999', 40)).toBe(40)
+    expect(lineOfQuery('0', 40)).toBeNull()
+    expect(lineOfQuery('', 40)).toBeNull()
+    expect(lineOfQuery('1.5', 40)).toBeNull()
+    expect(lineOfQuery('-3', 40)).toBeNull()
+    expect(lineOfQuery('abc', 40)).toBeNull()
+    // No note open: no line to go to.
+    expect(lineOfQuery('3', 0)).toBeNull()
+  })
+
+  it('lists the line to go to as it is, unmatched', () => {
+    const goTo: PaletteEntry = { kind: 'line', id: 'line:40', label: 'Go to Line 40', line: 40 }
+    const groups = paletteResults({ scope: 'line', query: '999' }, { ...source, line: [goTo] })
+    expect(groups).toEqual([{ kind: 'line', results: [{ ...goTo, ranges: [] }] }])
+    expect(paletteResults({ scope: 'line', query: 'x' }, source)).toEqual([])
   })
 
   it("lists the sources at the root, and only the scope's results once scoped", () => {

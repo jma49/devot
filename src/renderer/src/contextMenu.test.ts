@@ -60,7 +60,7 @@ describe('shownGroups', () => {
 /** A native menu stand-in: items are plain objects, the menu a list of them. */
 function fakeApi() {
   interface Item {
-    kind: 'item' | 'separator' | 'submenu'
+    kind: 'item' | 'separator' | 'submenu' | 'predefined'
     options?: NativeItemOptions
     text?: string
     checked?: boolean
@@ -85,6 +85,10 @@ function fakeApi() {
     },
     async separator() {
       return { kind: 'separator' } satisfies Item as unknown as NativeItem
+    },
+    async predefined(kind) {
+      calls.push(`predefined ${kind}`)
+      return { kind: 'predefined', text: kind } satisfies Item as unknown as NativeItem
     },
     async submenu({ id, text, items }) {
       const item: Item = { kind: 'submenu', text, items: items as Item[] }
@@ -251,5 +255,24 @@ describe('createContextMenu', () => {
     fake.click('devot.test.lift')
     fake.click('devot.test.drop')
     expect(picked).toEqual(['lift', 'drop'])
+  })
+
+  it('adds system items as they are and never relabels them', async () => {
+    const fake = fakeApi()
+    const groups: MenuGroups<Action, Target> = [
+      [{ action: 'open', label: 'book.new', text: (t) => `Open ${t.name}` }],
+      [
+        { action: 'flag', label: 'book.new', predefined: 'Copy' },
+        { action: 'lift', label: 'book.new', predefined: 'SelectAll', shown: (t) => t.nested },
+      ],
+    ]
+    const picked: Action[] = []
+    const menu = await createContextMenu('test', groups, (a) => picked.push(a), fake.api, target())
+    await menu.popup(target())
+    expect(fake.shown()).toEqual(['Open Work', '---', 'Copy'])
+    await menu.popup(target({ name: 'Home', nested: true }))
+    expect(fake.shown()).toEqual(['Open Home', '---', 'Copy', 'SelectAll'])
+    expect(fake.calls.filter((c) => c.startsWith('setText'))).toEqual(['setText Open Home'])
+    expect(picked).toEqual([])
   })
 })

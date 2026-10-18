@@ -204,9 +204,14 @@ export interface NoteService {
    * the note's own copies (their links take the copies' IDs, a size preset
    * stays), so purging the source keeps them; when they cannot be copied,
    * no note is left and the copy's error is thrown. Resolves to its ID and
-   * title.
+   * title. A `title` given (New Note from Link: the link's text) names the
+   * note instead, in the same write.
    */
-  extract(sourceId: string, markdown: string): Promise<{ id: string; title: string }>
+  extract(
+    sourceId: string,
+    markdown: string,
+    title?: string,
+  ): Promise<{ id: string; title: string }>
   /** Applies an editor update to the note and schedules a save. */
   applyUpdate(id: string, update: Uint8Array): Promise<void>
   /**
@@ -1301,9 +1306,9 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         )
       }),
 
-    async extract(sourceId, markdown) {
+    async extract(sourceId, markdown, given) {
       const bookId = await using(sourceId, (source) => source.record.bookId)
-      const title = extractTitle(markdown)
+      const title = given === undefined ? extractTitle(markdown) : clipTitle(given)
       const moved = lineFeeds(markdown)
       const copies = newFileCopies(moved, newId)
       const doc = new Y.Doc()

@@ -24,6 +24,10 @@ fn main() {
             "main_thread: marked text in the first responder is seen until it is committed; a web view can say"
         );
 
+        macos::self_test_look_up_speech()
+            .expect("a web view answers to Look Up and Speech, and a missing selector is refused");
+        println!("main_thread: Look Up and Speech selectors answer on a web view; guards refuse");
+
         // A 1x1 PNG; written to a private pasteboard, never the user's.
         const PNG: &[u8] = &[
             0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48,

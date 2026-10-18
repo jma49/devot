@@ -218,6 +218,7 @@
   --color-activity-level-4: #0e6b62;
   --color-code-block-bg: rgb(28 27 25 / 0.03);
   --color-code-block-border: rgb(28 27 25 / 0.1);
+  --color-code-line-number: #676767;
   --color-code-header-bg: rgb(28 27 25 / 0.05);
   --color-table-head: rgb(28 27 25 / 0.075);
   --color-table-stripe: rgb(28 27 25 / 0.03);
@@ -335,6 +336,7 @@
     --color-activity-level-4: #63cdbf;
     --color-code-block-bg: rgb(235 232 226 / 0.04);
     --color-code-block-border: rgb(235 232 226 / 0.1);
+    --color-code-line-number: #909090;
     --color-code-header-bg: rgb(235 232 226 / 0.06);
     --color-table-head: rgb(235 232 226 / 0.12);
     --color-table-stripe: rgb(235 232 226 / 0.045);
@@ -453,6 +455,7 @@
   --color-activity-level-4: #63cdbf;
   --color-code-block-bg: rgb(235 232 226 / 0.04);
   --color-code-block-border: rgb(235 232 226 / 0.1);
+  --color-code-line-number: #909090;
   --color-code-header-bg: rgb(235 232 226 / 0.06);
   --color-table-head: rgb(235 232 226 / 0.12);
   --color-table-stripe: rgb(235 232 226 / 0.045);
@@ -570,6 +573,7 @@
   --color-activity-level-4: #0e6b62;
   --color-code-block-bg: rgb(28 27 25 / 0.03);
   --color-code-block-border: rgb(28 27 25 / 0.1);
+  --color-code-line-number: #676767;
   --color-code-header-bg: rgb(28 27 25 / 0.05);
   --color-table-head: rgb(28 27 25 / 0.075);
   --color-table-stripe: rgb(28 27 25 / 0.03);
@@ -687,6 +691,7 @@
   --color-activity-level-4: #0e6b62;
   --color-code-block-bg: rgb(31 30 29 / 0.03);
   --color-code-block-border: rgb(31 30 29 / 0.1);
+  --color-code-line-number: #696862;
   --color-code-header-bg: rgb(31 30 29 / 0.05);
   --color-table-head: rgb(31 30 29 / 0.075);
   --color-table-stripe: rgb(31 30 29 / 0.03);
@@ -804,6 +809,7 @@
     --color-activity-level-4: #63cdbf;
     --color-code-block-bg: rgb(250 249 245 / 0.04);
     --color-code-block-border: rgb(250 249 245 / 0.1);
+    --color-code-line-number: #aba9a2;
     --color-code-header-bg: rgb(250 249 245 / 0.06);
     --color-table-head: rgb(250 249 245 / 0.12);
     --color-table-stripe: rgb(250 249 245 / 0.045);
@@ -922,6 +928,7 @@
   --color-activity-level-4: #63cdbf;
   --color-code-block-bg: rgb(250 249 245 / 0.04);
   --color-code-block-border: rgb(250 249 245 / 0.1);
+  --color-code-line-number: #aba9a2;
   --color-code-header-bg: rgb(250 249 245 / 0.06);
   --color-table-head: rgb(250 249 245 / 0.12);
   --color-table-stripe: rgb(250 249 245 / 0.045);
@@ -1039,6 +1046,7 @@
   --color-activity-level-4: #0e6b62;
   --color-code-block-bg: rgb(31 30 29 / 0.03);
   --color-code-block-border: rgb(31 30 29 / 0.1);
+  --color-code-line-number: #696862;
   --color-code-header-bg: rgb(31 30 29 / 0.05);
   --color-table-head: rgb(31 30 29 / 0.075);
   --color-table-stripe: rgb(31 30 29 / 0.03);

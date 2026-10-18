@@ -26,6 +26,9 @@ async function shown(target: TagMenuTarget, pick: (a: TagAction) => void = () =>
     async separator() {
       return { text: '---', id: '' } satisfies Item as unknown as NativeItem
     },
+    async predefined(kind) {
+      return { text: kind } as unknown as NativeItem
+    },
     async submenu({ id, text, items }) {
       return { id, text, items: items as Item[] } satisfies Item as unknown as NativeItem
     },

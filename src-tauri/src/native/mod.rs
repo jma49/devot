@@ -296,6 +296,132 @@ pub async fn clipboard_read_text(app: tauri::AppHandle) -> Result<String, String
     }
 }
 
+/// Longest text Look Up takes, in characters: a word or a phrase.
+const MAX_LOOK_UP_CHARS: usize = 1_000;
+
+/// Longest text a speech fallback takes, in characters.
+const MAX_SPEECH_CHARS: usize = 100_000;
+
+/// Checks a Look Up request: some text (not only white space) of a sane
+/// length and a point with finite, non-negative coordinates. Whether the
+/// point lies inside the view is checked against the view itself.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn validate_look_up(text: &str, x: f64, y: f64) -> Result<(), &'static str> {
+    if text.trim().is_empty() {
+        return Err("E_LOOK_UP_TEXT_EMPTY");
+    }
+    if text.chars().count() > MAX_LOOK_UP_CHARS {
+        return Err("E_LOOK_UP_TEXT_TOO_LONG");
+    }
+    if text.contains('\0') {
+        return Err("E_LOOK_UP_TEXT_INVALID");
+    }
+    if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 {
+        return Err("E_LOOK_UP_POINT_INVALID");
+    }
+    Ok(())
+}
+
+/// What a speech request asks for.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[derive(Debug, PartialEq, Eq)]
+enum SpeechRequest {
+    Start(Option<String>),
+    Stop,
+}
+
+/// Checks a speech request: `start` (with the selected text, which a
+/// speech synthesizer says when the web view cannot) or `stop`.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn validate_speech(action: &str, text: Option<String>) -> Result<SpeechRequest, &'static str> {
+    match action {
+        "stop" => Ok(SpeechRequest::Stop),
+        "start" => {
+            let text = text.filter(|text| !text.trim().is_empty());
+            if let Some(text) = &text {
+                if text.chars().count() > MAX_SPEECH_CHARS {
+                    return Err("E_SPEECH_TEXT_TOO_LONG");
+                }
+                if text.contains('\0') {
+                    return Err("E_SPEECH_TEXT_INVALID");
+                }
+            }
+            Ok(SpeechRequest::Start(text))
+        }
+        _ => Err("E_SPEECH_ACTION_INVALID"),
+    }
+}
+
+/// Shows the system dictionary for `text` at a point in the window (CSS
+/// pixels from the top-left corner of the page).
+#[tauri::command]
+pub async fn text_look_up(
+    app: tauri::AppHandle,
+    text: String,
+    x: f64,
+    y: f64,
+) -> Result<(), String> {
+    validate_look_up(&text, x, y).map_err(String::from)?;
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::Manager;
+        let window = app
+            .get_webview_window(crate::MAIN_WINDOW)
+            .ok_or_else(|| String::from("E_NATIVE_MAIN_WINDOW_MISSING"))?;
+        let (reply, answer) = tokio::sync::oneshot::channel();
+        window
+            .with_webview(move |webview| {
+                let _ = reply.send(macos::look_up(&webview, &text, x, y));
+            })
+            .map_err(|_| String::from("E_NATIVE_MAIN_THREAD_UNAVAILABLE"))?;
+        match answer.await {
+            Ok(result) => result.map_err(String::from),
+            Err(_) => Err(String::from("E_LOOK_UP_FAILED")),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Err(String::from("E_LOOK_UP_UNSUPPORTED"))
+    }
+}
+
+/// Starts (`start`, with the selected text) or stops (`stop`) speaking.
+#[tauri::command]
+pub async fn text_speak(
+    app: tauri::AppHandle,
+    action: String,
+    text: Option<String>,
+) -> Result<(), String> {
+    let request = validate_speech(&action, text).map_err(String::from)?;
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::Manager;
+        let window = app
+            .get_webview_window(crate::MAIN_WINDOW)
+            .ok_or_else(|| String::from("E_NATIVE_MAIN_WINDOW_MISSING"))?;
+        let (reply, answer) = tokio::sync::oneshot::channel();
+        window
+            .with_webview(move |webview| {
+                let result = match &request {
+                    SpeechRequest::Stop => macos::speak(&webview, false, None),
+                    SpeechRequest::Start(text) => macos::speak(&webview, true, text.as_deref()),
+                };
+                let _ = reply.send(result);
+            })
+            .map_err(|_| String::from("E_NATIVE_MAIN_THREAD_UNAVAILABLE"))?;
+        match answer.await {
+            Ok(result) => result.map_err(String::from),
+            Err(_) => Err(String::from("E_SPEECH_FAILED")),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, request);
+        Err(String::from("E_SPEECH_UNSUPPORTED"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -549,5 +675,69 @@ mod tests {
             .decode(answer)
             .unwrap();
         assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    }
+
+    #[test]
+    fn look_up_takes_a_word_at_a_point_in_the_page() {
+        assert_eq!(validate_look_up("word", 10.0, 20.5), Ok(()));
+        assert_eq!(
+            validate_look_up("  ", 1.0, 1.0),
+            Err("E_LOOK_UP_TEXT_EMPTY")
+        );
+        assert_eq!(validate_look_up("", 1.0, 1.0), Err("E_LOOK_UP_TEXT_EMPTY"));
+        assert_eq!(
+            validate_look_up(&"x".repeat(MAX_LOOK_UP_CHARS), 1.0, 1.0),
+            Ok(())
+        );
+        assert_eq!(
+            validate_look_up(&"x".repeat(MAX_LOOK_UP_CHARS + 1), 1.0, 1.0),
+            Err("E_LOOK_UP_TEXT_TOO_LONG")
+        );
+        // Characters, not bytes: a long run of two-byte letters still fits.
+        assert_eq!(
+            validate_look_up(&"\u{e9}".repeat(MAX_LOOK_UP_CHARS), 1.0, 1.0),
+            Ok(())
+        );
+        assert_eq!(
+            validate_look_up("a\0b", 1.0, 1.0),
+            Err("E_LOOK_UP_TEXT_INVALID")
+        );
+        for (x, y) in [
+            (f64::NAN, 1.0),
+            (1.0, f64::INFINITY),
+            (-1.0, 1.0),
+            (1.0, -0.5),
+        ] {
+            assert_eq!(validate_look_up("a", x, y), Err("E_LOOK_UP_POINT_INVALID"));
+        }
+    }
+
+    #[test]
+    fn speech_starts_with_the_selection_or_stops() {
+        assert_eq!(validate_speech("stop", None), Ok(SpeechRequest::Stop));
+        assert_eq!(
+            validate_speech("start", None),
+            Ok(SpeechRequest::Start(None))
+        );
+        assert_eq!(
+            validate_speech("start", Some(" ".into())),
+            Ok(SpeechRequest::Start(None))
+        );
+        assert_eq!(
+            validate_speech("start", Some("hello".into())),
+            Ok(SpeechRequest::Start(Some("hello".into())))
+        );
+        assert_eq!(
+            validate_speech("start", Some("x".repeat(MAX_SPEECH_CHARS + 1))),
+            Err("E_SPEECH_TEXT_TOO_LONG")
+        );
+        assert_eq!(
+            validate_speech("start", Some("a\0".into())),
+            Err("E_SPEECH_TEXT_INVALID")
+        );
+        assert_eq!(
+            validate_speech("pause", None),
+            Err("E_SPEECH_ACTION_INVALID")
+        );
     }
 }

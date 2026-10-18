@@ -36,7 +36,14 @@ const PRESS: KeyPress = {
 }
 
 const SOURCES = import.meta.glob<string>(
-  ['../NoteList.tsx', '../areas.ts', '../NoteEditor.tsx', '../editor/find.ts', '../Sidebar.tsx'],
+  [
+    '../NoteList.tsx',
+    '../areas.ts',
+    '../NoteEditor.tsx',
+    '../editor/find.ts',
+    '../editor/editorMenu.ts',
+    '../Sidebar.tsx',
+  ],
   { query: '?raw', import: 'default', eager: true },
 )
 
@@ -57,7 +64,9 @@ const BOUND_IN: Partial<Record<CommandId, [file: string, call: string]>> = {
   'find.nextInEditor': ['../editor/find.ts', '...commandKeys'],
   'find.previousInEditor': ['../editor/find.ts', '...commandKeys'],
   'edit.pastePlain': ['../NoteEditor.tsx', 'editorCommandKeys'],
+  'edit.contextMenu': ['../editor/editorMenu.ts', 'editorCommandKeys'],
   'note.newFromSelection': ['../NoteEditor.tsx', 'editorCommandKeys'],
+  'note.newFromLink': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'image.view': ['../NoteEditor.tsx', 'editorCommandKeys'],
   'sidebar.rowMenu': ['../Sidebar.tsx', 'commandMatches'],
   'sidebar.workspaceUp': ['../Sidebar.tsx', 'commandMatches'],

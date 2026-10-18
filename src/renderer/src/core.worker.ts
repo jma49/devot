@@ -147,7 +147,8 @@ export const coreApi = {
   /** The task progress each list row shows, as "done/total" (see NoteService.progress). */
   progress: (ids: string[]) => required().progress(ids),
   /** A new note from text selected in `sourceId` (see NoteService.extract). */
-  extract: (sourceId: string, markdown: string) => required().extract(sourceId, markdown),
+  extract: (sourceId: string, markdown: string, title?: string) =>
+    required().extract(sourceId, markdown, title),
   applyUpdate: (id: string, update: Uint8Array) => required().applyUpdate(id, update),
   /** Text into a note at a remembered position, for an editor that closed (see NoteService.insertAt). */
   insertAt: (id: string, anchor: Uint8Array | null, markdown: string) =>

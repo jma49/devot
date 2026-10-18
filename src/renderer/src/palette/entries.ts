@@ -82,6 +82,7 @@ export function sourceEntries(label: (key: MessageKey) => string): PaletteEntry[
     book: 'palette.source.book',
     tag: 'palette.source.tag',
     outline: 'palette.source.outline',
+    line: 'palette.source.line',
     note: 'palette.source.note',
   }
   return PALETTE_SOURCES.map((source): PaletteEntry => {

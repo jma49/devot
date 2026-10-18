@@ -80,20 +80,22 @@ export function selectedText(state: EditorState): string | null {
 const EXTRACT_EVENT = 'input.extract'
 
 /**
- * Hands the selected text to `make` and replaces it with the text `make`
- * resolves to (a note link), the cursor after it. False, with the note left
- * alone, when nothing can be moved (see `selectedText`), another move is
- * under way, `make` gives nothing or fails, the selected text was edited
- * meanwhile, or the editor is gone (`alive` says false).
+ * Hands the text of `from`–`to` to `make` and replaces it with the text
+ * `make` resolves to (a note link), the cursor after it. False, with the
+ * note left alone, when another move is under way, `make` gives nothing or
+ * fails, the text was edited meanwhile, or the editor is gone (`alive` says
+ * false). The range is tracked through edits made while `make` runs.
  */
-export async function moveSelection(
+export async function moveRange(
   view: ExtractView,
+  from: number,
+  to: number,
   make: (text: string) => Promise<string | null>,
   alive: () => boolean = () => true,
 ): Promise<boolean> {
-  const text = selectedText(view.state)
-  if (text === null || view.state.field(tracked, false) !== null) return false
-  const { from, to } = view.state.selection.main
+  if (from >= to || to > view.state.doc.length || view.state.field(tracked, false) !== null)
+    return false
+  const text = view.state.sliceDoc(from, to)
   view.dispatch({ effects: setTracked.of({ from, to }) })
   const replacement = await make(text).catch(() => null)
   if (!alive()) return false
@@ -111,4 +113,19 @@ export async function moveSelection(
     scrollIntoView: true,
   })
   return true
+}
+
+/**
+ * Hands the selected text to `make` and replaces it with the text `make`
+ * resolves to (see `moveRange`). False, with the note left alone, when
+ * nothing can be moved (see `selectedText`) or the move fails.
+ */
+export async function moveSelection(
+  view: ExtractView,
+  make: (text: string) => Promise<string | null>,
+  alive: () => boolean = () => true,
+): Promise<boolean> {
+  if (selectedText(view.state) === null) return false
+  const { from, to } = view.state.selection.main
+  return moveRange(view, from, to, make, alive)
 }

@@ -51,6 +51,18 @@ describe('a new note from selected text', () => {
     })
   })
 
+  it('takes a title given instead, stored with the note in the same write', async () => {
+    const { notes, storage } = services()
+    const source = await notes.create('Source')
+    const made = await notes.extract(source, 'https://example.com/a', 'Foo')
+    expect(made.title).toBe('Foo')
+    // Stored at once: a list read right away shows the title.
+    expect(await storage.getNote(made.id)).toMatchObject({
+      title: 'Foo',
+      bodyMd: 'https://example.com/a',
+    })
+  })
+
   it('writes the body through Yjs, as operations on the new note', async () => {
     const { notes, storage } = services()
     const source = await notes.create('Source')

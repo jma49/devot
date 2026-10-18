@@ -23,6 +23,11 @@ export function noteUri(id: string): string {
   return `devot://note/${id}`
 }
 
+/** The ID a `devot://note/<id>` address names; undefined for any other address. */
+export function noteIdOf(href: string): string | undefined {
+  return /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)?.[1]
+}
+
 /** `[title](devot://note/<id>)`, with the title escaped for link text. */
 export function noteLink(title: string, id: string): string {
   const text = title.replace(/\s*\n\s*/g, ' ').replace(/[\\[\]]/g, (c) => `\\${c}`)

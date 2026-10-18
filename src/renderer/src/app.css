@@ -4131,3 +4131,12 @@ button.popup:focus-visible {
 .icon-actions {
   justify-content: space-between;
 }
+
+/* A note link's hover card in the preview: the tooltip bubble, wider, with its
+   text wrapping (the card's own rules are in preview/content.css). */
+.tool-tip.note-card-pop {
+  align-items: stretch;
+  padding: 0;
+  border-radius: var(--radius-popover);
+  white-space: normal;
+}

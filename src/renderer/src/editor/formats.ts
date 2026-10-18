@@ -61,6 +61,8 @@ export type FormatId =
   | 'link'
   | 'heading'
   | `heading${HeadingLevel}`
+  | 'headingBigger'
+  | 'headingSmaller'
   | Exclude<BlockFormat, 'alert'>
   | AlertFormat
   | 'horizontalRule'
@@ -1276,12 +1278,21 @@ function selectedHeadings(cx: Cx): HeadingEdit[] {
   return edits
 }
 
-function headingSpec(cx: Cx, level: number, toggle: boolean): TransactionSpec | null {
+/**
+ * The change that gives each selected heading the level `targetOf` picks for
+ * it (0: none), from its own level and those of all of them.
+ */
+function headingSpec(
+  cx: Cx,
+  targetOf: (level: number, all: readonly HeadingEdit[]) => number,
+): TransactionSpec | null {
   const { state } = cx
   const headings = selectedHeadings(cx)
   if (headings.length === 0) return null
-  const target = toggle && level > 0 && headings.every((h) => h.level === level) ? 0 : level
-  const changes = headings.flatMap((h) => (h.level === target ? [] : h.edit(target)))
+  const changes = headings.flatMap((h) => {
+    const target = targetOf(h.level, headings)
+    return h.level === target ? [] : h.edit(target)
+  })
   if (changes.length === 0) return null
   const changeSet = state.changes(changes)
   const ranges = state.selection.ranges.map((r) => {
@@ -1298,7 +1309,10 @@ function headingSpec(cx: Cx, level: number, toggle: boolean): TransactionSpec | 
 /** Makes the selected lines headings of `level`; lines already at that level lose it. */
 export function setHeading(state: EditorState, level: number): TransactionSpec | null {
   const cx = context(state)
-  return cx && headingSpec(cx, level, true)
+  return (
+    cx &&
+    headingSpec(cx, (_, all) => (level > 0 && all.every((h) => h.level === level) ? 0 : level))
+  )
 }
 
 /** Steps the heading of the selected lines: none, 1, 2, … 6, then none again. */
@@ -1306,7 +1320,20 @@ export function cycleHeading(state: EditorState): TransactionSpec | null {
   const cx = context(state)
   if (!cx) return null
   const line = state.doc.lineAt(state.selection.main.from)
-  return headingSpec(cx, (lineLevel(cx, line) + 1) % 7, false)
+  const level = (lineLevel(cx, line) + 1) % 7
+  return headingSpec(cx, () => level)
+}
+
+/**
+ * Steps each selected line's heading on its own: smaller goes none, 1, 2, …
+ * 6, then none again; bigger goes none, 6, 5, … 1, then none again.
+ */
+export function stepHeading(state: EditorState, way: 'bigger' | 'smaller'): TransactionSpec | null {
+  const cx = context(state)
+  if (!cx) return null
+  return headingSpec(cx, (level) =>
+    way === 'smaller' ? (level + 1) % 7 : level === 0 ? 6 : level - 1,
+  )
 }
 
 // Commands
@@ -1319,6 +1346,8 @@ export const FORMAT_COMMANDS: Record<FormatId, FormatCommand> = {
   heading4: (s) => setHeading(s, 4),
   heading5: (s) => setHeading(s, 5),
   heading6: (s) => setHeading(s, 6),
+  headingBigger: (s) => stepHeading(s, 'bigger'),
+  headingSmaller: (s) => stepHeading(s, 'smaller'),
   bold: (s) => toggleInline(s, 'bold'),
   italic: (s) => toggleInline(s, 'italic'),
   strikethrough: (s) => toggleInline(s, 'strikethrough'),
