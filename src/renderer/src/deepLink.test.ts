@@ -63,7 +63,7 @@ describe('LinkQueue', () => {
 
   function setup(onRun: (link: DeepLink) => void = () => undefined) {
     const ran: DeepLink[] = []
-    const state = { blocked: false, watching: false, settling: false }
+    const state = { blocked: false, watching: false, settling: false, now: 0 }
     let watched: (() => void) | undefined
     let settle: (() => void) | undefined
     const queue = new LinkQueue(
@@ -86,6 +86,7 @@ describe('LinkQueue', () => {
           state.settling = false
         }
       },
+      () => state.now,
     )
     return { queue, ran, state, tick: () => watched?.(), timeout: () => settle?.() }
   }
@@ -149,11 +150,41 @@ describe('LinkQueue', () => {
     expect(q.ran).toEqual([note('a'), note('b')])
   })
 
-  it('drops what waits when stopped', () => {
+  it('drops the same link sent again within a second', () => {
+    const q = setup()
+    q.queue.push(note('a'))
+    q.state.now = 500
+    q.queue.push(note('a'))
+    q.queue.settled()
+    expect(q.ran).toEqual([note('a')])
+    // Each repeat counts from the one before, so a loop stays dropped.
+    q.state.now = 1400
+    q.queue.push(note('a'))
+    q.queue.settled()
+    expect(q.ran).toEqual([note('a')])
+    q.state.now = 2500
+    q.queue.push(note('a'))
+    expect(q.ran).toEqual([note('a'), note('a')])
+    // Another link in between is no repeat.
+    q.queue.settled()
+    q.queue.push(note('b'))
+    q.queue.settled()
+    q.queue.push(note('a'))
+    expect(q.ran).toEqual([note('a'), note('a'), note('b'), note('a')])
+  })
+
+  it('keeps at most 16 links waiting', () => {
+    const q = setup()
+    q.state.blocked = true
+    for (let i = 0; i < 20; i += 1) q.queue.push(note(`n${i}`))
+    expect(q.queue.stop()).toHaveLength(16)
+  })
+
+  it('drops what waits when stopped, and returns it', () => {
     const q = setup()
     q.state.blocked = true
     q.queue.push(note('a'))
-    q.queue.stop()
+    expect(q.queue.stop()).toEqual([note('a')])
     expect(q.state.watching).toBe(false)
     q.state.blocked = false
     q.queue.push(note('b'))

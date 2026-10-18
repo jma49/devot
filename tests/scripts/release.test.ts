@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process'
+import { createHash, generateKeyPairSync, sign, type KeyObject } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -7,6 +8,7 @@ import {
   compareVersions,
   replacesFeed,
   updateFeed,
+  verifySignature,
   versionFromTag,
   withCargoVersion,
   withPackageVersion,
@@ -168,5 +170,66 @@ describe('update feed', () => {
     )
     expect(bad.status).toBe(1)
     expect(bad.stderr).toContain('E_RELEASE_TAG_INVALID')
+  })
+})
+
+describe('update signatures', () => {
+  /** A key pair and its public key as Tauri writes it (base64 of the minisign file). */
+  function keyPair(id: number) {
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519')
+    const keyId = Buffer.alloc(8)
+    keyId.writeUInt32LE(id)
+    const raw = Buffer.from(publicKey.export({ format: 'jwk' }).x!, 'base64url')
+    const line = Buffer.concat([Buffer.from('Ed'), keyId, raw]).toString('base64')
+    const pub = Buffer.from(`untrusted comment: minisign public key\n${line}\n`).toString('base64')
+    return { pub, privateKey, keyId }
+  }
+
+  /** A .sig as Tauri writes it: a prehashed minisign signature, base64 whole. */
+  function signature(file: Buffer, privateKey: KeyObject, keyId: Buffer, trusted = 'file:x') {
+    const body = sign(null, createHash('blake2b512').update(file).digest(), privateKey)
+    const global = sign(null, Buffer.concat([body, Buffer.from(trusted)]), privateKey)
+    const text = [
+      'untrusted comment: signature from tauri secret key',
+      Buffer.concat([Buffer.from('ED'), keyId, body]).toString('base64'),
+      `trusted comment: ${trusted}`,
+      global.toString('base64'),
+      '',
+    ].join('\n')
+    return Buffer.from(text).toString('base64')
+  }
+
+  const file = Buffer.from('Devot.app.tar.gz')
+
+  it('takes a signature made with the secret key of the public key', () => {
+    const { pub, privateKey, keyId } = keyPair(1)
+    expect(() => verifySignature(file, signature(file, privateKey, keyId), pub)).not.toThrow()
+  })
+
+  it('refuses a signature from another key, or of another file', () => {
+    const one = keyPair(1)
+    const other = keyPair(2)
+    const sig = signature(file, one.privateKey, one.keyId)
+    expect(() => verifySignature(file, sig, other.pub)).toThrow('E_RELEASE_SIGNATURE_KEY_MISMATCH')
+    // The same key ID, another key: the signature itself fails.
+    const twin = keyPair(1)
+    expect(() => verifySignature(file, sig, twin.pub)).toThrow('E_RELEASE_SIGNATURE_INVALID')
+    expect(() => verifySignature(Buffer.from('other'), sig, one.pub)).toThrow(
+      'E_RELEASE_SIGNATURE_INVALID',
+    )
+  })
+
+  it('refuses a trusted comment changed after signing', () => {
+    const { pub, privateKey, keyId } = keyPair(1)
+    const text = Buffer.from(signature(file, privateKey, keyId), 'base64').toString()
+    const changed = Buffer.from(text.replace('file:x', 'file:y')).toString('base64')
+    expect(() => verifySignature(file, changed, pub)).toThrow('E_RELEASE_SIGNATURE_INVALID')
+  })
+
+  it('refuses what is not a minisign key or signature', () => {
+    const { pub, privateKey, keyId } = keyPair(1)
+    const sig = signature(file, privateKey, keyId)
+    expect(() => verifySignature(file, sig, '')).toThrow('E_RELEASE_PUBKEY_MALFORMED')
+    expect(() => verifySignature(file, 'bm9wZQ==', pub)).toThrow('E_RELEASE_SIGNATURE_MALFORMED')
   })
 })

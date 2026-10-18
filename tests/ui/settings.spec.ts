@@ -294,8 +294,10 @@ test('Integrations offers devot-mcp configs to copy for each client', async ({ p
   expect(await calls(page, 'clipboard_write_text')).toEqual([
     { cmd: 'clipboard_write_text', args: { text: command } },
   ])
-  // The command takes no arguments.
-  expect(await calls(page, 'settings_mcp_setup')).toEqual([{ cmd: 'settings_mcp_setup', args: {} }])
+  // The command takes no arguments. StrictMode runs the effect twice in dev.
+  const setups = await calls(page, 'settings_mcp_setup')
+  expect(setups.length).toBeGreaterThan(0)
+  for (const call of setups) expect(call).toEqual({ cmd: 'settings_mcp_setup', args: {} })
 })
 
 test('Integrations shows a path to replace when devot-mcp is not beside this build', async ({

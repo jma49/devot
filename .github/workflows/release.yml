@@ -35,6 +35,10 @@ jobs:
       TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The token stays out of .git/config: the build runs dependencies'
+          # scripts and build.rs, which must not reach it.
+          persist-credentials: false
       # Checkout may leave an annotated tag as a plain one; fetch it again
       # so its message (the release notes) is there.
       - name: Fetch the tag
@@ -77,17 +81,21 @@ jobs:
         id: files
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
         run: |
           bundle=src-tauri/target/release/bundle
           codesign --verify --deep --strict "$bundle/macos/Devot.app"
           dmg=$(ls "$bundle"/dmg/*.dmg)
           hdiutil verify "$dmg"
+          # A key pair that does not match would ship updates no install takes.
+          node scripts/release/release.ts verify-signature "$bundle/macos/Devot.app.tar.gz" \
+            "$bundle/macos/Devot.app.tar.gz.sig" "$PUBKEY"
           mkdir out
           cp "$dmg" "out/Devot_${VERSION}_aarch64.dmg"
           cp "$bundle/macos/Devot.app.tar.gz" "out/Devot_${VERSION}_aarch64.app.tar.gz"
           cp "$bundle/macos/Devot.app.tar.gz.sig" "out/Devot_${VERSION}_aarch64.app.tar.gz.sig"
           echo "updater=Devot_${VERSION}_aarch64.app.tar.gz" >> "$GITHUB_OUTPUT"
-      # The token goes only to the steps that publish.
+      # The token goes only to the steps that publish (checkout keeps none).
       - name: Write the release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -132,8 +140,13 @@ jobs:
             fi
           fi
           # Only a newer release moves the feed.
+          # Only a missing file means no feed yet: any other failure stops the
+          # run, so an older run never takes the feed back.
           mkdir current
-          gh release download updater --pattern "$CHANNEL.json" --dir current || true
+          assets=$(gh release view updater --json assets --jq '.assets[].name')
+          if grep -qx "$CHANNEL.json" <<< "$assets"; then
+            gh release download updater --pattern "$CHANNEL.json" --dir current
+          fi
           if node scripts/release/release.ts replaces-feed "$TAG" "current/$CHANNEL.json" | grep -qx 'replace=true'; then
             gh release upload updater "feed/$CHANNEL.json" --clobber
           else

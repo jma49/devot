@@ -35,9 +35,9 @@ The workflow then, on a macOS 26 Apple Silicon runner:
 
 1. Sets the version from the tag (a tag of any other form fails the run).
 2. Builds `app` and `dmg` bundles, ad-hoc signed (`signingIdentity: "-"`; without it the bundle has no seal and downloaded copies are reported as damaged), with the updater's public key built in and the updater bundle (`Devot.app.tar.gz`) signed by the updater key.
-3. Verifies them (`codesign --verify --deep --strict`, `hdiutil verify`).
+3. Verifies them (`codesign --verify --deep --strict`, `hdiutil verify`), and checks the updater bundle's signature against `TAURI_UPDATER_PUBKEY`: a private key that does not match the public key fails the run instead of shipping updates no install would accept.
 4. Creates the release for the tag (a prerelease for a beta) with the dmg, the updater bundle and its signature.
-5. Writes the feed for the release's channel (`beta.json`) and uploads it to the fixed `updater` release, which it creates on first use. Only a release newer than the one the feed offers replaces it, so tags pushed close together, whose runs may overlap, leave the newest one in the feed.
+5. Writes the feed for the release's channel (`beta.json`) and uploads it to the fixed `updater` release, which it creates on first use. Only a release newer than the one the feed offers replaces it, so tags pushed close together, whose runs may overlap, leave the newest one in the feed. A feed that cannot be read (other than one not there yet) fails the run rather than being replaced.
 
 Watch the run in the Actions tab; when it fails, fix the cause and release under a new tag.
 

@@ -14,7 +14,14 @@
 //     Writes the update feed for the release: what the app's updater reads
 //     from the channel file in the `updater` release (beta.json until 1.0).
 //
+//   node scripts/release/release.ts verify-signature <file> <signature file> <public key>
+//     Checks that the signature (the .sig Tauri wrote) is the file's, made
+//     with the secret key of the public key the app is built with (the
+//     TAURI_UPDATER_PUBKEY variable), so a release never ships an update no
+//     install would take.
+//
 // Errors carry a code and end the run with status 1.
+import { createHash, createPublicKey, verify } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -115,6 +122,45 @@ export function updateFeed(input: FeedInput) {
   }
 }
 
+/** The lines of a minisign file, which Tauri writes base64-encoded whole. */
+function minisignLines(encoded: string, code: string): string[] {
+  const lines = Buffer.from(encoded.trim(), 'base64').toString('utf8').split('\n')
+  if (!lines[0]?.startsWith('untrusted comment:') || !lines[1]) throw new Error(code)
+  return lines
+}
+
+/**
+ * Checks a minisign signature, as Tauri's updater does: `signature` is the
+ * .sig file's text and `publicKey` the key the app is built with, both as
+ * Tauri writes them (base64 of the minisign file). Throws unless the key's
+ * ID matches and both the file's and the trusted comment's signatures hold.
+ */
+export function verifySignature(file: Uint8Array, signature: string, publicKey: string): void {
+  const key = Buffer.from(minisignLines(publicKey, 'E_RELEASE_PUBKEY_MALFORMED')[1]!, 'base64')
+  if (key.length !== 42 || key.toString('latin1', 0, 2) !== 'Ed')
+    throw new Error('E_RELEASE_PUBKEY_MALFORMED')
+  const lines = minisignLines(signature, 'E_RELEASE_SIGNATURE_MALFORMED')
+  const sig = Buffer.from(lines[1]!, 'base64')
+  const trusted = lines[2]?.match(/^trusted comment: (.*)$/)?.[1]
+  const global = Buffer.from(lines[3] ?? '', 'base64')
+  const algorithm = sig.toString('latin1', 0, 2)
+  if (sig.length !== 74 || !['Ed', 'ED'].includes(algorithm) || trusted === undefined)
+    throw new Error('E_RELEASE_SIGNATURE_MALFORMED')
+  if (global.length !== 64) throw new Error('E_RELEASE_SIGNATURE_MALFORMED')
+  if (!sig.subarray(2, 10).equals(key.subarray(2, 10)))
+    throw new Error('E_RELEASE_SIGNATURE_KEY_MISMATCH')
+  const ed25519 = createPublicKey({
+    key: { kty: 'OKP', crv: 'Ed25519', x: key.subarray(10).toString('base64url') },
+    format: 'jwk',
+  })
+  // "ED" signs the file's BLAKE2b-512 hash (what Tauri writes), "Ed" the file.
+  const message = algorithm === 'ED' ? createHash('blake2b512').update(file).digest() : file
+  const body = sig.subarray(10)
+  if (!verify(null, message, ed25519, body)) throw new Error('E_RELEASE_SIGNATURE_INVALID')
+  const comment = Buffer.concat([body, Buffer.from(trusted, 'utf8')])
+  if (!verify(null, comment, ed25519, global)) throw new Error('E_RELEASE_SIGNATURE_INVALID')
+}
+
 function main(args: string[]) {
   const root = join(import.meta.dirname, '../..')
   const [command, tag, ...rest] = args
@@ -149,8 +195,14 @@ function main(args: string[]) {
     writeFileSync(out, `${JSON.stringify(feed, null, 2)}\n`)
     return
   }
+  if (command === 'verify-signature' && tag && rest.length === 2) {
+    const [signatureFile, publicKey] = rest as [string, string]
+    verifySignature(readFileSync(tag), readFileSync(signatureFile, 'utf8'), publicKey)
+    console.log('The signature matches the public key.')
+    return
+  }
   throw new Error(
-    'E_RELEASE_USAGE: set-version <tag> | replaces-feed <tag> <feed> | feed <tag> <url> <sig> <notes> <out>',
+    'E_RELEASE_USAGE: set-version <tag> | replaces-feed <tag> <feed> | feed <tag> <url> <sig> <notes> <out> | verify-signature <file> <sig> <pubkey>',
   )
 }
 

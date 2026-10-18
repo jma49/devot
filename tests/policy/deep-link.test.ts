@@ -28,15 +28,15 @@ describe('the devot:// URL scheme', () => {
   it('lets URLs run the same commands in Rust and in the window', () => {
     const list = rust.match(/const URL_COMMANDS: &\[&str\] = &\[([^\]]*)\]/)?.[1] ?? ''
     const fromRust = [...list.matchAll(/"([^"]+)"/g)].map((m) => m[1])
-    expect(fromRust).toHaveLength(11)
+    expect(fromRust).toHaveLength(10)
     expect(fromRust).toEqual([...URL_COMMANDS])
   })
 
-  it('lets URLs run only registry commands that show something or make an empty note', () => {
+  it('lets URLs run only registry commands that show something', () => {
     const ids = new Set<string>(COMMANDS.map((c) => c.id))
     expect(URL_COMMANDS.filter((id) => !ids.has(id))).toEqual([])
     const harmful =
-      /trash\.|delete|purge|remove|import|export|copy|move|duplicate|restore|empty|clipboard|paste|cut|rename|tag|status|pin|format|insert|table/i
+      /new|create|trash\.|delete|purge|remove|import|export|copy|move|duplicate|restore|empty|clipboard|paste|cut|rename|tag|status|pin|format|insert|table/i
     expect(URL_COMMANDS.filter((id) => id !== 'view.trash' && harmful.test(id))).toEqual([])
   })
 

@@ -49,11 +49,11 @@ pub(crate) const SCHEME: &str = if cfg!(debug_assertions) {
 };
 
 /// The commands a URL may run: each one only shows something (a view, a
-/// mode, a dialog, the palette) or makes an empty note. Nothing that
-/// trashes, deletes, moves, imports, exports, edits or writes the clipboard.
+/// mode, a dialog, the palette). Nothing that makes, trashes, deletes,
+/// moves, imports, exports, edits or writes the clipboard, so a page that
+/// opens a link over and over cannot change the library.
 /// `deepLink.ts` lists the same (a test compares them).
 pub(crate) const URL_COMMANDS: &[&str] = &[
-    "note.new",
     "palette.open",
     "view.allNotes",
     "view.trash",
@@ -401,7 +401,7 @@ mod tests {
         for tail in ["/", "/x", "?a=b", "#top", "%20", "/.."] {
             let url = format!("devot://note/{ID}{tail}");
             assert_eq!(parse(&url, "devot"), Err("E_URL_NOTE_ID"), "{url}");
-            let url = format!("devot://command/note.new{tail}");
+            let url = format!("devot://command/view.trash{tail}");
             assert_eq!(parse(&url, "devot"), Err("E_URL_COMMAND"), "{url}");
         }
     }
@@ -410,13 +410,14 @@ mod tests {
     fn refuses_commands_not_on_the_list() {
         for id in [
             "",
+            "note.new",
             "note.trash",
             "trash.empty",
             "note.copyLink",
             "app.exportAllMarkdown",
             "Note.New",
-            "note.new ",
-            "note%2Enew",
+            "view.trash ",
+            "view%2Etrash",
         ] {
             assert_eq!(
                 parse(&format!("devot://command/{id}"), "devot"),
@@ -469,7 +470,10 @@ mod tests {
         assert!(inbox.arrive(command("view.trash")).is_empty());
         assert_eq!(inbox.take(), vec![note(), command("view.trash")]);
         // From then on a link goes straight through.
-        assert_eq!(inbox.arrive(command("note.new")), vec![command("note.new")]);
+        assert_eq!(
+            inbox.arrive(command("view.edit")),
+            vec![command("view.edit")]
+        );
         assert!(inbox.take().is_empty());
     }
 

@@ -131,6 +131,11 @@ objc2-web-kit = { version = "0.3", default-features = false, features = [
   "WKWebpagePreferences",
 ] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# tauri-plugin-deep-link 2.6.2 builds ini::ParseOption with a struct literal
+# that rust-ini 0.21.2 broke by adding fields. Drop the pin once it is fixed.
+rust-ini = "=0.21.1"
+
 [[test]]
 name = "main_thread"
 harness = false

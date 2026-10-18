@@ -11,11 +11,10 @@ import type { CommandId } from './commands/registry'
 import { invoke } from './ipc'
 
 /**
- * The commands a URL may run: each one only shows something or makes an
- * empty note. Rust keeps the same list (a test compares them).
+ * The commands a URL may run: each one only shows something; none makes,
+ * changes or removes anything. Rust keeps the same list (a test compares them).
  */
 export const URL_COMMANDS = [
-  'note.new',
   'palette.open',
   'view.allNotes',
   'view.trash',
@@ -74,6 +73,11 @@ export function noteTarget(id: string, known: Known): NoteTarget {
   return { kind: 'missing' }
 }
 
+/** The most links waiting to run; later ones are dropped. */
+const MAX_WAITING = 16
+/** How long the same link sent again is dropped. */
+const REPEAT_MS = 1000
+
 /**
  * Runs links in the order they came, one at a time: after running one it
  * waits until the window has rendered what that did (`settled`, called after
@@ -84,6 +88,8 @@ export function noteTarget(id: string, known: Known): NoteTarget {
  */
 export class LinkQueue {
   private readonly waiting: DeepLink[] = []
+  /** The link pushed last and when, to drop the same one sent again at once. */
+  private last: { readonly key: string; readonly at: number } | undefined
   private busy = false
   private cancelSettle: (() => void) | undefined
   private unwatch: (() => void) | undefined
@@ -94,10 +100,24 @@ export class LinkQueue {
     private readonly blocked: () => boolean,
     private readonly watch: (changed: () => void) => () => void,
     private readonly settleLater: (done: () => void) => () => void,
+    private readonly now: () => number = Date.now,
   ) {}
 
+  /**
+   * Queues `link`, unless it is the one pushed last, again within
+   * `REPEAT_MS`, or `MAX_WAITING` links wait already: a page that opens a
+   * link over and over cannot flood the window.
+   */
   push(link: DeepLink): void {
     if (this.stopped) return
+    const key = `${link.kind}:${link.id}`
+    const at = this.now()
+    const repeated = this.last?.key === key && at - this.last.at < REPEAT_MS
+    this.last = { key, at }
+    if (repeated || this.waiting.length >= MAX_WAITING) {
+      console.warn('W_DEEP_LINK_DROPPED')
+      return
+    }
     this.waiting.push(link)
     this.flush()
   }
@@ -126,12 +146,14 @@ export class LinkQueue {
     this.run(link)
   }
 
-  stop(): void {
+  /** Stops running links; returns those still waiting. */
+  stop(): DeepLink[] {
     this.stopped = true
-    this.waiting.length = 0
+    const left = this.waiting.splice(0)
     this.cancelSettle?.()
     this.cancelSettle = undefined
     this.stopWatching()
+    return left
   }
 
   private stopWatching(): void {
@@ -162,24 +184,26 @@ const TAURI_EVENT = 'devot://open-url'
 /**
  * Runs `handle` for each link, from the moment `ready` is true (the window
  * has restored its view): first the links that came before (Rust held them;
- * `deep_link_take`), then each one as it comes.
+ * `deep_link_take`), then each one as it comes. The page listens for as long
+ * as it is up, so a link that comes while `ready` is false waits for it.
  */
 export function useDeepLinks(ready: boolean, handle: (link: DeepLink) => void): void {
   const latest = useRef(handle)
   const queueRef = useRef<LinkQueue>(undefined)
+  // Links that came while the window was not ready, oldest first.
+  const early = useRef<DeepLink[]>([])
   useEffect(() => {
     latest.current = handle
     // After every render: the link run last has taken effect.
     queueRef.current?.settled()
   })
   useEffect(() => {
-    if (!ready) return
-    const queue = new LinkQueue((link) => latest.current(link), sheetOpen, every, after)
-    queueRef.current = queue
     const take = (value: unknown) => {
       const link = readDeepLink(value)
-      if (link) queue.push(link)
-      else console.warn('W_DEEP_LINK_INVALID')
+      if (!link) console.warn('W_DEEP_LINK_INVALID')
+      else if (queueRef.current) queueRef.current.push(link)
+      else if (early.current.length < MAX_WAITING) early.current.push(link)
+      else console.warn('W_DEEP_LINK_DROPPED')
     }
     const onEvent = (e: Event) => take(e instanceof CustomEvent ? e.detail : undefined)
     window.addEventListener(OPEN_URL, onEvent)
@@ -208,7 +232,16 @@ export function useDeepLinks(ready: boolean, handle: (link: DeepLink) => void): 
       stopped = true
       window.removeEventListener(OPEN_URL, onEvent)
       unlisten?.()
-      queue.stop()
+    }
+  }, [])
+  useEffect(() => {
+    if (!ready) return
+    const queue = new LinkQueue((link) => latest.current(link), sheetOpen, every, after)
+    queueRef.current = queue
+    for (const link of early.current.splice(0)) queue.push(link)
+    return () => {
+      // Not run yet: they run once the window is ready again.
+      early.current = queue.stop()
       queueRef.current = undefined
     }
   }, [ready])
