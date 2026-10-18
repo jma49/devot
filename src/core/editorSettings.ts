@@ -24,10 +24,11 @@ export type ListMarker = '-' | '*' | '+'
 export type FontWeightId = 'normal' | '300' | '400' | '500' | '600' | '700'
 /**
  * What pasting a lone URL (nothing selected) inserts: the URL as copied, an
- * autolink (`<url>`) or a link with empty text (`[](url)`). A URL pasted
- * over selected text always makes that text a link.
+ * autolink (`<url>`), a link with empty text (`[](url)`), or the URL as
+ * copied with a list of formats to choose from. A URL pasted over selected
+ * text always makes that text a link.
  */
-export type PasteUrlStyle = 'plain' | 'autolink' | 'link'
+export type PasteUrlStyle = 'plain' | 'autolink' | 'link' | 'choose'
 /**
  * How long lines wrap: never, always, everywhere but code blocks and tables
  * (`prose`), or everywhere but the code block or table under the caret.
@@ -155,7 +156,7 @@ export const LINE_WRAPPING_MODES: readonly LineWrappingMode[] = [
 ]
 
 export const LIST_DATES_STYLES: readonly ListDatesStyle[] = ['relative', 'absolute']
-export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 'link']
+export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 'link', 'choose']
 /** The appearances Settings offers, in its order. */
 export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
 /** The themes Settings offers, in its order. */

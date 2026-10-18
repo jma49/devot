@@ -57,6 +57,8 @@ fn main() {
             "app_exit_ready",
             "app_exit_cancel",
             "open_external",
+            "link_title",
+            "github_snippet",
             "format_menu_set",
             "log_write",
             "backups_list",

@@ -424,6 +424,7 @@ test('every editor setting has a labelled control showing its stored value', asy
     'Plain text',
     'Autolink <URL>',
     'Link [](URL)',
+    'Choose each time',
   ])
   await expect(select(page, 'Line Height').getByRole('option')).toHaveText([
     '1.2',

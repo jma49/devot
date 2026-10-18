@@ -975,6 +975,15 @@ export const COMMANDS = [
     scope: 'editor',
     keys: ['Mod+Alt+Shift+V'],
   },
+  // Opens the paste chooser for the clipboard's URL, or for the link at the
+  // caret (editor/pasteChooser.ts).
+  {
+    id: 'edit.pasteUrlAs',
+    label: 'command.pasteUrlAs',
+    group: 'edit',
+    scope: 'editor',
+    keys: [],
+  },
   // Tables in the note editor (see editor/tableCommands.ts). Their keys act
   // only while the cursor is in a table; elsewhere Tab, Return and the rest
   // keep doing what they do in the editor. The palette lists the commands

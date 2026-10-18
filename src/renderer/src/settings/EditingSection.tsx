@@ -60,6 +60,7 @@ const PASTE_URL_LABELS: Readonly<Record<PasteUrlStyle, MessageKey>> = {
   plain: 'editorSettings.pasteUrl.plain',
   autolink: 'editorSettings.pasteUrl.autolink',
   link: 'editorSettings.pasteUrl.link',
+  choose: 'editorSettings.pasteUrl.choose',
 }
 
 type Flag =

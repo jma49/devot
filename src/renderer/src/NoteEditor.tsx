@@ -54,7 +54,8 @@ import { TABLE_COMMANDS, inTable, tableKeymap, type TableCommandId } from './edi
 import { tableTyping } from './editor/tableTyping'
 import { markdownLineStyles } from './editor/lineStyles'
 import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
-import { pasteUrls, plainPaste } from './editor/paste'
+import { pasteUrlAs, pasteUrls, plainPaste } from './editor/paste'
+import { pasteChooser, showChooser, type PasteFetcher } from './editor/pasteChooser'
 import { editorSetup, reconfigureSetup } from './editor/settings'
 import { editorCompletions } from './editor/completions'
 import { taskToggle } from './editor/tasks'
@@ -157,6 +158,8 @@ export interface EditorHandle {
   pastePlain: () => Promise<void>
   /** Focuses the editor and runs a line or selection command (`edit.*`, see editor/lineCommands.ts). */
   runLine: (id: CommandId) => void
+  /** Focuses the editor and opens the paste chooser (Paste URL As…). */
+  pasteUrlAs: () => Promise<void>
   /** The image at the cursor, or the first on its line (the image commands act on it). */
   imageAtCursor: () => ImageMenuTarget | null
   /** Shows that image in the viewer (an attachment only); false when there is none. */
@@ -182,6 +185,48 @@ async function pastePlain(view: EditorView): Promise<void> {
   const spec = plainPaste(view.state, text)
   if (spec) view.dispatch(spec)
 }
+
+/**
+ * Paste URL As…: the chooser for the clipboard's URL, pasted as copied, or
+ * for the link at the caret (editor/pasteChooser.ts).
+ */
+async function pasteUrlAsIn(view: EditorView): Promise<void> {
+  const text = await readClipboardText().catch(() => {
+    console.warn('W_CLIPBOARD_READ_FAILED')
+    return ''
+  })
+  const spec = pasteUrlAs(view.state, text)
+  if (!spec) return
+  view.dispatch(spec)
+  showChooser(view)
+}
+
+/** What the paste chooser fetches, through Rust (https only, capped). */
+const linkFetcher: PasteFetcher = {
+  title: async (url) => {
+    const title = await invoke<unknown>('link_title', { url })
+    return typeof title === 'string' ? title : null
+  },
+  snippet: async (url) => {
+    const code = await invoke<unknown>('github_snippet', { url })
+    if (typeof code !== 'string') throw new Error('E_LINK_FAILED')
+    return code
+  },
+}
+
+/** The Paste URL As… keys (from the registry; none by default). */
+const pasteUrlAsKeys = registryKeys(() =>
+  keymap.of(
+    editorCommandKeys('edit.pasteUrlAs').map((key) => ({
+      key,
+      run: (view: EditorView) => {
+        void pasteUrlAsIn(view)
+        return true
+      },
+      preventDefault: true,
+    })),
+  ),
+)
 
 /**
  * The Paste as Plain Text keys (from the registry), ahead of CodeMirror's
@@ -847,7 +892,9 @@ export function NoteEditor({
               noteMarkdown,
               images.extension,
               pasteUrls,
+              pasteChooser(linkFetcher),
               pastePlainKeys(),
+              pasteUrlAsKeys(),
               newFromSelectionKeys(),
               editorMenu((target, at, pos) => menuOpener.current(target, at, pos)),
               newFromLinkKeys(),
@@ -999,6 +1046,10 @@ export function NoteEditor({
             runLine: (id) => {
               ready.focus()
               runEditCommand(ready, id)
+            },
+            pasteUrlAs: () => {
+              ready.focus()
+              return pasteUrlAsIn(ready)
             },
             imageAtCursor: () => {
               const image = imageAt(ready.state, ready.state.selection.main.head)

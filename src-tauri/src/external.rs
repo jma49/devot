@@ -8,24 +8,9 @@ use std::process::Command;
 use tauri::webview::{NewWindowFeatures, NewWindowResponse};
 use tauri::{Runtime, Url};
 
-const MAX_URL_LEN: usize = 2048;
-
 /// Accepts only plain https URLs with a host and no credentials.
 fn validate(url: &str) -> Result<Url, &'static str> {
-    if url.len() > MAX_URL_LEN {
-        return Err("E_URL_TOO_LONG");
-    }
-    let parsed = Url::parse(url).map_err(|_| "E_URL_INVALID")?;
-    if parsed.scheme() != "https" {
-        return Err("E_URL_SCHEME_REFUSED");
-    }
-    if parsed.host_str().is_none_or(str::is_empty) {
-        return Err("E_URL_INVALID");
-    }
-    if !parsed.username().is_empty() || parsed.password().is_some() {
-        return Err("E_URL_CREDENTIALS_REFUSED");
-    }
-    Ok(parsed)
+    crate::net::https_url(url)
 }
 
 /// Starts `command` and returns its process ID without waiting for it; a
@@ -159,7 +144,10 @@ mod tests {
             validate("https://user:pw@example.com").unwrap_err(),
             "E_URL_CREDENTIALS_REFUSED"
         );
-        let long = format!("https://example.com/{}", "a".repeat(MAX_URL_LEN));
+        let long = format!(
+            "https://example.com/{}",
+            "a".repeat(crate::net::MAX_URL_LEN)
+        );
         assert_eq!(validate(&long).unwrap_err(), "E_URL_TOO_LONG");
     }
 }

@@ -12,6 +12,7 @@ import { codeBlocks, languageSource } from './codeBlocks'
 import { chooseTemplate, editorHints } from './hints'
 import { alertSource, emojiSource } from './inlineCompletions'
 import { closingStyles, closingTooltips, fadeIn, motionKeyframes } from './motion'
+import { unlessChoosing } from './pasteChooser'
 import { lookOf } from './popupLook'
 import { chooseImageFiles, slashMenu, slashSource, slashTrigger } from './slashMenu'
 
@@ -169,10 +170,11 @@ export function editorCompletions(host: CompletionHost = {}): Extension {
     // A closing list fades out (the floating bars install the same plugin).
     closingTooltips,
     EditorState.languageData.of(() => [
-      { autocomplete: slashSource },
-      { autocomplete: languageSource },
-      { autocomplete: emojiSource },
-      { autocomplete: alertSource },
+      // The paste chooser's list stands alone while it is open.
+      { autocomplete: unlessChoosing(slashSource) },
+      { autocomplete: unlessChoosing(languageSource) },
+      { autocomplete: unlessChoosing(emojiSource) },
+      { autocomplete: unlessChoosing(alertSource) },
     ]),
     slashMenu(),
     codeBlocks(),

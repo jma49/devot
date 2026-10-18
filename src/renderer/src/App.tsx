@@ -2515,6 +2515,9 @@ export function App() {
         handlers[commandId] = { run: () => editorRef.current?.runLine(commandId) }
       }
       handlers['edit.goToLine'] = { run: () => openPalette('line') }
+      handlers['edit.pasteUrlAs'] = {
+        run: () => editorRef.current?.pasteUrlAs(),
+      }
       if (paletteOpen && paletteSelection) {
         handlers['note.newFromSelection'] = {
           run: () => noteFromSelection(id),

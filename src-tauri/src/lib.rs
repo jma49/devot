@@ -18,11 +18,13 @@ mod fonts;
 mod format_menu;
 mod import;
 mod keyboard_shortcuts;
+mod link_info;
 mod logs;
 mod menu;
 mod mirror;
 #[doc(hidden)]
 pub mod native;
+mod net;
 mod settings;
 mod sidebar_material;
 mod startup;
@@ -85,6 +87,8 @@ pub fn run() {
             exit::app_exit_ready,
             exit::app_exit_cancel,
             external::open_external,
+            link_info::link_title,
+            link_info::github_snippet,
             format_menu::format_menu_set,
             logs::log_write,
             commands::search_index::search_index_rebuild,

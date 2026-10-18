@@ -74,7 +74,7 @@ describe('editor settings', () => {
     expect(INDENT_UNITS).toEqual(['spaces2', 'spaces4', 'tab'])
     expect(LIST_MARKERS).toEqual(['*', '-', '+'])
     expect(FONT_WEIGHTS).toEqual(['normal', '300', '400', '500', '600', '700'])
-    expect(PASTE_URL_STYLES).toEqual(['plain', 'autolink', 'link'])
+    expect(PASTE_URL_STYLES).toEqual(['plain', 'autolink', 'link', 'choose'])
     expect(LINE_WRAPPING_MODES).toEqual(['off', 'all', 'prose', 'unwrapAtCursor'])
     expect(LIST_DATES_STYLES).toEqual(['relative', 'absolute'])
     expect(APPEARANCES).toEqual(['light', 'dark', 'system'])
