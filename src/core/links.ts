@@ -34,7 +34,7 @@ export const MAX_BACKLINKS = 200
 
 /** The storage query for live notes whose body holds a link to note `id`. */
 export function backlinkQuery(id: string): NoteQuery {
-  return { text: [{ field: 'body', value: noteUri(id), negate: false }], sets: [], pinned: false }
+  return { text: [{ field: 'body', value: noteUri(id), negate: false }], sets: [], pinned: null }
 }
 
 /**

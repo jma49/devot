@@ -73,7 +73,11 @@ const set = (kind: SetCondition['kind'], ids: string[], negate = false): SetCond
   ids,
   negate,
 })
-const query = (texts: TextCondition[], sets: SetCondition[] = [], pinned = false): NoteQuery => ({
+const query = (
+  texts: TextCondition[],
+  sets: SetCondition[] = [],
+  pinned: boolean | null = null,
+): NoteQuery => ({
   text: texts,
   sets,
   pinned,
@@ -132,7 +136,7 @@ function beforeSearch(db: Database.Database, q: NoteQuery, limit: number) {
       )
     }
   }
-  if (q.pinned) where.push('n.pinned = 1')
+  if (q.pinned !== null) where.push(q.pinned ? 'n.pinned = 1' : 'n.pinned = 0')
   const sql = [
     `SELECT n.id, n.title, n.created_at AS createdAt, n.updated_at AS updatedAt, n.book_id AS bookId, n.status, n.pinned,
             (SELECT group_concat(nt.tag_id) FROM note_tags nt
@@ -297,7 +301,7 @@ describe('lists and search answer as before', () => {
       ),
       { maxLength: 2 },
     ),
-    pinned: fc.boolean(),
+    pinned: fc.constantFrom(true, false, null),
   })
 
   it('lists, finds and orders the same notes as the statements they replace', async () => {
@@ -403,7 +407,7 @@ describe('lists and search answer as before', () => {
       'b',
       'a',
     ])
-    expect(ids(await storage.searchNotes(query([], [], false), 2))).toEqual(['c', 'b'])
+    expect(ids(await storage.searchNotes(query([], [], null), 2))).toEqual(['c', 'b'])
   })
 })
 

@@ -443,8 +443,8 @@ pub struct NoteSummary {
 pub struct NoteQuery {
     pub text: Vec<TextCondition>,
     pub sets: Vec<SetCondition>,
-    /// Pinned notes only.
-    pub pinned: bool,
+    /// Only pinned notes (`Some(true)`), only notes not pinned (`Some(false)`), or either (`None`).
+    pub pinned: Option<bool>,
 }
 
 /// Text the note must (or, with `negate`, must not) contain, case-insensitively.
@@ -925,8 +925,10 @@ fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
             ),
         });
     }
-    if query.pinned {
-        clauses.push("n.pinned = 1".into());
+    match query.pinned {
+        Some(true) => clauses.push("n.pinned = 1".into()),
+        Some(false) => clauses.push("n.pinned = 0".into()),
+        None => {}
     }
     let hits = if ranked.is_empty() {
         String::new()

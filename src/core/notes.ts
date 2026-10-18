@@ -1534,12 +1534,13 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       // Search what the user sees: edits still waiting for their save first.
       if (lookup?.flush !== false) await saveAll()
       // Names and sub-notebooks need the lists; most queries do not.
-      const needs = (field: SearchClause['field']) => clauses.some((c) => c.field === field)
+      const needs = (...fields: SearchClause['field'][]) =>
+        clauses.some((c) => fields.includes(c.field))
       const [books, tags] = await Promise.all([
-        scope?.bookId || needs('book') ? storage.listBooks() : [],
-        needs('tag') ? storage.listTags() : [],
+        scope?.bookId || needs('book', 'bookId') ? storage.listBooks() : [],
+        needs('tag', 'tagId') ? storage.listTags() : [],
       ])
-      // `book:` never names Templates.
+      // `book:` and `bookId:` never name Templates.
       const nameable = books.filter((b) => b.id !== TEMPLATES_BOOK_ID)
       const resolved = resolveSearch(clauses, { books, tags, scope, nameable })
       if (!resolved) return []

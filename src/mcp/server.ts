@@ -100,8 +100,9 @@ export function createServer({ service, log }: ServerOptions): McpServer {
       description:
         'Full-text search over the titles and Markdown of notes in notebooks that allow AI ' +
         'access. Every word must appear (case-insensitive substrings); "quote" a phrase, put - ' +
-        'before a word to exclude it, and narrow with title:, body:, book:, tag: or status: ' +
-        '(quote names with spaces: book:"Weekly notes"). ' +
+        'before a word or a qualifier to exclude it, and narrow with title:, body:, book:, tag:, ' +
+        'status:, bookId:, tagId: or pinned:true|false (quote names with spaces: ' +
+        'book:"Weekly notes"; single quotes work too). ' +
         'Returns the best matches with a snippet of each; read_note gives the full text.',
       inputSchema: {
         query: z

@@ -97,3 +97,48 @@ test('after clearing a search, the next query does not show the previous results
   await expect(header(page)).toHaveText('Search Results')
   await expect(noteRows(page)).toHaveText([/^Bar plan/])
 })
+
+test('pinned: narrows the list, and a malformed value is searched as text', async ({ page }) => {
+  await createNote(page, 'Pinned plan')
+  await pickNoteMore(page, 'Pin to Top')
+  await createNote(page, 'Loose plan')
+
+  await search(page).fill('plan pinned:true')
+  await expect(noteRows(page)).toHaveText([/^Pinned plan/])
+  await search(page).fill('plan pinned:false')
+  await expect(noteRows(page)).toHaveText([/^Loose plan/])
+  await search(page).fill('plan -pinned:false')
+  await expect(noteRows(page)).toHaveText([/^Pinned plan/])
+  // Not a pinned value: the text "pinned:maybe" is searched for.
+  await search(page).fill('plan pinned:maybe')
+  await expect(noteRows(page)).toHaveCount(0)
+})
+
+test('the syntax help opens from its button, and Escape closes it before clearing the search', async ({
+  page,
+}) => {
+  const help = page.getByRole('dialog', { name: 'Search Syntax' })
+  const button = page.getByRole('button', { name: 'Search Syntax' })
+  await search(page).fill('plan')
+  await button.click()
+  await expect(help).toBeVisible()
+  await expect(help).toContainText('-status:')
+  await expect(help).toContainText('bookId:ID')
+
+  // The first Escape closes the help and keeps the query; the next clears it.
+  await search(page).focus()
+  await page.keyboard.press('Escape')
+  await expect(help).toBeHidden()
+  await expect(search(page)).toHaveValue('plan')
+  await page.keyboard.press('Escape')
+  await expect(search(page)).toHaveValue('')
+
+  await button.click()
+  await expect(help).toBeVisible()
+  await button.press('Escape')
+  await expect(help).toBeHidden()
+  await expect(button).toBeFocused()
+  await button.click()
+  await header(page).click()
+  await expect(help).toBeHidden()
+})

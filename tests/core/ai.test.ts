@@ -127,6 +127,24 @@ describe('what AI can see', () => {
     expect(hit?.snippet).toContain('note')
   })
 
+  it('searches by ID and pinned state without revealing hidden notebooks', async () => {
+    const s = setup()
+    const { books, ids } = await world(s)
+    const tagId = await s.tags.addToNote(ids.shared, 'fruit')
+    await s.notes.setPinned(ids.shared, true)
+    await s.notes.flush()
+    const found = async (query: string) => (await s.ai.search(query)).map((h) => h.id)
+    expect(await found(`kiwi bookId:${books.shared}`)).toEqual([ids.shared])
+    expect(await found(`kiwi tagId:${tagId}`)).toEqual([ids.shared])
+    expect(await found('kiwi pinned:true')).toEqual([ids.shared])
+    expect(await found('kiwi pinned:false')).toEqual([])
+    // A notebook AI may not see cannot be named by its ID either.
+    expect(await found(`kiwi bookId:${books.priv}`)).toEqual([])
+    expect(await found(`kiwi bookId:${books.inside}`)).toEqual([])
+    expect(await found(`kiwi -bookId:${books.priv}`)).toEqual([ids.shared])
+    expect(await found(`kiwi -bookId:${books.shared}`)).toEqual([])
+  })
+
   it('reads an allowed note with its metadata', async () => {
     const s = setup()
     const { books, ids } = await world(s)

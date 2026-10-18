@@ -14,6 +14,7 @@ import {
   MAX_TAG_NAME_CHARS,
   MAX_TERM_CHARS,
   NOTE_STATUSES,
+  UUID_V7,
   parseSearch,
   type NoteFilter,
   type NoteStatus,
@@ -37,8 +38,25 @@ const STATUS_NAMES: Record<NoteStatus, string[]> = {
 /** Text a query might hold, weighted towards the characters the parser reads. */
 const queryText = fc.string({
   unit: fc.oneof(
-    { weight: 4, arbitrary: fc.constantFrom('"', '-', ':', ' ', 'book', 'tag', 'status', 'x') },
-    { weight: 1, arbitrary: fc.constantFrom('title', 'body', 'On Hold', '\t', '\n', '\u3000') },
+    {
+      weight: 4,
+      arbitrary: fc.constantFrom('"', "'", '-', ':', ' ', 'book', 'tag', 'status', 'x'),
+    },
+    {
+      weight: 1,
+      arbitrary: fc.constantFrom(
+        'title',
+        'body',
+        'On Hold',
+        'pinned:',
+        'bookId:',
+        'tagId:',
+        '0192a6f0-0000-7000-8000-0000000000b1',
+        '\t',
+        '\n',
+        '\u3000',
+      ),
+    },
     { weight: 3, arbitrary: fc.string({ unit: 'binary', minLength: 1, maxLength: 3 }) },
     // Lone surrogates: a query is any JavaScript string.
     { weight: 1, arbitrary: fc.constantFrom('\ud800', '\udc00') },
@@ -65,6 +83,8 @@ describe('parseSearch', () => {
           expect(c.value.trim()).toBe(c.value)
           expect(() => encodeURIComponent(c.value)).not.toThrow()
           expect(c.field !== 'status' || NOTE_STATUSES.some((st) => st === c.value)).toBe(true)
+          expect(c.field !== 'pinned' || c.value === 'true' || c.value === 'false').toBe(true)
+          expect((c.field !== 'bookId' && c.field !== 'tagId') || UUID_V7.test(c.value)).toBe(true)
         }
       }),
       { numRuns: 2000 },
@@ -215,6 +235,11 @@ const queryClause = fc.oneof(
     value: fc.constantFrom(...Object.values(STATUS_NAMES).flat()),
     negate: fc.boolean(),
   }),
+  fc.record({
+    field: fc.constant('pinned'),
+    value: fc.constantFrom('true', 'false', 'TRUE', 'Yes', 'no', '1', '0'),
+    negate: fc.boolean(),
+  }),
 )
 const scope = fc.record({
   book: fc.option(fc.integer({ min: 0, max: BOOKS.length - 1 })),
@@ -250,6 +275,12 @@ function matches(n: ModelNote, c: SearchClause): boolean {
       return n.tags.some((t) => same(TAGS[t]!, c.value))
     case 'status':
       return n.status === c.value
+    case 'pinned':
+      return n.pinned === (c.value === 'true')
+    case 'bookId':
+    case 'tagId':
+      // IDs are not known when queries are drawn; the unit tests cover them.
+      throw new Error('E_TEST_UNEXPECTED_FIELD')
   }
 }
 

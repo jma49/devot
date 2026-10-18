@@ -172,7 +172,7 @@ export const memoryStorage: StorageAdapter = {
             set.kind === 'book' ? [note.bookId] : set.kind === 'tag' ? note.tagIds : [note.status]
           return values.some((v) => v !== null && set.ids.includes(v)) !== set.negate
         }) &&
-        (!query.pinned || note.pinned)
+        (query.pinned === null || query.pinned === note.pinned)
       if (!meets) continue
       const excerpt = bodyExcerpt(bodyMd, excerptTerms(query))
       found.push(excerpt === undefined ? note : { ...note, excerpt })

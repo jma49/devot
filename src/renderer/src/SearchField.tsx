@@ -1,12 +1,26 @@
-import { forwardRef } from 'react'
+import { forwardRef, useRef } from 'react'
 import { t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
 import { isImeKey } from './ime'
+import { usePickerOpen } from './Picker'
+
+/** The query syntax the help lists: what to type, and the message saying what it does. */
+const SYNTAX = [
+  { example: 'word  "a phrase"  \'a phrase\'', note: 'search.help.text' },
+  { example: 'title:  body:', note: 'search.help.part' },
+  { example: 'book:Name', note: 'search.help.book' },
+  { example: 'tag:Name', note: 'search.help.tag' },
+  { example: 'status:Name', note: 'search.help.status' },
+  { example: 'bookId:ID  tagId:ID', note: 'search.help.ids' },
+  { example: 'pinned:true  pinned:false', note: 'search.help.pinned' },
+  { example: '-word  -book:  -tag:  -status:  -pinned:', note: 'search.help.exclude' },
+] as const
 
 /**
- * The toolbar search field. Escape and the clear button call `onClear`; the
- * Escape that cancels an input method's composition does not.
+ * The toolbar search field. A "?" button opens a list of the query syntax. Escape and the clear button call `onClear`
+ * (Escape closes the open syntax list first); the Escape that cancels an
+ * input method's composition does neither.
  */
 export const SearchField = forwardRef<
   HTMLInputElement,
@@ -20,8 +34,23 @@ export const SearchField = forwardRef<
     icon?: IconName
   }
 >(function SearchField({ value, onChange, onClear, placeholder, icon = 'filter' }, ref) {
+  const box = useRef<HTMLLabelElement>(null)
+  const helpButton = useRef<HTMLButtonElement>(null)
+  const [helpOpen, setHelpOpen] = usePickerOpen(box)
   return (
-    <label className="search-field">
+    <label
+      ref={box}
+      className="search-field"
+      // Escape closes the syntax list before anything else reads it (the
+      // field would clear the search).
+      onKeyDownCapture={(e) => {
+        if (e.key !== 'Escape' || !helpOpen || isImeKey(e.nativeEvent)) return
+        e.preventDefault()
+        e.stopPropagation()
+        setHelpOpen(false)
+        if (e.target !== e.currentTarget.querySelector('input')) helpButton.current?.focus()
+      }}
+    >
       {/* A typed query takes the icon's place; the clear button shows instead. */}
       {value ? null : (
         <span className="search-icon">
@@ -57,6 +86,31 @@ export const SearchField = forwardRef<
         >
           <Icon name="tag.remove" size="sm" />
         </button>
+      ) : null}
+      <button
+        ref={helpButton}
+        type="button"
+        className="search-help-button"
+        aria-label={t('search.help')}
+        aria-expanded={helpOpen}
+        aria-controls="search-help"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setHelpOpen((open) => !open)}
+      >
+        ?
+      </button>
+      {helpOpen ? (
+        <div id="search-help" className="search-help" role="dialog" aria-label={t('search.help')}>
+          <p className="search-help-intro">{t('search.help.intro')}</p>
+          <dl>
+            {SYNTAX.map((row) => (
+              <div key={row.note}>
+                <dt>{row.example}</dt>
+                <dd>{t(row.note)}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       ) : null}
     </label>
   )

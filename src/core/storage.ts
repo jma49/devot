@@ -95,8 +95,8 @@ export interface SetCondition {
 export interface NoteQuery {
   text: TextCondition[]
   sets: SetCondition[]
-  /** Pinned notes only. */
-  pinned: boolean
+  /** Only pinned notes (true), only notes not pinned (false), or either (null). */
+  pinned: boolean | null
 }
 
 /**
