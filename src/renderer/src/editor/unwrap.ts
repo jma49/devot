@@ -161,6 +161,18 @@ export function revealSideways(
 /** After the caret moves or text changes, keeps the caret inside the sideways scroller. */
 export const keepCaretInColumn = ViewPlugin.fromClass(
   class {
+    // The editor redraws its cursor and selection layers on its own scroller's
+    // scroll only, so a sideways scroll of the column asks for a redraw too.
+    private readonly redraw = () => this.view.requestMeasure()
+
+    constructor(private readonly view: EditorView) {
+      view.contentDOM.addEventListener('scroll', this.redraw)
+    }
+
+    destroy() {
+      this.view.contentDOM.removeEventListener('scroll', this.redraw)
+    }
+
     update(update: ViewUpdate) {
       if (!update.selectionSet && !update.docChanged) return
       const view = update.view

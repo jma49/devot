@@ -402,15 +402,16 @@ test('typing at the end of a long unwrapped line keeps the caret inside the colu
   await page.keyboard.press('ArrowUp')
   await page.keyboard.press('End')
   await page.keyboard.type('!')
-  const inside = await content(page).evaluate((el) => {
-    const sel = getSelection()!
-    const caret = sel.getRangeAt(0).getBoundingClientRect()
-    const box = el.getBoundingClientRect()
-    return {
-      scrolled: el.scrollLeft > 0,
-      left: caret.left >= box.left,
-      right: caret.right <= box.right + 1,
-    }
-  })
-  expect(inside).toEqual({ scrolled: true, left: true, right: true })
+  // The drawn cursor: the document's selection only reaches the editor's
+  // shadow host, not the caret inside it.
+  await expect.poll(() => content(page).evaluate((el) => el.scrollLeft > 0)).toBe(true)
+  await expect
+    .poll(async () => {
+      const caret = (await page.locator('.cm-cursor-primary').boundingBox())!
+      const box = (await content(page).boundingBox())!
+      // At the line's end the column is scrolled as far as it goes, so the
+      // caret sits on its right edge: its left side is what must be inside.
+      return caret.x >= box.x && caret.x <= box.x + box.width
+    })
+    .toBe(true)
 })
