@@ -22,6 +22,33 @@ export function clampListWidth(width: number): number {
   return Math.min(LIST_MAX_WIDTH, Math.max(LIST_MIN_WIDTH, Math.round(width)))
 }
 
+/** How far an arrow key moves the edge, and with Shift. */
+export const LIST_KEY_STEP = 10
+export const LIST_KEY_STEP_LARGE = 50
+
+/**
+ * The width a key on the resize edge gives, or undefined for a key that
+ * does nothing there: Left and Right step (Shift: larger steps), Home and
+ * End go to the narrowest and widest, Enter returns to the default.
+ */
+export function listWidthForKey(key: string, shift: boolean, width: number): number | undefined {
+  const step = shift ? LIST_KEY_STEP_LARGE : LIST_KEY_STEP
+  switch (key) {
+    case 'ArrowLeft':
+      return clampListWidth(width - step)
+    case 'ArrowRight':
+      return clampListWidth(width + step)
+    case 'Home':
+      return LIST_MIN_WIDTH
+    case 'End':
+      return LIST_MAX_WIDTH
+    case 'Enter':
+      return LIST_DEFAULT_WIDTH
+    default:
+      return undefined
+  }
+}
+
 /** The width last set, kept in `storage` (none: nothing is remembered). */
 export function listWidthStore(storage: KeyValue | undefined) {
   return {

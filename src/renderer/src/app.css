@@ -1158,6 +1158,12 @@ button {
   cursor: col-resize;
 }
 
+/* The keyboard is on the edge: arrow keys resize, Enter resets. */
+.list-resize:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
 /* The card under the pointer while notes are dragged (listDrag.ts), drawn
    off screen for the drag's picture. The holder's padding is its distance
    from the pointer. */

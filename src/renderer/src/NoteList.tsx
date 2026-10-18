@@ -30,7 +30,14 @@ import {
 import { useHeadlines, type HeadlineLoader } from './headlines'
 import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
-import { LIST_MAX_WIDTH, LIST_MIN_WIDTH, clampListWidth, currentListWidthStore } from './listWidth'
+import {
+  LIST_DEFAULT_WIDTH,
+  LIST_MAX_WIDTH,
+  LIST_MIN_WIDTH,
+  clampListWidth,
+  currentListWidthStore,
+  listWidthForKey,
+} from './listWidth'
 import { entryOffsets, spacerHeight, windowRuns } from './listWindow'
 import { noteShortcut, trashShortcut, type NoteAction, type TrashAction } from './noteMenu'
 import { DRAG_NOTE, DRAG_TEMPLATE } from './Sidebar'
@@ -202,6 +209,17 @@ export const NoteList = memo(function NoteList(props: Props) {
     const next = clampListWidth(from.width + e.clientX - from.x)
     setWidth(next)
     currentListWidthStore().write(next)
+  }
+  const setWidthAndKeep = (next: number) => {
+    setWidth(next)
+    currentListWidthStore().write(next)
+  }
+  const resizeKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    const next = listWidthForKey(e.key, e.shiftKey, width)
+    if (next === undefined) return
+    e.preventDefault()
+    setWidthAndKeep(next)
   }
 
   // A long list renders only the entries near the part that shows (see
@@ -562,10 +580,11 @@ export const NoteList = memo(function NoteList(props: Props) {
   const move = (event: KeyboardEvent, index: number) => {
     if (heldKey(event)) return
     if (selectionKey(event)) return
-    // Shortcuts act on the open note, even when another row has the focus
-    // (a right-click focuses its row) or the open note is filtered out.
-    // Every key here comes from the registry.
-    const target = selected ?? notes[index]?.id
+    // Shortcuts act on the row that has the focus, never on an open note the
+    // focus has left (a right-click focuses its row; a filter may hide the
+    // open note). With several notes selected they act on the selection, whose
+    // rows are all drawn selected. Every key here comes from the registry.
+    const target = chosen ? (selected ?? notes[index]?.id) : notes[index]?.id
     const action = target && props.onAction ? noteShortcut(event) : undefined
     if (target && action) {
       event.preventDefault()
@@ -817,6 +836,9 @@ export const NoteList = memo(function NoteList(props: Props) {
         aria-valuenow={width}
         aria-valuemin={LIST_MIN_WIDTH}
         aria-valuemax={LIST_MAX_WIDTH}
+        tabIndex={0}
+        onKeyDown={resizeKey}
+        onDoubleClick={() => setWidthAndKeep(LIST_DEFAULT_WIDTH)}
         onPointerDown={resizeStart}
         onPointerMove={resizeMove}
         onPointerUp={resizeEnd}
