@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
 
 // Editing a Markdown table in the editor. Editor keys are platform-neutral
 // (Tab, Return, Alt+Return, ControlOrMeta for undo), and the cursor is placed
@@ -179,4 +179,45 @@ test('outside a table Tab indents and Return starts a line', async ({ page }) =>
   await page.keyboard.press('Enter')
   await page.keyboard.type('next')
   expect(await lines(page)).toEqual(['plain', 'next'])
+})
+
+const bar = (page: Page) => page.getByRole('toolbar', { name: 'Table', exact: true })
+
+test('the table bar shows above the caret row and runs a command', async ({ page }) => {
+  await newNote(page, 'intro\n\n' + TABLE)
+  await expect(bar(page)).toBeVisible()
+  await expect(bar(page).getByRole('button')).toHaveCount(13)
+  const barBox = await bar(page).boundingBox()
+  const row = await page.locator('.cm-line', { hasText: '| 1' }).boundingBox()
+  expect(barBox!.y + barBox!.height).toBeLessThanOrEqual(row!.y + 1)
+  await bar(page).getByRole('button', { name: 'Align Column Center' }).click()
+  expect(await lines(page)).toContain('| :-: | --- |')
+  await expect(body(page)).toBeFocused()
+})
+
+test('the table bar tooltips show the bound key', async ({ page }) => {
+  await newNote(page, TABLE)
+  await bar(page).getByRole('button', { name: 'Insert Row Below' }).hover()
+  const tip = page.getByRole('tooltip')
+  await expect(tip).toContainText('Insert Row Below')
+  await expect(tip.locator('kbd')).toHaveText(/\S/)
+})
+
+test('the table bar hides outside a table and while text is selected', async ({ page }) => {
+  await newNote(page, 'plain\n\n' + TABLE)
+  await expect(bar(page)).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+a')
+  await expect(bar(page)).toBeHidden()
+  await page.locator('.cm-line', { hasText: 'plain' }).click()
+  await expect(bar(page)).toBeHidden()
+})
+
+test('the table bar follows the Toolbar setting', async ({ page }) => {
+  await newNote(page, TABLE)
+  await expect(bar(page)).toBeVisible()
+  await changeEditorSettingsElsewhere(page, { toolbar: false })
+  await expect(bar(page)).toBeHidden()
+  await changeEditorSettingsElsewhere(page, { toolbar: true })
+  await body(page).click()
+  await expect(bar(page)).toBeVisible()
 })

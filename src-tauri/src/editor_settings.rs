@@ -160,7 +160,7 @@ pub struct EditorSettings {
     pub theme: Theme,
     /// The accent follows the macOS accent colour instead of Devot's palette.
     pub system_accent: bool,
-    /// The selection toolbar shows over selected text.
+    /// The toolbar shows over selected text and above the current table row.
     pub toolbar: bool,
     /// The editor scrolls past the end of the note.
     pub scroll_past_end: bool,

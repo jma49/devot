@@ -21,6 +21,7 @@ import { editorFind, editorFindTarget } from './editor/find'
 import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
 import { imageSizeBar } from './editor/ImageSizeBar'
+import { tableToolbar } from './editor/TableToolbar'
 import { formatKeyAvailability } from './editor/formatKeys'
 import { imeKeys } from './editor/imeKeys'
 import { editorScrollPane } from './editor/scrollPane'
@@ -743,6 +744,7 @@ export function NoteEditor({
               }),
               formatToolbar(showAlertMenu),
               imageSizeBar,
+              tableToolbar,
               formatKeyAvailability(setInertFormats),
               tableKeymap(),
               tableTyping(),
