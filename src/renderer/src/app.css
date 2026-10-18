@@ -300,7 +300,13 @@ button {
 
 /* Sidebar: the window material shows through its tint. */
 .sidebar {
-  width: var(--size-sidebar-width);
+  position: relative;
+  /* The width the user dragged its right edge to (Sidebar sets --sidebar-width). */
+  width: var(--sidebar-width, var(--size-sidebar-width));
+  /* In a narrow window the note list shrinks to its minimum first and the
+     editor keeps its two panes; only then does the sidebar give way. */
+  max-width: calc(100% - var(--size-list-min-width) - var(--size-pane-min-width) * 2);
+  min-width: var(--size-sidebar-min-width);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -1147,19 +1153,21 @@ button {
   font-size: var(--font-size-footnote);
 }
 
-/* The right edge: drag it to make the list wider or narrower. */
-.list-resize {
+/* The right edge: drag it to make the pane wider or narrower. */
+.list-resize,
+.sidebar-resize {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
   z-index: 1;
-  width: var(--size-list-resize-handle);
+  width: var(--size-pane-resize-handle);
   cursor: col-resize;
 }
 
 /* The keyboard is on the edge: arrow keys resize, Enter resets. */
-.list-resize:focus-visible {
+.list-resize:focus-visible,
+.sidebar-resize:focus-visible {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--size-focus-ring));
 }
@@ -1590,7 +1598,7 @@ button {
 }
 
 .sidebar > * {
-  min-width: calc(var(--size-sidebar-width) - var(--space-5) * 2 - 1px);
+  min-width: calc(var(--sidebar-width, var(--size-sidebar-width)) - var(--space-5) * 2 - 1px);
 }
 
 .list > * {
@@ -1598,7 +1606,8 @@ button {
 }
 
 /* The resize edge stays a thin strip. */
-.list > .list-resize {
+.list > .list-resize,
+.sidebar-resize {
   min-width: 0;
 }
 

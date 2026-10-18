@@ -188,6 +188,7 @@ export const en = {
   'noteList.empty.searchTip': 'Try other words, or search all notes.',
   'noteList.empty.templatesTip': 'Create one with the New Template button.',
   'noteList.resize': 'Resize Note List',
+  'sidebar.resize': 'Resize Sidebar',
   'note.createTag': 'Create \u201c{name}\u201d',
   'note.tagSuggestions': 'Tag suggestions',
   'note.searchBooks': 'Search notebooks\u2026',

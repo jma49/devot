@@ -756,7 +756,24 @@
       "$value": {
         "value": 200,
         "unit": "px"
-      }
+      },
+      "$description": "The sidebar's width until the user drags its right edge."
+    },
+    "sidebar-min-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 170,
+        "unit": "px"
+      },
+      "$description": "The narrowest the sidebar is dragged or clamped to when the window is narrow."
+    },
+    "sidebar-max-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 500,
+        "unit": "px"
+      },
+      "$description": "The widest the sidebar is dragged to."
     },
     "list-width": {
       "$type": "dimension",
@@ -789,13 +806,13 @@
       },
       "$description": "The widest the note list is dragged to."
     },
-    "list-resize-handle": {
+    "pane-resize-handle": {
       "$type": "dimension",
       "$value": {
         "value": 4,
         "unit": "px"
       },
-      "$description": "The strip on the note list's right edge that resizes it."
+      "$description": "The strip on a resizable pane's right edge (sidebar, note list) that resizes it."
     },
     "list-focus-bar": {
       "$type": "dimension",

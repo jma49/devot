@@ -28,6 +28,8 @@ import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
 import { copyText } from './noteMenu'
 import { TAG_MENU, colorOfAction, tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
+import { usePaneResize } from './paneResize'
+import { SIDEBAR_PANE } from './paneWidth'
 import { MoveBookDialog } from './MoveBookDialog'
 import { SidebarFooter } from './SidebarFooter'
 import { setDragCard } from './listDrag'
@@ -305,6 +307,7 @@ export function stepSidebarRow(by: 1 | -1): void {
 
 export const Sidebar = memo(function Sidebar(props: Props) {
   useKeymap()
+  const { width: sidebarWidth, edge: resizeEdge } = usePaneResize(SIDEBAR_PANE)
   const { tree, counts, selection, renaming } = props
   // Status and Tags fold, and so do notebooks; the choice is a view preference kept per window.
   const sections = useMemo(() => props.sectionStore ?? currentSectionStore(), [props.sectionStore])
@@ -951,6 +954,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       className="sidebar"
       data-devot-part="sidebar"
       aria-label={t('sidebar.label')}
+      style={{ '--sidebar-width': `${sidebarWidth}px` } as CSSProperties}
       onKeyDown={onRowsKey}
     >
       {/* The traffic lights sit here; the bar drags the window. */}
@@ -1168,6 +1172,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           onCancel={() => setTagSettings(undefined)}
         />
       ) : null}
+      <div className="sidebar-resize" aria-label={t('sidebar.resize')} {...resizeEdge} />
     </nav>
   )
 })
