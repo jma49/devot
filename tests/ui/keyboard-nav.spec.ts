@@ -372,8 +372,9 @@ test('the arrow keys move through the sidebar, and the selection follows', async
   await expect(source(page, 'idea')).toBeVisible()
   await pickNoteMore(page, 'Pin to Top')
 
-  // One tab stop: the row of the view shown.
-  const stops = sidebar(page).locator('[tabindex="0"]')
+  // One tab stop among the rows (the view shown); the resize edge is a stop of
+  // its own, for resizing from the keyboard.
+  const stops = sidebar(page).locator('[tabindex="0"]:not(.sidebar-resize)')
   await expect(stops).toHaveCount(1)
   await source(page, 'All Notes').click()
   await expect(stops).toHaveText(/^All Notes/)

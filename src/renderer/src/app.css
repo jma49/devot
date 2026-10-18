@@ -1686,8 +1686,20 @@ button {
   overflow: clip;
 }
 
+/* The content keeps the width of the open sidebar while it slides shut, but
+   never more than the sidebar can have in this window (its max-width above,
+   floored at its minimum): a wider one would spill under the note list. */
 .sidebar > * {
-  min-width: calc(var(--sidebar-width, var(--size-sidebar-width)) - var(--space-5) * 2 - 1px);
+  min-width: calc(
+    max(
+        var(--size-sidebar-min-width),
+        min(
+          var(--sidebar-width, var(--size-sidebar-width)),
+          100vw - var(--size-list-min-width) - var(--size-pane-min-width) * 2
+        )
+      ) -
+      var(--space-5) * 2 - 1px
+  );
 }
 
 .list > * {
