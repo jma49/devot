@@ -28,6 +28,7 @@ import {
   EDITOR_MENU,
   editorMenu,
   editorMenuTarget,
+  lookUpPoint,
   replaceWord,
   spellingWordAt,
   type WordRange,
@@ -730,7 +731,7 @@ export function NoteEditor({
   const openFailed = useRef(onOpenFailed)
   const chooseTemplateRef = useRef(onChooseTemplate)
   const noteOpener = useRef(onOpenNote)
-  /** Where the editor's menu was opened (Look Up shows its answer there). */
+  /** Where the editor's menu was opened (Look Up's point when the selection is out of view). */
   const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
   const pickMenuAction = useCallback((action: EditorAction, target: EditorMenuTarget) => {
     const view = open.current?.view
@@ -745,7 +746,9 @@ export function NoteEditor({
         return
       }
       case 'lookUp':
-        if (target.selection !== null) void lookUp(target.selection, menuAt.current)
+        // From the selection's first character, so the highlight covers the word.
+        if (target.selection !== null)
+          void lookUp(target.selection, lookUpPoint(view) ?? menuAt.current)
         return
       case 'newNote':
         view.state.facet(newFromSelection)?.()

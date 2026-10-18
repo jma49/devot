@@ -32,6 +32,21 @@ export function lookUpLabel(text: string): string {
   return format(t('editorMenu.lookUp'), { text: shown })
 }
 
+/** How many characters of white space a selection starts with (Look Up trims them off). */
+export function leadingSpace(selected: string): number {
+  return selected.length - selected.trimStart().length
+}
+
+/**
+ * The point Look Up takes for a selection: the left edge of its first
+ * character at the baseline (`bottom` of that character's box less the
+ * font's descent). The dictionary draws its highlight of the word from that
+ * point, and opens its popover under it.
+ */
+export function lookUpOrigin(start: { left: number; bottom: number }, descent: number): MenuPoint {
+  return { x: start.left, y: start.bottom - Math.max(0, descent) }
+}
+
 /** Shows the system dictionary for `text` at a point in the window; a failure is logged by code. */
 export function lookUp(selection: string, at: MenuPoint): Promise<void> {
   // The dictionary takes a word or a phrase; a point above or left of the
