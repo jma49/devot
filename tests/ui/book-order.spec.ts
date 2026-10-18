@@ -7,7 +7,7 @@ import { expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtur
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })
-/** A notebook's own row (its treeitem also contains its sub-notebooks). */
+/** A notebook's own row (its treeitem holds only the row; sub-notebooks sit beside it). */
 const row = (page: Page, name: string) => book(page, name).locator('> .book-row')
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const nameField = (page: Page) => page.getByRole('textbox', { name: 'Notebook name' })

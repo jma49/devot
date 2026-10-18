@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   bookDeleteDetail,
   fileSize,
+  listCaption,
   noteCount,
   noteDate,
   relativeTime,
@@ -116,5 +117,12 @@ describe('taskCount', () => {
   it('says how many tasks are done of how many, with the plural of the total', () => {
     expect(taskCount(1, 2, 'en')).toBe('1 of 2 tasks')
     expect(taskCount(0, 1, 'en')).toBe('0 of 1 task')
+  })
+})
+
+describe('listCaption', () => {
+  it('counts the notes, naming the scope of a scoped view', () => {
+    expect(listCaption(3, undefined, 'en')).toBe('3 notes')
+    expect(listCaption(1, 'In Work', 'en')).toBe('In Work \u00b7 1 note')
   })
 })

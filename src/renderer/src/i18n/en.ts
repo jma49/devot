@@ -228,6 +228,8 @@ export const en = {
   'embed.from': 'Embedded content from {origin}',
   'embed.load': 'Load',
   'embed.videoTitle': 'Embedded video',
+  'mermaid.label': 'Diagram',
+  'mermaid.labelNamed': 'Diagram: {name}',
   'mermaid.error': 'This diagram has an error and cannot be drawn.',
   'mermaid.unavailable':
     'This diagram could not be drawn. It is tried again when the note changes.',

@@ -7,10 +7,12 @@
 // inline style is ever parsed. Scripts, event handlers, foreign objects and
 // external links are dropped.
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
-import { t } from '../i18n'
+import { format as fill, t } from '../i18n'
 import type { IslandContent, IslandContext, PreviewIsland } from './islands'
 import {
+  diagramName,
   isFrameMessage,
+  labelDiagram,
   MAX_SOURCE_LENGTH,
   READY,
   targetOrigin,
@@ -202,6 +204,12 @@ function logFailure(reason: FailureReason | 'timeout' | 'svg'): void {
   if (reason !== 'parse') console.warn('W_MERMAID_FAILED', reason)
 }
 
+/** What a screen reader says for a drawing: "Diagram", with the diagram's own name if it has one. */
+function diagramLabel(source: string): string {
+  const name = diagramName(source)
+  return name ? fill(t('mermaid.labelNamed'), { name }) : t('mermaid.label')
+}
+
 async function render(source: string, { appearance }: IslandContext): Promise<IslandContent> {
   if (source.length > MAX_SOURCE_LENGTH) return errorContent('parse')
   const answer = await renderInFrame(source, appearance)
@@ -211,7 +219,7 @@ async function render(source: string, { appearance }: IslandContext): Promise<Is
   }
   try {
     const { svg, css } = importSvg(answer.svg)
-    svg.setAttribute('role', 'img')
+    labelDiagram(svg, diagramLabel(source))
     return { node: svg, dispose: adopt(css) }
   } catch {
     logFailure('svg')
@@ -233,7 +241,7 @@ export async function mermaidMarkup(source: string): Promise<string | null> {
   }
   try {
     const { svg, css } = importSvg(answer.svg)
-    svg.setAttribute('role', 'img')
+    labelDiagram(svg, diagramLabel(source))
     if (css) {
       const style = document.createElementNS(SVG_NS, 'style')
       style.textContent = css

@@ -297,6 +297,14 @@ describe('embeds', () => {
     })
   })
 
+  it('names a loaded embed by its video provider or its origin', async () => {
+    const src = 'https://example.com/widget'
+    const other = await render(`<iframe src="${src}"></iframe>`, { loadedEmbeds: [src] })
+    expect(frame(other)?.properties['title']).toBe('Embedded content from example.com')
+    const video = await render('<iframe src="https://player.vimeo.com/video/1"></iframe>')
+    expect(frame(video)?.properties['title']).toBe('Embedded video')
+  })
+
   it('shows a click-to-load placeholder for unknown origins', async () => {
     const tree = await render('<iframe src="https://example.com/widget"></iframe>')
     expect(tags(tree, 'iframe')).toHaveLength(0)

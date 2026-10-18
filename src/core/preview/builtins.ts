@@ -412,8 +412,13 @@ const iframes: PreviewRenderer = {
       const url = parseHttps(node.properties['src'])
       if (!url) return null
       const src = videoEmbedUrl(url.href) ?? url.href
-      if (DIRECT_HOSTS.has(new URL(src).hostname) || loadedEmbeds.includes(src)) {
-        return safeFrame(src, labels.videoTitle)
+      const host = new URL(src).hostname
+      if (DIRECT_HOSTS.has(host) || loadedEmbeds.includes(src)) {
+        // A video player is a video; any other page is named by its host.
+        const title = DIRECT_HOSTS.has(host)
+          ? labels.videoTitle
+          : fillPlaceholders(labels.embedFrom, { origin: host })
+        return safeFrame(src, title)
       }
       return el('div', { className: ['embed-placeholder'], dataEmbedSrc: src }, [
         el('span', { className: ['embed-placeholder-text'] }, [

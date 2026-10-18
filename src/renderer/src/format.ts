@@ -93,6 +93,12 @@ export function stampDate(at: number): string {
 export const noteCount = (count: number, locale: string) =>
   countOf(count, locale, 'noteList.countOne', 'noteList.countOther')
 
+/** The list's count line: "12 notes", or "<scope> \u00b7 12 notes" for a scoped view. */
+export function listCaption(count: number, scope: string | undefined, locale: string): string {
+  const notes = noteCount(count, locale)
+  return scope ? format(t('noteList.scopedCount'), { scope, notes }) : notes
+}
+
 /**
  * What deleting a notebook takes and leaves, for the question that asks first:
  * its `subs` sub-notebooks go with it; the `notes` in it and them stay, in

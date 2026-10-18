@@ -13,8 +13,8 @@ import {
   type Ref,
 } from 'react'
 import type { NoteSummary, TagRecord } from '../../core'
-import { noteCount } from './format'
-import { currentLocale, format, t } from './i18n'
+import { listCaption } from './format'
+import { currentLocale, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
 import { commandMatches, heldCommandKey } from './commands/registry'
@@ -157,6 +157,9 @@ function spacer(key: string, height: number) {
  * It renders again only when its props change (its owner keeps them the
  * same while nothing it shows changes), and then only the rows that changed.
  */
+/** How long the count rests before a screen reader is told. */
+const STATUS_DELAY_MS = 500
+
 export const NoteList = memo(function NoteList(props: Props) {
   const { title, scope, pinned, selected, onSelect, onCreate, tags, sortButtonRef } = props
   // Keyboard order: the pinned section, then the rest.
@@ -677,12 +680,13 @@ export const NoteList = memo(function NoteList(props: Props) {
     )
   }
 
-  const caption = scope
-    ? format(t('noteList.scopedCount'), {
-        scope,
-        notes: noteCount(notes.length, currentLocale()),
-      })
-    : noteCount(notes.length, currentLocale())
+  const caption = listCaption(notes.length, scope, currentLocale())
+  // The count is spoken once it has settled, not for every keystroke of a search.
+  const [spoken, setSpoken] = useState(caption)
+  useEffect(() => {
+    const timer = setTimeout(() => setSpoken(caption), STATUS_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [caption])
 
   return (
     <section
@@ -709,8 +713,16 @@ export const NoteList = memo(function NoteList(props: Props) {
               {title}
             </span>
           </span>
-          <span className="caption" title={scope ? caption : undefined} data-tauri-drag-region>
+          <span
+            className="caption"
+            aria-hidden="true"
+            title={scope ? caption : undefined}
+            data-tauri-drag-region
+          >
             {caption}
+          </span>
+          <span role="status" className="visually-hidden">
+            {spoken}
           </span>
         </div>
         <div className="list-header-side list-header-end" data-tauri-drag-region>

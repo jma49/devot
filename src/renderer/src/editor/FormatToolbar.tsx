@@ -38,6 +38,7 @@ import { TOOLBAR_GROUPS, toolbarTip } from './toolbarButtons'
 import { anchorRect, notchOffset } from './toolbarPlacement'
 import {
   hideToolbar,
+  releaseBarFocus,
   toolbarOff,
   toolbarState,
   toolbarStateExtension,
@@ -61,11 +62,21 @@ function headingFromToolbar(view: EditorView) {
 }
 
 function press(view: EditorView, id: ToolbarFormat, button: HTMLElement, props: ToolbarProps) {
-  if (id === 'alert') void props.showAlertMenu(view, button)
-  else if (id === 'heading') headingFromToolbar(view)
-  // A link already selected is removed; otherwise the dialog asks for its address.
-  else if (id === 'link' && !selectionHasLink(view.state)) openLinkDialog(view)
+  // Focus goes back to the editor: a screen reader's press focused the button.
+  if (id === 'alert') {
+    const bar = button.closest('.cm-float-bar')
+    void props.showAlertMenu(view, button).finally(() => {
+      // Only if focus is not elsewhere now (the user may have gone to another field).
+      const active = document.activeElement
+      const free = !active || active === document.body || !!bar?.contains(active)
+      if (view.dom.isConnected && free) view.focus()
+    })
+  } else if (id === 'heading') headingFromToolbar(view)
+  // A link already selected is removed; otherwise the dialog asks for its address
+  // (and gives focus back to the editor when it closes).
+  else if (id === 'link' && !selectionHasLink(view.state)) return openLinkDialog(view)
   else formatCommand(id)(view)
+  if (id !== 'alert') view.focus()
 }
 
 function FormatToolbar(props: ToolbarProps) {
@@ -175,7 +186,10 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
     offset: { x: -NOTCH_X, y: BAR_GAP },
     resize: false,
     // Unmount outside CodeMirror's (and possibly React's) update.
-    destroy: () => queueMicrotask(() => root.unmount()),
+    destroy: () => {
+      releaseBarFocus(view, dom)
+      queueMicrotask(() => root.unmount())
+    },
   }
 }
 

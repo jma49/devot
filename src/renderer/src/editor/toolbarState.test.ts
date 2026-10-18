@@ -4,6 +4,7 @@ import { toggleInline } from './formats'
 import { noteMarkdown } from './markdown'
 import {
   hideToolbar,
+  leavesEditor,
   releaseToolbar,
   setToolbarFocus,
   toolbarState,
@@ -91,5 +92,19 @@ describe('toolbar visibility', () => {
     s = step(s, { changes: { from: 0, insert: 'x' }, userEvent: 'input.type' })
     s = step(s, { changes: { from: 0, insert: 'remote ' } })
     expect(toolbarVisible(s)).toBe(false)
+  })
+})
+
+describe('leavesEditor', () => {
+  const inside = { closest: (selector: string) => (selector === '.cm-float-bar' ? {} : null) }
+  const outside = { closest: () => null }
+
+  it('keeps focus in the editor when it moves to a button of a floating bar', () => {
+    expect(leavesEditor(inside)).toBe(false)
+  })
+
+  it('leaves the editor for any other element, or for nothing', () => {
+    expect(leavesEditor(outside)).toBe(true)
+    expect(leavesEditor(null)).toBe(true)
   })
 })

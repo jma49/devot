@@ -547,3 +547,17 @@ test('a toolbar button tooltip waits, then shows above its button', async ({ pag
   if (!b || !t) throw new Error('missing boxes')
   expect(t.y + t.height).toBeLessThanOrEqual(b.y - 11)
 })
+
+test('a toolbar button focused by a screen reader keeps the editor open and gets focus back', async ({
+  page,
+}) => {
+  await newNote(page, manyLines)
+  await page.keyboard.press('ControlOrMeta+Home')
+  await selectWord(page, 12, 'note')
+  // VoiceOver focuses a button before it presses it.
+  await button(page, 'Bold').focus()
+  await expect(toolbar(page)).toBeVisible()
+  await page.keyboard.press('Space')
+  await expect(page.locator('.cm-content')).toBeFocused()
+  expect((await lines(page))[11]).toContain('**note**')
+})

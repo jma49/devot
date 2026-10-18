@@ -79,9 +79,9 @@ test('the sidebar shows the window material; list and editor are opaque', async 
 
 test('counts notes in the sidebar and the list header', async ({ page }) => {
   await freshStart(page)
-  await expect(page.getByText('0 notes')).toBeVisible()
+  await expect(page.locator('.list .caption').getByText('0 notes')).toBeVisible()
   await createNote(page, 'First')
-  await expect(page.getByText('1 note', { exact: true })).toBeVisible()
+  await expect(page.locator('.list .caption').getByText('1 note', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /All Notes/ })).toContainText('1')
 })
 

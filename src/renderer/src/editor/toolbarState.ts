@@ -9,7 +9,7 @@ import {
   type EditorState,
   type Transaction,
 } from '@codemirror/state'
-import { EditorView } from '@codemirror/view'
+import { EditorView, ViewPlugin } from '@codemirror/view'
 import { FORMAT_EVENT } from './formats'
 
 /** Hides the toolbar until the user selects again. */
@@ -55,11 +55,55 @@ export function toolbarVisible(state: EditorState): boolean {
   return !!value && value.focused && !value.hidden && !state.selection.main.empty
 }
 
+/**
+ * Whether focus moving to `target` takes it out of the editor and its floating
+ * bars. A bar's button holds focus when a screen reader presses it (the
+ * pointer never focuses one); that still counts as the editor's focus, or the
+ * bar would close under the button.
+ */
+export function leavesEditor(target: { closest(selector: string): unknown } | null): boolean {
+  return !target?.closest('.cm-float-bar')
+}
+
+/**
+ * Focus leaving the editor and its bars ends the editor's focus. One listener
+ * on the editor's box sees the content and every bar button blur.
+ */
+const focusOut = ViewPlugin.define((view) => {
+  const onOut = (event: FocusEvent) => {
+    const to = event.relatedTarget
+    if (to instanceof Node && view.dom.contains(to)) return
+    if (!leavesEditor(to instanceof Element ? to : null)) return
+    view.dispatch({ effects: setToolbarFocus.of(false) })
+  }
+  view.dom.addEventListener('focusout', onOut)
+  return { destroy: () => view.dom.removeEventListener('focusout', onOut) }
+})
+
 /** The field plus the focus tracking it needs from the view. */
 export const toolbarStateExtension = [
   toolbarState,
-  EditorView.focusChangeEffect.of((_state, focusing) => setToolbarFocus.of(focusing)),
+  // Gaining focus is noted here; losing it below, where the new target is known.
+  EditorView.focusChangeEffect.of((_state, focusing) =>
+    focusing ? setToolbarFocus.of(true) : null,
+  ),
+  focusOut,
 ]
+
+/**
+ * Call when a bar goes away: a button of it that still has focus (a screen
+ * reader pressed it) would leave focus on nothing, so it returns to the editor.
+ */
+export function releaseBarFocus(view: EditorView, bar: HTMLElement): void {
+  const held = bar.contains(bar.ownerDocument.activeElement)
+  queueMicrotask(() => {
+    if (!view.dom.isConnected) return
+    if (held) view.focus()
+    else if (!view.hasFocus && editorFocused(view.state)) {
+      view.dispatch({ effects: setToolbarFocus.of(false) })
+    }
+  })
+}
 
 /** Whether the editor has focus, as the floating bars know it. */
 export function editorFocused(state: EditorState): boolean {
