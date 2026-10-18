@@ -185,10 +185,15 @@ export function withoutInstructions(text: string): string {
   return out.join('\n')
 }
 
-/** What a note made from `template` at `clock` gets (see the rules at the top). */
+/**
+ * What a note made from `template` at `clock` gets (see the rules at the top).
+ * `existingTitle` is the title of a note that already has one (a template applied
+ * to it): `{{title}}` in the body names that note.
+ */
 export function draftFromTemplate(
   template: { title: string; body: string },
   clock: TemplateClock,
+  existingTitle = '',
 ): TemplateDraft {
   // As import does: a `\r` in a body would put later edits in the wrong place.
   const source = lineFeeds(template.body)
@@ -198,7 +203,10 @@ export function draftFromTemplate(
   const title = noteTitle(
     expandTemplate(own !== null && own.trim() !== '' ? own : template.title, made),
   )
-  const body = expandTemplate(withoutInstructions(source), { ...made, title })
+  const body = expandTemplate(withoutInstructions(source), {
+    ...made,
+    title: existingTitle !== '' ? existingTitle : title,
+  })
   const meta = readFrontMatter(body)
   return {
     title,
@@ -316,7 +324,12 @@ export function createTemplateService(options: TemplateServiceOptions): Template
   }
 
   /** What a note made from template `id` gets, and the notebook it goes to. */
-  const draft = async (id: string, at: TemplateClock, fallback: string | null = null) => {
+  const draft = async (
+    id: string,
+    at: TemplateClock,
+    fallback: string | null = null,
+    existingTitle = '',
+  ) => {
     const starter = starterTemplate(id)
     const template = starter
       ? { title: starter.title, bodyMd: starter.body, bookId: TEMPLATES_BOOK_ID }
@@ -326,7 +339,11 @@ export function createTemplateService(options: TemplateServiceOptions): Template
           throw error
         })
     if (template?.bookId !== TEMPLATES_BOOK_ID) throw new Error('E_TEMPLATE_NOT_FOUND')
-    const made = draftFromTemplate({ title: template.title, body: template.bodyMd }, at)
+    const made = draftFromTemplate(
+      { title: template.title, body: template.bodyMd },
+      at,
+      existingTitle,
+    )
     const live = await books.list()
     const bookId =
       resolveNotebook(made.notebook, live) ??
@@ -371,18 +388,16 @@ export function createTemplateService(options: TemplateServiceOptions): Template
     },
 
     async applyTo(id, noteId, at) {
-      const made = await draft(id, at)
       const note = await notes.read(noteId)
+      const made = await draft(id, at, null, note.title)
       // Pending edits written, so the status read is the note's current one.
       await notes.flush()
       const status = (await storage.listNotes()).find((n) => n.id === noteId)?.status ?? 'none'
-      if (note.title === '' && made.title !== '') await notes.setTitle(noteId, made.title)
       // The note gets its own copies of the template's images, as a new note does.
       const copies = newFileCopies(made.body, newId)
       if (copies.length > 0) await storage.copyFiles(noteId, copies)
-      const body = replaceFileLinks(made.body, copies)
-      const own = note.bodyMd.trimEnd()
-      await notes.setBody(noteId, own === '' ? body : `${own}\n\n${body}`)
+      // One step on the live note: what was typed meanwhile stays.
+      await notes.fill(noteId, { title: made.title, markdown: replaceFileLinks(made.body, copies) })
       if (made.status !== null && made.status !== 'none' && status === 'none') {
         await notes.setStatus(noteId, made.status)
       }
