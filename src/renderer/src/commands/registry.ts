@@ -380,6 +380,14 @@ export const COMMANDS = [
     palette: false,
   },
   {
+    id: 'notebook.changeIcon',
+    label: 'bookMenu.changeIcon',
+    group: 'notebook',
+    scope: 'notebookRow',
+    keys: [],
+    palette: false,
+  },
+  {
     id: 'notebook.moveUp',
     label: 'bookMenu.moveUp',
     group: 'notebook',
@@ -1413,7 +1421,11 @@ export function editorCommandKeys(id: CommandId): string[] {
 const FORMAT_PREFIX = 'format.'
 
 /** The editor's format commands: their ID, the format each applies and their keys. */
-function formatCommands(): { id: CommandId; format: FormatId; keys: readonly string[] }[] {
+function formatCommands(): {
+  id: CommandId
+  format: FormatId
+  keys: readonly string[]
+}[] {
   return COMMANDS.flatMap((c) =>
     c.scope === 'editor' && c.id.startsWith(FORMAT_PREFIX)
       ? [

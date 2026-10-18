@@ -208,6 +208,94 @@ describe('Allow AI Access', () => {
   })
 })
 
+describe('notebook icons', () => {
+  const iconOf = async (books: BookService, id: string) => {
+    const book = (await books.list()).find((b) => b.id === id)!
+    return { icon: book.icon, iconColor: book.iconColor }
+  }
+
+  it('has none for a new notebook; sets an icon with a colour and reverts both', async () => {
+    const { books } = setup()
+    const id = await books.create('Work', null)
+    expect(await iconOf(books, id)).toEqual({ icon: null, iconColor: null })
+    await books.setIcon(id, 'leaf', 'green')
+    expect(await iconOf(books, id)).toEqual({ icon: 'leaf', iconColor: 'green' })
+    await books.setIcon(id, 'star', null)
+    expect(await iconOf(books, id)).toEqual({ icon: 'star', iconColor: null })
+    await books.setIcon(id, null, null)
+    expect(await iconOf(books, id)).toEqual({ icon: null, iconColor: null })
+    expect((await books.list())[0]?.iconHlc).not.toBe('')
+  })
+
+  it('refuses a symbol outside the catalog, an unknown colour or a colour alone', async () => {
+    const { books } = setup()
+    const id = await books.create('Work', null)
+    await expect(books.setIcon(id, 'iphone', null)).rejects.toThrow('E_BOOK_ICON_INVALID')
+    await expect(books.setIcon(id, 'leaf', 'teal' as never)).rejects.toThrow('E_BOOK_ICON_INVALID')
+    await expect(books.setIcon(id, null, 'red')).rejects.toThrow('E_BOOK_ICON_INVALID')
+    await expect(books.setIcon('missing', 'leaf', null)).rejects.toThrow('E_BOOK_NOT_FOUND')
+    expect(await iconOf(books, id)).toEqual({ icon: null, iconColor: null })
+  })
+
+  it('merges icon and colour together by HLC: a stale copy never brings the old ones back', async () => {
+    const { storage, books } = setup()
+    const id = await books.create('Work', null)
+    await books.setIcon(id, 'leaf', 'green')
+    const [stale] = await books.list()
+    await books.setIcon(id, 'star', null)
+    // A stale copy with a newer name but the older icon and colour.
+    await storage.putBook({ ...stale!, name: 'Job', nameHlc: '9999999999999999-0000-zz' })
+    const merged = (await books.list())[0]!
+    expect(merged.name).toBe('Job')
+    expect({ icon: merged.icon, iconColor: merged.iconColor }).toEqual({
+      icon: 'star',
+      iconColor: null,
+    })
+    // Renaming and moving keep the icon.
+    await books.rename(id, 'Office')
+    expect(await iconOf(books, id)).toEqual({ icon: 'star', iconColor: null })
+  })
+
+  it('reads a name or colour this version does not know as unset', async () => {
+    const { storage, books } = setup()
+    const id = await books.create('Work', null)
+    const [book] = await books.list()
+    await storage.putBook({
+      ...book!,
+      icon: 'some.future.symbol',
+      iconColor: 'teal' as never,
+      iconHlc: '9999999999999999-0000-zz',
+    })
+    expect(await iconOf(books, id)).toEqual({ icon: null, iconColor: null })
+  })
+
+  it('shows on the tree nodes, unknown values as unset', () => {
+    const at = '0001728000000000-0000-node'
+    const base = {
+      nameHlc: at,
+      parentId: null,
+      parentHlc: at,
+      createdAt: 1,
+      updatedAt: 1,
+      deletedAt: null,
+      deletedHlc: null,
+      aiAccess: false,
+      aiAccessHlc: '',
+      sortKey: 'a0',
+      sortKeyHlc: at,
+      iconHlc: at,
+    }
+    const tree = buildBookTree([
+      { ...base, id: 'a', name: 'A', icon: 'leaf', iconColor: 'green' },
+      { ...base, id: 'b', name: 'B', icon: 'iphone', iconColor: 'teal' as never },
+    ])
+    expect(tree.map((n) => [n.icon, n.iconColor])).toEqual([
+      ['leaf', 'green'],
+      [null, null],
+    ])
+  })
+})
+
 describe('tree building is safe against bad data from sync', () => {
   const book = (id: string, parentId: string | null, name = id): BookRecord => ({
     id,
@@ -221,6 +309,9 @@ describe('tree building is safe against bad data from sync', () => {
     deletedHlc: null,
     aiAccess: false,
     aiAccessHlc: '',
+    icon: null,
+    iconColor: null,
+    iconHlc: '',
     sortKey: 'a0',
     sortKeyHlc: '',
   })

@@ -2448,6 +2448,10 @@ export function App() {
   const sidebarSetAiAccess = useStable(
     (id: string, on: boolean) => void changeBooks((c) => c.setBookAiAccess(id, on)),
   )
+  const sidebarSetBookIcon = useStable(
+    (id: string, icon: string | null, color: TagColor | null) =>
+      void changeBooks((c) => c.setBookIcon(id, icon, color)),
+  )
   // Deleting a notebook asks first: it takes its sub-notebooks with it, and
   // nothing brings them back.
   const sidebarDeleteBook = useStable((id: string) => {
@@ -2531,6 +2535,7 @@ export function App() {
         onMoveBook={sidebarMoveBook}
         onPlaceBook={sidebarPlaceBook}
         onSetAiAccess={sidebarSetAiAccess}
+        onSetBookIcon={sidebarSetBookIcon}
         onDeleteBook={sidebarDeleteBook}
         onExportBook={sidebarExportBook}
         onImportBook={sidebarImportBook}

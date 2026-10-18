@@ -1,5 +1,5 @@
 use super::notes::{valid_hlc, valid_note_id};
-use crate::storage::{BookRecord, Db};
+use crate::storage::{BookRecord, Db, TAG_COLORS, notebook_symbol};
 use tauri::State;
 
 const MAX_NAME_CHARS: usize = 200;
@@ -50,8 +50,20 @@ fn validate(book: &BookRecord) -> Result<(), &'static str> {
         || !(book.ai_access_hlc.is_empty() || valid_hlc(&book.ai_access_hlc))
         || (book.ai_access && book.ai_access_hlc.is_empty())
         || !(book.sort_key_hlc.is_empty() || valid_hlc(&book.sort_key_hlc))
+        || !(book.icon_hlc.is_empty() || valid_hlc(&book.icon_hlc))
+        || ((book.icon.is_some() || book.icon_color.is_some()) && book.icon_hlc.is_empty())
     {
         return Err("E_BOOK_HLC_INVALID");
+    }
+    // Only catalog symbols (none depicts an Apple product) and palette IDs,
+    // whichever device or process wrote them.
+    if !book.icon.as_deref().is_none_or(notebook_symbol)
+        || !book
+            .icon_color
+            .as_deref()
+            .is_none_or(|c| TAG_COLORS.contains(&c))
+    {
+        return Err("E_BOOK_ICON_INVALID");
     }
     // Empty: a notebook from before sort keys that was never placed.
     if !(book.sort_key.is_empty() || valid_sort_key(&book.sort_key)) {
@@ -103,6 +115,9 @@ mod tests {
             ai_access_hlc: String::new(),
             sort_key: "a0V".into(),
             sort_key_hlc: HLC.into(),
+            icon: None,
+            icon_color: None,
+            icon_hlc: String::new(),
         }
     }
 
@@ -124,6 +139,37 @@ mod tests {
         let mut longest = book();
         longest.sort_key = format!("a0{}", "V".repeat(1022));
         assert_eq!(validate(&longest), Ok(()));
+        let mut iconed = book();
+        iconed.icon = Some("leaf".into());
+        iconed.icon_color = Some("green".into());
+        iconed.icon_hlc = HLC.into();
+        assert_eq!(validate(&iconed), Ok(()));
+        // Reverted: no icon, no colour, the clock of the revert.
+        iconed.icon = None;
+        iconed.icon_color = None;
+        assert_eq!(validate(&iconed), Ok(()));
+    }
+
+    /// Every catalog symbol is accepted, and the catalog parses.
+    #[test]
+    fn accepts_every_catalog_symbol() {
+        let catalog: serde_json::Value =
+            serde_json::from_str(include_str!("../../../design/icons/notebook-symbols.json"))
+                .unwrap();
+        let names = catalog["symbols"].as_object().unwrap();
+        assert!(names.len() > 100);
+        for name in names.keys() {
+            let mut iconed = book();
+            iconed.icon = Some(name.clone());
+            iconed.icon_hlc = HLC.into();
+            assert_eq!(validate(&iconed), Ok(()), "{name}");
+        }
+        for color in TAG_COLORS {
+            let mut tinted = book();
+            tinted.icon_color = Some(color.into());
+            tinted.icon_hlc = HLC.into();
+            assert_eq!(validate(&tinted), Ok(()), "{color}");
+        }
     }
 
     /// tests/support/names.json, as for tags (commands/tags.rs).
@@ -153,7 +199,7 @@ mod tests {
     #[test]
     fn rejects_bad_fields() {
         type Case = (fn(&mut BookRecord), &'static str);
-        let cases: [Case; 18] = [
+        let cases: [Case; 24] = [
             (|b| b.id = "nope".into(), "E_BOOK_ID_INVALID"),
             (|b| b.name = String::new(), "E_BOOK_NAME_INVALID"),
             (|b| b.name = " padded ".into(), "E_BOOK_NAME_INVALID"),
@@ -171,6 +217,32 @@ mod tests {
             // Switched on without a clock to order the change by.
             (|b| b.ai_access = true, "E_BOOK_HLC_INVALID"),
             (|b| b.sort_key_hlc = "x".repeat(65), "E_BOOK_HLC_INVALID"),
+            (|b| b.icon_hlc = "x".repeat(65), "E_BOOK_HLC_INVALID"),
+            // An icon or colour without a clock to order the change by.
+            (|b| b.icon = Some("leaf".into()), "E_BOOK_HLC_INVALID"),
+            (|b| b.icon_color = Some("red".into()), "E_BOOK_HLC_INVALID"),
+            (
+                |b| {
+                    b.icon = Some("iphone".into());
+                    b.icon_hlc = HLC.into();
+                },
+                "E_BOOK_ICON_INVALID",
+            ),
+            (
+                |b| {
+                    b.icon = Some("leaf".into());
+                    b.icon_color = Some("#ff0000".into());
+                    b.icon_hlc = HLC.into();
+                },
+                "E_BOOK_ICON_INVALID",
+            ),
+            (
+                |b| {
+                    b.icon = Some(String::new());
+                    b.icon_hlc = HLC.into();
+                },
+                "E_BOOK_ICON_INVALID",
+            ),
             (|b| b.sort_key = "a".into(), "E_BOOK_SORT_KEY_INVALID"),
             (|b| b.sort_key = "a00".into(), "E_BOOK_SORT_KEY_INVALID"),
             (|b| b.sort_key = "a0 ".into(), "E_BOOK_SORT_KEY_INVALID"),

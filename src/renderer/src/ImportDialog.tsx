@@ -164,7 +164,10 @@ function Preview(props: { scan: ImportScan; locale: string }) {
 
 /** The destinations to choose from: No Notebook, then every notebook. */
 function destinationOptions(tree: BookNode[]): BookOption[] {
-  return [{ id: NO_BOOK, name: t('note.noBook'), depth: 0, ancestors: [] }, ...bookOptions(tree)]
+  return [
+    { id: NO_BOOK, name: t('note.noBook'), depth: 0, ancestors: [], icon: null, iconColor: null },
+    ...bookOptions(tree),
+  ]
 }
 
 /**

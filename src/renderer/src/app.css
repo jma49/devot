@@ -3944,3 +3944,92 @@ button.popup:focus-visible {
   color: var(--color-text-secondary);
   font: inherit;
 }
+
+/* A notebook icon in a palette colour, wherever it shows (sidebar, pickers,
+   the palette, the icon picker's grid). A selected or drop-target row keeps
+   its own icon colour (those rules are more specific). */
+.icon.book-icon-colored,
+.popup .icon.book-icon-colored:first-child {
+  background-color: var(--tag-color);
+}
+
+/* Change Notebook Icon: search, a tab per category, a grid of symbols. */
+.sheet.notebook-icon {
+  width: calc(var(--size-list-width) * 1.75);
+  max-width: calc(100vw - var(--space-10) * 2);
+}
+
+.icon-tabs {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-4);
+  border-bottom: 1px solid var(--color-line-hairline);
+}
+
+.icon-tab,
+.icon-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.icon-tab {
+  width: var(--space-10);
+  height: var(--space-10);
+  color: var(--color-text-secondary);
+}
+
+.icon-tab:hover,
+.icon-cell:hover {
+  background: var(--color-fill-hover);
+  color: var(--color-text-primary);
+}
+
+.icon-tab[aria-selected='true'],
+.icon-cell[aria-pressed='true'] {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.icon-cell[aria-pressed='true'] .icon {
+  background-color: var(--color-accent-on-fill);
+}
+
+.icon-tab:focus-visible,
+.icon-cell:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+.icon-grid-box {
+  height: calc(var(--size-dialog-row) * 9);
+  overflow-y: auto;
+  padding: var(--space-4) 0;
+}
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--space-10), 1fr));
+  gap: var(--space-2);
+}
+
+.icon-cell {
+  aspect-ratio: 1;
+}
+
+.icon-grid-empty {
+  margin: 0;
+  padding: var(--space-9);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.icon-actions {
+  justify-content: space-between;
+}

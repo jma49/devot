@@ -7,7 +7,7 @@ import { sectionStore, type SectionStore } from './sidebarSections'
 
 // Icons and the footer read the window (symbols, the mirror and backups); the
 // sections are what these tests look at.
-vi.mock('./icons/Icon', () => ({ Icon: () => null }))
+vi.mock('./icons/Icon', () => ({ Icon: () => null, SymbolIcon: () => null }))
 vi.mock('./SidebarFooter', () => ({ SidebarFooter: () => null }))
 vi.mock('./commands/shortcutSettings', () => ({ useKeymap: () => ({}) }))
 
@@ -25,6 +25,8 @@ const book: BookNode = {
   parentId: null,
   depth: 0,
   aiAccess: false,
+  icon: null,
+  iconColor: null,
   children: [],
 }
 
@@ -57,6 +59,7 @@ function render(store: SectionStore, tree: BookNode[] = [book]) {
       onMoveBook={noop}
       onPlaceBook={noop}
       onSetAiAccess={noop}
+      onSetBookIcon={noop}
       onDeleteBook={noop}
       onExportBook={noop}
       onImportBook={noop}

@@ -10,6 +10,7 @@ export type BookCommand =
   | 'copyId'
   | 'newInside'
   | 'rename'
+  | 'changeIcon'
   | 'move'
   | 'moveUp'
   | 'moveDown'
@@ -51,6 +52,7 @@ export const BOOK_COMMANDS: Readonly<Record<BookCommand, CommandId>> = {
   copyId: 'notebook.copyId',
   newInside: 'notebook.newInside',
   rename: 'notebook.rename',
+  changeIcon: 'notebook.changeIcon',
   move: 'notebook.move',
   moveUp: 'notebook.moveUp',
   moveDown: 'notebook.moveDown',
@@ -72,6 +74,7 @@ export const BOOK_MENU: MenuGroups<BookAction, BookMenuTarget> = [
   [entry('copyId'), entry('newInside')],
   [
     entry('rename'),
+    entry('changeIcon'),
     entry('move'),
     entry('moveUp', { shown: (book) => book.previousId !== null }),
     entry('moveDown', { shown: (book) => book.nextId !== null }),

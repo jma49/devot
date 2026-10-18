@@ -28,14 +28,14 @@ describe('BOOK_MENU', () => {
   it('groups the actions; Move to Top Level only for a nested notebook', () => {
     expect(actions(top)).toEqual([
       ['copyId', 'newInside'],
-      ['rename', 'move'],
+      ['rename', 'changeIcon', 'move'],
       ['aiAccess'],
       ['import', 'export'],
       ['delete'],
     ])
     expect(actions(nested)).toEqual([
       ['copyId', 'newInside'],
-      ['rename', 'move', 'moveToTop'],
+      ['rename', 'changeIcon', 'move', 'moveToTop'],
       ['aiAccess'],
       ['import', 'export'],
       ['delete'],
@@ -45,13 +45,14 @@ describe('BOOK_MENU', () => {
   it('offers Move Up and Move Down only when there is a sibling that way', () => {
     expect(actions({ ...top, nextId: 'c' })).toEqual([
       ['copyId', 'newInside'],
-      ['rename', 'move', 'moveDown'],
+      ['rename', 'changeIcon', 'move', 'moveDown'],
       ['aiAccess'],
       ['import', 'export'],
       ['delete'],
     ])
     expect(actions({ ...nested, previousId: 'c', nextId: 'd' })[1]).toEqual([
       'rename',
+      'changeIcon',
       'move',
       'moveUp',
       'moveDown',
@@ -70,6 +71,7 @@ describe('BOOK_MENU', () => {
       'bookMenu.copyId',
       'bookMenu.newInside',
       'bookMenu.rename',
+      'bookMenu.changeIcon',
       'bookMenu.move',
       'bookMenu.moveUp',
       'bookMenu.moveDown',

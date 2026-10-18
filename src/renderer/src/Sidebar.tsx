@@ -11,7 +11,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
-import { MAX_BOOK_NAME_CHARS, type BookNode } from '../../core/books'
+import { MAX_BOOK_NAME_CHARS, flattenBookTree, type BookNode } from '../../core/books'
 import type { NoteStatus, TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS, type NoteFilter } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
@@ -46,6 +46,8 @@ import {
 } from './sourceMenu'
 import { TAG_MENU, colorOfAction, tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
 import { MoveBookDialog } from './MoveBookDialog'
+import { BookIcon } from './BookIcon'
+import { NotebookIconDialog } from './NotebookIconDialog'
 import { SidebarFooter } from './SidebarFooter'
 import { setDragCard } from './listDrag'
 import { conceal, reveal } from './reveal'
@@ -154,6 +156,8 @@ interface Props {
   onPlaceBook: (id: string, targetId: string, where: 'before' | 'after') => void
   /** Turns Allow AI Access on or off for one notebook. */
   onSetAiAccess: (id: string, on: boolean) => void
+  /** Gives a notebook a catalog icon in a colour, or (null) the default icon. */
+  onSetBookIcon: (id: string, icon: string | null, color: TagColor | null) => void
   onDeleteBook: (id: string) => void
   /** Exports a notebook with its sub-notebooks (exporter.ts). */
   onExportBook: (action: 'exportMarkdown' | 'exportHtml', id: string) => void
@@ -365,6 +369,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const sectionToggles = useRef(new Map<CollapsibleSection, HTMLButtonElement>())
   // A notebook whose Move dialog is open, and a tag whose settings are.
   const [movingBook, setMovingBook] = useState<PlacedNode>()
+  /** The notebook whose Change Notebook Icon dialog is open. */
+  const [iconBookId, setIconBookId] = useState<string>()
   const [tagSettings, setTagSettings] = useState<string>()
   const [editing, setEditing] = useState<string>()
   const [dropAt, setDropAt] = useState<DropAt>()
@@ -623,6 +629,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         return props.onCreateBook?.(node.id)
       case 'rename':
         return setEditing(node.id)
+      case 'changeIcon':
+        return setIconBookId(node.id)
       case 'moveUp':
         return node.previousId && props.onPlaceBook(node.id, node.previousId, 'before')
       case 'moveDown':
@@ -912,7 +920,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             >
               {node.children.length > 0 ? <Chevron open={isOpen} closed="right" /> : null}
             </span>
-            <Icon name="notebook" size="md" />
+            <BookIcon icon={node.icon} color={node.iconColor} size="md" />
             {editingThis ? (
               <NameField
                 name={node.name}
@@ -965,6 +973,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   }
 
   const settingsTag = props.tags.find((tag) => tag.id === tagSettings)
+  // Closed when the notebook goes (deleted on another device).
+  const iconBook =
+    iconBookId === undefined ? undefined : flattenBookTree(tree).find((n) => n.id === iconBookId)
 
   /**
    * A section's header: its name, `tools` before the chevron, and (for Status
@@ -1233,6 +1244,21 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             setMovingBook(undefined)
           }}
           onCancel={() => setMovingBook(undefined)}
+        />
+      ) : null}
+      {iconBook ? (
+        <NotebookIconDialog
+          book={iconBook}
+          onPick={(icon, color) => {
+            if (icon !== iconBook.icon || color !== iconBook.iconColor)
+              props.onSetBookIcon(iconBook.id, icon, color)
+            setIconBookId(undefined)
+          }}
+          onRevert={() => {
+            props.onSetBookIcon(iconBook.id, null, null)
+            setIconBookId(undefined)
+          }}
+          onCancel={() => setIconBookId(undefined)}
         />
       ) : null}
       {settingsTag ? (

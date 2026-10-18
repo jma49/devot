@@ -12,6 +12,7 @@
 // `devot.test.delayFileWrites` (attachments), makes revision writes fail with
 // one in `devot.test.failRevisions`, and the listing of notes (the first load
 // of the lists) with one in `devot.test.failList`.
+import { isNotebookSymbol } from '../../../core/notebookIcons'
 import type {
   ActivityRevision,
   BookRecord,
@@ -117,6 +118,10 @@ function mergeBook(current: BookRecord | undefined, next: BookRecord): BookRecor
     ...newer(current, next, 'name', 'nameHlc'),
     ...newer(current, next, 'parentId', 'parentHlc'),
     ...newer(current, next, 'aiAccess', 'aiAccessHlc'),
+    // The icon and its colour share one clock.
+    ...((next.iconHlc ?? '') > (current.iconHlc ?? '')
+      ? { icon: next.icon, iconColor: next.iconColor, iconHlc: next.iconHlc }
+      : {}),
     // Equal clocks (keys given to old notebooks): the greater key wins, as in SQL.
     ...(next.sortKeyHlc === current.sortKeyHlc && next.sortKey > current.sortKey
       ? { sortKey: next.sortKey }
@@ -357,7 +362,18 @@ export const memoryStorage: StorageAdapter = {
     localStorage.setItem(NOTES, JSON.stringify([...all.filter((n) => n.id !== note.id), next]))
   },
   async listBooks() {
-    return read<BookRecord>(BOOKS).filter((b) => b.deletedAt === null)
+    return (
+      read<Partial<BookRecord> & Omit<BookRecord, 'icon' | 'iconColor' | 'iconHlc'>>(BOOKS)
+        .filter((b) => b.deletedAt === null)
+        // Read like SQLite does: rows from before notebook icons have none,
+        // and a symbol or colour this version does not know is none.
+        .map((b): BookRecord => ({
+          ...b,
+          icon: isNotebookSymbol(b.icon) ? b.icon : null,
+          iconColor: isTagColor(b.iconColor) ? b.iconColor : null,
+          iconHlc: b.iconHlc ?? '',
+        }))
+    )
   },
   async putBook(book) {
     const all = read<BookRecord>(BOOKS)

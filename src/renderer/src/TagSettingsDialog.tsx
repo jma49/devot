@@ -1,11 +1,11 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { MAX_TAG_NAME_CHARS } from '../../core/tags'
-import { TAG_COLORS, type TagColor, type TagRecord } from '../../core/storage'
+import type { TagColor, TagRecord } from '../../core/storage'
 import { trimWhitespace } from '../../core/text'
 import { t } from './i18n'
 import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
-import { TagDot } from './TagEditor'
+import { ColorSwatches } from './ColorSwatches'
 
 /**
  * A tag's settings: its name, and its colour from the tag palette. Save
@@ -70,26 +70,12 @@ export function TagSettingsDialog(props: {
           }}
         />
       </label>
-      <div role="radiogroup" aria-label={t('tagMenu.color')} className="tag-swatches">
-        {[null, ...TAG_COLORS].map((option) => (
-          <button
-            key={option ?? 'none'}
-            type="button"
-            role="radio"
-            className="tag-swatch"
-            aria-checked={option === color}
-            aria-label={t(option === null ? 'tagColor.none' : `tagColor.${option}`)}
-            title={t(option === null ? 'tagColor.none' : `tagColor.${option}`)}
-            onClick={() => setColor(option)}
-          >
-            {option === null ? (
-              <span className="tag-swatch-none" aria-hidden="true" />
-            ) : (
-              <TagDot color={option} />
-            )}
-          </button>
-        ))}
-      </div>
+      <ColorSwatches
+        value={color}
+        onChange={setColor}
+        label={t('tagMenu.color')}
+        noneLabel={t('tagColor.none')}
+      />
       <div className="confirm-actions">
         <button type="button" className="button" onClick={props.onCancel}>
           {t('dialog.cancel')}

@@ -53,6 +53,9 @@ beforeAll(() => {
         deletedHlc: null,
         aiAccess: false,
         aiAccessHlc: '',
+        icon: null,
+        iconColor: null,
+        iconHlc: '',
         sortKey: `a${String(b).padStart(3, '0')}`,
         sortKeyHlc: hlc,
       }

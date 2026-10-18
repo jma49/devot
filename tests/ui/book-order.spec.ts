@@ -257,6 +257,9 @@ test('notebooks from before sort keys keep their name order and get keys', async
     deletedHlc: null,
     aiAccess: false,
     aiAccessHlc: '',
+    icon: null,
+    iconColor: null,
+    iconHlc: '',
     sortKey: '',
     sortKeyHlc: '',
   }))
