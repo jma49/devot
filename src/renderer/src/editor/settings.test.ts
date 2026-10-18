@@ -73,6 +73,22 @@ describe('editor setup from the settings', () => {
     ).not.toContain('--size-reading-width')
   })
 
+  it('scrolls unwrapped blocks sideways inside the reading column', () => {
+    const css = (state: EditorState) =>
+      JSON.stringify(state.facet(EditorView.styleModule).map((m) => Object.values(m)))
+    for (const lineWrapping of ['prose', 'unwrapAtCursor'] as const)
+      expect(
+        css(make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping, readableWidth: true })),
+      ).toContain('overflow-x')
+    // Nothing unwraps in the other modes, and without the reading width the editor scrolls.
+    expect(
+      css(make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping: 'all', readableWidth: true })),
+    ).not.toContain('overflow-x')
+    expect(
+      css(make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping: 'prose', readableWidth: false })),
+    ).not.toContain('overflow-x')
+  })
+
   it('keeps the caret line in place when the wrapping mode changes', () => {
     const effects = reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
       ...DEFAULT_EDITOR_SETTINGS,

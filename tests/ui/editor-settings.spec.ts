@@ -357,6 +357,23 @@ test('prose only never wraps code blocks and tables, wherever the caret is', asy
   await expect.poll(() => rows(page, 'end |')).toBeGreaterThan(1)
 })
 
+test('with the reading width an unwrapped table scrolls inside the column', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 700 })
+  await newNote(page, `Prose before.\n\n${TABLE}\n\nProse after.`)
+  await changed(page, { lineWrapping: 'prose', readableWidth: true })
+  await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(3)
+  const box = await content(page).evaluate((el) => ({
+    scrolls: el.scrollWidth > el.clientWidth,
+    overflowX: getComputedStyle(el).overflowX,
+    right: el.getBoundingClientRect().right,
+    editorRight: el.closest('.cm-scroller')!.getBoundingClientRect().right,
+  }))
+  expect(box.overflowX).toBe('auto')
+  expect(box.scrolls).toBe(true)
+  // The column stays inside the editor: nothing reaches into the margin.
+  expect(box.right).toBeLessThanOrEqual(box.editorRight)
+})
+
 test('the caret line keeps its place on screen when its block unwraps', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 600 })
   const filler = Array.from({ length: 60 }, (_, i) => `Line ${i}`).join('\n')

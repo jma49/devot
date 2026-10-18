@@ -190,6 +190,14 @@ const readableWidth = EditorView.theme({
   },
 })
 
+/**
+ * With blocks that do not wrap, the reading column scrolls sideways itself:
+ * a long code or table line stays inside the column, whose edge stays straight.
+ */
+const readableWidthScroll = EditorView.theme({
+  '.cm-content': { overflowX: 'auto' },
+})
+
 /** Room under the last line so the end of the note can scroll up the page (the host element scrolls). */
 const pastEnd = EditorView.theme({ '&.cm-editor .cm-content': { paddingBottom: '50vh' } })
 /** Lines kept under the caret on the last line, so typing there does not sit at the window's edge. */
@@ -221,9 +229,11 @@ const PARTS = {
     s.lineNumbers ? [gutterOn, s.highlightActiveLine ? activeLineGutter : []] : [],
   activeLine: (s: EditorSettings): Extension => (s.highlightActiveLine ? activeLine : []),
   wrapping: (s: EditorSettings): Extension => wrappingModes[s.lineWrapping],
-  // Only wrapped lines can keep to a width (an unwrapped block reaches past it).
-  width: (s: EditorSettings): Extension =>
-    s.readableWidth && s.lineWrapping !== 'off' ? readableWidth : [],
+  // Only wrapped lines can keep to a width; an unwrapped block scrolls inside it.
+  width: (s: EditorSettings): Extension => {
+    if (!s.readableWidth || s.lineWrapping === 'off') return []
+    return s.lineWrapping === 'all' ? readableWidth : [readableWidth, readableWidthScroll]
+  },
   indent: (s: EditorSettings): Extension => [
     indentUnit.of(indentText(s.indentUnit)),
     EditorState.tabSize.of(s.tabWidth),
