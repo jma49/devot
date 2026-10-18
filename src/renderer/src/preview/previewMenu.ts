@@ -2,7 +2,7 @@
 // rendered note (images have their own, `imageMenu.ts`). A link gets Copy
 // Link Address; a selection gets Look Up and Copy; Select All covers the
 // note's preview alone, not the window.
-import { shownGroups, type MenuEntry, type MenuGroups } from '../contextMenu'
+import type { MenuEntry, MenuGroups } from '../contextMenu'
 import { lookUpLabel, lookUpSelection } from '../textServices'
 
 export type PreviewAction =
@@ -43,10 +43,6 @@ export const PREVIEW_MENU: MenuGroups<PreviewAction, PreviewMenuTarget> = [
   ],
   [{ action: 'speech', label: 'editorMenu.speech', submenu: SPEECH }],
 ]
-
-/** Whether the menu has anything to show for a target. */
-export const previewMenuHasItems = (target: PreviewMenuTarget): boolean =>
-  shownGroups(PREVIEW_MENU, target).length > 0
 
 /** The address of a link the app opens (a web page or a note), else null. */
 export function openableHref(href: string | null): string | null {

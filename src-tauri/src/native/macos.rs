@@ -1205,9 +1205,9 @@ pub fn look_up(
     guarded("W_NATIVE_LOOK_UP_FAILED", || {
         // SAFETY: `inner()` is the live WKWebView owned by the window; the
         // call runs on the main thread (`with_webview`).
-        unsafe { look_up_in(web_view, text, x, y) }.ok()
+        Some(unsafe { look_up_in(web_view, text, x, y) })
     })
-    .ok_or("E_LOOK_UP_FAILED")
+    .unwrap_or(Err("E_LOOK_UP_FAILED"))
 }
 
 /// # Safety
@@ -1261,9 +1261,9 @@ pub fn speak(
     guarded("W_NATIVE_SPEECH_FAILED", || {
         // SAFETY: `inner()` is the live WKWebView owned by the window; the
         // call runs on the main thread (`with_webview`).
-        unsafe { speak_in(web_view, start, text) }.ok()
+        Some(unsafe { speak_in(web_view, start, text) })
     })
-    .ok_or("E_SPEECH_FAILED")
+    .unwrap_or(Err("E_SPEECH_FAILED"))
 }
 
 /// # Safety
@@ -1337,7 +1337,10 @@ fn speak_with_synthesizer(text: &str) -> Result<(), &'static str> {
             if responds(object, sel!(stopSpeaking)) {
                 let _: () = msg_send![object, stopSpeaking];
             }
-            let _started: Bool = msg_send![object, startSpeakingString: &*string];
+            let started: Bool = msg_send![object, startSpeakingString: &*string];
+            if !started.as_bool() {
+                return Err("E_SPEECH_NOT_STARTED");
+            }
         }
         Ok(())
     })
@@ -1348,8 +1351,6 @@ fn speak_with_synthesizer(text: &str) -> Result<(), &'static str> {
 /// selector gives a code, not a crash. Main thread only.
 #[doc(hidden)]
 pub fn self_test_look_up_speech() -> Result<(), &'static str> {
-    use objc2_app_kit::NSView;
-
     let mtm = MainThreadMarker::new().ok_or("E_NATIVE_NOT_MAIN_THREAD")?;
     let rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(400.0, 300.0));
     // SAFETY: a fresh configuration, made on the main thread.
@@ -1357,7 +1358,6 @@ pub fn self_test_look_up_speech() -> Result<(), &'static str> {
     // SAFETY: a fresh allocation with a valid frame and configuration.
     let web_view =
         unsafe { WKWebView::initWithFrame_configuration(WKWebView::alloc(mtm), rect, &config) };
-    let view: &NSView = &web_view;
     let object = Retained::as_ptr(&web_view).cast::<AnyObject>().cast_mut();
     // SAFETY: `object` is the live web view retained above.
     let services = unsafe { text_services(object) };
@@ -1389,7 +1389,6 @@ pub fn self_test_look_up_speech() -> Result<(), &'static str> {
     if unsafe { speak_in(plain_object, true, None) } != Err("E_SPEECH_NOTHING_TO_SAY") {
         return Err("E_SPEECH_START_NOT_GUARDED");
     }
-    let _ = view;
     Ok(())
 }
 

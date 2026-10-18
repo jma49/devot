@@ -363,7 +363,13 @@ export function Preview({
     if (target.closest('input, textarea, select, [contenteditable]')) return
     event.preventDefault()
     menuAt.current = at
-    const picked = previewMenuTarget(target.closest('a[href]'), window.getSelection()?.toString())
+    // Only text selected in the preview is offered to Look Up and Speech.
+    const selection = window.getSelection()
+    const inPreview = !!selection?.anchorNode && !!pane.current?.contains(selection.anchorNode)
+    const picked = previewMenuTarget(
+      target.closest('a[href]'),
+      inPreview ? selection.toString() : null,
+    )
     void showMenu(picked, at)
   }
 

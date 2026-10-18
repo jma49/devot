@@ -7,17 +7,20 @@ import type { MenuPoint } from './contextMenu'
 /** The longest text Look Up takes (the same as Rust's). */
 export const MAX_LOOK_UP_CHARS = 1000
 
+/** The longest text Speech takes (the same as Rust's). */
+export const MAX_SPEECH_CHARS = 100_000
+
 /** How many characters of the selection the Look Up item shows. */
 const LABEL_CHARS = 24
 
 /**
- * The text Look Up is asked for: the selection with its white space
- * trimmed, or null when there is nothing to look up. A longer selection is
- * cut short (the dictionary takes a word or a phrase).
+ * The selection a menu offers Look Up and Speech for: its text with white
+ * space trimmed, or null when there is nothing. A very long one is cut
+ * short (the most Speech takes).
  */
 export function lookUpSelection(selected: string | null | undefined): string | null {
   const text = selected?.trim() ?? ''
-  return text === '' ? null : Array.from(text).slice(0, MAX_LOOK_UP_CHARS).join('')
+  return text === '' ? null : Array.from(text).slice(0, MAX_SPEECH_CHARS).join('')
 }
 
 /** The Look Up item's text for a selection: `Look Up "text"`, the text cut short. */
@@ -30,8 +33,13 @@ export function lookUpLabel(text: string): string {
 }
 
 /** Shows the system dictionary for `text` at a point in the window; a failure is logged by code. */
-export function lookUp(text: string, at: MenuPoint): Promise<void> {
-  return invoke<void>('text_look_up', { text, x: at.x, y: at.y }).catch((error: unknown) =>
+export function lookUp(selection: string, at: MenuPoint): Promise<void> {
+  // The dictionary takes a word or a phrase; a point above or left of the
+  // window (a caret scrolled out of sight) is clamped to its edge.
+  const text = Array.from(selection).slice(0, MAX_LOOK_UP_CHARS).join('').trim()
+  const x = Math.max(0, at.x)
+  const y = Math.max(0, at.y)
+  return invoke<void>('text_look_up', { text, x, y }).catch((error: unknown) =>
     console.warn('W_LOOK_UP_FAILED', error instanceof Error ? error.message : ''),
   )
 }

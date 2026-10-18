@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_LOOK_UP_CHARS, lookUpLabel, lookUpSelection } from './textServices'
+import { MAX_SPEECH_CHARS, lookUpLabel, lookUpSelection } from './textServices'
 
-describe('the text Look Up takes', () => {
+describe('the selection Look Up and Speech take', () => {
   it('is the selection trimmed, or nothing', () => {
     expect(lookUpSelection('  word\n')).toBe('word')
     expect(lookUpSelection('   ')).toBeNull()
@@ -9,9 +9,9 @@ describe('the text Look Up takes', () => {
     expect(lookUpSelection(null)).toBeNull()
   })
 
-  it('is cut to the longest the dictionary takes, by characters', () => {
-    const long = '\u{1F600}'.repeat(MAX_LOOK_UP_CHARS + 5)
-    expect(Array.from(lookUpSelection(long) ?? '')).toHaveLength(MAX_LOOK_UP_CHARS)
+  it('is cut to the longest speech takes, by characters', () => {
+    const long = '\u{1F600}'.repeat(MAX_SPEECH_CHARS + 5)
+    expect(Array.from(lookUpSelection(long) ?? '')).toHaveLength(MAX_SPEECH_CHARS)
   })
 })
 

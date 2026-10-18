@@ -4,7 +4,6 @@ import { t } from '../i18n'
 import {
   PREVIEW_MENU,
   openableHref,
-  previewMenuHasItems,
   previewMenuTarget,
   type PreviewMenuTarget,
 } from './previewMenu'
@@ -19,7 +18,6 @@ const groupsFor = (target: PreviewMenuTarget) =>
 describe('the preview menu', () => {
   it('has Select All and Speech without a link or a selection', () => {
     expect(groupsFor({ link: null, selection: null })).toEqual([['Copy', 'Select All'], ['Speech']])
-    expect(previewMenuHasItems({ link: null, selection: null })).toBe(true)
   })
 
   it('adds Copy Link Address on a link and Look Up with a selection', () => {
