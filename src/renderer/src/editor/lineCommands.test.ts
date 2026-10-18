@@ -185,7 +185,7 @@ describe('linkForNewNote', () => {
 })
 
 // Several ranges: `«` starts one and `»` ends it; `|` is a caret.
-function multi(marked: string): EditorState {
+function multi(marked: string, main?: number): EditorState {
   const ranges = []
   let doc = ''
   let start = -1
@@ -197,7 +197,7 @@ function multi(marked: string): EditorState {
   }
   return EditorState.create({
     doc,
-    selection: EditorSelection.create(ranges),
+    selection: EditorSelection.create(ranges, main ?? ranges.length - 1),
     extensions: [EditorState.allowMultipleSelections.of(true), noteMarkdown],
   })
 }
@@ -215,8 +215,12 @@ function showMulti(s: EditorState): string {
 }
 
 /** Runs a command on several ranges; the text after it, or null when it did nothing. */
-function runMulti(command: (view: EditorView) => boolean, marked: string): string | null {
-  let now = multi(marked)
+function runMulti(
+  command: (view: EditorView) => boolean,
+  marked: string,
+  main?: number,
+): string | null {
+  let now = multi(marked, main)
   const view = {
     get state() {
       return now
@@ -237,6 +241,14 @@ describe('selection commands', () => {
     // A whole word matches whole words only.
     expect(runMulti(skipNextOccurrence, '«ab» abc ab')).toBe('ab abc «ab»')
     expect(runMulti(skipNextOccurrence, '«ab» x')).toBeNull()
+  })
+
+  it('skips the most recently added match after Select Next wrapped around', () => {
+    // The wrapped match sits first in the document but is the main selection.
+    expect(runMulti(skipNextOccurrence, '«ab» x «ab» y ab', 0)).toBe('ab x «ab» y «ab»')
+    expect(runMulti(skipNextOccurrence, '«ab» x «ab» y «ab» z ab', 0)).toBe(
+      'ab x «ab» y «ab» z «ab»',
+    )
   })
 
   it('selects the word at a caret before skipping', () => {

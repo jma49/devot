@@ -281,12 +281,12 @@ export function skipNextOccurrence(view: EditorView): boolean {
   if (ranges.some((r) => r.empty)) return selectNextOccurrence(view)
   const match = nextOccurrence(state)
   if (!match) return false
-  const kept = ranges.slice(0, -1)
+  // The main range is the one added last, wherever it sits in the document
+  // (Select Next wraps around to the start).
+  const kept = ranges.filter((_, i) => i !== state.selection.mainIndex)
+  const added = EditorSelection.range(match.from, match.to)
   view.dispatch({
-    selection: EditorSelection.create(
-      [...kept, EditorSelection.range(match.from, match.to)],
-      kept.length,
-    ),
+    selection: EditorSelection.create([...kept, added], kept.length),
     effects: EditorView.scrollIntoView(match.to),
     userEvent: 'select.search',
   })
