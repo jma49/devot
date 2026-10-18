@@ -363,7 +363,7 @@ test('the caret line keeps its place on screen when its block unwraps', async ({
   const code = Array.from({ length: 4 }, (_, i) => `code${i} ${LONG_CELL}`).join('\n')
   await newNote(page, `${filler}\n\n\`\`\`\n${code}\n\`\`\`\nlast`)
   await page.keyboard.press('ControlOrMeta+End')
-  const fence = page.locator('.cm-line', { hasText: /^```$/ }).last()
+  const fence = page.locator('.cm-line.cm-codeblock-closing')
   const before = await fence.evaluate((el) => el.getBoundingClientRect().top)
   // Onto the closing fence: the long lines above it unwrap and shrink.
   await page.keyboard.press('ArrowUp')

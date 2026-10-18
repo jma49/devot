@@ -459,6 +459,9 @@ const boundaryKeys: KeyBinding[] = [
  * (at least the editor's width), so a block's box has straight sides.
  */
 const theme = EditorView.theme({
+  // The content keeps the editor's width: an unwrapped line reaches past it
+  // instead of widening it (and with it every wrapped line).
+  '.cm-content.cm-lineWrapping': { minWidth: '0' },
   '.cm-line.cm-unwrap': {
     whiteSpace: 'pre',
     wordBreak: 'normal',
