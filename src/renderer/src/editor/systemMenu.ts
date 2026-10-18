@@ -60,6 +60,14 @@ export interface Spelling {
   replace: (guess: string) => void
 }
 
+/**
+ * Whether Rust can show the editor's menu: on macOS (the web view says so),
+ * and in the UI tests, which answer for Rust. Elsewhere the Tauri menu API
+ * shows it, without the system's items.
+ */
+export const systemMenusAvailable = (): boolean =>
+  DEVOT_UI_TEST || /\bMac OS X\b/.test(navigator.userAgent)
+
 /** The native calls of `createContextMenu`, for a menu Rust shows with the system's items. */
 export function systemMenus(spelling: Spelling): NativeMenuApi {
   return {

@@ -35,7 +35,7 @@ import {
   type EditorMenuTarget,
 } from './editor/editorMenu'
 import { redo, undo } from '@codemirror/commands'
-import { useContextMenu, type MenuPoint } from './contextMenu'
+import { tauriMenus, useContextMenu, type MenuPoint } from './contextMenu'
 import { copyText } from './noteMenu'
 import { lookUp, startSpeaking, stopSpeaking } from './textServices'
 import type { ShowAlertMenu } from './editor/alertMenu'
@@ -43,7 +43,7 @@ import { moveRange, moveSelection, selectedText, trackExtract } from './editor/e
 import { editorFind, editorFindTarget } from './editor/find'
 import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
-import { systemMenus } from './editor/systemMenu'
+import { systemMenus, systemMenusAvailable } from './editor/systemMenu'
 import { imageSizeBar } from './editor/ImageSizeBar'
 import { tableToolbar } from './editor/TableToolbar'
 import { linkTooltip } from './editor/linkTooltip'
@@ -773,13 +773,15 @@ export function NoteEditor({
   /** The word the open editor menu offers spelling guesses for, and its editor. */
   const menuWord = useRef<{ view: EditorView; word: WordRange } | null>(null)
   const showEditorMenu = useContextMenu('editor', EDITOR_MENU, pickMenuAction, async () =>
-    systemMenus({
-      word: () => menuWord.current?.word.text ?? null,
-      replace: (guess) => {
-        const at = menuWord.current
-        if (at && !replaceWord(at.view, at.word, guess)) console.warn('W_SPELLING_WORD_CHANGED')
-      },
-    }),
+    systemMenusAvailable()
+      ? systemMenus({
+          word: () => menuWord.current?.word.text ?? null,
+          replace: (guess) => {
+            const at = menuWord.current
+            if (at && !replaceWord(at.view, at.word, guess)) console.warn('W_SPELLING_WORD_CHANGED')
+          },
+        })
+      : tauriMenus(),
   )
   const menuOpener = useRef<(view: EditorView, at: MenuPoint, pos: number | null) => void>(() => {})
   useEffect(() => {
