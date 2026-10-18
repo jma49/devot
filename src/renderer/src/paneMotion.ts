@@ -3,8 +3,7 @@
 // once; the panes that stay slide from where they were to where they are now
 // (measured before and after the change, then played back with the Web
 // Animations API) over `motion.duration.slide` on the `motion.easing.slide`
-// curve. Their size changes at once. Reduce Motion keeps the fade and drops
-// the slide.
+// curve. Their size changes at once. Reduce Motion shows the change at once.
 import { sizes } from './theme/tokens'
 
 /** The window's panes, in their order from the left. */
@@ -56,16 +55,17 @@ export function paneMoves(before: PaneBoxes, after: PaneBoxes): Partial<Record<P
   return moves
 }
 
-/** The keyframes of a move; a slide is dropped under Reduce Motion, a fade kept. */
+/** The keyframes of a move; none under Reduce Motion (the change shows at once). */
 export function paneFrames(move: PaneMove, reduced: boolean): Keyframe[] | null {
+  if (reduced) return null
   switch (move.kind) {
     case 'slide':
-      return reduced ? null : [{ transform: `translateX(${move.dx}px)` }, { transform: 'none' }]
+      return [{ transform: `translateX(${move.dx}px)` }, { transform: 'none' }]
     case 'fade-in':
       return [{ opacity: 0 }, { opacity: 1 }]
     case 'fade-out': {
       // A hidden pane is out of sight (app.css): it shows while it fades,
-      // where it was (held there, so nothing moves under Reduce Motion either).
+      // where it was.
       const transform = move.dx === 0 ? 'none' : `translateX(${move.dx}px)`
       return [
         { opacity: 1, visibility: 'visible', transform },

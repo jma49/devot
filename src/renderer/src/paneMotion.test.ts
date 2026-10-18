@@ -60,15 +60,17 @@ describe('the frames of a move', () => {
     expect(paneFrames({ kind: 'slide', dx: -200 }, true)).toBeNull()
   })
 
-  it('fades a going pane out in sight, held where it was, under Reduce Motion too', () => {
+  it('fades a going pane out in sight, where it was, and a coming one in', () => {
     expect(paneFrames({ kind: 'fade-out', dx: 200 }, false)).toEqual([
       { opacity: 1, visibility: 'visible', transform: 'translateX(200px)' },
       { opacity: 0, visibility: 'visible', transform: 'translateX(200px)' },
     ])
-    expect(paneFrames({ kind: 'fade-out', dx: 200 }, true)).toEqual(
-      paneFrames({ kind: 'fade-out', dx: 200 }, false),
-    )
-    expect(paneFrames({ kind: 'fade-in' }, true)).toEqual([{ opacity: 0 }, { opacity: 1 }])
+    expect(paneFrames({ kind: 'fade-in' }, false)).toEqual([{ opacity: 0 }, { opacity: 1 }])
+  })
+
+  it('shows every change at once under Reduce Motion', () => {
+    expect(paneFrames({ kind: 'fade-out', dx: 200 }, true)).toBeNull()
+    expect(paneFrames({ kind: 'fade-in' }, true)).toBeNull()
   })
 
   it('takes 400 ms on the slide curve', () => {
