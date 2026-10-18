@@ -1,4 +1,5 @@
 import { syntaxHighlighting } from '@codemirror/language'
+import { isolateHistory } from '@codemirror/commands'
 import { EditorSelection } from '@codemirror/state'
 import { Facet, Prec, type Extension } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
@@ -8,6 +9,7 @@ import * as Y from 'yjs'
 import type { ImageSize } from '../../core/images'
 import { BODY } from '../../core/notes'
 import { imageFiles, storeImages } from './attachments'
+import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
 import { BOX_HANG } from './editor/boxes'
@@ -307,6 +309,28 @@ function attachImages(
       return true
     },
     drop(event, view) {
+      // Notes dropped from the list: their links, as other apps get them.
+      const links = event.dataTransfer?.types.includes(DRAG_NOTE)
+        ? event.dataTransfer.getData('text/plain')
+        : ''
+      if (links) {
+        event.preventDefault()
+        const at = view.posAtCoords({ x: event.clientX, y: event.clientY })
+        const pos = at ?? view.state.selection.main.head
+        view.dispatch({
+          changes: { from: pos, insert: links },
+          selection: { anchor: pos + links.length },
+          annotations: isolateHistory.of('full'),
+          userEvent: 'input.drop',
+        })
+        view.focus()
+        return true
+      }
+      // A notebook dropped here: its text is not for the note.
+      if (event.dataTransfer?.types.includes(DRAG_BOOK)) {
+        event.preventDefault()
+        return true
+      }
       const files = imageFiles(event.dataTransfer)
       if (files.length === 0) return false
       event.preventDefault()
