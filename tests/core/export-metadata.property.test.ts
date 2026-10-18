@@ -49,7 +49,14 @@ async function importOne(fileName: string, text: string) {
   const report = await importMarkdown({
     ...services,
     newId,
-    scan: { id: 1, name: 'Folder', files: [fileName], skipped: [] },
+    scan: {
+      id: 1,
+      name: 'Folder',
+      kind: 'folder',
+      files: [{ path: fileName, bytes: 0 }],
+      images: [],
+      skipped: [],
+    },
     source: {
       read: async () => text,
       attach: async () => Promise.reject(new Error('E_IMPORT_FILE_NOT_FOUND')),

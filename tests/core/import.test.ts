@@ -10,12 +10,15 @@ import {
   createIdGenerator,
   createNoteService,
   createTagService,
+  EXPORT_HEADER,
   imageLinks,
   importMarkdown,
+  importTree,
   lineFeeds,
   replaceRanges,
   resolveImagePath,
   type BookNode,
+  type ImportFolder,
   type ImportScan,
   type ImportSource,
   type NoteRecord,
@@ -103,7 +106,7 @@ const SAMPLE: Record<string, string> = {
 
 const TITLES: Record<string, string> = {
   'Inbox.md': 'Inbox',
-  'Projects/Plan.md': 'Launch plan',
+  'Projects/Plan.md': 'Plan heading',
   'Projects/Deep/Spec.md': 'Spec',
   'Archive/Old/Ancient.md': 'Ancient',
 }
@@ -133,7 +136,7 @@ function checked(storage: StorageAdapter, writes: NoteRecord[]): StorageAdapter 
   }
 }
 
-function setup() {
+async function setup() {
   const sqlite = openSqliteAdapter(join(tempDir('devot-import-'), 'db.sqlite'))
   open.push(sqlite)
   const writes: NoteRecord[] = []
@@ -146,7 +149,9 @@ function setup() {
     tags: createTagService({ storage, clock, newId }),
     newId,
   }
-  return { sqlite, writes, services }
+  // Most tests import into a notebook picked as the destination.
+  const vault = await services.books.create('Vault', null)
+  return { sqlite, writes, services: { ...services, destination: vault }, vault }
 }
 
 /** A source over in-memory files, storing attachments like the Rust command. */
@@ -168,10 +173,14 @@ function sourceFor(sqlite: SqliteAdapter, files = SAMPLE, images = IMAGES) {
   return { source, attached }
 }
 
+const items = (paths: string[]) => paths.sort().map((path) => ({ path, bytes: 1 }))
+
 const scanOf = (files: Record<string, string>, extra: Partial<ImportScan> = {}): ImportScan => ({
   id: 1,
   name: 'Vault',
-  files: Object.keys(files).sort(),
+  kind: 'folder',
+  files: items(Object.keys(files)),
+  images: [],
   skipped: [],
   ...extra,
 })
@@ -187,15 +196,16 @@ async function noteByTitle(sqlite: SqliteAdapter, title: string) {
 }
 
 describe('Markdown folder import', () => {
-  it('turns the folder and its nested folders into nested notebooks', async () => {
-    const { sqlite, services } = setup()
+  it('puts a picked folder in the destination and makes notebooks of the folders in it', async () => {
+    const { sqlite, services, vault } = await setup()
     const report = await importMarkdown({
       ...services,
       scan: scanOf(SAMPLE),
       source: sourceFor(sqlite).source,
     })
     const books = await sqlite.listBooks()
-    // Folders with only images (assets, img) do not become notebooks.
+    // The picked folder is no notebook itself; folders with only images
+    // (assets, img) are none either.
     expect(names(buildBookTree(books))).toEqual([
       [
         'Vault',
@@ -205,48 +215,143 @@ describe('Markdown folder import', () => {
         ],
       ],
     ])
-    expect(report.books).toBe(5)
+    expect(report.books).toBe(4)
     expect(report.notes).toBe(4)
-    const root = books.find((b) => b.name === 'Vault')!
-    expect(report.bookId).toBe(root.id)
+    expect(report.bookId).toBe(vault)
     const bookOf = async (title: string) => {
       const { summary } = await noteByTitle(sqlite, title)
       return books.find((b) => b.id === summary.bookId)?.name
     }
     expect(await bookOf('Inbox')).toBe('Vault')
-    expect(await bookOf('Launch plan')).toBe('Projects')
+    expect(await bookOf('Plan heading')).toBe('Projects')
     expect(await bookOf('Spec')).toBe('Deep')
     expect(await bookOf('Ancient')).toBe('Old')
   })
 
-  it('maps front matter tags and status, and keeps all front matter in the note', async () => {
-    const { sqlite, services } = setup()
-    await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
-    const tags = new Map((await sqlite.listTags()).map((t) => [t.id, t.name]))
-    const plan = await noteByTitle(sqlite, 'Launch plan')
-    expect(plan.summary.tagIds.map((id) => tags.get(id)).sort()).toEqual([
-      'later',
-      'q4 goals',
-      'work',
+  it('puts the files of a picked folder in no notebook when that is the destination', async () => {
+    const { sqlite, services } = await setup()
+    const files = { 'Top.md': '# Top\n', 'Sub/Inner.md': '# Inner\n' }
+    const report = await importMarkdown({
+      ...services,
+      destination: null,
+      scan: scanOf(files),
+      source: sourceFor(sqlite, files).source,
+    })
+    expect(names(buildBookTree(await sqlite.listBooks()))).toEqual(['Vault', 'Sub'])
+    expect((await noteByTitle(sqlite, 'Top')).summary.bookId).toBeNull()
+    const sub = (await sqlite.listBooks()).find((b) => b.name === 'Sub')!
+    expect((await noteByTitle(sqlite, 'Inner')).summary.bookId).toBe(sub.id)
+    // The one top-level notebook made is the one to show.
+    expect(report).toMatchObject({ books: 1, bookId: sub.id })
+  })
+
+  it('makes a notebook of each folder when several are picked', async () => {
+    const { sqlite, services, vault } = await setup()
+    const files = {
+      'Work/Plan.md': '# Plan\n',
+      'Work/Q4/Goals.md': '# Goals\n',
+      'Home/List.md': '# List\n',
+      'Photos/cat.png': '',
+    }
+    const notes = Object.fromEntries(Object.entries(files).filter(([p]) => p.endsWith('.md')))
+    const report = await importMarkdown({
+      ...services,
+      scan: scanOf(notes, { kind: 'folders', name: 'Work', images: items(['Photos/cat.png']) }),
+      source: sourceFor(sqlite, notes).source,
+    })
+    expect(names(buildBookTree(await sqlite.listBooks()))).toEqual([
+      ['Vault', ['Home', ['Work', ['Q4']]]],
     ])
-    expect(plan.summary.status).toBe('on_hold')
+    expect(report).toMatchObject({ notes: 3, books: 3, bookId: vault })
+    const work = (await sqlite.listBooks()).find((b) => b.name === 'Work')!
+    expect((await noteByTitle(sqlite, 'Plan')).summary.bookId).toBe(work.id)
+  })
+
+  it('puts picked files in the destination, whatever folder they came from', async () => {
+    const { sqlite, services, vault } = await setup()
+    const files = { 'Docs/a.md': '# A\n', 'Other/b.md': '# B\n' }
+    const report = await importMarkdown({
+      ...services,
+      scan: scanOf(files, { kind: 'files' }),
+      source: sourceFor(sqlite, files).source,
+    })
+    expect(names(buildBookTree(await sqlite.listBooks()))).toEqual(['Vault'])
+    expect(report).toMatchObject({ notes: 2, books: 0, bookId: vault })
+    for (const title of ['A', 'B']) {
+      expect((await noteByTitle(sqlite, title)).summary.bookId).toBe(vault)
+    }
+  })
+
+  it('reads nothing from foreign front matter and keeps it in the note as written', async () => {
+    const { sqlite, services } = await setup()
+    await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
+    expect(await sqlite.listTags()).toEqual([])
+    const plan = await noteByTitle(sqlite, 'Plan heading')
+    expect(plan.summary.tagIds).toEqual([])
+    expect(plan.summary.status).toBe('none')
     expect(plan.record.bodyMd.startsWith('---\ntitle: Launch plan\n')).toBe(true)
     expect(plan.record.bodyMd).toContain('author: someone\naliases:\n  - plan\n---\n')
     const spec = await noteByTitle(sqlite, 'Spec')
-    expect(spec.summary.tagIds.map((id) => tags.get(id)).sort()).toEqual(['spec', 'work'])
-    expect(spec.summary.status).toBe('completed')
-    // One tag per name across notes.
-    expect([...tags.values()].filter((n) => n === 'work')).toHaveLength(1)
-    const inbox = await noteByTitle(sqlite, 'Inbox')
-    expect(inbox.summary.tagIds).toEqual([])
-    expect(inbox.summary.status).toBe('none')
+    expect(spec.summary.status).toBe('none')
+    expect(spec.record.bodyMd.startsWith('---\ntags:\n  - work\n')).toBe(true)
+  })
+
+  it("reads the title, tags and status from Devot's own front matter and leaves it out", async () => {
+    const { sqlite, services } = await setup()
+    const files = {
+      'Exported.md': [
+        '---',
+        EXPORT_HEADER,
+        "title: 'Launch plan'",
+        "tags: ['work', '#later']",
+        'status: on hold',
+        '---',
+        '# Heading',
+        '',
+      ].join('\n'),
+      'Twice.md': '---\nauthor: me\ntags: [x]\n---\nBody\n',
+    }
+    await importMarkdown({
+      ...services,
+      scan: scanOf(files),
+      source: sourceFor(sqlite, files).source,
+    })
+    const tags = new Map((await sqlite.listTags()).map((t) => [t.id, t.name]))
+    const plan = await noteByTitle(sqlite, 'Launch plan')
+    expect(plan.summary.tagIds.map((id) => tags.get(id)).sort()).toEqual(['#later', 'work'])
+    expect(plan.summary.status).toBe('on_hold')
+    expect(plan.record.bodyMd).toBe('# Heading\n')
+    const twice = await noteByTitle(sqlite, 'Twice')
+    expect(twice.summary.tagIds).toEqual([])
+    expect([...tags.values()].sort()).toEqual(['#later', 'work'])
+  })
+
+  it('imports picked HTML files as Markdown, with their images as attachments', async () => {
+    const { sqlite, services, vault } = await setup()
+    const files = {
+      'Saved/page.html':
+        '<html><head><title>Saved page</title></head><body><h1>Head</h1>' +
+        '<p>Hi <script>alert(1)</script><img src="img/board.png" alt="b"></p></body></html>',
+      'Saved/bare.htm': '<p>No title here</p>',
+    }
+    const { source, attached } = sourceFor(sqlite, files, { 'Saved/img/board.png': PNG })
+    const report = await importMarkdown({
+      ...services,
+      scan: scanOf(files, { kind: 'files' }),
+      source,
+    })
+    expect(report).toMatchObject({ notes: 2, attachments: 1, problems: [] })
+    const page = await noteByTitle(sqlite, 'Saved page')
+    expect(page.summary.bookId).toBe(vault)
+    expect(page.record.bodyMd).toBe(`# Head\n\nHi ![b](devot://file/${attached[0]!.id})\n`)
+    expect((await noteByTitle(sqlite, 'bare')).record.bodyMd).toBe('No title here\n')
   })
 
   it('stores local images as attachments and points their links at them', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     const { source, attached } = sourceFor(sqlite)
     const report = await importMarkdown({ ...services, scan: scanOf(SAMPLE), source })
-    const plan = await noteByTitle(sqlite, 'Launch plan')
+    const plan = await noteByTitle(sqlite, 'Plan heading')
     // The same image twice in a note is one attachment.
     expect(attached.filter((a) => a.noteId === plan.summary.id).map((a) => a.path)).toEqual([
       'Projects/img/board.png',
@@ -294,7 +399,7 @@ describe('Markdown folder import', () => {
   })
 
   it('writes every body through Yjs, so the snapshot is always the document text', async () => {
-    const { sqlite, writes, services } = setup()
+    const { sqlite, writes, services } = await setup()
     await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
     // `checked` refuses any write whose snapshot is not the Yjs text.
     expect(writes.length).toBeGreaterThan(0)
@@ -311,7 +416,7 @@ describe('Markdown folder import', () => {
   })
 
   it('keeps the source text: only image destinations change, and they map back', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     const { source, attached } = sourceFor(sqlite)
     await importMarkdown({ ...services, scan: scanOf(SAMPLE), source })
     for (const [path, title] of Object.entries(TITLES)) {
@@ -348,7 +453,7 @@ describe('Markdown folder import', () => {
   })
 
   it("keeps an image's size fragment on its attachment link; drops any other fragment", async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     const files = {
       'Sized.md': [
         '# Sized',
@@ -376,11 +481,11 @@ describe('Markdown folder import', () => {
   })
 
   it('stores every line break as \\n, so the editor and the Yjs text agree on offsets', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     const files = {
       'Windows.md': '# Windows\r\n\r\nOne\r\nTwo\r\n',
       'Classic.md': '# Classic\rOne\rTwo\r',
-      'Mixed.md': '---\r\ntags: [a]\r\n---\r\n# Mixed\nOne\r\n![p](p.png)\r',
+      'Mixed.md': `---\r\n${EXPORT_HEADER}\r\ntags: [a]\r\n---\r\n# Mixed\nOne\r\n![p](p.png)\r`,
     }
     const { source } = sourceFor(sqlite, files, { 'p.png': PNG })
     const report = await importMarkdown({ ...services, scan: scanOf(files), source })
@@ -388,9 +493,7 @@ describe('Markdown folder import', () => {
     expect((await noteByTitle(sqlite, 'Windows')).record.bodyMd).toBe('# Windows\n\nOne\nTwo\n')
     expect((await noteByTitle(sqlite, 'Classic')).record.bodyMd).toBe('# Classic\nOne\nTwo\n')
     const mixed = await noteByTitle(sqlite, 'Mixed')
-    expect(mixed.record.bodyMd).toMatch(
-      /^---\ntags: \[a\]\n---\n# Mixed\nOne\n!\[p\]\(devot:\/\/file\/[0-9a-f-]{36}\)\n$/,
-    )
+    expect(mixed.record.bodyMd).toMatch(/^# Mixed\nOne\n!\[p\]\(devot:\/\/file\/[0-9a-f-]{36}\)\n$/)
     expect(await sqlite.listTags()).toMatchObject([{ name: 'a' }])
     for (const summary of await sqlite.listNotes()) {
       const opened = new Y.Doc()
@@ -402,22 +505,22 @@ describe('Markdown folder import', () => {
   })
 
   it('keeps [[...]] as plain text: no note links are made', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
     const inbox = await noteByTitle(sqlite, 'Inbox')
     expect(inbox.record.bodyMd).toBe(SAMPLE['Inbox.md'])
     expect(sqlite.db.prepare('SELECT count(*) AS n FROM links').get()).toEqual({ n: 0 })
   })
 
-  it('takes the title from front matter, then the first H1, then the file name', async () => {
-    const { sqlite, services } = setup()
+  it('takes the title from the first H1, then the file name, never from foreign front matter', async () => {
+    const { sqlite, services } = await setup()
     await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
     const titles = (await sqlite.listNotes()).map((n) => n.title).sort()
-    expect(titles).toEqual(['Ancient', 'Inbox', 'Launch plan', 'Spec'])
+    expect(titles).toEqual(['Ancient', 'Inbox', 'Plan heading', 'Spec'])
   })
 
   it('reports files that cannot be read and goes on with the rest', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     const files = { 'a.md': '# A\n', 'b.md': '# B\n', 'c.md': '# C\n' }
     const { source } = sourceFor(sqlite, files)
     const failing: ImportSource = {
@@ -447,7 +550,7 @@ describe('Markdown folder import', () => {
   })
 
   it('takes back the notebooks made for a file whose note cannot be made', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     // The failing file comes first, so even the folder's notebook is made for it.
     const files = { 'A/Deep/a.md': '# A\n', 'Other/b.md': '# B\n' }
     const failing = {
@@ -464,12 +567,12 @@ describe('Markdown folder import', () => {
       source: sourceFor(sqlite, files).source,
     })
     expect(report.problems).toEqual([{ path: 'A/Deep/a.md', code: 'E_TEST_WRITE_FAILED' }])
-    expect(report).toMatchObject({ notes: 1, books: 2 })
+    expect(report).toMatchObject({ notes: 1, books: 1 })
     expect(names(buildBookTree(await sqlite.listBooks()))).toEqual([['Vault', ['Other']]])
   })
 
   it('stops after the file it is on when asked, and lists the rest', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     const files = { 'a.md': '# A\n![p](p.png)\n', 'b.md': '# B\n', 'c.md': '# C\n' }
     const { source } = sourceFor(sqlite, files, { 'p.png': PNG })
     let stop = false
@@ -497,7 +600,7 @@ describe('Markdown folder import', () => {
   })
 
   it('says so when a failed file cannot be cleaned up', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     const files = { 'a.md': '# A\n' }
     const failing = {
       ...services.notes,
@@ -517,7 +620,7 @@ describe('Markdown folder import', () => {
   })
 
   it('gives an error code, never content, for unexpected failures', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     const files = { 'a.md': '# A\n' }
     const { source } = sourceFor(sqlite, files)
     const report = await importMarkdown({
@@ -529,7 +632,7 @@ describe('Markdown folder import', () => {
   })
 
   it('makes no notebook for an empty folder or one whose files all fail', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     const empty = await importMarkdown({
       ...services,
       scan: scanOf({}, { name: 'Empty' }),
@@ -553,7 +656,7 @@ describe('Markdown folder import', () => {
   })
 
   it('leaves nothing behind when a file fails after its note was made', async () => {
-    const { sqlite, services } = setup()
+    const { sqlite, services } = await setup()
     const files = {
       'Sub/Deep/a.md': '---\ntags: [only-a]\n---\n# A\n\n![p](p.png)\n',
       'b.md': '# B\n',
@@ -573,12 +676,116 @@ describe('Markdown folder import', () => {
       source: sourceFor(sqlite, files, images).source,
     })
     expect(report.problems).toEqual([{ path: 'Sub/Deep/a.md', code: 'E_TEST_WRITE_FAILED' }])
-    expect(report).toMatchObject({ notes: 1, books: 1, attachments: 0 })
+    expect(report).toMatchObject({ notes: 1, books: 0, attachments: 0 })
     expect((await sqlite.listNotes()).map((n) => n.title)).toEqual(['B'])
     expect(await sqlite.listTrash()).toEqual([])
     expect(sqlite.db.prepare('SELECT count(*) AS n FROM files').get()).toEqual({ n: 0 })
     // Neither the notebooks nor the tags made for it are left behind.
     expect(names(buildBookTree(await sqlite.listBooks()))).toEqual(['Vault'])
     expect(await sqlite.listTags()).toEqual([])
+  })
+})
+
+describe('import preview', () => {
+  const scan = (kind: ImportScan['kind'], notes: string[], images: string[] = []): ImportScan => ({
+    id: 1,
+    name: 'Vault',
+    kind,
+    files: notes.map((path) => ({ path, bytes: 100 })),
+    images: images.map((path) => ({ path, bytes: 1000 })),
+    skipped: [{ path: 'Huge.md', code: 'E_IMPORT_FILE_TOO_LARGE' }],
+  })
+  const shape = (node: ImportFolder): unknown => [
+    node.name,
+    node.notebook,
+    node.notes,
+    node.images,
+    node.bytes,
+    ...(node.folders.length ? [node.folders.map(shape)] : []),
+  ]
+
+  it('counts notes, images and bytes per folder; the picked folder is no notebook', () => {
+    const tree = importTree(
+      scan('folder', ['a.md', 'Work/b.md', 'Work/Deep/c.md'], ['Work/img/x.png', 'Photos/y.png']),
+    )
+    expect(shape(tree)).toEqual([
+      'Vault',
+      false,
+      3,
+      2,
+      2300,
+      [
+        ['Photos', false, 0, 1, 1000],
+        [
+          'Work',
+          true,
+          2,
+          1,
+          1200,
+          [
+            ['Deep', true, 1, 0, 100],
+            ['img', false, 0, 1, 1000],
+          ],
+        ],
+      ],
+    ])
+  })
+
+  it('makes each of several picked folders a notebook', () => {
+    const tree = importTree(scan('folders', ['Home/a.md', 'Work/b.md', 'Work/Sub/c.md']))
+    expect(tree.notebook).toBe(false)
+    expect(shape(tree)).toEqual([
+      'Vault',
+      false,
+      3,
+      0,
+      300,
+      [
+        ['Home', true, 1, 0, 100],
+        ['Work', true, 2, 0, 200, [['Sub', true, 1, 0, 100]]],
+      ],
+    ])
+  })
+
+  it('puts picked files straight into the destination', () => {
+    expect(shape(importTree(scan('files', ['Docs/a.html', 'Other/b.htm'])))).toEqual([
+      'Vault',
+      false,
+      2,
+      0,
+      200,
+    ])
+  })
+
+  it('agrees with the import on which folders become notebooks', async () => {
+    const { sqlite, services } = await setup()
+    const files = { 'a.md': '# A\n', 'Work/Deep/b.md': '# B\n', 'Home/c.md': '# C\n' }
+    const picked = { ...scanOf(files), images: items(['Photos/p.png']) }
+    const planned: string[] = []
+    const walkTree = (node: ImportFolder) => {
+      if (node.notebook) planned.push(node.name)
+      node.folders.forEach(walkTree)
+    }
+    walkTree(importTree(picked))
+    // Planning writes nothing.
+    expect(names(buildBookTree(await sqlite.listBooks()))).toEqual(['Vault'])
+    expect(await sqlite.listNotes()).toEqual([])
+    await importMarkdown({ ...services, scan: picked, source: sourceFor(sqlite, files).source })
+    const made = (await sqlite.listBooks()).map((b) => b.name).filter((n) => n !== 'Vault')
+    expect(made.sort()).toEqual(planned.sort())
+  })
+
+  it('lists files Rust left out as skipped, with their code, and imports the rest', async () => {
+    const { sqlite, services } = await setup()
+    const files = { 'a.md': '# A\n' }
+    const report = await importMarkdown({
+      ...services,
+      scan: scanOf(files, { skipped: [{ path: 'Huge.md', code: 'E_IMPORT_FILE_TOO_LARGE' }] }),
+      source: sourceFor(sqlite, files).source,
+    })
+    expect(report).toMatchObject({
+      notes: 1,
+      problems: [{ path: 'Huge.md', code: 'E_IMPORT_FILE_TOO_LARGE' }],
+    })
   })
 })

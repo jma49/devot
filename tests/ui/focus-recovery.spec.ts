@@ -284,11 +284,20 @@ test('the Import sheet gives the keyboard back when it closes', async ({ page })
     }
     w.dispatchEvent(
       new w.CustomEvent('devot:import-ready', {
-        detail: { id: 3, name: 'Vault', files: ['Inbox.md'], skipped: [] },
+        detail: {
+          id: 3,
+          name: 'Vault',
+          kind: 'folder',
+          files: [{ path: 'Inbox.md', bytes: 10 }],
+          images: [],
+          skipped: [],
+        },
       }),
     )
   })
   const dialog = page.getByRole('dialog', { name: 'Import Markdown Folder' })
+  await dialog.getByRole('button', { name: 'Continue' }).click()
+  await dialog.getByRole('button', { name: 'Import', exact: true }).click()
   await expect(dialog.getByRole('button', { name: 'Done' })).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(dialog).toBeHidden()

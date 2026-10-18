@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  EXPORT_HEADER,
   frontMatter,
   imageLinks,
   importTitle,
@@ -82,9 +83,12 @@ describe('front matter', () => {
 })
 
 describe('import title', () => {
-  it('prefers the front matter title', () => {
+  it("prefers the title in Devot's own front matter, and ignores any other", () => {
+    expect(
+      importTitle(`---\n${EXPORT_HEADER}\ntitle: From YAML\n---\n# From heading\n`, 'a/file.md'),
+    ).toBe('From YAML')
     expect(importTitle('---\ntitle: From YAML\n---\n# From heading\n', 'a/file.md')).toBe(
-      'From YAML',
+      'From heading',
     )
   })
 

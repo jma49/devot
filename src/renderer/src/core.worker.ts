@@ -225,9 +225,10 @@ export const coreApi = {
     requiredBooks().place(id, targetId, where),
   removeBook: (id: string) => requiredBooks().remove(id),
   setBookAiAccess: (id: string, on: boolean) => requiredBooks().setAiAccess(id, on),
-  /** Imports a scanned Markdown folder; `source` reads its files. */
+  /** Imports a scan into notebook `destination` (null: none); `source` reads its files. */
   importMarkdown: (
     scan: ImportScan,
+    destination: string | null,
     source: ImportSource,
     onProgress: (done: number, total: number) => void,
   ) => {
@@ -240,6 +241,7 @@ export const coreApi = {
       newId,
       scan,
       source,
+      destination,
       onProgress,
       stopped: () => stopImport,
     })

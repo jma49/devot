@@ -4,8 +4,12 @@
 pub const APP_NAME: &str = "Devot";
 pub const MENU_FILE: &str = "File";
 pub const MENU_IMPORT: &str = "Import";
+pub const IMPORT_MARKDOWN_FILES: &str = "Markdown Files…";
 pub const IMPORT_MARKDOWN_FOLDER: &str = "Markdown Folder…";
-pub const IMPORT_MARKDOWN_TITLE: &str = "Import a Markdown Folder";
+pub const IMPORT_HTML_FILES: &str = "HTML Files…";
+pub const IMPORT_MARKDOWN_TITLE: &str = "Import Markdown Folders";
+pub const IMPORT_MARKDOWN_FILES_TITLE: &str = "Import Markdown Files";
+pub const IMPORT_HTML_FILES_TITLE: &str = "Import HTML Files";
 pub const SAVE_IMAGE_TITLE: &str = "Save Image";
 pub const SAVE_IMAGE_FILTER: &str = "Image";
 pub const EXPORT_MARKDOWN_TITLE: &str = "Export as Markdown";

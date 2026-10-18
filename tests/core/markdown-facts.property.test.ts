@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   frontMatter,
   imageLinks,
+  EXPORT_HEADER,
   importTitle,
   markdownFacts,
-  readFrontMatter,
   unlocatedImages,
 } from '../../src/core/import'
 
@@ -28,6 +28,10 @@ const LINES = [
   '=x',
   '---',
   'title: From front matter',
+  // Devot's own block: its title is the note's.
+  '# Devot metadata',
+  "title: 'Own title'",
+  'title: ""',
   'tags: [a, b]',
   '> # In a quote',
   '- # In a list',
@@ -46,8 +50,14 @@ const LINES = [
 ]
 
 const markdown = fc
-  .array(fc.oneof(fc.constantFrom(...LINES), fc.string({ maxLength: 12 })), { maxLength: 12 })
-  .map((lines) => lines.join('\n'))
+  .tuple(
+    fc.boolean(),
+    fc.array(fc.oneof(fc.constantFrom(...LINES), fc.string({ maxLength: 12 })), {
+      maxLength: 12,
+    }),
+  )
+  // Some start as Devot's own block does, so its title is read too.
+  .map(([own, lines]) => (own ? `---\n${EXPORT_HEADER}\n` : '') + lines.join('\n'))
 
 describe('markdownFacts', () => {
   it('answers like the parsing functions, parsed or not', () => {
@@ -57,7 +67,6 @@ describe('markdownFacts', () => {
         expect(facts.links).toEqual(imageLinks(md))
         expect(facts.unlocated).toEqual(unlocatedImages(md))
         expect(facts.frontMatter).toBe(frontMatter(md))
-        expect(facts.meta).toEqual(readFrontMatter(md))
         expect(facts.title(path)).toBe(importTitle(md, path))
       }),
       { numRuns: 400 },
@@ -68,7 +77,10 @@ describe('markdownFacts', () => {
     expect(markdownFacts('Just text.\n').title('Plan.md')).toBe('Plan')
     expect(markdownFacts('Text\n\n# Heading\n').title('Plan.md')).toBe('Heading')
     expect(markdownFacts('Setext\n===\n').title('Plan.md')).toBe('Setext')
-    expect(markdownFacts('---\ntitle: Own\n---\nText\n').title('Plan.md')).toBe('Own')
+    expect(markdownFacts('---\ntitle: Own\n---\nText\n').title('Plan.md')).toBe('Plan')
+    expect(markdownFacts(`---\n${EXPORT_HEADER}\ntitle: Own\n---\nText\n`).title('Plan.md')).toBe(
+      'Own',
+    )
     expect(markdownFacts('    # code\n').title('Plan.md')).toBe('Plan')
     // An image in raw HTML alone is found too.
     const html = '<p><IMG SRC="devot://file/0192a6f0-0000-7000-8000-00000000f003"></p>\n'

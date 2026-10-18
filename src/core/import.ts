@@ -1,26 +1,29 @@
-// Markdown folder import. Rust reads the folder the user picked (only that
-// folder, see src-tauri/src/import.rs); this module turns what it finds into
-// notebooks, notes, tags, statuses and attachments.
+// Markdown and HTML import. Rust reads what the user picked (only that, see
+// src-tauri/src/import.rs); this module turns what it finds into notebooks,
+// notes, tags, statuses and attachments. `importTree` (importTree.ts) shows
+// the same mapping before anything is written.
 //
 // Rules:
-// - The folder becomes a top-level notebook named after it; every folder
-//   below it that holds an imported note (at any depth) becomes a nested
-//   notebook. Folders with no imported notes under them (image folders, or
-//   folders whose files all failed) do not.
-// - The title is the front matter `title`, else the first level-one
-//   heading, else the file name without its extension. The body keeps the
-//   heading.
-// - Front matter `tags` and `status` become Devot tags and status. The front
-//   matter itself stays in the note unchanged, including those keys. It is
-//   read as YAML (comments, quotes and escapes, block and multi-line
-//   scalars, lists over several lines); a key whose YAML is not valid is
-//   read from its line as far as that goes.
+// - Notes go to the destination the user picked (a notebook, or none).
+//   One picked folder is not a notebook itself: its files go to the
+//   destination, and every folder inside it that holds an imported note (at
+//   any depth) becomes a notebook nested as on disk. When several folders
+//   are picked, each of them becomes a notebook too. Picked files (rather
+//   than a folder) all go to the destination. Folders with no imported notes
+//   under them (image folders, or folders whose files all failed) do not
+//   become notebooks.
 // - Front matter that Markdown export added (its first line is the comment
 //   EXPORT_HEADER, see export.ts) is Devot's own: its title (exactly, only
 //   cut to the limit), tags (a leading `#` kept) and status become the
 //   note's, its double-quoted values with their escapes read, and it is
-//   left out of the note, so an exported note imports as it was. Elsewhere
-//   a tag's leading `#`s are dropped (`#work` is the tag `work`).
+//   left out of the note, so an exported note imports as it was. Any other
+//   front matter is the note's own text: it stays in the body as written,
+//   and nothing is read from it.
+// - The title is then the first level-one heading, else the file name
+//   without its extension (an HTML file's `<title>` comes first). The body
+//   keeps the heading.
+// - An HTML file (`.html`, `.htm`) is sanitized and converted to Markdown
+//   (htmlImport.ts) first; from there it imports as a Markdown file does.
 // - Local images (`![](path)`, reference definitions that images use, and
 //   the `src` of an `<img>` in raw HTML) become attachments, and only their
 //   destinations are rewritten to `devot://file/<id>`, keeping a size preset
@@ -34,6 +37,7 @@
 //   would make every edit after it land in the wrong place.
 // - A file that fails part-way leaves no note behind (nor the notebooks
 //   made only for it): it is listed as not imported instead.
+// - Nothing is written before `importMarkdown` runs: a scan only reads.
 // - Bodies reach the note as Yjs operations (`NoteService.setBody`), never
 //   by writing the snapshot.
 
@@ -45,6 +49,8 @@ import remarkMath from 'remark-math'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { isMap, isScalar, isSeq, parseDocument } from 'yaml'
+import { htmlToMarkdown } from './htmlImport'
+import { folderOf, isHtmlFile, noteFolder } from './importTree'
 import { MAX_BOOK_NAME_CHARS, type BookService } from './books'
 import { errorCode } from './errors'
 import { fileUri } from './files'
@@ -57,14 +63,33 @@ import type { TagService } from './tags'
 import { MAX_TAG_NAME_CHARS } from './tags'
 import { charCount, lineFeeds, replaceRanges, trimWhitespace, type TextEdit } from './text'
 
-/** What Rust found in the picked folder. Paths are relative, with `/`. */
+/**
+ * What was picked: one folder, several folders, or files (Markdown or
+ * HTML). It decides which folders become notebooks (see the rules above).
+ */
+export type ImportKind = 'folder' | 'folders' | 'files'
+
+/** A file Rust found, and its size in bytes. */
+export interface ImportItem {
+  path: string
+  bytes: number
+}
+
+/**
+ * What Rust found in what the user picked. Paths are relative, with `/`: to
+ * the folder for one folder; starting with each folder's name for several
+ * (and with the name of each file's folder for files).
+ */
 export interface ImportScan {
   /** The import session; Rust only reads files for a session it started. */
   id: number
-  /** The folder's own name. */
+  /** What was picked, by name (one folder's name; for several, the first's). */
   name: string
-  /** Markdown files, sorted. */
-  files: string[]
+  kind: ImportKind
+  /** The notes to import (Markdown, or HTML for picked files), sorted. */
+  files: ImportItem[]
+  /** Images found next to them (attached only when a note shows one), sorted. */
+  images: ImportItem[]
   /** Files Rust left out, with the reason's code. */
   skipped: ImportProblem[]
 }
@@ -86,9 +111,14 @@ export interface ImportSource {
 }
 
 export interface ImportReport {
-  /** The notebook made for the folder; null when no note was imported. */
+  /**
+   * The notebook to show afterwards: the destination, else the one
+   * top-level notebook the import made; null when there is neither, or
+   * when no note was imported.
+   */
   bookId: string | null
   notes: number
+  /** Notebooks the import made. */
   books: number
   attachments: number
   problems: ImportProblem[]
@@ -101,6 +131,8 @@ export interface ImportOptions {
   newId: () => string
   scan: ImportScan
   source: ImportSource
+  /** The notebook the notes (and the notebooks made for folders) go into; null or left out for none. */
+  destination?: string | null
   /** Called before the first file and after each one. */
   onProgress?: (done: number, total: number) => unknown
   /**
@@ -168,36 +200,6 @@ export function exportHeader(markdown: string): { meta: FrontMatterMeta; body: s
   if (!isExportBlock(head.value)) return null
   const rest = markdown.slice(end)
   return { meta: metaOf(head.value, true), body: rest.startsWith('\n') ? rest.slice(1) : rest }
-}
-
-/**
- * `markdown` with these top-level keys of its front matter set: each key's
- * lines (matched in any case, with the lines that follow it up to the next
- * key) are dropped, and the new `key: value` lines go at the end of the
- * front matter. Everything else is kept as written. Without front matter,
- * `markdown` comes back as it was.
- */
-export function setFrontMatterKeys(
-  markdown: string,
-  entries: readonly (readonly [string, string])[],
-): string {
-  const head = parse(markdown).children[0]
-  const start = head?.position?.start.offset
-  const end = head?.position?.end.offset
-  if (entries.length === 0 || head?.type !== 'yaml' || start === undefined || end === undefined) {
-    return markdown
-  }
-  const drop = new Set(entries.map(([key]) => key.toLowerCase()))
-  const lines = markdown.slice(start, end).split('\n')
-  let dropping = false
-  const kept = lines.slice(1, -1).filter((line) => {
-    const match = KEY.exec(line.replace(/\r$/, ''))
-    if (match) dropping = drop.has(match[1]!.toLowerCase())
-    return !dropping
-  })
-  const added = entries.map(([key, value]) => `${key}: ${value}`)
-  const block = [lines[0], ...kept, ...added, lines.at(-1)].join('\n')
-  return markdown.slice(0, start) + block + markdown.slice(end)
 }
 
 /**
@@ -437,10 +439,25 @@ function baseName(path: string): string {
   return name.replace(/\.[^.]+$/, '') || name
 }
 
-/** The title an imported note gets (see the rules at the top). */
+const NO_META: FrontMatterMeta = { title: null, notebook: null, tags: [], status: null }
+
+/**
+ * What import takes from a note's Markdown (see the rules at the top): with
+ * Devot's own front matter, what it says and the body without it; else
+ * nothing, and the whole text as the body.
+ */
+function ownMeta(markdown: string): { meta: FrontMatterMeta; body: string; title: string | null } {
+  const header = exportHeader(markdown)
+  if (!header) return { meta: NO_META, body: markdown, title: null }
+  // Devot's own title is the note's exactly (only cut to the limit).
+  const title = header.meta.title === null ? null : clipTitle(header.meta.title)
+  return { meta: header.meta, body: header.body, title }
+}
+
+/** The title an imported Markdown file gets (see the rules at the top). */
 export function importTitle(markdown: string, path: string): string {
-  const tree = parse(markdown)
-  return titleOf(tree, metaOf(yamlOf(tree)), path)
+  const own = ownMeta(markdown)
+  return own.title ?? titleOf(parse(own.body), path)
 }
 
 /**
@@ -473,8 +490,6 @@ export interface MarkdownFacts {
   unlocated: string[]
   /** The front matter, as `frontMatter` finds it. */
   frontMatter: string | null
-  /** What the front matter says, as `readFrontMatter` reads it. */
-  meta: FrontMatterMeta
   /** The title import gives the note from a file at `path` (`importTitle`). */
   title(path: string): string
 }
@@ -492,26 +507,25 @@ export function markdownFacts(markdown: string): MarkdownFacts {
       links: [],
       unlocated: [],
       frontMatter: null,
-      meta: metaOf(null),
       title: (path) => clip(oneLine(baseName(path)), MAX_TITLE_CHARS),
     }
   }
   const tree = parse(markdown)
   const yaml = yamlOf(tree)
-  const meta = metaOf(yaml)
   const found = images ? imagesOf(tree, markdown) : { links: [], unlocated: [] }
+  // Only Devot's own front matter can give the title (exactly, only cut to
+  // the limit); the tree's first heading is the body's, after that block.
+  const own = yaml !== null && isExportBlock(yaml) ? metaOf(yaml, true).title : null
   return {
     links: found.links,
     unlocated: found.unlocated,
     frontMatter: yaml,
-    meta,
-    title: (path) => titleOf(tree, meta, path),
+    title: (path) => (own === null ? titleOf(tree, path) : clipTitle(own)),
   }
 }
 
-function titleOf(tree: Root, meta: FrontMatterMeta, path: string): string {
-  const fromYaml = noteTitle(meta.title ?? '')
-  if (fromYaml) return fromYaml
+/** The first level-one heading's text, else the file name without its extension. */
+function titleOf(tree: Root, path: string): string {
   const heading = tree.children.find(
     (node) => node.type === 'heading' && node.depth === 1 && oneLine(plainText(node)) !== '',
   )
@@ -873,21 +887,20 @@ function bookName(name: string): string {
   return clip(oneLine(name.replace(/\p{Cc}/gu, ' ')), MAX_BOOK_NAME_CHARS) || '_'
 }
 
-const folderOf = (path: string) => path.split('/').slice(0, -1).join('/')
-
-/** Imports a scanned folder (see the rules at the top of this file). */
+/** Imports a scan (see the rules at the top of this file). */
 export async function importMarkdown(options: ImportOptions): Promise<ImportReport> {
   const { notes, books, tags, newId, scan, source, onProgress, stopped } = options
+  const destination = options.destination ?? null
   const problems: ImportProblem[] = [...scan.skipped]
   // Notebooks are made when their first note is imported; `made` collects
-  // the ones a file needed, so a failed file can take them back.
-  const folders = new Map<string, string>()
-  const folder = async (path: string, made: string[]): Promise<string> => {
+  // the ones a file needed, so a failed file can take them back. The
+  // destination stands for the folder `''`.
+  const folders = new Map<string, string | null>([['', destination]])
+  const folder = async (path: string, made: string[]): Promise<string | null> => {
     const known = folders.get(path)
     if (known !== undefined) return known
-    const parent = path === '' ? null : await folder(folderOf(path), made)
-    const name = path === '' ? scan.name : (path.split('/').pop() ?? path)
-    const id = await books.create(bookName(name), parent)
+    const parent = await folder(folderOf(path), made)
+    const id = await books.create(bookName(path.split('/').pop() ?? path), parent)
     folders.set(path, id)
     made.push(path)
     return id
@@ -895,30 +908,28 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
 
   let imported = 0
   let attachments = 0
-  const total = scan.files.length
+  const paths = scan.files.map((f) => f.path)
+  const total = paths.length
   await onProgress?.(0, total)
-  for (const [index, path] of scan.files.entries()) {
+  for (const [index, path] of paths.entries()) {
     if (stopped?.()) {
-      for (const rest of scan.files.slice(index))
-        problems.push({ path: rest, code: 'E_IMPORT_STOPPED' })
+      for (const rest of paths.slice(index)) problems.push({ path: rest, code: 'E_IMPORT_STOPPED' })
       break
     }
     let id: string | undefined
     let stored = 0
     const made: string[] = []
     try {
-      const read = lineFeeds(await source.read(path))
-      // Front matter export added is not part of the note.
-      const header = exportHeader(read)
-      const text = header ? header.body : read
+      const raw = lineFeeds(await source.read(path))
+      const html = isHtmlFile(path) ? htmlToMarkdown(raw) : null
+      // Front matter export added is not part of the note; other front
+      // matter is the note's own text.
+      const own = ownMeta(html ? html.markdown : raw)
+      const text = own.body
       const tree = parse(text)
-      const meta = header ? header.meta : metaOf(yamlOf(tree))
-      // Devot's own title is the note's exactly (only cut to the limit).
-      const title =
-        header && header.meta.title !== null
-          ? clipTitle(header.meta.title)
-          : titleOf(tree, meta, path)
-      id = await notes.create(title, await folder(folderOf(path), made))
+      const meta = own.meta
+      const title = own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, path))
+      id = await notes.create(title, await folder(noteFolder(scan.kind, path), made))
       const noteId = id
 
       // Each image once per note; its links all point at the one attachment.
@@ -986,7 +997,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
         await notes.purge(noteId)
       }
       for (const path of made.reverse()) {
-        await books.remove(folders.get(path)!)
+        await books.remove(folders.get(path) as string)
         folders.delete(path)
       }
       return true
@@ -996,10 +1007,13 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
     }
   }
 
+  // Folders made for notes, and the top-level ones among them.
+  const madeBooks = [...folders.entries()].filter(([path]) => path !== '')
+  const tops = madeBooks.filter(([path]) => !path.includes('/'))
   return {
-    bookId: folders.get('') ?? null,
+    bookId: imported === 0 ? null : (destination ?? (tops.length === 1 ? tops[0]![1] : null)),
     notes: imported,
-    books: folders.size,
+    books: madeBooks.length,
     attachments,
     problems,
   }

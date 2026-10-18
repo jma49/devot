@@ -22,24 +22,20 @@
 //     they load the image and import reads back; an image whose link cannot
 //     be found in the text keeps it and is listed as a problem;
 //   - the note's title, tags and status go into front matter where import
-//     would not read them back from the file: a note without front matter
-//     of its own gets a block of Devot's (opened by the comment
-//     EXPORT_HEADER, which import leaves out of the note again, reading
-//     its values exactly); a note with front matter of its own gets the
-//     keys that disagree set in it (tags compared exactly, case included),
-//     unless its own front matter cannot say them exactly (an empty title,
-//     which import would replace with the heading or file name; a title
-//     import would tidy, with spaces at its ends, several in a row or of
-//     another kind; a tag that starts with `#`, which import drops; a value
-//     that needs escapes) or would itself read as Devot's block (its first
-//     line is EXPORT_HEADER): then Devot's block goes before the note's own
-//     front matter, which stays as it is. Values are single-quoted, or
-//     double-quoted with escapes when they hold what cannot be written on
-//     one line as it is (control characters, line or paragraph separators,
-//     a byte order mark).
+//     would not read them back from the file: import reads them only from
+//     Devot's own block (opened by the comment EXPORT_HEADER, which import
+//     leaves out of the note again, reading its values exactly), so a note
+//     whose title is not its first heading or file name, or that has tags
+//     or a status, gets that block first. A note's own front matter is
+//     never changed: the block goes before it, and import keeps it in the
+//     body as it is. A note whose own front matter would itself read as
+//     Devot's block (its first line is EXPORT_HEADER) always gets the
+//     block, so import leaves out only the one export added. Values are
+//     single-quoted, or double-quoted with escapes when they hold what
+//     cannot be written on one line as it is (control characters, line or
+//     paragraph separators, a byte order mark).
 //   So export then import gives the same notes (title, body, tags, status,
-//   notebooks and images); a note with front matter of its own comes back
-//   with the keys export set in it.
+//   notebooks and images).
 // - Note links (`devot://note/<id>`) stay as they are.
 
 import { bookOrder, type BookService } from './books'
@@ -49,8 +45,6 @@ import {
   isExportBlock,
   markdownFacts,
   mayShowImages,
-  noteTitle,
-  setFrontMatterKeys,
   type MarkdownFacts,
 } from './import'
 import { FILE_ID_SOURCE, fileUri } from './files'
@@ -366,24 +360,7 @@ function quoted(value: string): string {
   return `"${escaped}"`
 }
 
-/**
- * Whether a note's own front matter can say `title` so that import reads it
- * back exactly: import tidies the spaces of a title found there and puts the
- * heading or file name in place of an empty one.
- */
-const sayableTitle = (title: string) =>
-  title !== '' && noteTitle(title) === title && !UNWRITABLE.test(title)
-
-/** Whether a note's own front matter can say `tag` (import drops a leading `#` there). */
-const sayableTag = (tag: string) => !tag.startsWith('#') && !UNWRITABLE.test(tag)
-
 const statusValue = (status: NoteStatus) => status.replace(/_/g, '-')
-
-/** Whether two lists name the same tags, exactly (a tag's case is part of it). */
-const sameTags = (a: readonly string[], b: readonly string[]) => {
-  const key = (list: readonly string[]) => [...new Set(list)].sort().join('\n')
-  return key(a) === key(b)
-}
 
 /**
  * The Markdown file for a note: its body with attachment links pointing at
@@ -417,30 +394,10 @@ export function markdownFile(
     return lines.join('\n') + body
   }
 
-  if (facts.frontMatter === null) {
-    if (titleKept && entry.tags.length === 0 && entry.status === 'none') return body
-    return devotBlock()
-  }
-  // What the note's own front matter cannot say, or front matter import
-  // would take for Devot's own (see the rules at the top). New image
-  // destinations leave the front matter as it was.
-  if (
-    isExportBlock(facts.frontMatter) ||
-    (!titleKept && !sayableTitle(entry.title)) ||
-    !entry.tags.every(sayableTag)
-  ) {
-    return devotBlock()
-  }
-
-  // The note's own front matter says what import reads; set what disagrees.
-  const meta = facts.meta
-  const set: [string, string][] = []
-  if (!titleKept) set.push(['title', quoted(entry.title)])
-  if (!sameTags(meta.tags, entry.tags)) {
-    set.push(['tags', `[${entry.tags.map(quoted).join(', ')}]`])
-  }
-  if ((meta.status ?? 'none') !== entry.status) set.push(['status', statusValue(entry.status)])
-  return setFrontMatterKeys(body, set)
+  // Import reads only Devot's block, and leaves out only the first one.
+  const ownBlock = facts.frontMatter !== null && isExportBlock(facts.frontMatter)
+  if (!ownBlock && titleKept && entry.tags.length === 0 && entry.status === 'none') return body
+  return devotBlock()
 }
 
 // --- Export ------------------------------------------------------------------
