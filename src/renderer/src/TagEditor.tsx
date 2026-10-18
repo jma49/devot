@@ -3,6 +3,7 @@ import type { TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
 import { closingRef } from './closing'
+import type { MenuPoint } from './contextMenu'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
@@ -77,6 +78,8 @@ export function TagEditor(props: {
   common?: readonly string[]
   onAdd: (name: string) => void
   onRemove: (tagId: string) => void
+  /** Right-click on a chip: the chip menu, at the pointer. */
+  onChipMenu?: (tagId: string, at: MenuPoint) => void
   /** The field, for the title's Return to go on to. */
   inputRef?: RefObject<HTMLInputElement | null>
 }) {
@@ -119,6 +122,14 @@ export function TagEditor(props: {
           key={tag.id}
           className={chipClass(tag.color)}
           data-selected={chosenChip === tag.id || undefined}
+          onContextMenu={
+            props.onChipMenu
+              ? (e) => {
+                  e.preventDefault()
+                  props.onChipMenu?.(tag.id, { x: e.clientX, y: e.clientY })
+                }
+              : undefined
+          }
         >
           {tag.color ? <TagDot color={tag.color} /> : null}
           {tag.name}

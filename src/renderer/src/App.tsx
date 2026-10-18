@@ -37,7 +37,17 @@ import { SaveNotice } from './SaveNotice'
 import { isImeKey } from './ime'
 import { createQuitGuard, newProblems } from './saving'
 import { BackupsDialog } from './BackupsDialog'
-import { BookPicker } from './BookPicker'
+import { BookPicker, bookOptions, currentBookOption, NO_BOOK } from './BookPicker'
+import { useContextMenu } from './contextMenu'
+import {
+  CHIP_MENU,
+  NOTEBOOK_MENU,
+  type ChipAction,
+  type ChipMenuTarget,
+  type NotebookAction,
+  type NotebookMenuTarget,
+} from './headerMenus'
+import { TagSettingsDialog } from './TagSettingsDialog'
 import { ImportDialog, type ImportJob } from './ImportDialog'
 import { forgetScanFound, setScanFound } from './importProgress'
 import {
@@ -109,6 +119,7 @@ import { refuseTextDrops } from './dragData'
 import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
+import { LINE_COMMANDS } from './editor/lineCommands'
 import { NoteEditor, type ApplyRestore, type EditorHandle, type EditorPlace } from './NoteEditor'
 import {
   changeEditorSettings,
@@ -137,6 +148,7 @@ import {
   type NoteAction,
   type NoteMenuAction,
   type TrashAction,
+  copyText,
 } from './noteMenu'
 import { applyOrder, orderChip, orderLabel, sortLocales, sortView, useListOrder } from './noteSort'
 import { LivePreview } from './preview/Preview'
@@ -477,12 +489,15 @@ export function App() {
   // the open note's Markdown as it was then (the outline source lists it).
   const [paletteScope, setPaletteScope] = useState<PaletteSource | undefined>()
   const [paletteText, setPaletteText] = useState('')
+  // How many lines that text has (Go to Line), counted once on opening.
+  const [paletteLines, setPaletteLines] = useState(0)
   // Whether the editor's cursor was in a table when the palette opened: the
   // palette offers the table commands then.
   const [paletteInTable, setPaletteInTable] = useState(false)
   // Whether text was selected in the editor when the palette opened: the
   // palette offers New Note from Selection then.
   const [paletteSelection, setPaletteSelection] = useState(false)
+  const [paletteLink, setPaletteLink] = useState(false)
   // The image at the editor's cursor when the palette opened: the palette
   // offers the image commands for it then.
   const [paletteImage, setPaletteImage] = useState<ImageMenuTarget | null>(null)
@@ -1644,7 +1659,54 @@ export function App() {
       console.warn('W_NOTE_EXTRACT_NOT_LINKED', sourceId, dropped)
       await dropNote(core, dropped)
     }
+    // Edits save after a short delay (a title just typed, the link put in):
+    // write them first, or the reload shows the notes as last stored.
+    await saveEdits(core)
     await refresh(core)
+  }
+
+  /**
+   * New Note from Link: the link at the caret becomes a note titled after
+   * its text (in the open note's notebook), and a note link takes the
+   * link's place, as one undo step. The new note starts with the link's
+   * address as its first line. The open note stays open. When the link
+   * cannot be replaced (it was edited meanwhile, or another note was
+   * opened), the new note is deleted again.
+   */
+  const noteFromLink = async (sourceId: string) => {
+    const editor = editorRef.current
+    const link = editor?.linkAtCursor()
+    if (!core || !editor || !link) return
+    let made: string | undefined
+    const moved = await editor.moveRange(link.from, link.to, async () => {
+      // Named in the same write: the lists read right after show the title.
+      const note = await core.extract(sourceId, link.href, link.text).catch((e: unknown) => {
+        console.warn('W_NOTE_EXTRACT_FAILED', sourceId, errorCode(e))
+      })
+      if (!note) return null
+      made = note.id
+      return noteLink(note.title, note.id)
+    })
+    if (made === undefined) return
+    if (moved) {
+      track('note.created', { from: 'link' })
+    } else {
+      const dropped = made
+      console.warn('W_NOTE_EXTRACT_NOT_LINKED', sourceId, dropped)
+      await dropNote(core, dropped)
+    }
+    // Edits save after a short delay (a title just typed, the link put in):
+    // write them first, or the reload shows the notes as last stored.
+    await saveEdits(core)
+    await refresh(core)
+  }
+
+  /** Close Note: the open note, a multiple selection or a template shown goes; the editor is empty. */
+  const closeNote = async () => {
+    if (core) await saveEdits(core)
+    setMulti(undefined)
+    setBuiltIn(undefined)
+    setSelected(undefined)
   }
 
   /** Deletes a note made for a link that could not go in, for good. */
@@ -2031,8 +2093,13 @@ export function App() {
     }
     setPaletteInTable(editorRef.current?.inTable() ?? false)
     setPaletteSelection(editorRef.current?.hasSelection() ?? false)
+    setPaletteLink(editorRef.current?.linkAtCursor() != null)
     setPaletteImage(editorRef.current?.imageAtCursor() ?? null)
-    setPaletteText(editorRef.current?.text() ?? '')
+    const text = editorRef.current?.text() ?? ''
+    setPaletteText(text)
+    let lines = 1
+    for (let at = text.indexOf('\n'); at !== -1; at = text.indexOf('\n', at + 1)) lines++
+    setPaletteLines(lines)
     setPaletteScope(scope)
     setPaletteOpen(true)
   }
@@ -2210,6 +2277,8 @@ export function App() {
       },
     }
     handlers['notebook.new'] = { run: () => createBook(null) }
+    if (selected !== undefined || multiIds || builtIn !== undefined)
+      handlers['note.close'] = { run: closeNote }
     if (backAt !== undefined) handlers['note.back'] = { run: () => step(-1) }
     if (forwardAt !== undefined) handlers['note.forward'] = { run: () => step(1) }
     if (nextId !== undefined) handlers['note.next'] = { run: () => openListed(1) }
@@ -2239,6 +2308,10 @@ export function App() {
         }
       }
     }
+    const bookId = currentBookOption(bookOptions(tree), openNote.bookId)
+    if (bookId !== NO_BOOK && !selectedIsTemplate) {
+      handlers['note.showNotebook'] = { run: () => showLibrary({ kind: 'book', id: bookId }) }
+    }
     handlers['view.edit'] = { run: () => setMode('edit') }
     handlers['view.togglePreview'] = {
       run: () => {
@@ -2260,9 +2333,18 @@ export function App() {
       handlers['edit.pastePlain'] = {
         run: () => editorRef.current?.pastePlain(),
       }
+      for (const commandId of LINE_COMMANDS) {
+        handlers[commandId] = { run: () => editorRef.current?.runLine(commandId) }
+      }
+      handlers['edit.goToLine'] = { run: () => openPalette('line') }
       if (paletteOpen && paletteSelection) {
         handlers['note.newFromSelection'] = {
           run: () => noteFromSelection(id),
+        }
+      }
+      if (paletteOpen && paletteLink) {
+        handlers['note.newFromLink'] = {
+          run: () => noteFromLink(id),
         }
       }
       const image = paletteOpen ? paletteImage : null
@@ -2345,6 +2427,13 @@ export function App() {
                   run: () => putTagOnNotes([openNote.id], entry.id),
                 }
               : undefined,
+        }
+      case 'line':
+        return {
+          primary: {
+            label: t('palette.goToLine'),
+            run: () => editorRef.current?.goToLine(entry.line ?? 1, 'center'),
+          },
         }
       case 'outline':
         return {
@@ -2488,6 +2577,37 @@ export function App() {
   const sidebarSetTagColor = useStable(
     (id: string, color: TagColor | null) => void changeBooks((c) => c.setTagColor(id, color)),
   )
+  // The note header's menus: a tag chip's and the notebook label's.
+  const [headerTagSettings, setHeaderTagSettings] = useState<string>()
+  const removeOpenTag = useStable(
+    (tagId: string) =>
+      void (selected !== undefined && changeBooks((c) => c.removeTag(selected, tagId))),
+  )
+  const runChipAction = useStable((action: ChipAction, chip: ChipMenuTarget) => {
+    switch (action) {
+      case 'settings':
+        return setHeaderTagSettings(chip.tagId)
+      case 'remove':
+        return removeOpenTag(chip.tagId)
+      case 'filter':
+        return sidebarFilter(chip.filtered ? null : { kind: 'tag', tagId: chip.tagId })
+      case 'copyId':
+        return void copyText(chip.tagId).catch(() => console.warn('W_TAG_COPY_FAILED', chip.tagId))
+    }
+  })
+  const showChipMenu = useContextMenu('noteTag', CHIP_MENU, runChipAction)
+  const runNotebookAction = useStable((action: NotebookAction, book: NotebookMenuTarget) => {
+    switch (action) {
+      case 'open':
+        return sidebarSelect({ kind: 'book', id: book.bookId })
+      case 'copyId':
+        return void copyText(book.bookId).catch(() =>
+          console.warn('W_BOOK_COPY_FAILED', book.bookId),
+        )
+    }
+  })
+  const showNotebookMenu = useContextMenu('noteBook', NOTEBOOK_MENU, runNotebookAction)
+  const headerTag = tags.find((tag) => tag.id === headerTagSettings)
   const sidebarSearchBooks = useStable(() => openPalette('book'))
   const sidebarSearchTags = useStable(() => openPalette('tag'))
   const sidebarNewNote = useStable(() => {
@@ -2786,6 +2906,7 @@ export function App() {
                   tree={tree}
                   value={selectedNote?.bookId ?? null}
                   onChange={(bookId) => void moveNote(selected, bookId)}
+                  onMenu={(bookId, at) => void showNotebookMenu({ bookId }, at)}
                 />
                 <StatusPicker
                   value={selectedNote?.status ?? 'none'}
@@ -2797,6 +2918,15 @@ export function App() {
                   value={selectedNote?.tagIds ?? []}
                   onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}
                   onRemove={(tagId) => void changeBooks((c) => c.removeTag(selected, tagId))}
+                  onChipMenu={(tagId, at) =>
+                    void showChipMenu(
+                      {
+                        tagId,
+                        filtered: activeFilter?.kind === 'tag' && activeFilter.tagId === tagId,
+                      },
+                      at,
+                    )
+                  }
                 />
               </div>
             )}
@@ -2826,6 +2956,7 @@ export function App() {
                 initialPlace={takeEditorPlace(selected)}
                 onPlace={editorPlaced}
                 onNewFromSelection={inTrash ? undefined : () => void noteFromSelection(selected)}
+                onNewFromLink={inTrash ? undefined : () => void noteFromLink(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
                 onChooseTemplate={() =>
@@ -2954,10 +3085,14 @@ export function App() {
             command: commandEntries(handlers, t),
             source: sourceEntries(t),
             outline: outlineEntries(paletteText),
+            // The palette makes the line to go to from what is typed.
+            line: [],
             ...(paletteLibrary ?? NO_LIBRARY),
           }}
           actions={paletteActions}
           initialScope={paletteScope}
+          // Go to Line is for a note open for editing.
+          lineCount={handlers['edit.goToLine'] ? paletteLines : 0}
           onClose={closePalette}
         />
       ) : null}
@@ -2977,6 +3112,17 @@ export function App() {
       {viewing ? <ImageViewer image={viewing} onClose={() => setViewing(null)} /> : null}
       {core && activityOpen ? (
         <Activity core={core} onClose={() => setActivityOpen(false)} />
+      ) : null}
+      {headerTag ? (
+        <TagSettingsDialog
+          tag={headerTag}
+          onSave={({ name, color }) => {
+            if (name !== headerTag.name) sidebarRenameTag(headerTag.id, name)
+            if (color !== headerTag.color) sidebarSetTagColor(headerTag.id, color)
+            setHeaderTagSettings(undefined)
+          }}
+          onCancel={() => setHeaderTagSettings(undefined)}
+        />
       ) : null}
       {confirm?.kind === 'tag' ? (
         <ConfirmDialog

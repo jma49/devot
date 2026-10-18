@@ -4,10 +4,21 @@ import type { NoteLinkTarget, PreviewLabels } from '../../../core'
 import { noteLinks } from '../../../core/links'
 import { taskProgress } from '../../../core/tasks'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
-import type { MenuPoint } from '../contextMenu'
+import { useContextMenu, type MenuPoint } from '../contextMenu'
+import { copyText } from '../noteMenu'
+import { lookUp, startSpeaking, stopSpeaking } from '../textServices'
+import {
+  PREVIEW_MENU,
+  previewMenuTarget,
+  selectAllIn,
+  type PreviewAction,
+  type PreviewMenuTarget,
+} from './previewMenu'
 import { imageMenuHasItems, type ImageMenuTarget } from '../imageMenu'
 import type { ViewedImage } from '../ImageViewer'
 import type { Core } from '../core-client'
+import { previewsFor } from '../notePreview'
+import { NoteHover } from './NoteHover'
 import { useText, type TextStore } from '../textStore'
 import type { FindTarget } from '../find/target'
 import { t } from '../i18n'
@@ -43,6 +54,10 @@ export function previewLabels(): PreviewLabels {
     videoTitle: t('embed.videoTitle'),
     untitled: t('note.untitled'),
     missingNote: t('preview.missingNote'),
+    codeLines: t('preview.codeLines'),
+    codeLine: t('preview.codeLine'),
+    codeRef: t('preview.codeRef'),
+    codeSource: t('preview.codeSource'),
   }
 }
 
@@ -311,14 +326,57 @@ export function Preview({
     event.preventDefault()
     onOpenImage({ src: img.currentSrc || img.src, alt: img.alt })
   }
+  /** Where the menu was opened (Look Up shows its answer there). */
+  const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
+  const pickMenuAction = useCallback((action: PreviewAction, target: PreviewMenuTarget) => {
+    switch (action) {
+      case 'copyLink': {
+        const link = target.link
+        if (link !== null) void copyText(link).catch(() => console.warn('W_LINK_COPY_FAILED'))
+        return
+      }
+      case 'lookUp':
+        if (target.selection !== null) void lookUp(target.selection, menuAt.current)
+        return
+      case 'selectAll':
+        if (pane.current) selectAllIn(pane.current, window.getSelection())
+        return
+      case 'startSpeaking':
+        void startSpeaking(target.selection)
+        return
+      case 'stopSpeaking':
+        void stopSpeaking()
+        return
+      // Copy is the system's own item; the submenu only holds items.
+      default:
+    }
+  }, [])
+  const showMenu = useContextMenu('preview', PREVIEW_MENU, pickMenuAction)
   const onContextMenu = (event: MouseEvent) => {
+    const at = { x: event.clientX, y: event.clientY }
     const img = imageUnder(event)
-    if (!img || !onImageMenu) return
-    const image = previewImageTarget(img, shown.current)
-    // An image the menu has nothing for keeps the web view's own menu.
-    if (!imageMenuHasItems(image)) return
+    if (img) {
+      if (!onImageMenu) return
+      const image = previewImageTarget(img, shown.current)
+      // An image the menu has nothing for keeps the web view's own menu.
+      if (!imageMenuHasItems(image)) return
+      event.preventDefault()
+      onImageMenu(image, at)
+      return
+    }
+    const target = event.target as Element
+    // The info card's date fields keep the web view's own menu.
+    if (target.closest('input, textarea, select, [contenteditable]')) return
     event.preventDefault()
-    onImageMenu(image, { x: event.clientX, y: event.clientY })
+    menuAt.current = at
+    // Only text selected in the preview is offered to Look Up and Speech.
+    const selection = window.getSelection()
+    const inPreview = !!selection?.anchorNode && !!pane.current?.contains(selection.anchorNode)
+    const picked = previewMenuTarget(
+      target.closest('a[href]'),
+      inPreview ? selection.toString() : null,
+    )
+    void showMenu(picked, at)
   }
 
   return (
@@ -355,6 +413,7 @@ export function Preview({
         <div ref={host} className="preview-body" />
       </article>
       <CodeCopyButtons blocks={codes} />
+      <NoteHover pane={pane} load={previewsFor(core)} />
     </>
   )
 }

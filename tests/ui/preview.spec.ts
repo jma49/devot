@@ -108,6 +108,17 @@ test('https links open in the system browser', async ({ page }) => {
   await expect(page).toHaveURL(/localhost/)
 })
 
+test('a link to a heading scrolls the preview to it', async ({ page }) => {
+  const filler = Array.from({ length: 60 }, (_, i) => `Line ${i}\n`).join('\n')
+  await newNote(page, 'Anchors', `[Jump](#the-end)\n\n${filler}\n## The End\n\nDone.`)
+  await mode(page, 'Preview').click()
+  const heading = preview(page).getByRole('heading', { name: 'The End' })
+  await expect(heading).toHaveAttribute('id', 'the-end')
+  await expect(heading).not.toBeInViewport()
+  await preview(page).getByRole('link', { name: 'Jump' }).click()
+  await expect(heading).toBeInViewport()
+})
+
 test('embeds from unknown origins load only on click, sandboxed', async ({ page }) => {
   await newNote(page, 'Embed', '<iframe src="https://example.com/widget"></iframe>')
   await mode(page, 'Split').click()

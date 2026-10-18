@@ -77,3 +77,26 @@ test('a long title pasted in is cut to the limit, and the note keeps saving', as
     )
     .toEqual([[MAX_TITLE_CHARS, 'typed after the paste']])
 })
+
+test('Close Note empties the editor and clears the list selection; the note opens again', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Title' }).fill('Closable')
+  await page.getByRole('textbox', { name: 'Note body' }).click()
+  await page.keyboard.type('Kept text')
+  await page.keyboard.press('Meta+k')
+  const palette = page.getByRole('dialog', { name: 'Command Palette' })
+  await palette.getByRole('combobox').fill('Close Note')
+  await expect(palette.locator('[role="option"][aria-selected="true"] .palette-label')).toHaveText(
+    /^Close Note/,
+  )
+  await palette.getByRole('combobox').press('Enter')
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveCount(0)
+  await expect(page.getByRole('option', { selected: true })).toHaveCount(0)
+  await page.getByRole('option', { name: /Closable/ }).click()
+  await expect(page.getByRole('textbox', { name: 'Note body' })).toContainText('Kept text')
+})

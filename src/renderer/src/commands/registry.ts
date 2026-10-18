@@ -334,6 +334,14 @@ export const COMMANDS = [
     keys: ['Mod+Ctrl+5'],
   },
   { id: 'notebook.new', label: 'book.new', group: 'notebook', scope: 'window', keys: [] },
+  // Shows the open note's notebook in the sidebar (the note header's notebook menu).
+  {
+    id: 'note.showNotebook',
+    label: 'command.showNotebook',
+    group: 'notebook',
+    scope: 'window',
+    keys: [],
+  },
   // A notebook or tag row in the sidebar: its own menu (every action of the
   // row, the notebook's export and Allow AI Access and the tag's colours
   // too) opens at the row, from the keyboard. Shift+F10 and the menu key as
@@ -729,6 +737,20 @@ export const COMMANDS = [
     scope: 'editor',
     keys: ['Mod+Alt+6'],
   },
+  {
+    id: 'format.headingBigger',
+    label: 'command.headingBigger',
+    group: 'format',
+    scope: 'editor',
+    keys: [],
+  },
+  {
+    id: 'format.headingSmaller',
+    label: 'command.headingSmaller',
+    group: 'format',
+    scope: 'editor',
+    keys: [],
+  },
   { id: 'format.bold', label: 'format.bold', group: 'format', scope: 'editor', keys: ['Mod+B'] },
   {
     id: 'format.italic',
@@ -870,6 +892,25 @@ export const COMMANDS = [
     label: 'command.newNoteFromSelection',
     group: 'note',
     scope: 'editor',
+    keys: [],
+  },
+  // The link at the caret becomes a new note titled after its text, linked
+  // from where the link was (App's noteFromLink, editor/extract.ts); the
+  // palette offers it while the caret is on a link.
+  {
+    id: 'note.newFromLink',
+    label: 'command.newNoteFromLink',
+    group: 'note',
+    scope: 'editor',
+    keys: [],
+  },
+  // Closes the open note (or the multiple selection, or the template shown):
+  // the editor is left empty.
+  {
+    id: 'note.close',
+    label: 'command.closeNote',
+    group: 'note',
+    scope: 'window',
     keys: [],
   },
   // Pastes the clipboard's text as it is: no link, no image (editor/paste.ts).
@@ -1164,6 +1205,16 @@ export const COMMANDS = [
     scope: 'editor',
     keys: ['Ctrl+Shift+O'],
   },
+  // The editor's menu opens at the caret, from the keyboard (the same keys
+  // as a row's menu in the sidebar, whose scope is a sibling of the editor's).
+  {
+    id: 'edit.contextMenu',
+    label: 'command.editorMenu',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Shift+F10', 'ContextMenu'],
+    palette: false,
+  },
   {
     id: 'edit.sortLines',
     label: 'command.sortLines',
@@ -1198,6 +1249,115 @@ export const COMMANDS = [
     group: 'edit',
     scope: 'editor',
     keys: ['Ctrl+J'],
+  },
+  // More cursors and selections (Cmd+D stays Delete Line).
+  {
+    id: 'edit.addCursorAbove',
+    label: 'command.addCursorAbove',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Ctrl+Shift+ArrowUp'],
+  },
+  {
+    id: 'edit.addCursorBelow',
+    label: 'command.addCursorBelow',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Ctrl+Shift+ArrowDown'],
+  },
+  {
+    id: 'edit.selectNextOccurrence',
+    label: 'command.selectNextOccurrence',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+Alt+G'],
+  },
+  {
+    id: 'edit.skipNextOccurrence',
+    label: 'command.skipNextOccurrence',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+Alt+Shift+G'],
+  },
+  {
+    id: 'edit.selectAllMatches',
+    label: 'command.selectAllMatches',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+Ctrl+G'],
+  },
+  {
+    id: 'edit.splitSelectionIntoLines',
+    label: 'command.splitSelectionIntoLines',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+Alt+L'],
+  },
+  {
+    id: 'edit.undoSelection',
+    label: 'command.undoSelection',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+Alt+U'],
+  },
+  {
+    id: 'edit.redoSelection',
+    label: 'command.redoSelection',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+Shift+U'],
+  },
+  {
+    id: 'edit.goToBracket',
+    label: 'command.goToBracket',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Mod+Shift+\\'],
+  },
+  {
+    id: 'edit.selectToBracket',
+    label: 'command.selectToBracket',
+    group: 'edit',
+    scope: 'editor',
+    keys: [],
+  },
+  {
+    id: 'edit.upperCase',
+    label: 'command.upperCase',
+    group: 'edit',
+    scope: 'editor',
+    keys: [],
+  },
+  {
+    id: 'edit.lowerCase',
+    label: 'command.lowerCase',
+    group: 'edit',
+    scope: 'editor',
+    keys: [],
+  },
+  {
+    id: 'edit.toggleTask',
+    label: 'command.toggleTask',
+    group: 'edit',
+    scope: 'editor',
+    keys: [],
+  },
+  // Opens the palette at Go to Line: from anywhere in the window while a
+  // note is open for editing (the line is the open note's).
+  {
+    id: 'edit.goToLine',
+    label: 'command.goToLine',
+    group: 'edit',
+    scope: 'window',
+    keys: ['Ctrl+G'],
+  },
+  // Typed text replaces the characters after the caret (editor/overwrite.ts).
+  {
+    id: 'edit.toggleOverwrite',
+    label: 'command.toggleOverwrite',
+    group: 'edit',
+    scope: 'editor',
+    keys: [],
   },
   { id: 'app.backups', label: 'command.backups', group: 'app', scope: 'window', keys: [] },
   // File > Export > All Notes (exporter.ts).

@@ -26,6 +26,7 @@ import {
   isInlineActive,
   linkTo,
   setHeading,
+  stepHeading,
   toggleInline,
   toggleLink,
   type FormatId,
@@ -240,6 +241,24 @@ describe('headings', () => {
     expect(cycle('# Ti|tle')).toBe('## Ti|tle')
     expect(cycle('##### «Title»')).toBe('###### «Title»')
     expect(cycle('###### Ti|tle')).toBe('Ti|tle')
+  })
+
+  it('steps each line on its own, bigger and smaller', () => {
+    const step = (marked: string, way: 'bigger' | 'smaller') => {
+      const s = state(marked)
+      return show(apply(s, stepHeading(s, way)))
+    }
+    expect(step('Ti|tle', 'smaller')).toBe('# Ti|tle')
+    expect(step('# Ti|tle', 'smaller')).toBe('## Ti|tle')
+    expect(step('###### Ti|tle', 'smaller')).toBe('Ti|tle')
+    expect(step('Ti|tle', 'bigger')).toBe('###### Ti|tle')
+    expect(step('## Ti|tle', 'bigger')).toBe('# Ti|tle')
+    expect(step('# Ti|tle', 'bigger')).toBe('Ti|tle')
+    expect(step('«# one\ntwo\n### three»', 'smaller')).toBe('«## one\n# two\n#### three»')
+    expect(step('«# one\ntwo»', 'bigger')).toBe('«one\n###### two»')
+    expect(step('> - ## it|em', 'bigger')).toBe('> - # it|em')
+    expect(step('Ti|tle\n===', 'smaller')).toBe('## Ti|tle')
+    expect(step('Ti|tle\n===', 'bigger')).toBe('Ti|tle')
   })
 
   it('reads the level of a line', () => {

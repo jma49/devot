@@ -154,7 +154,7 @@ test('a note exports as an HTML page with its diagram drawn, under the policy', 
   await expect.poll(written, { timeout: 20_000 }).toHaveLength(1)
   const [html] = await written()
   expect(html).toMatch(/<div class="island island-mermaid"><svg[^>]*>.*<style>/s)
-  expect(html).toContain('<h1>Chart</h1>')
+  expect(html).toContain('<h1 id="chart">Chart</h1>')
   expect(await violations(page)).toEqual([])
 })
 

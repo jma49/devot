@@ -19,6 +19,10 @@ const labels: PreviewLabels = {
   videoTitle: 'Embedded video',
   untitled: 'Untitled',
   missingNote: 'Note not found',
+  codeLines: 'Lines {start} to {end}',
+  codeLine: 'Line {n}',
+  codeRef: 'in {ref}',
+  codeSource: 'Open source',
 }
 
 const render = (md: string) => renderPreview(md, { labels, loadedEmbeds: [] })
@@ -49,7 +53,7 @@ describe('parseCodeInfo', () => {
     [':notes.txt', { language: null, title: 'notes.txt' }],
     ['<b>bad</b>', { language: null, title: null }],
   ])('reads %j', (info, expected) => {
-    expect(parseCodeInfo(info)).toEqual(expected)
+    expect(parseCodeInfo(info)).toMatchObject(expected)
   })
 
   it('keeps a title short', () => {
@@ -95,6 +99,104 @@ describe('code blocks', () => {
   it('takes the language of a raw HTML block from its class', async () => {
     const tree = await render('<pre><code class="language-css">a { color: red }</code></pre>')
     expect(byClass(tree, 'code-lang').map(text)).toEqual(['CSS'])
+  })
+})
+
+describe('parseCodeInfo meta', () => {
+  it('reads line, url, branch, commit and filename', () => {
+    expect(
+      parseCodeInfo(
+        'ts line=10-20 commit=a1b2c3d branch="feat/x" url=https://github.com/o/r/blob/a1b2c3d/a.ts#L10-L20 filename=a.ts',
+      ),
+    ).toEqual({
+      language: 'ts',
+      title: 'a.ts',
+      filename: 'a.ts',
+      line: { start: 10, end: 20 },
+      url: 'https://github.com/o/r/blob/a1b2c3d/a.ts#L10-L20',
+      branch: 'feat/x',
+      commit: 'a1b2c3d',
+    })
+  })
+
+  it('reads a single line and drops what it cannot trust', () => {
+    expect(parseCodeInfo('js line=5').line).toEqual({ start: 5, end: null })
+    expect(parseCodeInfo('js line=9-5').line).toBeNull()
+    expect(parseCodeInfo('js line=0').line).toBeNull()
+    expect(parseCodeInfo('js line=x').line).toBeNull()
+    expect(parseCodeInfo('js url=http://example.com/a').url).toBeNull()
+    expect(parseCodeInfo('js url=javascript:alert(1)').url).toBeNull()
+    expect(parseCodeInfo(`js url=https://example.com/${'a'.repeat(2100)}`).url).toBeNull()
+    expect(parseCodeInfo('js branch="a b"').branch).toBeNull()
+    expect(parseCodeInfo('js commit=<img>').commit).toBeNull()
+  })
+})
+
+describe('line numbers', () => {
+  it('numbers the lines from line=N, beside the code and not in it', async () => {
+    const tree = await render('```js line=5\nlet a\nlet b\n```')
+    const [pre] = elements(tree).filter((e) => e.tagName === 'pre')
+    expect(classes(pre!)).toEqual(['with-line-numbers'])
+    const [gutter] = byClass(pre!, 'code-gutter')
+    expect(text(gutter!)).toBe('5\n6')
+    expect(gutter!.properties['ariaHidden']).toBe('true')
+    const code = elements(pre!).find((e) => e.tagName === 'code')!
+    expect(text(code)).toBe('let a\nlet b\n')
+    expect(byClass(code, 'code-gutter')).toHaveLength(0)
+    expect(pre!.children.filter((c) => c.type === 'element')).toHaveLength(2)
+  })
+
+  it('counts lines without a final break and numbers a block with no language', async () => {
+    const tree = await render('``` line=3\nx\ny')
+    expect(text(byClass(tree, 'code-gutter')[0]!)).toBe('3\n4')
+    const other = await render('```js line=1\nx\n\ny\n```')
+    expect(text(byClass(other, 'code-gutter')[0]!)).toBe('1\n2\n3')
+  })
+
+  it('leaves a block without line= alone', async () => {
+    const tree = await render('```js\nx\n```')
+    expect(byClass(tree, 'code-gutter')).toHaveLength(0)
+  })
+})
+
+describe('code block source header', () => {
+  it('shows the GitHub mark, the link, the lines and the commit', async () => {
+    const url = 'https://github.com/o/r/blob/a1b2c3d/src/a.ts#L10-L20'
+    const tree = await render(`\`\`\`ts line=10-20 commit=a1b2c3d url=${url}\nlet a\n\`\`\``)
+    const [header] = byClass(tree, 'code-header')
+    const [link] = byClass(header!, 'code-source')
+    expect(link!.properties['href']).toBe('https://github.com/o/r/blob/a1b2c3d/src/a.ts')
+    expect(text(link!)).toBe('o/r/blob/a1b2c3d/src/a.ts')
+    expect(text(byClass(header!, 'code-lines-label')[0]!)).toBe('Lines 10 to 20')
+    expect(text(byClass(header!, 'code-ref')[0]!)).toBe('in a1b2c3d')
+    expect(text(byClass(header!, 'code-lang')[0]!)).toBe('TypeScript')
+    const svg = elements(header!).find((e) => e.tagName === 'svg')!
+    expect(classes(svg)).toEqual(['code-lang-icon'])
+    const github = (await import('../../design/icons/languages.json')).default.icons.github
+    expect(elements(svg)[1]!.properties['d']).toBe(github.path)
+  })
+
+  it('uses filename for the link text, names one line, and a branch', async () => {
+    const tree = await render(
+      '```py line=7 branch=main url=https://example.com/x/run.py#frag filename=run.py\nprint(1)\n```',
+    )
+    const [header] = byClass(tree, 'code-header')
+    expect(text(byClass(header!, 'code-source')[0]!)).toBe('run.py')
+    expect(byClass(header!, 'code-title')).toHaveLength(0)
+    expect(byClass(header!, 'code-source')[0]!.properties['href']).toBe(
+      'https://example.com/x/run.py',
+    )
+    expect(text(byClass(header!, 'code-lines-label')[0]!)).toBe('Line 7')
+    expect(text(byClass(header!, 'code-ref')[0]!)).toBe('in main')
+    const svg = elements(header!).find((e) => e.tagName === 'svg')!
+    expect(elements(svg)[1]!.properties['d']).not.toBe(
+      (await import('../../design/icons/languages.json')).default.icons.github.path,
+    )
+  })
+
+  it('adds no header link for a url that is not https', async () => {
+    const tree = await render('```js url=http://example.com/a.js\nlet a\n```')
+    expect(byClass(tree, 'code-source')).toHaveLength(0)
   })
 })
 

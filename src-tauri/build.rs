@@ -28,6 +28,8 @@ fn main() {
             "system_accent",
             "clipboard_write_text",
             "clipboard_read_text",
+            "text_look_up",
+            "text_speak",
             "notes_list",
             "note_get",
             "note_put",

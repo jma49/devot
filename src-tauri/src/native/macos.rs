@@ -1153,6 +1153,245 @@ pub fn self_test_marked_text() -> Result<(), &'static str> {
     result
 }
 
+// ---- Look Up and Speech -----------------------------------------------------
+
+thread_local! {
+    /// The synthesizer that speaks when the web view cannot (main thread only).
+    static SYNTHESIZER: RefCell<Option<Retained<AnyObject>>> = const { RefCell::new(None) };
+}
+
+/// What the web view answers to, for Look Up and Speech.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TextServices {
+    pub look_up: bool,
+    pub start_speaking: bool,
+    pub stop_speaking: bool,
+}
+
+/// What `web_view` can do for Look Up and Speech.
+///
+/// # Safety
+/// `web_view` must be null or point to a live `WKWebView`.
+unsafe fn text_services(web_view: *mut AnyObject) -> TextServices {
+    if web_view.is_null() {
+        return TextServices {
+            look_up: false,
+            start_speaking: false,
+            stop_speaking: false,
+        };
+    }
+    // SAFETY: `web_view` is live (caller contract); every NSObject responds
+    // to respondsToSelector:.
+    unsafe {
+        TextServices {
+            look_up: responds(web_view, sel!(showDefinitionForAttributedString:atPoint:)),
+            start_speaking: responds(web_view, sel!(startSpeaking:)),
+            stop_speaking: responds(web_view, sel!(stopSpeaking:)),
+        }
+    }
+}
+
+/// Shows the system dictionary for `text` at a point in the web view
+/// (CSS pixels from its top-left corner, which is how a flipped view
+/// counts). `Err` carries a code: the point is outside the view, or the
+/// web view cannot look up.
+pub fn look_up(
+    webview: &tauri::webview::PlatformWebview,
+    text: &str,
+    x: f64,
+    y: f64,
+) -> Result<(), &'static str> {
+    let web_view: *mut AnyObject = webview.inner().cast();
+    guarded("W_NATIVE_LOOK_UP_FAILED", || {
+        // SAFETY: `inner()` is the live WKWebView owned by the window; the
+        // call runs on the main thread (`with_webview`).
+        Some(unsafe { look_up_in(web_view, text, x, y) })
+    })
+    .unwrap_or(Err("E_LOOK_UP_FAILED"))
+}
+
+/// # Safety
+/// `web_view` must be null or point to a live `WKWebView`; main thread.
+unsafe fn look_up_in(
+    web_view: *mut AnyObject,
+    text: &str,
+    x: f64,
+    y: f64,
+) -> Result<(), &'static str> {
+    // SAFETY: `web_view` is null or live (caller contract).
+    if !unsafe { text_services(web_view) }.look_up {
+        return Err("E_LOOK_UP_UNAVAILABLE");
+    }
+    // SAFETY: the view responds to `bounds` (every NSView does).
+    let bounds: NSRect = unsafe { msg_send![web_view, bounds] };
+    if x > bounds.size.width || y > bounds.size.height {
+        return Err("E_LOOK_UP_OUTSIDE_VIEW");
+    }
+    let class = AnyClass::get(c"NSAttributedString").ok_or("E_LOOK_UP_UNAVAILABLE")?;
+    let string = NSString::from_str(text);
+    // SAFETY: `alloc` and `initWithString:` are NSAttributedString's own
+    // designated pair; `string` is an NSString; the result is owned.
+    let attributed: Option<Retained<AnyObject>> = unsafe {
+        let fresh: *mut AnyObject = msg_send![class, alloc];
+        let made: *mut AnyObject = msg_send![fresh, initWithString: &*string];
+        Retained::from_raw(made)
+    };
+    let attributed = attributed.ok_or("E_LOOK_UP_UNAVAILABLE")?;
+    // SAFETY: the selector was checked above; the string is a live
+    // NSAttributedString and the point lies inside the view.
+    unsafe {
+        let _: () = msg_send![
+            web_view,
+            showDefinitionForAttributedString: &*attributed,
+            atPoint: NSPoint::new(x, y)
+        ];
+    }
+    Ok(())
+}
+
+/// Starts or stops speaking. The web view speaks its own selection when it
+/// can (the system's Speech actions); otherwise `text` is spoken by a
+/// speech synthesizer. Stopping stops both.
+pub fn speak(
+    webview: &tauri::webview::PlatformWebview,
+    start: bool,
+    text: Option<&str>,
+) -> Result<(), &'static str> {
+    let web_view: *mut AnyObject = webview.inner().cast();
+    guarded("W_NATIVE_SPEECH_FAILED", || {
+        // SAFETY: `inner()` is the live WKWebView owned by the window; the
+        // call runs on the main thread (`with_webview`).
+        Some(unsafe { speak_in(web_view, start, text) })
+    })
+    .unwrap_or(Err("E_SPEECH_FAILED"))
+}
+
+/// # Safety
+/// `web_view` must be null or point to a live `WKWebView`; main thread.
+unsafe fn speak_in(
+    web_view: *mut AnyObject,
+    start: bool,
+    text: Option<&str>,
+) -> Result<(), &'static str> {
+    // SAFETY: `web_view` is null or live (caller contract).
+    let services = unsafe { text_services(web_view) };
+    let nothing: *const AnyObject = std::ptr::null();
+    if !start {
+        if services.stop_speaking {
+            // SAFETY: the selector was checked; a nil sender is allowed.
+            unsafe {
+                let _: () = msg_send![web_view, stopSpeaking: nothing];
+            }
+        }
+        stop_synthesizer();
+        return Ok(());
+    }
+    if services.start_speaking {
+        // SAFETY: the selector was checked; a nil sender is allowed.
+        unsafe {
+            let _: () = msg_send![web_view, startSpeaking: nothing];
+        }
+        return Ok(());
+    }
+    let text = text.ok_or("E_SPEECH_NOTHING_TO_SAY")?;
+    speak_with_synthesizer(text)
+}
+
+fn stop_synthesizer() {
+    SYNTHESIZER.with(|cell| {
+        if let Some(synthesizer) = cell.borrow().as_ref() {
+            let object = Retained::as_ptr(synthesizer).cast_mut();
+            // SAFETY: `object` is the live synthesizer kept here; checked
+            // before the call.
+            unsafe {
+                if responds(object, sel!(stopSpeaking)) {
+                    let _: () = msg_send![object, stopSpeaking];
+                }
+            }
+        }
+    });
+}
+
+fn speak_with_synthesizer(text: &str) -> Result<(), &'static str> {
+    let class = AnyClass::get(c"NSSpeechSynthesizer").ok_or("E_SPEECH_UNAVAILABLE")?;
+    SYNTHESIZER.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        if slot.is_none() {
+            // SAFETY: `alloc` and `init` are NSSpeechSynthesizer's own pair;
+            // the result is owned.
+            *slot = unsafe {
+                let fresh: *mut AnyObject = msg_send![class, alloc];
+                let made: *mut AnyObject = msg_send![fresh, init];
+                Retained::from_raw(made)
+            };
+        }
+        let synthesizer = slot.as_ref().ok_or("E_SPEECH_UNAVAILABLE")?;
+        let object = Retained::as_ptr(synthesizer).cast_mut();
+        let string = NSString::from_str(text);
+        // SAFETY: `object` is the live synthesizer kept in the slot; the
+        // selectors are checked before the calls; `string` is an NSString.
+        unsafe {
+            if !responds(object, sel!(startSpeakingString:)) {
+                return Err("E_SPEECH_UNAVAILABLE");
+            }
+            if responds(object, sel!(stopSpeaking)) {
+                let _: () = msg_send![object, stopSpeaking];
+            }
+            let started: Bool = msg_send![object, startSpeakingString: &*string];
+            if !started.as_bool() {
+                return Err("E_SPEECH_NOT_STARTED");
+            }
+        }
+        Ok(())
+    })
+}
+
+/// Checks on a real web view, without showing anything, that it answers to
+/// the Look Up and Speech selectors the commands send, and that a missing
+/// selector gives a code, not a crash. Main thread only.
+#[doc(hidden)]
+pub fn self_test_look_up_speech() -> Result<(), &'static str> {
+    let mtm = MainThreadMarker::new().ok_or("E_NATIVE_NOT_MAIN_THREAD")?;
+    let rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(400.0, 300.0));
+    // SAFETY: a fresh configuration, made on the main thread.
+    let config = unsafe { WKWebViewConfiguration::new(mtm) };
+    // SAFETY: a fresh allocation with a valid frame and configuration.
+    let web_view =
+        unsafe { WKWebView::initWithFrame_configuration(WKWebView::alloc(mtm), rect, &config) };
+    let object = Retained::as_ptr(&web_view).cast::<AnyObject>().cast_mut();
+    // SAFETY: `object` is the live web view retained above.
+    let services = unsafe { text_services(object) };
+    if !services.look_up {
+        return Err("E_LOOK_UP_SELECTOR_MISSING");
+    }
+    if !services.start_speaking || !services.stop_speaking {
+        return Err("E_SPEECH_SELECTORS_MISSING");
+    }
+    // A point outside the view is refused before anything shows.
+    // SAFETY: `object` is the live web view retained above.
+    let outside = unsafe { look_up_in(object, "word", 10_000.0, 10_000.0) };
+    if outside != Err("E_LOOK_UP_OUTSIDE_VIEW") {
+        return Err("E_LOOK_UP_OUTSIDE_NOT_REFUSED");
+    }
+    // Something that is not a web view has none of it, and says so.
+    // SAFETY: an NSObject is live and responds to respondsToSelector:.
+    let plain: Retained<objc2_foundation::NSObject> = objc2_foundation::NSObject::new();
+    let plain_object = Retained::as_ptr(&plain).cast::<AnyObject>().cast_mut();
+    // SAFETY: `plain_object` is the live object retained above.
+    if unsafe { look_up_in(plain_object, "word", 1.0, 1.0) } != Err("E_LOOK_UP_UNAVAILABLE") {
+        return Err("E_LOOK_UP_NOT_GUARDED");
+    }
+    // SAFETY: as above; stopping speech with nothing speaking is harmless.
+    if unsafe { speak_in(plain_object, false, None) }.is_err() {
+        return Err("E_SPEECH_STOP_NOT_GUARDED");
+    }
+    // SAFETY: as above.
+    if unsafe { speak_in(plain_object, true, None) } != Err("E_SPEECH_NOTHING_TO_SAY") {
+        return Err("E_SPEECH_START_NOT_GUARDED");
+    }
+    Ok(())
+}
+
 // ---- Printing and PDF --------------------------------------------------------
 
 use objc2::runtime::ProtocolObject;

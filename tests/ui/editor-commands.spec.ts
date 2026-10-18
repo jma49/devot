@@ -267,3 +267,92 @@ test('a URL pasted over text links it; a lone URL goes in as the setting says', 
   await page.keyboard.insertText('C')
   await expect(line(page, 1)).toHaveText('link: [C](https://c.example)')
 })
+
+test('Ctrl+Shift+Down adds a cursor below, and typing goes to both', async ({ page }) => {
+  await newNote(page, 'one\ntwo')
+  await line(page, 0).click()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Control+Shift+ArrowDown')
+  await page.keyboard.type('- ')
+  expect(await lines(page)).toEqual(['- one', '- two'])
+})
+
+test('the palette lists the editing commands and runs them at the caret', async ({ page }) => {
+  await newNote(page, 'a big day\n- [ ] task')
+  await line(page, 0).click()
+  await page.keyboard.press('Home')
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight')
+  await search(page, 'convert to uppercase')
+  await expect(commandOptions(page).first()).toContainText('Convert to Uppercase')
+  await paletteField(page).press('Enter')
+  await expect(line(page, 0)).toHaveText('a BIG day')
+  await expect(body(page)).toBeFocused()
+
+  // Commands that were only keys before are listed too.
+  await search(page, 'sort lines')
+  await expect(commandOptions(page).filter({ hasText: 'Sort Lines' }).first()).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toBeHidden()
+
+  await line(page, 1).click()
+  await search(page, 'toggle task')
+  await expect(commandOptions(page).first()).toContainText('Toggle Task')
+  await paletteField(page).press('Enter')
+  await expect(line(page, 1)).toHaveText('- [x] task')
+
+  await line(page, 0).click()
+  await search(page, 'make heading smaller')
+  await paletteField(page).press('Enter')
+  await expect(line(page, 0)).toHaveText('# a BIG day')
+})
+
+test('Ctrl+G goes to a line through the palette, and a colon does too', async ({ page }) => {
+  await newNote(page, 'one\ntwo\nthree\nfour')
+  await line(page, 0).click()
+  // Off macOS, CodeMirror's Mod is Control, so an editor key made of Mod
+  // and G takes Control+G first; press it from the title there.
+  if (!(await page.evaluate(() => /Mac/.test(navigator.platform)))) await title(page).click()
+  await page.keyboard.press('Control+KeyG')
+  await expect(paletteField(page)).toBeFocused()
+  await expect(paletteField(page)).toHaveAttribute('placeholder', 'Type a line number...')
+  await paletteField(page).fill('3')
+  await expect(palette(page).getByRole('option')).toHaveText(['Go to Line 3'])
+  await paletteField(page).press('Enter')
+  await expect(palette(page)).toBeHidden()
+  await expect(body(page)).toBeFocused()
+  await page.keyboard.type('>')
+  await expect(line(page, 2)).toHaveText('>three')
+
+  // Past the last line: the last; not a number: nothing to pick.
+  await search(page, ':99')
+  await expect(palette(page).getByRole('option')).toHaveText(['Go to Line 4'])
+  await paletteField(page).fill('x')
+  await expect(palette(page).getByRole('option')).toHaveCount(0)
+  await expect(palette(page)).toContainText('Type a line number from 1 to 4.')
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toBeHidden()
+})
+
+test('overwrite mode types over the text after the caret', async ({ page }) => {
+  await newNote(page, 'abcdef')
+  await line(page, 0).click()
+  await page.keyboard.press('Home')
+  await search(page, 'toggle overwrite')
+  await expect(commandOptions(page).first()).toContainText('Toggle Overwrite Mode')
+  await paletteField(page).press('Enter')
+  await expect(body(page)).toBeFocused()
+  await page.keyboard.type('XY')
+  await expect(line(page, 0)).toHaveText('XYcdef')
+  await page.keyboard.press('End')
+  await page.keyboard.type('!')
+  await expect(line(page, 0)).toHaveText('XYcdef!')
+
+  await search(page, 'toggle overwrite')
+  await paletteField(page).press('Enter')
+  await page.keyboard.press('Home')
+  await page.keyboard.type('Z')
+  await expect(line(page, 0)).toHaveText('ZXYcdef!')
+})

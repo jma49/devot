@@ -29,6 +29,9 @@ async function shown(target: ImageMenuTarget) {
     async separator() {
       return { text: '---' } satisfies Item as unknown as NativeItem
     },
+    async predefined(kind) {
+      return { text: kind } as unknown as NativeItem
+    },
     async submenu({ text, items }) {
       return { text, items: items as Item[] } satisfies Item as unknown as NativeItem
     },

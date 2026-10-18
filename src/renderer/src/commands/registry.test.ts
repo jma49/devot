@@ -351,6 +351,8 @@ describe('COMMANDS', () => {
     })
     expect(formatOf('format.horizontalRule')).toBe('horizontalRule')
     expect(command('note.newFromSelection')).toMatchObject({ scope: 'editor', keys: [] })
+    expect(command('note.newFromLink')).toMatchObject({ scope: 'editor', keys: [] })
+    expect(command('note.close')).toMatchObject({ scope: 'window', group: 'note', keys: [] })
     expect(command('edit.pastePlain')).toMatchObject({
       scope: 'editor',
       keys: ['Mod+Alt+Shift+V'],
@@ -509,6 +511,7 @@ describe('keyMatches over the registry', () => {
                 '-': 'Minus',
                 '[': 'BracketLeft',
                 ']': 'BracketRight',
+                '\\': 'Backslash',
               }[last] ?? last)
         const e = press(code, last.length === 1 ? last.toLowerCase() : last, {
           metaKey: key.includes('Mod+'),
@@ -598,6 +601,23 @@ describe('the default keys', () => {
       ['edit.sortLinesCase', ['Ctrl+F5']],
       ['edit.sortLinesCaseReverse', ['Ctrl+Shift+F5']],
       ['edit.joinLines', ['Ctrl+J']],
+      ['edit.addCursorAbove', ['Ctrl+Shift+ArrowUp']],
+      ['edit.addCursorBelow', ['Ctrl+Shift+ArrowDown']],
+      ['edit.selectNextOccurrence', ['Mod+Alt+G']],
+      ['edit.skipNextOccurrence', ['Mod+Alt+Shift+G']],
+      ['edit.selectAllMatches', ['Mod+Ctrl+G']],
+      ['edit.splitSelectionIntoLines', ['Mod+Alt+L']],
+      ['edit.undoSelection', ['Mod+Alt+U']],
+      ['edit.redoSelection', ['Mod+Shift+U']],
+      ['edit.goToBracket', ['Mod+Shift+\\']],
+      ['edit.selectToBracket', []],
+      ['edit.upperCase', []],
+      ['edit.lowerCase', []],
+      ['edit.toggleTask', []],
+      ['edit.goToLine', ['Ctrl+G']],
+      ['edit.toggleOverwrite', []],
+      ['format.headingBigger', []],
+      ['format.headingSmaller', []],
       ['table.alignLeft', ['Mod+Alt+ArrowLeft']],
       ['table.alignRight', ['Mod+Alt+ArrowRight']],
       ['table.alignCenter', ['Mod+Alt+ArrowUp']],

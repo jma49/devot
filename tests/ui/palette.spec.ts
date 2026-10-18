@@ -76,6 +76,7 @@ test('lists commands with their shortcuts and runs the one picked', async ({ pag
     /Search notebooks\s*b/,
     /Search tags\s*t/,
     /Outline of this note\s*#/,
+    /Go to line\s*:/,
     /Search notes/,
   ])
   // Commands scope: every command the window can run.

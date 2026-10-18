@@ -11,12 +11,13 @@ import {
   type MouseEvent,
 } from 'react'
 import { shortcutLabel } from '../commands/keys'
-import { t, type MessageKey } from '../i18n'
+import { format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { isImeKey } from '../ime'
 import type { IconName } from '../icons/symbols'
 import {
   escapeStep,
+  lineOfQuery,
   paletteResults,
   ROOT,
   typeInto,
@@ -67,6 +68,7 @@ const GROUP_LABEL: Readonly<Record<PaletteKind, MessageKey>> = {
   tag: 'palette.tags',
   note: 'palette.notes',
   outline: 'palette.outline',
+  line: 'palette.line',
   source: 'palette.sources',
 }
 
@@ -76,6 +78,7 @@ const ICON: Readonly<Record<PaletteKind, IconName>> = {
   tag: 'tag',
   note: 'notes.all',
   outline: 'outline',
+  line: 'find.next',
   source: 'search',
 }
 
@@ -85,6 +88,7 @@ const SOURCE_ICON: Readonly<Record<PaletteSource, IconName>> = {
   book: 'notebook',
   tag: 'tag',
   outline: 'outline',
+  line: 'find.next',
   note: 'notes.all',
 }
 
@@ -93,6 +97,7 @@ const PLACEHOLDER: Readonly<Record<PaletteSource, MessageKey>> = {
   book: 'palette.placeholder.book',
   tag: 'palette.placeholder.tag',
   outline: 'palette.placeholder.outline',
+  line: 'palette.placeholder.line',
   note: 'palette.placeholder.note',
 }
 
@@ -125,8 +130,10 @@ function Marked({ text, ranges }: { text: string; ranges: readonly [number, numb
 export function CommandPalette(props: {
   entries: Readonly<Record<PaletteKind, readonly PaletteEntry[]>>
   actions: (entry: PaletteEntry) => PaletteActions
-  /** The source to open scoped to (the sidebar's search buttons). */
+  /** The source to open scoped to (the sidebar's search buttons, Go to Line). */
   initialScope?: PaletteSource | undefined
+  /** How many lines the open note has (Go to Line); 0 or none when no note is open. */
+  lineCount?: number | undefined
   onClose: (picked?: () => void | Promise<unknown>) => void
 }) {
   const { entries, actions, onClose } = props
@@ -140,6 +147,10 @@ export function CommandPalette(props: {
   useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
+    // showModal focuses the dialog's first control, which is the Back button
+    // when the palette opens scoped (Go to Line, the sidebar's search
+    // buttons): the field keeps the keyboard.
+    input.current?.focus()
     return () => el?.close()
   }, [])
 
@@ -163,7 +174,23 @@ export function CommandPalette(props: {
     }
   }, [])
 
-  const groups = useMemo(() => paletteResults(state, entries), [state, entries])
+  const lineCount = props.lineCount ?? 0
+  const groups = useMemo(() => {
+    if (state.scope !== 'line') return paletteResults(state, entries)
+    const line = lineOfQuery(state.query, lineCount)
+    const goTo: PaletteEntry[] =
+      line === null
+        ? []
+        : [
+            {
+              kind: 'line',
+              id: `line:${line}`,
+              label: format(t('palette.goToLineN'), { line: String(line) }),
+              line,
+            },
+          ]
+    return paletteResults(state, { ...entries, line: goTo })
+  }, [state, entries, lineCount])
   const results = groups.flatMap((g) => g.results)
   // Where each group starts in `results` (options are numbered across groups).
   const starts = groups.map((_, i) =>
@@ -373,7 +400,11 @@ export function CommandPalette(props: {
         <p className="palette-empty">
           {scope === 'outline' && state.query.trim() === ''
             ? t('palette.noOutline')
-            : t('palette.empty')}
+            : scope === 'line'
+              ? lineCount > 0
+                ? format(t('palette.noLine'), { lines: String(lineCount) })
+                : t('palette.noLineNote')
+              : t('palette.empty')}
         </p>
       ) : null}
       <div id="palette-keys" className="palette-keys">
