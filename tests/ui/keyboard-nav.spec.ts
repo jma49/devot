@@ -466,19 +466,19 @@ test('Sort Notes\u2026 in the palette opens the list\u2019s sort pop-up', async 
 
 test.describe('the sidebar', () => {
   test('one toggle at the start of the list header hides and shows it', async ({ page }) => {
-    const header = page.getByRole('region', { name: 'Notes' }).getByRole('toolbar')
+    const bar = page.getByRole('region', { name: 'Notes' }).getByRole('toolbar')
     await expect(sidebar(page).getByRole('button', { name: 'Hide Sidebar' })).toHaveCount(0)
-    const toggle = header.getByRole('button', { name: 'Hide Sidebar' })
+    const toggle = bar.getByRole('button', { name: 'Hide Sidebar' })
     await expect(toggle).toHaveAttribute('title', 'Hide Sidebar (⌘/)')
-    await expect(header.getByRole('button').first()).toHaveAccessibleName('Hide Sidebar')
-    const inset = header.locator('.window-inset')
+    await expect(bar.getByRole('button').first()).toHaveAccessibleName('Hide Sidebar')
+    const inset = bar.locator('.window-inset')
     await expect.poll(async () => (await inset.boundingBox())?.width).toBe(0)
 
     await toggle.click()
     await expect(sidebar(page)).toBeHidden()
     // The window controls get their room before the toggle.
     await expect.poll(async () => (await inset.boundingBox())?.width).toBe(70)
-    await header.getByRole('button', { name: 'Show Sidebar' }).click()
+    await bar.getByRole('button', { name: 'Show Sidebar' }).click()
     await expect(sidebar(page)).toBeVisible()
     await expect.poll(async () => (await inset.boundingBox())?.width).toBe(0)
   })
