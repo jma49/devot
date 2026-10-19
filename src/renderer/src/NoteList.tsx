@@ -723,7 +723,10 @@ export const NoteList = memo(function NoteList(props: Props) {
               {props.icon}
             </span>
           ) : null}
-          <span className="headline">{title}</span>
+          {/* A long name is cut off with an ellipsis; the tooltip has the whole one. */}
+          <span className="headline" title={title}>
+            {title}
+          </span>
           <span role="status" className="visually-hidden">
             {spoken}
           </span>

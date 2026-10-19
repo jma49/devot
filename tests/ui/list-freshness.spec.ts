@@ -54,7 +54,7 @@ test('an edited note moves to the top with its new date', async ({ page }) => {
 test('a note renamed during a search shows its new title in the results', async ({ page }) => {
   await seedNotes(page, 3)
   await search(page).fill('Note 2')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(rowTitles(page)).toHaveText(['Note 2'])
   await openNote(page, 'Note 2')
 
@@ -100,7 +100,7 @@ test('New Note in a status or tag view lists the new note in All Notes', async (
 test('New Note during a search leaves the search and lists the new note', async ({ page }) => {
   await seedNotes(page, 3)
   await search(page).fill('Note')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(rows(page)).toHaveCount(3)
 
   await newNote(page)
