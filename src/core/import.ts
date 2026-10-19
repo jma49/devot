@@ -383,12 +383,20 @@ export function markdownFacts(markdown: string): MarkdownFacts {
   const found = images ? imagesOf(tree, markdown) : { links: [], unlocated: [] }
   // Only Devot's own front matter can give the title (exactly, only cut to
   // the limit); the tree's first heading is the body's, after that block.
-  const own = yaml !== null && isExportBlock(yaml) ? metaOf(yaml, true).title : null
+  const exported = yaml !== null && isExportBlock(yaml)
+  const own = exported ? metaOf(yaml, true).title : null
+  // The import stores the body without Devot's block and reads it on its own,
+  // so a body that opens with `---` is front matter there, not a rule.
+  const bodyTree = () => {
+    const end = tree.children[0]?.position?.end.offset ?? 0
+    const rest = markdown.slice(end)
+    return parse(rest.startsWith('\n') ? rest.slice(1) : rest)
+  }
   return {
     links: found.links,
     unlocated: found.unlocated,
     frontMatter: yaml,
-    title: (path) => (own === null ? titleOf(tree, path) : clipTitle(own)),
+    title: (path) => (own !== null ? clipTitle(own) : titleOf(exported ? bodyTree() : tree, path)),
   }
 }
 
