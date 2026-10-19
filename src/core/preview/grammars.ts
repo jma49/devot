@@ -4,7 +4,6 @@ import type { LanguageFn } from 'highlight.js'
 
 export type GrammarLoader = () => Promise<{ default: LanguageFn }>
 
-/** Every highlight.js grammar, loaded on first use. */
 export const GRAMMARS: Readonly<Record<string, GrammarLoader>> = {
   '1c': () => import('highlight.js/lib/languages/1c'),
   abnf: () => import('highlight.js/lib/languages/abnf'),
@@ -200,7 +199,6 @@ export const GRAMMARS: Readonly<Record<string, GrammarLoader>> = {
   zephir: () => import('highlight.js/lib/languages/zephir'),
 }
 
-/** Other names of those grammars, lower-cased. */
 export const GRAMMAR_ALIASES: Readonly<Record<string, string>> = {
   ado: 'stata',
   adoc: 'asciidoc',

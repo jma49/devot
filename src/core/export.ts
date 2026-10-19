@@ -1,44 +1,20 @@
-// Markdown export: a note, or a notebook with its sub-notebooks, as Markdown
-// files with their attachments. Rust shows the panels and writes the files
+// Markdown export: a note, or a notebook with its sub-notebooks, as Markdown files with their attachments. Rust shows the panels and writes the files
 // (src-tauri/src/export.rs); this module decides what goes where.
 //
 // Rules:
-// - A note is one `.md` file named after its title. A notebook becomes a
-//   folder named after it, each sub-notebook a folder inside it (nested
-//   like the sidebar), each note a file in its notebook's folder. All notes
-//   are every top-level notebook as such a folder, in sidebar order, with
-//   the notes in no notebook at the top (never Templates or the Trash);
-//   chosen notes are files side by side, in the order chosen. Names are
-//   made safe for the file system and numbered when two would be the same
-//   (`Plan.md`, `Plan 2.md`): the same as macOS takes them, whatever their
-//   case or the form of their accents, or (to be safe) a compatibility
-//   form (`nameKey`).
+// - A note is one `.md` file named after its title; a notebook is a folder (sub-notebooks nested like the sidebar). "All notes" is every top-level notebook in sidebar
+//   order, with notes in no notebook at the top (never Templates or the Trash); chosen notes are files side by side. Names are made safe for the file system and
+//   numbered when two would be the same (`Plan.md`, `Plan 2.md`) as macOS takes them (`nameKey`).
 // - The body is the note's Markdown as it is, apart from two things:
-//   - attachments (`devot://file/<id>` image destinations with a UUIDv7,
-//     the ones import makes, and the `src` of an `<img>` in raw HTML) are
-//     copied into an `attachments` folder at the top of the export, once
-//     each, and their links become relative paths to them (percent-encoded
-//     where a character would end or change the link: `&`, `|`, spaces of
-//     any kind, and in HTML quotes too; any other `devot://file/` link stays
-//     as written); a size preset stays as the path's fragment
-//     (`attachments/shot.png#half`), which other Markdown tools ignore when
-//     they load the image and import reads back; an image whose link cannot
-//     be found in the text keeps it and is listed as a problem;
-//   - the note's title, tags and status go into front matter where import
-//     would not read them back from the file: import reads them only from
-//     Devot's own block (opened by the comment EXPORT_HEADER, which import
-//     leaves out of the note again, reading its values exactly), so a note
-//     whose title is not its first heading or file name, or that has tags
-//     or a status, gets that block first. A note's own front matter is
-//     never changed: the block goes before it, and import keeps it in the
-//     body as it is. A note whose own front matter would itself read as
-//     Devot's block (its first line is EXPORT_HEADER) always gets the
-//     block, so import leaves out only the one export added. Values are
-//     single-quoted, or double-quoted with escapes when they hold what
-//     cannot be written on one line as it is (control characters, line or
-//     paragraph separators, a byte order mark).
-//   So export then import gives the same notes (title, body, tags, status,
-//   notebooks and images).
+//   - attachments (`devot://file/<id>` image destinations with a UUIDv7, and the `src` of a raw HTML `<img>`) are copied once each into an `attachments` folder at the
+//     top, and their links become relative paths, percent-encoded where a character would end or change the link (`&`, `|`, spaces, quotes in HTML). A size preset
+//     stays as the path's fragment (`attachments/shot.png#half`), which other tools ignore and import reads back. An image whose link cannot be found keeps it and is
+//     listed as a problem;
+//   - title, tags and status go into front matter where import would not read them back from the file: import reads them only from Devot's own block (opened by the
+//     comment EXPORT_HEADER), so a note whose title is not its first heading or file name, or that has tags or a status, gets that block first. A note's own front
+//     matter is never changed; if its first line is EXPORT_HEADER the note always gets the block, so import leaves out only the one export added. Values are
+//     single-quoted, or double-quoted with escapes when they cannot be written on one line as they are.
+//   So export then import gives the same notes (title, body, tags, status, notebooks and images).
 // - Note links (`devot://note/<id>`) stay as they are.
 
 import { bookOrder, buildBookTree, type BookService } from './books'
@@ -57,61 +33,41 @@ import type { BookRecord, NoteStatus } from './storage'
 import type { TagService } from './tags'
 import { replaceRanges, type TextEdit } from './text'
 
-/** The folder at the top of an export that holds the attachments. */
 export const ATTACHMENTS_FOLDER = 'attachments'
 
-/** File and folder names, in UTF-8 bytes (a name may take 255; numbering adds a few). */
 const MAX_NAME_BYTES = 200
 
-/**
- * What an export writes: a note; a notebook with its sub-notebooks; every
- * note (`all`: each top-level notebook a folder, notes in no notebook at the
- * top); or chosen notes (`notes`: flat, in the order given). `name` is the
- * folder `all` and `notes` are written into.
- */
 export type ExportTarget =
   | { kind: 'note'; noteId: string }
   | { kind: 'notebook'; bookId: string }
   | { kind: 'all'; name: string }
   | { kind: 'notes'; noteIds: readonly string[]; name: string }
 
-/** A note as it is exported. */
 export interface ExportEntry {
   noteId: string
   title: string
   bodyMd: string
-  /** Tag names. */
   tags: string[]
   status: NoteStatus
-  /** The folders from the top of the export down to the note's file. */
   folder: string[]
-  /** The file name without its extension. */
   stem: string
 }
 
 export interface ExportPlan {
-  /** The note's file name or the notebook's folder name, without extension. */
   name: string
   entries: ExportEntry[]
 }
 
 export interface ExportProblem {
   noteId: string
-  /** The attachment, when the problem is one of the note's images. */
   fileId?: string
   code: string
 }
 
-/** Where export writes (in the app: Tauri commands). */
 export interface ExportSink {
-  /**
-   * Asks where the export goes; null when the user cancelled. A note's
-   * export gets the file name the user chose.
-   */
+  /** Null when the user cancelled. A note's export gets the file name the user chose. */
   begin(name: string): Promise<{ fileName?: string | null } | null>
-  /** Copies attachment `fileId` into the export; resolves to its path from the top. */
   attach(fileId: string): Promise<string>
-  /** Writes a file at `path` (from the top, `/`-separated). */
   write(path: string, text: string): Promise<void>
 }
 
@@ -121,11 +77,9 @@ export interface ExportReport {
   problems: ExportProblem[]
 }
 
-// --- Names -----------------------------------------------------------------
-
 const encoder = new TextEncoder()
 
-/** `text` cut to at most `max` UTF-8 bytes, never inside a character. */
+/** Never cuts inside a character. */
 function clipBytes(text: string, max: number): string {
   // A UTF-16 code unit is at most three UTF-8 bytes: short text fits as it is.
   if (text.length * 3 <= max) return text
@@ -139,11 +93,7 @@ function clipBytes(text: string, max: number): string {
   return out
 }
 
-/**
- * `text` as a file or folder name (without extension): on one line, without
- * path separators, colons or a leading dot, at most 200 bytes; `fallback`
- * when nothing is left.
- */
+/** One line, no path separators, colons or leading dot, at most 200 bytes; `fallback` when nothing is left. */
 export function fileStem(text: string, fallback: string): string {
   const cleaned = text
     .replace(/[\p{Cc}\p{Cf}/\\:]/gu, ' ')
@@ -154,28 +104,16 @@ export function fileStem(text: string, fallback: string): string {
   return clipped || fallback
 }
 
-/**
- * What a file or folder name is to macOS: two names with one key name one
- * file. APFS ignores case, folding it fully (the German sharp s is `ss`,
- * the fi ligature `fi`), and the form of accents (an accented letter
- * written as one code point or as a letter and a combining mark), but not
- * compatibility forms: `x²` and `x2`, or full-width letters and plain
- * ones, name two files.
- */
+/** What a file or folder name is to macOS: two names with one key name one file. APFS ignores case (fully folded: ss, fi) and the form of accents, but not compatibility forms (`x²` and `x2`). */
 export function fileKey(name: string): string {
   return name.normalize('NFD').toLowerCase().toUpperCase().normalize('NFD')
 }
 
-/**
- * The key names are numbered by: `fileKey`, and compatibility forms folded
- * too, so two names macOS takes for one always clash, and at worst a name
- * is numbered that did not need it (`x2` after `x²`).
- */
+/** `fileKey` plus compatibility forms folded, so two names macOS takes for one always clash; at worst a name is numbered that did not need it (`x2` after `x²`). */
 export function nameKey(name: string): string {
   return name.normalize('NFKD').toLowerCase().toUpperCase().normalize('NFKD')
 }
 
-/** `stem`, or `stem 2`, `stem 3`, ...: the first whose `nameKey` is not in `taken`; takes it. */
 function unique(stem: string, taken: Set<string>): string {
   for (let n = 1; ; n += 1) {
     const name = n === 1 ? stem : `${stem} ${n}`
@@ -187,26 +125,19 @@ function unique(stem: string, taken: Set<string>): string {
   }
 }
 
-// --- Planning ----------------------------------------------------------------
-
 export interface PlanOptions {
   notes: NoteService
   books: BookService
   tags: TagService
   target: ExportTarget
-  /** The name of a note without a title (the UI's "Untitled"). */
   untitled: string
 }
 
-/**
- * The name of the folder an export makes when it is known before planning
- * (every note, chosen notes); null when it comes from the note or notebook.
- */
+/** Null when the name comes from the note or notebook, not known before planning. */
 export function exportName(target: ExportTarget): string | null {
   return target.kind === 'all' || target.kind === 'notes' ? fileStem(target.name, '_') : null
 }
 
-/** What an export writes: the note, or the notebook's notes, and where. */
 export async function planExport(options: PlanOptions): Promise<ExportPlan> {
   const { notes, books, tags, target, untitled } = options
   const [summaries, tagRecords] = await Promise.all([notes.list(), tags.list()])
@@ -268,12 +199,7 @@ export async function planExport(options: PlanOptions): Promise<ExportPlan> {
   }
   const entries: ExportEntry[] = []
   const seen = new Set<string>()
-  /**
-   * Adds `notes` as files in `folder`. Returns every name taken there (by
-   * the notes' files, and at the top by the attachments folder), so a
-   * sub-notebook's folder never takes a note's file name (`Plan.md`) or the
-   * attachments folder.
-   */
+  /** Returns every name taken there (including the attachments folder at the top), so a sub-notebook's folder never takes a note's file name or the attachments folder. */
   const fill = async (notesHere: typeof summaries, folder: string[]) => {
     const files = new Set<string>()
     const taken = new Set<string>(folder.length === 0 ? [nameKey(ATTACHMENTS_FOLDER)] : [])
@@ -307,9 +233,7 @@ export async function planExport(options: PlanOptions): Promise<ExportPlan> {
     return { name: fileStem(root.name, '_'), entries }
   }
 
-  // Everything: notes in no notebook (or in one that is gone) at the top,
-  // then each top-level notebook as the sidebar shows it, a parent cycle's
-  // notebooks among them.
+  // Notes in no notebook (or in one that is gone) at the top, then each top-level notebook as the sidebar shows it, a parent cycle's notebooks among them.
   const known = new Map(all.map((b) => [b.id, b]))
   const loose = summaries.filter((n) => n.bookId === null || !known.has(n.bookId))
   const taken = await fill(loose, [])
@@ -320,31 +244,22 @@ export async function planExport(options: PlanOptions): Promise<ExportPlan> {
   return { name: fileStem(target.name, '_'), entries }
 }
 
-// --- Markdown files ----------------------------------------------------------
-
-/**
- * An attachment's URL (`devot://file/<id>`, without a size); the group is its
- * ID, a UUIDv7 as Rust accepts it. Any other ID names no attachment, so its
- * image stays as written (Rust would refuse it, and the whole page with it).
- */
+/** Any other ID names no attachment, so its image stays as written (Rust would refuse it, and the whole page with it). */
 export const FILE_URL = new RegExp(`^${fileUri(`(${FILE_ID_SOURCE})`)}$`)
 
-/** The attachment an image URL shows, and the size it shows it at; null for other URLs. */
+/** Null for URLs that are not attachments. */
 function attachmentOf(url: string): { id: string; size: ImageSize } | null {
   const sized = splitImageSize(url)
   const id = FILE_URL.exec(sized.url)?.[1]
   return id === undefined ? null : { id, size: sized.size }
 }
 
-/** The attachments `urls` show (at any size), each once, in order. */
+/** Each attachment once, in order, at any size. */
 const attachmentsOf = (urls: readonly string[]) => [
   ...new Set(urls.flatMap((url) => attachmentOf(url)?.id ?? [])),
 ]
 
-/**
- * The attachments a note's images show (at any size), each once, in order:
- * Markdown images and `<img>` tags in raw HTML.
- */
+/** Markdown images and raw HTML `<img>` tags, each attachment once, in order. */
 export function attachmentIds(markdown: string): string[] {
   // Without a `![` or an `<img` there is no image: nothing to parse.
   if (!mayShowImages(markdown)) return []
@@ -354,31 +269,16 @@ export function attachmentIds(markdown: string): string[] {
 const percentEncoded = (c: string) =>
   Array.from(encoder.encode(c), (b) => `%${b.toString(16).toUpperCase().padStart(2, '0')}`).join('')
 
-/**
- * A relative path as a Markdown link destination: characters that would
- * end or change it (spaces of any kind, parentheses, angle brackets, `%`,
- * `#`, `?`, `&`, which starts a character reference, `|`, which ends a
- * table cell, backslashes, control characters) are percent-encoded; others
- * stay.
- */
+/** Percent-encodes characters that would end or change a link destination: spaces, parentheses, angle brackets, `%`, `#`, `?`, `&` (starts a character reference), `|` (ends a table cell), backslashes, control characters. */
 export function linkPath(path: string): string {
   return path.replace(/[\s()<>%#?&|\\\p{Cc}]/gu, percentEncoded)
 }
 
-/**
- * A relative path as an HTML attribute value (an `<img>`'s `src`): as
- * `linkPath`, with quotes, `=` and backticks percent-encoded too, so it is
- * one value however the attribute is quoted, or not.
- */
+/** As `linkPath`, plus quotes, `=` and backticks, so it is one value however the attribute is quoted. */
 export function attributePath(path: string): string {
   return linkPath(path).replace(/["'=`]/g, percentEncoded)
 }
 
-/**
- * A link from a page in `folder` to the file at `path` (both from the top of
- * the export): `..` for each folder to leave, then the rest of `path`, each
- * name percent-encoded.
- */
 export function relativeHref(folder: readonly string[], path: readonly string[]): string {
   let shared = 0
   while (shared < folder.length && shared < path.length - 1 && folder[shared] === path[shared]) {
@@ -388,15 +288,10 @@ export function relativeHref(folder: readonly string[], path: readonly string[])
   return [...up, ...path.slice(shared).map(encodeURIComponent)].join('/')
 }
 
-/**
- * What a value cannot hold as written on one line of front matter: control
- * characters (line breaks among them), the line and paragraph separators
- * (line breaks to some readers), a byte order mark and unpaired surrogates.
- */
+/** Control characters, the line and paragraph separators (line breaks to some readers), a byte order mark and unpaired surrogates. */
 const UNWRITABLE = /[\p{Cc}\p{Zl}\p{Zp}\uFEFF]|\p{Cs}/u
 const ESCAPED = /[\\"\p{Cc}\p{Zl}\p{Zp}\uFEFF]|\p{Cs}/gu
 
-/** YAML's short escapes; anything else that needs one is `\uXXXX`. */
 const SHORT_ESCAPES: Readonly<Record<string, string>> = {
   '\\': '\\\\',
   '"': '\\"',
@@ -405,11 +300,7 @@ const SHORT_ESCAPES: Readonly<Record<string, string>> = {
   '\r': '\\r',
 }
 
-/**
- * A value as a YAML scalar on one line: single-quoted (a `'` doubled) when
- * it can be written as it is, else double-quoted with escapes, which import
- * reads back exactly in Devot's block.
- */
+/** Single-quoted when it can be written as it is, else double-quoted with escapes, which import reads back exactly in Devot's block. */
 function quoted(value: string): string {
   if (!UNWRITABLE.test(value)) return `'${value.replace(/'/g, "''")}'`
   const escaped = value.replace(
@@ -421,13 +312,7 @@ function quoted(value: string): string {
 
 const statusValue = (status: NoteStatus) => status.replace(/_/g, '-')
 
-/**
- * The Markdown file for a note: its body with attachment links pointing at
- * `paths` (attachment ID to its path from the note's folder), and the front
- * matter import needs to read back its title, tags and status from a file
- * named `fileName` (see the rules at the top). `facts` are what
- * `markdownFacts` reads from the body, when the caller has them already.
- */
+/** `facts` are what `markdownFacts` reads from the body, when the caller has them already. */
 export function markdownFile(
   entry: Pick<ExportEntry, 'title' | 'bodyMd' | 'tags' | 'status'>,
   fileName: string,
@@ -459,18 +344,11 @@ export function markdownFile(
   return devotBlock()
 }
 
-// --- Export ------------------------------------------------------------------
-
 export interface ExportOptions extends PlanOptions {
   sink: ExportSink
 }
 
-/**
- * Exports a note or a notebook as Markdown files (see the rules at the top).
- * Null when the user cancelled. A note that cannot be written, or an image
- * that cannot be copied or whose link cannot be found (its link stays as it
- * was), is listed as a problem.
- */
+/** Null when the user cancelled. A note that cannot be written, or an image that cannot be copied or whose link cannot be found (its link stays as it was), is listed as a problem. */
 export async function exportMarkdown(options: ExportOptions): Promise<ExportReport | null> {
   const { sink } = options
   // A folder whose name is known asks first: every note is read only once

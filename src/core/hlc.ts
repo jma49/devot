@@ -1,8 +1,6 @@
-// Hybrid logical clock. Timestamps order metadata writes across devices for
-// last-writer-wins: wall time first, then a counter, then the node ID.
+// Hybrid logical clock. Timestamps order metadata writes across devices for last-writer-wins: wall time first, then a counter, then the node ID.
 //
-// Encoding: `<16-digit wall ms>-<4 hex counter>-<node>`. The fixed-width
-// prefix makes plain string comparison match HLC order.
+// Encoding: `<16-digit wall ms>-<4 hex counter>-<node>`. The fixed-width prefix makes plain string comparison match HLC order.
 
 export interface Hlc {
   wall: number
@@ -26,11 +24,7 @@ export function parseHlc(text: string): Hlc {
 
 export const compareHlc = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
-/**
- * A node ID for one process's clock: 16 random hex digits (64 bits), new at
- * every start and never stored, so no two processes, whatever storage they
- * share, stamp a write alike.
- */
+/** New at every start and never stored, so no two processes, whatever storage they share, stamp a write alike. */
 export function newNodeId(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(8)), (byte) =>
     byte.toString(16).padStart(2, '0'),
@@ -38,24 +32,11 @@ export function newNodeId(): string {
 }
 
 export interface Clock {
-  /** A timestamp for a local write, later than every timestamp seen so far. */
   tick(): string
-  /**
-   * Merges a timestamp written elsewhere (another device, another process,
-   * an earlier start); returns the updated local time.
-   */
   receive(remote: string): string
 }
 
-/**
- * Takes in the stamps of records read from storage before writing over
- * them, so every later tick is later than each: a write based on what was
- * read always wins over it. That holds even when the stamps were written
- * while the system clock ran ahead and it has been set back since (a
- * restore, a rename or a move would otherwise lose to them, silently, until
- * the clock caught up). Empty stamps (a field never set) and malformed ones
- * are skipped; only the newest is received.
- */
+/** Takes in the stamps of records read from storage, so every later tick is later than each and a write based on what was read always wins. That holds even when the stamps were written while the system clock ran ahead and it has since been set back. Empty and malformed stamps are skipped; only the newest is received. */
 export function receiveStored(clock: Clock, stamps: Iterable<string | null | undefined>): void {
   let newest: string | undefined
   for (const stamp of stamps) {

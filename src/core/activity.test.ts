@@ -11,7 +11,6 @@ import {
 } from './activity'
 import type { ActivityData, ActivityRevision } from './storage'
 
-/** The offset of a named IANA time zone at an instant, through `Intl`. */
 function zoneOffset(timeZone: string): OffsetAt {
   const format = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -39,10 +38,8 @@ function zoneOffset(timeZone: string): OffsetAt {
 
 const HOUR = 3_600_000
 
-/** The local day number of a calendar date (days since 1970-01-01). */
 const dayOf = (year: number, month: number, day: number) => Date.UTC(year, month - 1, day) / DAY_MS
 
-/** An instant, from an ISO string with its offset. */
 const at = (iso: string) => Date.parse(iso)
 
 const UTC: OffsetAt = () => 0
@@ -223,11 +220,9 @@ describe('counting activity per day', () => {
     const level = (day: number) => dayIn(heatmap, day).level
     expect(level(today)).toBe(0)
     expect(level(today - 1)).toBe(4)
-    // Active with no characters changed: the lightest shade.
     expect(level(today - 5)).toBe(1)
     const levels = [level(today - 2), level(today - 3), level(today - 4), level(today - 1)]
     expect([...levels].sort()).toEqual(levels)
-    // Four written days: one per shade.
     expect(levels).toEqual([1, 2, 3, 4])
     expect(heatmap.total).toEqual({ created: 0, chars: 5_971, activeDays: 5 })
   })

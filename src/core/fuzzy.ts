@@ -1,18 +1,12 @@
-// Fuzzy matching for quick pickers (the command palette): the query's
-// letters must appear in the text in order, not necessarily together. Matches
-// at word starts and in runs score higher, so "nb" finds "New Book" before
-// "unbox". Case and accents are ignored; spaces in the query are skipped.
+// Fuzzy matching for quick pickers (the command palette): the query's letters must appear in the text in order, not necessarily together. Matches at word starts and
+// in runs score higher, so "nb" finds "New Book" before "unbox". Case and accents are ignored; spaces in the query are skipped.
 
-/** A match: its score (higher is better) and the matched runs of the text. */
 export interface FuzzyMatch {
   score: number
-  /** `[from, to)` offsets into the text (UTF-16 code units), in order. */
   ranges: [number, number][]
 }
 
-/** Only this many characters of a text are searched. */
 const MAX_TEXT = 256
-/** Only this many characters of a query are used. */
 const MAX_QUERY = 64
 
 const MATCH = 16
@@ -24,7 +18,6 @@ const GAP_OPEN = 3
 const LEADING_MAX = 8
 const NONE = -Infinity
 
-/** One character, without case and accents, for comparing. */
 function fold(char: string): string {
   return char.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 }
@@ -33,7 +26,6 @@ const WORD = /[\p{L}\p{N}]/u
 const UPPER = /\p{Lu}/u
 const LOWER = /\p{Ll}/u
 
-/** The bonus for matching at `chars[j]`: the start of the text or of a word. */
 function bonus(chars: string[], j: number): number {
   if (j === 0) return FIRST
   const prev = chars[j - 1] ?? ''
@@ -43,10 +35,7 @@ function bonus(chars: string[], j: number): number {
   return 0
 }
 
-/**
- * Where `query` matches `text`, or null. The best match is found by dynamic
- * programming: each query letter goes where the total score is highest.
- */
+/** The best match is found by dynamic programming: each query letter goes where the total score is highest. */
 export function fuzzyMatch(query: string, text: string): FuzzyMatch | null {
   const needle = Array.from(query.replace(/\s+/g, '')).slice(0, MAX_QUERY).map(fold)
   if (needle.length === 0) return { score: 0, ranges: [] }
@@ -55,7 +44,6 @@ export function fuzzyMatch(query: string, text: string): FuzzyMatch | null {
   const n = chars.length
   const m = needle.length
   if (m > n) return null
-  // A quick check that the letters are there at all.
   let at = 0
   for (const c of folded) if (c === needle[at] && ++at === m) break
   if (at < m) return null
@@ -121,15 +109,11 @@ export function fuzzyMatch(query: string, text: string): FuzzyMatch | null {
   return { score, ranges }
 }
 
-/** A ranked item: what matched and how well. */
 export interface Ranked<T> extends FuzzyMatch {
   item: T
 }
 
-/**
- * The items whose text matches `query`, best first; on a tie the shorter text,
- * then the given order. An empty query keeps every item in the given order.
- */
+/** On a tie the shorter text, then the given order. An empty query keeps every item in the given order. */
 export function fuzzyRank<T>(query: string, items: readonly T[], text: (item: T) => string) {
   const ranked: (Ranked<T> & { index: number; length: number })[] = []
   items.forEach((item, index) => {

@@ -1,10 +1,6 @@
-// Code blocks: a header with the block's language (name and mark) and an
-// optional title, and syntax highlighting. The fence's info string comes from
-// the note's Markdown at the block's position: ```js, ```js:app.js and
-// ```js title="app.js". A fence can also name its source and number its lines:
-// ```ts line=10-20 commit=a1b2c3d url=https://github.com/o/r/blob/a1b2c3d/a.ts.
-// The highlighter loads only for notes that need it, and then loads only the
-// grammars their code blocks use.
+// Code blocks: a header with the block's language and an optional title, and syntax highlighting. The fence's info string comes from the note's Markdown at the
+// block's position: ```js, ```js:app.js and ```js title="app.js". A fence can also name its source and number its lines: ```ts line=10-20 commit=a1b2c3d url=https://....
+// The highlighter loads only for notes that need it, and then only the grammars their code blocks use.
 import type { Element, ElementContent, Root, RootContent } from 'hast'
 import languageIcons from '../../../design/icons/languages.json'
 import {
@@ -18,19 +14,12 @@ import { fillPlaceholders } from '../text'
 import { PREVIEW_API_VERSION, type PreviewRenderer } from './registry'
 
 export interface CodeInfo {
-  /** The language, lowercased and checked, or null. */
   language: string | null
-  /** The block's title (a file name, say), or null. */
   title: string | null
-  /** `filename=`: the text of the source link, or null. */
   filename: string | null
-  /** `line=5` or `line=5-9`: the number of the block's first line, or null. */
   line: LineRange | null
-  /** `url=`: where the code comes from; https only, or null. */
   url: string | null
-  /** `branch=`, or null. */
   branch: string | null
-  /** `commit=`, or null. */
   commit: string | null
 }
 
@@ -38,7 +27,6 @@ const LANGUAGE = /^[a-z0-9_+#.-]{1,32}$/
 const REF = /^[\w./-]{1,100}$/
 const MAX_TITLE = 200
 
-/** Reads a fence's info string: `js`, `js:app.js` or `js title="app.js" line=5`. */
 export function parseCodeInfo(info: string): CodeInfo {
   const { head, meta } = tokenizeFenceInfo(info)
   const colon = head.indexOf(':')
@@ -68,11 +56,8 @@ export function parseCodeInfo(info: string): CodeInfo {
 }
 
 interface Language {
-  /** The name the header shows. */
   name: string
-  /** The mark, a key of design/icons/languages.json. */
   icon?: keyof typeof languageIcons.icons
-  /** The highlight.js grammar (highlight.ts). */
   grammar?: string
 }
 
@@ -131,12 +116,10 @@ const LANGUAGES: readonly [string[], Language][] = [
 
 const BY_ALIAS = new Map(LANGUAGES.flatMap(([aliases, lang]) => aliases.map((a) => [a, lang])))
 
-/** What the header shows for `language`; an unknown one by its own name. */
 export function codeLanguage(language: string): Language {
   return BY_ALIAS.get(language) ?? { name: language }
 }
 
-/** Highlights code as a language; null when there is no such grammar. */
 export type Highlighter = (grammar: string, code: string) => Promise<ElementContent[] | null>
 
 export async function loadHighlighter(): Promise<Highlighter> {
@@ -158,7 +141,6 @@ function textOf(node: RootContent | Root): string {
   return 'children' in node ? node.children.map(textOf).join('') : ''
 }
 
-/** The mark for a language or the GitHub mark; a generic one (two angle brackets) else. */
 function icon(mark: string | undefined): Element {
   const own = mark ? languageIcons.icons[mark as keyof typeof languageIcons.icons] : undefined
   return el(
@@ -175,20 +157,17 @@ function icon(mark: string | undefined): Element {
 const GITHUB = 'https://github.com/'
 const txt = (value: string): ElementContent => ({ type: 'text', value })
 
-/** The line count of code that ends in a line break: that last break starts no line. */
 function lineCount(text: string): number {
   const n = text.split('\n').length
   return text.endsWith('\n') ? n - 1 : n
 }
 
-/** The link text for a source: its file name, else its URL without GitHub's origin and hash. */
 function sourceText(info: CodeInfo): string {
   if (info.filename) return info.filename
   const url = withoutHash(info.url ?? '')
   return url.startsWith(GITHUB) ? url.slice(GITHUB.length) : url
 }
 
-/** The class the language's code gets: from the fence, else the sanitized class. */
 function classLanguage(code: Element): string | null {
   const names = (code.properties['className'] as string[] | undefined) ?? []
   const name = names.find((n) => n.startsWith('language-'))?.slice('language-'.length)
@@ -201,7 +180,6 @@ interface Block {
   info: CodeInfo
 }
 
-/** The code blocks of `tree` (`pre` with one `code`), with their parents. */
 function collect(node: Root | Element, source: string, out: [Root | Element, Block][]): void {
   for (const child of node.children) {
     if (child.type !== 'element') continue

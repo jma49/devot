@@ -4,7 +4,6 @@
 // (`buildBookTree`), whose parents are the effective ones.
 import { flattenBookTree, type BookNode } from './books'
 
-/** The notebook `id` in the tree, if it is there. */
 export function findBookNode(tree: readonly BookNode[], id: string): BookNode | undefined {
   for (const node of tree) {
     if (node.id === id) return node
@@ -14,11 +13,7 @@ export function findBookNode(tree: readonly BookNode[], id: string): BookNode | 
   return undefined
 }
 
-/**
- * The workspace's sub-notebooks as a tree of their own: the same notebooks,
- * with depths counted from the workspace (its children at depth 0). Empty
- * when the notebook is gone.
- */
+/** Depths are counted from the workspace (its children at depth 0). */
 export function workspaceTree(tree: readonly BookNode[], id: string): BookNode[] {
   const root = findBookNode(tree, id)
   if (!root) return []
@@ -31,7 +26,6 @@ export function workspaceTree(tree: readonly BookNode[], id: string): BookNode[]
   return root.children.map(copy)
 }
 
-/** The notebooks above `id`, the top-level one first; empty for a top-level or unknown one. */
 export function workspaceParents(tree: readonly BookNode[], id: string): BookNode[] {
   const byId = new Map(flattenBookTree(tree).map((n) => [n.id, n]))
   const out: BookNode[] = []
@@ -44,7 +38,6 @@ export function workspaceParents(tree: readonly BookNode[], id: string): BookNod
   return out
 }
 
-/** Where Go Up leads from the workspace `id`: its parent notebook, or null (out of workspaces). */
 export function workspaceParent(tree: readonly BookNode[], id: string): string | null {
   return findBookNode(tree, id)?.parentId ?? null
 }

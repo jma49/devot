@@ -1,12 +1,7 @@
-// Plain-text helpers: replacing ranges, the smallest single replacement
-// between two texts (applied to Yjs documents as operations), whitespace and
-// code point counts as Rust reads them, and filling `{name}` placeholders.
+// Plain-text helpers: replacing ranges, the smallest single replacement between two texts (applied to Yjs documents as operations), whitespace and code point
+// counts as Rust reads them, and filling `{name}` placeholders.
 
-/**
- * The text with every line break as `\n` (`\r\n` and a lone `\r` become
- * `\n`). The editor counts a CRLF as one character and the Yjs text as two,
- * so a body must never hold `\r` or edits would land in the wrong place.
- */
+/** The editor counts a CRLF as one character and the Yjs text as two, so a body must never hold `\r` or edits would land in the wrong place. */
 export function lineFeeds(text: string): string {
   return text.replace(/\r\n?/g, '\n')
 }
@@ -17,7 +12,6 @@ export interface TextEdit {
   text: string
 }
 
-/** Applies non-overlapping replacements; the rest of the text is untouched. */
 export function replaceRanges(text: string, edits: readonly TextEdit[]): string {
   let out = text
   for (const edit of [...edits].sort((a, b) => b.start - a.start)) {
@@ -29,10 +23,7 @@ export function replaceRanges(text: string, edits: readonly TextEdit[]): string 
 const isHigh = (code: number) => code >= 0xd800 && code <= 0xdbff
 const isLow = (code: number) => code >= 0xdc00 && code <= 0xdfff
 
-/**
- * The single replacement that turns `from` into `to`: everything between
- * their common prefix and suffix. It never splits a surrogate pair.
- */
+/** Never splits a surrogate pair. */
 export function textDiff(
   from: string,
   to: string,
@@ -56,12 +47,7 @@ export function textDiff(
   }
 }
 
-/**
- * Whitespace as Unicode's White_Space property (and Rust's
- * `char::is_whitespace`) has it: JavaScript's `trim()` also strips U+FEFF
- * and keeps U+0085, Rust does neither. Names, excerpts and every check that
- * Rust repeats use this rule.
- */
+/** JavaScript's `trim()` also strips U+FEFF and keeps U+0085; Rust does neither. Names, excerpts and every check that Rust repeats use this rule. */
 export function isWhitespace(c: string): boolean {
   // Spelled out (the 25 characters of White_Space): this runs per character
   // on whole note bodies, where a regular expression per call is slow.
@@ -82,7 +68,6 @@ export function isWhitespace(c: string): boolean {
   )
 }
 
-/** `text` without leading and trailing whitespace (as Rust's `str::trim`). */
 export function trimWhitespace(text: string): string {
   // Every whitespace character is one UTF-16 unit, so a surrogate never matches.
   let start = 0
@@ -92,20 +77,14 @@ export function trimWhitespace(text: string): string {
   return text.slice(start, end)
 }
 
-/** How many code points `text` holds (as Rust's `chars().count()`). */
 export const charCount = (text: string): number => [...text].length
 
-/** The first `max` code points of `text`; a surrogate pair is never split. */
 export function clipChars(text: string, max: number): string {
   const chars = [...text]
   return chars.length > max ? chars.slice(0, max).join('') : text
 }
 
-/**
- * `template` with each `{name}` replaced by `values[name]`, in one pass: a
- * value is inserted as plain text and never read again, so a value holding
- * `$&`, `$$` or braces shows as typed. Placeholders without a value stay.
- */
+/** A value is inserted as plain text and never read again, so a value holding `$&`, `$$` or braces shows as typed. */
 export function fillPlaceholders(
   template: string,
   values: Readonly<Record<string, string>>,

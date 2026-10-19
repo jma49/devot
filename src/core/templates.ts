@@ -1,32 +1,19 @@
-// Note templates. A template is an ordinary note (synced, searchable from
-// its own view, edited like any note) filed in a reserved notebook,
-// Templates (TEMPLATES_BOOK_ID in books.ts). The library leaves templates
-// out: All Notes, the notebooks, search and AI tools never show them.
+// Note templates. A template is an ordinary note filed in a reserved notebook, Templates (TEMPLATES_BOOK_ID in books.ts). All Notes, notebooks, search and AI tools
+// never show them.
 //
 // A note made from a template gets:
 // - its title from the front matter `title`, else the template's own title;
-// - its notebook from `notebook` (a name, or a path such as `Work/Meetings`),
-//   else the notebook the window shows (as a new note would);
-// - its tags from `tags` (made when missing) and its status from `status`,
-//   read as import reads them (import.ts);
-// - the template's body with its variables filled in, and those four keys
-//   taken out of the front matter (the whole front matter when nothing else
-//   is left), so the new note's body holds only what is meant for it;
-// - its own copies of the images the template shows (attachments belong to
-//   one note, and purging the template would delete them), with the links
-//   taking the copies' IDs.
+// - its notebook from `notebook` (a name, or a path such as `Work/Meetings`), else the notebook the window shows;
+// - its tags from `tags` (made when missing) and its status from `status`, read as import reads them (import.ts);
+// - the template's body with variables filled in and those four keys taken out of the front matter (all of it when nothing else is left);
+// - its own copies of the template's images (attachments belong to one note), with the links taking the copies' IDs.
 //
-// An instruction quote is a blockquote whose first line is a heading that
-// starts with `!` (`> # !Instructions`). It explains the template, stays
-// visible in the template itself and is removed from the note made from it.
+// An instruction quote is a blockquote whose first line is a heading starting with `!` (`> # !Instructions`). It stays visible in the template and is removed from
+// the note made from it.
 //
-// Variables: `{{date}}` (YYYY-MM-DD), `{{time}}` (HH:mm), `{{datetime}}`
-// (YYYY-MM-DD HH:mm), each with an optional format after a colon
-// (`{{date:dddd, D MMMM}}`, tokens below), `{{title}}`, the new note's
-// title, and `{{uuid}}`, a random UUID v4 (the same one wherever it appears
-// in one note, a new one for each note made). Names match in any case. Anything else between double braces is
-// left as written. Dates are on the wall clock of the system's time zone
-// at the moment the note is made; the clock and the zone are injectable.
+// Variables: `{{date}}` (YYYY-MM-DD), `{{time}}` (HH:mm), `{{datetime}}`, each with an optional format after a colon (`{{date:dddd, D MMMM}}`, tokens below),
+// `{{title}}`, and `{{uuid}}`, a random UUID v4 (the same wherever it appears in one note). Names match in any case; anything else between double braces is left as
+// written. Dates use the wall clock of the system's time zone when the note is made; the clock and zone are injectable.
 
 import { systemOffset, type OffsetAt } from './activity'
 import { buildBookTree, flattenBookTree, TEMPLATES_BOOK_ID, type BookService } from './books'
@@ -40,34 +27,24 @@ import type { BookRecord, NoteStatus, NoteSummary, StorageAdapter } from './stor
 import { sameName, type TagService } from './tags'
 import { lineFeeds } from './text'
 
-/** The stored name of the Templates notebook (the UI shows its own label). */
 export const TEMPLATES_BOOK_NAME = 'Templates'
 
-/** Front matter keys that set a new note's defaults and stay out of its body. */
 export const TEMPLATE_KEYS = ['title', 'notebook', 'tags', 'status'] as const
 
-/** When a note is made from a template, and how to write the date. */
 export interface TemplateClock {
-  /** The moment (ms since the epoch). */
   now: number
-  /** The time zone's offset; the system's by default. */
   offsetAt?: OffsetAt | undefined
-  /** The locale for month and weekday names; English by default. */
   locale?: string | undefined
-  /** The UUID for `{{uuid}}`; random (v4) by default. */
   uuid?: string | undefined
 }
 
 export interface TemplateContext extends TemplateClock {
-  /** The new note's title, for `{{title}}`; left as text when unknown. */
   title?: string | undefined
 }
 
-/** What a note made from a template gets (see the rules at the top). */
 export interface TemplateDraft {
   title: string
   body: string
-  /** The notebook's name or path, as written; null for none. */
   notebook: string | null
   tags: string[]
   status: NoteStatus | null
@@ -75,24 +52,15 @@ export interface TemplateDraft {
 
 const pad = (n: number, width = 2) => String(n).padStart(width, '0')
 
-// Longer tokens first, so `MMMM` is not read as `MM` twice.
 const TOKEN = /\[([^\]]*)\]|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|HH|H|hh|h|mm|m|ss|s|A|a|Z/g
 
-/**
- * An instant written with a format, on the wall clock of a zone. Tokens:
- * YYYY YY (year), MMMM MMM MM M (month: name, short name, two digits,
- * number), DD D (day), dddd ddd (weekday name, short name), HH H (hour,
- * 0-23), hh h (hour, 1-12), mm m (minute), ss s (second), A a (AM/PM,
- * am/pm), Z (offset, +08:00). Text in brackets is kept as written, without
- * the brackets; every other character too.
- */
+/** Tokens: YYYY YY, MMMM MMM MM M (name, short name, two digits, number), DD D, dddd ddd, HH H (0-23), hh h (1-12), mm m, ss s, A a (AM/PM, am/pm), Z (+08:00). Text in brackets is kept without the brackets; every other character as written. */
 export function formatDate(
   at: number,
   pattern: string,
   options: Pick<TemplateClock, 'offsetAt' | 'locale'> = {},
 ): string {
   const offset = (options.offsetAt ?? systemOffset)(at)
-  // The wall clock read through the UTC getters.
   const wall = new Date(at + offset * 60_000)
   const name = (part: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat(options.locale ?? 'en-US', { ...part, timeZone: 'UTC' }).format(wall)
@@ -128,7 +96,6 @@ export function formatDate(
   )
 }
 
-/** `{{name}}` or `{{name:format}}`, spaces allowed around the name, on one line. */
 const VARIABLE = /\{\{[ \t]*([A-Za-z]+)[ \t]*(?::([^{}\n]*))?\}\}/g
 
 const DATE_FORMATS: Readonly<Record<string, string>> = {
@@ -137,7 +104,6 @@ const DATE_FORMATS: Readonly<Record<string, string>> = {
   datetime: 'YYYY-MM-DD HH:mm',
 }
 
-/** `text` with its variables filled in, in one pass (see the rules at the top). */
 export function expandTemplate(text: string, context: TemplateContext): string {
   let uuid = context.uuid
   return text.replace(VARIABLE, (whole, rawName: string, format: string | undefined) => {
@@ -154,16 +120,10 @@ export function expandTemplate(text: string, context: TemplateContext): string {
   })
 }
 
-/** An instruction quote's first line: `> # !Instructions`. */
 const INSTRUCTION_START = /^ {0,3}>[ \t]*#{1,6}[ \t]*!/
 const QUOTE_LINE = /^ {0,3}>/
 const FENCE = /^ {0,3}(`{3,}|~{3,})/
 
-/**
- * `text` without its instruction quotes (see the rules at the top): the
- * quote's lines, and the blank line after it. Ordinary quotes and anything
- * in a code block stay.
- */
 export function withoutInstructions(text: string): string {
   const lines = text.split('\n')
   const out: string[] = []
@@ -185,17 +145,12 @@ export function withoutInstructions(text: string): string {
   return out.join('\n')
 }
 
-/**
- * What a note made from `template` at `clock` gets (see the rules at the top).
- * `existingTitle` is the title of a note that already has one (a template applied
- * to it): `{{title}}` in the body names that note.
- */
+/** `existingTitle`: the title of a note that already has one (a template applied to it); `{{title}}` in the body names that note. */
 export function draftFromTemplate(
   template: { title: string; body: string },
   clock: TemplateClock,
   existingTitle = '',
 ): TemplateDraft {
-  // As import does: a `\r` in a body would put later edits in the wrong place.
   const source = lineFeeds(template.body)
   // One UUID for the whole note, title included.
   const made = { ...clock, uuid: clock.uuid ?? crypto.randomUUID() }
@@ -217,11 +172,7 @@ export function draftFromTemplate(
   }
 }
 
-/**
- * The notebook a template names: the first in sidebar order with that name
- * (in any case), else the one at that path of names separated by `/`;
- * null for none.
- */
+/** The first in sidebar order with that name (any case), else the one at that `/`-separated path. */
 export function resolveNotebook(name: string | null, books: readonly BookRecord[]): string | null {
   const wanted = name?.trim() ?? ''
   if (!wanted) return null
@@ -246,51 +197,25 @@ export interface TemplateServiceOptions {
   books: BookService
   tags: TagService
   clock: Clock
-  /** IDs for the copies of a template's images. */
   newId: () => string
   now?: () => number
 }
 
 export interface TemplateService {
-  /** Live templates, most recently updated first. */
   list(): Promise<NoteSummary[]>
-  /**
-   * The live notes (as NoteService.list) and the templates (as list), from
-   * one listing.
-   */
   listWithNotes(): Promise<{ notes: NoteSummary[]; templates: NoteSummary[] }>
-  /** A new, empty template; makes the Templates notebook on first use. */
   create(title?: string): Promise<string>
-  /**
-   * What a note made from template `id` at `clock` would get (pending edits
-   * to the template included), and the notebook it would go to (see
-   * apply). Throws E_TEMPLATE_NOT_FOUND for anything but a live template.
-   */
+  /** Pending edits to the template are included. Throws E_TEMPLATE_NOT_FOUND for anything but a live template. */
   draft(
     id: string,
     clock: TemplateClock,
     bookId?: string | null,
   ): Promise<TemplateDraft & { bookId: string | null }>
-  /**
-   * Saves an edit of template `id` (its title and/or Markdown body). A
-   * starter template is read-only: its edit is saved as a new template of
-   * the user's own, whose ID is returned. A template of the user's own is
-   * written in place and keeps its ID.
-   */
+  /** A starter template is read-only: its edit is saved as a new template of the user's own, whose ID is returned. */
   save(id: string, edit: { title?: string; body?: string }): Promise<string>
-  /**
-   * Fills note `noteId` from template `id`, keeping what the note has: its
-   * tags and status stay (the template's tags are added; its status is used
-   * only while the note has none), its title stays unless empty, and the
-   * template's body goes after the note's own text (with its own copies
-   * of the template's images).
-   */
+  /** Keeps what the note has: tags and status stay (the template's tags are added; its status is used only while the note has none), its title unless empty; the template's body goes after the note's text. */
   applyTo(id: string, noteId: string, clock: TemplateClock): Promise<void>
-  /**
-   * Makes a note from template `id` (see the rules at the top) and returns
-   * its ID. It goes to `bookId` when the template names no notebook that
-   * exists, unless that is not one of the user's live notebooks.
-   */
+  /** Goes to `bookId` when the template names no notebook that exists, unless that is not one of the user's live notebooks. */
   apply(id: string, clock: TemplateClock, bookId: string | null): Promise<string>
 }
 
@@ -298,10 +223,7 @@ export function createTemplateService(options: TemplateServiceOptions): Template
   const { storage, notes, books, tags, clock, newId } = options
   const now = options.now ?? Date.now
 
-  /**
-   * Writes the Templates notebook unless it is there. Every device writes
-   * the same ID, so their copies merge field by field (newer HLC wins).
-   */
+  /** Every device writes the same ID, so their copies merge field by field (newer HLC wins). */
   const ensureBook = async () => {
     if ((await storage.listBooks()).some((b) => b.id === TEMPLATES_BOOK_ID)) return
     const hlc = clock.tick()
@@ -326,7 +248,6 @@ export function createTemplateService(options: TemplateServiceOptions): Template
     })
   }
 
-  /** What a note made from template `id` gets, and the notebook it goes to. */
   const draft = async (
     id: string,
     at: TemplateClock,
@@ -379,7 +300,6 @@ export function createTemplateService(options: TemplateServiceOptions): Template
       if (isStarterTemplate(id)) {
         const starter = starterTemplate(id)
         if (!starter) throw new Error('E_TEMPLATE_NOT_FOUND')
-        // A starter is never written: the edit goes to a copy.
         await ensureBook()
         target = await notes.create(edit.title ?? starter.title, TEMPLATES_BOOK_ID)
         await notes.setBody(target, edit.body ?? starter.body)
@@ -393,13 +313,10 @@ export function createTemplateService(options: TemplateServiceOptions): Template
     async applyTo(id, noteId, at) {
       const note = await notes.read(noteId)
       const made = await draft(id, at, null, note.title)
-      // Pending edits written, so the status read is the note's current one.
       await notes.flush()
       const status = (await storage.listNotes()).find((n) => n.id === noteId)?.status ?? 'none'
-      // The note gets its own copies of the template's images, as a new note does.
       const copies = newFileCopies(made.body, newId)
       if (copies.length > 0) await storage.copyFiles(noteId, copies)
-      // One step on the live note: what was typed meanwhile stays.
       await notes.fill(noteId, { title: made.title, markdown: replaceFileLinks(made.body, copies) })
       if (made.status !== null && made.status !== 'none' && status === 'none') {
         await notes.setStatus(noteId, made.status)
@@ -419,7 +336,6 @@ export function createTemplateService(options: TemplateServiceOptions): Template
         }
         for (const tag of made.tags) await tags.addToNote(noteId, tag)
       } catch (error) {
-        // Leave no half-made note behind.
         await notes
           .trash(noteId)
           .then(() => notes.purge(noteId))

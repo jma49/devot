@@ -6,11 +6,7 @@
 
 const CODE = /^[EWI]_[A-Z0-9_]{1,62}(?![A-Za-z0-9_])/
 
-/**
- * The code a failure starts with: an Error's message, or the text a Tauri
- * command rejects with (Rust sends its code as a string). Anything else
- * gives `fallback`.
- */
+/** The code of an Error message, or of the text a Tauri command rejects with (Rust sends its code as a string); else `fallback`. */
 export function errorCode(error: unknown, fallback = 'E_UNKNOWN'): string {
   const text = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
   return CODE.exec(text)?.[0] ?? fallback

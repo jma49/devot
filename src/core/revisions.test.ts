@@ -24,10 +24,7 @@ const body = (at: number, length = 1): RevisionSummary => ({
   value: null,
 })
 
-/**
- * A note's newest versions, all from the last hour: compaction always keeps
- * them, so the rules for older versions show beside them.
- */
+/** All from the last hour: compaction always keeps them, so the rules for older versions show beside them. */
 const newest = () => Array.from({ length: KEEP_NEWEST }, (_, i) => body(NOW - (i + 1) * 60_000))
 
 describe('revisionsToDrop', () => {

@@ -5,9 +5,7 @@ import type { Element, ElementContent, Properties, Root, RootContent } from 'has
 import { PREVIEW_API_VERSION, type PreviewRenderer } from './registry'
 
 export interface MathEngine {
-  /** MathML markup for `tex`; throws on invalid input. */
   render(tex: string, display: boolean): string
-  /** Parses an HTML fragment into hast (no DOM needed). */
   parse(html: string): Root
 }
 
@@ -98,10 +96,9 @@ const MATHML_ATTRIBUTES = new Set([
   'encoding',
 ])
 const SAFE_VALUE = /^[\w .,%#+-]*$/
-/** The encoding of the TeX source annotation (it has a `/`, which SAFE_VALUE refuses). */
+/** The encoding has a `/`, which SAFE_VALUE refuses. */
 const TEX_ENCODING = 'application/x-tex'
 
-/** Keeps only allowlisted MathML elements and attributes; no styles, no links. */
 function cleanMath(node: RootContent): ElementContent[] {
   if (node.type === 'text') return [node]
   if (node.type !== 'element') return []

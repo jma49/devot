@@ -32,43 +32,29 @@ import { lineFeeds, trimWhitespace } from './text'
 
 export const AI_SEARCH_LIMIT = 20
 export const MAX_AI_SEARCH_LIMIT = 50
-/** UTF-8 bytes; generous for any note an assistant writes in one call. */
 export const MAX_AI_BODY_BYTES = 1024 * 1024
-/** The most tags one update may give a note. */
 export const MAX_AI_TAGS = 50
-/** The most passages one update may replace. */
 export const MAX_AI_PATCHES = 50
 const SNIPPET_RADIUS = 80
 
-/** Queries scoped to a few notebooks or one note, which AI needs from storage. */
 export interface AiStorage {
-  /**
-   * Live notes filed directly in one of `bookIds` that meet `query` (as
-   * `StorageAdapter.searchNotes`), best first, with their Markdown.
-   */
+  /** Notes filed directly in one of `bookIds`, as `StorageAdapter.searchNotes`. */
   searchNotesInBooks(
     query: NoteQuery,
     bookIds: readonly string[],
     limit: number,
   ): Promise<(NoteSummary & { bodyMd: string })[]>
-  /** How many live notes are filed directly in each of `bookIds`. */
   countNotesInBooks(bookIds: readonly string[]): Promise<Map<string, number>>
-  /** The live tags on a note. */
   noteTags(noteId: string): Promise<{ id: string; name: string }[]>
-  /**
-   * The live tags on live notes filed directly in one of `bookIds`, each
-   * with how many of those notes it is on.
-   */
+  /** With how many of those notes each tag is on. */
   tagsInBooks(bookIds: readonly string[]): Promise<{ id: string; name: string; notes: number }[]>
 }
 
 export interface AiServiceOptions {
   storage: StorageAdapter & AiStorage
-  /** A clock with the AI client's own node ID. */
   clock: Clock
   newId: () => string
   now?: () => number
-  /** Runs a write so it lands whole or not at all (storage transaction). */
   atomically?: <T>(work: () => Promise<T>) => Promise<T>
 }
 
@@ -78,7 +64,6 @@ export interface AiNotebookRef {
 }
 
 export interface AiNotebook extends AiNotebookRef {
-  /** Live notes filed directly in it. */
   notes: number
 }
 
@@ -87,7 +72,6 @@ export interface AiSearchHit {
   title: string
   notebook: AiNotebookRef
   updatedAt: number
-  /** The body around the first match, on one line. */
   snippet: string
 }
 
@@ -97,72 +81,50 @@ export interface AiNote {
   notebook: AiNotebookRef
   status: NoteStatus
   pinned: boolean
-  /** Tag names, sorted. */
   tags: string[]
   createdAt: number
   updatedAt: number
-  /** The Markdown snapshot of the body. */
   markdown: string
 }
 
 export interface AiNewNote {
   title: string
   markdown: string
-  /** An allowed notebook's ID or exact name. */
   notebook: string
 }
 
-/** One passage to replace: `find` must occur exactly once in the body. */
 export interface AiPatch {
   find: string
   replace: string
 }
 
-/** What to change in a note; fields left out stay as they are. */
 export interface AiNoteUpdate {
   id: string
   title?: string
-  /**
-   * The new body: the whole Markdown (`markdown`), or passages replaced one
-   * after another (`patches`), each found in the body as the ones before
-   * left it.
-   */
+  /** `patches` are applied one after another, each found in the body as the ones before left it. */
   body?: { markdown: string } | { patches: readonly AiPatch[] }
-  /** An allowed notebook's ID or exact name to move the note to. */
   notebook?: string
-  /** The note's tags from now on, by name; a name no tag has yet becomes a tag. */
   tags?: readonly string[]
   status?: NoteStatus
 }
 
 export interface AiTag {
   name: string
-  /** Visible notes that carry it. */
   notes: number
 }
 
 export interface AiService {
-  /** Notebooks AI may use, in the sidebar's order. */
   notebooks(): Promise<AiNotebook[]>
-  /** Visible notes matching a search query (as in the app), best first. */
   search(query: string, limit?: number): Promise<AiSearchHit[]>
-  /** A visible note; any other ID fails with E_NOTE_NOT_FOUND. */
+  /** Any ID that is not a visible note fails with E_NOTE_NOT_FOUND. */
   read(id: string): Promise<AiNote>
-  /** Creates a note in an allowed notebook. */
   create(input: AiNewNote): Promise<{ id: string; title: string; notebook: AiNotebookRef }>
-  /**
-   * Changes a visible note, keeping its body as it was as a version first.
-   * Returns the note as it is after the change.
-   */
+  /** Keeps the body as it was as a version first; returns the note as it is after the change. */
   update(input: AiNoteUpdate): Promise<AiNote>
-  /** Moves a visible note to the Trash (never deletes it for good). */
+  /** Never deletes for good. */
   trash(id: string): Promise<{ id: string; title: string }>
-  /** The tags on visible notes, by name. */
   tags(): Promise<AiTag[]>
-  /**
-   * Creates a notebook with Allow AI Access on, at the top level or inside
-   * an allowed notebook (ID or exact name).
-   */
+  /** At the top level or inside an allowed notebook (ID or exact name). */
   createNotebook(input: { name: string; parent?: string }): Promise<AiNotebookRef>
 }
 
@@ -170,11 +132,6 @@ const ELLIPSIS = String.fromCodePoint(0x2026)
 const isHigh = (code: number) => code >= 0xd800 && code <= 0xdbff
 const isLow = (code: number) => code >= 0xdc00 && code <= 0xdfff
 
-/**
- * About `radius` characters of `text` on each side of the first term found
- * (case-insensitive), or its start when none is; whitespace runs become one
- * space, and cut ends get an ellipsis.
- */
 export function snippet(text: string, terms: readonly string[], radius = SNIPPET_RADIUS): string {
   const pattern = terms
     .filter((t) => t.length > 0)
@@ -193,7 +150,6 @@ export function snippet(text: string, terms: readonly string[], radius = SNIPPET
 
 const notFound = () => new Error('E_NOTE_NOT_FOUND')
 
-/** A title AI gives a note, trimmed; E_NOTE_TITLE_INVALID unless one line of 1 to MAX_TITLE_CHARS. */
 function cleanTitle(title: string): string {
   const clean = title.trim()
   if (!clean || /[\r\n]/.test(clean) || [...clean].length > MAX_TITLE_CHARS) {
@@ -204,22 +160,14 @@ function cleanTitle(title: string): string {
 
 const bytes = (text: string) => new TextEncoder().encode(text).length
 
-/**
- * Throws unless the app could save `body`: at most `limit` bytes (what AI
- * may send as a whole body, or what a note may hold once patched) and no
- * more note links than the app saves.
- */
+/** `limit` is what AI may send as a whole body, or what a note may hold once patched. */
 function checkBody(body: string, limit = MAX_AI_BODY_BYTES): void {
   if (bytes(body) > limit) throw new Error('E_NOTE_BODY_TOO_LARGE')
   // The app would refuse to save the note again (E_NOTE_LINKS_TOO_MANY).
   if (noteLinks(body).length > MAX_NOTE_LINKS) throw new Error('E_NOTE_LINKS_TOO_MANY')
 }
 
-/**
- * `body` with each patch applied in turn. A patch whose text is not in the
- * body as the ones before left it fails with E_AI_PATCH_NOT_FOUND; one
- * found more than once (overlaps too) with E_AI_PATCH_AMBIGUOUS.
- */
+/** E_AI_PATCH_NOT_FOUND when a patch's text is not in the body as the ones before left it; E_AI_PATCH_AMBIGUOUS when found more than once (overlaps too). */
 export function applyPatches(body: string, patches: readonly AiPatch[]): string {
   if (patches.length === 0 || patches.length > MAX_AI_PATCHES) {
     throw new Error('E_AI_PATCHES_INVALID')
@@ -239,10 +187,6 @@ export function applyPatches(body: string, patches: readonly AiPatch[]): string 
   return text
 }
 
-/**
- * Tag names as given, trimmed, each once (names that differ only in case are
- * one); E_TAG_NAME_INVALID for a name the app would refuse.
- */
 function cleanTagNames(names: readonly string[]): string[] {
   if (names.length > MAX_AI_TAGS) throw new Error('E_AI_TAGS_TOO_MANY')
   const out: string[] = []
@@ -272,13 +216,11 @@ export function createAiService(options: AiServiceOptions): AiService {
     new Map(
       all.filter((b) => b.aiAccess === true && b.id !== TEMPLATES_BOOK_ID).map((b) => [b.id, b]),
     )
-  /** The notebooks AI may use, from `live` (every live notebook) when given. */
   const allowed = async (live?: readonly BookRecord[]) =>
     allowedOf(live ?? (await storage.listBooks()))
 
   const ref = (book: BookRecord): AiNotebookRef => ({ id: book.id, name: book.name })
 
-  /** The allowed notebook an ID or exact name names. */
   const resolveBook = async (notebook: string): Promise<BookRecord> => {
     const books = await allowed()
     const byId = books.get(notebook)
@@ -290,7 +232,6 @@ export function createAiService(options: AiServiceOptions): AiService {
     return book
   }
 
-  /** The stored note and its notebook, when AI may see it; else E_NOTE_NOT_FOUND. */
   const visible = async (id: string) => {
     if (!UUID_V7.test(id)) throw notFound()
     const record = await storage.getNote(id)
@@ -299,11 +240,7 @@ export function createAiService(options: AiServiceOptions): AiService {
     return { record, book }
   }
 
-  /**
-   * Makes the note's tags exactly `wanted` (clean names, see cleanTagNames).
-   * Tag names are unique: a name an existing tag has, in any case, puts that
-   * tag on the note, wherever else it is used.
-   */
+  /** A name an existing tag has, in any case, puts that tag on the note (tag names are unique). */
   const setTags = async (noteId: string, wanted: readonly string[]) => {
     const current = await storage.noteTags(noteId)
     for (const tag of current) {
@@ -326,7 +263,6 @@ export function createAiService(options: AiServiceOptions): AiService {
       const live = await storage.listBooks()
       const books = await allowed(live)
       const counts = await storage.countNotesInBooks([...books.keys()])
-      // Tree order, as the sidebar shows them: each notebook, then its sub-notebooks.
       return flattenBookTree(buildBookTree(live)).flatMap((node) => {
         const book = books.get(node.id)
         return book ? [{ ...ref(book), notes: counts.get(book.id) ?? 0 }] : []
@@ -424,8 +360,6 @@ export function createAiService(options: AiServiceOptions): AiService {
             checkBody(markdown, MAX_BODY_BYTES)
           }
         }
-        // Each change goes in as the app makes it; the release writes them
-        // as one save, after the body as it was is kept as a version.
         try {
           if (markdown !== undefined) await notes.setBody(id, markdown)
           if (newTitle !== undefined && newTitle !== record.title) {
