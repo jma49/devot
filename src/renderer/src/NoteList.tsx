@@ -288,6 +288,16 @@ export const NoteList = memo(function NoteList(props: Props) {
   const navigated = useRef<string>(undefined)
   const openedBySelection = useRef<string>(undefined)
   const follow = useRef<string>(undefined)
+  // A selection the list asked for that no render has shown yet: a key or click before that render
+  // builds on it, or quick Shift+Down presses would each extend the same old selection (#249).
+  const asked = useRef<{ selection: ListSelection | undefined }>(undefined)
+  useEffect(() => {
+    asked.current = undefined
+  })
+  const latest = () => ({
+    selection: asked.current ? asked.current.selection : selection,
+    selected: navigated.current ?? selected,
+  })
   useEffect(() => {
     const arrived = navigated.current === selected
     const opened = arrived && openedBySelection.current === selected
@@ -398,10 +408,12 @@ export const NoteList = memo(function NoteList(props: Props) {
   /** A new selection from a gesture or key in the list; the owner opens the note it leaves open (`openAfter`), and the list keeps the keyboard where the gesture put it. */
   const changeSelection = (next: ListSelection | undefined) => {
     if (!onSelection) return
+    const now = latest().selected
     const open =
-      next === undefined ? undefined : next.ids.length > 1 ? openAfter(next, selected) : next.ids[0]
-    const opens = open !== undefined && open !== selected ? open : undefined
+      next === undefined ? undefined : next.ids.length > 1 ? openAfter(next, now) : next.ids[0]
+    const opens = open !== undefined && open !== now ? open : undefined
     if (opens !== undefined) navigated.current = opens
+    asked.current = { selection: next }
     // With several rows selected the keyboard stays on the gesture's row; one
     // row left is the open note's, and it takes the keyboard.
     openedBySelection.current = next && next.ids.length > 1 ? opens : undefined
@@ -421,6 +433,7 @@ export const NoteList = memo(function NoteList(props: Props) {
 
   const selectionKey = (event: KeyboardEvent): boolean => {
     if (!onSelection) return false
+    const { selection, selected } = latest()
     if (commandMatches('list.selectAll', event)) {
       event.preventDefault()
       const next = selectAll(selection, selected, order)
@@ -528,7 +541,8 @@ export const NoteList = memo(function NoteList(props: Props) {
       onSelection && e.metaKey ? selectToggle : onSelection && e.shiftKey ? selectRange : undefined
     if (!gesture) return navigate(id)
     e.currentTarget.focus()
-    changeSelection(gesture(selection, selected, id, order))
+    const now = latest()
+    changeSelection(gesture(now.selection, now.selected, id, order))
   })
   const dragStart = useStable((id: string, e: DragEvent<HTMLLIElement>) => {
     const ids = chosen?.has(id) ? (selection?.ids ?? [id]) : [id]
