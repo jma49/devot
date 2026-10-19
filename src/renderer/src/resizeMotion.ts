@@ -1,7 +1,7 @@
 // Something that changes size in place (the image viewer between Fit and
 // Actual Size, the backlinks opening) eases to it over `motion.duration.grow`
-// on the `motion.easing.standard` curve. Reduce Motion shows it at once.
-import { sizes } from './theme/tokens'
+// on the `motion.easing.move` curve. Reduce Motion shows it at once.
+import { motionTiming } from './motionTiming'
 import { motionReduced } from './motionPreference'
 
 interface Box {
@@ -14,10 +14,7 @@ interface Box {
 /** The timing of a size change, or null when nothing should move. */
 export function resizeTiming(reduced: boolean): KeyframeAnimationOptions | null {
   if (reduced) return null
-  return {
-    duration: Number.parseFloat(sizes['motion.duration.grow']),
-    easing: sizes['motion.easing.standard'],
-  }
+  return motionTiming('motion.duration.grow', 'motion.easing.move')
 }
 
 /**

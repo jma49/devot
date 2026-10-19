@@ -4,15 +4,13 @@
 // growing open, scrolling or a resize never does. Where each row was is
 // measured as the change renders (`useRowMotion`), before the window shows
 // it, and played back once it is laid out:
-// - `slide` (the sidebar): rows that stay slide to their new places; a new
-//   row fades in where it is, and one that goes fades out where it was, out
-//   of the layout.
-// - `grow` (the note list): a new row grows from nothing to its height as it
-//   fades in, and one that goes shrinks away in its place, so the rows after
-//   it follow; rows that only change order slide to their new places.
+// rows that stay slide to their new places (a transform, so the list is laid
+// out once, not on every frame); a new row fades in where it is, and one that
+// goes fades out where it was, out of the layout. The sidebar (`slide`) and
+// the note list (`grow`) differ only in how long a row takes to come or go.
 // Reduce Motion shows every change at once.
 import { useLayoutEffect, useState } from 'react'
-import { sizes } from './theme/tokens'
+import { drawnOffset, motionTiming } from './motionTiming'
 import { motionReduced } from './motionPreference'
 
 /** What changed between two orders of a list's keys. */
@@ -50,39 +48,30 @@ export function playsChange(change: RowChange, kept: number): boolean {
 
 export type RowMotion = 'slide' | 'grow'
 
-const ms = (token: keyof typeof sizes) => Number.parseFloat(sizes[token])
-
 /** How a row moving to a new place moves. */
-export const rowMoveTiming = (motion: RowMotion): KeyframeAnimationOptions =>
-  motion === 'slide'
-    ? { duration: ms('motion.duration.slide'), easing: sizes['motion.easing.slide'] }
-    : { duration: ms('motion.duration.reorder'), easing: sizes['motion.easing.slide'] }
+export const rowMoveTiming = (): KeyframeAnimationOptions =>
+  motionTiming('motion.duration.slide', 'motion.easing.move')
 
 /** How a row coming or going comes or goes. */
 export const rowEnterTiming = (motion: RowMotion): KeyframeAnimationOptions =>
-  motion === 'slide'
-    ? { duration: ms('motion.duration.slide'), easing: sizes['motion.easing.slide'] }
-    : { duration: ms('motion.duration.insert'), easing: sizes['motion.easing.insert'] }
+  motionTiming(
+    motion === 'slide' ? 'motion.duration.slide' : 'motion.duration.insert',
+    'motion.easing.move',
+  )
 
+/** From `dy` pixels away to the row's place, added to any move under way. */
 export const moveFrames = (dy: number): Keyframe[] => [
   { transform: `translateY(${dy}px)` },
-  { transform: 'none' },
+  { transform: 'translateY(0px)' },
 ]
 
-export function enterFrames(motion: RowMotion, height: number): Keyframe[] {
-  if (motion === 'slide') return [{ opacity: 0 }, { opacity: 1 }]
-  return [
-    { opacity: 0, height: '0px' },
-    { opacity: 1, height: `${height}px` },
-  ]
-}
+export const enterFrames: Keyframe[] = [{ opacity: 0 }, { opacity: 1 }]
 
-export const leaveFrames = (motion: RowMotion, height: number): Keyframe[] =>
-  [...enterFrames(motion, height)].reverse()
+export const leaveFrames: Keyframe[] = [...enterFrames].reverse()
 
 interface RowBox {
   el: HTMLElement
-  /** Its place in the list's content, scrolling aside. */
+  /** Its place in the list's content, scrolling aside and a move under way left out. */
   top: number
   rect: DOMRect
   parent: Node | null
@@ -100,7 +89,7 @@ function snapshot(container: HTMLElement, attr: string): Snapshot {
     const rect = el.getBoundingClientRect()
     rows.set(key, {
       el,
-      top: rect.top - base,
+      top: rect.top - drawnOffset(el).y - base,
       rect,
       parent: el.parentNode,
       next: el.nextSibling,
@@ -110,7 +99,7 @@ function snapshot(container: HTMLElement, attr: string): Snapshot {
 }
 
 /** An inert copy of a row that went, left in its place while it goes. */
-function leaveCopy(box: RowBox, attr: string, motion: RowMotion): HTMLElement | null {
+function leaveCopy(box: RowBox, attr: string): HTMLElement | null {
   const parent = box.parent
   if (!parent?.isConnected) return null
   const copy = box.el.cloneNode(true) as HTMLElement
@@ -121,18 +110,14 @@ function leaveCopy(box: RowBox, attr: string, motion: RowMotion): HTMLElement | 
   copy.dataset['closing'] = 'row'
   copy.setAttribute('aria-hidden', 'true')
   copy.inert = true
-  if (motion === 'slide') {
-    // Out of the layout, over where it was.
-    copy.style.position = 'fixed'
-    copy.style.left = `${box.rect.left}px`
-    copy.style.top = `${box.rect.top}px`
-    copy.style.width = `${box.rect.width}px`
-    copy.style.height = `${box.rect.height}px`
-    copy.style.margin = '0'
-    copy.style.pointerEvents = 'none'
-  } else {
-    copy.style.overflow = 'hidden'
-  }
+  // Out of the layout, over where it was seen.
+  copy.style.position = 'fixed'
+  copy.style.left = `${box.rect.left}px`
+  copy.style.top = `${box.rect.top}px`
+  copy.style.width = `${box.rect.width}px`
+  copy.style.height = `${box.rect.height}px`
+  copy.style.margin = '0'
+  copy.style.pointerEvents = 'none'
   parent.insertBefore(copy, box.next?.parentNode === parent ? box.next : null)
   return copy
 }
@@ -148,28 +133,20 @@ function play(
   for (const [key, box] of after) {
     if (typeof box.el.animate !== 'function') return
     if (change.entered.has(key)) {
-      if (motion === 'grow') box.el.style.overflow = 'hidden'
-      const grow = box.el.animate(enterFrames(motion, box.rect.height), rowEnterTiming(motion))
-      if (motion === 'grow') {
-        const done = () => box.el.style.removeProperty('overflow')
-        grow.addEventListener('finish', done)
-        grow.addEventListener('cancel', done)
-      }
+      box.el.animate(enterFrames, rowEnterTiming(motion))
       continue
     }
     const was = before.get(key)
-    // A note list only slides rows that changed order; rows that come or go
-    // move the rest by growing and shrinking.
-    if (!was || (motion === 'grow' && !change.reordered)) continue
+    if (!was) continue
     const dy = Math.round(was.top - box.top)
-    if (dy !== 0) box.el.animate(moveFrames(dy), rowMoveTiming(motion))
+    if (dy !== 0) box.el.animate(moveFrames(dy), { ...rowMoveTiming(), composite: 'add' })
   }
   for (const key of change.left) {
     const box = before.get(key)
     if (!box || box.el.isConnected) continue
-    const copy = leaveCopy(box, attr, motion)
+    const copy = leaveCopy(box, attr)
     if (!copy) continue
-    const leave = copy.animate(leaveFrames(motion, box.rect.height), {
+    const leave = copy.animate(leaveFrames, {
       ...rowEnterTiming(motion),
       fill: 'forwards',
     })

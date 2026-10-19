@@ -42,29 +42,22 @@ describe('what changed in a list', () => {
 
 describe('the motion of a row', () => {
   it('slides from its old place', () => {
-    expect(moveFrames(-30)).toEqual([{ transform: 'translateY(-30px)' }, { transform: 'none' }])
-  })
-
-  it('fades in the sidebar, and grows to its height in the note list', () => {
-    expect(enterFrames('slide', 30)).toEqual([{ opacity: 0 }, { opacity: 1 }])
-    expect(enterFrames('grow', 64)).toEqual([
-      { opacity: 0, height: '0px' },
-      { opacity: 1, height: '64px' },
-    ])
-    expect(leaveFrames('grow', 64)).toEqual([
-      { opacity: 1, height: '64px' },
-      { opacity: 0, height: '0px' },
+    expect(moveFrames(-30)).toEqual([
+      { transform: 'translateY(-30px)' },
+      { transform: 'translateY(0px)' },
     ])
   })
 
-  it('takes 400 ms in the sidebar; 300 ms to come and 450 ms to move in the note list', () => {
-    const slide = { duration: 400, easing: 'cubic-bezier(0.4, 0, 0.1, 1)' }
-    expect(rowMoveTiming('slide')).toEqual(slide)
+  it('fades in or out without changing its height, so the list is laid out once', () => {
+    expect(enterFrames).toEqual([{ opacity: 0 }, { opacity: 1 }])
+    expect(leaveFrames).toEqual([{ opacity: 1 }, { opacity: 0 }])
+    expect(JSON.stringify([enterFrames, leaveFrames])).not.toContain('height')
+  })
+
+  it('moves over 380 ms; comes over 380 ms in the sidebar and 300 ms in the note list', () => {
+    const slide = { duration: 380, easing: 'cubic-bezier(0.38, 0.7, 0.125, 1)' }
+    expect(rowMoveTiming()).toEqual(slide)
     expect(rowEnterTiming('slide')).toEqual(slide)
-    expect(rowEnterTiming('grow')).toEqual({
-      duration: 300,
-      easing: 'cubic-bezier(0.25, 0.1, 0.35, 1)',
-    })
-    expect(rowMoveTiming('grow')).toEqual({ ...slide, duration: 450 })
+    expect(rowEnterTiming('grow')).toEqual({ ...slide, duration: 300 })
   })
 })
