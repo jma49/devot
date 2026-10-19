@@ -333,9 +333,7 @@ button {
     border-color var(--motion-duration-hover) var(--motion-easing-out),
     box-shadow var(--motion-duration-hover) var(--motion-easing-out),
     color var(--motion-duration-hover) var(--motion-easing-out),
-    opacity var(--motion-duration-hover) var(--motion-easing-out),
-    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
-    outline-offset var(--motion-duration-quick) var(--motion-easing-quick);
+    opacity var(--motion-duration-hover) var(--motion-easing-out);
 }
 
 /* A sidebar row answers the pointer quickly. */
@@ -363,6 +361,14 @@ button {
 :is(.tool, .button, .popup, .segment, .search-clear) {
   outline-color: transparent;
   outline-offset: var(--size-focus-ring);
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    border-color var(--motion-duration-hover) var(--motion-easing-out),
+    box-shadow var(--motion-duration-hover) var(--motion-easing-out),
+    color var(--motion-duration-hover) var(--motion-easing-out),
+    opacity var(--motion-duration-hover) var(--motion-easing-out),
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
+    outline-offset var(--motion-duration-quick) var(--motion-easing-quick);
 }
 
 /* Reduce Motion: the ring only fades in, on the edge. */
