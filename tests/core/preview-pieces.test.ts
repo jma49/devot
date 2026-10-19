@@ -174,6 +174,15 @@ describe('createPieceRenderer', () => {
     expect(second[0]!.key).not.toBe(first[0]!.key)
   })
 
+  it('lets go of the old versions of a piece being edited', async () => {
+    const render = createPieceRenderer({ capacity: 40, pieceLength: 1 })
+    const first = await render('Keep.\n\nEdit 0.', options)
+    for (let i = 1; i <= 10; i++) await render(`Keep.\n\nEdit ${i}.`, options)
+    const kept = await render('Keep.\n\nEdit 0.', options)
+    expect(kept[0]!.key).toBe(first[0]!.key)
+    expect(kept[1]!.key).not.toBe(first[1]!.key)
+  })
+
   it('forgets the oldest pieces past its capacity', async () => {
     const render = createPieceRenderer({ capacity: 2, pieceLength: 1 })
     const first = await render('A.\n\nB.\n\nC.', options)
