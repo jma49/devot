@@ -1,9 +1,9 @@
 #!/bin/bash
 # `pnpm bench:app`: launch time and memory of a built Devot.app (macOS, local only).
 # Per launch: ms to the first frame and to the open note (its title field) (scripts/perf/first-paint.swift),
-# and resident MB of the app plus the WebKit processes that started with it, 3 s after the note shows
-# shows; --cold drops the file cache first (`sudo purge`). One more launch idles 60 s, then is
-# sampled. Writes docs/benchmarks/app-results.json. Needs Accessibility permission for the terminal.
+# and the memory footprint of the app plus the WebKit processes that started with it, 3 s after the note
+# shows; --cold drops the file cache first (`sudo purge`). One more launch idles, then is
+# sampled 7 times. Writes docs/benchmarks/app-results.json. Needs Accessibility permission for the terminal.
 # Runs with HOME in a temporary folder, as scripts/perf/launch-cost.sh does. Quit Devot first.
 # Not measured: memory after opening a large note or after typing (the probe cannot type).
 # usage: app.sh [path to Devot.app, default /Applications/Devot.app] [runs, default 5] [--cold]
@@ -66,13 +66,34 @@ quit() {
 }
 
 # Counts WebKit processes that appeared since launch; wrong if another WebKit app starts meanwhile.
+# shellcheck disable=SC2046 # one pid per word
+app_pids() { echo "$PID" $(comm -13 <(echo "$BEFORE") <(webkit_pids)); }
+
+# Summed resident size counts the system frameworks every process maps once per process.
 rss_mb() {
   local total=0 kb p
-  for p in "$PID" $(comm -13 <(echo "$BEFORE") <(webkit_pids)); do
+  for p in $(app_pids); do
     kb="$(ps -o rss= -p "$p" 2>/dev/null | tr -d ' ' || true)"
     total=$((total + ${kb:-0}))
   done
   echo $((total / 1024))
+}
+
+# What Activity Monitor calls Memory, with pages the processes share counted once.
+footprint_mb() {
+  local args=() p
+  for p in $(app_pids); do args+=(-p "$p"); done
+  footprint -f bytes "${args[@]}" 2>/dev/null |
+    awk '/Footprint:/ { v = $(NF - ($0 ~ /Summary/ ? 1 : 5)) } END { printf "%d", v / 1048576 }'
+}
+
+# One line per process: name and footprint in MB.
+footprints() {
+  local p
+  for p in $(app_pids); do
+    footprint -f bytes -p "$p" 2>/dev/null | awk -v n="$(basename "$(ps -o comm= -p "$p")")" \
+      '/Footprint:/ && !done { printf "%s %d MB; ", n, $(NF - 5) / 1048576; done = 1 }'
+  done
 }
 
 record() { printf '%s\t%s\n' "$1" "$2" >>"$RESULTS"; }
@@ -92,22 +113,29 @@ for kind in "${kinds[@]}"; do
     if [ "$kind" = cold ]; then sudo purge; fi
     launch
     sleep 3
-    mem="$(rss_mb)"
-    echo "$kind $i: $SHELL_MS ms to the first frame, $MS ms to the open note, $mem MB resident"
+    mem="$(footprint_mb)"
+    rss="$(rss_mb)"
+    echo "$kind $i: $SHELL_MS ms to the first frame, $MS ms to the open note, $mem MB footprint ($rss MB summed resident)"
     record "$kind.firstFrameMs" "$SHELL_MS"
     record "$kind.openNoteMs" "$MS"
-    record "$kind.residentMB" "$mem"
+    record "$kind.footprintMB" "$mem"
+    record "$kind.residentMB" "$rss"
     quit
   done
 done
 
+# The list redraws its relative times every minute, which lifts WebContent by ~20 MB for a few
+# seconds, so idle is sampled every 10 s from 30 s to 90 s and summarized.
 launch
-echo "idle: waiting 60 s"
-sleep 60
-idle="$(rss_mb)"
-foot="$(footprint "$PID" | grep 'Footprint:' | head -1 | xargs)"
-echo "idle: $idle MB resident (app and its WebKit processes); app $foot"
-record "idle.residentMB" "$idle"
+echo "idle: sampling from 30 s to 90 s"
+sleep 30
+for i in $(seq 7); do
+  idle="$(footprint_mb)"
+  echo "idle $((20 + i * 10)) s: $idle MB footprint ($(rss_mb) MB summed resident); $(footprints)"
+  record "idle.footprintMB" "$idle"
+  record "idle.residentMB" "$(rss_mb)"
+  if [ "$i" -lt 7 ]; then sleep 10; fi
+done
 quit
 
 node "$ROOT/scripts/bench/app-results.ts" "$RESULTS" "$APP" "$ROOT/docs/benchmarks/app-results.json"

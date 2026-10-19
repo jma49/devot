@@ -75,14 +75,16 @@ Largest on-demand files: the diagram layout engine (1.46 MB), diagram chunks (62
 
 ### App (`app-results.json`)
 
-Release build 0.9.2-beta1 (the installed app), 5 warm launches, a new data folder (the welcome notes). Cold launches (`--cold`) need a password for `sudo purge` and were not taken.
+Release build 0.9.3-beta1, 5 warm launches, a new data folder (the welcome notes). Cold launches (`--cold`) need a password for `sudo purge` and were not taken.
 
-| Measurement                                                           | Median |    p90 |
-| --------------------------------------------------------------------- | -----: | -----: |
-| Warm launch to first frame                                            | 666 ms | 766 ms |
-| Warm launch to open note on screen                                    | 832 ms | 930 ms |
-| Resident size 3 s after the note shows (app and its WebKit processes) | 286 MB | 296 MB |
-| Resident size after 60 s idle (one sample)                            | 213 MB |        |
+| Measurement                                                       | Median |    p90 |
+| ----------------------------------------------------------------- | -----: | -----: |
+| Warm launch to first frame                                        | 579 ms | 593 ms |
+| Warm launch to open note on screen                                | 710 ms | 741 ms |
+| Footprint 3 s after the note shows (app and its WebKit processes) | 165 MB | 168 MB |
+| Footprint idle, 7 samples from 30 s to 90 s                       | 163 MB | 188 MB |
+
+Footprint is what Activity Monitor shows as Memory, with pages the processes share counted once (`footprint -p … -p …`). Summed resident size, kept in the JSON as `residentMB`, counts the system frameworks once per process and reads 60-130 MB higher (290 MB and 204 MB here). At idle the WebContent process holds about 106 MB (most of it WebKit's JavaScript and DOM heap), the app 34 MB, the GPU process 15 MB and networking 7 MB. The p90 is the list redrawing its relative times once a minute, which lifts WebContent and GPU for a few seconds.
 
 The WebKit processes are those that started with the app; another WebKit app starting during a run would be counted too.
 
