@@ -8,7 +8,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::atomic_file::{Folder, Place};
 use crate::cli::{self, Export, Format, Input, fill};
@@ -176,8 +176,7 @@ async fn print_pdf(
     folder: &Folder,
     name: &str,
 ) -> Result<(), String> {
-    let caches = app
-        .path()
+    let caches = tauri::Manager::path(app)
         .app_cache_dir()
         .map_err(|_| String::from("E_EXPORT_PDF_FOLDER_FAILED"))?;
     let partial = export::PdfPartial::new_in(&caches.join(export::PDF_DIR))?;
