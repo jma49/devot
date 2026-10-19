@@ -19,16 +19,30 @@
 //     Writes the update feed for the release: what the app's updater reads
 //     from a channel file in the `updater` release (beta.json until 1.0).
 //
-//   node scripts/release/release.ts verify-signature <file> <signature file> <public key>
-//     Checks that the signature (the .sig Tauri wrote) is the file's, made
-//     with the secret key of the public key the app is built with (the
-//     TAURI_UPDATER_PUBKEY variable), so a release never ships an update no
-//     install would take.
+//   node scripts/release/release.ts sign <tag> <file> <out file>
+//     Signs the updater bundle as `tauri build` would, with the secret key in
+//     TAURI_SIGNING_PRIVATE_KEY (TAURI_SIGNING_PRIVATE_KEY_PASSWORD), and
+//     records the release's version in the signature. Needs only Node, so the
+//     key never reaches the build's dependencies.
+//
+//   node scripts/release/release.ts verify-signature <file> <signature file> <public key> [<tag>]
+//     Checks that the signature is the file's, made with the secret key of
+//     the public key the app is built with (the TAURI_UPDATER_PUBKEY
+//     variable), so a release never ships an update no install would take;
+//     with a tag, also that it records the tag's version.
 //
 // Errors carry a code and end the run with status 1.
-import { createHash, createPublicKey, verify } from 'node:crypto'
+import {
+  createHash,
+  createPrivateKey,
+  createPublicKey,
+  scryptSync,
+  sign,
+  verify,
+  type KeyObject,
+} from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export type Channel = 'stable' | 'beta'
@@ -126,8 +140,8 @@ function minisignLines(encoded: string, code: string): string[] {
   return lines
 }
 
-/** `signature` and `publicKey` are Tauri's base64-wrapped minisign files; throws unless key ID and both signatures match. */
-export function verifySignature(file: Uint8Array, signature: string, publicKey: string): void {
+/** `signature` and `publicKey` are Tauri's base64-wrapped minisign files; throws unless key ID and both signatures match. Returns the trusted comment. */
+export function verifySignature(file: Uint8Array, signature: string, publicKey: string): string {
   const key = Buffer.from(minisignLines(publicKey, 'E_RELEASE_PUBKEY_MALFORMED')[1]!, 'base64')
   if (key.length !== 42 || key.toString('latin1', 0, 2) !== 'Ed')
     throw new Error('E_RELEASE_PUBKEY_MALFORMED')
@@ -151,6 +165,97 @@ export function verifySignature(file: Uint8Array, signature: string, publicKey: 
   if (!verify(null, message, ed25519, body)) throw new Error('E_RELEASE_SIGNATURE_INVALID')
   const comment = Buffer.concat([body, Buffer.from(trusted, 'utf8')])
   if (!verify(null, comment, ed25519, global)) throw new Error('E_RELEASE_SIGNATURE_INVALID')
+  return trusted
+}
+
+/** The `version:` field the updater checks when `requireSignedVersion` is on. */
+export const signedVersion = (trustedComment: string): string | undefined =>
+  trustedComment
+    .split('\t')
+    .find((field) => field.startsWith('version:'))
+    ?.slice('version:'.length)
+
+export interface SigningKey {
+  keynum: Buffer
+  key: KeyObject
+}
+
+// minisign's limits on the key's scrypt parameters.
+const SCRYPT_N_LOG2_MAX = 20
+const SCRYPT_MEMLIMIT_MAX = 1_073_741_824
+const PKCS8_ED25519 = Buffer.from('302e020100300506032b657004220420', 'hex')
+
+/** libsodium's scrypt parameters for an opslimit and memlimit, as minisign derives them. */
+export function scryptParams(opslimit: number, memlimit: number) {
+  const ops = Math.max(32768, opslimit)
+  const r = 8
+  const maxN =
+    ops < Math.floor(memlimit / 32) ? Math.floor(ops / (r * 4)) : Math.floor(memlimit / (r * 128))
+  let log2 = 1
+  while (log2 < 63 && 2 ** log2 <= Math.floor(maxN / 2)) log2++
+  const p =
+    ops < Math.floor(memlimit / 32)
+      ? 1
+      : Math.floor(Math.min(0x3fffffff, Math.floor(ops / 4 / 2 ** log2)) / r)
+  if (log2 > SCRYPT_N_LOG2_MAX || memlimit > SCRYPT_MEMLIMIT_MAX)
+    throw new Error('E_RELEASE_SECRET_KEY_MALFORMED')
+  return { N: 2 ** log2, r, p }
+}
+
+/** Opens a secret key as `tauri signer generate` writes it: a base64-wrapped minisign key, scrypt-encrypted. */
+export function signingKey(encoded: string, password: string): SigningKey {
+  const raw = Buffer.from(minisignLines(encoded, 'E_RELEASE_SECRET_KEY_MALFORMED')[1]!, 'base64')
+  if (raw.length !== 158 || raw.toString('latin1', 0, 2) !== 'Ed')
+    throw new Error('E_RELEASE_SECRET_KEY_MALFORMED')
+  const kdf = raw.toString('latin1', 2, 4)
+  // keynum (8), Ed25519 seed (32), public key (32), checksum (32)
+  const keynumSk = Buffer.from(raw.subarray(54))
+  if (kdf === 'Sc') {
+    const { N, r, p } = scryptParams(
+      Number(raw.readBigUInt64LE(38)),
+      Number(raw.readBigUInt64LE(46)),
+    )
+    const stream = scryptSync(password, raw.subarray(6, 38), keynumSk.length, {
+      N,
+      r,
+      p,
+      maxmem: 256 * N * r + 128 * r * p,
+    })
+    for (let i = 0; i < keynumSk.length; i++) keynumSk[i]! ^= stream[i]!
+  } else if (kdf !== '\0\0') {
+    throw new Error('E_RELEASE_SECRET_KEY_MALFORMED')
+  }
+  const key = createPrivateKey({
+    key: Buffer.concat([PKCS8_ED25519, keynumSk.subarray(8, 40)]),
+    format: 'der',
+    type: 'pkcs8',
+  })
+  // A wrong password decrypts to a seed whose public key is not the one stored beside it.
+  const derived = Buffer.from(createPublicKey(key).export({ format: 'jwk' }).x!, 'base64url')
+  if (!derived.equals(keynumSk.subarray(40, 72))) throw new Error('E_RELEASE_SECRET_KEY_PASSWORD')
+  return { keynum: keynumSk.subarray(0, 8), key }
+}
+
+/** A prehashed minisign signature, base64-wrapped, with the trusted comment `tauri build` writes. */
+export function signFile(
+  file: Uint8Array,
+  name: string,
+  version: string,
+  signer: SigningKey,
+  date: Date,
+): string {
+  if (/[\t\r\n]/.test(name + version)) throw new Error('E_RELEASE_SIGN_COMMENT_INVALID')
+  const trusted = `timestamp:${Math.floor(date.getTime() / 1000)}\tfile:${name}\tversion:${version}`
+  const body = sign(null, createHash('blake2b512').update(file).digest(), signer.key)
+  const global = sign(null, Buffer.concat([body, Buffer.from(trusted, 'utf8')]), signer.key)
+  const text = [
+    'untrusted comment: signature from tauri secret key',
+    Buffer.concat([Buffer.from('ED'), signer.keynum, body]).toString('base64'),
+    `trusted comment: ${trusted}`,
+    global.toString('base64'),
+    '',
+  ].join('\n')
+  return Buffer.from(text).toString('base64')
 }
 
 function main(args: string[]) {
@@ -191,14 +296,30 @@ function main(args: string[]) {
     writeFileSync(out, `${JSON.stringify(feed, null, 2)}\n`)
     return
   }
-  if (command === 'verify-signature' && tag && rest.length === 2) {
-    const [signatureFile, publicKey] = rest as [string, string]
-    verifySignature(readFileSync(tag), readFileSync(signatureFile, 'utf8'), publicKey)
+  if (command === 'sign' && tag && rest.length === 2) {
+    const [file, out] = rest as [string, string]
+    const encoded = process.env['TAURI_SIGNING_PRIVATE_KEY']
+    if (!encoded) throw new Error('E_RELEASE_SECRET_KEY_MISSING')
+    const signer = signingKey(encoded, process.env['TAURI_SIGNING_PRIVATE_KEY_PASSWORD'] ?? '')
+    const version = versionFromTag(tag)
+    writeFileSync(out, signFile(readFileSync(file), basename(file), version, signer, new Date()))
+    return
+  }
+  if (command === 'verify-signature' && tag && (rest.length === 2 || rest.length === 3)) {
+    const [signatureFile, publicKey, release] = rest as [string, string, string?]
+    const trusted = verifySignature(
+      readFileSync(tag),
+      readFileSync(signatureFile, 'utf8'),
+      publicKey,
+    )
+    if (release !== undefined && signedVersion(trusted) !== versionFromTag(release)) {
+      throw new Error(`E_RELEASE_SIGNED_VERSION_MISMATCH: ${JSON.stringify(trusted)}`)
+    }
     console.log('The signature matches the public key.')
     return
   }
   throw new Error(
-    'E_RELEASE_USAGE: set-version <tag> | feeds <tag> | replaces-feed <tag> <feed> | feed <tag> <url> <sig> <notes> <out> | verify-signature <file> <sig> <pubkey>',
+    'E_RELEASE_USAGE: set-version <tag> | feeds <tag> | replaces-feed <tag> <feed> | feed <tag> <url> <sig> <notes> <out> | sign <tag> <file> <out> | verify-signature <file> <sig> <pubkey> [<tag>]',
   )
 }
 

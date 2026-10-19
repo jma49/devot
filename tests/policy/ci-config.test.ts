@@ -107,7 +107,8 @@ it('CI runs on every pull request and by hand, with no label gate', () => {
 
 it('Playwright traces are uploaded unless the run was cancelled', () => {
   const ui = job('ui')
-  const upload = /^\s*- if: (.*)\n\s*uses: actions\/upload-artifact@v4/m.exec(ui)
+  const upload =
+    /^\s*- if: (.*)\n\s*uses: actions\/upload-artifact@[0-9a-f]{40} # v4\.[\d.]+$/m.exec(ui)
   expect(upload?.[1]).toBe('${{ !cancelled() }}')
   expect(ui).toContain('if-no-files-found: ignore')
   // One artifact per shard: two shards cannot upload under the same name.

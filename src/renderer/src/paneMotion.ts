@@ -4,8 +4,9 @@
 // (measured before and after the change, then played back with the Web
 // Animations API) over `motion.duration.slide` on the `motion.easing.move`
 // curve. Their size changes at once, and so does the room for the window
-// controls; the toolbar items it moves slide with the panes. Reduce Motion
-// shows the change at once.
+// controls; the toolbar items it moves and the note column that focus mode
+// centres slide with the panes. A change during another adds to the moves
+// under way instead of restarting them. Reduce Motion shows the change at once.
 import { motionReduced } from './motionPreference'
 import { drawnOffset, motionTiming } from './motionTiming'
 
@@ -16,6 +17,8 @@ export interface PaneBox {
   left: number
   shown: boolean
   opacity?: number
+  /** How far a pane fading out is held from its place in the layout. */
+  shift?: number
   riders?: Map<Element, number>
 }
 
@@ -32,14 +35,15 @@ export const shownPanes = (panes: {
 
 export type PaneMove =
   | { kind: 'slide'; dx: number }
-  | { kind: 'fade-in' }
+  | { kind: 'fade-in'; dx?: number }
   | { kind: 'fade-out'; dx: number }
 
 /**
  * What each pane does from `before` to `after`: one that shows in both
- * slides from its old place, one that comes fades in where it now is, and
- * one that goes fades out where it was. A pane that did not move, or is in
- * only one of them, does nothing.
+ * slides from its old place, one that comes fades in where it now is (or
+ * slides there from where it is still seen fading out), and one that goes
+ * fades out where it was. A pane that did not move, or is in only one of
+ * them, does nothing.
  */
 export function paneMoves(before: PaneBoxes, after: PaneBoxes): Partial<Record<Pane, PaneMove>> {
   const moves: Partial<Record<Pane, PaneMove>> = {}
@@ -50,39 +54,70 @@ export function paneMoves(before: PaneBoxes, after: PaneBoxes): Partial<Record<P
     const dx = Math.round(was.left - is.left)
     if (was.shown && is.shown) {
       if (dx !== 0) moves[pane] = { kind: 'slide', dx }
-    } else if (is.shown) moves[pane] = { kind: 'fade-in' }
-    else if (was.shown) moves[pane] = { kind: 'fade-out', dx }
+    } else if (is.shown) {
+      const seenAt = (was.opacity ?? 0) > 0 ? Math.round(dx + (was.shift ?? 0)) : 0
+      moves[pane] = seenAt === 0 ? { kind: 'fade-in' } : { kind: 'fade-in', dx: seenAt }
+    } else if (was.shown) moves[pane] = { kind: 'fade-out', dx }
   }
   return moves
 }
 
-export function riderMoves<T>(before: Map<T, number>, after: Map<T, number>): Map<T, number> {
-  const moves = new Map<T, number>()
-  for (const [item, left] of after) {
+/**
+ * How far each item slides, by how far it moved within its pane, less what
+ * `outer` (the item it sits in that slides too, if any) already carries.
+ */
+export function riderMoves<T>(
+  before: Map<T, number>,
+  after: Map<T, number>,
+  outer: (item: T) => T | undefined = () => undefined,
+): Map<T, number> {
+  const moved = (item: T) => {
     const was = before.get(item)
-    if (was === undefined) continue
-    const dx = Math.round(was - left)
+    const is = after.get(item)
+    return was === undefined || is === undefined ? 0 : Math.round(was - is)
+  }
+  const moves = new Map<T, number>()
+  for (const item of after.keys()) {
+    if (!before.has(item)) continue
+    const carrier = outer(item)
+    const dx = moved(item) - (carrier === undefined ? 0 : moved(carrier))
     if (dx !== 0) moves.set(item, dx)
   }
   return moves
 }
 
+export interface PaneAnimation {
+  frames: Keyframe[]
+  /** Added to the moves under way (`composite: 'add'`) rather than replacing them. */
+  add: boolean
+  /** Part of the pane's fade, which a later move of the pane stops; a slide always runs out. */
+  fade: boolean
+}
+
 /** `from`: the pane's opacity now, so a fade cut short turns back where it is. */
-export function paneFrames(move: PaneMove, reduced: boolean, from?: number): Keyframe[] | null {
-  if (reduced) return null
+export function paneAnimations(move: PaneMove, reduced: boolean, from?: number): PaneAnimation[] {
+  if (reduced) return []
   switch (move.kind) {
     case 'slide':
-      return slideFrames(move.dx)
-    case 'fade-in':
-      return [{ opacity: from ?? 0 }, { opacity: 1 }]
+      return [{ frames: slideFrames(move.dx), add: true, fade: false }]
+    case 'fade-in': {
+      const fade = { frames: [{ opacity: from ?? 0 }, { opacity: 1 }], add: false, fade: true }
+      return move.dx ? [fade, { frames: slideFrames(move.dx), add: true, fade: false }] : [fade]
+    }
     case 'fade-out': {
       // A hidden pane is out of sight (app.css): it shows while it fades,
-      // where it was.
-      const transform = move.dx === 0 ? 'none' : `translateX(${move.dx}px)`
-      return [
-        { opacity: from ?? 1, visibility: 'visible', transform },
-        { opacity: 0, visibility: 'visible', transform },
-      ]
+      // where it was, and a slide under way carries on under it.
+      const fade = {
+        frames: [
+          { opacity: from ?? 1, visibility: 'visible' },
+          { opacity: 0, visibility: 'visible' },
+        ],
+        add: false,
+        fade: true,
+      }
+      if (move.dx === 0) return [fade]
+      const held = { transform: `translateX(${move.dx}px)` }
+      return [fade, { frames: [held, held], add: true, fade: true }]
     }
   }
 }
@@ -96,14 +131,27 @@ export const paneTiming = (): KeyframeAnimationOptions =>
   motionTiming('motion.duration.slide', 'motion.easing.move')
 
 const RIDERS =
-  '.list-header .sidebar-toggle, .list-header .toolbar-title > :not([hidden], .visually-hidden), .list-header-end, .editor-toolbar > *'
+  '.list-header .sidebar-toggle, .list-header .toolbar-title > :not([hidden], .visually-hidden), .list-header-end, .editor-toolbar > *, .window > .content > :not(.toolbar)'
 
 const paneElement = (pane: Pane) => document.querySelector<HTMLElement>(`.window > .${pane}`)
 
 const layoutLeft = (el: Element) => el.getBoundingClientRect().left - drawnOffset(el).x
 
-const fades: Animation[] = []
+/** Where `el`'s text begins: a padding focus mode adds moves it too. */
+const textLeft = (el: Element) =>
+  layoutLeft(el) + el.clientLeft + Number.parseFloat(getComputedStyle(el).paddingLeft)
+
+const shows = (el: Element) => el.getClientRects().length > 0
+
+const fades = new Map<Pane, Animation[]>()
+const shifts = new Map<Pane, number>()
 const slides: Animation[] = []
+
+function stopFade(pane: Pane): void {
+  for (const animation of fades.get(pane) ?? []) animation.cancel()
+  fades.delete(pane)
+  shifts.delete(pane)
+}
 
 export function measurePanes(shown: Record<Pane, boolean>): PaneBoxes {
   const boxes: PaneBoxes = {}
@@ -112,11 +160,19 @@ export function measurePanes(shown: Record<Pane, boolean>): PaneBoxes {
     if (!el) continue
     const left = layoutLeft(el)
     const riders = new Map<Element, number>()
-    for (const item of el.querySelectorAll(RIDERS)) riders.set(item, layoutLeft(item) - left)
+    for (const item of el.querySelectorAll(RIDERS))
+      if (shows(item)) riders.set(item, textLeft(item) - left)
+    // The editor's lines may sit in the middle of it (the readable width
+    // setting): it slides by where they move.
+    for (const host of el.querySelectorAll('.editor')) {
+      const lines = host.shadowRoot?.querySelector('.cm-content')
+      if (lines && shows(lines)) riders.set(host, textLeft(lines) - left)
+    }
     boxes[pane] = {
       left,
       shown: shown[pane],
       opacity: Number.parseFloat(getComputedStyle(el).opacity),
+      shift: shifts.get(pane) ?? 0,
       riders,
     }
   }
@@ -124,30 +180,44 @@ export function measurePanes(shown: Record<Pane, boolean>): PaneBoxes {
 }
 
 export function movePanes(before: PaneBoxes, shown: Record<Pane, boolean>): void {
-  for (const animation of fades.splice(0)) animation.cancel()
   const reduced = motionReduced()
-  if (reduced) for (const animation of slides.splice(0)) animation.cancel()
+  if (reduced) {
+    for (const animation of slides.splice(0)) animation.cancel()
+    for (const pane of PANES) stopFade(pane)
+  }
   const after = measurePanes(shown)
   const moves = paneMoves(before, after)
   const timing = paneTiming()
-  const play = (el: Element, frames: Keyframe[], add: boolean) => {
+  const play = (el: Element, part: PaneAnimation, pane: Pane) => {
     if (typeof el.animate !== 'function') return
-    const animation = el.animate(frames, add ? { ...timing, composite: 'add' } : timing)
-    const list = add ? slides : fades
+    const animation = el.animate(part.frames, part.add ? { ...timing, composite: 'add' } : timing)
+    const list = part.fade ? (fades.get(pane) ?? []) : slides
+    if (part.fade) fades.set(pane, list)
     list.push(animation)
     animation.addEventListener('finish', () => {
       const i = list.indexOf(animation)
       if (i >= 0) list.splice(i, 1)
+      if (part.fade && list.length === 0 && fades.get(pane) === list) stopFade(pane)
     })
   }
   for (const pane of PANES) {
     const el = paneElement(pane)
     const move = moves[pane]
-    const frames = move && paneFrames(move, reduced, before[pane]?.opacity)
-    if (el && move && frames) play(el, frames, move.kind === 'slide')
+    if (move) stopFade(pane)
+    if (el && move) {
+      for (const part of paneAnimations(move, reduced, before[pane]?.opacity)) play(el, part, pane)
+      if (move.kind === 'fade-out' && move.dx !== 0 && !reduced) shifts.set(pane, move.dx)
+    }
     const was = before[pane]
     const is = after[pane]
-    if (reduced || !was?.shown || !is?.shown || !was.riders || !is.riders) continue
-    for (const [item, dx] of riderMoves(was.riders, is.riders)) play(item, slideFrames(dx), true)
+    if (reduced || !el || !was?.shown || !is?.shown || !was.riders || !is.riders) continue
+    const riders = is.riders
+    const outer = (item: Element) => {
+      for (let node = item.parentElement; node && node !== el; node = node.parentElement)
+        if (riders.has(node)) return node
+      return undefined
+    }
+    for (const [item, dx] of riderMoves(was.riders, riders, outer))
+      play(item, { frames: slideFrames(dx), add: true, fade: false }, pane)
   }
 }

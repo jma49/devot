@@ -17,6 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::page_setup::{Margins, PageSetup, Paper, valid_slot};
 
 pub const FILE: &str = "editor-settings.json";
+const DAMAGED_SUFFIX: &str = ".damaged";
 pub const CHANGED_EVENT: &str = "devot://editor-settings-changed";
 
 pub const FONT_SIZE_MIN: u64 = 10;
@@ -455,7 +456,9 @@ pub fn initial_script(snapshot: &Snapshot) -> String {
 /// later still applies to every setting the user never touched.
 struct Held {
     snapshot: Snapshot,
-    stored: Map<String, Value>,
+    /// None while the file cannot be read: nothing is written over it then, since a change would
+    /// drop every value it holds.
+    stored: Option<Map<String, Value>>,
 }
 
 pub struct EditorSettingsStore {
@@ -486,35 +489,35 @@ impl EditorSettingsStore {
     fn read(&self) -> Held {
         let stored = match std::fs::read(&self.path) {
             Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(Value::Object(map)) => map,
-                Ok(_) => Map::new(),
-                Err(_) => {
+                Ok(Value::Object(map)) => Some(map),
+                _ => {
                     log::warn!("W_EDITOR_SETTINGS_UNREADABLE");
-                    Map::new()
+                    self.keep_damaged(&bytes).then(Map::new)
                 }
             },
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Map::new(),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(Map::new()),
             Err(_) => {
                 log::warn!("W_EDITOR_SETTINGS_READ_FAILED");
-                Map::new()
+                None
             }
         };
-        let mut stored = stored;
-        // Line wrapping was on/off before it became a mode: on means
-        // unwrap at cursor, off means off. The mode stays in `stored`, so
-        // the next write replaces the old value.
-        if let Some(old) = stored.get("lineWrapping").and_then(Value::as_bool) {
-            let mode = if old { "unwrapAtCursor" } else { "off" };
-            stored.insert("lineWrapping".into(), Value::from(mode));
-        }
         let mut settings = EditorSettings {
             page_paper: (self.default_paper)(),
             ..EditorSettings::default()
         };
-        let stored = stored
-            .into_iter()
-            .filter(|(key, value)| settings.set(key, value).is_ok())
-            .collect();
+        let stored = stored.map(|mut stored| {
+            // Line wrapping was on/off before it became a mode: on means
+            // unwrap at cursor, off means off. The mode stays in `stored`, so
+            // the next write replaces the old value.
+            if let Some(old) = stored.get("lineWrapping").and_then(Value::as_bool) {
+                let mode = if old { "unwrapAtCursor" } else { "off" };
+                stored.insert("lineWrapping".into(), Value::from(mode));
+            }
+            stored
+                .into_iter()
+                .filter(|(key, value)| settings.set(key, value).is_ok())
+                .collect()
+        });
         Held {
             snapshot: Snapshot {
                 revision: 0,
@@ -524,12 +527,42 @@ impl EditorSettingsStore {
         }
     }
 
+    /// The next change replaces a damaged file, so its bytes are kept beside it first.
+    fn keep_damaged(&self, bytes: &[u8]) -> bool {
+        let mut copy = self.path.clone().into_os_string();
+        copy.push(DAMAGED_SUFFIX);
+        let kept = crate::atomic_file::write_replacing(Path::new(&copy), bytes).is_ok();
+        if !kept {
+            log::warn!("W_EDITOR_SETTINGS_COPY_FAILED");
+        }
+        kept
+    }
+
+    /// Read at first use, and again on every use while the file cannot be read; once a read
+    /// works, its settings take a newer revision than the defaults shown meanwhile.
+    fn held<'a>(&self, current: &'a mut Option<Held>) -> &'a mut Held {
+        let held = match current.take() {
+            Some(held) if held.stored.is_some() => held,
+            Some(unread) => {
+                let mut read = self.read();
+                if read.stored.is_none() {
+                    unread
+                } else {
+                    read.snapshot.revision = unread.snapshot.revision + 1;
+                    read
+                }
+            }
+            None => self.read(),
+        };
+        current.insert(held)
+    }
+
     pub fn get(&self) -> Result<Snapshot, &'static str> {
-        let mut held = self
+        let mut current = self
             .current
             .lock()
             .map_err(|_| "E_EDITOR_SETTINGS_LOCK_FAILED")?;
-        Ok(held.get_or_insert_with(|| self.read()).snapshot.clone())
+        Ok(self.held(&mut current).snapshot.clone())
     }
 
     pub fn update(&self, patch: &Map<String, Value>) -> Result<Snapshot, &'static str> {
@@ -547,14 +580,17 @@ impl EditorSettingsStore {
         &self,
         patch_for: impl FnOnce(&EditorSettings) -> Map<String, Value>,
     ) -> Result<Snapshot, &'static str> {
-        let mut held = self
+        let mut current = self
             .current
             .lock()
             .map_err(|_| "E_EDITOR_SETTINGS_LOCK_FAILED")?;
-        let now = held.get_or_insert_with(|| self.read());
+        let now = self.held(&mut current);
+        let Some(stored) = &now.stored else {
+            return Err("E_EDITOR_SETTINGS_READ_FAILED");
+        };
         let patch = patch_for(&now.snapshot.settings);
         let settings = now.snapshot.settings.with(&patch)?;
-        let mut stored = now.stored.clone();
+        let mut stored = stored.clone();
         stored.extend(patch);
         let next = Snapshot {
             revision: now.snapshot.revision + 1,
@@ -564,10 +600,10 @@ impl EditorSettingsStore {
             serde_json::to_vec_pretty(&stored).map_err(|_| "E_EDITOR_SETTINGS_WRITE_FAILED")?;
         crate::atomic_file::write_replacing(&self.path, &json)
             .map_err(|_| "E_EDITOR_SETTINGS_WRITE_FAILED")?;
-        *held = Some(Held {
+        *now = Held {
             snapshot: next.clone(),
-            stored,
-        });
+            stored: Some(stored),
+        };
         Ok(next)
     }
 }
@@ -1390,26 +1426,78 @@ mod tests {
     }
 
     #[test]
-    fn a_damaged_file_means_the_defaults_and_is_replaced_on_the_next_change() {
+    fn a_damaged_file_means_the_defaults_and_is_replaced_on_the_next_change_after_a_copy() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join(FILE), b"{ not json").unwrap();
-        let s = store(&dir);
-        assert_eq!(s.get().unwrap().settings, EditorSettings::default());
-        s.update(&patch(json!({ "lineNumbers": false }))).unwrap();
-        assert!(!store(&dir).get().unwrap().settings.line_numbers);
+        for damaged in [&b"{ not json"[..], b"[16]"] {
+            std::fs::write(dir.path().join(FILE), damaged).unwrap();
+            let s = store(&dir);
+            assert_eq!(s.get().unwrap().settings, EditorSettings::default());
+            s.update(&patch(json!({ "lineNumbers": false }))).unwrap();
+            assert!(!store(&dir).get().unwrap().settings.line_numbers);
+            let copy = dir.path().join(format!("{FILE}{DAMAGED_SUFFIX}"));
+            assert_eq!(std::fs::read(copy).unwrap(), damaged);
+        }
     }
 
     #[test]
     fn a_failed_write_changes_nothing() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir(dir.path().join(FILE)).unwrap();
-        let s = store(&dir);
+        let s = EditorSettingsStore::new(&dir.path().join("gone").join(FILE));
         assert_eq!(
             s.update(&patch(json!({ "fontSize": 20 }))),
             Err("E_EDITOR_SETTINGS_WRITE_FAILED")
         );
         let now = s.get().unwrap();
         assert_eq!((now.revision, now.settings.font_size), (0, 13));
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_never_written_over() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join(FILE)).unwrap();
+        let s = store(&dir);
+        assert_eq!(s.get().unwrap().settings, EditorSettings::default());
+        assert_eq!(
+            s.update(&patch(json!({ "fontSize": 20 }))),
+            Err("E_EDITOR_SETTINGS_READ_FAILED")
+        );
+        assert!(dir.path().join(FILE).is_dir());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_change_after_a_failed_read_keeps_the_other_settings() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        let before = br#"{ "fontSize": 16, "theme": "ivory" }"#;
+        std::fs::write(&path, before).unwrap();
+        let mode = |bits| std::fs::set_permissions(&path, std::fs::Permissions::from_mode(bits));
+        mode(0o000).unwrap();
+        if std::fs::read(&path).is_ok() {
+            return; // root reads it anyway
+        }
+        let s = store(&dir);
+        let shown = s.get().unwrap();
+        assert_eq!(shown.settings, EditorSettings::default());
+        assert_eq!(
+            s.update(&patch(json!({ "lineNumbers": false }))),
+            Err("E_EDITOR_SETTINGS_READ_FAILED")
+        );
+        mode(0o600).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        let next = s.update(&patch(json!({ "lineNumbers": false }))).unwrap();
+        assert!(next.revision > shown.revision);
+        assert_eq!(
+            (next.settings.font_size, next.settings.theme),
+            (16, Theme::Ivory)
+        );
+        assert!(!next.settings.line_numbers);
+        let written: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(
+            written,
+            json!({ "fontSize": 16, "theme": "ivory", "lineNumbers": false })
+        );
     }
 
     #[cfg(unix)]

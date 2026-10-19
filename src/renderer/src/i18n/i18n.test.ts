@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { format, resolveLocale, setLocale, t } from '.'
+import { en } from './en'
 
 describe('i18n', () => {
   it('falls back to English for unsupported languages', () => {
@@ -25,5 +26,12 @@ describe('i18n', () => {
     expect(format('{filter} in {book}', { filter: '{book}', book: 'Work' })).toBe('{book} in Work')
     // A placeholder with no value is left as it is.
     expect(format('{a} and {b}', { a: '1' })).toBe('1 and {b}')
+  })
+
+  it('spells each word one way, British, across the catalog', () => {
+    const american =
+      /\b(?:cent(?:er|ers|ered|ering)|color\w*|gray|(?:organ|categor|custom|normal|summar|synchron|visual|minim|maxim|util|real|recogn|initial)iz\w*)\b/i
+    const found = Object.entries(en).filter(([, text]) => american.test(text))
+    expect(found).toEqual([])
   })
 })

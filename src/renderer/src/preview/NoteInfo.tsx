@@ -53,9 +53,17 @@ export function DateValue(props: {
   const [editing, setEditing] = useState(false)
   const [problem, setProblem] = useState<MessageKey>()
   const input = useRef<HTMLInputElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
+  const returnToButton = useRef(false)
   useEffect(() => {
     if (editing) input.current?.focus()
+    else if (returnToButton.current) button.current?.focus()
+    returnToButton.current = false
   }, [editing])
+  const leave = () => {
+    returnToButton.current = true
+    setEditing(false)
+  }
   const time = (
     <time data-info={field.key} dateTime={field.dateTime}>
       {field.value}
@@ -65,10 +73,14 @@ export function DateValue(props: {
   if (!editing) {
     return (
       <button
+        ref={button}
         type="button"
         className="note-info-date"
         title={t('noteInfo.editDate')}
-        aria-label={format(t('noteInfo.editDateNamed'), { field: field.label, date: field.value })}
+        aria-label={format(t('noteInfo.editDateNamed'), {
+          field: field.label,
+          date: field.value,
+        })}
         onClick={() => setEditing(true)}
       >
         {time}
@@ -94,14 +106,14 @@ export function DateValue(props: {
           if (event.key === 'Escape') {
             event.preventDefault()
             event.stopPropagation()
-            setEditing(false)
+            leave()
           } else if (event.key === 'Enter') {
             event.preventDefault()
             event.stopPropagation()
             const next = parseDateInput(event.currentTarget.value)
             if (next === null) return setProblem('noteInfo.dateIncomplete')
             void onSet(next).then((outcome) => {
-              if (outcome === 'saved') setEditing(false)
+              if (outcome === 'saved') leave()
               else if (outcome === 'failed') setProblem('noteInfo.dateFailed')
               else
                 setProblem(

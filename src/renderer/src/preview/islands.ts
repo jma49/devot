@@ -7,6 +7,8 @@ import type { Appearance } from '../icons/symbols'
 
 export interface IslandContext {
   appearance: Appearance
+  /** Aborted once a newer render for the same element starts, or the element goes. */
+  signal?: AbortSignal | undefined
 }
 
 export interface IslandContent {
@@ -49,7 +51,7 @@ export function createIslandRegistry(initial: readonly PreviewIsland[] = []): Is
 
 interface Slot {
   key: string
-  pending?: object | undefined
+  pending?: AbortController | undefined
   shown?: IslandContent | undefined
   retry: boolean
 }
@@ -83,6 +85,7 @@ export function createIslandMounter(
   let sizes: ResizeObserver | undefined
 
   const release = (slot: Slot) => {
+    slot.pending?.abort()
     slot.pending = undefined
     slot.shown?.dispose?.()
     slot.shown = undefined
@@ -132,7 +135,7 @@ export function createIslandMounter(
   ) => {
     const request = slot.pending
     const current = () => slots.get(el) === slot && slot.pending === request
-    island.render(source, context).then(
+    island.render(source, { ...context, signal: request?.signal }).then(
       (content) => {
         // A newer render for this element won the race, or the element
         // is gone: drop this one.
@@ -178,7 +181,8 @@ export function createIslandMounter(
         slots.set(el, slot)
         slot.key = key
         slot.retry = false
-        slot.pending = {}
+        slot.pending?.abort()
+        slot.pending = new AbortController()
         if (scroller) waiting.set(el, () => render(el, slot, island, source, context))
         else render(el, slot, island, source, context)
       }

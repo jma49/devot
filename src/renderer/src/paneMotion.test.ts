@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { paneFrames, paneMoves, paneTiming, riderMoves, shownPanes } from './paneMotion'
+import { paneAnimations, paneMoves, paneTiming, riderMoves, shownPanes } from './paneMotion'
 
 const box = (left: number, shown = true) => ({ left, shown })
 
@@ -46,36 +46,83 @@ describe('hiding or showing the sidebar', () => {
     ).toEqual({ kind: 'fade-out', dx: 200 })
   })
 
+  it('leaves a pane that stays hidden to the fade it has under way', () => {
+    expect(
+      paneMoves(
+        { sidebar: { left: 0, shown: false, opacity: 0.5 }, list: box(0), content: box(300) },
+        { sidebar: box(0, false), list: box(0, false), content: box(0) },
+      ).sidebar,
+    ).toBeUndefined()
+  })
+
+  it('brings back a pane still fading out from where it is seen, not from its new place', () => {
+    const fading = { left: 0, shown: false, opacity: 0.5, shift: 200 }
+    expect(paneMoves({ list: fading }, { list: box(0) }).list).toEqual({ kind: 'fade-in', dx: 200 })
+    expect(paneMoves({ list: { ...fading, opacity: 0 } }, { list: box(0) }).list).toEqual({
+      kind: 'fade-in',
+    })
+  })
+
   it('leaves a pane alone that did not move or was not there', () => {
     expect(paneMoves({ list: box(0) }, { list: box(0), content: box(300) })).toEqual({})
   })
 })
 
 describe('the frames of a move', () => {
-  it('slides from the old place, and not under Reduce Motion', () => {
-    expect(paneFrames({ kind: 'slide', dx: -200 }, false)).toEqual([
-      { transform: 'translateX(-200px)' },
-      { transform: 'translateX(0px)' },
+  it('slides from the old place, added to a slide under way, and not under Reduce Motion', () => {
+    expect(paneAnimations({ kind: 'slide', dx: -200 }, false)).toEqual([
+      {
+        frames: [{ transform: 'translateX(-200px)' }, { transform: 'translateX(0px)' }],
+        add: true,
+        fade: false,
+      },
     ])
-    expect(paneFrames({ kind: 'slide', dx: -200 }, true)).toBeNull()
+    expect(paneAnimations({ kind: 'slide', dx: -200 }, true)).toEqual([])
   })
 
-  it('fades a going pane out in sight, where it was, and a coming one in', () => {
-    expect(paneFrames({ kind: 'fade-out', dx: 200 }, false)).toEqual([
-      { opacity: 1, visibility: 'visible', transform: 'translateX(200px)' },
-      { opacity: 0, visibility: 'visible', transform: 'translateX(200px)' },
+  it('fades a going pane out in sight, held where it was by a move added to its slide', () => {
+    expect(paneAnimations({ kind: 'fade-out', dx: 200 }, false)).toEqual([
+      {
+        frames: [
+          { opacity: 1, visibility: 'visible' },
+          { opacity: 0, visibility: 'visible' },
+        ],
+        add: false,
+        fade: true,
+      },
+      {
+        frames: [{ transform: 'translateX(200px)' }, { transform: 'translateX(200px)' }],
+        add: true,
+        fade: true,
+      },
     ])
-    expect(paneFrames({ kind: 'fade-in' }, false)).toEqual([{ opacity: 0 }, { opacity: 1 }])
+    expect(paneAnimations({ kind: 'fade-out', dx: 0 }, false)).toHaveLength(1)
+    expect(paneAnimations({ kind: 'fade-in' }, false)).toEqual([
+      { frames: [{ opacity: 0 }, { opacity: 1 }], add: false, fade: true },
+    ])
   })
 
   it('turns a fade cut short back from how opaque the pane is seen', () => {
-    expect(paneFrames({ kind: 'fade-in' }, false, 0.4)).toEqual([{ opacity: 0.4 }, { opacity: 1 }])
-    expect(paneFrames({ kind: 'fade-out', dx: 0 }, false, 0.6)?.[0]).toMatchObject({ opacity: 0.6 })
+    expect(paneAnimations({ kind: 'fade-in' }, false, 0.4)[0]?.frames).toEqual([
+      { opacity: 0.4 },
+      { opacity: 1 },
+    ])
+    expect(paneAnimations({ kind: 'fade-out', dx: 0 }, false, 0.6)[0]?.frames[0]).toMatchObject({
+      opacity: 0.6,
+    })
+  })
+
+  it('brings a pane still fading out back from where it is seen', () => {
+    expect(paneAnimations({ kind: 'fade-in', dx: 120 }, false, 0.5)[1]).toEqual({
+      frames: [{ transform: 'translateX(120px)' }, { transform: 'translateX(0px)' }],
+      add: true,
+      fade: false,
+    })
   })
 
   it('shows every change at once under Reduce Motion', () => {
-    expect(paneFrames({ kind: 'fade-out', dx: 200 }, true)).toBeNull()
-    expect(paneFrames({ kind: 'fade-in' }, true)).toBeNull()
+    expect(paneAnimations({ kind: 'fade-out', dx: 200 }, true)).toEqual([])
+    expect(paneAnimations({ kind: 'fade-in' }, true)).toEqual([])
   })
 
   it('takes 380 ms on the move curve', () => {
@@ -101,6 +148,36 @@ describe('toolbar items making room for the window controls', () => {
         ]),
       ),
     ).toEqual(new Map([[toggle, -70]]))
+  })
+})
+
+describe('the note column that focus mode centres', () => {
+  it('slides by its own move, less what the item it sits in carries', () => {
+    const panes = {}
+    const editor = {}
+    const title = {}
+    const outer = (item: object) => (item === editor ? panes : undefined)
+    expect(
+      riderMoves(
+        new Map([
+          [panes, 0],
+          [editor, 70],
+          [title, 24],
+        ]),
+        new Map([
+          [panes, 350],
+          [editor, 350],
+          [title, 374],
+        ]),
+        outer,
+      ),
+    ).toEqual(
+      new Map([
+        [panes, -350],
+        [editor, 70],
+        [title, -350],
+      ]),
+    )
   })
 })
 

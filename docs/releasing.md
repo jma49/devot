@@ -32,13 +32,14 @@ git push origin <tag>
 
 The tag's message becomes the release notes and the update's notes in the app. A tag without a message gets GitHub's generated notes.
 
-The workflow then, on a macOS 26 Apple Silicon runner:
+The workflow refuses a tag whose commit is not on `main`. Then it runs four jobs:
 
-1. Sets the version from the tag (a tag of any other form fails the run).
-2. Builds `app` and `dmg` bundles, ad-hoc signed (`signingIdentity: "-"`; without it the bundle has no seal and downloaded copies are reported as damaged), with the updater's public key built in and the updater bundle (`Devot.app.tar.gz`) signed by the updater key.
-3. Verifies them (`codesign --verify --deep --strict`, `hdiutil verify`), and checks the updater bundle's signature against `TAURI_UPDATER_PUBKEY`: a private key that does not match the public key fails the run instead of shipping updates no install would accept.
-4. Creates the release for the tag (a prerelease for a beta) with the dmg, the updater bundle and its signature.
-5. Writes the feeds the release goes in and uploads them to the fixed `updater` release, which it creates on first use: `beta.json` for a beta; `stable.json` and `beta.json` for a stable release (`scripts/release/release.ts feeds`). Each feed is replaced only by a release newer than the one it offers, so tags pushed close together, whose runs may overlap, leave the newest one in each feed, and a stable release never takes `beta.json` back from a newer beta. A feed that cannot be read (other than one not there yet) fails the run rather than being replaced. A failed run can be run again: a release already made gets its files uploaded again instead (`tests/policy/release-workflow.test.ts`).
+1. **build** (macOS 26, Apple Silicon): sets the version from the tag (a tag of any other form fails the run) and builds `app` and `dmg` bundles, ad-hoc signed (`signingIdentity: "-"`; without it the bundle has no seal and downloaded copies are reported as damaged), with the updater's public key built in and `requireSignedVersion` on, so an install takes an update only when its signature records the version the feed announces. It verifies them (`codesign --verify --deep --strict`, `hdiutil verify`). This job runs the dependencies' code, so it gets a read-only token and no updater key: Tauri signs the updater bundle (`Devot.app.tar.gz`) with a throwaway key, which is discarded.
+2. **sign**: signs the updater bundle with the updater key, recording the version (`scripts/release/release.ts sign`), and checks the signature against `TAURI_UPDATER_PUBKEY`: a private key that does not match the public key fails the run instead of shipping updates no install would accept. It runs only Node and `release.ts`, never `pnpm install`.
+3. **publish**: creates the release for the tag (a prerelease for a beta) with the dmg, the updater bundle and its signature.
+4. **feed**: writes the feeds the release goes in and uploads them to the fixed `updater` release, which it creates on first use: `beta.json` for a beta; `stable.json` and `beta.json` for a stable release (`scripts/release/release.ts feeds`). Each feed is replaced only by a release newer than the one it offers, and a stable release never takes `beta.json` back from a newer beta. A feed that cannot be read (other than one not there yet) fails the run rather than being replaced, and each feed is read back after uploading. Feed jobs run one at a time across runs (a concurrency group), so tags pushed close together leave the newest release in each feed. GitHub keeps only one job waiting in the group: when a third run arrives, the waiting feed job is cancelled; re-run it.
+
+Only the publish and feed jobs can write to the repository. Every action is pinned to a commit (`tests/policy/release-workflow.test.ts`). A failed run can be run again: a release already made gets its files uploaded again instead.
 
 Watch the run in the Actions tab; when it fails, fix the cause and release under a new tag.
 
@@ -62,7 +63,7 @@ Release builds check 30 seconds after launch and then daily, and on Devot > Chec
 
 ## Signing key
 
-The updater accepts only bundles signed by the updater key. Its private key and password are the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the public key is the repository variable `TAURI_UPDATER_PUBKEY`, passed to the build with `--config`. No key is committed, so local builds have no updater (a manual check says updates are unavailable).
+The updater accepts only bundles signed by the updater key. Its private key and password are the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, which only the sign job reads; the public key is the repository variable `TAURI_UPDATER_PUBKEY`, passed to the build with `--config`. No key is committed, so local builds have no updater (a manual check says updates are unavailable).
 
 The key pair is made once with `pnpm tauri signer generate -w <path>/devot-updater.key`, which asks for the password and writes the private key there and the public key to `devot-updater.key.pub`. Keep an offline backup of the private key and its password: losing either means installed copies can never update again, and a new key only reaches users who install a new copy by hand.
 

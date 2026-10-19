@@ -52,7 +52,7 @@ import { noteLinkHover } from './editor/noteLinkHover'
 import { previewsFor } from './notePreview'
 import { formatKeyAvailability } from './editor/formatKeys'
 import { imeKeys } from './editor/imeKeys'
-import { takeEarlyKeys } from './editor/earlyKeys'
+import { earlyKeysKeptForAnother, replayEarlyKeys, takeEarlyKeys } from './editor/earlyKeys'
 import { editorScrollPane } from './editor/scrollPane'
 import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
 import { imageActions, imageAt, imageSizeChange, viewImageAt } from './editor/images'
@@ -975,11 +975,9 @@ export function NoteEditor({
         const take = focusOnlyIfFree.current
           ? keyboardIsFree()
           : !typingElsewhere(document.activeElement, host.current)
-        const typed = takeEarlyKeys()
-        if (focusOnOpen.current && take) {
-          view.focus()
-          if (typed) view.dispatch(view.state.replaceSelection(typed))
-        }
+        if (focusOnOpen.current && take && !earlyKeysKeptForAnother(noteId)) view.focus()
+        const typed = takeEarlyKeys(noteId)
+        if (typed.length) replayEarlyKeys(view, typed)
         if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
       },
       (e: unknown) => {
