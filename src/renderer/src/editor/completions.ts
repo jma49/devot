@@ -16,10 +16,8 @@ import { unlessChoosing } from './pasteChooser'
 import { lookOf } from './popupLook'
 import { chooseImageFiles, slashMenu, slashSource, slashTrigger } from './slashMenu'
 
-/** A row icon's box in pixels (`--size-icon-menu`). */
 const ICON_BOX = 16
 
-/** What each row shows before its label. */
 function rowIcon(completion: Completion): Node | null {
   const look = lookOf(completion)
   if (!look) return null
@@ -34,7 +32,6 @@ function rowIcon(completion: Completion): Node | null {
   return box
 }
 
-/** The list a popup shows, for its style: from its first option. */
 function popupClass(state: EditorState): string {
   const [first] = currentCompletions(state)
   const look = first && lookOf(first)
@@ -83,7 +80,6 @@ const theme = EditorView.theme({
     backgroundColor: 'var(--color-fill-completion-selected)',
     color: 'var(--color-text-primary)',
   },
-  // A group header: a small label over a full-width rule; it scrolls with the list.
   '.cm-tooltip.cm-tooltip-autocomplete > ul > completion-section': {
     display: 'block',
     margin: 'var(--space-2) 0 var(--space-2)',
@@ -95,7 +91,6 @@ const theme = EditorView.theme({
   },
   '.cm-tooltip.cm-tooltip-autocomplete > ul > completion-section:first-child': { marginTop: '0' },
   '.cm-completionLabel': { flex: '1 1 auto', whiteSpace: 'nowrap' },
-  // A row's hint or the language's name: on the right, in the text's mono face.
   '.cm-completionDetail': {
     marginLeft: 'auto',
     paddingLeft: 'var(--space-6)',
@@ -140,7 +135,6 @@ const theme = EditorView.theme({
     WebkitMaskRepeat: 'no-repeat',
     WebkitMaskPosition: 'center',
   },
-  // The language list: compact mono rows with a small ring.
   '.cm-tooltip.cm-popup-language > ul': { fontFamily: 'var(--font-family-mono)' },
   '.cm-tooltip.cm-popup-language > ul > li': {
     minHeight: 'var(--space-7)',
@@ -166,18 +160,15 @@ const popupSources = [slashSource, languageSource, emojiSource, alertSource].map
   autocomplete: unlessChoosing(source),
 }))
 
-/** What the note editor gives the popups: how to choose image files and a template. */
 export interface CompletionHost {
   chooseImageFiles?: (view: EditorView) => void
   chooseTemplate?: () => void
 }
 
-/** The completion popups and editing aids of the note editor. */
 export function editorCompletions(host: CompletionHost = {}): Extension {
   return [
     completionLook,
     theme,
-    // A closing list fades out (the floating bars install the same plugin).
     closingTooltips,
     EditorState.languageData.of(() => popupSources),
     slashMenu(),

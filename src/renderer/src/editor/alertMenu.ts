@@ -9,16 +9,13 @@ import { commandEntry, useContextMenu, type MenuGroups } from '../contextMenu'
 import { ALERT_KINDS, alertKind, type AlertKind } from './blocks'
 import { alertFormat, formatCommand } from './formats'
 
-/** What the pop-up acts on: the editor, and the alert kind its selection is in. */
 export interface AlertMenuTarget {
   view: EditorView
   kind: AlertKind | null
 }
 
-/** Opens the pop-up for the editor under `anchor` (the Alert button). */
 export type ShowAlertMenu = (view: EditorView, anchor: Element) => Promise<void>
 
-/** The registry command that puts the selection in an alert of `kind`. */
 export const alertCommand = (kind: AlertKind): CommandId => `format.${alertFormat(kind)}`
 
 export const ALERT_MENU: MenuGroups<AlertKind, AlertMenuTarget> = [
@@ -30,7 +27,6 @@ export const ALERT_MENU: MenuGroups<AlertKind, AlertMenuTarget> = [
   ),
 ]
 
-/** The alert pop-up for this window; a pick formats the editor it was opened for. */
 export function useAlertMenu(): ShowAlertMenu {
   const pick = useCallback((kind: AlertKind, target: AlertMenuTarget) => {
     formatCommand(alertFormat(kind))(target.view)

@@ -1,9 +1,6 @@
-// Table commands for the note editor. Each finds the GFM table the cursor is
-// in (through the syntax tree), edits it as data (table.ts) and prints it
-// back formatted, as one transaction: one change set, the `input.format`
-// user event and isolated history, so Yjs and undo see a single step.
-// Outside a table every command does nothing, and its key goes on to the
-// editor's other bindings (Tab keeps leaving the editor, Return a new line).
+// Table commands: each finds the GFM table the cursor is in, edits it as data (table.ts) and prints it back
+// formatted, as one transaction (`input.format`, isolated history). Outside a table every command does
+// nothing and its key goes on to the editor's other bindings (Tab keeps leaving the editor, Return a new line).
 import { completionStatus } from '@codemirror/autocomplete'
 import { ensureSyntaxTree } from '@codemirror/language'
 import {
@@ -54,34 +51,26 @@ export type TableCommandId =
   | 'alignNone'
   | 'format'
 
-/** The table the cursor is in, as written. */
 export interface Located {
-  /** Start of the table's first line and end of its last one. */
   from: number
   to: number
-  /** Each line's quote or list markers before the row. */
   prefixes: string[]
   table: Table
   /** The cursor's line in the table (0 the header, 1 the delimiter row, 2 on the rows). */
   line: number
   column: number
-  /** The cursor's place in its cell's text. */
   offset: number
-  /** Whether the cursor is before the row's first character (its opening pipe or text). */
   rowStart: boolean
-  /** Whether the cursor is after the row's closing pipe. */
   rowEnd: boolean
   /** Whether nothing but spaces follows the cursor on its line (with or without a closing pipe). */
   lineEnd: boolean
 }
 
-/** Where a command leaves the cursor: a cell, and a place in its text (or its end). */
 export interface Target {
   table: Table
   line: number
   column: number
   offset: number | 'end'
-  /** After the line's closing pipe instead of in a cell. */
   rowEnd?: boolean
   /** Return on an empty last row: drop it and leave the table below it. */
   exit?: boolean
@@ -137,7 +126,6 @@ export function locate(state: EditorState): Located | null {
     if (!ROW_NODES.has(child.name)) continue
     const line = doc.lineAt(child.from)
     if (first < 0) first = line.number
-    // One row per line, the delimiter row second.
     if (line.number !== first + texts.length) return null
     if ((texts.length === 1) !== (child.name === 'TableDelimiter')) return null
     prefixes.push(doc.sliceString(line.from, child.from))
@@ -166,13 +154,8 @@ export function locate(state: EditorState): Located | null {
 /** Lines of the table: 0 the header, 1 the delimiter row, then a line per row. */
 export const FIRST_ROW = 2
 
-/** The index of the row on a line, or -1 on the header or delimiter row. */
 const rowIndex = (at: { line: number }) => (at.line < FIRST_ROW ? -1 : at.line - FIRST_ROW)
 
-/**
- * `target`'s table printed for the located one's lines: its text, and the
- * cursor's place in it.
- */
 function layout(at: Located, target: Target): { text: string; cursor: number } {
   const printed = printTable(target.table)
   const prefix = (i: number) => at.prefixes[Math.min(i, at.prefixes.length - 1)]!
@@ -215,7 +198,6 @@ export function rewrite(
   return { change: { from, to: from + diff.remove, insert: diff.insert }, cursor: at.from + cursor }
 }
 
-/** The transaction that writes `target`'s table over the located one. */
 function write(
   state: EditorState,
   at: Located,
@@ -236,7 +218,6 @@ function write(
 const rowLine = (at: Located) => (at.line === 1 ? 0 : at.line)
 const lastLine = (table: Table) => FIRST_ROW + table.rows.length - 1
 
-/** The line below the cursor's row, adding a row there when there is none. */
 function below(at: Located): { table: Table; line: number } {
   const line = rowLine(at) === 0 ? FIRST_ROW : rowLine(at) + 1
   const table = line > lastLine(at.table) ? insertRow(at.table, at.table.rows.length) : at.table
@@ -339,7 +320,6 @@ const EDITS: Record<TableCommandId, TableEdit> = {
   format: (at) => keep(at, at.table),
 }
 
-/** The commands that bring the cursor to a row, where a new row may be typed by hand. */
 const ENTER_ROW: ReadonlySet<TableCommandId> = new Set([
   'nextCell',
   'nextRow',
@@ -347,16 +327,11 @@ const ENTER_ROW: ReadonlySet<TableCommandId> = new Set([
   'insertRowAbove',
 ])
 
-/** A command's transaction on the located table, or null when it does not apply there. */
 function edit(state: EditorState, at: Located, id: TableCommandId): ReturnType<FormatCommand> {
   const target = EDITS[id](at)
   return target && write(state, at, target, ENTER_ROW.has(id))
 }
 
-/**
- * The table commands, as format commands on the table at the main cursor:
- * null outside a table or when nothing applies.
- */
 export const TABLE_COMMANDS = Object.fromEntries(
   (Object.keys(EDITS) as TableCommandId[]).map((id) => [
     id,
@@ -367,13 +342,11 @@ export const TABLE_COMMANDS = Object.fromEntries(
   ]),
 ) as Record<TableCommandId, FormatCommand>
 
-/** What the table bar shows for the cursor: the commands that cannot act, and the column's alignment. */
 export interface TableBarStatus {
   disabled: ReadonlySet<TableCommandId>
   align: Align
 }
 
-/** The commands the bar disables: those that do nothing at the cursor, and Delete Row on the only row. */
 const BAR_CHECKED: readonly TableCommandId[] = [
   'moveRowUp',
   'moveRowDown',
@@ -383,7 +356,6 @@ const BAR_CHECKED: readonly TableCommandId[] = [
   'deleteColumn',
 ]
 
-/** The table bar's state at the main cursor, or null outside a table. */
 export function tableBarStatus(state: EditorState): TableBarStatus | null {
   const at = locate(state)
   if (!at) return null
@@ -392,7 +364,6 @@ export function tableBarStatus(state: EditorState): TableBarStatus | null {
   return { disabled, align: at.table.align[at.column] ?? 'none' }
 }
 
-/** Whether the main cursor is in a table (the palette offers the table commands then). */
 export function inTable(state: EditorState): boolean {
   return locate(state) !== null
 }
@@ -421,10 +392,7 @@ export function tableCommand(id: TableCommandId): Command {
   }
 }
 
-/**
- * The table keys from the command registry (Tab, Shift+Tab, Return,
- * Option+Return, ...). Above the Markdown keymap, whose Return continues lists.
- */
+/** The table keys from the command registry, above the Markdown keymap (whose Return continues lists). */
 export const tableKeymap: () => Extension = registryKeys(() =>
   Prec.highest(
     keymap.of(editorTableKeys().map(({ command, key }) => ({ key, run: tableCommand(command) }))),

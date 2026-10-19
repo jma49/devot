@@ -36,14 +36,12 @@ function show(s: EditorState): string {
 
 type Insert = (s: EditorState) => TransactionSpec | null
 
-/** The marked text after the insertion, or null when it does nothing. */
 function run(insert: Insert, marked: string): string | null {
   const s = state(marked)
   const spec = insert(s)
   return spec ? show(s.update(spec).state) : null
 }
 
-/** The block nodes the parser reads in a text. */
 const blocks = (text: string) => {
   const names: string[] = []
   const top = noteParser.parse(text).topNode
@@ -84,7 +82,6 @@ describe('insertNoteLink', () => {
   it('does nothing for a query the popup cannot read, or in code and links', () => {
     expect(run(insertNoteLink, '«two\nlines»')).toBeNull()
     expect(run(insertNoteLink, '«[x]»')).toBeNull()
-    // A pipe would end a table cell.
     expect(run(insertNoteLink, '| «a | b» |\n| --- | --- |')).toBeNull()
     expect(run(insertNoteLink, 'x `co^de` y')).toBeNull()
     expect(run(insertNoteLink, '    code^')).toBeNull()
@@ -113,7 +110,6 @@ describe('insertTable', () => {
     expect(run(insertTable, '- a\n- ^')).toBe(`- a\n\n${TABLE}`)
     expect(run(insertTable, '1. [ ] ^\nNext')).toBe(`${TABLE}\n\nNext`)
     expect(run(insertTable, '## ^')).toBe(TABLE)
-    // A setext underline is not an empty item: the table goes after the heading.
     expect(run(insertTable, 'Title\n-^')).toBe(`Title\n-\n\n${TABLE}`)
   })
 

@@ -18,7 +18,6 @@ export function registryKeys(build: () => Extension): () => Extension {
   return () => compartment.of(build())
 }
 
-/** The effects that rebuild every part from the keys in effect now. */
 export function reconfigureRegistryKeys(): StateEffect<unknown>[] {
   return parts.map(({ compartment, build }) => compartment.reconfigure(build()))
 }

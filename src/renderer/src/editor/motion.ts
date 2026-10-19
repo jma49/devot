@@ -6,7 +6,6 @@
 import { ViewPlugin } from '@codemirror/view'
 import { dropClosingCopies, leaveClosingCopy, tooltipMotion } from '../closing'
 
-/** Keyframes to spread into a theme that uses `popoverIn` or `fadeIn`, and the closing ones. */
 export const motionKeyframes = {
   '@keyframes cm-popover-in': {
     from: { opacity: '0', scale: 'var(--popover-enter-scale)' },
@@ -18,7 +17,6 @@ export const motionKeyframes = {
   '@keyframes cm-fade-out': { to: { opacity: '0' } },
 }
 
-/** Grows out of its notch or anchor (set `transformOrigin` there) as it fades in. */
 export const popoverIn = 'cm-popover-in var(--motion-duration-popover) var(--motion-easing-move)'
 
 /**
@@ -27,27 +25,18 @@ export const popoverIn = 'cm-popover-in var(--motion-duration-popover) var(--mot
  */
 export const fadeIn = 'cm-fade-in var(--motion-duration-fade) var(--motion-easing-standard)'
 
-/** A button over the text (a code block's copy button) grows a little as it fades in. */
 export const buttonIn = 'cm-popover-in var(--motion-duration-toggle) var(--motion-easing-move)'
 
-/** A button tooltip only fades, as the app's other tooltips (`.tool-tip`). */
 export const tipIn = 'cm-fade-in var(--motion-duration-popover) var(--motion-easing-standard)'
 
-/** Shrinks back toward its notch or anchor as it fades out (closing.ts keeps a copy for it). */
 export const popoverOut =
   'cm-popover-out var(--motion-duration-popover) var(--motion-easing-standard) forwards'
 
-/** A button tooltip only fades out. */
 const tipOut = 'cm-fade-out var(--motion-duration-popover) var(--motion-easing-standard) forwards'
 
-/** Only fades out: the floating bars and the completion lists. */
 export const fadeOut =
   'cm-fade-out var(--motion-duration-fade) var(--motion-easing-standard) forwards'
 
-/**
- * The closing copies' styles, for a theme: a CodeMirror tooltip fades out, a
- * bar button's tooltip shrinks toward its notch.
- */
 export const closingStyles = {
   '.cm-tooltip[data-closing][data-closing-motion="fade"]': {
     pointerEvents: 'none',
@@ -59,7 +48,6 @@ export const closingStyles = {
   },
 }
 
-/** Which closing copies a tooltip replaces when it opens: a bar's, or a completion list's. */
 const tooltipKind = (el: HTMLElement) =>
   el.classList.contains('cm-float-bar') ? 'cm-float-bar' : 'cm-tooltip-autocomplete'
 

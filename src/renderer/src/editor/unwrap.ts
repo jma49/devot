@@ -1,13 +1,7 @@
-// Blocks that keep their lines whole while the rest of the note wraps: in
-// the Prose line wrapping mode every code block and table, in Unwrap at
-// Cursor only the one that holds the caret. Code inside a quote or an alert
-// wraps with it. An unwrapped line scrolls sideways (with the editor's
-// sideways scroll) instead of wrapping; every line of a block is as wide as
-// its widest one, so the block's box keeps straight sides.
-//
-// When a block wraps or unwraps under the caret (or the mode changes), the
-// caret's line keeps its place on screen: the scroll box is put back a few
-// times while the heights settle, until the user scrolls, clicks or types.
+// Blocks that keep their lines whole while the rest of the note wraps: in Prose mode every code block and
+// table, in Unwrap at Cursor only the one holding the caret (code in a quote or alert wraps with it).
+// Unwrapped lines scroll sideways; every line of a block is as wide as its widest, so the box keeps straight sides.
+// When a block wraps or unwraps under the caret, the caret's line keeps its screen position (see CaretKeeper).
 import { syntaxTree } from '@codemirror/language'
 import {
   EditorSelection,
@@ -29,12 +23,10 @@ import {
 import type { SyntaxNode } from '@lezer/common'
 import { BOX_HANG } from './boxes'
 
-/** Which blocks keep their lines whole: all of them, the one under the caret, or none. */
 export const unwrapMode = Facet.define<'all' | 'active' | null, 'all' | 'active' | null>({
   combine: (values) => values[0] ?? null,
 })
 
-/** A block that does not wrap: where it starts and ends, and the start of each of its lines asked for. */
 export interface UnwrapBlock {
   from: number
   to: number
@@ -57,7 +49,6 @@ function unwrappable(node: SyntaxNode): boolean {
   return true
 }
 
-/** A block's extent, with the starts of its lines that are in `ranges`. */
 function linesOf(state: EditorState, node: SyntaxNode, ranges: Ranges): UnwrapBlock {
   const { doc } = state
   const first = doc.lineAt(node.from)
@@ -79,7 +70,6 @@ function linesOf(state: EditorState, node: SyntaxNode, ranges: Ranges): UnwrapBl
   return { from: first.from, to: last.to, lines }
 }
 
-/** The code block or table that holds the main caret, if any. */
 export function activeBlock(state: EditorState): SyntaxNode | null {
   const head = state.selection.main.head
   const tree = syntaxTree(state)
@@ -90,7 +80,6 @@ export function activeBlock(state: EditorState): SyntaxNode | null {
   return null
 }
 
-/** The blocks that do not wrap in `ranges` (the visible ones), as `unwrapMode` says. */
 export function unwrapLines(state: EditorState, ranges: Ranges): UnwrapBlock[] {
   const mode = state.facet(unwrapMode)
   if (mode === 'active') {
@@ -118,16 +107,13 @@ export function unwrapLines(state: EditorState, ranges: Ranges): UnwrapBlock[] {
   return out.sort((a, b) => a.from - b.from)
 }
 
-/** Asks the editor to keep the caret's line where it is on screen while lines rewrap. */
 export const keepCaretLine = StateEffect.define<null>()
 
-/** How many times, and for how long, the caret's line is put back while heights settle. */
 const KEEP_ROUNDS = 5
 const KEEP_MS = 500
 /** Input that lets go of the caret's line; any scroll by someone else does too. */
 const RELEASE_EVENTS = ['touchstart', 'pointerdown', 'keydown'] as const
 
-/** The element that scrolls the editor up and down: the nearest scrolling box around it. */
 function verticalScroller(view: EditorView): HTMLElement {
   for (let el = view.dom.parentElement; el; el = el.parentElement) {
     const { overflowY } = getComputedStyle(el)
@@ -136,7 +122,6 @@ function verticalScroller(view: EditorView): HTMLElement {
   return view.scrollDOM
 }
 
-/** The caret line's top, from the scroll box's top edge, in pixels. */
 const caretOffset = (view: EditorView, scroller: HTMLElement, head: number) =>
   view.documentTop + view.lineBlockAt(head).top - scroller.getBoundingClientRect().top
 
@@ -146,7 +131,6 @@ function sidewaysScroller(view: EditorView): HTMLElement {
   return getComputedStyle(content).overflowX === 'auto' ? content : view.scrollDOM
 }
 
-/** Scrolls the lines sideways so the caret box (`caret`, in screen pixels) is inside the scroller's edges. */
 export function revealSideways(
   view: EditorView,
   caret: { left: number; right: number },
@@ -158,7 +142,6 @@ export function revealSideways(
   else if (caret.right > box.right - margin) scroller.scrollLeft += caret.right - box.right + margin
 }
 
-/** After the caret moves or text changes, keeps the caret inside the sideways scroller. */
 export const keepCaretInColumn = ViewPlugin.fromClass(
   class {
     // The editor redraws its cursor and selection layers on its own scroller's
@@ -219,14 +202,12 @@ class CaretKeeper {
     else if (this.held && (update.docChanged || update.selectionSet)) this.letGo()
   }
 
-  /** Notes where the caret's line is; call before the change is drawn. */
   hold() {
     const { view } = this
     if (!this.scroller?.isConnected) this.scroller = verticalScroller(view)
     const scroller = this.scroller
     const head = view.state.selection.main.head
     const offset = caretOffset(view, scroller, head)
-    // A caret off screen has no place to keep.
     if (offset < 0 || offset > scroller.clientHeight) return this.letGo()
     if (!this.held) {
       for (const name of RELEASE_EVENTS) view.dom.addEventListener(name, this.release, true)
@@ -283,10 +264,8 @@ class CaretKeeper {
 
 const caretKeeper = ViewPlugin.fromClass(CaretKeeper)
 
-/** New line widths were measured: the decorations carry them. */
 const widthsMeasured = StateEffect.define<null>()
 
-/** The CSS variable each unwrapped line takes its block's width from. */
 const WIDTH_VAR = '--editor-unwrap-width'
 /** The CSS variable with the width the lines have on screen (a wrapped line's). */
 const VIEW_VAR = '--editor-unwrap-view'
@@ -357,7 +336,6 @@ class Unwrapper {
       this.draw()
   }
 
-  /** Finds the blocks again; `caretMoved` keeps the caret's line in place when the active block changes. */
   private recompute(caretMoved: boolean) {
     const { view } = this
     const mode = view.state.facet(unwrapMode)
@@ -368,7 +346,6 @@ class Unwrapper {
       if (active !== this.active && caretMoved) view.plugin(caretKeeper)?.hold()
       this.active = active
     }
-    // Widths of blocks no longer unwrapped (or out of view, in prose) go.
     for (const from of this.widths.keys())
       if (!this.blocks.some((b) => from >= b.from && from <= b.to)) this.widths.delete(from)
     this.draw()
@@ -392,7 +369,6 @@ class Unwrapper {
     this.decorations = Decoration.set(decos)
   }
 
-  /** Reads the width of each unwrapped line on screen; true when any changed. */
   private measure(): boolean {
     const { view } = this
     let changed = false
@@ -448,7 +424,6 @@ const unwrapper: ViewPlugin<Unwrapper> = ViewPlugin.fromClass(Unwrapper, {
   decorations: (p) => p.decorations,
 })
 
-/** Whether the line at `pos` sits on one row (it does not wrap on screen). */
 function oneRow(view: EditorView, pos: number): boolean {
   const line = view.state.doc.lineAt(pos)
   const start = view.coordsAtPos(line.from, 1)
@@ -500,10 +475,6 @@ const boundaryKeys: KeyBinding[] = [
   { mac: 'Cmd-ArrowRight', run: lineBoundary(true, false), shift: lineBoundary(true, true) },
 ]
 
-/**
- * The unwrapped lines' look: whole, as wide as their block's widest line
- * (at least the editor's width), so a block's box has straight sides.
- */
 const theme = EditorView.theme({
   // The content keeps the editor's width: an unwrapped line reaches past it
   // instead of widening it (and with it every wrapped line).

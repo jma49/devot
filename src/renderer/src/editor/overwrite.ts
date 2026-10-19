@@ -18,13 +18,11 @@ import { editorComposes } from '../ime'
 
 const toggle = StateEffect.define<null>()
 
-/** Whether overwrite mode is on. */
 export const overwriteMode = StateField.define<boolean>({
   create: () => false,
   update: (on, tr) => tr.effects.reduce((now, e) => (e.is(toggle) ? !now : now), on),
 })
 
-/** Turns overwrite mode on or off. */
 export function toggleOverwrite(view: EditorView): boolean {
   view.dispatch({ effects: toggle.of(null) })
   return true
@@ -65,7 +63,6 @@ const blockCaret = EditorView.baseTheme({
   '&.cm-overwrite .cm-cursor': { borderLeftWidth: '0.6em', opacity: '0.5' },
 })
 
-/** Overwrite mode for the editor (off at first). */
 export function overwrite(): Extension {
   return [
     overwriteMode,

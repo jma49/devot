@@ -23,13 +23,11 @@ export type MarkerScan = (
   touch: (from: number, to: number) => void,
 ) => void
 
-/** The markers, and how far the syntax tree reached when they were last found. */
 interface Markers {
   set: RangeSet<GutterMarker>
   covered: number
 }
 
-/** Every marker in the note. */
 export function scanMarkers(state: EditorState, scan: MarkerScan): RangeSet<GutterMarker> {
   const builder = new RangeSetBuilder<GutterMarker>()
   scan(
@@ -42,7 +40,6 @@ export function scanMarkers(state: EditorState, scan: MarkerScan): RangeSet<Gutt
   return builder.finish()
 }
 
-/** The whole lines from `from` to `to`, widened to every node of interest they touch. */
 function widen(state: EditorState, scan: MarkerScan, from: number, to: number) {
   const { doc } = state
   let a = doc.lineAt(from).from
@@ -75,7 +72,6 @@ function changedLines(tr: Transaction, scan: MarkerScan, fromB: number, toB: num
   const back = changes.invertedDesc
   const top = syntaxTree(state).topNode
   const oldTree = syntaxTree(startState)
-  /** The old tree has a node of this name and extent where this one is. */
   const kept = (n: SyntaxNode) => {
     if (CONTAINERS.has(n.name)) return false
     const from = back.mapPos(n.from, -1)

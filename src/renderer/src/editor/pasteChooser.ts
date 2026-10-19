@@ -51,7 +51,6 @@ import {
 } from './pasteFormats'
 import { withLook } from './popupLook'
 
-/** How the chooser fetches (Rust's `link_title` and `github_snippet` in the app). */
 export interface PasteFetcher {
   /** The page's title; null when it has none. Rejects with an error code. */
   title: (url: string) => Promise<string | null>
@@ -63,15 +62,12 @@ export const pasteFetcher = Facet.define<PasteFetcher, PasteFetcher | null>({
   combine: (values) => values[0] ?? null,
 })
 
-/** A fetch's state: under way, finished (the format's text), or failed. */
 export type FetchState =
   | { status: 'loading' }
   | { status: 'done'; text: string }
   | { status: 'error'; message: MessageKey }
 
-/** An open chooser: the URL's place in the note and what it fetched. */
 export interface Chooser {
-  /** Tells this chooser's late fetch results from another's. */
   id: number
   from: number
   to: number
@@ -100,7 +96,6 @@ let lastId = 0
 const chooserField = StateField.define<Chooser | null>({
   create: () => null,
   update(value, tr) {
-    // Typing with no chooser open: nothing to map, nothing to open.
     if (!value && tr.effects.length === 0) return null
     let next = value
     if (next) {
@@ -138,22 +133,18 @@ const chooserField = StateField.define<Chooser | null>({
       } else if (next && effect.is(pickEffect) && effect.value.id === next.id)
         next = { ...next, picked: effect.value.type }
     }
-    // The chooser belongs to one caret, right after the URL.
     const sel = tr.newSelection
     if (next && (sel.ranges.length > 1 || !sel.main.empty || sel.main.head !== next.to)) next = null
     return next
   },
 })
 
-/** The open chooser, if any. */
 export function chooserOf(state: EditorState): Chooser | null {
   return state.field(chooserField, false) ?? null
 }
 
-/** Blocks a fenced snippet cannot go into without ending or breaking them. */
 const CONTAINERS = new Set(['Blockquote', 'ListItem', 'BulletList', 'OrderedList', 'Table'])
 
-/** Whether a block (a fenced snippet) can go at `pos`: not inside a quote, a list or a table. */
 function blockFits(state: EditorState, pos: number): boolean {
   for (let node = syntaxTree(state).resolveInner(pos, -1); node.parent; node = node.parent)
     if (CONTAINERS.has(node.name)) return false
@@ -177,7 +168,6 @@ export function chooserPaste(state: EditorState, url: string): TransactionSpec {
   }
 }
 
-/** Opens the chooser on text already in the note (a link at the caret). */
 export function chooserOn(
   state: EditorState,
   from: number,
@@ -190,7 +180,6 @@ export function chooserOn(
   }
 }
 
-/** What the chooser acts through: an editor view, or a state and its dispatch in tests. */
 export interface ChooserTarget {
   readonly state: EditorState
   dispatch: (tr: Transaction) => void
@@ -210,10 +199,8 @@ function errorMessage(error: unknown): MessageKey {
   return ERROR_MESSAGES[code] ?? 'pasteFormat.failed'
 }
 
-/** The format `type` of the open chooser. */
 const formatIn = (c: Chooser, type: PasteFormatType) => c.formats.find((f) => f.type === type)
 
-/** Whether the line around [from, to) has other text before and after it. */
 function lineAround(state: EditorState, from: number, to: number) {
   const line = state.doc.lineAt(from)
   return {
@@ -223,7 +210,6 @@ function lineAround(state: EditorState, from: number, to: number) {
   }
 }
 
-/** Swaps the chooser's URL for format `type`, and closes the chooser. */
 function apply(target: ChooserTarget, c: Chooser, type: PasteFormatType, fetched: string | null) {
   // A pick right after the paste takes the paste's place in the history:
   // undoing it then removes the link at once, not the link and then the URL.
@@ -247,7 +233,6 @@ function apply(target: ChooserTarget, c: Chooser, type: PasteFormatType, fetched
   )
 }
 
-/** Closes the chooser, keeping the URL. */
 function close(target: ChooserTarget) {
   if (chooserOf(target.state))
     target.dispatch(target.state.update({ effects: closeEffect.of(null) }))
@@ -326,14 +311,11 @@ export function pickFormat(
   }
 }
 
-// ---- The popup --------------------------------------------------------------
-
 const formatOfOption = new WeakMap<Completion, PasteFormatType>()
 
 /** The views whose chooser plugin is live; late fetch results for any other are dropped. */
 const liveViews = new WeakSet<EditorView>()
 
-/** The chooser's list, while it is open and the caret is right after the URL. */
 const chooserSource: CompletionSource = (ctx: CompletionContext): CompletionResult | null => {
   const c = chooserOf(ctx.state)
   if (!c || ctx.pos !== c.to || c.picked) return null
@@ -358,15 +340,12 @@ const chooserSource: CompletionSource = (ctx: CompletionContext): CompletionResu
   return { from: c.to, options, filter: false }
 }
 
-/** The chooser's popup source, as one array for every language data lookup. */
 const chooserSources = [{ autocomplete: chooserSource }]
 
-/** Wraps another completion source so it offers nothing while the chooser is open. */
 export function unlessChoosing(source: CompletionSource): CompletionSource {
   return (ctx) => (chooserOf(ctx.state) ? null : source(ctx))
 }
 
-/** The highlighted format, or the picked one waiting on its fetch. */
 function shownFormat(state: EditorState, c: Chooser): PasteFormatType | null {
   if (c.picked) return c.picked
   if (completionStatus(state) !== 'active') return null
@@ -374,7 +353,6 @@ function shownFormat(state: EditorState, c: Chooser): PasteFormatType | null {
   return (option && formatOfOption.get(option)) ?? null
 }
 
-/** The most characters the preview shows (a snippet can be a whole file). */
 const MAX_PREVIEW = 200
 
 class PreviewWidget extends WidgetType {
@@ -399,7 +377,6 @@ class PreviewWidget extends WidgetType {
   }
 }
 
-/** What the URL's place shows for the highlighted format. */
 function preview(state: EditorState): DecorationSet {
   const c = chooserOf(state)
   const type = c && shownFormat(state, c)
@@ -469,12 +446,10 @@ const theme = EditorView.theme({
   '.cm-link-format-preview[data-state="loading"]': { color: 'var(--color-text-tertiary)' },
 })
 
-/** Opens the popup of a chooser just opened in `view`. */
 export function showChooser(view: EditorView): void {
   if (chooserOf(view.state)) startCompletion(view)
 }
 
-/** The paste chooser of the note editor, fetching through `fetcher`. */
 export function pasteChooser(fetcher: PasteFetcher | null): Extension {
   return [
     chooserField,

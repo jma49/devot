@@ -48,7 +48,6 @@ import { registryKeys } from './registryKeys'
 import { toolbarOff } from './toolbarState'
 import { keepCaretInColumn, keepCaretLine, wrappingModes } from './unwrap'
 
-/** Whether CodeMirror binds keys as on macOS (Mod is Command), as it decides that. */
 const MAC =
   typeof navigator !== 'undefined' &&
   (/Mac/.test(navigator.platform) || /iP(hone|ad|od)/.test(navigator.platform))
@@ -120,7 +119,6 @@ const withoutTakenKeys = (bindings: readonly KeyBinding[]): KeyBinding[] => {
     const { shift, ...unshifted } = b
     if (!plain) return [unshifted]
     if (shift === undefined || shifted) return []
-    // Only the plain key is taken: the Shift variant keeps its binding.
     const alone: KeyBinding = { key: `Shift-${name}`, run: shift }
     if (b.preventDefault) alone.preventDefault = true
     if (b.stopPropagation) alone.stopPropagation = true
@@ -139,7 +137,6 @@ const searchKeysWithoutPanels = searchKeymap.filter(
   (b) => b.run === selectNextOccurrence || b.run === selectSelectionMatches,
 )
 
-/** CodeMirror's own bindings, rebuilt when the keys in effect change. */
 const builtInKeys = registryKeys(() =>
   keymap.of(
     withoutTakenKeys([
@@ -157,7 +154,6 @@ const builtInKeys = registryKeys(() =>
   ),
 )
 
-/** CodeMirror's basic setup, less what the settings turn on and off (and the lint keys: nothing lints notes). */
 const fixedSetup: Extension = [
   highlightSpecialChars(),
   history(),
@@ -198,9 +194,7 @@ const readableWidthScroll = EditorView.theme({
   '.cm-content': { overflowX: 'auto' },
 })
 
-/** Room under the last line so the end of the note can scroll up the page (the host element scrolls). */
 const pastEnd = EditorView.theme({ '&.cm-editor .cm-content': { paddingBottom: '50vh' } })
-/** Lines kept under the caret on the last line, so typing there does not sit at the window's edge. */
 const LAST_LINE_ROOM = 4
 
 /**
@@ -212,7 +206,6 @@ export function scrollMarginsOf(s: EditorSettings): { top: number; bottom: numbe
   const room = s.scrollPastEnd ? Math.round(s.fontSize * s.lineHeight * LAST_LINE_ROOM) : 0
   return { top: s.cursorScrollMargin, bottom: Math.max(s.cursorScrollMargin, room) }
 }
-/** Drawn spaces and tabs in a muted colour, and tinted trailing ones (`--color-trailing-space`). */
 const whitespaceTheme = EditorView.theme({
   '.cm-highlightSpace': {
     backgroundImage:
@@ -223,7 +216,6 @@ const whitespaceTheme = EditorView.theme({
 const trailingWhitespace = [highlightTrailingWhitespace(), whitespaceTheme]
 const invisibles = [highlightWhitespace(), whitespaceTheme]
 
-/** Each compartment: the settings it reads and what it holds for them. */
 const PARTS = {
   gutter: (s: EditorSettings): Extension =>
     s.lineNumbers ? [gutterOn, s.highlightActiveLine ? activeLineGutter : []] : [],
@@ -257,7 +249,6 @@ const PARTS = {
 
 type Part = keyof typeof PARTS
 
-/** The settings each part depends on: it is reconfigured only when one changes. */
 const READS: Readonly<Record<Part, readonly (keyof EditorSettings)[]>> = {
   gutter: ['lineNumbers', 'highlightActiveLine'],
   activeLine: ['highlightActiveLine'],
@@ -281,7 +272,6 @@ const compartments = Object.fromEntries(NAMES.map((n) => [n, new Compartment()])
   Compartment
 >
 
-/** The editor's setup for these settings. */
 export function editorSetup(settings: EditorSettings): Extension {
   return [NAMES.map((n) => compartments[n].of(PARTS[n](settings))), fixedSetup, builtInKeys()]
 }

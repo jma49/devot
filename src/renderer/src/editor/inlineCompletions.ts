@@ -21,22 +21,16 @@ function inProse(state: EditorState, pos: number): boolean {
   return cx !== null && !inFrontMatter(cx, pos) && !blockAround(cx, pos, LITERAL_TEXT)
 }
 
-// Emoji
-
-/** A shortcode and its emoji. */
 export interface Emoji {
   name: string
   emoji: string
 }
 
-/** `:` after a space, a bracket or the line's start, and the word characters typed after it. */
 const EMOJI_QUERY = /(?:^|[\s([{])(:([\w+-]{2,32}))$/
-/** How many emoji the list shows at most. */
 const EMOJI_MAX = 50
 
 let emojiList: Promise<Emoji[]> | null = null
 
-/** Every shortcode, loaded once on first use. */
 function allEmoji(): Promise<Emoji[]> {
   emojiList ??= import('gemoji').then(({ gemoji }) =>
     gemoji.flatMap((g) => g.names.map((name) => ({ name, emoji: g.emoji }))),
@@ -64,7 +58,6 @@ export function emojiMatches(list: readonly Emoji[], query: string, max = EMOJI_
   return scored.slice(0, max).map((s) => s.e)
 }
 
-/** Where the `:query` before the cursor is, or null. */
 export function emojiTrigger(state: EditorState): { from: number; query: string } | null {
   const { ranges, main } = state.selection
   if (ranges.length > 1 || !main.empty) return null
@@ -76,7 +69,6 @@ export function emojiTrigger(state: EditorState): { from: number; query: string 
   return { from: main.head - typed.length, query: match[2] }
 }
 
-/** The emoji completion source. */
 export async function emojiSource(cx: CompletionContext): Promise<CompletionResult | null> {
   if (cx.view?.composing) return null
   const trigger = emojiTrigger(cx.state)
@@ -102,12 +94,8 @@ export async function emojiSource(cx: CompletionContext): Promise<CompletionResu
   }
 }
 
-// Alerts
-
-/** A quote line's start up to `[!` and the kind typed after it. */
 const ALERT_QUERY = /^ {0,3}(?:>[ \t]?)+\[!([A-Za-z]{0,9})$/
 
-/** Where the `[!kind` before the cursor is (from its `[`), or null. */
 export function alertTrigger(
   state: EditorState,
 ): { from: number; to: number; query: string } | null {
@@ -124,13 +112,11 @@ export function alertTrigger(
   return { from, to, query }
 }
 
-/** The kinds a query matches, in the menu's order. */
 export function alertMatches(query: string): AlertKind[] {
   const q = query.toLowerCase()
   return ALERT_KINDS.filter((kind) => kind.startsWith(q))
 }
 
-/** The alert completion source. */
 export function alertSource(cx: CompletionContext): CompletionResult | null {
   if (cx.view?.composing) return null
   const trigger = alertTrigger(cx.state)

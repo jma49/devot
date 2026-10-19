@@ -1,15 +1,8 @@
-// Images in the note editor: finding them, setting their size (see
-// core/images.ts), and showing images under their lines.
-//
-// Previews are block widgets under each line that shows an image, from
-// a state field (only decorations from the state may change the editor's
-// vertical layout). Each block has one fixed height, known before its images
-// load, so lines never move as images arrive or fail. CodeMirror only draws
-// the visible part of a note, so only visible images load. Finding the
-// images scans the text for `![` and asks the syntax tree only there, which
-// stays cheap for long notes (the scan reads the document's own line
-// strings, copying nothing). Attachments (devot://file) and https images
-// show; the app's CSP loads no plain http images.
+// Images in the note editor: finding them, setting their size (see core/images.ts) and showing them under their lines.
+// Previews are block widgets from a state field (only state decorations may change the editor's vertical layout),
+// each with one fixed height known before its images load, so lines never move as images arrive or fail. Finding
+// images scans the text for `![` and asks the syntax tree only there, which stays cheap on long notes. Attachments
+// (devot://file) and https images show; the app's CSP loads no plain http images.
 import { syntaxTree } from '@codemirror/language'
 import { Facet, StateField, type EditorState, type TransactionSpec } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
@@ -24,30 +17,21 @@ import {
 import type { MenuPoint } from '../contextMenu'
 import { sizes } from '../theme/tokens'
 
-/** An inline image (`![alt](url)`) in the editor's text. */
 export interface EditorImage {
   from: number
   to: number
-  /** Its Markdown, as it was when found. */
   text: string
-  /** The alt text without its size words. */
   alt: string
-  /** The URL without its size. */
   url: string
-  /** The attachment it shows, if it is one. */
   fileId: string | null
   size: ImageSize
   /** A size that is no preset (`w:320 h:240`), else null. */
   dimensions: ImageDimensions | null
-  /** Whether a size can be set. */
   sizable: boolean
 }
 
-/** What the window does with an image in the editor (set by the note editor). */
 export interface ImageActions {
-  /** Double-click: show the image in the viewer. */
   open(image: { src: string; alt: string }): void
-  /** Right-click: the image menu, at a point in the window. */
   menu(image: EditorImage, at: MenuPoint): void
 }
 
@@ -55,7 +39,6 @@ export const imageActions = Facet.define<ImageActions, ImageActions | null>({
   combine: (values) => values[0] ?? null,
 })
 
-/** The inline image whose syntax starts at `pos`, if there is one. */
 function imageNodeAt(state: EditorState, pos: number): { from: number; to: number } | null {
   let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos + 1, 1)
   for (; node; node = node.parent) {
@@ -64,7 +47,6 @@ function imageNodeAt(state: EditorState, pos: number): { from: number; to: numbe
   return null
 }
 
-/** The inline images that start between `from` and `to`, in order. */
 export function findImages(state: EditorState, from = 0, to = state.doc.length): EditorImage[] {
   const out: EditorImage[] = []
   // The document's own line strings, without copying them: cheap on long notes.
@@ -96,14 +78,12 @@ export function findImages(state: EditorState, from = 0, to = state.doc.length):
   return out
 }
 
-/** The image at `pos`, or else the first on its line; null when the line has none. */
 export function imageAt(state: EditorState, pos: number): EditorImage | null {
   const line = state.doc.lineAt(pos)
   const images = findImages(state, line.from, line.to)
   return images.find((i) => i.from <= pos && pos <= i.to) ?? images[0] ?? null
 }
 
-/** The image the caret is in (an empty selection only), or null. */
 export function imageAtCaret(state: EditorState): EditorImage | null {
   const { main } = state.selection
   if (!main.empty) return null
@@ -114,16 +94,11 @@ export function imageAtCaret(state: EditorState): EditorImage | null {
   )
 }
 
-/** Whether an image shows under its line: an attachment or an https image. */
 function shows(image: EditorImage): boolean {
   return image.fileId !== null || /^https:\/\/[^/]/i.test(image.url)
 }
 
-/**
- * Shows the image at `pos`, or else the first on its line, in the
- * viewer (what a double-click on its preview does); false when the line has
- * none.
- */
+/** Shows the image at `pos`, or else the first on its line, in the viewer; false when the line has none. */
 export function viewImageAt(view: EditorView, pos = view.state.selection.main.head): boolean {
   const image = imageAt(view.state, pos)
   const open = view.state.facet(imageActions)?.open
@@ -166,13 +141,11 @@ export function imageSizeChange(
   }
 }
 
-/** A line with images to show under it: where the block goes, and its images. */
 export interface ImageLine {
   at: number
   images: EditorImage[]
 }
 
-/** The lines that show images, in order, each with the images that end on it. */
 export function imageLines(state: EditorState): ImageLine[] {
   const byLine = new Map<number, EditorImage[]>()
   for (const image of findImages(state)) {
@@ -220,7 +193,6 @@ class ImagesWidget extends WidgetType {
       img.src = url
       box.appendChild(img)
     }
-    /** The image under the event, found again in the text as it is now. */
     const target = (event: Event): { img: HTMLImageElement; image: EditorImage | null } | null => {
       const img = event.target instanceof HTMLImageElement ? event.target : null
       if (!img) return null
@@ -262,7 +234,6 @@ function decorations(state: EditorState): DecorationSet {
   )
 }
 
-/** The previews' decorations, rebuilt when the text or its syntax tree changes. */
 export const inlineImageField = StateField.define<DecorationSet>({
   create: decorations,
   update: (value, tr) =>
@@ -293,5 +264,4 @@ const theme = EditorView.theme({
   '.cm-inline-image-failed': { visibility: 'hidden' },
 })
 
-/** Attachments shown under their lines (Settings > Editing > Inline Image Widgets). */
 export const inlineImages = [inlineImageField, theme]

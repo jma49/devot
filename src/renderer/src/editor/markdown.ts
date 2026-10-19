@@ -26,16 +26,13 @@ import { BlockContext, type MarkdownConfig, type MarkdownParser } from '@lezer/m
 import { FRONT_MATTER_FENCE as FENCE } from '../../../core/readable'
 import { leaveMarkupKeys } from './enter'
 
-/** The node of a note's front matter, the first block when the note has one. */
 export const FRONT_MATTER = 'FrontMatter'
 
-/** Highlight tags of front matter: its text, and its two fences. */
 export const frontMatterTags = {
   content: Tag.define(tags.meta),
   mark: Tag.define(tags.processingInstruction),
 }
 
-/** How much of the note is read at a time while looking for the closing fence. */
 const READ_CHUNK = 4096
 
 /**
@@ -67,7 +64,6 @@ function fenceLine(
   return null
 }
 
-/** The start of the line `pos` is on. */
 function lineStartAt(input: Input, pos: number): number {
   for (let at = pos; at > 0;) {
     const from = Math.max(0, at - READ_CHUNK)
@@ -85,7 +81,6 @@ function lineStartAt(input: Input, pos: number): number {
  */
 const frontMatterData = defineLanguageFacet()
 
-/** The text between the fences, the top node of a language of its own. */
 const contentType = NodeType.define({
   id: 0,
   name: 'FrontMatterContent',
@@ -100,7 +95,6 @@ const contentType = NodeType.define({
 // from its start), for the block parser to look ahead for the closing fence.
 const inputs = new WeakMap<BlockContext, Input>()
 
-/** The Lezer Markdown extension that reads front matter. */
 export const FrontMatter: MarkdownConfig = {
   defineNodes: [{ name: FRONT_MATTER, block: true }, { name: 'FrontMatterMark' }],
   props: [
@@ -120,7 +114,6 @@ export const FrontMatter: MarkdownConfig = {
         while (cx.lineStart < close.from) if (!cx.nextLine()) break
         cx.nextLine()
         const children = [cx.elt('FrontMatterMark', 0, 3)]
-        // Up to the line break before the closing fence.
         if (close.from - 1 > content)
           children.push(cx.elt(new Tree(contentType, [], [], close.from - 1 - content), content))
         children.push(cx.elt('FrontMatterMark', close.from, close.from + 3))
@@ -151,7 +144,6 @@ export const markupTags = {
   task: Tag.define(tags.processingInstruction),
 }
 
-/** The Lezer Markdown extension that gives those marks their tags. */
 export const MarkupMarks: MarkdownConfig = {
   props: [
     styleTags({
@@ -163,13 +155,11 @@ export const MarkupMarks: MarkdownConfig = {
   ],
 }
 
-/** The editor's Markdown parser, for reading Markdown outside an editor state. */
 export const noteParser = (markdownLanguage.parser as MarkdownParser).configure([
   FrontMatter,
   MarkupMarks,
 ])
 
-/** Whether a note starts with a line that could open front matter. */
 function startsWithFence(input: Input): boolean {
   if (input.read(0, Math.min(input.length, 3)) !== '---') return false
   const head = input.read(0, Math.min(input.length, READ_CHUNK))
@@ -247,16 +237,9 @@ export const noteMarkdown = new LanguageSupport(
 const token = (name: string) => `var(--color-${name})`
 
 /**
- * The editor's highlight style, built from the design tokens so it follows
- * the appearance: CodeMirror's own default has light-only colours (dark blue
- * links, near-black metadata) and underlines headings. A heading line is
- * bold in the heading colour, its `#`s in the markup colour, which also
- * marks emphasis, code and link marks, task boxes (bold), table pipes,
- * numbers and HTML tags (`<kbd>`); list markers and quotes have colours of
- * their own (lineStyles.ts colours the second list level apart). Links and
- * their addresses are the only underlined text; code uses the syntax tokens;
- * front matter takes the theme's secondary text colour (as the preview shows
- * it) and its fences the tertiary one.
+ * The editor's highlight style, built from the design tokens so it follows the appearance (CodeMirror's
+ * default has light-only colours and underlines headings). Links and their addresses are the only underlined
+ * text; list markers and quotes have colours of their own (lineStyles.ts colours the second list level apart).
  */
 export const noteHighlightStyle = HighlightStyle.define([
   { tag: tags.meta, color: token('syntax-comment'), fontStyle: 'italic' },

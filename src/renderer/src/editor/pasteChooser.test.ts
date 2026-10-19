@@ -164,7 +164,6 @@ describe('the paste chooser', () => {
     expect(fetcher.title).toHaveBeenCalledTimes(1)
     await settle()
     expect(chooserOf(ed.state)?.fetches.get('title')).toEqual({ status: 'done', text: 'Page' })
-    // Still open: highlighting is no pick.
     expect(ed.state.doc.toString()).toBe(URL)
     pickFormat(ed, 'title')
     expect(ed.state.doc.toString()).toBe(`[Page](${URL})`)
@@ -283,7 +282,6 @@ describe('Paste URL As', () => {
 
   it('does nothing without a URL on the clipboard or at the caret', () => {
     expect(pasteUrlAs(editor('plain |text').state, 'words')).toBeNull()
-    // An image's address, or a reference definition's, is no link to reformat.
     expect(pasteUrlAs(editor(`![alt](${URL}|)`).state, '')).toBeNull()
     expect(pasteUrlAs(editor(`[ref]: ${URL}|`).state, '')).toBeNull()
   })

@@ -10,27 +10,22 @@ export type PopupList = 'slash' | 'language' | 'emoji' | 'alert' | 'paste'
 
 export interface OptionLook {
   list: PopupList
-  /** An icon in the text colour, or the alert colour of `tone`. */
   icon?: IconName
   tone?: AlertKind
-  /** Text shown in the icon's place (an emoji). */
   glyph?: string
 }
 
 const looks = new WeakMap<Completion, OptionLook>()
 
-/** Records how an option shows; returns the option. */
 export function withLook<T extends Completion>(option: T, look: OptionLook): T {
   looks.set(option, look)
   return option
 }
 
-/** How an option shows, if a source of these recorded it. */
 export function lookOf(option: Completion): OptionLook | undefined {
   return looks.get(option)
 }
 
-/** The icon of each alert kind. */
 export const ALERT_ICONS: Record<AlertKind, IconName> = {
   note: 'alert.note',
   tip: 'alert.tip',

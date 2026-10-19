@@ -59,7 +59,6 @@ describe('floating bar motion and states', () => {
     // The notch is small and shallow; its base starts where the corner ends.
     expect([NOTCH_WIDTH, NOTCH_HEIGHT]).toEqual([12, 6])
     expect(NOTCH_X - NOTCH_WIDTH / 2).toBeGreaterThanOrEqual(BAR_RADIUS)
-    // The buttons are 28 px apart, in a bar 38 px tall.
     expect(sizes['size.float-button']).toBe('28px')
     expect(height).toBe(38)
   })

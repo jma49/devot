@@ -1,10 +1,7 @@
-// Pasting in the note editor. A URL pasted over selected text makes that
-// text a link to it; a lone URL (nothing selected) goes in as the setting
-// says: as copied, as an autolink (`<url>`), as a link with empty text
-// (`[](url)`), or as copied with the paste chooser open on it
-// (pasteChooser.ts; Paste URL As… opens it too). Paste as Plain Text inserts the clipboard's text as it is,
-// with none of this (nor images). This replaces the Markdown language's own
-// paste-as-link, so a paste is handled once.
+// Pasting in the note editor. A URL pasted over selected text makes it a link; a lone URL goes in as the setting
+// says (as copied, an autolink, an empty link, or as copied with the paste chooser open: pasteChooser.ts). Paste as
+// Plain Text inserts the clipboard's text as is. This replaces the Markdown language's own paste-as-link, so a
+// paste is handled once.
 import { syntaxTree } from '@codemirror/language'
 import { EditorSelection, Facet, type EditorState, type TransactionSpec } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
@@ -14,21 +11,16 @@ import { context, inFrontMatter, LITERAL_BLOCKS, nodeAt, type Cx } from './forma
 import { escapeBangBefore, linkAddress, linkTo } from './formats'
 import { chooserOn, chooserPaste, showChooser } from './pasteChooser'
 
-/** How a lone URL is pasted (Settings > Editing); a link by default. */
 export const pasteUrlStyle = Facet.define<PasteUrlStyle, PasteUrlStyle>({
   combine: (values) => values[0] ?? 'plain',
 })
 
-/** The user event of a paste. */
 const PASTE_EVENT = 'input.paste'
 
-/** Schemes a pasted URL may have: web, mail and Devot's own (a copied note URI). */
 const URL = /^(?:https?:\/\/|mailto:|devot:\/\/)[^\s]+$/i
 const WWW = /^www\.[^\s]+$/i
-/** Something after the scheme: `https://` alone is not a URL. */
 const AFTER_SCHEME = /^(?:https?:\/\/|mailto:|devot:\/\/)./i
 
-/** The URL a pasted text is, trimmed (`www.` gets `https://`), or null. */
 export function pastedUrl(text: string): string | null {
   const url = text.trim()
   if (WWW.test(url)) return `https://${url}`
@@ -47,7 +39,6 @@ const NO_LINK = new Set([
   'Comment',
 ])
 
-/** Whether a lone URL pasted at `pos` must go in as copied. */
 function asCopiedAt(cx: Cx, pos: number): boolean {
   if (inFrontMatter(cx, pos)) return true
   for (let node: SyntaxNode | null = nodeAt(cx, pos); node; node = node.parent) {
@@ -59,7 +50,6 @@ function asCopiedAt(cx: Cx, pos: number): boolean {
   return false
 }
 
-/** A lone URL at every cursor as an autolink or an empty link; null to paste it as copied. */
 function urlAtCursors(
   state: EditorState,
   url: string,
@@ -112,13 +102,11 @@ export function pasteTransaction(
     : urlAtCursors(state, url, style)
 }
 
-/** Paste as Plain Text: the text as it is, over the selection; null for no text. */
 export function plainPaste(state: EditorState, text: string): TransactionSpec | null {
   if (text === '') return null
   return { ...state.replaceSelection(text), userEvent: PASTE_EVENT, scrollIntoView: true }
 }
 
-/** The editor's paste handling for URLs (images are attachments.ts's). */
 export const pasteUrls = EditorView.domEventHandlers({
   paste(event, view) {
     const data = event.clipboardData
@@ -136,7 +124,6 @@ export const pasteUrls = EditorView.domEventHandlers({
   },
 })
 
-/** A link at `pos`: the whole Link, Autolink or bare URL node, and its address. */
 function linkRangeAt(
   state: EditorState,
   pos: number,

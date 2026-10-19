@@ -42,7 +42,6 @@ function apply(s: EditorState, spec: TransactionSpec | null): EditorState {
 
 const rule = (marked: string) => show(apply(state(marked), insertRule(state(marked))))
 
-/** The block nodes the parser reads in a text. */
 const blocks = (text: string) => {
   const names: string[] = []
   const top = noteParser.parse(text).topNode
@@ -54,7 +53,6 @@ describe('insertRule', () => {
   it('takes the place of an empty list item or heading', () => {
     expect(rule('- a\n- |')).toBe('- a\n\n---\n|')
     expect(rule('Intro\n\n## |')).toBe('Intro\n\n---\n|')
-    // A setext underline stays: the rule goes after the heading.
     expect(rule('Title\n-|')).toBe('Title\n-\n\n---\n|')
   })
 
@@ -64,7 +62,6 @@ describe('insertRule', () => {
     expect(rule('Total\n42.|')).toBe('Total\n42.\n\n---\n|')
     expect(rule('Total\n*|')).toBe('Total\n*\n\n---\n|')
     expect(rule('Total\n+|')).toBe('Total\n+\n\n---\n|')
-    // A box without a space after it is text, not a task.
     expect(rule('- [ ]|')).toBe('- [ ]\n\n---\n|')
   })
 
@@ -96,7 +93,6 @@ describe('insertRule', () => {
 
   it('goes after the line a selection ends on, leaving the selected text alone', () => {
     expect(rule('«One\nTwo»\nThree')).toBe('One\nTwo\n\n---\n|\nThree')
-    // A selection ending at the start of a line ends on the line before.
     expect(rule('«One\n»Two')).toBe('One\n\n---\n|\nTwo')
   })
 

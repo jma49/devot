@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 import { moveRange, moveSelection, selectedText, trackExtract, type ExtractView } from './extract'
 import { noteMarkdown } from './markdown'
 
-/** A stand-in for the editor view: its state, and dispatch. */
 function viewOf(doc: string, from: number, to: number) {
   let state = EditorState.create({
     doc,
@@ -22,7 +21,6 @@ function viewOf(doc: string, from: number, to: number) {
   return view
 }
 
-/** A promise settled from outside, to edit the note while a note is being made. */
 function later<T>() {
   let settle!: (value: T) => void
   const promise = new Promise<T>((resolve) => (settle = resolve))
@@ -42,7 +40,6 @@ describe('selectedText', () => {
       selectedText(viewOf(code, code.indexOf('code'), code.indexOf('code') + 4).state),
     ).toBeNull()
     expect(selectedText(viewOf(code, 0, code.indexOf('code')).state)).toBeNull()
-    // The whole block may go.
     expect(selectedText(viewOf(code, 5, code.indexOf('\nMore')).state)).toBe('```\ncode\n```')
     const front = '---\ntitle: x\n---\nBody'
     expect(selectedText(viewOf(front, 4, 12).state)).toBeNull()

@@ -30,7 +30,6 @@ const endingComposition = Prec.highest(
   EditorView.domEventHandlers({ keydown: (event) => isImeKey(event) }),
 )
 
-/** Keeps an input method's keys away from the editor's keymaps. */
 export function imeKeys(): Extension {
   return [typedIntoComposition, endingComposition]
 }

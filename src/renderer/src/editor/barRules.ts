@@ -6,5 +6,4 @@
 import type { EditorState } from '@codemirror/state'
 import { editorFocused } from './toolbarState'
 
-/** Whether a floating bar may show over the editor in `state`. */
 export const barsMayShow = (state: EditorState): boolean => editorFocused(state)

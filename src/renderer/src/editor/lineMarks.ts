@@ -8,12 +8,9 @@ import type { SyntaxNode } from '@lezer/common'
 const QUOTE_AT = /^[ \t]*>[ \t]?/
 const LIST_AT = /^[ \t]*(?:[-*+]|\d{1,9}[.)])(?=[ \t]|$)[ \t]*/
 
-/** One marker at the start of a line. */
 export interface LineMark {
-  /** Its text: the spaces before it, the marker, and the spaces after it that it takes. */
   text: string
   quote: boolean
-  /** Where its `>` or list marker is in the document. */
   mark: number
 }
 

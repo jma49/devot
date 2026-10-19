@@ -3,14 +3,12 @@ import { shortcutCodeMirror } from '../commands/keys'
 import { COMMANDS, editorFormatKeys } from '../commands/registry'
 import { NOTE_MENU } from '../noteMenu'
 
-/** One spelling for a CodeMirror key name: modifiers sorted, then the key in lower case. */
 function normal(key: string): string {
   const parts = key.split('-')
   const name = parts.pop() ?? ''
   return [...parts.sort(), name.toLowerCase()].join('-')
 }
 
-/** A native menu accelerator (`Shift+CmdOrCtrl+C`) in the same spelling. */
 const fromAccelerator = (accelerator: string) =>
   normal(accelerator.replace(/CmdOrCtrl/g, 'Mod').replace(/\+/g, '-'))
 

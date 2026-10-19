@@ -1,21 +1,11 @@
-// Typing a table row by hand. Tab, Return and Insert Row leave the cursor in
-// a new, empty row; someone who goes on typing the row the usual way,
-// `| 1 | 2 |`, means its pipes as cell borders, not as cell text. So on
-// that row, while the cursor stays on it:
-//
-// - the first pipe typed while the row is empty is its opening pipe: the
-//   cursor goes to (or stays at) the start of the first cell;
-// - a pipe typed at the end of a cell's text (or in an empty cell) goes to
-//   the start of the next cell, and from the last cell past the row's
-//   closing pipe; the table is formatted as Tab formats it;
-// - a space typed right after one of those pipes is the padding the table
-//   already has, and is dropped.
-//
-// Everything else is typed as written: a pipe inside a cell's text, after a
-// backslash or after the closing pipe, input while an input method composes
-// or the completion list is open, and anything on other lines or in rows
-// the cursor was not brought to by those keys. A pipe joins the typing of
-// its cell in one undo step, as typed text does.
+// Typing a table row by hand. Tab, Return and Insert Row leave the cursor in a new, empty row; someone who goes
+// on typing `| 1 | 2 |` means its pipes as cell borders, not cell text. So on that row, while the cursor stays on it:
+// - the first pipe typed while the row is empty is its opening pipe: the cursor goes to the start of the first cell;
+// - a pipe at the end of a cell's text (or in an empty cell) goes to the start of the next cell, and from the last
+//   cell past the closing pipe; the table is formatted as Tab formats it;
+// - a space right after one of those pipes is the padding the table already has, and is dropped.
+// Everything else is typed as written (a pipe inside a cell's text, after a backslash or the closing pipe; input
+// while an input method composes or the completion list is open; other lines). A pipe joins its cell's undo step.
 import { completionStatus } from '@codemirror/autocomplete'
 import {
   EditorSelection,
@@ -38,9 +28,7 @@ import {
   type Target,
 } from './tableCommands'
 
-/** A row being typed by hand. */
 interface RowTyping {
-  /** The start of its line. */
   from: number
   /** Whether a pipe typed while the row is empty is its opening pipe. */
   lead: boolean
@@ -48,7 +36,6 @@ interface RowTyping {
   space: boolean
 }
 
-/** The rule's state after a key it took; the row is the line the cursor is left on. */
 const setRowTyping = StateEffect.define<Omit<RowTyping, 'from'>>()
 
 const rowTyping = StateField.define<RowTyping | null>({
@@ -159,7 +146,6 @@ export function tableInput(view: EditorView, from: number, to: number, text: str
   return true
 }
 
-/** Typing table rows by hand, for the note editor. */
 export function tableTyping(): Extension {
   return [rowTyping, EditorView.inputHandler.of(tableInput)]
 }

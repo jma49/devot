@@ -6,8 +6,6 @@ import { copyBlock } from './codeBlocks'
 import { noteMarkdown } from './markdown'
 import { setToolbarFocus, toolbarStateExtension, toolbarVisible } from './toolbarState'
 
-// The selection toolbar, the image size bar and a code block's copy button
-// show on one rule: only while the editor has the keyboard focus.
 function state(doc: string, selection: { anchor: number; head?: number }) {
   const s = EditorState.create({
     doc,

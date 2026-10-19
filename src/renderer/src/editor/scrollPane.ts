@@ -4,9 +4,7 @@
 import type { EditorView } from '@codemirror/view'
 import type { ScrollPane } from '../preview/scrollSync'
 
-/** `view`'s lines, scrolled by `scroller` (the element around the editor that scrolls). */
 export function editorScrollPane(view: EditorView, scroller: HTMLElement): ScrollPane {
-  /** The document's offset under the scroller's top edge, in pixels. */
   const visibleTop = () =>
     scroller.getBoundingClientRect().top + scroller.clientTop - view.documentTop
 

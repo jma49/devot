@@ -22,7 +22,6 @@ import {
   TOOLBAR_PARSE_MS,
 } from './formatContext'
 
-/** Runs New Note from Template (the editor's host provides it). */
 export const chooseTemplate = Facet.define<() => void, (() => void) | null>({
   combine: (values) => values[0] ?? null,
 })
@@ -72,7 +71,6 @@ const slashHint = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 )
 
-/** The empty note's hint: over the first line, gone once the note has text. */
 const emptyNote = ViewPlugin.fromClass(
   class {
     dom: HTMLElement
@@ -165,7 +163,6 @@ const theme = EditorView.theme({
   '.cm-template-chip:hover': { color: 'var(--color-text-primary)' },
 })
 
-/** The slash hint on an empty line and the empty note's hint, for the note editor. */
 export function editorHints(): Extension {
   return [slashHint, emptyNote, theme]
 }

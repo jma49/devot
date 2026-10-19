@@ -53,7 +53,6 @@ describe('splitRow', () => {
   it('keeps escaped pipes in their cell', () => {
     expect(texts('| a \\| b | c |')).toEqual(['a \\| b', 'c'])
     expect(texts('a \\|')).toEqual(['a \\|'])
-    // An escaped backslash does not escape the pipe after it.
     expect(texts('| a \\\\| b |')).toEqual(['a \\\\', 'b'])
   })
 
@@ -74,7 +73,6 @@ describe('splitRow', () => {
     expect(texts(`|\t ${IDEOGRAPHIC}a ${IDEOGRAPHIC}\t|`)).toEqual([
       `${IDEOGRAPHIC}a ${IDEOGRAPHIC}`,
     ])
-    // A cell of padding alone is not empty.
     expect(texts(`| ${IDEOGRAPHIC} |`)).toEqual([IDEOGRAPHIC])
     expect(splitRow(`| ${NBSP}x |`)).toEqual([{ text: `${NBSP}x`, from: 1, to: 5, textFrom: 2 }])
   })
@@ -97,11 +95,9 @@ describe('cellAt', () => {
     expect(cellAt(line, 0)).toEqual({ column: 0, offset: 0, past: false })
     expect(cellAt(line, 2)).toEqual({ column: 0, offset: 0, past: false })
     expect(cellAt(line, 3)).toEqual({ column: 0, offset: 1, past: false })
-    // Just before a pipe is the cell on its left, just after it the one on its right.
     expect(cellAt(line, 5)).toEqual({ column: 0, offset: 2, past: false })
     expect(cellAt(line, 6)).toEqual({ column: 1, offset: 0, past: false })
     expect(cellAt(line, 9)).toEqual({ column: 1, offset: 2, past: false })
-    // After the closing pipe: the last cell, past the row.
     expect(cellAt(line, 11)).toEqual({ column: 1, offset: 2, past: true })
     expect(cellAt('a | b', 5)).toEqual({ column: 1, offset: 1, past: false })
     expect(cellAt('|', 1)).toEqual({ column: 0, offset: 0, past: false })
@@ -130,7 +126,6 @@ describe('parseAlign', () => {
     expect(parseAlign('')).toBeNull()
     expect(parseAlign(':')).toBeNull()
     expect(parseAlign('-:-')).toBeNull()
-    // Only spaces and tabs may surround a delimiter.
     expect(parseAlign(`${ch(0x3000)}---`)).toBeNull()
     expect(parseAlign('\t---\t')).toBe('none')
   })
@@ -213,7 +208,6 @@ describe('a table with padding that is text', () => {
     expect(printed[0]).toContain(`${IDEOGRAPHIC}a`)
     expect(printed[0]).toContain(`b${NBSP}`)
     expect(printed[2]).toContain(IDEOGRAPHIC)
-    // Reading what was printed gives the same cells.
     expect(parseTable(printed)).toEqual(read)
   })
 

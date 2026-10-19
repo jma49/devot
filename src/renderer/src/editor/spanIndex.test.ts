@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Covered, SpanIndex, isInside, isMarker, type IndexedSpan } from './spanIndex'
 
-/** A span from `from` to `to` with markers `mark` characters wide. */
 const span = (from: number, to: number, mark = 2): IndexedSpan => ({
   from,
   to,
@@ -9,12 +8,10 @@ const span = (from: number, to: number, mark = 2): IndexedSpan => ({
   closeFrom: to - mark,
 })
 
-/** The scan the index replaces. */
 function naive(spans: IndexedSpan[], pos: number): [boolean, boolean] {
   return [spans.some((s) => isMarker(s, pos)), spans.some((s) => isInside(s, pos))]
 }
 
-/** The positions where the index and the scan differ. */
 function differences(spans: IndexedSpan[], end: number): number[] {
   const index = new SpanIndex(spans)
   const wrong: number[] = []

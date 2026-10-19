@@ -1,16 +1,7 @@
-// The slash menu: a `/` typed at the start of a line (column 0) lists
-// insertions in three groups, Basic Formatting, Alerts and Other, each row
-// with an icon, a label and the Markdown it writes as a hint. Most items are
-// registry commands: picking one runs that format (formats.ts) or insertion
-// (insert.ts) in place of the typed `/query`, as one transaction, one undo
-// step. Remote Image writes `![alt](url)` as a snippet (Tab goes from `alt`
-// to `url`); Image File takes the query out and asks for image files.
-//
-// The text typed after the slash filters the list: a case-insensitive
-// substring of the label, best match position first, then the menu's order.
-// When nothing matches, the list closes and stays closed for that slash
-// (Backspace does not bring it back): a new `/` opens it again. Return picks,
-// Escape closes it and keeps the text. It never opens where a slash is
+// The slash menu: a `/` at the start of a line lists insertions in three groups (Basic Formatting,
+// Alerts, Other). Most items are registry commands run in place of the typed `/query`, as one
+// transaction. The typed text filters the list by label substring; when nothing matches, the list
+// stays closed for that slash (Backspace does not reopen it). It never opens where a slash is
 // literal text: code, HTML, front matter, link addresses.
 import {
   completionStatus,
@@ -57,33 +48,22 @@ import { inTable } from './tableCommands'
 
 export type SlashGroup = 'basic' | 'alerts' | 'other'
 
-/** The groups, in the order the menu shows them, and their headers. */
 export const SLASH_GROUPS: readonly { id: SlashGroup; label: MessageKey }[] = [
   { id: 'basic', label: 'slash.groupBasic' },
   { id: 'alerts', label: 'slash.groupAlerts' },
   { id: 'other', label: 'slash.groupOther' },
 ]
 
-/** What picking an item does. */
-type SlashAction =
-  /** Runs this registry command (a format or an insertion) in place of the query. */
-  | { command: CommandId }
-  /** Writes `![alt](url)` as a snippet. */
-  | { remoteImage: true }
-  /** Takes the query out and asks for image files (see `chooseImageFiles`). */
-  | { imageFile: true }
+type SlashAction = { command: CommandId } | { remoteImage: true } | { imageFile: true }
 
 interface SlashDef {
   id: string
   group: SlashGroup
   label: MessageKey
   icon: IconName
-  /** An alert's kind: its icon takes the alert's colour. */
   tone?: AlertKind
-  /** The Markdown the item writes, shown on the right. */
   hint: (state: EditorState) => string
   action: SlashAction
-  /** Text in a line (where the line's block does not matter) rather than a block. */
   inline?: boolean
 }
 
@@ -106,7 +86,6 @@ const heading = (level: 1 | 2 | 3 | 4): SlashDef => ({
   action: { command: `format.heading${level}` },
 })
 
-/** The menu's items, in the order an empty query lists them. */
 export const SLASH_ITEMS: readonly SlashDef[] = [
   {
     id: 'blockquote',
@@ -210,7 +189,6 @@ const itemById = new Map(SLASH_ITEMS.map((item) => [item.id, item]))
 /** The slash and the query typed after it: the line up to the cursor, no other slash, no leading space. */
 const QUERY = /^\/(?!\s)([^/\n]{0,32})$/
 
-/** Where the menu's text is: the slash at `from`, the query up to the cursor at `to`. */
 export interface SlashTrigger {
   from: number
   to: number
@@ -243,7 +221,6 @@ export function slashTrigger(state: EditorState): SlashTrigger | null {
   return typed
 }
 
-/** An item the label match keeps: where the query is in its label. */
 interface Matched {
   item: SlashDef
   label: string
@@ -271,11 +248,9 @@ function matching(query: string): Matched[] {
   )
 }
 
-/** The `/query` taken out: the changes, and the state an item's command runs on. */
 interface QueryOut {
   changes: ChangeSet
   state: EditorState
-  /** Where a placeholder stands in `state` (an inline command runs beside it), if one does. */
   placeholder?: number
 }
 
@@ -344,7 +319,6 @@ function commandOf(item: SlashDef): CommandId {
   return 'command' in item.action ? item.action.command : 'insert.image'
 }
 
-/** What a registry command does in a state, or null when it does nothing there. */
 function commandSpec(id: CommandId, state: EditorState): TransactionSpec | null {
   const format = formatOf(id)
   if (format) return FORMAT_COMMANDS[format](state)
@@ -367,7 +341,6 @@ function takesOff(
   return (format in on && on[format as ToolbarFormat]) || format === alert
 }
 
-/** An item the menu lists: its id, group, label, hint, icon and the letters the query matched. */
 export interface SlashItem {
   id: SlashId
   group: SlashGroup
@@ -378,7 +351,6 @@ export interface SlashItem {
   ranges: [number, number][]
 }
 
-/** Whether a query matches no item's label: the menu closes for good for that slash. */
 export function matchesNothing(query: string): boolean {
   return matching(query).length === 0
 }
@@ -464,7 +436,6 @@ export function placeholderOut(
   return { from, to }
 }
 
-/** Asks for image files and puts them in at the cursor (the editor's host provides it). */
 export const chooseImageFiles = Facet.define<
   (view: EditorView) => void,
   ((view: EditorView) => void) | null
@@ -472,7 +443,6 @@ export const chooseImageFiles = Facet.define<
   combine: (values) => values[0] ?? null,
 })
 
-/** The Remote Image snippet: `alt` selected, Tab goes to `url`. */
 function remoteImageSnippet() {
   const field = (word: string) => `\${${word.replace(/[{}$\\]/g, '')}}`
   return snippet(`![${field(t('slash.hintAlt'))}](${field(t('slash.hintUrl'))})`)
@@ -499,7 +469,6 @@ function pick(view: EditorView, id: SlashId, from: number, to: number) {
   if (command === 'format.codeBlock') openLanguageList(view)
 }
 
-/** Records that the menu of the slash at this position was closed without a pick. */
 const dismiss = StateEffect.define<number>()
 
 /**
@@ -517,7 +486,6 @@ const dismissed = StateField.define<number | null>({
   },
 })
 
-/** A query that matches nothing closes the menu of its slash for good. */
 const dismissUnmatched = EditorState.transactionExtender.of((tr) => {
   if (!tr.docChanged) return null
   const typed = typedQuery(tr.newDoc, tr.newSelection)
@@ -528,7 +496,6 @@ const dismissUnmatched = EditorState.transactionExtender.of((tr) => {
   return { effects: dismiss.of(typed.from) }
 })
 
-/** Notes a slash whose open list is about to close without a pick. */
 function noteDismissal(view: EditorView) {
   if (completionStatus(view.state) === null) return
   const typed = typedQuery(view.state.doc, view.state.selection)
@@ -537,7 +504,6 @@ function noteDismissal(view: EditorView) {
     view.dispatch({ effects: [dismiss.of(typed.from), releaseToolbar.of(null)] })
 }
 
-/** Escape and leaving the editor close the list (the completion's own keys and blur do that). */
 const dismissal = EditorView.domEventObservers({
   keydown(event, view) {
     if (event.key === 'Escape' && !isImeKey(event)) noteDismissal(view)
@@ -551,7 +517,6 @@ const dismissal = EditorView.domEventObservers({
   },
 })
 
-/** The menu's options (as opposed to other popups'), with the position of their slash. */
 const optionSlash = new WeakMap<Completion, number>()
 
 /** The menu's completion source (one function for the editor's life, as CodeMirror needs). */
@@ -625,7 +590,6 @@ function pickGreyedOut(view: EditorView): boolean {
   return true
 }
 
-/** The slash menu for the note editor (its source is registered in editor/completions.ts). */
 export function slashMenu(): Extension {
   return [
     dismissed,

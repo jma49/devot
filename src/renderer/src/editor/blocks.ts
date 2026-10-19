@@ -1,10 +1,6 @@
-// Block formats: code blocks, lists, quotes and alerts. Each acts on every
-// line the selection touches and, like the inline formats, is one
-// transaction (one Yjs update, one undo step) editing the Markdown source.
-// Applying a format the lines already have removes it; switching between
-// list kinds converts the markers. Lines of fenced code and other literal
-// blocks are left alone, except by the code block format itself and when a
-// quote takes them along with the list item they are in.
+// Block formats: code blocks, lists, quotes and alerts. Each is one transaction over the lines the
+// selection touches. Applying a format the lines already have removes it; list kinds convert markers.
+// Literal blocks are left alone, except by the code block format and a quote taking a list item along.
 import { markdownLanguage } from '@codemirror/lang-markdown'
 import { ensureSyntaxTree } from '@codemirror/language'
 import {
@@ -53,15 +49,12 @@ export type BlockFormat =
 /** The alert kinds, in the order the pop-up lists them. */
 export const ALERT_KINDS: readonly AlertKind[] = ['note', 'tip', 'important', 'warning', 'caution']
 
-// One quote marker at the start of a line.
 const QUOTE_MARK = /^ {0,3}>[ \t]?/
-// A list marker (bullet, or number and delimiter) and a task box after it.
 const MARKER = /^(?:([-*+])|(\d{1,9})([.)]))(?=[ \t]|$)/
 const BOX = /^\[[ xX]\](?=[ \t]|$)/
 const LEADING_FENCE = /^[ \t]*(`+)/
 
 const CODE = new Set(LITERAL_BLOCKS)
-// Blocks that list markers would break.
 const NOT_LISTABLE = new Set([...CODE, 'Table', 'HorizontalRule', 'LinkReference'])
 // Marks of containers: a line's quote or list marker is not inside the block after it.
 const CONTAINER_MARKS = new Set(['QuoteMark', 'ListMark'])
@@ -70,7 +63,6 @@ const isBlank = (text: string) => text.trim() === ''
 // Paragraph text: a task item's text is a paragraph too.
 const PARAGRAPHS = new Set(['Paragraph', 'Task'])
 
-/** How many quote markers a line starts with, and how long they are. */
 function quotePrefix(text: string, limit = Infinity): { count: number; length: number } {
   let count = 0
   let length = 0
@@ -83,17 +75,12 @@ function quotePrefix(text: string, limit = Infinity): { count: number; length: n
   return { count, length }
 }
 
-/**
- * Where a line's text starts (an offset in it): after its first `quotes`
- * quote markers (all of them by default) and the indent after them.
- */
 function textStart(line: Line, quotes = Infinity): number {
   let i = quotePrefix(line.text, quotes).length
   while (i < line.length && /[ \t]/.test(line.text.charAt(i))) i++
   return i
 }
 
-/** The selected line numbers, each once, in order. */
 function selectedLines(state: EditorState): number[] {
   const numbers = new Set<number>()
   for (const range of state.selection.ranges)
@@ -102,23 +89,17 @@ function selectedLines(state: EditorState): number[] {
 }
 
 const commandContexts = new WeakMap<EditorState, Cx>()
-/** How far the parser is pushed at a time while looking for the end of the selection's blocks. */
 const PARSE_STEP = 20_000
 /**
- * How long a block command may parse in all. It needs the whole selection
- * and the block after it, which on a large selection takes far longer than
- * what an inline format needs, the more so on a busy machine. Each step of
- * the parse still has to finish within `COMMAND_PARSE_MS`: a parser that
- * makes no progress is not waited for.
+ * Parse budget for a block command, which needs the whole selection and the block after it.
+ * Each step must still finish within `COMMAND_PARSE_MS`: a stalled parser is not waited for.
  */
 const BLOCK_PARSE_MS = 4 * COMMAND_PARSE_MS
 
 /**
- * The context a block command works in. Renumbering a list and moving an
- * item's children reach past the selection, though never past the top-level
- * block after the one the selection ends in: the note is parsed, a step at
- * a time, until that block is complete (another one follows it) or to its
- * end. Null when the parser cannot get there in time.
+ * Renumbering and moving an item's children reach past the selection, up to the top-level block
+ * after the one it ends in: the note is parsed step by step until that block is complete.
+ * Null when the parser cannot get there in time.
  */
 function commandContext(state: EditorState): Cx | null {
   const known = commandContexts.get(state)
@@ -151,7 +132,6 @@ function inCode(cx: Cx, pos: number): boolean {
   return false
 }
 
-/** Collects edits in document order and builds one change set from them. */
 class Edits {
   private specs: { from: number; to: number; insert: string; order: number }[] = []
 
@@ -200,10 +180,7 @@ class Shifts {
       this.deltas.set(pos, { line, delta: (this.deltas.get(pos)?.delta ?? 0) + delta })
   }
 
-  /**
-   * Moves the lines after an item's first line (its children and the rest of
-   * its text) by `delta`, after the `quotes` quote markers the item sits in.
-   */
+  /** Moves the lines after an item's first line by `delta`, after the `quotes` quote markers it sits in. */
   children(doc: Text, item: { from: number; to: number }, quotes: number, delta: number) {
     if (delta === 0) return
     const first = doc.lineAt(item.from).number
@@ -216,7 +193,6 @@ class Shifts {
     }
   }
 
-  /** Adds the moves to `edits`, except on the lines in `keep`. */
   into(edits: Edits, doc: Text, keep?: Set<number>) {
     for (const [pos, { line, delta }] of this.deltas) {
       if (keep?.has(line)) continue
@@ -256,8 +232,6 @@ function mapSelection(state: EditorState, changes: ChangeSet, after?: ChangeSet)
   return EditorSelection.create(ranges, state.selection.mainIndex)
 }
 
-// Lists
-
 interface Marker {
   bullet: string | undefined
   number: string | undefined
@@ -275,7 +249,6 @@ interface ListLine {
   at: number
   quotes: number
   marker: Marker | null
-  /** The item the line starts, when the parser reads it as one. */
   item: SyntaxNode | null
   blank: boolean
   /** The line continues an item above it, indented under its text. */
@@ -400,7 +373,6 @@ function newMarker(
   return { text: `${number} `, offset: number.length + 1 }
 }
 
-/** Where a line's marker sits: its quote depth and column. */
 const slot = (l: ListLine) => `${l.quotes}:${l.at - l.line.from}`
 
 /**
@@ -436,7 +408,6 @@ function topBlock(tree: Tree, pos: number, side: -1 | 1): SyntaxNode | null {
 function renumber(cx: Cx, first: ChangeSet, changed: Set<number>): ChangeSet | null {
   const old = cx.state.doc
   const doc = first.apply(old)
-  // The changed lines in the new document, which may have more lines.
   const now = new Set([...changed].map((n) => doc.lineAt(first.mapPos(old.line(n).from, 1)).number))
   const numbers = [...now].sort((a, b) => a - b)
   const oldNumbers = [...changed].sort((a, b) => a - b)
@@ -459,7 +430,6 @@ function renumber(cx: Cx, first: ChangeSet, changed: Set<number>): ChangeSet | n
   if (mayBeFrontMatter(doc, from)) from = 0
   const tree = (from === 0 ? noteParser : markdownLanguage.parser).parse(doc.sliceString(from, to))
 
-  // The numbered lists a changed line belongs to, by the item it is in.
   const touched = new Set<number>()
   for (const n of numbers) {
     const line = doc.line(n)
@@ -557,7 +527,6 @@ function setApart(
   edits.add(below.from, below.from, `${quotes}\n`)
 }
 
-/** The paragraph that the end of line `n` is in. */
 function paragraphAtEnd(cx: Cx, n: number): SyntaxNode | null {
   if (n < 1) return null
   const line = cx.state.doc.line(n)
@@ -586,7 +555,6 @@ function continuesInList(cx: Cx, n: number, list: SyntaxNode, changed: Set<numbe
   return false
 }
 
-/** Sets the lines that stop being items apart from the list items above them. */
 function setApartFromList(cx: Cx, lines: ListLine[], changed: Set<number>, edits: Edits) {
   const { doc } = cx.state
   const byLine = new Map(lines.map((l) => [l.line.number, l]))
@@ -594,7 +562,6 @@ function setApartFromList(cx: Cx, lines: ListLine[], changed: Set<number>, edits
     const n = l.line.number
     const list = l.item?.parent
     if (!list || changed.has(n - 1) || !continuesInList(cx, n - 1, list, changed)) continue
-    // The lines leaving with it: its item's, and those of the items right after it.
     let last = n
     for (;;) {
       const item = byLine.get(last)?.item
@@ -637,9 +604,7 @@ export function toggleList(state: EditorState, kind: ListKind): TransactionSpec 
   const changed = new Set<number>()
   // Lines that become items keep their own indent, also under an item that moves.
   const created = new Set<number>()
-  // The delimiter of the numbered list each marker position continues.
   const delims = new Map<string, string | undefined>()
-  // Numbered lists that lose an item, by their start.
   const losing = new Map<number, SyntaxNode>()
   const bullet = state.facet(listBullet)
   for (const l of lines) {
@@ -672,8 +637,6 @@ export function toggleList(state: EditorState, kind: ListKind): TransactionSpec 
   return spec(changes, mapSelection(state, changes))
 }
 
-// Quotes and alerts
-
 /**
  * Where a line's quote marker is (or goes) and what it belongs to. A line
  * that continues a list item, or is an item nested in one, is quoted inside
@@ -682,27 +645,22 @@ export function toggleList(state: EditorState, kind: ListKind): TransactionSpec 
  */
 interface QuoteLine {
   line: Line
-  /** Where the line's quote marker goes. */
   base: number
   /** The item the quote is inside of (its start), or -1 at the top level. */
   owner: number
-  /** The line's quote marker at `base`, when it has one. */
   mark: { from: number; to: number } | null
   blank: boolean
-  /** Inside fenced code or another literal block. */
   code: boolean
   /** Quoted along with the list item it is in, whose line is selected. */
   withItem: boolean
 }
 
-/** The list item a line is in that starts on an earlier line, if any. */
 function outerItem(cx: Cx, line: Line): SyntaxNode | null {
   for (let p: SyntaxNode | null = nodeAt(cx, line.from + textStart(line)); p; p = p.parent)
     if (p.name === 'ListItem' && p.from < line.from) return p
   return null
 }
 
-/** The column (an offset in its first line) where a list item's text starts. */
 function itemTextColumn(doc: Text, item: SyntaxNode): number {
   const line = doc.lineAt(item.from)
   return item.from - line.from + (parseMarker(line, item.from)?.offset ?? 0)
@@ -725,7 +683,6 @@ function quoteLine(cx: Cx, n: number, selected: Set<number>): QuoteLine {
     const itemLine = doc.lineAt(item.from)
     withItem = selected.has(itemLine.number)
     if (withItem) {
-      // Quoted along with its item: at the column the item's line is quoted at.
       const outer = quoteLine(cx, itemLine.number, selected)
       let i = 0
       while (i < outer.base - itemLine.from && /[ \t>]/.test(line.text.charAt(i))) i++
@@ -807,7 +764,6 @@ interface Run {
   last: number
 }
 
-/** The lines around `n` that `quoted` says are quoted, as one run. */
 function runAround(doc: Text, n: number, quoted: (n: number) => boolean): Run {
   let first = n
   while (first > 1 && quoted(first - 1)) first--
@@ -816,7 +772,6 @@ function runAround(doc: Text, n: number, quoted: (n: number) => boolean): Run {
   return { first, last }
 }
 
-/** Whether line `n` is quoted in the same place as `q` (one quote with it). */
 const quotedLike = (cx: Cx, q: QuoteLine, selected: Set<number>) => (n: number) => {
   const other = quoteLine(cx, n, selected)
   return (
@@ -826,7 +781,6 @@ const quotedLike = (cx: Cx, q: QuoteLine, selected: Set<number>) => (n: number) 
 
 const runs = new WeakMap<Cx, Map<number, Run>>()
 
-/** The quote a quoted line is part of (consecutive lines quoted alike), found once per run. */
 function quoteRun(cx: Cx, q: QuoteLine, selected: Set<number>): Run {
   let known = runs.get(cx)
   if (!known) runs.set(cx, (known = new Map()))
@@ -860,7 +814,6 @@ function dropAlertLine(cx: Cx, run: Run, selected: Set<number>, edits: Edits) {
   else edits.add(q.mark?.to ?? q.base, q.line.to)
 }
 
-/** The distinct runs of counted, quoted lines. */
 function countedRuns(cx: Cx, lines: QuoteLine[], selected: Set<number>): Run[] {
   const found = new Map<number, Run>()
   for (const q of lines)
@@ -888,7 +841,6 @@ function linesToQuote(lines: { all: QuoteLine[]; counted: QuoteLine[] }): QuoteL
 /** A blank line between quoted ones gets a bare marker; a line alone is typed into. */
 const quoteInsert = (q: QuoteLine, alone: boolean) => (q.blank && !alone ? '>' : '> ')
 
-/** Whether a quoted line's text continues a paragraph that starts on a line above it. */
 function continuesAbove(cx: Cx, q: QuoteLine): boolean {
   if (!q.mark || q.blank) return false
   let text = q.mark.to
@@ -1000,7 +952,6 @@ export function toggleAlert(state: EditorState, kind: AlertKind): TransactionSpe
   return spec(changes, mapSelection(state, changes))
 }
 
-/** The alert kind the whole selection is in, if it is one kind. */
 export function alertKind(state: EditorState): AlertKind | null {
   const cx = context(state, TOOLBAR_PARSE_MS)
   if (!cx) return null
@@ -1010,9 +961,6 @@ export function alertKind(state: EditorState): AlertKind | null {
   return kinds.size === 1 && only ? only : null
 }
 
-// Code blocks
-
-/** The fenced code block a line is part of, if any. */
 function fenceOf(cx: Cx, line: Line): SyntaxNode | null {
   const at = line.from + containerEnd(cx, line)
   for (let n: SyntaxNode | null = nodeAt(cx, at); n; n = n.parent)
@@ -1091,7 +1039,6 @@ function itemAbove(cx: Cx, line: Line, quotes: number, indent: number): number |
   return null
 }
 
-/** How many quotes a node is in. */
 function quoteDepth(node: SyntaxNode): number {
   let depth = 0
   for (let p = node.parent; p; p = p.parent) if (p.name === 'Blockquote') depth++
@@ -1130,7 +1077,6 @@ function emptyItemFence(cx: Cx): TransactionSpec | null {
   return spec(changes, EditorSelection.single(end + 1 + fence.length + 1 + indent.length))
 }
 
-/** Takes the fences off a block, keeping its text where it was. */
 function unwrap(doc: Text, block: SyntaxNode, edits: Edits) {
   const marks = block.getChildren('CodeMark')
   const open = marks[0]
@@ -1139,11 +1085,9 @@ function unwrap(doc: Text, block: SyntaxNode, edits: Edits) {
   const line = doc.lineAt(open.from)
   const next = line.number < doc.lines ? doc.line(line.number + 1) : null
   if (/^[ \t>]*$/.test(doc.sliceString(line.from, open.from))) {
-    // The fence has a line of its own.
     if (next) edits.add(line.from, next.from)
     else edits.add(Math.max(0, line.from - 1), line.to)
   } else if (next) {
-    // The fence follows a list marker: the block's first line takes its place.
     const column = open.from - line.from
     let indent = 0
     while (indent < column && /[ \t>]/.test(next.text.charAt(indent))) indent++
@@ -1184,7 +1128,6 @@ export function toggleCodeBlock(state: EditorState): TransactionSpec | null {
     for (let n = first; n <= last; n++) depth = Math.min(depth, quotePrefix(doc.line(n).text).count)
     let longest = 0
     let indent = Infinity
-    // The column the text of each line of indented code starts at.
     const code = new Map<number, number>()
     for (let n = first; n <= last; n++) {
       const line = doc.line(n)
@@ -1209,7 +1152,6 @@ export function toggleCodeBlock(state: EditorState): TransactionSpec | null {
       firstLine.text.slice(0, quotes) + ' '.repeat(indent) + '`'.repeat(Math.max(3, longest + 1))
     opens.add(firstLine.from, firstLine.from, `${fence}\n`)
     closes.push({ at: doc.line(last).to, insert: `\n${fence}` })
-    // Inside the fence, a line loses as many spaces as the fence has.
     for (const [n, column] of code) {
       const line = doc.line(n)
       const from = line.from + quotePrefix(line.text, depth).length
@@ -1227,10 +1169,8 @@ export function toggleCodeBlock(state: EditorState): TransactionSpec | null {
   return spec(open.compose(close), mapSelection(state, open, close))
 }
 
-/** An opening fence with nothing after it, after any quote and list markers. */
 const BARE_FENCE = /^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+(?:\[[ xX]\][ \t]+)?)?(?:`{3,}|~{3,})$/
 
-/** Whether the only cursor is at the end of a bare opening fence (a new block's). */
 export function atNewFence(state: EditorState): boolean {
   const { ranges, main } = state.selection
   if (ranges.length > 1 || !main.empty) return false
@@ -1292,8 +1232,6 @@ function wrapSpans(cx: Cx): [number, number][] {
   return merged
 }
 
-// Toolbar state
-
 export type BlockState = Record<BlockFormat, boolean>
 
 export const NO_BLOCKS: BlockState = {
@@ -1305,13 +1243,11 @@ export const NO_BLOCKS: BlockState = {
   alert: false,
 }
 
-/** Which block formats the selection has (the pressed buttons). */
 export function blockState(state: EditorState): BlockState {
   const cx = context(state, TOOLBAR_PARSE_MS)
   return cx ? blockStateOf(cx) : NO_BLOCKS
 }
 
-/** `blockState` for a context the toolbar already has. */
 export function blockStateOf(cx: Cx): BlockState {
   if (!toolbarReads(cx.state)) return NO_BLOCKS
   const lists = listLines(cx)

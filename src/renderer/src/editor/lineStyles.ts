@@ -19,7 +19,6 @@ import { ALERT_KINDS, type AlertKind } from './blocks'
 import { markerField, scanMarkers, type MarkerScan } from './gutterMarkers'
 import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
 
-/** One piece of styling: a class on whole lines from `from` to `to`, or on that text. */
 export interface LineStyle {
   from: number
   to: number
@@ -27,7 +26,6 @@ export interface LineStyle {
   line: boolean
 }
 
-/** `[!KIND]` alone on the first line of a quote, as the preview reads an alert. */
 const ALERT_LABEL = /^\[!(note|tip|important|warning|caution)\][ \t]*$/i
 const MARK_OPEN = /^<mark(?:\s[^>]*)?>$/i
 const MARK_CLOSE = /^<\/mark\s*>$/i
@@ -41,7 +39,6 @@ function listDepth(node: SyntaxNode): number {
   return depth
 }
 
-/** The styling of the Markdown between `from` and `to` (whole blocks that touch it). */
 export function lineStyles(
   state: EditorState,
   tree: Tree,
@@ -126,7 +123,6 @@ export function lineStyles(
   return out
 }
 
-/** The decorations for some styling: line classes on each line, marks on the text. */
 export function decorationsFor(state: EditorState, styles: LineStyle[]): DecorationSet {
   const ranges: Range<Decoration>[] = []
   const lineClasses = new Map<number, string[]>()
@@ -195,13 +191,11 @@ const headingGutters = Object.fromEntries(
   LEVELS.map((level) => [level, new HeadingGutter(level)]),
 ) as Record<HeadingLevel, HeadingGutter>
 
-/** The gutter beside a table's first line: padded as that line is, level with its text. */
 class TableGutter extends GutterMarker {
   override elementClass = 'cm-md-gutter-table'
 }
 const tableGutter = new TableGutter()
 
-/** The gutter's classes in `from` to `to`: every line of a heading, and each table's first line. */
 const scanMarkdownGutter: MarkerScan = (state, from, to, mark, touch) => {
   syntaxTree(state).iterate({
     from,
@@ -227,7 +221,6 @@ const scanMarkdownGutter: MarkerScan = (state, from, to, mark, touch) => {
   })
 }
 
-/** The gutter's classes: every line of a heading, and each table's first line. */
 export function markdownGutterLines(state: EditorState): RangeSet<GutterMarker> {
   return scanMarkers(state, scanMarkdownGutter)
 }
@@ -301,7 +294,6 @@ const theme = EditorView.theme({
   },
   '.cm-md-alert-label, .cm-md-alert-label *': { textDecoration: 'none' },
   ...alertColours,
-  // The same box as a fenced code block's (codeBlocks.ts), drawn behind the text.
   '.cm-md-table': { position: 'relative', zIndex: '0' },
   '.cm-md-table::before': {
     content: '""',
@@ -330,5 +322,4 @@ const theme = EditorView.theme({
   '.cm-md-table-header': { fontWeight: 'var(--font-weight-bold)' },
 })
 
-/** The editor's Markdown shapes: the decorations and their styles. */
 export const markdownLineStyles = [plugin, headingGutter, theme]

@@ -27,9 +27,7 @@ import { keymap, type EditorView } from '@codemirror/view'
 import type { Tree } from '@lezer/common'
 import { lineMarks, type LineMark } from './lineMarks'
 
-// What an empty list item or task is, after its quote markers.
 const EMPTY_ITEM = /^[ \t>]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+\[[ xX]\])?[ \t]*$/
-// A line with nothing but quote markers and spaces.
 const bare = (text: string) => !/[^\s>]/.test(text)
 
 const continueMarkup = insertNewlineContinueMarkupCommand({
@@ -49,7 +47,6 @@ function markersBefore(tree: Tree, line: Line, cursor: number): LineMark[] | nul
   return marks
 }
 
-/** How long Return may wait for the parser to read the line after the cursor's. */
 const PARSE_MS = 50
 
 /**
@@ -145,7 +142,6 @@ export function insertNewlineLeavingMarkup(view: EditorView): boolean {
   return true
 }
 
-/** Return, ahead of the Markdown language's own (see `insertNewlineLeavingMarkup`). */
 export const leaveMarkupKeys: Extension = Prec.high(
   keymap.of([{ key: 'Enter', run: insertNewlineLeavingMarkup }]),
 )

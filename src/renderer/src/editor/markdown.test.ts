@@ -17,7 +17,6 @@ import {
   noteParser,
 } from './markdown'
 
-/** The names of a tree's block nodes, in order, nested ones included. */
 function blocksOf(tree: Tree): string[] {
   const names: string[] = []
   tree.iterate({
@@ -28,7 +27,6 @@ function blocksOf(tree: Tree): string[] {
   return names
 }
 
-/** Every node name in a tree. */
 function namesOf(tree: Tree): Set<string> {
   const names = new Set<string>()
   tree.iterate({ enter: (node) => void names.add(node.name) })
@@ -37,7 +35,6 @@ function namesOf(tree: Tree): Set<string> {
 
 const blocks = (doc: string) => blocksOf(noteParser.parse(doc))
 
-/** The front matter node's range, or null. */
 function frontMatterOf(tree: Tree): [number, number] | null {
   const first = tree.topNode.firstChild
   return first?.name === FRONT_MATTER ? [first.from, first.to] : null
@@ -57,7 +54,6 @@ describe('front matter in the editor parser', () => {
     expect(blocksOf(tree)).toEqual([FRONT_MATTER, 'Paragraph'])
     expect(namesOf(tree).has('SetextHeading2')).toBe(false)
     expect(frontMatterOf(tree)).toEqual([0, NOTE.indexOf('\n\nBody')])
-    // Its fences are marks; nothing between them is Markdown.
     const marks = tree.topNode.firstChild?.getChildren('FrontMatterMark') ?? []
     expect(marks.map((m) => NOTE.slice(m.from, m.to))).toEqual(['---', '---'])
     expect(marks.map((m) => m.from)).toEqual([0, NOTE.indexOf('---', 3)])
@@ -80,7 +76,6 @@ describe('front matter in the editor parser', () => {
       'SetextHeading2',
       'HorizontalRule',
     ])
-    // Without front matter at the start, every --- reads as before.
     for (const doc of ['Intro\n\n---\na: b\n---\n', 'Title\n---\n\n---\n', '\n---\na\n---'])
       expect(blocks(doc)).toEqual(blocksOf(markdownLanguage.parser.parse(doc)))
   })
@@ -108,7 +103,6 @@ describe('front matter in the editor parser', () => {
     const tree = noteParser.parse(doc)
     const found = frontMatterOf(tree)
     const yaml = frontMatter(doc)
-    // The text between the fences, as the preview has it.
     const inner = found && doc.slice(doc.indexOf('\n') + 1, found[1])
     const content = inner === null ? null : inner.slice(0, Math.max(0, inner.lastIndexOf('\n')))
     expect(content).toBe(yaml)
@@ -141,7 +135,6 @@ describe('front matter while editing', () => {
   it('becomes front matter once the closing fence is typed under the keys', () => {
     let state = parsed('---\ntitle: x\nauthor: me\n\nBody')
     expect(first(state)).toBe('HorizontalRule')
-    // Typed one character at a time, as the editor sees it.
     let at = '---\ntitle: x\nauthor: me\n'.length
     for (const ch of '---\n') state = edit(state, at, at++, ch)
     expect(state.doc.toString()).toBe('---\ntitle: x\nauthor: me\n---\n\nBody')
@@ -166,7 +159,6 @@ describe('front matter while editing', () => {
       while (!parse.advance()) n++
       return n
     }
-    /** How many steps the parse after an insert takes: few when it reuses the old blocks. */
     const steps = (at: number, insert: string) => {
       const ranges: ChangedRange[] = [{ fromA: at, toA: at, fromB: at, toB: at + insert.length }]
       const fragments = TreeFragment.applyChanges(TreeFragment.addTree(parser.parse(doc)), ranges)
@@ -174,7 +166,6 @@ describe('front matter while editing', () => {
     }
     const fresh = count(parser.startParse(doc))
     expect(fresh).toBeGreaterThan(200)
-    // Typing at the end or in the middle adds no fence: the blocks above it are reused.
     const middle = doc.indexOf('Paragraph 100')
     expect(steps(doc.length, 'x')).toBeLessThan(20)
     expect(steps(middle, 'y')).toBeLessThan(20)
@@ -202,7 +193,6 @@ describe('front matter while editing', () => {
 })
 
 describe('front matter highlighting', () => {
-  /** The highlight classes over each character of a document. */
   function classes(doc: string): string[] {
     const out: string[] = Array.from({ length: doc.length }, () => '')
     highlightTree(noteParser.parse(doc), noteHighlightStyle, (from, to, cls) => {
@@ -288,7 +278,6 @@ describe('front matter is not Markdown to the editor', () => {
 })
 
 describe('Markdown source highlighting', () => {
-  /** The highlight class over each character, from the editor's full language. */
   function classes(doc: string): string[] {
     const state = EditorState.create({ doc, extensions: [noteMarkdown] })
     const tree = ensureSyntaxTree(state, doc.length, 1e9)
@@ -301,7 +290,6 @@ describe('Markdown source highlighting', () => {
   }
   type HighlightTag = Parameters<typeof noteHighlightStyle.style>[0][number]
   const style = (tag: HighlightTag) => noteHighlightStyle.style([tag])
-  /** Whether a character's classes include the tag's own (a mark keeps its parent's too). */
   const has = (cls: string | undefined, tag: HighlightTag) =>
     (cls ?? '').split(' ').includes(style(tag) ?? '\u0000')
 

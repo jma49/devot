@@ -11,7 +11,6 @@ function stylesOf(doc: string): { state: EditorState; styles: LineStyle[] } {
   return { state, styles: lineStyles(state, tree) }
 }
 
-/** The classes on each line, by line number. */
 function lineClasses(doc: string): Record<number, string> {
   const { state, styles } = stylesOf(doc)
   const out: Record<number, string> = {}
@@ -21,7 +20,6 @@ function lineClasses(doc: string): Record<number, string> {
   return out
 }
 
-/** The text each mark with `className` covers. */
 function marked(doc: string, className: string): string[] {
   return stylesOf(doc)
     .styles.filter((s) => !s.line && s.className.split(' ').includes(className))
@@ -35,7 +33,6 @@ describe('editor line styles', () => {
     expect(lines[3]).toBe('cm-md-heading cm-md-h2')
     expect(lines[5]).toBe('cm-md-heading cm-md-h3')
     expect(lines[7]).toBe('cm-md-heading cm-md-h4')
-    // A setext heading takes its level too.
     expect(lines[9]).toBe('cm-md-heading cm-md-h1')
   })
 

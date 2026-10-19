@@ -24,7 +24,6 @@ const setFind = StateEffect.define<FindOptions | null>()
 interface FindValue {
   options: FindOptions | null
   result: FindResult
-  /** Every match, marked (empty matches have nothing to mark). */
   marks: DecorationSet
 }
 
@@ -53,9 +52,7 @@ const findField = StateField.define<FindValue>({
   provide: (field) => EditorView.decorations.from(field, (value) => value.marks),
 })
 
-/** The index of the match that is exactly the main selection, or -1. */
 function currentIndex(matches: readonly FindMatch[], from: number, to: number): number {
-  // Matches are in order and no two start at the same place.
   let lo = 0
   let hi = matches.length - 1
   while (lo <= hi) {
@@ -93,7 +90,6 @@ const notifier = EditorView.updateListener.of((update) => {
     notify(update.view, 'status')
 })
 
-/** Passes a key to the find bar while a query is set. */
 const toBar =
   (change: FindChange) =>
   (view: EditorView): boolean => {
@@ -137,12 +133,10 @@ const theme = EditorView.theme({
   '&[data-find] .cm-selectionMatch': { backgroundColor: 'transparent' },
 })
 
-/** The editor's find support; add after the selection toolbar. */
 export function editorFind(): Extension {
   return [findField, currentMarks, findAttributes, notifier, keys(), theme]
 }
 
-/** The find bar's handle on an editor that has `editorFind()`. */
 export function editorFindTarget(view: EditorView): FindTarget {
   const value = () => view.state.field(findField)
   const current = (matches: readonly FindMatch[]) => {

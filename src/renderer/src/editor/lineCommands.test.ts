@@ -20,7 +20,6 @@ import {
   wrapInBackticks,
 } from './lineCommands'
 
-/** A state from text with `[` and `]` around the selection (or `^` for a caret). */
 function state(marked: string): EditorState {
   const from = marked.includes('[') ? marked.indexOf('[') : marked.indexOf('^')
   const to = marked.includes(']') ? marked.indexOf(']') - 1 : from
@@ -31,7 +30,6 @@ function state(marked: string): EditorState {
   })
 }
 
-/** Runs a command and gives the text after it. */
 function run(command: (view: EditorView) => boolean, marked: string): string {
   let now = state(marked)
   const view = {
@@ -122,7 +120,6 @@ describe('sorting lines', () => {
   it('sorts the selected lines and no others', () => {
     const sort = sortLines({ caseSensitive: false, reverse: false })
     expect(run(sort, 'z\n[c\nB\na]\nA')).toBe('z\n[a\nB\nc]\nA')
-    // A selection ending at a line start leaves that line out.
     expect(run(sort, '[c\nb\n]a')).toBe('[b\nc]\na')
   })
 })
@@ -214,7 +211,6 @@ function showMulti(s: EditorState): string {
   return text
 }
 
-/** Runs a command on several ranges; the text after it, or null when it did nothing. */
 function runMulti(
   command: (view: EditorView) => boolean,
   marked: string,
@@ -238,7 +234,6 @@ describe('selection commands', () => {
     expect(runMulti(skipNextOccurrence, '«ab» x «ab» y ab')).toBe('«ab» x ab y «ab»')
     // From the start again past the end, never onto a selected match.
     expect(runMulti(skipNextOccurrence, 'ab x «ab» y «ab»')).toBe('«ab» x «ab» y ab')
-    // A whole word matches whole words only.
     expect(runMulti(skipNextOccurrence, '«ab» abc ab')).toBe('ab abc «ab»')
     expect(runMulti(skipNextOccurrence, '«ab» x')).toBeNull()
   })
@@ -257,7 +252,6 @@ describe('selection commands', () => {
 
   it('splits a selection into a range per line', () => {
     expect(runMulti(splitSelectionIntoLines, 'o«ne\ntwo\nth»ree')).toBe('o«ne»\n«two»\n«th»ree')
-    // A last line reached only at its start is left out.
     expect(runMulti(splitSelectionIntoLines, '«one\ntwo\n»three')).toBe('«one»\n«two»\nthree')
     expect(runMulti(splitSelectionIntoLines, 'a|b')).toBe('a|b')
   })
@@ -266,11 +260,9 @@ describe('selection commands', () => {
     expect(runMulti(changeCase(true), 'a «big» day')).toBe('a «BIG» day')
     expect(runMulti(changeCase(true), 'a bi|g day')).toBe('a BI|G day')
     expect(runMulti(changeCase(false), 'A BI|G «DAY»')).toBe('A bi|g «day»')
-    // Two carets in one word change it once.
     expect(runMulti(changeCase(true), 'b|i|g')).toBe('B|I|G')
     expect(runMulti(changeCase(true), 'BI|G')).toBeNull()
     expect(runMulti(changeCase(true), 'a | b')).toBeNull()
-    // Upper case may be longer: the selection covers the new text.
     expect(runMulti(changeCase(true), '«stra\u00dfe»')).toBe('«STRASSE»')
   })
 
@@ -281,7 +273,6 @@ describe('selection commands', () => {
     expect(runMulti(toggleTaskAtCaret, '«- [x] a\n- [ ] b»')).toBe('«- [x] a\n- [x] b»')
     expect(runMulti(toggleTaskAtCaret, '- [x] a|\n- [X] b|')).toBe('- [ ] a|\n- [ ] b|')
     expect(runMulti(toggleTaskAtCaret, '- a|')).toBeNull()
-    // Task-like text in code is not a task.
     expect(runMulti(toggleTaskAtCaret, '```\n- [ ] a|\n```')).toBeNull()
     expect(runMulti(toggleTaskAtCaret, '«- [ ] a\n»- [ ] b')).toBe('«- [x] a\n»- [ ] b')
   })

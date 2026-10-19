@@ -16,29 +16,21 @@ import type { Tip } from './toolbarButtons'
 
 export { BAR_GAP, NOTCH_X }
 
-/** How long the pointer rests on a button before its tooltip shows (the app's tooltip delay), in ms. */
 const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
 
-/** Room a tooltip bubble needs over its button (its height, gap and the window margin). */
 const TIP_ROOM = 64
 
-/** Where the bar's tooltip shows: over the button, or under it when there is no room. */
 interface ShownTip {
   tip: Tip
   x: number
   below: boolean
 }
 
-/** The box the editor's popups stay in (see the note editor's tooltip space). */
 function popupSpace(view: EditorView): DOMRect {
   const root = view.dom.getRootNode()
   return (root instanceof ShadowRoot ? root.host : view.dom).getBoundingClientRect()
 }
 
-/**
- * A bar's tooltip state: `show` for a button the pointer entered, `hide`
- * when it leaves; `bubble` draws the tooltip.
- */
 export function useFloatTip(view: EditorView) {
   const [shown, setShown] = useState<ShownTip | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -52,7 +44,6 @@ export function useFloatTip(view: EditorView) {
     const bar = button.closest('.cm-tooltip')
     if (!bar) return
     clearTimeout(timer.current)
-    // After a rest on the button, as the app's other tooltips.
     timer.current = setTimeout(() => {
       if (!button.isConnected) return
       const b = button.getBoundingClientRect()
@@ -68,7 +59,6 @@ export function useFloatTip(view: EditorView) {
   return { show, hide, bubble }
 }
 
-/** A bar button's tooltip fades out as it goes. */
 const floatTipRef = closingRef('fade', 'cm-float-tip')
 
 function FloatTip({ tip, x, below }: ShownTip) {
@@ -98,7 +88,6 @@ export interface FloatButtonProps {
   onPress: (button: HTMLElement) => void
 }
 
-/** A round icon button of a floating bar. Mouse only: focus stays in the editor. */
 export function FloatButton(props: FloatButtonProps) {
   return (
     <button
@@ -132,7 +121,6 @@ export function FloatSeparator(): ReactNode {
 const hairline = '0.5px solid var(--color-line-hairline)'
 const notchSize = 'var(--space-4)'
 const notchOut = 'calc(var(--space-4) / -2)'
-/** A bar's own look: a clear 1 px outline, then one soft shadow, close to the bar. */
 const barShadow = [
   '0 0 0 1px var(--color-line-float-bar)',
   '0 var(--shadow-float-bar-y) var(--shadow-float-bar-blur) var(--color-shadow-float-bar)',
@@ -143,7 +131,6 @@ const popoverShadow = [
   '0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient)',
 ].join(', ')
 
-/** A bar's content row: the element React renders into, beside the notch. */
 export function barContent(dom: HTMLElement): HTMLElement {
   const content = document.createElement('div')
   content.className = 'cm-float-content'
@@ -151,7 +138,6 @@ export function barContent(dom: HTMLElement): HTMLElement {
   return content
 }
 
-/** The bars' styles (exported for the tests); `floatTheme` is the extension. */
 export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
   ...motionKeyframes,
   ...closingStyles,
@@ -252,7 +238,6 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
   '.cm-float-tip[data-side="above"]': {
     bottom: 'calc(100% + var(--tooltip-gap))',
   },
-  // The tooltip's notch, pointing at its button, like the bar's.
   '.cm-float-tip::before': {
     content: '""',
     position: 'absolute',
@@ -284,5 +269,4 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
   },
 }
 
-/** The bars' look, and their fading out when they close. */
 export const floatTheme = [EditorView.theme(floatStyles), closingTooltips]

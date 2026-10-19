@@ -61,7 +61,6 @@ describe('codeBlockLines', () => {
 })
 
 describe('the gutter beside a block', () => {
-  /** The lines whose gutter takes the first line's padding. */
   const padded = (doc: string) => {
     const s = EditorState.create({ doc, extensions: [noteMarkdown, codeBlocks()] })
     ensureSyntaxTree(s, s.doc.length, 5000)
@@ -90,7 +89,6 @@ describe('copyText', () => {
   it('copies the code without its fences', () => {
     expect(copied('```js:file.js\nconst a = 1\n\n  b()\n```', 5)).toBe('const a = 1\n\n  b()')
     expect(copied('```\n```', 1)).toBe('')
-    // An unclosed block: everything after the fence.
     expect(copied('```\nx\ny', 1)).toBe('x\ny')
   })
 
@@ -125,7 +123,6 @@ describe('the language list', () => {
   it('opens on an opening fence when asked, or once a letter is typed', () => {
     expect(fenceInfoAt(state('```^\n\n```'))).toEqual({ fence: '```', from: 3, to: 3 })
     expect(languageSource(context('```^\n\n```', true))?.options.length).toBeGreaterThan(150)
-    // A fence typed by hand opens nothing on its own.
     expect(languageSource(context('```^', false))).toBeNull()
     const typed = languageSource(context('```rus^', false))
     expect(typed?.from).toBe(3)
@@ -165,10 +162,8 @@ describe('typing in a block', () => {
   it('starts a new line with the indent of the line before', () => {
     expect(run('```\n    ab^\n```', codeReturn)).toBe('```\n    ab\n    ^\n```')
     expect(run('```\n\tab^\n```', codeReturn)).toBe('```\n\tab\n\t^\n```')
-    // Only the indent before the cursor: Return inside it adds no more.
     expect(run('```\n  ^  ab\n```', codeReturn)).toBe('```\n  \n  ^  ab\n```')
     expect(run('```js^\n```', codeReturn)).toBe('```js\n^\n```')
-    // In a list item the line keeps the item's indent, so it stays in the block.
     expect(run('- a\n  ```\n  x^\n  ```', codeReturn)).toBe('- a\n  ```\n  x\n  ^\n  ```')
     expect(run('- a\n  ```\n    x^\n  ```', codeReturn)).toBe('- a\n  ```\n    x\n    ^\n  ```')
     expect(run('> ```\n>   x^\n> ```', codeReturn)).toBe('> ```\n>   x\n>   ^\n> ```')
@@ -188,14 +183,11 @@ describe('typing in a block', () => {
   })
 
   it("indents by the block's language", () => {
-    // Python: four spaces after a colon, a level out after return.
     expect(run('```py\ndef f(x):^\n```', codeReturn)).toBe('```py\ndef f(x):\n    ^\n```')
     expect(run('```python\ndef f(x):\n    return x^\n```', codeReturn)).toBe(
       '```python\ndef f(x):\n    return x\n^\n```',
     )
-    // Go: a tab.
     expect(run('```go\nfunc main() {^}\n```', codeReturn)).toBe('```go\nfunc main() {\n\t^\n}\n```')
-    // YAML after a key, in a list item.
     expect(run('- a\n  ```yaml\n  jobs:^\n  ```', codeReturn)).toBe(
       '- a\n  ```yaml\n  jobs:\n    ^\n  ```',
     )
@@ -222,7 +214,6 @@ describe('typing in a block', () => {
 })
 
 describe('a block split by a fold or a line gap', () => {
-  /** The line decorations of the block's lines when the view shows `ranges`. */
   const lineDecos = (doc: string, ranges: { from: number; to: number }[]) => {
     const found: number[] = []
     for (let c = blockDecorations(state(doc), ranges).iter(); c.value; c.next())

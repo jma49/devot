@@ -44,7 +44,6 @@ function show(s: EditorState): string {
   return text
 }
 
-/** Types `text` in overwrite mode; null when it would be typed as usual. */
 function type(marked: string, text: string, on = true): string | null {
   const s = state(marked, on)
   const spec = overwriteSpec(s, text)
