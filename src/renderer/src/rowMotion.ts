@@ -22,6 +22,10 @@ export interface RowChange {
   reordered: boolean
 }
 
+/** Whether two orders of keys are the same. */
+export const sameKeys = (a: readonly string[], b: readonly string[]) =>
+  a === b || (a.length === b.length && a.every((key, i) => b[i] === key))
+
 /** At most this many rows coming and going animate; more is another list. */
 export const MAX_ROW_CHANGES = 8
 
@@ -195,7 +199,8 @@ export function useRowMotion(
     scope: string
     play: { el: HTMLElement; before: Snapshot; change: RowChange } | null
   }>({ keys, scope, play: null })
-  if (seen.keys !== keys || seen.scope !== scope) {
+  // Compared by content: an equal list in a new array is no change (and no render).
+  if (seen.scope !== scope || !sameKeys(seen.keys, keys)) {
     const el = container()
     let next: { el: HTMLElement; before: Snapshot; change: RowChange } | null = null
     if (el && seen.scope === scope && !reducedMotion()) {

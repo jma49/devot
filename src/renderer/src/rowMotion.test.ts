@@ -8,9 +8,16 @@ import {
   rowChange,
   rowEnterTiming,
   rowMoveTiming,
+  sameKeys,
 } from './rowMotion'
 
 describe('what changed in a list', () => {
+  it('sees an equal list in a new array as no change', () => {
+    expect(sameKeys(['a', 'b'], ['a', 'b'])).toBe(true)
+    expect(sameKeys(['a', 'b'], ['b', 'a'])).toBe(false)
+    expect(sameKeys(['a'], ['a', 'b'])).toBe(false)
+  })
+
   it('finds the rows that came and went', () => {
     const change = rowChange(['a', 'b', 'c'], ['d', 'a', 'c'])
     expect([...change.entered]).toEqual(['d'])
