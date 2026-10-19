@@ -165,7 +165,6 @@ test('the sidebar scrolls when its notebooks and tags overflow, and focus reveal
   ])
   expect(navScroll).toBe(navClient)
   await expect(sidebar(page).getByRole('button', { name: /^Trash \d+$/ })).toBeInViewport()
-  // Focusing the last tag scrolls it into view.
   const last = sidebar(page).getByRole('button', { name: /^tag29 \d+$/ })
   await last.focus()
   await expect(last).toBeInViewport()

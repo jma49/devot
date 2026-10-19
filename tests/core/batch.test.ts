@@ -16,10 +16,7 @@ import { tempDir } from '../support/temp-dirs'
 const open: { close(): void }[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
-/**
- * Services on a fresh SQLite file. `failing` names notes whose writes the
- * storage refuses (a full disk, say), to see a batch go on past them.
- */
+/** `failing` names notes whose writes storage refuses (a full disk), to see a batch go on past them. */
 function setup(
   failing: ReadonlySet<string> = new Set(),
   refusal: unknown = new Error('E_TEST_WRITE'),
@@ -38,7 +35,6 @@ function setup(
   const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
   const tags = createTagService({ storage, clock, newId })
   const books = createBookService({ storage, clock, newId })
-  /** The stored rows, read straight from the file. */
   const rows = () => {
     const db = new Database(path, { readonly: true })
     open.push(db)
@@ -82,7 +78,6 @@ describe('batch changes on SQLite', () => {
     expect(stored.map((r) => r['pinned'])).toEqual([1, 1, 1])
     expect(distinct(stored.map((r) => r['status_hlc']))).toBe(true)
     expect(distinct(stored.map((r) => r['pinned_hlc']))).toBe(true)
-    // Each note keeps its own change in its history.
     for (const id of ids) {
       const kinds = (await notes.history(id)).map((e) => e.kind)
       expect(kinds).toContain('status')

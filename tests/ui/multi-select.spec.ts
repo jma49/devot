@@ -40,14 +40,13 @@ interface StoredNote {
   deletedAt: number | null
 }
 
-/** The saved notes by title (the in-memory store; not what is on screen). */
+/** Saved notes by title: the store, not the screen. */
 const stored = (page: Page) =>
   page.evaluate(() => {
     const all = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as StoredNote[]
     return Object.fromEntries(all.map((n) => [n.title, n]))
   })
 
-/** The titles of the tags on each saved note. */
 const storedTags = (page: Page) =>
   page.evaluate(() => {
     const read = <T>(key: string) => JSON.parse(localStorage.getItem(key) ?? '[]') as T[]
@@ -65,7 +64,6 @@ const storedTags = (page: Page) =>
     )
   })
 
-/** The titles of the rows shown as selected, top to bottom. */
 const selectedTitles = (page: Page) =>
   list(page).locator('[role="option"][aria-selected="true"] .row-title').allTextContents()
 
@@ -87,13 +85,12 @@ async function createBook(page: Page, name: string) {
   await expect(book(page, name)).toBeVisible()
 }
 
-/** Four notes, listed newest first: Delta, Gamma, Beta, Alpha. */
+/** Four notes, newest first: Delta, Gamma, Beta, Alpha. */
 async function fourNotes(page: Page) {
   for (const title of ['Alpha', 'Beta', 'Gamma', 'Delta']) await createNote(page, title)
   await expect(noteRows(page).locator('.row-title')).toHaveText(['Delta', 'Gamma', 'Beta', 'Alpha'])
 }
 
-/** Opens `first`, then Cmd-clicks each of `more`. */
 async function pick(page: Page, first: string, ...more: string[]) {
   await noteRow(page, first).click()
   await expect(titleField(page)).toHaveValue(first)
@@ -109,7 +106,6 @@ const popups = (page: Page) =>
       ).length,
   )
 
-/** Runs the palette command labelled `label` (Meta+K: the registry key). */
 async function runCommand(page: Page, label: string) {
   await page.keyboard.press('Meta+k')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
@@ -120,7 +116,6 @@ async function runCommand(page: Page, label: string) {
   await expect(palette).toHaveCount(0)
 }
 
-/** Creates templates in the Templates view, titled `titles` in order. */
 async function createTemplates(page: Page, ...titles: string[]) {
   await sidebar(page)
     .getByRole('button', { name: /^Templates/ })
@@ -155,20 +150,16 @@ test('Cmd-click and Shift-click select several notes; the editor shows a summary
   expect(await selectedTitles(page)).toEqual(['Delta', 'Beta'])
   await expect(summary(page).getByRole('heading')).toHaveText('2 Notes Selected')
   await expect(summary(page).getByRole('listitem')).toHaveText(['Delta', 'Beta'])
-  // The open note's editor gives way to the summary.
   await expect(titleField(page)).toHaveCount(0)
   await expect(body(page)).toHaveCount(0)
 
-  // Shift-click: from the row Cmd-clicked last to this one.
   await noteRow(page, 'Alpha').click({ modifiers: ['Shift'] })
   expect(await selectedTitles(page)).toEqual(['Beta', 'Alpha'])
-  // Cmd-click takes a row out again; one left is the open note on its own.
   await noteRow(page, 'Alpha').click({ modifiers: ['Meta'] })
   await expect(summary(page)).toHaveCount(0)
   await expect(titleField(page)).toHaveValue('Beta')
   expect(await selectedTitles(page)).toEqual(['Beta'])
 
-  // A plain click selects one row again.
   await noteRow(page, 'Gamma').click({ modifiers: ['Meta'] })
   await expect(summary(page)).toBeVisible()
   await noteRow(page, 'Alpha').click()
@@ -182,7 +173,7 @@ test('Shift+arrows extend the selection, Cmd+A selects all, Escape goes back to 
 }) => {
   await fourNotes(page)
   await noteRow(page, 'Gamma').click()
-  // The selection grows from the open note: wait for the click to open it.
+  // Wait for the click to open the note first.
   await expect(titleField(page)).toHaveValue('Gamma')
   await page.keyboard.press('Shift+ArrowDown')
   await page.keyboard.press('Shift+ArrowDown')
@@ -198,13 +189,11 @@ test('Shift+arrows extend the selection, Cmd+A selects all, Escape goes back to 
   expect(await selectedTitles(page)).toEqual(['Delta', 'Gamma', 'Beta', 'Alpha'])
   await expect(summary(page).getByRole('heading')).toHaveText('4 Notes Selected')
 
-  // Escape: back to the note that stayed open.
   await page.keyboard.press('Escape')
   expect(await selectedTitles(page)).toEqual(['Gamma'])
   await expect(titleField(page)).toHaveValue('Gamma')
   await expect(noteRow(page, 'Gamma')).toBeFocused()
 
-  // A plain arrow moves on with one row.
   await page.keyboard.press('Shift+ArrowDown')
   await page.keyboard.press('ArrowDown')
   expect(await selectedTitles(page)).toEqual(['Alpha'])
@@ -225,7 +214,7 @@ test('a held command key does its work once and is stopped, so it never repeats 
   await fourNotes(page)
   await noteRow(page, 'Gamma').click()
   await expect(titleField(page)).toHaveValue('Gamma')
-  // What the page's last listener sees of each key: after the list's own.
+  // The page's last listener sees each key after the list's own.
   await page.evaluate(() => {
     const w = globalThis as unknown as {
       seenKeys: [string, boolean, boolean][]
@@ -240,12 +229,12 @@ test('a held command key does its work once and is stopped, so it never repeats 
   const seen = () =>
     page.evaluate(() => (globalThis as unknown as { seenKeys: unknown[] }).seenKeys)
   await page.keyboard.down('Meta')
-  // Cmd+A selects all notes; held, it is stopped and selects nothing more.
+  // Held, Cmd+A is stopped and selects nothing more.
   await page.keyboard.down('a')
   await page.keyboard.down('a')
   await page.keyboard.down('a')
   await page.keyboard.up('a')
-  // Cmd+C copies a link; held, it is stopped before it copies over it again.
+  // Held, Cmd+C is stopped before it copies over the link again.
   await page.keyboard.down('c')
   await page.keyboard.down('c')
   await page.keyboard.up('c')
@@ -285,12 +274,10 @@ test('keys set for the selection commands select notes and tag them all', async 
   expect(await selectedTitles(page)).toEqual(['Gamma', 'Beta', 'Alpha'])
   await page.keyboard.press('Control+Alt+KeyK')
   expect(await selectedTitles(page)).toEqual(['Gamma', 'Beta'])
-  // Cmd+A is no longer the key; the new one selects every note.
   await page.keyboard.press('Meta+a')
   expect(await selectedTitles(page)).toEqual(['Gamma', 'Beta'])
   await page.keyboard.press('Control+Alt+KeyA')
   expect(await selectedTitles(page)).toEqual(['Delta', 'Gamma', 'Beta', 'Alpha'])
-  // The context menu shows the keys in effect.
   await openMenu(page, 'Gamma')
   expect(await shownMenu(page)).toContain('Add Tag to Selected Notes\u2026 Ctrl+Alt+T')
 
@@ -311,7 +298,6 @@ test('keys set for the selection commands select notes and tag them all', async 
     .click()
   await expect.poll(() => storedTags(page)).toEqual({ Alpha: [], Beta: [], Gamma: [], Delta: [] })
 
-  // Escape is no longer the key; the new one goes back to the open note.
   await noteRow(page, 'Beta').focus()
   await page.keyboard.press('Escape')
   expect(await selectedTitles(page)).toHaveLength(4)
@@ -341,7 +327,6 @@ test('the summary moves, pins, sets the status of and trashes every selected not
   await summary(page).getByRole('button', { name: 'Pin to Top' }).click()
   await expect(summary(page).getByRole('button', { name: 'Unpin' })).toBeVisible()
   await expect(sourceRow(page, 'Pinned')).toHaveText(/3$/)
-  // Still the same three notes, now in the pinned section.
   expect((await selectedTitles(page)).sort()).toEqual(['Alpha', 'Beta', 'Delta'])
 
   // One change per note, each with its own clock reading.
@@ -404,13 +389,11 @@ test('the context menu of a selected row acts on the whole selection', async ({ 
     'Pin Selected Notes P',
     '---',
     'Status >',
-    // Every one of them has no status yet.
     '  No Status Ctrl+CmdOrCtrl+1 [x]',
     '  Active Ctrl+CmdOrCtrl+2 [ ]',
     '  On Hold Ctrl+CmdOrCtrl+3 [ ]',
     '  Completed Ctrl+CmdOrCtrl+4 [ ]',
     '  Dropped Ctrl+CmdOrCtrl+5 [ ]',
-    // None of them has a tag to remove yet.
     'Add Tag to Selected Notes…',
     '---',
     'Copy Note Links CmdOrCtrl+C',
@@ -445,7 +428,7 @@ test('the context menu of a selected row acts on the whole selection', async ({ 
   await remove.getByRole('option', { name: 'later' }).click()
   await expect.poll(() => storedTags(page)).toEqual({ Alpha: [], Beta: [], Gamma: [], Delta: [] })
 
-  // A row outside the selection: its own menu, for that note only.
+  // A row outside the selection gets its own menu, for that note only.
   await openMenu(page, 'Alpha')
   expect(await shownMenu(page)).toContain('Pin to Top P')
   await pickMenuItem(page, 'Pin to Top')
@@ -477,7 +460,6 @@ test('the list keys and the palette act on the selection', async ({ page }) => {
   await dialog.getByRole('combobox', { name: 'Filter notebooks' }).press('Enter')
   await expect(book(page, 'Home')).toContainText('2')
 
-  // The palette's tag, pin and link commands, on both notes.
   await runCommand(page, 'Add Tag to Selected Notes…')
   const add = page.getByRole('dialog', { name: 'Add Tag' })
   await add.getByRole('combobox', { name: 'Filter tags' }).fill('later')
@@ -512,7 +494,6 @@ test('the list keys and the palette act on the selection', async ({ page }) => {
   await expect(noteRows(page)).toHaveCount(2)
   await expect(sourceRow(page, 'Trash')).toHaveText(/2$/)
 
-  // The palette's Move to Trash.
   await page.getByRole('button', { name: /All Notes/ }).click()
   await pick(page, 'Delta', 'Alpha')
   await runCommand(page, 'Move Selected Notes to Trash')
@@ -546,7 +527,6 @@ test('export and print act on one note: not offered or run while several are sel
   for (const text of ['Export', 'Copy as', 'Print']) {
     await searchPalette(text)
     await expect(exportCommands).toHaveCount(0)
-    // Escape clears the query, then closes.
     await palette.getByRole('combobox').press('Escape')
     await palette.getByRole('combobox').press('Escape')
     await expect(palette).toHaveCount(0)
@@ -559,18 +539,15 @@ test('export and print act on one note: not offered or run while several are sel
   await expect(summary(page)).toBeVisible()
   expect(await printed()).toBe(0)
 
-  // One note again: the palette offers them and the key prints it.
   await noteRow(page, 'Gamma').focus()
   await page.keyboard.press('Escape')
   await expect(summary(page)).toHaveCount(0)
   await searchPalette('Export')
   await expect(exportCommands).toHaveCount(3)
-  // Escape clears the query, then closes.
   await palette.getByRole('combobox').press('Escape')
   await palette.getByRole('combobox').press('Escape')
   await searchPalette('Print')
   await expect(exportCommands).toHaveCount(1)
-  // Escape clears the query, then closes.
   await palette.getByRole('combobox').press('Escape')
   await palette.getByRole('combobox').press('Escape')
   await expect(palette).toHaveCount(0)
@@ -595,7 +572,6 @@ test('in the Trash, several notes are restored or deleted permanently at once', 
   await expect(summary(page).getByRole('button', { name: 'Move to Trash' })).toHaveCount(0)
 
   await noteRow(page, shown[1]!).click({ modifiers: ['Meta'] })
-  // The Trash list's Delete Permanently key asks about both notes.
   await page.keyboard.press('Meta+Backspace')
   const ask = page.getByRole('dialog')
   await expect(ask).toContainText('Permanently delete 2 notes?')
@@ -630,7 +606,6 @@ test('dragging selected notes onto a notebook, a tag, a status or the Trash chan
   await fourNotes(page)
   await createBook(page, 'Work')
   await page.getByRole('button', { name: /All Notes/ }).click()
-  // A tag to drop on: Alpha carries it.
   await noteRow(page, 'Alpha').click()
   await page.getByRole('combobox', { name: 'Add Tag' }).fill('ideas')
   await page.getByRole('combobox', { name: 'Add Tag' }).press('Enter')
@@ -710,7 +685,6 @@ test('Next, Previous and Back leave the selection from the note that stayed open
 test('templates drop on notebooks and the Trash, not on a status or a tag', async ({ page }) => {
   await createBook(page, 'Work')
   await page.getByRole('button', { name: /All Notes/ }).click()
-  // A tag row to drop on.
   await createNote(page, 'Plain')
   await page.getByRole('combobox', { name: 'Add Tag' }).fill('ideas')
   await page.getByRole('combobox', { name: 'Add Tag' }).press('Enter')
@@ -749,7 +723,6 @@ test('templates drop on notebooks and the Trash, not on a status or a tag', asyn
   await expect(sourceRow(page, 'Active')).toHaveText(/0$/)
   await expect(sourceRow(page, 'ideas')).toHaveText(/1$/)
 
-  // Copy Note Links and Move to Trash from the summary.
   await summary(page).getByRole('button', { name: 'Copy Note Links' }).click()
   await expect
     .poll(async () => (await clipboardWrites(page)).at(-1))
@@ -758,7 +731,6 @@ test('templates drop on notebooks and the Trash, not on a status or a tag', asyn
   await expect(noteRows(page).locator('.row-title')).toHaveText(['Two', 'One'])
   await expect(sourceRow(page, 'Trash')).toHaveText(/2$/)
 
-  // Onto a notebook: both leave Templates.
   await pick(page, 'Two', 'One')
   await noteRow(page, 'One').dragTo(bookRow(page, 'Work'))
   await expect(noteRows(page)).toHaveCount(0)
@@ -792,12 +764,10 @@ test('ending a selection leaves the keyboard on the list, even after a new note'
   await page.keyboard.press('Escape')
   await expect(titleField(page)).toHaveValue('Beta')
   await expect(noteRow(page, 'Beta')).toBeFocused()
-  // The list keys still act on the note, not on its text.
   await page.keyboard.press('p')
   await expect(sourceRow(page, 'Pinned')).toHaveText(/1$/)
   await expect(body(page)).toHaveText('')
 
-  // A new note, then a row Cmd-clicked in and out again: the same.
   await createNote(page, 'Gamma')
   await noteRow(page, 'Alpha').click({ modifiers: ['Meta'] })
   await expect(summary(page)).toBeVisible()
@@ -879,7 +849,6 @@ test('a selection ends with its view and its summary tag field takes nothing off
 }) => {
   await fourNotes(page)
   await pick(page, 'Delta', 'Gamma')
-  // No tags yet: nothing to remove.
   await openMenu(page, 'Gamma')
   expect(await shownMenu(page)).not.toContain('Remove Tag from Selected Notes…')
   const field = summary(page).getByRole('combobox', { name: 'Add Tag' })
@@ -957,7 +926,6 @@ test('a copy that fails says so, with its code', async ({ page }) => {
   )
   await notice.getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice).toHaveCount(0)
-  // One note's link, from its own menu (a row that is not selected).
   await openMenu(page, 'Beta')
   await pickMenuItem(page, 'Copy Note Link')
   await expect(notice).toHaveText(

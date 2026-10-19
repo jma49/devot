@@ -1,9 +1,6 @@
-// Purging a note on real SQLite keeps the attachments other notes still
-// show. An attachment belongs to one note, but its link can reach another
-// note without a copy: cut, copied or dragged Markdown, Paste as Plain Text,
-// devot-mcp, a restored version, or a duplicate or a note from a template
-// made before those copied their images. Such an attachment passes to a
-// note that shows it; only what no note left shows is deleted.
+// An attachment belongs to one note, but its link can reach another without a copy (cut or copied
+// Markdown, Paste as Plain Text, devot-mcp, a restored version, older duplicates and templates):
+// purging keeps what any note still shows.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -57,10 +54,8 @@ function setup(saveDelayMs = 5) {
   return { storage, notes, templates }
 }
 
-/** Markdown showing each attachment as an image. */
 const shows = (...ids: string[]) => ids.map((id) => `![shot](devot://file/${id})\n`).join('')
 
-/** The note an attachment belongs to; undefined once it is deleted. */
 const ownerOf = (storage: SqliteAdapter, id: string) =>
   (
     storage.db.prepare('SELECT note_id AS noteId FROM files WHERE id = ?').get(id) as
@@ -68,7 +63,6 @@ const ownerOf = (storage: SqliteAdapter, id: string) =>
       | undefined
   )?.noteId
 
-/** A saved note with its own copy of each attachment, shown in its body. */
 async function withImages(
   { storage, notes }: { storage: StorageAdapter; notes: NoteService },
   title: string,
@@ -81,7 +75,6 @@ async function withImages(
   return id
 }
 
-/** A saved note with `markdown` as its body. */
 async function noteWith(notes: NoteService, title: string, markdown: string) {
   const id = await notes.create(title)
   await notes.setBody(id, markdown)
@@ -99,7 +92,6 @@ describe('purging a note', () => {
     const s = setup()
     const source = await withImages(s, 'Source', F)
     const target = await s.notes.create('Target')
-    // Cut from the source, pasted into the target at a size: no copy is made.
     await s.notes.setBody(source, '# Source\n')
     await s.notes.setBody(target, `Moved ![shot](devot://file/${F}#half)`)
     await s.notes.flush()
@@ -115,7 +107,6 @@ describe('purging a note', () => {
     expect(file).toMatchObject({ name: 'shot.png', mime: 'image/png' })
     expect(new Uint8Array(file.data)).toEqual(PNG)
 
-    // Once the last note that shows it goes, it goes too.
     await purge(s.notes, target)
     expect(ownerOf(s.storage, F)).toBeUndefined()
   })
@@ -128,7 +119,6 @@ describe('purging a note', () => {
 
     await purge(s.notes, source)
     expect(ownerOf(s.storage, F)).toBe(copy)
-    // Restored, the note shows it again; emptied from the Trash, it goes.
     await s.notes.restore(copy)
     expect(ownerOf(s.storage, F)).toBe(copy)
     await s.notes.trash(copy)
@@ -166,8 +156,7 @@ describe('purging a note', () => {
 
   it('keeps the images duplicates and notes from templates still share from before they were copied', async () => {
     const s = setup()
-    // Notes made before Duplicate and templates copied images show the
-    // original's files.
+    // Notes made before Duplicate and templates copied images show the original's files.
     const original = await withImages(s, 'Original', F)
     const duplicate = await noteWith(s.notes, 'Original', shows(F))
     const template = await s.templates.create('Shot')
@@ -196,7 +185,6 @@ describe('purging a note', () => {
 
     await purge(s.notes, one)
     expect(ownerOf(s.storage, F)).toBe(target)
-    // Emptying the Trash too.
     await s.notes.trash(two)
     await s.notes.setBody(target, `Pasted ${shows(F, G)}`)
     await s.notes.emptyTrash()
@@ -219,7 +207,6 @@ describe('purging a note', () => {
 })
 
 describe('purging a note and revision history', () => {
-  /** A note that showed the image in an older version and shows `now` now. */
   async function historyWithImage(s: ReturnType<typeof setup>, now: string) {
     const source = await withImages(s, 'Source', F)
     const other = await s.notes.create('Other')

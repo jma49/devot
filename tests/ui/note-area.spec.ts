@@ -11,18 +11,12 @@ import {
   bookPicker,
 } from './fixtures'
 
-// The note area: a toolbar with focus mode, Back and Forward at its start and
-// the view modes and a More menu at its end (search sits in the note list);
-// the title, then one compact line with the notebook, status and tags; the
-// Markdown source highlighted; code blocks in the preview headed by their
-// language's mark and title.
-
 const toolbar = (page: Page) => page.locator('.editor-toolbar')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 
-/** The page's globals these tests read (this config has no DOM types). */
+/** Page globals these tests read; no DOM types in this config. */
 interface PageGlobals {
   document: {
     createRange(): {
@@ -33,7 +27,6 @@ interface PageGlobals {
   getComputedStyle(el: unknown): { color: string }
 }
 
-/** Where the first line of an element's text starts, on screen. */
 const textStart = (page: Page, selector: string) =>
   page
     .locator(selector)
@@ -72,7 +65,6 @@ test('the toolbar starts with focus mode, Back and Forward and ends with the vie
   expect(names).toEqual(['Focus Mode', 'Back', 'Forward', 'Edit', 'Split', 'Preview', 'More'])
   await expect(toolbar(page)).toHaveCSS('border-bottom-width', '0px')
 
-  // Search is in the note list's header, and its shortcut still finds it.
   await expect(toolbar(page).getByRole('searchbox')).toHaveCount(0)
   const search = page.getByRole('region', { name: 'Notes' }).getByRole('searchbox')
   await expect(search).toBeVisible()
@@ -101,7 +93,6 @@ test('the notebook, status and tags share one compact line, worked by click and 
   const meta = page.locator('.note-meta')
   await expect(meta.locator('.meta-divider')).toHaveCount(0)
 
-  // The notebook's name is bold; the button opens a searchable pop-over.
   const book = bookPicker(page)
   await expect(meta.locator('.book-popup .popup-value')).toHaveText('Inbox')
   await expect(meta.locator('.book-popup .popup-value')).toHaveCSS('font-weight', '700')
@@ -111,12 +102,10 @@ test('the notebook, status and tags share one compact line, worked by click and 
   await expect(meta.locator('.book-popup .popup-value')).toHaveText('No Notebook')
   await expect(book).toBeFocused()
 
-  // No status reads Status; picking one shows its name.
   await expect(meta.locator('.status-none .popup-value')).toHaveText('Status')
   await pickStatus(page, 'Active')
   await expect(meta.locator('.status-active .popup-value')).toHaveText('Active')
 
-  // Tags are outlined pills after which Add Tags waits.
   const add = page.getByRole('combobox', { name: 'Add Tag' })
   await expect(add).toHaveAttribute('placeholder', 'Add Tags')
   await add.fill('work')
@@ -124,20 +113,17 @@ test('the notebook, status and tags share one compact line, worked by click and 
   const chip = meta.locator('.chip', { hasText: 'work' })
   await expect(chip).toHaveCSS('border-top-style', 'solid')
   await expect(chip).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-  // Backspace in the empty field selects the last chip; a second takes it off.
   await add.press('Backspace')
   await expect(chip).toHaveAttribute('data-selected', 'true')
   await add.press('Backspace')
   await expect(chip).toHaveCount(0)
 
-  // The title sits right under the toolbar.
   await expect(page.locator('.title')).toHaveCSS('font-size', '24px')
   const toolbarBox = await toolbar(page).boundingBox()
   const titleBox = await page.locator('.title').boundingBox()
   if (!toolbarBox || !titleBox) throw new Error('no title')
   expect(Math.abs(titleBox.y - (toolbarBox.y + toolbarBox.height))).toBeLessThan(2)
 
-  // Everything sits on the title's left edge.
   const left = async (selector: string) => (await page.locator(selector).boundingBox())?.x ?? -1
   const titleX = await left('.title')
   expect(Math.abs((await left('.note-meta')) - titleX)).toBeLessThan(2)
@@ -184,7 +170,6 @@ test('split mode gives the editor and the preview half each, with no rule and no
   await openNote(page, 'text')
   await changeEditorSettingsElsewhere(page, { lineWrapping: 'all', readableWidth: true })
   const content = page.locator('.cm-content')
-  // Outside split, the readable width holds.
   await expect(content).toHaveCSS('max-width', '740px')
   await page
     .getByRole('group', { name: 'View mode' })
@@ -196,7 +181,6 @@ test('split mode gives the editor and the preview half each, with no rule and no
   const previewBox = await preview(page).boundingBox()
   if (!editorBox || !previewBox) throw new Error('no panes')
   expect(Math.abs(editorBox.width - previewBox.width)).toBeLessThan(2)
-  // The gutter between the editor's text and the preview's is small.
   const gutter = await page.evaluate(() => {
     const d = (globalThis as unknown as { document: { querySelector(s: string): unknown } })
       .document
@@ -242,15 +226,12 @@ test('a code block in the preview is headed by its language mark and title', asy
   await expect(heads.nth(0).locator('.code-title')).toHaveText('app.ts')
   await expect(heads.nth(0).locator('svg.code-lang-icon')).toHaveCount(1)
   await expect(heads.nth(1).locator('.code-lang')).toHaveText('Python')
-  // A language without a mark shows the generic mark and its name.
   await expect(heads.nth(2).locator('.code-lang')).toHaveText('nolang')
   await expect(heads.nth(2).locator('.code-lang-icon-generic')).toHaveCount(1)
-  // The code starts below the header.
   const head = await heads.nth(0).boundingBox()
   const code = (await textStart(page, '.preview pre > code')).y
   expect(code).toBeGreaterThanOrEqual((head?.y ?? 0) + (head?.height ?? 0) - 1)
 
-  // A changed info string updates the header.
   await body(page).click()
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('End')

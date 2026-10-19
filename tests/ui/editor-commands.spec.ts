@@ -7,11 +7,8 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// Editor commands: Insert Horizontal Rule, New Note from Selection, Paste as
-// Plain Text, and pasting URLs. Editor keys use ControlOrMeta (CodeMirror's
-// Mod); window keys use Meta, like the other specs. Selections come from
-// clicks and Shift with Home, End or ControlOrMeta+End, never from macOS
-// text-navigation keys, so the tests run the same on Linux.
+// Editor keys use ControlOrMeta (CodeMirror's Mod), window keys Meta. Selections come from clicks and Shift with
+// Home, End or ControlOrMeta+End, never macOS text-navigation keys, so the tests run the same on Linux.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const title = (page: Page) => page.getByRole('textbox', { name: 'Title' })
@@ -38,21 +35,18 @@ async function newNote(page: Page, text: string, name?: string) {
   await expect(line(page, 0)).toHaveText(text.split('\n')[0] ?? '')
 }
 
-/** Opens the palette with Cmd+K and types a query. */
 async function search(page: Page, query: string) {
   await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()
   await paletteField(page).fill(query)
 }
 
-/** Selects a whole line's text. */
 async function selectLine(page: Page, n: number) {
   await line(page, n).click()
   await page.keyboard.press('End')
   await page.keyboard.press('Shift+Home')
 }
 
-/** Pastes plain text into the editor, as the system would. */
 async function paste(page: Page, text: string) {
   await body(page).evaluate((el, value) => {
     // This config has no DOM types: the few browser classes used here.
@@ -69,7 +63,6 @@ async function paste(page: Page, text: string) {
   }, text)
 }
 
-/** What the system clipboard holds, as `clipboard_read_text` reads it. */
 const setClipboard = (page: Page, text: string) =>
   page.evaluate((value) => {
     const w = globalThis as unknown as TestWindow
@@ -98,10 +91,8 @@ test('Shift+Cmd+H inserts a horizontal rule under the line, and the palette offe
   await page.keyboard.press('End')
   await page.keyboard.press('ControlOrMeta+Shift+h')
   expect(await lines(page)).toEqual(['Above', '', '---', '', 'Below'])
-  // The cursor waits on the new line under the rule.
   await page.keyboard.insertText('typed')
   expect(await lines(page)).toEqual(['Above', '', '---', 'typed', 'Below'])
-  // One undo step takes the rule back.
   await page.keyboard.press('ControlOrMeta+z')
   await page.keyboard.press('ControlOrMeta+z')
   expect(await lines(page)).toEqual(['Above', 'Below'])
@@ -114,7 +105,6 @@ test('Shift+Cmd+H inserts a horizontal rule under the line, and the palette offe
   await paletteField(page).press('Enter')
   expect(await lines(page)).toEqual(['Above', 'Below', '', '---', ''])
   await expect(body(page)).toBeFocused()
-  // The Format menu gets the rule's key while the editor has the keyboard.
   const keys = await page.evaluate(
     () =>
       (globalThis as unknown as TestWindow).devotIpcCalls
@@ -136,10 +126,8 @@ test('New Note from Selection moves the text into a note and links to it', async
   await expect(noteRows(page)).toHaveCount(0)
   await newNote(page, 'Notes from the call\n## Follow-ups\nSend the deck', 'Meeting')
 
-  // Nothing selected: the palette does not offer it.
   await search(page, 'new note from selection')
   await expect(commandOptions(page).filter({ hasText: 'New Note from Selection' })).toHaveCount(0)
-  // Escape clears the query first, then closes the palette.
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette(page)).toBeHidden()
@@ -151,21 +139,17 @@ test('New Note from Selection moves the text into a note and links to it', async
   await expect(commandOptions(page).first()).toContainText('New Note from Selection')
   await paletteField(page).press('Enter')
 
-  // The text left a link to the new note, and the source stays open.
   await expect(line(page, 1)).toHaveText(/^\[Follow-ups\]\(devot:\/\/note\/[0-9a-f-]{36}\)$/)
   expect(await lines(page)).toHaveLength(2)
   await expect(line(page, 0)).toHaveText('Notes from the call')
   await expect(title(page)).toHaveValue('Meeting')
   await expect(body(page)).toBeFocused()
-  // The new note is in the same notebook, titled after the text's first line.
   await expect(noteRows(page)).toHaveCount(2)
-  // By title: the source's excerpt shows the link's text too.
   const followUps = noteRows(page).filter({
     has: page.locator('.row-title', { hasText: 'Follow-ups' }),
   })
   await expect(followUps).toHaveCount(1)
 
-  // One undo step puts the text back; the new note stays.
   await page.keyboard.press('ControlOrMeta+z')
   expect(await lines(page)).toEqual(['Notes from the call', '## Follow-ups', 'Send the deck'])
   // Redo: Shift+Cmd+Z on macOS; CodeMirror binds Ctrl+Y elsewhere.
@@ -180,13 +164,12 @@ test('New Note from Selection moves the text into a note and links to it', async
 test('Shift+Opt+Cmd+V pastes the clipboard text as it is', async ({ page }) => {
   await newNote(page, 'Read the docs today')
   await setClipboard(page, 'https://example.com')
-  // A word selected: a usual paste of a URL would make it a link.
+  // A usual paste of a URL over a selected word would make it a link.
   await line(page, 0).dblclick({ position: { x: 14, y: 4 } })
   await page.keyboard.press('ControlOrMeta+Alt+Shift+KeyV')
   await expect.poll(() => clipboardReads(page)).toBe(1)
   await expect(line(page, 0)).toHaveText(/^https:\/\/example\.com the docs today$/)
 
-  // From the palette too, with Markdown and line breaks kept as they are.
   await setClipboard(page, '**bold**\r\n[x](y)')
   await page.keyboard.press('End')
   await search(page, 'paste as plain')
@@ -203,15 +186,13 @@ test('keys set in Settings run New Note from Selection and Paste as Plain Text',
   page,
 }) => {
   await newNote(page, 'Keep this\nMove this', 'Source')
-  // ControlOrMeta is Command on macOS and Control elsewhere. Shift+Cmd+K is
-  // also CodeMirror's Delete Line, which the user's key must win over.
+  // Shift+Cmd+K is also CodeMirror's Delete Line, which the user's key must win over.
   const mod = process.platform === 'darwin' ? 'Mod' : 'Ctrl'
   await changeShortcutsElsewhere(page, {
     'note.newFromSelection': [`${mod}+Shift+J`],
     'edit.pastePlain': [`${mod}+Shift+K`],
   })
 
-  // Nothing selected: the key does nothing.
   await line(page, 1).click()
   await page.keyboard.press('ControlOrMeta+Shift+KeyJ')
   await expect(noteRows(page)).toHaveCount(1)
@@ -237,7 +218,6 @@ test('a URL pasted over text links it; a lone URL goes in as the setting says', 
   await paste(page, 'https://example.com/docs')
   await expect(line(page, 0)).toHaveText('[See the docs](https://example.com/docs)')
 
-  // A lone URL: as an empty link by default, the cursor in its text.
   await line(page, 1).click()
   await page.keyboard.press('End')
   await paste(page, 'https://a.example')
@@ -246,7 +226,6 @@ test('a URL pasted over text links it; a lone URL goes in as the setting says', 
   await expect(line(page, 1)).toHaveText('link: [A](https://a.example)')
   await page.keyboard.press('End')
 
-  // As copied.
   await changeEditorSettingsElsewhere(page, { pasteUrl: 'plain' })
   await page.keyboard.press('Shift+Home')
   await paste(page, 'link: ')
@@ -259,7 +238,6 @@ test('a URL pasted over text links it; a lone URL goes in as the setting says', 
   await paste(page, 'https://b.example')
   await expect(line(page, 1)).toHaveText('link: <https://b.example>')
 
-  // As an empty link, the cursor in its text.
   await changeEditorSettingsElsewhere(page, { pasteUrl: 'link' })
   await page.keyboard.press('Shift+Home')
   await paste(page, 'link: ')
@@ -288,7 +266,6 @@ test('the palette lists the editing commands and runs them at the caret', async 
   await expect(line(page, 0)).toHaveText('a BIG day')
   await expect(body(page)).toBeFocused()
 
-  // Commands that were only keys before are listed too.
   await search(page, 'sort lines')
   await expect(commandOptions(page).filter({ hasText: 'Sort Lines' }).first()).toBeVisible()
   await page.keyboard.press('Escape')
@@ -310,8 +287,7 @@ test('the palette lists the editing commands and runs them at the caret', async 
 test('Ctrl+G goes to a line through the palette, and a colon does too', async ({ page }) => {
   await newNote(page, 'one\ntwo\nthree\nfour')
   await line(page, 0).click()
-  // Off macOS, CodeMirror's Mod is Control, so an editor key made of Mod
-  // and G takes Control+G first; press it from the title there.
+  // Off macOS CodeMirror's Mod is Control, so Control+G in the editor is taken first; press it from the title.
   if (!(await page.evaluate(() => /Mac/.test(navigator.platform)))) await title(page).click()
   await page.keyboard.press('Control+KeyG')
   await expect(paletteField(page)).toBeFocused()

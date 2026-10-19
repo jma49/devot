@@ -3,8 +3,7 @@ import { fromHtml } from 'hast-util-from-html'
 import { describe, expect, it } from 'vitest'
 import { pageBody, renderPreview, type PreviewLabels } from '../../src/core'
 
-// Known XSS payloads, as they could arrive through import, sync or AI. Each
-// must come out of the preview pipeline inert.
+// Known XSS payloads (import, sync, AI); each must come out of the preview pipeline inert.
 const CORPUS = [
   '<script>alert(1)</script>',
   '<SCRIPT SRC=https://evil.example/x.js></SCRIPT>',
@@ -140,15 +139,13 @@ describe('preview sanitizer', () => {
   })
 })
 
-// Exported pages (HTML export, Copy as HTML, printing) are opened outside
-// Devot, without its CSP: they must hold no script, handler or frame either.
+// Exported pages open outside Devot, without its CSP, so they must be inert too.
 describe('exported pages', () => {
   const NONCE = '0123456789abcdef0123456789abcdef'
 
   it.each(CORPUS)('stay inert for %s', async (payload) => {
     const tree = await renderPreview(payload, { labels, loadedEmbeds: ['https://evil.example'] })
     for (const simple of [false, true]) {
-      // Read back as a browser would.
       const page = fromHtml(pageBody(tree, { nonce: NONCE, simple }).html, { fragment: true })
       expect(problems(page)).toEqual([])
       expect(pageBody(tree, { nonce: NONCE, simple }).html).not.toMatch(/<(?:iframe|button)\b/)

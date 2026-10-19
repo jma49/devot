@@ -35,7 +35,6 @@ function setup() {
   const path = join(tempDir('devot-ai-'), 'devot.sqlite')
   const storage = openSqliteAdapter(path)
   open.push(storage)
-  // The app's side: its own clock and services.
   const clock = createClock('mac1')
   const newId = createIdGenerator()
   const books = createBookService({ storage, clock, newId })
@@ -53,7 +52,6 @@ function setup() {
 
 type Setup = ReturnType<typeof setup>
 
-/** The notes of `world` AI must never see. */
 const HIDDEN_NOTES = ['inside', 'priv', 'loose', 'trashed', 'purged', 'orphan'] as const
 
 async function note({ notes }: Setup, title: string, body: string, bookId: string | null) {
@@ -64,9 +62,8 @@ async function note({ notes }: Setup, title: string, body: string, bookId: strin
 }
 
 /**
- * Notebooks: Shared (allowed) with a sub-notebook Inside (not allowed),
- * Private (not allowed), and Gone (allowed, then deleted). Every note holds
- * the word "kiwi".
+ * Shared (allowed) with a sub-notebook Inside (not allowed), Private (not allowed),
+ * Gone (allowed, then deleted). Every note holds the word "kiwi".
  */
 async function world(s: Setup) {
   const shared = await s.books.create('Shared', null)
@@ -108,7 +105,6 @@ describe('what AI can see', () => {
       notebook: { id: books.shared, name: 'Shared' },
     })
     expect(hits[0]?.snippet).toContain('shared kiwi note')
-    // Words that only hidden notes contain find nothing.
     for (const query of ['private', 'sub-notebook', 'trash', 'purged', 'deleted', 'no notebook']) {
       expect(await s.ai.search(query)).toEqual([])
     }
@@ -128,7 +124,6 @@ describe('what AI can see', () => {
     expect(await s.ai.search('kiwi book:Inside')).toEqual([])
     expect((await s.ai.search('kiwi -book:Private')).map((h) => h.id)).toEqual([ids.shared])
     expect(await s.ai.search('kiwi -book:Shared')).toEqual([])
-    // The snippet follows the words searched for in the body.
     const [hit] = await s.ai.search('title:shared body:note')
     expect(hit?.snippet).toContain('note')
   })
@@ -144,7 +139,6 @@ describe('what AI can see', () => {
     expect(await found(`kiwi tagId:${tagId}`)).toEqual([ids.shared])
     expect(await found('kiwi pinned:true')).toEqual([ids.shared])
     expect(await found('kiwi pinned:false')).toEqual([])
-    // A notebook AI may not see cannot be named by its ID either.
     expect(await found(`kiwi bookId:${books.priv}`)).toEqual([])
     expect(await found(`kiwi bookId:${books.inside}`)).toEqual([])
     expect(await found(`kiwi -bookId:${books.priv}`)).toEqual([ids.shared])
@@ -244,13 +238,11 @@ describe('creating notes', () => {
     expect(parseHlc(record.titleHlc).node).toBe('mcptest')
     expect(parseHlc(record.bookHlc).node).toBe('mcptest')
 
-    // The app sees it, opens it and can edit it.
     expect((await s.notes.list()).map((n) => n.id)).toContain(created.id)
     const opened = await s.notes.open(created.id)
     const replica = new Y.Doc()
     Y.applyUpdate(replica, opened.state)
     expect(replica.getText(BODY).toString()).toBe(record.bodyMd)
-    // AI reads it back.
     expect((await s.ai.read(created.id)).markdown).toBe(record.bodyMd)
     expect((await s.ai.search('Plan')).map((h) => h.id)).toEqual([created.id])
   })
@@ -292,7 +284,6 @@ describe('creating notes', () => {
     await expect(s.ai.create({ title: 'T', markdown: '', notebook: 'Inbox' })).rejects.toThrow(
       'E_BOOK_AMBIGUOUS',
     )
-    // By ID it works.
     expect((await s.ai.create({ title: 'T', markdown: '', notebook: b })).notebook.id).toBe(b)
   })
 
@@ -331,7 +322,6 @@ describe('creating notes', () => {
       s.ai.create({ title: 'Index', markdown: index, notebook: shared }),
     ).rejects.toThrow('E_NOTE_LINKS_TOO_MANY')
     expect(await s.notes.list()).toEqual([])
-    // Exactly the limit is fine.
     const atLimit = ids
       .slice(1)
       .map((id) => noteLink('n', id))
@@ -344,7 +334,6 @@ describe('creating notes', () => {
     const s = setup()
     const shared = await s.books.create('Shared', null)
     await s.books.setAiAccess(shared, true)
-    // Count the commits other connections see.
     const watcher = openSqliteAdapter(s.path)
     open.push(watcher)
     const version = () => watcher.db.pragma('data_version', { simple: true }) as number
@@ -355,10 +344,8 @@ describe('creating notes', () => {
 })
 
 /**
- * The app writing on its own connection, in a thread of its own, while
- * devot-mcp works: it writes one small row again and again and, when
- * stopped, reports how many writes it made and the longest one took
- * (waiting for the database included).
+ * The app writing on its own connection in its own thread while devot-mcp works;
+ * on stop, the writes made and the longest (database wait included).
  */
 async function appWriter(path: string, bookId: string) {
   const driver = createRequire(import.meta.url).resolve('better-sqlite3')
@@ -400,7 +387,6 @@ async function appWriter(path: string, bookId: string) {
   }
 }
 
-/** The texts of a note's stored body versions, oldest first. */
 async function versionTexts(s: Setup, id: string): Promise<string[]> {
   const texts: string[] = []
   for (const summary of (await s.storage.listRevisions(id)).filter((r) => r.kind === 'body')) {
@@ -441,7 +427,6 @@ describe('editing notes', () => {
     expect(doc.getText(BODY).toString()).toBe('A new body.\nTwo lines.')
     expect(parseHlc(record.titleHlc).node).toBe('mcptest')
     expect(parseHlc(record.bookHlc).node).toBe('mcptest')
-    // History can bring the text from before the edit back.
     expect(await versionTexts(s, ids.shared)).toContain('A shared kiwi note.')
     const kinds = (await s.storage.listRevisions(ids.shared)).map((r) => r.kind)
     expect(kinds).toEqual(expect.arrayContaining(['title', 'book', 'status']))
@@ -526,7 +511,6 @@ describe('editing notes', () => {
         'E_BOOK_NOT_FOUND',
       )
     }
-    // Nothing of a refused update is written.
     expect(await s.ai.read(ids.shared)).toMatchObject({
       title: 'Shared kiwi',
       notebook: { id: books.shared },
@@ -568,7 +552,6 @@ describe('editing notes', () => {
 
     expect((await s.ai.update({ id: ids.shared, tags: ['Work'] })).tags).toEqual(['Work'])
     expect((await s.ai.update({ id: ids.shared, tags: [] })).tags).toEqual([])
-    // The hidden note keeps its tag.
     expect(await s.storage.noteTags(ids.priv)).toEqual([{ id: work, name: 'Work' }])
   })
 
@@ -646,7 +629,6 @@ describe('creating notebooks', () => {
       aiAccess: true,
     })
     expect((await s.ai.notebooks()).map((b) => b.name)).toEqual(['Shared', 'Ideas', 'Projects'])
-    // Notes can go in it at once.
     const created = await s.ai.create({ title: 'Plan', markdown: 'x', notebook: 'Ideas' })
     expect(created.notebook.id).toBe(inner.id)
   })
@@ -791,7 +773,6 @@ describe('atomically', () => {
       }),
     ).rejects.toThrow('E_TEST_FAILED')
     expect(await s.storage.listNotes()).toEqual([])
-    // The connection is usable afterwards, and runs queue up.
     const results = await Promise.all([
       s.storage.atomically(async () => s.notes.create('A', null)),
       s.storage.atomically(async () => s.notes.create('B', null)),

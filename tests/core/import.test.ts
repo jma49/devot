@@ -32,7 +32,6 @@ const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 2])
 const SVG = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>')
 const CJK = '\u4e2d\u6587\u7b14\u8bb0'
 
-/** A sample folder covering the Markdown dialect Devot supports. */
 const SAMPLE: Record<string, string> = {
   'Inbox.md': '# Inbox\n\nLoose thoughts with a [[Wiki Link]] and [[Plan|alias]].\n',
   'Projects/Plan.md': [
@@ -149,12 +148,10 @@ async function setup() {
     tags: createTagService({ storage, clock, newId }),
     newId,
   }
-  // Most tests import into a notebook picked as the destination.
   const vault = await services.books.create('Vault', null)
   return { sqlite, writes, services: { ...services, destination: vault }, vault }
 }
 
-/** A source over in-memory files, storing attachments like the Rust command. */
 function sourceFor(sqlite: SqliteAdapter, files = SAMPLE, images = IMAGES) {
   const attached: { path: string; id: string; noteId: string }[] = []
   const source: ImportSource = {
@@ -204,8 +201,7 @@ describe('Markdown folder import', () => {
       source: sourceFor(sqlite).source,
     })
     const books = await sqlite.listBooks()
-    // The picked folder is no notebook itself; folders with only images
-    // (assets, img) are none either.
+    // The picked folder is no notebook itself, nor are folders with only images (assets, img).
     expect(names(buildBookTree(books))).toEqual([
       [
         'Vault',
@@ -241,7 +237,6 @@ describe('Markdown folder import', () => {
     expect((await noteByTitle(sqlite, 'Top')).summary.bookId).toBeNull()
     const sub = (await sqlite.listBooks()).find((b) => b.name === 'Sub')!
     expect((await noteByTitle(sqlite, 'Inner')).summary.bookId).toBe(sub.id)
-    // The one top-level notebook made is the one to show.
     expect(report).toMatchObject({ books: 1, bookId: sub.id })
   })
 
@@ -440,7 +435,6 @@ describe('Markdown folder import', () => {
     const { source, attached } = sourceFor(sqlite)
     const report = await importMarkdown({ ...services, scan: scanOf(SAMPLE), source })
     const plan = await noteByTitle(sqlite, 'Plan heading')
-    // The same image twice in a note is one attachment.
     expect(attached.filter((a) => a.noteId === plan.summary.id).map((a) => a.path)).toEqual([
       'Projects/img/board.png',
       'assets/logo.jpg',
@@ -465,7 +459,6 @@ describe('Markdown folder import', () => {
     const spec = await noteByTitle(sqlite, 'Spec')
     const shot = attached.find((a) => a.path === 'assets/my shot.jpg')!
     expect(spec.record.bodyMd).toContain(`![Shot](devot://file/${shot.id})`)
-    // Remote, missing, refused and outside images stay as they were.
     expect(spec.record.bodyMd).toContain(
       '![Remote](https://example.com/r.png) ![Missing](missing.png) ![Up](../../../outside.png)',
     )
@@ -489,14 +482,12 @@ describe('Markdown folder import', () => {
   it('writes every body through Yjs, so the snapshot is always the document text', async () => {
     const { sqlite, writes, services } = await setup()
     await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
-    // `checked` refuses any write whose snapshot is not the Yjs text.
     expect(writes.length).toBeGreaterThan(0)
     for (const summary of await sqlite.listNotes()) {
       const record = (await sqlite.getNote(summary.id))!
       const doc = new Y.Doc()
       Y.applyUpdate(doc, record.ydoc)
       expect(doc.getText(BODY).toString()).toBe(record.bodyMd)
-      // The editor opens the same text.
       const opened = new Y.Doc()
       Y.applyUpdate(opened, (await services.notes.open(summary.id)).state)
       expect(opened.getText(BODY).toString()).toBe(record.bodyMd)
@@ -515,7 +506,6 @@ describe('Markdown folder import', () => {
       const ids = new Map(
         attached.filter((a) => a.noteId === note.summary.id).map((a) => [a.path, a.id]),
       )
-      // The body is the source with each imported image's destination replaced.
       const edits = imageLinks(original).flatMap((link) => {
         const target = resolveImagePath(path, link.url)
         const id = target === null ? undefined : ids.get(target)
@@ -523,7 +513,6 @@ describe('Markdown folder import', () => {
       })
       expect(edits).toHaveLength(path === 'Projects/Plan.md' ? 3 : path.includes('Spec') ? 1 : 0)
       expect(body).toBe(replaceRanges(original, edits))
-      // Putting the original destinations back gives the source, byte for byte.
       const before = imageLinks(original)
       const after = imageLinks(body)
       expect(after).toHaveLength(before.length)
@@ -554,7 +543,6 @@ describe('Markdown folder import', () => {
     const { source, attached } = sourceFor(sqlite, files, { 'img/shot.png': PNG })
     const report = await importMarkdown({ ...services, scan: scanOf(files), source })
     expect(report).toMatchObject({ notes: 1, attachments: 1, problems: [] })
-    // One file, without the fragment, whatever size each link shows it at.
     expect(attached.map((a) => a.path)).toEqual(['img/shot.png'])
     const file = `devot://file/${attached[0]!.id}`
     expect((await noteByTitle(sqlite, 'Sized')).record.bodyMd).toBe(
@@ -768,7 +756,6 @@ describe('Markdown folder import', () => {
     expect((await sqlite.listNotes()).map((n) => n.title)).toEqual(['B'])
     expect(await sqlite.listTrash()).toEqual([])
     expect(sqlite.db.prepare('SELECT count(*) AS n FROM files').get()).toEqual({ n: 0 })
-    // Neither the notebooks nor the tags made for it are left behind.
     expect(names(buildBookTree(await sqlite.listBooks()))).toEqual(['Vault'])
     expect(await sqlite.listTags()).toEqual([])
   })
@@ -855,7 +842,6 @@ describe('import preview', () => {
       node.folders.forEach(walkTree)
     }
     walkTree(importTree(picked))
-    // Planning writes nothing.
     expect(names(buildBookTree(await sqlite.listBooks()))).toEqual(['Vault'])
     expect(await sqlite.listNotes()).toEqual([])
     await importMarkdown({ ...services, scan: picked, source: sourceFor(sqlite, files).source })

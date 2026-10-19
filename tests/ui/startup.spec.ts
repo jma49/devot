@@ -1,16 +1,13 @@
 import type { Page } from '@playwright/test'
 import { expect, test, type TestWindow } from './fixtures'
 
-// A core that cannot start never looks like an empty library: the window
-// says so, with the cause code and Try Again. Warnings the core worker
-// raises reach the local log like the page's own.
+// A core that cannot start never looks like an empty library; core worker warnings reach the local log like the page's own.
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const failure = (page: Page) => page.getByRole('alert').filter({ hasText: 'could not load' })
 const tryAgain = (page: Page) => failure(page).getByRole('button', { name: 'Try Again' })
 
-/** The local log lines (`log_write`) with this code: the IDs each carries. */
 const logged = (page: Page, code: string) =>
   page.evaluate(
     (c) =>
@@ -54,7 +51,6 @@ test('a first load that fails says so with its code, and Try Again loads the not
   await expect(page.getByRole('navigation', { name: 'Sidebar' })).toHaveCount(0)
   await expect.poll(() => logged(page, 'W_CORE_START_FAILED')).toEqual([['E_STORAGE_BUSY']])
 
-  // Still failing: Try Again shows it again, with the same code.
   await tryAgain(page).click()
   await expect(failure(page)).toContainText('E_STORAGE_BUSY')
   await expect.poll(() => logged(page, 'W_CORE_START_FAILED')).toHaveLength(2)
@@ -83,7 +79,6 @@ test('a warning from the core worker reaches the local log by code', async ({ pa
   await page.reload()
   await createNote(page, 'Warned')
   await page.evaluate(() => localStorage.setItem('devot.test.failRevisions', 'E_STORAGE_FULL'))
-  // A title change is a revision event; its write fails inside the worker.
   await titleField(page).fill('Warned again')
   await expect.poll(() => logged(page, 'W_REVISION_FAILED')).toContainEqual(['E_STORAGE_FULL'])
   // Codes only: nothing of the note.

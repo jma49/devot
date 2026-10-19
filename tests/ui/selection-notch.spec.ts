@@ -8,7 +8,6 @@ const RADIUS = 14
 
 type Pixels = { width: number; height: number; at: (x: number, y: number) => number[] }
 
-/** Decodes an 8-bit RGB or RGBA PNG (what a screenshot is) into a pixel reader. */
 function decodePng(png: Buffer): Pixels {
   const width = png.readUInt32BE(16)
   const height = png.readUInt32BE(20)
@@ -114,8 +113,7 @@ for (const scheme of ['light', 'dark'] as const) {
           expect(notch.x + notch.width).toBeLessThanOrEqual(box.x + box.width - RADIUS)
 
           const shot = decodePng(await page.screenshot({ scale: 'css' }))
-          // The row of the bar's outline: the darkest (or lightest) pixel beside the notch,
-          // just past the bar's edge on the notch side.
+          // The bar's outline row: the darkest (or lightest) pixel beside the notch, just past the bar's edge.
           const x0 = Math.round(notch.x)
           const x1 = Math.round(notch.x + notch.width)
           const edgeY = Math.round(placement === 'below' ? box.y : box.y + box.height)
@@ -126,12 +124,10 @@ for (const scheme of ['light', 'dark'] as const) {
             if (d > strongest) [strongest, baseY] = [d, y]
           }
           expect(strongest, 'the outline is drawn beside the notch').toBeGreaterThan(8)
-          // Across the notch base that row is the fill: the notch and the bar are one shape.
           for (let x = x0 + 3; x < x1 - 3; x++)
             expect(distance(shot.at(x, baseY), [r, g, b]), `base pixel ${x}`).toBeLessThanOrEqual(2)
 
-          // Halfway up the notch the two slanted sides are outlined: a pixel differs from the fill
-          // within a pixel of each side.
+          // Halfway up the notch the slanted sides are outlined: a pixel differs from the fill within a pixel of each side.
           const midY = Math.round(notch.y + notch.height / 2)
           const cx = notch.x + notch.width / 2
           const reach = notch.width / 4 + 0.5
@@ -144,7 +140,6 @@ for (const scheme of ['light', 'dark'] as const) {
               )
             expect(sides, `outline on the ${side < 0 ? 'left' : 'right'} side`).toBeGreaterThan(2)
           }
-          // The notch's middle is the fill.
           expect(distance(shot.at(Math.round(cx), midY), [r, g, b])).toBeLessThanOrEqual(2)
         })
       }

@@ -196,7 +196,6 @@ describe('duplicating a note', () => {
     expect(summary).toMatchObject({ pinned: false, status: 'active' })
     expect([...(summary?.tagIds ?? [])].sort()).toEqual([work, home].sort())
     expect((await storage.getNote(copy))?.title).toBe('Pinned')
-    // The original keeps all of it.
     expect((await notes.list()).find((n) => n.id === id)).toMatchObject({
       pinned: true,
       status: 'active',
@@ -210,7 +209,6 @@ describe('duplicating a note', () => {
     const id = await notes.create('Plan')
     const copy = await duplicateNote({ notes, tags }, id, { suffix: 'copy' })
     expect((await storage.getNote(copy))?.title).toBe('Plan copy')
-    // A copy of a copy follows the same rule.
     const again = await duplicateNote({ notes, tags }, copy, { suffix: 'copy' })
     expect((await storage.getNote(again))?.title).toBe('Plan copy copy')
 
@@ -270,7 +268,6 @@ describe('duplicating a note', () => {
       expect([FILE_A, FILE_B]).not.toContain(fresh)
     }
     expect(copyA).not.toBe(copyB)
-    // Only the IDs changed: the size presets stay.
     expect(record.bodyMd).toBe(body.replaceAll(FILE_A, copyA).replaceAll(FILE_B, copyB))
     // Through Yjs: the copy holds the source's items, plus the edits to the IDs.
     const copyDoc = stateOf(record.ydoc)
@@ -278,7 +275,6 @@ describe('duplicating a note', () => {
     const sourceClocks = Y.decodeStateVector(Y.encodeStateVector(stateOf(sourceState)))
     const copyClocks = Y.decodeStateVector(Y.encodeStateVector(copyDoc))
     for (const [client, clock] of sourceClocks) expect(copyClocks.get(client)).toBe(clock)
-    // The original is unchanged.
     expect((await storage.getNote(id))?.bodyMd).toBe(body)
 
     await notes.trash(id)
@@ -294,7 +290,6 @@ describe('duplicating a note', () => {
     expect(file(FILE_A)).toBeUndefined()
     expect(file(FILE_B)).toBeUndefined()
 
-    // The copy reopens with its own links after the original is gone.
     await notes.release(copy)
     expect((await editorFor(notes, copy)).text.toString()).toBe(record.bodyMd)
   })

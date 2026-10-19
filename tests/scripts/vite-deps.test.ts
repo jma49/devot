@@ -4,16 +4,11 @@ import { createServer } from 'vite'
 import { expect, it } from 'vitest'
 import { tempDir } from '../support/temp-dirs'
 
-// Vite's dependency scan reads the page entries and follows their imports,
-// but not `new Worker(new URL(...))`: a package only the core worker imports
-// is found when the worker first loads, and Vite then re-bundles and reloads
-// every open page. A cold start (CI, a fresh checkout) hit that in the UI
-// tests' first specs. `optimizeDeps.entries` names the worker too, so the
-// scan finds every package the UI imports before the first page loads.
+// Vite's dependency scan misses `new Worker(new URL(...))`: a package only the core worker imports is found when the worker
+// loads, and Vite then re-bundles and reloads every page (hit on cold CI starts). `optimizeDeps.entries` names the worker too.
 
 const root = join(import.meta.dirname, '../..')
 
-/** Every `.ts`/`.tsx` file under `dir`, tests left out. */
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name)
@@ -42,7 +37,6 @@ it('the dependency scan finds the packages only the core worker imports', async 
   // The MCP server and the database adapter run in Node, never in the UI.
   const nodeOnly = ['@modelcontextprotocol/sdk', 'better-sqlite3']
   const expected = importedPackages(Object.keys(dependencies).filter((n) => !nodeOnly.includes(n)))
-  // Packages that only the worker imports are among them.
   expect(expected).toEqual(
     expect.arrayContaining(['rehype-raw', 'rehype-sanitize', 'remark-rehype']),
   )

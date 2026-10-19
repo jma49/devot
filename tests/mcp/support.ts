@@ -1,6 +1,4 @@
-// A Devot database written the way the app writes it, for devot-mcp tests:
-// notebooks with and without Allow AI Access and notes in every state AI
-// must never see. Every note mentions "kiwi".
+// A Devot database as the app writes it, with notes in every state AI must never see; every note mentions "kiwi".
 import { join } from 'node:path'
 import {
   createBookService,
@@ -25,7 +23,6 @@ export interface World {
   }
 }
 
-/** The notes AI must never see, by why. */
 export const HIDDEN = ['inside', 'priv', 'loose', 'trashed', 'purged', 'orphan'] as const
 
 export async function makeWorld(): Promise<World> {

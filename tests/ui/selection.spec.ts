@@ -6,7 +6,6 @@ type Box = { x: number; y: number; width: number; height: number }
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const line = (page: Page, n: number) => page.locator('.cm-line').nth(n - 1)
 
-/** The drawn selection's rectangles, with their fill. */
 function selectionRects(page: Page): Promise<(Box & { fill: string })[]> {
   return page.locator('.cm-selectionBackground').evaluateAll((rects) =>
     rects.map((rect) => {
@@ -21,16 +20,13 @@ function selectionRects(page: Page): Promise<(Box & { fill: string })[]> {
   )
 }
 
-/** The rectangles that lie on `box`'s line (their middle is inside it). */
+/** The rectangles on `box`'s line (their middle is inside it). */
 const onLine = (rects: (Box & { fill: string })[], box: Box) =>
   rects.filter(
     (r) => r.height > 0 && r.y + r.height / 2 > box.y && r.y + r.height / 2 < box.y + box.height,
   )
 
-/**
- * From the end of the empty line 2, Shift+Down then Shift+Right four times:
- * the line break and "hell" of line 3 are selected. Both lines show it.
- */
+/** From the end of the empty line 2: Shift+Down, then Shift+Right four times selects the line break and "hell" of line 3. */
 async function expectBothLinesSelected(page: Page, caretX: number): Promise<string> {
   const empty = (await line(page, 2).boundingBox())!
   const next = (await line(page, 3).boundingBox())!
@@ -38,10 +34,8 @@ async function expectBothLinesSelected(page: Page, caretX: number): Promise<stri
   const rects = await selectionRects(page)
   const [emptyRect] = onLine(rects, empty)
   const [nextRect] = onLine(rects, next)
-  // The empty line shows its line break, out to the right edge.
   expect(emptyRect).toBeDefined()
   expect(emptyRect!.x + emptyRect!.width).toBeGreaterThan(empty.x + empty.width / 2)
-  // The next line shows its selected text, from its start up to the caret.
   expect(nextRect).toBeDefined()
   expect(nextRect!.x).toBeLessThan(next.x + 10)
   expect(nextRect!.x + nextRect!.width).toBeGreaterThanOrEqual(caretX - 1)
@@ -73,7 +67,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
       const caret = (await page.locator('.cm-cursor-primary').boundingBox())!
       const focused = await expectBothLinesSelected(page, caret.x)
 
-      // The editor loses focus: the selection stays on both lines, in its lighter fill.
       await page.getByRole('textbox', { name: 'Title' }).focus()
       await expect.poll(async () => (await selectionRects(page))[0]?.fill).not.toBe(focused)
       await expectBothLinesSelected(page, caret.x)

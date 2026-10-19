@@ -1,5 +1,3 @@
-// Both lists draw a selected row as an accent wash, focused or not, and mark
-// it with a bar on its left edge while the list has the keyboard.
 import type { Locator, Page } from '@playwright/test'
 import { expect, openApp, test } from './fixtures'
 

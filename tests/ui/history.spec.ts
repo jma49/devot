@@ -20,10 +20,8 @@ const sheet = (page: Page) => page.getByRole('dialog', { name: 'Revision History
 const versions = (page: Page) => sheet(page).getByRole('listbox', { name: 'Versions' })
 const entries = (page: Page) => versions(page).getByRole('option')
 const changes = (page: Page) => sheet(page).getByRole('region', { name: 'Changes' })
-/** The oldest kept version: here, the only one. */
 const version = (page: Page) => entries(page).filter({ hasText: 'Earliest version' })
 
-/** The saved body of the note with this title (what the store holds). */
 const savedBody = (page: Page, title: string) =>
   page.evaluate((t) => {
     const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
@@ -44,7 +42,7 @@ async function createNote(page: Page, title: string, text: string) {
   await expect.poll(() => savedBody(page, title)).toBe(text)
 }
 
-/** Opens a note in a fresh session, so its saved text is the version before the next edit. */
+/** Fresh session, so the saved text is the version before the next edit. */
 async function reopen(page: Page, title: string) {
   await page.reload()
   await noteRow(page, title).click()
@@ -71,7 +69,6 @@ test('compares a version with the note and restores it as one undo step', async 
 
   await pickNoteMore(page, 'Revision History\u2026')
   await expect(sheet(page)).toBeVisible()
-  // The version and the note's naming.
   await expect(entries(page)).toHaveCount(2)
   await version(page).click()
   await expect(changes(page).locator('ins')).toHaveText(['third line'])
@@ -82,7 +79,6 @@ test('compares a version with the note and restores it as one undo step', async 
   await expect(body(page)).toHaveText('first linesecond line')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line')
 
-  // Undo takes back the whole restore, and nothing before it.
   await body(page).click()
   await page.keyboard.press('ControlOrMeta+z')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line\nthird line')
@@ -98,13 +94,11 @@ test('a restore is an undo step apart from the typing before and after it', asyn
   await version(page).click()
   await sheet(page).getByRole('button', { name: 'Restore' }).click()
   await expect(sheet(page)).toBeHidden()
-  // Typing right after the restore, where it ended.
   await body(page).click()
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.type('!')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('first line!')
 
-  // Undo: the typing, then the restore, then the typing before it.
   await page.keyboard.press('ControlOrMeta+z')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('first line')
   await page.keyboard.press('ControlOrMeta+z')
@@ -115,7 +109,6 @@ test('a restore is an undo step apart from the typing before and after it', asyn
   const redo = process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y'
   await page.keyboard.press(redo)
   await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line')
-  // The restore comes back as one step.
   await page.keyboard.press(redo)
   await expect.poll(() => savedBody(page, 'Plan')).toBe('first line')
 })
@@ -153,7 +146,6 @@ test('lists title, notebook, status and pin changes with the versions', async ({
   // The only version is the oldest kept one: nothing was added at that point.
   await expect(version(page)).toContainText('Earliest version \u00b7 4 characters')
   await expect(entries(page).filter({ hasText: 'added' })).toHaveCount(0)
-  // A metadata event cannot be restored.
   await entries(page).first().click()
   await expect(sheet(page).getByRole('button', { name: 'Restore' })).toBeDisabled()
 })
@@ -161,22 +153,18 @@ test('lists title, notebook, status and pin changes with the versions', async ({
 test('opens from the note menu, the menu bar and its shortcut; works by keyboard', async ({
   page,
 }) => {
-  // Untitled: a title event could be older or newer than the version,
-  // depending on whether the title and the text were saved together.
+  // Untitled: a title event could be older or newer than the version, depending on whether title and text were saved together.
   await createNote(page, '', 'one')
   await reopen(page, '')
   await appendText(page, ' two')
   await pickNoteMore(page, 'Pin to Top')
   await expect.poll(() => openNotePinned(page)).toBe(true)
 
-  // The note menu.
-  // Its row shows its first line.
   await noteRow(page, 'one two').click({ button: 'right' })
   await expect.poll(() => shownMenu(page)).toContain('Revision History\u2026 Alt+CmdOrCtrl+Y')
   await pickMenuItem(page, 'Revision History\u2026')
   await expect(sheet(page)).toBeVisible()
 
-  // The list takes the keyboard: arrows pick an entry, Escape closes.
   await expect(versions(page)).toBeFocused()
   await expect(entries(page)).toHaveCount(2)
   await expect(entries(page).nth(0)).toHaveAttribute('aria-selected', 'true')
@@ -191,7 +179,6 @@ test('opens from the note menu, the menu bar and its shortcut; works by keyboard
   await page.keyboard.press('Escape')
   await expect(sheet(page)).toBeHidden()
 
-  // View > Revision History (the menu bar sends this event).
   await page.evaluate(() => {
     const w = globalThis as unknown as {
       dispatchEvent(e: unknown): void
@@ -213,7 +200,6 @@ test('opens from the note menu, the menu bar and its shortcut; works by keyboard
 })
 
 test('labels the oldest kept version apart from the changes after it', async ({ page }) => {
-  // Untitled, so the list holds only the two versions.
   await createNote(page, '', 'one')
   await reopen(page, '')
   await appendText(page, ' two')

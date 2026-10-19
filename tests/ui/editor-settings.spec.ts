@@ -1,16 +1,13 @@
 import type { Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './fixtures'
 
-// Editor settings in the main window. Rust keeps them and, after every
-// change, sends `devot://editor-settings-changed` to every window; the page
-// re-sends it as `devot:editor-settings-changed`, which these tests send to
-// stand in for a change made in the Settings window. Changes apply to the open editor at
-// once, without rebuilding it.
+// Rust sends `devot://editor-settings-changed` to every window; the page re-sends it as
+// `devot:editor-settings-changed`, which these tests send to stand in for a change from the Settings window.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const content = (page: Page) => page.locator('.cm-content')
 const scroller = (page: Page) => page.locator('.cm-scroller')
-/** A line's exact text (toHaveText would collapse its indent). */
+/** toHaveText would collapse the indent. */
 const lineText = (page: Page, n: number) =>
   page
     .locator('.cm-line')
@@ -24,7 +21,6 @@ async function newNote(page: Page, text: string) {
   await page.keyboard.insertText(text)
 }
 
-/** What Rust would send to every window after a change made elsewhere. */
 const changed = changeEditorSettingsElsewhere
 
 const setCalls = (page: Page) =>
@@ -34,7 +30,6 @@ const setCalls = (page: Page) =>
       .map((c) => c.args['patch']),
   )
 
-/** Marks the editor's element, to tell later whether it was rebuilt. */
 const markEditor = (page: Page) =>
   page
     .locator('.cm-editor')
@@ -109,7 +104,6 @@ test('a change from another window applies to the open editor at once', async ({
   await expect(content(page)).toHaveCSS('max-width', '740px')
   await expect(page.locator('.cm-editor')).toHaveAttribute('data-probe', '1')
 
-  // And back.
   await changed(page, { lineNumbers: true })
   await expect(page.locator('.cm-lineNumbers')).toHaveCount(1)
   await expect(page.locator('.cm-activeLine')).toHaveCount(0)
@@ -157,17 +151,12 @@ test('Cmd+= and Cmd+- change the font size, and Cmd+0 resets it', async ({ page 
     { fontSize: 14 },
     { fontSize: 13 },
   ])
-  // Typing still goes to the same editor.
   await expect(page.locator('.cm-editor')).toHaveAttribute('data-probe', '1')
   await page.keyboard.type('!')
   await expect(body(page)).toContainText('alpha!')
 })
 
-/**
- * Makes `editor_settings_set` hold its answers: each call stores the change
- * as Rust would and waits in `devotHeld` until `release` answers it. The
- * event Rust sends every window waits too, until `announce` sends it.
- */
+/** Holds `editor_settings_set` answers until `release`; Rust's event waits until `announce`. */
 const holdAnswers = (page: Page) =>
   page.evaluate(() => {
     const w = globalThis as unknown as TestWindow & {
@@ -193,19 +182,17 @@ const holdAnswers = (page: Page) =>
     }
   })
 
-/** Answers the `n`th held change (from 1). */
 const release = (page: Page, n: number) =>
   page.evaluate((i) => {
     ;(globalThis as unknown as { devotHeld: { answer: () => void }[] }).devotHeld[i]!.answer()
   }, n - 1)
 
-/** Sends the event for the `n`th held change (from 1). */
 const announce = (page: Page, n: number) =>
   page.evaluate((i) => {
     ;(globalThis as unknown as { devotHeld: { event: () => void }[] }).devotHeld[i]!.event()
   }, n - 1)
 
-/** The editor's font size right now (no waiting for it to become something). */
+/** Reads the size as it is now, without waiting. */
 const fontSizeNow = (page: Page) =>
   content(page).evaluate(
     (el) =>
@@ -222,7 +209,6 @@ test('quick presses all count, whatever order the answers come in', async ({ pag
   await page.keyboard.press('Meta+Equal')
   await page.keyboard.press('Meta+Equal')
   expect(await fontSizeNow(page)).toBe('16px')
-  // Changes go one at a time, in order.
   expect(await setCalls(page)).toEqual([{ fontSize: 14 }])
 
   // The first answer arrives before its event; the size shown stays.
@@ -294,13 +280,11 @@ test('turning Toolbar off hides the selection toolbar', async ({ page }) => {
   await expect(toolbar).toBeVisible()
   await changed(page, { toolbar: false })
   await expect(toolbar).toBeHidden()
-  // The selection stays; the toolbar is back when the setting is.
   await changed(page, { toolbar: true })
   await page.keyboard.press('ControlOrMeta+a')
   await expect(toolbar).toBeVisible()
 })
 
-/** The line holding `text`, and how many rows it takes on screen. */
 const rows = (page: Page, text: string) =>
   page
     .locator('.cm-line', { hasText: text })
@@ -323,7 +307,6 @@ test('unwrap at cursor keeps the table under the caret on one line per row', asy
   await expect.poll(() => rows(page, 'end |')).toBeGreaterThan(1)
   await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(0)
 
-  // Into the table: its three lines unwrap, each as wide as the widest.
   await page.keyboard.press('ArrowUp')
   await page.keyboard.press('ArrowUp')
   await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(3)
@@ -333,7 +316,6 @@ test('unwrap at cursor keeps the table under the caret on one line per row', asy
     .evaluateAll((lines) => lines.map((l) => Math.round(l.getBoundingClientRect().width)))
   expect(new Set(widths).size).toBe(1)
 
-  // Out again: it wraps.
   await page.keyboard.press('ControlOrMeta+End')
   await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(0)
   await expect.poll(() => rows(page, 'end |')).toBeGreaterThan(1)
@@ -349,7 +331,6 @@ test('prose only never wraps code blocks and tables, wherever the caret is', asy
   await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(6)
   await expect.poll(() => rows(page, 'end |')).toBe(1)
   await expect.poll(() => rows(page, 'const x')).toBe(1)
-  // Prose still wraps.
   await expect.poll(() => rows(page, 'Prose cell')).toBeGreaterThan(1)
 
   await changed(page, { lineWrapping: 'all' })
@@ -382,7 +363,6 @@ test('the caret line keeps its place on screen when its block unwraps', async ({
   await page.keyboard.press('ControlOrMeta+End')
   const fence = page.locator('.cm-line.cm-codeblock-closing')
   const before = await fence.evaluate((el) => el.getBoundingClientRect().top)
-  // Onto the closing fence: the long lines above it unwrap and shrink.
   await page.keyboard.press('ArrowUp')
   await expect(page.locator('.cm-line.cm-unwrap')).toHaveCount(6)
   await expect.poll(() => rows(page, 'code0')).toBe(1)

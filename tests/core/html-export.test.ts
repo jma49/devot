@@ -94,7 +94,6 @@ describe('HTML pages', () => {
     )
     expect(html).toContain('class="task-list-item"')
     expect(html).not.toMatch(/\sdata-[a-z-]+=/)
-    // Nothing runs or loads on its own: no scripts, frames or buttons.
     expect(html).not.toMatch(/<script|<iframe|<button|onerror|onload/i)
   })
 
@@ -108,7 +107,6 @@ describe('HTML pages', () => {
       `<img src="devot-image-${NONCE}-0" alt="Board"> <img src="devot-image-${NONCE}-0" alt="again"> <img src="devot-image-${NONCE}-1" alt="logo">`,
     )
     expect(html).toContain('<img src="https://example.com/r.png" alt="Remote" class="image-block">')
-    // Code that mentions a placeholder or an attachment stays text.
     expect(html).toContain(`"devot-image-${NONCE}-0 devot://file/${ID1}"</span> &#x3C; `)
     expect(() => pageBody({ type: 'root', children: [] }, { nonce: 'x' })).toThrow(
       'E_EXPORT_NONCE_INVALID',
@@ -128,7 +126,6 @@ describe('HTML pages', () => {
         `<img src="devot-image-${NONCE}-0" alt="b"> ` +
         `<img src="devot-image-${NONCE}-1" alt="c" class="image-size-small"></p>`,
     )
-    // Simple HTML shows each image at its own size, as other Markdown tools do.
     const simple = pageBody(tree, { nonce: NONCE, simple: true })
     expect(simple.html).toBe(
       `<p><img src="devot-image-${NONCE}-0" alt="a"> <img src="devot-image-${NONCE}-0" alt="b"> ` +
@@ -159,7 +156,6 @@ describe('HTML pages', () => {
     ].join('\n')
     const tree = await renderPreview(md, { labels, loadedEmbeds: [] })
     const printed = pageBody(tree, { nonce: NONCE, print: true })
-    // Attachments still print as images (Rust puts them in as data: URIs).
     expect(printed.images).toEqual([{ placeholder: `devot-image-${NONCE}-0`, fileId: ID1 }])
     expect(printed.html).toContain(
       `<img src="devot-image-${NONCE}-0" alt="Board" class="image-size-half"> ` +
@@ -172,11 +168,9 @@ describe('HTML pages', () => {
         '<a href="https://example.com/b">https://example.com/b.svg</a>',
     )
     expect(printed.html).toContain('<a href="https://example.com/narrow.png">Narrow</a>')
-    // No image or source from the web is left to load.
     expect(printed.html).not.toMatch(/<img[^>]*src="https?:/i)
     expect(printed.html).not.toMatch(/<source/)
 
-    // An exported page keeps them as images, to load where it is opened.
     const exported = pageBody(tree, { nonce: NONCE })
     expect(exported.html).toContain(
       '<img src="https://example.com/r.png" alt="Remote" title="Remote image">',
@@ -271,7 +265,6 @@ describe('HTML pages', () => {
     expect(printed).toContain(`<meta http-equiv="Content-Security-Policy" content="${PRINT_CSP}">`)
     expect(printed).not.toContain(PAGE_CSP)
     expect(PRINT_CSP).toBe("default-src 'none'; img-src data:; style-src 'unsafe-inline'")
-    // An exported page may show images from the web where it is opened.
     expect(htmlDocument(note)).toContain(`content="${PAGE_CSP}"`)
     expect(PAGE_CSP).toContain('img-src data: https: http:')
   })

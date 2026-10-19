@@ -1,8 +1,5 @@
-// Notes in the core's memory: only the most recently used stay once nothing
-// uses them, so browsing a library never keeps every note it opened. A note
-// leaves only when nothing of it can be lost: no unsaved or failed change,
-// no write under way, no editor holding it; typing not kept as a version yet
-// becomes one first.
+// Only the most recently used notes stay in memory once unused. A note leaves only when nothing can be lost
+// (unsaved or failed change, write under way, open editor); unversioned typing becomes a version first.
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
@@ -25,11 +22,7 @@ afterEach(async () => {
   open.splice(0).forEach((a) => a.close())
 })
 
-/**
- * A note service on a fresh SQLite file that counts the notes it reads from
- * storage, can hold the next read, and refuses note writes while `refuse`
- * says so. Time is the test's (`now`).
- */
+/** Note service on a fresh SQLite file: counts storage reads, can hold the next read, refuses writes while `refuse` says so; time is `now`. */
 function setup(path = join(tempDir('devot-memory-'), 'devot.sqlite')) {
   const sqlite = openSqliteAdapter(path)
   open.push(sqlite)
@@ -64,12 +57,11 @@ function setup(path = join(tempDir('devot-memory-'), 'devot.sqlite')) {
     sqlite,
     path,
     clock,
-    /** How many times each note was read from storage since the last call. */
     reads() {
       const counted = reads.splice(0)
       return (id: string) => counted.filter((r) => r === id).length
     },
-    /** The next note read waits until the function returned is called. */
+    /** The next note read waits until the returned function is called. */
     holdNextRead() {
       let release = () => {}
       gate = new Promise((resolve) => (release = resolve))
@@ -81,7 +73,7 @@ function setup(path = join(tempDir('devot-memory-'), 'devot.sqlite')) {
   }
 }
 
-/** `count` saved notes, made by a service of their own, so none is in memory. */
+/** `count` saved notes made by a separate service, so none is in memory. */
 async function library(path: string, count: number) {
   const { notes } = setup(path)
   const ids: string[] = []
@@ -94,7 +86,6 @@ async function library(path: string, count: number) {
   return ids
 }
 
-/** Shows a note in an editor and closes it again, as switching notes does. */
 async function browse(notes: NoteService, id: string) {
   notes.hold(id)
   await notes.open(id)
@@ -107,7 +98,6 @@ const textOf = (state: Uint8Array) => {
   return doc.getText(BODY).toString()
 }
 
-/** An edit to `id`'s body, as an editor replica would send it. */
 async function edit(notes: NoteService, id: string, typed: string) {
   const doc = new Y.Doc()
   Y.applyUpdate(doc, (await notes.open(id)).state)
@@ -126,7 +116,6 @@ describe('notes in memory', () => {
     let read = s.reads()
     expect(ids.map(read)).toEqual(ids.map(() => 1))
 
-    // The last ones opened are still in memory; the first ones left it.
     const recent = ids.slice(-NOTES_IN_MEMORY)
     for (const id of recent) await browse(s.notes, id)
     read = s.reads()
@@ -162,7 +151,6 @@ describe('notes in memory', () => {
     )
     for (const id of others) await browse(s.notes, id)
     s.reads()
-    // The failed rename is still waiting in memory, and saves once it can.
     expect((await s.notes.open(failing!)).title).toBe('Renamed, not saved yet')
     expect(s.reads()(failing!)).toBe(0)
     s.refuseWrites(() => false)
@@ -209,7 +197,6 @@ describe('notes in memory', () => {
     const other = setup(path)
     await other.notes.setBody(note!, 'body 0, edited elsewhere')
     await other.notes.flush()
-    // The window hears of it (devot://db-changed).
     await s.notes.mergeStored()
 
     const before = Y.encodeStateVector(replica)

@@ -58,7 +58,6 @@ describe('stepTarget', () => {
     const live = (id: string) => id !== 'b' && id !== 'c'
     expect(stepTarget(trail, -1, { live, current: 'd' })).toBe(0)
     expect(stepTarget(trailTo(trail, 0), 1, { live, current: 'a' })).toBe(3)
-    // Nothing live that way.
     expect(stepTarget(trail, -1, { live: (id) => id === 'd', current: 'd' })).toBeUndefined()
   })
 
@@ -73,7 +72,6 @@ describe('stepTarget', () => {
     expect(stepTarget(trail, -1, { live: everyNote, current: undefined })).toBe(1)
     expect(stepTarget(trail, -1, { live: everyNote, current: 'x' })).toBe(1)
     expect(stepTarget(trailTo(trail, 0), 1, { live: everyNote, current: undefined })).toBe(1)
-    // The current entry was deleted meanwhile: the one before it.
     expect(stepTarget(trail, -1, { live: (id) => id !== 'b', current: undefined })).toBe(0)
   })
 })

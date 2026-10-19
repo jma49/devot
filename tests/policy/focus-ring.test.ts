@@ -3,10 +3,8 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { cssRules } from '../support/css-rules'
 
-// One focus ring on every custom control: `size.focus-ring` wide in
-// `color.focus.ring`, on the control's edge. A control that clips its
-// children (a scroll list, a field) draws it just inside; the theme card's
-// ring sits beside its selection ring. Native form controls keep the system ring.
+// One `size.focus-ring` ring in `color.focus.ring` on every custom control, just inside when the control clips children;
+// the theme card's ring sits beside its selection ring. Native form controls keep the system ring.
 const UI_ROOT = 'src/renderer/src'
 const RING = 'var(--size-focus-ring) solid var(--color-focus-ring)'
 const OFFSETS = new Set(['0', 'calc(-1 * var(--size-focus-ring))', 'var(--size-focus-ring)'])
@@ -20,7 +18,6 @@ function files(dir: string): string[] {
   })
 }
 
-/** The rules that draw an outline, and how they break the ring's rules. */
 function offenders(css: string): string[] {
   return cssRules(css).flatMap(({ selector, body }) => {
     const outline = body.get('outline')

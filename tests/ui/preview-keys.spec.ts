@@ -1,5 +1,5 @@
-// The rendered note takes the keyboard and scrolls with it, in Preview mode
-// and in the Trash, and the font size keys (Cmd+=, Cmd+-, Cmd+0) resize it.
+// The rendered note takes the keyboard and scrolls with it, in Preview mode and the Trash;
+// the font size keys (Cmd+=, Cmd+-, Cmd+0) resize it.
 import type { Page } from '@playwright/test'
 import { expect, test, pickNoteMore } from './fixtures'
 
@@ -122,7 +122,6 @@ test('Tab reaches the preview from the Trash buttons, with a focus ring', async 
   await page.getByRole('button', { name: 'Delete Permanently' }).focus()
   await page.keyboard.press('Tab')
   await expect(preview(page)).toBeFocused()
-  // Focus that came by Tab shows the ring; a click does not need it.
   await expect(preview(page)).not.toHaveCSS('box-shadow', 'none')
 })
 
@@ -149,7 +148,6 @@ test('Cmd+= and Cmd+- size the editor; the preview keeps its own size', async ({
   await expect.poll(editorSize).toBe(12)
   await page.keyboard.press('Meta+Digit0')
   await expect.poll(editorSize).toBe(13)
-  // The preview's size is a setting of its own (Settings > Preview).
   expect(await fontSize(page, 'p')).toBe(base)
 })
 

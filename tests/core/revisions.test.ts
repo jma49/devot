@@ -34,7 +34,6 @@ afterEach(() => {
   open.splice(0).forEach((a) => a.close())
 })
 
-/** Moves the clock and runs the timers that fall due on the way. */
 async function advance(ms: number) {
   const step = 1000
   for (let left = ms; left > 0; left -= step) {
@@ -56,11 +55,7 @@ function service(path = freshPath()) {
   return { path, storage, notes, books: createBookService({ storage, clock, newId }) }
 }
 
-/**
- * An editor replica wired to the service the way the UI wires its Yjs
- * document. Undo is the editor's own (CodeMirror history), tested in
- * src/renderer/src/editor/undo.test.ts and tests/ui/history.spec.ts.
- */
+/** An editor replica wired to the service as the UI wires its Yjs document. Undo is CodeMirror's own (undo.test.ts, history.spec.ts). */
 async function editorFor(notes: NoteService, id: string) {
   const doc = new Y.Doc()
   Y.applyUpdate(doc, (await notes.open(id)).state, 'remote')
@@ -72,7 +67,6 @@ async function editorFor(notes: NoteService, id: string) {
   return {
     doc,
     text,
-    /** Replaces the whole text with one edit. */
     async type(next: string) {
       doc.transact(() => {
         text.delete(0, text.length)
@@ -118,7 +112,6 @@ describe('taking versions', () => {
       await editor.type(text)
       await advance(30_000)
     }
-    // 25 minutes of typing: versions at the 10 and 20 minute marks.
     const taken = (await bodies(storage, id)).map((r) => r.at - start).sort((a, b) => a - b)
     expect(taken).toEqual([REVISION_EVERY_MS, 2 * REVISION_EVERY_MS])
 
@@ -139,8 +132,7 @@ describe('taking versions', () => {
   })
 
   it('keeps the text from before the first edit when no version holds it', async () => {
-    // Notes made by import or devot-mcp, or before history existed, have
-    // no version yet: their first edit records the text it replaces.
+    // Notes from import, devot-mcp or before history existed have no version: the first edit records the old text.
     const first = service()
     const id = await first.notes.create('Imported')
     await first.notes.setBody(id, 'from a file')
@@ -205,7 +197,6 @@ describe('taking versions', () => {
     await notes.trash(id)
     await notes.purge(id)
     expect(await storage.listRevisions(id)).toEqual([])
-    // A write that arrives late does not bring any back.
     await storage.putRevision({
       id: '0192a6f0-0000-7000-8000-000000000001',
       noteId: id,
@@ -220,7 +211,6 @@ describe('taking versions', () => {
 })
 
 describe('compaction', () => {
-  /** Plain versions of a note at these times, with the state of `ydoc`. */
   const versionsAt = (noteId: string, times: number[], ydoc: Uint8Array, first: number) =>
     times.map((at, i): RevisionRecord => ({
       id: `0192a6f0-0000-7000-8000-${String(first + i).padStart(12, '0')}`,
@@ -263,7 +253,6 @@ describe('compaction', () => {
     const before = await ids()
     expect(before.has(olds[0]!.id)).toBe(true)
 
-    // The next sweep drops the older of the two.
     await advance(2 * MINUTE)
     await editor.type('seed, more, again')
     await notes.flush()
@@ -286,9 +275,8 @@ describe('compaction', () => {
     const ydoc = Y.encodeStateAsUpdate(doc)
     let n = 0
     const old = (at: number): RevisionRecord => versionsAt(quiet, [at], ydoc, (n += 1))[0]!
-    // A day of editing a month ago, an hour of it three days ago, two hours
-    // just under a week ago and one hour just under a day ago; and the
-    // newest versions, which are always kept, in the last hour.
+    // A day of editing a month ago, an hour three days ago, two hours just under a week ago, one just
+    // under a day ago; and the newest versions, always kept, in the last hour.
     const month = Array.from({ length: 6 }, (_, i) => old(time - 30 * DAY - i * 10 * MINUTE))
     const days = Array.from({ length: 3 }, (_, i) => old(time - 3 * DAY + i * MINUTE))
     const week = [old(time - 7 * DAY + 90 * MINUTE), old(time - 7 * DAY + 150 * MINUTE)]
@@ -316,8 +304,6 @@ describe('compaction', () => {
     await sweeps.until(2)
     expect(await ids()).toEqual(kept(month[0]!, days[2]!, ...week, ...day))
 
-    // A version taken now, and a day on: the versions that crossed a day or
-    // a week of age by it are thinned too.
     const latest = old(time)
     await storage.putRevision(latest)
     time += 25 * HOUR

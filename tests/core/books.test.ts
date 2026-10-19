@@ -89,7 +89,6 @@ describe('notebooks on SQLite', () => {
     expect(names(await books.list())).toEqual(['Keep'])
     const summaries = await notes.list()
     expect(summaries.map((n) => n.title).sort()).toEqual(['In Devot', 'In Keep'])
-    // Its notebook is gone, so the note shows under no notebook.
     expect(notesInBook(summaries, await books.list(), null).map((n) => n.id)).toEqual([inDevot])
   })
 
@@ -195,7 +194,6 @@ describe('Allow AI Access', () => {
     const merged = (await books.list())[0]!
     expect(merged.name).toBe('Job')
     expect(merged.aiAccess).toBe(true)
-    // Renaming does not touch the switch.
     await books.rename(id, 'Office')
     expect((await books.list())[0]?.aiAccess).toBe(true)
   })
@@ -251,7 +249,6 @@ describe('notebook icons', () => {
       icon: 'star',
       iconColor: null,
     })
-    // Renaming and moving keep the icon.
     await books.rename(id, 'Office')
     expect(await iconOf(books, id)).toEqual({ icon: 'star', iconColor: null })
   })

@@ -1,7 +1,5 @@
-// Every notebook and tag row action has a keyboard route: Shift+F10, the menu
-// key or Control+Return opens the row's native menu at the row, and the most
-// used actions have keys of their own. Window shortcuts use Meta (the
-// registry's Mod matches metaKey everywhere).
+// Every notebook and tag row action has a keyboard route: Shift+F10, the menu key or Control+Return
+// opens the row's native menu; window shortcuts use Meta (the registry's Mod matches metaKey everywhere).
 import type { Page } from '@playwright/test'
 import { expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
 
@@ -43,7 +41,6 @@ const popups = (page: Page) =>
       ).length,
   )
 
-/** Where the last menu popped up, in CSS pixels. */
 const popupAt = (page: Page) =>
   page.evaluate(() => {
     const w = globalThis as unknown as TestWindow
@@ -66,12 +63,10 @@ for (const keys of ['Shift+F10', 'ContextMenu', 'Control+Enter']) {
     await page.keyboard.press(keys)
     await expect.poll(() => popups(page)).toBe(before + 1)
     expect(await shownMenu(page)).toContain('Allow AI Access [ ]')
-    // The menu is for Home, below its row.
     const box = await bookRow(page, 'Home').boundingBox()
     const at = await popupAt(page)
     expect(at?.x).toBeCloseTo(box?.x ?? 0, -1)
     expect(at?.y).toBeCloseTo((box?.y ?? 0) + (box?.height ?? 0), -1)
-    // The keyboard stays on the row.
     await expect(book(page, 'Home')).toBeFocused()
   })
 }
@@ -85,7 +80,6 @@ test('Allow AI Access can be toggled from the keyboard', async ({ page }) => {
   await pickMenuItem(page, 'Allow AI Access')
   await expect(bookRow(page, 'Home').getByRole('img', { name: 'AI access on' })).toBeVisible()
   await expect(bookRow(page, 'Work').getByRole('img', { name: 'AI access on' })).toHaveCount(0)
-  // The next open shows it checked.
   await page.keyboard.press('Shift+F10')
   await expect.poll(() => popups(page)).toBe(2)
   expect(await shownMenu(page)).toContain('Allow AI Access [x]')
@@ -101,7 +95,6 @@ test('the menu key opens the menu of a tag row, with the Colour submenu', async 
   await pickMenuItem(page, 'Purple', 'Colour')
   await expect(sidebar(page).getByRole('img', { name: 'Purple' })).toBeVisible()
   await expect(tagRow(page, 'idea')).toBeFocused()
-  // A row without a menu does nothing.
   await sidebar(page)
     .getByRole('button', { name: /^Templates/ })
     .focus()
@@ -136,7 +129,6 @@ test('F2 renames the focused tag, and the keyboard goes back to its row', async 
   await nameField(page, 'Tag name').fill('plan')
   await nameField(page, 'Tag name').press('Enter')
   await expect(tagRow(page, 'plan')).toBeFocused()
-  // Escape gives the keyboard back too.
   await page.keyboard.press('F2')
   await expect(nameField(page, 'Tag name')).toBeFocused()
   await nameField(page, 'Tag name').press('Escape')

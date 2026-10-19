@@ -1,8 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test, pickNoteMore, openNotePinned, statusPicker, bookPicker } from './fixtures'
 
-// App-level shortcuts check metaKey (Command on macOS), so they are pressed
-// with Meta here on every platform, like the other specs.
+// App shortcuts check metaKey (Command on macOS), so Meta is pressed on every platform.
 
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palette' })
 const field = (page: Page) => palette(page).getByRole('combobox', { name: 'Command Palette' })
@@ -43,7 +42,6 @@ async function addTag(page: Page, name: string) {
   await expect(noteTags(page).getByText(name, { exact: true })).toBeVisible()
 }
 
-/** What View > Command Palette\u2026 in the menu bar sends to the page. */
 const showFromMenu = (page: Page) =>
   page.evaluate(() => {
     const w = globalThis as unknown as {
@@ -53,7 +51,6 @@ const showFromMenu = (page: Page) =>
     w.dispatchEvent(new w.CustomEvent('devot:show-palette'))
   })
 
-/** Opens the palette with Cmd+K and types a query. */
 async function search(page: Page, query: string) {
   await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
@@ -70,7 +67,6 @@ test('lists commands with their shortcuts and runs the one picked', async ({ pag
   await createNote(page, 'Draft')
   await noteRows(page).first().click()
   await search(page, '')
-  // Nothing typed: the sources, each with its key.
   await expect(options(page)).toHaveText([
     /Search and run commands\s*>/,
     /Search notebooks\s*b/,
@@ -79,7 +75,6 @@ test('lists commands with their shortcuts and runs the one picked', async ({ pag
     /Go to line\s*:/,
     /Search notes/,
   ])
-  // Commands scope: every command the window can run.
   await field(page).fill('> ')
   const commands = group(page, 'Commands')
   await expect(commands.getByRole('option').filter({ hasText: 'Focus Mode' })).toContainText(
@@ -89,7 +84,6 @@ test('lists commands with their shortcuts and runs the one picked', async ({ pag
     '\u2318D',
   )
   await expect(commands.getByRole('option').filter({ hasText: 'Pin to Top' })).toBeVisible()
-  // The palette never lists itself.
   await expect(commands.getByRole('option').filter({ hasText: 'Command Palette' })).toHaveCount(0)
 
   await field(page).fill('focmo')
@@ -124,12 +118,10 @@ test('Cmd+K opens it anywhere, the editor too; Link is Option+Cmd+K', async ({ p
   await noteRows(page).first().click()
   await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
-  // Escape closes it and gives the keyboard back to the list.
   await page.keyboard.press('Escape')
   await expect(palette(page)).toBeHidden()
   await expect(noteRows(page).first()).toBeFocused()
 
-  // With the editor focused Cmd+K opens the palette and Escape puts the keyboard back there.
   await body(page).dblclick()
   await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
@@ -187,7 +179,6 @@ test('find and the status keys are commands while a note is open', async ({ page
   await expect(command('Find in Note')).toHaveCount(0)
   await search(page, 'set status')
   await expect(command('Set Status to Active')).toHaveCount(0)
-  // Escape clears the query, then closes the palette.
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
@@ -233,7 +224,6 @@ test('notebooks: Return opens one, Shift+Return moves the open note there', asyn
   await search(page, 'recip')
   await expect(group(page, 'Notebooks').getByRole('option')).toHaveText(['Recipes'])
   await expect(palette(page).locator('#palette-keys')).toContainText('Open Notebook')
-  // The footer follows Shift while it is held.
   await page.keyboard.down('Shift')
   await expect(palette(page).locator('#palette-keys')).toContainText('Move Note to Notebook')
   await page.keyboard.press('Enter')
@@ -241,7 +231,6 @@ test('notebooks: Return opens one, Shift+Return moves the open note there', asyn
   await expect(palette(page)).toBeHidden()
   await expect(bookPicker(page)).toHaveAttribute('data-value', /.+/)
   await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Recipes/)
-  // The note is in that notebook now: it is not offered there again.
   await search(page, 'recip')
   await page.keyboard.down('Shift')
   await expect(palette(page).locator('#palette-keys')).not.toContainText('Move Note to Notebook')
@@ -310,7 +299,6 @@ test('groups results by kind, best match first, and moves by arrow keys', async 
   await expect(active(page)).toHaveText('work')
   await field(page).press('ArrowDown')
   await expect(active(page)).toContainText('Work notes')
-  // The note shows its notebook.
   await expect(active(page).locator('.palette-detail')).toHaveText('Notes archive')
   await field(page).press('ArrowDown')
   await expect(active(page)).toContainText('Work notes')
@@ -340,8 +328,7 @@ test('a menu item picked while another window has the keyboard acts on nothing h
   page,
 }) => {
   await createNote(page, 'Menu')
-  // The Settings window, or a native panel, is the one the user is in: Rust
-  // still sends the menu item's event to this window.
+  // With Settings or a native panel focused, Rust still sends the menu item's event to this window.
   const focus = (windowHasFocus: boolean) =>
     page.evaluate((on) => {
       ;(globalThis as unknown as { document: { hasFocus(): boolean } }).document.hasFocus = () => on
@@ -356,7 +343,6 @@ test('a menu item picked while another window has the keyboard acts on nothing h
 })
 
 test('New Note and the search shortcuts are commands too', async ({ page }) => {
-  // Cmd+N works once the notes are loaded, like the New Note button.
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
   await page.keyboard.press('Meta+KeyN')
   await expect(noteRows(page)).toHaveCount(1)
@@ -430,7 +416,6 @@ test('the keyboard stays in the window when a command hides where it was', async
   await field(page).press('Enter')
   await expect(page.getByRole('article', { name: 'Preview' })).toBeVisible()
   await expect(body(page)).toBeHidden()
-  // The open note's row takes the keyboard: list keys work at once.
   await expect(noteRows(page).filter({ hasText: 'Hidden' })).toBeFocused()
 })
 
@@ -474,7 +459,6 @@ test('opening the open note again keeps its preview', async ({ page }) => {
   await expect(preview).toContainText('hello world')
 })
 
-/** Whether some element other than the page itself has the keyboard. */
 const keyboardHeld = (page: Page) =>
   page.evaluate(() => {
     const d = (globalThis as unknown as { document: { activeElement: unknown; body: unknown } })
@@ -505,7 +489,6 @@ test('Move to Trash from the editor leaves the keyboard in the list', async ({ p
   await expect(noteRows(page)).toHaveText([/Stays/])
   await expect(noteRows(page).first()).toBeFocused()
   await expect.poll(() => keyboardHeld(page)).toBe(true)
-  // List keys work at once.
   await page.keyboard.press('Meta+KeyD')
   await expect(noteRows(page)).toHaveCount(2)
 })
@@ -530,12 +513,10 @@ test('runs the Trash commands: Restore, Delete Permanently, Empty Trash', async 
   await expect(trashButton).toHaveText(/2$/)
   await trashButton.click()
   await expect(noteRows(page)).toHaveCount(2)
-  // Nothing open: only Empty Trash is offered.
   await search(page, 'restore from trash')
   await expect(options(page).filter({ hasText: 'Restore from Trash' })).toHaveCount(0)
   await field(page).fill('empty trash')
   await expect(active(page)).toContainText('Empty Trash')
-  // Escape clears the query, then closes the palette.
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
@@ -552,7 +533,7 @@ test('runs the Trash commands: Restore, Delete Permanently, Empty Trash', async 
   await expect(confirm).toContainText('\u201cGone\u201d')
   await confirm.getByRole('button', { name: 'Cancel' }).click()
 
-  // The key comes from the registry too: Cmd+Delete on the row.
+  // The key comes from the registry too.
   await noteRows(page).first().click()
   await page.keyboard.press('Meta+Backspace')
   await expect(confirm).toContainText('\u201cGone\u201d')

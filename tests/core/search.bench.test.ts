@@ -5,21 +5,16 @@ import { expectWithinBudget } from '../support/budget'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Acceptance benchmark: listing and searching 10,000 notes takes under 50 ms
-// (median), excerpts included. The notes have realistic sizes: bodies of one
-// to a few KB of Markdown (headings, lists, emphasis, links) and a Yjs state
-// three times the text (an edited note's), so most of a note's row sits in
-// overflow pages, which neither the lists nor a search may read.
+// Acceptance benchmark: listing and searching 10,000 notes takes under 50 ms (median), excerpts included.
+// Notes are realistic (1 to a few KB of Markdown, Yjs state 3x the text), so most of a row sits in
+// overflow pages, which neither lists nor search may read.
 const NOTES = 10_000
 const BUDGET_MS = 50
-// Text under three characters cannot use the trigram index: a search for it
-// reads bodies (not the Yjs states). Only a full scan, which reads every
-// body because nothing stops it early, gets more room; every other search
-// keeps the product's budget.
+// Text under three characters cannot use the trigram index and reads bodies. Only a full scan (reads
+// every body, nothing stops it early) gets more room; every other search keeps the product's budget.
 const FULL_SCAN_BUDGET_MS = 100
 
-// A small vocabulary of English words and common Chinese characters, written
-// as escapes (no CJK in tracked files).
+// Small vocabulary of English words and common Chinese characters, as escapes (no CJK in tracked files).
 const WORDS =
   'sync relay offline merge editor preview notebook status trash search index snapshot'.split(' ')
 const HAN =
@@ -32,8 +27,7 @@ function random(seed: number) {
 
 let storage: SqliteAdapter
 
-// Building 10k notes is setup, not the measured work; give it room on a busy
-// machine. The budgets below are unchanged.
+// Building 10k notes is setup, not the measured work; give it room on a busy machine.
 const SETUP_TIMEOUT_MS = 180_000
 // A median takes 15 runs; a slow run should fail on its budget, not time out.
 const TEST_TIMEOUT_MS = 60_000
@@ -122,16 +116,12 @@ describe(`lists and search across ${NOTES} notes of a few KB`, () => {
 
   it.for<[label: string, query: string]>([
     ['an English word', 'hibernation'],
-    // Found in nearly every note: a full page of 200 results, each with an
-    // excerpt.
     ['a common English word', 'snapshot'],
     ['a three-character Chinese term', '\u7b14\u8bb0\u672c'],
     ['two words', 'merge preview'],
-    // Found often: the scan stops once a page of results is full.
     ['a two-character Chinese word', '\u540c\u6b65'],
     ['qualifiers with an exclusion', 'title:note body:merge -relay status:none -tag:x'],
     ['qualifiers alone', 'status:active'],
-    // Worst cases: nothing matches, so every note is examined.
     ['a missing English word', 'zyxwvut'],
     ['an exclusion of a missing word', 'snapshot -zyxwvut'],
   ])(
@@ -142,9 +132,8 @@ describe(`lists and search across ${NOTES} notes of a few KB`, () => {
     },
   )
 
-  // A word found in nearly every note and a two-character word: the
-  // ranked matches are every note, so the scan reads them in rank order and
-  // stops at a page of results (#48).
+  // A word found in nearly every note and a two-character word: the ranked matches are every note,
+  // so the scan reads them in rank order and stops at a page of results (#48).
   it(
     `answers a word and a two-character Chinese word in under ${BUDGET_MS} ms`,
     { timeout: TEST_TIMEOUT_MS },

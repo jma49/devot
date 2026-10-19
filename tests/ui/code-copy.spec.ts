@@ -1,10 +1,6 @@
 import type { Page } from '@playwright/test'
 import { clipboardWrites, expect, test } from './fixtures'
 
-// A copy button on each fenced code block in the preview. It copies the
-// block's text as written, is reachable from the keyboard, says that it
-// copied, and is the page's own control: never in the note's HTML or on paper.
-
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const copyButtons = (page: Page) => preview(page).getByRole('button', { name: 'Copy Code' })
 
@@ -86,7 +82,6 @@ test('each fenced code block has a copy button that copies its text as written',
   await expect
     .poll(() => clipboardWrites(page))
     .toEqual(['<b class="x">&amp; "quoted"</b>\n\tindented with a tab'])
-  // It says so, then goes back.
   await expect(preview(page).getByRole('button', { name: 'Copied' })).toHaveCount(1)
   await expect(preview(page).getByRole('button', { name: 'Copied' })).toHaveCount(0, {
     timeout: 4000,
@@ -101,10 +96,9 @@ test('each fenced code block has a copy button that copies its text as written',
 test('the button is reachable from the keyboard', async ({ page }) => {
   await openNote(page, '```\nkeyboard\n```')
   await expect(copyButtons(page)).toHaveCount(1)
-  // A click on the code puts the keyboard there; Option+Tab goes on to the
-  // button (WebKit on macOS tabs to buttons with Option, or with Full
-  // Keyboard Access; elsewhere Tab alone does, with or without Alt). The
-  // click is on the code, past the info card's date buttons above it.
+  // A click on the code puts the keyboard there; Option+Tab goes on to the button (WebKit on
+  // macOS tabs to buttons with Option, or with Full Keyboard Access; elsewhere Tab alone does).
+  // The click is on the code, past the info card's date buttons above it.
   await preview(page)
     .locator('pre code')
     .click({ position: { x: 2, y: 2 } })
@@ -158,11 +152,9 @@ test('the button stays while the block is edited and is never part of the note',
     await copyButtons(page).evaluate((el) => (el as unknown as { devotMark?: boolean }).devotMark),
   ).toBe(true)
   await expect(pre.locator('code')).toHaveText('first\n')
-  // The button adds no text to what the preview shows (find, selection).
   expect(await preview(page).evaluate((el) => el.textContent)).not.toContain('Copy')
   await expect(pre.locator('[data-devot-ui]')).toHaveCount(1)
 
-  // An emptied block has nothing to copy, and no button.
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Shift+End')
@@ -176,7 +168,6 @@ test('copying a selection across a block leaves the button out of the copied HTM
 }) => {
   await openNote(page, 'Before the block.\n\n```\nselected code\n```\n\nAfter the block.')
   await expect(copyButtons(page)).toHaveCount(1)
-  // A place to paste rich text into, and what the paste carried.
   await page.evaluate(() => {
     const w = globalThis as unknown as PasteGlobals
     const target = w.document.createElement('div')
@@ -189,7 +180,6 @@ test('copying a selection across a block leaves the button out of the copied HTM
     })
     w.document.body.append(target)
   })
-  // Select from the paragraph before the block to the one after it.
   await preview(page).evaluate((article) => {
     const w = globalThis as unknown as PasteGlobals
     const paragraphs = article.querySelectorAll('p')

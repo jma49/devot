@@ -1,10 +1,5 @@
-// Every note write compares before it overwrites: a record carries the
-// version of the body its writer last saw (`bodyVersion`, as getNote gives
-// it), and storage writes it only while the stored body is still at that
-// version, moving it on by one. A write based on any other version is
-// refused with E_NOTE_BODY_STALE and changes nothing; its writer takes the
-// stored body in (a Yjs merge) and writes again, so a body written meanwhile
-// on another connection is never lost. Every storage adapter answers alike.
+// A write carries the body version its writer last saw (`bodyVersion`); storage writes only while the stored body is still at it, otherwise
+// it refuses with E_NOTE_BODY_STALE and changes nothing, and the writer merges (Yjs) and writes again. Every storage adapter answers alike.
 import { join } from 'node:path'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
@@ -21,14 +16,12 @@ const ID = '0192a6f0-0000-7000-8000-000000000001'
 const HLC = '0001728000000000-0000-node'
 const LATER = '0001728000000009-0000-node'
 
-/** The note with `doc`'s body (its Markdown and Yjs state). */
 const withBody = (note: NoteRecord, doc: Y.Doc): NoteRecord => ({
   ...note,
   bodyMd: doc.getText(BODY).toString(),
   ydoc: Y.encodeStateAsUpdate(doc),
 })
 
-/** A note whose body is `text`, written over body version 0 unless `change` says otherwise. */
 function record(text: string, change: Partial<NoteRecord> = {}): NoteRecord {
   const doc = new Y.Doc()
   doc.getText(BODY).insert(0, text)
@@ -58,7 +51,6 @@ function record(text: string, change: Partial<NoteRecord> = {}): NoteRecord {
   }
 }
 
-/** A Yjs document holding the stored note's body. */
 function docOf(note: NoteRecord) {
   const doc = new Y.Doc()
   Y.applyUpdate(doc, note.ydoc)
@@ -71,7 +63,6 @@ function sqlite(path = join(tempDir('devot-versions-'), 'devot.sqlite')) {
   return storage
 }
 
-/** The UI tests' storage, on an empty localStorage of its own. */
 async function memory(): Promise<StorageAdapter> {
   useMemoryLocalStorage()
   const { memoryStorage } = await import('../../src/renderer/src/storage/memory')
@@ -91,7 +82,6 @@ describe.each(ADAPTERS)('note writes in the %s adapter', (_, make) => {
 
     await storage.putNote(record('one two', { bodyVersion: 1 }))
     expect(await storage.getNote(ID)).toMatchObject({ bodyMd: 'one two', bodyVersion: 2 })
-    // In the Trash too.
     await storage.putNote(record('one two', { bodyVersion: 2, deletedAt: 3, deletedHlc: LATER }))
     expect(await storage.getNote(ID, { trashed: true })).toMatchObject({ bodyVersion: 3 })
   })
@@ -101,8 +91,7 @@ describe.each(ADAPTERS)('note writes in the %s adapter', (_, make) => {
     await storage.putNote(record('one'))
     await storage.putNote(record('one two', { bodyVersion: 1 }))
 
-    // Based on version 1, which a write has moved on from: refused whole,
-    // its newer title and pin with it.
+    // Based on a version a write has moved on from: refused whole, with its newer title and pin.
     const stale = record('one three', {
       bodyVersion: 1,
       title: 'Late',
@@ -111,7 +100,6 @@ describe.each(ADAPTERS)('note writes in the %s adapter', (_, make) => {
       pinnedHlc: LATER,
     })
     await expect(storage.putNote(stale)).rejects.toThrow('E_NOTE_BODY_STALE')
-    // Based on a version storage never had.
     await expect(storage.putNote(record('one four', { bodyVersion: 7 }))).rejects.toThrow(
       'E_NOTE_BODY_STALE',
     )
@@ -137,11 +125,9 @@ describe('a body written on another connection between a read and the write base
     const other = sqlite(path)
     await window.putNote(record('middle'))
 
-    // The window reads the note and types at its start...
     const read = (await window.getNote(ID))!
     const mine = docOf(read)
     mine.getText(BODY).insert(0, 'start ')
-    // ...while the other connection writes at its end.
     const before = (await other.getNote(ID))!
     const theirs = docOf(before)
     theirs.getText(BODY).insert(theirs.getText(BODY).length, ' end')
@@ -150,7 +136,6 @@ describe('a body written on another connection between a read and the write base
     await expect(window.putNote(withBody(read, mine))).rejects.toThrow('E_NOTE_BODY_STALE')
     expect((await window.getNote(ID))?.bodyMd).toBe('middle end')
 
-    // The window takes in what is stored and writes again.
     const stored = (await window.getNote(ID))!
     Y.applyUpdate(mine, stored.ydoc)
     await window.putNote(withBody(stored, mine))

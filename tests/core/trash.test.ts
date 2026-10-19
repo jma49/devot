@@ -153,7 +153,6 @@ describe('trash on SQLite', () => {
     const { storage, notes } = setup()
     const id = await notes.create('Flip')
     const live = (await storage.getNote(id))!
-    /** The note with `change`, written over the body as stored now. */
     const put = async (change: Pick<NoteRecord, 'deletedAt' | 'deletedHlc'>) => {
       const { bodyVersion } = (await storage.getNote(id, { trashed: true }))!
       await storage.putNote({ ...live, ...change, bodyVersion })

@@ -3,11 +3,8 @@ import { expect, it } from 'vitest'
 import { listFiles } from '../support/git-files'
 import { TEMP_FOLDER_REFERENCE } from '../support/policy-patterns'
 
-// Tests make temporary folders only through tempDir (tests/support/temp-dirs.ts),
-// which removes them when the test file ends; anything made in the system temp
-// folder any other way (a folder, or a file such as a SQLite database written
-// straight into it) stays there after every run. So nothing else names the
-// system temp folder at all.
+// Tests make temp folders only through tempDir (tests/support/temp-dirs.ts), which removes them
+// when the test file ends; anything else made in the system temp folder stays after every run.
 it('no test uses the system temp folder except through tempDir', () => {
   const files = listFiles('.', 'tests', 'src').filter(
     (f) =>

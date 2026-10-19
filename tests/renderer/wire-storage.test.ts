@@ -1,7 +1,5 @@
-// Storage between the core worker and the page: Yjs states cross as base64,
-// coded in the worker, so a save or an open costs the UI thread no work for
-// each byte of a note's state (a long, much-edited note's state is several
-// MiB). The page hands the strings to the Tauri commands as they are.
+// Yjs states cross between the core worker and the page as base64 coded in the worker, so a save or an open costs
+// the UI thread no per-byte work (a long, much-edited note's state is several MiB).
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type NoteRecord, type RevisionRecord } from '../../src/core'
@@ -30,13 +28,12 @@ beforeEach(() => vi.mocked(invoke).mockClear())
 const MIB = 1 << 20
 
 const same = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b))
-/** A note's fields, its state as bytes compared on their own. */
 const fields = ({ ydoc, ...rest }: NoteRecord) => ({
   ...rest,
   ydoc: Buffer.from(ydoc).toString('base64'),
 })
 
-/** Bytes that are not all alike (a state compresses nothing). */
+/** Not all alike, so nothing compresses. */
 const bytes = (length: number) => {
   const out = new Uint8Array(length)
   let s = length + 1
@@ -53,7 +50,6 @@ const hasNativeBase64 = () => {
   const { proto, ctor } = native()
   return typeof proto.toBase64 === 'function' && typeof ctor.fromBase64 === 'function'
 }
-/** Runs `run` with the engine's own base64 coders removed, then puts them back. */
 function withoutNativeBase64(run: () => void): void {
   const { proto, ctor } = native()
   const saved = { toBase64: proto.toBase64, fromBase64: ctor.fromBase64 }
@@ -157,12 +153,10 @@ describe('the worker’s side', () => {
     expect(puts).toHaveLength(1)
     expect(puts[0]?.note.ydoc).toBe(toBase64(record.ydoc))
     expect(puts[0]?.links).toEqual(['0192a6f0-0000-7000-8000-000000000002'])
-    // Stored with its body at the next version.
     const stored = fields({ ...record, bodyVersion: 1 })
     expect(fields((await sqlite.getNote(record.id))!)).toEqual(stored)
     expect(fields((await storage.getNote(record.id))!)).toEqual(stored)
 
-    // What note_put refuses never leaves the worker.
     await expect(storage.putNote(note({ title: 'Two\nlines' }))).rejects.toThrow(
       'E_NOTE_TITLE_INVALID',
     )

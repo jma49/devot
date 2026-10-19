@@ -11,10 +11,8 @@ import {
 } from '../../src/renderer/src/theme/contrast'
 import { dark, ivoryDark, ivoryLight, light } from '../../src/renderer/src/theme/tokens'
 
-// Every theme provides the same colour tokens as the default one, in a light
-// and a dark appearance: a missing or an extra token fails here, not in a
-// window that shows a blank. The palette checks pin the design values
-// (design/README.md "Themes").
+// Every theme has the default theme's tokens in light and dark; the palette checks pin
+// the design values (design/README.md "Themes").
 
 type Appearance = 'light' | 'dark'
 const APPEARANCES: Appearance[] = ['light', 'dark']
@@ -29,7 +27,6 @@ const tokens = (theme: string, appearance: Appearance) => flatten(tree(theme, ap
 describe('the built-in themes', () => {
   it('are the theme files on disk, the setting values and the generated ids, in one order', () => {
     const onDisk = [...new Set(readdirSync(FILES).map((name) => name.split('.')[0]!))]
-    // The default theme is the system's; the others are built into the stylesheet.
     expect(onDisk.sort()).toEqual(['system', ...BUILT_IN_THEMES.map((t) => t.id)].sort())
     expect(THEMES).toEqual(['default', ...BUILT_IN_THEMES.map((t) => t.id)])
     for (const name of readdirSync(FILES))
@@ -68,9 +65,8 @@ describe.each(BUILT_IN_THEMES.map((t) => t.id))('the %s theme', (id) => {
     })
 
     it("takes the default theme's accent tokens, except the ones contrast moved", () => {
-      // The dark Ivory editor is lighter than the default's: the fill (with the warm
-      // ink on it), the accent text, the selections and the focus ring were moved to
-      // keep AA (contrast.test.ts); design/README.md lists them.
+      // The dark Ivory editor is lighter than the default's, so fill, accent text, selections
+      // and focus ring moved to keep AA (contrast.test.ts, design/README.md).
       const moved: Record<Appearance, string[]> = {
         light: [],
         dark: [
@@ -261,8 +257,8 @@ describe('Ivory', () => {
   })
 
   it('maps the status tints: info, danger, success and warning', () => {
-    // Design values; contrast.test.ts holds what each must reach. A tint that
-    // had to move records how far in its `$description` (design/README.md).
+    // Design values (contrast.test.ts holds what each must reach); a tint that moved
+    // records how far in its `$description`.
     const near = (appearance: Appearance, path: string, design: string, slack: number) => {
       const a = rgb(appearance, path).rgb
       const b = parseColor(design).rgb

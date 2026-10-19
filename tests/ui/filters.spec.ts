@@ -21,7 +21,7 @@ async function createNote(page: Page, title: string) {
   await page.getByRole('textbox', { name: 'Title' }).fill(title)
 }
 
-/** Adds a tag by typing it; `shown` is the chip text when an existing tag is reused. */
+/** `shown` is the chip text when an existing tag is reused. */
 async function addTag(page: Page, name: string, shown = name) {
   const field = page.getByRole('combobox', { name: 'Add Tag' })
   await field.fill(name)
@@ -53,7 +53,6 @@ test('sets a status and filters by it, with counts', async ({ page }) => {
   await expect(noteRows(page)).toHaveCount(1)
   await expect(noteRows(page).first()).toContainText('Doing')
 
-  // Pressing it again clears the filter.
   await filter(page, 'Active').click()
   await expect(noteRows(page)).toHaveCount(2)
 })
@@ -82,7 +81,6 @@ test('deleting a tag removes it from every note', async ({ page }) => {
   const tagRow = sidebar(page).getByRole('button', { name: /^temp 1$/ })
   await tagRow.focus()
   await page.keyboard.press('Delete')
-  // It asks first.
   const confirm = page.getByRole('dialog', { name: 'Delete the tag \u201ctemp\u201d?' })
   await expect(confirm).toContainText('It will be removed from 1 note.')
   await confirm.getByRole('button', { name: 'Delete Tag' }).click()
@@ -102,7 +100,6 @@ test('declining a tag delete keeps the tag and returns focus to its row', async 
   await expect(confirm).toHaveCount(0)
   await expect(tagRow).toBeFocused()
 
-  // Cancel does the same.
   await page.keyboard.press('Backspace')
   await expect(confirm).toBeVisible()
   await confirm.getByRole('button', { name: 'Cancel' }).click()
@@ -168,9 +165,8 @@ test('the count on a selected filter row stays a number while the sidebar has th
 
   const count = filter(page, 'Active').locator('.source-count')
   await expect(count).toHaveText('1')
-  // While the sidebar has the keyboard the selected row is the accent wash
-  // with a bar on its left edge: the count keeps its colour and has no
-  // background, and the icon keeps its mask fill.
+  // With the sidebar focused the selected row is the accent wash with a bar on its left edge; the count
+  // keeps its colour and has no background, and the icon keeps its mask fill.
   await expect(count).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(count).not.toHaveCSS('color', rgb(light['color.accent.on-fill']))
   await expect(filter(page, 'Active')).toHaveCSS('box-shadow', /^rgb.* 5px 0px 0px 0px inset$/)

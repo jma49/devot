@@ -2,10 +2,6 @@ import { readFileSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
 
-// Edges, centres and spacings that are easy to break without noticing: the
-// toolbars and the window's traffic lights, the note list's header and rows,
-// the sidebar's row pitch, and the note's text edges in edit and preview.
-
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
@@ -25,7 +21,6 @@ async function box(locator: Locator): Promise<Box> {
 
 const centreY = (b: Box) => b.y + b.height / 2
 
-/** The box of an element's text alone (no padding), on screen. */
 const textBox = (locator: Locator): Promise<Box> =>
   locator.evaluate((el) => {
     const g = globalThis as unknown as {
@@ -42,7 +37,6 @@ const textBox = (locator: Locator): Promise<Box> =>
     return { x: r.x, y: r.y, width: r.width, height: r.height }
   })
 
-/** Where the first line of an element's text starts, on screen. */
 const textStartX = (locator: Locator): Promise<number> =>
   locator.evaluate((el) => {
     const g = globalThis as unknown as {
@@ -110,7 +104,6 @@ test('toolbar glyphs are large, and the view modes are 44 by 30 segments', async
   const modesBox = await box(modes)
   expect(modesBox.width).toBe(134)
   expect(modesBox.height).toBe(32)
-  // Each symbol lies on whole pixels, at the same place in every segment.
   const offsets = new Set<string>()
   for (const segment of await modes.getByRole('button').all()) {
     const b = await box(segment)
@@ -142,14 +135,12 @@ test("the list header's toggle, name and New Note share the toolbars' centre lin
     await sameLine('toggle', await box(toggle))
     await sameLine('New Note', await box(create))
     await sameLine('name', await textBox(name))
-    // Each symbol sits in the middle of its button.
     for (const button of [toggle, create]) {
       const b = await box(button)
       const icon = await box(button.locator('.icon'))
       expect(Math.abs(icon.x + icon.width / 2 - (b.x + b.width / 2))).toBeLessThanOrEqual(0.5)
       expect(Math.abs(centreY(icon) - centreY(b))).toBeLessThanOrEqual(0.5)
     }
-    // The toggle starts where the window controls' room ends, and nothing touches.
     const room = await box(inset)
     const t = await box(toggle)
     expect(t.x).toBe(room.x + room.width)
@@ -158,12 +149,10 @@ test("the list header's toggle, name and New Note share the toolbars' centre lin
     expect(text.x + text.width).toBeLessThan((await box(create)).x)
   }
   await check()
-  // The editor's toolbar buttons and the sidebar's title bar share the line too.
   for (const button of await page.locator('.editor-toolbar .tool').all())
     await sameLine('editor button', await box(button))
   await sameLine('sidebar title bar', await box(page.locator('[data-devot-part=sidebar-titlebar]')))
 
-  // A view with an icon (the Trash): the icon and the name share the line.
   await page
     .getByRole('navigation', { name: 'Sidebar' })
     .getByRole('button', { name: /^Trash/ })
@@ -173,7 +162,6 @@ test("the list header's toggle, name and New Note share the toolbars' centre lin
   await sameLine('icon', icon)
   expect(Math.abs(centreY(icon) - centreY(await textBox(name)))).toBeLessThanOrEqual(0.5)
 
-  // With the sidebar hidden, the toggle clears the window controls.
   await page.getByRole('button', { name: 'Hide Sidebar' }).click()
   await expect.poll(async () => (await box(toggle)).x).toBe(84)
   await sameLine('toggle', await box(toggle))
@@ -209,7 +197,6 @@ test('sidebar rows step 30 px with no gap', async ({ page }) => {
     }
   }
 
-  // The footer row has the same height and side padding as the rows above.
   const source = sidebar.locator('.source').first()
   const footer = sidebar.locator('.footer-toggle')
   expect((await box(footer)).height).toBe(30)

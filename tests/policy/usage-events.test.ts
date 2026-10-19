@@ -2,11 +2,8 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { USAGE_EVENTS } from '../../src/core/usage'
 
-// Usage events never carry note content, titles, names or IDs. The catalog
-// is the only way an event gets its properties, so these rules hold for
-// every event the app can record.
+// Usage events never carry note content, titles, names or IDs; the catalog is the only source of properties.
 
-/** Words that would mean a property describes or identifies content. */
 const FORBIDDEN = new Set([
   'body',
   'content',
@@ -93,7 +90,6 @@ describe('where usage events live', () => {
     const mcp = readdirSync('src/mcp')
       .map((f) => readFileSync(`src/mcp/${f}`, 'utf8'))
       .join('\n')
-    // Neither the event store's file nor the catalog.
     expect(mcp).not.toMatch(/usage\.sqlite|usage_events|core\/usage/)
   })
 })

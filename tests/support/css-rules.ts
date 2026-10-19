@@ -1,6 +1,5 @@
-// A rough CSS reader for the policy tests: each rule as its selector and
-// declarations. Comments go first; nested blocks (@media) are read as their
-// innermost rules.
+// A rough CSS reader for the policy tests: each rule as selector and declarations. Comments go
+// first; nested blocks (@media) are read as their innermost rules.
 
 export interface CssRule {
   selector: string

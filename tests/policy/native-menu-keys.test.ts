@@ -14,24 +14,18 @@ import {
 } from '../../src/renderer/src/commands/registry'
 import { en, type MessageKey } from '../../src/renderer/src/i18n/en'
 
-// The native menu bar (Rust) shows accelerators for some commands. Rust
-// builds those items with the registry's default keys and the main window
-// sets the keys in effect (`command_menu_set`); this keeps the defaults the
-// same, and keeps the menu's own keys (Quit, Settings) away from every
-// command.
+// Rust builds menu accelerators from the registry's default keys and the window sets the effective ones
+// (`command_menu_set`); defaults must match, and the menu's own keys (Quit, Settings) must stay clear of every command.
 const MENU = readFileSync('src-tauri/src/menu.rs', 'utf8')
 
-/** Menu item ID constants: `HISTORY_ID` -> `devot.history`. */
 const ids = new Map(
   [...MENU.matchAll(/pub const (\w+_ID): &str = "([^"]+)";/g)].map((m) => [m[1]!, m[2]!]),
 )
 
-/** Every custom menu item with an accelerator: its ID and accelerator. */
 const accelerators = [
   ...MENU.matchAll(/MenuItemBuilder::with_id\((\w+),[^)]*\)\s*\.accelerator\("([^"]+)"\)/g),
 ].map((m) => ({ id: ids.get(m[1]!) ?? m[1]!, accelerator: m[2]! }))
 
-/** An accelerator in the registry's key notation. */
 const asShortcut = (accelerator: string) =>
   normalizeShortcut(
     accelerator
@@ -70,9 +64,7 @@ it('keeps its own keys apart from the commands, and reserved', () => {
   expect(used.filter((key) => own.includes(key))).toEqual([])
 })
 
-// The Format menu (src-tauri/src/format_menu.rs) lists the editor's format
-// commands. It holds no keys itself: the UI sets them from the registry
-// (`formatMenuKeys`) while the editor has the keyboard.
+// The Format menu holds no keys itself: the UI sets them from the registry (`formatMenuKeys`) while the editor has the keyboard.
 const FORMAT_MENU = readFileSync('src-tauri/src/format_menu.rs', 'utf8')
 const STRINGS = new Map(
   [
@@ -81,7 +73,6 @@ const STRINGS = new Map(
     ),
   ].map((m) => [m[1]!, m[2]!]),
 )
-/** The Format menu's items in menu order: their command and label. */
 // rustfmt may break a long item over several lines.
 const formatItems = [...FORMAT_MENU.matchAll(/\bitem\(\s*"([^"]+)",\s*strings::(\w+),?\s*\)/g)].map(
   (m) => ({
@@ -98,7 +89,7 @@ it('has a Format menu item for each format command', () => {
 
 it('labels the Format menu as the app labels the formats', () => {
   for (const { id, label } of formatItems) {
-    // Alerts sit in an Alert submenu, under the names the toolbar's pop-up uses.
+    // Alerts sit in an Alert submenu, under the toolbar pop-up's names.
     const alert = /^format\.alert(\w+)$/.exec(id)?.[1]
     const key: MessageKey = alert
       ? (`alert.${alert.toLowerCase()}` as MessageKey)
@@ -120,10 +111,8 @@ it('sets the Format menu keys from the registry only', () => {
   }
 })
 
-// `format_menu_set` refuses the whole map when one key is not an accelerator
-// it reads or is a key another menu bar item has (`MENU_BAR_KEYS`); the menu
-// then stays greyed out without keys and Cmd+I is lost again.
-/** The menu bar keys a format key must not take, read from format_menu.rs. */
+// `format_menu_set` refuses the whole map when one key is unreadable or taken by another menu bar item
+// (`MENU_BAR_KEYS`), leaving the menu greyed out and Cmd+I lost.
 const menuBarKeys = [
   ...(/const MENU_BAR_KEYS: &\[&str\] = &\[([\s\S]*?)\n\];/.exec(FORMAT_MENU)?.[1] ?? '').matchAll(
     /"([^"]+)"/g,
@@ -134,16 +123,14 @@ it('keeps the Format menu keys off the menu bar keys', () => {
   expect(menuBarKeys).toEqual(
     expect.arrayContaining(['CmdOrCtrl+Q', 'CmdOrCtrl+Z', 'CmdOrCtrl+A', 'Ctrl+CmdOrCtrl+F']),
   )
-  // Every key of menu.rs's own items is one of them; the items that run a
-  // command have that command's keys.
   for (const { id, accelerator } of accelerators) {
     expect({ id, listed: menuBarKeys.includes(accelerator) }).toEqual({
       id,
       listed: !Object.hasOwn(NATIVE_MENU_COMMANDS, id),
     })
   }
-  // No command can be given one where text is typed (a list row may copy
-  // with Cmd+C, as by default): each is reserved or an Edit menu key.
+  // No command can take a key where text is typed (a list row may copy with Cmd+C, as by default):
+  // each is reserved or an Edit menu key.
   for (const key of menuBarKeys.map(asShortcut))
     expect([...RESERVED_KEYS, ...EDIT_MENU_KEYS]).toContain(key)
   const taken = new Set(menuBarKeys.map(asShortcut))
@@ -160,9 +147,7 @@ it('keeps the Format menu keys off the menu bar keys', () => {
   }
 })
 
-// The registry's format keys, as the UI sends them: format_menu.rs's tests
-// run them through `plan` (what `format_menu_set` checks), so the two sides
-// share this one copy and cannot drift apart.
+// Shared with format_menu.rs's tests (run through `plan`), so the two sides cannot drift apart.
 const FORMAT_MENU_KEYS = 'src-tauri/tests/fixtures/format-menu-keys.json'
 
 it('sends the Format menu the keys its Rust tests accept', () => {
@@ -170,8 +155,7 @@ it('sends the Format menu the keys its Rust tests accept', () => {
   expect(FORMAT_MENU).toContain(`include_str!("../tests/fixtures/format-menu-keys.json")`)
 })
 
-// View > Hide Sidebar reads Show Sidebar while the sidebar is hidden; the UI
-// labels the command the same way.
+// View > Hide Sidebar reads Show Sidebar while hidden, as the UI's command label does.
 it('labels View > Hide Sidebar as the app labels the command', () => {
   expect(MENU).toMatch(/MenuItemBuilder::with_id\(SIDEBAR_ID, strings::HIDE_SIDEBAR\)/)
   expect(STRINGS.get('HIDE_SIDEBAR')).toBe(en['command.hideSidebar'])
@@ -179,10 +163,8 @@ it('labels View > Hide Sidebar as the app labels the command', () => {
   expect(command('view.sidebar').label).toBe('command.hideSidebar')
 })
 
-// View > Revision History..., Command Palette..., Hide Sidebar and Synced
-// Scrolling (a check item, no key by default), and Devot > Backups... take the keys in effect from
-// the main window (`command_menu_set`), which accepts only the commands Rust
-// lists, with keys `format_menu_set` would read.
+// These items take the keys in effect from the main window (`command_menu_set`), which accepts only the
+// commands Rust lists, with keys `format_menu_set` would read.
 it('sets the command items keys Rust accepts', () => {
   const items = [
     ...MENU.matchAll(/CommandItem \{\s*place: MenuPlace::\w+,\s*command: "([^"]+)"/g),
@@ -206,8 +188,7 @@ it('sets the command items keys Rust accepts', () => {
   )
 })
 
-// Rust builds each command item into `CommandMenu` in `COMMAND_ITEMS` order,
-// the check item as a check item.
+// Rust builds items into `CommandMenu` in `COMMAND_ITEMS` order.
 it('keeps every command item to set its key', () => {
   const kept = /\.zip\(\[([\s\S]*?)\]\)/.exec(MENU)?.[1] ?? ''
   expect(

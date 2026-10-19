@@ -34,7 +34,6 @@ function service(path: string, node = 'mac1'): { notes: NoteService; storage: Sq
   return { notes, storage }
 }
 
-/** An editor replica that forwards its edits to the service, like the UI does. */
 async function editorFor(notes: NoteService, id: string) {
   const doc = new Y.Doc()
   Y.applyUpdate(doc, (await notes.open(id)).state, 'remote')
@@ -219,11 +218,9 @@ describe('titles', () => {
     await notes.setTitle(id, `${smile.repeat(MAX_TITLE_CHARS - 1)}a${smile}`)
     await notes.flush()
     expect((await storage.getNote(id))?.title).toBe(`${smile.repeat(MAX_TITLE_CHARS - 1)}a`)
-    // A title is one line.
     await notes.setTitle(id, 'two\nlines\r\nhere')
     await notes.flush()
     expect((await storage.getNote(id))?.title).toBe('two lines here')
-    // A new note's title too.
     const made = await notes.create('y'.repeat(MAX_TITLE_CHARS + 50))
     expect((await storage.getNote(made))?.title).toBe('y'.repeat(MAX_TITLE_CHARS))
   })
@@ -237,7 +234,6 @@ describe('titles', () => {
     storage.db.prepare('UPDATE notes SET title = ? WHERE id = ?').run(long, id)
     await notes.setBody(id, 'typed later')
     await notes.flush()
-    // The body is saved; the title stays as stored until it is renamed.
     expect(await storage.getNote(id)).toMatchObject({ title: long, bodyMd: 'typed later' })
     expect((await notes.history(id)).map((e) => e.kind)).not.toContain('title')
     await notes.setTitle(id, 'Renamed')

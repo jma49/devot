@@ -1,10 +1,5 @@
-// Clock steps: the system clock ran fast for a while (a day or more), then
-// was set right. Writes made after that must still win over the values
-// written while it ran fast, because the core's clock takes in every stamp
-// it reads before writing over it (see receiveStored in hlc.ts). Run on
-// real SQLite and on the UI tests' memory storage, which must answer alike.
-// And compaction, which ages history by the clock, must not thin a note's
-// latest work while the clock runs fast (see revisionsToDrop).
+// The system clock ran fast (a day or more), then was set right: later writes must still win, since the core's clock takes in
+// every stamp it reads (receiveStored, hlc.ts), on real SQLite and memory storage alike; compaction must not thin latest work meanwhile (revisionsToDrop).
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
@@ -24,7 +19,6 @@ import { tempDir } from '../support/temp-dirs'
 const MINUTE = 60_000
 const DAY = 86_400_000
 const NOW = Date.UTC(2026, 9, 12, 12)
-/** A system clock eight days ahead. */
 const FAST = NOW + 8 * DAY
 
 const open: SqliteAdapter[] = []
@@ -37,10 +31,8 @@ beforeAll(async () => {
 })
 afterAll(restoreLocalStorage)
 
-/** Opens one database, again at every call: each app start opens it anew. */
 type Database = () => StorageAdapter
 
-/** A new SQLite database, opened anew at every call. */
 const sqlite = (): Database => {
   const path = join(tempDir('devot-clock-'), 'devot.sqlite')
   return () => {
@@ -61,10 +53,7 @@ const databases: [string, () => Database][] = [
   ],
 ]
 
-/**
- * One start of the app on `database`, its system clock reading `at`. Each
- * start gets a clock of its own, as the app's window does.
- */
+/** One app start on `database` with its own clock reading `at`, as each window has. */
 function start(database: Database, at: number, node: string) {
   const storage = database()
   const now = () => at
@@ -112,7 +101,6 @@ describe.each(databases)('writes after the clock is set back, on %s', (_, fresh)
       status: 'completed',
       pinned: false,
     })
-    // And it can go to the Trash and come back again.
     await right.notes.trash(id)
     await right.notes.restore(id)
     expect((await right.notes.list()).map((n) => n.id)).toEqual([id])
@@ -150,7 +138,6 @@ describe.each(databases)('writes after the clock is set back, on %s', (_, fresh)
       parentId: work,
       aiAccess: true,
     })
-    // Back to the top level, after Work.
     await right.books.place(inbox, work, 'after')
     expect((await right.books.list()).find((b) => b.id === inbox)?.parentId).toBeNull()
   })
@@ -188,8 +175,7 @@ describe.each(databases)('writes after the clock is set back, on %s', (_, fresh)
 describe('compaction across clock steps, on SQLite', () => {
   it('keeps a note’s newest versions through a start eight days fast', async () => {
     const database = sqlite()
-    // A day of writing, more versions than the newest kept, a version every
-    // forty minutes, then a sweep, all on a right clock.
+    // A day of writing on a right clock, a version every forty minutes, then a sweep.
     const right = start(database, NOW, 'right')
     const written = await right.notes.create('Written')
     const ydoc = (await right.storage.getNote(written))!.ydoc
@@ -205,9 +191,7 @@ describe('compaction across clock steps, on SQLite', () => {
     for (const version of versions) await right.storage.putRevision(version)
     await right.storage.compactRevisions([], NOW)
 
-    // The next start's clock reads eight days ahead: that day looks a week
-    // old. A save of another note sweeps, and that day's versions all stay:
-    // their ages count from the note's newest one, not from a fast now.
+    // Clock now eight days ahead: a save of another note sweeps, and that day's versions all stay (ages count from the note's newest version, not from now).
     const fast = start(database, FAST, 'fast')
     const sweeps = watchSweeps(fast.storage)
     const edited = await fast.notes.create('Edited')
@@ -217,8 +201,7 @@ describe('compaction across clock steps, on SQLite', () => {
     const left = (await fast.storage.listRevisions(written)).map((r) => r.id)
     expect(left).toEqual(versions.map((v) => v.id))
 
-    // Set right again, a day on: the last sweep looks to come from the
-    // future, so the next one weighs every note again, and records now.
+    // Set right again: the last sweep looks to come from the future, so the next one weighs every note again.
     const later = start(database, NOW + DAY, 'later')
     const laterSweeps = watchSweeps(later.storage)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -230,7 +213,6 @@ describe('compaction across clock steps, on SQLite', () => {
     warn.mockRestore()
     expect(await later.storage.lastCompaction()).toBe(NOW + DAY)
     expect((await later.storage.listRevisions(written)).map((r) => r.id)).toEqual(left)
-    // The version taken while the clock ran fast is still the edited note's.
     expect(await later.storage.listRevisions(edited)).toHaveLength(1)
   })
 })

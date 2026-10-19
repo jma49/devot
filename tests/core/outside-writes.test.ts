@@ -1,9 +1,6 @@
-// Another process writing to the database while Devot runs (devot-mcp; any
-// writer on another connection): the window hears of it (devot://db-changed)
-// and the note service takes what storage holds into the notes it keeps in
-// memory (mergeStored), so its next write keeps the other's changes. A write
-// made before the window hears of it is refused by storage (its body version
-// moved on) and made again after a merge, so it keeps them too.
+// Another process (devot-mcp, any writer on another connection) writes while Devot runs: the window
+// hears devot://db-changed and merges (mergeStored). A write made before that is refused by storage
+// (stale body version) and redone after the merge, so it keeps the other's changes too.
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
@@ -23,7 +20,6 @@ import { tempDir } from '../support/temp-dirs'
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
-/** One process on the database at `path`: its note service and connection. */
 function processOn(path: string, node: string) {
   const storage = openSqliteAdapter(path)
   open.push(storage)
@@ -33,7 +29,6 @@ function processOn(path: string, node: string) {
   return { notes, storage, books: createBookService({ storage, clock, newId }) }
 }
 
-/** Two processes on one database file. */
 function twoProcesses() {
   const path = join(tempDir('devot-outside-'), 'devot.sqlite')
   return { a: processOn(path, 'a1'), b: processOn(path, 'b1') }
@@ -47,7 +42,6 @@ const textOf = (state: Uint8Array) => {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-/** A note A made and saved with `body`, which B opens as A saved it. */
 async function shared(a: NoteService, b: NoteService, body: string) {
   const id = await a.create('Plan')
   await a.setBody(id, body)
@@ -56,10 +50,7 @@ async function shared(a: NoteService, b: NoteService, body: string) {
   return id
 }
 
-/**
- * Another process writes to the stored note, as a writer that read it does:
- * its Yjs document takes `edit`, written over the body version it read.
- */
+/** Writes as another process that read the note: its Yjs document takes `edit`, over the body version it read. */
 async function editStored(storage: SqliteAdapter, id: string, edit: (text: Y.Text) => void) {
   const stored = await storage.getNote(id, { trashed: true })
   if (!stored) throw new Error(`E_TEST_NO_NOTE ${id}`)
@@ -74,14 +65,12 @@ async function editStored(storage: SqliteAdapter, id: string, edit: (text: Y.Tex
   })
 }
 
-/** Appends `text` to the body of the stored note, as another process. */
 const appendStored = (storage: SqliteAdapter, id: string, text: string) =>
   editStored(storage, id, (body) => body.insert(body.length, text))
 
 /**
- * A process on the database at `path` whose storage runs what `afterNextRead`
- * was given once its next read of a note has landed, before the caller has
- * it: another process writing between that read and the write based on it.
+ * A process whose storage runs `afterNextRead` once its next note read has landed: another
+ * process writing between that read and the write based on it.
  */
 function processReadingOn(path: string, node: string) {
   const sqlite = openSqliteAdapter(path)
@@ -115,7 +104,6 @@ describe('writes from another process', () => {
     await b.notes.setBody(id, 'First draft, edited in B')
     await b.notes.flush()
 
-    // A hears that the database changed, then pins the note.
     await a.notes.mergeStored()
     await a.notes.writeMeta(id, { pinned: true })
     const stored = await a.storage.getNote(id)
@@ -126,7 +114,6 @@ describe('writes from another process', () => {
   it('typing in both keeps both, whichever saves last', async () => {
     const { a, b } = twoProcesses()
     const id = await shared(a.notes, b.notes, 'middle')
-    // A types and has not saved yet; B types and saves.
     await a.notes.setBody(id, 'start middle')
     await b.notes.setBody(id, 'middle end')
     await b.notes.flush()
@@ -134,16 +121,14 @@ describe('writes from another process', () => {
     await a.notes.mergeStored()
     await a.notes.flush()
     expect((await a.storage.getNote(id))?.bodyMd).toBe('start middle end')
-    // What A shows (and its editor takes in, see the window) has both too.
     expect(textOf((await a.notes.open(id)).state)).toBe('start middle end')
   })
 
   it('writes the note again when the other wrote over edits it had saved', async () => {
     const { a, b } = twoProcesses()
     const id = await shared(a.notes, b.notes, 'one')
-    // A saves an edit; B writes a copy of its own over it, one that lacks
-    // A's edit (over the body version stored, so storage takes it: a writer
-    // that put back an old copy, say).
+    // B writes a copy that lacks A's edit, over the stored body version so storage takes it
+    // (a writer that put back an old copy, say).
     await a.notes.setBody(id, 'one two')
     await a.notes.flush()
     const copy = new Y.Doc()
@@ -167,7 +152,6 @@ describe('writes from another process', () => {
     const { a, b } = twoProcesses()
     const inbox = await b.books.create('Inbox', null)
     const id = await shared(a.notes, b.notes, 'text')
-    // A pins, not saved yet; B then renames and files the note, and saves.
     await a.notes.setPinned(id, true)
     await b.notes.setTitle(id, 'Renamed in B')
     await b.notes.setBook(id, inbox)
@@ -178,7 +162,6 @@ describe('writes from another process', () => {
     await a.notes.flush()
     const stored = await a.storage.getNote(id)
     expect(stored).toMatchObject({ title: 'Renamed in B', bookId: inbox, pinned: true })
-    // A later change in A wins over B's.
     await a.notes.setTitle(id, 'Renamed in A')
     await a.notes.flush()
     expect((await a.storage.getNote(id))?.title).toBe('Renamed in A')
@@ -195,7 +178,6 @@ describe('writes from another process', () => {
 
   it("takes the other's changes into every note in memory, open or not", async () => {
     const { a, b } = twoProcesses()
-    /** A note B made and saved, which A opens. */
     const fromB = async (body: string) => {
       const id = await b.notes.create('From B')
       await b.notes.setBody(id, body)
@@ -246,7 +228,6 @@ describe('writes from another process', () => {
     const merging = notes.mergeStored()
     await sleep(0)
     const stored = await sqlite.getNote(id, { trashed: true })
-    // The read lands just as a pin (a batch change, say) loads the note.
     land?.(stored)
     const pinning = notes.writeMeta(id, { pinned: true })
     await Promise.all([merging, pinning])
@@ -285,7 +266,6 @@ describe('a write made before the window hears of an outside write', () => {
   it('keeps both when typing is saved before the window hears', async () => {
     const { a, b } = twoProcesses()
     const id = await shared(a.notes, b.notes, 'middle')
-    // B types and saves; A types and saves before it hears of B's write.
     await b.notes.setBody(id, 'middle end')
     await b.notes.flush()
     await a.notes.setBody(id, 'start middle')
@@ -293,7 +273,6 @@ describe('a write made before the window hears of an outside write', () => {
 
     expect((await a.storage.getNote(id))?.bodyMd).toBe('start middle end')
     expect(textOf((await a.notes.open(id)).state)).toBe('start middle end')
-    // Hearing of it afterwards changes nothing; B takes in A's part.
     await a.notes.mergeStored()
     await a.notes.flush()
     expect((await a.storage.getNote(id))?.bodyMd).toBe('start middle end')
@@ -316,15 +295,12 @@ describe('a write made before the window hears of an outside write', () => {
   it('reports the title another process gave a note a save took in before the window heard', async () => {
     const { a, b } = twoProcesses()
     const id = await shared(a.notes, b.notes, 'text')
-    // B renames; A types and saves before it hears of B's write, taking the
-    // title in on the retry.
     await b.notes.setTitle(id, 'Renamed in B')
     await b.notes.flush()
     await a.notes.setBody(id, 'text, typed in A')
     await a.notes.flush()
     expect((await a.storage.getNote(id))?.title).toBe('Renamed in B')
 
-    // Hearing of it still reports the title to the open note, once.
     expect(await a.notes.mergeStored()).toEqual([{ id, title: 'Renamed in B' }])
     expect(await a.notes.mergeStored()).toEqual([])
   })
@@ -365,7 +341,6 @@ describe('a write made before the window hears of an outside write', () => {
       const id = await shared(a.notes, b.notes, 'First draft')
       await b.notes.setBody(id, 'First draft, edited in B')
       await b.notes.flush()
-      // Heard of: A takes the text in and has nothing of its own to save.
       if (heard) await a.notes.mergeStored()
 
       await a.notes.trash(id)
@@ -422,8 +397,8 @@ describe('a write made before the window hears of an outside write', () => {
     open.push(other)
     const sqlite = openSqliteAdapter(path)
     open.push(sqlite)
-    // While `racing`, the other process writes the note just before this
-    // one's write, and deletes it for good just before this one reads it again.
+    // While `racing`, the other process writes just before this one's write and deletes the note
+    // for good just before this one reads it again.
     let racing = false
     const storage = Object.assign(Object.create(sqlite) as SqliteAdapter, {
       async putNote(record: NoteRecord) {
@@ -450,7 +425,6 @@ describe('a write made before the window hears of an outside write', () => {
 
     racing = true
     await notes.setBody(id, 'mine, more')
-    // Storage would take no write of it: nothing is left to save or report.
     await notes.flush()
     await expect(notes.open(id)).rejects.toThrow('E_NOTE_NOT_FOUND')
     expect(await sqlite.getNote(id, { trashed: true })).toBeNull()

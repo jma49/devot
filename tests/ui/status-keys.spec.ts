@@ -8,7 +8,6 @@ const status = (page: Page) => statusPicker(page)
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 
-/** The statuses the in-memory store holds, by title (saved state). */
 const storedStatus = (page: Page, title: string) =>
   page.evaluate(
     (t) =>
@@ -30,8 +29,7 @@ async function createNote(page: Page, title: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
-// App-level shortcuts read metaKey, so these press Meta (Command), as the
-// other window shortcut tests do; Control+Command+digit is not a text key.
+// App-level shortcuts read metaKey; Control+Command+digit is not a text key.
 const press = (page: Page, digit: number) => page.keyboard.press(`Meta+Control+Digit${digit}`)
 
 test.beforeEach(async ({ page }) => {
@@ -66,7 +64,6 @@ test('the shortcuts work while typing in the editor and in the title', async ({ 
   await page.keyboard.insertText('Some text')
   await press(page, 2)
   await expect(status(page)).toHaveAttribute('data-value', 'active')
-  // The editor kept its text and the key typed nothing.
   await expect(body(page)).toHaveText('Some text')
 
   await titleField(page).click()
@@ -83,7 +80,6 @@ test('they act on the open note only, and not over a sheet', async ({ page }) =>
   await expect.poll(() => storedStatus(page, 'Second')).toBe('on_hold')
   expect(await storedStatus(page, 'First')).toBe('none')
 
-  // Move to Notebook (M on the selected row) opens a sheet; keys go to it.
   await noteRow(page, 'Second').click()
   await page.keyboard.press('KeyM')
   await expect(page.getByRole('dialog', { name: 'Move to Notebook' })).toBeVisible()
@@ -92,8 +88,7 @@ test('they act on the open note only, and not over a sheet', async ({ page }) =>
   await expect(page.getByRole('dialog', { name: 'Move to Notebook' })).toHaveCount(0)
   await expect(status(page)).toHaveAttribute('data-value', 'on_hold')
   expect(await storedStatus(page, 'Second')).toBe('on_hold')
-  // The window hears the keys again, so the one pressed over the sheet was
-  // refused rather than missed: the next one sets the status.
+  // Keys reach the window again, so the one pressed over the sheet was refused, not missed.
   await press(page, 4)
   await expect(status(page)).toHaveAttribute('data-value', 'completed')
   await expect.poll(() => storedStatus(page, 'Second')).toBe('completed')
@@ -108,8 +103,7 @@ test('nothing happens with no note open', async ({ page }) => {
   await noteRow(page, 'Alone').click()
   await expect(status(page)).toHaveAttribute('data-value', 'none')
   expect(await storedStatus(page, 'Alone')).toBe('none')
-  // The window hears the keys (the check above is not a missed key): with
-  // the note open, the same key sets the status.
+  // Not a missed key (see above): with the note open, the same key sets the status.
   await press(page, 2)
   await expect(status(page)).toHaveAttribute('data-value', 'active')
   await expect.poll(() => storedStatus(page, 'Alone')).toBe('active')

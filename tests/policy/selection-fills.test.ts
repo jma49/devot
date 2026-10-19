@@ -2,9 +2,6 @@ import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { cssRules } from '../support/css-rules'
 
-// Both lists wash a selection in the accent, focused or not, and mark the
-// selected row with an accent bar on its left edge while the list has the
-// keyboard.
 const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
 
 const ruleFor = (selector: string, property: string) =>

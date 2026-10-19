@@ -18,11 +18,7 @@ import {
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-/**
- * Names and what they are once cleaned (null: no name). The Rust commands
- * check the same cases (src-tauri/src/commands/tags.rs and books.rs), so a
- * name the core cleans is one Rust accepts.
- */
+/** Names and their cleaned form (null: no name); the Rust commands check the same cases (src-tauri/src/commands/tags.rs, books.rs). */
 const CASES = JSON.parse(
   readFileSync(join(import.meta.dirname, '../support/names.json'), 'utf8'),
 ) as { why: string; name: string; clean: string | null }[]
@@ -132,10 +128,8 @@ describe('tag names stay unique', () => {
     await expect(tags.rename(dash, 'Todo')).rejects.toThrow('E_TAG_NAME_TAKEN')
     await expect(tags.rename(dash, ' TODO\u0085')).rejects.toThrow('E_TAG_NAME_TAKEN')
     expect((await tags.list()).map((t) => t.name).sort()).toEqual(['to-do', 'todo'])
-    // A tag may take its own name in another case.
     await tags.rename(todo, 'ToDo')
     expect((await tags.list()).find((t) => t.id === todo)?.name).toBe('ToDo')
-    // A deleted tag's name is free again.
     await tags.remove(todo)
     await tags.rename(dash, 'todo')
     expect((await tags.list()).map((t) => t.name)).toEqual(['todo'])

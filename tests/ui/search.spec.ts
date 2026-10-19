@@ -38,7 +38,6 @@ test('finds notes by title and body, in English and Chinese', async ({ page }) =
   await search(page).fill('\u540c\u6b65')
   await expect(noteRows(page)).toHaveText([new RegExp(`^${SYNC_PLAN}`)])
 
-  // Escape clears the search and shows the library again.
   await search(page).press('Escape')
   await expect(header(page)).toHaveText('All Notes')
   await expect(noteRows(page)).toHaveCount(3)

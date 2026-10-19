@@ -59,14 +59,11 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   const allNotes = sidebar.getByRole('button', { name: /All Notes/ })
   expect((await allNotes.boundingBox())?.height).toBe(30)
   await expect(allNotes).toHaveAttribute('aria-current', 'true')
-  // Row counts: small, light, faded on the row's own colour.
   const count = allNotes.locator('.source-count')
   expect(await css(count, 'font-size')).toBe('10px')
   expect(await css(count, 'font-weight')).toBe('200')
   expect(await css(count, 'opacity')).toBe('0.6')
 
-  // The Filter field: 30 tall, a funnel slot at rest; a query swaps it for
-  // the clear button at the end.
   const field = list.locator('.search-field')
   expect((await field.boundingBox())?.height).toBe(30)
   await expect(field.locator('.search-icon')).toHaveCount(1)
@@ -77,7 +74,6 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   expect(await css(field.locator('input'), 'padding-left')).toBe('8px')
   await field.locator('input').fill('')
 
-  // The unified toolbar over list and editor, and the sidebar's title bar.
   const bars = page.locator('[data-devot-part=toolbar], [data-devot-part=sidebar-titlebar]')
   await expect(bars).toHaveCount(3)
   for (const bar of await bars.all()) {
@@ -145,7 +141,6 @@ test('the note list selection is an accent wash, with a bar on the open row whil
   const alphaRow = rows.getByRole('option', { name: /Alpha/ })
   await expect(beta).toHaveAttribute('aria-selected', 'true')
 
-  // Typing in the title: the list is not focused, the selection is a wash, no bar.
   const wash = await css(beta, 'background-color')
   expect(alpha(wash)).toBeCloseTo(0.2, 2)
   expect(await css(beta, 'box-shadow')).toBe('none')
@@ -153,7 +148,6 @@ test('the note list selection is an accent wash, with a bar on the open row whil
 
   await beta.click()
   await expect(beta).toBeFocused()
-  // Focused: the same wash and text, and a 5 px accent bar on the left edge.
   await expect
     .poll(() => css(beta, 'box-shadow'))
     .toBe(`${rgb(light['color.accent.fill'])} 5px 0px 0px 0px inset`)
@@ -161,7 +155,6 @@ test('the note list selection is an accent wash, with a bar on the open row whil
   expect(await css(beta, 'color')).toBe(text)
   expect(await css(alphaRow, 'box-shadow')).toBe('none')
 
-  // Arrow keys move the selection and open the note.
   await page.keyboard.press('ArrowDown')
   await expect(alphaRow).toHaveAttribute('aria-selected', 'true')
   await expect(alphaRow).toBeFocused()
@@ -192,7 +185,6 @@ test('the selected view mode is a neutral grey segment', async ({ page }) => {
     .getByRole('button', { name: 'Split' })
   await split.click()
   await expect(split).toHaveAttribute('aria-pressed', 'true')
-  // The fill eases in over the hover duration.
   await expect.poll(() => css(split, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
 })
 

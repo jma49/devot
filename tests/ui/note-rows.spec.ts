@@ -1,8 +1,6 @@
 import type { Page } from '@playwright/test'
 import { bookPicker, expect, pickStatus, statusPicker, test } from './fixtures'
 
-// The note list's rows and Filter field, and the pickers under the title.
-
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
 const filter = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })

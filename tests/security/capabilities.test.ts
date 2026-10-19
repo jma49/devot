@@ -23,7 +23,6 @@ function capabilities(): Capability[] {
 const permissionIds = (c: Capability) =>
   c.permissions.map((p) => (typeof p === 'string' ? p : p.identifier))
 
-/** Every app permission granted to some window, each once. */
 function grantedAppPermissions(): string[] {
   return [
     ...new Set(
@@ -34,7 +33,6 @@ function grantedAppPermissions(): string[] {
   ]
 }
 
-/** The windows a permission is granted to. */
 const windowsWith = (permission: string) =>
   capabilities()
     .filter((c) => permissionIds(c).includes(permission))

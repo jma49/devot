@@ -159,7 +159,6 @@ test('stays open through repeated Escapes while busy, then closes', async ({ pag
   await expect(dialog.getByRole('button', { name: 'Done' })).toBeEnabled()
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
-  // It opens again from the menu.
   await showBackups(page)
   await expect(dialog).toBeVisible()
 })

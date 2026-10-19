@@ -2,12 +2,8 @@ import type { Page } from '@playwright/test'
 import { expect, test, pickNoteMore, pickStatus } from './fixtures'
 import { seedNotes } from './renders'
 
-// The note list shows the user's own changes at once: new dates and order
-// after typing, new titles in search results, and every note just made.
-
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const rows = (page: Page) => list(page).getByRole('option')
-// A row's name: its title, or for an untitled note the first line leading its excerpt.
 const rowTitles = (page: Page) => list(page).locator('.row-title, .row-headline')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
@@ -27,7 +23,6 @@ async function openNote(page: Page, title: string) {
 
 const newNote = (page: Page) => page.getByRole('button', { name: 'New Note', exact: true }).click()
 
-/** The view shows All Notes with a new, empty note open and listed. */
 async function expectNewNoteListed(page: Page, total: number) {
   await expect(header(page)).toHaveText('All Notes')
   await expect(rows(page)).toHaveCount(total)

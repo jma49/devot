@@ -17,7 +17,7 @@ describe('sha256Hex', () => {
   })
 
   it('hashes text as UTF-8, across block boundaries, like Node', () => {
-    // Lengths around the 55/56/64-byte padding edges, and several blocks.
+    // Around the 55/56/64-byte padding edges, and several blocks.
     for (const length of [55, 56, 57, 63, 64, 65, 119, 120, 1000]) {
       const text = 'x'.repeat(length)
       expect(sha256Hex(text)).toBe(node(text))

@@ -4,8 +4,6 @@ import { BUILT_IN_THEMES } from '../../scripts/tokens/themes'
 import { TAG_COLORS } from '../../src/core/storage'
 import { en } from '../../src/renderer/src/i18n/en'
 
-// The tag colour palette is a list of IDs shared by the core, Rust (which
-// validates them) and the themes (which give each one a colour).
 const read = (path: string) => readFileSync(path, 'utf8')
 const THEME_IDS = ['system', ...BUILT_IN_THEMES.map((t) => t.id)]
 const theme = (appearance: 'light' | 'dark', id = 'system') =>

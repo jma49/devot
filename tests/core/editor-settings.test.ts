@@ -27,14 +27,12 @@ describe('editor settings', () => {
   it('has roomy defaults, the new ones for settings the user never set', () => {
     expect(DEFAULT_EDITOR_SETTINGS).toEqual({
       lineNumbers: false,
-      // Everything wraps except the code block or table under the caret.
       lineWrapping: 'unwrapAtCursor',
       readableWidth: false,
       fontSize: 13,
       fontFamily: 'mono',
       installedFont: null,
       importedFont: null,
-      // The app's text in the system font, code in SF Mono.
       appFontFamily: 'system',
       appInstalledFont: null,
       appImportedFont: null,
@@ -48,15 +46,11 @@ describe('editor settings', () => {
       spellCheck: true,
       highlightActiveLine: false,
       sidebarMaterial: true,
-      // The washes as designed.
       windowTransparency: 0,
       pasteUrl: 'link',
-      // Split mode scrolls the editor and the preview together unless turned off.
       syncScroll: true,
       inlineImages: true,
-      // The system's appearance, with Devot's own accent.
       appearance: 'system',
-      // Devot's own theme.
       theme: 'default',
       systemAccent: false,
       toolbar: true,
@@ -68,9 +62,7 @@ describe('editor settings', () => {
       previewFontSize: 15,
       defaultNotebook: null,
       listDates: 'relative',
-      // An update found downloads in the background unless turned off.
       autoDownloadUpdates: true,
-      // The windows animate whatever the system's Reduce Motion says.
       animations: 'always',
     })
   })

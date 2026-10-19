@@ -3,9 +3,8 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { htmlToMarkdown } from '../../src/core'
 
-// Hand-written pages in tests/core/fixtures/html-import: `pages/` convert to
-// the Markdown beside them (`name.md`); `hostile/` holds XSS vectors that must
-// come out as inert text, never as markup, script or a dangerous link.
+// Hand-written pages in tests/core/fixtures/html-import: `pages/` convert to the Markdown beside
+// them; `hostile/` holds XSS vectors that must come out as inert text, never markup or script.
 const ROOT = join(__dirname, 'fixtures', 'html-import')
 
 const fixtures = (dir: string) =>
@@ -25,7 +24,6 @@ const TITLES: Record<string, string | null> = {
   'legacy.html': 'Old Page',
 }
 
-/** What the conversion reports leaving out of each hostile page. */
 const DROPPED: Record<string, string[]> = {
   'embeds.html': ['<iframe>', '<object>'],
   'handlers.html': [],
@@ -33,7 +31,6 @@ const DROPPED: Record<string, string[]> = {
   'urls.html': ['data:text/html', "javascript:alert('PWNED')", 'data:image/svg+xml'],
 }
 
-/** A tag, comment, declaration or processing instruction that is not escaped. */
 const RAW_HTML = /(?<!\\)<[a-zA-Z!/?]/
 const DANGEROUS_TARGET = /\]\(\s*(javascript|vbscript|data|file):/i
 const EVENT_ATTRIBUTE = /\son[a-z]+\s*=/i

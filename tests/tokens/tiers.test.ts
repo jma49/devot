@@ -9,10 +9,8 @@ import {
 } from '../../src/renderer/src/theme/contrast'
 import { dark, light, sizes } from '../../src/renderer/src/theme/tokens'
 
-// Text and lines are tiers of one ink per appearance: a tier is the ink at a
-// fixed strength. Text tiers are solid (the ink over the editor) and may move
-// toward black or white only where contrast needs it; line tiers are the ink
-// itself at the tier's alpha.
+// Text and lines are tiers of one ink per appearance. Text tiers are solid and may move toward
+// black or white only where contrast needs it; line tiers are the ink at the tier's alpha.
 
 type Appearance = 'light' | 'dark'
 const THEMES: Record<Appearance, Record<string, string>> = { light, dark }
@@ -96,7 +94,6 @@ describe.each(['light', 'dark'] as const)('the %s tiers', (appearance) => {
     const [sidebar, list, page] = luminanceOrder(
       ['sidebar-opaque', 'list', 'editor'].map((s) => rgb(appearance, `color.surface.${s}`).rgb),
     )
-    // Light: the sidebar darkest, the editor lightest. Dark: the other way round.
     const stepped =
       appearance === 'light' ? sidebar! < list! && list! < page! : sidebar! > list! && list! > page!
     expect(stepped).toBe(true)

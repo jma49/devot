@@ -1,5 +1,4 @@
-// The built devot-mcp CLI, driven over stdio with raw MCP messages, the way
-// Claude Code and Claude Desktop run it.
+// The built devot-mcp CLI, driven over stdio with raw MCP messages as Claude Code and Claude Desktop run it.
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import Database from 'better-sqlite3'
 import { spawn } from 'node:child_process'
@@ -43,7 +42,6 @@ afterEach(async () => {
   for (const close of sessions.splice(0)) await close()
 })
 
-/** Starts devot-mcp and completes the MCP handshake. */
 async function start(args: string[]) {
   const child = spawn(process.execPath, [BUNDLE, ...args], { stdio: ['pipe', 'pipe', 'pipe'] })
   const stdout: string[] = []
@@ -163,7 +161,6 @@ describe('devot-mcp over stdio', () => {
     const id = made.value?.['id'] as string
     await mcp.close()
 
-    // The app's side of the file sees the note.
     const app = openSqliteAdapter(world.path)
     try {
       const note = await app.getNote(id)

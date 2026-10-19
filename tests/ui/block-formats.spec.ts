@@ -1,9 +1,7 @@
 import type { Page } from '@playwright/test'
 import { clipboardWrites, expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
 
-// Block formats in the selection toolbar and as editor shortcuts. Keys are
-// platform-neutral: ControlOrMeta for the command key, and selections made
-// with Select All, not with macOS text-navigation keys.
+// Keys are platform-neutral: ControlOrMeta for the command key, selections via Select All, not macOS text-navigation keys.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const toolbar = (page: Page) => page.getByRole('toolbar', { name: 'Format' })
@@ -99,18 +97,15 @@ test('the alert button picks the kind from a pop-up', async ({ page }) => {
   await expect.poll(() => lines(page)).toEqual(['> [!WARNING]', '> Mind the gap'])
   await expect(button(page, 'Alert')).toHaveAttribute('aria-pressed', 'true')
 
-  // The pop-up shows the current kind; another kind replaces it.
   await button(page, 'Alert').click()
   await expect.poll(() => shownMenu(page)).toContain('Warning [x]')
   await pickMenuItem(page, 'Tip')
   await expect.poll(() => lines(page)).toEqual(['> [!TIP]', '> Mind the gap'])
 
-  // Picking the current kind removes the alert.
   await button(page, 'Alert').click()
   await expect.poll(() => shownMenu(page)).toContain('Tip [x]')
   await pickMenuItem(page, 'Tip')
   await expect.poll(() => lines(page)).toEqual(['Mind the gap'])
-  // The editor kept the focus: typing replaces the selection.
   await page.keyboard.type('done')
   expect(await lines(page)).toEqual(['done'])
 
@@ -152,7 +147,6 @@ test('Shift+Cmd+C makes a code block in the editor and copies the URI in the lis
   expect(await lines(page)).toEqual(['```', 'code', '```'])
   expect(await clipboardWrites(page)).toEqual([])
 
-  // On the note's row in the list the same keys copy its URI, leaving the body alone.
   const row = page.getByRole('listbox', { name: 'Notes' }).getByRole('option').first()
   await row.click()
   await expect(row).toBeFocused()
@@ -176,7 +170,6 @@ test('Return on an empty list item leaves it, a blank line apart; a quote goes o
   await page.keyboard.insertText('> note')
   await page.keyboard.press('Enter')
   await expect.poll(() => lines(page)).toEqual(['> note', '> '])
-  // An empty quote line goes on as a quote line too.
   await page.keyboard.press('Enter')
   await page.keyboard.type('after')
   expect(await lines(page)).toEqual(['> note', '>', '> after'])

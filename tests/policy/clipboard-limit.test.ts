@@ -3,10 +3,8 @@ import { expect, it } from 'vitest'
 import { MAX_BODY_BYTES } from '../../src/core/noteLimits'
 import { NATIVE_CLIPBOARD_LIMIT, fitsNativeClipboard } from '../../src/renderer/src/clipboard'
 
-// The UI sends text to `clipboard_write_text` only when Rust takes it (longer
-// text goes through the page's clipboard API), so both sides must agree on
-// the limit: as much as a note may hold, as a paste takes (so Copy Note
-// Links on a large selection, or any code block, goes through Rust).
+// The UI sends text to `clipboard_write_text` only when Rust takes it (longer text uses the page's clipboard
+// API), so both sides must agree on the limit: as much as a note may hold, as a paste takes.
 const NATIVE = readFileSync('src-tauri/src/native/mod.rs', 'utf8')
 
 it('uses the limit Rust checks: what a note may hold', () => {

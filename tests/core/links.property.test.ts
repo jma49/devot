@@ -6,8 +6,7 @@ import { BODY, createClock, createIdGenerator, createNoteService, noteLinks } fr
 import { openSqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// The link index must always equal the links in the stored note bodies,
-// whatever sequence of edits, trashing, restoring and purging led there.
+// The link index must always equal the links in the stored note bodies, whatever sequence led there.
 
 const NOTES = 4
 const STRANGER = '0192a6f0-0000-7000-8000-0000000000ff'
@@ -69,7 +68,6 @@ describe('the link index', () => {
                 text.insert(0, `${step.noise}\n${links.join(' ')}\n${step.noise}`)
               })
               await Promise.all(pending)
-              // Saved before the next step, as the app does between edits.
               await notes.flush()
             } else if (step.kind === 'trash') {
               await notes.trash(id).catch(() => {})

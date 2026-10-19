@@ -1,11 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-// Narrow windows (the minimum is 760 px): the sidebar gives way below 1000 px,
-// the list shrinks, and the editor's toolbar, the split panes and the
-// selection toolbar stay inside the window.
-
-/** The smallest a split pane may be (size.pane-min-width). */
+/** size.pane-min-width */
 const PANE_MIN = 240
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -38,11 +34,9 @@ for (const width of [760, 800, 900]) {
     await openNote(page, width, 'alpha beta gamma delta')
     await mode(page, 'Split').click()
 
-    // The sidebar gave way; the list took the rest of the room.
     await expect(sidebar(page)).toBeHidden()
     await expect(showSidebar(page)).toBeVisible()
 
-    // Every control of the editor's toolbar is inside the window, whole.
     const toolbar = page.locator('.editor-toolbar')
     const controls = toolbar.locator('button')
     const count = await controls.count()
@@ -53,7 +47,6 @@ for (const width of [760, 800, 900]) {
       expect(b.x + b.width, `control ${i} ends inside`).toBeLessThanOrEqual(width)
       expect(b.width, `control ${i} keeps a width`).toBeGreaterThan(20)
     }
-    // Nothing is cut off inside the toolbar, and the window does not scroll sideways.
     const clipped = await toolbar.evaluate(
       (el) => (el as unknown as { scrollWidth: number; clientWidth: number }).scrollWidth,
     )
@@ -66,7 +59,6 @@ for (const width of [760, 800, 900]) {
       ),
     ).toBeLessThanOrEqual(width)
 
-    // The panes keep a usable width, side by side inside the window.
     const editor = await box(page.locator('[data-devot-part=editor-body]'))
     const preview = await box(page.getByRole('article', { name: 'Preview' }))
     expect(editor.width).toBeGreaterThanOrEqual(PANE_MIN)
@@ -94,7 +86,6 @@ for (const width of [760, 800, 900]) {
       })
       .toBe(true)
     const bar = await box(format(page))
-    // One row: every button shares the first one's line, and the bar is one button tall.
     const first = await box(buttons.first())
     for (let i = 0; i < count; i += 1) {
       expect(
@@ -103,7 +94,6 @@ for (const width of [760, 800, 900]) {
       ).toBeLessThan(2)
     }
     expect(bar.height).toBeLessThan(first.height * 1.5)
-    // Every button still works there.
     await format(page).getByRole('button', { name: 'Quote' }).click()
     await expect(page.locator('.cm-line')).toHaveText('> alpha beta gamma delta')
   })
@@ -120,7 +110,6 @@ test('the sidebar shows at 1000 px, gives way below it, and comes back on reques
   await expect(sidebar(page)).toBeHidden()
   await expect(showSidebar(page)).toBeVisible()
 
-  // Asked for in a narrow window, it shows; Hide Sidebar puts it away again.
   await showSidebar(page).click()
   await expect(sidebar(page)).toBeVisible()
   await page.getByRole('button', { name: 'Hide Sidebar' }).click()

@@ -1,6 +1,3 @@
-// The built-in themes besides the default one (the `system` token files).
-// Each is `design/tokens/themes/<id>.light|dark.tokens.json`, compiled to
-// rules scoped by `data-theme='<id>'` on the root element. The ids are the
-// values of the `theme` setting (`THEMES` in src/core/editorSettings.ts);
-// tests/tokens/themes.test.ts keeps the two lists in step.
+// Built-in themes besides the default: `design/tokens/themes/<id>.light|dark.tokens.json`, scoped by `data-theme='<id>'`.
+// Ids match the `theme` setting (`THEMES` in src/core/editorSettings.ts); tests/tokens/themes.test.ts keeps them in step.
 export const BUILT_IN_THEMES: readonly { readonly id: string }[] = [{ id: 'ivory' }]

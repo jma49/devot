@@ -15,10 +15,7 @@ async function newNote(page: Page, text: string) {
 
 type Box = { x: number; y: number; width: number; height: number }
 
-/**
- * Double-clicks `word` on line `n` (from 1): a real mouse word selection,
- * the same on every platform (the keys that move by word differ).
- */
+/** Double-clicks `word` on line `n` (from 1): a real mouse word selection, the same on every platform. */
 async function selectWord(page: Page, n: number, word: string) {
   const at = await page
     .locator('.cm-line')
@@ -50,12 +47,11 @@ async function selectWord(page: Page, n: number, word: string) {
       return null
     }, word)
   if (!at) throw new Error('E_TEST_NO_WORD')
-  // A shown toolbar can cover the word (it sits beside the old selection).
+  // A shown toolbar can cover the word.
   if (await toolbar(page).isVisible()) await page.keyboard.press('Escape')
   await expect(toolbar(page)).toBeHidden()
   await page.mouse.dblclick(at.x, at.y)
   await expect(toolbar(page)).toBeVisible()
-  // The word itself is selected, not whatever was there before.
   const selected = page.locator('.cm-selectionBackground')
   await expect(selected).toHaveCount(1)
   await expect
@@ -74,15 +70,11 @@ async function selectAll(page: Page) {
 const overlaps = (a: Box, b: Box) =>
   a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 
-/**
- * Checks the toolbar sits just above or just below the selection, clear of
- * every selected line, and returns its box.
- */
 async function expectBesideSelection(page: Page): Promise<Box> {
   await expect(toolbar(page)).toBeVisible()
   const selected = page.locator('.cm-selectionBackground')
   await expect(selected.first()).toBeVisible()
-  // Wait for CodeMirror to place it (it measures in the next frame).
+  // CodeMirror measures in the next frame.
   await page.evaluate(
     () =>
       new Promise((done) =>
@@ -141,10 +133,8 @@ test('the toolbar shows for a selection, with named SF Symbol buttons in three g
   await expect(toolbar(page).getByRole('button')).toHaveCount(names.length)
   for (const [name, symbol] of names) {
     await expect(button(page, name).locator('.icon')).toHaveAttribute('data-symbol', symbol)
-    // The custom tooltip replaces the native one.
     await expect(button(page, name)).not.toHaveAttribute('title')
   }
-  // Separators set the groups apart: inline formats and the link, code, blocks.
   const order = await toolbar(page)
     .locator('> *')
     .evaluateAll((els) =>
@@ -185,7 +175,6 @@ test('a button tooltip shows its name and key; Heading and Highlight have no key
     await expect(tip.locator('.cm-float-tip-title')).toHaveText(name)
     await expect(tip.locator('kbd')).toHaveCount(0)
   }
-  // Leaving the toolbar hides it.
   await page.mouse.move(1, 1)
   await expect(tip).toBeHidden()
 })
@@ -230,7 +219,6 @@ test('the toolbar hides on Escape, a collapsed selection and typing', async ({ p
   await selectAll(page)
   await page.keyboard.press('Escape')
   await expect(toolbar(page)).toBeHidden()
-  // Selecting again brings it back.
   await page.keyboard.press('Shift+ArrowLeft')
   await expect(toolbar(page)).toBeVisible()
   await page.keyboard.press('ArrowRight')
@@ -251,12 +239,10 @@ test('the toolbar follows the selection and never covers it', async ({ page }) =
 
   await selectWord(page, 3, 'third')
   const atStart = await expectBesideSelection(page)
-  // The last word of the line: the toolbar moves along.
   await selectWord(page, 3, 'line')
   const atEnd = await expectBesideSelection(page)
   expect(atEnd.x).toBeGreaterThan(atStart.x + 20)
 
-  // A selection over several lines: the toolbar sits outside all of them.
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Shift+ArrowDown')
@@ -278,7 +264,6 @@ test('the buttons apply and remove each format', async ({ page }) => {
     await expect(button(page, name)).toHaveAttribute('aria-pressed', 'false')
     await button(page, name).click()
     expect(await lines(page), name).toEqual([formatted])
-    // The text stays selected, so the toolbar stays and shows the format as on.
     await expect(button(page, name)).toHaveAttribute('aria-pressed', 'true')
     await button(page, name).click()
     expect(await lines(page), name).toEqual(['alpha beta'])
@@ -295,7 +280,6 @@ test('the heading button raises the level and puts the caret at the end of the l
   await selectAll(page)
   await button(page, 'Heading').click()
   expect(await lines(page)).toEqual(['# Plans'])
-  // The caret goes to the end of the line: the selection is gone, and so is the toolbar.
   await expect(toolbar(page)).toBeHidden()
   await page.keyboard.insertText('!')
   expect(await lines(page)).toEqual(['# Plans!'])
@@ -318,11 +302,9 @@ test('the link button asks for the address in a dialog and inserts the link', as
   await page.keyboard.press('Enter')
   await expect(dialog).toBeHidden()
   expect(await lines(page)).toEqual(['Read the [docs](https://example.com) today'])
-  // The caret is after the link, back in the body.
   await page.keyboard.insertText('!')
   expect(await lines(page)).toEqual(['Read the [docs](https://example.com)! today'])
 
-  // Escape leaves the note as it was.
   await selectWord(page, 1, 'today')
   await button(page, 'Link').click()
   await expect(dialog).toBeVisible()
@@ -330,7 +312,6 @@ test('the link button asks for the address in a dialog and inserts the link', as
   await expect(dialog).toBeHidden()
   expect(await lines(page)).toEqual(['Read the [docs](https://example.com)! today'])
 
-  // On a link, the button removes it.
   await selectWord(page, 1, 'docs')
   await button(page, 'Link').click()
   await expect(dialog).toBeHidden()
@@ -401,9 +382,8 @@ test('Edit > Undo also takes back one format at a time', async ({ page }) => {
   await page.keyboard.press('ControlOrMeta+i')
   await page.keyboard.press('End')
   await page.keyboard.type('!')
-  // The menu item reaches the page as a `historyUndo` input event, which
-  // CodeMirror's history handles (it comes before the Yjs binding); format
-  // transactions isolate their history, so each one is its own step.
+  // The menu item reaches the page as a `historyUndo` input event, handled by CodeMirror's history
+  // before the Yjs binding; format transactions isolate their history, so each is its own step.
   const menuUndo = () =>
     body(page).evaluate((el) => {
       const Input = (globalThis as unknown as { InputEvent: new (t: string, o: object) => unknown })
@@ -431,9 +411,7 @@ test('bold next to punctuation keeps it outside the markers and toggles off agai
   await expect(toolbar(page)).toBeVisible()
   await page.keyboard.press('ControlOrMeta+KeyB')
   expect(await lines(page)).toEqual([`${x}${x}**${y}${y}**${stop}${x}${x}`])
-  // The toolbar shows the selection as bold.
   await expect(button(page, 'Bold')).toHaveAttribute('aria-pressed', 'true')
-  // The same key again takes it off, not a second pair on.
   await page.keyboard.press('ControlOrMeta+KeyB')
   expect(await lines(page)).toEqual([`${x}${x}${y}${y}${stop}${x}${x}`])
 })
@@ -452,7 +430,6 @@ test('the toolbar sits above the selection start, on the first line too', async 
   const first = (await page.locator('.cm-selectionBackground').first().boundingBox())!
   const onFirst = await expectBesideSelection(page)
   expect(onFirst.y + onFirst.height).toBeLessThanOrEqual(first.y + 1)
-  // Whole and clear of the window's toolbar.
   const top = (await page.locator('.editor-toolbar').boundingBox())!
   expect(onFirst.y).toBeGreaterThanOrEqual(top.y + top.height)
   await expect(toolbar(page)).toBeInViewport({ ratio: 1 })
@@ -480,7 +457,6 @@ test('the notch keeps pointing at the selection start when the bar is held back 
 }) => {
   const words = Array.from({ length: 70 }, (_, i) => `w${String(i + 10)}`)
   await newNote(page, `intro\n${words.join(' ')}`)
-  // The last word that fits on the first row of the wrapped paragraph.
   const word = await page
     .locator('.cm-line')
     .nth(1)

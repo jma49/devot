@@ -27,7 +27,6 @@ test('Clear Usage Data keeps the keyboard on its button once nothing is left', a
   await expect(section).toContainText('No usage events are stored.')
   await expect(clear).toBeDisabled()
   await expect(clear).toBeFocused()
-  // Return on a button that is off does nothing.
   await page.keyboard.press('Enter')
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })

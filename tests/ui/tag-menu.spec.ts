@@ -24,7 +24,7 @@ interface StoredTag {
   color: string | null
 }
 
-/** The tags the in-memory store holds (saved state, not what is on screen). */
+/** Tags the in-memory store holds (saved state, not the screen). */
 const storedTags = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('devot.test.tags') ?? '[]') as StoredTag[])
 
@@ -73,7 +73,6 @@ async function setUp(page: Page) {
   await expect(tagRow(page, 'idea')).toHaveText(/2$/)
 }
 
-/** The element's edge colour, and the colour the theme gives a palette ID. */
 const painted = (page: Page, selector: string, color: string) =>
   page.evaluate(
     ([sel, id]) => {
@@ -138,9 +137,7 @@ test('a colour shows as the sidebar dot and on chips, and survives a reload', as
 
   const dot = tagRow(page, 'idea').locator('.tag-dot')
   await expect(dot).toHaveAttribute('data-color', 'purple')
-  // The colour is part of the row's name for assistive tech.
   await expect(tagRow(page, 'idea')).toHaveAccessibleName('Purple idea 2')
-  // Only the coloured tag shows a dot; the other keeps its icon.
   await expect(tagRow(page, 'sync').locator('.tag-dot')).toHaveCount(0)
   await expect(noteRow(page, 'One').locator('.chip .tag-dot')).toHaveCount(1)
   await expect(

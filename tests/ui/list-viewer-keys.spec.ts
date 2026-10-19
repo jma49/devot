@@ -1,6 +1,3 @@
-// Keyboard gaps of the note list and the image viewer: the list keeps a Tab
-// stop when the open note is not listed, the viewer opens from the command
-// palette and closes with Escape, and its Tab key goes round every stop.
 import type { Page } from '@playwright/test'
 import { expect, test, pickStatus } from './fixtures'
 
@@ -32,14 +29,12 @@ test('the note list keeps a Tab stop when the open note is not listed', async ({
   await createNote(page, 'Shown')
   await pickStatus(page, 'Active')
   await createNote(page, 'Hidden')
-  // "Hidden" is open, and the Active filter lists only "Shown".
   await sidebar(page)
     .getByRole('button', { name: /^Active \d+$/ })
     .click()
   await expect(noteRows(page)).toHaveText([/^Shown/])
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Hidden')
   await expect(noteRows(page).first()).toHaveAttribute('tabindex', '0')
-  // Tab from the sidebar row reaches it.
   await sidebar(page)
     .getByRole('button', { name: /^Active \d+$/ })
     .focus()

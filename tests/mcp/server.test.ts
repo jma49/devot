@@ -1,6 +1,5 @@
-// devot-mcp's tools through an MCP client, on a real database: notes outside
-// notebooks with Allow AI Access, in the trash or in no notebook are
-// invisible to every tool.
+// devot-mcp's tools through an MCP client on a real database: notes outside notebooks with Allow AI Access,
+// in the trash or in no notebook are invisible to every tool.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { existsSync } from 'node:fs'
@@ -135,11 +134,9 @@ describe('devot-mcp tools', () => {
       const search = JSON.stringify(await call(client, 'search_notes', { query: 'kiwi' }))
       expect(search).not.toContain(id)
     }
-    // An ID that never existed reads the same.
     expect(await call(client, 'read_note', { id: '0192a6f0-0000-7000-8000-000000000999' })).toEqual(
       { error: 'E_NOTE_NOT_FOUND: No note with this ID is available to AI.' },
     )
-    // Hidden notebooks are neither listed nor usable.
     for (const notebook of [world.books.inside, world.books.priv, world.books.gone, 'Private']) {
       expect(listed).not.toContain(notebook)
       const made = await call(client, 'create_note', { title: 'X', markdown: 'y', notebook })
@@ -166,7 +163,6 @@ describe('devot-mcp tools', () => {
     Y.applyUpdate(doc, record.ydoc)
     expect(doc.getText(BODY).toString()).toBe('# Agenda\n\n1. Kiwi harvest\n')
     expect(record.bodyMd).toBe('# Agenda\n\n1. Kiwi harvest\n')
-    // Logs carry codes and IDs, never the title or body.
     expect(logs).toEqual([`I_MCP_NOTE_CREATED ${id} ${world.books.shared}`])
 
     const again = await call(client, 'search_notes', { query: 'harvest' })
@@ -181,7 +177,6 @@ describe('devot-mcp tools', () => {
 
   it('makes a note whose images stay when the note it read them from is deleted for good', async () => {
     const world = await makeWorld()
-    // The app adds a note with an image of its own.
     const app = openSqliteAdapter(world.path)
     cleanup.push(() => app.close())
     const notes = createNoteService({
@@ -195,7 +190,6 @@ describe('devot-mcp tools', () => {
     await notes.setBody(source, `# Shot\n\n![shot](devot://file/${FILE}#half)\n`)
     await notes.release(source)
 
-    // An assistant reads it and makes a note from its Markdown: the same link, no copy.
     const { client } = await connect(world.path)
     const read = await call(client, 'read_note', { id: source })
     const made = await call(client, 'create_note', {
@@ -274,7 +268,6 @@ describe('editing tools', () => {
     expect(missing.error).toMatch(/^E_AI_PATCH_NOT_FOUND: /)
     const twice = await call(client, 'update_note', { id, patches: [{ find: 'e', replace: 'y' }] })
     expect(twice.error).toMatch(/^E_AI_PATCH_AMBIGUOUS: /)
-    // The schema refuses a status the app does not know.
     const status = await call(client, 'update_note', { id, status: 'later' })
     expect(status.error).toBeDefined()
   })

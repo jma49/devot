@@ -1,9 +1,5 @@
 import { expect, openApp, test } from './fixtures'
 
-// Every icon button shows one custom tooltip: above the button with a notch,
-// after a short rest, kept inside the window, and gone when the pointer
-// leaves or presses.
-
 test('a sidebar button shows the bubble above it, with no system tooltip', async ({ page }) => {
   await openApp(page)
   const button = page.getByRole('button', { name: 'New Notebook' })

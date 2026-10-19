@@ -1,9 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-// The note list as a pane: its width, its empty states, the card a drag
-// shows and how far its titles run.
-
 const pane = (page: Page) => page.getByRole('region', { name: 'Notes' })
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
@@ -17,7 +14,6 @@ async function createNote(page: Page, title: string) {
   await page.getByRole('textbox', { name: 'Title' }).fill(title)
 }
 
-/** Drags the list's right edge `by` pixels to the right (left when negative). */
 async function dragEdge(page: Page, by: number) {
   const box = await handle(page).boundingBox()
   if (!box) throw new Error('no resize handle')
@@ -71,7 +67,6 @@ test('the edge resizes with the keyboard and resets to the default', async ({ pa
   await page.keyboard.press('Enter')
   await expect.poll(() => width(page)).toBe(300)
 
-  // The width is kept like a drag's.
   await page.keyboard.press('ArrowRight')
   await expect.poll(() => width(page)).toBe(310)
   await page.reload()
@@ -120,7 +115,6 @@ test('a long title runs to two lines, then is cut off', async ({ page }) => {
   const lineHeight = (await short.boundingBox())?.height ?? 0
   await expect.poll(async () => (await long.boundingBox())?.height).toBeCloseTo(lineHeight * 2, 0)
   await expect(long).toHaveCSS('-webkit-line-clamp', '2')
-  // The title starts 15 px in from the row's left edge.
   const rowBox = await noteRow(page, 'Short').boundingBox()
   const titleBox = await short.boundingBox()
   expect(Math.round((titleBox?.x ?? 0) - (rowBox?.x ?? 0))).toBe(15)

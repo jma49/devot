@@ -10,12 +10,8 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// Images in the editor and the preview: previews under their lines, size
-// presets, the viewer, the image context menu and the image commands.
-// Attachments (devot://file) do not load in Playwright's browser; an image at a
-// path on the page's own origin (routed here) does, so the viewer is checked with
-// one. Editor keys
-// are platform-neutral; the palette opens with Meta+P like in the other specs.
+// Attachments (devot://file) do not load in Playwright's browser, so the viewer is checked with an image
+// routed on the page's own origin.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
@@ -100,18 +96,15 @@ test('double-clicking a preview image opens the viewer, fitted to the window', a
   const actual = viewer(page).getByRole('button', { name: 'Actual Size' })
   await expect(fit).toHaveAttribute('aria-pressed', 'true')
   await expect(actual).toHaveAttribute('aria-pressed', 'false')
-  // The viewer covers the title bar: its first control clears the window
-  // controls (which end at 70 px in the real window).
+  // The viewer covers the title bar: its first control clears the window controls (70 px in the real window).
   expect((await fit.boundingBox())!.x).toBeGreaterThanOrEqual(80)
 
-  // Fitted: the whole image shows inside the window, its shape kept.
   const window = page.viewportSize()!
   const fitted = (await viewerImage(page).boundingBox())!
   expect(fitted.width).toBeLessThanOrEqual(window.width)
   expect(fitted.height).toBeLessThanOrEqual(window.height)
   expect(fitted.width / fitted.height).toBeCloseTo(BIG_SIZE.width / BIG_SIZE.height, 1)
 
-  // Actual size: pixel for pixel, scrolling inside the viewer.
   await actual.click()
   await expect(actual).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(async () => (await viewerImage(page).boundingBox())?.width).toBe(BIG_SIZE.width)
@@ -123,7 +116,6 @@ test('double-clicking a preview image opens the viewer, fitted to the window', a
     }),
   ).toBe(true)
 
-  // Clicking the image switches back.
   await viewerImage(page).click()
   await expect(fit).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(async () => (await viewerImage(page).boundingBox())?.width).toBe(fitted.width)
@@ -135,7 +127,6 @@ test('the viewer keeps the keyboard, and Escape gives it back', async ({ page })
   await preview(page).locator('img').dblclick()
   await expect(viewer(page)).toBeVisible()
 
-  // Tab goes round the viewer's controls only.
   const insideViewer = () =>
     page.evaluate(() => {
       const d = globalThis as unknown as {
@@ -147,7 +138,6 @@ test('the viewer keeps the keyboard, and Escape gives it back', async ({ page })
     await page.keyboard.press('Tab')
     expect(await insideViewer()).toBe(true)
   }
-  // Space on the focused zoom button switches to the actual size.
   await viewer(page).getByRole('button', { name: 'Actual Size' }).focus()
   await page.keyboard.press('Space')
   await expect(viewer(page).getByRole('button', { name: 'Actual Size' })).toHaveAttribute(
@@ -159,7 +149,6 @@ test('the viewer keeps the keyboard, and Escape gives it back', async ({ page })
   await expect(viewer(page)).toBeHidden()
   await expect(preview(page)).toBeFocused()
 
-  // Close does the same.
   await preview(page).locator('img').dblclick()
   await viewer(page).getByRole('button', { name: 'Close' }).click()
   await expect(viewer(page)).toBeHidden()
@@ -193,10 +182,8 @@ test('the image menu copies and saves an attachment, and sets its size', async (
   await pickMenuItem(page, 'Small', 'Size')
   await expect(body(page)).toHaveText(`Before ![Shot w:240](${FILE}) after`)
   await expect(img).toHaveClass('image-size-small')
-  // The image still loads from the attachment's own address.
   await expect(img).toHaveAttribute('src', FILE)
 
-  // The menu shows the size it has now; Auto takes it off again.
   await img.click({ button: 'right' })
   await expect.poll(() => popups(page)).toBe(before + 2)
   expect(await shownMenu(page)).toContain('  Small [x]')
@@ -226,7 +213,6 @@ test('size presets show in the preview and stay in the Markdown', async ({ page 
   await expect.poll(() => width(0)).toBeCloseTo(240, 0)
   expect(await width(1)).toBeCloseTo(article.width / 2, 0)
   expect(await width(2)).toBeCloseTo(article.width, 0)
-  // Auto: its own size, no wider than the page.
   expect(await width(3)).toBeCloseTo(article.width, 0)
   for (let i = 0; i < 4; i += 1) await expect(imgs.nth(i)).toHaveAttribute('src', BIG)
 })
@@ -250,7 +236,6 @@ test('a remote image offers only its size, and one without a destination nothing
   await showMode(page, 'Edit')
   await expect(body(page)).toContainText(`![Big w:100%](${BIG})`)
 
-  // A reference image has no size of its own and no attachment: no menu.
   await showMode(page, 'Preview')
   await preview(page).locator('img').nth(1).click({ button: 'right' })
   await page.waitForTimeout(200)
@@ -262,8 +247,7 @@ test('attachments show under their lines in the editor, unless turned off', asyn
   await expect(inlineImages(page)).toHaveCount(1)
   await expect(inlineImages(page).locator('img')).toHaveCount(2)
   await expect(inlineImages(page).locator('img').first()).toHaveAttribute('src', FILE)
-  // Under the image's line, above the next one, at its fixed height (so
-  // nothing moves when the image loads or fails).
+  // Fixed height, so nothing moves when the image loads or fails.
   const expectUnderShotLine = async () => {
     const line = (await page.locator('.cm-line').filter({ hasText: 'Shot' }).boundingBox())!
     const block = (await inlineImages(page).boundingBox())!
@@ -275,7 +259,6 @@ test('attachments show under their lines in the editor, unless turned off', asyn
   }
   const first = await expectUnderShotLine()
 
-  // A line added above moves the preview down with its line.
   await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
   await page.keyboard.press('End')
   await page.keyboard.press('Enter')
@@ -305,13 +288,11 @@ test('an image under its line has the image menu', async ({ page }) => {
   await pickMenuItem(page, 'Save Image As…')
   await expect.poll(() => calls(page, 'image_save')).toEqual([{ id: FILE_ID }])
 
-  // Double-click opens the viewer here too.
   await img.dispatchEvent('dblclick', { bubbles: true })
   await expect(viewer(page)).toBeVisible()
   await expect(viewerImage(page)).toHaveAttribute('src', FILE)
   await page.keyboard.press('Escape')
   await expect(viewer(page)).toBeHidden()
-  // The keyboard goes back into the editor.
   await expect(body(page)).toBeFocused()
 })
 
@@ -357,7 +338,6 @@ test('a key the user gives an image command acts on the image at the cursor', as
   await shot.click()
   await page.keyboard.press('ControlOrMeta+Alt+KeyJ')
   await expect(shot).toHaveText(`![Shot w:50%](${FILE})`)
-  // Away from an image it does nothing.
   await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
   await page.keyboard.press('ControlOrMeta+Alt+KeyJ')
   expect(await page.locator('.cm-line').allTextContents()).toEqual([
@@ -376,12 +356,10 @@ test('the palette runs the image commands for the image at the cursor', async ({
   await runFromPalette(page, 'Copy Image')
   await expect.poll(() => calls(page, 'image_copy')).toEqual([{ id: FILE_ID }])
 
-  // Away from an image the palette does not offer them.
   await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
   await page.keyboard.press('Meta+KeyK')
   await field(page).fill('Image Size')
   await expect(commands(page).filter({ hasText: 'Image Size' })).toHaveCount(0)
-  // Escape clears the query first, then closes the palette.
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette(page)).toBeHidden()
@@ -409,7 +387,6 @@ test('the image size bar shows while the caret is in an image and writes the siz
   )
   await bar.getByRole('button', { name: 'Auto' }).click()
   await expect(shot).toHaveText(`![Shot](${FILE})`)
-  // Away from the image it goes.
   await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
   await expect(bar).toBeHidden()
 })

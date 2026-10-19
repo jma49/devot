@@ -2,8 +2,7 @@ import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 import { seedNotes } from './renders'
 
-// A long list renders only the rows near the part that shows; the keyboard,
-// the selection and assistive technology still see the whole list.
+// A long list renders only rows near the visible part; keyboard, selection and assistive tech still see the whole list.
 
 const NOTES = 1000
 

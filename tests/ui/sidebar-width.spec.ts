@@ -1,9 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-// The sidebar's width: 200 px by default, resized from 170 to 500 px by its
-// right edge, kept per window, and giving way to a narrow window only after
-// the note list has shrunk to its minimum.
+// Sidebar width: 200 px default, resized 170 to 500 px by its right edge, kept per window, yielding to a narrow window only after the note list is at its minimum.
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const list = (page: Page) => page.getByRole('region', { name: 'Notes' })
@@ -11,7 +9,6 @@ const handle = (page: Page) => page.getByRole('separator', { name: 'Resize Sideb
 const width = async (page: Page) => (await sidebar(page).boundingBox())?.width
 const listWidth = async (page: Page) => (await list(page).boundingBox())?.width
 
-/** Drags the sidebar's right edge `by` pixels to the right (left when negative). */
 async function dragEdge(page: Page, by: number) {
   const box = await handle(page).boundingBox()
   if (!box) throw new Error('no resize handle')

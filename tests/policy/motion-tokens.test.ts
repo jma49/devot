@@ -3,9 +3,7 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { isColorChecked } from '../support/policy-patterns'
 
-// Motion comes from the design tokens too: durations, easing curves and the
-// scales a pop-up grows from and shrinks to are `--motion-*` tokens, never
-// literals, and Reduce Motion turns every scale off (pop-ups only fade).
+// Motion comes from `--motion-*` tokens, never literals; Reduce Motion turns every scale off (pop-ups only fade).
 const UI_ROOT = 'src/renderer/src'
 
 function files(dir: string): string[] {
@@ -19,7 +17,6 @@ const EASING = /\bease(-in|-out|-in-out)?\b|cubic-bezier\(/
 const TIME = /(?<![\w.-])(?!0m?s\b)\d*\.?\d+m?s\b/
 const MOTION = /\b(transition|animation)/
 
-/** A line that writes a duration or easing curve as a literal. */
 function hasMotionLiteral(line: string): boolean {
   const code = line.replace(/\/\*.*?\*\/|\/\/.*$/g, '')
   return (

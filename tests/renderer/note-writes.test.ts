@@ -15,7 +15,6 @@ function storage(): SqliteAdapter {
   return adapter
 }
 
-/** Lets the writes completed so far be reported. */
 const reported = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('reportingNoteWrites', () => {

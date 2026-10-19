@@ -1,5 +1,3 @@
-// The Rebuild Search Index flow: what the notice is told, and that the lists
-// and the current search are reloaded after a rebuild.
 import { beforeEach, expect, it, vi } from 'vitest'
 import { invoke } from '../../src/renderer/src/ipc'
 import { rebuildSearchIndex, type RebuildState } from '../../src/renderer/src/searchIndex'

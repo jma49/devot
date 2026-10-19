@@ -75,7 +75,6 @@ test('a query typed key by key counts as one search', async ({ page }) => {
   // The count comes once the results have settled (a second after the last
   // key): poll for it instead of guessing how long a loaded machine takes.
   await expect.poll(searches).toEqual(one)
-  // And no second one follows: one more settle window, then still one.
   await page.waitForTimeout(1500)
   expect(await searches()).toEqual(one)
 })

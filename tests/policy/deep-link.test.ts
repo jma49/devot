@@ -4,7 +4,7 @@ import { COMMANDS } from '../../src/renderer/src/commands/registry'
 
 const rust = readFileSync('src-tauri/src/deep_link.rs', 'utf8')
 
-/** The window's list, as written in deepLink.ts (read as text: it is UI code). */
+/** deepLink.ts's list, read as text (it is UI code). */
 const URL_COMMANDS = [
   ...(
     readFileSync('src/renderer/src/deepLink.ts', 'utf8').match(
@@ -13,10 +13,8 @@ const URL_COMMANDS = [
   ).matchAll(/'([^']+)'/g),
 ].map((m) => m[1] ?? '')
 
-/** A `&str` constant of deep_link.rs. */
 const rustConst = (name: string) => rust.match(new RegExp(`const ${name}: &str = "([^"]*)"`))?.[1]
 
-/** The schemes a Tauri config registers with macOS. */
 function schemes(file: string): unknown {
   const config = JSON.parse(readFileSync(file, 'utf8')) as {
     plugins?: { 'deep-link'?: { desktop?: { schemes?: unknown } } }

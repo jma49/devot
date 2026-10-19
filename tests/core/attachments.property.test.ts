@@ -5,13 +5,9 @@ import { createClock, createIdGenerator, createNoteService, fileUri } from '../.
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Purging notes deletes exactly the attachments they owned that no other
-// note left (live or in the Trash) shows; each of the others passes to a
-// note that shows it, a live one first, then the smallest ID. Checked after
-// every purge and every Empty Trash, whatever sequence of attaching,
-// editing, trashing, restoring and purging led there: so a purge never
-// deletes an attachment a note left shows, and none is left to a purged
-// note.
+// Purging notes deletes exactly the attachments they owned that no other note left (live or in the Trash)
+// shows; each other passes to a note that shows it (live first, then smallest ID). Checked after every
+// purge and Empty Trash, whatever sequence led there.
 
 const NOTES = 4
 const FILES = [1, 2, 3, 4, 5].map((n) => `0192a6f0-0000-7000-8000-00000000f00${n}`)
@@ -75,9 +71,8 @@ const ownersIn = (storage: SqliteAdapter) =>
   )
 
 /**
- * Who owns each attachment once the notes in `purging` are purged: an
- * attachment of one of them passes to the first note left that shows it (a
- * live one first, then by ID), or is deleted.
+ * Owners once `purging` is purged: an attachment passes to the first remaining note that shows it
+ * (live first, then by ID), or is deleted.
  */
 function expectedOwners(before: Map<string, string>, notes: NoteRow[], purging: Set<string>) {
   const left = notes
@@ -111,7 +106,6 @@ describe('attachments', () => {
           const ids: string[] = []
           for (let i = 0; i < NOTES; i++) ids.push(await notes.create(`Note ${i}`))
           const attached = new Set<string>()
-          /** Purges the notes in the Trash that `chosen` picks, checking the owners after. */
           const purgeChecked = async (
             chosen: (id: string) => boolean,
             purge: () => Promise<unknown>,
@@ -157,7 +151,6 @@ describe('attachments', () => {
                 ),
                 ...step.near.map((f, i) => nearMiss(FILES[f] as string, i + step.note)),
               ].join(' ')
-              // Only a live note can be edited.
               const edited = await notes
                 .setBody(id, body)
                 .then(() => true)
@@ -170,7 +163,6 @@ describe('attachments', () => {
             }
           }
 
-          // No attachment is left to a purged note.
           const purged = new Set(
             notesIn(storage)
               .filter((n) => n.purged)

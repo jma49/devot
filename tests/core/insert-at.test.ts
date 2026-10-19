@@ -20,7 +20,6 @@ function services(saveDelayMs = 5) {
   return { storage, notes }
 }
 
-/** An editor's replica of a note, as the window holds it. */
 async function replicaOf(notes: ReturnType<typeof services>['notes'], id: string) {
   const opened = await notes.open(id)
   const doc = new Y.Doc()
@@ -28,7 +27,6 @@ async function replicaOf(notes: ReturnType<typeof services>['notes'], id: string
   return { doc, text: doc.getText(BODY) }
 }
 
-/** Where `index` is in the replica, as the window sends it. */
 const anchorAt = (text: Y.Text, index: number) =>
   Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(text, index, -1))
 
@@ -38,7 +36,6 @@ describe('inserting text at a position the editor remembered', () => {
     const id = await notes.create('Note')
     await notes.setBody(id, 'Hello world')
     const { text } = await replicaOf(notes, id)
-    // The window remembers the position after "Hello ".
     const anchor = anchorAt(text, 6)
 
     // Text typed before it moves it; text typed at it stays after it.

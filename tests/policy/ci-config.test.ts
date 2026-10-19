@@ -5,22 +5,19 @@ import { expect, it } from 'vitest'
 import { gitIn } from '../support/git-files'
 import { tempDir } from '../support/temp-dirs'
 
-// The documented gate must be the real one: `pnpm check` runs what CI runs,
-// CI keeps its evidence, and the local hooks cover the formatting CI checks.
+// The documented gate must be the real one: `pnpm check` runs what CI runs.
 
 const read = (path: string) => readFileSync(path, 'utf8')
 const scripts = (JSON.parse(read('package.json')) as { scripts: Record<string, string> }).scripts
 const workflow = read('.github/workflows/ci.yml')
 const lefthook = read('lefthook.yml')
 
-/** The text of one top-level job of ci.yml. */
 function job(name: string): string {
   const match = new RegExp(`^ {2}${name}:\\n((?: {4,}.*\\n|\\n)*)`, 'm').exec(workflow)
   if (!match) throw new Error(`ci.yml has no job ${name}`)
   return match[1] ?? ''
 }
 
-/** The `run:` commands of a job, split at `&&`. */
 function commands(text: string): string[] {
   return [...text.matchAll(/^\s*(?:-\s+)?run:\s*(.+)$/gm)].flatMap((m) =>
     (m[1] ?? '').split('&&').map((c) => c.trim()),
@@ -33,7 +30,6 @@ it('pnpm check runs the dependency audit', () => {
 })
 
 it('every pnpm step of the CI web jobs is a step of pnpm check', () => {
-  // The web check runs in two jobs: the quick checks, and the UI tests split into shards.
   const steps = commands(job('web-checks') + job('ui'))
     .filter((c) => c.startsWith('pnpm ') && !/^pnpm (install|exec|ui:build)\b/.test(c))
     .map((c) => c.replace(/^pnpm /, '').split(' ')[0] ?? '')
@@ -56,8 +52,7 @@ it('every cargo step of the CI rust job is a step of pnpm rust:check', () => {
 it('a pull request without web changes still gets a policy run with all of Vitest', () => {
   const trigger = workflow.slice(0, workflow.indexOf('\njobs:'))
   expect(trigger).not.toMatch(/paths-ignore/)
-  // Vitest also reads Rust sources, migrations and capabilities, so a change
-  // that needs only the Rust job still runs all of it.
+  // Vitest also reads Rust sources, migrations and capabilities, so a Rust-only change still runs all of it.
   expect(commands(job('policy'))).toEqual(
     expect.arrayContaining(['pnpm format:check', 'pnpm test']),
   )
@@ -74,9 +69,8 @@ it('every job runs unless the change detection said it is not needed', () => {
 })
 
 it('the web check fails when the quick checks, a UI shard or the change detection fails', () => {
-  // `web` is a required check: it sums up the jobs that do the work, and
-  // runs even when they were skipped, so a skipped job cannot read as passing
-  // a failed one.
+  // `web` is a required check that sums up the jobs and runs even when they were skipped,
+  // so a skipped job cannot read as passing a failed one.
   const web = job('web')
   expect(web).toMatch(/^ {4}needs: \[changes, web-checks, ui\]$/m)
   expect(web).toMatch(/^ {4}if: \$\{\{ always\(\) \}\}$/m)
@@ -104,8 +98,7 @@ it('CI runs on every pull request and by hand, with no label gate', () => {
   expect(trigger).toMatch(/^ {2}pull_request:\n {4}types: \[opened, synchronize, reopened\]$/m)
   expect(trigger).toMatch(/^ {2}workflow_dispatch:/m)
   expect(workflow).not.toMatch(/labels?\b/)
-  // The first job decides what runs; a condition on it would skip every job,
-  // and a skipped required check reads as passing.
+  // The first job decides what runs; a condition on it would skip every job, and a skipped required check reads as passing.
   expect(job('changes')).not.toMatch(/^ {4}if:/m)
   const concurrency = /concurrency:\n((?: {2}.*\n)+)/.exec(workflow)?.[1] ?? ''
   expect(concurrency).toContain('group: ci-${{ github.ref }}\n')
@@ -121,9 +114,7 @@ it('Playwright traces are uploaded unless the run was cancelled', () => {
   expect(ui).toContain('name: playwright-results-${{ matrix.shard }}')
 })
 
-// A tiny stand-in for lefthook's glob matcher (gobwas): `**` crosses
-// folders, `*` does not, `/**/` needs a folder between the slashes, and
-// `{a,b}` matches either.
+// Stand-in for lefthook's glob matcher (gobwas): `**` crosses folders, `*` does not, `/**/` needs a folder, `{a,b}` is either.
 function globMatches(glob: string, path: string): boolean {
   const source = glob.replace(/\*\*|\*|\{|\}|,|[.+^$()|[\]\\]/g, (m) =>
     m === '**'
@@ -163,7 +154,6 @@ it('the development guide lists the audit script', () => {
   expect(read('docs/development.md')).toContain('pnpm deps:audit')
 })
 
-// scripts/ci/changed-code.sh decides which CI jobs a pull request needs.
 function changedCode(files: string[]): string {
   return execFileSync('sh', ['scripts/ci/changed-code.sh'], {
     input: files.join('\n') + '\n',
@@ -206,7 +196,6 @@ it('changed-code.sh runs both jobs when anything else changes', () => {
   expect(changedCode(['.github/workflows/ci.yml'])).toBe('web=true rust=true')
   expect(changedCode(['tests/policy/ci-config.test.ts'])).toBe('web=true rust=true')
   expect(changedCode(['package.json'])).toBe('web=true rust=true')
-  // Design tokens compile into the UI's CSS.
   expect(changedCode(['design/tokens/base.tokens.json'])).toBe('web=true rust=true')
 })
 
@@ -240,7 +229,6 @@ it('the changes job lists both paths of a rename, so code moved into docs is sti
   expect(changedCode(names.split('\n').filter(Boolean))).toBe('web=true rust=true')
 })
 
-/** The globs of one pre-push job in lefthook.yml. */
 function pushGlobs(name: string): string[] {
   const push = lefthook.slice(lefthook.indexOf('pre-push:'))
   const block = new RegExp(`- name: ${name}\\n((?: {6}.*\\n)+)`).exec(push)?.[1] ?? ''
@@ -271,7 +259,7 @@ it('the pre-push hook runs the Rust step only for pushes that change Rust or Car
 
 it('the pre-push hook runs the type check and unit tests for code and config, not for docs or images', () => {
   const code = ['src/core/notes.ts', 'src/renderer/src/App.tsx', 'package.json', 'vite.config.ts']
-  // Vitest reads the storage sources, migrations and fixtures to check they match the core.
+  // Vitest reads storage sources, migrations and fixtures to check them against the core.
   const rustRead = ['src-tauri/src/storage/mod.rs', 'src-tauri/migrations/0001_init.sql']
   expect(pushedBy('unit-tests', rustRead)).toEqual(rustRead)
   for (const name of ['typecheck', 'unit-tests']) {

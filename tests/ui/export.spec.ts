@@ -24,7 +24,6 @@ const bookRow = (page: Page, name: string) =>
 const FILE = '0192a6f0-0000-7000-8000-00000000f001'
 const BODY = `# Plan\n\n![Board](devot://file/${FILE})\n\n> [!NOTE]\n> Check.\n`
 const DIAGRAM = '```mermaid\ngraph TD\n  Start --> Finish\n```\n'
-/** The same attachment again, at a size preset. */
 const SIZED = `![Half](devot://file/${FILE}#half)\n`
 
 async function createNote(page: Page, title: string, text: string) {
@@ -38,7 +37,6 @@ async function createNote(page: Page, title: string, text: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
-/** Answers for the export commands, as Rust would give them. */
 async function mockExport(page: Page, mocks: Record<string, unknown> = {}) {
   await page.evaluate((more) => {
     const w = globalThis as unknown as TestWindow
@@ -71,7 +69,6 @@ async function pickFromNoteMenu(page: Page, title: string, item: string) {
   await pickMenuItem(page, item)
 }
 
-/** A note's ID, from its menu's Copy Note ID. */
 async function noteId(page: Page, title: string): Promise<string> {
   const before = (await clipboardWrites(page)).length
   await pickFromNoteMenu(page, title, 'Copy Note ID')
@@ -114,7 +111,7 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
   await createNote(page, 'Plan', `${BODY}\n${SIZED}\n${DIAGRAM}`)
   await mockExport(page, { export_begin: { id: 3, fileName: 'Plan.html' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as HTML…')
-  // The diagram is drawn first (Mermaid loads on first use).
+  // Draw the diagram first: Mermaid loads on first use.
   await expect
     .poll(async () => (await calls(page, 'export_finish')).length, { timeout: 20_000 })
     .toBe(1)
@@ -130,7 +127,6 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
   expect(html.startsWith('<!doctype html>')).toBe(true)
   expect(html).toContain('<title>Plan</title>')
   expect(html).toContain("default-src 'none'")
-  // The design tokens and the preview's rules come along.
   expect(html).toMatch(/--color-text-primary: [^;]+;/)
   expect(html).toContain('.alert .alert-title')
   expect(html).toContain('<article class="preview"><h1 id="plan">Plan</h1>')
@@ -139,7 +135,6 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
   )
   expect(html).toMatch(/<div class="island island-mermaid"><svg[^>]*>/)
   expect(html).not.toMatch(/<script|data-source-line|data-devot-island/)
-  // One placeholder for the attachment, at whatever size it shows; sized as the preview.
   expect(args.images).toHaveLength(1)
   const [image] = args.images as { placeholder: string; fileId: string }[]
   expect(image?.fileId).toBe(FILE)
@@ -236,7 +231,6 @@ test('a page to print loads nothing from the web: its images from there print as
       )
       expect(html).toContain(`<a href="${remote}">Pixel</a>`)
       expect(html).not.toContain(`src="${remote}"`)
-      // The attachment still prints (Rust puts it in).
       expect(images.map((i) => i.fileId)).toEqual([FILE])
       // Laid out in a web view of its own, as Rust prints it.
       const view = await context.newPage()
@@ -246,7 +240,6 @@ test('a page to print loads nothing from the web: its images from there print as
     }
     expect(requests).toBe(0)
 
-    // An exported page keeps the image, to load where it is opened.
     await pickFromNoteMenu(page, 'Plan', 'Export as HTML…')
     await expect.poll(async () => (await calls(page, 'export_write')).length).toBe(1)
     const exported = ((await calls(page, 'export_write'))[0]!.args as { text: string }).text
@@ -277,8 +270,7 @@ test('a cancelled panel writes nothing and shows nothing', async ({ page }) => {
     await mockExport(page, { export_begin: null })
     await pickFromNoteMenu(page, 'Plan', item)
     await expect.poll(async () => (await calls(page, 'export_begin')).length).toBe(1)
-    // The same export again, saved this time: once it is over, the
-    // cancelled one is long over too, and only the second one wrote.
+    // The same export again, saved this time: only the second one wrote (the cancelled one is long over).
     await mockExport(page, { export_begin: { id: 4, fileName: file } })
     await pickFromNoteMenu(page, 'Plan', item)
     await expect
@@ -294,7 +286,6 @@ test('a cancelled panel writes nothing and shows nothing', async ({ page }) => {
   await pickFromNoteMenu(page, 'Plan', 'Print…')
   await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
   await expect.poll(async () => (await calls(page, 'export_pdf')).length).toBe(1)
-  // Then a copy that goes through: both cancelled actions are over by now.
   await pickFromNoteMenu(page, 'Plan', 'Copy as HTML')
   await expect.poll(async () => (await calls(page, 'clipboard_write_html')).length).toBe(1)
   expect((await calls(page, 'note_print')).length).toBe(1)
@@ -308,7 +299,6 @@ test('a failure shows what did not complete, with its code, until dismissed', as
   await pickFromNoteMenu(page, 'Plan', 'Export as Markdown…')
   const notice = page.getByRole('alert')
   await expect(notice).toContainText('The export did not complete (E_EXPORT_WRITE_FAILED).')
-  // The session is closed all the same.
   expect((await calls(page, 'export_finish')).length).toBe(1)
   await notice.getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice).toHaveCount(0)
@@ -411,7 +401,6 @@ test("a notebook's menu exports it with its sub-notebooks, as Markdown or HTML",
     'Inbox.html',
     'Plans/Plan.html',
   ])
-  // Links between the exported notes point at their pages.
   const [inbox, plan] = pages.map((p) => (p as Record<string, string>)['text']!)
   expect(inbox).toContain('<a href="Plans/Plan.html">Plan</a>')
   expect(plan).toContain('<a href="../Inbox.html">Inbox</a>')
@@ -445,7 +434,6 @@ test('Export All Notes writes every notebook as a folder, from the palette and F
     (await calls(page, 'export_write')).map((c) => (c.args as Record<string, string>)['path'])
   expect(await paths()).toContain('Work/Plan.md')
 
-  // File > Export > All Notes as HTML… (Rust sends the format).
   await page.evaluate(() =>
     globalThis.dispatchEvent(new CustomEvent('devot:export-all', { detail: 'html' })),
   )

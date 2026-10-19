@@ -24,7 +24,6 @@ test('the toolbar button enters and leaves focus mode', async ({ page }) => {
   await expect(list).toBeHidden()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Quiet')
 
-  // The editor keeps a reading width in the middle of a wide window.
   const main = await page.getByRole('main').boundingBox()
   const body = await page.locator('.panes').boundingBox()
   expect(main?.width).toBe(1600)
@@ -88,11 +87,9 @@ test('hiding the panes fades them and slides the editor, and Reduce Motion makes
   const full = await widthOf()
 
   await page.keyboard.press('Meta+Shift+KeyD')
-  // The sidebar and the list fade where they were; the editor slides from its place.
   await expect.poll(() => moves('content')).toEqual([expect.stringContaining('translateX(')])
   expect(await moves('sidebar')).toEqual([expect.stringContaining('"opacity":"1"')])
   await expect(sidebar).toBeHidden()
-  // A hidden pane keeps its size, out of the layout.
   expect(await widthOf()).toBe(full)
   await page.keyboard.press('Meta+Shift+KeyD')
   await expect(sidebar).toBeVisible()

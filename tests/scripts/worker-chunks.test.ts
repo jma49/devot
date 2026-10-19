@@ -4,12 +4,8 @@ import { build } from 'vite'
 import { expect, it } from 'vitest'
 import { tempDir } from '../support/temp-dirs'
 
-// The core worker loads some code only when a note needs it (code
-// highlighting, math, emoji) as chunks of its own. Such a chunk must never
-// import the worker's entry chunk: WebKit evaluates the worker's script a
-// second time when a chunk imports it, and that second copy answered every
-// call that reached it with E_CORE_NOT_READY, before the real core could:
-// notes did not open and changes that were made reported failure.
+// A lazy chunk must never import the worker's entry chunk: WebKit then evaluates the worker
+// script a second time, and that copy answers every call with E_CORE_NOT_READY.
 
 const root = join(import.meta.dirname, '../..')
 

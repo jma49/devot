@@ -1,10 +1,7 @@
 import type { Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './fixtures'
 
-// The paste chooser: with Paste URL as Link set to Choose each time, a lone
-// URL goes in as copied and a list of formats opens on it. The highlighted
-// format shows in the URL's place; a page title or a GitHub file is fetched
-// (link_title, github_snippet: mocked here) only once highlighted.
+// The highlighted format shows in the URL's place; a page title or hosted file is fetched (mocked: link_title, github_snippet) only once highlighted.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const line = (page: Page, n: number) => page.locator('.cm-line').nth(n)
@@ -25,7 +22,6 @@ async function newNote(page: Page, text: string) {
   await expect(line(page, 0)).toHaveText(text.split('\n')[0] ?? '')
 }
 
-/** Pastes plain text into the editor, as the system would. */
 async function paste(page: Page, text: string) {
   await body(page).evaluate((el, value) => {
     // This config has no DOM types: the few browser classes used here.
@@ -86,14 +82,12 @@ test('a pasted URL offers its formats; the title is fetched only once highlighte
   ])
   expect(await calls(page, 'link_title')).toBe(0)
 
-  // Highlighted: fetched, loading, then shown in the URL's place.
   await settleList(page)
   await page.keyboard.press('ArrowDown')
   await expect(previewOf(page)).toHaveText('Loading…')
   await expect(previewOf(page)).toHaveText('[Example \\[Docs\\]](https://example.com/docs)')
   expect(await calls(page, 'link_title')).toBe(1)
 
-  // The empty link previews too, without fetching.
   await page.keyboard.press('ArrowDown')
   await expect(previewOf(page)).toHaveText('[](https://example.com/docs)')
   await page.keyboard.press('ArrowUp')
@@ -102,7 +96,6 @@ test('a pasted URL offers its formats; the title is fetched only once highlighte
   await expect(previewOf(page)).toHaveCount(0)
   expect(await calls(page, 'link_title')).toBe(1)
 
-  // One undo step takes back the pick and the paste.
   await page.keyboard.press('ControlOrMeta+z')
   await expect(line(page, 0)).toHaveText('link: ')
 })
@@ -173,7 +166,6 @@ test('Paste URL As… opens the chooser for the clipboard URL', async ({ page })
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = { ...w.devotIpcMocks, clipboard_read_text: 'https://a.example/' }
   })
-  // The default setting pastes an empty link; the command asks.
   await newNote(page, 'go ')
   await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()

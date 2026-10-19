@@ -33,14 +33,11 @@ import { fileURLToPath } from 'node:url'
 
 export type Channel = 'stable' | 'beta'
 
-// N is one digit: as a semver prerelease identifier `beta10` would sort
-// before `beta2`.
+// One digit: as a semver prerelease identifier `beta10` would sort before `beta2`.
 const TAG = /^v(\d+)\.(\d+)\.(\d+)(-beta([1-9]))?$/
-// A version a feed may offer: a release tag's, or one from before tags
-// dropped the dot (`0.9.0-beta.1`).
+// Also accepts the pre-tag form with a dot (`0.9.0-beta.1`).
 const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-beta(?:([1-9])|\.(\d+)))?$/
 
-/** The version a release tag names, without its `v`; throws for any other tag. */
 export function versionFromTag(tag: string): string {
   const match = TAG.exec(tag)
   // No leading zeros: semver refuses them, and the updater compares semver.
@@ -51,10 +48,7 @@ export function versionFromTag(tag: string): string {
   return tag.slice(1)
 }
 
-/**
- * Orders two release versions (as `versionFromTag` gives them, or an older
- * `-beta.N` one from a feed): negative when `a` is older.
- */
+/** Negative when `a` is older; also takes an older `-beta.N` version from a feed. */
 export function compareVersions(a: string, b: string): number {
   const parse = (v: string) => {
     const match = VERSION.exec(v)
@@ -67,11 +61,7 @@ export function compareVersions(a: string, b: string): number {
   return 0
 }
 
-/**
- * Whether a release of `version` should replace the channel's feed (its
- * text, empty when there is none yet): only a newer version does, so a
- * release that finishes after a newer one never takes the feed back.
- */
+/** Only a newer version replaces the feed, so a release finishing after a newer one never takes it back. */
 export function replacesFeed(version: string, feed: string): boolean {
   let current: unknown
   try {
@@ -83,19 +73,12 @@ export function replacesFeed(version: string, feed: string): boolean {
   return compareVersions(version, current) > 0
 }
 
-/** The update channel of a version: beta for a prerelease. */
 export const channelOf = (version: string): Channel => (version.includes('-') ? 'beta' : 'stable')
 
-/**
- * The channel feeds a release of `version` goes in: its own channel's, and
- * for a stable release the beta feed too, so the beta channel offers the
- * newest build of either kind. Each feed still moves only when the release
- * is newer than what it offers (`replacesFeed`).
- */
+/** A stable release goes in the beta feed too, so beta installs get the newest build of either kind. */
 export const feedChannels = (version: string): Channel[] =>
   channelOf(version) === 'stable' ? ['stable', 'beta'] : ['beta']
 
-/** Cargo.toml with `version` in its [package] table; throws when it has none. */
 export function withCargoVersion(toml: string, version: string): string {
   const lines = toml.split('\n')
   const start = lines.indexOf('[package]')
@@ -109,7 +92,6 @@ export function withCargoVersion(toml: string, version: string): string {
   throw new Error('E_RELEASE_CARGO_VERSION_MISSING')
 }
 
-/** package.json with `version`, keeping its layout (two spaces, final newline). */
 export function withPackageVersion(json: string, version: string): string {
   const data = JSON.parse(json) as Record<string, unknown>
   if (typeof data['version'] !== 'string') throw new Error('E_RELEASE_PACKAGE_VERSION_MISSING')
@@ -120,18 +102,12 @@ export function withPackageVersion(json: string, version: string): string {
 export interface FeedInput {
   version: string
   notes: string
-  /** When the release was published. */
   date: Date
-  /** The updater bundle (Devot.app.tar.gz) of the release. */
   url: string
-  /** The bundle's signature (the .sig file's text). */
   signature: string
 }
 
-/**
- * The update feed for Apple Silicon (the only platform Devot ships for), in
- * the format Tauri's updater reads.
- */
+/** Apple Silicon is the only platform Devot ships for. */
 export function updateFeed(input: FeedInput) {
   if (!/^https:\/\//.test(input.url)) throw new Error('E_RELEASE_FEED_URL_INVALID')
   const signature = input.signature.trim()
@@ -144,19 +120,13 @@ export function updateFeed(input: FeedInput) {
   }
 }
 
-/** The lines of a minisign file, which Tauri writes base64-encoded whole. */
 function minisignLines(encoded: string, code: string): string[] {
   const lines = Buffer.from(encoded.trim(), 'base64').toString('utf8').split('\n')
   if (!lines[0]?.startsWith('untrusted comment:') || !lines[1]) throw new Error(code)
   return lines
 }
 
-/**
- * Checks a minisign signature, as Tauri's updater does: `signature` is the
- * .sig file's text and `publicKey` the key the app is built with, both as
- * Tauri writes them (base64 of the minisign file). Throws unless the key's
- * ID matches and both the file's and the trusted comment's signatures hold.
- */
+/** `signature` and `publicKey` are Tauri's base64-wrapped minisign files; throws unless key ID and both signatures match. */
 export function verifySignature(file: Uint8Array, signature: string, publicKey: string): void {
   const key = Buffer.from(minisignLines(publicKey, 'E_RELEASE_PUBKEY_MALFORMED')[1]!, 'base64')
   if (key.length !== 42 || key.toString('latin1', 0, 2) !== 'Ed')

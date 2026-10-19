@@ -1,8 +1,6 @@
 import { expect, test } from './fixtures'
 
-// A library that has never held anything opens with a Getting started
-// notebook: a welcome note and a Markdown example (core/welcome.ts). The
-// tests' libraries start empty unless a test asks for the notes.
+// The tests' libraries start empty unless a test asks for the Getting started notes (core/welcome.ts).
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -28,7 +26,6 @@ test('the example shows a code block with its title and language mark', async ({
   await expect(head).toHaveCount(1)
   await expect(head.locator('svg.code-lang-icon path')).toHaveCount(1)
   await expect(preview.locator('.code-header', { hasText: 'Shell' })).toHaveCount(1)
-  // The picture, the table and the diagram are all there.
   await expect(preview.locator('img').first()).toBeVisible()
   await expect(preview.locator('table')).toHaveCount(1)
   await expect(preview.locator('[data-devot-island="mermaid"]')).toHaveCount(1)

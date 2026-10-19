@@ -9,10 +9,8 @@ import {
   unlocatedImages,
 } from '../../src/core/import'
 
-// markdownFacts skips the parse for Markdown that cannot hold images (in
-// Markdown or as `<img>` tags in raw HTML), front matter or a level-one
-// heading; whatever it skips, it must answer exactly as the functions that
-// always parse.
+// markdownFacts skips the parse for Markdown that cannot hold images, front matter or a level-one
+// heading; whatever it skips, it must answer exactly as the functions that always parse.
 
 const LINES = [
   '# Title',
@@ -28,7 +26,6 @@ const LINES = [
   '=x',
   '---',
   'title: From front matter',
-  // Devot's own block: its title is the note's.
   '# Devot metadata',
   "title: 'Own title'",
   'title: ""',
@@ -56,7 +53,6 @@ const markdown = fc
       maxLength: 12,
     }),
   )
-  // Some start as Devot's own block does, so its title is read too.
   .map(([own, lines]) => (own ? `---\n${EXPORT_HEADER}\n` : '') + lines.join('\n'))
 
 describe('markdownFacts', () => {
@@ -82,7 +78,6 @@ describe('markdownFacts', () => {
       'Own',
     )
     expect(markdownFacts('    # code\n').title('Plan.md')).toBe('Plan')
-    // An image in raw HTML alone is found too.
     const html = '<p><IMG SRC="devot://file/0192a6f0-0000-7000-8000-00000000f003"></p>\n'
     expect(markdownFacts(html).links.map((link) => link.url)).toEqual([
       'devot://file/0192a6f0-0000-7000-8000-00000000f003',

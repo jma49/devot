@@ -15,7 +15,6 @@ test('a note survives a reload', async ({ page }) => {
   await page.keyboard.type('Hello from the editor')
   await expect(body).toContainText('Hello from the editor')
 
-  // Autosave writes the title and the Markdown snapshot after a short pause.
   await expect.poll(() => page.evaluate(savedNotes)).toContain('Hello from the editor')
   await expect.poll(() => page.evaluate(savedNotes)).toContain('Tracer bullet')
 
@@ -63,7 +62,6 @@ test('a long title pasted in is cut to the limit, and the note keeps saving', as
   await expect(title).toHaveValue('x'.repeat(MAX_TITLE_CHARS))
   await page.getByRole('textbox', { name: 'Note body' }).click()
   await page.keyboard.insertText('typed after the paste')
-  // Saved, with the title cut to the limit.
   await expect
     .poll(() =>
       page.evaluate(() =>

@@ -4,7 +4,6 @@ import { expect, test, statusPicker, bookPicker, pickBook } from './fixtures'
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })
-/** A notebook's own row (its treeitem also contains its sub-notebooks). */
 const row = (page: Page, name: string) => book(page, name).locator('> .book-row')
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
@@ -41,7 +40,6 @@ test('creates a notebook, selects it and files new notes there', async ({ page }
   await expect(noteRows(page)).toHaveCount(0)
 
   await createNote(page, 'Plan')
-  // Naming ended when focus moved on; the new note keeps the keyboard.
   await expect(book(page, 'Work')).not.toBeFocused()
   await expect(bookPicker(page)).toHaveAttribute('data-value', /.+/)
   await expect(book(page, 'Work')).toContainText('1')
@@ -83,7 +81,6 @@ test('nests notebooks by dragging and collapses them with the arrow keys', async
   await page.keyboard.press('ArrowRight')
   await expect(book(page, 'Devot')).toBeVisible()
 
-  // Dropping on the section header makes it top level again.
   await row(page, 'Devot').dragTo(page.locator('.section-header', { hasText: 'Notebooks' }))
   await expect(book(page, 'Devot')).toHaveAttribute('aria-level', '1')
 })
@@ -184,18 +181,14 @@ for (const width of [1280, 800]) {
         await box(status),
         await box(page.locator('.title')),
       ]
-      // The picker keeps a normal width, inside the editor, and so does Status.
       expect(p.width).toBeLessThan(300)
       expect(p.x + p.width).toBeLessThanOrEqual(content.x + content.width)
       expect(s.x + s.width).toBeLessThanOrEqual(content.x + content.width)
-      // In the default window Status shares the picker's line; at 800 px the
-      // row is narrower than the two, as it is for any notebook name.
+      // At 800 px the row is narrower than the picker and Status together, as for any notebook name.
       if (width === 1280) expect(Math.abs(s.y - p.y)).toBeLessThan(6)
-      // Its chevron stays inside the picker.
       const chevron = await box(popup.locator('.icon').last())
       expect(chevron.x + chevron.width).toBeLessThanOrEqual(p.x + p.width + 1)
       expect(chevron.width).toBeGreaterThan(0)
-      // Nothing runs out of the window or scrolls it sideways.
       expect(p.x + p.width).toBeLessThanOrEqual(width)
       const scrollWidth = await page.evaluate(
         () =>
@@ -205,18 +198,15 @@ for (const width of [1280, 800]) {
       expect(scrollWidth).toBeLessThanOrEqual(width)
     }
 
-    // The note is in No Notebook; the picker is as wide as its longest option.
     await page.getByRole('button', { name: /All Notes/ }).click()
     await noteRows(page).first().click()
     await expect(picker).toHaveAttribute('data-value', '')
     await detailsStayTight()
 
-    // Moved into the long-named notebook, it shows its full name as a tooltip.
     await pickBook(page, name)
     await expect(picker).toHaveAttribute('title', name)
     await detailsStayTight()
 
-    // The list header shows the name cut off, clear of the toolbar buttons.
     await book(page, 'W{200}').click()
     const headline = header(page)
     await expect(headline).toHaveText(name)

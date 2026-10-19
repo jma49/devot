@@ -25,7 +25,6 @@ async function createNote(page: Page, title: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
-/** The menu's lines without their keys. */
 async function labels(page: Page): Promise<string[]> {
   return (await shownMenu(page)).map((line) =>
     line.replace(/ (?:(?:Cmd|Ctrl|Alt|Shift|Super|CmdOrCtrl)\+)*(?:Backspace|\S\S*)$/, (m) =>
@@ -42,14 +41,12 @@ const popups = (page: Page) =>
       ).length,
   )
 
-/** Opens a menu with `open` and waits until the app has popped it up. */
 async function popUp(page: Page, open: () => Promise<void>) {
   const before = await popups(page)
   await open()
   await expect.poll(() => popups(page)).toBe(before + 1)
 }
 
-/** Moves the open note to the Trash and waits until the Trash count shows it. */
 async function trashOpenNote(page: Page) {
   const before = Number((await row(page, 'Trash').textContent())?.match(/(\d+)$/)?.[1] ?? 0)
   await pickNoteMore(page, 'Move to Trash')
@@ -65,7 +62,6 @@ test.beforeEach(async ({ page }) => {
 test('the Trash row shows Empty Trash only while the Trash has notes, and asks to confirm', async ({
   page,
 }) => {
-  // An empty Trash has nothing to offer: no menu opens.
   const before = await popups(page)
   await row(page, 'Trash').click({ button: 'right' })
   expect(await popups(page)).toBe(before)

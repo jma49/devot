@@ -1,10 +1,6 @@
 import type { Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './fixtures'
 
-// Synced scrolling: in split mode, scrolling either pane brings the
-// other to the same source line. On by default; the palette, the View menu
-// (Rust) and Settings > Preview turn it off.
-
 const SECTIONS = 120
 
 /** The DOM these tests touch (this config has no DOM types). */
@@ -29,7 +25,6 @@ interface PageGlobals {
   requestAnimationFrame(run: () => void): number
 }
 
-/** Sections of different heights in the preview, one source line each part. */
 function longNote(): string {
   const parts: string[] = []
   for (let i = 1; i <= SECTIONS; i += 1) {
@@ -51,16 +46,12 @@ async function openLongNote(page: Page) {
   await page.getByRole('textbox', { name: 'Title' }).fill('Long')
   await page.getByRole('textbox', { name: 'Note body' }).click()
   await page.keyboard.insertText(longNote())
-  // Typing left the editor at the end; start at the top.
   await page.keyboard.press('ControlOrMeta+Home')
   await mode(page, 'Split').click()
   await expect(preview(page).getByRole('heading', { name: `Section ${SECTIONS}` })).toBeAttached()
 }
 
-/**
- * Scrolls the editor (the element that scrolls it) until the line `text`
- * is at its top, as a user's scrolling would, one step per frame.
- */
+/** Scrolls the editor until the line `text` is at its top, one step per frame as a user would. */
 async function scrollEditorTo(page: Page, text: string) {
   await page.evaluate(async (wanted) => {
     const win = globalThis as unknown as PageGlobals
@@ -88,7 +79,6 @@ async function scrollEditorTo(page: Page, text: string) {
   }, text)
 }
 
-/** Scrolls the preview so the heading `name` is at its top. */
 async function scrollPreviewTo(page: Page, name: string) {
   await preview(page)
     .getByRole('heading', { name, exact: true })
@@ -99,7 +89,6 @@ async function scrollPreviewTo(page: Page, name: string) {
     })
 }
 
-/** How far the heading `name` is below the preview's top edge, in pixels. */
 function previewOffset(page: Page, name: string) {
   return preview(page)
     .getByRole('heading', { name, exact: true })
@@ -149,7 +138,6 @@ test('scrolling the editor brings the preview to the same line', async ({ page }
   await expect.poll(() => previewOffset(page, 'Section 87').then(near)).toBe(true)
   await scrollEditorTo(page, '## Section 1')
   await expect.poll(() => previewOffset(page, 'Section 1').then(near)).toBe(true)
-  // The very top and the very bottom line up too.
   await page.locator('[data-devot-part="editor-scroll"]').evaluate((box) => (box.scrollTop = 0))
   await expect.poll(async () => (await scrollTops(page)).preview).toBe(0)
   await page
@@ -218,7 +206,6 @@ test('wheel steps move the preview in the same event, never back, to the matchin
     expect(top).toBeGreaterThan(last)
     last = top
   }
-  // Bring the next heading in the editor to its top with one more wheel step.
   const next = await page.evaluate(() => {
     const win = globalThis as unknown as PageGlobals
     const box = win.document
@@ -243,9 +230,7 @@ test('the preview keeps up while typing above what it shows', async ({ page }) =
   await openLongNote(page)
   await scrollEditorTo(page, '## Section 60')
   await expect.poll(() => previewOffset(page, 'Section 60').then(near)).toBe(true)
-  // A paragraph typed at the top of the editor's view, not at the top of the
-  // note: the preview, rendered anew with a block above what it shows, must
-  // line up with the editor again.
+  // A paragraph typed at the top of the editor view: the preview, rendered anew with a block above, must line up again.
   await page.getByRole('textbox', { name: 'Note body' }).getByText('## Section 60').click()
   await page.keyboard.press('Home')
   await page.keyboard.insertText('Inserted paragraph\n\n')
@@ -253,7 +238,6 @@ test('the preview keeps up while typing above what it shows', async ({ page }) =
     exact: true,
   })
   await expect(inserted).toBeAttached()
-  // The new paragraph sits as far below the top in the preview as in the editor.
   await expect
     .poll(async () => {
       const inEditor = await editorOffset(page, 'Inserted paragraph')
@@ -298,7 +282,6 @@ test('is on by default and turned off and on from the palette', async ({ page })
   await field.fill('synced scrolling')
   await expect(page.getByRole('option', { name: /Turn On Synced Scrolling/ })).toBeVisible()
   await page.keyboard.press('Enter')
-  // Turned on, the preview lines up with the editor at once.
   await expect.poll(() => previewOffset(page, 'Section 50').then(near)).toBe(true)
 })
 
@@ -342,7 +325,6 @@ test('a diagram drawn after the rendering does not leave the preview behind', as
   await page.keyboard.insertText(diagram + '\n\n' + longNote())
   // Without the browser's scroll anchoring, which would hide a missed relayout.
   await page.addStyleTag({ content: '.preview { overflow-anchor: none; }' })
-  // In the editor alone, go to a section below the diagram, then show both.
   await scrollEditorTo(page, '## Section 60')
   await mode(page, 'Split').click()
   await expect(preview(page).locator('.island-mermaid svg')).toBeAttached()

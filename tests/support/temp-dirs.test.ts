@@ -11,6 +11,5 @@ it('removes the folders it made, with what is in them', () => {
   expect(existsSync(a) && existsSync(b)).toBe(true)
   removeTempDirs()
   expect(existsSync(a) || existsSync(b)).toBe(false)
-  // A second run has nothing left to remove.
   expect(() => removeTempDirs()).not.toThrow()
 })

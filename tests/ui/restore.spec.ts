@@ -1,6 +1,4 @@
-// Restoring the last editing state on launch: the library view and its
-// filter, the open note with its selection and scroll position, and the view
-// mode come back after a reload; whatever is gone since is skipped quietly.
+// Restoring the last editing state on launch (library view, open note, selection, scroll, view mode).
 // The caret is placed with clicks only (no platform text-navigation keys).
 import type { Locator, Page } from '@playwright/test'
 import { expect, reloadApp, test, pickNoteMore, pickStatus } from './fixtures'
@@ -29,10 +27,8 @@ const backButton = (page: Page) => page.getByRole('button', { name: 'Back', exac
 const scroller = (page: Page) => page.locator('[data-devot-part="editor-scroll"]')
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 /**
- * The scroll position once it stopped moving. CodeMirror corrects a position
- * set from outside a frame or two later (700 became 728 once its measured
- * line heights settled), so a read right after the set is not the position
- * that is stored: read again after two frames until it holds.
+ * CodeMirror corrects a scroll set from outside a frame or two later (700 became 728),
+ * so read again after two frames until the position holds.
  */
 const settledTop = (target: Locator) =>
   target.evaluate(async (e) => {
@@ -52,7 +48,6 @@ const settledTop = (target: Locator) =>
 const line = (page: Page, text: string) =>
   page.locator('.cm-line').filter({ hasText: new RegExp(`^${text}$`) })
 
-/** Double-clicks the word between `from` and `to` on the line that reads `text`. */
 async function dblclickWord(page: Page, text: string, from: number, to: number) {
   const word = await line(page, text).evaluate(
     (e, [start, end]) => {
@@ -80,7 +75,6 @@ async function dblclickWord(page: Page, text: string, from: number, to: number) 
   await page.mouse.dblclick(word.x, word.y)
 }
 
-/** Lines `line 1` to `line n`, enough to scroll. */
 const longBody = (n: number) => Array.from({ length: n }, (_, i) => `line ${i + 1}`).join('\n')
 
 async function createBook(page: Page, name: string) {
@@ -105,14 +99,12 @@ async function createNote(page: Page, title: string, button = 'New Note') {
     .toContain(`"title":"${title}"`)
 }
 
-/** Replaces the open note's (empty) body with `text`. */
 async function writeBody(page: Page, text: string) {
   await body(page).click()
   await page.keyboard.insertText(text)
   await expect(page.locator('.cm-line').last()).toHaveText(text.split('\n').at(-1) ?? '')
 }
 
-/** The stored state, once it satisfies `ready`. */
 async function storedState(page: Page, ready: (state: Record<string, unknown>) => boolean) {
   let state: Record<string, unknown> = {}
   await expect
@@ -148,17 +140,14 @@ test('a reload restores the view, its filter, the open note, its selection and s
   await modeButton(page, 'Split').click()
   await expect(preview(page)).toBeVisible()
 
-  // Scroll the editor down, then select a word on a line in view.
   await scroller(page).evaluate((e) => {
     e.scrollTop = 900
   })
   await line(page, 'line 60').scrollIntoViewIfNeeded()
   const top = await settledTop(scroller(page))
   expect(top).toBeGreaterThan(300)
-  // Double-click the number: the word selected is the selection kept.
   await dblclickWord(page, 'line 60', 5, 7)
   await expect(body(page)).toBeFocused()
-  // Saved shortly after the selection changes, before the page goes away.
   // "60" on line 60: after lines 1 to 9 (7 characters each with the line
   // break) and 10 to 59 (8 each), and "line ".
   const sixty = { anchor: 9 * 7 + 50 * 8 + 5, head: 9 * 7 + 50 * 8 + 7 }
@@ -178,13 +167,11 @@ test('a reload restores the view, its filter, the open note, its selection and s
   await expect(noteRow(page, 'Long')).toHaveAttribute('aria-selected', 'true')
   await expect(modeButton(page, 'Split')).toHaveAttribute('aria-pressed', 'true')
   await expect(preview(page)).toBeVisible()
-  // The editor had the keyboard: it has it again, at the same place.
   await expect(body(page)).toBeFocused()
   await expect.poll(() => scroller(page).evaluate((e) => e.scrollTop)).toBeCloseTo(top, -1)
   await page.keyboard.insertText('sixty')
   await expect(line(page, 'line sixty')).toHaveCount(1)
   await expect(line(page, 'line 60')).toHaveCount(0)
-  // The restored note is the first entry of Back and Forward's trail.
   await expect(backButton(page)).toBeDisabled()
 })
 
@@ -194,7 +181,6 @@ test('preview mode comes back scrolled where it was, without taking the keyboard
   await page.setViewportSize({ width: 1280, height: 600 })
   await createNote(page, 'Read me')
   await writeBody(page, longBody(150).replace(/\n/g, '\n\n'))
-  // The editor's place is kept too, for when it shows again.
   await scroller(page).evaluate((e) => {
     e.scrollTop = 700
   })
@@ -262,7 +248,6 @@ test('a note deleted meanwhile is skipped quietly, and the view stays', async ({
   const saved = await storedState(page, (s) => typeof openNoteState(s)['id'] === 'string')
   const goneId = openNoteState(saved)['id'] as string
 
-  // Another process (devot-mcp, sync) deletes it while the window is away.
   await page.evaluate((id) => {
     const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
       id: string
@@ -285,11 +270,9 @@ test('a note deleted meanwhile is skipped quietly, and the view stays', async ({
   await expect(noteRows(page)).toHaveText([/^Kept/])
   await expect(titleField(page)).toHaveCount(0)
   await expect(backButton(page)).toBeDisabled()
-  // Nothing was opened, so nothing failed to open.
   expect(warnings.filter((w) => /W_NOTE_OPEN_FAILED|W_LAST_STATE_RESTORE_FAILED/.test(w))).toEqual(
     [],
   )
-  // And it stays skipped.
   await reloadApp(page)
   await expect(noteRows(page)).toHaveText([/^Kept/])
   await expect(titleField(page)).toHaveCount(0)
@@ -328,7 +311,6 @@ test('a note shorter than its stored scroll position still reports and saves typ
   await page.keyboard.press('End')
   await page.keyboard.insertText('def')
   await expect(line(page, 'abcdef')).toHaveCount(1)
-  // The caret after typing is what is kept, and the top line is in the note.
   const after = await storedState(
     page,
     (s) => (openNoteState(s)['selection'] as { head?: number } | undefined)?.head === 6,
@@ -392,7 +374,6 @@ test('the Trash is not restored: the library view before it comes back', async (
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('devot.test.notes') ?? ''))
     .toContain('first second')
-  // Select a word, then go to the Trash at once: the place is kept.
   await dblclickWord(page, 'first second', 0, 5)
   await source(page, 'Trash').click()
   await expect(header(page)).toHaveText('Trash')

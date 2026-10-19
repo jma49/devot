@@ -1,8 +1,5 @@
-// A stand-in for Rust's side of the Markdown mirror (src-tauri/src/mirror.rs)
-// in core tests: the same operations with the same checks, on a real folder,
-// with note bodies and attachments read from the test's SQLite database. It
-// follows the Rust code rule for rule, so the core's plans run against real
-// files; Rust's own tests check the Rust side.
+// Stand-in for Rust's Markdown mirror (src-tauri/src/mirror.rs) in core tests: the same checks on a real folder,
+// with note bodies and attachments read from the test's SQLite database.
 import { createHash, randomUUID } from 'node:crypto'
 import {
   lstatSync,
@@ -35,16 +32,12 @@ const fail = (code: string) => new Error(code)
 /** Whether `error` says a name is taken (Rust's `AlreadyExists`). */
 const taken = (error: unknown) => (error as NodeJS.ErrnoException).code === 'EEXIST'
 
-/** How a file goes in place (Rust's `atomic_file::Place`). */
+/** Rust's `atomic_file::Place`. */
 type Place = 'new' | 'replace'
 
 /**
- * Moves `from` to `to` (Rust's `atomic_file::rename`), whole: the old name
- * goes in the same step, or nothing changes. `new` only where nothing is
- * yet: as Rust does where a rename cannot refuse a taken name itself, a new
- * empty file claims the name first (it fails with EEXIST on any name there,
- * a link included), the rename goes over it, and a rename that fails takes
- * the claim back; `replace` over what is there.
+ * Rust's `atomic_file::rename`. For `new`, a rename cannot refuse a taken name, so an empty file claims it first
+ * (EEXIST on any name, links included); a failed rename releases the claim.
  */
 function moveFile(from: string, to: string, place: Place) {
   if (place === 'replace') return renameSync(from, to)
@@ -58,11 +51,7 @@ function moveFile(from: string, to: string, place: Place) {
   }
 }
 
-/**
- * Writes `data` at `path` through a new temporary file of a random hidden
- * name in its folder, created new (never through a link), then put in place
- * (Rust's `atomic_file::write_unflushed`).
- */
+/** Rust's `atomic_file::write_unflushed`: a random hidden temp file created new (never through a link), then put in place. */
 function writeThroughTemp(dir: string, path: string, data: string | Buffer, place: Place) {
   const partial = join(dir, `.devot-${randomUUID().replaceAll('-', '')}.tmp`)
   writeFileSync(partial, data, { flag: 'wx' })
@@ -77,7 +66,7 @@ function writeThroughTemp(dir: string, path: string, data: string | Buffer, plac
   }
 }
 
-/** Rust's `attachment_name`: the stored name made file-safe, with an extension for its type. */
+/** Rust's `attachment_name`. */
 export function attachmentName(stored: string, mime: string): string {
   const cleaned = [...stored]
     .map((c) => (/[\p{Cc}/\\:]/u.test(c) ? '-' : c))
@@ -111,7 +100,7 @@ export function attachmentName(stored: string, mime: string): string {
   return `${stem}.${[...ext].slice(0, 16).join('')}`
 }
 
-/** Rust's path check: plain, visible, `/`-separated components inside the folder. */
+/** Rust's path check. */
 function plain(path: string): boolean {
   if (!path || Buffer.byteLength(path) > 4096) return false
   return path
@@ -130,27 +119,20 @@ const filePath = (path: string) =>
   plain(path) && path.split('/').length === 2 && path.startsWith('attachments/')
 
 export interface FolderHostLog {
-  /** Paths written (new files, rewrites, copies), in order. */
   written: string[]
-  /** Paths moved, as [from, to]. */
   moved: [string, string][]
-  /** Paths deleted. */
   removed: string[]
   /** Paths files were kept under. */
   kept: string[]
 }
 
 export interface FolderHost extends MirrorHost {
-  /** What the host did to files since the last `clear`. */
   log: FolderHostLog
   clear(): void
-  /** The manifest as the host holds it. */
   manifest(): MirrorManifest
   setFolder(root: string | null): void
   setIncludeAttachments(on: boolean): void
-  /** The code the mirror is paused with, if it is. */
   paused(): string | null
-  /** The size of the files in the manifest, as Settings shows it. */
   size(): number
 }
 
@@ -201,13 +183,12 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
     writeThroughTemp(join(folder!, dir), abs(rel), data, place)
   }
 
-  /** A write or a move to `rel` that met something there: what is in the way. */
+  /** What is in the way of a write or move to `rel`. */
   const inTheWayAt = (rel: string, error: unknown): MirrorResult => {
     if (taken(error)) return { code: 'E_MIRROR_EXISTS', path: rel, state: state(rel) }
     throw error
   }
 
-  /** The first folder on the way to `rel` that is a file or a link (what is in the way). */
   const inTheWay = (rel: string): MirrorResult | null => {
     const parts = rel.split('/')
     for (let i = 1; i < parts.length; i += 1) {
@@ -221,7 +202,6 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
     return null
   }
 
-  /** Makes the folders on the way to `rel`; an error result when one is in the way. */
   const makeFolders = (rel: string): MirrorResult | null => {
     const parts = rel.split('/')
     for (let i = 1; i < parts.length; i += 1) {
@@ -235,7 +215,6 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
     return null
   }
 
-  /** Removes the folders `rel` left empty, up to the mirror's folder. */
   const prune = (rel: string) => {
     const parts = rel.split('/').slice(0, -1)
     while (parts.length > 0) {
@@ -276,14 +255,13 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
   const manifestText = () => JSON.stringify({ version: 1, ...manifest })
   const save = () => writeFile(MANIFEST, manifestText(), 'replace')
 
-  /** A new temporary file of a random name, gone again at once (Rust's `probe_writable`). */
+  /** Rust's `probe_writable`. */
   const probe = (dir: string) => {
     const name = join(dir, `.devot-${randomUUID().replaceAll('-', '')}.tmp`)
     writeFileSync(name, '', { flag: 'wx' })
     unlinkSync(name)
   }
 
-  /** Whether the mirror's folder itself can be written. */
   const writable = () => {
     try {
       probe(folder!)
@@ -385,8 +363,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
           if (target === op.sha256) adopt = true
           else return { code: 'E_MIRROR_EXISTS', path: op.path, state: target }
         }
-        // Without the text, only a file that holds it already can go there:
-        // checked before anything on disk changes.
+        // Without the text only a file that holds it already can go there; checked before anything changes.
         const holdsIt = adopt || (from !== null && fromState === op.sha256)
         if (op.text === undefined && !holdsIt) {
           return { code: 'E_MIRROR_CHANGED', path: op.from ?? op.path, state: fromState }
@@ -507,7 +484,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
       if (paused !== null) {
         generation += 1
         if (dirty && manifest !== null) {
-          // What the last batch did is only in memory: it goes back first.
+          // The last batch is only in memory: it goes back first.
           try {
             save()
           } catch {
@@ -515,7 +492,6 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
           }
           dirty = false
         } else {
-          // The manifest on disk is the one to go on from.
           manifest = null
         }
       }
@@ -540,7 +516,6 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
             throw pause('E_MIRROR_MANIFEST_INVALID')
           }
         }
-        // Loading (or resuming) checks that the folder can be written.
         try {
           probe(folder)
         } catch {

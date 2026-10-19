@@ -8,13 +8,9 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// The appearance (Settings > Appearance): Light, Dark or Match System, the
-// default. A chosen appearance marks the root element (`data-appearance`),
-// and the generated tokens switch with it whatever the system shows. The
-// setting is stored with the editor settings, so a change in the Settings
-// window reaches the main window as `devot:editor-settings-changed`.
+// A chosen appearance marks the root (`data-appearance`) and the generated tokens switch with it whatever the system
+// shows. Stored with the editor settings, so a Settings window change arrives as `devot:editor-settings-changed`.
 
-/** `color.surface.editor` in each appearance. */
 const EDITOR = { light: '#ffffff', dark: '#0a0a0a' } as const
 
 const editorSurface = (page: Page) =>
@@ -69,15 +65,10 @@ test.describe('with the system in dark', () => {
   })
 })
 
-// The theme (Settings > Appearance > Theme): Default, or Ivory, a warm one. A
-// chosen theme marks the root element (`data-theme`); the generated tokens
-// scope each built-in theme by it, so the surfaces change at once, in both
+// A chosen theme marks the root (`data-theme`); the generated tokens scope each built-in theme by it, in both
 // appearances, and the choice reaches every window like the appearance does.
 
-/**
- * The editor pane and the sidebar as painted over the window material
- * (`color.surface.editor-wash` and `sidebar`), per theme and appearance.
- */
+/** The editor pane and sidebar as painted over the window material, per theme and appearance. */
 const SURFACES = {
   default: {
     light: { editor: 'rgba(255, 255, 255, 0.7)', sidebar: 'rgba(255, 255, 255, 0.02)' },

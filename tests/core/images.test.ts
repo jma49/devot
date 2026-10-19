@@ -19,7 +19,6 @@ describe('image size presets in URLs', () => {
     expect(splitImageSize(`${FILE}#half`)).toEqual({ url: FILE, size: 'half' })
     expect(splitImageSize(`${FILE}#full`)).toEqual({ url: FILE, size: 'full' })
     expect(splitImageSize(FILE)).toEqual({ url: FILE, size: 'auto' })
-    // Only the exact words are sizes; anything else stays part of the URL.
     expect(splitImageSize(`${FILE}#Small`)).toEqual({ url: `${FILE}#Small`, size: 'auto' })
     expect(splitImageSize('https://a.test/x.png#auto')).toEqual({
       url: 'https://a.test/x.png#auto',
@@ -98,10 +97,8 @@ describe('image Markdown', () => {
     expect(setImageMarkdownSize('![a [b]](<x y.png#half> "T")', 'small')).toBe(
       '![a [b] w:240](<x y.png> "T")',
     )
-    // A custom size gives way to the preset; auto removes it.
     expect(setImageMarkdownSize('![a w:320 h:240](x.png)', 'half')).toBe('![a w:50%](x.png)')
     expect(setImageMarkdownSize('![a width:200px](x.png)', 'auto')).toBe('![a](x.png)')
-    // Already that size: unchanged, fragment and all.
     expect(setImageMarkdownSize(`![Shot](${FILE}#small)`, 'small')).toBe(`![Shot](${FILE}#small)`)
     expect(setImageMarkdownSize('![x][ref]', 'small')).toBeNull()
   })
@@ -148,7 +145,6 @@ describe('image Markdown', () => {
           size,
           dimensions: null,
         })
-        // Writing the same size again changes nothing.
         expect(setImageMarkdownSize(written, size)).toBe(written)
       }
     }
@@ -166,14 +162,12 @@ describe('sizes in the alt text', () => {
     expect(parseImageMarkdown(`![clip w:50%](${FILE})`)).toMatchObject({ size: 'half' })
     expect(parseImageMarkdown(`![clip w:100%](${FILE})`)).toMatchObject({ size: 'full' })
     expect(parseImageMarkdown(`![clip width:100%](${FILE})`)).toMatchObject({ size: 'full' })
-    // The alt text wins over an old fragment.
     expect(parseImageMarkdown(`![clip w:240](${FILE}#full)`)).toMatchObject({ size: 'small' })
   })
 
   it('reads Small as 240 px wide, whichever way it is written', () => {
     expect(parseImageMarkdown(`![clip w:240px](${FILE})`)).toMatchObject({ size: 'small' })
     expect(parseImageMarkdown(`![clip width:240](${FILE})`)).toMatchObject({ size: 'small' })
-    // Any other width is a size of its own, not a preset.
     expect(parseImageMarkdown(`![clip w:30%](${FILE})`)).toMatchObject({
       size: 'auto',
       dimensions: { width: '30%' },
@@ -191,9 +185,7 @@ describe('sizes in the alt text', () => {
     for (const unit of ['%', 'px', 'pt', 'pc', 'in', 'cm', 'mm', 'em', 'ex', 'ch']) {
       expect(splitAltSize(`x w:3${unit}`)).toEqual({ name: 'x', dimensions: { width: `3${unit}` } })
     }
-    // Upper case keys and units read too; the last word for a side wins.
     expect(splitAltSize('x W:10PX w:20px')).toEqual({ name: 'x', dimensions: { width: '20px' } })
-    // A custom size is no preset.
     expect(parseImageMarkdown(`![a w:320 h:240](${FILE})`)).toMatchObject({
       alt: 'a',
       size: 'auto',

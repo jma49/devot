@@ -7,8 +7,7 @@ import {
   type PreviewLabels,
 } from '../../src/core'
 
-// Synced scrolling maps editor lines to preview blocks: every block the
-// preview shows carries the source line it starts on, as `data-source-line`.
+// Every block the preview shows carries the source line it starts on, as `data-source-line`.
 
 const labels: PreviewLabels = {
   alerts: {

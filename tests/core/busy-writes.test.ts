@@ -30,10 +30,7 @@ db.exec('COMMIT')
 db.close()
 `
 
-/**
- * Starts another writer on `path`; resolves once it holds the lock, with
- * its commit (in an object: an async function would wait for a promise).
- */
+/** Starts another writer on `path`; resolves once it holds the lock, with its commit (in an object: an async function would wait for a promise). */
 async function anotherWriter(path: string): Promise<{ committed: Promise<void> }> {
   const module = createRequire(import.meta.url).resolve('better-sqlite3')
   const worker = new Worker(HOLDER, { eval: true, workerData: { module, path, hold: HOLD_MS } })

@@ -38,7 +38,6 @@ describe('release versions', () => {
       'v0.9.1-beta01',
       // One digit only: `beta10` would sort before `beta2`.
       'v0.9.1-beta10',
-      // The old form, from before tags dropped the dot.
       'v0.9.0-beta.1',
       'updater',
       '',
@@ -71,7 +70,6 @@ describe('release versions', () => {
     expect(() => withCargoVersion('[package]\nname = "x"\n[lib]\nversion = "1"', '1.0.0')).toThrow(
       'E_RELEASE_CARGO_VERSION_MISSING',
     )
-    // The real file has a version to replace.
     const real = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8')
     expect(withCargoVersion(real, '0.3.0-beta.1')).toContain('\nversion = "0.3.0-beta.1"\n')
   })
@@ -112,22 +110,18 @@ describe('feed order', () => {
     expect(replacesFeed('0.9.1-beta2', feed)).toBe(true)
     expect(replacesFeed('0.9.1-beta1', feed)).toBe(false)
     expect(replacesFeed('0.9.0', feed)).toBe(false)
-    // A feed written before tags dropped the dot.
     const old = JSON.stringify({ version: '0.9.0-beta.1' })
     expect(replacesFeed('0.9.1-beta1', old)).toBe(true)
     expect(replacesFeed('0.8.9-beta1', old)).toBe(false)
-    // No feed yet, an empty file, or one without a version.
     expect(replacesFeed('0.3.0-beta.1', '')).toBe(true)
     expect(replacesFeed('0.3.0-beta.1', '{}')).toBe(true)
     expect(replacesFeed('0.3.0-beta.1', '{"version":"latest"}')).toBe(true)
   })
 
   it('puts a stable release in the beta feed too', () => {
-    // A beta install reads beta.json, so it is offered the newest build of
-    // either kind; a stable install never gets a beta.
+    // A beta install reads beta.json and gets the newest build of either kind; a stable install never gets a beta.
     expect(feedChannels('1.0.0')).toEqual(['stable', 'beta'])
     expect(feedChannels('1.0.0-beta3')).toEqual(['beta'])
-    // The beta feed moves only when the stable release is newer than it.
     expect(replacesFeed('1.0.0', JSON.stringify({ version: '1.0.0-beta5' }))).toBe(true)
     expect(replacesFeed('1.0.0', JSON.stringify({ version: '1.0.1-beta1' }))).toBe(false)
   })
@@ -210,7 +204,6 @@ describe('update feed', () => {
 })
 
 describe('update signatures', () => {
-  /** A key pair and its public key as Tauri writes it (base64 of the minisign file). */
   function keyPair(id: number) {
     const { publicKey, privateKey } = generateKeyPairSync('ed25519')
     const keyId = Buffer.alloc(8)
@@ -221,7 +214,7 @@ describe('update signatures', () => {
     return { pub, privateKey, keyId }
   }
 
-  /** A .sig as Tauri writes it: a prehashed minisign signature, base64 whole. */
+  /** A prehashed minisign signature, base64 whole, as Tauri writes it. */
   function signature(file: Buffer, privateKey: KeyObject, keyId: Buffer, trusted = 'file:x') {
     const body = sign(null, createHash('blake2b512').update(file).digest(), privateKey)
     const global = sign(null, Buffer.concat([body, Buffer.from(trusted)]), privateKey)

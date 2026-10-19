@@ -1,13 +1,10 @@
-// Release builds and Sentry uploads: which settings turn uploads on, where the
-// app's debug symbols are, and the checks that keep source maps and the UI
-// tests' storage out of the app bundle. Used by ui.ts (before Tauri compiles
-// the app) and debug-files.ts (before it bundles the app).
+// Release-build Sentry upload settings, debug-symbol lookup, and checks that keep source maps
+// and UI-test storage out of the app bundle.
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
 export type Env = Record<string, string | undefined>
 
-/** All three turn uploads on; they come from the environment or `.env.local`. */
 export const UPLOAD_SETTINGS = ['SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJECT'] as const
 
 export interface Upload {
@@ -16,12 +13,7 @@ export interface Upload {
   project: string
 }
 
-/**
- * The upload settings for a release build, or none: uploads need the token,
- * the organisation and the project. Some but not all of them is a mistake,
- * which stops the build instead of skipping the upload unnoticed. Debug
- * builds (`tauri build --debug`) never upload.
- */
+/** Some but not all settings is a mistake: it stops the build instead of skipping the upload. Debug builds never upload. */
 export function uploadSettings(env: Env): Upload | undefined {
   if (env['TAURI_ENV_DEBUG'] === 'true') return undefined
   const [token = '', org = '', project = ''] = UPLOAD_SETTINGS.map((k) => env[k]?.trim() ?? '')
@@ -35,7 +27,7 @@ export function uploadSettings(env: Env): Upload | undefined {
   return { token, org, project }
 }
 
-/** The environment sentry-cli gets: the settings travel here, never as arguments. */
+/** The settings travel in the environment, never as arguments. */
 export function cliEnv(upload: Upload): Env {
   return {
     ...process.env,
@@ -45,11 +37,7 @@ export function cliEnv(upload: Upload): Env {
   }
 }
 
-/**
- * The app's version: `version` in src-tauri/Cargo.toml's [package] table.
- * Rust reports it, and Tauri gives it to the UI and the app bundle, since
- * tauri.conf.json names none.
- */
+/** `version` in src-tauri/Cargo.toml's [package] table; tauri.conf.json names none. */
 export function appVersion(root: string): string {
   const lines = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8').split('\n')
   const start = lines.indexOf('[package]')
@@ -61,16 +49,13 @@ export function appVersion(root: string): string {
   throw new Error('E_APP_VERSION_MISSING: src-tauri/Cargo.toml names no package version')
 }
 
-/** `devot@<version>`, the release name the app reports, from Rust and from the UI. */
 export function releaseName(root: string): string {
   return `devot@${appVersion(root)}`
 }
 
 /**
- * When the build in `release` (a `target/.../release` folder) was made: the
- * newest of its binary and the DWARF file inside its dSYM, which every build
- * rewrites (the dSYM folder itself keeps the time of the build that first
- * made it). -1 when it has no dSYM.
+ * Newest of the binary and the dSYM's DWARF file (the dSYM folder keeps the time of the build
+ * that first made it); -1 without a dSYM.
  */
 function builtAt(release: string): number {
   const dsym = join(release, 'devot.dSYM')
@@ -84,11 +69,8 @@ function builtAt(release: string): number {
 }
 
 /**
- * The dSYM folders of the release build Tauri has just compiled. Tauri names
- * the target triple even without `--target`, so the build made last in
- * `target/<triple>/release` and `target/release` is the one; a universal
- * build has one per architecture. A missing folder is still listed, so the
- * caller can name it.
+ * Tauri names the target triple even without `--target`, so the newest of `target/<triple>/release`
+ * and `target/release` is the build. A missing folder is still listed so the caller can name it.
  */
 export function dsymPaths(root: string, env: Env): string[] {
   const target = env['CARGO_TARGET_DIR'] || join(root, 'src-tauri/target')
@@ -102,7 +84,6 @@ export function dsymPaths(root: string, env: Env): string[] {
   return [builtAt(release(triple)) > builtAt(release('')) ? dsym(triple) : dsym('')]
 }
 
-/** Every file under `dir`, relative to it, with forward slashes. */
 function files(dir: string): string[] {
   return readdirSync(dir, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
@@ -110,18 +91,15 @@ function files(dir: string): string[] {
 }
 
 const isMap = (file: string) => file.endsWith('.map')
-// A `//# sourceMappingURL=` comment line (or its CSS form, or the old `//@`).
 const MAP_COMMENT = /^[ \t]*(?:\/\/|\/\*)[#@][ \t]*sourceMappingURL=/m
 const TEXT = /\.(?:[cm]?js|css|html)$/
 
-/** Deletes every source map under `dir`; returns their paths relative to it. */
 export function removeSourceMaps(dir: string): string[] {
   const maps = files(dir).filter(isMap)
   for (const map of maps) rmSync(join(dir, map))
   return maps
 }
 
-/** Files under `dir` that are a source map or point to one. */
 export function sourceMapLeaks(dir: string): string[] {
   return files(dir).filter(
     (file) =>
@@ -130,14 +108,11 @@ export function sourceMapLeaks(dir: string): string[] {
 }
 
 /**
- * What every key of the UI tests' in-memory storage starts with
- * (src/renderer/src/storage/memory.ts): a bundle that holds one carries
- * that storage, which keeps notes where neither backups nor devot-mcp see
- * them.
+ * Key prefix of the UI tests' in-memory storage (src/renderer/src/storage/memory.ts); a bundle
+ * holding it would keep notes where backups and devot-mcp don't see them.
  */
 export const TEST_STORAGE_MARKER = 'devot.test.'
 
-/** Built files under `dir` that hold the UI tests' in-memory storage. */
 export function testStorageLeaks(dir: string): string[] {
   return files(dir).filter(
     (file) =>
@@ -145,7 +120,6 @@ export function testStorageLeaks(dir: string): string[] {
   )
 }
 
-/** The value after `--name` in the arguments. */
 export function argument(name: string): string | undefined {
   const i = process.argv.indexOf(name)
   return i === -1 ? undefined : process.argv[i + 1]

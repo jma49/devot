@@ -16,22 +16,16 @@ import { createClock, createIdGenerator, createNoteService } from '../../src/cor
 import { openSqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// scripts/app-data.sh, which the scripts that start the app source: the
-// debug builds' data folder, the HOME the smoke check starts the app with,
-// the copy it keeps of the notes in that folder, and the check that an app
-// a script started opened the database it should. Each test runs it in
-// bash, as the scripts do, with HOME in a temporary folder: the folder comes
-// from HOME alone.
+// scripts/app-data.sh runs in bash with HOME in a temporary folder, as the scripts source it:
+// the data folder comes from HOME alone.
 
 const root = join(import.meta.dirname, '../..')
 const LIBRARY = join(root, 'scripts/app-data.sh')
 const DEV_FOLDER = 'Library/Application Support/io.github.jma49.devot.dev'
-/** Where a build that does not add `.dev` keeps its data: a release build,
- *  or a debug build made before debug builds had a folder of their own. */
+/** A release build's data folder, or a debug build's from before they had their own. */
 const RELEASE_FOLDER = 'Library/Application Support/io.github.jma49.devot'
 
-/** For the tests that start sqlite3, lsof and Node processes, which a busy
- *  machine starts slowly; none of them measures time. */
+/** sqlite3, lsof and Node processes start slowly on a busy machine; none measures time. */
 const PROCESSES = { timeout: 30_000 }
 
 const has = (tool: string) => spawnSync('sh', ['-c', `command -v ${tool}`]).status === 0
@@ -39,14 +33,12 @@ const has = (tool: string) => spawnSync('sh', ['-c', `command -v ${tool}`]).stat
 const open: { close(): void }[] = []
 afterEach(() => open.splice(0).forEach((db) => db.close()))
 
-/** A HOME of its own, and where the dev database is in it. */
 function home() {
   const dir = tempDir('devot-home-')
   const data = join(dir, DEV_FOLDER)
   return { dir, data, db: join(data, 'devot.sqlite') }
 }
 
-/** Runs `script` in bash with the helpers loaded, as the scripts run them. */
 function bash(homeDir: string, script: string) {
   const run = spawnSync('bash', ['-c', `set -euo pipefail; source "$LIBRARY"; ${script}`], {
     encoding: 'utf8',
@@ -55,7 +47,6 @@ function bash(homeDir: string, script: string) {
   return { status: run.status, stdout: run.stdout.trim(), stderr: run.stderr }
 }
 
-/** A Devot database at `path` with these notes, closed again. */
 async function database(path: string, names: string[]) {
   mkdirSync(join(path, '..'), { recursive: true })
   const storage = openSqliteAdapter(path)
@@ -82,7 +73,6 @@ function titles(path: string): string[] {
   }
 }
 
-/** Keeps `path` open in this process, as a running app would, until closed. */
 function holdOpen(path: string) {
   const db = new Database(path)
   open.push(db)
@@ -100,17 +90,13 @@ it("makes a HOME for an app it starts in which only the dev folder is the user's
   const { dir, data } = home()
   const appHome = join(tempDir('devot-work-'), 'home')
   expect(bash(dir, `dev_app_home "${appHome}"`)).toMatchObject({ status: 0, stderr: '' })
-  // A debug build finds the user's dev folder there, made when it was missing.
   expect(lstatSync(join(appHome, DEV_FOLDER)).isSymbolicLink()).toBe(true)
   expect(realpathSync(join(appHome, DEV_FOLDER))).toBe(realpathSync(data))
-  // Nothing else there is the user's: any other folder an app makes is new.
   expect(readdirSync(appHome)).toEqual(['Library'])
   expect(readdirSync(join(appHome, 'Library'))).toEqual(['Application Support'])
   expect(readdirSync(join(appHome, 'Library/Application Support'))).toEqual([basename(DEV_FOLDER)])
-  // Each run makes a new one; a folder that is there is refused, untouched.
   expect(bash(dir, `dev_app_home "${appHome}"`).status).toBe(1)
   expect(readdirSync(data)).toEqual([])
-  // Deleting it, as the script does at the end, deletes the link alone.
   writeFileSync(join(data, 'kept'), 'dev data')
   expect(bash(dir, `rm -rf "${appHome}"`).status).toBe(0)
   expect(existsSync(appHome)).toBe(false)
@@ -144,7 +130,6 @@ describe.skipIf(!has('sqlite3') || !has('lsof'))('with sqlite3 and lsof', PROCES
     expect(titles(db)).toEqual(['Kept one', 'Kept two'])
     expect(existsSync(`${db}-wal`)).toBe(false)
     expect(existsSync(`${db}-shm`)).toBe(false)
-    // The copy stays until someone deletes it.
     expect(existsSync(backup)).toBe(true)
   })
 
@@ -217,8 +202,7 @@ describe.skipIf(!has('sqlite3') || !has('lsof'))('with sqlite3 and lsof', PROCES
     const appHome = join(tempDir('devot-work-'), 'home')
     expect(bash(dir, `dev_app_home "${appHome}"`).status).toBe(0)
 
-    // An app takes its folders from the HOME it is started with: a build
-    // that does not add `.dev` opens its database in a new folder there.
+    // An app takes its folders from its HOME: a build that does not add `.dev` opens a new one.
     const stale = join(appHome, RELEASE_FOLDER, 'devot.sqlite')
     await database(stale, [])
     const held = holdOpen(stale)
@@ -229,7 +213,6 @@ describe.skipIf(!has('sqlite3') || !has('lsof'))('with sqlite3 and lsof', PROCES
     expect(existsSync(join(dir, RELEASE_FOLDER))).toBe(false)
     expect(titles(db)).toEqual(['Dev note'])
 
-    // A current debug build opens the dev database, through the link.
     holdOpen(join(appHome, DEV_FOLDER, 'devot.sqlite'))
     expect(bash(dir, `app_wait_for_db ${process.pid} "$DEVOT_DEV_DATA" 5`).status).toBe(0)
   })
@@ -239,7 +222,6 @@ describe('ending an app a script started', PROCESSES, () => {
   const started: ChildProcess[] = []
   afterEach(() => started.splice(0).forEach((child) => child.kill('SIGKILL')))
 
-  /** A process that ignores being asked to end, once it is ready. */
   async function stubborn() {
     const child = spawn(
       process.execPath,

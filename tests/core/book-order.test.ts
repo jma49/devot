@@ -18,9 +18,8 @@ import {
 import { openSqliteAdapter, SCHEMA_VERSION, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Manual notebook order: every notebook has a sort key (a fractional index,
-// src/core/order.ts) with its own HLC. Siblings show in key order, ties by
-// ID; a move rewrites the moved notebook's row only.
+// Manual order: each notebook has a fractional-index sort key (src/core/order.ts) with its own HLC; siblings
+// sort by key, ties by ID, and a move rewrites only the moved notebook's row.
 
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
@@ -30,7 +29,6 @@ const tempPath = () => join(tempDir('devot-order-'), 'devot.sqlite')
 function setup(path = tempPath(), locale?: string) {
   const storage = openSqliteAdapter(path)
   open.push(storage)
-  // Every notebook write the service makes, in order.
   const writes: BookRecord[] = []
   const counted: StorageAdapter = {
     ...storage,
@@ -51,7 +49,6 @@ function setup(path = tempPath(), locale?: string) {
   return { storage, books, writes, tree, clock, newId }
 }
 
-/** Names level by level: a leaf as its name, a parent as [name, children]. */
 type Shape = string | [string, Shape[]]
 const shape = (nodes: BookNode[]): Shape[] =>
   nodes.map((n) => (n.children.length > 0 ? [n.name, shape(n.children)] : n.name))
@@ -118,7 +115,6 @@ describe('manual notebook order', () => {
     await expect(books.place(a, b, 'before')).rejects.toThrow('E_BOOK_CYCLE')
     await expect(books.place(a, 'missing', 'before')).rejects.toThrow('E_BOOK_NOT_FOUND')
     await expect(books.place('missing', a, 'before')).rejects.toThrow('E_BOOK_NOT_FOUND')
-    // Beside itself: nothing to do.
     await books.place(a, a, 'after')
     expect(writes).toEqual([])
   })
@@ -260,7 +256,6 @@ describe('the schema v10 migration', () => {
     .sort()
     .map((f) => readFileSync(join(import.meta.dirname, '../../src-tauri/migrations', f), 'utf8'))
 
-  /** A version 9 database holding these notebooks (name, parent index or null, deleted). */
   function version9(books: [string, number | null, boolean?][]): { path: string; ids: string[] } {
     const path = tempPath()
     const db = new Database(path)
@@ -317,7 +312,6 @@ describe('the schema v10 migration', () => {
         Array.from({ length: 70 }, (_, i) => `Item ${String(i).padStart(2, '0')}`),
       )
     }
-    // Unkeyed notebooks already show in the old order.
     await expectOldOrder()
 
     await books.settleOrder()
@@ -333,7 +327,6 @@ describe('the schema v10 migration', () => {
     expect(keysUnder(ids[0]!)).toEqual(sequentialKeys(2))
     expect(keysUnder(ids[3]!)).toEqual(sequentialKeys(70))
     expect(records.every((r) => r.sortKeyHlc === '')).toBe(true)
-    // Once keyed, there is nothing more to do.
     writes.length = 0
     await books.settleOrder()
     expect(writes).toEqual([])

@@ -167,7 +167,6 @@ test('mermaid loads only for notes with a diagram, then draws it', async ({ page
   await expect(svg).toHaveCount(1)
   await expect(svg).toContainText('Start')
   expect(requests.some((u) => /mermaid/i.test(u))).toBe(true)
-  // No <style> element ever reaches the page: styles are constructed sheets.
   await expect(preview(page).locator('style')).toHaveCount(0)
 })
 
@@ -216,7 +215,6 @@ for (const [name, second] of [
 ] as const) {
   test(`${name} requested together both draw`, async ({ page }) => {
     await newNote(page, 'Together', `${FLOWCHART}\n\nBetween.\n\n${second}\n`)
-    // Showing the preview asks for both diagrams at once.
     await mode(page, 'Split').click()
     const svgs = preview(page).locator('.island-mermaid svg')
     await expect(svgs).toHaveCount(2, { timeout: 20_000 })
@@ -226,7 +224,6 @@ for (const [name, second] of [
   })
 }
 
-/** The page's constructed stylesheets (diagram styles are adopted there). */
 const adoptedSheets = (page: Page) =>
   page.evaluate(
     () =>
@@ -243,30 +240,25 @@ test('a diagram drawn again releases the styles of the one it replaces', async (
   await expect.poll(() => adoptedSheets(page)).toBe(before + 1)
 
   await svg.evaluate((el) => el.setAttribute('data-test-first', ''))
-  // Each switch asks again while the last drawing is still on its way.
   for (const colorScheme of ['dark', 'light', 'dark', 'light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme })
   }
-  // Only the newest drawing is ever put in place; the others are dropped.
   await expect(preview(page).locator('.island-mermaid svg:not([data-test-first])')).toHaveCount(1, {
     timeout: 20_000,
   })
   await expect(preview(page).locator('.island-error')).toHaveCount(0)
   expect(await adoptedSheets(page)).toBe(before + 1)
 
-  // Leaving the preview releases the sheet of the diagram it showed.
   await mode(page, 'Edit').click()
   await expect(preview(page)).toHaveCount(0)
   await expect.poll(() => adoptedSheets(page)).toBe(before)
 })
 
-/** The hidden frame Mermaid draws in (made on the first diagram). */
 async function mermaidFrame(page: Page) {
   await expect.poll(() => page.frames().some((f) => /mermaid\.html/.test(f.url()))).toBe(true)
   return page.frames().find((f) => /mermaid\.html/.test(f.url()))!
 }
 
-/** Types `text` at the end of the open note. */
 async function appendToNote(page: Page, text: string) {
   await page.getByRole('textbox', { name: 'Note body' }).click()
   await page.keyboard.press('ControlOrMeta+End')
@@ -320,7 +312,6 @@ test('a diagram that fails to draw for a passing reason is asked for again', asy
   )
   expect(warnings).toContain('W_MERMAID_FAILED render')
 
-  // Any change to the note asks for it again; this time it draws.
   await appendToNote(page, '\nAfter.\n')
   await expect(svgs).toHaveCount(2, { timeout: 20_000 })
   await expect(error).toHaveCount(0)

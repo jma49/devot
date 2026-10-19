@@ -5,14 +5,12 @@ import { gitIn, listFiles } from '../support/git-files'
 import { CJK, hasCjk } from '../support/policy-patterns'
 import { tempDir } from '../support/temp-dirs'
 
-// The codebase is English-only: UI text lives in locale catalogs, and CJK
-// test data is written with \u escapes.
+// English-only codebase: UI text lives in locale catalogs, CJK test data uses \u escapes.
 const BINARY = /\.(png|icns|ico|sqlite|woff2?)$/
 
 it('no tracked file contains CJK characters', () => {
   const files = listFiles('.').filter((f) => !BINARY.test(f))
   const offenders = files.flatMap((file) => {
-    // The name counts too: a tracked path is text.
     const named = hasCjk(file) ? [`${file} (name)`] : []
     let text: string
     try {
@@ -72,7 +70,6 @@ it('the CJK pattern leaves English text, accents, other scripts, emoji and \\u e
   for (const text of [
     'plain English text',
     'café naïve',
-    // The middle dot, a modifier letter, a dash, an arrow and a box line.
     String.fromCodePoint(0xb7, 0x2c7, 0x2014, 0x2192, 0x2500, 0xd7),
     'Жук Ωμέγα שלום',
     String.fromCodePoint(0x1f600),

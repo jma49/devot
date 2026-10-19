@@ -2,14 +2,11 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 
-// Rust writes every file outside its databases through one writer,
-// src-tauri/src/atomic_file.rs: a new temporary file of a random name, never
-// opened where something already is, put in place only where it may go. A
-// file opened or written by path anywhere else follows a link planted at
-// that name. The log alone appends to its own file in the app's private data
-// folder (logs.rs). Tests may write as they like.
+// Rust writes every file outside its databases through one writer (src-tauri/src/atomic_file.rs):
+// a new temp file of random name, never opened over an existing one. A file written by path
+// elsewhere follows a link planted at that name. Only the log (logs.rs) appends to its own
+// file in the app's private data folder. Tests may write as they like.
 
-/** Calls that create or write a file by its path. */
 const WRITES = [
   /\bFile::create\(/,
   /\bFile::options\(\)/,
@@ -21,7 +18,6 @@ const WRITES = [
 /** The files allowed to: the writer itself, and the log. */
 const ALLOWED = new Set(['src-tauri/src/atomic_file.rs', 'src-tauri/src/logs.rs'])
 
-/** `text` without its inline test module (`#[cfg(test)] mod tests { ... }`, at the end). */
 const withoutTests = (text: string) => text.split(/#\[cfg\(test\)\]\s*mod tests \{/)[0]!
 
 it('Rust writes files only through atomic_file', () => {
@@ -30,7 +26,6 @@ it('Rust writes files only through atomic_file', () => {
   })
     .split('\n')
     .filter((f) => f.endsWith('.rs') && !ALLOWED.has(f))
-    // Test files of their own: `tests.rs` beside a module, or in a `tests` folder.
     .filter((f) => !/(^|\/)tests(\.rs|\/)/.test(f))
   const offenders = files.flatMap((file) => {
     const code = withoutTests(readFileSync(file, 'utf8'))
@@ -39,7 +34,6 @@ it('Rust writes files only through atomic_file', () => {
   expect(offenders).toEqual([])
 })
 
-/** Calls that change a folder by its path, following any link on the way. */
 const CHANGES_BY_PATH = [
   /\bfs::create_dir\(/,
   /\bfs::remove_file\(/,
@@ -50,11 +44,9 @@ const CHANGES_BY_PATH = [
 ]
 
 /**
- * The writers of folders the user chose (the Markdown mirror, exports and
- * PDFs, Save Image As, diagnostics in Downloads). They change those folders
- * only through atomic_file's folder handles, opened once: by path, a local
- * process that may rename entries there could swap a folder on the way for a
- * link between a check and the change.
+ * Writers of user-chosen folders (mirror, exports, PDFs, Save Image As, diagnostics). They
+ * must change those only through atomic_file's folder handles: by path, a local process
+ * could swap a folder for a link between a check and the change.
  */
 const USER_FOLDER_WRITERS = [
   'src-tauri/src/commands/images.rs',

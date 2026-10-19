@@ -45,7 +45,6 @@ const sort = (key: NoteSort['key'], direction: NoteSort['direction']): NoteSort 
 const titles = (rows: readonly Row[]) => rows.map((r) => r.title)
 
 describe('the six orders', () => {
-  // Created b, c, a; updated c, a, b.
   const a = row('Alpha', 30, 200)
   const b = row('beta', 10, 300)
   const c = row('Gamma', 20, 100)

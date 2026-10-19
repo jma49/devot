@@ -132,7 +132,6 @@ test('with motion on, a closing dialog blurs and fades away as the dim fades', a
   expect(await copy.evaluate((el) => getComputedStyle(el).animationName)).toBe('dialog-out')
   expect(await dim.evaluate((el) => getComputedStyle(el).animationName)).toBe('fade-out')
   await expect(copy).toHaveAttribute('aria-hidden', 'true')
-  // Both go once their motion ends.
   await expect(copy).toHaveCount(0)
   await expect(dim).toHaveCount(0)
 })

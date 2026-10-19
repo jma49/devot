@@ -23,11 +23,8 @@ import {
 } from '../../scripts/sentry/upload'
 import { tempDir } from '../support/temp-dirs'
 
-// Release builds upload the UI's source maps (and the app's debug symbols)
-// to Sentry when its settings are set, and the app bundle never carries a
-// source map either way, nor the UI tests' in-memory storage. The scripts
-// run here against a fake sentry-cli that only records how it was called;
-// nothing reaches the network.
+// Release builds upload source maps and debug symbols to Sentry when configured; the app bundle never
+// carries a source map nor the UI tests' in-memory storage. Scripts run against a fake sentry-cli.
 
 const root = join(import.meta.dirname, '../..')
 const work = tempDir('devot-release-')
@@ -115,16 +112,14 @@ describe('source map checks', () => {
     ])
   })
 
-  // Tauri names the triple with or without --target, so both folders may hold
-  // a build: the one built last wins. Rebuilding rewrites the binary and the
-  // DWARF file inside an existing dSYM but keeps the dSYM folder's own time.
+  // Tauri names the triple with or without --target, so both folders may hold a build: the last wins.
+  // Rebuilding rewrites the binary and DWARF file inside a dSYM but keeps the dSYM folder's own time.
   describe('with and without --target', () => {
     const dir = join(work, 'target-triples')
     const env = { CARGO_TARGET_DIR: dir, TAURI_ENV_TARGET_TRIPLE: 'aarch64-apple-darwin' }
     const plain = join(dir, 'release/devot.dSYM')
     const triple = join(dir, 'aarch64-apple-darwin/release/devot.dSYM')
     const DWARF = 'Contents/Resources/DWARF'
-    /** A build in `release`: the binary and its dSYM, written at `time`. */
     function build(release: string, time: number) {
       const at = new Date(time)
       tree(join(dir, release), {
@@ -135,7 +130,6 @@ describe('source map checks', () => {
         utimesSync(join(dir, release, path), at, at)
       }
     }
-    /** Sets the dSYM folder's own time, which rebuilds leave alone. */
     function folderTime(dsym: string, time: number) {
       const at = new Date(time)
       for (const path of [dsym, join(dsym, 'Contents'), join(dsym, 'Contents/Resources')]) {
@@ -154,7 +148,6 @@ describe('source map checks', () => {
     })
 
     it('takes the build made last, whatever the dSYM folders say', () => {
-      // A plain build first, then a --target build, then the plain one again.
       build('release', 1_000_000)
       build('aarch64-apple-darwin/release', 2_000_000)
       folderTime(plain, 1_000_000)
@@ -214,7 +207,6 @@ function calls(log: string): Call[] {
     .map((line) => JSON.parse(line) as Call)
 }
 
-/** Runs a release script with only the given Sentry settings. */
 function runScript(script: string, cli: string, env: Record<string, string>, args: string[] = []) {
   const clean = Object.fromEntries(
     Object.entries(process.env).filter(
@@ -303,8 +295,7 @@ describe('release UI build', () => {
     'removes the maps when the build itself fails after writing them',
     () => {
       const out = join(work, 'dist-broken')
-      // The app's config plus a plugin that, once every file is written,
-      // counts the maps and fails.
+      // The app's config plus a plugin that fails once every file is written and maps remain.
       const config = join(work, 'broken.vite.config.ts')
       const counted = join(work, 'broken-maps.txt')
       writeFileSync(
@@ -338,10 +329,8 @@ export default mergeConfig(base, {
     BUILD,
   )
 
-  // The UI tests keep notes in an in-memory storage (storage/memory.ts),
-  // chosen at build time by their own Vite config. The app must never use
-  // it: its notes would sit in the web view's local storage, where neither
-  // backups nor devot-mcp see them.
+  // The UI tests' in-memory storage (storage/memory.ts) is chosen at build time by their Vite config;
+  // the app must never use it, or notes would sit in local storage where backups and devot-mcp can't see them.
   it(
     "leaves the UI tests' storage out, whatever VITE_DEVOT_STORAGE says",
     () => {
@@ -376,7 +365,6 @@ export default mergeConfig(base, { envDir: ${JSON.stringify(envDir)} })
       const run = runScript('ui.ts', cli, SETTINGS, ['--out-dir', out, '--config', config])
       expect(run.status).not.toBe(0)
       expect(run.stderr).toContain('E_TEST_STORAGE_IN_RELEASE')
-      // The check finds the storage in a real bundle that holds it.
       expect(testStorageLeaks(out).length).toBeGreaterThan(0)
       expect(calls(log)).toEqual([])
       expect(sourceMapLeaks(out)).toEqual([])

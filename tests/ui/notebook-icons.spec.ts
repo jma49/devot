@@ -53,11 +53,9 @@ test('Change Icon picks a catalog symbol in a colour; it shows in the sidebar, p
   await expect(dialog(page).getByRole('tab')).toHaveCount(12)
   await expect(tab(page, 'People')).toHaveAttribute('aria-selected', 'true')
   await expect(cell(page, 'person')).toBeVisible()
-  // Tab stops once in the grid, on its first symbol.
   await expect(cell(page, 'person')).toHaveAttribute('tabindex', '0')
   await expect(cell(page, 'person.fill')).toHaveAttribute('tabindex', '-1')
 
-  // Search matches names and keywords, across categories.
   await search(page).fill('coffee')
   await expect(cell(page, 'mug')).toBeVisible()
   await expect(cell(page, 'cup.and.saucer')).toBeVisible()
@@ -66,7 +64,6 @@ test('Change Icon picks a catalog symbol in a colour; it shows in the sidebar, p
   await search(page).fill('zzzz')
   await expect(dialog(page).getByText('No icons found')).toBeVisible()
 
-  // A tab clears the search.
   await tab(page, 'Nature').click()
   await expect(search(page)).toHaveValue('')
   await expect(tab(page, 'Nature')).toHaveAttribute('aria-selected', 'true')
@@ -77,7 +74,6 @@ test('Change Icon picks a catalog symbol in a colour; it shows in the sidebar, p
   await expect(rowIcon(page, 'Work')).toHaveClass(/tag-color-green/)
   await expect(rowIcon(page, 'Home')).toHaveAttribute('data-symbol', 'book.closed')
 
-  // The note's notebook picker and its list.
   await row(page, 'Work').click()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(noteRows(page)).toHaveCount(1)
@@ -90,7 +86,6 @@ test('Change Icon picks a catalog symbol in a colour; it shows in the sidebar, p
   )
   await page.keyboard.press('Escape')
 
-  // The palette's notebook rows.
   await page.getByRole('button', { name: 'Search Notebooks' }).click()
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   const workRow = palette.locator('.palette-row').filter({ hasText: 'Work' })
@@ -101,7 +96,6 @@ test('Change Icon picks a catalog symbol in a colour; it shows in the sidebar, p
   await palette.getByRole('combobox').press('Escape')
   await palette.getByRole('combobox').press('Escape')
 
-  // It is stored: a reload keeps it.
   await page.reload()
   await expect(rowIcon(page, 'Work')).toHaveAttribute('data-symbol', 'leaf')
   await expect(rowIcon(page, 'Work')).toHaveClass(/tag-color-green/)
@@ -142,8 +136,7 @@ test('Escape and Cancel leave the icon; the keyboard walks the grid and Return p
   await expect(dialog(page)).toHaveCount(0)
   await expect(rowIcon(page, 'Work')).toHaveAttribute('data-symbol', 'person.2')
 
-  // Down goes from the search to the first symbol (of what was typed, at
-  // once), Right to the next one.
+  // Down goes from the search to the first symbol of what was typed, at once; Right to the next one.
   await openIconDialog(page, 'Work')
   await search(page).fill('team')
   await search(page).press('ArrowDown')
@@ -175,7 +168,6 @@ test('only the symbols in view are rendered', async ({ page }) => {
   expect(drawn.length).toBeGreaterThan(0)
   expect(drawn.length).toBeLessThan(found.length)
   expect(asked.has(found.at(-1)!)).toBe(false)
-  // Scrolled to the end, the last ones are drawn too.
   await results.last().scrollIntoViewIfNeeded()
   await expect.poll(async () => (await rendered(page)).includes(found.at(-1)!)).toBe(true)
 })

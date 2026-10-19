@@ -1,9 +1,8 @@
 import type { Page } from '@playwright/test'
 import { clipboardWrites, expect, test, type TestWindow } from './fixtures'
 
-// The preview's code blocks show a header (language mark and name, title,
-// copy button) and highlighting; task boxes tick the task in the note; front
-// matter shows as properties.
+// The preview's code blocks show a header and highlighting; task boxes tick the task in the note;
+// front matter shows as properties.
 
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })

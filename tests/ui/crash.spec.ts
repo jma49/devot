@@ -4,7 +4,6 @@ import { expect, test, type IpcCall, type TestWindow } from './fixtures'
 // A DSN for a host that the test intercepts; nothing leaves the machine.
 const DSN = 'https://public@o1.ingest.us.sentry.io/1'
 
-/** Starts crash reporting in the page; returns what reaches "Sentry". */
 async function startSentry(page: Page): Promise<string[]> {
   const sent: string[] = []
   await page.route('https://o1.ingest.us.sentry.io/**', async (route) => {

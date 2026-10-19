@@ -11,9 +11,8 @@ import {
   searchPattern,
 } from '../../src/core'
 
-// Excerpts show readable text: no front matter, no Markdown markers. The
-// shared cases hold the Rust store (src-tauri/src/storage/readable.rs) to the
-// same rules.
+// Excerpts show readable text; the shared cases hold the Rust store
+// (src-tauri/src/storage/readable.rs) to the same rules.
 
 interface Case {
   name: string
@@ -107,7 +106,6 @@ const INLINE: ((w: string) => string)[] = [
   (w) => `[${w}][ref]`,
   (w) => `<span class="x">${w}</span>`,
 ]
-/** The emphasis character of each wrapper in INLINE, if any. */
 const EMPHASIS = ['*', '*', '_', '_', '~']
 // Double-bracket links hold plain text only, so they go around a word.
 const AROUND_WORD: ((w: string) => string)[] = [
@@ -130,7 +128,6 @@ const BLOCK: ((line: string) => string)[] = [
   (l) => `---\ntitle: Front\ntags: [a, b]\n---\n${l}`,
 ]
 
-/** Text weighted towards Markdown's marker characters. */
 const markdownText = fc.string({
   unit: fc.oneof(
     {
@@ -170,9 +167,8 @@ describe('readableText properties', () => {
     const inline = fc.tuple(
       word,
       fc.nat(AROUND_WORD.length - 1),
-      // Each emphasis character at most once around a word: markers of one
-      // character right inside each other (`*_*w*_*`) pair the other way, as
-      // in the preview; four tildes opening a line make a code fence.
+      // Each emphasis character at most once around a word: markers of one character right
+      // inside each other (`*_*w*_*`) pair the other way; four tildes opening a line make a fence.
       fc.array(fc.nat(INLINE.length - 1), { maxLength: 3 }).filter((wraps) => {
         const marks = wraps.map((k) => EMPHASIS[k]).filter((m) => m !== undefined)
         return new Set(marks).size === marks.length
