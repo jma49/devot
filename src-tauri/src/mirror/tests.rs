@@ -289,7 +289,7 @@ fn a_change_after_a_failed_read_keeps_the_folder_and_every_window_is_told() {
     assert!(!read.include_attachments);
     assert!(read.revision > shown.revision);
     assert!(read.generation > shown.generation);
-    assert_eq!(seen.borrow().as_slice(), [read.clone()]);
+    assert_eq!(seen.borrow().as_slice(), std::slice::from_ref(&read));
     assert_eq!(launched.get(&notify).unwrap(), read);
 
     let next = launched

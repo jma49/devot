@@ -341,11 +341,18 @@ pub fn main(args: &[OsString]) -> i32 {
             hand_off(&handoff_args(&open))
         }
     };
+    launch_status(launched)
+}
+
+/// A running Devot that does not take the hand-off (quitting, or not answering) fails the command.
+fn launch_status(launched: Result<(), &'static str>) -> i32 {
     match launched {
         Ok(()) => 0,
-        Err(code @ "E_CLI_HANDOFF_UNREACHABLE") => {
-            failed(&fill(strings::CLI_HANDOFF_UNREACHABLE, "code", code))
-        }
+        Err(
+            code @ ("E_CLI_HANDOFF_UNREACHABLE"
+            | "E_CLI_HANDOFF_REFUSED"
+            | "E_CLI_HANDOFF_UNANSWERED"),
+        ) => failed(&fill(strings::CLI_HANDOFF_UNREACHABLE, "code", code)),
         Err(code) => failed(&fill(strings::CLI_LAUNCH_FAILED, "code", code)),
     }
 }
@@ -600,6 +607,29 @@ mod tests {
                 "/a.md"
             ]
         );
+    }
+
+    #[test]
+    fn a_running_devot_that_does_not_take_the_files_fails_the_command() {
+        use std::io::Read;
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("io.github.jma49.devot.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+        // Reads the hand-off as a Devot that is quitting does, and closes it unanswered.
+        let reader = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut message = Vec::new();
+            stream.read_to_end(&mut message).unwrap();
+            message
+        });
+        let message = b"/w\0\0devot\0--devot-open\0--\0/a.md";
+        let uid = crate::atomic_file::effective_uid();
+        let sent = single_instance::send_to(&socket, message, uid);
+        assert_eq!(reader.join().unwrap(), message);
+        let launched = hand_off_with(sent, true, || unreachable!(), || unreachable!());
+        assert_eq!(launched, Err("E_CLI_HANDOFF_REFUSED"));
+        assert_eq!(launch_status(launched), 1);
+        assert_eq!(launch_status(Ok(())), 0);
     }
 
     #[test]
