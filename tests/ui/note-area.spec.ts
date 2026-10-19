@@ -278,3 +278,23 @@ test('the title field waits while another note opens, so typing never lands on t
   await expect(row('Note 1')).toHaveCount(1)
   await expect(row('Note 2')).toHaveCount(0)
 })
+
+test('what is typed right after New Note, before the editor has loaded, lands in the body in order', async ({
+  page,
+}) => {
+  await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
+  await page.evaluate(() => {
+    const button = Array.from(document.querySelectorAll('button')).find(
+      (b) => b.getAttribute('aria-label') === 'New Note',
+    )
+    button?.click()
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    for (const key of 'Alpha')
+      document.body.dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+      )
+  })
+  await expect(body(page)).toHaveText('Alpha')
+  await page.keyboard.type(' next')
+  await expect(body(page)).toHaveText('Alpha next')
+})

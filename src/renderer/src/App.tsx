@@ -128,6 +128,7 @@ import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, stopCore, type Core } from './core-client'
 import { warmUp } from './warmUp'
+import { startEarlyKeys } from './editor/earlyKeys'
 import { welcomeContent } from './welcome/content'
 import { currentFocusStore, currentSidebarStore, keyboardIsFree } from './focus'
 import { useFocusRescue } from './focusRescue'
@@ -1545,6 +1546,7 @@ export function App() {
 
   const create = async () => {
     if (!core) return
+    startEarlyKeys()
     // Save pending titles first, so the refreshed list shows them.
     await saveEdits(core)
     const id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
