@@ -475,6 +475,7 @@ impl EditorSettingsStore {
         }
     }
 
+    #[cfg(any(target_os = "macos", test))]
     pub fn with_default_paper(self, default_paper: fn() -> Paper) -> Self {
         Self {
             default_paper,
