@@ -59,8 +59,12 @@ pub(crate) const EVENT: &str = "devot://open-url";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Link {
-    Note { id: String },
-    Command { id: &'static str },
+    Note {
+        id: String,
+    },
+    Command {
+        id: &'static str,
+    },
     /// Files from the `devot` command (`cli`); no URL makes one.
     Import {
         scan: crate::import::Scan,
