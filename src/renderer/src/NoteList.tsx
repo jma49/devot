@@ -115,13 +115,14 @@ export const NoteList = memo(function NoteList(props: Props) {
   const { title, scope, pinned, selected, onSelect, onCreate, tags, sortButtonRef } = props
   const notes = useMemo(() => [...pinned, ...props.notes], [pinned, props.notes])
   const order = useMemo(() => notes.map((n) => n.id), [notes])
+  const indexOf = useMemo(() => new Map(order.map((id, i) => [id, i])), [order])
   const { selection, onSelection } = props
-  const chosen = selection ? new Set(selection.ids) : undefined
+  const chosen = useMemo(() => (selection ? new Set(selection.ids) : undefined), [selection])
   // The row that takes Tab: the far end of a selection, else the open note's, else the first row, so the list always keeps a Tab stop.
   const tabStop =
-    selection && order.includes(selection.lead)
+    selection && indexOf.has(selection.lead)
       ? selection.lead
-      : selected !== undefined && order.includes(selected)
+      : selected !== undefined && indexOf.has(selected)
         ? selected
         : order[0]
   const rows = useRef(new Map<string, HTMLLIElement>())
@@ -375,20 +376,19 @@ export const NoteList = memo(function NoteList(props: Props) {
     const before = shown.current
     shown.current = { view: props.view, notes }
     const lost = keyboard.current
-    if (lost === undefined || notes.some((n) => n.id === lost)) return
+    if (lost === undefined || indexOf.has(lost)) return
     keyboard.current = undefined
     // Another view (the Trash, another notebook, another search) is not a
     // row leaving.
     if (before.view !== props.view) return
     const active = document.activeElement
     if (active && active !== document.body && active.isConnected) return
-    const listed = new Set(notes.map((n) => n.id))
-    if (selected !== undefined && selected !== lost && listed.has(selected)) {
+    if (selected !== undefined && selected !== lost && indexOf.has(selected)) {
       return focusRow(selected)
     }
     const ids = before.notes.map((n) => n.id)
     const at = ids.indexOf(lost)
-    const kept = (id: string) => listed.has(id)
+    const kept = (id: string) => indexOf.has(id)
     const next = ids.slice(at + 1).find(kept) ?? ids.slice(0, Math.max(at, 0)).findLast(kept)
     if (next === undefined) return list.current?.focus()
     focusRow(next)
@@ -459,7 +459,7 @@ export const NoteList = memo(function NoteList(props: Props) {
     }
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
     const to =
-      (selected !== undefined && order.includes(selected) ? selected : undefined) ??
+      (selected !== undefined && indexOf.has(selected) ? selected : undefined) ??
       notes[step < 0 ? notes.length - 1 : 0]?.id
     if (!step || to === undefined) return
     event.preventDefault()
@@ -551,7 +551,7 @@ export const NoteList = memo(function NoteList(props: Props) {
     setDragged(new Set(ids))
   })
   const keyDown = useStable((id: string, e: KeyboardEvent<HTMLLIElement>) =>
-    move(e, order.indexOf(id)),
+    move(e, indexOf.get(id) ?? -1),
   )
   const contextMenu = useStable((id: string, e: MouseEvent<HTMLLIElement>) => {
     e.preventDefault()
