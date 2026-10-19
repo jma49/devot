@@ -65,7 +65,8 @@ describe('the release workflow', () => {
     expect(top).toMatch(/^permissions:\n {2}contents: read$/m)
     const writers = jobNames().filter((name) => /contents: write/.test(job(name)))
     expect(writers).toEqual(['publish', 'feed'])
-    for (const name of writers) expect(job(name)).not.toMatch(/\bpnpm\b|cache:/)
+    for (const name of writers)
+      expect(job(name)).not.toMatch(/\bpnpm\b|(?<!package-manager-)cache:/)
   })
 
   it('gives the updater key only to the sign job, which runs no dependency code', () => {
@@ -77,7 +78,9 @@ describe('the release workflow', () => {
       workflow.match(/\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)? \}\}/g)?.length,
     ).toBe(2)
     const sign = job('sign')
-    expect(sign).not.toMatch(/\bpnpm\b|\bnpx\b|\bnpm\b|\bcargo\b|cache:|GITHUB_TOKEN/)
+    expect(sign).not.toMatch(
+      /\bpnpm\b|\bnpx\b|\bnpm\b|\bcargo\b|(?<!package-manager-)cache:|GITHUB_TOKEN/,
+    )
     expect(sign).toContain('release.ts sign "$TAG"')
     // The build signs with a throwaway key only: Tauri will not make the updater bundle without one.
     const build = job('build')
@@ -106,12 +109,25 @@ describe('the release workflow', () => {
     expect(workflow.match(/gh release upload updater/g)?.length).toBe(1)
     expect(feed).toContain('gh release upload updater')
     expect(step('Update the feeds')).toMatch(
-      /gh release upload updater "feed\/\$channel\.json" --clobber\n(?:\s+#.*\n)*\s+gh release download updater --pattern "\$channel\.json" --dir uploaded[^\n]*\n\s+if ! cmp -s "feed\/\$channel\.json" "uploaded\/\$channel\.json"/,
+      /gh release upload updater "feed\/\$channel\.json" --clobber\n(?:\s+#.*\n)*\s+for attempt in [\d ]+; do\n\s+rm -f "uploaded\/\$channel\.json"\n\s+gh release download updater --pattern "\$channel\.json" --dir uploaded[^\n]*\n\s+cmp -s "feed\/\$channel\.json" "uploaded\/\$channel\.json" && break\n\s+sleep \d+\n\s+done\n\s+if ! cmp -s "feed\/\$channel\.json" "uploaded\/\$channel\.json"/,
     )
   })
 })
 
 describe('the workflows', () => {
+  // setup-node turns on a pnpm cache by itself when package.json names pnpm,
+  // and fails where pnpm/action-setup has not installed it.
+  it('cache nothing for pnpm in a job that does not install pnpm', () => {
+    for (const { name, text } of workflows) {
+      for (const [, body] of text.matchAll(/^ {2}[\w-]+:\n((?: {4,}.*\n|\n)*)/gm)) {
+        if (!body!.includes('actions/setup-node@') || body!.includes('pnpm/action-setup@')) continue
+        expect(`${name}\n${body}`).toMatch(
+          /actions\/setup-node@[^\n]*\n(?: {8,}.*\n)*? {10}package-manager-cache: false/,
+        )
+      }
+    }
+  })
+
   it('pin every action to a commit, with the version it is', () => {
     for (const { name, text } of workflows) {
       const uses = [...text.matchAll(/^\s*(?:-\s+)?uses:\s*(.*)$/gm)].map((m) => m[1]!)
