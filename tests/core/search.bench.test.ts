@@ -5,11 +5,6 @@ import { expectWithinBudget } from '../support/budget'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Acceptance benchmark: listing and searching 10,000 notes takes under 50 ms
-// (median), excerpts included. The notes have realistic sizes: bodies of one
-// to a few KB of Markdown (headings, lists, emphasis, links) and a Yjs state
-// three times the text (an edited note's), so most of a note's row sits in
-// overflow pages, which neither the lists nor a search may read.
 const NOTES = 10_000
 const BUDGET_MS = 50
 // Text under three characters cannot use the trigram index: a search for it
@@ -18,8 +13,6 @@ const BUDGET_MS = 50
 // keeps the product's budget.
 const FULL_SCAN_BUDGET_MS = 100
 
-// A small vocabulary of English words and common Chinese characters, written
-// as escapes (no CJK in tracked files).
 const WORDS =
   'sync relay offline merge editor preview notebook status trash search index snapshot'.split(' ')
 const HAN =
@@ -44,7 +37,6 @@ beforeAll(() => {
   const pick = <T>(list: readonly T[]) => list[Math.floor(rand() * list.length)]!
   const word = () =>
     rand() < 0.5 ? pick(WORDS) : Array.from({ length: 4 }, () => pick([...HAN])).join('')
-  // Yjs states: random bytes, three times as long as the text they hold.
   const noise = new Uint8Array(32_000).map(() => Math.floor(rand() * 256))
   const insert = storage.db.transaction(() => {
     for (let i = 0; i < NOTES; i += 1) {
@@ -122,12 +114,9 @@ describe(`lists and search across ${NOTES} notes of a few KB`, () => {
 
   it.for<[label: string, query: string]>([
     ['an English word', 'hibernation'],
-    // Found in nearly every note: a full page of 200 results, each with an
-    // excerpt.
     ['a common English word', 'snapshot'],
     ['a three-character Chinese term', '\u7b14\u8bb0\u672c'],
     ['two words', 'merge preview'],
-    // Found often: the scan stops once a page of results is full.
     ['a two-character Chinese word', '\u540c\u6b65'],
     ['qualifiers with an exclusion', 'title:note body:merge -relay status:none -tag:x'],
     ['qualifiers alone', 'status:active'],

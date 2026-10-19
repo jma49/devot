@@ -14,8 +14,6 @@ afterEach(() => {
 })
 
 it('works on the scratch repository even when a git hook points git elsewhere', () => {
-  // A hook (pre-push runs the tests) exports GIT_DIR and GIT_INDEX_FILE for
-  // the repository being pushed; a decoy stands in for it here.
   const decoy = tempDir('devot-git-decoy-')
   gitIn(decoy, 'init', '-q')
   const decoyConfig = readFileSync(join(decoy, '.git/config'), 'utf8')

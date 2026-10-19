@@ -12,14 +12,12 @@ interface StoredNote {
   bodyMd: string
 }
 
-/** A stored note by title (what the memory adapter holds). */
 const stored = (page: Page, title: string) =>
   page.evaluate((t) => {
     const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as StoredNote[]
     return notes.find((n) => n.title === t)
   }, title)
 
-/** The local log lines for failed saves: the IDs each one carries. */
 const saveFailures = (page: Page) =>
   page.evaluate(() =>
     (globalThis as unknown as TestWindow).devotIpcCalls
@@ -68,21 +66,18 @@ test('changes that cannot be saved stay, are reported and are saved once writing
   await expect(notice(page)).toHaveText(
     /^Changes to 1 note could not be saved \(E_STORAGE_SQLITE\)\. Devot keeps trying\./,
   )
-  // Logged once, by ID and code.
   await expect
     .poll(() => saveFailures(page))
     .toEqual([[expect.stringMatching(/^[0-9a-f-]{36}$/), 'E_STORAGE_SQLITE']])
   await notice(page).getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice(page)).toHaveCount(0)
 
-  // Other notes still open, and another failure brings the notice back.
   await noteRow(page, 'Other').click()
   await expect(titleField(page)).toHaveValue('Other')
   await titleField(page).fill('Other, renamed')
   await expect(notice(page)).toHaveText(
     /^Changes to 2 notes could not be saved \(E_STORAGE_SQLITE\)\./,
   )
-  // The unsaved changes are still there.
   await noteRow(page, 'Kept').click()
   await expect(body(page)).toHaveText('saved first, then more')
   expect((await stored(page, 'Kept'))?.bodyMd).toBe('saved first')
@@ -98,9 +93,6 @@ test('changes that cannot be saved stay, are reported and are saved once writing
 test('the window hears of a failed save before the reply of the call it failed in', async ({
   page,
 }) => {
-  // What a quit's save relies on: by its reply, the notice knows the notes.
-  // The test starts a core of its own, to see what the window has heard
-  // when the reply comes.
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeVisible()
   const heard = await page.evaluate(async (url) => {
     interface Problem {

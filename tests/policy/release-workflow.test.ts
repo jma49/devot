@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 // first signed release (v0.8.0-beta.1) must not come back.
 const workflow = readFileSync('.github/workflows/release.yml', 'utf8')
 
-/** The shell a step runs, by its name. */
 function step(name: string): string {
   const start = workflow.indexOf(`- name: ${name}\n`)
   if (start < 0) throw new Error(`E_TEST_NO_STEP ${name}`)

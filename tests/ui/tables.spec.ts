@@ -20,7 +20,6 @@ async function newNote(page: Page, text: string) {
   await page.keyboard.insertText(text)
 }
 
-/** Runs a palette command by its exact name. */
 async function runFromPalette(page: Page, name: string) {
   await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
@@ -41,7 +40,6 @@ test.beforeEach(async ({ page }) => {
 
 test('Tab, Shift+Tab, Return and Option+Return move through and grow a table', async ({ page }) => {
   await newNote(page, TABLE)
-  // The cursor is in the last cell: Tab adds a row and formats the table.
   await page.keyboard.press('Tab')
   expect(await lines(page)).toEqual([
     '| a   | b   |',
@@ -55,10 +53,8 @@ test('Tab, Shift+Tab, Return and Option+Return move through and grow a table', a
   await page.keyboard.type('y')
   await page.keyboard.press('Shift+Tab')
   await page.keyboard.type('z')
-  // Return in the last row adds one, in the same column.
   await page.keyboard.press('Enter')
   await page.keyboard.type('w')
-  // Option+Return inserts a row below.
   await page.keyboard.press('Alt+Enter')
   const grown = [
     '| a   | b   |',
@@ -69,11 +65,9 @@ test('Tab, Shift+Tab, Return and Option+Return move through and grow a table', a
     '|     |     |',
   ]
   expect(await lines(page)).toEqual(grown)
-  // Return on the empty last row leaves the table.
   await page.keyboard.press('Enter')
   await page.keyboard.type('after')
   expect(await lines(page)).toEqual([...grown.slice(0, 5), '', 'after'])
-  // Each table command is one undo step.
   await page.keyboard.press('ControlOrMeta+z')
   expect(await lines(page)).toEqual([...grown.slice(0, 5), '', ''])
   await page.keyboard.press('ControlOrMeta+z')
@@ -85,11 +79,9 @@ test('a table typed entirely by hand keeps its columns', async ({ page }) => {
   await page.keyboard.type('| a | b |')
   await page.keyboard.press('Enter')
   await page.keyboard.type('|-|-|')
-  // Return starts a row at its first cell; typing the row's pipes moves through its cells.
   await page.keyboard.press('Enter')
   await page.keyboard.type('| 1 | 2 |')
   await page.keyboard.press('Enter')
-  // An escaped pipe stays in its cell.
   await page.keyboard.type('| x \\| y | z |')
   expect(await lines(page)).toEqual([
     '| a      | b   |',
@@ -97,7 +89,6 @@ test('a table typed entirely by hand keeps its columns', async ({ page }) => {
     '| 1      | 2   |',
     '| x \\| y | z   |',
   ])
-  // Return on the empty row after it leaves the table.
   await page.keyboard.press('Enter')
   await page.keyboard.press('Enter')
   await page.keyboard.type('after')
@@ -116,9 +107,7 @@ test('a table typed by hand without outer pipes keeps its columns', async ({ pag
   await page.keyboard.type('a | b')
   await page.keyboard.press('Enter')
   await page.keyboard.type('--|--')
-  // Return on the delimiter row starts the first row at its first cell.
   await page.keyboard.press('Enter')
-  // Its pipe ends the first cell; the last one is formatted when it is left.
   await page.keyboard.type('1 | 2')
   expect(await lines(page)).toEqual(['| a   | b   |', '| --- | --- |', '| 1   | 2    |'])
 })
@@ -127,7 +116,6 @@ test('a pipe typed inside a cell text stays text', async ({ page }) => {
   await newNote(page, '| a | b |\n|---|---|')
   await page.keyboard.press('Enter')
   await page.keyboard.type('| ab')
-  // Between a and b (a plain arrow key moves one character on every platform).
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.type('|')
   expect(await lines(page)).toEqual(['| a   | b   |', '| --- | --- |', '| a|b    |     |'])
@@ -156,12 +144,10 @@ test('the palette runs table commands while the cursor is in a table', async ({ 
     '| 1   |   2 |',
   ])
 
-  // Outside the table the palette does not offer them.
   await page.locator('.cm-line').filter({ hasText: 'intro' }).click()
   await page.keyboard.press('Meta+KeyK')
   await field(page).fill('Delete Column')
   await expect(commands(page).filter({ hasText: 'Delete Column' })).toHaveCount(0)
-  // Escape clears the query first, then closes the palette.
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette(page)).toBeHidden()
@@ -169,7 +155,6 @@ test('the palette runs table commands while the cursor is in a table', async ({ 
 
 test('outside a table Tab indents and Return starts a line', async ({ page }) => {
   await newNote(page, 'plain')
-  // Tab indents the line (Control+Tab leaves the editor), Shift+Tab takes it back.
   await page.keyboard.press('Tab')
   await expect.poll(() => lines(page)).toEqual(['  plain'])
   await page.keyboard.press('Shift+Tab')
@@ -228,16 +213,13 @@ test('the table bar disables commands that cannot act and marks the alignment', 
   await newNote(page, TABLE)
   await expect(bar(page)).toBeVisible()
   const button = (name: string) => bar(page).getByRole('button', { name })
-  // The note ends in the last cell of the table: the last column, the only row.
   await expect(button('Move Column Right')).toBeDisabled()
   await expect(button('Delete Row')).toBeDisabled()
   await expect(button('Move Column Left')).toBeEnabled()
   await expect(button('Insert Row Below')).toBeEnabled()
-  // The Align buttons mark the column's alignment, and follow a change.
   await expect(bar(page).locator('button[aria-pressed="true"]')).toHaveCount(1)
   await button('Align Column Center').click()
   await expect(button('Align Column Center')).toHaveAttribute('aria-pressed', 'true')
-  // Left cell: the first column.
   await page.keyboard.press('Shift+Tab')
   await expect(button('Move Column Left')).toBeDisabled()
   await expect(button('Move Column Right')).toBeEnabled()

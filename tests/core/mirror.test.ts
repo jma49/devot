@@ -75,27 +75,18 @@ const tag = (n: number, name: string): TagRecord => ({
   colorHlc: '',
 })
 
-/** Everything the plan may ask about: bodies, attachment names and the disk. */
 interface World {
   notes: NoteSummary[]
   books?: BookRecord[]
   tags?: TagRecord[]
   bodies: Record<string, string>
-  /** Attachments in the database, by ID: their file names. */
   files?: Record<string, string>
-  /** What is on disk; a path not listed holds nothing. */
   disk?: Record<string, DiskState>
-  /**
-   * Links (or files) where a folder should be: as Rust reads the disk, each
-   * of them and every path under it is `other`.
-   */
   linked?: string[]
-  /** The SHA-256 of attachments' bytes in the database, by ID. */
   hashes?: Record<string, string>
   manifest?: MirrorManifest
   includeAttachments?: boolean
   limit?: number
-  /** Disk states known before the plan asks (a full reconcile's check). */
   checked?: Record<string, DiskState>
 }
 
@@ -162,7 +153,6 @@ function settle(world: World): MirrorPlan & { asked: Asked } {
   throw new Error('E_TEST_PLAN_DID_NOT_SETTLE')
 }
 
-/** The manifest Rust would hold after running `ops` (sizes are text lengths). */
 function after(manifest: MirrorManifest, ops: readonly MirrorOp[]): MirrorManifest {
   const next = structuredClone(manifest)
   for (const op of ops) {
@@ -187,7 +177,6 @@ function after(manifest: MirrorManifest, ops: readonly MirrorOp[]): MirrorManife
   return next
 }
 
-/** The disk after a plan ran: each manifest file holds what the manifest says. */
 const diskOf = (manifest: MirrorManifest): Record<string, DiskState> =>
   Object.fromEntries(
     [...Object.values(manifest.notes), ...Object.values(manifest.files)]
@@ -211,7 +200,6 @@ const textOf = (plan: MirrorPlan, path: string) => {
   return op?.kind === 'note' ? op.text : undefined
 }
 
-/** A library: nested notebooks, a clash, notes at the top, a template and an image. */
 function library(): World {
   const work = book(100, 'Work', null, 'a')
   const plans = book(101, 'Plans: 2026', work.id, 'a')
@@ -247,7 +235,6 @@ describe('a first mirror', () => {
   it('lays the notes out like an export of every notebook, without templates', () => {
     const world = library()
     const plan = settle(world)
-    // Attachments first; then notes, the most recently changed first.
     expect(kinds(plan.ops)).toEqual([
       'file attachments/board.png',
       'note - -> attachments 2/Untitled.md',
@@ -259,7 +246,6 @@ describe('a first mirror', () => {
       'book attachments 2',
       'book Work/Plans 2026',
     ])
-    // Each file is export's Markdown file for the note.
     expect(textOf(plan, 'Work/Inbox.md')).toBe('# Inbox\n\nLoose thoughts.\n')
     expect(textOf(plan, 'Work/Plans 2026/Plan.md')).toBe(
       markdownFile(
@@ -271,11 +257,9 @@ describe('a first mirror', () => {
     expect(textOf(plan, 'Work/Plans 2026/Plan.md')).toContain(
       '![Board](../../attachments/board.png#half)',
     )
-    // The numbered file says its title in Devot's front matter.
     expect(textOf(plan, 'Work/Plans 2026/Plan 2.md')).toBe(
       `---\n${EXPORT_HEADER}\ntitle: 'Plan'\n---\nSecond plan.\n`,
     )
-    // Every operation's hash is its text's.
     const notes = plan.ops.flatMap((op) => (op.kind === 'note' ? [op] : []))
     expect(notes.map((op) => op.sha256)).toEqual(notes.map((op) => sha256Hex(op.text!)))
     expect(plan.deferred).toBe(0)
@@ -284,7 +268,6 @@ describe('a first mirror', () => {
   it('asks for the bodies, attachments and paths it needs, and only those', () => {
     const plan = settle(library())
     expect(plan.asked.bodies.sort()).toEqual([id(1), id(2), id(3), id(4), id(5)])
-    // Each new file's path and every new folder on the way.
     expect(plan.asked.paths.sort()).toEqual(
       [
         'Loose.md',
@@ -316,7 +299,6 @@ describe('a first mirror', () => {
   })
 })
 
-/** The library mirrored once, as Rust would leave it, and the world after it. */
 function mirrored(world: World = library()) {
   const plan = settle(world)
   const manifest = after(world.manifest ?? emptyManifest(), plan.ops)
@@ -360,20 +342,16 @@ describe('keeping it up to date', () => {
     const world = mirrored()
     const plan = settle(changeNote(world, 4, { title: 'Renamed' }))
     expect(kinds(plan.ops)).toEqual(['note Loose.md -> Renamed.md'])
-    // The body has no heading: the file name says the title.
     expect(textOf(plan, 'Renamed.md')).toBe('At the top.\n')
   })
 
   it('a case change renames the file in place, unless someone else holds that name', () => {
     const world = mirrored()
     const recased = changeNote(world, 4, { title: 'loose' })
-    // A file system that ignores case: the new name is the same file, which
-    // holds the text already (Rust renames it; no text goes).
     const sha = world.manifest!.notes[id(4)]!.sha256
     const same = settle({ ...recased, disk: { ...recased.disk, 'loose.md': sha } })
     expect(kinds(same.ops)).toEqual(['note Loose.md -> loose.md (record)'])
     expect(same.asked.paths.sort()).toEqual(['Loose.md', 'loose.md'])
-    // One that does not: nothing there, or another file under that name.
     expect(kinds(settle(recased).ops)).toEqual(['note Loose.md -> loose.md'])
     const theirs = settle({
       ...recased,
@@ -410,7 +388,6 @@ describe('keeping it up to date', () => {
       'note Work/Plans 2026/Plan.md -> Plans 2026/Plan.md',
       'book Plans 2026',
     ])
-    // One level up: the image path has one `..` less.
     expect(textOf(plan, 'Plans 2026/Plan.md')).toContain('](../attachments/board.png#half)')
   })
 
@@ -460,8 +437,6 @@ describe('names', () => {
     expect(settle(recased).ops).toEqual([])
   })
 
-  // One name written two ways (an accented letter as one code point, or a
-  // letter and a combining mark), and the sharp s, which macOS folds to ss.
   const NFC = 'Caf\u00e9'
   const NFD = 'CAFE\u0301'
   const SHARP = 'Stra\u00dfe'
@@ -491,8 +466,6 @@ describe('names', () => {
         `attachments/${NFD} 2.png`,
       ].sort(),
     )
-    // Someone else's file under one way of writing the name is in the way of
-    // the other way too.
     const onDisk = settle({ ...world, disk: { [`${NFC}.md`]: sha256Hex('theirs') } })
     expect(onDisk.ops.flatMap((op) => (op.kind === 'note' ? [op.path] : [])).sort()).toEqual(
       [`${NFC} 2.md`, `${NFD} 3.md`, 'STRASSE.md', `${SHARP} 2.md`].sort(),
@@ -515,15 +488,11 @@ describe('names', () => {
       ...changeNote(world, 2, { title: NFD }),
       books: [{ ...cafe, name: NFD }],
     }
-    // The folder stays; the note's file, the same file under its new name on
-    // macOS, holds its text already: Rust renames it, and no text goes.
     const sha = world.manifest!.notes[id(2)]!.sha256
     const plan = settle({ ...renamed, disk: { ...renamed.disk, [`${NFD}.md`]: sha } })
     expect(kinds(plan.ops)).toEqual([`note ${NFC}.md -> ${NFD}.md (record)`])
   })
 
-  // Names export numbers as one, but macOS takes for two: a superscript two
-  // and a plain one, full-width letters and plain ones.
   const SQUARED = 'x\u00b2'
   const WIDE = '\uff37\uff4f\uff52\uff4b'
 
@@ -543,8 +512,6 @@ describe('names', () => {
         `note ${oldName}/Menu.md -> ${newName}/Menu.md`,
         `book ${newName}`,
       ])
-      // Someone else's file at the note's name in the folder it moves to
-      // (one Devot did not make, shared) is in the way: the note is numbered.
       const theirs = settle({
         ...renamed,
         disk: { ...renamed.disk, [newName]: 'dir', [`${newName}/Menu.md`]: sha256Hex('theirs') },
@@ -554,7 +521,6 @@ describe('names', () => {
         `book ${newName}`,
       ])
     }
-    // The fi ligature is only another case of `fi` to macOS: the folder stays.
     const ligature = book(100, '\ufb01nance')
     const world = mirrored({
       notes: [note(1, 'Menu', { bookId: ligature.id })],
@@ -579,8 +545,6 @@ describe('names', () => {
     const world = mirrored()
     const first = { ...world, notes: world.notes.filter((n) => n.id !== id(2)) }
     const plan = settle(first)
-    // `Plan 2.md` stays where it is; the trashed note's file goes, and the
-    // image only it showed.
     expect(kinds(plan.ops)).toEqual([
       'remove Work/Plans 2026/Plan.md',
       'remove attachments/board.png',
@@ -710,7 +674,6 @@ describe('files Devot wrote that the manifest does not list', () => {
     const plan = settle(world)
     expect(kinds(plan.ops)).toContain('note - -> Loose.md (record)')
     expect(kinds(plan.ops).filter((k) => k.includes('Loose 2'))).toEqual([])
-    // Anything else there is still not Devot's.
     world.disk = { 'Loose.md': sha256Hex('At the top, edited.\n') }
     expect(kinds(settle(world).ops)).toContain('note - -> Loose 2.md')
   })
@@ -719,7 +682,6 @@ describe('files Devot wrote that the manifest does not list', () => {
     const world: World = { ...library(), hashes: { [id(300)]: sha256Hex('board bytes') } }
     const first = settle(world)
     expect(first.asked.hashes).toEqual([])
-    // Everything that first mirror wrote, and the folders it made.
     const disk: Record<string, DiskState> = { attachments: 'dir' }
     for (const op of first.ops) {
       if (op.kind === 'note') disk[op.path] = op.sha256
@@ -727,13 +689,10 @@ describe('files Devot wrote that the manifest does not list', () => {
       if (op.kind === 'book' && op.path !== null) disk[op.path] = 'dir'
     }
     const again = settle({ ...world, disk })
-    // The same paths; every note file and the image copy are taken as they are.
     expect(kinds(again.ops)).toEqual(
       kinds(first.ops).map((k) => (k.startsWith('note') ? `${k} (record)` : k)),
     )
-    // An attachment's bytes are hashed only when a file is in the way of its copy.
     expect(again.asked.hashes).toEqual([id(300)])
-    // A file there with other bytes is not the copy: it gets the next name.
     const theirs = settle({ ...world, disk: { ...disk, 'attachments/board.png': sha256Hex('x') } })
     expect(kinds(theirs.ops)).toContain('file attachments/board 2.png')
   })
@@ -765,7 +724,6 @@ describe('files Devot wrote that the manifest does not list', () => {
   })
 
   it('a note takes its own file back even when an older note of the same title came first', () => {
-    // The older note was in the Trash when the file was written.
     const world: World = {
       notes: [note(1, 'Plan'), note(2, 'Plan')],
       bodies: { [id(1)]: 'Older.\n', [id(2)]: 'Newer.\n' },
@@ -792,7 +750,6 @@ describe('files Devot wrote that the manifest does not list', () => {
 })
 
 describe('folders that are no longer folders', () => {
-  /** A full reconcile's check: the manifest's files, those under `under` read as `other`. */
   const checkedWith = (world: World, under: string) =>
     Object.fromEntries(
       Object.entries(diskOf(world.manifest!)).map(([p, s]) => [
@@ -831,7 +788,6 @@ describe('folders that are no longer folders', () => {
       checked: checkedWith(world, 'attachments'),
     })
     expect(kinds(plan.ops)).toEqual([`forget ${id(300)}`, 'file attachments/board.png (name)'])
-    // A first mirror into such a folder settles the same way.
     const fresh = settle({ ...library(), linked: ['attachments'] })
     expect(kinds(fresh.ops).filter((k) => k.startsWith('file'))).toEqual([
       'file attachments/board.png (name)',
@@ -845,7 +801,6 @@ describe('folders that are no longer folders', () => {
 describe('attachments', () => {
   const shared = (): World => {
     const world = library()
-    // An older note shares the board (made before duplicates copied images).
     world.notes = [...world.notes, note(8, 'Shares', {})]
     world.bodies = { ...world.bodies, [id(8)]: `![b](devot://file/${id(300)})\n` }
     return world
@@ -854,10 +809,8 @@ describe('attachments', () => {
   it('one copy for every note that shows it; it goes when none does', () => {
     const world = mirrored(shared())
     expect(Object.keys(world.manifest!.files)).toEqual([id(300)])
-    // The owner leaves: the other note still shows it.
     const ownerGone = { ...world, notes: world.notes.filter((n) => n.id !== id(2)) }
     expect(kinds(settle(ownerGone).ops)).toEqual(['remove Work/Plans 2026/Plan.md'])
-    // Neither shows it any more: its copy goes too.
     const noneLeft = { ...ownerGone, notes: ownerGone.notes.filter((n) => n.id !== id(8)) }
     expect(kinds(settle(noneLeft).ops)).toEqual([
       'remove Shares.md',
@@ -917,7 +870,6 @@ describe('attachments', () => {
       'keep attachments/board.png',
       'file attachments/board.png (name)',
     ])
-    // On again: the copy comes back under the same name; no note changes.
     const manifest = after(world.manifest!, off.ops)
     const on = settle({ ...world, manifest, disk: diskOf(manifest) })
     expect(kinds(on.ops)).toEqual(['file attachments/board.png'])

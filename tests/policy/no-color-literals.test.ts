@@ -3,9 +3,6 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { hasColorLiteral, isColorChecked } from '../support/policy-patterns'
 
-// UI colours come only from the generated design tokens. Hex, rgb(), hsl()
-// and named colours are rejected in UI styles, components and TypeScript
-// (CodeMirror themes live in .ts files).
 const UI_ROOT = 'src/renderer/src'
 
 function files(dir: string): string[] {

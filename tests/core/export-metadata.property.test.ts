@@ -22,19 +22,12 @@ import {
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Markdown export then import gives the same note: its title (exactly, as
-// stored), tags (case included) and status, whatever characters they hold
-// and whatever front matter the note has of its own, and its body (a note
-// with front matter of its own comes back with the keys export set in it,
-// and exporting it again gives the same file).
-
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
 const dir = tempDir('devot-export-metadata-')
 let libraries = 0
 
-/** Imports one exported file into a new library: the note it made. */
 async function importOne(fileName: string, text: string) {
   libraries += 1
   const sqlite = openSqliteAdapter(join(dir, `${libraries}.sqlite`))
@@ -74,8 +67,6 @@ async function importOne(fileName: string, text: string) {
   }
 }
 
-// Written as code points: separators, spaces of other kinds, controls, a
-// byte order mark, a composed and a decomposed accent, an emoji.
 const chars = (...codes: number[]) => codes.map((c) => String.fromCodePoint(c))
 const SPECIAL = chars(
   0x2028,

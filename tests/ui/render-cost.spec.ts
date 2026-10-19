@@ -4,10 +4,6 @@ import { budgetScale } from '../support/budget'
 import { expect, test } from './fixtures'
 import { countRenders, renderCounts, resetRenderCounts, seedNotes } from './renders'
 
-// Typing costs the same whatever the size of the library: a keystroke in the
-// editor renders nothing outside it, and the note list re-renders only the
-// rows that changed.
-
 const WATCHED = ['App', 'NoteList', 'NoteRow', 'Sidebar']
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
@@ -20,7 +16,6 @@ const caption = (page: Page) =>
 const row = (page: Page, title: string) =>
   rows(page).filter({ has: page.locator('.row-title', { hasText: new RegExp(`^${title}$`) }) })
 
-/** Opens the note with this title from the list and puts the cursor in its body. */
 async function openNote(page: Page, title: string) {
   await row(page, title).click()
   await expect(titleField(page)).toHaveValue(title)
@@ -73,7 +68,6 @@ test('opening another note renders only the rows whose selection changed', async
   await expect(titleField(page)).toHaveValue('Note 4')
   await expect(row(page, 'Note 4')).toHaveAttribute('aria-selected', 'true')
   const { renders } = await renderCounts(page)
-  // The row left and the row opened, each perhaps once per step of the open.
   expect(renders['NoteRow']).toBeGreaterThanOrEqual(2)
   expect(renders['NoteRow']).toBeLessThanOrEqual(6)
   expect(renders['Sidebar']).toBe(0)
@@ -97,7 +91,6 @@ test('with 10,000 notes a keystroke stays within its budget and renders no row',
   await seedNotes(page, NOTES)
   await expect(caption(page)).toHaveText('10,000 notes', { timeout: 60_000 })
   await openNote(page, 'Note 1')
-  // From each key press to the frame after it.
   await page.evaluate(() => {
     const w = globalThis as unknown as {
       devotKeyMs: number[]

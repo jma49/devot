@@ -13,7 +13,6 @@ function headings(tree: Root | Element): Element[] {
   return out
 }
 
-// Written as code points: a test file holds no CJK characters.
 const ZH = String.fromCodePoint(0x4e2d, 0x6587)
 
 describe('slug', () => {

@@ -18,7 +18,6 @@ it('uses the limit Rust checks: what a note may hold', () => {
 it('counts UTF-8 bytes, as Rust does', () => {
   expect(fitsNativeClipboard('x'.repeat(NATIVE_CLIPBOARD_LIMIT))).toBe(true)
   expect(fitsNativeClipboard('x'.repeat(NATIVE_CLIPBOARD_LIMIT + 1))).toBe(false)
-  // Three bytes each (U+2026, the ellipsis).
   const third = Math.floor(NATIVE_CLIPBOARD_LIMIT / 3)
   expect(fitsNativeClipboard('…'.repeat(third))).toBe(true)
   expect(fitsNativeClipboard('…'.repeat(third + 1))).toBe(false)

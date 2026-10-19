@@ -27,7 +27,6 @@ function record(change: Partial<NoteRecord> = {}): NoteRecord {
     title: 'Title',
     titleHlc: '0001728000000000-0000-node',
     bodyMd: '',
-    // An empty Yjs update.
     ydoc: Uint8Array.of(0, 0),
     bodyVersion: 0,
     bookId: null,
@@ -48,7 +47,6 @@ const newId = createIdGenerator()
 const links = (count: number) =>
   Array.from({ length: count }, () => noteLink('n', newId())).join('\n')
 
-/** Records at and over each limit, with the code note_put answers (null: stored). */
 const CASES: [string, () => Partial<NoteRecord>, string | null][] = [
   ['a title of the most characters', () => ({ title: '\u{1F600}'.repeat(MAX_TITLE_CHARS) }), null],
   [
@@ -80,11 +78,6 @@ const CASES: [string, () => Partial<NoteRecord>, string | null][] = [
   ],
 ]
 
-/**
- * What `putNote` answers for each case: its error code, or null when it
- * stored the record. Each write is based on the body version the writes
- * stored before it left.
- */
 async function answers(storage: StorageAdapter) {
   const result: (string | null)[] = []
   let bodyVersion = 0
@@ -106,7 +99,6 @@ describe('note writes over the limits', () => {
     const sqlite = openSqliteAdapter(join(tempDir('devot-limits-'), 'devot.sqlite'))
     open.push(sqlite)
     expect(await answers(sqlite)).toEqual(EXPECTED)
-    // A refused write changes nothing.
     expect((await sqlite.getNote(ID))?.title).toBe('\u{1F600}'.repeat(MAX_TITLE_CHARS))
   })
 
@@ -154,7 +146,6 @@ describe('note writes over the limits', () => {
   })
 
   describe('in the app’s adapter', () => {
-    /** The commands sent to Rust (Tauri's IPC, stood in for here). */
     const sent: string[] = []
     beforeAll(() => {
       const ipc = { invoke: async (cmd: string) => void sent.push(cmd) }

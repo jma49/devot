@@ -2,9 +2,6 @@ import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { cssRules } from '../support/css-rules'
 
-// Controls tell the user what they are doing: a button shows hover and press,
-// a disabled one does not respond, every field and button fades between
-// states, and a switch slides its knob, all from motion tokens.
 const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
 const find = (selector: string) =>
   rules.filter(

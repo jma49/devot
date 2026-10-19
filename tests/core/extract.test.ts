@@ -56,7 +56,6 @@ describe('a new note from selected text', () => {
     const source = await notes.create('Source')
     const made = await notes.extract(source, 'https://example.com/a', 'Foo')
     expect(made.title).toBe('Foo')
-    // Stored at once: a list read right away shows the title.
     expect(await storage.getNote(made.id)).toMatchObject({
       title: 'Foo',
       bodyMd: 'https://example.com/a',
@@ -109,7 +108,6 @@ describe('a new note from selected text', () => {
     const { notes, storage } = services()
     const source = await notes.create('Source')
     const made = await notes.extract(source, 'Moved text')
-    // No flush: the first write already holds the body (search and the list read it).
     expect(await storage.getNote(made.id)).toMatchObject({ bodyMd: 'Moved text' })
     expect((await notes.search('Moved')).map((n) => n.id)).toEqual([made.id])
   })
@@ -132,7 +130,6 @@ describe('a new note from selected text', () => {
     expect(copy).not.toBe(FILE_A)
     expect(body).toBe(moved.replaceAll(FILE_A, copy))
 
-    // Deleting the source for good leaves the new note's image in place.
     await notes.trash(source)
     await notes.purge(source)
     const file = storage.db
@@ -141,7 +138,6 @@ describe('a new note from selected text', () => {
     expect(file).toMatchObject({ noteId: made.id, name: 'shot.png', mime: 'image/png' })
     expect(new Uint8Array(file.data)).toEqual(PNG)
     expect(file.size).toBe(PNG.length)
-    // Only the image the text shows was copied; the source's own went with it.
     const count = storage.db.prepare('SELECT count(*) AS n FROM files').get() as { n: number }
     expect(count.n).toBe(1)
   })
@@ -159,7 +155,6 @@ describe('a new note from selected text', () => {
     const { notes, storage } = services()
     const source = await notes.create('Source')
     await storage.putFile({ id: FILE_A, noteId: source, name: 'shot.png' }, PNG)
-    // A real failure inside the copy's write, on the real database.
     storage.db.exec(
       "CREATE TEMP TRIGGER no_copies BEFORE INSERT ON files BEGIN SELECT RAISE(ABORT, 'E_DISK_FULL'); END",
     )

@@ -1,9 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, pickMenuItem, test } from './fixtures'
 
-// The list's header: the Filter field scoped to the view, the sort chip, and
-// what a row shows.
-
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const filter = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
 const chip = (page: Page) => page.getByRole('button', { name: 'Sort Notes' })

@@ -13,7 +13,6 @@ import { tempDir } from '../support/temp-dirs'
 
 const root = join(import.meta.dirname, '../..')
 
-/** Every `.ts`/`.tsx` file under `dir`, tests left out. */
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name)
@@ -22,7 +21,6 @@ function sources(dir: string): string[] {
   })
 }
 
-/** The runtime packages the UI's and the core's code imports (not type-only imports). */
 function importedPackages(dependencies: string[]): string[] {
   const code = [...sources(join(root, 'src/renderer')), ...sources(join(root, 'src/core'))]
     .map((file) => readFileSync(file, 'utf8'))
@@ -42,7 +40,6 @@ it('the dependency scan finds the packages only the core worker imports', async 
   // The MCP server and the database adapter run in Node, never in the UI.
   const nodeOnly = ['@modelcontextprotocol/sdk', 'better-sqlite3']
   const expected = importedPackages(Object.keys(dependencies).filter((n) => !nodeOnly.includes(n)))
-  // Packages that only the worker imports are among them.
   expect(expected).toEqual(
     expect.arrayContaining(['rehype-raw', 'rehype-sanitize', 'remark-rehype']),
   )

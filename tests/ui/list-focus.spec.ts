@@ -1,7 +1,3 @@
-// The note list keeps the keyboard when the row that has it leaves the list
-// (Move to Trash, Delete Permanently, a move out of the notebook): the next
-// row (or the previous one at the end) opens and takes it, or the list itself
-// when it is empty.
 import type { Page } from '@playwright/test'
 import {
   expect,
@@ -29,20 +25,17 @@ async function createNote(page: Page, title: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
-/** Three notes, newest first: Gamma, Beta, Alpha. */
 async function threeNotes(page: Page) {
   for (const title of ['Alpha', 'Beta', 'Gamma']) await createNote(page, title)
   await expect(noteRows(page)).toHaveText([/^Gamma/, /^Beta/, /^Alpha/])
 }
 
-/** Gives the keyboard to a note's row (clicking it also opens the note). */
 async function focusRow(page: Page, title: string) {
   await noteRow(page, title).click()
   await expect(noteRow(page, title)).toBeFocused()
   await expect(titleField(page)).toHaveValue(title)
 }
 
-/** The row with this title is open (selected), shown in the editor, and has the keyboard. */
 async function expectOpenAndFocused(page: Page, title: string) {
   await expect(noteRow(page, title)).toHaveAttribute('aria-selected', 'true')
   await expect(noteRow(page, title)).toBeFocused()
@@ -57,7 +50,6 @@ const popups = (page: Page) =>
       ).length,
   )
 
-/** Right-clicks a row and waits for its native menu. */
 async function openMenu(page: Page, title: string) {
   const before = await popups(page)
   await noteRow(page, title).click({ button: 'right' })
@@ -68,7 +60,6 @@ async function trashCount(page: Page, count: number) {
   await expect(trashSource(page)).toHaveText(new RegExp(`${count}$`))
 }
 
-/** Moves every note to the Trash with the toolbar button: Alpha, Beta, then Gamma. */
 async function trashAll(page: Page) {
   for (const [i, title] of ['Alpha', 'Beta', 'Gamma'].entries()) {
     await noteRow(page, title).click()
@@ -92,7 +83,6 @@ test('Cmd+Delete opens the next row and keeps the keyboard in the list', async (
   await expect(noteRows(page)).toHaveText([/^Beta/, /^Alpha/])
   await expectOpenAndFocused(page, 'Beta')
 
-  // The list's keys still work: arrows move, P pins.
   await page.keyboard.press('ArrowDown')
   await expectOpenAndFocused(page, 'Alpha')
   await page.keyboard.press('KeyP')
@@ -114,7 +104,6 @@ test('at the end of the list the previous row takes over; then the list', async 
   await trashCount(page, 3)
   await expect(noteRows(page)).toHaveCount(0)
   await expect(list(page)).toBeFocused()
-  // The empty list's own keys work: / searches the view.
   await page.keyboard.press('/')
   await expect(page.getByRole('searchbox', { name: 'Search notes' })).toBeFocused()
 })
@@ -132,7 +121,6 @@ test('after Duplicate, Cmd+Delete on the copy leaves the keyboard on a row', asy
   const open = noteRows(page).and(page.locator('[aria-selected="true"]'))
   await expect(open).toHaveCount(1)
   await expect(open).toBeFocused()
-  // The keyboard works on the row that took over: M opens the picker for it.
   await page.keyboard.press('KeyM')
   await expect(page.getByRole('dialog', { name: 'Move to Notebook' })).toBeVisible()
 })
@@ -183,7 +171,6 @@ test('Delete Permanently in the Trash list opens the next trashed note', async (
   await expect(
     page.getByRole('status').filter({ hasText: 'This note is in the Trash.' }),
   ).toContainText('This note is in the Trash.')
-  // The Trash list's keys still work on it.
   await page.keyboard.press('Meta+Backspace')
   await expect(page.getByRole('dialog')).toContainText('Permanently delete')
   await page.getByRole('dialog').getByRole('button', { name: 'Delete Permanently' }).click()
@@ -251,7 +238,6 @@ test('a row the filter hides hands the keyboard to the next one', async ({ page 
     (text) => /^(Alpha|Beta|Gamma)/.exec(text)?.[1] ?? '',
   )
   await focusRow(page, titles[1] ?? '')
-  // Unpinning takes the note out of the Pinned filter.
   await page.keyboard.press('KeyP')
   await expect(noteRows(page)).toHaveCount(2)
   await expectOpenAndFocused(page, titles[2] ?? '')
@@ -270,7 +256,6 @@ test('switching views from the keyboard opens no note', async ({ page }) => {
     .click()
   await createNote(page, 'Gamma')
   await expect(noteRows(page)).toHaveText([/^Gamma/, /^Beta/, /^Alpha/])
-  // Gamma, outside Work, is open and its row has the keyboard.
   await focusRow(page, 'Gamma')
   await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
@@ -283,13 +268,6 @@ test('switching views from the keyboard opens no note', async ({ page }) => {
   await expect(titleField(page)).toHaveValue('Gamma')
 })
 
-/**
- * Makes the window act as on a loaded machine: React's scheduler yields after
- * every task (its clock jumps 50 ms a read), and the focus rescue's animation
- * frames (focusRescue.ts) come at once. The rescue then looks for the keyboard
- * before React has run the list's effects of the render that removed a row.
- * Takes effect from the next load while `devotRescueFirst` is set.
- */
 async function rescueFirst(page: Page) {
   await page.addInitScript(() => {
     const w = globalThis as unknown as { devotRescueFirst?: boolean }

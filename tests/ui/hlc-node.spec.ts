@@ -13,7 +13,6 @@ async function newNote(page: Page) {
   await expect(noteRows(page)).toHaveCount(before + 1)
 }
 
-/** The node ID of each stored note's title timestamp, in the order they were made. */
 const nodes = (page: Page) =>
   page.evaluate(() =>
     (JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as { titleHlc: string }[]).map(
@@ -36,6 +35,5 @@ test('each start of the window stamps its writes with a node ID of its own', asy
   expect(first).toMatch(/^[a-z0-9]{1,32}$/)
   expect(second).toMatch(/^[a-z0-9]{1,32}$/)
   expect(second).not.toBe(first)
-  // Nothing of it is kept in the web view's storage, which other builds share.
   expect(await page.evaluate(() => localStorage.getItem('devot.node'))).toBeNull()
 })

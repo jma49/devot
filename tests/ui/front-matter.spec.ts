@@ -1,9 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-// Front matter at the start of a note reads as metadata in the editor, not
-// as a heading; a `---` further down still makes a heading or a rule.
-
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const line = (page: Page, n: number) => page.locator('.cm-line').nth(n)
 
@@ -14,7 +11,6 @@ async function newNote(page: Page, text: string) {
   await page.keyboard.insertText(text)
 }
 
-// The page's DOM, which the Node types of the test files do not describe.
 interface Dom {
   getComputedStyle(element: unknown): {
     fontWeight: string
@@ -27,7 +23,6 @@ interface Dom {
   }
 }
 
-/** How the text of a line is drawn: the heaviest weight, any underline, and its colours. */
 function lineStyle(locator: Locator) {
   return locator.evaluate((el) => {
     const dom = globalThis as unknown as Dom
@@ -41,7 +36,6 @@ function lineStyle(locator: Locator) {
   })
 }
 
-/** The colour a token variable resolves to. */
 function tokenColor(page: Page, name: string) {
   return page.evaluate((variable) => {
     const dom = globalThis as unknown as Dom
@@ -73,20 +67,16 @@ test('front matter is styled as metadata, a later setext heading as a heading', 
     await expect
       .poll(() => lineStyle(line(page, n)), { message: `line ${n}` })
       .toEqual({ weight: 400, underline: false, colors: [secondary] })
-  // The fences are metadata too, in the tertiary colour.
   for (const n of [0, 3])
     await expect
       .poll(() => lineStyle(line(page, n)), { message: `line ${n}` })
       .toEqual({ weight: 400, underline: false, colors: [tertiary] })
-  // The paragraph over the later `---` is still a heading: bold, and not
-  // underlined, which is for links.
   await expect.poll(() => lineStyle(line(page, 5))).toMatchObject({ weight: 700, underline: false })
 })
 
 test('front matter becomes a heading again when its first fence goes', async ({ page }) => {
   await newNote(page, '---\ntitle: Launch plan\n---\n')
   await expect.poll(async () => (await lineStyle(line(page, 1))).weight).toBe(400)
-  // Remove the opening fence: the key line and the closing `---` make a setext heading.
   await line(page, 0).click()
   await page.keyboard.press('End')
   await page.keyboard.press('Shift+Home')
@@ -96,10 +86,8 @@ test('front matter becomes a heading again when its first fence goes', async ({ 
   await expect.poll(async () => (await lineStyle(line(page, 0))).weight).toBe(700)
 })
 
-/** Pastes plain text into the editor, as the system would. */
 async function paste(page: Page, text: string) {
   await body(page).evaluate((el, value) => {
-    // This config has no DOM types: the few browser classes used here.
     const w = globalThis as unknown as {
       DataTransfer: new () => { setData(type: string, value: string): void }
       ClipboardEvent: new (type: string, init: object) => unknown
@@ -113,7 +101,6 @@ async function paste(page: Page, text: string) {
   }, text)
 }
 
-/** Selects the text of a line, from its end back to its start. */
 async function selectLine(page: Page, n: number) {
   await line(page, n).click()
   await page.keyboard.press('End')

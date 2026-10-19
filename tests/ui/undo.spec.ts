@@ -19,7 +19,6 @@ interface StoredNote {
   title: string
   bodyMd: string
   ydoc: number[]
-  /** Missing in a note stored before body versions: 0. */
   bodyVersion?: number
 }
 
@@ -29,7 +28,6 @@ const storedNotes = (page: Page) =>
 const savedBody = async (page: Page, title: string) =>
   (await storedNotes(page)).find((n) => n.title === title)?.bodyMd
 
-/** Writes to the stored note's Yjs document behind the app's back, as another process would. */
 async function editOutside(page: Page, title: string, edit: (doc: Y.Doc) => void) {
   const notes = await storedNotes(page)
   const note = notes.find((n) => n.title === title)
@@ -39,10 +37,8 @@ async function editOutside(page: Page, title: string, edit: (doc: Y.Doc) => void
   edit(doc)
   note.ydoc = Array.from(Y.encodeStateAsUpdate(doc))
   note.bodyMd = doc.getText('body').toString()
-  // Storage moves the body version on with the write.
   note.bodyVersion = (note.bodyVersion ?? 0) + 1
   await page.evaluate((all) => localStorage.setItem('devot.test.notes', JSON.stringify(all)), notes)
-  // Rust's `devot://db-changed`, as the page re-sends it.
   await page.evaluate((name) => {
     const w = globalThis as unknown as {
       dispatchEvent(e: unknown): void
@@ -68,7 +64,6 @@ async function show(page: Page, title: string) {
   await expect(titleField(page)).toHaveValue(title)
 }
 
-/** Presses Cmd+Z (Ctrl+Z off macOS) in the editor `times` times. */
 async function undo(page: Page, times: number) {
   for (let i = 0; i < times; i += 1) await page.keyboard.press('ControlOrMeta+z')
 }
@@ -84,7 +79,6 @@ test('a change another process makes to the open note is not undone', async ({ p
   await editOutside(page, 'Shared', (doc) => doc.getText('body').insert(0, 'From outside. '))
   await expect(body(page)).toHaveText('From outside. Typed here.')
 
-  // Typing goes on at the end; undo takes back all the typing and nothing else.
   await body(page).click()
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.type(' More.')
@@ -95,17 +89,14 @@ test('a change another process makes to the open note is not undone', async ({ p
 test('undo goes on after switching to another note and back', async ({ page }) => {
   await createNote(page, 'First', 'Typed in first.')
   await createNote(page, 'Second', 'Typed in second.')
-  // While the first note is not shown, another process writes to it.
   await editOutside(page, 'First', (doc) => doc.getText('body').insert(0, 'Outside. '))
   await show(page, 'First')
   await expect(body(page)).toHaveText('Outside. Typed in first.')
 
-  // Its own typing is undone; what came from outside stays.
   await body(page).click()
   await undo(page, 3)
   await expect.poll(() => savedBody(page, 'First')).toBe('Outside. ')
 
-  // The second note kept its own history too.
   await show(page, 'Second')
   await body(page).click()
   await undo(page, 3)
@@ -114,7 +105,6 @@ test('undo goes on after switching to another note and back', async ({ page }) =
 
 test('undo goes on after more notes were shown than the core keeps in memory', async ({ page }) => {
   await createNote(page, 'Kept', 'Typed first.')
-  // Nine other notes: the core lets the first one go from memory and reads it again.
   for (let i = 1; i <= 9; i += 1) await createNote(page, `Other ${i}`, `Note ${i}.`)
   await show(page, 'Kept')
   await expect(body(page)).toHaveText('Typed first.')

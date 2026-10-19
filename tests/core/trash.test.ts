@@ -90,7 +90,6 @@ describe('trash on SQLite', () => {
 
   it('restores a note whose stored title storage would refuse now', async () => {
     const { notes, storage } = setup()
-    // Stored by an older build: a carriage return, and past the limit.
     for (const title of ['two\rlines', 'x'.repeat(1500)]) {
       const id = await notes.create('Old', null)
       await notes.release(id)
@@ -153,7 +152,6 @@ describe('trash on SQLite', () => {
     const { storage, notes } = setup()
     const id = await notes.create('Flip')
     const live = (await storage.getNote(id))!
-    /** The note with `change`, written over the body as stored now. */
     const put = async (change: Pick<NoteRecord, 'deletedAt' | 'deletedHlc'>) => {
       const { bodyVersion } = (await storage.getNote(id, { trashed: true }))!
       await storage.putNote({ ...live, ...change, bodyVersion })

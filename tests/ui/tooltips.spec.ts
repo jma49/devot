@@ -1,9 +1,5 @@
 import { expect, openApp, test } from './fixtures'
 
-// Every icon button shows one custom tooltip: above the button with a notch,
-// after a short rest, kept inside the window, and gone when the pointer
-// leaves or presses.
-
 test('a sidebar button shows the bubble above it, with no system tooltip', async ({ page }) => {
   await openApp(page)
   const button = page.getByRole('button', { name: 'New Notebook' })
@@ -48,7 +44,6 @@ test('a press hides the bubble', async ({ page }) => {
 test('keyboard focus shows the bubble too, and leaving the button hides it', async ({ page }) => {
   await openApp(page)
   const button = page.getByRole('button', { name: 'New Notebook' })
-  // Focus after a key press (not a click) is what makes the focus ring show.
   await page.keyboard.press('Tab')
   await button.evaluate((el) => el.focus())
   const tip = page.getByRole('tooltip')

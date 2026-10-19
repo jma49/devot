@@ -40,7 +40,6 @@ function setup({
 }: { retryDelayMs?: number; listener?: (problems: SaveProblem[]) => void } = {}) {
   const sqlite = openSqliteAdapter(join(tempDir('devot-saves-'), 'devot.sqlite'))
   open.push(sqlite)
-  /** Every note write asked for, in order, failed and held ones too. */
   const writes: NoteRecord[] = []
   let refuse: (record: NoteRecord) => boolean = () => false
   let gate: Promise<void> | undefined
@@ -73,14 +72,12 @@ function setup({
     sqlite,
     writes,
     reports,
-    /** The notes the service reported last as not saved. */
     problems: () => reports.at(-1) ?? [],
     stored: (id: string) => sqlite.getNote(id, { trashed: true }),
     failWrites(when: (record: NoteRecord) => boolean = () => true) {
       refuse = when
     },
     allowWrites,
-    /** The next note write waits until the function returned is called. */
     holdNextWrite() {
       let release = () => {}
       gate = new Promise((resolve) => (release = resolve))
@@ -110,7 +107,6 @@ describe('a save that fails', () => {
     await vi.waitFor(() => expect(s.problems()).toEqual([{ id, code: 'E_TEST_WRITE' }]))
     const tried = s.writes.length
     await vi.waitFor(() => expect(s.writes.length).toBeGreaterThan(tried), { timeout: 5000 })
-    // The same failure is reported once.
     expect(s.reports.filter((r) => r.length > 0)).toHaveLength(1)
     s.allowWrites()
     await vi.waitFor(() => expect(s.problems()).toEqual([]), { timeout: 5000 })
@@ -131,12 +127,10 @@ describe('a save that fails', () => {
     expect(error?.message).toBe(`E_NOTE_SAVE_FAILED ${bad}`)
     expect((await s.stored(good))?.bodyMd).toBe('saved')
     expect(s.problems()).toEqual([{ id: bad, code: 'E_TEST_WRITE' }])
-    // Quitting still keeps the typing as a version.
     const versions = await s.sqlite.listRevisions(bad)
     expect(versions.some((v) => v.kind === 'body' && v.length === 'not saved yet'.length)).toBe(
       true,
     )
-    // Still pending: once writes work again, the next flush saves it.
     s.allowWrites()
     await s.notes.flush()
     expect((await s.stored(bad))?.bodyMd).toBe('not saved yet')
@@ -164,7 +158,6 @@ describe('a save that fails', () => {
     const release = s.holdNextWrite()
     const pinning = s.notes.writeMeta(id, { pinned: true })
     await vi.waitFor(() => expect(s.writes).toHaveLength(2))
-    // The status changes while the pin is being written.
     await s.notes.setStatus(id, 'active')
     release()
     await expect(pinning).rejects.toThrow('E_TEST_WRITE')

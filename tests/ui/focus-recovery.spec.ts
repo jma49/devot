@@ -17,7 +17,6 @@ const tagRow = (page: Page, name: string) =>
 const trashRow = (page: Page) => sidebar(page).getByRole('button', { name: /^Trash \d+$/ })
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 
-/** Deletes the focused notebook row: Backspace asks first, Return confirms. */
 async function deleteFocusedBook(page: Page, name: string) {
   await page.keyboard.press('Backspace')
   await expect(
@@ -26,7 +25,6 @@ async function deleteFocusedBook(page: Page, name: string) {
   await page.keyboard.press('Enter')
 }
 
-/** Whether the keyboard is on the page itself, nowhere. */
 const onPage = (page: Page) =>
   page.evaluate(() => {
     const { document } = globalThis as unknown as {
@@ -35,7 +33,6 @@ const onPage = (page: Page) =>
     return document.activeElement === null || document.activeElement.tagName === 'BODY'
   })
 
-/** Waits until the keyboard is on an element (after the window has settled), and returns its area. */
 async function settledFocus(page: Page) {
   await expect.poll(() => onPage(page)).toBe(false)
   return page.evaluate(() => {
@@ -93,7 +90,6 @@ test('deleting a notebook row with the keyboard moves it to the next row', async
   await deleteFocusedBook(page, 'Work')
   await expect(book(page, 'Work')).toHaveCount(0)
   await expect(book(page, 'Play')).toBeFocused()
-  // The last notebook: the row before it.
   await deleteFocusedBook(page, 'Play')
   await expect(book(page, 'Play')).toHaveCount(0)
   await expect(book(page, 'Home')).toBeFocused()
@@ -204,7 +200,6 @@ test('Empty Trash keeps the keyboard on its button, which is then disabled', asy
   await expect(trashRow(page)).toHaveText(/0$/)
   await expect(empty).toBeDisabled()
   await expect(empty).toBeFocused()
-  // Return on it does nothing.
   await page.keyboard.press('Enter')
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
@@ -223,7 +218,6 @@ for (const area of ['sidebar', 'list'] as const) {
     await expect(sidebar(page)).toBeHidden()
     await expect(list(page)).toBeHidden()
     await expect.poll(async () => (await settledFocus(page)).part).toBe('editor')
-    // Leaving focus mode with the keyboard in the editor keeps it there.
     await page.keyboard.press('Meta+Shift+KeyD')
     await expect(sidebar(page)).toBeVisible()
     await expect.poll(() => onPage(page)).toBe(false)
@@ -253,7 +247,6 @@ test('the Backups sheet opens on Done, and closing it gives the keyboard back', 
   const dialog = page.getByRole('dialog', { name: 'Backups' })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Done' })).toBeFocused()
-  // Return dismisses it; it does not take a backup.
   await page.keyboard.press('Enter')
   await expect(dialog).toBeHidden()
   await expect(row).toBeFocused()

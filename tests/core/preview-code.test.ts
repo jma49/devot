@@ -3,9 +3,6 @@ import { toHtml } from 'hast-util-to-html'
 import { describe, expect, it } from 'vitest'
 import { parseCodeInfo, renderPreview, type PreviewLabels } from '../../src/core'
 
-// Code blocks in the preview: a header with the language and a title, read
-// from the fence's info string, and highlighting built from text only.
-
 const labels: PreviewLabels = {
   alerts: {
     note: 'Note',
@@ -71,7 +68,6 @@ describe('code blocks', () => {
     expect(text(byClass(header!, 'code-lang')[0]!)).toBe('JavaScript')
     const svg = elements(header!).find((e) => e.tagName === 'svg')
     expect(classes(svg!)).toEqual(['code-lang-icon'])
-    // Highlighted, with the code's text unchanged.
     const code = elements(block!).find((e) => e.tagName === 'code')!
     expect(classes(code)).toEqual(['language-js'])
     expect(byClass(code, 'hljs-keyword').map(text)).toEqual(['const'])

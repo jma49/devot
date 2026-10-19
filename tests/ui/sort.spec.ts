@@ -11,7 +11,6 @@ import {
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
-// A row's name: its title, or for an untitled note the first line leading its excerpt.
 const rowTitles = (page: Page) => list(page).locator('.row-title, .row-headline')
 const sections = (page: Page) => list(page).locator('.list-section')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
@@ -33,7 +32,6 @@ const ORDERS = [
   'Date Created (Oldest First)',
 ]
 
-/** The order menu as shown, with `checked` ticked and every other order not. */
 const menuWith = (
   checked: string,
   followsDefault: boolean | undefined,
@@ -56,7 +54,6 @@ const popups = (page: Page) =>
       ).length,
   )
 
-/** Clicks the sort button and waits for its menu. */
 async function openSortMenu(page: Page) {
   const before = await popups(page)
   await sortButton(page).click()
@@ -122,7 +119,6 @@ test('the sort pop-up lists the six orders and shows the current one', async ({ 
   await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Date Updated (Newest First)')
   await openSortMenu(page)
   expect(await shownMenu(page)).toEqual(menuWith('Date Updated (Newest First)', true))
-  // It opens under the button, not at the pointer.
   const at = await page.evaluate(
     () =>
       (globalThis as unknown as TestWindow).devotIpcCalls.findLast(
@@ -145,7 +141,7 @@ test('an order re-sorts the list, pinned notes in their own section, and survive
 }) => {
   // Created in this order; then Cherry is edited, so it is the newest updated.
   for (const title of ['banana', 'Cherry', 'apple', 'Date']) await createNote(page, title)
-  await pinOpenNote(page) // Date
+  await pinOpenNote(page)
   await noteRows(page).filter({ hasText: 'apple' }).click()
   await expect(titleField(page)).toHaveValue('apple')
   await pinOpenNote(page)
@@ -173,7 +169,6 @@ test('an order re-sorts the list, pinned notes in their own section, and survive
   await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Title (Z to A)')
   await expect(rowTitles(page)).toHaveText(['Date', 'apple', 'Cherry pie', 'banana'])
   await expect(sections(page)).toHaveText(['Pinned', 'Notes'])
-  // The arrow keys follow the order on screen.
   await noteRows(page).first().click()
   await page.keyboard.press('ArrowDown')
   await expect(titleField(page)).toHaveValue('apple')
@@ -192,7 +187,6 @@ test('each view keeps its own order; Use as Default sets the rest', async ({ pag
   await createNote(page, 'zulu')
   await createNote(page, 'Yankee')
 
-  // All Notes by title; Work keeps the default order.
   await sidebar(page)
     .getByRole('button', { name: /^All Notes/ })
     .click()
@@ -204,7 +198,6 @@ test('each view keeps its own order; Use as Default sets the rest', async ({ pag
   await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Date Updated (Newest First)')
   await expect(rowTitles(page)).toHaveText(['Yankee', 'zulu'])
 
-  // Work: oldest created first, then made the default.
   await sortBy(page, 'Date Created (Oldest First)')
   await expect(rowTitles(page)).toHaveText(['zulu', 'Yankee'])
   await openSortMenu(page)
@@ -254,7 +247,6 @@ test('search results keep their relevance order until another order is picked', 
   await sortBy(page, 'Relevance')
   await expect(rowTitles(page)).toHaveText(['plan c', 'plan a', 'plan b'])
 
-  // The library keeps its own order.
   await search(page).press('Escape')
   await expect(header(page)).toHaveText('All Notes')
   await expect(rowTitles(page)).toHaveText(['plan c', 'plan b', 'plan a'])
@@ -265,13 +257,11 @@ test('a new note is scrolled into view when the order puts it at the bottom', as
   for (let i = 1; i <= 8; i++) await createNote(page, `Note ${i}`)
   await sortBy(page, 'Date Created (Oldest First)')
   await expect(rowTitles(page).first()).toHaveText('Note 1')
-  // The list is longer than its pane and shows its top.
   const overflow = () =>
     list(page).evaluate((el) => ({ top: el.scrollTop, hidden: el.scrollHeight > el.clientHeight }))
   expect(await overflow()).toEqual({ top: 0, hidden: true })
   await expect(noteRows(page).last()).not.toBeInViewport()
 
-  // The editor takes the keyboard; the new row, last in this order, still shows.
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(noteRows(page)).toHaveCount(9)
   const created = noteRows(page).last()
@@ -299,7 +289,6 @@ test('the sort menu switches the list between relative and absolute dates', asyn
   await openSortMenu(page)
   expect(await shownMenu(page)).toEqual(menuWith('Date Updated (Newest First)', true))
   await pickMenuItem(page, 'Absolute Dates')
-  // A note changed today shows its time.
   await expect(time).toHaveText(/^\d{1,2}:\d{2}/)
   await openSortMenu(page)
   expect(await shownMenu(page)).toEqual(menuWith('Date Updated (Newest First)', true, 'Absolute'))

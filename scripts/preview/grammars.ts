@@ -7,7 +7,6 @@ import { join } from 'node:path'
 
 export const GRAMMARS_PATH = 'src/core/preview/grammars.ts'
 
-/** The text of the generated module for the installed highlight.js. */
 export function grammarsSource(): string {
   const names = hljs.listLanguages().sort()
   const aliases: [string, string][] = []

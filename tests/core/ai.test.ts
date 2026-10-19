@@ -1,5 +1,3 @@
-// What AI tools (devot-mcp) can see and do, on real SQLite: only the live
-// notes filed directly in notebooks with Allow AI Access on.
 import { once } from 'node:events'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
@@ -35,13 +33,11 @@ function setup() {
   const path = join(tempDir('devot-ai-'), 'devot.sqlite')
   const storage = openSqliteAdapter(path)
   open.push(storage)
-  // The app's side: its own clock and services.
   const clock = createClock('mac1')
   const newId = createIdGenerator()
   const books = createBookService({ storage, clock, newId })
   const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
   const tags = createTagService({ storage, clock, newId })
-  // devot-mcp's side: the same file, its own clock.
   const ai = createAiService({
     storage,
     clock: createClock('mcptest'),
@@ -63,11 +59,6 @@ async function note({ notes }: Setup, title: string, body: string, bookId: strin
   return id
 }
 
-/**
- * Notebooks: Shared (allowed) with a sub-notebook Inside (not allowed),
- * Private (not allowed), and Gone (allowed, then deleted). Every note holds
- * the word "kiwi".
- */
 async function world(s: Setup) {
   const shared = await s.books.create('Shared', null)
   const inside = await s.books.create('Inside', shared)
@@ -108,7 +99,6 @@ describe('what AI can see', () => {
       notebook: { id: books.shared, name: 'Shared' },
     })
     expect(hits[0]?.snippet).toContain('shared kiwi note')
-    // Words that only hidden notes contain find nothing.
     for (const query of ['private', 'sub-notebook', 'trash', 'purged', 'deleted', 'no notebook']) {
       expect(await s.ai.search(query)).toEqual([])
     }
@@ -128,7 +118,6 @@ describe('what AI can see', () => {
     expect(await s.ai.search('kiwi book:Inside')).toEqual([])
     expect((await s.ai.search('kiwi -book:Private')).map((h) => h.id)).toEqual([ids.shared])
     expect(await s.ai.search('kiwi -book:Shared')).toEqual([])
-    // The snippet follows the words searched for in the body.
     const [hit] = await s.ai.search('title:shared body:note')
     expect(hit?.snippet).toContain('note')
   })
@@ -215,7 +204,6 @@ describe('what AI can see', () => {
     const s = setup()
     const shared = await s.books.create('Shared', null)
     await s.books.setAiAccess(shared, true)
-    // "\u540c\u6b65" is a two-character Chinese word ("sync").
     const id = await note(s, 'Plan', 'Notes on \u540c\u6b65 and more.', shared)
     const [hit] = await s.ai.search('\u540c\u6b65')
     expect(hit?.id).toBe(id)
@@ -235,22 +223,18 @@ describe('creating notes', () => {
     const record = (await s.storage.getNote(created.id))!
     expect(record.bookId).toBe(shared)
     expect(record.title).toBe('From AI')
-    // Line breaks become \n, and the snapshot is what the Yjs document holds.
     expect(record.bodyMd).toBe('# Plan\n\n- one\n- two\n')
     const doc = new Y.Doc()
     Y.applyUpdate(doc, record.ydoc)
     expect(doc.getText(BODY).toString()).toBe(record.bodyMd)
-    // Its clocks carry devot-mcp's own node ID.
     expect(parseHlc(record.titleHlc).node).toBe('mcptest')
     expect(parseHlc(record.bookHlc).node).toBe('mcptest')
 
-    // The app sees it, opens it and can edit it.
     expect((await s.notes.list()).map((n) => n.id)).toContain(created.id)
     const opened = await s.notes.open(created.id)
     const replica = new Y.Doc()
     Y.applyUpdate(replica, opened.state)
     expect(replica.getText(BODY).toString()).toBe(record.bodyMd)
-    // AI reads it back.
     expect((await s.ai.read(created.id)).markdown).toBe(record.bodyMd)
     expect((await s.ai.search('Plan')).map((h) => h.id)).toEqual([created.id])
   })
@@ -292,7 +276,6 @@ describe('creating notes', () => {
     await expect(s.ai.create({ title: 'T', markdown: '', notebook: 'Inbox' })).rejects.toThrow(
       'E_BOOK_AMBIGUOUS',
     )
-    // By ID it works.
     expect((await s.ai.create({ title: 'T', markdown: '', notebook: b })).notebook.id).toBe(b)
   })
 
@@ -325,13 +308,11 @@ describe('creating notes', () => {
     const newId = createIdGenerator()
     const ids = Array.from({ length: MAX_NOTE_LINKS + 1 }, () => newId())
     const index = ids.map((id) => noteLink('n', id)).join('\n')
-    // Well under the size limit: only the link count is wrong.
     expect(new TextEncoder().encode(index).length).toBeLessThan(MAX_AI_BODY_BYTES)
     await expect(
       s.ai.create({ title: 'Index', markdown: index, notebook: shared }),
     ).rejects.toThrow('E_NOTE_LINKS_TOO_MANY')
     expect(await s.notes.list()).toEqual([])
-    // Exactly the limit is fine.
     const atLimit = ids
       .slice(1)
       .map((id) => noteLink('n', id))
@@ -344,7 +325,6 @@ describe('creating notes', () => {
     const s = setup()
     const shared = await s.books.create('Shared', null)
     await s.books.setAiAccess(shared, true)
-    // Count the commits other connections see.
     const watcher = openSqliteAdapter(s.path)
     open.push(watcher)
     const version = () => watcher.db.pragma('data_version', { simple: true }) as number
@@ -400,7 +380,6 @@ async function appWriter(path: string, bookId: string) {
   }
 }
 
-/** The texts of a note's stored body versions, oldest first. */
 async function versionTexts(s: Setup, id: string): Promise<string[]> {
   const texts: string[] = []
   for (const summary of (await s.storage.listRevisions(id)).filter((r) => r.kind === 'body')) {
@@ -435,7 +414,6 @@ describe('editing notes', () => {
       status: 'active',
     })
     const record = (await s.storage.getNote(ids.shared))!
-    // The snapshot is what the Yjs document holds, written by devot-mcp's clock.
     const doc = new Y.Doc()
     Y.applyUpdate(doc, record.ydoc)
     expect(doc.getText(BODY).toString()).toBe('A new body.\nTwo lines.')
@@ -468,7 +446,6 @@ describe('editing notes', () => {
       body: {
         patches: [
           { find: 'one two', replace: 'ONE' },
-          // Found once now that the first patch replaced the other.
           { find: 'two', replace: '2\r\n' },
         ],
       },
@@ -478,7 +455,6 @@ describe('editing notes', () => {
     for (const [patches, code] of [
       [[{ find: 'missing', replace: 'x' }], 'E_AI_PATCH_NOT_FOUND'],
       [[{ find: 'e', replace: 'x' }], 'E_AI_PATCH_AMBIGUOUS'],
-      // A later patch failing leaves the earlier ones unwritten.
       [
         [
           { find: 'ONE', replace: 'x' },
@@ -526,7 +502,6 @@ describe('editing notes', () => {
         'E_BOOK_NOT_FOUND',
       )
     }
-    // Nothing of a refused update is written.
     expect(await s.ai.read(ids.shared)).toMatchObject({
       title: 'Shared kiwi',
       notebook: { id: books.shared },
@@ -568,14 +543,12 @@ describe('editing notes', () => {
 
     expect((await s.ai.update({ id: ids.shared, tags: ['Work'] })).tags).toEqual(['Work'])
     expect((await s.ai.update({ id: ids.shared, tags: [] })).tags).toEqual([])
-    // The hidden note keeps its tag.
     expect(await s.storage.noteTags(ids.priv)).toEqual([{ id: work, name: 'Work' }])
   })
 
   it('merges with edits the app holds of the open note', async () => {
     const s = setup()
     const { ids } = await world(s)
-    // The app holds the note, with typing not saved yet.
     s.notes.hold(ids.shared)
     await s.notes.insertAt(ids.shared, null, ' Typed in the app.')
     await s.ai.update({
@@ -646,7 +619,6 @@ describe('creating notebooks', () => {
       aiAccess: true,
     })
     expect((await s.ai.notebooks()).map((b) => b.name)).toEqual(['Shared', 'Ideas', 'Projects'])
-    // Notes can go in it at once.
     const created = await s.ai.create({ title: 'Plan', markdown: 'x', notebook: 'Ideas' })
     expect(created.notebook.id).toBe(inner.id)
   })
@@ -659,7 +631,6 @@ describe('creating notebooks', () => {
     }
     await expect(s.ai.createNotebook({ name: 'Shared' })).rejects.toThrow('E_BOOK_NAME_TAKEN')
     await expect(s.ai.createNotebook({ name: ' ' })).rejects.toThrow('E_BOOK_NAME_INVALID')
-    // A hidden notebook's name is no reason to refuse: that would reveal it.
     const named = await s.ai.createNotebook({ name: 'Private' })
     expect(named.name).toBe('Private')
     expect((await s.books.list()).filter((b) => b.name === 'X')).toEqual([])
@@ -670,7 +641,6 @@ describe('applyPatches', () => {
   it('applies patches in turn, line breaks as \\n', () => {
     expect(applyPatches('a b c', [{ find: 'b', replace: 'B' }])).toBe('a B c')
     expect(applyPatches('x\ny', [{ find: 'x\r\ny', replace: 'z' }])).toBe('z')
-    // Overlapping matches count as two.
     expect(() => applyPatches('aaa', [{ find: 'aa', replace: 'b' }])).toThrow(
       'E_AI_PATCH_AMBIGUOUS',
     )
@@ -684,8 +654,6 @@ describe('creating notes beside a long history', () => {
     const s = setup()
     const shared = await s.books.create('Shared', null)
     await s.books.setAiAccess(shared, true)
-    // 200 notes AI may see, each with versions a sweep would thin: its
-    // newest from today, and two from one hour a month ago.
     const now = Date.now()
     const month = Math.floor((now - 30 * 86_400_000) / 3_600_000) * 3_600_000
     const state = new Uint8Array(8_000).map((_, i) => (i * 31) % 251)
@@ -734,8 +702,6 @@ describe('creating notes beside a long history', () => {
       (s.storage.db.prepare('SELECT COUNT(*) AS n FROM revisions').get() as { n: number }).n
     const before = revisions()
 
-    // devot-mcp's side, on its own connection, timing how long each create
-    // holds the write lock; any history read or compaction call is noted.
     const mcp = openSqliteAdapter(s.path, { migrate: false })
     open.push(mcp)
     const calls: string[] = []
@@ -791,7 +757,6 @@ describe('atomically', () => {
       }),
     ).rejects.toThrow('E_TEST_FAILED')
     expect(await s.storage.listNotes()).toEqual([])
-    // The connection is usable afterwards, and runs queue up.
     const results = await Promise.all([
       s.storage.atomically(async () => s.notes.create('A', null)),
       s.storage.atomically(async () => s.notes.create('B', null)),
@@ -812,7 +777,6 @@ describe('snippet', () => {
   })
 
   it('finds the match even when lower-casing would change the text length', () => {
-    // "\u0130" lower-cases to two UTF-16 units.
     const text = `${'\u0130'.repeat(120)} then Kiwi`
     expect(snippet(text, ['kiwi'])).toContain('then Kiwi')
   })

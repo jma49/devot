@@ -1,7 +1,3 @@
-// Workspaces: a notebook opened as the whole sidebar. It shows the notebook's
-// title, its notes as All Notes, its sub-notebooks, and the statuses and tags
-// of its own notes; Go Up a Level goes to the parent's workspace, and out of
-// workspaces at the top level.
 import type { Page } from '@playwright/test'
 import { expect, pickMenuItem, reloadApp, test } from './fixtures'
 
@@ -32,7 +28,6 @@ async function createBook(page: Page, name: string) {
   await expect(book(page, name)).toBeVisible()
 }
 
-/** A note in the notebook shown, with a status (2: Active) and a tag if given. */
 async function createNote(page: Page, title: string, more: { active?: boolean; tag?: string }) {
   const before = await noteRows(page).count()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
@@ -53,10 +48,6 @@ async function createNote(page: Page, title: string, more: { active?: boolean; t
   }
 }
 
-/**
- * Home and Work > Devot, with notes: Chores (Home, active, #chore), Memo
- * (Work, #work) and Plan (Devot, active).
- */
 async function setUp(page: Page) {
   await createBook(page, 'Home')
   await createBook(page, 'Work')
@@ -87,23 +78,18 @@ test.beforeEach(async ({ page }) => {
 test('Open as Workspace shows only the notebook, with scoped counts', async ({ page }) => {
   await setUp(page)
   await openFromMenu(page, 'Work')
-  // Its sub-notebooks only; no Pinned, Templates or Trash.
   await expect(tree(page).getByRole('treeitem')).toHaveCount(1)
   await expect(book(page, 'Devot')).toBeVisible()
   for (const hidden of [/^Pinned/, /^Templates/, /^Trash/]) {
     await expect(sidebar(page).getByRole('button', { name: hidden })).toHaveCount(0)
   }
-  // All Notes is the notebook with its sub-notebooks, and the counts are its own.
   await expect(header(page)).toHaveText('Work')
   await expect(allNotes(page)).toHaveAttribute('aria-current', 'true')
   await expect(allNotes(page).locator('.source-count')).toHaveText('2')
   await expect(noteRows(page)).toHaveCount(2)
   await expect(count(page, /^Active/)).toHaveText('1')
-  // Only the tags its notes have.
   await expect(sidebar(page).getByRole('button', { name: /^work/ })).toBeVisible()
   await expect(sidebar(page).getByRole('button', { name: /^chore/ })).toHaveCount(0)
-  // The sidebar has the keyboard; Backspace on All Notes goes up, out of
-  // workspaces from a top-level notebook.
   await expect(allNotes(page)).toBeFocused()
   await page.keyboard.press('Backspace')
   await expect(anyWorkspace(page)).toHaveCount(0)
@@ -122,13 +108,11 @@ test('the palette opens a notebook as a workspace with Command+Return', async ({
   await page.keyboard.press('Enter')
   await page.keyboard.up('Meta')
   await expect(workspace(page, 'Devot')).toBeVisible()
-  // The notebook above it shows in the title and opens as the workspace.
   await expect(
     workspace(page, 'Devot').getByRole('button', { name: 'Open Work as Workspace' }),
   ).toBeVisible()
   await expect(tree(page).getByRole('treeitem')).toHaveCount(0)
   await expect(noteRows(page)).toHaveText([/Plan/])
-  // Command+Up goes up a level from any row, a notebook's too.
   await allNotes(page).focus()
   await page.keyboard.press('Meta+ArrowUp')
   await expect(workspace(page, 'Work')).toBeVisible()

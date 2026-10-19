@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { htmlToMarkdown } from '../../src/core'
 
-// A PNG and a GIF signature, as `data:` URIs.
 const PNG_B64 = 'iVBORw0KGgoAAAANAQ=='
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1])
 const GIF_B64 = 'R0lGODlhAQA='
@@ -64,8 +63,6 @@ describe('HTML to Markdown for import', () => {
     ].join('\n')
     const { markdown, dropped } = htmlToMarkdown(hostile)
     expect(markdown).not.toMatch(/alert|javascript:|onerror|onclick|secret|<|data:/i)
-    // Not a real PNG: left out, and said so (as is the frame, the object
-    // and the SVG; a script is no content).
     expect(dropped).toEqual(['<iframe>', '<svg>', '<object>', 'data:image/png'])
     expect(markdown).toContain('![](x.png)')
     expect(markdown).toContain('click')
@@ -130,7 +127,6 @@ describe('HTML to Markdown for import', () => {
     const page = [
       `<p>Inline <span class="math-inline">${tex('x^2_i')}</span> here.</p>`,
       `<div class="math-display">${tex('\\frac{a}{b}', ' display="block"')}</div>`,
-      // A KaTeX page: its HTML drawing of the math is no text of the note.
       `<p><span class="katex"><span class="katex-mathml">${tex('y')}</span>`,
       '<span class="katex-html" aria-hidden="true"><span>y</span></span></span></p>',
     ].join('')
@@ -226,7 +222,6 @@ describe('HTML to Markdown for import', () => {
   })
 
   it('lists an embedded image whose link did not survive the conversion', () => {
-    // Keyboard text becomes inline code, which holds no image.
     const out = htmlToMarkdown(
       `<p>a</p><kbd><img src="data:image/png;base64,${PNG_B64}"></kbd>`,
       ids(),

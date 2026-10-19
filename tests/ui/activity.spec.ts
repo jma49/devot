@@ -6,7 +6,6 @@ const grid = (page: Page) => sheet(page).getByRole('grid', { name: 'Activity by 
 const day = (page: Page, label: string | RegExp) =>
   grid(page).getByRole('gridcell', { name: label })
 
-/** View > Activity… (the native menu reaches the page as this event). */
 const showActivity = (page: Page) =>
   page.evaluate(() => {
     const w = globalThis as unknown as {
@@ -16,12 +15,6 @@ const showActivity = (page: Page) =>
     w.dispatchEvent(new w.CustomEvent('devot:show-activity'))
   })
 
-/**
- * Fixes the page's `Date.now()` (which the sheet counts up to) at Wednesday
- * 2026-10-07, 15:00 local time, and stores two notes with history around it
- * (times in the page's zone). Playwright's clock is not used: its script does
- * not run with Object.prototype frozen, as the app has it.
- */
 async function seed(page: Page) {
   await page.addInitScript(() => {
     const fixed = new Date(2026, 9, 7, 15).getTime()
@@ -84,7 +77,6 @@ test('shows 52 weeks of activity, each day with its totals', async ({ page }) =>
   await seed(page)
   await showActivity(page)
   await expect(sheet(page)).toBeVisible()
-  // 51 full weeks, then Monday to Wednesday of this one.
   await expect(grid(page).getByRole('row')).toHaveCount(7)
   await expect(grid(page).getByRole('gridcell')).toHaveCount(51 * 7 + 3)
   await expect(
@@ -98,7 +90,6 @@ test('shows 52 weeks of activity, each day with its totals', async ({ page }) =>
   ).toBeVisible()
   await expect(day(page, 'Tuesday, September 1, 2026: 1 note created')).toBeVisible()
   await expect(day(page, 'Sunday, October 4, 2026: No activity')).toBeVisible()
-  // The first column starts on a Monday 51 weeks before this week's.
   await expect(grid(page).getByRole('gridcell').first()).toHaveAccessibleName(
     'Monday, October 13, 2025: No activity',
   )
@@ -115,7 +106,6 @@ test('hovering or moving through the days shows their totals', async ({ page }) 
   await seed(page)
   await showActivity(page)
   const readout = sheet(page).locator('.activity-readout')
-  // Today is the day in focus to start with.
   const today = day(page, /^Wednesday, October 7, 2026:/)
   await expect(today).toBeFocused()
   await expect(readout).toHaveText(
@@ -126,7 +116,6 @@ test('hovering or moving through the days shows their totals', async ({ page }) 
   await sheet(page).getByRole('heading', { name: 'Activity' }).hover()
   await expect(readout).toHaveText(/^Wednesday, October 7, 2026:/)
 
-  // Left and right move by a week, up and down by a day.
   await page.keyboard.press('ArrowLeft')
   await expect(day(page, /^Wednesday, September 30, 2026:/)).toBeFocused()
   await expect(readout).toHaveText('Wednesday, September 30, 2026: No activity')
@@ -142,14 +131,12 @@ test('hovering or moving through the days shows their totals', async ({ page }) 
   await expect(today).toBeFocused()
   await page.keyboard.press('Home')
   await expect(day(page, /^Monday, October 13, 2025:/)).toBeFocused()
-  // Up and down stay in the week: Monday is the top row.
   await page.keyboard.press('ArrowUp')
   await expect(day(page, /^Monday, October 13, 2025:/)).toBeFocused()
   await page.keyboard.press('ArrowLeft')
   await expect(day(page, /^Monday, October 13, 2025:/)).toBeFocused()
   await page.keyboard.press('End')
   await expect(today).toBeFocused()
-  // Only the day in focus is a tab stop.
   await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
 })
 
@@ -173,7 +160,6 @@ test('shades days through theme colours, in light and dark', async ({ page }) =>
   await expect(day(page, created)).toHaveClass(/\bactivity-level-1\b/)
   const light = [await shade(idle), await shade(created), await shade(busiest)]
   expect(new Set(light).size).toBe(3)
-  // The legend shows every shade, lightest first.
   await expect(sheet(page).locator('.activity-legend .activity-cell')).toHaveCount(5)
 
   await page.emulateMedia({ colorScheme: 'dark' })

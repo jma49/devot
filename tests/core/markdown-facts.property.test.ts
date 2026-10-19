@@ -28,7 +28,6 @@ const LINES = [
   '=x',
   '---',
   'title: From front matter',
-  // Devot's own block: its title is the note's.
   '# Devot metadata',
   "title: 'Own title'",
   'title: ""',

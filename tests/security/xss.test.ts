@@ -89,7 +89,6 @@ const FORBIDDEN_TAGS = new Set([
   'body',
   'video',
 ])
-// Allowed schemes, fragments, or relative URLs (no scheme at all).
 const SAFE_URL = /^(?:https?:|mailto:|devot:\/\/(?:note|file)\/[0-9a-f-]{36}$|#|[^:]*$)/i
 
 function problems(node: Root | RootContent, path = 'root'): string[] {
@@ -148,7 +147,6 @@ describe('exported pages', () => {
   it.each(CORPUS)('stay inert for %s', async (payload) => {
     const tree = await renderPreview(payload, { labels, loadedEmbeds: ['https://evil.example'] })
     for (const simple of [false, true]) {
-      // Read back as a browser would.
       const page = fromHtml(pageBody(tree, { nonce: NONCE, simple }).html, { fragment: true })
       expect(problems(page)).toEqual([])
       expect(pageBody(tree, { nonce: NONCE, simple }).html).not.toMatch(/<(?:iframe|button)\b/)

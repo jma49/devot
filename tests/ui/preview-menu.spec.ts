@@ -1,8 +1,6 @@
 import type { Page } from '@playwright/test'
 import { clipboardWrites, expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
 
-// The preview's native menu: a right-click in the rendered note.
-
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const mode = (page: Page, name: 'Edit' | 'Split' | 'Preview') =>
   page.getByRole('group', { name: 'View mode' }).getByRole('button', { name })
@@ -58,7 +56,6 @@ test('a link offers Copy Link Address', async ({ page }) => {
   expect((await shownMenu(page)).slice(0, 2)).toEqual(['Copy Link Address', '---'])
   await pickMenuItem(page, 'Copy Link Address')
   await expect.poll(() => clipboardWrites(page)).toEqual(['https://example.com/page'])
-  // The right-click did not open the link.
   const opened = await page.evaluate(() =>
     (globalThis as unknown as TestWindow).devotIpcCalls.some((c) => c.cmd === 'open_external'),
   )

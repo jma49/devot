@@ -53,8 +53,6 @@ test('a date on the card is edited in a date-time field: Return saves, Escape ca
   const created = card(page).locator('time[data-info="created"]')
   const updated = card(page).locator('time[data-info="updated"]')
   await expect(created).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
-  // The typed body is saved a moment later, which moves the update date (to
-  // the second): read it once it has held for longer than a second.
   await expect
     .poll(async () => {
       const first = await updated.textContent()
@@ -71,10 +69,8 @@ test('a date on the card is edited in a date-time field: Return saves, Escape ca
   await page.keyboard.press('Enter')
   await expect(field).toHaveCount(0)
   await expect(created).toHaveText('2020-01-02 03:04:05')
-  // Setting the creation date leaves the update date as it was.
   await expect(updated).toHaveText(updatedBefore ?? '')
 
-  // Escape puts the date back and writes nothing.
   await updated.click()
   const other = card(page).locator('input[data-info-edit="updated"]')
   await other.fill('2021-05-06T07:08:09')
@@ -88,7 +84,6 @@ test('a date the card turns down stays open and says why', async ({ page }) => {
   await newNote(page, 'Dated', 'Some text.')
   await showPreview(page)
   const updated = card(page).locator('time[data-info="updated"]')
-  // The typed body is saved a moment later and moves the update date.
   await expect
     .poll(async () => {
       const first = await updated.textContent()
@@ -98,13 +93,11 @@ test('a date the card turns down stays open and says why', async ({ page }) => {
     .toBe(true)
   await updated.click()
   const field = card(page).locator('input[data-info-edit="updated"]')
-  // Earlier than the creation date.
   await field.fill('2020-01-01T10:00:05')
   await page.keyboard.press('Enter')
   await expect(card(page).getByRole('alert')).toHaveText('Updated cannot be earlier than Created.')
   await expect(field).toHaveAttribute('aria-invalid', 'true')
   await expect(field).toBeFocused()
-  // Changing the value takes the message away; an empty one is another problem.
   await field.fill('')
   await expect(card(page).getByRole('alert')).toHaveCount(0)
   await page.keyboard.press('Enter')

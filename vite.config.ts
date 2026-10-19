@@ -2,15 +2,11 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 import { defaultClientConditions, defineConfig } from 'vite'
 
-// The UI is served to Tauri's webview: the dev server for `tauri dev`,
-// `dist/` for builds (see src-tauri/tauri.conf.json).
 export default defineConfig({
   root: 'src/renderer',
   plugins: [react()],
   clearScreen: false,
   server: { port: 5173, strictPort: true },
-  // DEVOT_SENTRY_DSN turns on crash reporting (see src/renderer/src/crash.ts).
-  // It comes from the environment or `.env.local` at the repository root.
   envDir: fileURLToPath(new URL('.', import.meta.url)),
   envPrefix: ['VITE_', 'TAURI_ENV_', 'DEVOT_SENTRY_DSN'],
   // True only in the UI tests' build (vite.ui-test.config.ts): notes in an
@@ -19,8 +15,6 @@ export default defineConfig({
   // app's builds leave that storage out entirely, and the release build
   // fails if it is there (scripts/sentry/ui.ts).
   define: { DEVOT_UI_TEST: 'false' },
-  // Markdown parsing runs in a Web Worker, where the DOM builds of some
-  // packages (they decode entities through `document`) fail.
   resolve: { conditions: ['worker', ...defaultClientConditions] },
   // Vite's dependency scan reads the pages but does not follow
   // `new Worker(new URL(...))`, so a package only the core worker imports was
@@ -49,12 +43,10 @@ export default defineConfig({
     // Source maps are made only for upload to Sentry (scripts/sentry/ui.ts)
     // and deleted before the app embeds dist/; they never ship.
     sourcemap: false,
-    // The main window, the Settings window and the diagram frame.
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL('src/renderer/index.html', import.meta.url)),
         settings: fileURLToPath(new URL('src/renderer/settings.html', import.meta.url)),
-        // The hidden frame that draws Mermaid diagrams (see preview/mermaid.ts).
         mermaid: fileURLToPath(new URL('src/renderer/mermaid.html', import.meta.url)),
       },
     },

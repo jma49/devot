@@ -49,7 +49,6 @@ afterEach(() => {
   open.splice(0).forEach((a) => a.close())
 })
 
-/** A library whose writes start mirror passes into a new folder. */
 function library(options: { root?: string; dbPath?: string } = {}) {
   const sqlite = openSqliteAdapter(options.dbPath ?? join(tempDir('devot-mirror-db-'), 'db.sqlite'))
   open.push(sqlite)
@@ -77,7 +76,6 @@ function library(options: { root?: string; dbPath?: string } = {}) {
   const lib = { sqlite, newId, notes, books, tags, templates, root, host, runner, errors }
   return {
     ...lib,
-    /** Waits until edits are saved and the mirror has caught up. */
     async settled() {
       await notes.flush()
       await runner.idle()
@@ -105,7 +103,6 @@ function library(options: { root?: string; dbPath?: string } = {}) {
 
 type Library = ReturnType<typeof library>
 
-/** Every file under `root`, relative and sorted; the manifest left out. */
 function walk(root: string, rel = ''): string[] {
   return readdirSync(join(root, rel))
     .sort()
@@ -119,7 +116,6 @@ function walk(root: string, rel = ''): string[] {
 const readIn = (root: string, path: string) => readFileSync(join(root, path), 'utf8')
 const read = (lib: Library, path: string) => readIn(lib.root, path)
 
-/** Waits until `holds` is true (polling), or fails after `ms`. */
 async function until(holds: () => boolean, ms = 10_000) {
   const end = Date.now() + ms
   while (!holds()) {
@@ -128,7 +124,6 @@ async function until(holds: () => boolean, ms = 10_000) {
   }
 }
 
-/** A small library: nested notebooks, a tag, a status, an image, a template and the Trash. */
 async function sample() {
   const lib = library()
   const work = await lib.books.create('Work', null)
@@ -147,7 +142,6 @@ async function sample() {
   return { ...lib, ids: { work, plans, inbox, plan, board, loose, template, gone } }
 }
 
-/** Turns the mirror on and waits for the first pass. */
 async function mirrorOn(lib: Library) {
   lib.runner.reconcile()
   await lib.settled()
@@ -180,7 +174,6 @@ describe('turning the mirror on', () => {
       ].join('\n'),
     )
     expect(readFileSync(join(lib.root, 'attachments/board.png'))).toEqual(Buffer.from(PNG))
-    // The manifest records every file with its content's hash.
     const manifest = lib.host.manifest()
     expect(Object.keys(manifest.notes).sort()).toEqual(
       [lib.ids.inbox, lib.ids.plan, lib.ids.loose].sort(),
@@ -208,30 +201,25 @@ describe('keeping the folder up to date', () => {
       return structuredClone(log)
     }
 
-    // A body edit writes one file.
     const edit = await step(async () => {
       await lib.notes.setBody(ids.inbox, '# Inbox\n\nNew thoughts.\n')
     })
     expect(edit).toEqual({ written: ['Work/Inbox.md'], moved: [], removed: [], kept: [] })
     expect(read(lib, 'Work/Inbox.md')).toBe('# Inbox\n\nNew thoughts.\n')
 
-    // Pinning changes nothing in the file.
     const pin = await step(() => lib.notes.setPinned(ids.loose, true))
     expect(pin).toEqual({ written: [], moved: [], removed: [], kept: [] })
 
-    // Renaming moves the file (its heading keeps saying the old title).
     const rename = await step(() => lib.notes.setTitle(ids.inbox, 'Inbox 2026'))
     expect(rename.moved).toEqual([['Work/Inbox.md', 'Work/Inbox 2026.md']])
     expect(rename.written).toEqual(['Work/Inbox 2026.md'])
     expect(read(lib, 'Work/Inbox 2026.md')).toContain("title: 'Inbox 2026'")
 
-    // Moving to another notebook moves the file; its image link follows.
     const move = await step(() => lib.notes.setBook(ids.plan, ids.work))
     expect(move.moved).toEqual([['Work/Plans/Launch.md', 'Work/Launch.md']])
     expect(read(lib, 'Work/Launch.md')).toContain('](../attachments/board.png#half)')
     expect(existsSync(join(lib.root, 'Work/Plans'))).toBe(false)
 
-    // Tags and status rewrite the front matter.
     const retag = await step(() => lib.tags.addToNote(ids.loose, 'misc'))
     expect(retag.written).toEqual(['Loose.md'])
     expect(read(lib, 'Loose.md')).toContain("tags: ['misc']")
@@ -239,13 +227,11 @@ describe('keeping the folder up to date', () => {
     expect(status.written).toEqual(['Loose.md'])
     expect(read(lib, 'Loose.md')).toContain('status: on-hold')
 
-    // Trash removes the file; restore writes it again.
     const trash = await step(() => lib.notes.trash(ids.loose))
     expect(trash).toEqual({ written: [], moved: [], removed: ['Loose.md'], kept: [] })
     const restore = await step(() => lib.notes.restore(ids.loose))
     expect(restore.written).toEqual(['Loose.md'])
 
-    // A notebook renamed or moved takes its files along; deleted, its notes go to the top.
     const renameBook = await step(() => lib.books.rename(ids.work, 'Job'))
     expect(renameBook.moved.sort()).toEqual([
       ['Work/Inbox 2026.md', 'Job/Inbox 2026.md'],
@@ -301,7 +287,6 @@ describe('keeping the folder up to date', () => {
     ])
     expect(Object.values(manifest.notes).every((e) => !e.path.startsWith('Templates'))).toBe(true)
 
-    // Purging the original deletes its image from the database: its copy goes.
     lib.host.clear()
     await lib.notes.trash(ids.plan)
     await lib.notes.purge(ids.plan)
@@ -395,7 +380,6 @@ describe('reconciling once per generation', () => {
     lib.runner.reconcile(generation)
     await lib.runner.idle()
     expect(opens).toBe(0)
-    // Another generation (a setting changed), or none known: a full pass.
     lib.runner.reconcile(generation + 1)
     await lib.runner.idle()
     expect(opens).toBe(1)
@@ -412,7 +396,6 @@ describe('something always in the way', () => {
     const apply = lib.host.apply.bind(lib.host)
     lib.host.apply = async (generation, ops) => {
       applies += 1
-      // Every note's file meets something new in the way, every time.
       return Promise.all(
         ops.map(async (op) =>
           op.kind === 'note'
@@ -443,7 +426,6 @@ describe('out of date', () => {
         generation,
         ops.filter((op) => op.kind !== 'file'),
       )
-      // Every attachment's operation finds Rust's manifest moved on.
       return ops.map((op) => (op.kind === 'file' ? { code: 'E_MIRROR_STALE' } : results.shift()!))
     }
     lib.runner.reconcile()
@@ -464,7 +446,6 @@ describe('out of date', () => {
     const apply = lib.host.apply.bind(lib.host)
     lib.host.apply = async (generation, ops) => {
       const results = await apply(generation, ops)
-      // Rust ran the batch; the pass stops before it hears the results.
       stopped ??= lib.runner.stop()
       return results
     }
@@ -476,7 +457,6 @@ describe('out of date', () => {
     lib.runner.reconcile(generation)
     await lib.runner.idle()
     expect(known.at(-1)).toBe(null)
-    // And the folder matches the database.
     expect(walk(lib.root)).toEqual([
       'Loose.md',
       'Work/Inbox.md',
@@ -519,7 +499,6 @@ describe('out of date', () => {
 describe('stopping', () => {
   it('ends a pass after the batch it is in (quitting, turning off); the manifest lists every file', async () => {
     const lib = library()
-    // More notes than one batch of operations (200).
     for (let i = 0; i < 260; i += 1) await lib.note(`Note ${i}`, null, `Body ${i}.\n`)
     let batches = 0
     let stopped: Promise<void> | undefined
@@ -537,7 +516,6 @@ describe('stopping', () => {
     const listed = Object.values(lib.host.manifest().notes).map((e) => e.path)
     expect(listed).toHaveLength(200)
     expect(walk(lib.root)).toEqual(listed.sort())
-    // Nothing runs while it is off, whatever changes.
     await lib.notes.setBody((await lib.notes.list())[0]!.id, 'Changed.\n')
     await lib.settled()
     expect(batches).toBe(1)
@@ -558,8 +536,6 @@ describe('files Devot did not write', () => {
       mkdirSync(join(lib.root, path, '..'), { recursive: true })
       writeFileSync(join(lib.root, path), text)
     }
-    // A folder that is not empty and has no manifest is used once confirmed
-    // (Rust writes an empty manifest then).
     writeFileSync(
       join(lib.root, MANIFEST),
       JSON.stringify({ version: 1, notes: {}, files: {}, books: {} }),
@@ -576,7 +552,6 @@ describe('files Devot did not write', () => {
       'attachments/board.png',
     ])
     expect(read(lib, 'Work/Plans/Launch 2.md')).toContain('](../../attachments/board%202.png#half)')
-    // Changes, the Trash and a reconcile leave them alone too.
     await lib.notes.setTitle(lib.ids.loose, 'Moved away')
     await lib.notes.trash(lib.ids.plan)
     await lib.settled()
@@ -614,7 +589,6 @@ describe('files the manifest does not list', () => {
     ).toEqual(['Loose.md', 'Work/Inbox.md', 'Work/Plans/Launch.md'])
     expect(manifest.files[lib.ids.board]?.path).toBe('attachments/board.png')
     expect(lib.errors).toEqual([])
-    // Importing the folder gives each note once.
     const fresh = library()
     const report = await importFolder(fresh, lib.root, 'Mirror')
     expect(report.problems).toEqual([])
@@ -631,12 +605,10 @@ describe('files the manifest does not list', () => {
     lib.runner.stop()
     const files = walk(lib.root)
     rmSync(join(lib.root, MANIFEST))
-    // The next launch: files, and no manifest to tell Devot's from others.
     lib.host.setFolder(lib.root)
     lib.runner.reconcile()
     await until(() => lib.host.paused() === 'E_MIRROR_MANIFEST_MISSING')
     expect(walk(lib.root)).toEqual(files)
-    // Choosing the folder again (confirmed) gives it an empty manifest.
     writeFileSync(
       join(lib.root, MANIFEST),
       JSON.stringify({ version: 1, notes: {}, files: {}, books: {} }),
@@ -674,7 +646,6 @@ describe('folders replaced by links', () => {
 describe('a note whose place never settles', () => {
   it('is left as it is after a few tries, and never holds up the others', async () => {
     const lib = await sample()
-    // Every name the Loose note could take holds something new each time.
     let seen = 0
     const check = lib.host.check.bind(lib.host)
     lib.host.check = async (generation, paths) => {
@@ -711,7 +682,6 @@ describe('files edited outside Devot', () => {
     expect(lib.host.log.kept).toEqual(['Work/Inbox (edited outside Devot).md'])
     const paths = Object.values(lib.host.manifest().notes).map((e) => e.path)
     expect(paths).not.toContain('Work/Inbox (edited outside Devot).md')
-    // A second edit outside and in Devot: numbered, the first copy untouched.
     edit(lib, 'Work/Inbox.md', 'again\n')
     await lib.notes.setBody(lib.ids.inbox, '# Inbox\n\nDevot again.\n')
     await lib.settled()
@@ -773,10 +743,8 @@ describe('Include Attachments', () => {
     await lib.settled()
     expect(walk(lib.root)).toEqual(['Loose.md', 'Work/Inbox.md', 'Work/Plans/Launch.md'])
     expect(lib.host.log.removed).toEqual(['attachments/board.png'])
-    // Links still point at the attachments folder, as in an export.
     expect(read(lib, 'Work/Plans/Launch.md')).toContain('](../../attachments/board.png#half)')
     expect(lib.host.size()).toBe(before - PNG.length)
-    // A new image while off: no copy either.
     const shot = await lib.image(lib.ids.loose, 'shot.jpg', JPEG)
     await lib.notes.setBody(lib.ids.loose, `![s](devot://file/${shot})\n`)
     await lib.settled()
@@ -797,7 +765,6 @@ describe('reconciling', () => {
     const lib = await sample()
     await mirrorOn(lib)
     lib.runner.stop()
-    // A note created by devot-mcp straight in the database (no pass runs).
     const mcp = await lib.notes.create('From MCP', lib.ids.work)
     await lib.notes.setBody(mcp, 'Made by an agent.\n')
     await lib.notes.release(mcp)
@@ -836,7 +803,6 @@ describe('reconciling', () => {
       'attachments/board.png',
     ])
     lib.runner.stop()
-    // The window reloads on the restored database and reconciles.
     const restored = library({ root: lib.root, dbPath: backup })
     restored.runner.reconcile()
     await restored.settled()
@@ -854,7 +820,6 @@ describe('the folder going away', () => {
   it('pauses the mirror (no crash) and resumes with a reconcile once the folder is back', async () => {
     const lib = await sample()
     await mirrorOn(lib)
-    // Moved away (an unmounted drive), inside a folder the test removes.
     const away = join(tempDir('devot-mirror-away-'), 'mirror')
     renameSync(lib.root, away)
     await lib.notes.setBody(lib.ids.inbox, '# Inbox\n\nWhile away.\n')
@@ -865,8 +830,6 @@ describe('the folder going away', () => {
     await new Promise((r) => setTimeout(r, 50))
     expect(existsSync(lib.root)).toBe(false)
     renameSync(away, lib.root)
-    // The next check (a timer here; window focus or the timer in the app)
-    // resumes with a reconcile.
     await until(
       () => lib.host.paused() === null && read(lib, 'Work/Inbox.md').includes('While away.'),
     )
@@ -904,7 +867,6 @@ describe('the folder going away', () => {
     expect(lib.host.paused()).toBe(null)
     expect(read(lib, 'Loose.md')).toBe('Free.\n')
     expect(lib.errors).toContain('E_MIRROR_WRITE_FAILED')
-    // The next pass writes it.
     lib.runner.touch()
     await lib.notes.setBody(lib.ids.inbox, '# Inbox\n\nUnlocked.\n')
     await lib.settled()
@@ -912,9 +874,6 @@ describe('the folder going away', () => {
   })
 })
 
-// --- Round trip --------------------------------------------------------------
-
-/** Imports the folder at `root` as Rust would scan it (visible Markdown files, sorted). */
 async function importFolder(lib: Library, root: string, name: string) {
   const files = walk(root).filter((p) => p.endsWith('.md'))
   const scan: ImportScan = {
@@ -934,7 +893,6 @@ async function importFolder(lib: Library, root: string, name: string) {
       )
     },
   }
-  // The picked folder's notes go into the notebook picked for them.
   const destination = await lib.books.create(name, null)
   return importMarkdown({
     notes: lib.notes,
@@ -947,7 +905,6 @@ async function importFolder(lib: Library, root: string, name: string) {
   })
 }
 
-/** What a round trip keeps of every note, by notebook path (image links as their bytes). */
 async function snapshot(lib: Library) {
   const books = await lib.sqlite.listBooks()
   const tagNames = new Map((await lib.sqlite.listTags()).map((t) => [t.id, t.name]))
@@ -983,8 +940,6 @@ describe('the mirror as a source', () => {
   it('imports back as the same notes (title, body, tags, status, notebooks, images)', async () => {
     const lib = await sample()
     const { ids } = lib
-    // Harder cases: clashing titles, an untitled note, own front matter, a
-    // tag that starts with `#`, a title with a slash, a shared image.
     await lib.note('Launch', ids.plans, 'Another launch.\n', { status: 'on_hold' })
     await lib.note('', ids.work, 'No title.\n', { tags: ['#urgent'] })
     await lib.note('Own', null, '---\nauthor: me\ntags: [mine]\n---\n# Own\n', { tags: ['mine'] })

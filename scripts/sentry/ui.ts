@@ -31,7 +31,6 @@ const root = join(import.meta.dirname, '../..')
 const outDir = resolve(argument('--out-dir') ?? join(root, 'dist'))
 const configFile = resolve(argument('--config') ?? join(root, 'vite.config.ts'))
 const env = { ...process.env, ...loadEnv('production', argument('--env-dir') ?? root, 'SENTRY_') }
-// vite.config.ts names its root relative to the working directory.
 process.chdir(root)
 
 function fail(message: string): never {
@@ -75,7 +74,6 @@ try {
     )
   }
 } finally {
-  // Even when the build or the upload fails, no map stays in dist/.
   if (existsSync(outDir)) removeSourceMaps(outDir)
 }
 if (testStorage.length > 0) {

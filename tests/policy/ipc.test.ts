@@ -2,9 +2,6 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { expect, it } from 'vitest'
 
-// Every command the UI runs goes through src/renderer/src/ipc.ts, which turns
-// a rejection (Rust sends its error code as a string) into an Error whose
-// message is that code, so handlers, the log and crash reports get the code.
 const ROOT = 'src/renderer'
 const WRAPPER = 'src/renderer/src/ipc.ts'
 

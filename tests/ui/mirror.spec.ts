@@ -9,12 +9,6 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// The Markdown mirror in the UI: Settings > Markdown Mirror, the palette's
-// commands and notices in the main window, and the main window starting and
-// running passes (Rust's side is the fixture's fake; tests/core covers the
-// passes themselves on real files). App shortcuts are pressed with Meta on
-// every platform, like the other specs.
-
 const ON: Partial<MockMirror> = { folder: '~/Notes', generation: 1, size: 12_345_678 }
 
 const section = (page: Page) => page.getByRole('region', { name: 'Markdown Mirror' }).first()
@@ -31,7 +25,6 @@ const setPick = (page: Page, pick: { folder: string; name: string; empty: boolea
     ;(globalThis as unknown as TestWindow).devotMirrorPick = p
   }, pick)
 
-/** Opens a page with the mirror as Rust holds it (off when `mirror` is left out). */
 async function openWith(page: Page, path: string, mirror?: Partial<MockMirror>) {
   if (mirror) {
     await page.addInitScript((m) => {
@@ -66,7 +59,6 @@ test.describe('Settings > Markdown Mirror', () => {
     await expect(section(page).getByRole('switch', { name: 'Include Attachments' })).toBeChecked()
     await expect(section(page).getByRole('button', { name: 'Turn Off' })).toHaveCount(0)
 
-    // Cancelled: nothing changes.
     await section(page).getByRole('button', { name: 'Choose Folder…' }).click()
     await expect(section(page)).toContainText('The mirror is off.')
 
@@ -114,7 +106,6 @@ test.describe('Settings > Markdown Mirror', () => {
   })
 
   test('shows no size until the mirror has read its folder', async ({ page }) => {
-    // A folder just chosen, or a launch: Rust has not read the manifest yet.
     await openWith(page, '/settings.html', { ...ON, size: null })
     await expect(section(page)).toContainText('~/Notes')
     await expect(section(page)).not.toContainText('Size on disk')
@@ -160,8 +151,6 @@ test.describe('Settings > Markdown Mirror', () => {
   })
 })
 
-// --- The main window --------------------------------------------------------
-
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palette' })
 const paletteField = (page: Page) =>
   palette(page).getByRole('combobox', { name: 'Command Palette' })
@@ -198,7 +187,6 @@ test.describe('the main window', () => {
     await expect(commandOptions(page).getByRole('option')).toHaveText([
       /^Choose Markdown Mirror Folder…/,
     ])
-    // Escape clears the query, then closes the palette.
     await page.keyboard.press('Escape')
     await page.keyboard.press('Escape')
 
@@ -244,7 +232,6 @@ test.describe('the main window', () => {
     await expect(notices(page)).toHaveText([
       'The mirror is paused: its folder cannot be written (E_MIRROR_FOLDER_READ_ONLY). It resumes once it can.Dismiss',
     ])
-    // Resumed: the notice goes by itself.
     await changeMirrorElsewhere(page, { paused: null })
     await expect(notices(page)).toHaveCount(0)
 
@@ -293,7 +280,6 @@ test.describe('the main window', () => {
       .poll(() => page.evaluate(() => localStorage.getItem('devot.test.notes') ?? ''))
       .toContain('First line.')
 
-    // Launch with the mirror on: the window restores the open note first.
     await page.addInitScript(() => {
       ;(globalThis as unknown as TestWindow).devotMirror = {
         revision: 0,
@@ -315,7 +301,6 @@ test.describe('the main window', () => {
       .toEqual([expect.objectContaining({ kind: 'note', path: 'Plan.md', text: 'First line.' })])
     await expect(titleField(page)).toHaveValue('Plan')
 
-    // One edit: that note's file, once, with the new text.
     await body(page).click()
     await page.keyboard.press('ControlOrMeta+End')
     await page.keyboard.type(' More.')

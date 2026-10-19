@@ -74,11 +74,6 @@ const ownersIn = (storage: SqliteAdapter) =>
       .map((r) => [r.id, r.noteId]),
   )
 
-/**
- * Who owns each attachment once the notes in `purging` are purged: an
- * attachment of one of them passes to the first note left that shows it (a
- * live one first, then by ID), or is deleted.
- */
 function expectedOwners(before: Map<string, string>, notes: NoteRow[], purging: Set<string>) {
   const left = notes
     .filter((n) => !n.purged && !purging.has(n.id))
@@ -111,7 +106,6 @@ describe('attachments', () => {
           const ids: string[] = []
           for (let i = 0; i < NOTES; i++) ids.push(await notes.create(`Note ${i}`))
           const attached = new Set<string>()
-          /** Purges the notes in the Trash that `chosen` picks, checking the owners after. */
           const purgeChecked = async (
             chosen: (id: string) => boolean,
             purge: () => Promise<unknown>,
@@ -135,7 +129,6 @@ describe('attachments', () => {
             }
             const id = ids[step.note] as string
             if (step.kind === 'purge') {
-              // Delete forever: to the Trash first if needed, then purge.
               await notes.trash(id).catch(() => {})
               await purgeChecked(
                 (n) => n === id,
@@ -147,7 +140,7 @@ describe('attachments', () => {
               const stored = await storage
                 .putFile({ id: fileId, noteId: id, name: 'shot.png' }, PNG)
                 .then(() => true)
-                .catch(() => false) // the note is in the Trash or purged
+                .catch(() => false)
               if (stored) attached.add(fileId)
             } else if (step.kind === 'show') {
               const body = [
@@ -157,7 +150,6 @@ describe('attachments', () => {
                 ),
                 ...step.near.map((f, i) => nearMiss(FILES[f] as string, i + step.note)),
               ].join(' ')
-              // Only a live note can be edited.
               const edited = await notes
                 .setBody(id, body)
                 .then(() => true)
@@ -170,7 +162,6 @@ describe('attachments', () => {
             }
           }
 
-          // No attachment is left to a purged note.
           const purged = new Set(
             notesIn(storage)
               .filter((n) => n.purged)

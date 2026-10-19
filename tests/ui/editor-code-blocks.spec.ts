@@ -33,11 +33,9 @@ test('the copy button shows in the block the cursor is in and copies its code', 
   await expect(copyButton(page)).toBeVisible()
   await copyButton(page).click()
   await expect.poll(() => clipboardWrites(page)).toEqual(['const a = 1\n\nb()'])
-  // The click leaves the cursor in the block.
   await expect(body(page)).toBeFocused()
   await expect(copyButton(page)).toHaveAttribute('data-state', 'copied')
 
-  // Like the other floating bars, it shows only while the editor has the keyboard.
   await page.getByRole('textbox', { name: 'Title' }).focus()
   await expect(copyButton(page)).toHaveCount(0)
   await page.locator('.cm-line', { hasText: 'const a = 1' }).click()

@@ -7,13 +7,10 @@ import type { StorageAdapter } from '../../src/core'
 // adapter the service writes to.
 
 export interface Sweeps {
-  /** Sweeps that have finished so far. */
   readonly count: number
-  /** Resolves once `n` sweeps have finished in all. */
   until(n: number): Promise<void>
 }
 
-/** Counts the finished sweeps of the note services writing to `storage`. */
 export function watchSweeps(storage: StorageAdapter): Sweeps {
   const compact = storage.compactRevisions.bind(storage)
   let count = 0

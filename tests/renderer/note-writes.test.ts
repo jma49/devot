@@ -15,7 +15,6 @@ function storage(): SqliteAdapter {
   return adapter
 }
 
-/** Lets the writes completed so far be reported. */
 const reported = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('reportingNoteWrites', () => {
@@ -24,7 +23,6 @@ describe('reportingNoteWrites', () => {
     let clock = 1_000
     const adapter = storage()
     const notes = createNoteService({
-      // As the window serves storage to the core worker (see core-client.ts).
       storage: fromWire(
         reportingNoteWrites(toWire(adapter), (writes) => heard.push(new Map(writes))),
       ),

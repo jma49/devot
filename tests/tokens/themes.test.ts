@@ -11,11 +11,6 @@ import {
 } from '../../src/renderer/src/theme/contrast'
 import { dark, ivoryDark, ivoryLight, light } from '../../src/renderer/src/theme/tokens'
 
-// Every theme provides the same colour tokens as the default one, in a light
-// and a dark appearance: a missing or an extra token fails here, not in a
-// window that shows a blank. The palette checks pin the design values
-// (design/README.md "Themes").
-
 type Appearance = 'light' | 'dark'
 const APPEARANCES: Appearance[] = ['light', 'dark']
 const FILES = 'design/tokens/themes'
@@ -29,7 +24,6 @@ const tokens = (theme: string, appearance: Appearance) => flatten(tree(theme, ap
 describe('the built-in themes', () => {
   it('are the theme files on disk, the setting values and the generated ids, in one order', () => {
     const onDisk = [...new Set(readdirSync(FILES).map((name) => name.split('.')[0]!))]
-    // The default theme is the system's; the others are built into the stylesheet.
     expect(onDisk.sort()).toEqual(['system', ...BUILT_IN_THEMES.map((t) => t.id)].sort())
     expect(THEMES).toEqual(['default', ...BUILT_IN_THEMES.map((t) => t.id)])
     for (const name of readdirSync(FILES))
@@ -68,9 +62,6 @@ describe.each(BUILT_IN_THEMES.map((t) => t.id))('the %s theme', (id) => {
     })
 
     it("takes the default theme's accent tokens, except the ones contrast moved", () => {
-      // The dark Ivory editor is lighter than the default's: the fill (with the warm
-      // ink on it), the accent text, the selections and the focus ring were moved to
-      // keep AA (contrast.test.ts); design/README.md lists them.
       const moved: Record<Appearance, string[]> = {
         light: [],
         dark: [
@@ -130,7 +121,6 @@ describe('Ivory', () => {
     expect(rgb('light', 'color.surface.sidebar').rgb).toEqual(
       rgb('light', 'color.surface.sidebar-opaque').rgb,
     )
-    // The sidebar keeps the default theme's translucency, for the window material.
     expect(rgb('light', 'color.surface.sidebar').alpha).toBe(
       parseColor(light['color.surface.sidebar']!).alpha,
     )
@@ -187,7 +177,6 @@ describe('Ivory', () => {
     expect(hex('light', 'color.text.secondary')).toBe('#3d3d3a')
     expect(hex('dark', 'color.text.primary')).toBe('#faf9f5')
     expect(hex('dark', 'color.text.secondary')).toBe('#c2c0b6')
-    // Tertiary is the design value, or the nearest value that passes (README says which).
     const close = (appearance: Appearance, design: string) => {
       const a = rgb(appearance, 'color.text.tertiary').rgb
       const b = parseColor(design).rgb

@@ -40,10 +40,6 @@ function sqlite(): SqliteAdapter {
 
 type Params = Record<string, string | number>
 
-/**
- * For each sort in a plan, the step at the top of the plan it sits under
- * ('' for a sort of the whole statement's result).
- */
 const sortsUnder = (db: Database.Database, sql: string, params: Params = {}) => {
   const rows = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(params) as {
     id: number
@@ -367,9 +363,6 @@ describe('lists and search answer as before', () => {
   }, 120_000)
 
   it('reads the bodies of ranked matches only up to a page of results', async () => {
-    // Every note has the ranked word and the short text: a page of 5 reads
-    // about 5 bodies (and titles), not 1,000. The term needs devot_fold, so
-    // counting its calls counts the texts read.
     const storage = sqlite()
     storage.db.transaction(() => {
       for (let i = 0; i < 1000; i += 1) {

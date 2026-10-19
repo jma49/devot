@@ -20,7 +20,6 @@ function job(name: string): string {
   return match[1] ?? ''
 }
 
-/** The `run:` commands of a job, split at `&&`. */
 function commands(text: string): string[] {
   return [...text.matchAll(/^\s*(?:-\s+)?run:\s*(.+)$/gm)].flatMap((m) =>
     (m[1] ?? '').split('&&').map((c) => c.trim()),
@@ -33,7 +32,6 @@ it('pnpm check runs the dependency audit', () => {
 })
 
 it('every pnpm step of the CI web jobs is a step of pnpm check', () => {
-  // The web check runs in two jobs: the quick checks, and the UI tests split into shards.
   const steps = commands(job('web-checks') + job('ui'))
     .filter((c) => c.startsWith('pnpm ') && !/^pnpm (install|exec|ui:build)\b/.test(c))
     .map((c) => c.replace(/^pnpm /, '').split(' ')[0] ?? '')
@@ -104,8 +102,6 @@ it('CI runs on every pull request and by hand, with no label gate', () => {
   expect(trigger).toMatch(/^ {2}pull_request:\n {4}types: \[opened, synchronize, reopened\]$/m)
   expect(trigger).toMatch(/^ {2}workflow_dispatch:/m)
   expect(workflow).not.toMatch(/labels?\b/)
-  // The first job decides what runs; a condition on it would skip every job,
-  // and a skipped required check reads as passing.
   expect(job('changes')).not.toMatch(/^ {4}if:/m)
   const concurrency = /concurrency:\n((?: {2}.*\n)+)/.exec(workflow)?.[1] ?? ''
   expect(concurrency).toContain('group: ci-${{ github.ref }}\n')
@@ -121,9 +117,6 @@ it('Playwright traces are uploaded unless the run was cancelled', () => {
   expect(ui).toContain('name: playwright-results-${{ matrix.shard }}')
 })
 
-// A tiny stand-in for lefthook's glob matcher (gobwas): `**` crosses
-// folders, `*` does not, `/**/` needs a folder between the slashes, and
-// `{a,b}` matches either.
 function globMatches(glob: string, path: string): boolean {
   const source = glob.replace(/\*\*|\*|\{|\}|,|[.+^$()|[\]\\]/g, (m) =>
     m === '**'
@@ -206,7 +199,6 @@ it('changed-code.sh runs both jobs when anything else changes', () => {
   expect(changedCode(['.github/workflows/ci.yml'])).toBe('web=true rust=true')
   expect(changedCode(['tests/policy/ci-config.test.ts'])).toBe('web=true rust=true')
   expect(changedCode(['package.json'])).toBe('web=true rust=true')
-  // Design tokens compile into the UI's CSS.
   expect(changedCode(['design/tokens/base.tokens.json'])).toBe('web=true rust=true')
 })
 
@@ -240,7 +232,6 @@ it('the changes job lists both paths of a rename, so code moved into docs is sti
   expect(changedCode(names.split('\n').filter(Boolean))).toBe('web=true rust=true')
 })
 
-/** The globs of one pre-push job in lefthook.yml. */
 function pushGlobs(name: string): string[] {
   const push = lefthook.slice(lefthook.indexOf('pre-push:'))
   const block = new RegExp(`- name: ${name}\\n((?: {6}.*\\n)+)`).exec(push)?.[1] ?? ''
@@ -271,7 +262,6 @@ it('the pre-push hook runs the Rust step only for pushes that change Rust or Car
 
 it('the pre-push hook runs the type check and unit tests for code and config, not for docs or images', () => {
   const code = ['src/core/notes.ts', 'src/renderer/src/App.tsx', 'package.json', 'vite.config.ts']
-  // Vitest reads the storage sources, migrations and fixtures to check they match the core.
   const rustRead = ['src-tauri/src/storage/mod.rs', 'src-tauri/migrations/0001_init.sql']
   expect(pushedBy('unit-tests', rustRead)).toEqual(rustRead)
   for (const name of ['typecheck', 'unit-tests']) {

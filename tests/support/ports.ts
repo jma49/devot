@@ -6,7 +6,6 @@ import { createHash } from 'node:crypto'
 // meeting on one port. The range stays clear of ports a browser refuses.
 
 const FIRST = 5200
-/** Pairs in the range: 5200-5999. */
 const PAIRS = 400
 
 export interface UiPorts {
@@ -23,10 +22,6 @@ function fromEnv(value: string | undefined): number | undefined {
   return port
 }
 
-/**
- * The dev server's and the production-CSP server's ports for the checkout at
- * `root`. `DEVOT_UI_PORT` and `DEVOT_CSP_PORT` override either one.
- */
 export function uiPorts(root: string, env: Readonly<Record<string, string | undefined>>): UiPorts {
   const pair = createHash('sha256').update(root).digest().readUInt32BE(0) % PAIRS
   const ui = fromEnv(env['DEVOT_UI_PORT']) ?? FIRST + pair * 2

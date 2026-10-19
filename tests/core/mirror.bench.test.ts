@@ -21,9 +21,7 @@ const NOTES = 10_000
 const BOOKS = 50
 /** The longest the runner may compute at a stretch (the worker answers the UI in between). */
 const STALL_BUDGET_MS = 200
-/** A single edit's pass over 10,000 notes. */
 const EDIT_BUDGET_MS = 1500
-// Setting up 10k notes and running a first mirror is not the measured stall.
 const TIMEOUT_MS = 300_000
 
 let sqlite: SqliteAdapter
@@ -92,7 +90,6 @@ beforeAll(() => {
     }
   })
   insert()
-  // A hundred notes show an image.
   for (let i = 0; i < 100; i += 1) {
     const fileId = id(800_000 + i)
     void sqlite.putFile({ id: fileId, noteId: id(i * 97), name: `image ${i}.png` }, PNG)
@@ -162,7 +159,6 @@ function timedRunner(slice?: number) {
   })
   return {
     runner: made,
-    /** The longest stretch since the last reset. */
     longest: () => longest,
     reset: () => {
       longest = 0
@@ -187,7 +183,6 @@ it(
       `mirror bench: first mirror ${(firstMs / 1000).toFixed(1)} s, longest stretch ${stall.toFixed(0)} ms`,
     )
 
-    // One edit: one file written, nothing moved or removed.
     host.clear()
     const before = sqlite.db.prepare('SELECT body_md FROM notes WHERE id = ?').get(id(42)) as {
       body_md: string

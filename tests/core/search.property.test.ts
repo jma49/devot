@@ -23,8 +23,6 @@ import {
 import { openSqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// "\u540c\u6b65" is a two-character Chinese word ("sync"): below the trigram
-// length, so storage scans for it instead of using the index.
 const SYNC = '\u540c\u6b65'
 
 const STATUS_NAMES: Record<NoteStatus, string[]> = {
@@ -35,7 +33,6 @@ const STATUS_NAMES: Record<NoteStatus, string[]> = {
   dropped: ['dropped', 'Dropped'],
 }
 
-/** Text a query might hold, weighted towards the characters the parser reads. */
 const queryText = fc.string({
   unit: fc.oneof(
     {
@@ -58,7 +55,6 @@ const queryText = fc.string({
       ),
     },
     { weight: 3, arbitrary: fc.string({ unit: 'binary', minLength: 1, maxLength: 3 }) },
-    // Lone surrogates: a query is any JavaScript string.
     { weight: 1, arbitrary: fc.constantFrom('\ud800', '\udc00') },
   ),
   maxLength: 60,
@@ -72,7 +68,6 @@ describe('parseSearch', () => {
         expect(clauses.length).toBeLessThanOrEqual(MAX_SEARCH_TERMS)
         for (const c of clauses) {
           expect(c.value.length).toBeGreaterThan(0)
-          // Names resolve to IDs; text crosses to storage.
           const most =
             c.field === 'book'
               ? MAX_BOOK_NAME_CHARS
@@ -155,11 +150,6 @@ describe('matchSegments', () => {
 // Search on SQLite must agree with a plain model of the query rules, whatever
 // the notes and the query.
 
-// Cased non-ASCII words too, short ones among them ("\u00e9m" is scanned, not
-// looked up in the trigram index): a query finds them in any case. The words
-// have no sigma or dotted capital I, whose lower case depends on context in
-// the model's own toLowerCase (storage folds one character at a time; see
-// tests/support/folds.json).
 const WORDS = [
   'plan',
   'relay',
@@ -198,7 +188,6 @@ const modelNote: fc.Arbitrary<ModelNote> = fc.record({
 
 const anyCase = (name: string) =>
   fc.constantFrom(name, name.toUpperCase(), name.toLowerCase(), `${name[0]}${name.slice(1)}`)
-// Short terms (two characters, scanned) and their cased spellings.
 const SHORT_TERMS = [
   '\u00e9m',
   '\u00c9M',
@@ -255,7 +244,6 @@ const scope = fc.record({
   ),
 })
 
-/** Whether a model note matches one clause of a query. */
 function matches(n: ModelNote, c: SearchClause): boolean {
   const has = (text: string) => text.toLowerCase().includes(c.value.toLowerCase())
   const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
@@ -267,7 +255,6 @@ function matches(n: ModelNote, c: SearchClause): boolean {
     case 'body':
       return has(n.body)
     case 'book': {
-      // A notebook and its sub-notebooks (Beta is inside Alpha).
       const names = n.book === null ? [] : [BOOKS[n.book]!, ...(n.book === 1 ? [BOOKS[0]] : [])]
       return names.some((name) => same(name, c.value))
     }
@@ -279,7 +266,6 @@ function matches(n: ModelNote, c: SearchClause): boolean {
       return n.pinned === (c.value === 'true')
     case 'bookId':
     case 'tagId':
-      // IDs are not known when queries are drawn; the unit tests cover them.
       throw new Error('E_TEST_UNEXPECTED_FIELD')
   }
 }
@@ -334,7 +320,6 @@ describe('search on SQLite', () => {
               if (view.filter?.kind === 'status') filter = view.filter
               if (view.filter?.kind === 'tag') {
                 const tagId = tagIds[view.filter.tag]
-                // A filter on a tag no note has: the sidebar would not show it.
                 if (tagId) filter = { kind: 'tag', tagId }
               }
               const inView = (n: ModelNote) => {

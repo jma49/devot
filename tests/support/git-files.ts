@@ -11,7 +11,6 @@ export function gitEnv(): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')))
 }
 
-/** Runs git in `repo` (found from that folder alone) and returns its output. */
 export function gitIn(repo: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd: repo, encoding: 'utf8', env: gitEnv() })
 }

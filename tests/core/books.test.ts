@@ -152,7 +152,6 @@ describe('notebook metadata merges per field (HLC)', () => {
     const stale = (await storage.getNote(id))!
     await notes.setBook(id, b)
     await notes.flush()
-    // The older copy's fields, written over the body as stored now.
     const { bodyVersion } = (await storage.getNote(id))!
     await storage.putNote({ ...stale, title: 'Stale write', bodyVersion })
     const now = (await storage.getNote(id))!
@@ -195,7 +194,6 @@ describe('Allow AI Access', () => {
     const merged = (await books.list())[0]!
     expect(merged.name).toBe('Job')
     expect(merged.aiAccess).toBe(true)
-    // Renaming does not touch the switch.
     await books.rename(id, 'Office')
     expect((await books.list())[0]?.aiAccess).toBe(true)
   })
@@ -251,7 +249,6 @@ describe('notebook icons', () => {
       icon: 'star',
       iconColor: null,
     })
-    // Renaming and moving keep the icon.
     await books.rename(id, 'Office')
     expect(await iconOf(books, id)).toEqual({ icon: 'star', iconColor: null })
   })

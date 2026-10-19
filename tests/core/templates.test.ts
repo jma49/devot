@@ -1,7 +1,3 @@
-// Note templates on real SQLite: templates are ordinary notes in a reserved
-// notebook that every device knows by the same ID. They stay out of the
-// library (All Notes, notebooks, search) and out of AI tools, and a note
-// made from one takes its defaults from the template's front matter.
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
@@ -33,7 +29,6 @@ afterEach(async () => {
 
 const freshPath = () => join(tempDir('devot-templates-'), 'devot.sqlite')
 
-/** The app's services on a database file, with this device's clock. */
 function device(path: string, node = 'mac1') {
   const storage = openSqliteAdapter(path)
   open.push(storage)
@@ -53,20 +48,16 @@ const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0
 const FILE_ID = '0192a6f0-0000-7000-8000-00000000f001'
 const FILE_LINK = /devot:\/\/file\/([0-9a-f-]{36})/g
 
-/** The IDs of the images a body shows, in order. */
 const shownFiles = (body: string) => [...body.matchAll(FILE_LINK)].map((m) => m[1] as string)
 
-/** A stored attachment, or undefined. */
 const storedFile = (d: Device, id: string) =>
   d.storage.db.prepare('SELECT note_id AS noteId, name, data FROM files WHERE id = ?').get(id) as
     | { noteId: string; name: string; data: Buffer }
     | undefined
 
 const UTC: OffsetAt = () => 0
-// Tuesday 2026-03-03 09:05 UTC.
 const CLOCK = { now: Date.parse('2026-03-03T09:05:00Z'), offsetAt: UTC }
 
-/** A template with a body, saved. */
 async function template(d: Device, title: string, body: string) {
   const id = await d.templates.create(title)
   await d.notes.setBody(id, body)
@@ -134,7 +125,6 @@ describe('the Templates notebook', () => {
     ]) {
       await expect(change()).rejects.toThrow('E_BOOK_NOT_FOUND')
     }
-    // Keying old notebooks leaves it alone.
     await d.books.settleOrder()
     const row = (await d.storage.listBooks()).find((b) => b.id === TEMPLATES_BOOK_ID)
     expect(row).toMatchObject({ name: 'Templates', sortKey: '', aiAccess: false, deletedAt: null })
@@ -227,8 +217,6 @@ describe('AI tools (devot-mcp) never see templates', () => {
     const visible = await d.notes.create('Visible kiwi', shared)
     await d.notes.setBody(visible, 'A kiwi.')
     const tpl = await template(d, 'Template kiwi', 'A kiwi template.')
-    // An older Devot showed Templates as a plain notebook, where AI access
-    // could be turned on.
     const row = (await d.storage.listBooks()).find((b) => b.id === TEMPLATES_BOOK_ID)!
     await d.storage.putBook({ ...row, aiAccess: true, aiAccessHlc: d.clock.tick() })
     await d.notes.flush()
@@ -273,9 +261,7 @@ describe('a note from a template', () => {
     const record = (await d.storage.getNote(id))!
     const body = '---\nlang: en\n---\n# Meeting 2026-03-03\n\nAt 09:05 {{who}}\n'
     expect(record.bodyMd).toBe(body)
-    // The body went in as Yjs operations: the document holds the same text.
     expect(textOf(record.ydoc)).toBe(body)
-    // The template is unchanged.
     expect((await d.storage.getNote(tpl))?.bodyMd).toContain('{{date}}')
     expect((await d.templates.list()).map((n) => n.id)).toEqual([tpl])
   })
@@ -294,7 +280,6 @@ describe('a note from a template', () => {
     expect(
       (await d.storage.getNote(await d.templates.apply(plain, CLOCK, null)))?.bookId,
     ).toBeNull()
-    // The picker previews the same notebook.
     expect((await d.templates.draft(plain, CLOCK, work)).bookId).toBe(work)
     expect((await d.templates.draft(unknown, CLOCK, null)).bookId).toBeNull()
     // Never into Templates: a note made from a template is a note.
@@ -336,9 +321,7 @@ describe('a note from a template', () => {
     const [copy] = shownFiles(body)
     expect(copy).toMatch(UUID_V7)
     expect(copy).not.toBe(FILE_ID)
-    // Only the ID changed: the size preset stays.
     expect(body).toBe(`# Shot\n\n![shot](devot://file/${copy}#half)\n`)
-    // The template keeps its own image.
     expect(shownFiles((await d.storage.getNote(tpl))?.bodyMd ?? '')).toEqual([FILE_ID])
 
     await d.notes.trash(tpl)
@@ -355,7 +338,6 @@ describe('a note from a template', () => {
     await d.storage.putFile({ id: FILE_ID, noteId: tpl, name: 'shot.png' }, PNG)
     await d.notes.setBody(tpl, `![](devot://file/${FILE_ID})`)
     await d.notes.flush()
-    // A real failure inside the copy's write, on the real database.
     d.storage.db.exec(
       "CREATE TEMP TRIGGER no_copies BEFORE INSERT ON files BEGIN SELECT RAISE(ABORT, 'E_DISK_FULL'); END",
     )
@@ -382,7 +364,6 @@ describe('starter templates', () => {
     const id = await d.templates.apply('starter:planning', CLOCK, null)
     expect((await d.notes.read(id)).title).toBe('Planning')
     expect((await d.notes.read(id)).bodyMd).not.toContain('!Instructions')
-    // Nothing is stored for the starter: the Templates notebook stays empty.
     expect(await d.templates.list()).toEqual([])
     await expect(d.notes.setBody('starter:planning', 'x')).rejects.toThrow('E_NOTE_NOT_FOUND')
   })
@@ -394,7 +375,6 @@ describe('starter templates', () => {
     expect((await d.templates.list()).map((n) => n.id)).toEqual([copy])
     expect((await d.notes.read(copy)).title).toBe('Debugging')
     expect((await d.notes.read(copy)).bodyMd).toBe('Mine {{date}}')
-    // A template of the user's own is written in place.
     expect(await d.templates.save(copy, { body: 'Again' })).toBe(copy)
     expect((await d.notes.read(copy)).bodyMd).toBe('Again')
     await expect(d.templates.save('starter:nope', { body: 'x' })).rejects.toThrow(
@@ -439,7 +419,6 @@ describe('applying a template to a note', () => {
     expect(file).not.toBe(FILE_ID)
     expect(storedFile(d, file as string)?.noteId).toBe(note)
     expect((await d.storage.listNotes()).find((n) => n.id === note)?.status).toBe('active')
-    // No second note is made.
     expect((await d.storage.listNotes()).filter((n) => n.id !== t).map((n) => n.id)).toEqual([note])
   })
 
@@ -458,7 +437,6 @@ describe('applying a template to a note', () => {
     const d = device(freshPath())
     const t = await template(d, 'Daily', '# {{title}}\n\nPlan\n')
     const note = await d.notes.create('', null)
-    // The user types between the fill's read and its write.
     const listNotes = d.storage.listNotes.bind(d.storage)
     let typed = false
     d.storage.listNotes = async (...args: Parameters<typeof listNotes>) => {

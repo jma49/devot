@@ -13,7 +13,6 @@ import {
 // both sides must agree, or a note the core keeps could never be saved.
 const NOTES = readFileSync('src-tauri/src/commands/notes.rs', 'utf8')
 
-/** A Rust integer constant's value: numbers (with `_`) multiplied. */
 function rustConst(name: string): number {
   const stated = new RegExp(`const ${name}: (?:usize|i64) = ([^;]+);`).exec(NOTES)?.[1]
   if (!stated) throw new Error(`E_TEST_NO_CONST ${name}`)

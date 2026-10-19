@@ -58,12 +58,9 @@ const titles = async (notes: NoteService, query: string, scope?: SearchScope) =>
 
 const any = (value: string, negate = false): SearchClause => ({ field: 'any', value, negate })
 
-// "\u540c\u6b65\u65b9\u6848" is a four-character Chinese phrase ("sync plan");
-// "\u540c\u6b65" is its two-character first word.
 const SYNC_PLAN = '\u540c\u6b65\u65b9\u6848'
 const SYNC = '\u540c\u6b65'
 
-/** Excerpt cases both stores agree on: a body built from repeated parts. */
 interface ExcerptCase {
   name: string
   parts: [text: string, times: number][]
@@ -75,8 +72,6 @@ const EXCERPT_CASES = JSON.parse(
 ) as ExcerptCase[]
 const excerptBody = (parts: ExcerptCase['parts']) => parts.map(([t, n]) => t.repeat(n)).join('')
 
-// 200 excerpts (a full page of results) of 110 KB bodies: reading each body
-// whole took about a second.
 const EXCERPTS_BUDGET_MS = 100
 
 describe('parseSearch', () => {
@@ -111,7 +106,6 @@ describe('parseSearch', () => {
       { field: 'title', value: 'sync plan', negate: false },
       { field: 'body', value: 'a b', negate: false },
     ])
-    // An unclosed quote runs to the end, like a plain phrase.
     expect(parseSearch('book:"Weekly notes')).toEqual([
       { field: 'book', value: 'Weekly notes', negate: false },
     ])
@@ -175,7 +169,6 @@ describe('parseSearch', () => {
       any('pinned:maybe'),
       any('pinned:""'),
     ])
-    // A UUID of another version is no ID of Devot's.
     expect(parseSearch('bookId:0192a6f0-0000-4000-8000-0000000000b1')).toEqual([
       any('bookId:0192a6f0-0000-4000-8000-0000000000b1'),
     ])
@@ -188,9 +181,7 @@ describe('parseSearch', () => {
       { field: 'book', value: 'Weekly notes', negate: false },
       { field: 'title', value: 'a b', negate: false },
     ])
-    // The closing quote is the one before a space: 'don't stop' is one phrase.
     expect(parseSearch("'don't stop' next")).toEqual([any("don't stop"), any('next')])
-    // Double quotes inside single ones, and single inside double, are letters.
     expect(parseSearch(`'say "hi"' "it's"`)).toEqual([any('say "hi"'), any("it's")])
     expect(parseSearch("don't 'tis rock'n'roll")).toEqual([
       any("don't"),
@@ -278,7 +269,6 @@ describe('resolveSearch', () => {
     expect(resolveSearch(parseSearch(`-book:"${long}"`), { books: all, tags })?.sets).toEqual([
       { kind: 'book', ids: ['a'], negate: true },
     ])
-    // Text values stay within what storage accepts.
     expect([...parseSearch(`title:"${long}"`)[0]!.value]).toHaveLength(MAX_TERM_CHARS)
   })
 
@@ -306,7 +296,6 @@ describe('resolveSearch', () => {
     expect(pinned('x -pinned:true')).toBe(false)
     expect(pinned('x -pinned:false')).toBe(true)
     expect(pinned('x pinned:true pinned:yes')).toBe(true)
-    // Contradictions match nothing, also with the view's Pinned filter.
     expect(resolveSearch(parseSearch('pinned:true pinned:no'), { books, tags })).toBeNull()
     const scope: SearchScope = { bookId: null, filter: { kind: 'pinned' } }
     expect(resolveSearch(parseSearch('pinned:false'), { books, tags, scope })).toBeNull()
@@ -382,7 +371,6 @@ describe('highlighting', () => {
 
 describe('bodyExcerpt', () => {
   it('cuts the body around the first term found, folding case beyond ASCII', () => {
-    // "\u00c4rger" is the German word "anger" with a capital A umlaut.
     expect(bodyExcerpt('Kein \u00c4rger im Team', ['missing', '\u00e4RGER'])).toBe(
       'Kein \u00c4rger im Team',
     )
@@ -399,21 +387,16 @@ describe('bodyExcerpt', () => {
     const cut = bodyExcerpt(body, ['needle'])
     expect(cut).toBe(`…${body.slice(77)}`)
     expect(cut?.startsWith('…abcdefghij needle')).toBe(false)
-    // Where the 40th character is a word's first, nothing moves.
     expect(bodyExcerpt(`${'abcdefghi '.repeat(10)}needle`, ['needle'])).toBe(
       `…${'abcdefghi '.repeat(10).slice(60)}needle`,
     )
-    // A term inside a long word, with no word break before it: the cut stays.
     const word = `${'x'.repeat(100)}needle`
     expect(bodyExcerpt(word, ['needle'])).toBe(`…${'x'.repeat(40)}needle`)
-    // Text with no spaces (Chinese) is cut where it falls.
     const chinese = `${SYNC_PLAN.repeat(20)}marker`
     expect(bodyExcerpt(chinese, ['marker'])?.startsWith('…')).toBe(true)
     expect(bodyExcerpt(chinese, ['marker'])).toBe(`…${chinese.slice(80 - 40)}`)
   })
 
-  // Shared with the Rust store (storage/tests.rs): long bodies, read only
-  // around the place a word is found.
   it.each(EXCERPT_CASES)('$name', ({ parts, terms, excerpt }) => {
     expect(bodyExcerpt(excerptBody(parts), terms) ?? null).toBe(excerpt)
   })
@@ -440,7 +423,6 @@ describe('full-text search on SQLite', () => {
     expect(await titles(notes, 'hibernat')).toEqual(['Relay design'])
     expect(await titles(notes, 'RELAY')).toEqual(['Relay design'])
     expect(await titles(notes, SYNC_PLAN)).toEqual([SYNC_PLAN])
-    // Two characters: below the trigram length, still found.
     expect(await titles(notes, SYNC)).toEqual([SYNC_PLAN])
     expect(await titles(notes, 'ap')).toEqual(['Groceries'])
   })
@@ -504,10 +486,6 @@ describe('full-text search on SQLite', () => {
 })
 
 describe('qualifiers combined with full-text search on SQLite', () => {
-  /**
-   * Work (with the sub-notebook Projects) and "Weekly notes"; tags sync and
-   * "to read"; statuses; one note in no notebook. Every note mentions "plan".
-   */
   async function world() {
     const s = setup()
     const work = await s.books.create('Work', null)
@@ -581,7 +559,6 @@ describe('qualifiers combined with full-text search on SQLite', () => {
       'Loose plan',
       'Relay plan',
     ])
-    // Short terms (scanned, not indexed) work in every position too.
     expect(await titles(notes, `title:41 -${SYNC}`)).toEqual(['Week 41'])
     expect(await titles(notes, `plan -body:${SYNC}`)).toHaveLength(3)
     expect(await titles(notes, `body:${SYNC}`)).toEqual(['Loose plan'])
@@ -593,7 +570,6 @@ describe('qualifiers combined with full-text search on SQLite', () => {
       'Editor plan',
     ])
     expect(await titles(notes, 'plan book:Work status:active status:on_hold')).toEqual([])
-    // Only qualifiers or only exclusions are queries too.
     expect(await titles(notes, '-relay')).toEqual(['Loose plan'])
   })
 
@@ -613,7 +589,6 @@ describe('qualifiers combined with full-text search on SQLite', () => {
     expect(
       await titles(notes, 'plan', { bookId: books.work, filter: { kind: 'tag', tagId } }),
     ).toEqual(['Editor plan', 'Relay plan'])
-    // Qualifiers narrow the view further.
     expect(
       await titles(notes, 'plan -book:Projects', { bookId: books.work, filter: null }),
     ).toEqual(['Relay plan'])
@@ -621,7 +596,6 @@ describe('qualifiers combined with full-text search on SQLite', () => {
 
   it('applies qualifiers before the result limit, so no match is dropped', async () => {
     const { notes, storage, books } = await world()
-    // More notes than the limit match "plan"; only the qualifier tells them apart.
     const insert = storage.db.transaction(() => {
       for (let i = 0; i < SEARCH_LIMIT + 50; i += 1) {
         storage.db

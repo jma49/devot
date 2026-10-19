@@ -11,7 +11,6 @@ const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palett
 
 const MISSING = '01890a5d-ac96-774b-bcce-b302099a8057'
 
-/** Opens the window and waits until it has asked Rust for the links held. */
 async function open(page: Page, mocks: Record<string, unknown> = {}) {
   await page.addInitScript((m) => {
     ;(globalThis as unknown as TestWindow).devotIpcMocks = m
@@ -28,7 +27,6 @@ async function open(page: Page, mocks: Record<string, unknown> = {}) {
     .toBe(true)
 }
 
-/** Sends a link as Rust's `devot://open-url` would reach the page. */
 const sendLink = (page: Page, link: Record<string, unknown>) =>
   page.evaluate((detail) => {
     const w = globalThis as unknown as {
@@ -105,7 +103,6 @@ test('a command link runs an allowed command', async ({ page }) => {
 
 test('a command that cannot run now shows a notice', async ({ page }) => {
   await open(page)
-  // Edit Mode needs an open note.
   await sendLink(page, { kind: 'command', id: 'view.edit' })
   await expect(notice(page)).toContainText('That command can’t run right now.')
 })

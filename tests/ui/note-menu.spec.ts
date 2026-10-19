@@ -25,12 +25,10 @@ interface StoredNote {
   bodyMd: string
   bookId: string | null
   pinned: boolean
-  /** Empty until the pin was written once. */
   pinnedHlc: string
   deletedAt: number | null
 }
 
-/** The notes the in-memory store holds (saved state, not what is on screen). */
 const stored = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as StoredNote[])
 
@@ -56,7 +54,6 @@ async function createBook(page: Page, name: string) {
   await expect(page.getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })).toBeVisible()
 }
 
-/** Gives the keyboard to a note's row (clicking it also opens the note). */
 async function focusRow(page: Page, title: string) {
   await noteRow(page, title).click()
   await expect(noteRow(page, title)).toBeFocused()
@@ -106,7 +103,6 @@ test('right-click shows the native note menu, grouped, with its shortcuts', asyn
     '---',
     'Move to Trash CmdOrCtrl+Backspace',
   ])
-  // The web view's own menu is suppressed.
   const prevented = await noteRow(page, 'Plan').evaluate((el) => {
     const { MouseEvent } = globalThis as unknown as {
       MouseEvent: new (type: string, init: object) => { defaultPrevented: boolean }
@@ -120,7 +116,6 @@ test('right-click shows the native note menu, grouped, with its shortcuts', asyn
   await expect(pinnedHeader(page)).toBeVisible()
   await openMenu(page, 'Plan')
   expect(await shownMenu(page)).toContain('Unpin P')
-  // One native menu for the window's life, not one per right-click.
   const menus = await page.evaluate(
     () =>
       Object.values((globalThis as unknown as TestWindow).devotMenus).filter(
@@ -167,7 +162,6 @@ test('copy shortcuts write the link and the URI of the selected note', async ({ 
   expect(uri).toMatch(URI)
   expect(link).toBe(`[Plan \\[v2\\]](${uri})`)
 
-  // An untitled note links with the name the list shows.
   await focusRow(page, 'Untitled')
   await page.keyboard.press('Meta+KeyC')
   await expect.poll(() => clipboardWrites(page)).toHaveLength(3)
@@ -191,18 +185,15 @@ test('Duplicate copies the title, body and notebook and opens the copy', async (
     bookId: original?.bookId,
   })
   expect(copy?.bookId).toBeTruthy()
-  // The copy is open and keeps the keyboard in the list.
   await expect(body(page)).toContainText('Ship the menu.')
   await expect(noteRows(page).and(page.locator('[aria-selected="true"]'))).toBeFocused()
   await page.keyboard.press('Meta+Shift+KeyC')
   await expect.poll(() => clipboardWrites(page)).toEqual([`devot://note/${copy?.id}`])
 
-  // From the menu, on a note that is not open.
   await createNote(page, 'Other')
   await openMenu(page, 'Weekly plan')
   await pickMenuItem(page, 'Duplicate')
   await expect(noteRow(page, 'Weekly plan')).toHaveCount(3)
-  // The first row is the earlier copy, so this is a copy of a copy.
   await expect(titleField(page)).toHaveValue('Weekly plan copy copy')
 })
 
@@ -213,7 +204,6 @@ test('P pins and unpins the selected note', async ({ page }) => {
   await page.keyboard.press('KeyP')
   await expect(pinnedHeader(page)).toBeVisible()
   await expect.poll(() => openNotePinned(page)).toBe(true)
-  // The row keeps the keyboard as it moves to the pinned section.
   await expect(noteRow(page, 'First')).toBeFocused()
   await page.keyboard.press('KeyP')
   await expect(pinnedHeader(page)).toHaveCount(0)
@@ -235,16 +225,13 @@ test('M opens a notebook picker that filters as you type', async ({ page }) => {
   await expect(picker(page)).toBeVisible()
   const filter = picker(page).getByRole('combobox', { name: 'Filter notebooks' })
   await expect(filter).toBeFocused()
-  // The key that opened it is not typed into the filter.
   await expect(filter).toHaveValue('')
   const options = picker(page).getByRole('option')
-  // Notebooks in the sidebar's order.
   await expect(options).toHaveText(['No Notebook', 'Work', 'Home'])
   await filter.pressSequentially('wo')
   await expect(options).toHaveText(['Work'])
   await page.keyboard.press('Enter')
   await expect(picker(page)).toHaveCount(0)
-  // Home no longer lists it; Work does.
   await expect(noteRows(page)).toHaveCount(0)
   await page
     .getByRole('treeitem', { name: /^Work\b/ })
@@ -279,7 +266,6 @@ test('the picker moves from the menu, by arrow keys or click, and Escape cancels
 
   await openMenu(page, 'Loose')
   await pickMenuItem(page, 'Move to Notebook…')
-  // The note's current notebook is marked.
   await expect(picker(page).getByRole('option', { name: 'No Notebook' })).toHaveAttribute(
     'aria-checked',
     'true',
@@ -295,7 +281,6 @@ test('the picker moves from the menu, by arrow keys or click, and Escape cancels
   await expect
     .poll(async () => (await stored(page)).find((n) => n.title === 'Loose')?.bookId)
     .toBeTruthy()
-  // The open note was not moved.
   expect((await stored(page)).find((n) => n.title === 'Open')?.bookId).toBeNull()
 
   await openMenu(page, 'Loose')
@@ -319,14 +304,11 @@ test('Cmd+Delete moves the selected note to the trash', async ({ page }) => {
 
 test('shortcuts do nothing while the editor or a text field has focus', async ({ page }) => {
   await createNote(page, 'Typing', 'mp')
-  // The editor: keys type, and Cmd+C stays the editor's (Cmd+D and
-  // Shift+Cmd+C are editor commands there: Delete Line and Code Block).
   await body(page).click()
   await page.keyboard.press('KeyM')
   await page.keyboard.press('KeyP')
   await page.keyboard.press('Meta+KeyC')
   await expect(body(page)).toContainText('mpmp')
-  // The title and the search field.
   await titleField(page).click()
   await page.keyboard.press('KeyM')
   await page.keyboard.press('Meta+KeyD')
@@ -370,7 +352,6 @@ test('the Trash offers only its own menu and no note shortcuts', async ({ page }
   await page.keyboard.press('Meta+Backspace')
   await page.getByRole('button', { name: /^Trash\b/ }).click()
   await expect(noteRow(page, 'Old')).toHaveCount(1)
-  // The right-click menu holds the Trash's actions only, no note items.
   await noteRow(page, 'Old').click({ button: 'right' })
   await expect.poll(() => popups(page)).toBe(1)
   expect(await shownMenu(page)).toEqual([
@@ -440,9 +421,6 @@ test('pressing P twice quickly pins and then unpins', async ({ page }) => {
       row.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', bubbles: true }))
     }
   })
-  // The positive signal first: the pin was written (its clock is set) and
-  // is off again, so both presses ran. A swallowed second press would leave
-  // it pinned; a swallowed first one leaves the clock empty.
   await expect
     .poll(async () => {
       const note = (await stored(page))[0]
@@ -494,11 +472,9 @@ test('in search results, Duplicate focuses the copy and the menu works', async (
   const selectedRow = noteRows(page).and(page.locator('[aria-selected="true"]'))
   await expect(selectedRow).toHaveCount(1)
   await expect(selectedRow).toBeFocused()
-  // The keyboard and the shortcuts both act on the copy.
   await page.keyboard.press('Meta+Shift+KeyC')
   await expect.poll(() => clipboardWrites(page)).toEqual([`devot://note/${copy?.id}`])
 
-  // The note menu in search results, on the original.
   const before = await popups(page)
   await noteRows(page).and(page.locator('[aria-selected="false"]')).click({ button: 'right' })
   await expect.poll(() => popups(page)).toBe(before + 1)

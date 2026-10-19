@@ -224,7 +224,6 @@ describe('images', () => {
     const from = Number(first.properties['dataImageFrom'])
     const to = Number(first.properties['dataImageTo'])
     expect(md.slice(from, to)).toBe(`![a [b]](${file}#half "T")`)
-    // A reference image or raw HTML has no destination of its own to size.
     expect(imgs[1]?.properties['dataImageFrom']).toBeUndefined()
     expect(imgs[2]?.properties['dataImageFrom']).toBeUndefined()
   })

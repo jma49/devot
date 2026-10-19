@@ -31,7 +31,6 @@ const PROBE = Symbol.for('devot.test.overloaded')
 
 type ProbeHost = { [PROBE]?: () => boolean }
 
-/** Installs the check for an overloaded machine; the Node setup file calls it. */
 export function setOverloadProbe(probe: () => boolean): void {
   ;(globalThis as ProbeHost)[PROBE] = probe
 }
@@ -40,7 +39,6 @@ let scale = budgetScale(
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {},
 )
 
-/** Sets the factor the budgets stretch by (for tests of this module). */
 export function setBudgetScale(factor: number): void {
   scale = factor
 }
@@ -49,7 +47,6 @@ function overloaded(): boolean {
   return (globalThis as ProbeHost)[PROBE]?.() ?? false
 }
 
-/** Skips the running test, with `why` as the note, when the local machine is overloaded. */
 export function skipIfOverloaded(context: TestContext, why: string): void {
   if (overloaded()) context.skip(`machine overloaded (${why})`)
 }

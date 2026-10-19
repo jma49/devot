@@ -18,7 +18,6 @@ import {
 // setting is stored with the editor settings, so a change in the Settings
 // window reaches the main window as `devot:editor-settings-changed`.
 
-/** Each region's wash over the material and its opaque surface, and the window's. */
 const SURFACES = {
   light: {
     sidebar: { material: 'rgba(255, 255, 255, 0.02)', opaque: 'rgb(243, 244, 246)' },
@@ -52,7 +51,6 @@ const calls = (page: Page, cmd: string) =>
     cmd,
   )
 
-/** Settings stored before the page starts (the rest are defaults). */
 const stored = (page: Page, settings: Record<string, unknown>) =>
   page.addInitScript((s) => {
     const w = globalThis as unknown as TestWindow
@@ -86,7 +84,6 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.goto('/')
       await expectShown(page, false, scheme)
 
-      // Turned on in the Settings window: no reload needed.
       await changeEditorSettingsElsewhere(page, { sidebarMaterial: true })
       await expectShown(page, true, scheme)
 
@@ -124,7 +121,6 @@ test('turned on, the sidebar stays opaque until Rust has restored the effect', a
   })
   await page.goto('/')
   await expectShown(page, false)
-  // The stored settings turned it off once read: one sync so far.
   await expect.poll(() => calls(page, 'sidebar_material_sync')).toHaveLength(1)
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: true })
   await expect.poll(() => calls(page, 'sidebar_material_sync')).toHaveLength(2)
@@ -216,7 +212,6 @@ test('Rust reporting no material keeps the sidebar opaque', async ({ page }) => 
   await expect.poll(() => calls(page, 'sidebar_material_sync')).toHaveLength(2)
   await expect(page.locator('.window')).toBeVisible()
   await expectShown(page, false)
-  // The later change arrives and settles it.
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
   await expect.poll(() => calls(page, 'sidebar_material_sync')).toHaveLength(3)
   await expectShown(page, false)
@@ -282,7 +277,6 @@ test('a failed sync keeps the sidebar opaque', async ({ page }) => {
   })
   await page.goto('/')
   await expectShown(page, false)
-  // The stored settings turned it off once read: one sync so far.
   await expect.poll(() => calls(page, 'sidebar_material_sync')).toHaveLength(1)
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: true })
   await expect.poll(() => calls(page, 'sidebar_material_sync')).toHaveLength(2)
@@ -323,7 +317,6 @@ test('the Settings window turns the material off and on', async ({ page }) => {
     { patch: { sidebarMaterial: false } },
     { patch: { sidebarMaterial: true } },
   ])
-  // Only the main window brings the window effect in line.
   expect(await calls(page, 'sidebar_material_sync')).toHaveLength(0)
 })
 
@@ -341,7 +334,6 @@ test('a change that cannot be stored is reported and dropped', async ({ page }) 
     w.devotIpcMocks = { editor_settings_set: { error: 'E_EDITOR_SETTINGS_WRITE_FAILED' } }
   })
   await openSettings(page, 'Appearance')
-  // A click, not uncheck(): the box goes back as soon as Rust refuses.
   await translucent(page).click()
   await expect(appearance(page).getByRole('alert')).toContainText('E_EDITOR_SETTINGS_WRITE_FAILED')
   await expect(translucent(page)).toBeChecked()
@@ -364,7 +356,6 @@ test('the transparency adjusts every wash: opaque at one end, the design in the 
   await expect.poll(() => paintedBackground(editor(page))).toBe('rgba(255, 255, 255, 0.4)')
   await changeEditorSettingsElsewhere(page, { windowTransparency: 0 })
   await expectShown(page, true)
-  // Turned off, the regions are opaque whatever the transparency.
   await changeEditorSettingsElsewhere(page, { windowTransparency: 100, sidebarMaterial: false })
   await expectShown(page, false)
 })

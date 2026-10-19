@@ -18,7 +18,6 @@ async function open(page: Page, mocks: Record<string, unknown> = {}) {
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
 }
 
-/** Sends a status as Rust's `devot://update-status` would reach the page. */
 const sendStatus = (page: Page, status: Record<string, unknown>) =>
   page.evaluate((detail) => {
     const w = globalThis as unknown as {
@@ -50,7 +49,6 @@ test('Later hides the notice until there is a new update', async ({ page }) => {
   await sendStatus(page, { ...IDLE, revision: 2, state: 'ready', version: '0.3.0-beta.2' })
   await notice.getByRole('button', { name: 'Later' }).click()
   await expect(notice).toHaveCount(0)
-  // The same update again (a later revision) stays hidden.
   await sendStatus(page, { ...IDLE, revision: 3, state: 'ready', version: '0.3.0-beta.2' })
   await expect(notice).toHaveCount(0)
 })
@@ -77,7 +75,6 @@ test('the palette checks for updates, and the window reports its own check', asy
   await expect(page.locator('[data-devot-update]')).toContainText(
     'Devot 0.3.0-beta.1 is the latest version.',
   )
-  // A check asked for in Settings is reported there, not here.
   await page.getByRole('button', { name: 'Dismiss' }).click()
   await sendStatus(page, { ...IDLE, revision: 2, askedBy: 'settings', state: 'upToDate' })
   await expect(page.locator('[data-devot-update]')).toHaveCount(0)
@@ -120,7 +117,6 @@ test('Later on an available update stays until a newer one', async ({ page }) =>
   await sendStatus(page, { ...IDLE, revision: 1, state: 'available', version: '0.4.0-beta.1' })
   await notice.getByRole('button', { name: 'Later' }).click()
   await expect(notice).toHaveCount(0)
-  // The next daily check finds the same version again.
   await sendStatus(page, { ...IDLE, revision: 3, state: 'available', version: '0.4.0-beta.1' })
   await expect(notice).toHaveCount(0)
   await sendStatus(page, { ...IDLE, revision: 5, state: 'available', version: '0.4.0-beta.2' })

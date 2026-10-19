@@ -7,9 +7,6 @@ import {
   type PreviewLabels,
 } from '../../src/core'
 
-// Synced scrolling maps editor lines to preview blocks: every block the
-// preview shows carries the source line it starts on, as `data-source-line`.
-
 const labels: PreviewLabels = {
   alerts: {
     note: 'Note',
@@ -49,27 +46,27 @@ describe('source lines', () => {
   it('marks every block with the line it starts on', async () => {
     const tree = await render(
       [
-        '# Title', // 1
+        '# Title',
         '',
-        'A paragraph', // 3
+        'A paragraph',
         'over two lines.',
         '',
-        '- one', // 6
-        '- two', // 7
+        '- one',
+        '- two',
         '',
-        '  more of two', // 9
+        '  more of two',
         '',
-        '```js', // 11
+        '```js',
         'code()',
         '```',
         '',
-        '> quoted', // 15
+        '> quoted',
         '',
-        '| a | b |', // 17
+        '| a | b |',
         '| - | - |',
-        '| 1 | 2 |', // 19
+        '| 1 | 2 |',
         '',
-        '---', // 21
+        '---',
       ].join('\n'),
     )
     expect(line(first(tree, (e) => e.tagName === 'h1'))).toBe(1)
@@ -101,24 +98,24 @@ describe('source lines', () => {
   it('keeps the line of a block a renderer replaced', async () => {
     const tree = await render(
       [
-        '---', // 1
+        '---',
         'title: x',
         '---',
         '',
-        '> [!NOTE]', // 5
+        '> [!NOTE]',
         '> An alert.',
         '',
-        '```mermaid', // 8
+        '```mermaid',
         'graph TD',
         '```',
         '',
-        '$$', // 12
+        '$$',
         'x^2',
         '$$',
         '',
-        'https://www.youtube.com/watch?v=dQw4w9WgXcQ', // 16
+        'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
         '',
-        '<iframe src="https://example.com/x"></iframe>', // 18
+        '<iframe src="https://example.com/x"></iframe>',
       ].join('\n'),
     )
     expect(line(first(tree, (e) => classes(e).includes('frontmatter')))).toBe(1)
@@ -134,8 +131,6 @@ describe('source lines', () => {
       ['Text', '', '<div data-source-line="99" data-devot-ui data-x="1">raw</div>'].join('\n'),
     )
     const div = first(tree, (e) => e.tagName === 'div')
-    // The sanitizer drops the note's own data attributes: the line is Devot's,
-    // and no note can pass for the page's own controls (`data-devot-ui`).
     expect(div?.properties).toEqual({ dataSourceLine: 3 })
   })
 

@@ -19,7 +19,6 @@ const EASING = /\bease(-in|-out|-in-out)?\b|cubic-bezier\(/
 const TIME = /(?<![\w.-])(?!0m?s\b)\d*\.?\d+m?s\b/
 const MOTION = /\b(transition|animation)/
 
-/** A line that writes a duration or easing curve as a literal. */
 function hasMotionLiteral(line: string): boolean {
   const code = line.replace(/\/\*.*?\*\/|\/\/.*$/g, '')
   return (
@@ -62,7 +61,6 @@ it('things grow and shrink only through the scale variables, which Reduce Motion
     .flatMap((file) => readFileSync(file, 'utf8').match(/(?<![\w-])scale[:(][^;\n]*/g) ?? [])
   expect(scales.length).toBeGreaterThan(0)
   expect(
-    // At rest a thing is at its own size (`scale: 1`).
     scales.filter(
       (s) => !/var\(--(popover-(enter|exit)|dialog-enter|chip-enter)-scale\)|^scale: 1$/.test(s),
     ),

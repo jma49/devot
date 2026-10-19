@@ -26,8 +26,6 @@ it('the temp-folder check catches a file written straight into the temp folder',
   expect(pattern.test("join(tempDir('devot-x-'), 'x.sqlite')")).toBe(false)
 })
 
-// Rust tests use tempfile, whose folders go when they are dropped, even when
-// an assertion fails first; a folder made under env::temp_dir() by hand stays.
 it('no Rust code makes a folder under env::temp_dir() by hand', () => {
   const files = listFiles('.', 'src-tauri').filter((f) => f.endsWith('.rs'))
   const offenders = files.filter((file) => /env::temp_dir\(\)/.test(readFileSync(file, 'utf8')))

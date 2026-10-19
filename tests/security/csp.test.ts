@@ -9,8 +9,6 @@ const config = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8')) as 
 const csp = config.app.security.csp
 const sources = (name: string) => (csp[name] ?? '').split(' ').filter(Boolean)
 
-// Tauri's own IPC endpoint and Sentry's US ingest host (crash reports); the
-// only non-'self' connections the UI may open.
 const TAURI_IPC = ['ipc:', 'http://ipc.localhost']
 const SENTRY_INGEST = 'https://*.ingest.us.sentry.io'
 

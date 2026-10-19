@@ -5,9 +5,6 @@ import { expectWithinBudget } from '../support/budget'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Acceptance benchmark: the activity heatmap over 10,000 notes, each written
-// on several days of the year, is read and counted well within a frame
-// budget for opening a sheet (median).
 const NOTES = 10_000
 const VERSIONS = 4
 const BUDGET_MS = 250
@@ -78,7 +75,6 @@ afterAll(() => storage.close())
 describe(`the activity heatmap over ${NOTES} notes`, () => {
   it(`is read and counted in under ${BUDGET_MS} ms`, async (context) => {
     const first = await loadActivity(storage, NOW, UTC)
-    // The data is really there: most of the year is active.
     expect(first.total.activeDays).toBeGreaterThan(300)
     const times: number[] = []
     for (let i = 0; i < 7; i += 1) {

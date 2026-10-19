@@ -28,11 +28,9 @@ const ESCAPE: Press = { key: 'Escape', code: 'Escape' }
 const ARROW_DOWN: Press = { key: 'ArrowDown', code: 'ArrowDown' }
 const TAB: Press = { key: 'Tab', code: 'Tab' }
 
-/** Sends `press` to `target` as an input method's key; true when the page prevented its default. */
 function imeKey(target: Locator, press: Press, how: How): Promise<boolean> {
   return target.evaluate(
     (el, sent) => {
-      // This config has no DOM types: the one browser class used here.
       const w = globalThis as unknown as {
         KeyboardEvent: new (type: string, init: object) => { defaultPrevented: boolean }
       }
@@ -111,7 +109,6 @@ function skipUnlessAtOnce(took: number) {
   test.skip(took >= COMPOSITION_END_KEY_MS, `the page took ${Math.round(took)} ms to send the key`)
 }
 
-/** What a Format menu item sends to the page, with its command ID. */
 const pickFormat = (page: Page, id: string) =>
   page.evaluate((detail) => {
     const w = globalThis as unknown as {
@@ -164,12 +161,10 @@ test('in Move to Notebook, composition keys neither move the choice nor pick', a
   await expect(options.first()).toHaveAttribute('aria-selected', 'true')
   for (const how of HOW) {
     await imeKey(filter, ARROW_DOWN, how)
-    // Return would move the note out of Work.
     await imeKey(filter, ENTER, how)
   }
   await expect(picker).toBeVisible()
   await expect(options.first()).toHaveAttribute('aria-selected', 'true')
-  // The keyboard's own keys still work.
   await page.keyboard.press('ArrowDown')
   await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true')
   await page.keyboard.press('Escape')
@@ -193,7 +188,6 @@ test('in the find bar, composition keys neither step, replace nor close it', asy
   }
   await expect(findStatus(page)).toHaveText('1 of 2')
   expect(await lines(page)).toEqual(['cat dog cat'])
-  // The keys themselves still work: Return steps on and replaces, Escape closes.
   await findField(page).press('Enter')
   await expect(findStatus(page)).toHaveText('2 of 2')
   await replaceField(page).press('Enter')
@@ -222,12 +216,9 @@ test('in the tag field, the Return right after a composition adds no tag, whatev
   const field = page.getByRole('combobox', { name: 'Add Tag' })
   const chips = page.getByRole('group', { name: 'Tags' }).locator('.chip')
   await field.fill('draft')
-  // Return's own key code (13), not 229: only the main window's watch on
-  // its compositions makes this key the input method's.
   skipUnlessAtOnce(await keyEndingComposition(field, ENTER, 13))
   await expect(field).toHaveValue('draft')
   await expect(chips).toHaveCount(0)
-  // Only that one key: the next Return is the user's.
   await field.press('Enter')
   await expect(chips).toHaveText(['draft'])
   await expect(field).toHaveValue('')
@@ -264,7 +255,6 @@ test('window shortcuts leave the keys of a composition alone', async ({ page }) 
   await createNote(page, 'Keys')
   await titleField(page).click()
   for (const how of HOW) {
-    // Cmd+F (find) and Cmd+K (the command palette), while typing a title.
     await imeKey(titleField(page), { key: 'f', code: 'KeyF', metaKey: true }, how)
     await imeKey(titleField(page), { key: 'p', code: 'KeyP', metaKey: true }, how)
   }
@@ -283,7 +273,6 @@ test('Cmd+B and the Format menu leave a composition in the editor alone', async 
   // gets it while the composition is open; it must not end it.
   const mod = process.platform === 'darwin' ? { metaKey: true } : { ctrlKey: true }
   expect(await imeKey(body(page), { key: 'b', code: 'KeyB', ...mod }, 'composing')).toBe(false)
-  // Nor may the Format menu (the menu bar had the key, or a click).
   await pickFormat(page, 'format.bold')
   expect(await lines(page)).toEqual(['word'])
   await composition(page, 'compositionend')
@@ -295,7 +284,6 @@ test('the Return or Escape that ends a composition adds no line and keeps the fi
   page,
 }) => {
   await createNote(page, 'List', '- item')
-  // Return in a list item would start the next item.
   for (const how of HOW) await imeKey(body(page), ENTER, how)
   expect(await lines(page)).toEqual(['- item'])
   await page.keyboard.press('Enter')
@@ -307,7 +295,6 @@ test('the Return or Escape that ends a composition adds no line and keeps the fi
   await expect(findStatus(page)).toHaveText('1 of 1')
   await body(page).click()
   await expect(body(page)).toBeFocused()
-  // Escape in the editor would close the bar.
   for (const how of HOW) await imeKey(body(page), ESCAPE, how)
   await expect(findBar(page)).toBeVisible()
   await expect(findField(page)).toHaveValue('item')
@@ -327,7 +314,6 @@ test('the Tab that ends a composition keeps the keyboard in the editor', async (
   skipUnlessAtOnce(await keyEndingComposition(body(page), TAB, 9))
   await expect(body(page)).toBeFocused()
   expect(await lines(page)).toEqual(['text'])
-  // The next Tab is the user's: the editor indents the line with it.
   await page.keyboard.press('Tab')
   await expect.poll(() => lines(page)).toEqual([expect.stringMatching(/^\s+text$/)])
   await expect(body(page)).toBeFocused()
@@ -347,7 +333,6 @@ test('in Settings, the Escape right after a composition keeps the shortcut recor
   // makes this key the input method's, so it does not cancel the recording.
   skipUnlessAtOnce(await keyEndingComposition(recorder, ESCAPE, 27))
   await expect(recorder).toHaveAttribute('aria-pressed', 'true')
-  // Only that one key: the next Escape is the user's.
   await page.keyboard.press('Escape')
   await expect(recorder).toHaveAttribute('aria-pressed', 'false')
 })

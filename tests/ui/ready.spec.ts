@@ -7,7 +7,6 @@ import { expect, openApp, reloadApp, test } from './fixtures'
 
 const READY = '.window[data-ready]'
 
-/** Records, in the page, what the window looked like when it first showed and became ready. */
 const WATCH = () => {
   const w = globalThis as unknown as {
     document: {
@@ -29,7 +28,6 @@ const WATCH = () => {
     }
     if (el.hasAttribute('data-ready') && w.devotWatch.readyAt === undefined) {
       w.devotWatch.readyAt = 1
-      // The first thing a test does: an event the window listens for.
       w.dispatchEvent(new w.CustomEvent('devot:toggle-sidebar'))
     }
   }).observe(w.document, { subtree: true, childList: true, attributes: true })
@@ -41,7 +39,6 @@ test('the window is ready only after it showed, and hears an event sent the mome
   await page.addInitScript(WATCH)
   await page.goto('/')
   await expect(page.locator(READY)).toHaveCount(1)
-  // The sidebar toggled by the event the moment the mark appeared.
   await expect(page.getByRole('navigation', { name: 'Sidebar' })).toBeHidden()
   const watched = await page.evaluate(
     () =>
@@ -60,7 +57,6 @@ test('openApp and reloadApp return with the window ready', async ({ page }) => {
   })
   await reloadApp(page)
   await expect(page.locator(READY)).toHaveCount(1)
-  // A fresh page: the marker of the old one is gone.
   expect(
     await page.evaluate(() => (globalThis as unknown as { devotMarker?: boolean }).devotMarker),
   ).toBeUndefined()

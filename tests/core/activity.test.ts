@@ -27,7 +27,6 @@ const HOUR = 60 * MINUTE
 const UTC: OffsetAt = () => 0
 
 const open: SqliteAdapter[] = []
-// A Wednesday noon; the injected clock, with timers faked to follow it.
 const NOW = Date.UTC(2026, 9, 7, 12)
 let time = NOW
 const today = NOW / DAY_MS - 0.5
@@ -42,7 +41,6 @@ afterEach(() => {
   open.splice(0).forEach((a) => a.close())
 })
 
-/** Moves the clock and runs the timers that fall due on the way. */
 async function advance(ms: number) {
   const step = 1000
   for (let left = ms; left > 0; left -= step) {
@@ -68,7 +66,6 @@ function service(storage: StorageAdapter = sqlite()) {
   return { storage, notes }
 }
 
-/** Replaces a note's whole text, as one editor edit, and waits for the save. */
 async function type(notes: NoteService, id: string, text: string) {
   const doc = new Y.Doc()
   Y.applyUpdate(doc, (await notes.open(id)).state)
@@ -101,7 +98,6 @@ describe('activity on SQLite', () => {
     const versions = async () =>
       (await storage.listRevisions(id)).filter((r) => r.kind === 'body').length
     expect(await versions()).toBe(1)
-    // The pause that follows takes no second version of the same text.
     await advance(REVISION_PAUSE_MS + 1000)
     expect(await versions()).toBe(1)
     expect(await dayOf(notes, today)).toEqual({ created: 1, edited: 1, chars: 11 })
@@ -137,7 +133,6 @@ describe('activity on SQLite', () => {
 
   it('never counts notebook, status or pin changes, nor text a note arrived with', async () => {
     const { storage, notes } = service()
-    // A note that arrives with its text (an import, devot-mcp) and is released.
     time = NOW - 100 * DAY_MS
     const id = await notes.create('Imported')
     await notes.setBody(id, 'x'.repeat(5_000))
@@ -148,25 +143,21 @@ describe('activity on SQLite', () => {
     await notes.flush()
     expect(await dayOf(notes, today - 100)).toEqual({ created: 1, edited: 0, chars: 0 })
     expect(await dayOf(notes, today)).toEqual({ created: 0, edited: 0, chars: 0 })
-    // The pin kept the text the note arrived with, as its baseline.
     const versions = (await storage.listRevisions(id)).filter((r) => r.kind === 'body')
     expect(versions.map((v) => [v.at, v.value])).toEqual([[NOW - 100 * DAY_MS, 'baseline']])
   })
 
   it('never counts text a note had before its history began, when it is edited later', async () => {
     const storage = sqlite()
-    // Day -100: an import (devot-mcp, a duplicate) arrives with its text.
     time = NOW - 100 * DAY_MS
     const first = service(storage).notes
     const id = await first.create('Imported')
     await first.setBody(id, 'x'.repeat(5_000))
     await first.release(id)
-    // Day -50, a later session: pinned.
     time = NOW - 50 * DAY_MS
     const second = service(storage).notes
     await second.setPinned(id, true)
     await second.flush()
-    // Today, a later session: one character typed.
     time = NOW
     const third = service(storage).notes
     await third.setBody(id, 'x'.repeat(5_001))
@@ -187,7 +178,6 @@ describe('activity on SQLite', () => {
     await notes.setBody(id, 'x'.repeat(5_010))
     await advance(REVISION_PAUSE_MS + 1000)
     time = NOW
-    // A save today runs a compaction sweep; the baseline stays.
     await type(notes, await notes.create(), 'x')
     await notes.flush()
     expect((await storage.listRevisions(id)).filter((r) => r.kind === 'body')).toHaveLength(2)
@@ -203,12 +193,10 @@ describe('activity on SQLite', () => {
     await type(first, id, 'q'.repeat(500))
     await first.flush({ versions: true })
     vi.clearAllTimers()
-    // Day -10, a later session: pinned.
     time = NOW - 10 * DAY_MS
     const second = service(storage).notes
     await second.setPinned(id, true)
     await second.flush()
-    // Today, a later session.
     time = NOW
     const third = service(storage).notes
     expect(await dayOf(third, today - 100)).toEqual({ created: 1, edited: 1, chars: 500 })
@@ -220,7 +208,6 @@ describe('activity on SQLite', () => {
 
   it('dates typing a crash left out of a version by its save, never a later pin', async () => {
     const storage = sqlite()
-    // Day -100: a note typed past a version, then the app stops (a crash).
     time = NOW - 100 * DAY_MS
     const first = service(storage).notes
     const id = await first.create()
@@ -229,12 +216,10 @@ describe('activity on SQLite', () => {
     await type(first, id, 'c'.repeat(600))
     await first.flush()
     vi.clearAllTimers()
-    // Day -10, a later session: pinned.
     time = NOW - 10 * DAY_MS
     const second = service(storage).notes
     await second.setPinned(id, true)
     await second.flush()
-    // Today, a later session: one character typed.
     time = NOW
     const third = service(storage).notes
     await third.setBody(id, 'c'.repeat(601))
@@ -266,8 +251,6 @@ describe('activity on SQLite', () => {
       await advance(REVISION_PAUSE_MS + 1000)
       time += HOUR
     }
-    // Later writing, over a week on: the newest versions, which compaction
-    // always keeps, and from which it counts the old day's age.
     time = (day + 10) * DAY_MS + 9 * HOUR
     for (let i = 0; i < KEEP_NEWEST; i += 1) {
       await type(notes, id, 'b'.repeat(i + 1))
@@ -275,7 +258,6 @@ describe('activity on SQLite', () => {
     }
     time = NOW
     expect(await dayOf(notes, day)).toEqual({ created: 1, edited: 1, chars: 100 + 200 + 250 })
-    // A save today runs a compaction sweep, which keeps the day's last version.
     const done = sweeps.count
     await type(notes, await notes.create(), 'x')
     await notes.flush()
@@ -329,7 +311,6 @@ describe('the UI tests’ memory adapter', () => {
       await advance(REVISION_PAUSE_MS + 1000)
       await notes.setTitle(a, 'A2')
       time = NOW - 3 * DAY_MS
-      // Arrives with its text, then is edited: its baseline is left out.
       const e = await notes.create('E')
       await notes.setBody(e, 'arrived')
       await notes.release(e)
@@ -347,7 +328,6 @@ describe('the UI tests’ memory adapter', () => {
       time = NOW
       await notes.flush()
       const data = await storage.listActivity(activitySince(heatmapStart(today)))
-      // IDs differ per run; compare by order of creation.
       const ids = [a, b, c, d, e]
       const named = (id: string) => `#${ids.indexOf(id)}`
       const sorted = <T>(rows: T[]) => rows.map((r) => JSON.stringify(r)).sort()

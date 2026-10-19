@@ -35,7 +35,6 @@ const base: NoteRecord = {
   deletedHlc: null,
 }
 
-/** Applies one write to a copy of `base`, as a device would save it. */
 function asRecord(write: Write): NoteRecord {
   switch (write.field) {
     case 'title':
@@ -97,7 +96,6 @@ describe('per-field last-writer-wins on SQLite', () => {
         fc.uniqueArray(write, { minLength: 1, maxLength: 12, selector: (w) => w.hlc }),
         fc.infiniteStream(fc.nat()),
         async (writes, seeds) => {
-          // Two devices: one in the original order, one shuffled.
           const shuffled = [...writes]
             .map((w) => ({ w, k: seeds.next().value }))
             .sort((a, b) => a.k - b.k)
@@ -106,7 +104,6 @@ describe('per-field last-writer-wins on SQLite', () => {
           for (const order of [writes, shuffled]) {
             const store = openSqliteAdapter(join(dir, `db-${(run += 1)}.sqlite`))
             await store.putNote(base)
-            // Each write is based on the body version the one before left.
             for (const [i, w] of order.entries()) {
               await store.putNote({ ...asRecord(w), bodyVersion: i + 1 })
             }

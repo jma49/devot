@@ -30,13 +30,11 @@ beforeEach(() => vi.mocked(invoke).mockClear())
 const MIB = 1 << 20
 
 const same = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b))
-/** A note's fields, its state as bytes compared on their own. */
 const fields = ({ ydoc, ...rest }: NoteRecord) => ({
   ...rest,
   ydoc: Buffer.from(ydoc).toString('base64'),
 })
 
-/** Bytes that are not all alike (a state compresses nothing). */
 const bytes = (length: number) => {
   const out = new Uint8Array(length)
   let s = length + 1
@@ -53,7 +51,6 @@ const hasNativeBase64 = () => {
   const { proto, ctor } = native()
   return typeof proto.toBase64 === 'function' && typeof ctor.fromBase64 === 'function'
 }
-/** Runs `run` with the engine's own base64 coders removed, then puts them back. */
 function withoutNativeBase64(run: () => void): void {
   const { proto, ctor } = native()
   const saved = { toBase64: proto.toBase64, fromBase64: ctor.fromBase64 }
@@ -101,13 +98,10 @@ describe('base64 for Yjs states', () => {
   })
 
   it('codes a 1 MiB state in the worker in well under a frame', (context) => {
-    // Engines before V8 14 (Node 24) have no coder of their own; the next
-    // test times the fallback they run instead.
     if (!hasNativeBase64()) context.skip('engine has no base64 of its own')
     const data = bytes(MIB)
     const start = performance.now()
     for (let i = 0; i < 10; i += 1) fromBase64(toBase64(data))
-    // Ten saves and opens; the byte loop this replaced took about 11 ms for one.
     expectWithinBudget(context, performance.now() - start, 40)
   })
 
@@ -116,8 +110,6 @@ describe('base64 for Yjs states', () => {
     withoutNativeBase64(() => {
       const start = performance.now()
       for (let i = 0; i < 10; i += 1) fromBase64(toBase64(data))
-      // Ten saves and opens: about 35 ms on Node 24; the spread-and-btoa
-      // loop the fallback replaced took about 250 ms.
       expectWithinBudget(context, performance.now() - start, 120)
     })
   })
@@ -157,7 +149,6 @@ describe('the worker’s side', () => {
     expect(puts).toHaveLength(1)
     expect(puts[0]?.note.ydoc).toBe(toBase64(record.ydoc))
     expect(puts[0]?.links).toEqual(['0192a6f0-0000-7000-8000-000000000002'])
-    // Stored with its body at the next version.
     const stored = fields({ ...record, bodyVersion: 1 })
     expect(fields((await sqlite.getNote(record.id))!)).toEqual(stored)
     expect(fields((await storage.getNote(record.id))!)).toEqual(stored)

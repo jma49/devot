@@ -27,14 +27,12 @@ describe('editor settings', () => {
   it('has roomy defaults, the new ones for settings the user never set', () => {
     expect(DEFAULT_EDITOR_SETTINGS).toEqual({
       lineNumbers: false,
-      // Everything wraps except the code block or table under the caret.
       lineWrapping: 'unwrapAtCursor',
       readableWidth: false,
       fontSize: 13,
       fontFamily: 'mono',
       installedFont: null,
       importedFont: null,
-      // The app's text in the system font, code in SF Mono.
       appFontFamily: 'system',
       appInstalledFont: null,
       appImportedFont: null,
@@ -48,15 +46,12 @@ describe('editor settings', () => {
       spellCheck: true,
       highlightActiveLine: false,
       sidebarMaterial: true,
-      // The washes as designed.
       windowTransparency: 0,
       pasteUrl: 'link',
       // Split mode scrolls the editor and the preview together unless turned off.
       syncScroll: true,
       inlineImages: true,
-      // The system's appearance, with Devot's own accent.
       appearance: 'system',
-      // Devot's own theme.
       theme: 'default',
       systemAccent: false,
       toolbar: true,
@@ -70,13 +65,11 @@ describe('editor settings', () => {
       listDates: 'relative',
       // An update found downloads in the background unless turned off.
       autoDownloadUpdates: true,
-      // The windows animate whatever the system's Reduce Motion says.
       animations: 'always',
     })
   })
 
   it('offers choices that the Rust side accepts', () => {
-    // The same lists and ranges as src-tauri/src/editor_settings.rs.
     expect(FONT_FAMILIES).toEqual([
       'system',
       'mono',
@@ -139,7 +132,6 @@ describe('editor settings', () => {
     })
     expect(read).not.toHaveProperty('future')
     expect(parseEditorSettings({ syncScroll: 0 }).syncScroll).toBe(true)
-    // An invalid value falls back to its default, a stored old value is kept.
     expect(parseEditorSettings({ lineHeight: 9, cursorScrollMargin: 'a' })).toEqual(
       DEFAULT_EDITOR_SETTINGS,
     )
@@ -284,7 +276,6 @@ describe('editor settings', () => {
       installed: null,
       imported: 'Fira Code.ttf',
     })
-    // Settings stored before these fonts existed keep the defaults.
     expect(slotFont(parseEditorSettings({ fontFamily: 'imported' }), 'code').family).toBe('mono')
     for (const bad of [
       { appFontFamily: 'Papyrus' },
@@ -314,7 +305,6 @@ describe('editor settings', () => {
       expect(parseEditorSettings({ theme }).theme).toBe('default')
       expect(() => checkEditorSettingsPatch({ theme })).toThrow('E_EDITOR_SETTINGS_INVALID')
     }
-    // A theme with a bad value does not spoil the settings beside it.
     expect(parseEditorSettings({ theme: 'nope', appearance: 'dark' })).toMatchObject({
       theme: 'default',
       appearance: 'dark',

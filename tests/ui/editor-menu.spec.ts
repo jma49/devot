@@ -9,11 +9,6 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// The editor's native menu: a right-click in the text, or Shift+F10 at the
-// caret. Cut, Copy, Paste and Select All are the system's own items; Rust
-// shows the menu and adds the system's spelling guesses for the word sent
-// with it, Writing Tools, Spelling and Grammar and Services.
-
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const line = (page: Page, n: number) => page.locator('.cm-line').nth(n)
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -32,7 +27,6 @@ const popups = (page: Page) =>
       ).length,
   )
 
-/** The word the last menu offered spelling guesses for. */
 const menuWord = (page: Page) =>
   page.evaluate(
     () =>
@@ -52,14 +46,12 @@ async function newNote(page: Page, text: string) {
   await expect(line(page, 0)).toHaveText(text.split('\n')[0] ?? '')
 }
 
-/** Selects a whole line's text. */
 async function selectLine(page: Page, n: number) {
   await line(page, n).click()
   await page.keyboard.press('End')
   await page.keyboard.press('Shift+Home')
 }
 
-/** Right-clicks the text in a line and waits for the menu to pop up. */
 async function rightClick(page: Page, text: string, n = 0) {
   const before = await popups(page)
   await line(page, n).getByText(text).first().click({ button: 'right' })
@@ -148,12 +140,9 @@ test('New Note from Selection in the menu moves the text into a note', async ({ 
 })
 
 test('a right-click away from the selection moves the caret there first', async ({ page }) => {
-  // The selection toolbar sits beside the selection and covers the lines next
-  // to it: the line clicked is far enough away to stay clear of it.
   await newNote(page, 'move this\n\n\nkeep this')
   await selectLine(page, 0)
   await rightClick(page, 'keep', 3)
-  // The selection is gone with the caret moved: no Look Up for it.
   expect((await menu(page)).slice(0, 2)).toEqual(['Undo', 'Redo'])
 })
 
@@ -182,7 +171,6 @@ test('Shift+F10 opens the menu at the caret, on a link too', async ({ page }) =>
   await page.keyboard.press('Shift+F10')
   await expect.poll(() => popups(page)).toBe(before + 1)
   expect((await menu(page)).slice(0, 2)).toEqual(['Open Link', 'Copy Link Address'])
-  // Nothing was typed, and the menu did not move the caret out of the link.
   await expect(line(page, 0)).toHaveText('[site](https://example.com/a)')
 })
 
@@ -194,7 +182,6 @@ test('the Menu key opens it too, without a link in plain text', async ({ page })
   expect(await menu(page)).toEqual(EDIT_ITEMS)
 })
 
-/** Opens the menu with Shift+F10, the caret `chars` characters into line `n`. */
 async function menuAtCaret(page: Page, n: number, chars: number) {
   await line(page, n).click()
   await page.keyboard.press('Home')
@@ -208,7 +195,6 @@ test('the word at the point goes with the menu, for spelling guesses', async ({ 
   await newNote(page, 'plain words\nsecond line')
   await menuAtCaret(page, 0, 8)
   expect(await menuWord(page)).toBe('words')
-  // A selection that is not that word: no guesses.
   await selectLine(page, 1)
   await page.keyboard.press('Shift+F10')
   await expect.poll(() => menuWord(page)).toBeNull()
@@ -220,7 +206,6 @@ test('a spelling guess picked in the menu replaces the word', async ({ page }) =
   expect(await menuWord(page)).toBe('recieve')
   await answerEditorMenu(page, { kind: 'guess', text: 'receive' })
   await expect(line(page, 0)).toHaveText('I receive mail')
-  // One step to undo.
   await page.keyboard.press('ControlOrMeta+z')
   await expect(line(page, 0)).toHaveText('I recieve mail')
 })

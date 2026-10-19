@@ -76,7 +76,6 @@ describe('the link index', () => {
             } else if (step.kind === 'restore') {
               await notes.restore(id).catch(() => {})
             } else {
-              // Delete forever: to the trash first if needed, then purge.
               await notes.trash(id).catch(() => {})
               await notes.purge(id)
               purged.add(id)

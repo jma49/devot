@@ -6,7 +6,6 @@
 // Taken without reading it.
 const nodeLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
 
-/** Gives the UI tests' storage adapter an empty localStorage in memory. */
 export function useMemoryLocalStorage(): void {
   const items = new Map<string, string>()
   const value = {
@@ -18,7 +17,6 @@ export function useMemoryLocalStorage(): void {
   Object.defineProperty(globalThis, 'localStorage', { value, configurable: true, writable: true })
 }
 
-/** Puts Node's own localStorage back. */
 export function restoreLocalStorage(): void {
   if (nodeLocalStorage) Object.defineProperty(globalThis, 'localStorage', nodeLocalStorage)
   else Reflect.deleteProperty(globalThis, 'localStorage')

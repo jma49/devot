@@ -33,17 +33,12 @@ import { fileURLToPath } from 'node:url'
 
 export type Channel = 'stable' | 'beta'
 
-// N is one digit: as a semver prerelease identifier `beta10` would sort
-// before `beta2`.
 const TAG = /^v(\d+)\.(\d+)\.(\d+)(-beta([1-9]))?$/
-// A version a feed may offer: a release tag's, or one from before tags
-// dropped the dot (`0.9.0-beta.1`).
 const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-beta(?:([1-9])|\.(\d+)))?$/
 
 /** The version a release tag names, without its `v`; throws for any other tag. */
 export function versionFromTag(tag: string): string {
   const match = TAG.exec(tag)
-  // No leading zeros: semver refuses them, and the updater compares semver.
   const parts = match?.slice(1, 4) ?? []
   if (!match || parts.some((n) => n.length > 1 && n.startsWith('0'))) {
     throw new Error(`E_RELEASE_TAG_INVALID: ${JSON.stringify(tag)}`)
@@ -51,15 +46,10 @@ export function versionFromTag(tag: string): string {
   return tag.slice(1)
 }
 
-/**
- * Orders two release versions (as `versionFromTag` gives them, or an older
- * `-beta.N` one from a feed): negative when `a` is older.
- */
 export function compareVersions(a: string, b: string): number {
   const parse = (v: string) => {
     const match = VERSION.exec(v)
     if (!match) throw new Error(`E_RELEASE_VERSION_INVALID: ${JSON.stringify(v)}`)
-    // A release comes after every beta of the same version.
     return [match[1], match[2], match[3], match[4] ?? match[5] ?? Infinity].map(Number)
   }
   const [x, y] = [parse(a), parse(b)]
@@ -83,7 +73,6 @@ export function replacesFeed(version: string, feed: string): boolean {
   return compareVersions(version, current) > 0
 }
 
-/** The update channel of a version: beta for a prerelease. */
 export const channelOf = (version: string): Channel => (version.includes('-') ? 'beta' : 'stable')
 
 /**
@@ -95,7 +84,6 @@ export const channelOf = (version: string): Channel => (version.includes('-') ? 
 export const feedChannels = (version: string): Channel[] =>
   channelOf(version) === 'stable' ? ['stable', 'beta'] : ['beta']
 
-/** Cargo.toml with `version` in its [package] table; throws when it has none. */
 export function withCargoVersion(toml: string, version: string): string {
   const lines = toml.split('\n')
   const start = lines.indexOf('[package]')
@@ -109,7 +97,6 @@ export function withCargoVersion(toml: string, version: string): string {
   throw new Error('E_RELEASE_CARGO_VERSION_MISSING')
 }
 
-/** package.json with `version`, keeping its layout (two spaces, final newline). */
 export function withPackageVersion(json: string, version: string): string {
   const data = JSON.parse(json) as Record<string, unknown>
   if (typeof data['version'] !== 'string') throw new Error('E_RELEASE_PACKAGE_VERSION_MISSING')
@@ -120,18 +107,11 @@ export function withPackageVersion(json: string, version: string): string {
 export interface FeedInput {
   version: string
   notes: string
-  /** When the release was published. */
   date: Date
-  /** The updater bundle (Devot.app.tar.gz) of the release. */
   url: string
-  /** The bundle's signature (the .sig file's text). */
   signature: string
 }
 
-/**
- * The update feed for Apple Silicon (the only platform Devot ships for), in
- * the format Tauri's updater reads.
- */
 export function updateFeed(input: FeedInput) {
   if (!/^https:\/\//.test(input.url)) throw new Error('E_RELEASE_FEED_URL_INVALID')
   const signature = input.signature.trim()
@@ -144,7 +124,6 @@ export function updateFeed(input: FeedInput) {
   }
 }
 
-/** The lines of a minisign file, which Tauri writes base64-encoded whole. */
 function minisignLines(encoded: string, code: string): string[] {
   const lines = Buffer.from(encoded.trim(), 'base64').toString('utf8').split('\n')
   if (!lines[0]?.startsWith('untrusted comment:') || !lines[1]) throw new Error(code)
@@ -175,7 +154,6 @@ export function verifySignature(file: Uint8Array, signature: string, publicKey: 
     key: { kty: 'OKP', crv: 'Ed25519', x: key.subarray(10).toString('base64url') },
     format: 'jwk',
   })
-  // "ED" signs the file's BLAKE2b-512 hash (what Tauri writes), "Ed" the file.
   const message = algorithm === 'ED' ? createHash('blake2b512').update(file).digest() : file
   const body = sig.subarray(10)
   if (!verify(null, message, ed25519, body)) throw new Error('E_RELEASE_SIGNATURE_INVALID')

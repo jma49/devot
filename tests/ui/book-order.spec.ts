@@ -1,18 +1,13 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
 
-// Manual notebook order: a notebook dropped on the top quarter of another
-// goes before it, on the bottom quarter after it, in the middle inside it.
-
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })
-/** A notebook's own row (its treeitem holds only the row; sub-notebooks sit beside it). */
 const row = (page: Page, name: string) => book(page, name).locator('> .book-row')
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const nameField = (page: Page) => page.getByRole('textbox', { name: 'Notebook name' })
 
-/** The visible notebooks top to bottom, nested ones indented by two spaces a level. */
 const shown = (page: Page) =>
   tree(page)
     .getByRole('treeitem')
@@ -34,7 +29,6 @@ async function createBook(page: Page, name: string) {
 
 type Zone = 'top' | 'middle' | 'bottom'
 
-/** A point in a zone of a row: 2 px inside its top or bottom edge, or its centre. */
 async function pointIn(target: Locator, zone: Zone) {
   const box = await target.boundingBox()
   if (!box) throw new Error('E_TEST_NO_BOX')
@@ -46,7 +40,6 @@ async function drop(source: Locator, target: Locator, zone: Zone) {
   await source.dragTo(target, { targetPosition: await pointIn(target, zone) })
 }
 
-/** The insertion line a row draws on its top (before) or bottom (after) edge. */
 const line = (target: Locator, edge: 'before' | 'after') =>
   target.evaluate((el, pseudo) => {
     const style = (
@@ -57,7 +50,6 @@ const line = (target: Locator, edge: 'before' | 'after') =>
     return style.content === 'none' ? null : style.height
   }, `::${edge}`)
 
-/** A row's outline (or, given `property`, that one computed value). */
 function outline(target: Locator): Promise<{ style: string; width: string; offset: string }>
 function outline(target: Locator, property: string): Promise<string>
 function outline(target: Locator, property?: string) {
@@ -97,7 +89,6 @@ test('reorders notebooks by their top and bottom edges, and keeps the order', as
   await page.reload()
   await expect.poll(() => shown(page)).toEqual(['Charlie', 'Bravo', 'Alpha'])
 
-  // The middle still nests.
   await drop(row(page, 'Alpha'), row(page, 'Charlie'), 'middle')
   await expect.poll(() => shown(page)).toEqual(['Charlie', '  Alpha', 'Bravo'])
 })
@@ -132,13 +123,10 @@ test('shows where a notebook will go while it is dragged', async ({ page }) => {
   await expect(target).toHaveClass(/drop-target/)
   await expect(target).not.toHaveClass(/drop-after/)
   expect(await line(target, 'after')).toBeNull()
-  // Into a notebook: a dashed accent outline just inside the row, and the
-  // dragged row dims while the drag lasts.
   expect(await outline(target)).toEqual({ style: 'dashed', width: '2px', offset: '-2px' })
   await expect(source).toHaveAttribute('data-dragging', 'true')
   expect(await outline(source, 'opacity')).toBe('0.5')
 
-  // Over itself there is nowhere to go.
   const self = await pointIn(source, 'top')
   await page.mouse.move(from.x + self.x, from.y + self.y, { steps: 4 })
   await expect(source).not.toHaveClass(/drop-/)
@@ -159,10 +147,8 @@ test('dropping beside a sub-notebook moves a notebook into that notebook', async
 
   await drop(row(page, 'Loose'), row(page, 'Plan'), 'bottom')
   await expect.poll(() => shown(page)).toEqual(['Work', '  Plan', '  Loose', '  Notes'])
-  // The top edge of the first sub-notebook puts a notebook first inside.
   await drop(row(page, 'Notes'), row(page, 'Plan'), 'top')
   await expect.poll(() => shown(page)).toEqual(['Work', '  Notes', '  Plan', '  Loose'])
-  // Back to the top level, before Work.
   await drop(row(page, 'Loose'), row(page, 'Work'), 'top')
   await expect.poll(() => shown(page)).toEqual(['Loose', 'Work', '  Notes', '  Plan'])
   // A notebook never goes beside its own sub-notebooks.
@@ -180,7 +166,6 @@ test('the bottom edge of an open notebook puts a notebook after it', async ({ pa
   await drop(row(page, 'Plan'), row(page, 'Work'), 'middle')
   await expect.poll(() => shown(page)).toEqual(['Home', 'Work', '  Plan'])
 
-  // The line runs under Work's sub-notebooks, across Work's width.
   const source = await row(page, 'Home').boundingBox()
   const target = await row(page, 'Work').boundingBox()
   const last = await row(page, 'Plan').boundingBox()
@@ -188,7 +173,6 @@ test('the bottom edge of an open notebook puts a notebook after it', async ({ pa
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2)
   await page.mouse.down()
   await page.mouse.move(target.x + target.width / 2, target.y + target.height - 2, { steps: 4 })
-  // The line is on the item holding Work's sub-notebooks, beside Work's own treeitem.
   const group = book(page, 'Work').locator('+ li')
   await expect(group).toHaveClass(/drop-after/)
   await expect(row(page, 'Work')).not.toHaveClass(/drop-/)
@@ -223,8 +207,6 @@ test('a cancelled note drag leaves no drop highlight', async ({ page }) => {
   const target = row(page, 'Home')
   const box = await target.boundingBox()
   if (!box) throw new Error('E_TEST_NO_BOX')
-  // A drag cancelled over the row: dragleave comes with the pointer still
-  // inside the row, then dragend on the note it started from.
   const data = await page.evaluateHandle(() => {
     const transfer = new (
       globalThis as unknown as {
@@ -244,7 +226,6 @@ test('a cancelled note drag leaves no drop highlight', async ({ page }) => {
 })
 
 test('notebooks from before sort keys keep their name order and get keys', async ({ page }) => {
-  // Records as the v10 migration leaves them: no key, no key clock.
   const old = ['Zebra', '\u00c9clair', 'apple'].map((name, i) => ({
     id: `0192a6f0-0000-7000-8000-00000000000${i}`,
     name,
@@ -325,7 +306,6 @@ test('Move Up and Move Down in the notebook menu', async ({ page }) => {
     await expect.poll(popups).toBe(before + 1)
     return shownMenu(page)
   }
-  // Only the moves there is room for.
   expect(await menuFor('Alpha')).not.toContain('Move Up Alt+ArrowUp')
   expect(await menuFor('Alpha')).toContain('Move Down Alt+ArrowDown')
   expect(await menuFor('Charlie')).toContain('Move Up Alt+ArrowUp')

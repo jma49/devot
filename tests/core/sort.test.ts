@@ -15,8 +15,6 @@ import {
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Han characters read an, bei and zhong in pinyin; their code points run the
-// other way (zhong < bei < an).
 const AN = '\u5b89'
 const BEI = '\u5317'
 const ZHONG = '\u4e2d'
@@ -45,7 +43,6 @@ const sort = (key: NoteSort['key'], direction: NoteSort['direction']): NoteSort 
 const titles = (rows: readonly Row[]) => rows.map((r) => r.title)
 
 describe('the six orders', () => {
-  // Created b, c, a; updated c, a, b.
   const a = row('Alpha', 30, 200)
   const b = row('beta', 10, 300)
   const c = row('Gamma', 20, 100)

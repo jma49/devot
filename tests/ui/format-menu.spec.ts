@@ -1,11 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test, type TestWindow } from './fixtures'
 
-// The Format menu in the menu bar (src-tauri/src/format_menu.rs): its keys
-// come from the command registry and are live only while the editor has
-// the keyboard; a picked item (`devot://format`, re-sent in the page as
-// `devot:format`) formats the editor's selection.
-
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const title = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 
@@ -17,7 +12,6 @@ async function newNote(page: Page, text: string) {
   await expect(body(page)).toHaveText(text)
 }
 
-/** What a Format menu item sends to the page, with its command ID. */
 const pick = (page: Page, id: unknown) =>
   page.evaluate((detail) => {
     const w = globalThis as unknown as {
@@ -27,11 +21,6 @@ const pick = (page: Page, id: unknown) =>
     w.dispatchEvent(new w.CustomEvent('devot:format', { detail }))
   }, id)
 
-/**
- * The key and, at once, the menu item with that key, in one task: the menu
- * item counts as an echo of the key only within a short window, which two
- * round trips to the page could outlast on a loaded machine.
- */
 const keyThenPick = (page: Page, code: string, id: string) =>
   page.evaluate(
     ([keyCode, detail, key]) => {
@@ -61,7 +50,6 @@ const keyThenPick = (page: Page, code: string, id: string) =>
     [code, id, 'i'] as const,
   )
 
-/** The Format menu state the UI asked Rust for, oldest first. */
 const menuStates = (page: Page) =>
   page.evaluate(() =>
     (globalThis as unknown as TestWindow).devotIpcCalls
@@ -88,12 +76,10 @@ test('the Format menu has its keys while the editor has the keyboard', async ({ 
   expect(keys['format.heading1']).toBe('CmdOrCtrl+1')
   expect(keys['format.alertNote']).toBeUndefined()
 
-  // Elsewhere the keys are the window's again (Cmd+K opens the palette).
   await title(page).click()
   await expect.poll(() => lastMenuState(page)).toEqual({ enabled: false, keys: {} })
   await body(page).click()
   await expect.poll(() => lastMenuState(page)).toMatchObject({ enabled: true })
-  // Another window (Settings) taking the keyboard turns the menu off too.
   await page.evaluate(() => {
     const w = globalThis as unknown as {
       dispatchEvent(e: unknown): void
@@ -110,7 +96,6 @@ test('the Format menu has its keys while the editor has the keyboard', async ({ 
     w.dispatchEvent(new w.Event('focus'))
   })
   await expect.poll(() => lastMenuState(page)).toMatchObject({ enabled: true })
-  // Only changes are sent, not every focus move inside the editor.
   const count = (await menuStates(page)).length
   await page.keyboard.press('Shift+Home')
   await body(page).click()
@@ -137,8 +122,6 @@ test('a format key is offered only where the format does something', async ({ pa
   await expect
     .poll(async () => (await lastMenuState(page))?.keys['format.italic'])
     .toBe('CmdOrCtrl+I')
-  // In code the inline formats do nothing: their keys are left to the editor
-  // (Cmd+I selects the parent syntax there, which the menu would have eaten).
   await page.keyboard.press('Enter')
   await page.keyboard.insertText('```')
   await page.keyboard.press('Enter')

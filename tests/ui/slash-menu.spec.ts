@@ -40,12 +40,10 @@ async function waitForFirst(page: Page, label: string) {
   await page.waitForTimeout(150)
 }
 
-/** Types a `/query` as keys, as a user does. */
 async function typeQuery(page: Page, query: string) {
   await page.keyboard.type(`/${query}`)
 }
 
-/** Waits long enough for a list that would open to open. */
 async function settle(page: Page) {
   await page.waitForTimeout(400)
 }
@@ -89,7 +87,6 @@ test('the menu lists its items in groups and filters by substring', async ({ pag
   await expect(options(page)).toHaveCount(19)
   await expect(options(page).first()).toHaveAttribute('aria-selected', 'true')
   await expect(options(page).first()).toContainText('> Quote')
-  // Up from the first row wraps to the last.
   await page.keyboard.press('ArrowUp')
   await expect(options(page).last()).toHaveAttribute('aria-selected', 'true')
   await expect(options(page).last()).toContainText('Note Link')
@@ -120,7 +117,6 @@ test('Codeblock writes the fences and opens the language list', async ({ page })
   await waitForFirst(page, '```rust')
   await page.keyboard.press('Enter')
   await expect(popup(page)).toBeHidden()
-  // The cursor stays on the fence line.
   await page.keyboard.insertText(':main.rs')
   expect(await lines(page)).toEqual(['```rust:main.rs', '', '```'])
 })
@@ -145,7 +141,6 @@ test('a query that matches nothing closes the menu, and Backspace does not reope
   await settle(page)
   await expect(popup(page)).toBeHidden()
   expect(await lines(page)).toEqual(['/h'])
-  // A new slash opens it again.
   await page.keyboard.press('Enter')
   await typeQuery(page, '')
   await waitForFirst(page, 'Blockquote')
@@ -157,7 +152,6 @@ test('Escape closes the menu and keeps the text', async ({ page }) => {
   await waitForFirst(page, 'Link')
   await page.keyboard.press('Escape')
   await expect(popup(page)).toBeHidden()
-  // Typing on after Escape keeps the menu closed for that slash.
   await page.keyboard.type('nk')
   await settle(page)
   await expect(popup(page)).toBeHidden()
@@ -188,7 +182,6 @@ test('an empty line shows the slash hint, an empty note the template chip', asyn
     'data-hint',
     "Type '/' for commands...",
   )
-  // The hint is not text of the note.
   expect(await lines(page)).toEqual(['Intro', ''])
 })
 
@@ -222,7 +215,6 @@ test('Return from an input method does not pick', async ({ page }) => {
   await waitForFirst(page, 'Blockquote')
   // The Return that ends a composition (WebKit may report it after compositionend).
   const handled = await body(page).evaluate((el) => {
-    // This config has no DOM types: the one browser class used here.
     const w = globalThis as unknown as {
       KeyboardEvent: new (type: string, init: object) => { defaultPrevented: boolean }
     }
@@ -234,14 +226,12 @@ test('Return from an input method does not pick', async ({ page }) => {
   expect(handled).toBe(false)
   await expect(popup(page)).toBeVisible()
   expect(await lines(page)).toEqual(['/blockq'])
-  // The next Return, outside the composition, picks.
   await page.keyboard.press('Enter')
   expect(await lines(page)).toEqual(['> '])
 })
 
 test('Note Link from the palette opens the note search', async ({ page }) => {
   await newNote(page, 'Plan')
-  // A double click selects the word, which becomes the query.
   await page.locator('.cm-line').first().dblclick()
   await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()
@@ -272,7 +262,6 @@ test('the palette offers the insertions too', async ({ page }) => {
 
 test('a key the user gives an insertion inserts it', async ({ page }) => {
   await newNote(page, 'Intro')
-  // What Rust sends every window after Settings > Keyboard Shortcuts stores it.
   await changeShortcutsElsewhere(page, { 'insert.table': ['Mod+Alt+T'] })
   await body(page).click()
   await page.keyboard.press('ControlOrMeta+Alt+KeyT')

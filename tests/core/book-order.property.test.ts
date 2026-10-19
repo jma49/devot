@@ -68,9 +68,7 @@ interface Device {
   storage: SqliteAdapter
   clock: Clock
   books: BookService
-  /** Every notebook write this device made, in order. */
   writes: BookRecord[]
-  /** How many of `writes` the other device has received. */
   sent: number
 }
 
@@ -92,7 +90,6 @@ function device(node: string): Device {
   return { storage, clock, books, writes, sent: 0 }
 }
 
-/** Delivers the writes `from` made since the last sync to `to`, in a shuffled order. */
 async function sync(from: Device, to: Device, seed: number) {
   const batch = from.writes.slice(from.sent)
   from.sent = from.writes.length
@@ -103,11 +100,9 @@ async function sync(from: Device, to: Device, seed: number) {
   }
 }
 
-/** The tree as nested IDs, in order. */
 type Shape = [string, Shape[]]
 const shape = (nodes: BookNode[]): Shape[] => nodes.map((n) => [n.id, shape(n.children)])
 
-/** A copy of `items` in a random order that `seed` fixes (Fisher-Yates). */
 function shuffled<T>(items: readonly T[], seed: number): T[] {
   const out = [...items]
   let state = seed >>> 0
@@ -119,7 +114,6 @@ function shuffled<T>(items: readonly T[], seed: number): T[] {
   return out
 }
 
-/** The siblings of `id` in a tree, in order. */
 function siblingsOf(tree: BookNode[], id: string): string[] | undefined {
   if (tree.some((n) => n.id === id)) return tree.map((n) => n.id)
   for (const node of tree) {
@@ -129,7 +123,6 @@ function siblingsOf(tree: BookNode[], id: string): string[] | undefined {
   return undefined
 }
 
-/** Runs a change; the error code it threw, or null. */
 async function attempt(change: () => Promise<unknown>): Promise<string | null> {
   try {
     await change()
@@ -139,7 +132,6 @@ async function attempt(change: () => Promise<unknown>): Promise<string | null> {
   }
 }
 
-/** Codes a random change may end with: moving into its own sub-notebooks is refused. */
 const ALLOWED = [null, 'E_BOOK_CYCLE']
 
 describe('manual notebook order across devices', () => {
@@ -181,7 +173,6 @@ describe('manual notebook order across devices', () => {
           const byId = (a: BookRecord, b: BookRecord) => (a.id < b.id ? -1 : 1)
           const macBooks = (await mac.storage.listBooks()).sort(byId)
           const iphoneBooks = await iphone.storage.listBooks()
-          // The same rows, and the same tree whatever order storage lists them in.
           expect(shuffled(iphoneBooks, seed).sort(byId)).toEqual(macBooks)
           expect(shape(buildBookTree(shuffled(iphoneBooks, seed)))).toEqual(
             shape(buildBookTree(macBooks)),
@@ -208,10 +199,8 @@ describe('manual notebook order across devices', () => {
             const id = pick(step.book)
             const before = buildBookTree(await here.books.list())
             here.writes.length = 0
-            // Where `id` should end up: its siblings there, in order.
             let expected = siblingsOf(before, id)!
             let code: string | null
-            // Placing a notebook beside itself writes nothing.
             let rows = 1
             if (step.kind === 'place') {
               const target = pick(step.target)
@@ -233,7 +222,6 @@ describe('manual notebook order across devices', () => {
               code = await attempt(() => here.books.move(id, parent))
             }
             expect(ALLOWED).toContain(code)
-            // A refused move changes nothing.
             const after = buildBookTree(await here.books.list())
             expect(siblingsOf(after, id)).toEqual(code === null ? expected : siblingsOf(before, id))
             expect(here.writes.length).toBe(code === null ? rows : 0)

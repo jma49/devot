@@ -1,8 +1,3 @@
-// What a batch change costs per note: the notebook is checked once for the
-// whole batch, a note not in memory is written back as stored with the field
-// changed (no Yjs document is built for it), and the search index is left
-// alone when a write changes neither the title nor the Markdown. Its history
-// stays exactly what writing the note in memory would give.
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -25,7 +20,6 @@ import { tempDir } from '../support/temp-dirs'
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
-/** Services on the database at `path`, with each storage call counted by name. */
 function servicesOn(path: string) {
   const sqlite = openSqliteAdapter(path)
   open.push(sqlite)
@@ -56,16 +50,11 @@ function servicesOn(path: string) {
     notes,
     books,
     services: { notes, tags },
-    /** The next note write waits until the function returned is called. */
     holdNextWrite() {
       let release = () => {}
       gate = new Promise((resolve) => (release = resolve))
       return release
     },
-    /**
-     * The storage calls made since the last time, by name; those of a
-     * compaction sweep (at most one an hour, see NoteService) left out.
-     */
     calls() {
       for (const sweep of ['lastCompaction', 'listCompactable', 'compactRevisions']) {
         calls.delete(sweep)
@@ -77,7 +66,6 @@ function servicesOn(path: string) {
   }
 }
 
-/** `count` notes with bodies, saved and let go by a service of their own. */
 async function library(path: string, count: number) {
   const { notes } = servicesOn(path)
   const ids: string[] = []
@@ -104,8 +92,6 @@ describe('a batch change', () => {
     const result = await applyBatch(s.services, ids, { kind: 'book', bookId: book })
     await s.notes.flush()
     expect(result).toEqual({ changed: ids, failed: [] })
-    // Per note: the note read, its history checked, a baseline kept (these
-    // notes have none yet), the note written and its event recorded.
     expect(s.calls()).toEqual({
       listBooks: 1,
       getNote: 100,
@@ -117,7 +103,6 @@ describe('a batch change', () => {
       const stored = (await s.sqlite.getNote(id))!
       const was = before.get(id)!
       expect(stored.bookId).toBe(book)
-      // The body goes back exactly as stored.
       expect(stored.bodyMd).toBe(was.bodyMd)
       expect(Buffer.from(stored.ydoc).equals(Buffer.from(was.ydoc))).toBe(true)
       expect(stored.updatedAt).toBeGreaterThanOrEqual(was.updatedAt)
@@ -129,14 +114,12 @@ describe('a batch change', () => {
     const [cold, warm] = await library(path, 2)
     const s = servicesOn(path)
     const book = await s.books.create('Work', null)
-    // One note in memory (an editor shows it), one not.
     await s.notes.open(warm!)
     await applyBatch(s.services, [cold!, warm!], { kind: 'book', bookId: book })
     await applyBatch(s.services, [cold!, warm!], { kind: 'status', status: 'active' })
     await s.notes.flush()
     const history = async (id: string) =>
       (await s.sqlite.listRevisions(id)).map(({ kind, value, length }) => ({ kind, value, length }))
-    // Newest first: the two events, then the body as it was before them.
     const expected = [
       { kind: 'status', value: 'active', length: null },
       { kind: 'book', value: book, length: null },
@@ -144,7 +127,6 @@ describe('a batch change', () => {
     ]
     expect(await history(cold!)).toEqual(expected)
     expect(await history(warm!)).toEqual(expected)
-    // The baseline is the body as it was saved, dated by that save.
     const [baseline] = (await s.sqlite.listRevisions(cold!)).filter((r) => r.kind === 'body')
     expect(baseline?.at).toBeLessThan((await s.sqlite.getNote(cold!))!.updatedAt + 1)
   })
@@ -166,7 +148,6 @@ describe('a batch change', () => {
     const book = await s.books.create('Work', null)
     const release = s.holdNextWrite()
     const moving = s.notes.writeMeta(id!, { bookId: book })
-    // An editor opens the note while the move is being written.
     const opening = s.notes.open(id!)
     await new Promise((resolve) => setTimeout(resolve, 20))
     release()
@@ -179,7 +160,6 @@ describe('a batch change', () => {
 })
 
 describe('the search index', () => {
-  /** Rows the last statements changed, those of triggers (the index) included. */
   const changes = (sqlite: SqliteAdapter) =>
     (sqlite.db.prepare('SELECT total_changes() AS n').get() as { n: number }).n
 
@@ -212,10 +192,6 @@ describe('the search index', () => {
         await sqlite.searchNotes(resolveSearch(parseSearch(query), { books: [], tags: [] })!, 10)
       ).map((n) => n.id)
     await sqlite.putNote(record({}))
-    // Each write changes the note's row (one change); a change of its text
-    // also takes its old text out of the index and puts the new one in
-    // (changes to the index's own tables). Each is based on the body
-    // version the one before left.
     let bodyVersion = 1
     const cost = async (fields: Partial<NoteRecord>) => {
       const before = changes(sqlite)

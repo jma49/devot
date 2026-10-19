@@ -25,7 +25,6 @@ const TITLES: Record<string, string | null> = {
   'legacy.html': 'Old Page',
 }
 
-/** What the conversion reports leaving out of each hostile page. */
 const DROPPED: Record<string, string[]> = {
   'embeds.html': ['<iframe>', '<object>'],
   'handlers.html': [],
@@ -33,7 +32,6 @@ const DROPPED: Record<string, string[]> = {
   'urls.html': ['data:text/html', "javascript:alert('PWNED')", 'data:image/svg+xml'],
 }
 
-/** A tag, comment, declaration or processing instruction that is not escaped. */
 const RAW_HTML = /(?<!\\)<[a-zA-Z!/?]/
 const DANGEROUS_TARGET = /\]\(\s*(javascript|vbscript|data|file):/i
 const EVENT_ATTRIBUTE = /\son[a-z]+\s*=/i

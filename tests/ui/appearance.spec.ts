@@ -14,7 +14,6 @@ import {
 // setting is stored with the editor settings, so a change in the Settings
 // window reaches the main window as `devot:editor-settings-changed`.
 
-/** `color.surface.editor` in each appearance. */
 const EDITOR = { light: '#ffffff', dark: '#0a0a0a' } as const
 
 const editorSurface = (page: Page) =>
@@ -74,10 +73,6 @@ test.describe('with the system in dark', () => {
 // scope each built-in theme by it, so the surfaces change at once, in both
 // appearances, and the choice reaches every window like the appearance does.
 
-/**
- * The editor pane and the sidebar as painted over the window material
- * (`color.surface.editor-wash` and `sidebar`), per theme and appearance.
- */
 const SURFACES = {
   default: {
     light: { editor: 'rgba(255, 255, 255, 0.7)', sidebar: 'rgba(255, 255, 255, 0.02)' },
@@ -169,11 +164,9 @@ test.describe('the Theme choice in Settings', () => {
 test('the Animations choice reduces motion always, as the system asks, or never', async ({
   page,
 }) => {
-  // The suite's system asks for Reduce Motion (playwright.config.ts).
   await openSettings(page, 'Appearance')
   const root = page.locator('html')
   const choice = page.getByRole('combobox', { name: 'Animations' })
-  // The suite's windows follow the system (fixtures.ts); a new install animates always.
   await expect(choice).toHaveValue('system')
   await expect(root).toHaveAttribute('data-motion', 'reduced')
 

@@ -9,12 +9,6 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// Settings > Keyboard Shortcuts: every command by group with its keys; a
-// shortcut is recorded by pressing it, cleared, or reset. Rust stores the
-// changes and tells every window (`devot://keyboard-shortcuts-changed`, sent
-// in the page as `devot:keyboard-shortcuts-changed`), which rebinds its keys
-// and menus at once.
-
 // ControlOrMeta is Command on macOS and Control elsewhere (CI runs Linux):
 // what the recorder stores and shows for it.
 const MAC = process.platform === 'darwin'
@@ -24,7 +18,6 @@ const withMod = (rest: string) => (MAC ? `${rest}\u2318` : `\u2303${rest}`)
 const section = (page: Page) => page.getByRole('region', { name: 'Keyboard Shortcuts' })
 const table = (page: Page) => section(page).getByRole('table', { name: 'Keyboard Shortcuts' })
 const search = (page: Page) => section(page).getByRole('searchbox', { name: 'Search keybindings' })
-/** A command's row, by its registry ID (labels repeat, with a scope after them). */
 const row = (page: Page, id: string) => section(page).locator(`tr[data-command="${id}"]`)
 const recorder = (page: Page, command: string) =>
   section(page).getByRole('button', { name: new RegExp(`^${command} shortcut`) })
@@ -62,16 +55,13 @@ test('lists every command in one table with its keys and where they come from', 
     'Source',
     'Actions',
   ])
-  // One table, not a table per group.
   await expect(section(page).getByRole('table')).toHaveCount(1)
   await expect(row(page, 'format.bold').getByRole('cell').nth(1)).toHaveText('Default')
-  // Each keystroke has a copy icon.
   await expect(
     row(page, 'format.bold').getByRole('button', { name: 'Copy the keystroke for Bold' }),
   ).toBeVisible()
   await expect(row(page, 'image.sizeHalf')).toContainText('Image Size: Half Width')
   await expect(row(page, 'insert.table')).toContainText('In the editor')
-  // The commands for several notes, and where their keys work.
   await expect(row(page, 'list.selectAll')).toContainText('Select All Notes')
   await expect(row(page, 'list.selectAll')).toContainText('In a note list')
   await expect(row(page, 'note.addTag')).toContainText('Add Tag to Selected Notes\u2026')
@@ -79,7 +69,6 @@ test('lists every command in one table with its keys and where they come from', 
   await expect(recorder(page, 'Bold')).toHaveAccessibleName('Bold shortcut: \u2318B')
   await expect(recorder(page, 'Bold')).toHaveText('\u2318B')
   await expect(row(page, 'format.bold')).toContainText('In the editor')
-  // Two keys, and none.
   await expect(recorder(page, 'Increase Font Size')).toHaveAccessibleName(
     'Increase Font Size shortcut: \u2318= and \u21e7\u2318=',
   )
@@ -99,7 +88,6 @@ test('the search field narrows the table to the commands that match', async ({ p
   await search(page).fill('bold')
   await expect(rows).toHaveCount(1)
   await expect(row(page, 'format.bold')).toBeVisible()
-  // A key matches too, as shown or as written.
   await search(page).fill('\u2318K')
   await expect(row(page, 'palette.open')).toBeVisible()
   await expect(row(page, 'format.bold')).toHaveCount(0)
@@ -126,10 +114,8 @@ test('records a new key, and announces it', async ({ page }) => {
 test('waits for a key after modifiers, ignores composing, and Escape cancels', async ({ page }) => {
   await openSettings(page)
   await recorder(page, 'Italic').click()
-  // A modifier alone records nothing yet.
   await page.keyboard.down('Shift')
   await page.keyboard.up('Shift')
-  // Keys an input method is composing are its own.
   await recorder(page, 'Italic').evaluate((el) => {
     const w = globalThis as unknown as {
       KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown
@@ -167,7 +153,6 @@ test('refuses keys macOS keeps, Edit menu keys and keys that type text', async (
   await expect(row(page, 'format.bold')).toContainText(
     'J would type text; shortcuts that work while you type need Command or Control.',
   )
-  // On a note list row a plain key is fine.
   await record(page, 'Duplicate', 'KeyJ')
   await expect(recorder(page, 'Duplicate')).toHaveText('J')
   expect(await storedShortcuts(page)).toEqual({ 'note.duplicate': ['J'] })
@@ -192,7 +177,6 @@ test('asks before taking a key from another command', async ({ page }) => {
   await expect(recorder(page, 'Command Palette')).toHaveText('None')
   expect(await storedShortcuts(page)).toEqual({ 'format.bold': ['Mod+K'], 'palette.open': [] })
 
-  // Resetting the palette takes its key back, after asking.
   await row(page, 'palette.open')
     .getByRole('button', { name: /^Reset/ })
     .click()
@@ -211,7 +195,6 @@ test('asks before taking a key from another command', async ({ page }) => {
 
 test('clears a key, resets one and resets all', async ({ page }) => {
   await openSettings(page)
-  // From the keyboard: a button with nothing more to do keeps the focus.
   const clear = row(page, 'format.italic').getByRole('button', {
     name: 'Clear the shortcut for Italic',
   })
@@ -221,7 +204,6 @@ test('clears a key, resets one and resets all', async ({ page }) => {
   await expect(status(page)).toHaveText('Italic: None')
   await expect(clear).toBeDisabled()
   await expect(clear).toBeFocused()
-  // Pressed again, it does nothing.
   await page.keyboard.press('Space')
   await expect(clear).toBeFocused()
   expect(await calls(page, 'keyboard_shortcuts_set')).toHaveLength(1)
@@ -254,7 +236,6 @@ test('clears a key, resets one and resets all', async ({ page }) => {
   await expect(resetAll).toBeDisabled()
   await expect(resetAll).toBeFocused()
   expect(await storedShortcuts(page)).toEqual({})
-  // With nothing to reset it asks nothing.
   await page.keyboard.press('Space')
   await expect(confirm).toBeHidden()
 })
@@ -278,11 +259,9 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   const body = page.getByRole('textbox', { name: 'Note body' })
   await body.click()
   await page.keyboard.insertText('alpha beta')
-  // The note menu, built with the keys of the time.
   const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
   await rows.first().click({ button: 'right' })
   await expect.poll(() => shownMenu(page)).toContain('Duplicate CmdOrCtrl+D')
-  // The selection toolbar, shown with the keys of the time.
   await page.locator('.cm-line').first().dblclick()
   const boldButton = page.getByRole('toolbar', { name: 'Format' }).getByRole('button', {
     name: 'Bold',
@@ -302,8 +281,6 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   // What Rust sends every window after the change.
   await changeShortcutsElsewhere(page, await storedShortcuts(settings))
   await settings.close()
-  // The toolbar, shown again (it hides while the editor lacks the keyboard),
-  // names the new key.
   await page.bringToFront()
   await page.keyboard.press('ControlOrMeta+End')
   await expect(page.getByRole('toolbar', { name: 'Format' })).toBeHidden()
@@ -311,7 +288,6 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   await boldButton.hover()
   await expect(boldKey).toHaveText(`${withMod('\u2325')}B`)
 
-  // A window key: the old one does nothing, the new one works.
   const focusButton = page.getByRole('button', { name: 'Focus Mode' })
   await expect(focusButton).toHaveAttribute('title', `Focus Mode (${withMod('\u2325')}J)`)
   await body.click()
@@ -322,7 +298,6 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   await page.keyboard.press('ControlOrMeta+Alt+KeyJ')
   await expect(focusButton).toHaveAttribute('aria-pressed', 'false')
 
-  // An editor key, rebound in the open editor.
   await page.locator('.cm-line').first().dblclick()
   await page.keyboard.press('ControlOrMeta+KeyB')
   await expect(page.locator('.cm-content')).toHaveText('alpha beta')
@@ -330,7 +305,6 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   await page.keyboard.press('ControlOrMeta+Alt+KeyB')
   await expect(page.locator('.cm-content')).toHaveText(/\*\*(alpha|beta)\*\*/)
 
-  // The Format menu and the menu bar's command items get the keys in effect.
   const mod = MAC ? 'CmdOrCtrl' : 'Ctrl'
   await expect
     .poll(async () => (await calls(page, 'format_menu_set')).at(-1)?.['keys'])
@@ -347,14 +321,12 @@ test('a shortcut changed in Settings works in the main window at once', async ({
     },
   })
 
-  // A note list key, and the context menu's accelerator.
   await rows.first().click()
   await page.keyboard.press('KeyJ')
   await expect(rows).toHaveCount(2)
   await rows.first().click({ button: 'right' })
   await expect.poll(() => shownMenu(page)).toContain('Duplicate J')
 
-  // The palette opens with its new key, and shows the new keys.
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   await page.keyboard.press('Escape')
   await page.keyboard.press('Meta+KeyK')

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fuzzyMatch, fuzzyRank } from '../../src/core/fuzzy'
 
-/** The matched text, piece by piece. */
 const marked = (text: string, query: string) =>
   fuzzyMatch(query, text)?.ranges.map(([from, to]) => text.slice(from, to))
 
@@ -19,13 +18,10 @@ describe('fuzzyMatch', () => {
   })
 
   it('prefers word starts and runs of letters', () => {
-    // "nb" at the starts of "New" and "Book" beats the n and b inside "unbox".
     const words = fuzzyMatch('nb', 'New Book')!
     const inside = fuzzyMatch('nb', 'unbox')!
     expect(words.score).toBeGreaterThan(inside.score)
-    // A run beats the same letters scattered.
     expect(fuzzyMatch('dup', 'Duplicate')!.score).toBeGreaterThan(fuzzyMatch('dup', 'Do Up')!.score)
-    // It picks the best place, not the first one.
     expect(marked('Search in Current View', 'cv')).toEqual(['C', 'V'])
   })
 
@@ -41,7 +37,6 @@ describe('fuzzyMatch', () => {
 
   it('stays fast and finite on long text', () => {
     const long = `${'a'.repeat(5000)}z`
-    // Only the first part of a long text is searched.
     expect(fuzzyMatch('z', long)).toBeNull()
     expect(fuzzyMatch('aaa', long)?.ranges).toEqual([[0, 3]])
   })

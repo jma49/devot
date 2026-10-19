@@ -16,10 +16,8 @@ async function newNote(page: Page, title: string) {
   await page.getByRole('textbox', { name: 'Title' }).fill(title)
 }
 
-/** Starts a drag on `row` and reads back what a drop in another app would receive. */
 async function dragStart(row: ReturnType<typeof noteRows>) {
   return row.evaluate((el) => {
-    // This config has no DOM types: the few browser classes used here.
     const w = globalThis as unknown as {
       DataTransfer: new () => {
         effectAllowed: string

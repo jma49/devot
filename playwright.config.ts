@@ -31,7 +31,6 @@ export default defineConfig({
   },
   projects: [
     { name: 'webkit', testDir: 'tests/ui', use: { ...devices['Desktop Safari'] } },
-    // The built UI under the production CSP, which `pnpm dev` relaxes.
     {
       name: 'webkit-prod-csp',
       testDir: 'tests/ui-csp',
@@ -40,8 +39,6 @@ export default defineConfig({
   ],
   webServer: [
     {
-      // No DSN in tests: nothing may reach Sentry. The UI tests' build keeps
-      // notes in memory (vite.ui-test.config.ts).
       command: `DEVOT_SENTRY_DSN= pnpm vite --config vite.ui-test.config.ts --port ${uiPort} --strictPort`,
       url: `http://localhost:${uiPort}`,
       reuseExistingServer,

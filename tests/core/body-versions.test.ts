@@ -21,7 +21,6 @@ const ID = '0192a6f0-0000-7000-8000-000000000001'
 const HLC = '0001728000000000-0000-node'
 const LATER = '0001728000000009-0000-node'
 
-/** The note with `doc`'s body (its Markdown and Yjs state). */
 const withBody = (note: NoteRecord, doc: Y.Doc): NoteRecord => ({
   ...note,
   bodyMd: doc.getText(BODY).toString(),
@@ -58,7 +57,6 @@ function record(text: string, change: Partial<NoteRecord> = {}): NoteRecord {
   }
 }
 
-/** A Yjs document holding the stored note's body. */
 function docOf(note: NoteRecord) {
   const doc = new Y.Doc()
   Y.applyUpdate(doc, note.ydoc)
@@ -71,7 +69,6 @@ function sqlite(path = join(tempDir('devot-versions-'), 'devot.sqlite')) {
   return storage
 }
 
-/** The UI tests' storage, on an empty localStorage of its own. */
 async function memory(): Promise<StorageAdapter> {
   useMemoryLocalStorage()
   const { memoryStorage } = await import('../../src/renderer/src/storage/memory')
@@ -91,7 +88,6 @@ describe.each(ADAPTERS)('note writes in the %s adapter', (_, make) => {
 
     await storage.putNote(record('one two', { bodyVersion: 1 }))
     expect(await storage.getNote(ID)).toMatchObject({ bodyMd: 'one two', bodyVersion: 2 })
-    // In the Trash too.
     await storage.putNote(record('one two', { bodyVersion: 2, deletedAt: 3, deletedHlc: LATER }))
     expect(await storage.getNote(ID, { trashed: true })).toMatchObject({ bodyVersion: 3 })
   })
@@ -101,8 +97,6 @@ describe.each(ADAPTERS)('note writes in the %s adapter', (_, make) => {
     await storage.putNote(record('one'))
     await storage.putNote(record('one two', { bodyVersion: 1 }))
 
-    // Based on version 1, which a write has moved on from: refused whole,
-    // its newer title and pin with it.
     const stale = record('one three', {
       bodyVersion: 1,
       title: 'Late',
@@ -122,7 +116,6 @@ describe.each(ADAPTERS)('note writes in the %s adapter', (_, make) => {
       bodyVersion: 2,
     })
 
-    // A purge is final: a write to a purged note is left alone, whatever its version.
     await storage.purgeNote(ID, 5, LATER)
     await storage.putNote(record('revived', { bodyVersion: 0 }))
     await storage.putNote(record('revived', { bodyVersion: 2 }))
@@ -137,11 +130,9 @@ describe('a body written on another connection between a read and the write base
     const other = sqlite(path)
     await window.putNote(record('middle'))
 
-    // The window reads the note and types at its start...
     const read = (await window.getNote(ID))!
     const mine = docOf(read)
     mine.getText(BODY).insert(0, 'start ')
-    // ...while the other connection writes at its end.
     const before = (await other.getNote(ID))!
     const theirs = docOf(before)
     theirs.getText(BODY).insert(theirs.getText(BODY).length, ' end')
@@ -150,7 +141,6 @@ describe('a body written on another connection between a read and the write base
     await expect(window.putNote(withBody(read, mine))).rejects.toThrow('E_NOTE_BODY_STALE')
     expect((await window.getNote(ID))?.bodyMd).toBe('middle end')
 
-    // The window takes in what is stored and writes again.
     const stored = (await window.getNote(ID))!
     Y.applyUpdate(mine, stored.ydoc)
     await window.putNote(withBody(stored, mine))

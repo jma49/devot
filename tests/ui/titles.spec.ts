@@ -1,13 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test, openNotePinned, pickStatus, statusPicker } from './fixtures'
 
-// Notes with no title stay told apart in the list (their first line shows,
-// the title stays empty), Return in the title goes on to the body, and
-// Duplicate follows one rule: "<title> copy", with the status and tags, not
-// the pin.
-
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
-// A row's name: its title, or for an untitled note the first line leading its excerpt.
 const rowTitles = (page: Page) => noteRows(page).locator('.row-title, .row-headline')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -22,7 +16,6 @@ interface StoredNote {
 const stored = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as StoredNote[])
 
-/** A new note with no title and this text in its body. */
 async function untitledNote(page: Page, text: string) {
   const before = await noteRows(page).count()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
@@ -46,7 +39,6 @@ test('notes with no title show their first line, and keep an empty title', async
   await expect(titleField(page)).toHaveValue('')
   await expect.poll(async () => (await stored(page)).map((n) => n.title)).toEqual(['', ''])
 
-  // Typing on goes on changing the row once the note is saved; a real title wins.
   await titleField(page).fill('Dentist')
   await expect(rowTitles(page).first()).toHaveText('Dentist')
 })
@@ -98,7 +90,6 @@ test('Return in the title moves to the tags, and an input method keeps its Retur
   await page.keyboard.press('Enter')
   await expect(page.getByRole('group', { name: 'Tags' })).toContainText('ideas')
 
-  // The Return that picks a candidate of an input method stays in the title.
   await titleField(page).focus()
   await titleField(page).evaluate((el) => {
     const w = globalThis as unknown as {
@@ -142,7 +133,6 @@ test('the palette and the [[ popup name untitled notes by their first line', asy
   await untitledNote(page, 'Alpha idea')
   await untitledNote(page, 'Beta idea')
 
-  // The palette lists both, and finds one by its first line.
   await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   const notes = palette.getByRole('group', { name: 'Notes' }).getByRole('option')
@@ -150,12 +140,10 @@ test('the palette and the [[ popup name untitled notes by their first line', asy
   await expect(notes).toHaveText(['Beta idea', 'Alpha idea'])
   await palette.getByRole('combobox', { name: 'Command Palette' }).fill('alpha')
   await expect(notes).toHaveText(['Alpha idea'])
-  // Escape clears the query, then closes the palette.
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette).toBeHidden()
 
-  // The [[ popup of a third note lists them the same way, and links by that name.
   await untitledNote(page, 'Gamma idea')
   await body(page).click()
   await page.keyboard.press('ControlOrMeta+End')

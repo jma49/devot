@@ -7,13 +7,8 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// The Settings window: the Editor section (local editor settings, applied
-// live in every window) and the Usage Data section (the local usage events
-// by type, a list of every stored event, and a button that clears them).
-
 const AT = Date.UTC(2026, 9, 10, 9, 30)
 
-// What `usage_list` returns: newest first.
 const EVENTS = [
   {
     id: 4,
@@ -28,7 +23,6 @@ const EVENTS = [
     name: 'search.run',
     properties: { scope: 'all', clauses: 2, results: '2-5' },
   },
-  // From another Devot version: shown by its name.
   { id: 1, at: AT, name: 'sync.finished', properties: { durationMs: 40 } },
 ]
 
@@ -165,7 +159,6 @@ test('shows why the events could not be read', async ({ page }) => {
   )
 })
 
-/** What Rust sends every window after a change made elsewhere. */
 const changedElsewhere = changeEditorSettingsElsewhere
 
 const tabs = (page: Page) => page.getByRole('tablist', { name: 'Settings panes' })
@@ -185,18 +178,14 @@ test('a navigation column of panes on the left, General first', async ({ page })
     'Integrations',
     'Usage',
   ])
-  // Each row shows its symbol on the right of its name.
   await expect(tabs(page).locator('[data-symbol]')).toHaveCount(8)
   await expect(tabs(page)).toHaveCSS('width', '155px')
   await expect(tabs(page)).toHaveAttribute('aria-orientation', 'vertical')
   await expect(tab(page, 'General')).toHaveAttribute('aria-selected', 'true')
-  // The selected row has a bar of the accent colour on its right edge.
   await expect(tab(page, 'General')).toHaveCSS('box-shadow', /-3px 0px 0px 0px inset/)
   await expect(tab(page, 'Editing')).toHaveCSS('box-shadow', 'none')
-  // One pane at a time.
   await expect(page.getByRole('tabpanel')).toHaveCount(1)
   await expect(page.getByRole('tabpanel')).toHaveAccessibleName('General')
-  // The pane's region; its blocks are regions of their own inside it.
   await expect(page.getByRole('tabpanel').getByRole('region').first()).toHaveAccessibleName(
     'General',
   )
@@ -259,7 +248,6 @@ test('General opens the data folder and the Backups dialog', async ({ page }) =>
   await expect(openFolder).toHaveAccessibleDescription(/notes, attachments, backups/)
   await openFolder.click()
   await general.getByRole('button', { name: 'Show Backups\u2026' }).click()
-  // The command takes no path: it opens the app's own folder only.
   expect(await calls(page, 'settings_open_data_folder')).toEqual([
     { cmd: 'settings_open_data_folder', args: {} },
   ])
@@ -294,7 +282,6 @@ test('Integrations offers devot-mcp configs to copy for each client', async ({ p
   expect(await calls(page, 'clipboard_write_text')).toEqual([
     { cmd: 'clipboard_write_text', args: { text: command } },
   ])
-  // The command takes no arguments. StrictMode runs the effect twice in dev.
   const setups = await calls(page, 'settings_mcp_setup')
   expect(setups.length).toBeGreaterThan(0)
   for (const call of setups) expect(call).toEqual({ cmd: 'settings_mcp_setup', args: {} })
@@ -327,7 +314,6 @@ test('Integrations still offers configs, with a path to replace, when Rust canno
   await expect(pane).toContainText('pnpm mcp:build')
   const claude = page.getByRole('region', { name: 'Claude Code' })
   await expect(claude.locator('code')).toContainText('/path/to/devot/dist-mcp/devot-mcp.mjs')
-  // Copying keeps the problem in view.
   await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
   await expect(pane.getByRole('status')).toHaveText('The Claude Code configuration was copied.')
   await expect(pane.getByRole('alert')).toContainText('E_DATA_FOLDER_UNAVAILABLE')
@@ -369,12 +355,9 @@ test('General offers the notebooks as the default for new notes', async ({ page 
   expect((await setCalls(page)).at(-1)).toEqual({ defaultNotebook: null })
 })
 
-// The Editing section.
-
 const editor = (page: Page) => page.getByRole('region', { name: 'Editing' })
 const checkbox = (page: Page, name: string) => editor(page).getByRole('switch', { name })
 const select = (page: Page, name: string) => editor(page).getByRole('combobox', { name })
-/** The Note Font section's Font Family (each font section has one). */
 const noteFont = (page: Page) =>
   editor(page)
     .getByRole('region', { name: 'Note Font' })
@@ -413,7 +396,6 @@ test('the Editing pane has Interface, Markdown, Text Appearance and font section
     'font-weight',
     '700',
   )
-  // Each section has its symbol, and each setting a label and a description.
   await expect(editor(page).locator('h3 [data-symbol]')).toHaveCount(6)
   await expect(checkbox(page, 'Toolbar')).toHaveAccessibleDescription(
     'Whether the toolbar shows over selected text and above the current table row.',
@@ -463,7 +445,6 @@ test('every editor setting has a labelled control showing its stored value', asy
   await expect(select(page, 'Line Height')).toHaveValue('1.8')
   await expect(checkbox(page, 'Show Invisible Characters')).toBeChecked()
   await expect(checkbox(page, 'Highlight Trailing Whitespace')).toBeChecked()
-  // Option labels come from the catalog too.
   await expect(select(page, 'Line Wrapping').getByRole('option')).toHaveText([
     'Off',
     'All lines',
@@ -547,7 +528,6 @@ test('each control stores its change at once', async ({ page }) => {
   await checkbox(page, 'Toolbar').uncheck()
   await checkbox(page, 'Line Numbers').check()
   await checkbox(page, 'Highlight Active Line').check()
-  // Readable Line Length applies only to wrapped lines: set it first.
   await checkbox(page, 'Readable Line Length').check()
   await select(page, 'Line Wrapping').selectOption('Off')
   await checkbox(page, 'Inline Image Widgets').uncheck()
@@ -599,7 +579,6 @@ test('the readable width setting is off limits while lines do not wrap, and says
 
   await select(page, 'Line Wrapping').selectOption('Off')
   await expect(width).toBeDisabled()
-  // It still shows the stored value, which applies again once lines wrap.
   await expect(width).toBeChecked()
   await expect(width).toHaveAccessibleDescription('Applies only when lines wrap.')
 
@@ -609,7 +588,6 @@ test('the readable width setting is off limits while lines do not wrap, and says
   expect(await setCalls(page)).toEqual([{ lineWrapping: 'off' }])
 })
 
-/** How long the number fields wait for typing to pause, and a little more. */
 const PAST_TYPING_PAUSE_MS = 600
 
 test('a font size out of range is not stored, and leaving the field shows the stored one', async ({
@@ -621,7 +599,6 @@ test('a font size out of range is not stored, and leaving the field shows the st
   await expect(fontSize(page)).toHaveValue('14')
   await expect(fontSize(page)).toHaveAttribute('min', '10')
   await expect(fontSize(page)).toHaveAttribute('max', '32')
-  // Each value is left to sit past the typing pause.
   for (const typed of ['40', '9', '12.5']) {
     await fontSize(page).fill(typed)
     await page.waitForTimeout(PAST_TYPING_PAUSE_MS)
@@ -631,7 +608,6 @@ test('a font size out of range is not stored, and leaving the field shows the st
   }
   await fontSize(page).blur()
   await expect(fontSize(page)).toHaveValue('14')
-  // Leaving the field at once stores nothing either.
   await fontSize(page).fill('40')
   await fontSize(page).blur()
   await expect(fontSize(page)).toHaveValue('14')
@@ -700,8 +676,6 @@ test('a change that cannot be stored is reported and undone', async ({ page }) =
   await expect(checkbox(page, 'Line Numbers')).not.toBeChecked()
 })
 
-// The Preview pane.
-
 const preview = (page: Page) => page.getByRole('region', { name: 'Preview' })
 
 test('Preview has its own font size (15 px) and synced scrolling', async ({ page }) => {
@@ -718,7 +692,6 @@ test('Preview has its own font size (15 px) and synced scrolling', async ({ page
   await size.fill('18')
   await size.blur()
   await expect.poll(() => setCalls(page)).toEqual([{ syncScroll: false }, { previewFontSize: 18 }])
-  // The editor pane no longer has the synced scrolling switch.
   await tab(page, 'Editing').click()
   await expect(editor(page).getByRole('switch', { name: 'Synced Scrolling' })).toHaveCount(0)
 })

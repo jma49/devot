@@ -24,7 +24,6 @@ const bookRow = (page: Page, name: string) =>
 const FILE = '0192a6f0-0000-7000-8000-00000000f001'
 const BODY = `# Plan\n\n![Board](devot://file/${FILE})\n\n> [!NOTE]\n> Check.\n`
 const DIAGRAM = '```mermaid\ngraph TD\n  Start --> Finish\n```\n'
-/** The same attachment again, at a size preset. */
 const SIZED = `![Half](devot://file/${FILE}#half)\n`
 
 async function createNote(page: Page, title: string, text: string) {
@@ -38,7 +37,6 @@ async function createNote(page: Page, title: string, text: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
-/** Answers for the export commands, as Rust would give them. */
 async function mockExport(page: Page, mocks: Record<string, unknown> = {}) {
   await page.evaluate((more) => {
     const w = globalThis as unknown as TestWindow
@@ -71,7 +69,6 @@ async function pickFromNoteMenu(page: Page, title: string, item: string) {
   await pickMenuItem(page, item)
 }
 
-/** A note's ID, from its menu's Copy Note ID. */
 async function noteId(page: Page, title: string): Promise<string> {
   const before = (await clipboardWrites(page)).length
   await pickFromNoteMenu(page, title, 'Copy Note ID')
@@ -95,7 +92,6 @@ test('Export as Markdown… writes the note with its attachments linked relative
   expect((await calls(page, 'export_begin')).map((c) => c.args)).toEqual([
     { kind: 'note', format: 'markdown', name: 'Plan' },
   ])
-  // Copied once; the sized link keeps its size as the path's fragment.
   expect((await calls(page, 'export_attach')).map((c) => c.args)).toEqual([{ id: 7, fileId: FILE }])
   const [write] = await calls(page, 'export_write')
   expect(write?.args).toEqual({
@@ -114,7 +110,6 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
   await createNote(page, 'Plan', `${BODY}\n${SIZED}\n${DIAGRAM}`)
   await mockExport(page, { export_begin: { id: 3, fileName: 'Plan.html' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as HTML…')
-  // The diagram is drawn first (Mermaid loads on first use).
   await expect
     .poll(async () => (await calls(page, 'export_finish')).length, { timeout: 20_000 })
     .toBe(1)
@@ -130,7 +125,6 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
   expect(html.startsWith('<!doctype html>')).toBe(true)
   expect(html).toContain('<title>Plan</title>')
   expect(html).toContain("default-src 'none'")
-  // The design tokens and the preview's rules come along.
   expect(html).toMatch(/--color-text-primary: [^;]+;/)
   expect(html).toContain('.alert .alert-title')
   expect(html).toContain('<article class="preview"><h1 id="plan">Plan</h1>')
@@ -139,7 +133,6 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
   )
   expect(html).toMatch(/<div class="island island-mermaid"><svg[^>]*>/)
   expect(html).not.toMatch(/<script|data-source-line|data-devot-island/)
-  // One placeholder for the attachment, at whatever size it shows; sized as the preview.
   expect(args.images).toHaveLength(1)
   const [image] = args.images as { placeholder: string; fileId: string }[]
   expect(image?.fileId).toBe(FILE)
@@ -174,7 +167,6 @@ test('Print… and Shift+Cmd+P print the preview; Export as PDF… saves it', as
   await mockExport(page)
   await pickFromNoteMenu(page, 'Plan', 'Print…')
   await expect.poll(async () => (await calls(page, 'note_print')).length).toBe(1)
-  // From the editor too (Cmd+P is Split view).
   await body(page).click()
   await page.keyboard.press('Meta+Shift+P')
   await expect.poll(async () => (await calls(page, 'note_print')).length).toBe(2)
@@ -195,7 +187,6 @@ test('Print right after the preview opens draws every diagram', async ({ page })
   const sequence = '```mermaid\nsequenceDiagram\n  Alice->>Bob: Hello\n```\n'
   await createNote(page, 'Charts', `${DIAGRAM}\n${sequence}`)
   await mockExport(page)
-  // The preview asks for both diagrams; the page for printing asks again at once.
   await page
     .getByRole('group', { name: 'View mode' })
     .getByRole('button', { name: 'Split' })
@@ -236,9 +227,7 @@ test('a page to print loads nothing from the web: its images from there print as
       )
       expect(html).toContain(`<a href="${remote}">Pixel</a>`)
       expect(html).not.toContain(`src="${remote}"`)
-      // The attachment still prints (Rust puts it in).
       expect(images.map((i) => i.fileId)).toEqual([FILE])
-      // Laid out in a web view of its own, as Rust prints it.
       const view = await context.newPage()
       await view.setContent(html, { waitUntil: 'load' })
       await expect(view.getByRole('link', { name: 'Pixel' })).toBeVisible()
@@ -246,7 +235,6 @@ test('a page to print loads nothing from the web: its images from there print as
     }
     expect(requests).toBe(0)
 
-    // An exported page keeps the image, to load where it is opened.
     await pickFromNoteMenu(page, 'Plan', 'Export as HTML…')
     await expect.poll(async () => (await calls(page, 'export_write')).length).toBe(1)
     const exported = ((await calls(page, 'export_write'))[0]!.args as { text: string }).text
@@ -258,7 +246,6 @@ test('a page to print loads nothing from the web: its images from there print as
 })
 
 test('a cancelled panel writes nothing and shows nothing', async ({ page }) => {
-  // A failure logs its code, even when a later action's start hides its notice.
   const failures: string[] = []
   page.on('console', (message) => {
     if (message.text().includes('W_EXPORT_FAILED')) failures.push(message.text())
@@ -277,8 +264,6 @@ test('a cancelled panel writes nothing and shows nothing', async ({ page }) => {
     await mockExport(page, { export_begin: null })
     await pickFromNoteMenu(page, 'Plan', item)
     await expect.poll(async () => (await calls(page, 'export_begin')).length).toBe(1)
-    // The same export again, saved this time: once it is over, the
-    // cancelled one is long over too, and only the second one wrote.
     await mockExport(page, { export_begin: { id: 4, fileName: file } })
     await pickFromNoteMenu(page, 'Plan', item)
     await expect
@@ -289,12 +274,10 @@ test('a cancelled panel writes nothing and shows nothing', async ({ page }) => {
     await expect(page.getByRole('alert')).toHaveCount(0)
   }
 
-  // Print… and Export as PDF… answer false when the panel was cancelled.
   await mockExport(page, { note_print: false, export_pdf: false })
   await pickFromNoteMenu(page, 'Plan', 'Print…')
   await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
   await expect.poll(async () => (await calls(page, 'export_pdf')).length).toBe(1)
-  // Then a copy that goes through: both cancelled actions are over by now.
   await pickFromNoteMenu(page, 'Plan', 'Copy as HTML')
   await expect.poll(async () => (await calls(page, 'clipboard_write_html')).length).toBe(1)
   expect((await calls(page, 'note_print')).length).toBe(1)
@@ -308,7 +291,6 @@ test('a failure shows what did not complete, with its code, until dismissed', as
   await pickFromNoteMenu(page, 'Plan', 'Export as Markdown…')
   const notice = page.getByRole('alert')
   await expect(notice).toContainText('The export did not complete (E_EXPORT_WRITE_FAILED).')
-  // The session is closed all the same.
   expect((await calls(page, 'export_finish')).length).toBe(1)
   await notice.getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice).toHaveCount(0)
@@ -321,7 +303,6 @@ test('a failure shows what did not complete, with its code, until dismissed', as
   await pickFromNoteMenu(page, 'Plan', 'Copy as Simple HTML')
   await expect(notice).toHaveText(/^The note could not be copied \(E_CLIPBOARD_WRITE_FAILED\)\./)
 
-  // A PDF that could not be written fails (there is no panel to cancel).
   await mockExport(page, { export_pdf: { error: 'E_EXPORT_PDF_FAILED' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
   await expect(notice).toHaveText(/^The export did not complete \(E_EXPORT_PDF_FAILED\)\./)
@@ -342,7 +323,6 @@ test("an export's notice and a backup's both show, each with its buttons", async
   const exported = page.getByRole('alert').filter({ hasText: 'E_EXPORT_WRITE_FAILED' })
   await expect(backup).toBeVisible()
   await expect(exported).toBeVisible()
-  // Neither covers the other: each one's Dismiss takes a click.
   await backup.getByRole('button', { name: 'Dismiss' }).click({ timeout: 5_000 })
   await expect(backup).toHaveCount(0)
   await expect(exported).toBeVisible()
@@ -411,7 +391,6 @@ test("a notebook's menu exports it with its sub-notebooks, as Markdown or HTML",
     'Inbox.html',
     'Plans/Plan.html',
   ])
-  // Links between the exported notes point at their pages.
   const [inbox, plan] = pages.map((p) => (p as Record<string, string>)['text']!)
   expect(inbox).toContain('<a href="Plans/Plan.html">Plan</a>')
   expect(plan).toContain('<a href="../Inbox.html">Inbox</a>')
@@ -445,7 +424,6 @@ test('Export All Notes writes every notebook as a folder, from the palette and F
     (await calls(page, 'export_write')).map((c) => (c.args as Record<string, string>)['path'])
   expect(await paths()).toContain('Work/Plan.md')
 
-  // File > Export > All Notes as HTML… (Rust sends the format).
   await page.evaluate(() =>
     globalThis.dispatchEvent(new CustomEvent('devot:export-all', { detail: 'html' })),
   )

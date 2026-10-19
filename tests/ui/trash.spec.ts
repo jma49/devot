@@ -17,7 +17,6 @@ async function createNote(page: Page, title: string, body = '') {
   }
 }
 
-/** Moves the open note to the Trash and waits until the Trash count shows it. */
 async function trashOpenNote(page: Page) {
   const before = Number((await trashRow(page).textContent())?.match(/(\d+)$/)?.[1] ?? 0)
   await pickNoteMore(page, 'Move to Trash')
@@ -90,7 +89,6 @@ test('emptying the Trash asks first; Cancel and Escape keep everything', async (
   await expect(trashRow(page)).toHaveText(/0$/)
   await expect(page.getByRole('button', { name: 'Empty Trash' })).toBeDisabled()
 
-  // Gone for good, even after a reload.
   await page.reload()
   await expect(trashRow(page)).toHaveText(/0$/)
   await expect(noteRows(page)).toHaveCount(0)

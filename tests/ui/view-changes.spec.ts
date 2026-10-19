@@ -1,12 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test, type TestWindow, pickNoteMore, pickStatus } from './fixtures'
 
-// Every way of changing the view follows the same rules (the sidebar, the
-// palette, New Notebook, a finished import): a note in the Trash closes when
-// the view leaves the Trash, a search over every note hides its view, and
-// Templates behaves like any other list. Window shortcuts are pressed with
-// Meta, as the app's registry takes it on every platform.
-
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -54,7 +48,6 @@ async function createTemplate(page: Page, title: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
-/** Opens the palette with Cmd+K, types a query and picks the entry of a group. */
 async function pick(page: Page, query: string, group: string) {
   await page.keyboard.press('Meta+KeyK')
   await expect(paletteField(page)).toBeFocused()
@@ -87,7 +80,6 @@ test('New Notebook from the Trash closes the trashed note instead of editing it'
   await createBook(page, 'Fresh')
   await expect(header(page)).toHaveText('Fresh')
   await expect(book(page, 'Fresh')).toHaveAttribute('aria-selected', 'true')
-  // The trashed note is not an editor in the new notebook.
   await expect(titleField(page)).toHaveCount(0)
   await expect(body(page)).toHaveCount(0)
   await expect(
@@ -106,12 +98,10 @@ test('a notebook from the palette, during a search over every note, drops the hi
   await active.click()
   await expect(header(page)).toHaveText('Active')
 
-  // The field searches every note: the filter no longer looks pressed.
   await page.keyboard.press('Meta+Alt+Shift+KeyF')
   await page.keyboard.type('plan')
   await expect(active).toHaveAttribute('aria-pressed', 'false')
 
-  // As a click on the notebook does: the notebook alone, no filter.
   await pick(page, 'Work', 'Notebooks')
   await expect(header(page)).toHaveText('Work')
   await expect(search(page)).toHaveValue('')
@@ -137,7 +127,6 @@ test('a tag from the palette, during a search over every note, drops the hidden 
   await page.keyboard.type('plan')
   await expect(book(page, 'Work')).toHaveAttribute('aria-selected', 'false')
 
-  // As a click on the tag does: the tag covers every note.
   await pick(page, 'urgent', 'Tags')
   await expect(header(page)).toHaveText('urgent')
   await expect(search(page)).toHaveValue('')

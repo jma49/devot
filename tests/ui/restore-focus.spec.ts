@@ -9,7 +9,6 @@ const search = (page: Page) => page.getByRole('searchbox', { name: 'Search notes
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 
-/** A note whose editor had the keyboard when the window went away. */
 async function leaveWithKeyboardInEditor(page: Page) {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(titleField(page)).toHaveValue('')

@@ -8,7 +8,6 @@ import { clipboardWrites, expect, test } from './fixtures'
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const copyButtons = (page: Page) => preview(page).getByRole('button', { name: 'Copy Code' })
 
-/** The page's globals the paste test touches (this config has no DOM types). */
 interface PasteGlobals {
   devotPastedHtml?: string
   document: {
@@ -74,7 +73,6 @@ test('each fenced code block has a copy button that copies its text as written',
   page,
 }) => {
   await openNote(page, NOTE)
-  // Two code blocks: not the front matter, inline code or the diagram.
   await expect(copyButtons(page)).toHaveCount(2)
   await expect(preview(page).locator('pre').first().getByRole('button')).toHaveCount(0)
 
@@ -86,7 +84,6 @@ test('each fenced code block has a copy button that copies its text as written',
   await expect
     .poll(() => clipboardWrites(page))
     .toEqual(['<b class="x">&amp; "quoted"</b>\n\tindented with a tab'])
-  // It says so, then goes back.
   await expect(preview(page).getByRole('button', { name: 'Copied' })).toHaveCount(1)
   await expect(preview(page).getByRole('button', { name: 'Copied' })).toHaveCount(0, {
     timeout: 4000,
@@ -133,7 +130,6 @@ test('a failed copy says so', async ({ page }) => {
 })
 
 test('a long block goes through the native clipboard command too', async ({ page }) => {
-  // The command takes as much as a note may hold (64 KiB once): any block.
   const long = 'x'.repeat(70 * 1024)
   await openNote(page, '```\n' + long + '\n```')
   await copyButtons(page).click()
@@ -149,7 +145,6 @@ test('the button stays while the block is edited and is never part of the note',
   await expect(copyButtons(page)).toHaveCount(1)
   await copyButtons(page).evaluate((el) => Object.assign(el, { devotMark: true }))
 
-  // Typing at the end re-renders the preview; the patcher leaves the button alone.
   await page.getByRole('textbox', { name: 'Note body' }).click()
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.insertText('\n\nMore text.')
@@ -158,11 +153,9 @@ test('the button stays while the block is edited and is never part of the note',
     await copyButtons(page).evaluate((el) => (el as unknown as { devotMark?: boolean }).devotMark),
   ).toBe(true)
   await expect(pre.locator('code')).toHaveText('first\n')
-  // The button adds no text to what the preview shows (find, selection).
   expect(await preview(page).evaluate((el) => el.textContent)).not.toContain('Copy')
   await expect(pre.locator('[data-devot-ui]')).toHaveCount(1)
 
-  // An emptied block has nothing to copy, and no button.
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Shift+End')
@@ -176,7 +169,6 @@ test('copying a selection across a block leaves the button out of the copied HTM
 }) => {
   await openNote(page, 'Before the block.\n\n```\nselected code\n```\n\nAfter the block.')
   await expect(copyButtons(page)).toHaveCount(1)
-  // A place to paste rich text into, and what the paste carried.
   await page.evaluate(() => {
     const w = globalThis as unknown as PasteGlobals
     const target = w.document.createElement('div')

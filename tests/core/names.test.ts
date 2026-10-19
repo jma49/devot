@@ -132,10 +132,8 @@ describe('tag names stay unique', () => {
     await expect(tags.rename(dash, 'Todo')).rejects.toThrow('E_TAG_NAME_TAKEN')
     await expect(tags.rename(dash, ' TODO\u0085')).rejects.toThrow('E_TAG_NAME_TAKEN')
     expect((await tags.list()).map((t) => t.name).sort()).toEqual(['to-do', 'todo'])
-    // A tag may take its own name in another case.
     await tags.rename(todo, 'ToDo')
     expect((await tags.list()).find((t) => t.id === todo)?.name).toBe('ToDo')
-    // A deleted tag's name is free again.
     await tags.remove(todo)
     await tags.rename(dash, 'todo')
     expect((await tags.list()).map((t) => t.name)).toEqual(['todo'])

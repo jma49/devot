@@ -1,16 +1,11 @@
 import type { Page } from '@playwright/test'
 import { expect, test, pickNoteMore } from './fixtures'
 
-// Names as typed: tag names stay unique and a tag picked is the one used,
-// name fields stop at their limits and say why a change was refused, and
-// titles with `$` patterns show as typed in dialogs.
-
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
-/** A tag's filter row ("<name> <count>"), the name in its exact case. */
 const tagRow = (page: Page, name: string) =>
   sidebar(page).getByRole('button', { name: new RegExp(`^${name} \\d+$`) })
 const notice = (page: Page) => page.locator('.notices').getByRole('alert')
@@ -24,7 +19,6 @@ interface Link {
   present: boolean
 }
 
-/** The IDs of the tags on the note with this title (the store's, not the screen's). */
 const storedTagIds = (page: Page, title: string) =>
   page.evaluate((t) => {
     const read = <T>(key: string) => JSON.parse(localStorage.getItem(key) ?? '[]') as T[]
@@ -45,7 +39,6 @@ const storedTagNames = (page: Page) =>
 const FIRST = '0192a6f0-0000-7000-8000-0000000000a1'
 const SECOND = '0192a6f0-0000-7000-8000-0000000000a2'
 
-/** Two tags of one name, as sync or data from before names were unique can bring. */
 async function twoTodoTags(page: Page) {
   const tag = (id: string, name: string, at: number) => ({
     id,
@@ -155,7 +148,6 @@ test('name fields stop at their limits, counted in characters', async ({ page })
   await expect(tagField).toHaveValue('x'.repeat(100))
   await tagField.press('y')
   await expect(tagField).toHaveValue('x'.repeat(100))
-  // An emoji is one character, as the core counts it.
   await tagField.fill('\u{1f600}'.repeat(120))
   await expect(tagField).toHaveValue('\u{1f600}'.repeat(100))
   await tagField.press('Enter')
@@ -179,21 +171,18 @@ test('a title with $ patterns shows as typed in dialogs', async ({ page }) => {
   await createNote(page, 'Other')
   await createNote(page, DOLLARS)
 
-  // The [[ popup's New Note.
   await body(page).click()
   await page.keyboard.type('[[')
   await page.keyboard.insertText(DOLLARS)
   await expect(page.getByRole('option', { name: `New Note “${DOLLARS}”` })).toBeVisible()
   await page.keyboard.press('Escape')
 
-  // Revision History.
   await pickNoteMore(page, 'Revision History\u2026')
   const history = page.getByRole('dialog', { name: 'Revision History' })
   await expect(history).toContainText(`Versions of “${DOLLARS}”`)
   await page.keyboard.press('Escape')
   await expect(history).toBeHidden()
 
-  // Move to Notebook (M on the note's row).
   await noteRow(page, DOLLARS).click()
   await page.keyboard.press('m')
   const move = page.getByRole('dialog', { name: 'Move to Notebook' })
@@ -201,7 +190,6 @@ test('a title with $ patterns shows as typed in dialogs', async ({ page }) => {
   await page.keyboard.press('Escape')
   await expect(move).toBeHidden()
 
-  // Delete Permanently, from the Trash.
   await page.keyboard.press('Meta+Backspace')
   await expect(noteRows(page)).toHaveCount(1)
   await sidebar(page)

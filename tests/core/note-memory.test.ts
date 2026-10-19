@@ -25,11 +25,6 @@ afterEach(async () => {
   open.splice(0).forEach((a) => a.close())
 })
 
-/**
- * A note service on a fresh SQLite file that counts the notes it reads from
- * storage, can hold the next read, and refuses note writes while `refuse`
- * says so. Time is the test's (`now`).
- */
 function setup(path = join(tempDir('devot-memory-'), 'devot.sqlite')) {
   const sqlite = openSqliteAdapter(path)
   open.push(sqlite)
@@ -64,12 +59,10 @@ function setup(path = join(tempDir('devot-memory-'), 'devot.sqlite')) {
     sqlite,
     path,
     clock,
-    /** How many times each note was read from storage since the last call. */
     reads() {
       const counted = reads.splice(0)
       return (id: string) => counted.filter((r) => r === id).length
     },
-    /** The next note read waits until the function returned is called. */
     holdNextRead() {
       let release = () => {}
       gate = new Promise((resolve) => (release = resolve))
@@ -81,7 +74,6 @@ function setup(path = join(tempDir('devot-memory-'), 'devot.sqlite')) {
   }
 }
 
-/** `count` saved notes, made by a service of their own, so none is in memory. */
 async function library(path: string, count: number) {
   const { notes } = setup(path)
   const ids: string[] = []
@@ -94,7 +86,6 @@ async function library(path: string, count: number) {
   return ids
 }
 
-/** Shows a note in an editor and closes it again, as switching notes does. */
 async function browse(notes: NoteService, id: string) {
   notes.hold(id)
   await notes.open(id)
@@ -107,7 +98,6 @@ const textOf = (state: Uint8Array) => {
   return doc.getText(BODY).toString()
 }
 
-/** An edit to `id`'s body, as an editor replica would send it. */
 async function edit(notes: NoteService, id: string, typed: string) {
   const doc = new Y.Doc()
   Y.applyUpdate(doc, (await notes.open(id)).state)
@@ -126,7 +116,6 @@ describe('notes in memory', () => {
     let read = s.reads()
     expect(ids.map(read)).toEqual(ids.map(() => 1))
 
-    // The last ones opened are still in memory; the first ones left it.
     const recent = ids.slice(-NOTES_IN_MEMORY)
     for (const id of recent) await browse(s.notes, id)
     read = s.reads()
@@ -205,11 +194,9 @@ describe('notes in memory', () => {
     const replica = new Y.Doc()
     Y.applyUpdate(replica, (await s.notes.open(note!)).state)
     for (const id of others) await browse(s.notes, id)
-    // Another process writes the note meanwhile.
     const other = setup(path)
     await other.notes.setBody(note!, 'body 0, edited elsewhere')
     await other.notes.flush()
-    // The window hears of it (devot://db-changed).
     await s.notes.mergeStored()
 
     const before = Y.encodeStateVector(replica)

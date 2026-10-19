@@ -1,8 +1,6 @@
 import type { Page } from '@playwright/test'
 import { clipboardWrites, expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
 
-// The note header's native menus: a tag chip's and the notebook label's.
-
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const editorTags = (page: Page) => page.getByRole('group', { name: 'Tags' })
@@ -115,7 +113,6 @@ test('the notebook label has Open Notebook and Copy Notebook ID', async ({ page 
     .getByRole('treeitem', { name: /^Work\b/ })
   await book.locator('> .book-row').click()
   await newNote(page, 'In work')
-  // Out of the notebook's view, then back to it from the note's header.
   await sidebar(page)
     .getByRole('button', { name: /^All Notes/ })
     .click()

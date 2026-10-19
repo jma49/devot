@@ -6,7 +6,6 @@ const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const popup = (page: Page) => page.locator('.cm-tooltip-autocomplete')
 const LINK = /\[([^\]]*)\]\(devot:\/\/note\/[0-9a-f-]{36}\)/
 
-// "\u540c\u6b65\u65b9\u6848" is a Chinese title ("sync plan"); "\u65b9\u6848" its second word.
 const SYNC_PLAN = '\u540c\u6b65\u65b9\u6848'
 
 async function createNote(page: Page, title: string) {
@@ -56,7 +55,6 @@ test('[[ offers other notes and inserts a standard link', async ({ page }) => {
   const text = (await body(page).textContent()) ?? ''
   expect(text).toMatch(LINK)
   expect(text.match(LINK)?.[1]).toBe('Groceries')
-  // The brackets the editor closed are gone with the trigger.
   expect(text).not.toContain('[[')
   expect(text).not.toContain(']]')
 })
@@ -77,7 +75,6 @@ test('New Note creates the note and links it', async ({ page }) => {
     noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Plan B' }) }),
   ).toHaveCount(1)
   await expect.poll(async () => (await body(page).textContent())?.match(LINK)?.[1]).toBe('Plan B')
-  // The note being edited stays open.
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Source')
 })
 
@@ -95,11 +92,9 @@ test('a second Return while the note is made does not make another', async ({ pa
   await page.evaluate(() => localStorage.removeItem('devot.test.delayNoteWrites'))
   await expect.poll(async () => (await body(page).textContent()) ?? '').toMatch(LINK)
   await expect(noteRows(page)).toHaveCount(2)
-  // By title: the source's excerpt shows the link's text too.
   await expect(
     noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Plan B' }) }),
   ).toHaveCount(1)
-  // The link stands once; the second Return was an ordinary line break.
   expect(((await body(page).textContent()) ?? '').match(/devot:\/\/note\//g)).toHaveLength(1)
   expect(await body(page).textContent()).not.toContain('[[')
 })
@@ -161,12 +156,10 @@ test('no note is left unlinked when its brackets were edited meanwhile', async (
   await page.evaluate(() => localStorage.setItem('devot.test.delayNoteWrites', '600'))
   await popup(page).getByRole('option', { name: 'New Note \u201cPlan B\u201d' }).click()
   await page.evaluate(() => localStorage.removeItem('devot.test.delayNoteWrites'))
-  // The query is changed under the pick: the text is still the user's, no link goes in.
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.type('!')
-  // Past the time the note takes to make (and to be taken away again).
   await page.waitForTimeout(1500)
   await expect(noteRows(page)).toHaveCount(1)
   expect(await body(page).textContent()).not.toMatch(LINK)

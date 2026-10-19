@@ -12,17 +12,14 @@ import { expect, it } from 'vitest'
 const root = join(import.meta.dirname, '../..')
 const read = (file: string) => readFileSync(join(root, file), 'utf8')
 
-/** The release app's identifier, which names its data folder. */
 const release = (JSON.parse(read('src-tauri/tauri.conf.json')) as { identifier: string }).identifier
 
-/** What debug builds add to it. */
 function devSuffix(): string {
   const suffix = /const DEV_SUFFIX: &str = "([^"]+)";/.exec(read('src-tauri/src/data_folder.rs'))
   expect(suffix).not.toBeNull()
   return suffix![1]!
 }
 
-/** Tracked (and new, not ignored) files under the given paths. */
 function files(...paths: string[]): string[] {
   return execFileSync('git', ['ls-files', '-co', '--exclude-standard', ...paths], {
     cwd: root,
@@ -59,7 +56,6 @@ it("every app data path in a script is the debug builds' folder", () => {
   const folders = run().flatMap((file) =>
     [...read(file).matchAll(/Application Support\/([^/"'\s]*)/g)].map((m) => `${file}: ${m[1]}`),
   )
-  // The scripts that start the app find it through scripts/app-data.sh.
   expect(folders).toContain(`scripts/app-data.sh: ${release}${devSuffix()}`)
   expect(folders.filter((f) => !f.endsWith(`: ${release}${devSuffix()}`))).toEqual([])
 })
@@ -84,8 +80,6 @@ it('the scripts start only an app whose data folder they know', () => {
   expect(smoke.match(/\bAPP_HOME=[^\n]*/g)).toEqual(['APP_HOME="$WORK/home"'])
   expect(smoke).toContain('dev_app_home "$APP_HOME"')
   expect(smoke).toContain('app_wait_for_db "$PID" "$DEVOT_DEV_DATA"')
-  // The launch cost script starts any build, release ones too, through the
-  // probe, always with HOME in its own temporary folder.
   const perf = read('scripts/perf/launch-cost.sh')
   expect(perf.match(/"\$PROBE" "\$@" "\$APP"/g)).toHaveLength(1)
   expect(perf).toContain('HOME="$APP_HOME" "$PROBE" "$@" "$APP"')
@@ -98,6 +92,5 @@ it('the smoke check copies the dev notes aside before deleting any', () => {
   const begin = smoke.indexOf('dev_data_begin')
   expect(begin).toBeGreaterThan(-1)
   expect(begin).toBeLessThan(smoke.indexOf('dev_data_clear'))
-  // It deletes databases only through the helpers, which know the folder.
   expect(smoke).not.toMatch(/\brm\b[^\n]*sqlite/)
 })

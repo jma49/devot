@@ -2,9 +2,6 @@ import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 import { seedNotes } from './renders'
 
-// A long list renders only the rows near the part that shows; the keyboard,
-// the selection and assistive technology still see the whole list.
-
 const NOTES = 1000
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
@@ -30,7 +27,6 @@ test('renders the rows that show, and the rest as the list scrolls', async ({ pa
     el.scrollTop = el.scrollHeight
   })
   await expect(row(page, `Note ${NOTES}`)).toBeVisible()
-  // Rows far above are not rendered; the first stays, as the row that takes Tab.
   await expect(row(page, 'Note 50')).toHaveCount(0)
   await expect(row(page, 'Note 1')).toHaveAttribute('tabindex', '0')
   expect(await rows(page).count()).toBeLessThan(200)
@@ -59,7 +55,6 @@ test('the open note keeps its row and the keyboard when the list scrolls away', 
     el.scrollTop = el.scrollHeight
   })
   await expect(row(page, `Note ${NOTES}`)).toBeVisible()
-  // Still rendered and focused, though far above the part that shows.
   await expect(row(page, 'Note 2')).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(titleField(page)).toHaveValue('Note 3')

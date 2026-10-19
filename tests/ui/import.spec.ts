@@ -2,9 +2,7 @@ import type { Page } from '@playwright/test'
 import { expect, pickMenuItem, test, type TestWindow, pickNoteMore } from './fixtures'
 
 const FILES: Record<string, string> = {
-  // Front matter of its own: kept in the note, nothing read from it.
   'Inbox.md': '---\nauthor: me\ntags: [ignored]\n---\n# Inbox\n\nSee [[Plan]] later.\n',
-  // Exported by Devot: its own front matter gives the title, tags and status.
   'Projects/Plan.md': [
     '---',
     '# Devot metadata',
@@ -17,7 +15,6 @@ const FILES: Record<string, string> = {
     '![Board](img/board.png)',
     '',
   ].join('\n'),
-  // Written on Windows: CRLF line endings.
   'Projects/Deep/Spec.md': 'No heading here.\r\n\r\n![Missing](missing.png)\r\n',
 }
 
@@ -50,14 +47,12 @@ const dialog = (page: Page) => page.getByRole('dialog', { name: /^Import (Markdo
 const button = (page: Page, name: string) => dialog(page).getByRole('button', { name, exact: true })
 const destinations = (page: Page) => dialog(page).getByRole('listbox', { name: 'Import into' })
 
-/** Goes through the preview (for a folder) and imports into the notebook chosen. */
 async function confirm(page: Page, into?: string) {
   if (await button(page, 'Continue').isVisible()) await button(page, 'Continue').click()
   if (into) await destinations(page).getByRole('option', { name: into }).click()
   await button(page, 'Import').click()
 }
 
-/** Opens the app with the import commands answered from FILES. */
 async function open(page: Page, options: { hold?: boolean } = {}) {
   await page.addInitScript(
     ({ files, hold }) => {
@@ -87,7 +82,6 @@ async function open(page: Page, options: { hold?: boolean } = {}) {
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
 }
 
-/** What Rust sends: a scan started or got further, what it found, or why it failed. */
 const send = (
   page: Page,
   type:
@@ -139,7 +133,6 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
   await expect(dialog(page)).toContainText('2 Markdown files and 1 image found so far')
   await expect(button(page, 'Cancel')).toBeVisible()
 
-  // The folders found, with what each holds and which become notebooks.
   await send(page, 'devot:import-ready', SCAN)
   await expect(dialog(page)).toContainText('Found 3 Markdown files and 1 image')
   const rows = dialog(page)
@@ -160,7 +153,6 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
     'Larger than 10 MB (E_IMPORT_FILE_TOO_LARGE)',
   )
 
-  // The destination, and back.
   await button(page, 'Continue').click()
   await expect(destinations(page).getByRole('option', { name: 'No Notebook' })).toHaveAttribute(
     'aria-selected',
@@ -170,7 +162,6 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
   await expect(rows).toHaveCount(4)
   await button(page, 'Continue').click()
 
-  // Nothing was read or written yet.
   expect(await calls(page, 'import_read')).toEqual([])
   expect(await calls(page, 'import_finish')).toEqual([])
   await expect(tree(page).getByRole('treeitem')).toHaveCount(0)
@@ -186,7 +177,6 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
   await expect(problems.nth(1)).toContainText('Projects/Deep/Spec.md')
   await expect(problems.nth(1)).toContainText('Projects/Deep/missing.png')
   await expect(problems.nth(1)).toContainText('File not found (E_IMPORT_FILE_NOT_FOUND)')
-  // A usage event with the counts only: no names or paths.
   await expect
     .poll(async () => (await calls(page, 'usage_record')).map((c) => c.args))
     .toContainEqual({
@@ -202,14 +192,11 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
   await button(page, 'Done').click()
   await expect(dialog(page)).toBeHidden()
 
-  // The picked folder is no notebook; the folders in it are, and the one
-  // at the top is shown.
   await expect(book(page, 'Vault')).toHaveCount(0)
   await expect(book(page, 'Projects')).toHaveAttribute('aria-selected', 'true')
   await expect(header(page)).toHaveText('Projects')
   await expect(book(page, 'Deep')).toBeVisible()
   await expect(noteRows(page)).toHaveCount(2)
-  // Tags and status come from Devot's own front matter only.
   await expect(sidebar(page).getByRole('button', { name: /^work 1$/ })).toBeVisible()
   await expect(sidebar(page).getByRole('button', { name: /^q4 1$/ })).toBeVisible()
   await expect(sidebar(page).getByRole('button', { name: /^Active 1$/ })).toBeVisible()
@@ -225,7 +212,6 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
   expect(String(attach?.args['fileId'])).toMatch(/^[0-9a-f-]{36}$/)
   await expect(body(page)).toContainText(`devot://file/${String(attach?.args['fileId'])}`)
 
-  // A note at the top of the folder went to the destination: no notebook.
   await sidebar(page)
     .getByRole('button', { name: /^All Notes/ })
     .click()
@@ -233,7 +219,6 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
   await expect(body(page)).toContainText('tags: [ignored]')
   await expect(body(page)).toContainText('See [[Plan]] later.')
 
-  // Each listed file was read once, and the session was closed.
   expect((await calls(page, 'import_read')).map((c) => c.args['path'])).toEqual(PATHS)
   expect(await calls(page, 'import_finish')).toEqual([{ cmd: 'import_finish', args: { id: 7 } }])
 })
@@ -253,11 +238,9 @@ test('imports into the notebook chosen, the open one to begin with', async ({ pa
     'aria-selected',
     'true',
   )
-  // Typing filters the notebooks; the choice follows the first match.
   await dialog(page).getByRole('combobox', { name: 'Filter notebooks' }).fill('no note')
   await expect(destinations(page).getByRole('option')).toHaveText(['No Notebook'])
   await expect(destinations(page).getByRole('option')).toHaveAttribute('aria-selected', 'true')
-  // A filter that hides every notebook leaves nothing to import into.
   const filter = dialog(page).getByRole('combobox', { name: 'Filter notebooks' })
   await filter.fill('zzz')
   await expect(destinations(page).getByRole('option')).toHaveCount(0)
@@ -271,7 +254,6 @@ test('imports into the notebook chosen, the open one to begin with', async ({ pa
   await expect(dialog(page)).toContainText('Imported 3 notes into 2 notebooks.')
   await button(page, 'Done').click()
   await expect(header(page)).toHaveText('Archive')
-  // All three notes are in it or in the notebooks made inside it.
   await expect(noteRows(page)).toHaveCount(3)
 })
 
@@ -294,32 +276,26 @@ test('shows a sub-notebook indented under its parent in the destination list', a
       .evaluate((el) => parseFloat(getComputedStyle(el).paddingInlineStart))
   const work = await indent('Work')
   expect(await indent('Notes')).toBeGreaterThan(work)
-  // A filter keeps the notebook it is nested in.
   await dialog(page).getByRole('combobox', { name: 'Filter notebooks' }).fill('notes')
   await expect(destinations(page).getByRole('option')).toHaveText(['Work', 'Notes'])
 })
 
 test('can be cancelled at every step before Import, which ends the session', async ({ page }) => {
   await open(page)
-  // While scanning.
   await scanning(page, 7)
   await button(page, 'Cancel').click()
   await expect(dialog(page)).toBeHidden()
-  // What a cancelled scan sends later is ignored.
   await send(page, 'devot:import-progress', { id: 7, files: 1, images: 0 })
   await send(page, 'devot:import-ready', SCAN)
   await expect(dialog(page)).toHaveCount(0)
 
-  // At the folders found.
   await send(page, 'devot:import-ready', { ...SCAN, id: 8 })
   await button(page, 'Cancel').click()
   await expect(dialog(page)).toBeHidden()
-  // At the destination.
   await send(page, 'devot:import-ready', { ...SCAN, id: 9 })
   await button(page, 'Continue').click()
   await button(page, 'Cancel').click()
   await expect(dialog(page)).toBeHidden()
-  // With Escape.
   await send(page, 'devot:import-ready', { ...SCAN, id: 10 })
   await expect(button(page, 'Continue')).toBeVisible()
   await page.keyboard.press('Escape')
@@ -375,7 +351,6 @@ test("a notebook's Import menu imports into that notebook without asking where",
   const args = (await calls(page, 'import_pick'))[0]!.args as { kind: string; bookId: string }
   expect(args.kind).toBe('markdownFiles')
 
-  // Rust answers with the session, its destination set: picked files import at once.
   await send(page, 'devot:import-ready', {
     id: 21,
     name: 'Inbox.md',
@@ -391,7 +366,6 @@ test("a notebook's Import menu imports into that notebook without asking where",
   await book(page, 'Work').locator('> .book-row').click()
   await expect(noteRows(page).filter({ hasText: 'Inbox' })).toHaveCount(1)
 
-  // A folder shows its tree first, then imports into the notebook in one step.
   await send(page, 'devot:import-ready', { ...SCAN, id: 22, destination: args.bookId })
   await expect(button(page, 'Continue')).toHaveCount(0)
   await button(page, 'Import into “Work”').click()
@@ -435,7 +409,6 @@ test('a note written with CRLF line endings edits like any other', async ({ page
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.type('Y')
 
-  // Open another note and come back: the editor reloads the saved text.
   await noteRows(page).filter({ hasText: 'Launch plan' }).click()
   await expect(body(page)).toContainText('# Heading')
   await noteRows(page).filter({ hasText: 'Spec' }).click()
@@ -464,7 +437,6 @@ test('shows progress while importing and cannot be dismissed until done', async 
   await page.keyboard.press('Escape')
   await expect(dialog(page)).toBeHidden()
 
-  // The next folder is imported as usual.
   await send(page, 'devot:import-ready', { ...SCAN, id: 9, name: 'Second', skipped: [] })
   await confirm(page)
   await expect(dialog(page)).toContainText('Imported 3 notes into 2 notebooks.')
@@ -512,7 +484,6 @@ test('imports picked in a row wait until the previous one is closed', async ({ p
   await send(page, 'devot:import-ready', SCAN)
   await scanning(page, 9, 'Second')
   await send(page, 'devot:import-failed', { id: null, code: 'E_IMPORT_ROOT_INVALID' })
-  // The same scan sent twice is imported once.
   await send(page, 'devot:import-ready', SCAN)
   // A waiting scan goes on, and is ready when its turn comes.
   await send(page, 'devot:import-ready', { ...SCAN, id: 9, name: 'Second', skipped: [] })

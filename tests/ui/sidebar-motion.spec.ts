@@ -1,9 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-// The sidebar's folds: a notebook folded shut stays shut after a reload, and a
-// notebook dragged over a row draws its line across the row's full width.
-
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })

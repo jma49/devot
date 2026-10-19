@@ -6,7 +6,6 @@ import { USAGE_EVENTS } from '../../src/core/usage'
 // is the only way an event gets its properties, so these rules hold for
 // every event the app can record.
 
-/** Words that would mean a property describes or identifies content. */
 const FORBIDDEN = new Set([
   'body',
   'content',
@@ -37,7 +36,6 @@ const words = (key: string) =>
     .split(/[^a-z0-9]+/)
     .filter(Boolean)
 
-// The same patterns the Rust command checks (src-tauri/src/usage.rs).
 const EVENT_NAME = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/
 const PROPERTY_KEY = /^[a-z][a-zA-Z0-9]{0,31}$/
 const ENUM_VALUE = /^[a-z0-9][a-z0-9_+-]{0,31}$/
@@ -93,7 +91,6 @@ describe('where usage events live', () => {
     const mcp = readdirSync('src/mcp')
       .map((f) => readFileSync(`src/mcp/${f}`, 'utf8'))
       .join('\n')
-    // Neither the event store's file nor the catalog.
     expect(mcp).not.toMatch(/usage\.sqlite|usage_events|core\/usage/)
   })
 })

@@ -5,7 +5,6 @@ const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).ge
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
 const header = (page: Page) => page.locator('.list .headline')
 
-// "\u540c\u6b65\u65b9\u6848" is a Chinese title ("sync plan"); "\u540c\u6b65" its first word.
 const SYNC_PLAN = '\u540c\u6b65\u65b9\u6848'
 
 async function createNote(page: Page, title: string, body = '') {
@@ -38,7 +37,6 @@ test('finds notes by title and body, in English and Chinese', async ({ page }) =
   await search(page).fill('\u540c\u6b65')
   await expect(noteRows(page)).toHaveText([new RegExp(`^${SYNC_PLAN}`)])
 
-  // Escape clears the search and shows the library again.
   await search(page).press('Escape')
   await expect(header(page)).toHaveText('All Notes')
   await expect(noteRows(page)).toHaveCount(3)
@@ -109,7 +107,6 @@ test('pinned: narrows the list, and a malformed value is searched as text', asyn
   await expect(noteRows(page)).toHaveText([/^Loose plan/])
   await search(page).fill('plan -pinned:false')
   await expect(noteRows(page)).toHaveText([/^Pinned plan/])
-  // Not a pinned value: the text "pinned:maybe" is searched for.
   await search(page).fill('plan pinned:maybe')
   await expect(noteRows(page)).toHaveCount(0)
 })
@@ -125,7 +122,6 @@ test('the syntax help opens from its button, and Escape closes it before clearin
   await expect(help).toContainText('-status:')
   await expect(help).toContainText('bookId:ID')
 
-  // The first Escape closes the help and keeps the query; the next clears it.
   await search(page).focus()
   await page.keyboard.press('Escape')
   await expect(help).toBeHidden()

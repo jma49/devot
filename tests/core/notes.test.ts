@@ -34,7 +34,6 @@ function service(path: string, node = 'mac1'): { notes: NoteService; storage: Sq
   return { notes, storage }
 }
 
-/** An editor replica that forwards its edits to the service, like the UI does. */
 async function editorFor(notes: NoteService, id: string) {
   const doc = new Y.Doc()
   Y.applyUpdate(doc, (await notes.open(id)).state, 'remote')
@@ -167,7 +166,6 @@ describe('replacing a body', () => {
     await editor.settled()
     const base = (await notes.open(id)).state
 
-    // A replica edits from the same base while the body is replaced.
     const replica = new Y.Doc()
     Y.applyUpdate(replica, base)
     replica.getText(BODY).insert(8, '!')
@@ -175,7 +173,6 @@ describe('replacing a body', () => {
     await notes.applyUpdate(id, Y.encodeStateAsUpdate(replica))
     await notes.flush()
 
-    // A whole-text rewrite would have moved the replica's edit out of place.
     expect((await storage.getNote(id))!.bodyMd).toBe('Howdy wo!rld')
   })
 
@@ -219,11 +216,9 @@ describe('titles', () => {
     await notes.setTitle(id, `${smile.repeat(MAX_TITLE_CHARS - 1)}a${smile}`)
     await notes.flush()
     expect((await storage.getNote(id))?.title).toBe(`${smile.repeat(MAX_TITLE_CHARS - 1)}a`)
-    // A title is one line.
     await notes.setTitle(id, 'two\nlines\r\nhere')
     await notes.flush()
     expect((await storage.getNote(id))?.title).toBe('two lines here')
-    // A new note's title too.
     const made = await notes.create('y'.repeat(MAX_TITLE_CHARS + 50))
     expect((await storage.getNote(made))?.title).toBe('y'.repeat(MAX_TITLE_CHARS))
   })
@@ -232,7 +227,6 @@ describe('titles', () => {
     const { notes, storage } = service(freshPath())
     const id = await notes.create('Short')
     await notes.release(id)
-    // Stored past the limit (by an older build, say).
     const long = 'x'.repeat(MAX_TITLE_CHARS + 500)
     storage.db.prepare('UPDATE notes SET title = ? WHERE id = ?').run(long, id)
     await notes.setBody(id, 'typed later')
@@ -303,7 +297,6 @@ describe('hand-set dates', () => {
     await app.notes.flush()
     const stale = (await app.storage.getNote(id))!
     await app.notes.setDates(id, { createdAt: MAR_1, updatedAt: MAR_2 })
-    // Another process writes its older copy (no dates HLC) on the current body.
     const current = (await app.storage.getNote(id))!
     await app.storage.putNote({ ...stale, bodyVersion: current.bodyVersion, updatedAt: MAR_1 })
     const stored = (await app.storage.getNote(id))!

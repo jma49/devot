@@ -1,28 +1,15 @@
 import type { Page } from '@playwright/test'
 
-// Render counting for UI tests, through the hook React offers its developer
-// tools (React reports every commit to it). A component counts as rendered
-// in a commit when its fiber holds props or hook state not seen before: a
-// render makes both anew, while a component React skipped keeps the old ones.
-
-/** The page's globals these helpers use. */
 interface RenderWindow {
   devotRenders: Record<string, number>
-  /** Note writes to the test storage so far (each one a save). */
   devotNoteWrites: number
 }
 
-/**
- * Counts the renders of the components named (function names, as the dev
- * server keeps them) from the next page load on, and the note writes the
- * test storage makes. Call before `page.goto`.
- */
 export async function countRenders(page: Page, names: readonly string[]): Promise<void> {
   await page.addInitScript((watched) => {
     const w = globalThis as unknown as RenderWindow & Record<string, unknown>
     w.devotRenders = Object.fromEntries(watched.map((name) => [name, 0]))
     w.devotNoteWrites = 0
-    // Each write of the notes key is one note written (memory storage).
     const storage = (globalThis as unknown as { Storage: { prototype: Record<string, unknown> } })
       .Storage.prototype
     const setItem = storage['setItem'] as (this: unknown, key: string, value: string) => void
@@ -75,7 +62,6 @@ export async function countRenders(page: Page, names: readonly string[]): Promis
   }, names)
 }
 
-/** Renders counted so far, by component name, and note writes. */
 export function renderCounts(
   page: Page,
 ): Promise<{ renders: Record<string, number>; writes: number }> {
@@ -85,7 +71,6 @@ export function renderCounts(
   })
 }
 
-/** Starts counting renders and note writes from zero. */
 export function resetRenderCounts(page: Page): Promise<void> {
   return page.evaluate(() => {
     const w = globalThis as unknown as RenderWindow

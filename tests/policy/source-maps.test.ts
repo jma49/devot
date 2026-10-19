@@ -75,7 +75,6 @@ describe('upload settings', () => {
   })
 
   it('name the release as the app does', () => {
-    // Cargo.toml's version, as Rust reports it (tests/policy/release.test.ts).
     const cargo = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8')
     const version = /\[package\][^[]*?\nversion = "([^"]+)"/.exec(cargo)?.[1]
     expect(releaseName(root)).toBe(`devot@${version}`)
@@ -91,7 +90,6 @@ describe('source map checks', () => {
       'assets/a.js.map': '{}',
       'assets/b.css': 'p{}\n/*# sourceMappingURL=b.css.map */\n',
       'assets/old.js': 'f()\n//@ sourceMappingURL=old.js.map',
-      // Text that only mentions the comment is not one.
       'assets/clean.js': 'const s = "//# sourceMappingURL=x"; //# debugId=1\n',
       'assets/w/c.mjs.map': '{}',
     })
@@ -124,7 +122,6 @@ describe('source map checks', () => {
     const plain = join(dir, 'release/devot.dSYM')
     const triple = join(dir, 'aarch64-apple-darwin/release/devot.dSYM')
     const DWARF = 'Contents/Resources/DWARF'
-    /** A build in `release`: the binary and its dSYM, written at `time`. */
     function build(release: string, time: number) {
       const at = new Date(time)
       tree(join(dir, release), {
@@ -135,7 +132,6 @@ describe('source map checks', () => {
         utimesSync(join(dir, release, path), at, at)
       }
     }
-    /** Sets the dSYM folder's own time, which rebuilds leave alone. */
     function folderTime(dsym: string, time: number) {
       const at = new Date(time)
       for (const path of [dsym, join(dsym, 'Contents'), join(dsym, 'Contents/Resources')]) {
@@ -154,7 +150,6 @@ describe('source map checks', () => {
     })
 
     it('takes the build made last, whatever the dSYM folders say', () => {
-      // A plain build first, then a --target build, then the plain one again.
       build('release', 1_000_000)
       build('aarch64-apple-darwin/release', 2_000_000)
       folderTime(plain, 1_000_000)
@@ -177,7 +172,6 @@ describe('source map checks', () => {
   })
 })
 
-/** A sentry-cli stand-in: logs each call and the source maps present then. */
 function fakeCli(name: string, failOn?: string): { cli: string; log: string } {
   const cli = join(work, `${name}-sentry-cli.mjs`)
   const log = join(work, `${name}-calls.jsonl`)
@@ -214,7 +208,6 @@ function calls(log: string): Call[] {
     .map((line) => JSON.parse(line) as Call)
 }
 
-/** Runs a release script with only the given Sentry settings. */
 function runScript(script: string, cli: string, env: Record<string, string>, args: string[] = []) {
   const clean = Object.fromEntries(
     Object.entries(process.env).filter(
@@ -230,7 +223,6 @@ function runScript(script: string, cli: string, env: Record<string, string>, arg
       ...clean,
       DEVOT_SENTRY_DSN: '',
       DEVOT_SENTRY_CLI: cli,
-      // Were the fake ever bypassed, sentry-cli would find nothing here.
       SENTRY_URL: 'http://127.0.0.1:9',
       ...env,
     },
@@ -253,7 +245,6 @@ describe('release UI build', () => {
         ['sourcemaps', 'inject', out],
         ['sourcemaps', 'upload', '--release', releaseName(root), out],
       ])
-      // The maps existed while sentry-cli ran; the token went by environment.
       expect(made[1]!.maps).toBeGreaterThan(10)
       for (const call of made) {
         expect(call.env).toEqual(Object.values(SETTINGS))
@@ -303,8 +294,6 @@ describe('release UI build', () => {
     'removes the maps when the build itself fails after writing them',
     () => {
       const out = join(work, 'dist-broken')
-      // The app's config plus a plugin that, once every file is written,
-      // counts the maps and fails.
       const config = join(work, 'broken.vite.config.ts')
       const counted = join(work, 'broken-maps.txt')
       writeFileSync(
@@ -346,7 +335,6 @@ export default mergeConfig(base, {
     "leaves the UI tests' storage out, whatever VITE_DEVOT_STORAGE says",
     () => {
       const out = join(work, 'dist-storage')
-      // The old switch, in .env.local and in the environment, does nothing.
       const envDir = mkdtempSync(join(work, 'storage-env-'))
       writeFileSync(join(envDir, '.env.local'), 'VITE_DEVOT_STORAGE=memory\n')
       const config = join(work, 'storage.vite.config.ts')
@@ -376,7 +364,6 @@ export default mergeConfig(base, { envDir: ${JSON.stringify(envDir)} })
       const run = runScript('ui.ts', cli, SETTINGS, ['--out-dir', out, '--config', config])
       expect(run.status).not.toBe(0)
       expect(run.stderr).toContain('E_TEST_STORAGE_IN_RELEASE')
-      // The check finds the storage in a real bundle that holds it.
       expect(testStorageLeaks(out).length).toBeGreaterThan(0)
       expect(calls(log)).toEqual([])
       expect(sourceMapLeaks(out)).toEqual([])

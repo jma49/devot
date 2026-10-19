@@ -154,7 +154,6 @@ describe('token compiler', () => {
   describe('built-in themes', () => {
     const { css, ts } = compile(base, light, dark, [ivory])
 
-    /** The declarations of the rule that opens with `selector`. */
     const rule = (selector: string) => {
       const start = css.indexOf(`${selector} {`)
       expect(start > -1 ? '' : `missing rule ${selector}`).toBe('')
@@ -165,7 +164,6 @@ describe('token compiler', () => {
     it('leaves the default theme as it is, with or without other themes', () => {
       const plain = compile(base, light, dark)
       expect(plain.css).not.toContain('data-theme')
-      // The default theme's rules come first, as the same text.
       expect(css.startsWith(plain.css.trimEnd())).toBe(true)
       expect(ts.startsWith(plain.ts.split('export type ThemeColor')[0]!.trimEnd())).toBe(true)
     })
@@ -200,7 +198,6 @@ describe('token compiler', () => {
         ":root[data-appearance='light'], [data-appearance-preview='light'] {",
       )
       expect(css.indexOf(":root[data-theme='ivory'] {")).toBeGreaterThan(lastDefault)
-      // The dark rules name the theme and the appearance: more than a default rule's one attribute.
       expect(css).toContain(":root[data-theme='ivory'][data-appearance='dark']")
     })
 

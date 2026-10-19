@@ -1,7 +1,5 @@
 import { expect, openSettings, test, type TestWindow } from './fixtures'
 
-// Clearing the usage data from the keyboard leaves the keyboard on the Clear
-// button, which turns off (aria-disabled) instead of dropping it.
 test('Clear Usage Data keeps the keyboard on its button once nothing is left', async ({ page }) => {
   await page.addInitScript(() => {
     const w = globalThis as unknown as TestWindow
@@ -27,7 +25,6 @@ test('Clear Usage Data keeps the keyboard on its button once nothing is left', a
   await expect(section).toContainText('No usage events are stored.')
   await expect(clear).toBeDisabled()
   await expect(clear).toBeFocused()
-  // Return on a button that is off does nothing.
   await page.keyboard.press('Enter')
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })

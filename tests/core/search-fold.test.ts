@@ -80,7 +80,6 @@ describe('short search terms', () => {
       'аб',
       'ån',
       'ÅN',
-      // Long terms use the index: the same notes.
       'émi',
       'ÉMI',
       'école',
@@ -101,11 +100,8 @@ describe('scans of short terms', () => {
   }
 
   it('skip folding only where folding could change nothing', () => {
-    // `none`: no other character folds to a caseless one; `ascii`: only the
-    // Kelvin sign folds to ASCII from outside it.
     const toCaseless: number[] = []
     const toAscii: number[] = []
-    // And a caseless character folds to itself.
     const unfolded: number[] = []
     for (const c of codePoints()) {
       const folded = foldText(String.fromCodePoint(c))
@@ -167,8 +163,6 @@ describe('scans of short terms', () => {
       if (!resolved) throw new Error('E_TEST_QUERY')
       return (await storage.searchNotes(resolved, limit)).map((n) => ids.get(n.id)!)
     }
-    // What folding the title, a line break and the body finds, in the order
-    // of `order` (the notes' ranks for `merge`, or the list's order).
     const expected = (term: string, field: string, negate: boolean, order: string[]) =>
       order.filter((key) => {
         const [, title, body] = bodies.find((b) => b[0] === key)!
