@@ -15,7 +15,8 @@ it('the launch probe waits for the editor, found by the catalog labels', () => {
   expect(probe).toContain(`let editorLabel = "${en['note.bodyLabel']}"`)
   expect(probe).toContain(`let newNoteLabel = "${en['noteList.newNote']}"`)
   // The editor ends the wait; the shell is only a second number.
-  expect(probe).toMatch(/find\(\$0, editorLabel\)[^\n]*\n[^\n]*print\(/)
+  expect(probe).toMatch(/find\(\$0, waitLabel\)[^\n]*\n[^\n]*print\(/)
+  expect(probe).toContain('?? editorLabel')
   expect(probe).toContain('E_PROBE_TIMEOUT')
 })
 

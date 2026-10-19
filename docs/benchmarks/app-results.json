@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-10-19T06:28:41.985Z",
+  "app": {
+    "version": "0.9.2-beta1",
+    "path": "/Applications/Devot.app"
+  },
+  "machine": {
+    "model": "MacBookPro18,3",
+    "cpu": "Apple M1 Pro",
+    "cores": 8,
+    "memoryGB": 16,
+    "os": "macOS 27.2 (Darwin 27.2.0, arm64)"
+  },
+  "samples": {
+    "warm.firstFrameMs": {
+      "n": 5,
+      "median": 666,
+      "p90": 766,
+      "min": 594,
+      "max": 766
+    },
+    "warm.openNoteMs": {
+      "n": 5,
+      "median": 832,
+      "p90": 930,
+      "min": 765,
+      "max": 930
+    },
+    "warm.residentMB": {
+      "n": 5,
+      "median": 286,
+      "p90": 296,
+      "min": 216,
+      "max": 296
+    },
+    "idle.residentMB": {
+      "n": 1,
+      "median": 213,
+      "p90": 213,
+      "min": 213,
+      "max": 213
+    }
+  }
+}

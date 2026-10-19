@@ -36,7 +36,9 @@
     "smoke:quit": "bash scripts/smoke/quit-saves.sh",
     "tokens": "node scripts/tokens/build.ts",
     "grammars": "node scripts/preview/grammars.ts && oxfmt src/core/preview/grammars.ts",
-    "tokens:check": "node scripts/tokens/build.ts --check"
+    "tokens:check": "node scripts/tokens/build.ts --check",
+    "bench": "node scripts/bench/run.ts",
+    "bench:app": "bash scripts/bench/app.sh"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",
