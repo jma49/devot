@@ -154,7 +154,7 @@ test('Cmd-click and Shift-click select several notes; the editor shows a summary
   await expect(body(page)).toHaveCount(0)
 
   await noteRow(page, 'Alpha').click({ modifiers: ['Shift'] })
-  expect(await selectedTitles(page)).toEqual(['Beta', 'Alpha'])
+  await expect.poll(() => selectedTitles(page)).toEqual(['Beta', 'Alpha'])
   await noteRow(page, 'Alpha').click({ modifiers: ['Meta'] })
   await expect(summary(page)).toHaveCount(0)
   await expect(titleField(page)).toHaveValue('Beta')
@@ -206,6 +206,42 @@ test('Shift+arrows extend the selection, Cmd+A selects all, Escape goes back to 
   await page.keyboard.insertText('replaced')
   await expect(body(page)).toHaveText('replaced')
   expect(await selectedTitles(page)).toEqual(['Alpha'])
+})
+
+test('keys and clicks faster than the list renders build on each other (#249)', async ({
+  page,
+}) => {
+  await fourNotes(page)
+  await noteRow(page, 'Delta').click()
+  await expect(titleField(page)).toHaveValue('Delta')
+  // One task, so no render runs between the presses.
+  await page.evaluate(() => {
+    for (let i = 0; i < 3; i += 1)
+      document.activeElement?.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'ArrowDown',
+          code: 'ArrowDown',
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      )
+  })
+  await expect(summary(page).getByRole('heading')).toHaveText('4 Notes Selected')
+  await page.keyboard.press('Escape')
+
+  await page.evaluate(() => {
+    const row = (title: string) =>
+      Array.from(document.querySelectorAll('[role=option]')).find((el) =>
+        el.textContent?.includes(title),
+      ) as HTMLElement
+    const click = (title: string, metaKey: boolean) =>
+      row(title).dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey }))
+    click('Beta', false)
+    click('Alpha', true)
+  })
+  await expect.poll(() => selectedTitles(page)).toEqual(['Beta', 'Alpha'])
+  await expect(summary(page).getByRole('heading')).toHaveText('2 Notes Selected')
 })
 
 test('a held command key does its work once and is stopped, so it never repeats into the menu bar', async ({
@@ -787,7 +823,7 @@ test('a Shift-click that leaves the open note out keeps the keyboard on the clic
   await noteRow(page, 'Delta').click()
   await noteRow(page, 'Beta').click({ modifiers: ['Meta'] })
   await noteRow(page, 'Alpha').click({ modifiers: ['Shift'] })
-  expect(await selectedTitles(page)).toEqual(['Beta', 'Alpha'])
+  await expect.poll(() => selectedTitles(page)).toEqual(['Beta', 'Alpha'])
   // Beta, the anchor, is the open note now; the keyboard stays on Alpha.
   await page.waitForTimeout(200)
   await expect(noteRow(page, 'Alpha')).toBeFocused()

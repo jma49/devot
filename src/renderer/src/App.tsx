@@ -128,6 +128,7 @@ import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, stopCore, type Core } from './core-client'
 import { warmUp } from './warmUp'
+import { startEarlyKeys } from './editor/earlyKeys'
 import { welcomeContent } from './welcome/content'
 import { currentFocusStore, currentSidebarStore, keyboardIsFree } from './focus'
 import { useFocusRescue } from './focusRescue'
@@ -377,12 +378,20 @@ export function App() {
   // Note a navigation is opening until the window shows it: quick Back/Forward/Next/Previous presses step on from it. Each open bumps `opens`; only the latest shows.
   const openingRef = useRef<string | undefined>(undefined)
   const opens = useRef(0)
+  // The title field shows the note being left until the switch lands; typing then would rename that
+  // note or merge with the title that arrives, so it is read-only meanwhile.
+  const [switching, setSwitching] = useState(false)
   const startOpening = (id: string) => {
     openingRef.current = id
+    setSwitching(id !== selected)
     return ++opens.current
   }
+  const stopOpening = () => {
+    openingRef.current = undefined
+    setSwitching(false)
+  }
   useEffect(() => {
-    if (openingRef.current === selected) openingRef.current = undefined
+    if (openingRef.current === selected) stopOpening()
   })
   const focusAfter = useRef<FocusRequest>(undefined)
   const focusAskedAt = useRef(0)
@@ -1274,7 +1283,7 @@ export function App() {
     })
     if (open !== opens.current) return false
     if (title === undefined) {
-      openingRef.current = undefined
+      stopOpening()
       return false
     }
     // The open note's editor stays mounted and does not report its text
@@ -1537,6 +1546,7 @@ export function App() {
 
   const create = async () => {
     if (!core) return
+    startEarlyKeys()
     // Save pending titles first, so the refreshed list shows them.
     await saveEdits(core)
     const id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
@@ -2939,6 +2949,7 @@ export function App() {
               aria-label={t('note.titleLabel')}
               placeholder={t('note.untitled')}
               value={title}
+              readOnly={switching}
               onChange={(e) => rename(e.target.value)}
               onKeyDown={(e) => {
                 // Return finishes the title and goes on to the tags (the body,

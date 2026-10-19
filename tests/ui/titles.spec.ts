@@ -120,7 +120,9 @@ test('Duplicate titles the copy "<title> copy", keeps status and tags, and not t
   await page.keyboard.press('Meta+KeyD')
   await expect(titleField(page)).toHaveValue('Weekly plan copy')
   await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
-  await expect(page.getByRole('group', { name: 'Tags' }).getByText('work')).toBeVisible()
+  await expect(
+    page.getByRole('group', { name: 'Tags' }).getByText('work', { exact: true }),
+  ).toBeVisible()
   await expect.poll(() => openNotePinned(page)).toBe(false)
   await expect
     .poll(async () => (await stored(page)).map((n) => [n.title, n.status, n.pinned]))
