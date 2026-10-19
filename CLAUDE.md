@@ -20,6 +20,7 @@ Rules here hold for every contributor; add shared rules here. Personal or machin
 - UI text is English and comes from the i18n message catalog by key; never inline a user-facing string. No CJK characters anywhere in tracked files (a test enforces it); write CJK test data with `\u` escapes.
 - Rust tools come from rustup. A non-interactive shell may not read your shell profile: put rustup's `bin` folder on `PATH` before running `cargo` (with Homebrew's rustup, `$(brew --prefix rustup)/bin`). The git hooks add the usual locations themselves.
 - Local test runs are capped so a local run leaves the machine usable: Vitest 3 workers (`DEVOT_TEST_WORKERS`), Playwright 2 (`DEVOT_UI_WORKERS`), cargo 4 jobs (`CARGO_BUILD_JOBS`). Raise them with those variables if you like; CI sets its own.
+- Comment sparingly. Names and structure should explain the code; write a comment only for what the code cannot say: a non-obvious reason, a constraint, a workaround with its cause, or a link to an issue or ADR. Never comment what a line does, restate a name or type, narrate a change, or leave commented-out code. Prefer one short line; a doc comment only on exported APIs whose behaviour is not obvious from the signature. When you touch a file, delete comments that break this rule rather than matching them.
 - Repository text (docs, issues, commits, comments, code) describes Devot on its own terms. Never name other note apps as a source or model for Devot.
 
 ## Compact instructions
