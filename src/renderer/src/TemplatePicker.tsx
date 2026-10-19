@@ -1,11 +1,7 @@
 import { fieldStep } from './Picker'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import {
-  STARTER_TEMPLATES,
-  type BookRecord,
-  type NoteSummary,
-  type TemplateDraft,
-} from '../../core'
+import type { BookRecord, NoteSummary, TemplateDraft } from '../../core'
+import { STARTER_TEMPLATES } from '../../core/starterTemplates'
 import { headline } from '../../core/extract'
 import type { Core } from './core-client'
 import { displayTitle, useHeadlines, type HeadlineLoader } from './headlines'
