@@ -2048,7 +2048,7 @@ pub fn print_note_in_window(
 pub fn system_paper() -> Paper {
     let width = NSPrintInfo::sharedPrintInfo().paperSize().width;
     let region = NSLocale::currentLocale()
-        .countryCode()
+        .regionCode()
         .map(|code| code.to_string());
     crate::page_setup::default_paper(Some(width), region.as_deref())
 }
