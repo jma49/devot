@@ -119,6 +119,17 @@ dialog[open].palette {
   animation: fade-in var(--motion-duration-backdrop) var(--motion-easing-standard);
 }
 
+/* Reopened while its dim faded (dialogMotion.ts): a new animation name restarts the fade from there. */
+:is(.confirm, .sheet, .link-dialog)[data-backdrop-from]::backdrop {
+  animation-name: backdrop-resume;
+}
+
+@keyframes backdrop-resume {
+  from {
+    opacity: var(--backdrop-from, 0);
+  }
+}
+
 dialog[open][data-closing='dialog'] {
   position: fixed;
   inset: 0;

@@ -3,8 +3,8 @@
 // reach them). Durations, curves and the scales are design tokens; Reduce
 // Motion sets `--popover-enter-scale` and `--popover-exit-scale` to 1
 // (app.css), so a pop-up then only fades.
-import { ViewPlugin } from '@codemirror/view'
-import { dropClosingCopies, leaveClosingCopy, tooltipMotion } from '../closing'
+import { ViewPlugin, type EditorView } from '@codemirror/view'
+import { leaveClosingCopy, rememberScrolls, takeOverClosingCopy, tooltipMotion } from '../closing'
 
 export const motionKeyframes = {
   '@keyframes cm-popover-in': {
@@ -52,12 +52,33 @@ const tooltipKind = (el: HTMLElement) =>
   el.classList.contains('cm-float-bar') ? 'cm-float-bar' : 'cm-tooltip-autocomplete'
 
 /**
+ * The element CodeMirror puts tooltips in when they have a `parent` (a
+ * `tooltips()` option): a box with only the theme's classes, beside an
+ * element around the editor.
+ */
+function tooltipContainer(view: EditorView): HTMLElement | null {
+  for (let el = view.dom.parentElement; el; el = el.parentElement) {
+    for (const child of Array.from(el.children)) {
+      if (
+        child !== view.dom &&
+        child instanceof HTMLElement &&
+        child.className === view.themeClasses
+      )
+        return child
+    }
+  }
+  return null
+}
+
+/**
  * Leaves a fading copy of a floating bar or completion list when CodeMirror
- * takes it out (it removes a tooltip's element at once), and drops it when
- * one of its kind opens again. Watches the element tooltips are added to,
- * the editor's own.
+ * takes it out (it removes a tooltip's element at once), and hands over from
+ * it when one of its kind opens again. Watches the elements tooltips are
+ * added to: the editor's own, and the box they go in when given a parent.
  */
 export const closingTooltips = ViewPlugin.define((view) => {
+  const forgets: (() => void)[] = []
+  const watched = new Set<Node>()
   const watch = new MutationObserver((records) => {
     for (const record of records) {
       for (const node of Array.from(record.removedNodes)) {
@@ -71,10 +92,32 @@ export const closingTooltips = ViewPlugin.define((view) => {
       }
       for (const node of Array.from(record.addedNodes)) {
         if (!(node instanceof HTMLElement) || node.dataset['closing'] !== undefined) continue
-        if (tooltipMotion(node.classList)) dropClosingCopies(view.dom, tooltipKind(node))
+        if (tooltipMotion(node.classList))
+          takeOverClosingCopy(node, node.parentElement, tooltipKind(node))
       }
     }
   })
-  watch.observe(view.dom, { childList: true })
-  return { destroy: () => watch.disconnect() }
+  const watchIn = (container: HTMLElement) => {
+    if (watched.has(container)) return
+    watched.add(container)
+    watch.observe(container, { childList: true })
+    // Offsets read after CodeMirror detaches a list are 0, so they are noted as it scrolls.
+    forgets.push(rememberScrolls(container))
+  }
+  const findContainer = () => {
+    const container = tooltipContainer(view)
+    if (container) watchIn(container)
+    return container !== null
+  }
+  watchIn(view.dom)
+  let found = findContainer()
+  return {
+    update: () => {
+      if (!found) found = findContainer()
+    },
+    destroy: () => {
+      watch.disconnect()
+      for (const forget of forgets) forget()
+    },
+  }
 })

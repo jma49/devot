@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 // pull in the rest of the core.
 import { ACTIVITY_LEVELS, DAY_MS, weekday, type ActivityHeatmap } from '../../core/activity'
 import { errorCode } from './backups'
+import { sheetOpen } from './commands/dispatch'
 import type { Core } from './core-client'
 import { countOf } from './format'
 import { currentLocale, format, t } from './i18n'
@@ -16,7 +17,7 @@ export function useActivityMenu(open: () => void) {
   })
   useEffect(() => {
     const show = () => {
-      if (!document.querySelector('dialog[open]')) latest.current()
+      if (!sheetOpen()) latest.current()
     }
     window.addEventListener(SHOW_ACTIVITY, show)
     let stopped = false

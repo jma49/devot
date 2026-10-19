@@ -3,8 +3,11 @@ import { isImeKey } from '../ime'
 import { rememberKey } from './keys'
 import { windowCommand, type CommandHandlers } from './registry'
 
-/** Whether a modal sheet (a `<dialog>`) is up; window commands wait for it to close. */
-export const sheetOpen = () => document.querySelector('dialog[open]') !== null
+/**
+ * Whether a modal sheet (a `<dialog>`) is up; window commands wait for it to
+ * close. A closing dialog's fading copy (dialogMotion.ts) is not one.
+ */
+export const sheetOpen = () => document.querySelector('dialog[open]:not([data-closing])') !== null
 
 export function inEditor(element: EventTarget | null): boolean {
   return element instanceof Element && element.closest('[data-devot-part="editor-body"]') !== null
