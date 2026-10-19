@@ -6,6 +6,7 @@ import { displayTitles } from '../headlines'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
+import { expand } from '../resizeMotion'
 import {
   backlinksOpen,
   dateInputValue,
@@ -199,6 +200,9 @@ export function NoteInfo(props: {
           open={open}
           onToggle={(event) => {
             const now = event.currentTarget.open
+            // Opened by the user (not shown open): the list grows in.
+            const list = event.currentTarget.querySelector('ul')
+            if (now && !open && list) expand(list)
             setOpen(now)
             setBacklinksOpen(now)
           }}

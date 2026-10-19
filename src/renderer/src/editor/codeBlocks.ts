@@ -31,7 +31,7 @@ import { context, TOOLBAR_PARSE_MS } from './formatContext'
 import { barsMayShow } from './barRules'
 import { markerField, type MarkerScan } from './gutterMarkers'
 import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
-import { fadeIn, motionKeyframes } from './motion'
+import { buttonIn, motionKeyframes } from './motion'
 import { withLook } from './popupLook'
 import { toolbarStateExtension } from './toolbarState'
 
@@ -600,8 +600,8 @@ const theme = EditorView.theme({
     background: 'var(--color-fill-button)',
     color: 'var(--color-text-secondary)',
     cursor: 'default',
-    // A control over the text: it fades in, and its colour eases.
-    animation: fadeIn,
+    // A control over the text: it grows a little as it fades in, and its colour eases.
+    animation: buttonIn,
     transition: 'color var(--motion-duration-color) var(--motion-easing-standard)',
   },
   '.cm-codeblock-copy:hover': { color: 'var(--color-text-primary)' },

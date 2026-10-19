@@ -56,21 +56,26 @@ it('the motion pattern catches literals and leaves tokens alone', () => {
   expect(tokens.filter(hasMotionLiteral)).toEqual([])
 })
 
-it('pop-ups grow and shrink only through the scale variables, which Reduce Motion sets to 1', () => {
+it('things grow and shrink only through the scale variables, which Reduce Motion sets to 1', () => {
   const scales = files(UI_ROOT)
     .filter(isColorChecked)
     .flatMap((file) => readFileSync(file, 'utf8').match(/(?<![\w-])scale[:(][^;\n]*/g) ?? [])
   expect(scales.length).toBeGreaterThan(0)
   expect(
-    scales.filter((s) => !/var\(--(popover-(enter|exit)|dialog-enter)-scale\)/.test(s)),
+    // At rest a thing is at its own size (`scale: 1`).
+    scales.filter(
+      (s) => !/var\(--(popover-(enter|exit)|dialog-enter|chip-enter)-scale\)|^scale: 1$/.test(s),
+    ),
   ).toEqual([])
 
   const css = readFileSync(`${UI_ROOT}/app.css`, 'utf8')
   expect(css).toMatch(/--popover-enter-scale:\s*var\(--motion-scale-popover-enter\)/)
   expect(css).toMatch(/--popover-exit-scale:\s*var\(--motion-scale-popover-exit\)/)
   expect(css).toMatch(/--dialog-enter-scale:\s*var\(--motion-scale-dialog-enter\)/)
+  expect(css).toMatch(/--chip-enter-scale:\s*var\(--motion-scale-chip-enter\)/)
   const reduced = css.split('@media (prefers-reduced-motion: reduce)').slice(1).join('')
   expect(reduced).toMatch(/--popover-enter-scale:\s*1;/)
   expect(reduced).toMatch(/--popover-exit-scale:\s*1;/)
   expect(reduced).toMatch(/--dialog-enter-scale:\s*1;/)
+  expect(reduced).toMatch(/--chip-enter-scale:\s*1;/)
 })

@@ -57,6 +57,7 @@ import { NotebookIconDialog } from './NotebookIconDialog'
 import { SidebarFooter } from './SidebarFooter'
 import { setDragCard } from './listDrag'
 import { conceal, reveal, slideIn } from './reveal'
+import { useRowMotion } from './rowMotion'
 import { currentSectionStore, type CollapsibleSection, type SectionStore } from './sidebarSections'
 import { TagDot } from './TagEditor'
 import { TagSettingsDialog } from './TagSettingsDialog'
@@ -380,6 +381,16 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       deeper ? 1 : -1,
     )
   })
+  // Notebooks and tags that come, go or move slide and fade (rowMotion.ts).
+  const motionKeys = useMemo(
+    () => [
+      ...flattenBookTree(tree).map((n) => `book:${n.id}`),
+      ...props.tags.map((tag) => `tag:${tag.id}`),
+    ],
+    [tree, props.tags],
+  )
+  const sidebarElement = () => nav.current
+  useRowMotion(sidebarElement, 'data-motion-key', motionKeys, ws?.book.id ?? '', 'slide')
   // Status and Tags fold, and so do notebooks; the choice is a view preference kept per window.
   const sections = useMemo(() => props.sectionStore ?? currentSectionStore(), [props.sectionStore])
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => sections.loadBooks())
@@ -959,6 +970,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         <li
           style={{ '--book-depth': node.depth } as CSSProperties}
           data-sidebar-row={row['data-sidebar-row']}
+          data-motion-key={`book:${node.id}`}
           ref={(el) => {
             row.ref(el)
             if (el) rows.current.set(node.id, el)
@@ -1372,6 +1384,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                 {props.tags.map((tag) => (
                   <li
                     key={tag.id}
+                    data-motion-key={`tag:${tag.id}`}
                     onDoubleClick={() => setEditingTag(tag.id)}
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget.firstElementChild) return

@@ -28,6 +28,9 @@ export const popoverIn =
  */
 export const fadeIn = 'cm-fade-in var(--motion-duration-fade) var(--motion-easing-standard)'
 
+/** A button over the text (a code block's copy button) grows a little as it fades in. */
+export const buttonIn = 'cm-popover-in var(--motion-duration-toggle) var(--motion-easing-standard)'
+
 /** A button tooltip only fades, as the app's other tooltips (`.tool-tip`). */
 export const tipIn = 'cm-fade-in var(--motion-duration-popover) var(--motion-easing-standard)'
 

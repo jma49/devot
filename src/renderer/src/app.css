@@ -10,8 +10,12 @@
   --popover-enter-scale: var(--motion-scale-popover-enter);
   /* They shrink to this scale, back toward the notch or anchor, as they fade out. */
   --popover-exit-scale: var(--motion-scale-popover-exit);
-  /* A modal dialog grows from this scale around its centre as it fades in. */
+  /* A modal dialog grows from this scale around its centre as it fades in,
+     out of this blur, and blurs again as it fades out. */
   --dialog-enter-scale: var(--motion-scale-dialog-enter);
+  --dialog-blur: var(--motion-blur-dialog);
+  /* A tag chip pops in from this scale as it is added. */
+  --chip-enter-scale: var(--motion-scale-chip-enter);
   --popover-shadow:
     0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
     0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
@@ -23,6 +27,8 @@
     --popover-enter-scale: 1;
     --popover-exit-scale: 1;
     --dialog-enter-scale: 1;
+    --dialog-blur: 0px;
+    --chip-enter-scale: 1;
   }
 }
 
@@ -36,7 +42,59 @@
 @keyframes dialog-in {
   from {
     opacity: 0;
+    filter: blur(var(--dialog-blur));
     scale: var(--dialog-enter-scale);
+  }
+}
+
+@keyframes dialog-out {
+  to {
+    opacity: 0;
+    filter: blur(var(--dialog-blur));
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* A menu unfolding from the edge it hangs from, and folding back. The clip
+   reaches past the menu's edges so its shadow shows throughout. */
+@keyframes menu-unfold {
+  from {
+    clip-path: inset(var(--menu-clip) var(--menu-clip) 100% var(--menu-clip));
+  }
+  to {
+    clip-path: inset(var(--menu-clip));
+  }
+}
+
+@keyframes menu-fold {
+  from {
+    clip-path: inset(var(--menu-clip));
+  }
+  to {
+    clip-path: inset(var(--menu-clip) var(--menu-clip) 100% var(--menu-clip));
+  }
+}
+
+@keyframes menu-fold-up {
+  from {
+    clip-path: inset(var(--menu-clip));
+  }
+  to {
+    clip-path: inset(100% var(--menu-clip) var(--menu-clip) var(--menu-clip));
+  }
+}
+
+@keyframes menu-unfold-up {
+  from {
+    clip-path: inset(100% var(--menu-clip) var(--menu-clip) var(--menu-clip));
+  }
+  to {
+    clip-path: inset(var(--menu-clip));
   }
 }
 
@@ -74,6 +132,23 @@ dialog[open].palette {
 .link-dialog::backdrop {
   background: var(--color-fill-backdrop);
   animation: fade-in var(--motion-duration-backdrop) var(--motion-easing-standard);
+}
+
+/* A closed dialog's copy (dialogMotion.ts) blurs and fades where the dialog
+   was, over a copy of its dim that fades out more slowly. */
+dialog[open][data-closing='dialog'] {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  animation: dialog-out var(--motion-duration-dialog) var(--motion-easing-standard) forwards;
+}
+
+.dialog-backdrop[data-closing] {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: var(--color-fill-backdrop);
+  animation: fade-out var(--motion-duration-backdrop-exit) var(--motion-easing-standard) forwards;
 }
 
 html,
@@ -258,11 +333,45 @@ button {
     border-color var(--motion-duration-hover) var(--motion-easing-out),
     box-shadow var(--motion-duration-hover) var(--motion-easing-out),
     color var(--motion-duration-hover) var(--motion-easing-out),
-    opacity var(--motion-duration-hover) var(--motion-easing-out);
+    opacity var(--motion-duration-hover) var(--motion-easing-out),
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
+    outline-offset var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+/* A sidebar row answers the pointer quickly. */
+.sidebar :is(.source, .book-row) {
+  transition-duration: var(--motion-duration-quick);
+  transition-timing-function: var(--motion-easing-quick);
+}
+
+/* A field's focus ring (its edge) comes as quickly as a button's. */
+:is(
+  .search-field,
+  .find-field,
+  .link-dialog-field,
+  .tag-input,
+  .shortcuts-search,
+  .settings-number
+):focus-within {
+  transition-duration: var(--motion-duration-quick);
+  transition-timing-function: var(--motion-easing-quick);
 }
 
 /* The keyboard is on a button: the focus ring on its edge (a segment sits
-   inside its frame, which clips, so its ring is drawn just inside). */
+   inside its frame, which clips, so its ring is drawn just inside). The ring
+   closes in on the edge as it comes. */
+:is(.tool, .button, .popup, .segment, .search-clear) {
+  outline-color: transparent;
+  outline-offset: var(--size-focus-ring);
+}
+
+/* Reduce Motion: the ring only fades in, on the edge. */
+@media (prefers-reduced-motion: reduce) {
+  :is(.tool, .button, .popup, .segment, .search-clear) {
+    outline-offset: 0;
+  }
+}
+
 :is(.tool, .button, .popup, .segment, .search-clear):focus-visible {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: 0;
@@ -1232,6 +1341,13 @@ button {
   display: block;
   height: 100%;
   background: var(--color-accent-fill);
+  transition: width var(--motion-duration-grow) var(--motion-easing-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-fill {
+    transition: none;
+  }
 }
 
 /* Tags on a row: small outlined pills. */
@@ -1244,6 +1360,20 @@ button {
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption2);
   line-height: 1.5;
+}
+
+/* A tag just added pops in (TagEditor.tsx). */
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    scale: var(--chip-enter-scale);
+  }
+}
+
+.chip[data-added] {
+  animation:
+    chip-in var(--motion-duration-grow) var(--motion-easing-spring),
+    fade-in var(--motion-duration-grow) var(--motion-easing-standard);
 }
 
 .chip {
@@ -1755,6 +1885,23 @@ button {
   overflow: clip;
 }
 
+/* A theme or appearance change: the panes' washes and edges ease into the new colours. */
+.sidebar,
+.list,
+.content {
+  transition:
+    background-color var(--motion-duration-color) var(--motion-easing-standard),
+    border-color var(--motion-duration-color) var(--motion-easing-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .list,
+  .content {
+    transition: none;
+  }
+}
+
 .window[data-sidebar-hidden] > .sidebar,
 .window[data-focus] > .sidebar,
 .window[data-focus] > .list {
@@ -2136,8 +2283,10 @@ button {
   box-shadow: 0 0 0 0.5px var(--color-line-hairline);
   color: var(--color-text-secondary);
   opacity: 0;
+  scale: var(--popover-enter-scale);
   transition:
-    opacity var(--motion-duration-fade) var(--motion-easing-standard),
+    opacity var(--motion-duration-toggle) var(--motion-easing-standard),
+    scale var(--motion-duration-toggle) var(--motion-easing-standard),
     color var(--motion-duration-color) var(--motion-easing-standard);
 }
 
@@ -2163,6 +2312,7 @@ button {
 .code-copy:focus-visible,
 .code-copy:not([data-state='idle']) {
   opacity: 1;
+  scale: 1;
 }
 
 .code-copy:hover {
@@ -3972,11 +4122,22 @@ button.popup:focus-visible {
   font-weight: var(--font-weight-regular);
   list-style: none;
   box-shadow: var(--popover-shadow);
-  /* Grows out of the button it hangs from, on its own layer so text does not shimmer. */
+  /* Grows out of the button it hangs from, on its own layer so text does not
+     shimmer, unfolding to its height. */
   transform: translateZ(0);
   transform-origin: top left;
   backface-visibility: hidden;
-  animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
+  --menu-clip: calc(-1 * var(--shadow-popover-ambient-blur));
+  animation:
+    popover-in var(--motion-duration-popover) var(--motion-easing-standard),
+    menu-unfold var(--motion-duration-toggle) var(--motion-easing-standard);
+}
+
+/* Closing, a menu fades as it folds back to the edge it hangs from. */
+:is(.picker-popover, .tag-suggestions)[data-closing][data-closing-motion='scale'] {
+  animation:
+    fade-out var(--motion-duration-toggle) var(--motion-easing-standard) forwards,
+    menu-fold var(--motion-duration-toggle) var(--motion-easing-standard) forwards;
 }
 
 /* With no room below its button a picker opens over it, growing out of the button's top edge. */
@@ -3984,6 +4145,28 @@ button.popup:focus-visible {
   top: auto;
   bottom: calc(100% + var(--space-2));
   transform-origin: bottom left;
+  animation:
+    popover-in var(--motion-duration-popover) var(--motion-easing-standard),
+    menu-unfold-up var(--motion-duration-toggle) var(--motion-easing-standard);
+}
+
+.picker-popover[data-side='above'][data-closing][data-closing-motion='scale'] {
+  animation:
+    fade-out var(--motion-duration-toggle) var(--motion-easing-standard) forwards,
+    menu-fold-up var(--motion-duration-toggle) var(--motion-easing-standard) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picker-popover,
+  .tag-suggestions,
+  .picker-popover[data-side='above'] {
+    animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
+  }
+
+  :is(.picker-popover, .tag-suggestions)[data-closing][data-closing-motion='scale'],
+  .picker-popover[data-side='above'][data-closing][data-closing-motion='scale'] {
+    animation: fade-out var(--motion-duration-toggle) var(--motion-easing-standard) forwards;
+  }
 }
 
 .picker-search {
@@ -4124,12 +4307,6 @@ button.popup:focus-visible {
 
 .tool-tip[data-closing] {
   animation: fade-out var(--motion-duration-popover) var(--motion-easing-standard) forwards;
-}
-
-@keyframes fade-out {
-  to {
-    opacity: 0;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -62,7 +62,7 @@ export function conceal(el: HTMLElement | undefined, done: () => void): void {
 }
 
 /** How far the sidebar's rows slide when a workspace opens or closes, in pixels. */
-const SLIDE_PX = 24
+const SLIDE_PX = 80
 
 /** A slide in from the right (`1`: deeper, into a workspace) or the left (`-1`: back out), fading in. */
 export const slideFrames = (from: 1 | -1): Keyframe[] => [
@@ -74,8 +74,8 @@ export const slideFrames = (from: 1 | -1): Keyframe[] => [
 export function slideTiming(reduced: boolean): KeyframeAnimationOptions | null {
   if (reduced) return null
   return {
-    duration: Number.parseFloat(sizes['motion.duration.pane']),
-    easing: sizes['motion.easing.standard'],
+    duration: Number.parseFloat(sizes['motion.duration.slide']),
+    easing: sizes['motion.easing.slide'],
   }
 }
 

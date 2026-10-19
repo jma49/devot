@@ -33,17 +33,17 @@ describe('a section closing', () => {
 })
 
 describe('the sidebar sliding to or from a workspace', () => {
-  it('slides over the pane duration on the standard curve, and not under Reduce Motion', () => {
+  it('slides over 400 ms on the slide curve, and not under Reduce Motion', () => {
     expect(slideTiming(false)).toEqual({
-      duration: Number.parseFloat(sizes['motion.duration.pane']),
-      easing: sizes['motion.easing.standard'],
+      duration: Number.parseFloat(sizes['motion.duration.slide']),
+      easing: sizes['motion.easing.slide'],
     })
     expect(slideTiming(true)).toBeNull()
   })
 
   it('comes in from the right going deeper and from the left going back, fading in', () => {
-    expect(slideFrames(1)[0]).toEqual({ transform: 'translateX(24px)', opacity: 0 })
-    expect(slideFrames(-1)[0]).toEqual({ transform: 'translateX(-24px)', opacity: 0 })
+    expect(slideFrames(1)[0]).toEqual({ transform: 'translateX(80px)', opacity: 0 })
+    expect(slideFrames(-1)[0]).toEqual({ transform: 'translateX(-80px)', opacity: 0 })
     expect(slideFrames(1)[1]).toEqual({ transform: 'none', opacity: 1 })
   })
 })

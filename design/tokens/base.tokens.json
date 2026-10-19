@@ -1194,7 +1194,7 @@
           "value": 400,
           "unit": "ms"
         },
-        "$description": "A colour change that should be noticed rather than seen: a floating bar button's text, a theme switch."
+        "$description": "A colour change that should be noticed rather than seen: a floating bar button's text, a theme switch across the panes."
       },
       "ring": {
         "$value": {
@@ -1208,28 +1208,21 @@
           "value": 150,
           "unit": "ms"
         },
-        "$description": "A pop-up (bar, menu, tooltip) growing out of its notch or anchor as it fades in."
+        "$description": "A pop-up (bar, menu, tooltip) growing out of its notch or anchor as it fades in; a menu unfolding to its height."
       },
       "fade": {
         "$value": {
           "value": 400,
           "unit": "ms"
         },
-        "$description": "A floating bar (the selection toolbar, the image size bar, a code block's copy button) fading in."
-      },
-      "pane": {
-        "$value": {
-          "value": 220,
-          "unit": "ms"
-        },
-        "$description": "The sidebar's rows sliding in and out as a workspace opens or closes."
+        "$description": "A floating bar (the selection toolbar, the image size bar) or the editor's floating actions fading in or out."
       },
       "slide": {
         "$value": {
           "value": 400,
           "unit": "ms"
         },
-        "$description": "Panes moving to where a hidden or shown sidebar leaves them, and the sidebar fading as it goes or comes."
+        "$description": "Panes moving to where a hidden or shown sidebar leaves them, the sidebar fading as it goes or comes, its rows sliding to and from a workspace, and its notebooks and tags coming, going and moving."
       },
       "inset": {
         "$value": {
@@ -1243,7 +1236,7 @@
           "value": 180,
           "unit": "ms"
         },
-        "$description": "A control's fill and colour coming and going under the pointer or a press: list rows, toolbar buttons, segments, chips, menu rows."
+        "$description": "A control's fill and colour coming and going under the pointer or a press: note list rows, toolbar buttons, segments, chips, menu rows."
       },
       "toggle": {
         "$value": {
@@ -1257,7 +1250,7 @@
           "value": 200,
           "unit": "ms"
         },
-        "$description": "A modal dialog growing and fading in."
+        "$description": "A modal dialog growing and fading in, or blurring and fading out."
       },
       "backdrop": {
         "$value": {
@@ -1273,6 +1266,41 @@
           "unit": "ms"
         },
         "$description": "An icon in a field fading in or out with the field's focus."
+      },
+      "quick": {
+        "$value": {
+          "value": 100,
+          "unit": "ms"
+        },
+        "$description": "A change that should feel immediate: a sidebar row under the pointer, a focus ring arriving."
+      },
+      "insert": {
+        "$value": {
+          "value": 300,
+          "unit": "ms"
+        },
+        "$description": "A note list row growing in or shrinking away as it comes or goes."
+      },
+      "reorder": {
+        "$value": {
+          "value": 450,
+          "unit": "ms"
+        },
+        "$description": "Note list rows sliding to new places when their order changes."
+      },
+      "grow": {
+        "$value": {
+          "value": 300,
+          "unit": "ms"
+        },
+        "$description": "A size change: the image viewer resizing, a progress bar filling, the backlinks opening, a tag chip arriving, a code block's copy button showing."
+      },
+      "backdrop-exit": {
+        "$value": {
+          "value": 400,
+          "unit": "ms"
+        },
+        "$description": "The dim behind a modal dialog fading out as it closes."
       }
     },
     "easing": {
@@ -1288,6 +1316,18 @@
       "slide": {
         "$value": [0.4, 0, 0.1, 1],
         "$description": "Starts gently and settles long: things moving to a new place."
+      },
+      "quick": {
+        "$value": [0.25, 0.1, 0.25, 1],
+        "$description": "A quick start that settles softly (CSS ease)."
+      },
+      "insert": {
+        "$value": [0.25, 0.1, 0.35, 1],
+        "$description": "A row growing in or shrinking away."
+      },
+      "spring": {
+        "$value": [0.34, 1.3, 0.64, 1],
+        "$description": "Overshoots a little and settles, like a light spring."
       }
     },
     "scale": {
@@ -1297,12 +1337,16 @@
         "$description": "The size a pop-up starts at before growing to full size."
       },
       "popover-exit": {
-        "$value": 0.9,
+        "$value": 0.92,
         "$description": "The size a pop-up shrinks to, toward its notch or anchor, as it fades out."
       },
       "dialog-enter": {
         "$value": 0.8,
         "$description": "The size a modal dialog starts at before growing to full size."
+      },
+      "chip-enter": {
+        "$value": 0.5,
+        "$description": "The size a tag chip starts at as it is added."
       }
     },
     "delay": {
@@ -1314,6 +1358,23 @@
           "unit": "ms"
         },
         "$description": "The pointer resting on a toolbar button before its tooltip shows; it hides at once when the pointer leaves or presses."
+      },
+      "idle-hide": {
+        "$value": {
+          "value": 3000,
+          "unit": "ms"
+        },
+        "$description": "The editor's floating actions fade away once the pointer and the keyboard have rested this long."
+      }
+    },
+    "blur": {
+      "$type": "dimension",
+      "dialog": {
+        "$value": {
+          "value": 10,
+          "unit": "px"
+        },
+        "$description": "How blurred a modal dialog is as it fades in and out."
       }
     }
   },

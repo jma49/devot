@@ -37,6 +37,7 @@ import { DRAG_TEMPLATE, setNoteDragData } from './dragData'
 import { useStable } from './stable'
 import { useEditorSetting } from './editorSettings'
 import { NoteRow, type RowEvents } from './NoteRow'
+import { useRowMotion } from './rowMotion'
 import { isImeKey } from './ime'
 
 interface Props {
@@ -182,6 +183,9 @@ export const NoteList = memo(function NoteList(props: Props) {
         : order[0]
   const rows = useRef(new Map<string, HTMLLIElement>())
   const list = useRef<HTMLUListElement>(null)
+  // Notes that come, go or change places in this view move (rowMotion.ts).
+  const listElement = () => list.current
+  useRowMotion(listElement, 'data-note-id', order, props.view, 'grow')
   const now = useNow()
   const locale = currentLocale()
   const dates = useEditorSetting('listDates')

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { format, t } from './i18n'
+import { resizeFrom } from './resizeMotion'
 
 /** An image to show: its address and its alt text. */
 export interface ViewedImage {
@@ -18,6 +19,18 @@ export function ImageViewer({ image, onClose }: { image: ViewedImage; onClose: (
   const dialog = useRef<HTMLDialogElement>(null)
   const close = useRef<HTMLButtonElement>(null)
   const [actual, setActual] = useState(false)
+  // Fit and Actual Size ease the image from the box it had (resizeMotion.ts).
+  const shown = useRef<HTMLImageElement>(null)
+  const zoomedFrom = useRef<DOMRect | null>(null)
+  const zoom = (next: (was: boolean) => boolean) => {
+    zoomedFrom.current = shown.current?.getBoundingClientRect() ?? null
+    setActual(next)
+  }
+  useLayoutEffect(() => {
+    const from = zoomedFrom.current
+    zoomedFrom.current = null
+    if (from && shown.current) resizeFrom(shown.current, from)
+  }, [actual])
   // Read during the first render, before showModal moves focus into the
   // dialog; inside the editor's shadow root, the element that has it there.
   const [opener] = useState(() => {
@@ -78,7 +91,7 @@ export function ImageViewer({ image, onClose }: { image: ViewedImage; onClose: (
             type="button"
             className="segment image-viewer-zoom"
             aria-pressed={!actual}
-            onClick={() => setActual(false)}
+            onClick={() => zoom(() => false)}
           >
             {t('imageViewer.fit')}
           </button>
@@ -86,7 +99,7 @@ export function ImageViewer({ image, onClose }: { image: ViewedImage; onClose: (
             type="button"
             className="segment image-viewer-zoom"
             aria-pressed={actual}
-            onClick={() => setActual(true)}
+            onClick={() => zoom(() => true)}
           >
             {t('imageViewer.actual')}
           </button>
@@ -98,11 +111,12 @@ export function ImageViewer({ image, onClose }: { image: ViewedImage; onClose: (
       {/* Focusable, so the arrow keys scroll an image larger than the window. */}
       <div className="image-viewer-stage" tabIndex={0}>
         <img
+          ref={shown}
           className="image-viewer-image"
           src={image.src}
           alt={image.alt}
           draggable={false}
-          onClick={() => setActual((a) => !a)}
+          onClick={() => zoom((a) => !a)}
         />
       </div>
     </dialog>
