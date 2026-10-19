@@ -178,6 +178,7 @@ pub fn run() {
         .on_window_event(|window, event| {
             exit::on_window_event(window, event);
             deep_link::on_window_event(window, event);
+            updates::on_window_event(window, event);
         })
         .setup(|app| {
             // A launch that fails ends here, explained, never in a panic.

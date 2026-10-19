@@ -24,8 +24,10 @@ pub const STATUS_EVENT: &str = "devot://update-status";
 const FEED_BASE: &str = "https://github.com/jma49/devot/releases/download/updater";
 const FIRST_CHECK: Duration = Duration::from_secs(30);
 const CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+/// Betas ship several times a day.
+const CHECK_EVERY_BETA: Duration = Duration::from_secs(60 * 60);
 /// Wall-clock time, so a Mac that slept through the day checks soon after it wakes.
-const WAKE_EVERY: Duration = Duration::from_secs(60 * 60);
+const WAKE_EVERY: Duration = Duration::from_secs(15 * 60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Channel {
@@ -120,8 +122,35 @@ fn percent(done: u64, total: Option<u64>) -> Option<u8> {
     u8::try_from(done.min(total).saturating_mul(100) / total).ok()
 }
 
-fn due(last: Option<SystemTime>, now: SystemTime) -> bool {
-    last.is_none_or(|at| now.duration_since(at).is_ok_and(|gone| gone >= CHECK_EVERY) || now < at)
+fn check_every(channel: Channel) -> Duration {
+    match channel {
+        Channel::Stable => CHECK_EVERY,
+        Channel::Beta => CHECK_EVERY_BETA,
+    }
+}
+
+fn due(last: Option<SystemTime>, now: SystemTime, every: Duration) -> bool {
+    last.is_none_or(|at| now.duration_since(at).is_ok_and(|gone| gone >= every) || now < at)
+}
+
+fn due_now(app: &AppHandle) -> bool {
+    let updates = app.state::<Updates>();
+    let every = check_every(channel_for(&updates.current));
+    due(updates.lock().last_check, SystemTime::now(), every)
+}
+
+/// The main window coming to the front checks when one is due, so a beta shows up without a wait.
+pub fn on_window_event(window: &Window, event: &tauri::WindowEvent) {
+    let app = window.app_handle();
+    if !matches!(event, tauri::WindowEvent::Focused(true))
+        || window.label() != crate::MAIN_WINDOW
+        || cfg!(debug_assertions)
+        || !app.state::<Updates>().enabled
+        || !due_now(app)
+    {
+        return;
+    }
+    tauri::async_runtime::spawn(check(app.clone(), None));
 }
 
 pub fn menu_item(state: &State) -> (&'static str, bool) {
@@ -488,8 +517,7 @@ pub fn start(app: &AppHandle) {
         .spawn(move || {
             std::thread::sleep(FIRST_CHECK);
             loop {
-                let last = app.state::<Updates>().lock().last_check;
-                if due(last, SystemTime::now()) {
+                if due_now(&app) {
                     tauri::async_runtime::block_on(check(app.clone(), None));
                 }
                 std::thread::sleep(WAKE_EVERY);
@@ -623,11 +651,22 @@ mod tests {
     #[test]
     fn checks_daily_by_the_wall_clock() {
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(10 * 24 * 60 * 60);
-        assert!(due(None, now));
-        assert!(!due(Some(now - Duration::from_secs(60)), now));
-        assert!(!due(Some(now - CHECK_EVERY + Duration::from_secs(1)), now));
-        assert!(due(Some(now - CHECK_EVERY), now));
-        assert!(due(Some(now + Duration::from_secs(60)), now));
+        let every = check_every(Channel::Stable);
+        assert!(due(None, now, every));
+        assert!(!due(Some(now - Duration::from_secs(60)), now, every));
+        assert!(!due(Some(now - every + Duration::from_secs(1)), now, every));
+        assert!(due(Some(now - every), now, every));
+        assert!(due(Some(now + Duration::from_secs(60)), now, every));
+    }
+
+    #[test]
+    fn a_beta_checks_hourly() {
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(10 * 24 * 60 * 60);
+        let every = check_every(channel_for("0.9.3-beta1"));
+        assert_eq!(every, Duration::from_secs(60 * 60));
+        assert!(!due(Some(now - Duration::from_secs(59 * 60)), now, every));
+        assert!(due(Some(now - Duration::from_secs(60 * 60)), now, every));
+        assert!(WAKE_EVERY < every);
     }
 
     #[test]
