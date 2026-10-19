@@ -1819,8 +1819,9 @@ pub fn print_html(
     }
 }
 
-pub fn print_in_main_window(
+pub fn print_in_window(
     app: &tauri::AppHandle,
+    label: &str,
     html: &str,
     title: &str,
     target: PrintTarget,
@@ -1831,15 +1832,15 @@ pub fn print_in_main_window(
         return;
     };
     let window = app
-        .get_webview_window(crate::MAIN_WINDOW)
+        .get_webview_window(label)
         .and_then(|window| window.ns_window().ok())
         .filter(|window| !window.is_null());
     let Some(window) = window else {
         done(Err("E_PRINT_NO_WINDOW"));
         return;
     };
-    // SAFETY: `ns_window()` returns the main window's live NSWindow
-    // (checked non-null above), borrowed only for this call.
+    // SAFETY: `ns_window()` returns the window's live NSWindow (checked
+    // non-null above), borrowed only for this call.
     let window = unsafe { &*window.cast::<NSWindow>() };
     print_html(mtm, window, html, title, target, done);
 }

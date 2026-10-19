@@ -126,11 +126,11 @@ const MARKDOWN: &[&str] = &["md", "markdown"];
 const HTML: &[&str] = &["html", "htm"];
 const IMAGES: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "avif", "heic", "heif"];
 
-fn is_markdown(name: &str) -> bool {
+pub(crate) fn is_markdown(name: &str) -> bool {
     has_extension(name, MARKDOWN)
 }
 
-fn join(rel: &str, name: &str) -> String {
+pub(crate) fn join(rel: &str, name: &str) -> String {
     if rel.is_empty() {
         name.to_owned()
     } else {

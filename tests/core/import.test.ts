@@ -277,6 +277,18 @@ describe('Markdown folder import', () => {
     }
   })
 
+  it('names the note each file became, so the first can be opened', async () => {
+    const { sqlite, services } = await setup()
+    // b.md cannot be read: it became no note.
+    const report = await importMarkdown({
+      ...services,
+      scan: scanOf({ 'a.md': '# A\n', 'b.md': '# B\n' }, { kind: 'files' }),
+      source: sourceFor(sqlite, { 'a.md': '# A\n' }).source,
+    })
+    expect(report.notes).toBe(1)
+    expect(report.noteIds).toEqual({ 'a.md': (await noteByTitle(sqlite, 'A')).summary.id })
+  })
+
   it('reads nothing from foreign front matter and keeps it in the note as written', async () => {
     const { sqlite, services } = await setup()
     await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
@@ -714,7 +726,14 @@ describe('Markdown folder import', () => {
       scan: scanOf({}, { name: 'Empty' }),
       source: sourceFor(sqlite, {}).source,
     })
-    expect(empty).toEqual({ bookId: null, notes: 0, books: 0, attachments: 0, problems: [] })
+    expect(empty).toEqual({
+      bookId: null,
+      notes: 0,
+      noteIds: {},
+      books: 0,
+      attachments: 0,
+      problems: [],
+    })
     const files = { 'Good.md': '# Good\n', 'Bad/One.md': '', 'Bad/Deeper/Two.md': '' }
     const { source } = sourceFor(sqlite, files)
     await importMarkdown({

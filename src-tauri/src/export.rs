@@ -633,7 +633,7 @@ async fn page_with_images(db: &Db, page: String, images: Vec<PageImage>) -> Resu
 
 /// Control characters (a pasted tab, say) become spaces and it is cut to MAX_TITLE_CHARS
 /// characters; any title prints.
-fn job_title(title: &str) -> String {
+pub(crate) fn job_title(title: &str) -> String {
     title
         .chars()
         .take(MAX_TITLE_CHARS)
@@ -830,8 +830,9 @@ pub async fn clipboard_write_html(
 }
 
 #[cfg(target_os = "macos")]
-async fn print_page(
+pub(crate) async fn print_page(
     app: &AppHandle,
+    label: &'static str,
     page: String,
     title: String,
     target: crate::native::macos::PrintTarget,
@@ -839,8 +840,9 @@ async fn print_page(
     let (reply, answer) = tokio::sync::oneshot::channel();
     let handle = app.clone();
     app.run_on_main_thread(move || {
-        crate::native::macos::print_in_main_window(
+        crate::native::macos::print_in_window(
             &handle,
+            label,
             &page,
             &title,
             target,
@@ -871,6 +873,7 @@ pub async fn note_print(
     {
         let printed = print_page(
             &app,
+            crate::MAIN_WINDOW,
             page,
             title,
             crate::native::macos::PrintTarget::Printer,
@@ -922,6 +925,7 @@ pub async fn export_pdf(
         let partial = PdfPartial::new_in(&data.join(PDF_DIR))?;
         let printed = print_page(
             &app,
+            crate::MAIN_WINDOW,
             page,
             title,
             crate::native::macos::PrintTarget::Pdf(partial.file()),

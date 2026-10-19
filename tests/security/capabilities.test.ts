@@ -63,6 +63,9 @@ describe('Tauri command permissions', () => {
     const settings = capabilities().filter((c) => c.windows.includes('settings'))
     // It hears changes made in the main window (Cmd+= and Cmd+-) as events.
     expect(settings.flatMap(permissionIds).sort()).toEqual([
+      'allow-cli-tool-install',
+      'allow-cli-tool-status',
+      'allow-cli-tool-uninstall',
       // Settings > Integrations copies devot-mcp's configs.
       'allow-clipboard-write-text',
       'allow-editor-settings-get',
@@ -140,6 +143,24 @@ describe('Tauri command permissions', () => {
     }
     for (const command of ['open', 'check', 'apply', 'bodies', 'files', 'hashes']) {
       expect(windowsWith(`allow-mirror-${command}`)).toEqual(['main'])
+    }
+  })
+
+  it('lets only the Settings window install the devot command', () => {
+    for (const command of ['status', 'install', 'uninstall']) {
+      expect(windowsWith(`allow-cli-tool-${command}`)).toEqual(['settings'])
+    }
+  })
+
+  it('gives the hidden window of devot export its own commands and nothing else', () => {
+    const window = capabilities().filter((c) => c.windows.includes('cli-export'))
+    expect(window.flatMap(permissionIds).sort()).toEqual([
+      'allow-cli-export-fail',
+      'allow-cli-export-finish',
+      'allow-cli-export-source',
+    ])
+    for (const command of ['source', 'finish', 'fail']) {
+      expect(windowsWith(`allow-cli-export-${command}`)).toEqual(['cli-export'])
     }
   })
 

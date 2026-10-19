@@ -66,6 +66,7 @@
     "settings.textAppearance": "textformat",
     "settings.defaults": "slider.horizontal.3",
     "settings.data": "internaldrive",
+    "settings.commandLine": "terminal",
     "settings.updates": "arrow.down.circle",
     "settings.copy": "doc.on.doc",
     "settings.appearance": "paintpalette",

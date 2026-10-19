@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cli-tool-status"
+description = "Enables the cli_tool_status command without any pre-configured scope."
+commands.allow = ["cli_tool_status"]
+
+[[permission]]
+identifier = "deny-cli-tool-status"
+description = "Denies the cli_tool_status command without any pre-configured scope."
+commands.deny = ["cli_tool_status"]

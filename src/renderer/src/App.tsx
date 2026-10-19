@@ -78,7 +78,8 @@ import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoreNotice } from './CoreNotice'
 import { DeepLinkNotice, type DeepLinkProblem } from './DeepLinkNotice'
-import { noteTarget, useDeepLinks } from './deepLink'
+import { firstImported, openDestination } from './cliOpen'
+import { noteTarget, useDeepLinks, type DeepLink } from './deepLink'
 import { StartFailure } from './StartFailure'
 import {
   IMAGE_COMMANDS,
@@ -2433,9 +2434,34 @@ export function App() {
     setMulti(undefined)
     setSelected(id)
   })
+  const importHandedOver = async (link: Extract<DeepLink, { kind: 'import' }>) => {
+    const c = coreRef.current
+    if (!c) {
+      void finishImport(link.scan.id)
+      return
+    }
+    try {
+      const to = openDestination(link.notebook, books, editorSettings().defaultNotebook)
+      const destination = to.kind === 'create' ? await c.createBook(to.name, null) : to.id
+      const report = await startImport(link.scan, destination, () => {})
+      const id = report ? firstImported(report.noteIds, link.scan.files, link.first) : undefined
+      if (!id) {
+        setLinkNotice('importFailed')
+        return
+      }
+      if (!report?.bookId) showLibraryRef.current?.({ kind: 'all' }, { clearFilter: true })
+      void select(id)
+    } catch {
+      setLinkNotice('importFailed')
+    }
+  }
   // Links other apps open (devot://note/<id>, devot://command/<id>), once the window has restored its view; sheets hold them back.
   useDeepLinks(restored && core !== undefined, (link) => {
     setLinkNotice(undefined)
+    if (link.kind === 'import') {
+      void importHandedOver(link)
+      return
+    }
     if (link.kind === 'command') {
       const handler = handlers[link.id]
       if (handler) void handler.run()

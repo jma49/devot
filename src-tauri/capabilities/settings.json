@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings",
-  "description": "Permissions for the Settings window: reading and changing the editor settings, the keyboard shortcuts and the Markdown mirror's setting (and hearing when another window changes them), reading and clearing the local usage events, the navigation column's symbols, the system accent colour, opening the app's data folder in Finder, showing the Backups dialog, where devot-mcp and the database are (the Integrations pane) and copying its configs to the clipboard. Add a command here only when a settings section needs it.",
+  "description": "Permissions for the Settings window: reading and changing the editor settings, the keyboard shortcuts and the Markdown mirror's setting (and hearing when another window changes them), reading and clearing the local usage events, the navigation column's symbols, the system accent colour, opening the app's data folder in Finder, showing the Backups dialog, where devot-mcp and the database are (the Integrations pane) and copying its configs to the clipboard, and installing or removing the devot command (General > Command Line Tool). Add a command here only when a settings section needs it.",
   "windows": ["settings"],
   "permissions": [
     "core:event:allow-listen",
@@ -27,6 +27,9 @@
     "allow-update-status",
     "allow-update-check",
     "allow-settings-mcp-setup",
+    "allow-cli-tool-status",
+    "allow-cli-tool-install",
+    "allow-cli-tool-uninstall",
     "allow-clipboard-write-text"
   ]
 }

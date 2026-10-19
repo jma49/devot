@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cli-export-fail"
+description = "Enables the cli_export_fail command without any pre-configured scope."
+commands.allow = ["cli_export_fail"]
+
+[[permission]]
+identifier = "deny-cli-export-fail"
+description = "Denies the cli_export_fail command without any pre-configured scope."
+commands.deny = ["cli_export_fail"]

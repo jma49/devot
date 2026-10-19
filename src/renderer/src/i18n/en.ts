@@ -327,6 +327,18 @@ export const en = {
   'generalSettings.backups': 'Backups',
   'generalSettings.showBackups': 'Show Backups\u2026',
   'generalSettings.backupsFailed': 'The backups could not be shown ({code}).',
+  'generalSettings.commandLine': 'Command Line',
+  'generalSettings.commandLineTool': 'Command Line Tool',
+  'generalSettings.commandLineAbsent':
+    'Adds the devot command at {path}: open Markdown files in Devot, or export them as PDF or HTML, from a terminal.',
+  'generalSettings.commandLineInstalled':
+    'Installed at {path}. Run devot --help in a terminal to see what it does.',
+  'generalSettings.commandLineOther':
+    'Something else is at {path}. Install replaces a link there, but never a file.',
+  'generalSettings.commandLineUnavailable': 'This build of Devot has no command line tool.',
+  'generalSettings.install': 'Install',
+  'generalSettings.uninstall': 'Uninstall',
+  'generalSettings.commandLineFailed': 'The command line tool could not be changed ({code}).',
   'generalSettings.updates': 'Updates',
   'generalSettings.autoDownloadUpdates': 'Automatically Download Updates',
   'generalSettings.autoDownloadUpdatesHint':
@@ -606,6 +618,7 @@ export const en = {
   'images.refusedOther': '{count} images could not be added ({code}).',
   'deepLink.noteNotFound': 'The linked note could not be found.',
   'deepLink.commandUnavailable': 'That command can\u2019t run right now.',
+  'deepLink.importFailed': 'The Markdown files from the command line could not be imported.',
   'change.tagNameTaken': 'Another tag already has that name.',
   'change.tagNameInvalid': 'A tag name is one line of at most {max} characters.',
   'change.bookNameInvalid': 'A notebook name is one line of at most {max} characters.',

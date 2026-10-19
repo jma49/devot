@@ -117,3 +117,46 @@ pub const SPELLING_GRAMMAR: &str = "Check Grammar With Spelling";
 pub const SPELLING_CORRECT_AUTOMATICALLY: &str = "Correct Spelling Automatically";
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const MENU_SERVICES: &str = "Services";
+
+// The `devot` command (`cli`).
+pub const CLI_USAGE: &str = "\
+Usage:
+  devot                                Open Devot, or bring it forward
+  devot FILE.md... [--notebook NAME]   Import Markdown files and open the first
+  devot export FILE.md|- -o OUT [--simple]
+                                       Write a Markdown file (- reads standard
+                                       input) as a page, OUT.pdf or OUT.html,
+                                       without showing a window
+
+Options:
+  --notebook NAME    Import into the notebook of this name (made when there is
+                     none); without it, into the default notebook
+  -o, --output OUT   Where export writes: a path ending in .pdf or .html
+  --simple           Export bare HTML, without styles (.html only)
+  -h, --help         Show this help
+
+Exit status: 0 when done, 1 when it failed, 2 when the command was not
+understood.
+";
+pub const CLI_HELP_HINT: &str = "Run devot --help for usage.";
+pub const CLI_UNKNOWN_OPTION: &str = "unknown option {option}";
+pub const CLI_MISSING_VALUE: &str = "{option} needs a value";
+pub const CLI_NOT_UTF8: &str = "arguments must be valid UTF-8";
+pub const CLI_NO_SUCH_FILE: &str = "no such file: {path}";
+pub const CLI_NOT_MARKDOWN: &str = "not a Markdown file (.md or .markdown): {path}";
+pub const CLI_OPEN_FILES: &str = "name the Markdown files to import";
+pub const CLI_TOO_MANY_FILES: &str = "at most {max} files at a time";
+pub const CLI_NOTEBOOK_INVALID: &str = "a notebook name takes 1 to 200 characters, on one line";
+pub const CLI_EXPORT_INPUT: &str = "export takes one Markdown file, or - for standard input";
+pub const CLI_EXPORT_OUTPUT: &str = "export needs -o OUT.pdf or -o OUT.html";
+pub const CLI_EXPORT_FORMAT: &str = "the output must end in .pdf or .html: {path}";
+pub const CLI_SIMPLE_HTML_ONLY: &str = "--simple works with .html output only";
+pub const CLI_OUTPUT_INVALID: &str = "cannot write to {path} ({code})";
+pub const CLI_INPUT_TOO_LARGE: &str = "the Markdown is larger than 10 MB";
+pub const CLI_INPUT_NOT_TEXT: &str = "the Markdown is not UTF-8 text";
+pub const CLI_READ_FAILED: &str = "cannot read {path}";
+pub const CLI_LAUNCH_FAILED: &str = "Devot could not be started ({code})";
+pub const CLI_EXPORT_FAILED: &str = "export failed ({code})";
+pub const CLI_INSTALL_PROMPT: &str = "Devot wants to install the devot command in /usr/local/bin.";
+pub const CLI_UNINSTALL_PROMPT: &str =
+    "Devot wants to remove the devot command from /usr/local/bin.";

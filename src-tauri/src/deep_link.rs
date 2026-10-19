@@ -11,7 +11,7 @@
 //! Links wait in an [`Inbox`] until the main window has asked for them (`deep_link_take`; again
 //! after a reload) and while the Settings window is open. A second launch does not open the data
 //! folder: the single-instance plugin hands its arguments to this process ([`on_second_instance`])
-//! and ends it.
+//! and ends it. The `devot` command hands files over the same way (`cli`).
 
 use std::collections::VecDeque;
 use std::sync::Mutex;
@@ -61,6 +61,12 @@ pub(crate) const EVENT: &str = "devot://open-url";
 pub enum Link {
     Note { id: String },
     Command { id: &'static str },
+    /// Files from the `devot` command (`cli`); no URL makes one.
+    Import {
+        scan: crate::import::Scan,
+        notebook: Option<String>,
+        first: Option<String>,
+    },
 }
 
 /// Exact: no query, fragment, escapes, trailing slash or other case. Returns the code of the refusal otherwise.
@@ -167,6 +173,9 @@ pub(crate) fn listen(app: &tauri::App) {
 
 pub(crate) fn on_second_instance<R: Runtime>(app: &AppHandle<R>, args: Vec<String>, _cwd: String) {
     bring_forward(app);
+    if crate::cli::receive_open(app, &args) {
+        return;
+    }
     let prefix = format!("{SCHEME}:");
     for url in args
         .iter()
@@ -186,6 +195,10 @@ fn receive<R: Runtime>(app: &AppHandle<R>, url: &str) {
             return;
         }
     };
+    deliver(app, link);
+}
+
+pub(crate) fn deliver<R: Runtime>(app: &AppHandle<R>, link: Link) {
     bring_forward(app);
     if let Some(links) = app.try_state::<DeepLinks>() {
         links.update(app, |inbox| inbox.arrive(link));
@@ -239,7 +252,7 @@ pub fn deep_link_take(links: tauri::State<'_, DeepLinks>) -> Vec<Link> {
     links.with(Inbox::take)
 }
 
-fn single_instance_socket(identifier: &str) -> std::path::PathBuf {
+pub(crate) fn single_instance_socket(identifier: &str) -> std::path::PathBuf {
     let name = identifier.replace(['.', '-'], "_");
     std::path::PathBuf::from(format!("/tmp/{name}_si.sock"))
 }
