@@ -1535,6 +1535,8 @@ export function App() {
     const id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     if (!inTemplates) track('note.created', { from: 'new_note' })
     await showMade(core, id, await refresh(core))
+    // A new note is for typing: Preview alone would leave it without an editor.
+    if (mode === 'preview') setMode('edit')
     await select(id, { keyboard: true })
   }
 
@@ -1552,6 +1554,7 @@ export function App() {
     // Its body, status and tags are written before the lists reload.
     await saveEdits(core)
     await showMade(core, id, await refresh(core))
+    if (mode === 'preview') setMode('edit')
     await select(id, { keyboard: true })
   }
 
