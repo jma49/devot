@@ -239,3 +239,13 @@ test('a code block in the preview is headed by its language mark and title', asy
   await page.keyboard.insertText('```rust:main.rs')
   await expect(heads.nth(0).locator('.code-title')).toHaveText('main.rs')
 })
+
+test('a new note made in Preview opens in Edit, ready for typing', async ({ page }) => {
+  await openNote(page, 'first')
+  const modes = page.getByRole('group', { name: 'View mode' })
+  await modes.getByRole('button', { name: 'Preview' }).click()
+  await expect(body(page)).toBeHidden()
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(modes.getByRole('button', { name: 'Edit' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(body(page)).toBeVisible()
+})
