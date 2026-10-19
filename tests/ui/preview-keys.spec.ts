@@ -169,3 +169,33 @@ test('Cmd+E swaps editor and preview, and Cmd+P shows both', async ({ page }) =>
   await key('KeyE')
   await pressed('Edit')
 })
+
+test('Cmd+E keeps the keyboard with the note: preview scrolls, then typing reaches the editor', async ({
+  page,
+}) => {
+  await longNote(page, 'Keyboard stays')
+  const body = page.getByRole('textbox', { name: 'Note body' })
+  const title = page.getByRole('textbox', { name: 'Title' })
+  await page.keyboard.press('Meta+Home')
+  await page.keyboard.press('Meta+KeyE')
+  await expect(preview(page).getByText('Paragraph 120', { exact: true })).toBeAttached()
+  await expect(preview(page)).toBeFocused()
+  expect(await scrollTop(page)).toBe(0)
+  await pressUntilBeyond(page, 'ArrowDown', 0)
+  await expect(title).toHaveValue('Keyboard stays')
+  await page.keyboard.press('Meta+KeyE')
+  await expect(body).toBeFocused()
+  await page.keyboard.insertText('typed')
+  await expect(page.locator('.cm-line', { hasText: 'typed' })).toBeVisible()
+  await expect(title).toHaveValue('Keyboard stays')
+})
+
+test('Cmd+E leaves the keyboard alone when it was not in the editor or preview', async ({
+  page,
+}) => {
+  await longNote(page, 'Elsewhere')
+  await noteRows(page).first().focus()
+  await page.keyboard.press('Meta+KeyE')
+  await expect(modeButton(page, 'Preview')).toHaveAttribute('aria-pressed', 'true')
+  await expect(preview(page)).not.toBeFocused()
+})
