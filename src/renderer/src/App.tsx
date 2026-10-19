@@ -378,7 +378,7 @@ export function App() {
   const openingRef = useRef<string | undefined>(undefined)
   const opens = useRef(0)
   // The title field shows the note being left until the switch lands; typing then would rename that
-  // note or merge with the title that arrives (#250), so it is read-only meanwhile.
+  // note or merge with the title that arrives, so it is read-only meanwhile.
   const [switching, setSwitching] = useState(false)
   const startOpening = (id: string) => {
     openingRef.current = id

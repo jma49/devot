@@ -289,7 +289,7 @@ export const NoteList = memo(function NoteList(props: Props) {
   const openedBySelection = useRef<string>(undefined)
   const follow = useRef<string>(undefined)
   // A selection the list asked for that no render has shown yet: a key or click before that render
-  // builds on it, or quick Shift+Down presses would each extend the same old selection (#249).
+  // builds on it, or quick Shift+Down presses would each extend the same old selection.
   const asked = useRef<{ selection: ListSelection | undefined }>(undefined)
   useEffect(() => {
     asked.current = undefined
