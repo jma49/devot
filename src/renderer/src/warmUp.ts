@@ -42,9 +42,6 @@ export const WARM_SAMPLE = [
   ...Array.from({ length: 100 }, () => WARM_BLOCKS),
 ].join('\n\n')
 
-// WebKit has no requestIdleCallback; the render runs in the worker, so starting early costs little.
-const WEBKIT_IDLE_MS = 100
-
 type Idle = (run: () => void, options: { timeout: number }) => unknown
 
 /**
@@ -73,5 +70,5 @@ function idle(run: () => void, options: { timeout: number }): unknown {
   const host = globalThis as { requestIdleCallback?: Idle }
   return host.requestIdleCallback
     ? host.requestIdleCallback(run, options)
-    : setTimeout(run, WEBKIT_IDLE_MS)
+    : setTimeout(run, options.timeout / 2)
 }
