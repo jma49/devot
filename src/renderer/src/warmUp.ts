@@ -31,15 +31,12 @@ const WARM_BLOCKS = [
   '---',
 ].join('\n\n')
 
-/**
- * About 20 KB in many pieces: the worker's JIT only settles after several passes, and both the first
- * piece's path and the others' must run.
- */
+/** Just long enough for two pieces, so the first piece's path and the others' both run. */
 export const WARM_SAMPLE = [
   '# Warm',
   ':sparkles: $e^{i\\pi} + 1 = 0$',
   ...WARM_LANGUAGES.map((lang) => `\`\`\`${lang}\nx\n\`\`\``),
-  ...Array.from({ length: 100 }, () => WARM_BLOCKS),
+  ...Array.from({ length: 12 }, () => WARM_BLOCKS),
 ].join('\n\n')
 
 type Idle = (run: () => void, options: { timeout: number }) => unknown
