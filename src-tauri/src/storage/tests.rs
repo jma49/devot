@@ -2660,12 +2660,45 @@ fn rebuilding_the_search_index_restores_search() {
         .unwrap();
     assert_eq!((found(&store, "relay"), found(&store, "launch")), (0, 0));
 
-    assert_eq!(store.rebuild_search_index().unwrap(), 2);
+    assert_eq!(store.rebuild_search_index(|| false).unwrap(), 2);
     assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
     store
         .conn
         .execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
         .unwrap();
-    assert_eq!(store.rebuild_search_index().unwrap(), 2);
+    assert_eq!(store.rebuild_search_index(|| false).unwrap(), 2);
     assert_eq!(found(&store, "relay"), 1);
+}
+
+#[test]
+fn a_stopped_rebuild_rolls_back_and_leaves_the_index_as_it_was() {
+    let (_dir, mut store) = temp_store();
+    for i in 0..200 {
+        let id = format!("n{i}");
+        store.put_note(&note(&id, "Relay", i + 1), &[]).unwrap();
+    }
+    let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 500).unwrap().len();
+    store
+        .conn
+        .execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('delete-all')")
+        .unwrap();
+    assert_eq!(found(&store, "relay"), 0);
+
+    let mut asked = 0;
+    let stopped = store.rebuild_search_index(move || {
+        asked += 1;
+        asked > 3
+    });
+    assert!(
+        matches!(stopped, Err(StorageError::RebuildStopped)),
+        "{stopped:?}"
+    );
+    assert!(store.conn.is_autocommit(), "no transaction left open");
+    assert_eq!(found(&store, "relay"), 0);
+    assert!(store.integrity_ok().unwrap());
+
+    store.put_note(&note("later", "Later", 500), &[]).unwrap();
+    assert_eq!(found(&store, "later"), 1);
+    assert_eq!(store.rebuild_search_index(|| false).unwrap(), 201);
+    assert_eq!(found(&store, "relay"), 200);
 }
