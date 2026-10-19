@@ -396,8 +396,7 @@ export function markdownFacts(markdown: string): MarkdownFacts {
     links: found.links,
     unlocated: found.unlocated,
     frontMatter: yaml,
-    title: (path) =>
-      own !== null ? clipTitle(own) : titleOf(exported ? bodyTree() : tree, path),
+    title: (path) => (own !== null ? clipTitle(own) : titleOf(exported ? bodyTree() : tree, path)),
   }
 }
 
