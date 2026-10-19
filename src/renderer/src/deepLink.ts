@@ -5,6 +5,7 @@
 // again here and takes nothing else. Links run one at a time, each once the
 // window has shown what the one before did, and wait while a sheet is up.
 import { useEffect, useRef } from 'react'
+import type { ImportItem, ImportProblem, ImportScan } from '../../core'
 import { UUID_V7 } from '../../core/ids'
 import { sheetOpen } from './commands/dispatch'
 import type { CommandId } from './commands/registry'
@@ -32,17 +33,58 @@ export type UrlCommand = (typeof URL_COMMANDS)[number]
 export type DeepLink =
   | { readonly kind: 'note'; readonly id: string }
   | { readonly kind: 'command'; readonly id: UrlCommand }
+  /** Files from the `devot` command (src-tauri/src/cli.rs); no URL makes one. */
+  | {
+      readonly kind: 'import'
+      readonly scan: ImportScan
+      readonly notebook: string | null
+      readonly first: string | null
+    }
 
 const isUrlCommand = (id: unknown): id is UrlCommand =>
   typeof id === 'string' && (URL_COMMANDS as readonly string[]).includes(id)
+
+const isItem = (item: unknown): item is ImportItem =>
+  typeof item === 'object' &&
+  item !== null &&
+  typeof (item as ImportItem).path === 'string' &&
+  typeof (item as ImportItem).bytes === 'number'
+
+const isProblem = (problem: unknown): problem is ImportProblem =>
+  typeof problem === 'object' &&
+  problem !== null &&
+  typeof (problem as ImportProblem).path === 'string' &&
+  typeof (problem as ImportProblem).code === 'string'
+
+function readScan(value: unknown): ImportScan | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { id, name, kind, files, images, skipped } = value as Record<string, unknown>
+  if (!Number.isSafeInteger(id) || typeof name !== 'string' || kind !== 'files') return undefined
+  if (!Array.isArray(files) || !files.every(isItem)) return undefined
+  if (!Array.isArray(images) || !images.every(isItem)) return undefined
+  if (!Array.isArray(skipped) || !skipped.every(isProblem)) return undefined
+  return { id: id as number, name, kind, files, images, skipped, destination: null }
+}
+
+const isNameOrNull = (value: unknown): value is string | null =>
+  value === null || typeof value === 'string'
 
 export function readDeepLink(value: unknown): DeepLink | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { kind, id } = value as { kind?: unknown; id?: unknown }
   if (kind === 'note' && typeof id === 'string' && UUID_V7.test(id)) return { kind, id }
   if (kind === 'command' && isUrlCommand(id)) return { kind, id }
+  if (kind === 'import') {
+    const { scan, notebook, first } = value as Record<string, unknown>
+    const read = readScan(scan)
+    if (read && isNameOrNull(notebook) && isNameOrNull(first))
+      return { kind, scan: read, notebook, first }
+  }
   return undefined
 }
+
+const linkKey = (link: DeepLink) =>
+  link.kind === 'import' ? `import:${link.scan.id}` : `${link.kind}:${link.id}`
 
 export type NoteTarget =
   | { readonly kind: 'listed' }
@@ -100,7 +142,7 @@ export class LinkQueue {
    */
   push(link: DeepLink): void {
     if (this.stopped) return
-    const key = `${link.kind}:${link.id}`
+    const key = linkKey(link)
     const at = this.now()
     const repeated = this.last?.key === key && at - this.last.at < REPEAT_MS
     this.last = { key, at }

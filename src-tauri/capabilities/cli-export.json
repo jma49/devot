@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "cli-export",
+  "description": "Permissions for the hidden window of `devot export` (src-tauri/src/cli_export.rs), which runs in a process of its own: reading the Markdown to make a page of, and handing back the page or why it could not be made. Nothing else: no notes, no files, no events.",
+  "windows": ["cli-export"],
+  "permissions": ["allow-cli-export-source", "allow-cli-export-finish", "allow-cli-export-fail"]
+}

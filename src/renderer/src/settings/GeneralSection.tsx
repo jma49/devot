@@ -6,7 +6,15 @@ import { format, t, type MessageKey } from '../i18n'
 import { readNotebooks, subscribeNotebooks } from '../notebookChoices'
 import { checkForUpdates, startUpdateStatus, updateStatusText, useUpdateStatus } from '../updates'
 import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
-import { openDataFolder, showBackups } from './window'
+import {
+  cliToolStatus,
+  installCliTool,
+  openDataFolder,
+  showBackups,
+  uninstallCliTool,
+  type CliToolState,
+  type CliToolStatus,
+} from './window'
 
 const indented = (name: string, depth: number) => `${'  '.repeat(depth)}${name}`
 
@@ -16,10 +24,41 @@ const indented = (name: string, depth: number) => `${'  '.repeat(depth)}${name
  */
 const notebooksJson = () => JSON.stringify(readNotebooks())
 
+const CLI_TOOL_PATH = '/usr/local/bin/devot'
+
+const CLI_TOOL_TEXT: Readonly<Record<CliToolState, MessageKey>> = {
+  installed: 'generalSettings.commandLineInstalled',
+  absent: 'generalSettings.commandLineAbsent',
+  other: 'generalSettings.commandLineOther',
+  unavailable: 'generalSettings.commandLineUnavailable',
+}
+
 export function GeneralSection() {
   const [error, setError] = useState<{ message: MessageKey; code: string }>()
   const [saveError, change] = useSettingsChange()
   const ids = useId()
+  const [cliTool, setCliTool] = useState<CliToolStatus>()
+  const [cliBusy, setCliBusy] = useState(false)
+  useEffect(() => {
+    let live = true
+    cliToolStatus().then(
+      (status) => live && setCliTool(status),
+      () => console.warn('W_CLI_TOOL_STATUS_FAILED'),
+    )
+    return () => {
+      live = false
+    }
+  }, [])
+  const changeCliTool = () => {
+    setCliBusy(true)
+    run(
+      () =>
+        (cliTool?.state === 'installed' ? uninstallCliTool() : installCliTool())
+          .then(setCliTool)
+          .finally(() => setCliBusy(false)),
+      'generalSettings.commandLineFailed',
+    )
+  }
   const stored = useEditorSetting('defaultNotebook')
   const listDates = useEditorSetting('listDates')
   const autoDownload = useEditorSetting('autoDownloadUpdates')
@@ -120,6 +159,29 @@ export function GeneralSection() {
             onClick={() => run(showBackups, 'generalSettings.backupsFailed')}
           >
             {t('generalSettings.showBackups')}
+          </button>
+        </Setting>
+      </SettingsSection>
+      <SettingsSection icon="settings.commandLine" title="generalSettings.commandLine">
+        <Setting
+          label="generalSettings.commandLineTool"
+          description={format(t(CLI_TOOL_TEXT[cliTool?.state ?? 'absent']), {
+            path: cliTool?.path ?? CLI_TOOL_PATH,
+          })}
+          descriptionId={`${ids}-cli`}
+        >
+          <button
+            type="button"
+            className="button"
+            disabled={!cliTool || cliTool.state === 'unavailable' || cliBusy}
+            aria-describedby={`${ids}-cli`}
+            onClick={changeCliTool}
+          >
+            {t(
+              cliTool?.state === 'installed'
+                ? 'generalSettings.uninstall'
+                : 'generalSettings.install',
+            )}
           </button>
         </Setting>
       </SettingsSection>

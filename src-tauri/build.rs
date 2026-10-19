@@ -109,6 +109,12 @@ fn main() {
             "update_restart",
             "deep_link_take",
             "settings_mcp_setup",
+            "cli_tool_status",
+            "cli_tool_install",
+            "cli_tool_uninstall",
+            "cli_export_source",
+            "cli_export_finish",
+            "cli_export_fail",
         ]),
     ))
     .expect("E_TAURI_BUILD");

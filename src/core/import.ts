@@ -73,6 +73,8 @@ export interface ImportReport {
   /** The destination, else the one top-level notebook the import made; null when neither, or no note was imported. */
   bookId: string | null
   notes: number
+  /** Note IDs by scan path. */
+  noteIds: Record<string, string>
   books: number
   attachments: number
   problems: ImportProblem[]
@@ -717,6 +719,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
 
   let imported = 0
   let attachments = 0
+  const noteIds: Record<string, string> = {}
   const paths = scan.files.map((f) => f.path)
   const total = paths.length
   await onProgress?.(0, total)
@@ -806,6 +809,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       for (const tag of meta.tags) await tags.addToNote(noteId, tag)
       await notes.release(noteId)
       imported += 1
+      noteIds[path] = noteId
       attachments += stored
       problems.push(...found)
     } catch (error) {
@@ -838,6 +842,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   return {
     bookId: imported === 0 ? null : (destination ?? (tops.length === 1 ? tops[0]![1] : null)),
     notes: imported,
+    noteIds,
     books: madeBooks.length,
     attachments,
     problems,

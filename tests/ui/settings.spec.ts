@@ -322,6 +322,66 @@ test('Integrations still offers configs, with a path to replace, when Rust canno
   await expect(pane.getByRole('alert')).toContainText('E_DATA_FOLDER_UNAVAILABLE')
 })
 
+test('General installs and removes the devot command, showing whether it is there', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    const path = '/usr/local/bin/devot'
+    w.devotIpcMocks = {
+      cli_tool_install: { state: 'installed', path },
+      cli_tool_uninstall: { state: 'absent', path },
+    }
+  })
+  await page.goto('/settings.html')
+  const row = page.getByRole('region', { name: 'Command Line' })
+  const install = row.getByRole('button', { name: 'Install' })
+  await expect(install).toHaveAccessibleDescription(
+    /^Adds the devot command at \/usr\/local\/bin\/devot/,
+  )
+  await install.click()
+  const uninstall = row.getByRole('button', { name: 'Uninstall' })
+  await expect(uninstall).toHaveAccessibleDescription(/^Installed at \/usr\/local\/bin\/devot\./)
+  await uninstall.click()
+  await expect(install).toBeEnabled()
+  // The commands take no arguments: the link and its target are the app's own.
+  expect(await calls(page, 'cli_tool_install')).toEqual([{ cmd: 'cli_tool_install', args: {} }])
+  expect(await calls(page, 'cli_tool_uninstall')).toEqual([{ cmd: 'cli_tool_uninstall', args: {} }])
+  await expect(page.getByRole('region', { name: 'General' }).getByRole('alert')).toHaveCount(0)
+})
+
+test('General says when the devot command cannot be installed', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      cli_tool_status: { state: 'other', path: '/usr/local/bin/devot' },
+      cli_tool_install: { error: 'E_CLI_PATH_TAKEN' },
+    }
+  })
+  await page.goto('/settings.html')
+  const general = page.getByRole('region', { name: 'General' })
+  const install = general.getByRole('button', { name: 'Install' })
+  await expect(install).toHaveAccessibleDescription(
+    /^Something else is at \/usr\/local\/bin\/devot/,
+  )
+  await install.click()
+  await expect(general.getByRole('alert')).toContainText('E_CLI_PATH_TAKEN')
+  await expect(install).toBeEnabled()
+})
+
+test('General offers no devot command in a build without one', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { cli_tool_status: { state: 'unavailable', path: '/usr/local/bin/devot' } }
+  })
+  await page.goto('/settings.html')
+  const install = page.getByRole('region', { name: 'General' }).getByRole('button', {
+    name: 'Install',
+  })
+  await expect(install).toBeDisabled()
+  await expect(install).toHaveAccessibleDescription('This build of Devot has no command line tool.')
+})
+
 test('General says when the data folder cannot be opened', async ({ page }) => {
   await page.addInitScript(() => {
     const w = globalThis as unknown as TestWindow

@@ -1,0 +1,7 @@
+#!/bin/sh
+# /usr/local/bin/devot links here (src-tauri/src/cli.rs). A dev build keeps
+# this in target/<profile>/bin, beside the binary rather than in MacOS/.
+here=$(dirname "$(/bin/realpath "$0")")
+app="$here/../../MacOS/devot"
+[ -x "$app" ] || app="$here/../devot"
+exec "$app" --cli "$@"

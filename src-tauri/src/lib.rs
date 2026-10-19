@@ -3,6 +3,9 @@ mod backups;
 #[cfg(test)]
 #[path = "../build_env.rs"]
 mod build_env;
+mod cli;
+mod cli_export;
+mod cli_tool;
 mod commands;
 mod crash;
 #[doc(hidden)]
@@ -45,6 +48,13 @@ pub(crate) const MAIN_WINDOW: &str = "main";
 
 pub fn crash_reporter_main() -> Option<i32> {
     crash::reporter_main(&std::env::args_os().collect::<Vec<_>>())
+}
+
+/// The `devot` command's exit status; `None` for a normal launch.
+pub fn cli_main() -> Option<i32> {
+    let args: Vec<_> = std::env::args_os().collect();
+    let is_cli = args.get(1).is_some_and(|arg| arg == cli::FLAG);
+    is_cli.then(|| cli::main(&args[2..]))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -123,6 +133,9 @@ pub fn run() {
             settings::settings_open_data_folder,
             settings::settings_show_backups,
             settings::settings_mcp_setup,
+            cli_tool::cli_tool_status,
+            cli_tool::cli_tool_install,
+            cli_tool::cli_tool_uninstall,
             editor_settings::editor_settings_get,
             editor_settings::editor_settings_set,
             fonts::font_import,
@@ -174,6 +187,10 @@ pub fn run() {
             if let Err(error) = launch(app, &data_dir) {
                 startup::fail(&error, Some(&data_dir));
             }
+            let args: Vec<String> = std::env::args_os()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect();
+            cli::receive_open(app.handle(), &args);
             Ok(())
         })
         .build(context)

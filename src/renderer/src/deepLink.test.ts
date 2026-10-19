@@ -29,6 +29,36 @@ describe('readDeepLink', () => {
       expect(readDeepLink(value)).toBeUndefined()
     }
   })
+
+  it('takes the files the devot command handed over, scanned as picked files', () => {
+    const scan = {
+      id: 3,
+      name: 'a.md',
+      kind: 'files',
+      files: [{ path: 'a.md', bytes: 4 }],
+      images: [],
+      skipped: [{ path: 'b.txt', code: 'E_IMPORT_FILE_TYPE' }],
+      destination: null,
+    }
+    const link = { kind: 'import', scan, notebook: 'Work', first: 'a.md' }
+    expect(readDeepLink(link)).toEqual(link)
+    expect(readDeepLink({ ...link, notebook: null, first: null })).toEqual({
+      ...link,
+      notebook: null,
+      first: null,
+    })
+    for (const value of [
+      { ...link, scan: { ...scan, kind: 'folder' } },
+      { ...link, scan: { ...scan, id: 'x' } },
+      { ...link, scan: { ...scan, files: [{ path: 1, bytes: 4 }] } },
+      { ...link, scan: { ...scan, skipped: [{ path: 'b' }] } },
+      { ...link, notebook: 3 },
+      { ...link, first: {} },
+      { kind: 'import' },
+    ]) {
+      expect(readDeepLink(value)).toBeUndefined()
+    }
+  })
 })
 
 describe('noteTarget', () => {

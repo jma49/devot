@@ -8,6 +8,7 @@ import { invoke } from './ipc'
 import * as Comlink from 'comlink'
 import type { Element, Root, RootContent } from 'hast'
 import type { ExportPlan, ExportReport, ExportSink, ExportTarget, PageImage } from '../../core'
+import type { PreviewOptions } from '../../core/preview/registry'
 import { exportName, fileStem, relativeHref } from '../../core/export'
 import { htmlDocument, pageBody } from '../../core/htmlExport'
 import { errorCode } from './backups'
@@ -71,17 +72,25 @@ interface Page {
   images: PageImage[]
 }
 
+/** The core worker's, or the core library's own (`devot export`). */
+export type RenderPreview = (markdown: string, options: PreviewOptions) => Promise<Root>
+
+const renderWith =
+  (core: Core): RenderPreview =>
+  (markdown, options) =>
+    core.renderPreview(markdown, options)
+
 /**
  * A note as a page: the full document (`simple`: the bare markup without
  * classes or styles; `print`: a page to print, which loads nothing from the
  * web), with the images Rust puts in.
  */
-async function notePage(
-  core: Core,
+export async function notePage(
+  render: RenderPreview,
   note: { title: string; bodyMd: string },
   options: { simple?: boolean; print?: boolean; noteHref?: (id: string) => string | null } = {},
 ): Promise<Page> {
-  const tree = await core.renderPreview(note.bodyMd, {
+  const tree = await render(note.bodyMd, {
     labels: previewLabels(),
     loadedEmbeds: [],
   })
@@ -170,7 +179,7 @@ async function exportHtml(core: Core, target: ExportTarget): Promise<ExportRepor
     for (const entry of plan.entries) {
       const path = paths.get(entry.noteId)!
       try {
-        const page = await notePage(core, entry, {
+        const page = await notePage(renderWith(core), entry, {
           noteHref: (id) => {
             const to = paths.get(id)
             return to ? relativeHref(entry.folder, to) : null
@@ -211,7 +220,10 @@ export async function runNoteExport(core: Core, action: ExportAction, noteId: st
     default: {
       const simple = action === 'copySimpleHtml'
       const print = action === 'print' || action === 'exportPdf'
-      const page = await notePage(core, await core.read(noteId), { simple, print })
+      const page = await notePage(renderWith(core), await core.read(noteId), {
+        simple,
+        print,
+      })
       const { html, images, title } = page
       if (action === 'copyHtml' || action === 'copySimpleHtml') {
         await invoke('clipboard_write_html', { html, images })
