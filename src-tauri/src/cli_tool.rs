@@ -329,6 +329,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn the_prompt_scripts_compile() {
         let dir = tempfile::tempdir().unwrap();
         for (name, script) in [("install", INSTALL_SCRIPT), ("uninstall", UNINSTALL_SCRIPT)] {
@@ -345,6 +346,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn the_script_runs_the_binary_beside_it_in_command_line_mode() {
         let dir = tempfile::tempdir().unwrap();
         let contents = dir.path().join("Devot.app/Contents");
