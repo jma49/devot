@@ -106,3 +106,22 @@ test('a date the card turns down stays open and says why', async ({ page }) => {
   await page.keyboard.press('Escape')
   await expect(field).toHaveCount(0)
 })
+
+test('the date button takes the keyboard back after Escape or a saved date', async ({ page }) => {
+  await newNote(page, 'Back to the button', 'Some text.')
+  await showPreview(page)
+  const button = (key: 'created' | 'updated') =>
+    card(page).getByRole('button', {
+      name: new RegExp(`^${key === 'created' ? 'Created' : 'Updated'}`),
+    })
+  await button('created').click()
+  await expect(card(page).locator('input[data-info-edit="created"]')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(button('created')).toBeFocused()
+
+  await button('created').click()
+  await card(page).locator('input[data-info-edit="created"]').fill('2020-01-02T03:04:05')
+  await page.keyboard.press('Enter')
+  await expect(card(page).locator('time[data-info="created"]')).toHaveText('2020-01-02 03:04:05')
+  await expect(button('created')).toBeFocused()
+})

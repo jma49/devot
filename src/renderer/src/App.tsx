@@ -2115,13 +2115,28 @@ export function App() {
   // Cmd+E: editor and preview swap; from split, the pane that has the
   // keyboard is the one that stays.
   const previewKeyEcho = useRef(-Infinity)
+  const modeKeyboard = useRef<'editor' | 'preview' | undefined>(undefined)
+  useLayoutEffect(() => {
+    const to = modeKeyboard.current
+    modeKeyboard.current = undefined
+    if (to === 'editor') editorRef.current?.focus()
+    else if (to === 'preview') document.querySelector<HTMLElement>('main .preview')?.focus()
+  }, [mode])
   const togglePreview = () => {
     const from = document.activeElement
-    setMode((m) => {
-      if (m === 'edit') return 'preview'
-      if (m === 'preview') return 'edit'
-      return from?.closest('.preview') ? 'preview' : 'edit'
-    })
+    const next =
+      mode === 'split'
+        ? from?.closest('.preview')
+          ? 'preview'
+          : 'edit'
+        : mode === 'edit'
+          ? 'preview'
+          : 'edit'
+    if (next !== mode) {
+      if (mode === 'edit' && inEditor(from)) modeKeyboard.current = 'preview'
+      else if (mode === 'preview' && from?.closest('.preview')) modeKeyboard.current = 'editor'
+    }
+    setMode(next)
   }
   useMenuEvent('devot://toggle-preview', TOGGLE_PREVIEW, () => {
     // The key reaches the menu too; the window already ran the command.

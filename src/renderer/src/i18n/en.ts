@@ -958,7 +958,7 @@ export const en = {
   'command.tableMoveColumnLeft': 'Move Column Left',
   'command.tableMoveColumnRight': 'Move Column Right',
   'command.tableAlignLeft': 'Align Column Left',
-  'command.tableAlignCenter': 'Align Column Center',
+  'command.tableAlignCenter': 'Align Column Centre',
   'command.tableAlignRight': 'Align Column Right',
   'command.tableAlignNone': 'Remove Column Alignment',
   'command.tableFormat': 'Format Table',
