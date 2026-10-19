@@ -42,6 +42,11 @@ fn random_name() -> String {
     format!(".devot-{}.tmp", uuid::Uuid::new_v4().simple())
 }
 
+/// A name for `Folder::temporary_file`, chosen before the file is made.
+pub fn temporary_name() -> OsString {
+    OsString::from(random_name())
+}
+
 pub fn effective_uid() -> u32 {
     rustix::process::geteuid().as_raw()
 }
@@ -277,6 +282,13 @@ impl Folder {
         TempFile::in_folder(self.clone()).map(drop)
     }
 
+    /// A new temporary file at `name` (from `temporary_name`) that the writer puts in place itself
+    /// (`TempFile::place`): a writer that may have to exit at once knows the name to remove before
+    /// the file exists.
+    pub fn temporary_file(&self, name: OsString) -> io::Result<TempFile> {
+        TempFile::create_first(self.clone(), [name])
+    }
+
     fn id(&self) -> io::Result<(u64, u64)> {
         Ok(Entry::of(&rustix::fs::fstat(&*self.fd)?).id)
     }
@@ -450,6 +462,15 @@ impl TempFile {
         self.file.write_all(bytes)
     }
 
+    pub fn write_from(&mut self, from: &mut dyn Read) -> io::Result<()> {
+        io::copy(from, &mut self.file).map(drop)
+    }
+
+    /// Flushed, then put at `name` in `into`, which must be on the same volume.
+    pub fn place(self, into: &Folder, name: impl AsRef<OsStr>, place: Place) -> io::Result<()> {
+        self.finish(into, name.as_ref(), place, true)
+    }
+
     /// The folder is not looked up by its path again; a target in another folder is refused
     /// (`InvalidInput`).
     pub fn persist(self, target: &Path, place: Place) -> io::Result<()> {
@@ -574,8 +595,11 @@ impl TempDir {
     }
 
     pub fn copy_to(&self, name: &str, into: &Folder, to: &str, place: Place) -> io::Result<()> {
-        let mut file = self.open_own()?.read_file(name)?;
-        into.write_from(to, &mut file, place)
+        into.write_from(to, &mut self.read_file(name)?, place)
+    }
+
+    pub fn read_file(&self, name: &str) -> io::Result<File> {
+        self.open_own()?.read_file(name)
     }
 }
 
