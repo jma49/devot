@@ -23,6 +23,9 @@ interface Probe {
   devotSamples: Sample[]
   devotSampling: boolean
   devotKeys: KeyRecord[]
+  /** Takes a sample now: the moment before the reopen. */
+  devotMark?: () => void
+  devotBefore?: Sample
 }
 
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palette' })
@@ -57,6 +60,32 @@ async function recordKeys(page: Page) {
   })
 }
 
+/**
+ * `ms` after the next `trigger` event (a real Escape or click), presses Command and a key (`code`) or
+ * sends a page event, from the page itself so the gap does not depend on the runner's round trips.
+ */
+async function soonAfter(
+  page: Page,
+  trigger: 'keydown' | 'click',
+  then: { code: string } | { event: string },
+  ms = 20,
+) {
+  await page.evaluate(
+    ([type, action, wait]) => {
+      const act = () => {
+        ;(globalThis as unknown as Probe).devotMark?.()
+        if ('event' in action) return dispatchEvent(new CustomEvent(action.event))
+        const target = document.activeElement ?? document.body
+        const key = action.code.replace('Key', '').toLowerCase()
+        const init = { code: action.code, key, metaKey: true, bubbles: true, cancelable: true }
+        return target.dispatchEvent(new KeyboardEvent('keydown', init))
+      }
+      addEventListener(type, () => setTimeout(act, wait), { capture: true, once: true })
+    },
+    [trigger, then, ms] as const,
+  )
+}
+
 const keys = (page: Page) => page.evaluate(() => (globalThis as unknown as Probe).devotKeys)
 
 /**
@@ -73,30 +102,37 @@ async function startSampling(page: Page, selector: string) {
     const idOf = (el: Element) => ids.get(el) ?? ids.set(el, ids.size + 1).size
     const opacity = (el: Element | null, pseudo?: string) =>
       el ? Number.parseFloat(getComputedStyle(el, pseudo).opacity) : null
-    const tick = () => {
-      if (!w.devotSampling) return
+    const sample = (): Sample => {
       const live = document.querySelector(`${sel}:not([data-closing])`)
       const dim = opacity(document.querySelector('.dialog-backdrop[data-closing]')) ?? 0
       const backdrop = live instanceof HTMLDialogElement ? (opacity(live, '::backdrop') ?? 0) : 0
-      w.devotSamples.push({
+      return {
         count: document.querySelectorAll(sel).length,
         liveId: live ? idOf(live) : null,
         live: opacity(live),
         copy: opacity(document.querySelector(`${sel}[data-closing]`)),
         dim: 1 - (1 - dim) * (1 - backdrop),
-      })
+      }
+    }
+    w.devotMark = () => {
+      w.devotBefore = sample()
+    }
+    const tick = () => {
+      if (!w.devotSampling) return
+      w.devotSamples.push(sample())
       requestAnimationFrame(tick)
     }
-    requestAnimationFrame(tick)
+    tick()
   }, selector)
 }
 
-async function stopSampling(page: Page, frames = 20): Promise<Sample[]> {
+/** The samples taken every frame, and the one taken just before the reopen. */
+async function stopSampling(page: Page, frames = 20) {
   return page.evaluate(async (n) => {
     const w = globalThis as unknown as Probe
     for (let i = 0; i < n; i++) await new Promise((r) => requestAnimationFrame(r))
     w.devotSampling = false
-    return w.devotSamples
+    return { samples: w.devotSamples, before: w.devotBefore }
   }, frames)
 }
 
@@ -105,18 +141,20 @@ const shown = (s: Sample) => s.live ?? s.copy ?? 0
 
 /**
  * Asserts the one opened again took over where its copy was: `value` on its first frame is no lower
- * than on the frame before (less what the copy faded in between, at most a frame of its fade), and it
- * only grows from there.
+ * than just before the reopen (less what the copy fades while the app renders), and it only grows.
  */
-function expectTakesOver(samples: Sample[], value: (s: Sample) => number = shown) {
+function expectTakesOver(
+  { samples, before }: { samples: Sample[]; before?: Sample | undefined },
+  value: (s: Sample) => number = shown,
+) {
   const reopened = samples.findIndex(
     (s, i) => i > 0 && s.liveId !== null && s.liveId !== samples[i - 1]?.liveId,
   )
   expect(reopened).toBeGreaterThan(0)
-  const before = value(samples[reopened - 1]!)
+  expect(before?.copy).not.toBeNull()
   const after = samples.slice(reopened).map(value)
-  const trace = samples.map((s) => value(s).toFixed(2)).join(' ')
-  expect(after[0], trace).toBeGreaterThanOrEqual(before - 0.15)
+  const trace = `${value(before!).toFixed(2)} | ${samples.map((s) => value(s).toFixed(2)).join(' ')}`
+  expect(after[0], trace).toBeGreaterThanOrEqual(value(before!) - 0.05)
   expectNeverFalls(after)
 }
 
@@ -139,10 +177,11 @@ test('Escape then Command-K within 50 ms opens the palette again over its fading
   await settled(palette(page))
   await recordKeys(page)
   await startSampling(page, 'dialog.palette[open]')
+  await soonAfter(page, 'keydown', { code: 'KeyK' })
   await page.keyboard.press('Escape')
-  await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
-  const samples = await stopSampling(page)
+  const sampled = await stopSampling(page)
+  const { samples } = sampled
 
   const pressed = await keys(page)
   const escape = pressed.find((k) => k.code === 'Escape')
@@ -150,7 +189,7 @@ test('Escape then Command-K within 50 ms opens the palette again over its fading
   expect(reopen!.t - escape!.t).toBeLessThan(50)
   expect(reopen?.copies).toBe(1)
   expect(Math.max(...samples.map((s) => s.count))).toBe(1)
-  expectTakesOver(samples)
+  expectTakesOver(sampled)
   await expect(page.locator('dialog.palette')).toHaveCount(1)
 })
 
@@ -168,9 +207,10 @@ test('Command-N right after confirming a dialog creates a note', async ({ page }
   await tagRow.focus()
   await page.keyboard.press('Delete')
   const confirm = page.getByRole('dialog', { name: 'Delete the tag “temp”?' })
+  await expect(confirm).toBeVisible()
   await recordKeys(page)
+  await soonAfter(page, 'click', { code: 'KeyN' })
   await confirm.getByRole('button', { name: 'Delete Tag' }).click()
-  await page.keyboard.press('Meta+KeyN')
   await expect(noteRows(page)).toHaveCount(before + 2)
   const pressed = (await keys(page)).find((k) => k.code === 'KeyN')
   expect(pressed?.copies).toBe(1)
@@ -188,15 +228,17 @@ test('a sheet opened again while its dim fades keeps the page from brightening',
   const sheet = page.getByRole('dialog', { name: 'Backups' })
   await settled(sheet)
   await startSampling(page, 'dialog.sheet[open]')
+  // Halfway through the copy's 200 ms fade.
+  await soonAfter(page, 'keydown', { event: 'devot:show-backups' }, 100)
   await page.keyboard.press('Escape')
-  await expect(page.locator('dialog.sheet[data-closing]')).toHaveCount(1)
-  await showBackups()
+  await expect(page.locator('dialog.sheet[data-closing]')).toHaveCount(0)
   await expect(sheet).toBeVisible()
-  const samples = await stopSampling(page)
+  const sampled = await stopSampling(page)
+  const { samples } = sampled
 
   expect(Math.max(...samples.map((s) => s.count))).toBe(1)
-  expectTakesOver(samples)
-  expectTakesOver(samples, (s) => s.dim)
+  expectTakesOver(sampled)
+  expectTakesOver(sampled, (s) => s.dim)
   await expect(page.locator('.dialog-backdrop')).toHaveCount(0)
 })
 
@@ -215,6 +257,7 @@ test('a dropdown opened again while it fades out never dips', async ({ page }) =
           new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
         )
         setTimeout(() => {
+          ;(globalThis as unknown as Probe).devotMark?.()
           ;(button as HTMLElement | null)?.click()
           done()
         }, 60)
@@ -222,10 +265,11 @@ test('a dropdown opened again while it fades out never dips', async ({ page }) =
     [await list.elementHandle(), await statusPicker(page).elementHandle()] as const,
   )
   await expect(list).toBeVisible()
-  const samples = await stopSampling(page)
+  const sampled = await stopSampling(page)
+  const { samples } = sampled
 
   expect(Math.max(...samples.map((s) => s.count))).toBe(1)
-  expectTakesOver(samples)
+  expectTakesOver(sampled)
 })
 
 test('the palette fades out where its results were scrolled to', async ({ page }) => {

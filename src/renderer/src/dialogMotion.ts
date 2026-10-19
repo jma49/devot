@@ -110,9 +110,11 @@ function leaveDialogCopy(dialog: HTMLDialogElement): void {
   removeWhenDone(copy)
 }
 
-function releaseDim(dialog: HTMLDialogElement): void {
+/** Drops what a takeover set on `dialog`, which closed, so its next opening starts afresh. */
+function releaseTakeover(dialog: HTMLDialogElement): void {
   delete dialog.dataset['backdropFrom']
   dialog.style.removeProperty('--backdrop-from')
+  dialog.style.removeProperty('animation-delay')
 }
 
 /**
@@ -121,6 +123,17 @@ function releaseDim(dialog: HTMLDialogElement): void {
  * (its `::backdrop` by `--backdrop-from`, app.css) rather than from nothing.
  */
 function takeOverDialogCopy(dialog: HTMLDialogElement): void {
+  if (dialog.matches(DIMMING)) {
+    const dims = Array.from(
+      document.body.querySelectorAll<HTMLElement>(':scope > .dialog-backdrop[data-closing]'),
+    )
+    const dim = dims.at(-1)
+    if (dim) {
+      dialog.style.setProperty('--backdrop-from', getComputedStyle(dim).opacity)
+      dialog.dataset['backdropFrom'] = ''
+    }
+    for (const d of dims) d.remove()
+  }
   const kind = DIALOG_KINDS.find((k) => dialog.matches(k))
   const copies = Array.from(
     document.body.querySelectorAll<HTMLElement>(':scope > dialog[data-closing="dialog"]'),
@@ -128,16 +141,6 @@ function takeOverDialogCopy(dialog: HTMLDialogElement): void {
   const latest = copies.pop()
   for (const copy of copies) copy.remove()
   if (latest) enterFrom(dialog, latest)
-  if (!dialog.matches(DIMMING)) return
-  const dims = Array.from(
-    document.body.querySelectorAll<HTMLElement>(':scope > .dialog-backdrop[data-closing]'),
-  )
-  const dim = dims.at(-1)
-  if (dim) {
-    dialog.style.setProperty('--backdrop-from', getComputedStyle(dim).opacity)
-    dialog.dataset['backdropFrom'] = ''
-  }
-  for (const d of dims) d.remove()
 }
 
 export function watchDialogExits(root: Node = document.body): () => void {
@@ -157,7 +160,7 @@ export function watchDialogExits(root: Node = document.body): () => void {
       (dialog) => dialog.isConnected && dialog.open,
     )
     for (const dialog of closed) {
-      releaseDim(dialog)
+      releaseTakeover(dialog)
       if (!motionReduced()) leaveDialogCopy(dialog)
     }
     const opened = openedDialogs(

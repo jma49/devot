@@ -103,24 +103,31 @@ export function timeReaching(
 
 /**
  * Retargets `el`'s entrance from `copy`, the closing copy it replaces: the
- * copy goes and `el`'s CSS animations jump ahead to where its opacity matches
- * the copy's, so a reopen never dips back to transparent.
+ * copy goes and `el`'s CSS animations start ahead, where its opacity matches
+ * the copy's, so a reopen never dips back to transparent. The head start is
+ * an inline negative `animation-delay`, which a copy of `el` must not keep.
  */
-export function enterFrom(el: Element, copy: Element): void {
+export function enterFrom(el: HTMLElement, copy: Element): void {
   const opacity = Number.parseFloat(getComputedStyle(copy).opacity)
   copy.remove()
-  const entrance = el.getAnimations().filter((a) => 'animationName' in a)
-  if (entrance.length === 0 || !(opacity > 0)) return
-  const end = Math.max(...entrance.map((a) => Number(a.effect?.getComputedTiming().endTime ?? 0)))
+  const style = getComputedStyle(el)
+  const end = animationMs(style.animationDuration, style.animationDelay)
+  if (end <= 0 || style.animationName === 'none' || !(opacity > 0)) return
+  // A delay, not a seek: WebKit can replace a modal dialog's just-started
+  // CSS animation with a new one at its next style update, losing a seek.
   const at = (ms: number) => {
-    for (const a of entrance) a.currentTime = ms
+    el.style.animationDelay = `${-ms}ms`
     return Number.parseFloat(getComputedStyle(el).opacity)
   }
   at(timeReaching(opacity, at, end))
 }
 
 /** Clears the fading copies of `kind` in `parent` as `el` opens there, taking over from the latest. */
-export function takeOverClosingCopy(el: Element, parent: ParentNode | null, kind: string): void {
+export function takeOverClosingCopy(
+  el: HTMLElement,
+  parent: ParentNode | null,
+  kind: string,
+): void {
   const copies = closingCopies(parent, kind)
   const latest = copies.pop()
   for (const copy of copies) copy.remove()
@@ -178,6 +185,7 @@ export function leaveClosingCopy(
   // Ids would repeat the pop-up's (a new one may be open with them).
   for (const node of [copy, ...Array.from(copy.querySelectorAll('[id]'))])
     node.removeAttribute('id')
+  copy.style.removeProperty('animation-delay')
   copy.dataset['closing'] = kind
   copy.dataset['closingMotion'] = motion
   copy.setAttribute('aria-hidden', 'true')
