@@ -4,7 +4,7 @@
 // and the accessibility tree move on without waiting; a copy of it stays in
 // its place, inert and hidden from assistive tech, until its closing
 // animation ends (or the animation's length passes, if `animationend` never
-// comes). A pop-up that opens again replaces its fading copy.
+// comes). A pop-up that opens again takes over from its fading copy.
 
 export type CloseMotion = 'scale' | 'fade'
 
@@ -69,22 +69,101 @@ export function tooltipMotion(classes: Iterable<string>): CloseMotion | null {
   return list.has('cm-tooltip-autocomplete') ? 'fade' : null
 }
 
-export function dropClosingCopies(parent: ParentNode | null, kind: string): void {
-  if (!parent) return
-  for (const child of Array.from(parent.children)) {
-    if (child instanceof HTMLElement && child.dataset['closing'] === kind) child.remove()
-  }
+function dropClosingCopies(parent: ParentNode | null, kind: string): void {
+  for (const copy of closingCopies(parent, kind)) copy.remove()
 }
 
-function scrollOffsets(el: Element): [number, number][] {
-  return [el, ...Array.from(el.querySelectorAll('*'))].map((e) => [e.scrollTop, e.scrollLeft])
+function closingCopies(parent: ParentNode | null, kind: string): HTMLElement[] {
+  if (!parent) return []
+  return Array.from(parent.children).filter(
+    (child): child is HTMLElement =>
+      child instanceof HTMLElement && child.dataset['closing'] === kind,
+  )
+}
+
+/**
+ * The time, within `durationMs`, at which a rising `valueAt` first reaches
+ * `target` (to the millisecond, erring later so the value never falls short).
+ */
+export function timeReaching(
+  target: number,
+  valueAt: (ms: number) => number,
+  durationMs: number,
+): number {
+  if (!(durationMs > 0) || valueAt(0) >= target) return 0
+  let below = 0
+  let reached = durationMs
+  while (reached - below > 1) {
+    const mid = (below + reached) / 2
+    if (valueAt(mid) < target) below = mid
+    else reached = mid
+  }
+  return reached
+}
+
+/**
+ * Retargets `el`'s entrance from `copy`, the closing copy it replaces: the
+ * copy goes and `el`'s CSS animations jump ahead to where its opacity matches
+ * the copy's, so a reopen never dips back to transparent.
+ */
+export function enterFrom(el: Element, copy: Element): void {
+  const opacity = Number.parseFloat(getComputedStyle(copy).opacity)
+  copy.remove()
+  const entrance = el.getAnimations().filter((a) => 'animationName' in a)
+  if (entrance.length === 0 || !(opacity > 0)) return
+  const end = Math.max(...entrance.map((a) => Number(a.effect?.getComputedTiming().endTime ?? 0)))
+  const at = (ms: number) => {
+    for (const a of entrance) a.currentTime = ms
+    return Number.parseFloat(getComputedStyle(el).opacity)
+  }
+  at(timeReaching(opacity, at, end))
+}
+
+/** Clears the fading copies of `kind` in `parent` as `el` opens there, taking over from the latest. */
+export function takeOverClosingCopy(el: Element, parent: ParentNode | null, kind: string): void {
+  const copies = closingCopies(parent, kind)
+  const latest = copies.pop()
+  for (const copy of copies) copy.remove()
+  if (latest) enterFrom(el, latest)
+}
+
+type ScrollOffsets = [number, number][]
+
+const scrolled = new WeakMap<Element, [number, number]>()
+
+/**
+ * Remembers where the elements under `root` are scrolled to, for copies of
+ * pop-ups already closed or taken out, whose own offsets then read 0.
+ */
+export function rememberScrolls(root: Node): () => void {
+  const note = (event: Event) => {
+    const el = event.target
+    if (el instanceof Element) scrolled.set(el, [el.scrollTop, el.scrollLeft])
+  }
+  root.addEventListener('scroll', note, { capture: true, passive: true })
+  return () => root.removeEventListener('scroll', note, { capture: true })
+}
+
+export function scrollOffsets(el: Element): ScrollOffsets {
+  const shown = el.isConnected && el.getClientRects().length > 0
+  return [el, ...Array.from(el.querySelectorAll('*'))].map((e) =>
+    shown ? [e.scrollTop, e.scrollLeft] : (scrolled.get(e) ?? [0, 0]),
+  )
+}
+
+export function restoreScroll(copy: Element, offsets: ScrollOffsets): void {
+  ;[copy, ...Array.from(copy.querySelectorAll('*'))].forEach((e, i) => {
+    const [top, left] = offsets[i] ?? [0, 0]
+    if (top) e.scrollTop = top
+    if (left) e.scrollLeft = left
+  })
 }
 
 /**
  * Leaves a closing copy of `el` where it is, or where it was (`at`, for an
  * element already taken out). `kind` names the pop-up, so one that opens
- * again can replace its copy. The copy keeps `el`'s classes, so its styles
- * pick the closing animation by `motion` (`data-closing-motion`).
+ * again can take over from its copy. The copy keeps `el`'s classes, so its
+ * styles pick the closing animation by `motion` (`data-closing-motion`).
  */
 export function leaveClosingCopy(
   el: HTMLElement,
@@ -111,11 +190,7 @@ export function leaveClosingCopy(
     copy,
     at ? (at.before?.parentNode === parent ? at.before : null) : el.nextSibling,
   )
-  ;[copy, ...Array.from(copy.querySelectorAll('*'))].forEach((e, i) => {
-    const [top, left] = offsets[i] ?? [0, 0]
-    if (top) e.scrollTop = top
-    if (left) e.scrollLeft = left
-  })
+  restoreScroll(copy, offsets)
   const style = getComputedStyle(copy)
   const ms = animationMs(style.animationDuration, style.animationDelay)
   if (ms <= 0 || style.animationName === 'none') return copy.remove()
@@ -123,14 +198,14 @@ export function leaveClosingCopy(
 }
 
 /**
- * A ref callback for a pop-up that closes with `motion`: on mount it clears a
- * fading copy of the same `kind`, on unmount it leaves one. Made once per
- * pop-up (at module level), so React keeps the same callback.
+ * A ref callback for a pop-up that closes with `motion`: on mount it takes
+ * over from a fading copy of the same `kind`, on unmount it leaves one. Made
+ * once per pop-up (at module level), so React keeps the same callback.
  */
 export function closingRef(motion: CloseMotion, kind: string) {
   return (el: HTMLElement | null) => {
     if (!el) return
-    dropClosingCopies(el.parentElement, kind)
+    takeOverClosingCopy(el, el.parentElement, kind)
     return () => leaveClosingCopy(el, motion, kind)
   }
 }

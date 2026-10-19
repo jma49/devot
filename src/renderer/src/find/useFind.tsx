@@ -14,6 +14,7 @@ import {
 } from 'react'
 import { findMatches, type FindOptions } from '../../../core/find'
 import { escapeRegExp } from '../../../core/search'
+import { sheetOpen } from '../commands/dispatch'
 import type { CommandHandlers } from '../commands/registry'
 import { isImeKey } from '../ime'
 import type { Mode } from '../ModeControl'
@@ -153,7 +154,7 @@ export function useFind({ mode, noteOpen, editor, preview }: Input): {
     const onKey = (e: KeyboardEvent) => {
       if (isImeKey(e)) return
       const action = findShortcut(e)
-      if (!action || document.querySelector('dialog[open]')) return
+      if (!action || sheetOpen()) return
       const now = latest.current
       if (!now.noteOpen) return
       if (TOGGLES.has(action) && !now.open) return

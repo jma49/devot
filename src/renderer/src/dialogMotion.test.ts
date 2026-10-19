@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { closedDialogs, type DialogRecord } from './dialogMotion'
+import { closedDialogs, openedDialogs, type DialogRecord } from './dialogMotion'
 
 interface Fake {
   name: string
@@ -48,5 +48,32 @@ describe('the dialogs that closed', () => {
     expect(closed([attribute(dialog('opened', true, true), null)])).toEqual([])
     expect(closed([attribute(dialog('reopened', true, true), '')])).toEqual([])
     expect(closed([removal(dialog('shut'))])).toEqual([])
+  })
+})
+
+const opened = (records: DialogRecord[]) =>
+  openedDialogs(records, isDialog, dialogsIn, stillOpen).map((d) => d.name)
+const addition = (...added: Fake[]): DialogRecord => ({
+  type: 'childList',
+  target: null,
+  oldValue: null,
+  removed: [],
+  added,
+})
+
+describe('the dialogs that opened', () => {
+  it('finds a dialog that opened, once, whether it was shown or added open', () => {
+    const d = dialog('palette', true, true)
+    expect(opened([addition(d), attribute(d, null)])).toEqual(['palette'])
+  })
+
+  it('finds an open dialog added inside a page part', () => {
+    const inner = dialog('sheet', true, true)
+    expect(opened([addition({ ...dialog('wrapper'), children: [inner] })])).toEqual(['sheet'])
+  })
+
+  it('leaves a dialog that closed, or opened and closed again before it was seen', () => {
+    expect(opened([attribute(dialog('closed'), '')])).toEqual([])
+    expect(opened([attribute(dialog('flicker', false, true), null)])).toEqual([])
   })
 })

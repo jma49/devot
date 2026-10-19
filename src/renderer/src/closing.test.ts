@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { animationMs, tooltipMotion, whenClosed, type ClosingTarget } from './closing'
+import { animationMs, timeReaching, tooltipMotion, whenClosed, type ClosingTarget } from './closing'
 
 function fakeTarget() {
   const listeners = new Map<string, Set<(e: { target: unknown }) => void>>()
@@ -102,5 +102,25 @@ describe('tooltipMotion', () => {
   it('leaves other tooltips alone', () => {
     expect(tooltipMotion(['cm-tooltip', 'cm-tooltip-hover'])).toBeNull()
     expect(tooltipMotion(['cm-float-bar'])).toBeNull()
+  })
+})
+
+describe('timeReaching', () => {
+  const easeOut = (ms: number) => 1 - (1 - Math.min(ms, 200) / 200) ** 2
+
+  it('picks up an entrance where the closing copy had faded to, never short of it', () => {
+    const t = timeReaching(0.75, easeOut, 200)
+    expect(t).toBeCloseTo(100, -1)
+    expect(easeOut(t)).toBeGreaterThanOrEqual(0.75)
+    expect(easeOut(t - 1)).toBeLessThan(0.75)
+  })
+
+  it('starts from the beginning when the copy had faded out, and at the end when it had not begun', () => {
+    expect(timeReaching(0, easeOut, 200)).toBe(0)
+    expect(timeReaching(1, easeOut, 200)).toBe(200)
+  })
+
+  it('stays put when there is nothing to run', () => {
+    expect(timeReaching(0.5, easeOut, 0)).toBe(0)
   })
 })

@@ -4,7 +4,7 @@
 // Motion sets `--popover-enter-scale` and `--popover-exit-scale` to 1
 // (app.css), so a pop-up then only fades.
 import { ViewPlugin } from '@codemirror/view'
-import { dropClosingCopies, leaveClosingCopy, tooltipMotion } from '../closing'
+import { leaveClosingCopy, rememberScrolls, takeOverClosingCopy, tooltipMotion } from '../closing'
 
 export const motionKeyframes = {
   '@keyframes cm-popover-in': {
@@ -53,11 +53,13 @@ const tooltipKind = (el: HTMLElement) =>
 
 /**
  * Leaves a fading copy of a floating bar or completion list when CodeMirror
- * takes it out (it removes a tooltip's element at once), and drops it when
- * one of its kind opens again. Watches the element tooltips are added to,
- * the editor's own.
+ * takes it out (it removes a tooltip's element at once), and hands over from
+ * it when one of its kind opens again. Watches the element tooltips are added
+ * to, the editor's own.
  */
 export const closingTooltips = ViewPlugin.define((view) => {
+  // Offsets read after CodeMirror detaches a list are 0, so they are noted as it scrolls.
+  const forgetScrolls = rememberScrolls(view.dom)
   const watch = new MutationObserver((records) => {
     for (const record of records) {
       for (const node of Array.from(record.removedNodes)) {
@@ -71,10 +73,15 @@ export const closingTooltips = ViewPlugin.define((view) => {
       }
       for (const node of Array.from(record.addedNodes)) {
         if (!(node instanceof HTMLElement) || node.dataset['closing'] !== undefined) continue
-        if (tooltipMotion(node.classList)) dropClosingCopies(view.dom, tooltipKind(node))
+        if (tooltipMotion(node.classList)) takeOverClosingCopy(node, view.dom, tooltipKind(node))
       }
     }
   })
   watch.observe(view.dom, { childList: true })
-  return { destroy: () => watch.disconnect() }
+  return {
+    destroy: () => {
+      watch.disconnect()
+      forgetScrolls()
+    },
+  }
 })
