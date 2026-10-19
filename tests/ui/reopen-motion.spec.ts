@@ -23,9 +23,8 @@ interface Probe {
   devotSamples: Sample[]
   devotSampling: boolean
   devotKeys: KeyRecord[]
-  /** Takes a sample now: the moment before the reopen. */
-  devotMark?: () => void
-  devotBefore?: Sample
+  /** The copy's and the dim's opacity as the reopened one took them over (removed them). */
+  devotBefore?: { copy: number | null; dim: number | null }
 }
 
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palette' })
@@ -73,7 +72,6 @@ async function soonAfter(
   await page.evaluate(
     ([type, action, wait]) => {
       const act = () => {
-        ;(globalThis as unknown as Probe).devotMark?.()
         if ('event' in action) return dispatchEvent(new CustomEvent(action.event))
         const target = document.activeElement ?? document.body
         const key = action.code.replace('Key', '').toLowerCase()
@@ -114,8 +112,15 @@ async function startSampling(page: Page, selector: string) {
         dim: 1 - (1 - dim) * (1 - backdrop),
       }
     }
-    w.devotMark = () => {
-      w.devotBefore = sample()
+    const before = { copy: null as number | null, dim: null as number | null }
+    w.devotBefore = before
+    const remove = Element.prototype.remove
+    Element.prototype.remove = function (this: Element) {
+      if (this.isConnected && before.copy === null && this.matches(`${sel}[data-closing]`))
+        before.copy = opacity(this)
+      if (this.isConnected && before.dim === null && this.matches('.dialog-backdrop[data-closing]'))
+        before.dim = opacity(this)
+      remove.call(this)
     }
     const tick = () => {
       if (!w.devotSampling) return
@@ -126,7 +131,7 @@ async function startSampling(page: Page, selector: string) {
   }, selector)
 }
 
-/** The samples taken every frame, and the one taken just before the reopen. */
+/** The samples taken every frame, and what the reopened one took over. */
 async function stopSampling(page: Page, frames = 20) {
   return page.evaluate(async (n) => {
     const w = globalThis as unknown as Probe
@@ -140,21 +145,22 @@ async function stopSampling(page: Page, frames = 20) {
 const shown = (s: Sample) => s.live ?? s.copy ?? 0
 
 /**
- * Asserts the one opened again took over where its copy was: `value` on its first frame is no lower
- * than just before the reopen (less what the copy fades while the app renders), and it only grows.
+ * Asserts the one opened again took over where its copy was: on its first frame it shows at least
+ * what the copy (or the dim) showed as it was taken over, and it only grows from there.
  */
 function expectTakesOver(
-  { samples, before }: { samples: Sample[]; before?: Sample | undefined },
+  { samples, before }: { samples: Sample[]; before?: Probe['devotBefore'] },
   value: (s: Sample) => number = shown,
+  from: number | null | undefined = before?.copy,
 ) {
   const reopened = samples.findIndex(
     (s, i) => i > 0 && s.liveId !== null && s.liveId !== samples[i - 1]?.liveId,
   )
   expect(reopened).toBeGreaterThan(0)
-  expect(before?.copy).not.toBeNull()
+  expect(from).toBeGreaterThan(0)
   const after = samples.slice(reopened).map(value)
-  const trace = `${value(before!).toFixed(2)} | ${samples.map((s) => value(s).toFixed(2)).join(' ')}`
-  expect(after[0], trace).toBeGreaterThanOrEqual(value(before!) - 0.05)
+  const trace = `${from!.toFixed(2)} | ${samples.map((s) => value(s).toFixed(2)).join(' ')}`
+  expect(after[0], trace).toBeGreaterThanOrEqual(from! - 0.01)
   expectNeverFalls(after)
 }
 
@@ -238,7 +244,7 @@ test('a sheet opened again while its dim fades keeps the page from brightening',
 
   expect(Math.max(...samples.map((s) => s.count))).toBe(1)
   expectTakesOver(sampled)
-  expectTakesOver(sampled, (s) => s.dim)
+  expectTakesOver(sampled, (s) => s.dim, sampled.before?.dim)
   await expect(page.locator('.dialog-backdrop')).toHaveCount(0)
 })
 
@@ -257,7 +263,6 @@ test('a dropdown opened again while it fades out never dips', async ({ page }) =
           new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
         )
         setTimeout(() => {
-          ;(globalThis as unknown as Probe).devotMark?.()
           ;(button as HTMLElement | null)?.click()
           done()
         }, 60)

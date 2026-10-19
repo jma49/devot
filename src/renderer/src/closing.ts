@@ -113,13 +113,21 @@ export function enterFrom(el: HTMLElement, copy: Element): void {
   const style = getComputedStyle(el)
   const end = animationMs(style.animationDuration, style.animationDelay)
   if (end <= 0 || style.animationName === 'none' || !(opacity > 0)) return
-  // A delay, not a seek: WebKit can replace a modal dialog's just-started
-  // CSS animation with a new one at its next style update, losing a seek.
   const at = (ms: number) => {
     el.style.animationDelay = `${-ms}ms`
     return Number.parseFloat(getComputedStyle(el).opacity)
   }
-  at(timeReaching(opacity, at, end))
+  const head = timeReaching(opacity, at, end)
+  at(head)
+  // WebKit can start a just-opened modal dialog's animations again a frame
+  // later (a seek would be lost too): each start resumes where it had got to.
+  const since = performance.now()
+  const onStart = (event: AnimationEvent) => {
+    if (event.target !== el || event.pseudoElement) return
+    el.style.animationDelay = `${-(head + performance.now() - since)}ms`
+  }
+  el.addEventListener('animationstart', onStart)
+  setTimeout(() => el.removeEventListener('animationstart', onStart), end)
 }
 
 /** Clears the fading copies of `kind` in `parent` as `el` opens there, taking over from the latest. */
