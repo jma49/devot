@@ -726,6 +726,7 @@ export const NoteList = memo(function NoteList(props: Props) {
             <button
               type="button"
               className="tool"
+              data-tauri-drag-region="false"
               aria-label={props.createLabel ?? t('noteList.newNote')}
               title={props.createLabel ?? t('noteList.newNote')}
               onClick={onCreate}

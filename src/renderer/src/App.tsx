@@ -245,9 +245,11 @@ function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void
   return (
     <>
       <span className="window-inset" aria-hidden="true" data-tauri-drag-region />
+      {/* Never part of the window's drag region, which the header around it is. */}
       <button
         type="button"
         className="tool sidebar-toggle"
+        data-tauri-drag-region="false"
         aria-label={t(shown ? 'command.hideSidebar' : 'command.showSidebar')}
         title={titleWithKey(shown ? 'sidebar.hideTitle' : 'sidebar.showTitle', 'view.sidebar')}
         onClick={onClick}
@@ -2774,6 +2776,7 @@ export function App() {
       <button
         type="button"
         className="button"
+        data-tauri-drag-region="false"
         aria-disabled={trash.length === 0}
         onClick={askEmptyTrash}
       >

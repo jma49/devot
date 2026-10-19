@@ -1708,8 +1708,10 @@ button {
   transition: width var(--motion-duration-inset) var(--motion-easing-out);
 }
 
+/* The toggle starts where the editor's header does in focus mode: past the
+   window controls by the inset (less the header's own padding). */
 .window[data-sidebar-hidden] .list-header .window-inset {
-  width: var(--size-window-controls-inset);
+  width: calc(var(--size-window-controls-inset) - var(--space-1));
 }
 
 @media (prefers-reduced-motion: reduce) {

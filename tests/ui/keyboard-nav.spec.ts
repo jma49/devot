@@ -471,16 +471,23 @@ test.describe('the sidebar', () => {
     const toggle = bar.getByRole('button', { name: 'Hide Sidebar' })
     await expect(toggle).toHaveAttribute('title', 'Hide Sidebar (⌘/)')
     await expect(bar.getByRole('button').first()).toHaveAccessibleName('Hide Sidebar')
+    // Its controls are never part of the window's drag region around them,
+    // which would take the press for a window drag.
+    for (const button of await bar.getByRole('button').all())
+      await expect(button).toHaveAttribute('data-tauri-drag-region', 'false')
     const inset = bar.locator('.window-inset')
     await expect.poll(async () => (await inset.boundingBox())?.width).toBe(0)
 
     await toggle.click()
     await expect(sidebar(page)).toBeHidden()
-    // The window controls get their room before the toggle.
-    await expect.poll(async () => (await inset.boundingBox())?.width).toBe(70)
-    await bar.getByRole('button', { name: 'Show Sidebar' }).click()
+    // The window controls get their room before the toggle: it starts 84 px
+    // in, clear of them, where the editor's header starts in focus mode.
+    const show = bar.getByRole('button', { name: 'Show Sidebar' })
+    await expect.poll(async () => (await show.boundingBox())?.x).toBe(84)
+    await show.click()
     await expect(sidebar(page)).toBeVisible()
     await expect.poll(async () => (await inset.boundingBox())?.width).toBe(0)
+    await expect(bar.getByRole('button', { name: 'Hide Sidebar' })).toBeVisible()
   })
 
   test('Cmd+/ hides and shows it, from the editor too, and the window remembers it', async ({

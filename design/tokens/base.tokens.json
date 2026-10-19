@@ -865,10 +865,10 @@
     "window-controls-inset": {
       "$type": "dimension",
       "$value": {
-        "value": 70,
+        "value": 84,
         "unit": "px"
       },
-      "$description": "The room a toolbar leaves for the window controls when they sit over it: the note list's while the sidebar is hidden, the editor's in focus mode."
+      "$description": "Where a toolbar's first control starts when the window controls sit over it (the note list's while the sidebar is hidden, the editor's in focus mode): the controls start 20 px in (trafficLightPosition in tauri.conf.json) and end at 74 px (three 14 px buttons 6 px apart), then the sidebar's own 10 px edge padding."
     },
     "sidebar-toggle-width": {
       "$type": "dimension",
