@@ -146,6 +146,18 @@ test('status, tags and pinning survive a reload', async ({ page }) => {
   await pickStatus(page, 'On Hold')
   await addTag(page, 'later')
   await pickNoteMore(page, 'Pin to Top')
+  // A reload drops writes still on their way to storage.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
+          status: string
+          pinned: boolean
+        }[]
+        return notes.some((n) => n.pinned && n.status === 'on_hold')
+      }),
+    )
+    .toBe(true)
   await page.reload()
   await noteRows(page).first().click()
   await expect(statusPicker(page)).toHaveAttribute('data-value', 'on_hold')

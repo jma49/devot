@@ -1,10 +1,17 @@
 // Headings get slug ids, so `[text](#heading)` links jump within a note. The
 // rules are GitHub's: lower-case, punctuation dropped, spaces to hyphens, and
-// `-1`, `-2` on repeats. Ids are set after sanitizing, from the heading's text.
+// `-1`, `-2` on repeats. Ids are set after sanitizing, from the heading's text,
+// with the sanitizer's prefix, so they never match the app's own ids.
 import type { Element, Root, RootContent } from 'hast'
 import { PREVIEW_API_VERSION, type PreviewRenderer } from './registry'
 
 const DROPPED = /[^\p{L}\p{M}\p{N}\p{Pc}\- ]/gu
+
+export const ID_PREFIX = 'user-content-'
+
+/** The element id a `#fragment` link in a note means. */
+export const fragmentId = (fragment: string) =>
+  fragment.startsWith(ID_PREFIX) ? fragment : ID_PREFIX + fragment
 
 export function slug(text: string): string {
   return text.toLowerCase().replace(DROPPED, '').replace(/ /g, '-')
@@ -38,7 +45,7 @@ function visit(node: Root | Element, next: (text: string) => string): void {
     if (child.type !== 'element') continue
     if (HEADING.test(child.tagName) && child.properties['id'] === undefined) {
       const id = next(textOf(child))
-      if (id) child.properties['id'] = id
+      if (id) child.properties['id'] = ID_PREFIX + id
     }
     visit(child, next)
   }

@@ -113,7 +113,7 @@ test('a link to a heading scrolls the preview to it', async ({ page }) => {
   await newNote(page, 'Anchors', `[Jump](#the-end)\n\n${filler}\n## The End\n\nDone.`)
   await mode(page, 'Preview').click()
   const heading = preview(page).getByRole('heading', { name: 'The End' })
-  await expect(heading).toHaveAttribute('id', 'the-end')
+  await expect(heading).toHaveAttribute('id', 'user-content-the-end')
   await expect(heading).not.toBeInViewport()
   await preview(page).getByRole('link', { name: 'Jump' }).click()
   await expect(heading).toBeInViewport()
