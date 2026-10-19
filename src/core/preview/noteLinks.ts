@@ -25,7 +25,6 @@ const span = (className: string, children: ElementContent[]): Element => ({
 
 const txt = (value: string): ElementContent => ({ type: 'text', value })
 
-/** The chip's content for `target`; `untitled` names a note without a title. */
 function chip(target: NoteLinkTarget, untitled: string): ElementContent[] {
   const out: ElementContent[] = []
   if (target.status !== 'none') {
@@ -56,7 +55,6 @@ function chip(target: NoteLinkTarget, untitled: string): ElementContent[] {
   return out
 }
 
-/** A link's text decides: empty or the target's title makes a chip. */
 function wantsChip(link: Element, target: NoteLinkTarget): boolean {
   if (link.children.some((c) => c.type === 'element')) return false
   const text = squash(textOf(link))

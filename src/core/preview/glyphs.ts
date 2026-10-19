@@ -4,7 +4,6 @@
 // show in exported pages too.
 import type { Element } from 'hast'
 
-/** A shape: a path, or a dot (a filled circle) at x, y. */
 type Shape = { d: string } | { dot: [number, number] }
 
 const GLYPHS = {
@@ -47,7 +46,6 @@ const GLYPHS = {
 
 export type GlyphName = keyof typeof GLYPHS
 
-/** The icon `name` as an inline SVG element, hidden from screen readers. */
 export function glyph(name: GlyphName, className: string): Element {
   const shapes: Shape[] = GLYPHS[name]
   return {

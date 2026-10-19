@@ -1,29 +1,17 @@
-// A code font can draw an operator such as `!=`, `=>` or `->` as one glyph
-// (a ligature). The web view shapes text one element at a time, so the glyph
-// forms only when the operator's characters sit in one element: a
-// highlighter that styles `!` and `=` apart (or puts them in two spans of
-// the same style) keeps them as two glyphs. These helpers give each run of
-// operator characters in code a single style, so it is drawn as one piece.
+// A code font can draw an operator such as `!=`, `=>` or `->` as one glyph (a ligature). The web view shapes text one element at a time, so the glyph forms only
+// when the operator's characters sit in one element: a highlighter that styles `!` and `=` apart keeps them as two glyphs. These helpers give each run of operator
+// characters in code a single style.
 import type { Element, ElementContent, Text } from 'hast'
 
-/** Two or more operator characters in a row. */
 const OPERATOR_RUN = /[-!#$%&*+./:<=>?@\\^|~]{2,}/g
 
-/** A styled stretch of text, `from` and `to` in the text's coordinates. */
 export interface StyledSpan<S> {
   from: number
   to: number
   style: S
 }
 
-/**
- * `spans` (in order, not overlapping) with every run of operator characters
- * in `text` left in one span or in none. A run split between styles takes
- * the one that covers most of it: a style over plain text on a tie, the
- * first style on a tie between styles. `text` starts at `offset` in the
- * spans' coordinates; spans outside it are kept as they are. `key` tells
- * styles apart (two spans with equal keys still count as two pieces).
- */
+/** A run split between styles takes the one that covers most of it: a style over plain text on a tie, the first style on a tie between styles. `key` tells styles apart (two spans with equal keys still count as two pieces). */
 export function joinOperatorRuns<S>(
   text: string,
   offset: number,
@@ -71,14 +59,7 @@ export function joinOperatorRuns<S>(
   return out
 }
 
-/**
- * Highlighted code (text and nested `span` elements) with each run of
- * operator characters in one element, or in none: see `joinOperatorRuns`.
- * The elements keep their properties; a run that leaves an element empty
- * drops it.
- */
 export function joinOperatorRunsInHast(nodes: readonly ElementContent[]): ElementContent[] {
-  // The text, and the elements around each stretch of it.
   let text = ''
   const spans: StyledSpan<readonly Element[]>[] = []
   const walk = (list: readonly ElementContent[], path: readonly Element[]): void => {
@@ -110,7 +91,6 @@ export function joinOperatorRunsInHast(nodes: readonly ElementContent[]): Elemen
   const styled = spans.filter((span) => span.style.length > 0)
   const joined = joinOperatorRuns(text, 0, styled, key)
 
-  // Back to a tree: consecutive stretches inside the same element share it.
   const root: ElementContent[] = []
   const open: { source: Element; copy: Element }[] = []
   const add = (from: number, to: number, path: readonly Element[]): void => {

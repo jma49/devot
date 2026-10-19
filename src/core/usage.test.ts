@@ -151,7 +151,6 @@ describe('createUsageTracker', () => {
     track('search.run', { scope: 'all', clauses: 2, results: 7 })
     // @ts-expect-error events outside the catalog are not allowed
     track('note.opened', {})
-    // The run-time check turns each of them away too.
     expect(errors).toEqual([
       'E_USAGE_BAD_VALUE',
       'E_USAGE_UNKNOWN_PROPERTY',

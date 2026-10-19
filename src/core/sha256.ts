@@ -15,7 +15,6 @@ const K = new Uint32Array([
 
 const rotr = (x: number, n: number) => (x >>> n) | (x << (32 - n))
 
-/** The SHA-256 digest of `bytes`. */
 export function sha256(bytes: Uint8Array): Uint8Array {
   // The message, a 1 bit, zeros, and its length in bits (64-bit big-endian).
   const blocks = Math.ceil((bytes.length + 9) / 64)
@@ -81,7 +80,6 @@ export function sha256(bytes: Uint8Array): Uint8Array {
 
 const encoder = new TextEncoder()
 
-/** The SHA-256 of `text` as UTF-8, in lowercase hex (what the mirror's manifest records). */
 export function sha256Hex(text: string | Uint8Array): string {
   const digest = sha256(typeof text === 'string' ? encoder.encode(text) : text)
   return Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('')

@@ -13,12 +13,7 @@ export interface DuplicateServices {
   tags: TagService
 }
 
-/**
- * Copies the note `id` (see NoteService.duplicate) and puts `tagIds`, the
- * tags the note has, on the copy. A tag that cannot be put on it (it was
- * deleted meanwhile) is left off and logged by code; the copy is still made.
- * Resolves to the copy's ID.
- */
+/** A tag that cannot be put on the copy (deleted meanwhile) is left off and logged by code; the copy is still made. */
 export async function duplicateNote(
   services: DuplicateServices,
   id: string,

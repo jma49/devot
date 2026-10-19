@@ -1,9 +1,5 @@
-// Batch changes: one change applied to several notes at once (the note
-// list's multiple selection). Each note gets its own write through the note
-// and tag services, so each carries its own HLC and its own history event,
-// exactly as if it had been changed alone; nothing is written as one SQL
-// update. A note that fails (it went away meanwhile, its write failed) does
-// not stop the rest: the result says which notes changed and which did not.
+// Batch changes: one change applied to several notes at once (the note list's multiple selection). Each note gets its own write through the note and tag services,
+// so each carries its own HLC and history event, as if changed alone. A note that fails does not stop the rest: the result says which changed and which did not.
 
 import { errorCode } from './errors'
 import type { NoteService } from './notes'
@@ -14,21 +10,15 @@ export type BatchChange =
   | { kind: 'book'; bookId: string | null }
   | { kind: 'status'; status: NoteStatus }
   | { kind: 'pinned'; pinned: boolean }
-  /** Puts the tag with this name on each note (made once when missing): a name typed. */
   | { kind: 'addTag'; name: string }
-  /** Puts this tag on each note: a tag picked (dropped on, chosen in a list). */
   | { kind: 'putTag'; tagId: string }
   | { kind: 'removeTag'; tagId: string }
   | { kind: 'trash' }
-  /** Notes in the Trash: back where they were. */
   | { kind: 'restore' }
-  /** Notes in the Trash: deleted permanently. */
   | { kind: 'purge' }
 
 export interface BatchResult {
-  /** The notes changed, in the order given. */
   changed: string[]
-  /** The notes not changed, with the error code of each. */
   failed: { id: string; code: string }[]
 }
 
@@ -49,14 +39,7 @@ const BATCH_KINDS: ReadonlySet<string> = new Set([
   'purge',
 ])
 
-/**
- * Applies `change` to each note in `ids` (each once, in order), one note at
- * a time. A change that is invalid for every note (an unknown kind or
- * status, a notebook that is not live, a tag name that cannot be one, a tag
- * ID that names no live tag) is refused before any note changes; the
- * notebook is checked and a tag added by name is found or made once, up
- * front.
- */
+/** A change invalid for every note (unknown kind or status, a notebook that is not live, a bad tag name, a tag ID that names no live tag) is refused before any note changes; the notebook is checked and a tag added by name is found or made once, up front. */
 export async function applyBatch(
   services: BatchServices,
   ids: readonly string[],
@@ -77,7 +60,6 @@ export async function applyBatch(
     }
     tagId = change.tagId
   }
-  /** One note's change, written before the next note's starts. */
   const one = async (id: string) => {
     switch (change.kind) {
       case 'book':

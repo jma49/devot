@@ -1,12 +1,10 @@
-// Line diffs for showing how two versions of a note differ (Myers' O(ND)
-// algorithm). Display only: edits to a note are applied with `textDiff`.
+// Line diffs for showing how two versions of a note differ (Myers' O(ND) algorithm). Display only: edits to a note are applied with `textDiff`.
 
 export interface DiffLine {
   kind: 'same' | 'added' | 'removed'
   text: string
 }
 
-/** A run of unchanged lines left out of a folded diff. */
 export interface SkippedLines {
   kind: 'skipped'
   count: number
@@ -14,25 +12,14 @@ export interface SkippedLines {
 
 export type DiffBlock = DiffLine | SkippedLines
 
-/**
- * Past this many differing lines the comparison stops looking for the
- * smallest diff and shows the changed middle as removed, then added. It
- * bounds the time and the memory (which grows with its square).
- */
+/** Past this many differing lines the comparison shows the changed middle as removed, then added; it bounds the time and the memory (which grows with its square). */
 const MAX_EDITS = 2000
-/**
- * Myers' work grows with the lines times the differences: long texts get a
- * smaller limit, so a comparison never holds up the worker for long.
- */
+/** Long texts get a smaller limit, so a comparison never holds up the worker for long. */
 const MAX_WORK = 10_000_000
 
 const lines = (text: string) => (text === '' ? [] : text.split('\n'))
 
-/**
- * The lines of `from` and `to` in order, each marked as in both, only in
- * `from` (removed) or only in `to` (added). The lines kept are a longest
- * common subsequence unless the texts differ in more than MAX_EDITS lines.
- */
+/** The lines kept are a longest common subsequence unless the texts differ in more than MAX_EDITS lines. */
 export function lineDiff(from: string, to: string): DiffLine[] {
   const a = lines(from)
   const b = lines(to)
@@ -52,7 +39,7 @@ export function lineDiff(from: string, to: string): DiffLine[] {
   return [...a.slice(0, start).map(same), ...middle, ...a.slice(endA).map(same)]
 }
 
-/** The shortest edit script from `a` to `b`, or null past MAX_EDITS. */
+/** Null past MAX_EDITS. */
 function myers(a: string[], b: string[]): DiffLine[] | null {
   const n = a.length
   const m = b.length
@@ -103,10 +90,6 @@ function backtrack(a: string[], b: string[], trace: Int32Array[]): DiffLine[] {
   return out.reverse()
 }
 
-/**
- * The diff with `context` unchanged lines kept on each side of every change;
- * longer unchanged runs become one skipped block.
- */
 export function foldUnchanged(diff: readonly DiffLine[], context = 3): DiffBlock[] {
   const out: DiffBlock[] = []
   let i = 0

@@ -14,7 +14,6 @@ import {
 import { isStarterTemplate, STARTER_TEMPLATES } from './starterTemplates'
 import { withoutFrontMatterKeys } from './import'
 
-/** The offset of a named IANA time zone at an instant, through `Intl`. */
 function zoneOffset(timeZone: string): OffsetAt {
   const format = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -45,7 +44,6 @@ const LA = zoneOffset('America/Los_Angeles')
 const SHANGHAI = zoneOffset('Asia/Shanghai')
 const KATHMANDU = zoneOffset('Asia/Kathmandu')
 
-/** An instant, from an ISO string with its offset. */
 const at = (iso: string) => Date.parse(iso)
 
 // Tuesday 2026-03-03 09:05:07 UTC.

@@ -1,22 +1,13 @@
-// Sort keys for a hand-made order (fractional indexing). A key is a string;
-// items sort by plain string comparison of their keys (code units, the same
-// as SQLite's BINARY collation and Rust's byte order: keys are ASCII). There
-// is always a key between two others, so moving an item rewrites only that
-// item's key, never its neighbours'.
+// Sort keys for a hand-made order (fractional indexing). Keys sort by plain string comparison (code units, the same as SQLite's BINARY collation and Rust's byte
+// order: keys are ASCII). There is always a key between two others, so moving an item rewrites only that item's key.
 //
-// Format: an integer part, then an optional fraction, both in base 62
-// (0-9, A-Z, a-z). The integer part's first character gives its length:
-// 'a' to 'z' are 2 to 27 characters (positive), 'Z' to 'A' are 2 to 27
-// characters (negative). The fraction never ends in '0', so every number has
-// one spelling. The first key is 'a0'; keys after it count up ('a1' ...
-// 'az', 'b00' ...), keys before it count down ('Zz', 'Zy' ...).
+// Format: an integer part, then an optional fraction, both in base 62 (0-9, A-Z, a-z). The integer part's first character gives its length: 'a' to 'z' are 2 to 27
+// characters (positive), 'Z' to 'A' are 2 to 27 (negative). The fraction never ends in '0', so every number has one spelling. The first key is 'a0'.
 
 const DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 const BASE = DIGITS.length
-/** The smallest integer part, never a key by itself: a key before every key exists. */
 const SMALLEST = `A${'0'.repeat(26)}`
 
-/** The longest key storage accepts (src-tauri/src/commands/books.rs agrees). */
 export const MAX_SORT_KEY_LENGTH = 1024
 
 const digit = (c: string | undefined): number => (c === undefined ? -1 : DIGITS.indexOf(c))
@@ -27,7 +18,6 @@ function integerLength(head: string | undefined): number {
   return 0
 }
 
-/** Whether `key` is a well-formed sort key no longer than the limit. */
 export function isSortKey(key: string): boolean {
   if (key.length > MAX_SORT_KEY_LENGTH) return false
   const length = integerLength(key[0])
@@ -41,7 +31,6 @@ function check(key: string | null): void {
   if (key !== null && !isSortKey(key)) throw new Error('E_SORT_KEY_INVALID')
 }
 
-/** A fraction strictly between fractions `a` and `b` (`b` null: 1). */
 function midpoint(a: string, b: string | null): string {
   if (b !== null) {
     // Keep the common prefix, padding `a` with zeros.
@@ -95,11 +84,7 @@ function decrement(integer: string): string | null {
   return next + digits.join('')
 }
 
-/**
- * A key that sorts after `a` and before `b`; null stands for the start or
- * the end of the list. Throws E_SORT_KEY_INVALID for a malformed key and
- * E_SORT_KEY_ORDER unless `a` < `b`.
- */
+/** Null stands for the start or the end of the list. Throws E_SORT_KEY_INVALID for a malformed key and E_SORT_KEY_ORDER unless `a` < `b`. */
 export function keyBetween(a: string | null, b: string | null): string {
   check(a)
   check(b)
@@ -127,7 +112,6 @@ export function keyBetween(a: string | null, b: string | null): string {
   return integer + midpoint(fraction, null)
 }
 
-/** `n` keys in order, each `keyBetween(previous, null)`: 'a0', 'a1' ... */
 export function sequentialKeys(n: number): string[] {
   const keys: string[] = []
   let previous: string | null = null
@@ -138,5 +122,5 @@ export function sequentialKeys(n: number): string[] {
   return keys
 }
 
-/** String order of sort keys (never locale-aware). */
+/** Plain string order, never locale-aware. */
 export const compareKeys = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)

@@ -3,10 +3,8 @@
 // UTF-16 code units, like CodeMirror's and the DOM's.
 import { escapeRegExp } from './search'
 
-/** What the find bar asks for. */
 export interface FindOptions {
   query: string
-  /** The query is a regular expression (else plain text). */
   regexp: boolean
   caseSensitive: boolean
 }
@@ -14,30 +12,19 @@ export interface FindOptions {
 export interface FindMatch {
   from: number
   to: number
-  /** The whole match, then each group (undefined when it took no part). */
   captures: readonly (string | undefined)[]
-  /** Named groups, when the expression has any. */
   groups: Readonly<Record<string, string | undefined>> | undefined
 }
 
 export interface FindResult {
   matches: FindMatch[]
-  /** The query is not a valid regular expression. */
   invalid: boolean
-  /** More matches exist than were returned. */
   capped: boolean
 }
 
-/** The most matches the find bar counts, highlights and steps through. */
 export const MAX_FIND_MATCHES = 10_000
 
-/**
- * The expression for `options`, null for an empty query, or 'invalid'.
- * Unicode mode, so a match never splits a character outside the basic
- * plane and `\p{...}` classes work; a pattern only the older syntax accepts
- * (`\#`, `\-`, a lone `{` or `]`) runs without it. A regular expression's
- * `^` and `$` work per line.
- */
+/** Unicode mode, so a match never splits a character outside the basic plane and `\p{...}` classes work; a pattern only the older syntax accepts (`\#`, `\-`, a lone `{` or `]`) runs without it. */
 function compile(options: FindOptions): RegExp | null | 'invalid' {
   if (options.query === '') return null
   const source = options.regexp ? options.query : escapeRegExp(options.query)
@@ -52,7 +39,6 @@ function compile(options: FindOptions): RegExp | null | 'invalid' {
   return 'invalid'
 }
 
-/** The index after `index`, stepping over a whole surrogate pair. */
 function advance(text: string, index: number): number {
   const code = text.codePointAt(index)
   return index + (code !== undefined && code > 0xffff ? 2 : 1)
@@ -71,7 +57,7 @@ function* matchesOf(text: string, re: RegExp): Generator<FindMatch> {
   }
 }
 
-/** Every match of `options` in `text`, in order, up to `limit`. Never throws. */
+/** Never throws. */
 export function findMatches(
   text: string,
   options: FindOptions,
@@ -88,11 +74,7 @@ export function findMatches(
   return { matches, invalid: false, capped: false }
 }
 
-/**
- * The text that replaces `match` (found in `source`). A plain-text search
- * inserts the template as typed; a regular expression expands `$&`, `$1`
- * to `$99`, `$<name>`, `` $` ``, `$'` and `$$` as String.prototype.replace does.
- */
+/** A regular expression expands `$&`, `$1`..`$99`, `$<name>`, `` $` ``, `$'` and `$$` as String.prototype.replace does. */
 export function expandReplacement(
   template: string,
   match: FindMatch,
@@ -154,23 +136,18 @@ export function expandReplacement(
   return out
 }
 
-/** Every match of `options` in `text`, with no cap (replacing all). */
 export function allMatches(text: string, options: FindOptions): Iterable<FindMatch> {
   const re = compile(options)
   return re === null || re === 'invalid' ? [] : matchesOf(text, re)
 }
 
-/** One replacement: the text from `from` to `to` becomes `insert`. */
 export interface FindChange {
   from: number
   to: number
   insert: string
 }
 
-/**
- * The changes that replace every match of `options` in `text` (no cap), in
- * order and never overlapping; none for an invalid pattern.
- */
+/** In order and never overlapping; none for an invalid pattern. */
 export function replacementChanges(
   text: string,
   options: FindOptions,
@@ -183,7 +160,6 @@ export function replacementChanges(
   }))
 }
 
-/** `text` with every match replaced, and how many were. */
 export function replaceAll(
   text: string,
   options: FindOptions,
