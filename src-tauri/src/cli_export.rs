@@ -4,7 +4,8 @@
 //! beside an open Devot.
 
 use std::io::Read;
-use std::sync::Mutex;
+use std::path::PathBuf;
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use serde::Serialize;
@@ -18,6 +19,9 @@ pub const LABEL: &str = "cli-export";
 const PAGE: &str = "export.html";
 const TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_CODE_LEN: usize = 64;
+
+/// The running PDF job's private folder: exiting early skips its drop.
+static PDF_FOLDER: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -129,14 +133,26 @@ pub(crate) fn run(request: Export) -> i32 {
                 .name("devot-export-timeout".into())
                 .spawn(|| {
                     std::thread::sleep(TIMEOUT);
-                    std::process::exit(cli::failed(&fill(
-                        strings::CLI_EXPORT_FAILED,
-                        "code",
-                        "E_CLI_EXPORT_TIMEOUT",
-                    )));
+                    abandon("E_CLI_EXPORT_TIMEOUT");
                 });
             if watchdog.is_err() {
                 log::warn!("W_CLI_EXPORT_NO_TIMEOUT");
+            }
+            #[cfg(unix)]
+            for kind in [
+                tokio::signal::unix::SignalKind::interrupt(),
+                tokio::signal::unix::SignalKind::terminate(),
+            ] {
+                tauri::async_runtime::spawn(async move {
+                    match tokio::signal::unix::signal(kind) {
+                        Ok(mut signal) => {
+                            if signal.recv().await.is_some() {
+                                abandon("E_CLI_EXPORT_INTERRUPTED");
+                            }
+                        }
+                        Err(_) => log::warn!("W_CLI_EXPORT_NO_SIGNALS"),
+                    }
+                });
             }
             Ok(())
         })
@@ -149,6 +165,17 @@ pub(crate) fn run(request: Export) -> i32 {
             "E_CLI_EXPORT_START_FAILED",
         )),
     }
+}
+
+fn abandon(code: &str) -> ! {
+    let folder = PDF_FOLDER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
+    if let Some(folder) = folder {
+        let _ = std::fs::remove_dir_all(folder);
+    }
+    std::process::exit(cli::failed(&fill(strings::CLI_EXPORT_FAILED, "code", code)))
 }
 
 fn end(app: &AppHandle, result: Result<(), String>) {
@@ -180,6 +207,7 @@ async fn print_pdf(
         .app_cache_dir()
         .map_err(|_| String::from("E_EXPORT_PDF_FOLDER_FAILED"))?;
     let partial = export::PdfPartial::new_in(&caches.join(export::PDF_DIR))?;
+    *PDF_FOLDER.lock().unwrap_or_else(PoisonError::into_inner) = Some(partial.folder().to_owned());
     let target = crate::native::macos::PrintTarget::Pdf(partial.file());
     match export::print_page(app, LABEL, page, title, target).await {
         Ok(true) => partial.persist(folder, name).map_err(String::from),

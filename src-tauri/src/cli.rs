@@ -3,14 +3,12 @@
 //! done, 1 failed, 2 not understood.
 
 use std::ffi::OsString;
-use std::io::Write;
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::{deep_link, import, strings};
+use crate::{deep_link, import, single_instance, startup, strings};
 
 pub const FLAG: &str = "--cli";
 pub(crate) const OPEN_FLAG: &str = "--devot-open";
@@ -249,28 +247,45 @@ fn bundle_of(exe: &Path) -> Option<&Path> {
         .filter(|app| app.extension().is_some_and(|e| e == "app"))
 }
 
-/// Writes to the socket ourselves instead of spawning a second instance.
+/// Writes to the socket ourselves instead of spawning a second instance. A running Devot that
+/// does not answer there would ignore `open -a`'s arguments, so that fails instead.
 fn hand_off(args: &[String]) -> Result<(), &'static str> {
     let exe = std::env::current_exe().map_err(|_| "E_CLI_APP_NOT_FOUND")?;
     let identifier = crate::data_folder::context().config().identifier.clone();
-    if deep_link::single_instance_socket_trusted(&identifier) {
-        let socket = deep_link::single_instance_socket(&identifier);
-        let cwd = std::env::current_dir().unwrap_or_default();
-        match UnixStream::connect(&socket) {
-            Ok(mut stream) => {
-                return stream
-                    .write_all(handoff_message(&cwd, &exe, args).as_bytes())
-                    .map_err(|_| "E_CLI_HANDOFF_FAILED");
-            }
-            Err(e)
-                if matches!(
-                    e.kind(),
-                    std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
-                ) => {}
-            Err(_) => return Err("E_CLI_HANDOFF_FAILED"),
-        }
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let message = handoff_message(&cwd, &exe, args);
+    hand_off_with(
+        single_instance::send(&identifier, message.as_bytes()),
+        !args.is_empty(),
+        || data_folder(&identifier).is_some_and(|dir| startup::folder_held(&dir)),
+        || launch_command(&exe, args),
+    )
+}
+
+fn hand_off_with(
+    sent: Result<bool, &'static str>,
+    has_args: bool,
+    running: impl FnOnce() -> bool,
+    launch: impl FnOnce() -> Result<(), &'static str>,
+) -> Result<(), &'static str> {
+    if sent? {
+        return Ok(());
     }
-    launch_command(&exe, args).map(drop)
+    // With nothing to hand over, launching just brings a running Devot forward.
+    if has_args && running() {
+        return Err("E_CLI_HANDOFF_UNREACHABLE");
+    }
+    launch()
+}
+
+/// Where Tauri puts `app_data_dir` on macOS.
+fn data_folder(identifier: &str) -> Option<PathBuf> {
+    let home = std::env::var_os("HOME").filter(|home| !home.is_empty())?;
+    Some(
+        Path::new(&home)
+            .join("Library/Application Support")
+            .join(identifier),
+    )
 }
 
 /// A dev build has no bundle: its own process group keeps the terminal's signals away.
@@ -328,6 +343,9 @@ pub fn main(args: &[OsString]) -> i32 {
     };
     match launched {
         Ok(()) => 0,
+        Err(code @ "E_CLI_HANDOFF_UNREACHABLE") => {
+            failed(&fill(strings::CLI_HANDOFF_UNREACHABLE, "code", code))
+        }
         Err(code) => failed(&fill(strings::CLI_LAUNCH_FAILED, "code", code)),
     }
 }
@@ -581,6 +599,74 @@ mod tests {
                 "--",
                 "/a.md"
             ]
+        );
+    }
+
+    #[test]
+    fn a_running_devot_that_does_not_answer_fails_the_command() {
+        let dir = tempfile::tempdir().unwrap();
+        let foreign = dir.path().join("io.github.jma49.devot.sock");
+        std::fs::write(&foreign, b"").unwrap();
+        let uid = crate::atomic_file::effective_uid();
+        let sent = single_instance::send_to(&foreign, b"/w\0\0devot", uid);
+        assert_eq!(sent, Ok(false));
+        assert_eq!(std::fs::read(&foreign).unwrap(), b"");
+        let data = dir.path().join("data");
+        let held = startup::take_folder(&data).unwrap();
+        assert!(startup::folder_held(&data));
+        let mut launched = false;
+        assert_eq!(
+            hand_off_with(
+                sent,
+                true,
+                || startup::folder_held(&data),
+                || {
+                    launched = true;
+                    Ok(())
+                }
+            ),
+            Err("E_CLI_HANDOFF_UNREACHABLE")
+        );
+        assert!(!launched);
+        drop(held);
+        assert!(!startup::folder_held(&data));
+        assert_eq!(
+            hand_off_with(
+                sent,
+                true,
+                || startup::folder_held(&data),
+                || {
+                    launched = true;
+                    Ok(())
+                }
+            ),
+            Ok(())
+        );
+        assert!(launched);
+        assert_eq!(
+            hand_off_with(Ok(true), true, || unreachable!(), || unreachable!()),
+            Ok(())
+        );
+        let held = startup::take_folder(&data).unwrap();
+        let mut launched = false;
+        assert_eq!(
+            hand_off_with(
+                sent,
+                false,
+                || startup::folder_held(&data),
+                || {
+                    launched = true;
+                    Ok(())
+                }
+            ),
+            Ok(())
+        );
+        assert!(launched);
+        drop(held);
+        assert_eq!(
+            data_folder("io.github.jma49.devot")
+                .map(|d| d.ends_with("Library/Application Support/io.github.jma49.devot")),
+            Some(true)
         );
     }
 

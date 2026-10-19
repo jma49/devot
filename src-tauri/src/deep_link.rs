@@ -256,38 +256,6 @@ pub fn deep_link_take(links: tauri::State<'_, DeepLinks>) -> Vec<Link> {
     links.with(Inbox::take)
 }
 
-pub(crate) fn single_instance_socket(identifier: &str) -> std::path::PathBuf {
-    let name = identifier.replace(['.', '-'], "_");
-    std::path::PathBuf::from(format!("/tmp/{name}_si.sock"))
-}
-
-/// Whether a file already at the socket's place may be trusted: none, or a
-/// socket of the user Devot runs for (`uid`, unknown: trust nothing there).
-/// Anything else (another user's socket in the shared `/tmp`, a plain file, a
-/// link) would make every launch hand its arguments to that file's owner and
-/// quit.
-fn socket_trusted(found: Option<(bool, u32)>, uid: Option<u32>) -> bool {
-    found.is_none_or(|(is_socket, owner)| is_socket && Some(owner) == uid)
-}
-
-/// When the plugin may not run, the data-folder lock still keeps a second Devot out.
-pub(crate) fn single_instance_socket_trusted(identifier: &str) -> bool {
-    use std::os::unix::fs::{FileTypeExt, MetadataExt};
-    let found = match std::fs::symlink_metadata(single_instance_socket(identifier)) {
-        Ok(meta) => Some((meta.file_type().is_socket(), meta.uid())),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(_) => Some((false, u32::MAX)),
-    };
-    let uid = std::env::var_os("HOME")
-        .and_then(|home| std::fs::metadata(home).ok())
-        .map(|meta| meta.uid());
-    let trusted = socket_trusted(found, uid);
-    if !trusted {
-        log::warn!("W_SINGLE_INSTANCE_SOCKET_FOREIGN");
-    }
-    trusted
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -486,24 +454,6 @@ mod tests {
             inbox.arrive(note());
         }
         assert_eq!(inbox.take().len(), MAX_HELD);
-    }
-
-    #[test]
-    fn names_the_socket_as_the_single_instance_plugin_does() {
-        assert_eq!(
-            single_instance_socket("io.github.jma49.devot.dev"),
-            std::path::PathBuf::from("/tmp/io_github_jma49_devot_dev_si.sock")
-        );
-    }
-
-    #[test]
-    fn trusts_no_socket_or_one_of_this_users_only() {
-        assert!(socket_trusted(None, Some(501)));
-        assert!(socket_trusted(None, None));
-        assert!(socket_trusted(Some((true, 501)), Some(501)));
-        assert!(!socket_trusted(Some((true, 502)), Some(501)));
-        assert!(!socket_trusted(Some((false, 501)), Some(501)));
-        assert!(!socket_trusted(Some((true, 501)), None));
     }
 
     #[test]

@@ -254,37 +254,56 @@ fn named_entity(name: &str) -> Option<char> {
     })
 }
 
+const MAX_ENTITY_LEN: usize = 10;
+
+fn entity(name: &str) -> Option<char> {
+    match name.strip_prefix('#') {
+        Some(num) => {
+            let code = match num.strip_prefix(['x', 'X']) {
+                Some(hex) => u32::from_str_radix(hex, 16).ok(),
+                None => num.parse::<u32>().ok(),
+            };
+            code.and_then(char::from_u32).filter(|c| *c != '\0')
+        }
+        None => named_entity(name),
+    }
+}
+
+/// Each `;` is searched for once, from the first `&` past the last one, so a text full of `&`
+/// stays linear.
 fn decode_entities(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(amp) = rest.find('&') {
-        out.push_str(&rest[..amp]);
-        let tail = &rest[amp + 1..];
-        let decoded = tail.find(';').filter(|&semi| semi <= 10).and_then(|semi| {
-            let name = &tail[..semi];
-            let ch = if let Some(num) = name.strip_prefix('#') {
-                let code = match num.strip_prefix(['x', 'X']) {
-                    Some(hex) => u32::from_str_radix(hex, 16).ok(),
-                    None => num.parse::<u32>().ok(),
-                };
-                code.and_then(char::from_u32).filter(|c| *c != '\0')
-            } else {
-                named_entity(name)
-            };
-            ch.map(|c| (c, semi))
-        });
-        match decoded {
-            Some((c, semi)) => {
-                out.push(c);
-                rest = &tail[semi + 1..];
-            }
-            None => {
-                out.push('&');
-                rest = tail;
+    let mut copied = 0;
+    let mut from = 0;
+    let mut semi = None;
+    while let Some(found) = text[from..].find('&') {
+        let amp = from + found;
+        from = amp + 1;
+        if semi.is_none_or(|s| s < amp) {
+            match text[amp..].find(';') {
+                Some(s) => semi = Some(amp + s),
+                None => break,
             }
         }
+        let Some(end) = semi.filter(|s| s - amp - 1 <= MAX_ENTITY_LEN) else {
+            // No `&` before this point is near enough to that `;` either.
+            if let Some(s) = semi {
+                let mut skip = s - MAX_ENTITY_LEN - 1;
+                while !text.is_char_boundary(skip) {
+                    skip += 1;
+                }
+                from = from.max(skip);
+            }
+            continue;
+        };
+        if let Some(c) = entity(&text[amp + 1..end]) {
+            out.push_str(&text[copied..amp]);
+            out.push(c);
+            copied = end + 1;
+            from = end + 1;
+        }
     }
-    out.push_str(rest);
+    out.push_str(&text[copied..]);
     out
 }
 
@@ -321,6 +340,26 @@ mod tests {
             Some("Bare")
         );
         assert_eq!(page_title("<p>no title</p>"), None);
+    }
+
+    #[test]
+    fn decodes_a_title_of_ampersands_in_linear_time() {
+        for raw in [
+            "&".repeat(512 * 1024),
+            format!("{};", "&".repeat(512 * 1024)),
+        ] {
+            let start = std::time::Instant::now();
+            assert_eq!(decode_entities(&raw), raw);
+            assert!(start.elapsed() < std::time::Duration::from_millis(50));
+        }
+        assert_eq!(decode_entities("&amp;&#x2014;&ampx;"), "&\u{2014}&ampx;");
+        assert_eq!(decode_entities("&&&&&&&&&&&&&&amp;"), "&&&&&&&&&&&&&&");
+        assert_eq!(decode_entities("&x;&lt;&;"), "&x;<&;");
+        assert_eq!(decode_entities("&éééééé;"), "&éééééé;");
+        assert_eq!(
+            decode_entities("R&D \u{4e2d}\u{6587}\u{6807}\u{9898}\u{6d4b} &mdash; \u{5b8c}"),
+            "R&D \u{4e2d}\u{6587}\u{6807}\u{9898}\u{6d4b} \u{2014} \u{5b8c}"
+        );
     }
 
     #[test]

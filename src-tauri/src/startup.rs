@@ -37,7 +37,13 @@ pub fn take_folder(dir: &Path) -> Result<Option<FolderLock>, StartupError> {
         log::warn!("W_DATA_FOLDER_LOCK_FAILED E_DATA_FOLDER_OPEN");
         return Ok(None);
     };
-    match folder.try_lock() {
+    // A `devot` command checks the folder with a shared lock for an instant (`folder_held`).
+    let mut locked = folder.try_lock();
+    if matches!(locked, Err(TryLockError::WouldBlock)) {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        locked = folder.try_lock();
+    }
+    match locked {
         Ok(()) => Ok(Some(FolderLock(folder))),
         Err(TryLockError::WouldBlock) => Err(StartupError::new("E_DATA_FOLDER_IN_USE")),
         Err(TryLockError::Error(_)) => {
@@ -45,6 +51,12 @@ pub fn take_folder(dir: &Path) -> Result<Option<FolderLock>, StartupError> {
             Ok(None)
         }
     }
+}
+
+/// Whether a running Devot holds the folder (`take_folder`).
+pub fn folder_held(dir: &Path) -> bool {
+    File::open(dir)
+        .is_ok_and(|folder| matches!(folder.try_lock_shared(), Err(TryLockError::WouldBlock)))
 }
 
 pub fn open_db(dir: &Path) -> Result<Db, StartupError> {

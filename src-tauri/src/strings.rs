@@ -156,6 +156,8 @@ pub const CLI_INPUT_TOO_LARGE: &str = "the Markdown is larger than 10 MB";
 pub const CLI_INPUT_NOT_TEXT: &str = "the Markdown is not UTF-8 text";
 pub const CLI_READ_FAILED: &str = "cannot read {path}";
 pub const CLI_LAUNCH_FAILED: &str = "Devot could not be started ({code})";
+pub const CLI_HANDOFF_UNREACHABLE: &str =
+    "Devot is open but did not take the request; quit Devot and run the command again ({code})";
 pub const CLI_EXPORT_FAILED: &str = "export failed ({code})";
 pub const CLI_INSTALL_PROMPT: &str = "Devot wants to install the devot command in /usr/local/bin.";
 pub const CLI_UNINSTALL_PROMPT: &str =

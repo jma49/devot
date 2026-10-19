@@ -28,6 +28,11 @@ describe('the Look Up item text', () => {
     expect(lookUpLabel('a  b\nc')).toBe('Look Up “a b c”')
     expect(lookUpLabel('x'.repeat(30))).toBe(`Look Up “${'x'.repeat(24)}…”`)
   })
+
+  it('turns control characters into spaces so the native menu takes the label', () => {
+    expect(lookUpLabel('\u001b[31mred\u001b[0m\u0007')).toBe('Look Up “[31mred [0m”')
+    expect(lookUpLabel('a\u0000\u007f\u009bb')).toBe('Look Up “a b”')
+  })
 })
 
 describe('lookUpOrigin', () => {

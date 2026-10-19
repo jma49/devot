@@ -333,6 +333,15 @@ pub const PDF_DIR: &str = "pdf";
 /// user chose, where anyone who may remove names in that folder could swap the private folder for a
 /// link while the job runs, and AppKit would print through it. The finished PDF is then copied to
 /// the chosen file through a new temporary file beside it, like every file.
+/// Far longer than a print job takes, so a running job's folder is never swept.
+const PDF_STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
+/// Removes the private folders of PDF jobs that never finished: a timeout, an interrupt or a crash
+/// skips `TempDir`'s drop.
+pub fn sweep_pdf_folders(dir: &Path, now: std::time::SystemTime) {
+    atomic_file::remove_stale_temp_dirs(dir, PDF_STALE_AFTER, now);
+}
+
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub struct PdfPartial {
     dir: TempDir,
@@ -342,6 +351,7 @@ pub struct PdfPartial {
 impl PdfPartial {
     pub fn new_in(dir: &Path) -> Result<Self, &'static str> {
         std::fs::create_dir_all(dir).map_err(|_| "E_EXPORT_PDF_FOLDER_FAILED")?;
+        sweep_pdf_folders(dir, std::time::SystemTime::now());
         let dir = TempDir::new_in(dir).map_err(|_| "E_EXPORT_PDF_FOLDER_FAILED")?;
         Ok(Self { dir })
     }
@@ -1321,6 +1331,28 @@ mod tests {
             PdfPartial::new_in(&blocked.join(PDF_DIR)).err(),
             Some("E_EXPORT_PDF_FOLDER_FAILED")
         );
+    }
+
+    #[test]
+    fn sweeps_only_stale_pdf_job_folders() {
+        let data = tempfile::tempdir().unwrap();
+        let pdfs = data.path().join(PDF_DIR);
+        let plant = |name: &str| {
+            let path = pdfs.join(name);
+            fs::create_dir_all(&path).unwrap();
+            fs::write(path.join(PDF_NAME), b"%PDF").unwrap();
+            path
+        };
+        let stale = plant(&format!(".devot-{}.tmp", "a".repeat(32)));
+        let fresh = plant(&format!(".devot-{}.tmp", "b".repeat(32)));
+        let other = plant("notes");
+        let old = std::time::SystemTime::now() - PDF_STALE_AFTER * 2;
+        for path in [&stale, &other] {
+            fs::File::open(path).unwrap().set_modified(old).unwrap();
+        }
+        let job = PdfPartial::new_in(&pdfs).unwrap();
+        assert!(!stale.exists());
+        assert!(fresh.is_dir() && other.is_dir() && job.folder().is_dir());
     }
 
     #[test]

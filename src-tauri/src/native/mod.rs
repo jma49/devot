@@ -790,6 +790,11 @@ mod tests {
         ];
         assert_eq!(validate_editor_menu(&items, 0.0, 10.5, Some("teh")), Ok(()));
         assert_eq!(validate_editor_menu(&items, 0.0, 10.5, None), Ok(()));
+        let look_up = [item(
+            "devot.editor.lookUp",
+            "Look Up \u{201C}[31mred [0m\u{201D}",
+        )];
+        assert_eq!(validate_editor_menu(&look_up, 0.0, 0.0, None), Ok(()));
     }
 
     #[test]
@@ -802,7 +807,13 @@ mod tests {
                 "{id}"
             );
         }
-        for text in ["", "  ", "a\nb", &"x".repeat(MAX_EDITOR_MENU_TEXT + 1)] {
+        for text in [
+            "",
+            "  ",
+            "a\nb",
+            "Look Up \u{201C}\u{1b}[31mred\u{201D}",
+            &"x".repeat(MAX_EDITOR_MENU_TEXT + 1),
+        ] {
             assert_eq!(
                 bad(vec![item("devot.editor.undo", text)]),
                 Err("E_EDITOR_MENU_ITEM_INVALID")

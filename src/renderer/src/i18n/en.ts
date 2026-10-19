@@ -360,6 +360,8 @@ export const en = {
   'generalSettings.install': 'Install',
   'generalSettings.uninstall': 'Uninstall',
   'generalSettings.commandLineFailed': 'The command line tool could not be changed ({code}).',
+  'generalSettings.commandLineNotInApplications':
+    'Move Devot to the Applications folder and open it from there, then install the command line tool.',
   'generalSettings.updates': 'Updates',
   'generalSettings.autoDownloadUpdates': 'Automatically Download Updates',
   'generalSettings.autoDownloadUpdatesHint':

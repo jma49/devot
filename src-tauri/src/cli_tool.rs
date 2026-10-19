@@ -103,12 +103,24 @@ fn needs_prompt(error: &std::io::Error) -> bool {
     )
 }
 
+/// A link into a disk image or a translocated copy breaks once the image is ejected or the app
+/// is moved, so the tool installs only from a copy that stays put.
+fn temporary_location(script: &Path) -> bool {
+    script.starts_with("/Volumes")
+        || script
+            .components()
+            .any(|part| part.as_os_str() == "AppTranslocation")
+}
+
 /// Linked beside its place and renamed over it; `prompt` when the folder is not writable.
 pub fn install_at(
     link: &Path,
     script: &Path,
     prompt: impl FnOnce(Command) -> Result<(), &'static str>,
 ) -> Result<(), &'static str> {
+    if temporary_location(script) {
+        return Err("E_CLI_APP_NOT_IN_APPLICATIONS");
+    }
     if state_of(link, Some(script)) == State::Installed {
         return Ok(());
     }
@@ -220,6 +232,28 @@ mod tests {
             bin,
             script,
             _dir: dir,
+        }
+    }
+
+    #[test]
+    fn refuses_to_install_from_a_disk_image_or_a_translocated_copy() {
+        let link = Path::new("/nonexistent/bin/devot");
+        for script in [
+            "/Volumes/Devot/Devot.app/Contents/Resources/bin/devot",
+            "/private/var/folders/ab/cd/T/AppTranslocation/0F1E/d/Devot.app/Contents/Resources/bin/devot",
+        ] {
+            assert_eq!(
+                install_at(link, Path::new(script), no_prompt),
+                Err("E_CLI_APP_NOT_IN_APPLICATIONS"),
+                "{script}"
+            );
+        }
+        for script in [
+            "/Applications/Devot.app/Contents/Resources/bin/devot",
+            "/Users/a/Applications/Volumes/Devot.app/Contents/Resources/bin/devot",
+            "/Users/a/AppTranslocationNotes/Devot.app/Contents/Resources/bin/devot",
+        ] {
+            assert!(!temporary_location(Path::new(script)), "{script}");
         }
     }
 

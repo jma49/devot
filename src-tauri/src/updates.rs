@@ -14,6 +14,8 @@
 use crate::exit;
 use serde::Serialize;
 use serde_json::Value;
+use std::future::Future;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, SystemTime};
 use tauri::menu::MenuItem;
@@ -28,6 +30,8 @@ const CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 const CHECK_EVERY_BETA: Duration = Duration::from_secs(60 * 60);
 /// Wall-clock time, so a Mac that slept through the day checks soon after it wakes.
 const WAKE_EVERY: Duration = Duration::from_secs(15 * 60);
+/// The updater sets no timeout of its own, and a hung request would keep any later check out.
+const STALL_LIMIT: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Channel {
@@ -114,6 +118,26 @@ fn failed(manual: bool, code: &str) -> State {
         State::Failed { code: code.into() }
     } else {
         State::Idle
+    }
+}
+
+/// `work`'s output, or None once `progress` has not moved for `limit`.
+async fn unless_stalled<T>(
+    work: impl Future<Output = T>,
+    progress: &AtomicU64,
+    limit: Duration,
+) -> Option<T> {
+    let mut work = std::pin::pin!(work);
+    let mut seen = progress.load(Ordering::Relaxed);
+    loop {
+        if let Ok(out) = tokio::time::timeout(limit, &mut work).await {
+            return Some(out);
+        }
+        let now = progress.load(Ordering::Relaxed);
+        if now == seen {
+            return None;
+        }
+        seen = now;
     }
 }
 
@@ -302,8 +326,12 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
             .build()?
             .check()
             .await
-    }
-    .await;
+    };
+    let Some(found) = unless_stalled(found, &AtomicU64::new(0), STALL_LIMIT).await else {
+        log::warn!("W_UPDATE_CHECK_TIMED_OUT");
+        change(&app, failed(manual, "E_UPDATE_CHECK_FAILED"));
+        return;
+    };
     match found {
         Ok(None) => {
             log::info!("I_UPDATE_NONE");
@@ -356,31 +384,34 @@ async fn download(app: AppHandle, asked_by: Option<String>) {
     };
     publish(&app, &status);
     let version = update.version.clone();
-    let mut done = 0u64;
+    let done = AtomicU64::new(0);
     let mut shown = None;
-    let bytes = update
-        .download(
-            |chunk, total| {
-                done = done.saturating_add(chunk as u64);
-                let now = percent(done, total);
-                if now != shown {
-                    shown = now;
-                    change(
-                        &app,
-                        State::Downloading {
-                            version: version.clone(),
-                            percent: now,
-                        },
-                    );
-                }
-            },
-            || {},
-        )
-        .await;
+    let bytes = update.download(
+        |chunk, total| {
+            let now = done.fetch_add(chunk as u64, Ordering::Relaxed) + chunk as u64;
+            let now = percent(now, total);
+            if now != shown {
+                shown = now;
+                change(
+                    &app,
+                    State::Downloading {
+                        version: version.clone(),
+                        percent: now,
+                    },
+                );
+            }
+        },
+        || {},
+    );
     // `download` checks the signature as well.
-    let bytes = match bytes {
-        Ok(bytes) => bytes,
-        Err(error) => {
+    let bytes = match unless_stalled(bytes, &done, STALL_LIMIT).await {
+        None => {
+            log::warn!("W_UPDATE_DOWNLOAD_TIMED_OUT");
+            change(&app, failed(manual, "E_UPDATE_DOWNLOAD_FAILED"));
+            return;
+        }
+        Some(Ok(bytes)) => bytes,
+        Some(Err(error)) => {
             let (code, always) = download_failure(&error);
             log::warn!("W_UPDATE_DOWNLOAD_FAILED {code} {error}");
             change(&app, failed(manual || always, code));
@@ -623,6 +654,35 @@ mod tests {
         assert!(!may_check(&State::Ready {
             version: "1.0.0".into()
         }));
+    }
+
+    #[test]
+    fn a_request_that_never_answers_fails_and_a_later_check_runs() {
+        let limit = Duration::from_millis(20);
+        let idle = AtomicU64::new(0);
+        let hung = tauri::async_runtime::block_on(unless_stalled(
+            std::future::pending::<()>(),
+            &idle,
+            limit,
+        ));
+        assert_eq!(hung, None);
+        assert!(may_check(&failed(true, "E_UPDATE_CHECK_FAILED")));
+        assert!(may_check(&failed(false, "E_UPDATE_CHECK_FAILED")));
+    }
+
+    #[test]
+    fn a_slow_download_that_keeps_moving_is_not_cut_off() {
+        let limit = Duration::from_millis(30);
+        let progress = AtomicU64::new(0);
+        let slow = async {
+            for _ in 0..4 {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                progress.fetch_add(1, Ordering::Relaxed);
+            }
+            "done"
+        };
+        let out = tauri::async_runtime::block_on(unless_stalled(slow, &progress, limit));
+        assert_eq!(out, Some("done"));
     }
 
     #[test]
