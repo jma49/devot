@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-notes-bodies"
+description = "Enables the notes_bodies command without any pre-configured scope."
+commands.allow = ["notes_bodies"]
+
+[[permission]]
+identifier = "deny-notes-bodies"
+description = "Denies the notes_bodies command without any pre-configured scope."
+commands.deny = ["notes_bodies"]

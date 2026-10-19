@@ -1,4 +1,6 @@
-use crate::storage::{Db, NOTE_STATUSES, NoteQuery, NoteRecord, NoteSummary, SetKind, TrashedNote};
+use crate::storage::{
+    Db, NOTE_STATUSES, NoteBody, NoteQuery, NoteRecord, NoteSummary, SetKind, TrashedNote,
+};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
@@ -162,6 +164,28 @@ pub async fn note_get(
         .map_err(|e| e.to_string())
 }
 
+/// MAX_BODY_IDS in src/core/storage.ts (a policy test checks they match).
+const MAX_BODY_IDS: usize = 500;
+
+fn validate_body_ids(ids: &[String]) -> Result<(), &'static str> {
+    if ids.len() > MAX_BODY_IDS {
+        return Err("E_NOTE_IDS_TOO_MANY");
+    }
+    if !ids.iter().all(|id| valid_note_id(id)) {
+        return Err("E_NOTE_ID_INVALID");
+    }
+    Ok(())
+}
+
+/// List rows' text for many notes in one call, without their Yjs state.
+#[tauri::command]
+pub async fn notes_bodies(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<NoteBody>, String> {
+    validate_body_ids(&ids).map_err(String::from)?;
+    db.call(move |store| store.get_bodies(&ids))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 /// `links`: the note IDs the body links to, for the link index.
 pub async fn note_put(db: State<'_, Db>, note: NoteDto, links: Vec<String>) -> Result<(), String> {
@@ -312,6 +336,77 @@ mod tests {
             ..dto()
         };
         assert!(note.into_record().is_ok());
+    }
+
+    /// What a list's rows cost to read at 10,000 notes: 200 rows as one `note_get` each (the
+    /// Yjs state in base64 included) against one `notes_bodies`. Run it with
+    /// `cargo test --lib list_rows_read_cost -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "a measurement, not a check"]
+    fn list_rows_read_cost() {
+        use crate::storage::Store;
+        use std::time::Instant;
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = Store::open(&dir.path().join("devot.sqlite")).unwrap();
+        let body = "A paragraph of a note, long enough to read like one. ".repeat(30);
+        let ids: Vec<String> = (0..10_000)
+            .map(|n| format!("0192a6f0-0000-7000-8000-{n:012}"))
+            .collect();
+        for (n, id) in ids.iter().enumerate() {
+            let record = NoteRecord {
+                id: id.clone(),
+                title: format!("Note {n}"),
+                body_md: body.clone(),
+                // A body's Yjs state with no edit history is about as long as its text.
+                ydoc: body.as_bytes().to_vec(),
+                ..dto().into_record().unwrap()
+            };
+            store.put_note(&record, &[]).unwrap();
+        }
+        let rows: Vec<String> = ids.iter().step_by(50).cloned().collect();
+        assert_eq!(rows.len(), 200);
+        let best = |run: &dyn Fn() -> usize| {
+            let mut bytes = 0;
+            let mut fastest = f64::MAX;
+            for _ in 0..5 {
+                let start = Instant::now();
+                bytes = run();
+                fastest = fastest.min(start.elapsed().as_secs_f64() * 1000.0);
+            }
+            (fastest, bytes)
+        };
+        let (single_ms, single_bytes) = best(&|| {
+            rows.iter()
+                .map(|id| {
+                    let note = store.get_note(id, true).unwrap().map(NoteDto::from);
+                    serde_json::to_vec(&note).unwrap().len()
+                })
+                .sum()
+        });
+        let (batched_ms, batched_bytes) = best(&|| {
+            serde_json::to_vec(&store.get_bodies(&rows).unwrap())
+                .unwrap()
+                .len()
+        });
+        println!(
+            "200 rows at 10,000 notes: note_get x200 {single_ms:.2} ms, {single_bytes} B; \
+             notes_bodies x1 {batched_ms:.2} ms, {batched_bytes} B"
+        );
+    }
+
+    #[test]
+    fn accepts_a_bounded_list_of_note_ids_for_bodies() {
+        let id = "0192a6f0-0000-7000-8000-00000000000a".to_string();
+        assert_eq!(validate_body_ids(&[]), Ok(()));
+        assert_eq!(validate_body_ids(&vec![id.clone(); MAX_BODY_IDS]), Ok(()));
+        assert_eq!(
+            validate_body_ids(&vec![id; MAX_BODY_IDS + 1]),
+            Err("E_NOTE_IDS_TOO_MANY")
+        );
+        assert_eq!(
+            validate_body_ids(&["../etc".into()]),
+            Err("E_NOTE_ID_INVALID")
+        );
     }
 
     #[test]

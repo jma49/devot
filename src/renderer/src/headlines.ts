@@ -7,7 +7,7 @@ import type { NoteSummary } from '../../core'
 import { errorCode } from '../../core/errors'
 import { t } from './i18n'
 
-export type HeadlineLoader = (ids: string[]) => Promise<Record<string, string>>
+export type HeadlineLoader<V = string> = (ids: string[]) => Promise<Record<string, V>>
 
 /**
  * What names a note anywhere it is named: its title, else its headline (the
@@ -47,22 +47,22 @@ export function newestUntitled(notes: readonly NoteSummary[], limit: number): No
     .slice(0, limit)
 }
 
-export interface CachedHeadline {
+export interface CachedHeadline<V = string> {
   at: number
-  text: string
+  text: V
 }
 
 const KEPT = 2000
 
-export function staleHeadlines(
+export function staleHeadlines<V>(
   notes: readonly NoteSummary[],
-  cache: ReadonlyMap<string, CachedHeadline>,
+  cache: ReadonlyMap<string, CachedHeadline<V>>,
   all = false,
 ): NoteSummary[] {
   return notes.filter((n) => (all || n.title === '') && cache.get(n.id)?.at !== n.updatedAt)
 }
 
-export function keepRecent(cache: Map<string, CachedHeadline>, limit: number) {
+export function keepRecent<V>(cache: Map<string, CachedHeadline<V>>, limit: number) {
   for (const id of cache.keys()) {
     if (cache.size <= limit) return
     cache.delete(id)
@@ -73,11 +73,11 @@ export function keepRecent(cache: Map<string, CachedHeadline>, limit: number) {
  * `cache` with `found` (read for the writes in `at`) added. An answer for an
  * older write never replaces one read for a newer write.
  */
-export function mergeHeadlines(
-  cache: ReadonlyMap<string, CachedHeadline>,
-  found: Readonly<Record<string, string>>,
+export function mergeHeadlines<V>(
+  cache: ReadonlyMap<string, CachedHeadline<V>>,
+  found: Readonly<Record<string, V>>,
   at: ReadonlyMap<string, number>,
-): Map<string, CachedHeadline> {
+): Map<string, CachedHeadline<V>> {
   const next = new Map(cache)
   for (const [id, text] of Object.entries(found)) {
     const was = next.get(id)
@@ -95,12 +95,12 @@ export function mergeHeadlines(
  * One that is not known yet is looked up, and the rows render again when it
  * is; one read for an earlier write shows until the new one arrives.
  */
-export function useHeadlines(
-  load: HeadlineLoader | undefined,
+export function useHeadlines<V = string>(
+  load: HeadlineLoader<V> | undefined,
   notes: readonly NoteSummary[],
   all = false,
-): ReadonlyMap<string, string> {
-  const [cache, setCache] = useState<ReadonlyMap<string, CachedHeadline>>(() => new Map())
+): ReadonlyMap<string, V> {
+  const [cache, setCache] = useState<ReadonlyMap<string, CachedHeadline<V>>>(() => new Map())
   // What was asked for and has not come back, so a render in between asks no more.
   const asked = useRef(new Set<string>())
   useEffect(() => {
@@ -125,7 +125,7 @@ export function useHeadlines(
       })
   }, [load, notes, cache, all])
   return useMemo(() => {
-    const shown = new Map<string, string>()
+    const shown = new Map<string, V>()
     for (const n of notes) {
       const text = all || n.title === '' ? cache.get(n.id)?.text : undefined
       if (text) shown.set(n.id, text)

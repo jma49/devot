@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createClock, createIdGenerator, createNoteService } from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
@@ -64,16 +64,48 @@ describe('excerpts', () => {
   })
 })
 
-describe('progress', () => {
-  it('counts each note’s tasks done, and is empty for a note with none', async () => {
+describe('row details', () => {
+  it('gives each note its excerpt and tasks done, and leaves out notes that do not exist', async () => {
     const { notes } = setup()
     const a = await notes.create('Chores')
     const b = await notes.create('Plain')
     await notes.setBody(a, '- [x] dishes\n- [ ] laundry\n- [ ] bins\n- [ ] floor')
     await notes.setBody(b, 'no tasks here')
-    expect(await notes.progress([a, b, '0192a6f0-0000-7000-8000-00000000000a'])).toEqual({
-      [a]: '1/4',
-      [b]: '',
+    expect(await notes.rowDetails([a, b, '0192a6f0-0000-7000-8000-00000000000a'])).toEqual({
+      [a]: { excerpt: 'dishes laundry bins floor', progress: '1/4' },
+      [b]: { excerpt: 'no tasks here', progress: '' },
     })
+  })
+
+  it('reads the stored notes in one batched read, without their Yjs state', async () => {
+    const { notes, storage } = setup()
+    const ids = [await notes.create('One'), await notes.create('Two'), await notes.create('Three')]
+    await notes.setBody(ids[0]!, 'first')
+    await notes.flush()
+    const fresh = createNoteService({
+      storage,
+      clock: createClock('mac2'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+    })
+    const batched = vi.spyOn(storage, 'getBodies')
+    const single = vi.spyOn(storage, 'getNote')
+    const found = await fresh.rowDetails(ids)
+    expect(Object.keys(found).sort()).toEqual([...ids].sort())
+    expect(found[ids[0]!]?.excerpt).toBe('first')
+    expect(batched).toHaveBeenCalledTimes(1)
+    expect(single).not.toHaveBeenCalled()
+  })
+
+  it('follows each change: typing not saved yet, the save, and the Trash', async () => {
+    const { notes } = setup()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, '- [ ] one')
+    expect((await notes.rowDetails([id]))[id]).toEqual({ excerpt: 'one', progress: '0/1' })
+    await notes.setBody(id, '- [x] one\n- [ ] two')
+    expect((await notes.rowDetails([id]))[id]).toEqual({ excerpt: 'one two', progress: '1/2' })
+    await notes.flush()
+    await notes.trash(id)
+    expect((await notes.rowDetails([id]))[id]).toEqual({ excerpt: 'one two', progress: '1/2' })
   })
 })

@@ -83,6 +83,7 @@ pub fn run() {
             native::editor_menu_popup,
             commands::notes::notes_list,
             commands::notes::note_get,
+            commands::notes::notes_bodies,
             commands::notes::note_put,
             commands::notes::notes_search,
             commands::notes::notes_trash_list,

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import {
   MAX_BODY_BYTES,
+  MAX_BODY_IDS,
   MAX_BODY_VERSION,
   MAX_NOTE_LINKS,
   MAX_TITLE_CHARS,
@@ -29,4 +30,8 @@ it('uses the limits note_put checks', () => {
   // storage moves it on to is still a whole number JavaScript holds exactly.
   expect(rustConst('MAX_BODY_VERSION')).toBe(MAX_BODY_VERSION)
   expect(MAX_BODY_VERSION).toBe(Number.MAX_SAFE_INTEGER)
+})
+
+it('batches body reads within what notes_bodies takes', () => {
+  expect(rustConst('MAX_BODY_IDS')).toBe(MAX_BODY_IDS)
 })

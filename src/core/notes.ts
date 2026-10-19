@@ -37,8 +37,10 @@ import {
   type SearchScope,
 } from './search'
 import {
+  MAX_BODY_IDS,
   NOTE_STATUSES,
   type CompactableVersion,
+  type NoteBody,
   type NoteRecord,
   type NoteStatus,
   type NoteSummary,
@@ -61,6 +63,11 @@ export const BODY = 'body'
 export const NOTES_IN_MEMORY = 8
 
 export type MetaChange = { bookId: string | null } | { status: NoteStatus } | { pinned: boolean }
+
+export interface RowDetail {
+  excerpt: string
+  progress: string
+}
 
 export interface OpenedNote {
   id: string
@@ -103,8 +110,8 @@ export interface NoteService {
   headlines(ids: readonly string[]): Promise<Record<string, string>>
   /** List excerpts (see `listExcerpt`), pending edits included. Missing notes are left out. */
   excerpts(ids: readonly string[]): Promise<Record<string, string>>
-  /** "done/total" per note with tasks (see `taskProgress`). Missing notes are left out. */
-  progress(ids: readonly string[]): Promise<Record<string, string>>
+  /** What a list row shows under its title: the excerpt and "done/total" of its tasks ('' with none), from one read. Missing notes are left out. */
+  rowDetails(ids: readonly string[]): Promise<Record<string, RowDetail>>
   /** Never pinned; a deleted notebook counts as none. `suffix` is kept by cutting the title to fit. Images become the copy's own (see extract); tags are the caller's (see duplicateNote). */
   duplicate(id: string, options?: { suffix?: string }): Promise<string>
   /** Images become the note's own copies so purging the source keeps them; if they cannot be copied no note is left and the copy's error is thrown. A given `title` (New Note from Link) names the note instead. */
@@ -658,6 +665,24 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     settle(note)
   }
 
+  /** Pending edits included: a note in memory is read from its document, the rest in batched storage reads. */
+  const bodies = async (ids: readonly string[]): Promise<NoteBody[]> => {
+    const found: NoteBody[] = []
+    const stored: string[] = []
+    for (const id of new Set(ids)) {
+      const note = live.get(id)
+      if (note)
+        found.push({ id, title: note.record.title, bodyMd: note.doc.getText(BODY).toString() })
+      else stored.push(id)
+    }
+    const batches: Promise<NoteBody[]>[] = []
+    for (let i = 0; i < stored.length; i += MAX_BODY_IDS) {
+      batches.push(storage.getBodies(stored.slice(i, i + MAX_BODY_IDS)))
+    }
+    for (const batch of await Promise.all(batches)) found.push(...batch)
+    return found
+  }
+
   const getStored = async (id: string, which?: { trashed: boolean }) => {
     const record = await storage.getNote(id, which)
     if (record) receiveStored(clock, stampsOf(record))
@@ -958,45 +983,25 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
     async headlines(ids) {
       const found: Record<string, string> = {}
-      await Promise.all(
-        ids.map(async (id) => {
-          const note = live.get(id)
-          const bodyMd = note
-            ? note.doc.getText(BODY).toString()
-            : (await storage.getNote(id, { trashed: true }))?.bodyMd
-          if (bodyMd !== undefined) found[id] = headline(bodyMd)
-        }),
-      )
+      for (const note of await bodies(ids)) found[note.id] = headline(note.bodyMd)
       return found
     },
 
     async excerpts(ids) {
       const found: Record<string, string> = {}
-      await Promise.all(
-        ids.map(async (id) => {
-          const note = live.get(id)
-          const record = note ? undefined : await storage.getNote(id, { trashed: true })
-          const bodyMd = note ? note.doc.getText(BODY).toString() : record?.bodyMd
-          if (bodyMd === undefined) return
-          found[id] = listExcerpt(bodyMd, note ? note.record.title : (record?.title ?? ''))
-        }),
-      )
+      for (const note of await bodies(ids)) found[note.id] = listExcerpt(note.bodyMd, note.title)
       return found
     },
 
-    async progress(ids) {
-      const found: Record<string, string> = {}
-      await Promise.all(
-        ids.map(async (id) => {
-          const note = live.get(id)
-          const bodyMd = note
-            ? note.doc.getText(BODY).toString()
-            : (await storage.getNote(id, { trashed: true }))?.bodyMd
-          if (bodyMd === undefined) return
-          const { done, total } = taskProgress(bodyMd)
-          found[id] = total > 0 ? `${done}/${total}` : ''
-        }),
-      )
+    async rowDetails(ids) {
+      const found: Record<string, RowDetail> = {}
+      for (const note of await bodies(ids)) {
+        const { done, total } = taskProgress(note.bodyMd)
+        found[note.id] = {
+          excerpt: listExcerpt(note.bodyMd, note.title),
+          progress: total > 0 ? `${done}/${total}` : '',
+        }
+      }
       return found
     },
 

@@ -171,11 +171,23 @@ export interface ActivityData {
   revisions: ActivityRevision[]
 }
 
+/** A note's title and Markdown body, read without its Yjs state (list rows). */
+export interface NoteBody {
+  id: string
+  title: string
+  bodyMd: string
+}
+
+/** The most IDs one `getBodies` call takes (the Tauri command refuses more). */
+export const MAX_BODY_IDS = 500
+
 export interface StorageAdapter {
   /** Notes not in the trash, most recently updated first. */
   listNotes(): Promise<NoteSummary[]>
   /** Null for a purged note; a note in the trash is returned only with `trashed`. */
   getNote(id: string, options?: { trashed?: boolean }): Promise<NoteRecord | null>
+  /** One read for many notes (at most MAX_BODY_IDS), trashed ones included; purged and unknown IDs are left out. */
+  getBodies(ids: readonly string[]): Promise<NoteBody[]>
   /** Live notes meeting every condition, best matches first, each with its excerpt; at most `limit`. */
   searchNotes(query: NoteQuery, limit: number): Promise<NoteSummary[]>
   /** Not purged, most recently deleted first. */

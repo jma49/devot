@@ -1150,6 +1150,7 @@ export function observeWrites(storage: StorageAdapter, changed: () => void): Sto
   return {
     listNotes: () => storage.listNotes(),
     getNote: (id, options) => storage.getNote(id, options),
+    getBodies: (ids) => storage.getBodies(ids),
     searchNotes: (query, limit) => storage.searchNotes(query, limit),
     listTrash: () => storage.listTrash(),
     purgeNote: after((id: string, at: number, hlc: string) => storage.purgeNote(id, at, hlc)),

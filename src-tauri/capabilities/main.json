@@ -16,6 +16,7 @@
     "allow-editor-menu-popup",
     "allow-notes-list",
     "allow-note-get",
+    "allow-notes-bodies",
     "allow-note-put",
     "allow-app-exit-ready",
     "allow-app-exit-cancel",

@@ -276,12 +276,8 @@ export function App() {
     () => (core ? (ids: string[]) => core.headlines(ids) : undefined),
     [core],
   )
-  const loadExcerpts = useMemo(
-    () => (core ? (ids: string[]) => core.excerpts(ids) : undefined),
-    [core],
-  )
-  const loadProgress = useMemo(
-    () => (core ? (ids: string[]) => core.progress(ids) : undefined),
+  const loadDetails = useMemo(
+    () => (core ? (ids: string[]) => core.rowDetails(ids) : undefined),
     [core],
   )
   const [listsLoaded, setListsLoaded] = useState(false)
@@ -2746,8 +2742,7 @@ export function App() {
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
-          excerpts={loadExcerpts}
-          progress={loadProgress}
+          details={loadDetails}
         />
       ) : inTrash ? (
         <NoteList
@@ -2765,8 +2760,7 @@ export function App() {
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
-          excerpts={loadExcerpts}
-          progress={loadProgress}
+          details={loadDetails}
           drag={false}
           onFind={findEverywhere}
           onTrashAction={trashKey}
@@ -2798,8 +2792,7 @@ export function App() {
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
-          excerpts={loadExcerpts}
-          progress={loadProgress}
+          details={loadDetails}
           drag="templates"
           after={<BuiltInTemplates selected={shownBuiltIn} onSelect={showBuiltIn} />}
         />
@@ -2828,8 +2821,7 @@ export function App() {
           selection={shownSelection}
           onSelection={changeListSelection}
           headlines={loadHeadlines}
-          excerpts={loadExcerpts}
-          progress={loadProgress}
+          details={loadDetails}
         />
       )}
       <main className="content" data-devot-part="editor">

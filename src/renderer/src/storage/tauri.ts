@@ -6,6 +6,7 @@ import type {
   ActivityData,
   BookRecord,
   CompactableVersion,
+  NoteBody,
   NoteSummary,
   NoteTagRecord,
   RevisionSummary,
@@ -19,6 +20,7 @@ export const tauriWire: WireStorage = {
   listNotes: () => invoke<NoteSummary[]>('notes_list'),
   getNote: (id, options) =>
     invoke<WireNote | null>('note_get', { id, trashed: options?.trashed ?? false }),
+  getBodies: (ids) => invoke<NoteBody[]>('notes_bodies', { ids }),
   // The worker found the links and checked the note (what note_put refuses).
   putNote: (note, links) => invoke('note_put', { note, links }),
   // The Rust command applies its own result limit.

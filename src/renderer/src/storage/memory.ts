@@ -175,6 +175,12 @@ export const memoryStorage: StorageAdapter = {
     const { purgedAt: _, ...record } = n
     return { ...record, bodyVersion: n.bodyVersion ?? 0, ydoc: new Uint8Array(n.ydoc) }
   },
+  async getBodies(ids) {
+    return ids.flatMap((id) => {
+      const n = storedNote(id)
+      return n && n.purgedAt === undefined ? [{ id, title: n.title, bodyMd: n.bodyMd }] : []
+    })
+  },
   async searchNotes(query, limit) {
     const live = await memoryStorage.listNotes()
     const stored = new Map(read<Stored>(NOTES).map((n) => [n.id, n]))
