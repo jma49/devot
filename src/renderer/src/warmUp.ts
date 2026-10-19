@@ -57,7 +57,7 @@ export function warmUp(core: Core, schedule: Idle = idle): void {
     () => {
       void core
         .renderPreviewPieces(WARM_SAMPLE, { labels: previewLabels(), loadedEmbeds: [] }, [])
-        .then((pieces) => layOutOffscreen((body) => patchPieces(body, [], pieces)))
+        .then((pieces) => patchPieces(document.createElement('div'), [], pieces))
         .catch(() => {})
       for (const name of WARM_LANGUAGES) {
         void LanguageDescription.matchLanguageName(languages, name)
@@ -67,21 +67,6 @@ export function warmUp(core: Core, schedule: Idle = idle): void {
     },
     { timeout: 3000 },
   )
-}
-
-/** Styles and lays out the sample once out of sight, so WebKit loads its fonts and styles too. */
-function layOutOffscreen(fill: (body: HTMLElement) => void): void {
-  const pane = document.createElement('article')
-  pane.className = 'preview'
-  pane.setAttribute('aria-hidden', 'true')
-  pane.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;visibility:hidden'
-  const body = document.createElement('div')
-  body.className = 'preview-body'
-  pane.append(body)
-  fill(body)
-  document.body.append(pane)
-  void pane.offsetHeight
-  requestAnimationFrame(() => pane.remove())
 }
 
 function idle(run: () => void, options: { timeout: number }): unknown {
