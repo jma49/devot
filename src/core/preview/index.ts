@@ -12,7 +12,7 @@ import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
 import { BUILTIN_RENDERERS } from './builtins'
 import { splitBlocks } from './blocks'
-import { createSlugger, headingIds } from './headingIds'
+import { createSlugger, headingIds, ID_PREFIX } from './headingIds'
 import {
   createRegistry,
   PREVIEW_API_VERSION,
@@ -255,7 +255,7 @@ export function createPieceRenderer({
       if (next) {
         const named = headings.map(({ node, text }) => {
           const slug = next(text)
-          if (slug) node.properties['id'] = slug
+          if (slug) node.properties['id'] = ID_PREFIX + slug
           else delete node.properties['id']
           return slug
         })

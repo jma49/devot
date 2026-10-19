@@ -38,6 +38,8 @@ const BASE64_URL = /^data:[^,]*;base64,([\s\S]*)$/i
 
 const KEPT_SRC = /^https?:/i
 
+export const MAX_DROPPED = 100
+
 export interface HtmlImage {
   id: string
   mime: string
@@ -48,7 +50,10 @@ export interface HtmlConversion {
   title: string | null
   markdown: string
   images: HtmlImage[]
-  /** Each once, in order: an element as `<name>` (`<svg>`), a `data:` URL by its type (`data:image/bmp`), any other image URL as written. */
+  /**
+   * Each once, in order: an element as `<name>` (`<svg>`), a `data:` URL by its type (`data:image/bmp`), any other image URL as written. At most
+   * `MAX_DROPPED` of them, then `+N` for the rest.
+   */
   dropped: string[]
 }
 
@@ -124,57 +129,69 @@ function contentOf(node: Nodes): string {
   return parts.join('\n').toLowerCase()
 }
 
+const nonce = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) =>
+    String.fromCharCode(97 + (b % 26)),
+  ).join('')
+
 /** A marker no page holds, so placeholders built on it survive the sanitizer. */
 function markerFor(page: Nodes): string {
   const content = contentOf(page)
-  let marker = 'devotimport'
-  while (content.includes(marker)) marker += 'x'
+  let marker: string
+  do marker = `devotimport${nonce()}`
+  while (content.includes(marker))
   return marker
+}
+
+function capped(dropped: Set<string>): string[] {
+  const all = [...dropped]
+  if (all.length <= MAX_DROPPED) return all
+  return [...all.slice(0, MAX_DROPPED), `+${all.length - MAX_DROPPED}`]
 }
 
 interface Prepared {
   images: HtmlImage[]
   imageIds: string[]
   math: { tex: string; display: boolean }[]
-  dropped: string[]
+  dropped: Set<string>
 }
 
 /** Takes out of `root` (before it is sanitized) what the sanitizer would lose: embedded images and MathML with TeX become placeholders. */
 function prepare(root: Root, marker: string, newId?: () => string): Prepared {
-  const out: Prepared = { images: [], imageIds: [], math: [], dropped: [] }
-  const drop = (label: string) => {
-    if (!out.dropped.includes(label)) out.dropped.push(label)
-  }
+  const out: Prepared = { images: [], imageIds: [], math: [], dropped: new Set() }
+  const drop = (label: string) => out.dropped.add(label)
   // The same embedded image twice is one attachment.
   const embedded = new Map<string, number>()
-  const image = (node: Element) => {
+  const keepImage = (node: Element): boolean => {
     let src = stringProperty(node, 'src')
     const lazy = stringProperty(node, 'dataSrc')?.trim()
     if (lazy && (!src || /^\s*data:/i.test(src))) src = lazy
-    if (src === null) return
+    if (src === null) return true
     node.properties['src'] = src
     const url = src.trim()
     if (!/^data:/i.test(url)) {
-      if (/^[a-z][a-z0-9+.-]*:/i.test(url) && !KEPT_SRC.test(url)) drop(url.slice(0, 200))
-      return
+      if (!/^[a-z][a-z0-9+.-]*:/i.test(url) || KEPT_SRC.test(url)) return true
+      drop(url.slice(0, 200))
+      return false
     }
     const known = embedded.get(url)
     if (known !== undefined) {
       node.properties['src'] = `${marker}i${known}`
-      return
+      return true
     }
     const match = BASE64_URL.exec(url)
     const data = match ? base64Bytes(match[1]!) : null
     const mime = data ? detectImage(data) : null
     if (!newId || !data || !mime) {
       drop(dataLabel(url))
-      return
+      return false
     }
     const id = newId()
     const index = out.imageIds.push(id) - 1
     out.images.push({ id, mime, data })
     embedded.set(url, index)
     node.properties['src'] = `${marker}i${index}`
+    return true
   }
   const walk = (parent: Root | Element) => {
     parent.children = parent.children.flatMap((child): ElementContent[] => {
@@ -196,7 +213,7 @@ function prepare(root: Root, marker: string, newId?: () => string): Prepared {
       if (DROPPED.has(child.tagName)) drop(`<${child.tagName}>`)
       // Gone with its content: nothing in it is the page's to keep.
       if (STRIP.includes(child.tagName)) return [child]
-      if (child.tagName === 'img') image(child)
+      if (child.tagName === 'img' && !keepImage(child)) return []
       const href = child.tagName === 'a' ? stringProperty(child, 'href') : null
       if (href !== null && /^\s*data:/i.test(href)) drop(dataLabel(href.trim()))
       walk(child)
@@ -289,7 +306,7 @@ export function htmlToMarkdown(html: string, newId?: () => string): HtmlConversi
   const marker = markerFor(page)
   const prepared = prepare(root, marker, newId)
   // A frameset page has no body: its frames are other pages.
-  if (!body && find(page, 'frameset')) prepared.dropped.push('<frameset>')
+  if (!body && find(page, 'frameset')) prepared.dropped.add('<frameset>')
   const clean = sanitize(root, SCHEMA)
   const tree = toMdast(clean) as MdRoot
   const linked = restore(tree, marker, prepared)
@@ -307,13 +324,12 @@ export function htmlToMarkdown(html: string, newId?: () => string): HtmlConversi
   // the conversion is listed as left out.
   const images = prepared.images.filter((image) => linked.has(image.id))
   for (const image of prepared.images) {
-    const label = `data:${image.mime}`
-    if (!linked.has(image.id) && !prepared.dropped.includes(label)) prepared.dropped.push(label)
+    if (!linked.has(image.id)) prepared.dropped.add(`data:${image.mime}`)
   }
   return {
     title,
     markdown: markdown.trim() === '' ? '' : markdown,
     images,
-    dropped: prepared.dropped,
+    dropped: capped(prepared.dropped),
   }
 }

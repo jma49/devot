@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import type { NoteLinkTarget, PreviewLabels } from '../../../core'
 import { noteLinks } from '../../../core/links'
 import { taskProgress } from '../../../core/tasks'
+import { fragmentId } from '../../../core/preview/headingIds'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
 import { useContextMenu, type MenuPoint } from '../contextMenu'
 import { copyText } from '../noteMenu'
@@ -305,10 +306,8 @@ export function Preview({
     event.preventDefault()
     const href = link.getAttribute('href') ?? ''
     if (href.startsWith('#')) {
-      const id = decodeURIComponent(href.slice(1))
-      pane.current
-        ?.querySelector(`[id="${CSS.escape(id)}"], [id="${CSS.escape(`user-content-${id}`)}"]`)
-        ?.scrollIntoView({ block: 'start' })
+      const id = fragmentId(decodeURIComponent(href.slice(1)))
+      pane.current?.querySelector(`[id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'start' })
       return
     }
     const note = NOTE_LINK.exec(href)
