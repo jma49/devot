@@ -1,6 +1,6 @@
 // An import converts and parses each file in a worker of its own (import.worker.ts), so the core
-// worker stays free for the saves queued meanwhile however long a large page takes (#290). A
-// worker that cannot start, or fails, hands its files back to the core worker.
+// worker stays free for the saves queued meanwhile however long a large page takes. A worker that
+// cannot start, or fails, hands its files back to the core worker.
 import type { ImportPreparer } from '../../core'
 
 export type ImportRequest =

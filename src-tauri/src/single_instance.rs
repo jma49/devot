@@ -20,7 +20,7 @@ use std::time::Duration;
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{AppHandle, Manager, RunEvent, Wry};
 
-use crate::atomic_file::effective_uid;
+use crate::atomic_file::{effective_uid, open_lock_file};
 
 const MAX_MESSAGE: u64 = 1024 * 1024;
 const READ_TIMEOUT: Duration = Duration::from_secs(5);
@@ -172,17 +172,10 @@ fn serve(listener: &UnixListener, take: impl Fn(String, Vec<String>) -> bool) {
     }
 }
 
-fn open_lock(path: &Path) -> std::io::Result<File> {
-    use rustix::fs::{Mode, OFlags};
-    let flags = OFlags::RDWR | OFlags::CREATE | OFlags::NOFOLLOW | OFlags::CLOEXEC;
-    let fd = rustix::fs::open(path, flags, Mode::RUSR | Mode::WUSR)?;
-    Ok(File::from(fd))
-}
-
 /// Binds a new socket at `socket` once this process holds `lock`: None while another process holds
 /// it, unless `wait`, which waits for it to let go. Without locks on the volume, it binds anyway.
 fn claim(lock: &Path, socket: &Path, wait: bool) -> std::io::Result<Option<Claimed>> {
-    let file = open_lock(lock)?;
+    let file = open_lock_file(lock)?;
     if wait {
         file.lock()?;
     } else {

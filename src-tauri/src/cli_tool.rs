@@ -113,21 +113,18 @@ fn temporary_location(script: &Path, read_only: impl FnOnce(&Path) -> bool) -> b
         || read_only(script)
 }
 
-fn on_read_only_volume(path: &Path) -> bool {
-    rustix::fs::statvfs(path).is_ok_and(|volume| {
-        volume
-            .f_flag
-            .contains(rustix::fs::StatVfsMountFlags::RDONLY)
-    })
-}
-
 /// Linked beside its place and renamed over it; `prompt` when the folder is not writable.
 pub fn install_at(
     link: &Path,
     script: &Path,
     prompt: impl FnOnce(Command) -> Result<(), &'static str>,
 ) -> Result<(), &'static str> {
-    install_from(link, script, on_read_only_volume, prompt)
+    install_from(
+        link,
+        script,
+        crate::atomic_file::on_read_only_volume,
+        prompt,
+    )
 }
 
 fn install_from(
@@ -279,6 +276,7 @@ mod tests {
 
     #[test]
     fn installs_from_any_writable_volume() {
+        use crate::atomic_file::on_read_only_volume;
         let p = place();
         assert!(!on_read_only_volume(&p.script));
         install_from(&p.link, &p.script, on_read_only_volume, no_prompt).unwrap();
@@ -288,6 +286,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn reads_the_sealed_system_volume_as_read_only() {
+        use crate::atomic_file::on_read_only_volume;
         assert!(on_read_only_volume(Path::new("/")));
         assert!(!on_read_only_volume(Path::new("/nonexistent/devot")));
     }

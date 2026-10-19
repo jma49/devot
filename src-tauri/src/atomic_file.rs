@@ -47,6 +47,22 @@ pub fn temporary_name() -> OsString {
     OsString::from(random_name())
 }
 
+/// A disk image mounts read-only; an app's own disk does not.
+pub fn on_read_only_volume(path: &Path) -> bool {
+    rustix::fs::statvfs(path).is_ok_and(|volume| {
+        volume
+            .f_flag
+            .contains(rustix::fs::StatVfsMountFlags::RDONLY)
+    })
+}
+
+/// A lock file of this user's alone, made when missing, never through a link.
+pub fn open_lock_file(path: &Path) -> io::Result<File> {
+    let flags = OFlags::RDWR | OFlags::CREATE | OFlags::NOFOLLOW | OFlags::CLOEXEC;
+    let fd = rustix::fs::open(path, flags, Mode::RUSR | Mode::WUSR)?;
+    Ok(File::from(fd))
+}
+
 pub fn effective_uid() -> u32 {
     rustix::process::geteuid().as_raw()
 }
