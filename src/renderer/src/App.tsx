@@ -1546,10 +1546,17 @@ export function App() {
 
   const create = async () => {
     if (!core) return
-    startEarlyKeys()
-    // Save pending titles first, so the refreshed list shows them.
-    await saveEdits(core)
-    const id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
+    const early = startEarlyKeys()
+    let id: string
+    try {
+      // Save pending titles first, so the refreshed list shows them.
+      await saveEdits(core)
+      id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
+    } catch (e) {
+      early.fail()
+      throw e
+    }
+    early.claim(id)
     if (!inTemplates) track('note.created', { from: 'new_note' })
     await showMade(core, id, await refresh(core))
     // A new note is for typing: Preview alone would leave it without an editor.
