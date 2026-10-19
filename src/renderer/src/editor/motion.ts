@@ -19,8 +19,7 @@ export const motionKeyframes = {
 }
 
 /** Grows out of its notch or anchor (set `transformOrigin` there) as it fades in. */
-export const popoverIn =
-  'cm-popover-in var(--motion-duration-popover) var(--motion-easing-standard)'
+export const popoverIn = 'cm-popover-in var(--motion-duration-popover) var(--motion-easing-move)'
 
 /**
  * Only fades. For CodeMirror tooltips, which CodeMirror places from their
@@ -29,7 +28,7 @@ export const popoverIn =
 export const fadeIn = 'cm-fade-in var(--motion-duration-fade) var(--motion-easing-standard)'
 
 /** A button over the text (a code block's copy button) grows a little as it fades in. */
-export const buttonIn = 'cm-popover-in var(--motion-duration-toggle) var(--motion-easing-standard)'
+export const buttonIn = 'cm-popover-in var(--motion-duration-toggle) var(--motion-easing-move)'
 
 /** A button tooltip only fades, as the app's other tooltips (`.tool-tip`). */
 export const tipIn = 'cm-fade-in var(--motion-duration-popover) var(--motion-easing-standard)'

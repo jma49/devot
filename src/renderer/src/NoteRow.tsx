@@ -58,7 +58,7 @@ export function TaskProgress({ done, total }: { done: number; total: number }) {
         aria-valuenow={done}
         aria-label={format(t('noteList.progressLabel'), values)}
       >
-        <span className="progress-fill" style={{ width: `${(done / total) * 100}%` }} />
+        <span className="progress-fill" style={{ transform: `scaleX(${done / total})` }} />
       </span>
       <span className="progress-text" aria-hidden="true">
         {format(t('noteList.progress'), values)}

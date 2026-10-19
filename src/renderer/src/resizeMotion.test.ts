@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { expandFrames, resizeFrames, resizeTiming } from './resizeMotion'
 
 describe('a size change', () => {
-  it('eases over 300 ms, and not under Reduce Motion', () => {
+  it('moves over 300 ms on the move curve, and not under Reduce Motion', () => {
     expect(resizeTiming(false)).toEqual({
       duration: 300,
-      easing: 'cubic-bezier(0.42, 0, 0.58, 1)',
+      easing: 'cubic-bezier(0.38, 0.7, 0.125, 1)',
     })
     expect(resizeTiming(true)).toBeNull()
   })

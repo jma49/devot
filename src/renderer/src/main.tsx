@@ -12,6 +12,7 @@ import { startSidebarMaterial } from './sidebarMaterial'
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
 import { startMotion } from './motionPreference'
+import { applyMotionScale } from './motionTiming'
 import { watchDialogExits } from './dialogMotion'
 import './theme/tokens.css'
 import './app.css'
@@ -38,6 +39,7 @@ startShortcutSettings()
 startSidebarMaterial()
 startAppearance()
 startMotion()
+applyMotionScale(document.documentElement)
 // Modal dialogs blur and fade as they close.
 watchDialogExits()
 if (!DEVOT_UI_TEST) {

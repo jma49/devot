@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { paneFrames, paneMoves, paneTiming, shownPanes } from './paneMotion'
+import { paneFrames, paneMoves, paneTiming, riderMoves, shownPanes } from './paneMotion'
 
 const box = (left: number, shown = true) => ({ left, shown })
 
@@ -55,7 +55,7 @@ describe('the frames of a move', () => {
   it('slides from the old place, and not under Reduce Motion', () => {
     expect(paneFrames({ kind: 'slide', dx: -200 }, false)).toEqual([
       { transform: 'translateX(-200px)' },
-      { transform: 'none' },
+      { transform: 'translateX(0px)' },
     ])
     expect(paneFrames({ kind: 'slide', dx: -200 }, true)).toBeNull()
   })
@@ -68,16 +68,39 @@ describe('the frames of a move', () => {
     expect(paneFrames({ kind: 'fade-in' }, false)).toEqual([{ opacity: 0 }, { opacity: 1 }])
   })
 
+  it('turns a fade cut short back from how opaque the pane is seen', () => {
+    expect(paneFrames({ kind: 'fade-in' }, false, 0.4)).toEqual([{ opacity: 0.4 }, { opacity: 1 }])
+    expect(paneFrames({ kind: 'fade-out', dx: 0 }, false, 0.6)?.[0]).toMatchObject({ opacity: 0.6 })
+  })
+
   it('shows every change at once under Reduce Motion', () => {
     expect(paneFrames({ kind: 'fade-out', dx: 200 }, true)).toBeNull()
     expect(paneFrames({ kind: 'fade-in' }, true)).toBeNull()
   })
 
-  it('takes 400 ms on the slide curve', () => {
-    expect(paneTiming).toEqual({
-      duration: 400,
-      easing: 'cubic-bezier(0.4, 0, 0.1, 1)',
-    })
+  it('takes 380 ms on the move curve', () => {
+    expect(paneTiming()).toEqual({ duration: 380, easing: 'cubic-bezier(0.38, 0.7, 0.125, 1)' })
+  })
+})
+
+describe('toolbar items making room for the window controls', () => {
+  it('slide by how far they moved within their pane', () => {
+    const toggle = {}
+    const title = {}
+    const gone = {}
+    expect(
+      riderMoves(
+        new Map([
+          [toggle, 4],
+          [title, 50],
+          [gone, 90],
+        ]),
+        new Map([
+          [toggle, 74],
+          [title, 50.4],
+        ]),
+      ),
+    ).toEqual(new Map([[toggle, -70]]))
   })
 })
 

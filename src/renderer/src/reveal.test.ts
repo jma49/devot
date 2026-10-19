@@ -3,10 +3,10 @@ import { concealFrames, revealFrames, revealTiming, slideFrames, slideTiming } f
 import { sizes } from './theme/tokens'
 
 describe('a section opening', () => {
-  it('grows over the toggle duration on the ease-out curve', () => {
+  it('grows over the toggle duration on the move curve', () => {
     expect(revealTiming(false)).toEqual({
       duration: Number.parseFloat(sizes['motion.duration.toggle']),
-      easing: sizes['motion.easing.out'],
+      easing: sizes['motion.easing.move'],
     })
     expect(revealTiming(false)?.duration).toBe(200)
   })
@@ -33,11 +33,8 @@ describe('a section closing', () => {
 })
 
 describe('the sidebar sliding to or from a workspace', () => {
-  it('slides over 400 ms on the slide curve, and not under Reduce Motion', () => {
-    expect(slideTiming(false)).toEqual({
-      duration: Number.parseFloat(sizes['motion.duration.slide']),
-      easing: sizes['motion.easing.slide'],
-    })
+  it('slides over 380 ms on the move curve, and not under Reduce Motion', () => {
+    expect(slideTiming(false)).toEqual({ duration: 380, easing: sizes['motion.easing.move'] })
     expect(slideTiming(true)).toBeNull()
   })
 

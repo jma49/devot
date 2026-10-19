@@ -122,7 +122,7 @@ dialog[open].sheet,
 dialog[open].link-dialog,
 dialog[open].palette {
   transform-origin: center;
-  animation: dialog-in var(--motion-duration-dialog) var(--motion-easing-standard);
+  animation: dialog-in var(--motion-duration-dialog) var(--motion-easing-move);
 }
 
 .confirm::backdrop,
@@ -843,7 +843,7 @@ button {
    point right or up while its section is shut, over the toggle duration. */
 .chevron {
   display: inline-flex;
-  transition: rotate var(--motion-duration-toggle) var(--motion-easing-out);
+  transition: rotate var(--motion-duration-toggle) var(--motion-easing-move);
 }
 
 .chevron[data-turn='right'] {
@@ -1340,8 +1340,10 @@ button {
 .progress-fill {
   display: block;
   height: 100%;
+  width: 100%;
   background: var(--color-accent-fill);
-  transition: width var(--motion-duration-grow) var(--motion-easing-standard);
+  transform-origin: left;
+  transition: transform var(--motion-duration-grow) var(--motion-easing-move);
 }
 
 :root[data-motion='reduced'] .progress-fill {
@@ -1370,7 +1372,7 @@ button {
 
 .chip[data-added] {
   animation:
-    chip-in var(--motion-duration-grow) var(--motion-easing-spring),
+    chip-in var(--motion-duration-grow) var(--motion-easing-move),
     fade-in var(--motion-duration-grow) var(--motion-easing-standard);
 }
 
@@ -1845,18 +1847,12 @@ button {
   flex-shrink: 0;
   align-self: stretch;
   width: 0;
-  transition: width var(--motion-duration-inset) var(--motion-easing-out);
 }
 
 /* The toggle starts where the editor's header does in focus mode: past the
    window controls by the inset (less the header's own padding). */
 .window[data-sidebar-hidden] .list-header .window-inset {
   width: calc(var(--size-window-controls-inset) - var(--space-1));
-}
-
-:root[data-motion='reduced'] .window-inset,
-:root[data-motion='reduced'] .editor-toolbar {
-  transition: none;
 }
 
 .sidebar-toggle.tool {
@@ -1908,11 +1904,8 @@ button {
 
 /* Focus mode: only the editor shows, at a reading width in the middle. */
 
-/* Clear the window controls, which now sit over the editor toolbar. */
-.editor-toolbar {
-  transition: padding-left var(--motion-duration-inset) var(--motion-easing-out);
-}
-
+/* Clear the window controls, which now sit over the editor toolbar. No
+   transition: its items slide with the panes (paneMotion.ts). */
 .window[data-focus] .editor-toolbar {
   padding-left: var(--size-window-controls-inset);
 }
@@ -2480,7 +2473,7 @@ button {
   font-weight: var(--font-weight-regular);
   box-shadow: var(--popover-shadow);
   transform-origin: top right;
-  animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
+  animation: popover-in var(--motion-duration-popover) var(--motion-easing-move);
 }
 
 .search-help-intro {
@@ -3546,7 +3539,7 @@ button {
   border-radius: 50%;
   background: var(--color-switch-handle);
   box-shadow: 0 1px 2px var(--color-shadow-popover-key);
-  transition: translate var(--motion-duration-toggle) var(--motion-easing-out);
+  transition: translate var(--motion-duration-toggle) var(--motion-easing-move);
 }
 
 .setting-toggle input[role='switch']:checked {
@@ -4118,8 +4111,8 @@ button.popup:focus-visible {
   backface-visibility: hidden;
   --menu-clip: calc(-1 * var(--shadow-popover-ambient-blur));
   animation:
-    popover-in var(--motion-duration-popover) var(--motion-easing-standard),
-    menu-unfold var(--motion-duration-toggle) var(--motion-easing-standard);
+    popover-in var(--motion-duration-popover) var(--motion-easing-move),
+    menu-unfold var(--motion-duration-toggle) var(--motion-easing-move);
 }
 
 /* Closing, a menu fades as it folds back to the edge it hangs from. */
@@ -4135,8 +4128,8 @@ button.popup:focus-visible {
   bottom: calc(100% + var(--space-2));
   transform-origin: bottom left;
   animation:
-    popover-in var(--motion-duration-popover) var(--motion-easing-standard),
-    menu-unfold-up var(--motion-duration-toggle) var(--motion-easing-standard);
+    popover-in var(--motion-duration-popover) var(--motion-easing-move),
+    menu-unfold-up var(--motion-duration-toggle) var(--motion-easing-move);
 }
 
 .picker-popover[data-side='above'][data-closing][data-closing-motion='scale'] {
@@ -4148,7 +4141,7 @@ button.popup:focus-visible {
 :root[data-motion='reduced'] .picker-popover,
 :root[data-motion='reduced'] .tag-suggestions,
 :root[data-motion='reduced'] .picker-popover[data-side='above'] {
-  animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
+  animation: popover-in var(--motion-duration-popover) var(--motion-easing-move);
 }
 
 :root[data-motion='reduced']

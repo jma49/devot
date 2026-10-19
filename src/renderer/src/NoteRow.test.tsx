@@ -86,7 +86,7 @@ describe('NoteRow', () => {
     expect(html).toContain('<span class="progress-text" aria-hidden="true">1 of 4</span>')
     expect(html).toContain('role="progressbar"')
     expect(html).toContain('aria-valuenow="1"')
-    expect(html).toContain('style="width:25%"')
+    expect(html).toContain('style="transform:scaleX(0.25)"')
     expect(row({ progress: '' })).not.toContain('row-progress')
   })
 

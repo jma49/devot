@@ -1,17 +1,14 @@
 // A section that opens (a notebook's sub-notebooks, the Status or Tags list)
 // grows from nothing to its height (and shrinks away when it closes) over `motion.duration.toggle` on the
-// `motion.easing.out` curve, fading in; Reduce Motion shows it at once. Only
+// `motion.easing.move` curve, fading in; Reduce Motion shows it at once. Only
 // an open the user asked for moves: the first paint never does.
-import { sizes } from './theme/tokens'
+import { motionTiming } from './motionTiming'
 import { motionReduced } from './motionPreference'
 
 /** The timing of the growth, or null when nothing should move. */
 export function revealTiming(reduced: boolean): KeyframeAnimationOptions | null {
   if (reduced) return null
-  return {
-    duration: Number.parseFloat(sizes['motion.duration.toggle']),
-    easing: sizes['motion.easing.out'],
-  }
+  return motionTiming('motion.duration.toggle', 'motion.easing.move')
 }
 
 /** From nothing to `height` pixels, fading in. */
@@ -71,10 +68,7 @@ export const slideFrames = (from: 1 | -1): Keyframe[] => [
 /** The timing of the slide, or null when nothing should move. */
 export function slideTiming(reduced: boolean): KeyframeAnimationOptions | null {
   if (reduced) return null
-  return {
-    duration: Number.parseFloat(sizes['motion.duration.slide']),
-    easing: sizes['motion.easing.slide'],
-  }
+  return motionTiming('motion.duration.slide', 'motion.easing.move')
 }
 
 /** Slides the sidebar's rows in after a workspace opened (`1`) or closed (`-1`). */
