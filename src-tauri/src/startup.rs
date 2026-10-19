@@ -1,20 +1,14 @@
-//! Launch: the app takes its data folder for itself, then opens the
-//! database there. When that fails, Devot cannot run: the failure is
-//! logged (`E_STARTUP_FAILED <code>`), a native alert says what happened,
-//! where the notes are and the code, and the app exits with status 1. It
-//! never panics there: a panic would end it with no window and lose the
-//! code.
+//! Launch: take the data folder, then open the database. When that fails the failure is logged, a
+//! native alert says what happened and the app exits with status 1. It never panics there: a panic
+//! would end it with no window and lose the code.
 
 use crate::storage::Db;
 use crate::strings;
 use std::fs::{File, TryLockError};
 use std::path::Path;
 
-/// The database's file name in the data folder.
 pub const DB_FILE: &str = "devot.sqlite";
 
-/// Why Devot cannot start: the code it is logged and shown with, such as
-/// `E_STORAGE_SCHEMA_TOO_NEW v13`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StartupError {
     code: String,
@@ -30,18 +24,13 @@ impl StartupError {
     }
 }
 
-/// The data folder, held by this process for its whole life: one Devot per
-/// data folder. It is an advisory lock (`flock`) on the folder itself, so
-/// no file is written for it, and the system lets go of it when the
-/// process ends, however it ends: a crash never leaves the folder held.
+/// An advisory lock (`flock`) on the folder itself: no file is written, and the system lets go when
+/// the process ends however it ends, so a crash never leaves the folder held.
 #[derive(Debug)]
 pub struct FolderLock(#[allow(dead_code)] File);
 
-/// Makes the data folder (`E_DATA_FOLDER_UNWRITABLE` when it cannot be
-/// made) and takes it for this process: while another process holds it,
-/// `E_DATA_FOLDER_IN_USE`. A folder that cannot be locked at all (a file
-/// system without locks) is logged and used without the lock, rather than
-/// keeping Devot from starting; then `None`.
+/// A folder that cannot be locked at all (a file system without locks) is logged and used without
+/// the lock, rather than keeping Devot from starting; then `None`.
 pub fn take_folder(dir: &Path) -> Result<Option<FolderLock>, StartupError> {
     std::fs::create_dir_all(dir).map_err(|_| StartupError::new("E_DATA_FOLDER_UNWRITABLE"))?;
     let Ok(folder) = File::open(dir) else {
@@ -58,16 +47,12 @@ pub fn take_folder(dir: &Path) -> Result<Option<FolderLock>, StartupError> {
     }
 }
 
-/// Opens (making it when missing) and migrates the database in the data
-/// folder; a failure has the storage error's code.
 pub fn open_db(dir: &Path) -> Result<Db, StartupError> {
     Db::spawn(&dir.join(DB_FILE)).map_err(|error| StartupError::new(error.to_string()))
 }
 
-/// The part of a launch before any window: takes the data folder for this
-/// process, runs `start` (the crash reporter) once it is held, then opens
-/// the database. A folder another Devot holds ends it before `start` or
-/// the database touch anything there.
+/// A folder another Devot holds ends the launch before `start` (the crash reporter) or the database
+/// touch anything there.
 pub fn open_data(
     dir: &Path,
     start: impl FnOnce(&Path),
@@ -78,15 +63,12 @@ pub fn open_data(
     Ok((held, db))
 }
 
-/// What the alert for a launch failure says.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Notice {
     pub title: &'static str,
     pub message: String,
 }
 
-/// The alert's title and its first sentence for a failure, by its kind (the
-/// code's first word).
 fn says(code: &str) -> (&'static str, &'static str) {
     let kind = code.split(' ').next().unwrap_or(code);
     let failed = strings::STARTUP_FAILED_TITLE;
@@ -104,8 +86,6 @@ fn says(code: &str) -> (&'static str, &'static str) {
     }
 }
 
-/// The alert for a failure: what happened, then the data folder (when its
-/// path is known) and the code.
 fn notice(error: &StartupError, data_dir: Option<&Path>) -> Notice {
     let (title, text) = says(error.code());
     let mut details: Vec<String> = data_dir
@@ -119,14 +99,11 @@ fn notice(error: &StartupError, data_dir: Option<&Path>) -> Notice {
     }
 }
 
-/// Logs a launch failure with its code and shows `alert` the notice for it.
 pub fn report(error: &StartupError, data_dir: Option<&Path>, alert: impl FnOnce(&Notice)) {
     log::error!("E_STARTUP_FAILED {}", error.code());
     alert(&notice(error, data_dir));
 }
 
-/// Ends a launch that failed: logs it, shows the native alert until it is
-/// dismissed, and exits with status 1.
 pub fn fail(error: &StartupError, data_dir: Option<&Path>) -> ! {
     report(error, data_dir, |notice| {
         crate::native::show_alert(notice.title, &notice.message);
@@ -142,7 +119,6 @@ mod tests {
     use std::io::{BufRead, BufReader};
     use std::process::{Command, Stdio};
 
-    /// The alert `report` shows for `error`, and checks it shows one.
     fn alert_for(error: &StartupError, data_dir: &Path) -> Notice {
         let mut shown = Vec::new();
         report(error, Some(data_dir), |notice| shown.push(notice.clone()));
@@ -154,7 +130,6 @@ mod tests {
     fn a_database_from_a_newer_devot_takes_the_alert_path() {
         test_log::capture();
         let dir = tempfile::tempdir().unwrap();
-        // A database that a newer Devot has upgraded.
         let path = dir.path().join(DB_FILE);
         drop(Store::open(&path).unwrap());
         let conn = rusqlite::Connection::open(&path).unwrap();
@@ -194,7 +169,6 @@ mod tests {
         assert_eq!(notice.title, strings::STARTUP_FAILED_TITLE);
         assert!(notice.message.starts_with(strings::STARTUP_CORRUPT));
 
-        // A database that cannot be made where it should be.
         let error = open_db(&dir.path().join("missing")).err().expect("refused");
         assert_eq!(error.code(), "E_STORAGE_CANTOPEN");
         assert!(
@@ -254,7 +228,6 @@ mod tests {
             assert!(notice.message.starts_with(says), "{code}");
             assert!(notice.message.ends_with(&format!("Code: {code}")), "{code}");
         }
-        // Without a data folder (its path could not be found), the code alone.
         let mut shown = Vec::new();
         report(&StartupError::new("E_DATA_FOLDER_UNKNOWN"), None, |n| {
             shown.push(n.clone())
@@ -324,7 +297,6 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_secs(60));
     }
 
-    /// A child process, killed (as in a crash) and waited for when dropped.
     struct Ended(std::process::Child);
 
     impl Drop for Ended {
@@ -359,7 +331,6 @@ mod tests {
         );
         let refused = take_folder(dir.path()).expect_err("refused");
         assert_eq!(refused.code(), "E_DATA_FOLDER_IN_USE");
-        // Ended at once, as in a crash: the system lets go of its lock.
         drop(child);
         assert!(take_folder(dir.path()).unwrap().is_some());
     }

@@ -1,6 +1,4 @@
-//! Help > Export Diagnostics…: one text file in Downloads with the app and
-//! system versions and the local logs (oldest first), shown in Finder. The
-//! logs hold codes and IDs only, so the file can be shared as is.
+//! Help > Export Diagnostics: the logs hold codes and IDs only, so the file can be shared as is.
 
 use crate::atomic_file::{Folder, Place};
 use crate::logs;
@@ -16,7 +14,6 @@ pub struct Info {
     pub created_ms: i64,
 }
 
-/// The bundle's text: a header, then each log file under its name.
 pub fn bundle(info: &Info, logs_dir: &Path) -> String {
     let mut out = String::new();
     let _ = writeln!(out, "Devot diagnostics");
@@ -36,7 +33,6 @@ pub fn bundle(info: &Info, logs_dir: &Path) -> String {
     out
 }
 
-/// `Devot Diagnostics 2026-10-10 12-34-56.txt` (UTC).
 pub fn file_name(created_ms: i64) -> String {
     let iso = logs::utc_iso(created_ms);
     format!(
@@ -56,13 +52,9 @@ fn os_version() -> String {
         .unwrap_or_else(|| "unknown".into())
 }
 
-/// Names tried for one second's bundle (`... 12-34-56 2.txt`, ...).
 const MAX_NAME_TRIES: u32 = 100;
 
-/// Writes the bundle into `dir` as a new file named after `created_ms`, or
-/// numbered (` 2`, ` 3`, ...) when that name is taken: never over a file or
-/// through a link already there, since the name is easy to guess (see
-/// `atomic_file`). The folder is opened once, and every name tried in it.
+/// Never writes over a file or through a link already there: the name is easy to guess (see `atomic_file`).
 pub fn save(dir: &Path, created_ms: i64, text: &str) -> Result<PathBuf, &'static str> {
     let folder = Folder::open(dir).map_err(|_| "E_DIAGNOSTICS_WRITE")?;
     let name = file_name(created_ms);
@@ -82,7 +74,6 @@ pub fn save(dir: &Path, created_ms: i64, text: &str) -> Result<PathBuf, &'static
     Err("E_DIAGNOSTICS_WRITE")
 }
 
-/// Writes the bundle to Downloads and reveals it in Finder.
 pub fn export(app: &AppHandle) -> Result<PathBuf, &'static str> {
     let paths = app.path();
     let logs_dir = paths
@@ -158,7 +149,6 @@ mod tests {
             std::fs::read_to_string(dir.path().join(file_name(T))).unwrap(),
             "someone's"
         );
-        // Another in the same second takes the next number; nothing else stays.
         let next = save(dir.path(), T, "again").unwrap();
         assert_eq!(
             next,
@@ -166,7 +156,6 @@ mod tests {
                 .join("Devot Diagnostics 2026-10-10 12-34-56 3.txt")
         );
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 3);
-        // A folder that is not there: an error code.
         assert_eq!(
             save(&dir.path().join("gone"), T, "x"),
             Err("E_DIAGNOSTICS_WRITE")

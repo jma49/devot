@@ -13,16 +13,12 @@ use std::sync::Arc;
 const DSN: Option<&str> = option_env!("DEVOT_SENTRY_DSN");
 pub(crate) const RELEASE: &str = concat!("devot@", env!("CARGO_PKG_VERSION"));
 
-/// Starts Sentry when this build has a DSN; keep the guard for the app's life.
 pub fn init() -> Option<sentry::ClientInitGuard> {
     let dsn = dsn()?;
     Some(sentry::init((dsn, options())))
 }
 
-/// The client's settings, the DSN aside. Its default integrations add the
-/// stack trace of a panic and the binaries loaded (by debug ID), so Sentry
-/// can name the functions of a stripped release build from its uploaded
-/// `devot.dSYM`; scrubbing keeps the binaries the frames are in.
+/// The default integrations add a panic's stack trace and the loaded binaries (by debug ID), so Sentry can name the functions of a stripped release build from its uploaded `devot.dSYM`; scrubbing keeps the binaries the frames are in.
 fn options() -> sentry::ClientOptions {
     // `ClientOptions` is non-exhaustive, so it is filled in field by field.
     let mut options = sentry::ClientOptions::default();
@@ -35,9 +31,7 @@ fn options() -> sentry::ClientOptions {
     options
 }
 
-/// The environment every event reports, the UI's too (`crash.ts` reads it
-/// from TAURI_ENV_DEBUG, which Tauri's CLI sets for builds with debug
-/// assertions).
+/// `crash.ts` reads it from TAURI_ENV_DEBUG, which Tauri's CLI sets for builds with debug assertions.
 pub(crate) fn environment() -> &'static str {
     if cfg!(debug_assertions) {
         "development"
@@ -50,9 +44,6 @@ fn dsn() -> Option<&'static str> {
     DSN.filter(|d| !d.is_empty())
 }
 
-/// Native crash reports (`crash_reporter`): sends the reports saved after
-/// earlier crashes, then starts the reporter for this run, both on their own
-/// threads. Builds without a DSN do neither.
 pub fn start_native(data_dir: &Path) {
     let Some(dsn) = dsn() else {
         return;
@@ -76,8 +67,6 @@ pub fn start_native(data_dir: &Path) {
     }
 }
 
-/// Runs the crash reporter when the binary was started as one; a build
-/// without a DSN refuses (it never starts one).
 pub fn reporter_main(args: &[std::ffi::OsString]) -> Option<i32> {
     if dsn().is_none() {
         return args
@@ -93,7 +82,6 @@ mod tests {
     use super::*;
     use sentry::protocol::{Event, Exception, Level, Mechanism};
 
-    /// A local stand-in for Sentry: it keeps what the client would send.
     #[derive(Default)]
     struct Kept(std::sync::Mutex<Vec<sentry::Envelope>>);
 
@@ -103,8 +91,6 @@ mod tests {
         }
     }
 
-    /// A panic as the app's client prepares it (its settings, its default
-    /// integrations, its scrubbing), kept instead of sent.
     fn prepared_panic() -> Event<'static> {
         let kept = Arc::new(Kept::default());
         let transport = Arc::clone(&kept);
@@ -115,7 +101,6 @@ mod tests {
         }));
         let client = Arc::new(sentry::Client::from(sentry::apply_defaults(options)));
         let hub = sentry::Hub::new(Some(client), Arc::new(sentry::Scope::default()));
-        // The event sentry-panic builds for a panic.
         hub.capture_event(Event {
             exception: vec![Exception {
                 ty: "panic".into(),
@@ -208,7 +193,6 @@ mod tests {
     #[test]
     fn builds_without_a_dsn_refuse_to_run_as_the_crash_reporter() {
         let args = |list: &[&str]| list.iter().map(Into::into).collect::<Vec<_>>();
-        // A normal launch is never taken for the reporter.
         assert_eq!(reporter_main(&args(&["devot"])), None);
         assert_eq!(reporter_main(&args(&["devot", "--other"])), None);
         if DSN.is_none_or(str::is_empty) {
@@ -221,7 +205,6 @@ mod tests {
     fn the_reporter_rejects_malformed_arguments() {
         let args = |list: &[&str]| list.iter().map(Into::into).collect::<Vec<_>>();
         let flag = crash_reporter::FLAG;
-        // Exit code 2 without registering anything.
         let token = "0123456789abcdef0123456789abcdef";
         let service = format!("io.github.jma49.devot.crash-reporter.1.{token}");
         for bad in [

@@ -1,24 +1,15 @@
 //! Automatic updates (Tauri's updater, signed releases).
-//!
-//! Release builds check the update feed 30 seconds after launch and then
-//! once a day; Devot > Check for Updates… (or the command palette, or
-//! Settings > General) checks at once. The feed is a channel file in the
-//! repository's fixed `updater` release: a prerelease build (a version with
-//! a `-betaN` part) reads `beta.json`, any other build `stable.json`.
-//!
-//! An update found downloads in the background when the
-//! `autoDownloadUpdates` editor setting is on (the default); otherwise the
-//! main window offers a Download button. A downloaded update is checked
-//! against its signature and waits: Restart to Update installs it and
-//! restarts once the window has saved (the quit handshake, see `exit`). A
-//! plain quit installs nothing; the next launch finds the update again.
-//!
-//! Rust holds the status and sends it (`devot://update-status`, with a
-//! revision so an older one never overrides a newer one) to every window
-//! after each change. A build without the updater's public key (any local
-//! or dev build: the release workflow passes the key at build time) has no
-//! updater: it never checks on its own, and a manual check says updates are
-//! unavailable.
+//! Release builds check the update feed 30 seconds after launch and then once a day; Check for
+//! Updates checks at once. The feed is a channel file in the repository's fixed `updater` release:
+//! a prerelease build (a `-betaN` version) reads `beta.json`, any other build `stable.json`.
+//! An update found downloads in the background when the `autoDownloadUpdates` editor setting is on
+//! (the default); otherwise the main window offers a Download button. A downloaded update waits:
+//! Restart to Update installs it and restarts once the window has saved (the quit handshake, see
+//! `exit`). A plain quit installs nothing.
+//! Rust holds the status and sends it (`devot://update-status`, with a revision so an older one
+//! never overrides a newer one) to every window after each change. A build without the updater's
+//! public key (any local or dev build: the release workflow passes the key at build time) has no
+//! updater: it never checks on its own, and a manual check says updates are unavailable.
 
 use crate::exit;
 use serde::Serialize;
@@ -30,23 +21,18 @@ use tauri::{AppHandle, Emitter, Manager, Window, Wry};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 pub const STATUS_EVENT: &str = "devot://update-status";
-/// The release that holds the channel files (`stable.json`, `beta.json`).
 const FEED_BASE: &str = "https://github.com/jma49/devot/releases/download/updater";
 const FIRST_CHECK: Duration = Duration::from_secs(30);
 const CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
-/// How often the scheduler wakes to see whether a check is due (wall-clock
-/// time, so a Mac that slept through the day checks soon after it wakes).
+/// Wall-clock time, so a Mac that slept through the day checks soon after it wakes.
 const WAKE_EVERY: Duration = Duration::from_secs(60 * 60);
 
-/// The update channel a build follows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Channel {
     Stable,
     Beta,
 }
 
-/// The channel of a build of `version`: beta for a prerelease
-/// (`0.9.1-beta1`), stable otherwise. Build metadata (`+…`) is ignored.
 pub fn channel_for(version: &str) -> Channel {
     let version = version.split('+').next().unwrap_or_default();
     if version.contains('-') {
@@ -56,7 +42,6 @@ pub fn channel_for(version: &str) -> Channel {
     }
 }
 
-/// The feed a channel's builds read.
 pub fn feed_url(channel: Channel) -> String {
     let file = match channel {
         Channel::Stable => "stable.json",
@@ -65,7 +50,6 @@ pub fn feed_url(channel: Channel) -> String {
     format!("{FEED_BASE}/{file}")
 }
 
-/// Whether the updater is configured: `plugins.updater` has a public key.
 pub fn configured(updater: Option<&Value>) -> bool {
     updater
         .and_then(|config| config.get("pubkey"))
@@ -73,7 +57,6 @@ pub fn configured(updater: Option<&Value>) -> bool {
         .is_some_and(|key| !key.trim().is_empty())
 }
 
-/// Where the updater is.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(
     tag = "state",
@@ -83,35 +66,27 @@ pub fn configured(updater: Option<&Value>) -> bool {
 pub enum State {
     Idle,
     Checking,
-    /// A manual check found nothing newer.
     UpToDate,
-    /// An update was found and waits to be downloaded.
     Available {
         version: String,
     },
-    /// The update is downloading: how far, when the size is known.
     Downloading {
         version: String,
         percent: Option<u8>,
     },
-    /// The update is downloaded and its signature checked; a restart installs it.
     Ready {
         version: String,
     },
-    /// A check, download or install the user asked for failed.
     Failed {
         code: String,
     },
 }
 
-/// What every window is told.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     pub revision: u64,
-    /// The running version.
     pub current: String,
-    /// Whether this build has an updater.
     pub enabled: bool,
     /// The window that asked for the last manual check, download or restart
     /// (only that window reports up to date or a failure).
@@ -120,8 +95,6 @@ pub struct Status {
     pub state: State,
 }
 
-/// Whether a check may start in `state`: not while one runs, while an
-/// update downloads, or once one is downloaded.
 fn may_check(state: &State) -> bool {
     !matches!(
         state,
@@ -129,14 +102,11 @@ fn may_check(state: &State) -> bool {
     )
 }
 
-/// After a check that found nothing: a manual check says so; an automatic
-/// one goes back to idle.
 fn nothing_found(manual: bool) -> State {
     if manual { State::UpToDate } else { State::Idle }
 }
 
-/// After a failure: shown when the user asked; otherwise only logged (the
-/// next daily check tries again).
+/// Shown when the user asked; otherwise only logged (the next daily check tries again).
 fn failed(manual: bool, code: &str) -> State {
     if manual {
         State::Failed { code: code.into() }
@@ -145,19 +115,15 @@ fn failed(manual: bool, code: &str) -> State {
     }
 }
 
-/// Download progress in whole percent, when the size is known.
 fn percent(done: u64, total: Option<u64>) -> Option<u8> {
     let total = total.filter(|t| *t > 0)?;
     u8::try_from(done.min(total).saturating_mul(100) / total).ok()
 }
 
-/// Whether the daily check is due: never checked, a day has passed, or the
-/// clock went back.
 fn due(last: Option<SystemTime>, now: SystemTime) -> bool {
     last.is_none_or(|at| now.duration_since(at).is_ok_and(|gone| gone >= CHECK_EVERY) || now < at)
 }
 
-/// The app menu item's title and whether it can be chosen in `state`.
 pub fn menu_item(state: &State) -> (&'static str, bool) {
     match state {
         State::Checking => (crate::strings::UPDATES_CHECKING, false),
@@ -167,8 +133,6 @@ pub fn menu_item(state: &State) -> (&'static str, bool) {
     }
 }
 
-/// A downloaded update: the release and its bytes, None once installed (a
-/// restart called off after installing).
 struct Pending {
     update: Arc<Update>,
     bytes: Option<Vec<u8>>,
@@ -178,17 +142,13 @@ struct Inner {
     revision: u64,
     state: State,
     asked_by: Option<String>,
-    /// The release found, from when it is found until it is installed.
     found: Option<Arc<Update>>,
     pending: Option<Pending>,
     last_check: Option<SystemTime>,
-    /// Restart to Update is installing the update.
     installing: bool,
-    /// Restart to Update started the quit: exiting restarts.
     restart: bool,
 }
 
-/// The updater's state (managed).
 pub struct Updates {
     enabled: bool,
     current: String,
@@ -233,7 +193,6 @@ impl Updates {
         self.status_of(&self.lock())
     }
 
-    /// Moves to `state`, returning the status to send.
     fn set(&self, inner: &mut Inner, state: State) -> Status {
         inner.revision += 1;
         inner.state = state;
@@ -241,10 +200,8 @@ impl Updates {
     }
 }
 
-/// The app menu's Check for Updates… item (managed), retitled by state.
 pub struct UpdatesMenuItem(pub MenuItem<Wry>);
 
-/// Sends `status` to every window and retitles the menu item.
 fn publish(app: &AppHandle, status: &Status) {
     if let Some(item) = app.try_state::<UpdatesMenuItem>() {
         let (title, enabled) = menu_item(&status.state);
@@ -257,7 +214,6 @@ fn publish(app: &AppHandle, status: &Status) {
     }
 }
 
-/// Sets the state and tells every window.
 fn change(app: &AppHandle, state: State) {
     let updates = app.state::<Updates>();
     let status = {
@@ -273,8 +229,6 @@ fn auto_download(app: &AppHandle) -> bool {
         .is_none_or(|snapshot| snapshot.settings.auto_download_updates)
 }
 
-/// Checks the feed: `asked_by` is the window that asked (a manual check),
-/// or None for the scheduled one.
 async fn check(app: AppHandle, asked_by: Option<String>) {
     let manual = asked_by.is_some();
     let updates = app.state::<Updates>();
@@ -294,15 +248,12 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
                 },
             )
         } else if !may_check(&inner.state) {
-            // Already checking, downloading or ready: show where it is (a
-            // new revision, since the window asking has changed).
             if !manual {
                 return;
             }
             let state = inner.state.clone();
             updates.set(&mut inner, state)
         } else {
-            // A scheduled check reports to no window.
             inner.asked_by.clone_from(&asked_by);
             inner.last_check = Some(SystemTime::now());
             updates.set(&mut inner, State::Checking)
@@ -341,7 +292,6 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
                 updates.set(&mut inner, State::Available { version })
             };
             if auto {
-                // A manual check reports the download's failure too.
                 download(app.clone(), asked_by).await;
             } else {
                 publish(&app, &status);
@@ -354,8 +304,6 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
     }
 }
 
-/// Downloads the update found and checks its signature: `asked_by` is the
-/// window whose Download button started it, or None for the background.
 async fn download(app: AppHandle, asked_by: Option<String>) {
     let manual = asked_by.is_some();
     let updates = app.state::<Updates>();
@@ -455,7 +403,6 @@ fn restart(app: &AppHandle, asked_by: &str) -> Result<(), &'static str> {
         inner.installing = false;
         if let Err(error) = installed {
             log::warn!("W_UPDATE_INSTALL_FAILED {error}");
-            // The next check downloads it again.
             inner.pending = None;
             let status = updates.set(
                 &mut inner,
@@ -476,12 +423,8 @@ fn restart(app: &AppHandle, asked_by: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// The release and the bytes a restart installs.
 type Install = (Arc<Update>, Vec<u8>);
 
-/// What a restart installs: the downloaded bytes (marking an install as
-/// running), or None when they are installed already (a restart called off
-/// after installing).
 fn take_install(inner: &mut Inner) -> Result<Option<Install>, &'static str> {
     if !matches!(inner.state, State::Ready { .. }) {
         return Err("E_UPDATE_NOT_READY");
@@ -500,7 +443,6 @@ fn take_install(inner: &mut Inner) -> Result<Option<Install>, &'static str> {
     Ok(job)
 }
 
-/// Runs a restart off the main thread.
 async fn restart_in_background(app: AppHandle, asked_by: String) -> Result<(), &'static str> {
     tauri::async_runtime::spawn_blocking(move || restart(&app, &asked_by))
         .await
@@ -515,16 +457,13 @@ pub fn restart_called_off(app: &AppHandle) {
     }
 }
 
-/// Called as the app exits: whether to restart (Restart to Update). A plain
-/// quit installs nothing (installing may ask for a password); the next
-/// launch finds the update again.
+/// A plain quit installs nothing (installing may ask for a password); the next launch finds the
+/// update again.
 pub fn on_exit(app: &AppHandle) -> bool {
     app.try_state::<Updates>()
         .is_some_and(|updates| updates.lock().restart)
 }
 
-/// Starts a manual check from the menu (the main window reports it), or
-/// restarts when an update is ready.
 pub fn on_menu(app: &AppHandle) {
     let ready = matches!(app.state::<Updates>().status().state, State::Ready { .. });
     if ready {
@@ -539,7 +478,6 @@ pub fn on_menu(app: &AppHandle) {
     }
 }
 
-/// Starts the scheduled checks (release builds with an updater only).
 pub fn start(app: &AppHandle) {
     if cfg!(debug_assertions) || !app.state::<Updates>().enabled {
         return;
@@ -562,20 +500,16 @@ pub fn start(app: &AppHandle) {
     }
 }
 
-/// The updater's status.
 #[tauri::command]
 pub fn update_status(updates: tauri::State<'_, Updates>) -> Status {
     updates.status()
 }
 
-/// Checks for an update now; the result comes as `devot://update-status`.
 #[tauri::command]
 pub fn update_check(app: AppHandle, window: Window) {
     tauri::async_runtime::spawn(check(app, Some(window.label().to_owned())));
 }
 
-/// Downloads the update found (auto download off); progress and the result
-/// come as `devot://update-status`.
 #[tauri::command]
 pub fn update_download(app: AppHandle, window: Window) -> Result<(), String> {
     if window.label() != crate::MAIN_WINDOW {
@@ -585,8 +519,6 @@ pub fn update_download(app: AppHandle, window: Window) -> Result<(), String> {
     Ok(())
 }
 
-/// Restart to Update: installs the downloaded update, then quits through
-/// the save handshake and restarts (main window only).
 #[tauri::command]
 pub async fn update_restart(app: AppHandle, window: Window) -> Result<(), String> {
     if window.label() != crate::MAIN_WINDOW {
@@ -695,7 +627,6 @@ mod tests {
         assert!(!due(Some(now - Duration::from_secs(60)), now));
         assert!(!due(Some(now - CHECK_EVERY + Duration::from_secs(1)), now));
         assert!(due(Some(now - CHECK_EVERY), now));
-        // The clock went back: check rather than wait for the old time.
         assert!(due(Some(now + Duration::from_secs(60)), now));
     }
 
@@ -771,7 +702,6 @@ mod tests {
             version: "0.3.0-beta.2".into(),
         };
         assert_eq!(take_install(&mut inner).err(), Some("E_UPDATE_NOT_READY"));
-        // While one restart installs, another waits for it.
         inner.installing = true;
         assert_eq!(take_install(&mut inner).err(), Some("E_UPDATE_BUSY"));
         assert!(!inner.restart);

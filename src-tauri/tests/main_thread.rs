@@ -77,21 +77,17 @@ fn main() {
     }
 }
 
-/// Copy Image frees what it decoded once it returns, not when its thread
-/// ends. Two copies of a large image are decoded on a thread that then
-/// stays alive (as a blocking-pool thread does, for 10 s and more): AppKit's
-/// temporaries (decoded copies of the image) used to stay until that thread
-/// exited, hundreds of MB for a large photo, so the footprint fell by as
-/// much when it did. Now nothing is left for its exit to free. (The
-/// footprint does not fall back to where it was before the copies: the
-/// allocator keeps freed pages for reuse, which `heap` shows as free.)
+/// Copy Image frees what it decoded once it returns, not when its thread ends. Two copies of a
+/// large image are decoded on a thread that then stays alive (as a blocking-pool thread does):
+/// AppKit's temporaries used to stay until that thread exited, hundreds of MB for a large photo.
+/// The footprint does not fall back to where it was before the copies: the allocator keeps freed
+/// pages for reuse, which `heap` shows as free.
 #[cfg(target_os = "macos")]
 fn image_decode_frees_its_memory() {
     use devot_lib::native::macos;
     use std::sync::{Arc, mpsc};
 
     const SIDE: u32 = 4096;
-    // What one decoded copy of the image takes (four bytes a pixel).
     let decoded = 4 * u64::from(SIDE) * u64::from(SIDE);
     // Shared, so the thread's exit frees none of the image's own bytes.
     let image: Arc<[u8]> = bmp(SIDE, SIDE).into();
@@ -127,21 +123,16 @@ fn image_decode_frees_its_memory() {
     );
 }
 
-/// An uncompressed 24-bit BMP of `width` by `height` pixels, a pattern
-/// rather than one colour.
 #[cfg(target_os = "macos")]
 fn bmp(width: u32, height: u32) -> Vec<u8> {
     let row = (width * 3).next_multiple_of(4);
     let size = row * height;
     let mut out = Vec::with_capacity(54 + size as usize);
     out.extend_from_slice(b"BM");
-    // File size, reserved, pixel offset; header size, width, height.
     for value in [54 + size, 0, 54, 40, width, height] {
         out.extend_from_slice(&value.to_le_bytes());
     }
-    // One plane of 24 bits a pixel.
     out.extend_from_slice(&[1, 0, 24, 0]);
-    // No compression, pixel bytes, 72 dpi both ways, no palette.
     for value in [0, size, 2835, 2835, 0, 0] {
         out.extend_from_slice(&value.to_le_bytes());
     }
@@ -154,14 +145,10 @@ fn bmp(width: u32, height: u32) -> Vec<u8> {
     out
 }
 
-/// A long page prints to a PDF of several pages through the system print
-/// pipeline, with its text laid out (fonts embedded), not blank pages, and
-/// with its scripts off (the script would empty the page).
 #[cfg(target_os = "macos")]
 fn print_to_pdf() {
     use devot_lib::native::macos;
 
-    // Removed when it goes out of scope, also when an assertion fails.
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("note.pdf");
     let paragraphs: String = (0..200)
@@ -182,9 +169,6 @@ fn print_to_pdf() {
     println!("main_thread: a long page prints to a {pages}-page PDF");
 }
 
-/// Every print job ends and frees the print slot, so a PDF export never
-/// blocks the next print: PDF prints in a row all succeed, and no job is
-/// left over after any of them.
 #[cfg(target_os = "macos")]
 fn print_jobs_end() {
     use devot_lib::native::macos;

@@ -4,13 +4,11 @@ use tauri::State;
 
 const MAX_NAME_CHARS: usize = 200;
 
-/// The longest sort key (`MAX_SORT_KEY_LENGTH` in src/core/order.ts).
+/// Matches `MAX_SORT_KEY_LENGTH` in src/core/order.ts.
 const MAX_SORT_KEY_LEN: usize = 1024;
 const KEY_DIGITS: &str = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-/// Whether `key` is a well-formed sort key, by the rules of `isSortKey` in
-/// src/core/order.ts: base-62 digits, an integer part whose first character
-/// gives its length, and a fraction that does not end in '0'.
+/// Mirrors `isSortKey` in src/core/order.ts.
 fn valid_sort_key(key: &str) -> bool {
     let bytes = key.as_bytes();
     let integer_len = match bytes.first() {
@@ -27,7 +25,6 @@ fn valid_sort_key(key: &str) -> bool {
             && bytes[1..].iter().all(|b| *b == b'0'))
 }
 
-/// Checks a notebook before it reaches storage.
 fn validate(book: &BookRecord) -> Result<(), &'static str> {
     if !valid_note_id(&book.id) {
         return Err("E_BOOK_ID_INVALID");
@@ -55,8 +52,7 @@ fn validate(book: &BookRecord) -> Result<(), &'static str> {
     {
         return Err("E_BOOK_HLC_INVALID");
     }
-    // Only catalog symbols (none depicts an Apple product) and palette IDs,
-    // whichever device or process wrote them.
+    // Only catalog symbols (none depicts an Apple product) and palette IDs.
     if !book.icon.as_deref().is_none_or(notebook_symbol)
         || !book
             .icon_color
@@ -144,13 +140,11 @@ mod tests {
         iconed.icon_color = Some("green".into());
         iconed.icon_hlc = HLC.into();
         assert_eq!(validate(&iconed), Ok(()));
-        // Reverted: no icon, no colour, the clock of the revert.
         iconed.icon = None;
         iconed.icon_color = None;
         assert_eq!(validate(&iconed), Ok(()));
     }
 
-    /// Every catalog symbol is accepted, and the catalog parses.
     #[test]
     fn accepts_every_catalog_symbol() {
         let catalog: serde_json::Value =
@@ -172,7 +166,6 @@ mod tests {
         }
     }
 
-    /// tests/support/names.json, as for tags (commands/tags.rs).
     #[test]
     fn trims_names_as_the_core_does() {
         let cases: Vec<serde_json::Value> =
@@ -214,11 +207,9 @@ mod tests {
             (|b| b.updated_at = 0, "E_BOOK_TIME_INVALID"),
             (|b| b.deleted_at = Some(3), "E_BOOK_DELETE_INVALID"),
             (|b| b.ai_access_hlc = "x".repeat(65), "E_BOOK_HLC_INVALID"),
-            // Switched on without a clock to order the change by.
             (|b| b.ai_access = true, "E_BOOK_HLC_INVALID"),
             (|b| b.sort_key_hlc = "x".repeat(65), "E_BOOK_HLC_INVALID"),
             (|b| b.icon_hlc = "x".repeat(65), "E_BOOK_HLC_INVALID"),
-            // An icon or colour without a clock to order the change by.
             (|b| b.icon = Some("leaf".into()), "E_BOOK_HLC_INVALID"),
             (|b| b.icon_color = Some("red".into()), "E_BOOK_HLC_INVALID"),
             (

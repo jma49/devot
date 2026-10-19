@@ -6,12 +6,8 @@
 #[doc(hidden)]
 pub mod macos;
 
-/// Event the UI listens for to restyle when the system accent changes.
 pub const ACCENT_EVENT: &str = "devot://accent-changed";
 
-/// Applies native window settings after the main window is created, gives
-/// the Format menu's keys priority over the web view, and forwards system
-/// accent changes to the UI.
 pub fn configure_main_window(app: &tauri::App) {
     #[cfg(target_os = "macos")]
     {
@@ -29,10 +25,8 @@ pub fn configure_main_window(app: &tauri::App) {
     let _ = app;
 }
 
-/// Shows a critical alert with `title` and `message` and waits until it is
-/// dismissed: a launch that cannot open the notes, before any window
-/// (`startup::fail`). Main thread only; elsewhere, and off macOS, it shows
-/// nothing (the failure is logged all the same).
+/// Main thread only; elsewhere, and off macOS, it shows nothing (the failure is logged all the
+/// same).
 pub fn show_alert(title: &str, message: &str) {
     #[cfg(target_os = "macos")]
     if !macos::show_critical_alert(title, message) {
@@ -42,35 +36,30 @@ pub fn show_alert(title: &str, message: &str) {
     let _ = (title, message);
 }
 
-/// What the macOS key monitor reads off a key-down event.
 #[derive(Debug, Clone, Copy, Default)]
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub struct KeyDown {
     pub command: bool,
     pub control: bool,
-    /// The event belongs to the main window.
     pub in_main_window: bool,
-    /// The main window is the key window (no sheet, panel or Settings on top).
     pub main_window_is_key: bool,
     /// The main window's first responder has marked text: an input method
     /// is composing there (in the editor or a field of the web view).
     pub marked_text: bool,
 }
 
-/// Whether the key monitor offers a key-down to the Format menu before the
-/// web view sees it: only a key with Command or Control (every format key
-/// has one, so typed text never goes there) in the main window while it is
-/// the key window, and not while an input method composes there: it gets
-/// the key first (it may use Control keys), and a format would end its
-/// composition. The menu takes the key only when one of its items has it,
-/// which is only while the editor has the keyboard (`format_menu`).
+/// A key with Command or Control only (every format key has one, so typed text never goes there),
+/// in the main window while it is the key window, and not while an input method composes there: it
+/// gets the key first (it may use Control keys) and a format would end its composition. The menu
+/// takes the key only when one of its items has it, which is only while the editor has the keyboard
+/// (`format_menu`).
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn offers_to_format_menu(key: KeyDown) -> bool {
     (key.command || key.control) && key.in_main_window && key.main_window_is_key && !key.marked_text
 }
 
-/// The system accent colour. When the user picked Multicolor, the UI keeps
-/// Devot's own accent (`light` and `dark` are absent).
+/// When the user picked Multicolor, the UI keeps Devot's own accent (`light` and `dark` are
+/// absent).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccentInfo {
@@ -97,13 +86,11 @@ impl AccentInfo {
     }
 }
 
-/// `#rrggbb` from colour components in 0..=1, clamped.
 pub fn hex_from_unit_rgb(r: f64, g: f64, b: f64) -> String {
     let byte = |c: f64| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
     format!("#{:02x}{:02x}{:02x}", byte(r), byte(g), byte(b))
 }
 
-/// The current system accent. AppKit is read on the main thread.
 #[tauri::command]
 pub async fn system_accent(app: tauri::AppHandle) -> Result<AccentInfo, String> {
     #[cfg(target_os = "macos")]
@@ -127,8 +114,6 @@ pub async fn system_accent(app: tauri::AppHandle) -> Result<AccentInfo, String> 
 const MAX_SYMBOL_NAME_LEN: usize = 64;
 const POINT_SIZE_RANGE: std::ops::RangeInclusive<f64> = 1.0..=128.0;
 
-/// The stroke weights a symbol may be drawn at, as AppKit's font weights
-/// (`macos::symbol_weight`); a request without one is `regular`.
 const SYMBOL_WEIGHTS: [&str; 9] = [
     "ultralight",
     "thin",
@@ -141,7 +126,6 @@ const SYMBOL_WEIGHTS: [&str; 9] = [
     "black",
 ];
 
-/// Checks a symbol request before it reaches native code.
 fn validate_symbol_request(name: &str, point_size: f64, weight: &str) -> Result<(), &'static str> {
     let name_ok = !name.is_empty()
         && name.len() <= MAX_SYMBOL_NAME_LEN
@@ -160,17 +144,14 @@ fn validate_symbol_request(name: &str, point_size: f64, weight: &str) -> Result<
     Ok(())
 }
 
-/// Held while a symbol renders. AppKit lets an image be used on any thread,
-/// but by one thread at a time, and the symbol images it hands out may be
-/// shared.
+/// AppKit lets an image be used on any thread, but by one thread at a time, and the symbol images
+/// it hands out may be shared.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 static SYMBOL_RENDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// Runs `render` on a blocking thread, one render at a time, never on the
-/// thread that asks. Tauri runs a synchronous command on the main thread,
-/// which at launch also routes the page's first IPC: rendering the first
-/// paint's 22 icons there held it for about 115 ms (80 of them on the
-/// first, when AppKit loads the symbols). None when the render panicked.
+/// Tauri runs a synchronous command on the main thread, which at launch also routes the page's
+/// first IPC: rendering the first paint's 22 icons there held it for about 115 ms (80 of them on
+/// the first, when AppKit loads the symbols). None when the render panicked.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 async fn render_one_at_a_time<T: Send + 'static>(
     render: impl FnOnce() -> T + Send + 'static,
@@ -185,8 +166,6 @@ async fn render_one_at_a_time<T: Send + 'static>(
     .ok()
 }
 
-/// Renders an SF Symbol as a base64 PNG at twice `point_size` pixels, off
-/// the main thread (`render_one_at_a_time`), at `weight` (default regular).
 #[tauri::command]
 pub async fn symbol_png(
     name: String,
@@ -217,7 +196,6 @@ pub async fn symbol_png(
 /// (and any code block) fits.
 const MAX_CLIPBOARD_TEXT_LEN: usize = crate::commands::notes::MAX_BODY_BYTES;
 
-/// Checks text before it reaches the pasteboard.
 fn validate_clipboard_text(text: &str) -> Result<(), &'static str> {
     if text.is_empty() {
         return Err("E_CLIPBOARD_TEXT_EMPTY");
@@ -256,12 +234,9 @@ pub async fn clipboard_write_text(app: tauri::AppHandle, text: String) -> Result
     }
 }
 
-/// Longest text a plain paste takes: as much as a note body may hold.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const MAX_CLIPBOARD_READ_BYTES: usize = crate::commands::notes::MAX_BODY_BYTES;
 
-/// What the page gets from a pasteboard read: its text (empty when it holds
-/// none), or a code when the text is longer than a note may be.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn clipboard_read_result(text: Option<String>) -> Result<String, &'static str> {
     let text = text.unwrap_or_default();
@@ -271,10 +246,8 @@ fn clipboard_read_result(text: Option<String>) -> Result<String, &'static str> {
     Ok(text)
 }
 
-/// Reads the general pasteboard's plain text, for Paste as Plain Text. The
-/// page could ask WebKit instead only during a key press in the page, and
-/// WebKit would show its own Paste button first; the command palette runs
-/// the command after its own keys, too. Takes no arguments.
+/// The page could ask WebKit instead only during a key press in the page, and WebKit would show its
+/// own Paste button first.
 #[tauri::command]
 pub async fn clipboard_read_text(app: tauri::AppHandle) -> Result<String, String> {
     #[cfg(target_os = "macos")]
@@ -296,15 +269,11 @@ pub async fn clipboard_read_text(app: tauri::AppHandle) -> Result<String, String
     }
 }
 
-/// Longest text Look Up takes, in characters: a word or a phrase.
 const MAX_LOOK_UP_CHARS: usize = 1_000;
 
-/// Longest text a speech fallback takes, in characters.
 const MAX_SPEECH_CHARS: usize = 100_000;
 
-/// Checks a Look Up request: some text (not only white space) of a sane
-/// length and a point with finite, non-negative coordinates. Whether the
-/// point lies inside the view is checked against the view itself.
+/// Whether the point lies inside the view is checked against the view itself.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn validate_look_up(text: &str, x: f64, y: f64) -> Result<(), &'static str> {
     if text.trim().is_empty() {
@@ -322,22 +291,16 @@ fn validate_look_up(text: &str, x: f64, y: f64) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Longest CSS font list Look Up reads, in characters.
 const MAX_LOOK_UP_FONT_LIST: usize = 2_048;
 
-/// Most families of a font list Look Up tries.
 const MAX_LOOK_UP_FAMILIES: usize = 16;
 
-/// The font size range Look Up takes, in CSS pixels.
 const LOOK_UP_FONT_SIZES: std::ops::RangeInclusive<f64> = 1.0..=512.0;
 
 /// The family name the page loads an imported font under starts with this
 /// (`importedFontFamily` in src/renderer/src/fonts.ts).
 const IMPORTED_FAMILY_PREFIX: &str = "Devot Font ";
 
-/// The computed font of the selection's first character, as the page sends
-/// it with a Look Up: the CSS font list, the size in pixels, the weight
-/// (100 to 900) and whether it is italic.
 #[derive(Debug, Clone, PartialEq, serde::Deserialize)]
 pub struct LookUpFont {
     pub family: String,
@@ -347,17 +310,12 @@ pub struct LookUpFont {
     pub italic: bool,
 }
 
-/// A family of the page's font list, as Look Up resolves it.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LookUpFamily {
-    /// The system font (`-apple-system`, `system-ui`, `sans-serif`).
     System,
-    /// The monospaced system font (`ui-monospace`, `SFMono-Regular`).
     Monospaced,
-    /// A font installed on this Mac, by family name.
     Installed(String),
-    /// An imported font, by its file in the fonts folder.
     Imported(String),
 }
 
@@ -372,26 +330,20 @@ pub enum FontSource {
     File(Vec<u8>),
 }
 
-/// The font AppKit draws the Look Up word in: the sources to try, then the
-/// system font at `size` when none resolves.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct LookUpStyle {
     pub sources: Vec<FontSource>,
     /// In points (a CSS pixel each); None for the system font size.
     pub size: Option<f64>,
-    /// A weight name of `SYMBOL_WEIGHTS`.
     pub weight: &'static str,
     /// AppKit's font manager weight (0 to 15; 5 is regular, 9 bold).
     pub manager_weight: isize,
     pub italic: bool,
 }
 
-/// The families of a CSS font list Look Up can try, in order: system and
-/// generic keywords, imported fonts (`Devot Font <id>`) and installed
-/// families. A name is checked like the other font names (no quotes or
-/// backslashes, a length limit) and skipped when it fails; so is the whole
-/// list when it is too long.
+/// A name is checked like the other font names (no quotes or backslashes, a length limit) and
+/// skipped when it fails; so is the whole list when it is too long.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn look_up_families(list: &str) -> Vec<LookUpFamily> {
     if list.chars().count() > MAX_LOOK_UP_FONT_LIST {
@@ -410,8 +362,6 @@ fn look_up_families(list: &str) -> Vec<LookUpFamily> {
         .collect()
 }
 
-/// One family name of a font list (quotes taken off), or None when Look Up
-/// cannot use it.
 fn look_up_family(name: &str) -> Option<LookUpFamily> {
     match name.to_ascii_lowercase().as_str() {
         "-apple-system" | "system-ui" | "blinkmacsystemfont" | "sans-serif" | "ui-sans-serif" => {
@@ -432,8 +382,6 @@ fn look_up_family(name: &str) -> Option<LookUpFamily> {
     crate::fonts::valid_family_name(name).then(|| LookUpFamily::Installed(name.to_string()))
 }
 
-/// The weight name of a CSS weight: the nearest hundred, from `ultralight`
-/// (100) to `black` (900); regular when it is not a number.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn css_weight_name(weight: f64) -> &'static str {
     if !weight.is_finite() {
@@ -443,7 +391,6 @@ fn css_weight_name(weight: f64) -> &'static str {
     SYMBOL_WEIGHTS[index]
 }
 
-/// AppKit's font manager weight for a CSS weight: 5 for 400, 9 for 700.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn manager_weight(weight: f64) -> isize {
     const SCALE: [isize; 9] = [2, 3, 4, 5, 6, 8, 9, 10, 11];
@@ -454,10 +401,8 @@ fn manager_weight(weight: f64) -> isize {
     SCALE[index]
 }
 
-/// The face of a font file with several (a `.ttc`) that Look Up draws in:
-/// of the faces' traits (CoreText's weight, -1 to 1, and italic; None when
-/// unreadable), the one closest to the wanted ones, a matching italic
-/// before a closer weight; the first face when none can be read.
+/// Of the faces' traits (CoreText's weight, -1 to 1, and italic), the one closest to the wanted
+/// ones, a matching italic before a closer weight; the first face when none can be read.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn closest_face(faces: &[Option<(f64, bool)>], weight: f64, italic: bool) -> usize {
     let distance = |(face_weight, face_italic): (f64, bool)| {
@@ -475,9 +420,6 @@ fn closest_face(faces: &[Option<(f64, bool)>], weight: f64, italic: bool) -> usi
         .map_or(0, |(index, _)| index)
 }
 
-/// The style a Look Up draws its word in. Without font information (an
-/// older page, a selection out of view) or with a size out of range, the system font at
-/// its usual size; an imported family whose file cannot be read is skipped.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn look_up_style(font: Option<&LookUpFont>, read: impl Fn(&str) -> Option<Vec<u8>>) -> LookUpStyle {
     let fallback = LookUpStyle {
@@ -508,7 +450,6 @@ fn look_up_style(font: Option<&LookUpFont>, read: impl Fn(&str) -> Option<Vec<u8
     }
 }
 
-/// What a speech request asks for.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Debug, PartialEq, Eq)]
 enum SpeechRequest {
@@ -516,8 +457,6 @@ enum SpeechRequest {
     Stop,
 }
 
-/// Checks a speech request: `start` (with the selected text, which a
-/// speech synthesizer says when the web view cannot) or `stop`.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn validate_speech(action: &str, text: Option<String>) -> Result<SpeechRequest, &'static str> {
     match action {
@@ -538,9 +477,6 @@ fn validate_speech(action: &str, text: Option<String>) -> Result<SpeechRequest, 
     }
 }
 
-/// Shows the system dictionary for `text` at a point in the window (CSS
-/// pixels from the top-left corner of the page), drawing the word in `font`
-/// (the system font without it).
 #[tauri::command]
 pub async fn text_look_up(
     app: tauri::AppHandle,
@@ -581,7 +517,6 @@ pub async fn text_look_up(
     }
 }
 
-/// Starts (`start`, with the selected text) or stops (`stop`) speaking.
 #[tauri::command]
 pub async fn text_speak(
     app: tauri::AppHandle,
@@ -617,39 +552,27 @@ pub async fn text_speak(
     }
 }
 
-// ---- The editor's menu -------------------------------------------------------
-
-/// The most items the editor's menu takes from the page (submenu items too).
 const MAX_EDITOR_MENU_ITEMS: usize = 64;
-/// The longest item text or ID the editor's menu takes, in characters.
 const MAX_EDITOR_MENU_TEXT: usize = 200;
-/// The longest word the editor's menu offers spelling guesses for.
 const MAX_SPELLING_WORD: usize = 100;
-/// The farthest point in the window the editor's menu opens at, in CSS pixels.
 const MAX_EDITOR_MENU_POINT: f64 = 100_000.0;
-/// What every item ID the editor's menu takes starts with.
 const EDITOR_MENU_ID_PREFIX: &str = "devot.editor.";
 
-/// An item of the editor's menu as the page lays it out (`editorMenu.ts`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum EditorMenuEntry {
-    /// An item the page handles: picking it returns its ID.
     Item {
         id: String,
         text: String,
-        /// Shown beside the item (`CmdOrCtrl+Z`); the page handles the key.
         #[serde(default)]
         accelerator: Option<String>,
         #[serde(default)]
         checked: Option<bool>,
     },
     Separator,
-    /// One of the system's own items, which act on the web view.
     Predefined {
         item: SystemItem,
     },
-    /// A submenu of items (no deeper submenus).
     Submenu {
         id: String,
         text: String,
@@ -657,7 +580,6 @@ pub enum EditorMenuEntry {
     },
 }
 
-/// The system's own items the page may put in the editor's menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 pub enum SystemItem {
     Cut,
@@ -666,13 +588,10 @@ pub enum SystemItem {
     SelectAll,
 }
 
-/// What was picked in the editor's menu, when the page has to act on it.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum EditorMenuPick {
-    /// One of the page's items.
     Item { id: String },
-    /// A spelling guess: the page puts it in place of the word.
     Guess { text: String },
 }
 
@@ -689,10 +608,6 @@ fn valid_menu_id(id: &str) -> bool {
         })
 }
 
-/// Checks the editor's menu the page sends: at most `MAX_EDITOR_MENU_ITEMS`
-/// items, each with an ID of the editor's and a sane text, submenus one
-/// level deep; a point with finite, non-negative coordinates; and a word
-/// (to offer spelling guesses for) that is one word.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn validate_editor_menu(
     items: &[EditorMenuEntry],
@@ -749,7 +664,6 @@ fn validate_editor_menu(
     Ok(())
 }
 
-/// A menu item's key as AppKit shows it: the key equivalent and its modifiers.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub struct KeyEquivalent {
@@ -760,8 +674,6 @@ pub struct KeyEquivalent {
     pub control: bool,
 }
 
-/// Reads an accelerator as the page writes it (`Ctrl+Shift+Alt+CmdOrCtrl+K`,
-/// `shortcutAccelerator`); `None` for a key AppKit has no equivalent for.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn key_equivalent(accelerator: &str) -> Option<KeyEquivalent> {
     let mut parts: Vec<&str> = accelerator.split('+').collect();
@@ -815,11 +727,6 @@ fn key_equivalent(accelerator: &str) -> Option<KeyEquivalent> {
     Some(out)
 }
 
-/// Shows the editor's menu at a point in the window (CSS pixels from the
-/// top-left corner of the page) and waits until it closes: the page's
-/// items, the system's spelling guesses for `word` when it is misspelled,
-/// and the system's Spelling and Grammar, Writing Tools and Services.
-/// Returns what the page has to act on, if anything was picked.
 #[tauri::command]
 pub async fn editor_menu_popup(
     app: tauri::AppHandle,
@@ -1047,7 +954,6 @@ mod tests {
             control: true,
             ..main
         }));
-        // Typing (with or without Shift or Option) never goes to the menu.
         assert!(!offers_to_format_menu(main));
     }
 
@@ -1057,19 +963,16 @@ mod tests {
             command: true,
             ..KeyDown::default()
         };
-        // Settings, or a panel, is the key window.
         assert!(!offers_to_format_menu(KeyDown {
             in_main_window: false,
             main_window_is_key: false,
             ..command
         }));
-        // A sheet on the main window has the keyboard.
         assert!(!offers_to_format_menu(KeyDown {
             in_main_window: true,
             main_window_is_key: false,
             ..command
         }));
-        // An event of another window while the main window is key.
         assert!(!offers_to_format_menu(KeyDown {
             in_main_window: false,
             main_window_is_key: true,
@@ -1210,7 +1113,6 @@ mod tests {
         use base64::Engine as _;
         let png = macos::symbol_png("square.and.pencil", 17.0, "light").expect("symbol renders");
         assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
-        // What the page gets: the same, as base64.
         let answer = tauri::async_runtime::block_on(symbol_png(
             "square.and.pencil".into(),
             17.0,
@@ -1249,8 +1151,6 @@ mod tests {
     #[test]
     fn look_up_skips_font_names_that_fail_the_checks() {
         use LookUpFamily::*;
-        // Quotes or backslashes inside a name, a hidden family, a bad file
-        // name and a name over the limit are skipped; the rest stay.
         let long = "x".repeat(200);
         let list = format!(
             "\"A\\\"B\", 'It\'s', .Hidden, \"Devot Font a b c\", \"Devot Font ttf\", {long}, Menlo"
@@ -1297,10 +1197,8 @@ mod tests {
         assert_eq!(closest_face(&faces, 0.3, true), 3);
         // A matching italic counts before a closer weight.
         assert_eq!(closest_face(&[bold, italic], 0.4, true), 1);
-        // The nearest weight, the earlier face on a tie.
         assert_eq!(closest_face(&[regular, bold], 0.23, false), 1);
         assert_eq!(closest_face(&[bold, Some((-0.4, false))], 0.0, false), 0);
-        // Faces without traits are passed over; with none, the first face.
         assert_eq!(closest_face(&[None, bold], 0.0, false), 1);
         assert_eq!(closest_face(&[None, None], 0.4, true), 0);
         assert_eq!(closest_face(&[], 0.0, false), 0);
@@ -1326,7 +1224,6 @@ mod tests {
             )),
             read,
         );
-        // A file that cannot be read is skipped; the rest keep their order.
         assert_eq!(
             style.sources,
             [
@@ -1340,8 +1237,6 @@ mod tests {
             (style.weight, style.manager_weight, style.italic),
             ("bold", 9, true)
         );
-        // No font information (an older page) or a size out of range: the
-        // system font at its usual size.
         let system = look_up_style(None, read);
         assert_eq!(system.sources, []);
         assert_eq!(system.size, None);

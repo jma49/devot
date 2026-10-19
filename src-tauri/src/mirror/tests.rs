@@ -6,7 +6,6 @@ use std::fs;
 
 const NOTE: &str = "0192a6f0-0000-7000-8000-000000000001";
 
-/// A mirror whose setting lives in `dir`, and the statuses it announced.
 struct Fixture {
     _dir: tempfile::TempDir,
     data: PathBuf,
@@ -32,7 +31,6 @@ impl Fixture {
         |status: &Status| self.seen.borrow_mut().push(status.clone())
     }
 
-    /// A new folder inside the fixture's (removed with it).
     fn folder(&self, name: &str) -> PathBuf {
         let path = self.data.join(name);
         fs::create_dir(&path).unwrap();
@@ -86,20 +84,16 @@ fn is_off_by_default_and_turns_on_with_an_empty_folder() {
     let Choice::Chosen { status } = f.choose(&folder) else {
         panic!("an empty folder is used at once");
     };
-    // Shown with the home folder as `~` (the fixture's folder is the home here).
     assert_eq!(status.folder.as_deref(), Some("~/Notes"));
     assert_eq!(f.seen.borrow().last(), Some(&status));
-    // The setting survives a restart.
     let again = Mirror::new(&f.data.join(SETTINGS_FILE), None);
     assert_eq!(
         again.get().unwrap().folder.as_deref(),
         Some(folder.to_str().unwrap())
     );
-    // The first pass makes the manifest.
     let opened = f.open().unwrap();
     assert_eq!(opened.manifest, Some(Manifest::default()));
     assert!(folder.join(MANIFEST).is_file());
-    // A pass that holds this generation's manifest is not sent it again.
     let known = f.mirror.open(Some(opened.generation), &f.notify()).unwrap();
     assert_eq!(known.manifest, None);
 }
@@ -129,12 +123,10 @@ fn asks_before_using_a_folder_that_is_not_empty_and_has_no_manifest() {
         fs::read_to_string(folder.join("theirs.md")).unwrap(),
         "theirs"
     );
-    // A token is used once.
     assert_eq!(
         f.mirror.confirm(token, &f.notify()),
         Err("E_MIRROR_CHOICE_UNKNOWN")
     );
-    // A folder with a manifest is a mirror already: used at once.
     let other = f.folder("Other");
     fs::write(other.join("theirs.md"), "theirs").unwrap();
     fs::write(
@@ -206,7 +198,6 @@ fn changes_its_setting_and_refuses_anything_else() {
         .unwrap();
     assert_eq!(off.folder, None);
     assert!(!off.include_attachments);
-    // Turning off leaves the folder as it is.
     assert!(folder.is_dir());
     let again = Mirror::new(&f.data.join(SETTINGS_FILE), None);
     assert_eq!(again.get().unwrap().folder, None);
@@ -246,7 +237,6 @@ fn pauses_when_the_folder_goes_and_resumes_with_the_manifest_read_again() {
         f.mirror.get().unwrap().paused,
         Some("E_MIRROR_FOLDER_MISSING")
     );
-    // Announced once, however often it is checked.
     let paused = f
         .seen
         .borrow()
@@ -300,7 +290,6 @@ fn pauses_when_a_link_takes_the_folder_s_place_and_never_follows_it() {
         Err("E_MIRROR_FOLDER_MISSING")
     );
     assert_eq!(fs::read_dir(&outside).unwrap().count(), 0);
-    // Put back, it resumes.
     fs::remove_file(&folder).unwrap();
     fs::rename(f.data.join("Moved"), &folder).unwrap();
     assert!(f.open().unwrap().generation > opened.generation);
@@ -330,7 +319,6 @@ fn shows_the_size_of_a_mirror_once_it_reads_its_manifest() {
     let heard = f.seen.borrow().len();
     f.mirror.open(Some(generation), &f.notify()).unwrap();
     assert_eq!(f.seen.borrow().len(), heard, "nothing new to tell");
-    // A launch: the same.
     let launched = Mirror::new(&f.data.join(SETTINGS_FILE), None);
     assert_eq!(launched.get().unwrap().size, None);
     let seen = RefCell::new(Vec::new());
@@ -351,7 +339,6 @@ fn pauses_on_a_missing_or_unreadable_manifest() {
     fs::remove_file(folder.join(MANIFEST)).unwrap();
     fs::write(folder.join("Plan.md"), "x").unwrap();
     assert_eq!(f.open(), Err("E_MIRROR_MANIFEST_MISSING"));
-    // Choosing it again asks, then starts from an empty manifest.
     let Choice::Confirm { token, .. } = f.choose(&folder) else {
         panic!("needs a confirmation");
     };
@@ -388,7 +375,6 @@ fn applies_operations_of_its_own_generation_and_writes_the_manifest_back() {
         Err("E_MIRROR_OPS_INVALID")
     );
 
-    // A file edited outside Devot is kept, and listed until dismissed.
     fs::write(folder.join("Plan.md"), "edited").unwrap();
     let keep = json!({ "kind": "keep", "entry": "note", "id": NOTE, "path": "Plan.md" });
     let results = f.apply(opened.generation, &[keep]);
@@ -510,7 +496,6 @@ fn never_writes_its_manifest_or_setting_through_a_link_or_a_dangling_one() {
         let outside = f.folder("Outside");
         fs::write(outside.join("theirs.txt"), "theirs").unwrap();
         let target = outside.join(if dangling { "new.txt" } else { "theirs.txt" });
-        // Where the setting's temporary copy once went, in the app data.
         std::os::unix::fs::symlink(&target, f.data.join("mirror-settings.json.partial")).unwrap();
         // A link at the manifest's name: the folder is neither empty nor a
         // mirror, so it is used only once confirmed...
@@ -537,7 +522,6 @@ fn never_writes_its_manifest_or_setting_through_a_link_or_a_dangling_one() {
                 .unwrap()
                 .is_symlink()
         );
-        // Nothing reached the folder the links point into.
         let mut names: Vec<_> = fs::read_dir(&outside)
             .unwrap()
             .map(|e| e.unwrap().file_name())

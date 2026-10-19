@@ -1,54 +1,29 @@
 //! Files written whole, and never through a link.
-//!
-//! Every file Devot writes outside its databases (exported notes and
-//! attachments, saved images, PDFs, diagnostics, settings, backups, crash
-//! reports, the Markdown mirror's files and manifest) goes to a temporary
-//! file in the target's folder first, is flushed to disk (all but the
-//! mirror's many files, see `Folder::write_unflushed`), and is then put in
-//! place, so the target holds either what was there before or the whole new
-//! file. A new file (`Place::New`) and a file moved to a new name
-//! (`Folder::rename`) go only where nothing is yet, so neither ever replaces
-//! a file or a link that appeared there after the caller looked: in one step
-//! where the file system can (a rename that fails on any name there, on APFS
-//! and HFS+); elsewhere (FAT, exFAT, many network shares) a new empty file
-//! claims the name first, which fails the same way, and the rename goes over
-//! that claim, so only something put over the claim in the instant between
-//! could be replaced. Either way the move is whole: a file never stays under
-//! both names, nor under neither.
-//!
-//! Every step works in a folder opened once (`Folder`), never by a path.
-//! The folder is resolved when it is opened (a folder the user chose may be
-//! a link the user picked, which is followed then, once); from then on the
-//! temporary file, the rename into place, a removal and every folder below
-//! it are named relative to that handle, one plain name at a time, and each
-//! folder below is opened from its parent's handle, never through a link
-//! (O_NOFOLLOW). So no folder on the way can be swapped for a link, or for
-//! another folder, after Devot looked: a local process that may rename
-//! entries in a folder Devot writes to (a shared or synced folder, a
-//! downloads folder) could otherwise send a write, a move or a removal
-//! wherever its link pointed, in the moment between Devot's checks and the
-//! step itself. A writer keeps the handle for as long as its checks hold:
-//! an export session from the panel to its last file, the Markdown mirror
-//! for one call.
-//!
-//! A temporary file is only ever created new (O_CREAT | O_EXCL), which fails
-//! on anything already at its name, a link included: such a name is passed
-//! over for another, so nothing is ever written through a link someone
-//! planted. Its name is hidden and random (`.devot-<32 hex digits>.tmp`, 122
-//! random bits from the system's generator; a crash report's is its own
-//! random event ID), so it cannot be guessed ahead either; a name that could
-//! be (the note's file name, the process ID and a counter) let a link
-//! planted in a shared or downloaded folder send the bytes wherever it
-//! pointed.
-//!
-//! A writer that creates its file by path itself (AppKit printing a PDF,
-//! SQLite writing a backup) writes inside a new private folder made the same
-//! way (`TempDir`, only its owner may use it), and its file is renamed out
-//! of it, or copied to a target in another folder. That folder is made only
-//! in the app's data, which nobody else can reach: its mode keeps others out
-//! of it, not from swapping it for a link while the writer runs, which
-//! anyone who may remove names where it sits could do (in a shared folder,
-//! or the owner of the folder the user saves into).
+//! Every file Devot writes outside its databases goes to a temporary file in the target's folder
+//! first, is flushed to disk (all but the mirror's many files, see `Folder::write_unflushed`), and
+//! is then put in place, so the target holds either what was there before or the whole new file. A
+//! new file (`Place::New`) and a file moved to a new name (`Folder::rename`) go only where nothing
+//! is yet: in one step where the file system can (a rename that fails on any name there, on APFS
+//! and HFS+); elsewhere (FAT, exFAT, many network shares) a new empty file claims the name first
+//! and the rename goes over that claim, so only something put over the claim in the instant between
+//! could be replaced. Either way the move is whole: a file never stays under both names, nor under
+//! neither.
+//! Every step works in a folder opened once (`Folder`), never by a path. The folder is resolved
+//! when it is opened (a link the user picked is followed then, once); from then on everything is
+//! named relative to that handle, one plain name at a time, and each folder below is opened from
+//! its parent's handle, never through a link (O_NOFOLLOW). So no folder on the way can be swapped
+//! for a link after Devot looked: a local process that may rename entries in a folder Devot writes
+//! to (a shared, synced or downloads folder) could otherwise send a write, a move or a removal
+//! wherever its link pointed. A writer keeps the handle for as long as its checks hold.
+//! A temporary file is only ever created new (O_CREAT with O_EXCL), which fails on anything at its
+//! name, a link included. Its name is hidden and random (`.devot-<32 hex digits>.tmp`, 122 random
+//! bits; a crash report's is its own random event ID), so it cannot be guessed ahead; a guessable
+//! name (the note's file name, the process ID and a counter) once let a link planted in a shared or
+//! downloaded folder send the bytes wherever it pointed.
+//! A writer that creates its file by path itself (AppKit printing a PDF, SQLite writing a backup)
+//! writes inside a new private folder (`TempDir`, owner only), made only in the app's data, which
+//! nobody else can reach: its mode keeps others out of it, not from swapping it for a link while
+//! the writer runs, which anyone who may remove names where it sits could do.
 
 use rustix::fs::{AtFlags, FileType, Mode, OFlags};
 use rustix::io::Errno;
@@ -60,17 +35,13 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
-/// Random names tried before giving up. Each is new, so even one clash
-/// means something is putting files there.
+/// Each name is new, so even one clash means something is putting files there.
 const TRIES: usize = 16;
 
-/// A hidden random name in a folder: `.devot-<32 hex digits>.tmp`.
 fn random_name() -> String {
     format!(".devot-{}.tmp", uuid::Uuid::new_v4().simple())
 }
 
-/// Whether `name` is one `random_name` makes: a temporary file or folder,
-/// which a process that ended before putting it in place leaves behind.
 pub fn is_temporary(name: &str) -> bool {
     name.strip_prefix(".devot-")
         .and_then(|rest| rest.strip_suffix(".tmp"))
@@ -79,7 +50,6 @@ pub fn is_temporary(name: &str) -> bool {
         })
 }
 
-/// The folder a file at `path` is in (`.` for a bare name), and its name.
 fn split(path: &Path) -> io::Result<(&Path, &OsStr)> {
     let name = path.file_name().ok_or(io::ErrorKind::InvalidInput)?;
     match path.parent() {
@@ -89,9 +59,8 @@ fn split(path: &Path) -> io::Result<(&Path, &OsStr)> {
     }
 }
 
-/// `name` as one name in a folder. A path (a `/` in it), `.`, `..` or
-/// nothing is refused (`InvalidInput`): the system would resolve a path
-/// folder by folder, following any link on its way.
+/// A path (a `/` in it), `.`, `..` or nothing is refused (`InvalidInput`): the system would resolve
+/// a path folder by folder, following any link on its way.
 fn plain(name: &OsStr) -> io::Result<&OsStr> {
     let bytes = name.as_bytes();
     if bytes.is_empty() || bytes == b"." || bytes == b".." || bytes.contains(&b'/') {
@@ -100,28 +69,19 @@ fn plain(name: &OsStr) -> io::Result<&OsStr> {
     Ok(name)
 }
 
-/// What tells one file or folder from another, however it is named: its
-/// device and inode (none where the system does not say).
 fn identity(meta: &fs::Metadata) -> Option<(u64, u64)> {
     use std::os::unix::fs::MetadataExt;
     Some((meta.dev(), meta.ino()))
 }
 
-/// How a finished file goes to its target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Place {
-    /// Over whatever is there (a save panel asked before replacing a file).
-    /// A link there is replaced itself, never written through.
     Replace,
-    /// Only where nothing is yet: `AlreadyExists` when the name is taken (by
-    /// a file, a folder or a link), and nothing changes.
     New,
 }
 
-/// How a folder is opened: for search alone where the system can
-/// (`O_SEARCH`: a folder others may drop files into but not list can be
-/// written by path, so it can be written this way too), never for writing,
-/// and not kept across `exec`.
+/// For search alone where the system can (`O_SEARCH`): a folder others may drop files into but not
+/// list can be written by path, so it can be written this way too.
 fn folder_flags() -> OFlags {
     #[cfg(target_os = "macos")]
     let search = OFlags::from_bits_retain(libc::O_SEARCH as u32);
@@ -130,28 +90,20 @@ fn folder_flags() -> OFlags {
     search | OFlags::CLOEXEC
 }
 
-/// A folder opened once, by a handle (see the module's notes): what it
-/// holds is named relative to it, one plain name at a time, and a folder in
-/// it is opened from it, never through a link. A clone shares the handle.
 #[derive(Debug, Clone)]
 pub struct Folder {
     fd: Arc<OwnedFd>,
 }
 
 impl Folder {
-    /// The folder at `path`, opened now: a folder the user chose, or one of
-    /// the app's. A link on its path, even the folder itself, is followed
-    /// here, once, as the user picked it; nothing in it is ever looked up by
-    /// a path again.
+    /// A link on the path, even the folder itself, is followed here, once, as the user picked it.
     pub fn open(path: &Path) -> io::Result<Self> {
         let fd = rustix::fs::open(path, folder_flags(), Mode::empty())?;
         Ok(Self { fd: Arc::new(fd) })
     }
 
-    /// The folder at `path`, an absolute path resolved before (with
-    /// `fs::canonicalize`, when the user chose it), opened folder by folder
-    /// from the top, never through a link: a link anywhere on it now means
-    /// something took a folder's place since (`NotADirectory`).
+    /// A link anywhere on the path now means something took a folder's place since
+    /// (`NotADirectory`).
     pub fn open_resolved(path: &Path) -> io::Result<Self> {
         let mut components = path.components();
         if components.next() != Some(Component::RootDir) {
@@ -171,8 +123,6 @@ impl Folder {
         Ok(folder)
     }
 
-    /// The folder `name` in this one: a real folder, never a link
-    /// (`NotADirectory` for a link, to a folder or not, and for a file).
     pub fn folder(&self, name: impl AsRef<OsStr>) -> io::Result<Self> {
         let name = plain(name.as_ref())?;
         let flags = folder_flags() | OFlags::NOFOLLOW;
@@ -186,24 +136,18 @@ impl Folder {
         }
     }
 
-    /// Makes the folder `name` here; `AlreadyExists` when anything is at
-    /// that name (making a folder never follows a link there).
     pub fn make_folder(&self, name: impl AsRef<OsStr>) -> io::Result<()> {
         let name = plain(name.as_ref())?;
         let mode = Mode::RWXU | Mode::RWXG | Mode::RWXO;
         Ok(rustix::fs::mkdirat(&*self.fd, name, mode)?)
     }
 
-    /// What is at `name` here, a link not followed.
     pub fn entry(&self, name: impl AsRef<OsStr>) -> io::Result<Entry> {
         let name = plain(name.as_ref())?;
         let stat = rustix::fs::statat(&*self.fd, name, AtFlags::SYMLINK_NOFOLLOW)?;
         Ok(Entry::of(&stat))
     }
 
-    /// The plain file at `name` here, opened for reading: anything else (a
-    /// link, a folder, a pipe) is refused (`InvalidData`), never opened
-    /// through.
     pub fn read_file(&self, name: impl AsRef<OsStr>) -> io::Result<File> {
         let name = plain(name.as_ref())?;
         // Not blocking: a pipe put at the name never holds the reader up.
@@ -219,21 +163,16 @@ impl Folder {
         Ok(File::from(fd))
     }
 
-    /// Removes the file at `name` here (a link there goes itself, never
-    /// what it points to).
     pub fn remove_file(&self, name: impl AsRef<OsStr>) -> io::Result<()> {
         let name = plain(name.as_ref())?;
         Ok(rustix::fs::unlinkat(&*self.fd, name, AtFlags::empty())?)
     }
 
-    /// Removes the empty folder at `name` here (a link there is no folder:
-    /// it stays).
     pub fn remove_folder(&self, name: impl AsRef<OsStr>) -> io::Result<()> {
         let name = plain(name.as_ref())?;
         Ok(rustix::fs::unlinkat(&*self.fd, name, AtFlags::REMOVEDIR)?)
     }
 
-    /// The names in the folder, which must be readable to be listed.
     pub fn names(&self) -> io::Result<Vec<OsString>> {
         let flags = OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC;
         let fd = rustix::fs::openat(&*self.fd, ".", flags, Mode::empty())?;
@@ -248,18 +187,14 @@ impl Folder {
         Ok(names)
     }
 
-    /// Writes `bytes` to `name` here through a new temporary file beside
-    /// it, flushed to disk and then put in place (see `Place`).
     pub fn write(&self, name: impl AsRef<OsStr>, bytes: &[u8], place: Place) -> io::Result<()> {
         self.write_with(name.as_ref(), &mut &*bytes, place, true)
     }
 
-    /// As `write`, but the file is not flushed to disk before it goes in
-    /// place: for the Markdown mirror's files, many at a time, which the
-    /// notes database can always give again (a full flush each, as macOS
-    /// makes one, would cost far more than it keeps). A crash may leave such
-    /// a file short, which the mirror's next reconcile finds; it never
-    /// leaves one at a name it was not meant for, or written through a link.
+    /// For the Markdown mirror's many files, which the notes database can always give again: a full
+    /// flush each would cost far more than it keeps. A crash may leave such a file short, which the
+    /// mirror's next reconcile finds; never at a name it was not meant for, or written through a
+    /// link.
     pub fn write_unflushed(
         &self,
         name: impl AsRef<OsStr>,
@@ -269,7 +204,6 @@ impl Folder {
         self.write_with(name.as_ref(), &mut &*bytes, place, false)
     }
 
-    /// Writes what `from` reads to `name` here, as `write` does.
     pub fn write_from(
         &self,
         name: impl AsRef<OsStr>,
@@ -292,13 +226,8 @@ impl Folder {
         temp.finish(self, name, place, flush)
     }
 
-    /// Moves the file at `from` here to `to` in `into` (this folder, or
-    /// another on the same volume), whole: the old name goes in the same
-    /// step, or nothing changes (a folder `from` cannot leave, say). With
-    /// `Place::New` only where nothing is yet (`AlreadyExists` when the name
-    /// is taken, by a file, a folder or a link); with `Place::Replace` over
-    /// whatever is there (a link there is replaced itself, never written
-    /// through). A link at `from` is moved as it is, never followed.
+    /// The old name goes in the same step, or nothing changes. A link at `from` is moved as it is,
+    /// never followed.
     pub fn rename(
         &self,
         from: impl AsRef<OsStr>,
@@ -315,35 +244,26 @@ impl Folder {
         )
     }
 
-    /// Checks that the folder can be written, with a new temporary file of
-    /// a random name that goes again at once: never a file someone else has
-    /// here, never through a link.
     pub fn check_writable(&self) -> io::Result<()> {
         TempFile::in_folder(self.clone()).map(drop)
     }
 
-    /// What tells this folder from another, however it is reached.
     fn id(&self) -> io::Result<(u64, u64)> {
         Ok(Entry::of(&rustix::fs::fstat(&*self.fd)?).id)
     }
 }
 
-/// What a name in a folder holds, a link not followed (`Folder::entry`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Entry {
     pub kind: Kind,
-    /// Its size in bytes.
     pub len: u64,
-    /// Its device and inode (see `identity`).
     id: (u64, u64),
 }
 
-/// What kind of thing an `Entry` is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     File,
     Folder,
-    /// A link, a pipe, a device or a socket.
     Other,
 }
 
@@ -371,16 +291,11 @@ impl Entry {
         self.kind == Kind::Folder
     }
 
-    /// Whether this and `other` are one file, however each was named (one
-    /// name in another case, on a file system that ignores case).
     pub fn same_file(&self, other: &Entry) -> bool {
         self.id == other.id
     }
 }
 
-/// A new file at `name` in `folder`, created now and open for writing:
-/// `AlreadyExists` on anything already at that name, a link included
-/// (O_CREAT | O_EXCL never follows one).
 fn create_new(folder: &Folder, name: &OsStr) -> io::Result<File> {
     let flags = OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC;
     // 0666 before the umask, as files are made by path.
@@ -389,9 +304,6 @@ fn create_new(folder: &Folder, name: &OsStr) -> io::Result<File> {
     Ok(File::from(fd))
 }
 
-/// Puts the complete file at `from` in `from_dir` at `to` in `to_dir` (see
-/// `Place`), in one rename: the old name goes in the same step, or nothing
-/// changes.
 fn put(
     from_dir: &Folder,
     from: &OsStr,
@@ -410,10 +322,8 @@ fn put(
     }
 }
 
-/// A rename that fails on any name already at `to`, in one step, where the
-/// system and the file system have one (`Unsupported` elsewhere): on macOS
-/// `renameatx_np` with `RENAME_EXCL`, which APFS and HFS+ can do and FAT,
-/// exFAT and many network shares cannot.
+/// On macOS `renameatx_np` with `RENAME_EXCL`, which APFS and HFS+ can do and FAT, exFAT and many
+/// network shares cannot (`Unsupported`).
 fn rename_exclusive(
     from_dir: &Folder,
     from: &OsStr,
@@ -438,12 +348,9 @@ fn rename_exclusive(
     }
 }
 
-/// Renames `from` to `to` only where nothing is yet, on a file system that
-/// cannot refuse a taken name in the rename itself: a new empty file claims
-/// the name first, made as a temporary file is (it fails on anything there,
-/// a link included), then the rename goes over that claim; when the rename
-/// fails, the claim goes again. A file or a link already there is never
-/// replaced; only one put over the claim in the instant between could be.
+/// A new empty file claims the name first, made as a temporary file is, then the rename goes over
+/// that claim; when the rename fails the claim goes again. Only something put over the claim in the
+/// instant between could be replaced.
 fn claim_and_rename(
     from_dir: &Folder,
     from: &OsStr,
@@ -466,8 +373,6 @@ fn claim_and_rename(
         })
 }
 
-/// A temporary file being written in a folder; it is removed when dropped
-/// unless it was put in place.
 pub struct TempFile {
     folder: Folder,
     /// The folder's path, for a file made by one (`create`): `persist` puts
@@ -479,16 +384,12 @@ pub struct TempFile {
 }
 
 impl TempFile {
-    /// A new temporary file in `folder`, under a random hidden name.
     fn in_folder(folder: Folder) -> io::Result<Self> {
         let names = std::iter::repeat_with(|| OsString::from(random_name())).take(TRIES);
         Self::create_first(folder, names)
     }
 
-    /// A new temporary file at exactly `path`, which the caller has made
-    /// impossible to guess itself (a crash report's random event ID); fails
-    /// with `AlreadyExists` when anything is there. Its folder is opened
-    /// once, here.
+    /// The caller has made the path impossible to guess itself (a crash report's random event ID).
     pub fn create(path: PathBuf) -> io::Result<Self> {
         let (dir, name) = split(&path)?;
         let mut temp = Self::create_first(Folder::open(dir)?, [name.to_owned()])?;
@@ -496,8 +397,6 @@ impl TempFile {
         Ok(temp)
     }
 
-    /// The first of `names` that nothing holds yet in `folder`, created new;
-    /// a file or a link at a name is passed over and left as it is.
     fn create_first(folder: Folder, names: impl IntoIterator<Item = OsString>) -> io::Result<Self> {
         let mut taken = io::Error::from(io::ErrorKind::AlreadyExists);
         for name in names {
@@ -518,14 +417,11 @@ impl TempFile {
         Err(taken)
     }
 
-    /// Appends `bytes` to the file.
     pub fn write_all(&mut self, bytes: &[u8]) -> io::Result<()> {
         self.file.write_all(bytes)
     }
 
-    /// Flushes the file to disk and puts it at `target`, a name in the
-    /// folder it was made in (see `Place`); the folder is not looked up by
-    /// its path again. A target in another folder is refused
+    /// The folder is not looked up by its path again; a target in another folder is refused
     /// (`InvalidInput`).
     pub fn persist(self, target: &Path, place: Place) -> io::Result<()> {
         let (dir, name) = split(target)?;
@@ -536,8 +432,6 @@ impl TempFile {
         self.finish(&folder, name, place, true)
     }
 
-    /// Puts the file at `name` in `into` (its own folder, or another on the
-    /// same volume; see `Place`), flushed to disk first when `flush`.
     fn finish(mut self, into: &Folder, name: &OsStr, place: Place, flush: bool) -> io::Result<()> {
         if flush {
             self.file.sync_all()?;
@@ -556,42 +450,29 @@ impl Drop for TempFile {
     }
 }
 
-/// Writes `bytes` to `path` through a temporary file in its folder, flushed
-/// to disk and then put in place (see `Place`). The folder is opened once
-/// (`Folder::open`), and both steps work in it.
 pub fn write(path: &Path, bytes: &[u8], place: Place) -> io::Result<()> {
     let (dir, name) = split(path)?;
     Folder::open(dir)?.write(name, bytes, place)
 }
 
-/// Writes `bytes` over the file at `path` (see `write`).
 pub fn write_replacing(path: &Path, bytes: &[u8]) -> io::Result<()> {
     write(path, bytes, Place::Replace)
 }
 
-/// A new private folder for a writer that creates its file by path itself:
-/// made new under a random hidden name, usable by its owner only (0700),
-/// and removed with everything in it when dropped.
-///
-/// Make it only where nobody else can write (the app's data): its mode
-/// keeps others out of it, not from swapping it, while the writer runs, for
-/// a link or a folder of their own, which anyone who may remove names where
-/// it sits could do. The writer would follow such a link. A folder found
+/// Made new under a random hidden name, usable by its owner only (0700), and removed with
+/// everything in it when dropped. Make it only where nobody else can write (the app's data): its
+/// mode keeps others out, not from swapping it for a link while the writer runs. A folder found
 /// swapped is refused and left as it is, but that is a check, not a lock.
 pub struct TempDir {
     path: PathBuf,
-    /// The folder as it was made (see `identity`).
     made: Option<(u64, u64)>,
 }
 
 impl TempDir {
-    /// A new private folder in `dir`, a folder nobody else can write to.
     pub fn new_in(dir: &Path) -> io::Result<Self> {
         Self::create_first(std::iter::repeat_with(|| dir.join(random_name())).take(TRIES))
     }
 
-    /// The first of `paths` that nothing holds yet, made as a new folder
-    /// (making a folder never follows a link at its name: it fails).
     fn create_first(paths: impl IntoIterator<Item = PathBuf>) -> io::Result<Self> {
         let mut taken = io::Error::from(io::ErrorKind::AlreadyExists);
         for path in paths {
@@ -617,21 +498,15 @@ impl TempDir {
         Err(taken)
     }
 
-    /// The folder's path.
     pub fn path(&self) -> &Path {
         &self.path
     }
 
-    /// Whether the folder at its path is still the one made: not a link, nor
-    /// another folder put in its place.
     fn is_own(&self) -> bool {
         fs::symlink_metadata(&self.path)
             .is_ok_and(|meta| meta.is_dir() && identity(&meta) == self.made)
     }
 
-    /// The folder, opened from its parent, never through a link, and only
-    /// while it is still the one made: anything else at its path (a link,
-    /// another folder) is refused (`InvalidData`).
     fn open_own(&self) -> io::Result<Folder> {
         let (parent, name) = split(&self.path)?;
         let own = match Folder::open(parent)?.folder(name) {
@@ -646,10 +521,6 @@ impl TempDir {
         Ok(own)
     }
 
-    /// Flushes the plain file the writer left at `name` in the folder to
-    /// disk and puts it at `target`, in the same folder as this one (see
-    /// `Place`). Anything but a plain file there (a link, a folder), or a
-    /// folder that is no longer the one made, is refused (`InvalidData`).
     pub fn persist(&self, name: &str, target: &Path, place: Place) -> io::Result<()> {
         let own = self.open_own()?;
         own.read_file(name)?.sync_all()?;
@@ -663,11 +534,6 @@ impl TempDir {
         )
     }
 
-    /// Copies the plain file the writer left at `name` in the folder to `to`
-    /// in `into` (a folder opened when the user chose it: on another volume,
-    /// one others write to), as every file is written: through a new
-    /// temporary file beside it, flushed and put in place (see `Place`).
-    /// What `persist` refuses, this refuses too.
     pub fn copy_to(&self, name: &str, into: &Folder, to: &str, place: Place) -> io::Result<()> {
         let mut file = self.open_own()?.read_file(name)?;
         into.write_from(to, &mut file, place)
@@ -694,7 +560,6 @@ pub(crate) fn checked() {
     race::run();
 }
 
-/// The test side of `checked`.
 #[cfg(test)]
 pub(crate) mod race {
     use std::cell::RefCell;
@@ -704,12 +569,10 @@ pub(crate) mod race {
         static HOOK: RefCell<Option<Box<dyn FnOnce()>>> = const { RefCell::new(None) };
     }
 
-    /// Runs `step` once, at the next `checked` on this thread.
     pub fn at_check(step: impl FnOnce() + 'static) {
         HOOK.with(|hook| *hook.borrow_mut() = Some(Box::new(step)));
     }
 
-    /// Whether the step set last has run.
     pub fn ran() -> bool {
         HOOK.with(|hook| hook.borrow().is_none())
     }
@@ -720,8 +583,6 @@ pub(crate) mod race {
         }
     }
 
-    /// At the next `checked`, moves the folder at `folder` aside (to
-    /// `aside`) and puts a link to `to` in its place.
     pub fn swap_at_check(folder: &Path, aside: &Path, to: &Path) {
         let (folder, aside, to): (PathBuf, PathBuf, PathBuf) =
             (folder.into(), aside.into(), to.into());
@@ -736,7 +597,6 @@ pub(crate) mod race {
 mod tests {
     use super::*;
 
-    /// The names in `dir`, sorted.
     fn names(dir: &Path) -> Vec<String> {
         let mut names: Vec<String> = fs::read_dir(dir)
             .unwrap()
@@ -773,12 +633,10 @@ mod tests {
         write_replacing(&path, b"2").unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"2");
         assert_eq!(names(dir.path()), ["x.json"]);
-        // A folder in its place is not replaced; no temporary file stays.
         let folder = dir.path().join("y.json");
         fs::create_dir(&folder).unwrap();
         assert!(write_replacing(&folder, b"3").is_err());
         assert_eq!(names(dir.path()), ["x.json", "y.json"]);
-        // A folder that is not there: an error, nothing written.
         assert!(write_replacing(&dir.path().join("gone/z.json"), b"4").is_err());
     }
 
@@ -797,7 +655,6 @@ mod tests {
             assert_eq!(name.len(), ".devot-".len() + 32 + ".tmp".len());
         }
         assert_ne!(a.name, b.name);
-        // Dropped without being put in place: gone.
         drop((a, b));
         assert!(names(dir.path()).is_empty());
     }
@@ -839,12 +696,10 @@ mod tests {
         assert!(fs::symlink_metadata(&link).unwrap().is_symlink());
         assert_eq!(fs::read(&file).unwrap(), b"kept");
         assert!(!free.exists(), "renamed into place");
-        // Every name taken: nothing is created or written at all.
         let refused = TempFile::create_first(folder, taken).err().unwrap();
         assert_eq!(refused.kind(), io::ErrorKind::AlreadyExists);
         assert_eq!(fs::read(&theirs).unwrap(), b"theirs");
         assert!(!outside.path().join("new.txt").exists());
-        // An exact name (a crash report's) that is taken is refused too.
         let exact = dir.path().join("x.json.partial");
         std::os::unix::fs::symlink(&theirs, &exact).unwrap();
         assert!(TempFile::create(exact).is_err());
@@ -896,7 +751,6 @@ mod tests {
             names(dir.path()),
             ["dangling.md", "free.md", "link.md", "taken.md"]
         );
-        // Replacing a link puts the file in its place; its target stays.
         write(&link, b"replaced", Place::Replace).unwrap();
         assert!(fs::symlink_metadata(&link).unwrap().is_file());
         assert_eq!(fs::read(&link).unwrap(), b"replaced");
@@ -962,20 +816,17 @@ mod tests {
         assert_eq!(fs::read(&theirs).unwrap(), b"theirs");
         assert!(!outside.path().join("new.txt").exists());
         assert!(fs::symlink_metadata(&link).unwrap().is_symlink());
-        // To a free name: moved, the old name gone.
         let moved = dir.path().join("Moved.md");
         here.rename("Plan.md", &here, "Moved.md", Place::New)
             .unwrap();
         assert_eq!(fs::read(&moved).unwrap(), b"mine");
         assert!(fs::symlink_metadata(&from).is_err());
-        // A link is moved as it is, never followed.
         let relinked = dir.path().join("Relinked.md");
         here.rename("Link.md", &here, "Relinked.md", Place::New)
             .unwrap();
         assert!(fs::symlink_metadata(&relinked).unwrap().is_symlink());
         assert!(fs::symlink_metadata(&link).is_err());
         assert_eq!(fs::read(&theirs).unwrap(), b"theirs");
-        // Over a file only when asked to replace it.
         here.rename("Moved.md", &here, "Taken.md", Place::Replace)
             .unwrap();
         assert_eq!(fs::read(&taken).unwrap(), b"mine");
@@ -985,8 +836,6 @@ mod tests {
         );
     }
 
-    /// Keeps a folder read-only while it lives (then writable again, so the
-    /// test's folder can go).
     #[cfg(unix)]
     struct ReadOnly<'a>(&'a Path);
 
@@ -998,7 +847,6 @@ mod tests {
             Self(dir)
         }
 
-        /// Whether permissions hold here (root ignores them).
         fn holds(&self) -> bool {
             Folder::open(self.0)
                 .and_then(|folder| folder.check_writable())
@@ -1083,12 +931,9 @@ mod tests {
         assert!(fs::symlink_metadata(&link).unwrap().is_symlink());
         assert!(fs::symlink_metadata(&dangling).unwrap().is_symlink());
         assert!(folder.is_dir());
-        // A rename that fails takes its claim back.
         let failed = claim("Missing.md", "Claimed.md").unwrap_err();
         assert_eq!(failed.kind(), io::ErrorKind::NotFound);
         assert!(fs::symlink_metadata(dir.path().join("Claimed.md")).is_err());
-        // To a free name: moved over the claim, the old name gone; a link is
-        // moved as it is.
         let moved = dir.path().join("Moved.md");
         claim("Plan.md", "Moved.md").unwrap();
         assert_eq!(fs::read(&moved).unwrap(), b"mine");
@@ -1122,8 +967,6 @@ mod tests {
         let linked = TempDir::new_in(dir.path()).unwrap();
         fs::remove_dir(linked.path()).unwrap();
         std::os::unix::fs::symlink(outside.path(), linked.path()).unwrap();
-        // A folder of theirs, made while the private one still stands (so it
-        // is another folder on any file system), moved into its place.
         let swapped = TempDir::new_in(dir.path()).unwrap();
         let planted = dir.path().join("planted");
         fs::create_dir(&planted).unwrap();
@@ -1140,7 +983,6 @@ mod tests {
         }
         assert!(fs::symlink_metadata(&target).is_err());
         assert_eq!(fs::read(&theirs).unwrap(), b"theirs");
-        // Dropped, neither removes what is at its name now: not its own.
         let (link, folder) = (linked.path().to_owned(), swapped.path().to_owned());
         drop((linked, swapped));
         assert!(fs::symlink_metadata(&link).unwrap().is_symlink());
@@ -1165,7 +1007,6 @@ mod tests {
         assert_eq!(temp.path(), free);
         let mode = fs::metadata(temp.path()).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o700);
-        // A writer that names its file by path (as AppKit does).
         fs::write(temp.path().join("page.pdf"), b"%PDF-1.7").unwrap();
         let target = dir.path().join("Plan.pdf");
         temp.persist("page.pdf", &target, Place::Replace).unwrap();

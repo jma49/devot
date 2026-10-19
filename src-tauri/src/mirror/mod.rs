@@ -1,28 +1,17 @@
-//! The Markdown mirror (Settings > Markdown Mirror, and the command
-//! palette): Devot keeps a folder the user picked up to date with every
-//! note as a Markdown file. The notes database stays the source of truth;
-//! the folder is written by Devot and never read back.
-//!
-//! The core worker plans what to write (`src/core/mirror.ts`); Rust holds
-//! the setting, the folder and its manifest, and runs each planned
-//! operation after checking it again (`folder`). The web view never names a
-//! path: the folder comes from the native folder panel, and operations name
-//! paths inside it.
-//!
-//! The setting (the folder, Include Attachments) is a local preference like
-//! the editor settings: `<app data>/mirror-settings.json`, never synced and
-//! never in backups. After every change of the setting or of what the
-//! mirror shows (its size, a pause, files kept because they were edited
-//! outside Devot) every window gets `devot://mirror-changed` with the status
-//! and a revision number.
-//!
-//! The folder is resolved once, when the user chooses it (a link the user
-//! picked is followed then), and every call opens it by that path, never
-//! through a link anywhere on it (`folder::Root`). A folder that goes
-//! missing, has a link put in its place or cannot be written pauses the
-//! mirror; the main window checks again on focus and every so often
-//! (`mirror_open`), which resumes it with a reconcile. Devot never makes the
-//! folder itself.
+//! The Markdown mirror (Settings > Markdown Mirror): Devot keeps a folder the user picked up to
+//! date with every note as a Markdown file. The notes database stays the source of truth; the
+//! folder is written by Devot and never read back.
+//! The core worker plans what to write (`src/core/mirror.ts`); Rust holds the setting, the folder
+//! and its manifest, and runs each planned operation after checking it again (`folder`). The web
+//! view never names a path: the folder comes from the native folder panel.
+//! The setting is a local preference like the editor settings: `<app data>/mirror-settings.json`,
+//! never synced and never in backups. After every change of the setting or of what the mirror shows
+//! every window gets `devot://mirror-changed` with the status and a revision number.
+//! The folder is resolved once, when the user chooses it, and every call opens it by that path,
+//! never through a link anywhere on it (`folder::Root`). A folder that goes missing, has a link put
+//! in its place or cannot be written pauses the mirror; the main window checks again on focus and
+//! every so often (`mirror_open`), which resumes it with a reconcile. Devot never makes the folder
+//! itself.
 
 mod folder;
 
@@ -50,10 +39,8 @@ pub const CHANGED_EVENT: &str = "devot://mirror-changed";
 pub const MAX_OPS: usize = 500;
 /// Paths one `mirror_check` looks at at most (the core sends 2,000).
 pub const MAX_PATHS: usize = 5_000;
-/// IDs one `mirror_bodies` or `mirror_files` reads at most.
 pub const MAX_IDS: usize = 10_000;
-/// Attachments one `mirror_hashes` reads at most (the core sends 20): each
-/// is read whole, so few at a time.
+/// Each is read whole, so few at a time.
 pub const MAX_HASH_IDS: usize = 100;
 /// Kept files the status names (it counts them all), so a status stays
 /// small even when a tool changed every file in the folder.
@@ -61,7 +48,6 @@ pub const KEPT_NAMED: usize = 20;
 
 const INVALID: &str = "E_MIRROR_SETTINGS_INVALID";
 
-/// The setting as stored.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Stored {
@@ -79,7 +65,6 @@ impl Default for Stored {
 }
 
 impl Stored {
-    /// Reads a stored file leniently: what is missing or wrong takes its default.
     fn from_value(value: &Value) -> Self {
         let folder = value
             .get("folder")
@@ -97,35 +82,27 @@ impl Stored {
     }
 }
 
-/// What every window shows of the mirror.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
-    /// Goes up by one with every change, so a window keeps the newest.
     pub revision: u64,
     /// Changes when the folder or Include Attachments changes, or the
     /// mirror resumes: a pass planned before must start again.
     pub generation: u64,
-    /// The folder, for showing (`~` for the home folder); none: off.
     pub folder: Option<String>,
     pub include_attachments: bool,
-    /// The code the mirror is paused with.
     pub paused: Option<&'static str>,
-    /// The size of the files in the manifest, in bytes; none until the
-    /// folder's manifest has been read (a folder just chosen, a launch).
+    /// None until the folder's manifest has been read (a folder just chosen, a launch).
     pub size: Option<u64>,
-    /// Files kept under a new name because they were edited outside Devot,
-    /// since the last time the notice was dismissed: the first `KEPT_NAMED`...
+    /// Files kept under a new name because they were edited outside Devot, since the notice was
+    /// last dismissed (the first `KEPT_NAMED`); `kept_count` counts them all.
     pub kept: Vec<String>,
-    /// ...and how many there are.
     pub kept_count: u64,
 }
 
-/// What choosing a folder came to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Choice {
-    /// The mirror uses the folder now.
     Chosen {
         status: Status,
     },
@@ -138,7 +115,6 @@ pub enum Choice {
     Cancelled,
 }
 
-/// What a pass gets when it starts (see `MirrorOpened` in `src/core/mirror.ts`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Opened {
@@ -155,22 +131,18 @@ struct Inner {
     generation: u64,
     revision: u64,
     paused: Option<&'static str>,
-    /// The folder's manifest, once a pass opened it.
     manifest: Option<Manifest>,
     /// The manifest changed but could not be written back (the folder went
     /// away or could not be written): written on resume, never read again.
     dirty: bool,
     kept: Vec<String>,
     kept_count: u64,
-    /// The size the last status sent showed: a manifest read anew (a folder
-    /// chosen again, a launch) is told even when nothing is written.
+    /// A manifest read anew (a folder chosen again, a launch) is told even when nothing is written.
     shown_size: Option<u64>,
-    /// Folders picked and waiting for the user's confirmation, by token.
     choices: HashMap<u64, PathBuf>,
     next_choice: u64,
 }
 
-/// Called with the new status whenever something a window shows changed.
 pub type Notify<'a> = &'a dyn Fn(&Status);
 
 pub struct Mirror {
@@ -179,7 +151,6 @@ pub struct Mirror {
     inner: Mutex<Inner>,
 }
 
-/// `path` for showing: the home folder as `~`.
 fn display(path: &Path, home: Option<&Path>) -> String {
     match home.and_then(|home| path.strip_prefix(home).ok()) {
         Some(rest) if rest.as_os_str().is_empty() => "~".into(),
@@ -188,9 +159,6 @@ fn display(path: &Path, home: Option<&Path>) -> String {
     }
 }
 
-/// The pause for a folder that cannot be opened: gone (or something not a
-/// real folder, a link say, in its place or on its path), or kept from
-/// Devot.
 fn unopened(error: &std::io::Error) -> &'static str {
     match error.kind() {
         std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory => {
@@ -209,7 +177,6 @@ impl Mirror {
         }
     }
 
-    /// The state, with the stored setting read on first use.
     fn lock(&self) -> Result<MutexGuard<'_, Inner>, &'static str> {
         let mut inner = self.inner.lock().map_err(|_| "E_MIRROR_LOCK_FAILED")?;
         if !inner.loaded {
@@ -245,7 +212,6 @@ impl Mirror {
         }
     }
 
-    /// Counts a change and tells every window.
     fn changed(&self, inner: &mut Inner, notify: Notify) -> Status {
         inner.revision += 1;
         let status = self.status(inner);
@@ -254,7 +220,6 @@ impl Mirror {
         status
     }
 
-    /// Whether the size every window shows is not the manifest's now.
     fn size_changed(inner: &Inner) -> bool {
         inner.manifest.as_ref().map(Manifest::size) != inner.shown_size
     }
@@ -270,7 +235,6 @@ impl Mirror {
             .map_err(|_| "E_MIRROR_SETTINGS_WRITE_FAILED")
     }
 
-    /// Pauses the mirror with `code` (telling every window once).
     fn pause(&self, inner: &mut Inner, code: &'static str, notify: Notify) -> &'static str {
         if inner.paused != Some(code) {
             inner.paused = Some(code);
@@ -285,10 +249,7 @@ impl Mirror {
         Ok(self.status(&inner))
     }
 
-    /// Changes the setting: `includeAttachments` (a boolean), `turnOff`
-    /// (true: the mirror stops; its folder stays as it is) or `dismissKept`
-    /// (true: the kept files' notice goes). Anything else refuses the whole
-    /// patch.
+    /// `includeAttachments`, `turnOff` or `dismissKept` (true); anything else refuses the whole patch.
     pub fn set(&self, patch: &Map<String, Value>, notify: Notify) -> Result<Status, &'static str> {
         let mut include = None;
         let mut turn_off = false;
@@ -331,7 +292,6 @@ impl Mirror {
         })
     }
 
-    /// Mirrors into `root` from now on (a new generation).
     fn use_folder(
         &self,
         inner: &mut Inner,
@@ -350,8 +310,6 @@ impl Mirror {
         Ok(self.changed(inner, notify))
     }
 
-    /// The folder the user picked: used at once when it is empty or a
-    /// mirror already (its manifest), else waiting for a confirmation.
     pub fn choose(&self, picked: &Path, notify: Notify) -> Result<Choice, &'static str> {
         // Resolved once, here: a link the user picked is followed now, and
         // the folder is opened by that path, never through a link, from now on.
@@ -381,8 +339,6 @@ impl Mirror {
         Ok(Choice::Confirm { token, name })
     }
 
-    /// Uses a folder that was not empty, once the user agreed: it gets an
-    /// empty manifest (replacing one that could not be read).
     pub fn confirm(&self, token: u64, notify: Notify) -> Result<Status, &'static str> {
         let mut inner = self.lock()?;
         let path = inner
@@ -394,9 +350,6 @@ impl Mirror {
         self.use_folder(&mut inner, path, notify)
     }
 
-    /// Starts a pass: checks the folder (resuming a paused mirror, with the
-    /// manifest read again) and hands over the manifest unless `known` is
-    /// its generation.
     pub fn open(&self, known: Option<u64>, notify: Notify) -> Result<Opened, &'static str> {
         let mut inner = self.lock()?;
         let path = inner.folder.clone().ok_or("E_MIRROR_OFF")?;
@@ -475,8 +428,6 @@ impl Mirror {
         })
     }
 
-    /// The folder, opened for this call, and its manifest for a pass of
-    /// `generation`.
     fn current(
         &self,
         inner: &mut Inner,
@@ -490,8 +441,6 @@ impl Mirror {
         Root::open(&path).map_err(|e| self.pause(inner, unopened(&e), notify))
     }
 
-    /// What is on disk at `paths`; for none, at every manifest path whose
-    /// file does not hold what the manifest says.
     pub fn check(
         &self,
         generation: u64,
@@ -536,9 +485,8 @@ impl Mirror {
         })
     }
 
-    /// Runs operations in order, one result each; a failure that pauses the
-    /// mirror stops them (it is the last result). The manifest is written
-    /// back once they have run.
+    /// A failure that pauses the mirror stops the run (it is the last result). The manifest is
+    /// written back once the operations have run.
     pub fn apply(
         &self,
         generation: u64,
@@ -601,9 +549,6 @@ impl Mirror {
     }
 }
 
-// ---- Commands -----------------------------------------------------------------
-
-/// Runs file work off the async runtime's worker threads.
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
 ) -> Result<T, String> {
@@ -613,7 +558,6 @@ async fn blocking<T: Send + 'static>(
         .map_err(String::from)
 }
 
-/// Tells every window the mirror's new status.
 fn announcer(app: &AppHandle) -> impl Fn(&Status) + Send + 'static {
     let app = app.clone();
     move |status| {
@@ -623,14 +567,12 @@ fn announcer(app: &AppHandle) -> impl Fn(&Status) + Send + 'static {
     }
 }
 
-/// The mirror's status (main and Settings windows).
 #[tauri::command]
 pub async fn mirror_get(mirror: State<'_, Arc<Mirror>>) -> Result<Status, String> {
     let mirror = Arc::clone(&mirror);
     blocking(move || mirror.get()).await
 }
 
-/// Changes the setting (see `Mirror::set`; main and Settings windows).
 #[tauri::command]
 pub async fn mirror_set(
     app: AppHandle,
@@ -642,8 +584,6 @@ pub async fn mirror_set(
     blocking(move || mirror.set(&patch, &notify)).await
 }
 
-/// Shows the folder panel over the calling window and takes the folder
-/// picked (see `Mirror::choose`; main and Settings windows).
 #[tauri::command]
 pub async fn mirror_choose(
     app: AppHandle,
@@ -669,7 +609,6 @@ pub async fn mirror_choose(
     blocking(move || mirror.choose(&picked, &notify)).await
 }
 
-/// Uses a folder that was not empty, once the user agreed (main and Settings windows).
 #[tauri::command]
 pub async fn mirror_confirm(
     app: AppHandle,
@@ -681,7 +620,6 @@ pub async fn mirror_confirm(
     blocking(move || mirror.confirm(token, &notify)).await
 }
 
-/// Starts a pass (main window).
 #[tauri::command]
 pub async fn mirror_open(
     app: AppHandle,
@@ -693,7 +631,6 @@ pub async fn mirror_open(
     blocking(move || mirror.open(known, &notify)).await
 }
 
-/// What is on disk at paths in the folder (main window).
 #[tauri::command]
 pub async fn mirror_check(
     app: AppHandle,
@@ -706,8 +643,7 @@ pub async fn mirror_check(
     blocking(move || mirror.check(generation, paths.as_deref(), &notify)).await
 }
 
-/// Reads an attachment's bytes from the database, one at a time (from a
-/// blocking task), so they never cross IPC.
+/// Bytes are read one at a time from a blocking task, so they never cross IPC.
 fn attachments(db: Db) -> impl FnMut(&str) -> Option<Vec<u8>> {
     move |id: &str| {
         let id = id.to_owned();
@@ -718,8 +654,6 @@ fn attachments(db: Db) -> impl FnMut(&str) -> Option<Vec<u8>> {
     }
 }
 
-/// Runs planned operations (main window). Attachments are read from the
-/// database one at a time, so their bytes never cross IPC.
 #[tauri::command]
 pub async fn mirror_apply(
     app: AppHandle,
@@ -734,7 +668,6 @@ pub async fn mirror_apply(
     blocking(move || mirror.apply(generation, &ops, &mut load, &notify)).await
 }
 
-/// A note's Markdown snapshot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Body {
@@ -742,14 +675,12 @@ pub struct Body {
     pub body_md: String,
 }
 
-/// An attachment's file name in the mirror.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FileName {
     pub id: String,
     pub name: String,
 }
 
-/// An attachment's bytes' SHA-256 (see `mirror_hashes`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FileHash {
     pub id: String,
@@ -760,8 +691,6 @@ fn valid_ids(ids: &[String], max: usize, valid: fn(&str) -> bool) -> bool {
     ids.len() <= max && ids.iter().all(|id| valid(id))
 }
 
-/// The SHA-256 of the bytes of each attachment among `ids` that `load`
-/// finds; the others are left out.
 fn file_hashes(ids: &[String], load: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> Vec<FileHash> {
     ids.iter()
         .filter_map(|id| {
@@ -773,7 +702,6 @@ fn file_hashes(ids: &[String], load: &mut dyn FnMut(&str) -> Option<Vec<u8>>) ->
         .collect()
 }
 
-/// The Markdown snapshots of live notes, without their Yjs state (main window).
 #[tauri::command]
 pub async fn mirror_bodies(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<Body>, String> {
     if !valid_ids(&ids, MAX_IDS, valid_note_id) {
@@ -789,7 +717,6 @@ pub async fn mirror_bodies(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<Bo
         .collect())
 }
 
-/// The file names attachments take in the mirror, as in exports (main window).
 #[tauri::command]
 pub async fn mirror_files(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<FileName>, String> {
     // Any UUID a link holds: one that is no attachment is simply not found.
@@ -822,7 +749,6 @@ pub async fn mirror_hashes(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<Fi
     blocking(move || Ok(file_hashes(&ids, &mut load))).await
 }
 
-/// The mirror's state, for `setup`.
 pub fn manage(app: &tauri::App, data_dir: &Path) {
     let home = app.path().home_dir().ok();
     app.manage(Arc::new(Mirror::new(&data_dir.join(SETTINGS_FILE), home)));

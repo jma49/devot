@@ -1,45 +1,31 @@
-//! Outbound web requests: the one small blocking client every feature that
-//! fetches from the web goes through (link titles, GitHub snippets, and
-//! later provider calls). https only and public hosts only, redirects
-//! included (each hop is checked here), at most a few redirects, one time cap for the whole call, and a cap
-//! on the bytes read. The same TLS stack as the crash reporter. Errors are
-//! codes, never URLs. Call it from a blocking task, never the main thread.
+//! Outbound web requests: the one small blocking client every feature that fetches from the web goes through. https only and public hosts only, redirects included (each hop is checked), with a time cap for the whole call and a cap on the bytes read. Errors are codes, never URLs. Call it from a blocking task, never the main thread.
 
 use std::io::Read;
 use std::time::{Duration, Instant};
 use tauri::Url;
 
-/// The longest URL Devot sends a request to.
 pub const MAX_URL_LEN: usize = 2048;
-/// Redirects a request follows at most, each to https only.
 pub const MAX_REDIRECTS: u32 = 5;
 const USER_AGENT: &str = concat!("devot/", env!("CARGO_PKG_VERSION"));
 
-/// One GET.
 pub struct Get<'a> {
     pub url: &'a Url,
-    /// The `Accept` header.
     pub accept: &'a str,
-    /// More headers, sent as they are.
     pub headers: &'a [(&'a str, &'a str)],
     /// The whole call, from the DNS lookup to the last byte read.
     pub timeout: Duration,
-    /// The most body bytes read; the rest is never downloaded.
     pub max_bytes: usize,
 }
 
-/// What came back. Any status: the caller decides what a 404 means.
+/// Any status: the caller decides what a 404 means.
 #[derive(Debug)]
 pub struct Fetched {
     pub status: u16,
-    /// The `Content-Type` header, lower-cased.
     pub content_type: Option<String>,
     pub body: Vec<u8>,
-    /// The body went on past `max_bytes`.
     pub truncated: bool,
 }
 
-/// A plain https URL with a host and no credentials, of reasonable length.
 pub fn https_url(url: &str) -> Result<Url, &'static str> {
     if url.len() > MAX_URL_LEN {
         return Err("E_URL_TOO_LONG");
@@ -66,11 +52,6 @@ fn error_code(error: &ureq::Error) -> &'static str {
     }
 }
 
-/// Whether a URL's host may be fetched: a public name or address, never
-/// this machine, the local network or a link-local address, so a pasted link
-/// (or a redirect) cannot make Devot read a router's or a local service's
-/// page. A name is not resolved first, so a public name that points inside
-/// still gets through; only a title or a file comes back from it.
 fn public_host(url: &Url) -> bool {
     use std::net::{Ipv4Addr, Ipv6Addr};
     let v4 = |ip: Ipv4Addr| {
@@ -114,8 +95,6 @@ fn public_host(url: &Url) -> bool {
     }
 }
 
-/// The next URL of a redirect answer, checked like the first; None when the
-/// answer is no redirect.
 fn redirect_target(
     from: &Url,
     status: u16,
@@ -134,8 +113,6 @@ fn redirect_target(
     )
 }
 
-/// Sends `get` and reads at most `max_bytes` of the answer. Redirects are
-/// followed here, each target checked like the first URL.
 pub fn get(get: &Get) -> Result<Fetched, &'static str> {
     let deadline = Instant::now() + get.timeout;
     let mut url = get.url.clone();
@@ -294,8 +271,6 @@ mod tests {
 
     #[test]
     fn refuses_http_on_every_hop_before_connecting() {
-        // The agent checks the scheme of every request it sends, redirects
-        // included, before it connects: an http URL fails without a socket.
         let url = Url::parse("http://93.184.215.14:9/").unwrap();
         let result = get(&Get {
             url: &url,

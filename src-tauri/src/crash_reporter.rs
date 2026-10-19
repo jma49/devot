@@ -1,16 +1,13 @@
-//! Native crash reports: signals, aborts and crashes inside WebKit or AppKit,
-//! which Rust's panic hook never sees. Only builds with a Sentry DSN start
-//! any of this; other builds run no extra process and write no file.
-//!
-//! The app starts a second copy of its own binary as the crash reporter
-//! (`devot --crash-reporter <service> <folder>`) and hands it a crash over
-//! Mach IPC. The reporter writes a minidump of the crashed app into memory
-//! and turns it into a stack trace of code addresses: module file names,
-//! debug IDs, the exception code. That trace is scrubbed like every other
-//! event and saved as JSON in `<app data>/crash-reports`. The minidump itself
-//! holds the app's stack memory, which may contain note text, so it never
-//! reaches the disk or the network. The next launch sends the saved reports
-//! to Sentry and deletes each one Sentry has accepted.
+//! Native crash reports: signals, aborts and crashes inside WebKit or AppKit, which Rust's panic
+//! hook never sees. Only builds with a Sentry DSN start any of this; other builds run no extra
+//! process and write no file.
+//! The app starts a second copy of its own binary as the crash reporter (`devot --crash-reporter
+//! <service> <folder>`) and hands it a crash over Mach IPC. The reporter writes a minidump of the
+//! crashed app into memory and turns it into a stack trace of code addresses: module file names,
+//! debug IDs, the exception code. That trace is scrubbed like every other event and saved as JSON
+//! in `<app data>/crash-reports`. The minidump itself holds the app's stack memory, which may
+//! contain note text, so it never reaches the disk or the network. The next launch sends the saved
+//! reports to Sentry and deletes each one Sentry has accepted.
 
 use crate::atomic_file::{Place, TempFile};
 use sentry::protocol::debugid::{CodeId, DebugId};
@@ -21,23 +18,17 @@ use sentry::protocol::{
 };
 use std::path::{Path, PathBuf};
 
-/// The first argument that starts the binary as the crash reporter.
 pub const FLAG: &str = "--crash-reporter";
-/// Saved reports, in the app data folder.
 pub const DIR: &str = "crash-reports";
-/// The Mach service the reporter registers; the app's process ID and a
-/// random token follow.
+/// The app's process ID and a random token follow.
 pub const SERVICE_PREFIX: &str = "io.github.jma49.devot.crash-reporter.";
-/// The code every native crash event carries as its value.
 pub const CRASH_CODE: &str = "E_NATIVE_CRASH";
 const SUFFIX: &str = ".json";
 const PARTIAL_SUFFIX: &str = ".json.partial";
-/// Reports sent per launch; any others are deleted unsent.
 const MAX_SENT: usize = 5;
-/// A report Sentry could not take (offline, rate limited) waits for a later
-/// launch, but not longer than this.
+/// A report Sentry could not take (offline, rate limited) waits for a later launch, but not longer
+/// than this.
 const MAX_AGE: std::time::Duration = std::time::Duration::from_secs(30 * 24 * 3600);
-/// How long one report may take to send.
 const SEND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 /// A saved report is a few dozen KiB; anything far larger is not ours.
 const MAX_REPORT_BYTES: u64 = 2 * 1024 * 1024;
@@ -47,7 +38,6 @@ const MAX_THREADS: usize = 64;
 /// pointer authentication codes on Apple silicon.
 const ADDRESS_MASK: u64 = 0x0000_7fff_ffff_ffff;
 
-/// A loaded binary (the app, a framework, a library).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Module {
     pub path: String,
@@ -57,28 +47,20 @@ pub struct Module {
     pub code_id: Option<String>,
 }
 
-/// One thread's return addresses, innermost (the current instruction) first.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ThreadStack {
     pub id: u32,
     pub frames: Vec<u64>,
 }
 
-/// What a report keeps from a minidump: code addresses and the binaries they
-/// belong to, the exception, and system details. Nothing from memory.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Crash {
-    /// The exception as text, such as `EXC_BAD_ACCESS / KERN_INVALID_ADDRESS`.
     pub reason: String,
-    /// The Mach exception type, code and subcode.
     pub mach: Option<(u32, u64, u64)>,
-    /// The Unix signal behind an `EXC_SOFTWARE` exception (an abort).
     pub signal: Option<i32>,
     pub crashed_thread: Option<u32>,
     pub threads: Vec<ThreadStack>,
     pub modules: Vec<Module>,
-    /// The app's own executable among `modules` (`app_module`): its frames
-    /// are the in-app ones.
     pub app: Option<usize>,
     pub arch: String,
     pub os_version: Option<String>,
@@ -91,11 +73,8 @@ pub fn file_name(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
 }
 
-/// Follows the frame-pointer chain from `pc` and `fp` through stack memory:
-/// each frame record holds the caller's frame pointer and the return
-/// address (the same layout on arm64 and x86-64, both of which keep frame
-/// pointers on macOS). Stops at a null or misaligned record, when memory is
-/// missing, or when the chain does not move up the stack.
+/// The same layout on arm64 and x86-64, both of which keep frame pointers on macOS. Stops at a null
+/// or misaligned record, when memory is missing, or when the chain does not move up the stack.
 pub fn walk_frames(pc: u64, fp: u64, read: impl Fn(u64) -> Option<u64>) -> Vec<u64> {
     let mut frames = vec![pc & ADDRESS_MASK];
     let mut fp = fp;
@@ -116,11 +95,8 @@ pub fn walk_frames(pc: u64, fp: u64, read: impl Fn(u64) -> Option<u64>) -> Vec<u
     frames
 }
 
-/// Which module is the app's own executable: the one loaded from `app`
-/// (the crashed process's executable), compared as written or with links
-/// resolved. The minidump's own order is no guide: it puts first whichever
-/// image has no dylib ID, and a plug-in bundle (as AppKit and WebKit load)
-/// has none either.
+/// The minidump's own order is no guide: it puts first whichever image has no dylib ID, and a
+/// plug-in bundle (as AppKit and WebKit load) has none either.
 pub fn app_module(modules: &[Module], app: &Path) -> Option<usize> {
     let name = app.file_name()?.to_str()?;
     let real = std::fs::canonicalize(app).ok();
@@ -132,19 +108,17 @@ pub fn app_module(modules: &[Module], app: &Path) -> Option<usize> {
     })
 }
 
-/// The module an address falls in, by index.
 fn module_of(modules: &[Module], address: u64) -> Option<usize> {
     modules
         .iter()
         .position(|m| address >= m.base && address - m.base < m.size)
 }
 
-/// On arm64 a leaf function (`objc_msgSend`, `memcpy`, a system call
-/// wrapper) builds no frame record, so the frame-pointer chain skips its
-/// caller, whose return address is still in the link register. The link
-/// register is added as the second frame only when it points into another
-/// binary than the current instruction: a function that has made calls of
-/// its own leaves it pointing into itself, or holding some other value.
+/// On arm64 a leaf function (`objc_msgSend`, `memcpy`, a system call wrapper) builds no frame
+/// record, so the frame-pointer chain skips its caller, whose return address is still in the link
+/// register. It is added as the second frame only when it points into another binary than the
+/// current instruction: a function that has made calls of its own leaves it pointing into itself,
+/// or holding some other value.
 pub fn add_leaf_caller(frames: &mut Vec<u64>, lr: u64, modules: &[Module]) {
     let lr = lr & ADDRESS_MASK;
     let Some(&pc) = frames.first() else {
@@ -163,15 +137,12 @@ pub fn add_leaf_caller(frames: &mut Vec<u64>, lr: u64, modules: &[Module]) {
     }
 }
 
-/// The module that holds the signal trampoline (`_sigtramp`) on macOS.
 const SIGNAL_TRAMPOLINE: &str = "libsystem_platform.dylib";
 
-/// An abort reaches the crash handler through a signal handler, so the
-/// crashed thread's own registers point into the handler: innermost, the
-/// system code it waits in, then the handler itself (in the app's binary,
-/// `app`, which links the crash handler), then the signal trampoline. The
-/// trace starts after the trampoline instead, at the code that raised the
-/// signal. A trace of any other shape is kept as it is.
+/// An abort reaches the crash handler through a signal handler, so the crashed thread's registers
+/// point into the handler: innermost, the system code it waits in, then the handler itself (in the
+/// app's binary, `app`), then the signal trampoline. The trace starts after the trampoline instead,
+/// at the code that raised the signal. A trace of any other shape is kept as it is.
 pub fn trim_signal_handler(frames: &mut Vec<u64>, modules: &[Module], app: Option<usize>) {
     let Some(app) = app else {
         return;
@@ -189,8 +160,6 @@ pub fn trim_signal_handler(frames: &mut Vec<u64>, modules: &[Module], app: Optio
     }
 }
 
-/// Whether a thread goes in a report: the crashed thread always, the others
-/// up to `MAX_THREADS` in all (`others` counts those kept so far).
 fn keep_thread(crashed: bool, others: &mut usize) -> bool {
     if crashed {
         return true;
@@ -202,12 +171,9 @@ fn keep_thread(crashed: bool, others: &mut usize) -> bool {
     true
 }
 
-/// A native crash event built only from code addresses, module file names,
-/// debug IDs and the exception code; `crash_scrub::scrub_event` still runs on
-/// it. A frame-pointer chain or a register can hold data rather than a code
-/// address (note text, when data was used as a pointer), so an address
-/// outside every module is never a frame, and a fault address is kept only
-/// near null or inside a module.
+/// `crash_scrub::scrub_event` still runs on it. A frame-pointer chain or a register can hold data
+/// rather than a code address (note text, when data was used as a pointer), so an address outside
+/// every module is never a frame, and a fault address is kept only near null or inside a module.
 pub fn event_from_crash(crash: &Crash, release: &str, environment: &str) -> Event<'static> {
     let mut used = vec![false; crash.modules.len()];
     let mut stacktrace = |addresses: &[u64]| {
@@ -357,10 +323,9 @@ fn signal_name(number: i32) -> Option<&'static str> {
     })
 }
 
-/// Saves a report as `<event id>.json`; a partial file is renamed only once
-/// it is complete, so an interrupted write never looks like a report. The
-/// partial file is created new (its name is the random event ID), never
-/// opened where a file or a link already is (see `atomic_file`).
+/// A partial file is renamed only once it is complete, so an interrupted write never looks like a
+/// report; it is created new (its name is the random event ID), never opened where a file or a link
+/// already is (see `atomic_file`).
 pub fn save(dir: &Path, event: &Event<'static>) -> std::io::Result<PathBuf> {
     std::fs::create_dir_all(dir)?;
     let id = event.event_id.simple().to_string();
@@ -371,16 +336,13 @@ pub fn save(dir: &Path, event: &Event<'static>) -> std::io::Result<PathBuf> {
     Ok(done)
 }
 
-/// A saved report, read back for sending.
 pub struct Pending {
     pub path: PathBuf,
     pub event: Event<'static>,
 }
 
-/// The saved reports to send, newest first and at most `MAX_SENT`. Every
-/// other file of ours in `dir` (older reports beyond that or past `MAX_AGE`,
-/// unreadable ones, unfinished writes) is deleted now; the caller deletes
-/// these once Sentry has them (`remove`).
+/// Every other file of ours in `dir` (older reports beyond that or past `MAX_AGE`, unreadable ones,
+/// unfinished writes) is deleted now; the caller deletes these once Sentry has them (`remove`).
 pub fn pending(dir: &Path) -> Vec<Pending> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
@@ -421,7 +383,6 @@ pub fn pending(dir: &Path) -> Vec<Pending> {
     kept
 }
 
-/// Deletes report files.
 pub fn remove(paths: &[PathBuf]) {
     for path in paths {
         if std::fs::remove_file(path).is_err() {
@@ -430,13 +391,11 @@ pub fn remove(paths: &[PathBuf]) {
     }
 }
 
-/// What Sentry's answer means for a saved report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Delivery {
-    /// Taken (2xx): delete it.
     Accepted,
-    /// Refused for good (another 4xx, such as a malformed or oversized
-    /// event): delete it, sending again would not help.
+    /// Refused for good (another 4xx, such as a malformed or oversized event): sending again would
+    /// not help.
     Refused,
     /// Not delivered (no connection, 429 rate limit, 5xx): keep it for the
     /// next launch, and send nothing more now.
@@ -451,10 +410,8 @@ pub fn delivery(status: Option<u16>) -> Delivery {
     }
 }
 
-/// Sends the saved reports to Sentry, newest first, one request each, and
-/// deletes each report once Sentry has answered for good. The answer is
-/// read here rather than left to the SDK's background transport, which
-/// would drop a report it failed to send. Returns how many were accepted.
+/// The answer is read here rather than left to the SDK's background transport, which would drop a
+/// report it failed to send. Returns how many were accepted.
 pub fn send_pending(dir: &Path, dsn: &str) -> usize {
     let Ok(dsn) = dsn.parse::<sentry::types::Dsn>() else {
         log::warn!("W_CRASH_REPORT_DSN_INVALID");
@@ -524,10 +481,6 @@ fn read_report(path: &Path) -> Option<Event<'static>> {
     event.ok()
 }
 
-/// Starts native crash reports for this run on a background thread: the
-/// reporter process, then the crash handler that hands it a crash. Without a
-/// DSN nothing starts (no process, no folder). The thread's result says
-/// whether the handler is attached.
 pub fn start(
     dsn: Option<&str>,
     exe: PathBuf,
@@ -548,7 +501,6 @@ pub fn start(
     }
 }
 
-/// The running reporter's process ID, once `start` has attached the handler.
 pub fn reporter_pid() -> Option<u32> {
     #[cfg(target_os = "macos")]
     return mac::RUNNING.get().map(|r| r.pid);
@@ -556,9 +508,6 @@ pub fn reporter_pid() -> Option<u32> {
     None
 }
 
-/// Runs the crash reporter when these are its arguments
-/// (`<binary> --crash-reporter <service> <folder>`) and returns its exit
-/// code; `None` for any other arguments.
 pub fn reporter_main(args: &[std::ffi::OsString]) -> Option<i32> {
     if args.get(1)? != FLAG {
         return None;
@@ -583,19 +532,16 @@ mod mac {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
 
-    /// What the reporter prints once it holds its Mach service.
     const READY: &str = "ready";
     /// The reporter is ready in tens of milliseconds, under a second from a
     /// cold disk; one that has not answered by then is stopped.
     const READY_TIMEOUT: Duration = Duration::from_secs(5);
     const SEND_TIMEOUT: Duration = Duration::from_secs(2);
-    /// How long a crashing app waits for the reporter to read it.
     const ACK_TIMEOUT: Duration = Duration::from_secs(10);
     /// The reporter waits in the kernel; it wakes only for a crash.
     const RECEIVE_WAIT: Duration = Duration::from_secs(3600);
 
-    /// Kept for the app's life: closing the pipe tells the reporter that
-    /// the app has gone.
+    /// Closing the pipe tells the reporter that the app has gone.
     pub(super) struct Running {
         _handler: crate::native::macos::CrashHandler,
         _pipe: ChildStdin,
@@ -677,7 +623,6 @@ mod mac {
         .map_err(|_| "W_CRASH_HANDLER_ATTACH_FAILED")?;
         let pid = child.id();
         if let Err(std::sync::mpsc::SendError(mut child)) = attached.send(child) {
-            // Nothing would notice the reporter go.
             crate::native::macos::detach_crash_handler();
             let _ = child.kill();
             let _ = child.wait();
@@ -690,12 +635,9 @@ mod mac {
         })
     }
 
-    /// Waits for the reporter to end (its output closes) and then detaches
-    /// the crash handler, which could no longer report: from then on a crash
-    /// takes the system's default course. No new reporter is started: the
-    /// reporter ends only after it has saved a crash (and the app is then
-    /// ending too) or when something outside stops it, and another start
-    /// could meet the same fate, over and over.
+    /// From then on a crash takes the system's default course. No new reporter is started: it ends
+    /// only after it has saved a crash (and the app is then ending too) or when something outside
+    /// stops it, and another start could meet the same fate, over and over.
     fn watch_reporter(mut out: impl Read, mut child: Child) {
         let mut buf = [0u8; 64];
         while matches!(out.read(&mut buf), Ok(n) if n > 0) {}
@@ -708,8 +650,6 @@ mod mac {
     /// (it ends once the reporter has answered) does not cut the write short.
     static HANDLING: AtomicBool = AtomicBool::new(false);
 
-    /// The reporter process: waits for one crash of the app that started it,
-    /// saves its report and exits; exits as soon as the app has gone.
     pub(super) fn run(service: &OsStr, dir: &OsStr) -> i32 {
         let dir = Path::new(dir);
         let Some(service) = service.to_str() else {
@@ -730,7 +670,6 @@ mod mac {
             return 2;
         };
         let app = std::os::unix::process::parent_id();
-        // The app's executable, whose frames are the in-app ones.
         let app_path = crate::native::macos::executable_of(app);
         let Ok(mut server) = ipc::Server::create(&name) else {
             return 1;
@@ -743,7 +682,6 @@ mod mac {
         loop {
             match server.try_recv_crash_context(Some(RECEIVE_WAIT)) {
                 Ok(None) => {}
-                // Only the app that started this reporter may hand it a crash.
                 Ok(Some(mut received)) if received.pid != app => {
                     let _ = received.acker.send_ack(0, Some(SEND_TIMEOUT));
                 }
@@ -760,8 +698,6 @@ mod mac {
         }
     }
 
-    /// Exits once the app's end of the pipe closes (the app quit or died),
-    /// unless a crash is being written.
     fn watch_app() {
         let spawned = std::thread::Builder::new()
             .name("devot-crash-reporter-watch".into())
@@ -778,11 +714,9 @@ mod mac {
         }
     }
 
-    /// Writes a minidump of the crashed app into memory, keeps only its
-    /// addresses, modules and exception, and saves the scrubbed report.
-    /// A minidump that fails to write (rarely, when the system is busy) is
-    /// tried again after a moment; if every try fails, or the dump cannot be
-    /// read, the report still carries the exception.
+    /// A minidump that fails to write (rarely, when the system is busy) is tried again after a
+    /// moment; if every try fails, or the dump cannot be read, the report still carries the
+    /// exception.
     fn report(
         context: &crash_context::CrashContext,
         app: Option<&Path>,
@@ -808,7 +742,6 @@ mod mac {
     const DUMP_ATTEMPTS: usize = 3;
     const DUMP_RETRY_WAIT: Duration = Duration::from_millis(100);
 
-    /// The minidump, in memory only.
     fn write_minidump(context: &crash_context::CrashContext) -> Option<Vec<u8>> {
         let context = crash_context::CrashContext {
             task: context.task,
@@ -824,7 +757,6 @@ mod mac {
     }
 
     const EXC_BAD_ACCESS: u32 = 1;
-    /// `EXC_SOFTWARE` with this code carries a Unix signal in its subcode.
     const EXC_SOFTWARE: u32 = 5;
     const EXC_SOFT_SIGNAL: u64 = 0x10003;
     const EXC_CRASH: u32 = 10;
@@ -832,9 +764,8 @@ mod mac {
     const EXC_GUARD: u32 = 12;
     const EXC_CORPSE_NOTIFY: u32 = 13;
 
-    /// The exception record minidump-writer would write for this exception
-    /// (an `EXC_CRASH` unwrapped), so a report made without a minidump names
-    /// the crash exactly as one made with it.
+    /// An `EXC_CRASH` is unwrapped, so a report made without a minidump names the crash exactly as
+    /// one made with it.
     pub(super) fn exception_record(
         exception: &crash_context::ExceptionInfo,
     ) -> minidump::format::MINIDUMP_EXCEPTION_STREAM {
@@ -869,8 +800,6 @@ mod mac {
         }
     }
 
-    /// The Mach exception (type, code, subcode), the signal behind an abort
-    /// and the exception as text, from an exception record.
     pub(super) fn describe(
         raw: &minidump::format::MINIDUMP_EXCEPTION_STREAM,
         cpu: minidump::system_info::Cpu,
@@ -913,8 +842,6 @@ mod mac {
         }
     }
 
-    /// What a report says when no minidump could be written or read: the
-    /// exception alone, with no threads or modules.
     pub(super) fn crash_without_dump(exception: Option<crash_context::ExceptionInfo>) -> Crash {
         let cpu = this_cpu();
         let (mach, signal, reason) = match exception {
@@ -991,7 +918,6 @@ mod mac {
             if !keep_thread(crashed, &mut others) {
                 continue;
             }
-            // The crashed thread's registers at the crash, not in the handler.
             let context = exception
                 .as_ref()
                 .filter(|_| crashed)
@@ -1064,18 +990,15 @@ mod tests {
 
     #[test]
     fn stops_on_a_chain_that_loops_or_leaves_the_stack() {
-        // The second record points back down the stack.
         let looping = memory(&[(0x2000, 0x1000), (0x2008, 0x1_0000_2000)]);
         assert_eq!(
             walk_frames(0x1_0000_1000, 0x2000, looping),
             vec![0x1_0000_1000, 0x1_0000_2000]
         );
-        // Memory the minidump does not have.
         assert_eq!(
             walk_frames(0x1_0000_1000, 0x9000, memory(&[])),
             vec![0x1_0000_1000]
         );
-        // A misaligned or null frame pointer.
         assert_eq!(
             walk_frames(0x1_0000_1000, 0x1003, memory(&[])),
             vec![0x1_0000_1000]
@@ -1092,7 +1015,6 @@ mod tests {
         for i in 0..1000u64 {
             let fp = 0x10_0000 + i * 0x20;
             words.push((fp, fp + 0x20));
-            // A signed return address: the top bits are an authentication code.
             words.push((fp + 8, 0x8f2a_0001_0000_0000 | (0x2000 + i)));
         }
         let frames = walk_frames(0x1_0000_1000, 0x10_0000, memory(&words));
@@ -1110,7 +1032,6 @@ mod tests {
             threads: vec![
                 ThreadStack {
                     id: 7,
-                    // Innermost first: WebKit, called from the app.
                     frames: vec![0x2_0000_0100, 0x1_0000_0200, 0x1_0000_0300],
                 },
                 ThreadStack {
@@ -1177,7 +1098,6 @@ mod tests {
         assert_eq!(mechanism.handled, Some(false));
         let mach = mechanism.meta.mach_exception.as_ref().unwrap();
         assert_eq!((mach.exception, mach.code, mach.subcode), (1, 1, 0x10));
-        // Oldest frame first, the crashing instruction last.
         assert_eq!(
             frames(exception.stacktrace.as_ref()),
             vec![
@@ -1243,7 +1163,6 @@ mod tests {
                 (0x4_0000_0010, Some("Plugin"), Some(false)),
             ]
         );
-        // An app that is not among the modules has no in-app frames.
         crash.app = None;
         let event = event_from_crash(&crash, "devot@1.2.3", "production");
         let stack = event.exception.values[0].stacktrace.as_ref();
@@ -1299,8 +1218,8 @@ mod tests {
         }
     }
 
-    /// Note text read as an address, as a stack word or a fault address is
-    /// when data is used as a pointer.
+    /// Note text read as an address, as a stack word or a fault address is when data is used as a
+    /// pointer.
     const TEXT_ADDRESS: u64 = u64::from_le_bytes(*b"Diary \0\0");
 
     fn assert_no_text_address(event: &Event<'static>) {
@@ -1313,8 +1232,6 @@ mod tests {
     #[test]
     fn frames_outside_every_binary_are_left_out() {
         let mut crash = crash();
-        // A jump through a pointer made of text, a null return address and
-        // a corrupted chain, around the app's own frames.
         crash.threads[0].frames = vec![TEXT_ADDRESS, 0x2_0000_0100, 0, 0x1_0000_0200, TEXT_ADDRESS];
         crash.threads[1].frames = vec![TEXT_ADDRESS];
         let event = event_from_crash(&crash, "devot@1.2.3", "production");
@@ -1325,7 +1242,6 @@ mod tests {
                 (0x2_0000_0100, Some("WebKit"), Some(false)),
             ]
         );
-        // A thread with no frame in a binary has no stack trace.
         let other = event.threads.values.iter().find(|t| !t.crashed).unwrap();
         assert!(other.stacktrace.is_none());
         assert_no_text_address(&event);
@@ -1351,13 +1267,9 @@ mod tests {
             let images = event.debug_meta.images.len();
             (mach.map(|m| m.subcode), images)
         };
-        // A null pointer and an offset.
         assert_eq!(fault(0x10), (Some(0x10), 2));
-        // Inside WebKit, which has a frame too.
         assert_eq!(fault(0x2_0000_0010), (Some(0x2_0000_0010), 2));
-        // Inside a binary no frame is in: that binary is listed as well.
         assert_eq!(fault(0x3_0000_0010), (Some(0x3_0000_0010), 3));
-        // Anywhere else: data used as a pointer.
         assert_eq!(fault(TEXT_ADDRESS), (None, 2));
     }
 
@@ -1407,8 +1319,6 @@ mod tests {
             reports[0].event.exception.values[0].value.as_deref(),
             Some(CRASH_CODE)
         );
-        // The older reports, the broken one and the partial write are gone;
-        // the ones to send stay until they are sent.
         let mut expected: Vec<_> = reports
             .iter()
             .map(|r| r.path.file_name().unwrap().to_str().unwrap().to_string())
@@ -1416,7 +1326,6 @@ mod tests {
             .collect();
         expected.sort();
         assert_eq!(left(), expected);
-        // Unsent (the launch ended first): the next launch reads them again.
         assert_eq!(pending(dir.path()).len(), MAX_SENT);
         remove(&reports.iter().map(|r| r.path.clone()).collect::<Vec<_>>());
         assert_eq!(left(), vec!["keep.txt".to_string()]);
@@ -1438,7 +1347,6 @@ mod tests {
         assert_eq!(std::fs::read(&theirs).unwrap(), b"theirs");
         assert!(std::fs::symlink_metadata(&partial).unwrap().is_symlink());
         assert!(std::fs::symlink_metadata(dir.path().join(format!("{id}{SUFFIX}"))).is_err());
-        // A report of its own is saved whole as before.
         let other = event_from_crash(&crash(), "devot@1.2.3", "production");
         let saved = save(dir.path(), &other).unwrap();
         assert!(std::fs::symlink_metadata(&saved).unwrap().is_file());
@@ -1461,11 +1369,9 @@ mod tests {
             module(APP, 0x1_0000_0000),
             module("/usr/lib/libobjc.A.dylib", 0x2_0000_0000),
         ];
-        // A crash in objc_msgSend (no frame record) called from the app.
         let mut frames = vec![0x2_0000_0010, 0x1_0000_0900];
         add_leaf_caller(&mut frames, 0x1_0000_0400, &modules);
         assert_eq!(frames, vec![0x2_0000_0010, 0x1_0000_0400, 0x1_0000_0900]);
-        // A call through a bad function pointer: no module at all.
         let mut frames = vec![0x0, 0x1_0000_0900];
         add_leaf_caller(&mut frames, 0x1_0000_0400, &modules);
         assert_eq!(frames, vec![0x0, 0x1_0000_0400, 0x1_0000_0900]);
@@ -1478,18 +1384,11 @@ mod tests {
             module("/usr/lib/libobjc.A.dylib", 0x2_0000_0000),
         ];
         let chain = vec![0x1_0000_0010, 0x1_0000_0900];
-        for lr in [
-            // Into the crashing binary itself: a stale return address.
-            0x1_0000_0400,
-            // Not code at all.
-            0x7_0000_0000,
-            0,
-        ] {
+        for lr in [0x1_0000_0400, 0x7_0000_0000, 0] {
             let mut frames = chain.clone();
             add_leaf_caller(&mut frames, lr, &modules);
             assert_eq!(frames, chain, "lr {lr:#x}");
         }
-        // Already the next frame.
         let mut frames = vec![0x2_0000_0010, 0x1_0000_0900];
         add_leaf_caller(&mut frames, 0x1_0000_0900, &modules);
         assert_eq!(frames, vec![0x2_0000_0010, 0x1_0000_0900]);
@@ -1503,8 +1402,6 @@ mod tests {
             module("/usr/lib/system/libsystem_platform.dylib", 0x3_0000_0000),
             module("/usr/lib/system/libsystem_c.dylib", 0x4_0000_0000),
         ];
-        // Innermost first: the handler waiting, its frames, the trampoline,
-        // then abort and the app code that called it.
         let mut frames = vec![
             0x2_0000_0010,
             0x1_0000_0100,
@@ -1515,7 +1412,6 @@ mod tests {
         ];
         trim_signal_handler(&mut frames, &modules, Some(0));
         assert_eq!(frames, vec![0x4_0000_0010, 0x1_0000_0300]);
-        // Caught inside a lock function of the trampoline's own library.
         let mut frames = vec![
             0x3_0000_0800,
             0x1_0000_0100,
@@ -1537,14 +1433,12 @@ mod tests {
         ];
         trim_signal_handler(&mut frames, &listed_later, Some(3));
         assert_eq!(frames, vec![0x4_0000_0010, 0x1_0000_0300]);
-        // Without the app's module the handler's frames cannot be told apart.
         let mut kept = frames.clone();
         kept.insert(0, 0x3_0000_0010);
         kept.insert(0, 0x1_0000_0100);
         let before = kept.clone();
         trim_signal_handler(&mut kept, &modules, None);
         assert_eq!(kept, before);
-        // No trampoline after the handler: nothing to trim.
         for kept in [
             vec![0x2_0000_0010, 0x1_0000_0100],
             vec![0x2_0000_0010, 0x1_0000_0100, 0x4_0000_0010, 0x3_0000_0010],
@@ -1592,11 +1486,9 @@ mod tests {
         let abort = without(5, 0x10003, Some(6));
         assert_eq!(abort.reason, "EXC_SOFTWARE / SIGABRT");
         assert_eq!(abort.signal, Some(6));
-        // KERN_INVALID_ADDRESS, as the minidump path names it.
         let bad_access = without(1, 1, Some(0x10));
         assert_eq!(bad_access.reason, "EXC_BAD_ACCESS / KERN_INVALID_ADDRESS");
         assert_eq!(bad_access.mach, Some((1, 1, 0x10)));
-        // An EXC_CRASH wrapping a bad access (signal 11) is unwrapped.
         let wrapped = without(10, (11 << 24) | (1 << 20) | 1, Some(0x10));
         assert_eq!(wrapped.reason, "EXC_BAD_ACCESS / KERN_INVALID_ADDRESS");
         assert_eq!(wrapped.mach.map(|m| m.0), Some(1));
@@ -1644,8 +1536,6 @@ mod tests {
         assert!(!old.exists());
     }
 
-    /// A local HTTP server standing in for Sentry: it answers each request
-    /// with the next status and passes on what it received.
     fn sentry_stand_in(statuses: Vec<u16>) -> (String, std::sync::mpsc::Receiver<String>) {
         use std::io::{BufRead, BufReader, Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -1706,7 +1596,6 @@ mod tests {
     fn reports_sentry_accepts_are_deleted_and_the_rest_wait() {
         let dir = tempfile::tempdir().unwrap();
         let ids = saved(dir.path(), 3);
-        // The newest goes through; then Sentry is rate limited.
         let (dsn, requests) = sentry_stand_in(vec![200, 429]);
         assert_eq!(send_pending(dir.path(), &dsn), 1);
         let first = requests.recv().unwrap();
@@ -1723,7 +1612,6 @@ mod tests {
         assert!(first.contains(CRASH_CODE));
         assert!(!first.contains("/Users/"), "{first}");
         requests.recv().unwrap();
-        // Nothing more was tried after the 429; two wait for the next launch.
         assert_eq!(report_count(dir.path()), 2);
     }
 
@@ -1740,7 +1628,6 @@ mod tests {
     fn without_a_connection_the_reports_wait() {
         let dir = tempfile::tempdir().unwrap();
         saved(dir.path(), 2);
-        // A port nothing listens on.
         let port = {
             let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
             listener.local_addr().unwrap().port()

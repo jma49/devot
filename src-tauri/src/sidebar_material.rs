@@ -1,16 +1,9 @@
-//! The window material (Settings > Appearance > Translucent window). The
-//! main window is transparent and draws the system under-window background
-//! material behind the whole web view, always active (`windowEffects` in
-//! `tauri.conf.json`); the sidebar, the note list and the editor show it
-//! through their own washes. Turned off, the window drops the effect and the
-//! page paints every region opaque instead, so the window is opaque.
-//!
-//! The setting lives with the editor settings (`editor_settings`, still
-//! `sidebarMaterial`). The main window is built with the effect only when it
-//! is on; after a change the main window's page calls
-//! `sidebar_material_sync`, which removes or restores the effect at once,
-//! without a restart. Tauri's `set_effects` does the AppKit work on the main
-//! thread.
+//! The window material (Settings > Appearance > Translucent window). The main window is transparent
+//! and draws the system under-window material behind the whole web view (`windowEffects` in
+//! `tauri.conf.json`); the regions show it through their own washes. Turned off, the window drops
+//! the effect and the page paints every region opaque.
+//! The setting lives with the editor settings (`sidebarMaterial`). After a change the page calls
+//! `sidebar_material_sync`, which removes or restores the effect without a restart.
 
 use crate::MAIN_WINDOW;
 use crate::editor_settings::{EditorSettingsStore, Snapshot};
@@ -18,8 +11,6 @@ use std::sync::{Arc, Mutex};
 use tauri::utils::config::WindowEffectsConfig;
 use tauri::{AppHandle, Manager, State};
 
-/// The main window's effects: the configured ones (the under-window
-/// background material) when the material is on, none when it is off.
 pub fn effects_for(
     material: bool,
     configured: Option<&WindowEffectsConfig>,
@@ -27,8 +18,6 @@ pub fn effects_for(
     if material { configured.cloned() } else { None }
 }
 
-/// What the main window shows: the material on or off, as of a settings
-/// revision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Shown {
     pub revision: u64,
@@ -36,10 +25,8 @@ pub struct Shown {
 }
 
 impl Shown {
-    /// The material to apply for settings stored at `revision`, or `None`
-    /// when the window stays as it is: settings older than the ones shown
-    /// are ignored (two changes can finish out of order), and a change to
-    /// another setting leaves the window alone.
+    /// Settings older than the ones shown are ignored (two changes can finish out of order), and a
+    /// change to another setting leaves the window alone.
     pub fn follow(&mut self, revision: u64, material: bool) -> Option<bool> {
         if revision <= self.revision {
             return None;
@@ -53,15 +40,12 @@ impl Shown {
     }
 }
 
-/// The main window's material, kept in step with the stored setting.
 pub struct SidebarMaterial {
     configured: Option<WindowEffectsConfig>,
     shown: Mutex<Shown>,
 }
 
 impl SidebarMaterial {
-    /// `configured` is the window's effect from the config; `start` is what
-    /// the window was built with.
     pub fn new(configured: Option<WindowEffectsConfig>, start: Shown) -> Self {
         Self {
             configured,
@@ -69,10 +53,8 @@ impl SidebarMaterial {
         }
     }
 
-    /// Removes or restores the main window's effect when the stored settings
-    /// changed the material; returns the material the window now shows. The
-    /// effect is changed under the lock, so the main thread receives the
-    /// changes in revision order.
+    /// The effect is changed under the lock, so the main thread receives the changes in revision
+    /// order.
     fn follow(&self, app: &AppHandle, stored: &Snapshot) -> Result<bool, &'static str> {
         let mut shown = self
             .shown
@@ -101,12 +83,9 @@ impl SidebarMaterial {
     }
 }
 
-/// Brings the main window's effect in line with the stored window material
-/// (main window only; no arguments). The page calls it after a change: when
-/// the material goes off, once its regions are painted opaque, and when it
-/// comes back, before they turn translucent, so the window never shows the
-/// desktop through a bare wash. It returns once the main thread has
-/// applied the change, with the material the window shows.
+/// Brings the main window's effect in line with the stored setting. The page calls it when the
+/// material goes off once its regions are painted opaque, and when it comes back before they turn
+/// translucent, so the window never shows the desktop through a bare wash.
 #[tauri::command]
 pub async fn sidebar_material_sync(
     app: AppHandle,
@@ -204,7 +183,6 @@ mod tests {
         assert_eq!(shown.follow(2, true), None);
         assert_eq!(shown.follow(1, false), None);
         assert!(shown.material);
-        // The same revision twice changes nothing either.
         assert_eq!(shown.follow(2, false), None);
         assert!(shown.material);
     }

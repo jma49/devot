@@ -34,12 +34,10 @@ fn no_files() -> impl FnMut(&str) -> Option<Vec<u8>> {
     |_| None
 }
 
-/// The mirror's folder at `root`, opened as a call opens it.
 fn open(root: &Path) -> Root {
     Root::open(&fs::canonicalize(root).unwrap()).unwrap()
 }
 
-/// Where `rel` is in the mirror's folder.
 fn at<'a>(root: &Root, rel: &'a str) -> At<'a> {
     find(root, rel).unwrap()
 }
@@ -54,7 +52,6 @@ fn apply_in(root: &Root, manifest: &mut Manifest, op: &Op) -> OpResult {
     })
 }
 
-/// Every entry under `root` (files and folders), relative and sorted.
 fn tree(root: &Path) -> Vec<String> {
     fn walk(root: &Path, rel: &str, out: &mut Vec<String>) {
         let mut names: Vec<_> = fs::read_dir(root.join(rel))
@@ -149,7 +146,6 @@ fn reports_what_is_on_disk_without_following_links() {
     assert_eq!(disk_state("Work"), Some(DIR.into()));
     assert_eq!(disk_state("Work/Missing.md"), None);
     assert_eq!(disk_state("Missing/Plan.md"), None);
-    // A file where a folder should be.
     assert_eq!(disk_state("Work/Plan.md/x.md"), Some(OTHER.into()));
     #[cfg(unix)]
     {
@@ -179,7 +175,6 @@ fn writes_a_new_note_and_records_it() {
     assert_eq!(entry.path, "Work/Deep/Plan.md");
     assert_eq!(entry.sha256, sha256_hex(b"# Plan\n"));
     assert_eq!(entry.size, 7);
-    // No temporary file stays behind.
     assert_eq!(tree(root), ["Work/", "Work/Deep/", "Work/Deep/Plan.md"]);
 }
 
@@ -195,7 +190,6 @@ fn never_replaces_a_file_it_did_not_write_unless_it_holds_the_same() {
     assert_eq!(result.state, Some(Some(sha256_hex(b"theirs"))));
     assert_eq!(read(root, "Plan.md"), "theirs");
     assert!(manifest.notes.is_empty());
-    // A file that holds exactly what Devot would write is taken as Devot's.
     let result = apply(root, &mut manifest, &put(NOTE, "Plan.md", None, "theirs"));
     assert_eq!(result.code, None);
     assert_eq!(manifest.notes[NOTE].path, "Plan.md");
@@ -233,7 +227,6 @@ fn never_replaces_a_file_it_did_not_write_unless_it_holds_the_same() {
     assert_eq!(manifest.notes[OTHER_NOTE].path, "Kept.md");
     assert_eq!(read(root, "Kept.md"), "devot");
     manifest.notes.remove(OTHER_NOTE);
-    // A file in the way of a folder.
     write_text(root, "Work", "a file");
     let result = apply(
         root,
@@ -251,7 +244,6 @@ fn rewrites_moves_and_removes_only_what_still_holds_what_it_wrote() {
     let root = dir.path();
     let mut manifest = Manifest::default();
     apply(root, &mut manifest, &put(NOTE, "Work/Plan.md", None, "one"));
-    // In place.
     let result = apply(
         root,
         &mut manifest,
@@ -259,7 +251,6 @@ fn rewrites_moves_and_removes_only_what_still_holds_what_it_wrote() {
     );
     assert_eq!(result.code, None);
     assert_eq!(read(root, "Work/Plan.md"), "two");
-    // Moved (and rewritten); the folder it left goes when empty.
     let result = apply(
         root,
         &mut manifest,
@@ -268,7 +259,6 @@ fn rewrites_moves_and_removes_only_what_still_holds_what_it_wrote() {
     assert_eq!(result.code, None);
     assert_eq!(tree(root), ["Home/", "Home/Plan.md"]);
     assert_eq!(read(root, "Home/Plan.md"), "three");
-    // Moved without a new text: renamed.
     let same = Op::Note {
         id: NOTE.into(),
         path: "Plan.md".into(),
@@ -281,7 +271,6 @@ fn rewrites_moves_and_removes_only_what_still_holds_what_it_wrote() {
     assert_eq!(apply(root, &mut manifest, &same).code, None);
     assert_eq!(tree(root), ["Plan.md"]);
     assert_eq!(manifest.notes[NOTE].source, "s2");
-    // A folder with someone else's file in it stays.
     write_text(root, "Kept/theirs.txt", "theirs");
     apply(
         root,
@@ -307,7 +296,6 @@ fn refuses_to_touch_a_file_changed_outside_devot_and_keeps_it_aside() {
     apply(root, &mut manifest, &put(NOTE, "Plan.md", None, "devot"));
     write_text(root, "Plan.md", "edited outside");
     let edited = Some(Some(sha256_hex(b"edited outside")));
-    // A rewrite, a move and a removal all stop.
     for op in [
         put(NOTE, "Plan.md", Some("Plan.md"), "devot 2"),
         put(NOTE, "Moved.md", Some("Plan.md"), "devot 2"),
@@ -323,7 +311,6 @@ fn refuses_to_touch_a_file_changed_outside_devot_and_keeps_it_aside() {
         assert_eq!(result.state, edited);
     }
     assert_eq!(read(root, "Plan.md"), "edited outside");
-    // Kept: renamed aside and forgotten, then Devot writes its own version.
     let keep = Op::Keep {
         entry: EntryKind::Note,
         id: NOTE.into(),
@@ -344,7 +331,6 @@ fn refuses_to_touch_a_file_changed_outside_devot_and_keeps_it_aside() {
         "edited outside"
     );
     assert_eq!(read(root, "Plan.md"), "devot 2");
-    // Again: the next kept name is numbered, the first kept file untouched.
     write_text(root, "Plan.md", "edited again");
     let result = apply(root, &mut manifest, &keep);
     assert_eq!(
@@ -378,7 +364,6 @@ fn keeps_nothing_that_turns_out_unchanged_and_moves_nothing_it_cannot_finish() {
     assert_eq!(result.state, Some(Some(sha256_hex(b"devot"))));
     assert_eq!(tree(root), ["Plan.md"]);
     assert!(manifest.notes.contains_key(NOTE));
-    // A move to new content without the text fails before anything moves.
     let textless = Op::Note {
         id: NOTE.into(),
         path: "Moved.md".into(),
@@ -530,7 +515,6 @@ fn a_note_whose_file_is_gone_is_written_again_and_one_that_reappeared_is_not() {
     let mut manifest = Manifest::default();
     apply(root, &mut manifest, &put(NOTE, "Plan.md", None, "devot"));
     fs::remove_file(root.join("Plan.md")).unwrap();
-    // From its old file, now gone: written anew.
     assert_eq!(
         apply(
             root,
@@ -557,7 +541,6 @@ fn checks_the_plan_against_the_manifest_and_the_text_against_its_hash() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     let mut manifest = Manifest::default();
-    // Moving a note from a file the manifest does not give it.
     let result = apply(
         root,
         &mut manifest,
@@ -605,7 +588,6 @@ fn checks_the_plan_against_the_manifest_and_the_text_against_its_hash() {
         );
     }
     assert_eq!(tree(root), Vec::<String>::new());
-    // Removing or keeping what the manifest does not list.
     let remove = Op::Remove {
         entry: EntryKind::Note,
         id: NOTE.into(),
@@ -632,12 +614,10 @@ fn copies_attachments_once_and_keeps_only_names_when_copies_are_off() {
     assert_eq!(result.sha256, Some(Some(sha256_hex(PNG))));
     assert_eq!(fs::read(root.join("attachments/board.png")).unwrap(), PNG);
     assert_eq!(manifest.size(), PNG.len() as u64);
-    // There already: the plan is behind.
     assert_eq!(
         apply(root, &mut manifest, &copy).code,
         Some("E_MIRROR_STALE")
     );
-    // Off: the copy goes (checked), the name stays without bytes.
     let remove = Op::Remove {
         entry: EntryKind::File,
         id: FILE.into(),
@@ -654,7 +634,6 @@ fn copies_attachments_once_and_keeps_only_names_when_copies_are_off() {
     assert_eq!(tree(root), Vec::<String>::new());
     assert_eq!(manifest.files[FILE].sha256, None);
     assert_eq!(manifest.size(), 0);
-    // Someone else's file under that name is never replaced.
     write_text(root, "attachments/board.png", "theirs");
     assert_eq!(
         apply(root, &mut manifest, &copy).code,
@@ -668,7 +647,6 @@ fn copies_attachments_once_and_keeps_only_names_when_copies_are_off() {
     assert_eq!(apply(root, &mut unlisted, &copy).code, None);
     assert_eq!(unlisted.files[FILE].sha256, Some(sha256_hex(PNG)));
     assert_eq!(fs::read(root.join("attachments/board.png")).unwrap(), PNG);
-    // An attachment no longer in the database.
     let gone = Op::File {
         id: OTHER_NOTE.into(),
         path: "attachments/gone.png".into(),
@@ -722,7 +700,6 @@ impl Outside {
         Self { dir }
     }
 
-    /// Plants a link at `rel` in `root`: to `theirs.txt`, or dangling.
     fn plant(&self, root: &Path, rel: &str, dangling: bool) {
         let target = self
             .dir
@@ -731,7 +708,6 @@ impl Outside {
         std::os::unix::fs::symlink(target, root.join(rel)).unwrap();
     }
 
-    /// Nothing was written outside: `theirs.txt` as it was, and nothing new.
     fn untouched(&self) {
         assert_eq!(tree(self.dir.path()), ["theirs.txt"]);
         assert_eq!(read(self.dir.path(), "theirs.txt"), "theirs");
@@ -751,8 +727,6 @@ fn never_follows_a_link_at_any_name_it_may_take() {
         let root = dir.path();
         let outside = Outside::new();
         let mut manifest = Manifest::default();
-        // Where a new note's file, a notebook's folder and an attachment's
-        // copy would go.
         outside.plant(root, "Plan.md", dangling);
         outside.plant(root, "Work", dangling);
         fs::create_dir(root.join(ATTACHMENTS)).unwrap();
@@ -773,7 +747,6 @@ fn never_follows_a_link_at_any_name_it_may_take() {
             assert_eq!(result.state, Some(Some(OTHER.into())));
         }
         assert!(manifest.notes.is_empty() && manifest.files.is_empty());
-        // Where a note moves to.
         apply(root, &mut manifest, &put(NOTE, "Home.md", None, "mine"));
         outside.plant(root, "Moved.md", dangling);
         let moved = apply(
@@ -801,7 +774,6 @@ fn never_follows_a_link_at_any_name_it_may_take() {
             read(root, "Home (edited outside Devot) 2.md"),
             "edited outside"
         );
-        // Its own file, replaced by a link: never written through.
         apply(root, &mut manifest, &put(NOTE, "Own.md", None, "own"));
         fs::remove_file(root.join("Own.md")).unwrap();
         outside.plant(root, "Own.md", dangling);
@@ -842,7 +814,6 @@ fn never_follows_a_link_at_any_name_it_may_take() {
         );
         assert_eq!(again.code, None);
         assert_eq!(read(root, "Again.md"), "again");
-        // Every link is still there as it was, and nothing reached outside.
         for rel in [
             "Plan.md",
             "Work",
@@ -899,7 +870,6 @@ fn never_follows_or_replaces_a_link_that_appears_after_the_checks() {
         assert_eq!(rewrite(mirror, &at(mirror, "Own.md"), b"own"), Ok(()));
         assert!(fs::symlink_metadata(root.join("Own.md")).unwrap().is_file());
         assert_eq!(read(root, "Own.md"), "own");
-        // No temporary file stays behind.
         assert_eq!(
             tree(root),
             [
@@ -944,8 +914,6 @@ fn a_folder_swapped_for_a_link_after_the_checks_is_never_followed() {
         }
         (dir, outside, manifest)
     };
-    // Swaps the mirror's `name` for a link outside at the next check; the
-    // folder itself goes to `<name> (moved)`.
     let swap = |root: &Path, name: &str, outside: &Outside| {
         race::swap_at_check(
             &root.join(name),
@@ -969,7 +937,6 @@ fn a_folder_swapped_for_a_link_after_the_checks_is_never_followed() {
         files: vec![],
     };
 
-    // A new note's file, in the folder made for it.
     let (dir, outside, mut manifest) = setup(false);
     let root = dir.path();
     swap(root, "Work", &outside);
@@ -978,7 +945,6 @@ fn a_folder_swapped_for_a_link_after_the_checks_is_never_followed() {
     assert_eq!(result.code, None);
     assert_eq!(read(root, "Work (moved)/New.md"), "mine");
 
-    // Devot's own file, rewritten in place.
     let (dir, outside, mut manifest) = setup(true);
     let root = dir.path();
     swap(root, "Work", &outside);
@@ -987,7 +953,6 @@ fn a_folder_swapped_for_a_link_after_the_checks_is_never_followed() {
     untouched(&outside);
     assert_eq!(read(root, "Work (moved)/Plan.md"), "two");
 
-    // Moved into a folder made for it, and out of a folder.
     let (dir, outside, mut manifest) = setup(true);
     let root = dir.path();
     swap(root, "Home", &outside);
@@ -1005,7 +970,6 @@ fn a_folder_swapped_for_a_link_after_the_checks_is_never_followed() {
     assert_eq!(read(root, "Home/Plan.md"), "one");
     assert_eq!(tree(&root.join("Work (moved)")), Vec::<String>::new());
 
-    // Removed.
     let (dir, outside, mut manifest) = setup(true);
     let root = dir.path();
     swap(root, "Work", &outside);
@@ -1019,7 +983,6 @@ fn a_folder_swapped_for_a_link_after_the_checks_is_never_followed() {
     untouched(&outside);
     assert!(fs::symlink_metadata(root.join("Work (moved)/Plan.md")).is_err());
 
-    // Changed outside Devot and kept aside.
     let (dir, outside, mut manifest) = setup(true);
     let root = dir.path();
     write_text(root, "Work/Plan.md", "edited outside");
@@ -1036,7 +999,6 @@ fn a_folder_swapped_for_a_link_after_the_checks_is_never_followed() {
         ["Plan (edited outside Devot).md"]
     );
 
-    // An attachment's copy, in the attachments folder made for it.
     let (dir, outside, mut manifest) = setup(false);
     let root = dir.path();
     swap(root, ATTACHMENTS, &outside);
@@ -1097,7 +1059,6 @@ fn a_missing_or_read_only_folder_pauses_the_mirror() {
         Root::open(&gone).map(drop).map_err(|e| e.kind()),
         Err(ErrorKind::NotFound)
     );
-    // Gone once opened: the write fails, and the mirror pauses.
     fs::create_dir(&gone).unwrap();
     let opened = open(&gone);
     fs::remove_dir(&gone).unwrap();
@@ -1164,7 +1125,6 @@ fn reads_back_the_manifest_it_writes_and_drops_bad_entries() {
     let bytes = manifest_bytes(&manifest);
     assert!(String::from_utf8_lossy(&bytes).starts_with("{\"version\":1,"));
     assert_eq!(parse_manifest(&bytes), Some(manifest.clone()));
-    // A bad entry is dropped, the rest kept.
     let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     value["notes"]["not-an-id"] = value["notes"][NOTE].clone();
     value["notes"][OTHER_NOTE] = serde_json::json!({

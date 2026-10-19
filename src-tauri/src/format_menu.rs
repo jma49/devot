@@ -1,20 +1,13 @@
-//! The Format menu: an item for every format command of the note editor (the
-//! command registry's `format.*` commands, `src/renderer/src/commands/registry.ts`;
-//! a test compares the two). Picking an item, with the mouse or its key
-//! equivalent, sends `devot://format` with the command's ID to the main
-//! window, which applies the format when the editor has the keyboard.
-//!
-//! Why a menu: in the app some keys (Command-I) never reached the page; the
-//! web view took them as key equivalents and passed them on to nothing. On
-//! macOS a key monitor (`native::macos::give_format_menu_keys_priority`)
-//! offers every key with Command or Control in the main window to this menu
-//! before the web view sees it, and drops the keys the menu takes. The menu
-//! holds no keys of its own: the UI sets them from
-//! the registry (`format_menu_set`) while the editor has the keyboard, and
-//! takes them away (greying the items out) when it does not, so a format key
-//! never shadows what the same key does elsewhere (Command-K opens the
-//! command palette outside the editor). Keys the user changed (Settings >
-//! Keyboard Shortcuts) reach the menu through the same call.
+//! The Format menu: an item for every `format.*` command of the command registry
+//! (`src/renderer/src/commands/registry.ts`; a test compares the two). Picking one sends
+//! `devot://format` with the command's ID to the main window.
+//! Why a menu: some keys (Command-I) never reached the page; the web view took them as key
+//! equivalents and passed them on to nothing. On macOS a key monitor
+//! (`native::macos::give_format_menu_keys_priority`) offers every Command or Control key to this
+//! menu before the web view sees it. The menu holds no keys of its own: the UI sets them
+//! (`format_menu_set`) while the editor has the keyboard and takes them away (greying the items
+//! out) when it does not, so a format key never shadows what the same key does elsewhere (Command-K
+//! opens the command palette outside the editor).
 
 use crate::strings;
 use std::collections::HashMap;
@@ -22,11 +15,9 @@ use tauri::menu::{MenuItem, MenuItemBuilder, Submenu, SubmenuBuilder};
 use tauri::{App, AppHandle, Emitter, State, Wry};
 
 pub const FORMAT_EVENT: &str = "devot://format";
-/// A menu item's ID is this before its command's ID: `devot.format.bold`.
 const ID_PREFIX: &str = "devot.";
 const MAX_ACCELERATOR_LEN: usize = 64;
 
-/// A menu item: the registry command it runs and its label.
 pub struct Item {
     pub command: &'static str,
     pub label: &'static str,
@@ -42,8 +33,6 @@ const fn item(command: &'static str, label: &'static str) -> Item {
     Item { command, label }
 }
 
-/// The Format menu, top to bottom: inline formats, headings, blocks, alerts,
-/// then what inserts a block of its own (a horizontal rule).
 pub const FORMAT_MENU: &[Entry] = &[
     Entry::Item(item("format.bold", strings::FORMAT_BOLD)),
     Entry::Item(item("format.italic", strings::FORMAT_ITALIC)),
@@ -88,7 +77,6 @@ pub const FORMAT_MENU: &[Entry] = &[
     )),
 ];
 
-/// Every item, in menu order.
 pub fn items() -> impl Iterator<Item = &'static Item> {
     FORMAT_MENU.iter().flat_map(|entry| match entry {
         Entry::Item(item) => std::slice::from_ref(item),
@@ -101,7 +89,6 @@ pub fn menu_id(command: &str) -> String {
     format!("{ID_PREFIX}{command}")
 }
 
-/// The format command behind a menu item ID, if it is a Format menu item.
 pub fn command_for(menu_id: &str) -> Option<&'static str> {
     let command = menu_id.strip_prefix(ID_PREFIX)?;
     items()
@@ -109,11 +96,8 @@ pub fn command_for(menu_id: &str) -> Option<&'static str> {
         .map(|item| item.command)
 }
 
-/// The Format menu's items, so their key equivalents can be set later.
 pub struct FormatMenu(Vec<(&'static str, MenuItem<Wry>)>);
 
-/// Builds the menu with its items greyed out and without keys, until the
-/// UI says the editor has the keyboard.
 pub fn build(app: &App) -> tauri::Result<(Submenu<Wry>, FormatMenu)> {
     let mut built = Vec::new();
     let mut new_item = |item: &Item| -> tauri::Result<MenuItem<Wry>> {
@@ -140,7 +124,6 @@ pub fn build(app: &App) -> tauri::Result<(Submenu<Wry>, FormatMenu)> {
     Ok((menu.build()?, FormatMenu(built)))
 }
 
-/// Sends a picked Format menu item to the main window; false for other items.
 pub fn on_menu_event(app: &AppHandle, menu_id: &str) -> bool {
     let Some(command) = command_for(menu_id) else {
         return false;
@@ -156,8 +139,7 @@ const MOD_SHIFT: u8 = 2;
 const MOD_ALT: u8 = 4;
 const MOD_CMD: u8 = 8;
 
-/// Keys an accelerator may end with: what the registry's key notation can
-/// write (`src/renderer/src/commands/keys.ts`), spelled as `shortcutAccelerator` does.
+/// Spelled as `shortcutAccelerator` does (src/renderer/src/commands/keys.ts).
 fn known_key(key: &str) -> bool {
     const NAMED: &[&str] = &[
         "Enter",
@@ -190,7 +172,6 @@ fn known_key(key: &str) -> bool {
     }
 }
 
-/// Reads an accelerator (`Shift+Alt+CmdOrCtrl+X`): its modifiers and key.
 /// It needs Command or Control, so it can never take a key that types text.
 pub(crate) fn parse_accelerator(accelerator: &str) -> Option<(u8, &str)> {
     if accelerator.len() > MAX_ACCELERATOR_LEN {
@@ -214,11 +195,9 @@ pub(crate) fn parse_accelerator(accelerator: &str) -> Option<(u8, &str)> {
     (mods & (MOD_CMD | MOD_CTRL) != 0 && known_key(key)).then_some((mods, key))
 }
 
-/// Keys the menu bar's own items have (`menu.rs`'s Quit and Settings and its
-/// standard Edit, Window, View and app menu items); no command's key may
-/// take them. The View menu's items that run a command (Revision History,
-/// Command Palette, Hide Sidebar) have the command's keys instead, which the
-/// UI sets (`menu::command_menu_set`) and keeps apart from the format keys.
+/// Keys the menu bar's own items have (`menu.rs`'s Quit and Settings and the standard Edit, Window,
+/// View and app items); no command's key may take them. The View items that run a command have the
+/// command's keys instead, which the UI sets (`menu::command_menu_set`).
 pub(crate) const MENU_BAR_KEYS: &[&str] = &[
     "CmdOrCtrl+Q",
     "CmdOrCtrl+,",
@@ -235,8 +214,6 @@ pub(crate) const MENU_BAR_KEYS: &[&str] = &[
     "CmdOrCtrl+W",
 ];
 
-/// Checks the keys the UI sends (format command ID to accelerator) and gives
-/// every Format menu item its accelerator, or none.
 pub fn plan(
     keys: &HashMap<String, String>,
 ) -> Result<Vec<(&'static str, Option<String>)>, &'static str> {
@@ -262,8 +239,6 @@ pub fn plan(
         .collect())
 }
 
-/// Turns the Format menu on, with these keys (format command ID to
-/// accelerator, as `shortcutAccelerator` writes it), or off without keys.
 #[tauri::command]
 pub async fn format_menu_set(
     app: AppHandle,
@@ -291,7 +266,6 @@ pub async fn format_menu_set(
     Ok(())
 }
 
-/// Takes every key off the Format menu (see `native::macos::clear_key_equivalents`).
 async fn clear_keys(app: &AppHandle) -> bool {
     #[cfg(target_os = "macos")]
     {
@@ -314,9 +288,6 @@ async fn clear_keys(app: &AppHandle) -> bool {
 mod tests {
     use super::*;
 
-    /// The keys the UI sends for the registry's default format keys. The
-    /// same file is compared with the registry (`formatMenuKeys`) by
-    /// `tests/policy/native-menu-keys.test.ts`.
     fn default_keys() -> HashMap<String, String> {
         serde_json::from_str(include_str!("../tests/fixtures/format-menu-keys.json"))
             .expect("a JSON object of strings")
@@ -428,9 +399,7 @@ mod tests {
             key("format.horizontalRule").as_deref(),
             Some("Shift+CmdOrCtrl+H")
         );
-        // Alerts have no keys.
         assert_eq!(key("format.alertNote"), None);
-        // No keys at all: every item without one (the editor lost the keyboard).
         assert!(plan_all_none(&HashMap::new()));
     }
 
@@ -544,7 +513,6 @@ mod tests {
         let mut keys = default_keys();
         keys.insert("format.italic".to_owned(), "CmdOrCtrl+B".to_owned());
         assert_eq!(plan(&keys), Err("E_FORMAT_MENU_ACCELERATOR_DUPLICATE"));
-        // The same key with its modifiers in another order is the same key.
         let mut keys = default_keys();
         keys.insert("format.italic".to_owned(), "CmdOrCtrl+Shift+L".to_owned());
         assert_eq!(plan(&keys), Err("E_FORMAT_MENU_ACCELERATOR_DUPLICATE"));

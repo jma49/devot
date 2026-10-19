@@ -33,7 +33,6 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0018_book_icons.sql"),
 ];
 
-/// The schema version a fully migrated database reports.
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 
 #[derive(Debug)]
@@ -41,16 +40,11 @@ pub enum StorageError {
     Sqlite(rusqlite::Error),
     NewerSchema(u32),
     SnapshotCheckFailed,
-    /// A note write based on a body version the stored body has moved on
-    /// from: another process wrote the note since its writer read it.
+    /// Another process wrote the note since its writer read it.
     BodyStale,
 }
 
-/// The code a SQLite failure is reported and logged with, by its kind:
-/// busy, full, read-only, corrupt, an I/O failure or a file that cannot be
-/// made or opened (a folder missing or that may not be written), and a
-/// general one for anything else. Never SQLite's message, which can quote a
-/// statement or the data it was given.
+/// Never SQLite's message, which can quote a statement or the data it was given.
 fn sqlite_code(error: &rusqlite::Error) -> &'static str {
     use rusqlite::ErrorCode;
     match error.sqlite_error_code() {
@@ -92,9 +86,8 @@ impl From<rusqlite::Error> for StorageError {
 
 pub type Result<T> = std::result::Result<T, StorageError>;
 
-/// Copies every page from `from` to `to` in one step, waiting while the
-/// source is busy. One step reads a consistent snapshot; in WAL mode writers
-/// on other connections carry on meanwhile.
+/// One step reads a consistent snapshot; in WAL mode writers on other connections carry on
+/// meanwhile.
 fn copy_pages(from: &Connection, to: &mut Connection) -> Result<()> {
     let backup = Backup::new(from, to)?;
     loop {
@@ -112,9 +105,6 @@ fn open_read_only(path: &Path) -> Result<Connection> {
     Ok(conn)
 }
 
-/// Writes a copy of the database at `db_path` to `dest` with SQLite's online
-/// backup API, from its own read-only connection so the app's writes are not
-/// held up, then checks the copy.
 pub fn snapshot(db_path: &Path, dest: &Path) -> Result<()> {
     let source = open_read_only(db_path)?;
     let mut copy = Connection::open(dest)?;
@@ -129,8 +119,6 @@ pub fn snapshot(db_path: &Path, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-/// One note as stored. `ydoc` is the Yjs document state; `body_md` is the
-/// Markdown snapshot the core derived from it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteRecord {
@@ -139,13 +127,11 @@ pub struct NoteRecord {
     pub title_hlc: String,
     pub body_md: String,
     pub ydoc: Vec<u8>,
-    /// The version of the stored body this record's body is based on: read,
-    /// the stored one; written, the one its writer last saw (see
-    /// `Store::put_note`). 0 for a note not written yet.
+    /// Read: the stored version; written: the one its writer last saw (see `Store::put_note`). 0
+    /// for a note not written yet.
     pub body_version: i64,
     pub book_id: Option<String>,
     pub book_hlc: String,
-    /// One of `NOTE_STATUSES`.
     pub status: String,
     pub status_hlc: String,
     pub pinned: bool,
@@ -158,21 +144,16 @@ pub struct NoteRecord {
     pub deleted_hlc: Option<String>,
 }
 
-/// The values `notes.status` accepts (the schema checks them too).
 pub const NOTE_STATUSES: [&str; 5] = ["none", "active", "on_hold", "completed", "dropped"];
 
-/// The tag colour palette: the IDs `tags.color` may hold. Each theme maps an
-/// ID to a colour (design tokens `color.tag.<id>`). Same list as
-/// `TAG_COLORS` in src/core/storage.ts.
+/// The IDs `tags.color` may hold; each theme maps one to a colour (design tokens `color.tag.<id>`).
+/// Same list as `TAG_COLORS` in src/core/storage.ts.
 pub const TAG_COLORS: [&str; 8] = [
     "red", "orange", "yellow", "green", "blue", "purple", "pink", "gray",
 ];
 
-/// The notebook icon catalog: SF Symbol names by category, with search words
-/// (design/icons/notebook-symbols.json). A notebook's icon is one of them.
 const NOTEBOOK_SYMBOLS_JSON: &str = include_str!("../../../design/icons/notebook-symbols.json");
 
-/// Whether `name` is a symbol from the notebook icon catalog.
 pub fn notebook_symbol(name: &str) -> bool {
     static NAMES: std::sync::OnceLock<std::collections::HashSet<String>> =
         std::sync::OnceLock::new();
@@ -191,7 +172,6 @@ pub fn notebook_symbol(name: &str) -> bool {
         .contains(name)
 }
 
-/// A tag. Notes carry tags through `NoteTagRecord` rows.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TagRecord {
@@ -211,7 +191,6 @@ pub struct TagRecord {
     pub color_hlc: String,
 }
 
-/// An attachment's bytes and the metadata the protocol handler serves.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileRecord {
     pub id: String,
@@ -222,14 +201,12 @@ pub struct FileRecord {
     pub created_at: i64,
 }
 
-/// An attachment to copy (`from`) and the ID its copy takes (`to`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileCopy {
     pub from: String,
     pub to: String,
 }
 
-/// A note in the trash, as the trash list shows it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TrashedNote {
@@ -239,7 +216,6 @@ pub struct TrashedNote {
     pub book_id: Option<String>,
 }
 
-/// Whether a tag is on a note. Adding and removing write the same row.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteTagRecord {
@@ -249,7 +225,6 @@ pub struct NoteTagRecord {
     pub hlc: String,
 }
 
-/// A notebook. Notebooks nest through `parent_id`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookRecord {
@@ -276,13 +251,12 @@ pub struct BookRecord {
     /// Empty when the notebook was never moved among its siblings.
     #[serde(default)]
     pub sort_key_hlc: String,
-    /// An SF Symbol name from the notebook icon catalog (`NOTEBOOK_SYMBOLS`);
-    /// None for the default icon. Listing reads a name it does not know
-    /// (from a later catalog) as None.
+    /// An SF Symbol name from the notebook icon catalog; None for the default icon. An unknown name
+    /// (from a later catalog) reads as None.
     #[serde(default)]
     pub icon: Option<String>,
-    /// A palette ID from `TAG_COLORS` the icon is drawn in; None for the
-    /// text colour. Listing reads an ID it does not know as None.
+    /// A palette ID from `TAG_COLORS` the icon is drawn in; None for the text colour. An unknown ID
+    /// reads as None.
     #[serde(default)]
     pub icon_color: Option<String>,
     /// One clock for the icon and its colour; empty when never set.
@@ -290,24 +264,19 @@ pub struct BookRecord {
     pub icon_hlc: String,
 }
 
-/// The kinds of revision: a body version or a metadata event.
 pub const REVISION_KINDS: [&str; 5] = ["body", "title", "book", "status", "pinned"];
 
-/// The value of a baseline: the body version that keeps the text a note had
-/// when its history began. The activity heatmap does not count it (see
-/// `BASELINE` in src/core/revisions.ts).
+/// The body version that keeps the text a note had when its history began. The activity heatmap
+/// does not count it (see `BASELINE` in src/core/revisions.ts).
 pub const BASELINE: &str = "baseline";
 
-/// One entry of a note's revision history, local to this device. A body
-/// version holds the Yjs state and its text length (and `BASELINE` as its
-/// value when it is a baseline, otherwise none); an event holds the new
-/// value of the field (see migrations/0009_revisions.sql).
+/// Local to this device. A body version holds the Yjs state and its text length; an event holds the
+/// new value of the field (see migrations/0009_revisions.sql).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RevisionRecord {
     pub id: String,
     pub note_id: String,
-    /// One of `REVISION_KINDS`.
     pub kind: String,
     pub at: i64,
     pub ydoc: Option<Vec<u8>>,
@@ -315,7 +284,6 @@ pub struct RevisionRecord {
     pub value: Option<String>,
 }
 
-/// A revision without its Yjs state, as history lists show it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RevisionSummary {
@@ -327,8 +295,6 @@ pub struct RevisionSummary {
     pub value: Option<String>,
 }
 
-/// A plain body version (never a baseline) a compaction sweep weighs,
-/// without its state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompactableVersion {
@@ -337,11 +303,9 @@ pub struct CompactableVersion {
     pub at: i64,
 }
 
-/// Revision history and its compaction, the same statements as the
-/// TypeScript adapter's (src/mcp/sqlite.ts, REVISION_SQL; a test compares
-/// them). The reads go through covering indexes (migration 0013's
-/// revisions_history, and revisions_by_time), never a version's Yjs state.
-/// A note's revisions, newest first:
+/// The same statements as the TypeScript adapter's (src/mcp/sqlite.ts, REVISION_SQL; a test
+/// compares them). The reads go through covering indexes (migration 0013), never a version's Yjs
+/// state. A note's revisions, newest first:
 const REVISION_HISTORY_SQL: &str = "SELECT id, note_id, kind, at, length, value FROM revisions
      WHERE note_id = @noteId ORDER BY at DESC, id DESC";
 /// The plain body versions (a baseline is kept, so left out) of the first
@@ -360,16 +324,12 @@ const COMPACTABLE_SQL: &str =
                   AND p.kind = 'body' AND p.value IS NULL) > 1
         ORDER BY w.note_id LIMIT @limit)
      ORDER BY note_id, at DESC, id DESC";
-/// Deletes one plain body version; never an event or a baseline:
 const COMPACT_DROP_SQL: &str =
     "DELETE FROM revisions WHERE id = @id AND kind = 'body' AND value IS NULL";
-/// Records when the last sweep ran:
 const COMPACT_SWEPT_SQL: &str = "INSERT INTO compaction (id, swept_at) VALUES (1, @at)
      ON CONFLICT (id) DO UPDATE SET swept_at = excluded.swept_at";
-/// When the last sweep ran:
 const LAST_COMPACTION_SQL: &str = "SELECT swept_at AS sweptAt FROM compaction WHERE id = 1";
 
-/// A note's creation, as the activity heatmap counts it (src/core/activity.ts).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityNote {
@@ -377,33 +337,25 @@ pub struct ActivityNote {
     pub created_at: i64,
 }
 
-/// A body version or a title change, as the activity heatmap counts it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityRevision {
     pub note_id: String,
-    /// `body` or `title`.
     pub kind: String,
     pub at: i64,
-    /// A body version's length; none for a title change.
     pub length: Option<i64>,
-    /// The length of the note's body version before this one; none for its
-    /// first, and for a title change.
     pub previous: Option<i64>,
 }
 
-/// What storage holds about writing from some time on (see `list_activity`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActivityData {
     pub notes: Vec<ActivityNote>,
     pub revisions: Vec<ActivityRevision>,
 }
 
-/// The activity statements, the same as the TypeScript adapter's
-/// (src/mcp/sqlite.ts, ACTIVITY_SQL; a test compares them). Each reads a
-/// covering index of migration 0012, never a table row (rows hold Yjs
-/// states): only what falls in the window, and for each body version the
-/// one before it (versions are ordered by time, then length, then rowid).
+/// The same statements as the TypeScript adapter's (src/mcp/sqlite.ts, ACTIVITY_SQL; a test
+/// compares them). Each reads a covering index of migration 0012, never a table row (rows hold Yjs
+/// states).
 const ACTIVITY_NOTES_SQL: &str =
     "SELECT id, created_at AS createdAt FROM notes INDEXED BY notes_created
      WHERE purged_at IS NULL AND created_at >= @since";
@@ -418,16 +370,14 @@ const ACTIVITY_REVISIONS_SQL: &str = "SELECT r.note_id AS noteId, r.kind, r.at, 
      WHERE r.at >= @since AND r.kind IN ('body', 'title')
        AND (r.kind = 'title' OR r.value IS NULL)";
 
-/// Run when a note (`@id`) is purged, before its attachments are deleted:
-/// gives each attachment of the note that another note, not purged, still
-/// shows (its Markdown holds the address `devot://file/<id>`) to that note,
-/// a live one before one in the Trash, then the smallest ID. A link can
-/// reach another note without a copy (cut or dragged Markdown, Paste as
-/// Plain Text, devot-mcp, a restored version, an old duplicate), and its
-/// image must stay. The search index finds those notes (a phrase match, so
-/// no note is read whole); it ignores case, so `instr` checks the address
-/// as written. The same statement as the TypeScript adapter's
-/// (src/mcp/sqlite.ts, HAND_OVER_FILES_SQL; a test compares them).
+/// Run when a note (`@id`) is purged, before its attachments are deleted: gives each attachment
+/// that another note, not purged, still shows (its Markdown holds `devot://file/<id>`) to that
+/// note, a live one before one in the Trash, then the smallest ID. A link can reach another note
+/// without a copy (cut or dragged Markdown, Paste as Plain Text, devot-mcp, a restored version, an
+/// old duplicate) and its image must stay. The search index finds those notes (a phrase match, so
+/// no note is read whole); it ignores case, so `instr` checks the address as written. The same
+/// statement as the TypeScript adapter's (src/mcp/sqlite.ts, HAND_OVER_FILES_SQL; a test compares
+/// them).
 const HAND_OVER_FILES_SQL: &str = r#"UPDATE files SET note_id = COALESCE((
        SELECT n.id FROM notes_fts JOIN notes n ON n.rowid = notes_fts.rowid
         WHERE notes_fts MATCH 'body_md : "devot://file/' || replace(files.id, '"', '""') || '"'
@@ -436,24 +386,20 @@ const HAND_OVER_FILES_SQL: &str = r#"UPDATE files SET note_id = COALESCE((
         ORDER BY n.deleted_at IS NOT NULL, n.id LIMIT 1), note_id)
      WHERE note_id = @id"#;
 
-/// The note list and the Trash, the same statements as the TypeScript
-/// adapter's (src/mcp/sqlite.ts, LIST_SQL; a test compares them). Each reads
-/// an index that covers it (migration 0014), never a note's row: a note's
-/// small columns come after its Markdown and its Yjs state, so reading them
-/// from the row walks every overflow page of both. Live notes, most recently
-/// updated first:
+/// The same statements as the TypeScript adapter's (src/mcp/sqlite.ts, LIST_SQL; a test compares
+/// them). Each reads an index that covers it (migration 0014), never a note's row: a note's small
+/// columns come after its Markdown and its Yjs state, so reading them from the row walks every
+/// overflow page of both.
 const NOTES_LIST_SQL: &str = "SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
             (SELECT group_concat(nt.tag_id) FROM note_tags nt
                JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
               WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds
      FROM notes INDEXED BY notes_list
      WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC";
-/// Notes in the Trash (not purged), most recently deleted first:
 const TRASH_LIST_SQL: &str =
     "SELECT id, title, deleted_at AS deletedAt, book_id AS bookId FROM notes INDEXED BY notes_trash
      WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC, id DESC";
 
-/// What the note list shows.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteSummary {
@@ -464,7 +410,6 @@ pub struct NoteSummary {
     pub book_id: Option<String>,
     pub status: String,
     pub pinned: bool,
-    /// Live tags on the note.
     pub tag_ids: Vec<String>,
     /// Search results only: the body around the first searched word found
     /// there, starting with an ellipsis when it starts mid-body.
@@ -472,18 +417,14 @@ pub struct NoteSummary {
     pub excerpt: Option<String>,
 }
 
-/// A search, as the core sends it (src/core/storage.ts, NoteQuery): live
-/// notes meeting every condition.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct NoteQuery {
     pub text: Vec<TextCondition>,
     pub sets: Vec<SetCondition>,
-    /// Only pinned notes (`Some(true)`), only notes not pinned (`Some(false)`), or either (`None`).
     pub pinned: Option<bool>,
 }
 
-/// Text the note must (or, with `negate`, must not) contain, case-insensitively.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TextCondition {
@@ -495,13 +436,11 @@ pub struct TextCondition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TextField {
-    /// The title or the body.
     Any,
     Title,
     Body,
 }
 
-/// The note's notebook, tag or status is one of `ids` (with `negate`: none).
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SetCondition {
@@ -519,11 +458,6 @@ pub enum SetKind {
 }
 
 impl TextField {
-    /// The text this field searches. With ranked text, a body is read from
-    /// the note's row only once the note has come out of the ranked matches
-    /// (`ranked`, by rank), so only the bodies of the matches up to a page
-    /// of results are read; otherwise from the row the list's index points
-    /// to.
     fn column(self, ranked: bool) -> String {
         let body = if ranked {
             "(SELECT body_md FROM notes b WHERE b.rowid = n.rid)"
@@ -537,7 +471,6 @@ impl TextField {
         }
     }
 
-    /// An FTS5 query for `value` as a literal string in this field's column.
     fn fts(self, value: &str) -> String {
         let column = match self {
             Self::Any => "",
@@ -557,7 +490,6 @@ const EXCERPT_BEFORE: usize = 40;
 /// there (EXCERPT_STRETCH in src/core/search.ts); a body of at most twice as
 /// many is read whole.
 const EXCERPT_STRETCH: usize = 300;
-/// How many places of a word a long body's excerpt tries.
 const EXCERPT_PLACES: usize = 8;
 
 /// Lower case, one character for one (as the trigram index folds case), so
@@ -586,8 +518,6 @@ fn fold_text(text: &str) -> String {
     }
 }
 
-/// Registers `devot_fold(text)` on a connection: the folded text, or the
-/// value itself when it is not text (NULL stays NULL).
 fn register_fold(conn: &Connection) -> rusqlite::Result<()> {
     use rusqlite::functions::FunctionFlags;
     use rusqlite::types::{Value, ValueRef};
@@ -607,7 +537,6 @@ fn register_fold(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 
-/// Byte offset of the character `count` characters before `at` (or 0).
 fn chars_back(text: &str, at: usize, count: usize) -> usize {
     text[..at]
         .char_indices()
@@ -617,7 +546,6 @@ fn chars_back(text: &str, at: usize, count: usize) -> usize {
         .map_or(at, |(i, _)| i)
 }
 
-/// Byte offset of the character `count` characters after `at` (or the end).
 fn chars_ahead(text: &str, at: usize, count: usize) -> usize {
     text[at..]
         .char_indices()
@@ -625,8 +553,6 @@ fn chars_ahead(text: &str, at: usize, count: usize) -> usize {
         .map_or(text.len(), |(i, _)| at + i)
 }
 
-/// Where a body's text starts after a leading front matter block, as
-/// `readable_text` reads one (a fence line, then another later); 0 without.
 fn after_front_matter(body: &str) -> usize {
     let line_at = |from: usize| {
         let (line, next) = match body[from..].find('\n') {
@@ -649,8 +575,6 @@ fn after_front_matter(body: &str) -> usize {
     0
 }
 
-/// The first place at or after byte `from` where `body` holds `wanted` (folded
-/// characters), folding as it goes: its start and end.
 fn find_folded(body: &str, wanted: &[char], from: usize) -> Option<(usize, usize)> {
     let (&first, rest) = wanted.split_first()?;
     body[from..].char_indices().find_map(|(i, c)| {
@@ -668,17 +592,12 @@ fn find_folded(body: &str, wanted: &[char], from: usize) -> Option<(usize, usize
     })
 }
 
-/// Where the first of `terms` (in any case) shows in `text`.
 struct Place {
-    /// The text's characters.
     chars: Vec<char>,
-    /// How many of them come before the term.
     before: usize,
-    /// The excerpt's first one.
     from: usize,
 }
 
-/// Where the first of `terms` (in any case) shows in `text`, if one does.
 fn place_in(text: &str, terms: &[&str]) -> Option<Place> {
     let chars: Vec<char> = text.chars().collect();
     let folded: String = chars.iter().map(|&c| fold(c)).collect();
@@ -696,16 +615,12 @@ fn place_in(text: &str, terms: &[&str]) -> Option<Place> {
     })
 }
 
-/// The spaces and line breaks that set words apart.
 fn is_break(c: char) -> bool {
     matches!(c, ' ' | '\n' | '\t' | '\r')
 }
 
-/// Where an excerpt starting at character `from` begins to read: at `from`
-/// when it falls at a word's start, else at the next word's, so an excerpt
-/// never opens with the tail of a word. A cut that finds no break before the
-/// term (a term in a long word, or text without spaces) stays where it
-/// falls. Same rule as `wordStart` in src/core/search.ts.
+/// A cut that finds no break before the term (a term in a long word, or text without spaces) stays
+/// where it falls. Same rule as `wordStart` in src/core/search.ts.
 fn word_start(place: &Place) -> usize {
     let (chars, from, at) = (&place.chars, place.from, place.before);
     if from == 0 || is_break(chars[from - 1]) || is_break(chars[from]) {
@@ -724,7 +639,6 @@ fn word_start(place: &Place) -> usize {
     i
 }
 
-/// The excerpt of a place; `cut` when its text starts after the body's start.
 fn excerpt_at(place: &Place, cut: bool) -> String {
     let start = word_start(place);
     let mut excerpt = String::new();
@@ -735,19 +649,13 @@ fn excerpt_at(place: &Place, cut: bool) -> String {
     excerpt
 }
 
-/// About 160 characters of the readable text of `body` (no front matter, no
-/// Markdown markers: see `readable`) from shortly before the first of
-/// `terms` found in it (in any case), starting with an ellipsis when it
-/// starts mid-text; None when no term is found there.
-///
-/// A body longer than twice `EXCERPT_STRETCH` characters is not read whole,
-/// so a page of results costs the same however long the notes are: a term
-/// is looked for as written (in any case), at most `EXCERPT_PLACES` times,
-/// after any front matter, and each place is read with `EXCERPT_STRETCH`
-/// characters on each side as a body of its own, growing a stretch at a
-/// time while the word shows too near one of its ends for a whole excerpt.
-/// Same rule, step for step, as `bodyExcerpt` in src/core/search.ts
-/// (tests/support/excerpts.json holds cases both sides agree on).
+/// Starts with an ellipsis when it starts mid-text; None when no term is found.
+/// A body longer than twice `EXCERPT_STRETCH` characters is not read whole, so a page of results
+/// costs the same however long the notes are: a term is looked for as written (in any case), at
+/// most `EXCERPT_PLACES` times, after any front matter, and each place is read with
+/// `EXCERPT_STRETCH` characters on each side as a body of its own, growing a stretch at a time
+/// while the word shows too near one of its ends. Same rule, step for step, as `bodyExcerpt` in
+/// src/core/search.ts (tests/support/excerpts.json holds cases both sides agree on).
 pub(crate) fn body_excerpt(body: &str, terms: &[&str]) -> Option<String> {
     if body.chars().nth(2 * EXCERPT_STRETCH).is_none() {
         return place_in(&readable::readable_text(body), terms).map(|p| excerpt_at(&p, false));
@@ -777,9 +685,6 @@ pub(crate) fn body_excerpt(body: &str, terms: &[&str]) -> Option<String> {
             }
             let mut stop = chars_ahead(body, end, EXCERPT_STRETCH);
             let mut place = place_in(&readable(start, stop), &[term]);
-            // Shown near an end of the stretch (another place than this
-            // one): read further that way, a stretch at a time, until the
-            // excerpt fits.
             for _ in 0..EXCERPT_PLACES {
                 let Some(found) = &place else { break };
                 let short = start > 0 && found.before < EXCERPT_BEFORE;
@@ -807,7 +712,6 @@ pub(crate) fn body_excerpt(body: &str, terms: &[&str]) -> Option<String> {
     None
 }
 
-/// Text long enough for the trigram index.
 fn indexable(value: &str) -> bool {
     value.chars().count() >= 3
 }
@@ -817,14 +721,11 @@ fn indexable(value: &str) -> bool {
 /// `scanFolding` in src/core/search.ts, the same).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ScanFolding {
-    /// No character folds to any of the term's but itself: the text is read
-    /// as written.
     None,
     /// Those and ASCII letters, which only an ASCII capital and the Kelvin
     /// sign (U+212A, to k) fold to: the text is read through SQLite's
     /// lower() (ASCII only) with the Kelvin sign replaced by `k`.
     Ascii,
-    /// Anything else: the text is read through `devot_fold`.
     Fold,
 }
 
@@ -848,11 +749,9 @@ fn scan_folding(text: &str) -> ScanFolding {
     }
 }
 
-/// The clause for text too short for the trigram index (its parameter
-/// `value`): it scans the field's text, folded as the index folds case
-/// (see `ScanFolding`), the title and the body apart when the text has no
-/// line break (only such text could run from the title into the body).
-/// The TypeScript adapter's `scanClause` builds the same.
+/// The scan folds as the index folds case (see `ScanFolding`) and treats title and body apart when
+/// the text has no line break (only such text could run from the title into the body). The
+/// TypeScript adapter's `scanClause` builds the same.
 fn scan_clause(t: &TextCondition, ranked: bool, value: &str) -> String {
     let columns = if t.field == TextField::Any && !t.value.contains('\n') {
         vec![
@@ -884,7 +783,6 @@ fn scan_clause(t: &TextCondition, ranked: bool, value: &str) -> String {
     if t.negate { format!("NOT {any}") } else { any }
 }
 
-/// A note list or search row (see `NOTES_LIST_SQL` and `search_sql`).
 fn summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
     let tags: Option<String> = row.get(7)?;
     Ok(NoteSummary {
@@ -902,22 +800,16 @@ fn summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
     })
 }
 
-/// A search as SQL and its parameters, the same as the TypeScript adapter
-/// builds (src/mcp/sqlite.ts, searchStatement): every condition is one
-/// clause of a WHERE, so the limit applies after all of them. Live notes
-/// come from the list's index (notes_list), never from their rows: ranked
-/// text (three or more characters) matches the trigram index first (`hits`,
-/// with each match's rank), and the list's index joins them through an
-/// index SQLite builds for the query. So a ranked search walks the whole
-/// list index even for one match (O(notes), about 2.5 ms for 50,000 notes):
-/// letting the matches drive the join would read each match's row through
-/// its blobs, which costs twice as much once a word is in many notes (see
-/// tests/core/list-cost.test.ts). Shorter text is scanned: it reads
-/// bodies. With ranked text, the matches meeting every other condition are
-/// put in rank order first (`ranked`), and the scan reads them in that
-/// order, which also gives the results' order: so it stops once a page of
-/// results is full, instead of reading the body of every match (#48). Ties
-/// go to the newer note, then by ID, as the note list orders them.
+/// The same SQL as the TypeScript adapter builds (src/mcp/sqlite.ts, searchStatement): every
+/// condition is one clause of a WHERE, so the limit applies after all of them. Ranked text (three
+/// or more characters) matches the trigram index first (`hits`, with each match's rank) and the
+/// list's index joins them, so a ranked search walks the whole list index even for one match
+/// (O(notes), about 2.5 ms for 50,000 notes); letting the matches drive the join would read each
+/// match's row through its blobs, which costs twice as much once a word is in many notes (see
+/// tests/core/list-cost.test.ts). Shorter text is scanned. With ranked text the matches meeting
+/// every other condition are put in rank order first (`ranked`) and the scan reads them in that
+/// order, so it stops once a page is full instead of reading every match's body (#48). Ties go to
+/// the newer note, then by ID.
 fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
     let mut values: Vec<String> = Vec::new();
     // Numbered parameters: the SQL is built out of order.
@@ -1032,7 +924,6 @@ pub struct Store {
 }
 
 impl Store {
-    /// Opens (creating if needed) the database and applies pending migrations.
     pub fn open(path: &Path) -> Result<Self> {
         let mut conn = Connection::open(path)?;
         register_fold(&conn)?;
@@ -1068,8 +959,6 @@ impl Store {
         Ok(())
     }
 
-    /// Replaces the whole database with the snapshot at `path`, then brings it
-    /// up to the current schema. A snapshot from a newer Devot is refused.
     pub fn restore_from(&mut self, path: &Path) -> Result<()> {
         let source = open_read_only(path)?;
         let version: u32 = source.pragma_query_value(None, "user_version", |row| row.get(0))?;
@@ -1081,8 +970,8 @@ impl Store {
         self.migrate()
     }
 
-    /// Changes whenever another connection (devot-mcp, say) commits to the
-    /// database; this connection's own commits leave it alone.
+    /// Changes whenever another connection (devot-mcp, say) commits; this connection's own commits
+    /// leave it alone.
     pub fn data_version(&self) -> Result<u32> {
         Ok(self
             .conn
@@ -1104,10 +993,8 @@ impl Store {
         Ok(result == "ok")
     }
 
-    /// Rebuilds the search index from the notes table in one statement
-    /// (FTS5 reports no progress), then checks it against the table, all in
-    /// one transaction: a failed check rolls the rebuild back. Returns how
-    /// many notes (trashed ones too) the index covers.
+    /// FTS5 reports no progress, so it is one statement, then checked against the table, all in one
+    /// transaction: a failed check rolls the rebuild back.
     pub fn rebuild_search_index(&mut self) -> Result<u32> {
         let tx = self.conn.transaction()?;
         tx.execute_batch(
@@ -1123,15 +1010,13 @@ impl Store {
         Ok(notes)
     }
 
-    /// Notes not in the trash, most recently updated first.
     pub fn list_notes(&self) -> Result<Vec<NoteSummary>> {
         let mut statement = self.conn.prepare_cached(NOTES_LIST_SQL)?;
         let rows = statement.query_map([], summary)?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// A note that is not in the trash; with `trashed`, a trashed one too
-    /// (never a purged one).
+    /// With `trashed`, a trashed note too (never a purged one).
     pub fn get_note(&self, id: &str, trashed: bool) -> Result<Option<NoteRecord>> {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, title, title_hlc, body_md, ydoc, created_at, updated_at,
@@ -1164,21 +1049,15 @@ impl Store {
             .optional()?)
     }
 
-    /// Inserts a note, or merges it field by field: each metadata field keeps
-    /// the value with the newer HLC, so a stale copy never undoes a newer
-    /// change. The body (Yjs state and its snapshot) is written as given.
-    /// The TypeScript adapter (tests/support/sqlite-adapter.ts) does the same.
-    /// Writes a note and replaces its link index rows with `links` (the
-    /// note IDs its body links to), unless the note was purged.
-    ///
-    /// A compare-and-set on the body: the note is written only while its
-    /// stored body is still at `note.body_version`, the version its writer
-    /// last saw, and its body moves on to the next one (a new note is stored
-    /// at the next one too). A write based on another version, which would
-    /// go over a body another process wrote since, is refused with
-    /// `StorageError::BodyStale` and changes nothing; its writer takes the
-    /// stored body in and writes again. A purged note is left alone,
-    /// whatever the version.
+    /// Each metadata field keeps the value with the newer HLC, so a stale copy never undoes a newer
+    /// change. The body (Yjs state and its snapshot) is written as given. The TypeScript adapter
+    /// (tests/support/sqlite-adapter.ts) does the same. Also replaces the note's link index rows
+    /// with `links`, unless the note was purged.
+    /// A compare-and-set on the body: the note is written only while its stored body is still at
+    /// `note.body_version`, the version its writer last saw, and its body moves on to the next one.
+    /// A write based on another version, which would go over a body another process wrote since, is
+    /// refused with `StorageError::BodyStale` and changes nothing; its writer takes the stored body
+    /// in and writes again. A purged note is left alone, whatever the version.
     pub fn put_note(&mut self, note: &NoteRecord, links: &[String]) -> Result<()> {
         let tx = self.conn.transaction()?;
         let written = tx.execute(
@@ -1252,7 +1131,6 @@ impl Store {
         Ok(())
     }
 
-    /// Notebooks that are not deleted.
     pub fn list_books(&self) -> Result<Vec<BookRecord>> {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, name, name_hlc, parent_id, parent_hlc, created_at, updated_at,
@@ -1285,7 +1163,6 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// Inserts a notebook, or merges it field by field (newer HLC wins).
     pub fn put_book(&mut self, book: &BookRecord) -> Result<()> {
         let tx = self.conn.transaction()?;
         tx.execute(
@@ -1341,7 +1218,6 @@ impl Store {
         Ok(())
     }
 
-    /// Tags that are not deleted.
     pub fn list_tags(&self) -> Result<Vec<TagRecord>> {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, name, name_hlc, created_at, updated_at, deleted_at, deleted_hlc,
@@ -1365,7 +1241,6 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// Inserts a tag, or merges it field by field (newer HLC wins).
     pub fn put_tag(&mut self, tag: &TagRecord) -> Result<()> {
         self.conn.execute(
             "INSERT INTO tags (id, name, name_hlc, created_at, updated_at, deleted_at, deleted_hlc,
@@ -1396,7 +1271,6 @@ impl Store {
         Ok(())
     }
 
-    /// Writes a note's tag membership; the newer HLC wins.
     pub fn put_note_tag(&mut self, link: &NoteTagRecord) -> Result<()> {
         self.conn.execute(
             "INSERT INTO note_tags (note_id, tag_id, present, hlc) VALUES (?1, ?2, ?3, ?4)
@@ -1408,10 +1282,8 @@ impl Store {
         Ok(())
     }
 
-    /// A note's membership row for a tag, on or off, with its HLC; none when
-    /// it was never written. The core reads it before writing the row, so
-    /// its clock ticks past the stored one. The TypeScript adapter
-    /// (src/mcp/sqlite.ts) runs the same statement.
+    /// None when it was never written. The core reads it before writing the row, so its clock ticks
+    /// past the stored one. The TypeScript adapter (src/mcp/sqlite.ts) runs the same statement.
     pub fn get_note_tag(&self, note_id: &str, tag_id: &str) -> Result<Option<NoteTagRecord>> {
         let mut statement = self.conn.prepare_cached(
             "SELECT note_id, tag_id, present, hlc FROM note_tags WHERE note_id = ? AND tag_id = ?",
@@ -1428,7 +1300,6 @@ impl Store {
             .optional()?)
     }
 
-    /// Notes in the trash (not purged), most recently deleted first.
     pub fn list_trash(&self) -> Result<Vec<TrashedNote>> {
         let mut statement = self.conn.prepare_cached(TRASH_LIST_SQL)?;
         let rows = statement.query_map([], |row| {
@@ -1442,11 +1313,9 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// Deletes a note permanently: wipes its content and tags, keeps its ID
-    /// and clocks as a tombstone, and marks it purged. Final: `put_note`
-    /// never changes a purged row. Its attachments go too, except those
-    /// another note that is not purged still shows: they pass to that note
-    /// (`HAND_OVER_FILES_SQL`).
+    /// Wipes the note's content and tags, keeps its ID and clocks as a tombstone and marks it
+    /// purged: final, `put_note` never changes a purged row. Its attachments go too, except those
+    /// another note that is not purged still shows: they pass to that note (`HAND_OVER_FILES_SQL`).
     pub fn purge_note(&mut self, id: &str, at: i64, hlc: &str) -> Result<()> {
         let tx = self.conn.transaction()?;
         tx.execute(
@@ -1465,9 +1334,7 @@ impl Store {
         Ok(())
     }
 
-    /// Inserts a revision, or replaces the time, state and value of the one
-    /// with its ID when it belongs to the same note and kind. A revision for
-    /// a purged or unknown note is dropped. The TypeScript adapter
+    /// A revision for a purged or unknown note is dropped. The TypeScript adapter
     /// (src/mcp/sqlite.ts) runs the same statement.
     pub fn put_revision(&mut self, revision: &RevisionRecord) -> Result<()> {
         self.conn.execute(
@@ -1491,7 +1358,6 @@ impl Store {
         Ok(())
     }
 
-    /// A note's revisions without their state, newest first.
     pub fn list_revisions(&self, note_id: &str) -> Result<Vec<RevisionSummary>> {
         let mut statement = self.conn.prepare_cached(REVISION_HISTORY_SQL)?;
         let rows = statement.query_map(rusqlite::named_params! { "@noteId": note_id }, |row| {
@@ -1507,7 +1373,6 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// One revision with its state.
     pub fn get_revision(&self, id: &str) -> Result<Option<RevisionRecord>> {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, note_id, kind, at, ydoc, length, value FROM revisions WHERE id = ?1",
@@ -1527,7 +1392,6 @@ impl Store {
             .optional()?)
     }
 
-    /// Deletes these revisions of a note (compaction); other notes' are kept.
     pub fn delete_revisions(&mut self, note_id: &str, ids: &[String]) -> Result<()> {
         let tx = self.conn.transaction()?;
         {
@@ -1540,10 +1404,6 @@ impl Store {
         Ok(())
     }
 
-    /// The plain body versions (baselines left out) of the first `limit`
-    /// notes, by ID after `after` ("" for the first), with more than one
-    /// taken before `to`, one of them taken at or after `from`: what a
-    /// compaction sweep weighs, a page at a time (`COMPACTABLE_SQL`).
     pub fn compactable_versions(
         &self,
         from: i64,
@@ -1570,9 +1430,6 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// Deletes these plain body versions (an event, a baseline or an unknown
-    /// ID is left alone) and, with `swept_at`, records it as the time of the
-    /// last compaction sweep, in one transaction.
     pub fn compact_revisions(&mut self, ids: &[String], swept_at: Option<i64>) -> Result<()> {
         let tx = self.conn.transaction()?;
         {
@@ -1588,8 +1445,6 @@ impl Store {
         Ok(())
     }
 
-    /// When the last compaction sweep ran, as `compact_revisions` recorded
-    /// it; none before the first.
     pub fn last_compaction(&self) -> Result<Option<i64>> {
         Ok(self
             .conn
@@ -1597,11 +1452,6 @@ impl Store {
             .optional()?)
     }
 
-    /// What the activity heatmap counts from `since` on, over the notes on
-    /// this device (live or in the Trash; a purged note and its revisions
-    /// are gone): the notes created since then, and the body versions and
-    /// title changes taken since then, each body version with the length of
-    /// the one before it.
     pub fn list_activity(&self, since: i64) -> Result<ActivityData> {
         let mut notes = self.conn.prepare_cached(ACTIVITY_NOTES_SQL)?;
         let notes = notes
@@ -1627,15 +1477,11 @@ impl Store {
         Ok(ActivityData { notes, revisions })
     }
 
-    /// Live notes meeting every condition of `query`, best matches first
-    /// (see `search_sql`), each with its excerpt.
     pub fn search_notes(&self, query: &NoteQuery, limit: u32) -> Result<Vec<NoteSummary>> {
         let (sql, values) = search_sql(query, limit);
         let mut statement = self.conn.prepare(&sql)?;
         let rows = statement.query_map(rusqlite::params_from_iter(values.iter()), summary)?;
         let mut found: Vec<NoteSummary> = rows.collect::<rusqlite::Result<_>>()?;
-        // Excerpts only for the notes returned: the body around the first
-        // searched word found in it.
         let terms: Vec<&str> = query
             .text
             .iter()
@@ -1654,8 +1500,7 @@ impl Store {
         Ok(found)
     }
 
-    /// Stores an attachment for a note that is not in the trash. Returns
-    /// false (and stores nothing) when that note does not exist.
+    /// Returns false (and stores nothing) when the note does not exist or is in the trash.
     pub fn put_file(&mut self, file: &FileRecord) -> Result<bool> {
         let tx = self.conn.transaction()?;
         let live: bool = tx.query_row(
@@ -1682,11 +1527,9 @@ impl Store {
         Ok(live)
     }
 
-    /// Gives a note that is not in the trash copies of attachments, in one
-    /// transaction: each file `from` (name, type and bytes) under the new ID
-    /// `to`. A file that does not exist is skipped. Returns false (and copies
-    /// nothing) when that note does not exist or is in the trash. The
-    /// TypeScript adapter (src/mcp/sqlite.ts) runs the same statement.
+    /// A file that does not exist is skipped. Returns false (and copies nothing) when the note does
+    /// not exist or is in the trash. The TypeScript adapter (src/mcp/sqlite.ts) runs the same
+    /// statement.
     pub fn copy_files(&mut self, note_id: &str, copies: &[FileCopy], at: i64) -> Result<bool> {
         let tx = self.conn.transaction()?;
         let live: bool = tx.query_row(
@@ -1707,9 +1550,6 @@ impl Store {
         Ok(live)
     }
 
-    /// The Markdown snapshots of the live notes among `ids` (not in the
-    /// trash, not purged), without their Yjs state: what the Markdown mirror
-    /// writes. IDs that are not such a note are left out.
     pub fn note_bodies(&self, ids: &[String]) -> Result<Vec<(String, String)>> {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, body_md FROM notes
@@ -1721,8 +1561,6 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// The stored name and type of each attachment among `ids` that exists,
-    /// without its bytes. IDs of no attachment are left out.
     pub fn file_names(&self, ids: &[String]) -> Result<Vec<(String, String, String)>> {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, name, mime FROM files WHERE id IN (SELECT value FROM json_each(?1))",
@@ -1732,7 +1570,7 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// An attachment, unless it was deleted with its note (see `purge_note`).
+    /// None once the attachment was deleted with its note (see `purge_note`).
     pub fn get_file(&self, id: &str) -> Result<Option<FileRecord>> {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, note_id, name, mime, data, created_at FROM files WHERE id = ?1",

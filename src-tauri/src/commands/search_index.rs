@@ -9,8 +9,6 @@ use tauri::State;
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
-/// Holds the right to rebuild; releases it when dropped, however the
-/// rebuild ends.
 struct Running<'a>(&'a AtomicBool);
 
 impl<'a> Running<'a> {
@@ -27,7 +25,6 @@ impl Drop for Running<'_> {
     }
 }
 
-/// Rebuilds the search index and returns how many notes it covers.
 #[tauri::command]
 pub async fn search_index_rebuild(db: State<'_, Db>) -> Result<u32, String> {
     let Some(_running) = Running::begin(&RUNNING) else {

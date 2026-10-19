@@ -14,8 +14,6 @@ pub struct Db {
 }
 
 impl Db {
-    /// Opens the store on a new thread. Fails if the database cannot be
-    /// opened or migrated.
     pub fn spawn(path: &Path) -> Result<Self> {
         let path = path.to_owned();
         let (jobs, inbox) = mpsc::channel::<Job>();
@@ -38,9 +36,6 @@ impl Db {
         Ok(Self { jobs })
     }
 
-    /// Runs `work` on the database thread and waits for its result. A
-    /// failure is logged with its code (`W_STORAGE_FAILED E_STORAGE_BUSY`)
-    /// before the caller reports it.
     pub async fn call<T, F>(&self, work: F) -> Result<T>
     where
         T: Send + 'static,
@@ -53,9 +48,7 @@ impl Db {
         result
     }
 
-    /// `call` without logging a failure, for a caller that polls and logs a
-    /// run of failures once itself (the change watch), so a lasting failure
-    /// does not fill the log.
+    /// For a caller that logs a run of failures once itself (the change watch), so a lasting failure does not fill the log.
     pub async fn call_quietly<T, F>(&self, work: F) -> Result<T>
     where
         T: Send + 'static,

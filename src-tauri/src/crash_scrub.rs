@@ -1,15 +1,11 @@
-//! What a crash report may carry: an allowlist, field by field.
-//!
-//! `scrub_event` builds a new event from a fixed list of the fields of the
-//! one it is given, and keeps each value only in the shape its field must
-//! have: a code (`E_NOTE_PUT`), a name made of a few known characters (an
-//! error type, a function, a binary's file name, a source file), a number, or
-//! an address inside one of the binaries the event lists. Every other field,
-//! and any value of another shape, is left out. Note text, titles, file
-//! paths that name the user and memory contents (attachments included) so
-//! never leave the device, whatever an event was filled with. Panics, native
-//! crashes and saved native crash reports all pass through it, the last ones
-//! both when they are saved and when they are sent.
+//! What a crash report may carry: an allowlist, field by field. `scrub_event` builds a new event
+//! from a fixed list of the fields of the one it is given, and keeps each value only in the shape
+//! its field must have: a code (`E_NOTE_PUT`), a name made of a few known characters, a number, or
+//! an address inside one of the binaries the event lists. Every other field, and any value of
+//! another shape, is left out, so note text, titles, paths that name the user and memory contents
+//! (attachments included) never leave the device, whatever an event was filled with. Panics, native
+//! crashes and saved native crash reports all pass through it, the last ones both when saved and
+//! when sent.
 
 use crate::{crash_reporter, logs};
 use sentry::protocol::{
@@ -34,7 +30,6 @@ const SOURCE_EXTENSIONS: [&str; 19] = [
     "jsx", "ts", "tsx", "mts",
 ];
 
-/// Up to `max` bytes, at least one, each one `allowed`.
 fn made_of(text: &str, max: usize, allowed: impl Fn(u8) -> bool) -> bool {
     !text.is_empty() && text.len() <= max && text.bytes().all(allowed)
 }
@@ -66,12 +61,10 @@ fn is_thread_name(text: &str) -> bool {
     })
 }
 
-/// A function or symbol name: printable ASCII, as compilers write them.
 fn is_symbol(text: &str) -> bool {
     made_of(text, MAX_SYMBOL, |b| (0x20..0x7f).contains(&b))
 }
 
-/// A thread ID: a number, sometimes written as text.
 fn thread_id(id: &ThreadId) -> Option<ThreadId> {
     match id {
         ThreadId::Int(n) => Some(ThreadId::Int(*n)),
@@ -143,7 +136,6 @@ fn source_path(path: &str) -> Option<String> {
     made_of(&path, MAX_PATH, |b| (0x20..0x7f).contains(&b)).then_some(path)
 }
 
-/// The code a text starts with, or a placeholder.
 fn redact(text: &str) -> String {
     match logs::panic_code(text) {
         "E_UNKNOWN" => REDACTED.into(),
@@ -175,7 +167,6 @@ fn error_type(text: &str) -> String {
     }
 }
 
-/// A binary the event lists, and where it is loaded.
 struct Listed {
     image: DebugImage,
     start: u64,
@@ -241,15 +232,12 @@ fn image_of(images: &[Listed], address: u64) -> Option<usize> {
         .map(|(i, _)| i)
 }
 
-/// The binaries the kept addresses are in.
 struct Images {
     listed: Vec<Listed>,
     used: Vec<bool>,
 }
 
 impl Images {
-    /// Whether `address` is inside a listed binary, which the event then
-    /// keeps.
     fn holds(&mut self, address: u64) -> bool {
         let found = image_of(&self.listed, address);
         if let Some(i) = found {
@@ -259,8 +247,6 @@ impl Images {
     }
 }
 
-/// The parts of a frame that locate code: names, a source file and line,
-/// and addresses inside a listed binary. A frame left with none of them goes.
 fn scrub_frame(frame: &Frame, images: &mut Images) -> Option<Frame> {
     let instruction_addr = frame.instruction_addr.filter(|a| images.holds(a.0));
     let out = Frame {
@@ -367,8 +353,6 @@ fn scrub_thread(thread: &Thread, images: &mut Images) -> Thread {
     }
 }
 
-/// The system: OS name, version and build; CPU, model and family (never the
-/// device's name); the Rust compiler. Each only in its own shape.
 fn scrub_contexts(contexts: &Map<String, Context>) -> Map<String, Context> {
     let mut kept = Map::new();
     if let Some(Context::Os(os)) = contexts.get("os") {
@@ -427,9 +411,6 @@ fn scrub_contexts(contexts: &Map<String, Context>) -> Map<String, Context> {
     kept
 }
 
-/// Builds the event that may leave the device from `event`: codes, error
-/// types, code locations, addresses inside the binaries it lists (and
-/// those binaries by file name and debug ID), release and system details.
 pub fn scrub_event(event: Event<'static>) -> Event<'static> {
     let listed: Vec<Listed> = event
         .debug_meta
@@ -454,7 +435,6 @@ pub fn scrub_event(event: Event<'static>) -> Event<'static> {
         .map(|thread| scrub_thread(thread, &mut images))
         .collect();
     let stacktrace = scrub_stack(event.stacktrace.as_ref(), &mut images);
-    // Only the binaries a kept address is in.
     let kept_images = images
         .listed
         .into_iter()
@@ -523,11 +503,9 @@ mod tests {
 
     const NOTE: &str = "buy oat milk";
     const TITLE: &str = "Diary 2026";
-    /// A title in a script other than Latin (written as escapes).
     const WIDE_TITLE: &str = "\u{65e5}\u{8a18} 2026";
     const USER: &str = "alice";
     const NOTE_PATH: &str = "/Users/alice/Documents/Diary 2026.md";
-    /// The first bytes of a PNG attachment, as base64 and as hex.
     const ATTACHMENT: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB";
     const ATTACHMENT_HEX: &str = "89504e470d0a1a0a";
     /// Everything a field could be filled with that must never leave.
@@ -585,7 +563,6 @@ mod tests {
         map
     }
 
-    /// A frame with every field filled, at `address`.
     fn secret_frame(address: u64) -> Frame {
         Frame {
             function: Some(SECRET.into()),
@@ -652,9 +629,6 @@ mod tests {
         }
     }
 
-    /// An event with every field the protocol has filled with note text,
-    /// titles, paths that name the user, attachment bytes and addresses
-    /// made of text.
     fn poisoned_event() -> Event<'static> {
         let mut event = Event {
             level: Level::Fatal,
@@ -816,7 +790,6 @@ mod tests {
         assert_none_left(&scrub_event(poisoned_event()));
     }
 
-    /// A panic or native crash as the SDK and the crash reporter fill it in.
     fn crash_event() -> Event<'static> {
         let frame = |function: &str, address: u64| Frame {
             function: Some(function.into()),
@@ -984,7 +957,6 @@ mod tests {
         assert_eq!(thread.name.as_deref(), Some("devot-db"));
         assert_eq!(thread.id, Some(ThreadId::Int(9)));
         assert_eq!(thread.stacktrace.as_ref().unwrap().frames.len(), 1);
-        // Only the binary the frames are in, by file name.
         let images: Vec<_> = event
             .debug_meta
             .images
@@ -1096,7 +1068,6 @@ mod tests {
                 .mach_exception
                 .clone()
         };
-        // A null pointer and an offset; code in the app.
         assert_eq!(with_subcode(0x10).map(|m| m.subcode), Some(0x10));
         assert_eq!(with_subcode(IN_APP).map(|m| m.subcode), Some(IN_APP));
         // Anywhere else it could be data used as a pointer.
@@ -1117,7 +1088,6 @@ mod tests {
             "EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"
         );
         assert_eq!(ty("std::io::Error"), "std::io::Error");
-        // Numbers a crash reason can end with are not names.
         assert_eq!(
             ty("EXC_GUARD / GUARD_TYPE_USER/ namespace: 1 guard identifier: 2318961367093045604"),
             "EXC_GUARD / GUARD_TYPE_USER"
@@ -1145,7 +1115,6 @@ mod tests {
         let DebugImage::Symbolic(image) = &event.debug_meta.images[0] else {
             panic!("the app image is kept");
         };
-        // Still matched by its debug ID; its name is not one a binary has.
         assert_eq!(image.name, "<redacted>");
         assert_eq!(image.id, DEBUG_ID.parse().unwrap());
         let frame = &event.exception.values[0]

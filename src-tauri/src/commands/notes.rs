@@ -8,16 +8,11 @@ pub(crate) const MAX_TITLE_CHARS: usize = 1_000;
 const MAX_HLC_LEN: usize = 64;
 pub(crate) const MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
 pub(crate) const MAX_YDOC_BYTES: usize = 64 * 1024 * 1024;
-/// Notes one body may link to; far above any real note. Matches MAX_NOTE_LINKS
-/// in src/core/links.ts, which devot-mcp checks before it writes.
+/// Matches MAX_NOTE_LINKS in src/core/links.ts, which devot-mcp checks before it writes.
 const MAX_LINKS: usize = 10_000;
-/// The largest version a note's body may be at, the largest whole number
-/// JavaScript holds exactly: a write is based on a version below it, so the
-/// version storage moves it on to stays exact in the core. Matches
-/// MAX_BODY_VERSION in src/core/noteLimits.ts.
+/// The largest whole number JavaScript holds exactly, so the version storage moves a write on to stays exact in the core. Matches MAX_BODY_VERSION in src/core/noteLimits.ts.
 const MAX_BODY_VERSION: i64 = 9_007_199_254_740_991;
 
-/// A note as it crosses the IPC boundary: the Yjs state travels as base64.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteDto {
@@ -26,8 +21,6 @@ pub struct NoteDto {
     pub title_hlc: String,
     pub body_md: String,
     pub ydoc: String,
-    /// The version of the stored body the note's body is based on (see
-    /// `Store::put_note`).
     pub body_version: i64,
     pub book_id: Option<String>,
     /// Empty when the notebook was never set.
@@ -71,7 +64,6 @@ impl From<NoteRecord> for NoteDto {
     }
 }
 
-/// Accepts only canonical, lowercase UUIDv7 strings (notes and notebooks).
 pub(crate) fn valid_note_id(id: &str) -> bool {
     uuid::Uuid::try_parse(id)
         .is_ok_and(|u| u.get_version_num() == 7 && u.hyphenated().to_string() == id)
@@ -171,8 +163,7 @@ pub async fn note_get(
 }
 
 #[tauri::command]
-/// `links`: the note IDs the body links to (the core's `noteLinks`), for the
-/// link index.
+/// `links`: the note IDs the body links to, for the link index.
 pub async fn note_put(db: State<'_, Db>, note: NoteDto, links: Vec<String>) -> Result<(), String> {
     let record = note.into_record().map_err(String::from)?;
     validate_links(&links).map_err(String::from)?;
@@ -191,12 +182,9 @@ fn validate_links(links: &[String]) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Conditions in one search: the core sends at most 10 clauses of a query
-/// (MAX_SEARCH_TERMS in src/core/search.ts) plus two for the current view.
+/// The core sends at most 10 clauses of a query (MAX_SEARCH_TERMS in src/core/search.ts) plus two for the current view.
 const MAX_SEARCH_CONDITIONS: usize = 12;
 const MAX_TERM_CHARS: usize = 100;
-/// IDs in one condition: a notebook with all its sub-notebooks, or every tag
-/// with one name; far above any real library.
 const MAX_SEARCH_IDS: usize = 10_000;
 const SEARCH_LIMIT: u32 = 200;
 
@@ -222,8 +210,6 @@ fn validate_query(query: &NoteQuery) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Live notes meeting every condition; the core turns the query text into
-/// conditions (names into IDs).
 #[tauri::command]
 pub async fn notes_search(db: State<'_, Db>, query: NoteQuery) -> Result<Vec<NoteSummary>, String> {
     validate_query(&query).map_err(String::from)?;
@@ -294,7 +280,6 @@ mod tests {
         assert_eq!(record.ydoc, vec![1, 2, 3]);
         assert_eq!(record.body_version, 4);
         assert_eq!(NoteDto::from(record), dto());
-        // The largest version a write may be based on.
         let last = NoteDto {
             body_version: MAX_BODY_VERSION - 1,
             ..dto()
@@ -316,9 +301,7 @@ mod tests {
         assert!(valid_note_id(ID));
     }
 
-    /// The Templates notebook's reserved ID (TEMPLATES_BOOK_ID in
-    /// src/core/books.ts; a policy test checks they match) is accepted as a
-    /// note's notebook and in search conditions.
+    /// TEMPLATES_BOOK_ID in src/core/books.ts (a policy test checks they match).
     #[test]
     fn accepts_the_templates_notebook_id() {
         const TEMPLATES_BOOK_ID: &str = "00000000-0000-7000-8000-000000000001";
@@ -479,10 +462,7 @@ mod tests {
         assert_eq!(validate_purge(ID, 1, ""), Err("E_NOTE_HLC_INVALID"));
     }
 
-    /// The core cuts titles to MAX_TITLE_CHARS code points (MAX_TITLE_CHARS
-    /// in src/core/noteLimits.ts; a policy test checks they match): a title
-    /// of that many characters outside the Basic Multilingual Plane, two
-    /// UTF-16 units each, is taken.
+    /// The core cuts titles to MAX_TITLE_CHARS code points (src/core/noteLimits.ts; a policy test checks they match). Astral characters count two UTF-16 units each.
     #[test]
     fn counts_a_title_in_characters() {
         let longest = NoteDto {

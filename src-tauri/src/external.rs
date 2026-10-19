@@ -1,22 +1,14 @@
-//! Web links leave the app: an https URL opens in the user's browser, and
-//! the app's own page never navigates to it. Pop-ups from embeds (an iframe
-//! asking for a new window) take the same path. `/usr/bin/open` takes the
-//! URL to the browser (and the diagnostics bundle to Finder); the app never
-//! waits for it, but always reaps it (`spawn_reaped`).
+//! Web links leave the app: an https URL opens in the user's browser and the app's own page never navigates to it. Pop-ups from embeds take the same path.
 
 use std::process::Command;
 use tauri::webview::{NewWindowFeatures, NewWindowResponse};
 use tauri::{Runtime, Url};
 
-/// Accepts only plain https URLs with a host and no credentials.
 fn validate(url: &str) -> Result<Url, &'static str> {
     crate::net::https_url(url)
 }
 
-/// Starts `command` and returns its process ID without waiting for it; a
-/// thread of its own waits for it to exit (and logs `code` with the exit
-/// code when it failed). A child nobody waits for stays in the process table
-/// as a zombie (`open` listed as defunct) until the app quits.
+/// Reaps the child on its own thread: an unwaited child stays a zombie (`open` listed as defunct) until the app quits.
 pub(crate) fn spawn_reaped(mut command: Command, code: &'static str) -> std::io::Result<u32> {
     let mut child = command.spawn()?;
     let pid = child.id();
@@ -50,14 +42,12 @@ fn open_in_browser(url: &Url) -> Result<(), &'static str> {
     }
 }
 
-/// Opens an https link from a note in the default browser.
 #[tauri::command]
 pub fn open_external(url: String) -> Result<(), String> {
     let url = validate(&url)?;
     open_in_browser(&url).map_err(String::from)
 }
 
-/// New-window requests never create app windows; https ones go to the browser.
 pub fn on_new_window<R: Runtime>(url: Url, _features: NewWindowFeatures) -> NewWindowResponse<R> {
     match validate(url.as_str()) {
         Ok(url) => {
@@ -95,9 +85,7 @@ mod tests {
         }
     }
 
-    /// Exited children nobody waited for stay in the process table as
-    /// zombies (`ps` state Z, `open` listed as defunct) until the app quits:
-    /// one for every link opened and every diagnostics export.
+    /// Children nobody waits for stay in the process table as zombies until the app quits.
     #[cfg(unix)]
     #[test]
     fn reaps_the_programs_it_starts() {
@@ -111,7 +99,6 @@ mod tests {
             String::from_utf8_lossy(&ps.stdout).trim().to_owned()
         };
         let deadline = Instant::now() + Duration::from_secs(5);
-        // `true` exits at once; once reaped it is gone from the table.
         let mut last = state();
         while !last.is_empty() {
             assert!(

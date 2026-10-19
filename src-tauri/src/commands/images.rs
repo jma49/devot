@@ -1,8 +1,4 @@
-//! Copy Image and Save Image As… for attachments (the image context menu).
-//! The web view names an attachment by its ID only: Rust reads the bytes
-//! from the database, puts them on the pasteboard, or asks the user where to
-//! save them with the system save panel and writes them there. The page
-//! never names a path.
+//! Copy Image and Save Image As for attachments. The web view names an attachment by its ID only; Rust reads the bytes and, for saving, asks for the path with the system save panel. The page never names a path.
 
 use super::notes::valid_note_id;
 use crate::storage::{Db, FileRecord};
@@ -11,7 +7,6 @@ use std::path::{Path, PathBuf};
 use tauri::{State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
-/// The file name extension for an attachment's type.
 pub fn extension_for(mime: &str) -> Option<&'static str> {
     Some(match mime {
         "image/png" => "png",
@@ -24,13 +19,10 @@ pub fn extension_for(mime: &str) -> Option<&'static str> {
     })
 }
 
-/// Extensions an attachment's name may end in, dropped from the suggestion.
 const IMAGE_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "webp", "avif", "heic", "heif", "tif", "tiff", "bmp",
 ];
 
-/// What the save panel suggests: the attachment's name without characters
-/// a file name cannot hold, ending in the extension for its type.
 pub fn save_name(name: &str, extension: &str) -> String {
     let cleaned: String = name
         .chars()
@@ -69,14 +61,11 @@ pub fn save_path(path: &Path) -> Result<PathBuf, &'static str> {
     Ok(path.to_owned())
 }
 
-/// Writes the bytes next to `path` first (a new temporary file, never
-/// through a link, see `atomic_file`) and then renames them over it, so a
-/// failed write never leaves half an image (or a damaged earlier file).
+/// Writes next to `path` first (never through a link, see `atomic_file`), then renames over it, so a failed write never leaves half an image.
 pub fn write_file(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
     crate::atomic_file::write_replacing(path, bytes).map_err(|_| "E_IMAGE_SAVE_FAILED")
 }
 
-/// The attachment with this ID, checked first.
 async fn attachment(db: &Db, id: String) -> Result<FileRecord, String> {
     if !valid_note_id(&id) {
         return Err("E_FILE_ID_INVALID".into());
@@ -87,14 +76,10 @@ async fn attachment(db: &Db, id: String) -> Result<FileRecord, String> {
         .ok_or_else(|| "E_FILE_NOT_FOUND".into())
 }
 
-/// The most pixels an image may have for Copy Image: the pasteboard gets it
-/// decoded (as TIFF, four bytes a pixel), and decoding takes a few copies
-/// more, so a larger one would take gigabytes, which a file of a few MB can
-/// ask for. Twice a 48-megapixel photo; Save Image As… takes any size.
+/// Most pixels Copy Image takes: the pasteboard gets the image decoded (TIFF, four bytes a pixel) and decoding takes a few copies more, so a few-MB file could ask for gigabytes. Save Image As takes any size.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const MAX_COPY_PIXELS: u64 = 100_000_000;
 
-/// Puts an attachment on the general pasteboard as image data.
 #[tauri::command]
 pub async fn image_copy(
     app: tauri::AppHandle,
@@ -105,8 +90,7 @@ pub async fn image_copy(
     #[cfg(target_os = "macos")]
     {
         use crate::native::macos;
-        // Decoding and converting run off the main thread; only the
-        // pasteboard write runs there.
+        // Decoding and converting run off the main thread; only the pasteboard write runs there.
         let image = tauri::async_runtime::spawn_blocking(move || {
             macos::pasteboard_image(&file.data, MAX_COPY_PIXELS)
         })
@@ -130,9 +114,7 @@ pub async fn image_copy(
     }
 }
 
-/// Asks where to save an attachment (the system save panel, over the
-/// window) and writes it there. True once saved; false when the user
-/// cancelled.
+/// True once saved; false when the user cancelled.
 #[tauri::command]
 pub async fn image_save(
     window: WebviewWindow,
@@ -205,7 +187,6 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         for ok in ["a.png", "a.PNG", "a", "a.gif"] {
             let path = dir.path().join(ok);
-            // Written as chosen, never renamed (which could replace another file).
             assert_eq!(save_path(&path), Ok(path.clone()));
         }
         for bad in [
@@ -225,13 +206,11 @@ mod tests {
         std::fs::write(&path, b"old").unwrap();
         assert_eq!(write_file(&path, b"\x89PNG new"), Ok(()));
         assert_eq!(std::fs::read(&path).unwrap(), b"\x89PNG new");
-        // No temporary file is left beside it.
         let names: Vec<_> = std::fs::read_dir(dir.path())
             .unwrap()
             .map(|e| e.unwrap().file_name())
             .collect();
         assert_eq!(names, vec![std::ffi::OsString::from("a.png")]);
-        // A folder that went away: an error, nothing written.
         let gone = dir.path().join("gone").join("a.png");
         assert_eq!(write_file(&gone, b"x"), Err("E_IMAGE_SAVE_FAILED"));
     }
@@ -243,9 +222,7 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         let theirs = outside.path().join("theirs.txt");
         std::fs::write(&theirs, b"theirs").unwrap();
-        // The name the bytes once went to first (`.<name>.devot-tmp`) was
-        // easy to guess: a link planted there in a shared or downloaded
-        // folder took the image wherever it pointed.
+        // The name the bytes once went to first was easy to guess: a link planted there in a shared folder took the image wherever it pointed.
         std::os::unix::fs::symlink(&theirs, dir.path().join(".a.png.devot-tmp")).unwrap();
         let path = dir.path().join("a.png");
         assert_eq!(write_file(&path, b"\x89PNG new"), Ok(()));
@@ -254,14 +231,10 @@ mod tests {
         assert_eq!(std::fs::read(&theirs).unwrap(), b"theirs");
     }
 
-    /// A small file can hold an image of so many pixels that its decoded
-    /// copies would take gigabytes; its header is read first, and nothing is
-    /// decoded past the limit.
     #[cfg(target_os = "macos")]
     #[test]
     fn copies_no_image_over_the_pixel_limit() {
         use crate::native::macos;
-        // A 1x1 PNG.
         const PNG: &[u8] = &[
             0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48,
             0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x04, 0x00, 0x00,

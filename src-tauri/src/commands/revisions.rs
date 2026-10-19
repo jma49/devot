@@ -11,11 +11,9 @@ use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-/// Revisions one call may delete; far above what one note keeps, and above
-/// the core's batches of compaction.
+/// Far above what one note keeps and the core's compaction batches.
 const MAX_DELETE_IDS: usize = 10_000;
 
-/// A revision as it crosses the IPC boundary: the Yjs state travels as base64.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RevisionDto {
@@ -42,7 +40,6 @@ impl From<RevisionRecord> for RevisionDto {
     }
 }
 
-/// Whether `value` is a valid new value for a metadata event of `kind`.
 fn valid_event_value(kind: &str, value: Option<&str>) -> bool {
     match (kind, value) {
         ("title", Some(title)) => {
@@ -100,10 +97,8 @@ impl RevisionDto {
     }
 }
 
-/// Notes one page of a sweep's listing may hold.
 const MAX_PAGE_NOTES: u32 = 10_000;
 
-/// A sweep's time range: from at or after the epoch, up to a later time.
 fn validate_range(from: i64, to: i64) -> Result<(), &'static str> {
     if from < 0 || to < from {
         return Err("E_REVISION_TIME_INVALID");
@@ -111,8 +106,6 @@ fn validate_range(from: i64, to: i64) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// A page of a sweep's listing: after no note ("") or a note's ID, and at
-/// least one note, at most `MAX_PAGE_NOTES`.
 fn validate_page(after: &str, limit: u32) -> Result<(), &'static str> {
     if !after.is_empty() && !valid_note_id(after) {
         return Err("E_REVISION_ID_INVALID");
@@ -123,7 +116,6 @@ fn validate_page(after: &str, limit: u32) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// What a compaction sweep deletes, and the time it records, if any.
 fn validate_compact(ids: &[String], swept_at: Option<i64>) -> Result<(), &'static str> {
     if !ids.iter().all(|id| valid_note_id(id)) {
         return Err("E_REVISION_ID_INVALID");
@@ -206,8 +198,6 @@ pub async fn revisions_compactable(
         .map_err(|e| e.to_string())
 }
 
-/// Deletes plain body versions a compaction sweep dropped and, with
-/// `swept_at`, records when the sweep ran.
 #[tauri::command]
 pub async fn revisions_compact(
     db: State<'_, Db>,

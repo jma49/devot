@@ -22,7 +22,6 @@ fn validate_tag(tag: &TagRecord) -> Result<(), &'static str> {
     {
         return Err("E_TAG_HLC_INVALID");
     }
-    // A colour is a palette ID, set with the HLC of that change.
     if let Some(color) = &tag.color
         && (!TAG_COLORS.contains(&color.as_str()) || tag.color_hlc.is_empty())
     {
@@ -154,9 +153,7 @@ mod tests {
         }
     }
 
-    /// tests/support/names.json: names and what the core makes of them. A
-    /// cleaned name is accepted; a name the core would change, or refuse, is
-    /// refused here, so both sides trim by one whitespace rule.
+    /// tests/support/names.json: a name the core would change or refuse is refused here too, so both sides trim by one whitespace rule.
     #[test]
     fn trims_names_as_the_core_does() {
         let cases: Vec<serde_json::Value> =
@@ -195,7 +192,6 @@ mod tests {
             record.color_hlc = HLC.into();
             assert_eq!(validate_tag(&record), Ok(()), "{color}");
         }
-        // Taking the colour off carries the HLC of that change.
         let mut cleared = tag();
         cleared.color_hlc = HLC.into();
         assert_eq!(validate_tag(&cleared), Ok(()));
