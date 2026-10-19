@@ -11,20 +11,26 @@ import { tempDir } from '../support/temp-dirs'
 const SCRIPT = join(import.meta.dirname, '../../scripts/stack/restack.sh')
 const PROCESSES = { timeout: 30_000 }
 
+/** Without the GIT_* variables a git hook sets for the repository it runs in:
+ *  they would point these commands at that repository. */
+function gitEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')),
+  )
+  return {
+    ...env,
+    GIT_AUTHOR_NAME: 'Test',
+    GIT_AUTHOR_EMAIL: 'test@example.com',
+    GIT_COMMITTER_NAME: 'Test',
+    GIT_COMMITTER_EMAIL: 'test@example.com',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_SYSTEM: '/dev/null',
+    ...extra,
+  }
+}
+
 function git(cwd: string, ...args: string[]): string {
-  const result = spawnSync('git', args, {
-    cwd,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      GIT_AUTHOR_NAME: 'Test',
-      GIT_AUTHOR_EMAIL: 'test@example.com',
-      GIT_COMMITTER_NAME: 'Test',
-      GIT_COMMITTER_EMAIL: 'test@example.com',
-      GIT_CONFIG_GLOBAL: '/dev/null',
-      GIT_CONFIG_SYSTEM: '/dev/null',
-    },
-  })
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', env: gitEnv() })
   if (result.status !== 0) throw new Error(`git ${args.join(' ')}: ${result.stderr}`)
   return result.stdout.trim()
 }
@@ -41,8 +47,8 @@ function stackedRepo(layers: number) {
   const origin = join(tempDir('restack-origin-'), 'origin.git')
   git(tempDir('restack-init-'), 'init', '--bare', '-b', 'main', origin)
   const work = tempDir('restack-work-')
-  git(work, 'clone', origin, '.')
-  git(work, 'checkout', '-b', 'main')
+  git(work, 'init', '-b', 'main')
+  git(work, 'remote', 'add', 'origin', origin)
   commit(work, 'base.txt', 'base')
   git(work, 'push', '-u', 'origin', 'main')
 
@@ -68,16 +74,7 @@ function restack(work: string, oldTip: string, ...branches: string[]) {
   return spawnSync('bash', [SCRIPT, '--old-tip', oldTip, ...branches], {
     cwd: work,
     encoding: 'utf8',
-    env: {
-      ...process.env,
-      DEVOT_RESTACK_NO_GH: '1',
-      GIT_AUTHOR_NAME: 'Test',
-      GIT_AUTHOR_EMAIL: 'test@example.com',
-      GIT_COMMITTER_NAME: 'Test',
-      GIT_COMMITTER_EMAIL: 'test@example.com',
-      GIT_CONFIG_GLOBAL: '/dev/null',
-      GIT_CONFIG_SYSTEM: '/dev/null',
-    },
+    env: gitEnv({ DEVOT_RESTACK_NO_GH: '1' }),
   })
 }
 
@@ -117,7 +114,7 @@ describe('restack.sh', () => {
     const result = spawnSync(
       'bash',
       [SCRIPT, '--dry-run', '--old-tip', oldTip, 'layer1', 'layer2'],
-      { cwd: work, encoding: 'utf8', env: { ...process.env, DEVOT_RESTACK_NO_GH: '1' } },
+      { cwd: work, encoding: 'utf8', env: gitEnv({ DEVOT_RESTACK_NO_GH: '1' }) },
     )
     expect(result.status).toBe(0)
     expect(result.stdout).toContain(`git rebase --onto origin/main ${oldTip} layer2`)
