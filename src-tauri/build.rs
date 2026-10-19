@@ -33,6 +33,7 @@ fn main() {
             "editor_menu_popup",
             "notes_list",
             "note_get",
+            "notes_bodies",
             "note_put",
             "notes_search",
             "notes_trash_list",

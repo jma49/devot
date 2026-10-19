@@ -89,6 +89,7 @@ export function fromWire(wire: WireStorage): StorageAdapter {
       const note = await wire.getNote(id, options)
       return note ? noteIn(note) : null
     },
+    getBodies: (ids) => wire.getBodies(ids),
     searchNotes: (query, limit) => wire.searchNotes(query, limit),
     listTrash: () => wire.listTrash(),
     purgeNote: (id, at, hlc) => wire.purgeNote(id, at, hlc),

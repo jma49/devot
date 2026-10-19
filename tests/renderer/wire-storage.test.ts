@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type NoteRecord, type RevisionRecord } from '../../src/core'
 import { invoke } from '../../src/renderer/src/ipc'
-import { tauriWire } from '../../src/renderer/src/storage/tauri'
+import { tauriStorage, tauriWire } from '../../src/renderer/src/storage/tauri'
 import {
   fromBase64,
   fromWire,
@@ -189,6 +189,14 @@ describe('the page’s side', () => {
     vi.mocked(invoke).mockResolvedValueOnce(record)
     expect(await tauriWire.getNote(record.id)).toBe(record)
     expect(invoke).toHaveBeenLastCalledWith('note_get', { id: record.id, trashed: false })
+  })
+
+  it('reads list rows’ bodies for many notes in one call', async () => {
+    const bodies = [{ id: 'a', title: 'A', bodyMd: 'text' }]
+    vi.mocked(invoke).mockResolvedValueOnce(bodies)
+    expect(await tauriStorage.getBodies(['a', 'b'])).toEqual(bodies)
+    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(invoke).toHaveBeenLastCalledWith('notes_bodies', { ids: ['a', 'b'] })
   })
 
   it('costs the UI thread no work for each byte of a 4 MiB state', async (context) => {

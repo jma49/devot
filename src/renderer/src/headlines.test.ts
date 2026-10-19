@@ -63,6 +63,36 @@ describe('mergeHeadlines', () => {
   })
 })
 
+describe('row details cache', () => {
+  it('asks for every shown row once, and again only for a row written since', () => {
+    const first = [note('a', 'A', 1), note('b', 'B', 1)]
+    const asked = staleHeadlines(first, new Map(), true).map((n) => n.id)
+    expect(asked).toEqual(['a', 'b'])
+    const found = {
+      a: { excerpt: 'one', progress: '' },
+      b: { excerpt: 'two', progress: '1/2' },
+    }
+    const cache = mergeHeadlines(
+      new Map(),
+      found,
+      new Map([
+        ['a', 1],
+        ['b', 1],
+      ]),
+    )
+    expect(staleHeadlines(first, cache, true)).toEqual([])
+    const edited = [note('a', 'A', 1), note('b', 'B', 2)]
+    expect(staleHeadlines(edited, cache, true).map((n) => n.id)).toEqual(['b'])
+    const next = mergeHeadlines(
+      cache,
+      { b: { excerpt: 'two', progress: '2/2' } },
+      new Map([['b', 2]]),
+    )
+    expect(next.get('b')?.text.progress).toBe('2/2')
+    expect(next.get('a')?.text.excerpt).toBe('one')
+  })
+})
+
 describe('displayTitle', () => {
   it('is the title, else the headline, else Untitled', () => {
     expect(displayTitle('Plan', 'First line')).toBe('Plan')

@@ -221,6 +221,43 @@ fn round_trips_a_note() {
 }
 
 #[test]
+fn reads_bodies_in_one_call_without_purged_or_unknown_notes() {
+    let (_dir, mut store) = temp_store();
+    for (id, title) in [("a", "First"), ("b", "Second"), ("c", "Third")] {
+        store.put_note(&note(id, title, 10), &[]).unwrap();
+    }
+    let trashed = NoteRecord {
+        deleted_at: Some(11),
+        deleted_hlc: Some("0000000000011-0000-test".into()),
+        ..based_on(1, note("b", "Second", 11))
+    };
+    store.put_note(&trashed, &[]).unwrap();
+    store
+        .purge_note("c", 20, "0000000000000020-0000-test")
+        .unwrap();
+    let ids: Vec<String> = ["b", "missing", "a", "c"].map(String::from).into();
+    let body = |id: &str, title: &str| NoteBody {
+        id: id.into(),
+        title: title.into(),
+        body_md: format!("# {title}\n"),
+    };
+    assert_eq!(
+        store.get_bodies(&ids).unwrap(),
+        [body("b", "Second"), body("a", "First")]
+    );
+
+    let edited = NoteRecord {
+        body_md: "- [x] done\n".into(),
+        ..based_on(1, note("a", "First", 12))
+    };
+    store.put_note(&edited, &[]).unwrap();
+    assert_eq!(
+        store.get_bodies(&["a".to_string()]).unwrap()[0].body_md,
+        "- [x] done\n"
+    );
+}
+
+#[test]
 fn put_replaces_an_existing_note_but_keeps_created_at() {
     let (_dir, mut store) = temp_store();
     store.put_note(&note("a", "Old", 10), &[]).unwrap();

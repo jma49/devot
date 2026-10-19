@@ -455,6 +455,9 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const get = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL')
   const bodyMd = db.prepare<[string], { body_md: string }>('SELECT body_md FROM notes WHERE id = ?')
   const getAny = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND purged_at IS NULL')
+  const bodyRow = db.prepare<[string], { id: string; title: string; body_md: string }>(
+    'SELECT id, title, body_md FROM notes WHERE id = ? AND purged_at IS NULL',
+  )
   const trash = db.prepare<[], TrashedNote>(LIST_SQL.trash)
   // Wipes the content and keeps the tombstone; a purge is final.
   const purge = db.prepare(
@@ -657,6 +660,11 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         datesHlc: row.dates_hlc,
       } satisfies NoteRecord
     },
+    getBodies: async (ids) =>
+      ids.flatMap((id) => {
+        const row = bodyRow.get(id)
+        return row ? [{ id: row.id, title: row.title, bodyMd: row.body_md }] : []
+      }),
     async putNote(note) {
       // What the app's note_put refuses, this refuses too.
       const links = noteLinks(note.bodyMd)

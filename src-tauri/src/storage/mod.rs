@@ -400,6 +400,15 @@ const TRASH_LIST_SQL: &str =
     "SELECT id, title, deleted_at AS deletedAt, book_id AS bookId FROM notes INDEXED BY notes_trash
      WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC, id DESC";
 
+/// What a list row reads from a note: its title and Markdown body, never its Yjs state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteBody {
+    pub id: String,
+    pub title: String,
+    pub body_md: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteSummary {
@@ -1014,6 +1023,27 @@ impl Store {
         let mut statement = self.conn.prepare_cached(NOTES_LIST_SQL)?;
         let rows = statement.query_map([], summary)?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// The bodies of `ids` in their order, trashed notes included; purged and unknown IDs are left out.
+    pub fn get_bodies(&self, ids: &[String]) -> Result<Vec<NoteBody>> {
+        let mut statement = self.conn.prepare_cached(
+            "SELECT id, title, body_md FROM notes WHERE id = ?1 AND purged_at IS NULL",
+        )?;
+        let mut found = Vec::with_capacity(ids.len());
+        for id in ids {
+            let body = statement
+                .query_row([id], |row| {
+                    Ok(NoteBody {
+                        id: row.get(0)?,
+                        title: row.get(1)?,
+                        body_md: row.get(2)?,
+                    })
+                })
+                .optional()?;
+            found.extend(body);
+        }
+        Ok(found)
     }
 
     /// With `trashed`, a trashed note too (never a purged one).

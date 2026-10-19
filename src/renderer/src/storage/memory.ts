@@ -71,6 +71,25 @@ function read<T>(key: string): T[] {
   }
 }
 
+// Rows read their notes one at a time (excerpts, headlines), and parsing every
+// note for each would make a large library's list cost what the app's indexed
+// lookup does not. Keyed by the stored text, so any write (a test's too) is seen.
+let noteIndex: { raw: string | null; byId: Map<string, Stored> } | undefined
+
+function storedNote(id: string): Stored | undefined {
+  const raw = localStorage.getItem(NOTES)
+  if (noteIndex?.raw !== raw) {
+    const byId = new Map<string, Stored>()
+    let all: Stored[] = []
+    try {
+      all = JSON.parse(raw ?? '[]') as Stored[]
+    } catch {}
+    for (const n of all) if (!byId.has(n.id)) byId.set(n.id, n)
+    noteIndex = { raw, byId }
+  }
+  return noteIndex.byId.get(id)
+}
+
 function newer<T>(current: T, next: T, field: keyof T, hlc: keyof T): Partial<T> {
   const a = String(current[hlc] ?? '')
   const b = String(next[hlc] ?? '')
@@ -151,12 +170,16 @@ export const memoryStorage: StorageAdapter = {
       }))
   },
   async getNote(id, options) {
-    const n = read<Stored>(NOTES).find(
-      (x) => x.id === id && x.purgedAt === undefined && (options?.trashed || x.deletedAt === null),
-    )
-    if (!n) return null
+    const n = storedNote(id)
+    if (!n || n.purgedAt !== undefined || (!options?.trashed && n.deletedAt !== null)) return null
     const { purgedAt: _, ...record } = n
     return { ...record, bodyVersion: n.bodyVersion ?? 0, ydoc: new Uint8Array(n.ydoc) }
+  },
+  async getBodies(ids) {
+    return ids.flatMap((id) => {
+      const n = storedNote(id)
+      return n && n.purgedAt === undefined ? [{ id, title: n.title, bodyMd: n.bodyMd }] : []
+    })
   },
   async searchNotes(query, limit) {
     const live = await memoryStorage.listNotes()

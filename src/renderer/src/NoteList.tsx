@@ -12,7 +12,7 @@ import {
   type ReactNode,
   type Ref,
 } from 'react'
-import type { NoteSummary, TagRecord } from '../../core'
+import type { NoteSummary, RowDetail, TagRecord } from '../../core'
 import { listCaption } from './format'
 import { currentLocale, t } from './i18n'
 import { Icon } from './icons/Icon'
@@ -77,9 +77,8 @@ interface Props {
   drag?: 'notes' | 'templates' | false
   /** Looks up the first line a row shows for an untitled note; without it such a row shows "Untitled". */
   headlines?: HeadlineLoader | undefined
-  /** Looks up the body excerpt a row shows under its title (search results bring their own). */
-  excerpts?: HeadlineLoader | undefined
-  progress?: HeadlineLoader | undefined
+  /** Looks up the body excerpt (search results bring their own) and task progress a row shows under its title, in one read. */
+  details?: HeadlineLoader<RowDetail> | undefined
   empty?: ListEmptyKind | undefined
 }
 
@@ -115,13 +114,14 @@ export const NoteList = memo(function NoteList(props: Props) {
   const { title, scope, pinned, selected, onSelect, onCreate, tags, sortButtonRef } = props
   const notes = useMemo(() => [...pinned, ...props.notes], [pinned, props.notes])
   const order = useMemo(() => notes.map((n) => n.id), [notes])
+  const indexOf = useMemo(() => new Map(order.map((id, i) => [id, i])), [order])
   const { selection, onSelection } = props
-  const chosen = selection ? new Set(selection.ids) : undefined
+  const chosen = useMemo(() => (selection ? new Set(selection.ids) : undefined), [selection])
   // The row that takes Tab: the far end of a selection, else the open note's, else the first row, so the list always keeps a Tab stop.
   const tabStop =
-    selection && order.includes(selection.lead)
+    selection && indexOf.has(selection.lead)
       ? selection.lead
-      : selected !== undefined && order.includes(selected)
+      : selected !== undefined && indexOf.has(selected)
         ? selected
         : order[0]
   const rows = useRef(new Map<string, HTMLLIElement>())
@@ -211,8 +211,7 @@ export const NoteList = memo(function NoteList(props: Props) {
     [runs, entries],
   )
   const headlines = useHeadlines(props.headlines, rendered)
-  const previews = useHeadlines(props.excerpts, rendered, true)
-  const progress = useHeadlines(props.progress, rendered, true)
+  const details = useHeadlines(props.details, rendered, true)
   // Measures its entries and the list itself (gaps, padding, height) as they change, and renders again when that moves anything.
   const [sizes] = useState(
     () =>
@@ -375,20 +374,19 @@ export const NoteList = memo(function NoteList(props: Props) {
     const before = shown.current
     shown.current = { view: props.view, notes }
     const lost = keyboard.current
-    if (lost === undefined || notes.some((n) => n.id === lost)) return
+    if (lost === undefined || indexOf.has(lost)) return
     keyboard.current = undefined
     // Another view (the Trash, another notebook, another search) is not a
     // row leaving.
     if (before.view !== props.view) return
     const active = document.activeElement
     if (active && active !== document.body && active.isConnected) return
-    const listed = new Set(notes.map((n) => n.id))
-    if (selected !== undefined && selected !== lost && listed.has(selected)) {
+    if (selected !== undefined && selected !== lost && indexOf.has(selected)) {
       return focusRow(selected)
     }
     const ids = before.notes.map((n) => n.id)
     const at = ids.indexOf(lost)
-    const kept = (id: string) => listed.has(id)
+    const kept = (id: string) => indexOf.has(id)
     const next = ids.slice(at + 1).find(kept) ?? ids.slice(0, Math.max(at, 0)).findLast(kept)
     if (next === undefined) return list.current?.focus()
     focusRow(next)
@@ -459,7 +457,7 @@ export const NoteList = memo(function NoteList(props: Props) {
     }
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
     const to =
-      (selected !== undefined && order.includes(selected) ? selected : undefined) ??
+      (selected !== undefined && indexOf.has(selected) ? selected : undefined) ??
       notes[step < 0 ? notes.length - 1 : 0]?.id
     if (!step || to === undefined) return
     event.preventDefault()
@@ -551,7 +549,7 @@ export const NoteList = memo(function NoteList(props: Props) {
     setDragged(new Set(ids))
   })
   const keyDown = useStable((id: string, e: KeyboardEvent<HTMLLIElement>) =>
-    move(e, order.indexOf(id)),
+    move(e, indexOf.get(id) ?? -1),
   )
   const contextMenu = useStable((id: string, e: MouseEvent<HTMLLIElement>) => {
     e.preventDefault()
@@ -590,8 +588,8 @@ export const NoteList = memo(function NoteList(props: Props) {
         tags={tags}
         highlight={props.highlight}
         headline={headlines.get(n.id)}
-        preview={previews.get(n.id)}
-        progress={progress.get(n.id)}
+        preview={details.get(n.id)?.excerpt || undefined}
+        progress={details.get(n.id)?.progress || undefined}
         now={now}
         locale={locale}
         dates={dates}

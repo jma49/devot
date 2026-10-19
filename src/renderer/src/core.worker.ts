@@ -120,7 +120,7 @@ export const coreApi = {
     }),
   headlines: (ids: string[]) => required().headlines(ids),
   excerpts: (ids: string[]) => required().excerpts(ids),
-  progress: (ids: string[]) => required().progress(ids),
+  rowDetails: (ids: string[]) => required().rowDetails(ids),
   extract: (sourceId: string, markdown: string, title?: string) =>
     required().extract(sourceId, markdown, title),
   applyUpdate: (id: string, update: Uint8Array) => required().applyUpdate(id, update),
