@@ -84,7 +84,7 @@ async function page(options: Partial<PageOptions> = {}) {
 describe('HTML pages', () => {
   it('keeps the preview markup with its classes, without the attributes it uses itself', async () => {
     const { html } = await page()
-    expect(html).toContain('<h1 id="plan">Plan</h1>')
+    expect(html).toContain('<h1 id="user-content-plan">Plan</h1>')
     expect(html).toContain(
       '<div class="alert alert-warning"><p class="alert-title"><svg class="glyph alert-icon"',
     )
@@ -95,6 +95,19 @@ describe('HTML pages', () => {
     expect(html).toContain('class="task-list-item"')
     expect(html).not.toMatch(/\sdata-[a-z-]+=/)
     expect(html).not.toMatch(/<script|<iframe|<button|onerror|onload/i)
+  })
+
+  it('points a link to a heading at its prefixed id, as the preview does', async () => {
+    const tree = await renderPreview(
+      '[Jump](#the-end) [Raw](#mine) [Note](#user-content-fn-1)\n\n## The End\n\n<h3 id="mine">Mine</h3>',
+      { labels, loadedEmbeds: [] },
+    )
+    const { html } = pageBody(tree, { nonce: NONCE })
+    expect(html).toContain('<a href="#user-content-the-end">Jump</a>')
+    expect(html).toContain('<h2 id="user-content-the-end">The End</h2>')
+    expect(html).toContain('<a href="#user-content-mine">Raw</a>')
+    expect(html).toContain('<h3 id="user-content-mine">Mine</h3>')
+    expect(html).toContain('<a href="#user-content-fn-1">Note</a>')
   })
 
   it('gives each attachment one placeholder and leaves other images and text alone', async () => {
