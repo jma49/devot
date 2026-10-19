@@ -263,27 +263,38 @@ const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.le
 async function openAndType(browser: Browser, base: string, bytes: number, label: string) {
   const small = { title: 'Small note', body: 'Just a few words.' }
   const sample = { title: `Sample ${label}`, body: sampleNote(bytes) }
+  const fresh = { title: `Fresh ${label}`, body: sampleNote(bytes, ' (fresh)') }
   const diagrams = diagramCount(bytes)
   const page = await openPage(browser, base)
-  await seed(page, library(1000, [sample, small]))
-  await noteList(page).getByRole('option').first().click()
+  await seed(page, library(1000, [sample, small, fresh]))
+  await noteList(page).getByRole('option', { name: small.title }).click()
   await page
     .getByRole('group', { name: 'View mode' })
     .getByRole('button', { name: 'Split' })
     .click()
+  // About when a person opens another note after launch; the idle warm-up has run by then.
+  await page.waitForTimeout(2000)
 
-  const runs: OpenResult[] = []
-  for (let i = 0; i < RUNS.open; i += 1) {
+  const openAfterSmall = async (title: string) => {
     await openOnce(page, small.title, 0).catch(() => undefined)
     await page.getByRole('textbox', { name: 'Note body' }).getByText('Just a few words.').waitFor()
     await page.waitForTimeout(400)
-    runs.push(await openOnce(page, sample.title, diagrams))
+    return openOnce(page, title, diagrams)
+  }
+  const runs: OpenResult[] = []
+  for (let i = 0; i < RUNS.open; i += 1) {
+    runs.push(await openAfterSmall(sample.title))
     log(`open ${label} #${i + 1}: preview ${runs.at(-1)!.preview.toFixed(0)} ms`)
   }
+  // Warm runs reuse the worker's rendered pieces; this note was never rendered, so it is what the
+  // first open should match once the code paths are warm.
+  const unseen = await openAfterSmall(fresh.title)
+  log(`open ${label} unseen: preview ${unseen.preview.toFixed(0)} ms`)
   const warm = runs.slice(1)
   const field = (key: keyof OpenResult) => warm.map((r) => r[key]).filter((v) => v >= 0)
   const open = {
     first: runs[0],
+    unseen,
     warm: {
       editorMs: summarize(field('editor')),
       previewMs: summarize(field('preview')),

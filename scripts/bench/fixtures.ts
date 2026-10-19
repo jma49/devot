@@ -59,12 +59,12 @@ const CODE: readonly { lang: string; code: string }[] = [
   },
 ]
 
-function section(n: number, diagram: string | null, image: boolean): string {
+function section(n: number, diagram: string | null, image: boolean, tag: string): string {
   const code = CODE[n % CODE.length]!
   const other = CODE[(n + 5) % CODE.length]!
   const parts = [
-    `## Section ${n}: planning the week`,
-    `Notes about **bold claims**, *emphasis*, ~~strikethrough~~, \`inline code\` and a [link](https://example.com/${n}). Paragraph ${n} goes on for a while so that lines wrap in the editor and the preview: the quick brown fox jumps over the lazy dog, and the dog does not mind at all.`,
+    `## Section ${n}${tag}: planning the week`,
+    `Notes about **bold claims**, *emphasis*, ~~strikethrough~~, \`inline code\` and a [link](https://example.com/${n}). Paragraph ${n}${tag} goes on for a while so that lines wrap in the editor and the preview: the quick brown fox jumps over the lazy dog, and the dog does not mind at all.`,
     `- First point of section ${n}\n- Second point\n  - A nested point\n  - Another nested point\n- Third point`,
     '1. Step one\n2. Step two\n3. Step three',
     `- [x] Done task ${n}\n- [ ] Open task\n- [ ] Another open task`,
@@ -81,10 +81,13 @@ function section(n: number, diagram: string | null, image: boolean): string {
   return parts.join('\n\n')
 }
 
-/** Sections with every block type, repeated to about `bytes`, ending with SAMPLE_END. */
-export function sampleNote(bytes: number): string {
+/**
+ * Sections with every block type, repeated to about `bytes`, ending with SAMPLE_END. A `tag` puts
+ * different text in every section, so no piece of the note matches another sample's.
+ */
+export function sampleNote(bytes: number, tag = ''): string {
   const diagrams = diagramCount(bytes)
-  const unit = section(1, null, false).length + 2
+  const unit = section(1, null, false, tag).length + 2
   const sections = Math.max(diagrams, Math.ceil(bytes / unit))
   const gap = Math.floor(sections / diagrams)
   const out = ['# Benchmark sample', 'A generated note for measuring the editor and the preview.']
@@ -93,7 +96,7 @@ export function sampleNote(bytes: number): string {
     const diagram =
       placed < diagrams && (n - 1) % gap === 0 ? DIAGRAMS[placed % DIAGRAMS.length]! : null
     if (diagram) placed += 1
-    out.push(section(n, diagram, n % 4 === 0))
+    out.push(section(n, diagram, n % 4 === 0, tag))
   }
   out.push(SAMPLE_END)
   return out.join('\n\n')

@@ -1,6 +1,7 @@
 import { LanguageDescription } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
 import type { Core } from './core-client'
+import { patchPieces } from './preview/dom'
 import { previewLabels } from './preview/Preview'
 
 /** The code fence languages notes use most; others still load on first use. */
@@ -19,23 +20,44 @@ export const WARM_LANGUAGES = [
   'yaml',
 ] as const
 
+const WARM_BLOCKS = [
+  '## Blocks',
+  'Some **bold**, *emphasis*, ~~strike~~, `code` and a [link](https://example.com).',
+  '- One\n  - Nested\n- [x] Done\n- [ ] Open',
+  '1. Step',
+  '> [!NOTE]\n> An alert.',
+  '| A | B |\n| --- | ---: |\n| 1 | 2 |',
+  '$$\nx^2\n$$',
+  '---',
+].join('\n\n')
+
+/**
+ * About 20 KB in many pieces: the worker's JIT only settles after several passes, and both the first
+ * piece's path and the others' must run.
+ */
 export const WARM_SAMPLE = [
   '# Warm',
   ':sparkles: $e^{i\\pi} + 1 = 0$',
   ...WARM_LANGUAGES.map((lang) => `\`\`\`${lang}\nx\n\`\`\``),
+  ...Array.from({ length: 100 }, () => WARM_BLOCKS),
 ].join('\n\n')
+
+// WebKit has no requestIdleCallback; the render runs in the worker, so starting early costs little.
+const WEBKIT_IDLE_MS = 100
 
 type Idle = (run: () => void, options: { timeout: number }) => unknown
 
 /**
- * Loads what the first note open would otherwise wait for (preview highlighting, math, emoji, the
- * editor's code languages) once the window is idle, so the first open costs what later ones do.
+ * Runs what the first note open would otherwise run cold (the piecewise preview render and patch,
+ * highlighting, math, emoji, the editor's code languages) once the window is idle, so the first
+ * open costs what later ones do.
  */
 export function warmUp(core: Core, schedule: Idle = idle): void {
   schedule(
     () => {
       void core
-        .renderPreview(WARM_SAMPLE, { labels: previewLabels(), loadedEmbeds: [] })
+        .renderPreviewPieces(WARM_SAMPLE, { labels: previewLabels(), loadedEmbeds: [] }, [])
+        .then((pieces) => layOutOffscreen((body) => patchPieces(body, [], pieces)))
         .catch(() => {})
       for (const name of WARM_LANGUAGES) {
         void LanguageDescription.matchLanguageName(languages, name)
@@ -47,9 +69,24 @@ export function warmUp(core: Core, schedule: Idle = idle): void {
   )
 }
 
+/** Styles and lays out the sample once out of sight, so WebKit loads its fonts and styles too. */
+function layOutOffscreen(fill: (body: HTMLElement) => void): void {
+  const pane = document.createElement('article')
+  pane.className = 'preview'
+  pane.setAttribute('aria-hidden', 'true')
+  pane.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;visibility:hidden'
+  const body = document.createElement('div')
+  body.className = 'preview-body'
+  pane.append(body)
+  fill(body)
+  document.body.append(pane)
+  void pane.offsetHeight
+  requestAnimationFrame(() => pane.remove())
+}
+
 function idle(run: () => void, options: { timeout: number }): unknown {
   const host = globalThis as { requestIdleCallback?: Idle }
   return host.requestIdleCallback
     ? host.requestIdleCallback(run, options)
-    : setTimeout(run, options.timeout / 2)
+    : setTimeout(run, WEBKIT_IDLE_MS)
 }
