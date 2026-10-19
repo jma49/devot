@@ -148,6 +148,7 @@ interface Rendered {
   id: number
   nodes: RootContent[]
   headings: { node: Element; text: string }[]
+  length: number
 }
 
 /** Elements carrying a source line, and those carrying an offset into the note. */
@@ -179,9 +180,16 @@ const PIECE_LENGTH = 2000
  * options) changed are rendered again. Heading ids depend on the headings
  * before them, so they are named across the whole note on every call.
  */
+/**
+ * The cache holds pieces up to this many characters of source in all: every
+ * keystroke in Split view makes a new version of one piece, and a count limit
+ * kept hundreds of superseded versions (about 100 KB of tree each).
+ */
+const CACHE_CHARACTERS = 300_000
+
 export function createPieceRenderer({
   registry = defaultRegistry,
-  capacity = 1000,
+  capacity = CACHE_CHARACTERS,
   pieceLength = PIECE_LENGTH,
 }: { registry?: PreviewRegistry; capacity?: number; pieceLength?: number } = {}): (
   markdown: string,
@@ -189,6 +197,7 @@ export function createPieceRenderer({
   known?: readonly string[],
 ) => Promise<PreviewPiece[]> {
   const cache = new Map<string, Rendered>()
+  let cached = 0
   let ids = 0
 
   const piece = async (
@@ -216,9 +225,14 @@ export function createPieceRenderer({
     const renderers = registry.renderers().map((r) => (r === headingIds ? collect : r))
     const tree = await transformed(first ? processor : bodyProcessor, text, options, renderers)
     markLinesAndStripPositions(tree)
-    const rendered = { id: (ids += 1), nodes: tree.children, headings }
+    const rendered = { id: (ids += 1), nodes: tree.children, headings, length: text.length }
     cache.set(key, rendered)
-    if (cache.size > capacity) cache.delete(cache.keys().next().value!)
+    cached += text.length
+    while (cached > capacity && cache.size > 1) {
+      const [oldest, { length }] = cache.entries().next().value!
+      cache.delete(oldest)
+      cached -= length
+    }
     return rendered
   }
 
