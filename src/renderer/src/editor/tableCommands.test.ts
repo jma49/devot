@@ -45,7 +45,6 @@ function show(s: EditorState): string {
 
 const lines = (...l: string[]) => l.join('\n')
 
-/** Runs a table command on a marked document; the marked result, or null. */
 function run(id: TableCommandId, marked: string): string | null {
   const s = state(marked)
   const spec = TABLE_COMMANDS[id](s)
@@ -66,7 +65,6 @@ describe('moving between cells', () => {
     expect(run('nextCell', lines('| a | b^ |', '|---|---|', '| 1 | 2 |'))).toBe(
       lines(FORMATTED[0]!, FORMATTED[1]!, '| 1^   | 2   |'),
     )
-    // From the delimiter row too.
     expect(run('nextCell', lines('| a | b |', '|---|-^--|', '| 1 | 2 |'))).toBe(
       lines(FORMATTED[0]!, FORMATTED[1]!, '| 1^   | 2   |'),
     )
@@ -76,7 +74,6 @@ describe('moving between cells', () => {
     expect(run('nextCell', lines('| a | b |', '|---|---|', '| 1 | 2 ^|'))).toBe(
       lines(...FORMATTED, '| ^    |     |'),
     )
-    // A header-only table gets its first row.
     expect(run('nextCell', lines('| a | b^ |', '|---|---|'))).toBe(
       lines(FORMATTED[0]!, FORMATTED[1]!, '| ^    |     |'),
     )
@@ -89,7 +86,6 @@ describe('moving between cells', () => {
     expect(run('previousCell', lines('| a | b |', '|---|---|', '| ^1 | 2 |'))).toBe(
       lines('| a   | b^   |', FORMATTED[1]!, FORMATTED[2]!),
     )
-    // The first cell of the table stays put; the table is still formatted.
     expect(run('previousCell', lines('| ^a | b |', '|---|---|', '| 1 | 2 |'))).toBe(
       lines('| a^   | b   |', FORMATTED[1]!, FORMATTED[2]!),
     )
@@ -151,7 +147,6 @@ describe('moving between cells', () => {
     expect(run('insertRowBelow', lines('| a | b |', '|---|---|', '| 1 | ^2 |', '| 3 | 4 |'))).toBe(
       lines(...FORMATTED, '|     | ^    |', '| 3   | 4   |'),
     )
-    // Below the header is the first row.
     expect(run('insertRowBelow', lines('| ^a | b |', '|---|---|', '| 1 | 2 |'))).toBe(
       lines(FORMATTED[0]!, FORMATTED[1]!, '| ^    |     |', FORMATTED[2]!),
     )
@@ -178,7 +173,6 @@ describe('row and column commands', () => {
     expect(run('deleteRow', T.replace('| a', '| ^a'))).toBe(
       lines('| h1  | h2  |  h3 |', '| --- | :-: | --: |', '| d^   |  e  |   f |'),
     )
-    // The last row: the cursor goes to the row above.
     expect(run('deleteRow', T.replace('| e', '| ^e'))).toBe(
       lines('| h1  | h2  |  h3 |', '| --- | :-: | --: |', '| a   |  b^  |   c |'),
     )
@@ -203,7 +197,6 @@ describe('row and column commands', () => {
         '| a   |  b  |   c |',
       ),
     )
-    // Not past either end, and the header stays the header.
     expect(run('moveRowUp', T.replace('| a', '| ^a'))).toBeNull()
     expect(run('moveRowDown', T.replace('| d', '| ^d'))).toBeNull()
     expect(run('moveRowDown', T.replace('h1', 'h^1'))).toBeNull()
@@ -353,7 +346,6 @@ describe('transactions', () => {
     )
     for (const id of ids) {
       let s = state('', [noteMarkdown, history()])
-      // Typing right before and right after: neither joins the command's step.
       s = s.update({ changes: { from: 0, insert: doc }, userEvent: 'input.type' }).state
       const at = doc.indexOf('| e') + 3
       s = s.update({ selection: EditorSelection.cursor(at), userEvent: 'select' }).state
@@ -441,7 +433,6 @@ describe('the key handlers', () => {
     expect(tableCommand('nextRow')(across.v)).toBe(false)
     expect(tableCommand('moveRowUp')(across.v)).toBe(false)
     expect(across.dispatched).toEqual([])
-    // Within a cell it is the table's.
     const within = view(state(lines('| «ab» | c |', '|-|-|')))
     expect(tableCommand('nextCell')(within.v)).toBe(true)
   })
@@ -460,19 +451,15 @@ describe('the key handlers', () => {
       expect(insertNewlineContinueMarkup(v) || insertNewlineAndIndent(v)).toBe(true)
       return show(after)
     }
-    // Before the header of a table at the top of a note: a line above it, the table as written.
     expect(returnKey(lines('^| a | b |', '|---|---|', '| 1 | 2 |'))).toBe(
       lines('', '^| a | b |', '|---|---|', '| 1 | 2 |'),
     )
     expect(returnKey(lines('^a | b', '---|---', '1 | 2'))).toBe(
       lines('', '^a | b', '---|---', '1 | 2'),
     )
-    // Before a row: a blank line above it, which ends the table there.
     expect(returnKey(lines(TABLE, '^| 3 | 4 |'))).toBe(lines(TABLE, '', '^| 3 | 4 |'))
-    // After a quote marker, or before it.
     expect(returnKey(lines('> ^| a |', '> |-|'))).toBe(lines('>', '> ^| a |', '> |-|'))
     expect(returnKey(lines('^> | a |', '> |-|'))).toBe(lines('', '^> | a |', '> |-|'))
-    // Past the opening pipe Return is the table's.
     const inside = view(state(lines('|^ a | b |', '|---|---|', '| 1 | 2 |')))
     expect(tableCommand('nextRow')(inside.v)).toBe(true)
     expect(inside.dispatched.map(show)).toEqual([

@@ -10,7 +10,6 @@ import { languages } from '@codemirror/language-data'
 
 type Family = 'brace' | 'python' | 'yaml' | 'ruby' | 'lua' | 'shell' | 'markup' | 'plain'
 
-/** Each language's family and indent unit by convention, by its name in the language list. */
 const STYLES: Readonly<Record<string, { family: Family; unit?: string }>> = {
   javascript: { family: 'brace' },
   typescript: { family: 'brace' },
@@ -50,7 +49,6 @@ const STYLES: Readonly<Record<string, { family: Family; unit?: string }>> = {
 
 export interface CodeStyle {
   family: Family
-  /** The language's own indent unit, if it has one by convention. */
   unit?: string
 }
 
@@ -114,7 +112,6 @@ function withoutHashComment(text: string): string {
   return text
 }
 
-/** The opening tag the line ends with that is still open, its name; undefined for none. */
 function openTag(text: string): string | undefined {
   const m = /<([A-Za-z][\w:-]*)(?:\s[^<>]*)?>$/.exec(text)
   if (!m || m[0].endsWith('/>')) return undefined
@@ -123,7 +120,6 @@ function openTag(text: string): string | undefined {
   return name
 }
 
-/** The line (before the cursor, its indent removed) opens a level. */
 function opens(family: Family, text: string): boolean {
   const last = text.at(-1) ?? ''
   if (family !== 'markup' && CLOSERS[last]) return true
@@ -156,7 +152,6 @@ function opens(family: Family, text: string): boolean {
   }
 }
 
-/** The line (its indent removed) ends a level, so the next line goes one out. */
 function ends(family: Family, text: string): boolean {
   return (
     family === 'python' && /^(?:return|pass|break|continue|raise)\b/.test(withoutHashComment(text))
@@ -164,7 +159,6 @@ function ends(family: Family, text: string): boolean {
 }
 
 export interface NextLine {
-  /** The indent the new line takes (after the block's container prefix). */
   indent: string
   /** Text that goes on a line of its own after it, at the line's indent (a closing bracket or tag). */
   closing?: string

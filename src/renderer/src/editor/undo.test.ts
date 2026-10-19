@@ -14,7 +14,6 @@ import { keepUndo, noteState, UNDO_NOTES, yjsHistory } from './undo'
 
 let restoring = false
 const extensions = [history(), yjsHistory(() => restoring)]
-/** What y-codemirror's sync plugin puts on a change it brings in from the Yjs document. */
 const fromYjs = ySyncAnnotation.of(new YSyncConfig(new Y.Doc().getText('body'), null))
 
 afterEach(() => {
@@ -24,7 +23,6 @@ afterEach(() => {
 const start = (doc: string) => EditorState.create({ doc, extensions })
 const apply = (state: EditorState, spec: TransactionSpec) => state.update(spec).state
 
-/** Typing `text` at `at`, `time` ms into the session. */
 const type = (state: EditorState, at: number, text: string, time: number) =>
   apply(state, {
     changes: { from: at, insert: text },
@@ -33,21 +31,18 @@ const type = (state: EditorState, at: number, text: string, time: number) =>
     annotations: Transaction.time.of(time),
   })
 
-/** A change that reaches the editor from its Yjs document (sync, another process, a restore). */
 const synced = (state: EditorState, from: number, to: number, insert: string, time: number) =>
   apply(state, {
     changes: { from, to, insert },
     annotations: [fromYjs, Transaction.time.of(time)],
   })
 
-/** The editor's Yjs replica of a note with `text`, as y-codemirror keeps it. */
 function replica(text: string): Y.Doc {
   const doc = new Y.Doc()
   doc.getText(BODY).insert(0, text)
   return doc
 }
 
-/** The user's change in the editor, which y-codemirror applies to the replica too. */
 function edit(
   state: EditorState,
   doc: Y.Doc,
@@ -67,7 +62,6 @@ function edit(
   })
 }
 
-/** The note as the core holds it once others (devot-mcp, another window) changed it. */
 function changedElsewhere(doc: Y.Doc, ...changes: [at: number, remove: number, insert: string][]) {
   const core = new Y.Doc()
   Y.applyUpdate(core, Y.encodeStateAsUpdate(doc))
@@ -82,14 +76,12 @@ function changedElsewhere(doc: Y.Doc, ...changes: [at: number, remove: number, i
   return core
 }
 
-/** Leaves a note whose replica is a plain copy of the editor's text, as when it was opened. */
 function leave(noteId: string, state: EditorState): Y.Doc {
   const doc = replica(state.doc.toString())
   keepUndo(noteId, state, doc)
   return doc
 }
 
-/** Shows the note again with the core's document `doc`. */
 const show = (noteId: string, doc: Y.Doc, config: Omit<EditorStateConfig, 'doc'> = {}) =>
   noteState(noteId, { ...config, doc: doc.getText(BODY).toString(), extensions }, doc)
 
@@ -102,7 +94,6 @@ function run(state: EditorState, command: typeof undo): EditorState {
 describe('changes from the Yjs document', () => {
   it('are not undone, and do not join the typing around them', () => {
     let state = type(start('abc'), 3, 'X', 1000)
-    // Another process writes at the start while the user types at the end.
     state = synced(state, 0, 0, 'From outside. ', 1100)
     state = type(state, state.doc.length, 'Y', 1200)
     state = run(state, undo)

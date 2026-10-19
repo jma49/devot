@@ -21,17 +21,13 @@ import { commandTip } from './toolbarButtons'
 import { releaseBarFocus, toolbarState, toolbarStateExtension } from './toolbarState'
 
 export interface LinkTip {
-  /** The link's range; the bar stands over its start. */
   from: number
   to: number
   href: string
-  /** Whether the link is to a note (Open Note) or an address (Open URL). */
   note: boolean
-  /** Under the line, because the table bar is above it. */
   below: boolean
 }
 
-/** Whether the caret's link is an image's address (the image bar is for those). */
 function inImage(state: EditorState, pos: number): boolean {
   for (const side of [-1, 1] as const) {
     for (let n = syntaxTree(state).resolveInner(pos, side); n.parent; n = n.parent) {
@@ -41,7 +37,6 @@ function inImage(state: EditorState, pos: number): boolean {
   return false
 }
 
-/** The tooltip the caret's place calls for; null where there is none. */
 export function linkTipAt(state: EditorState): LinkTip | null {
   if (!barsMayShow(state) || state.field(toolbarState, false)?.hidden) return null
   const { ranges } = state.selection
@@ -85,7 +80,6 @@ function createBar(view: EditorView): TooltipView {
   const root = createRoot(barContent(dom))
   const render = (state: EditorState) => {
     const tip = linkTipAt(state)
-    // Re-rendered for the link the caret is in now; the tooltip goes away without one.
     if (tip) root.render(<LinkBar view={view} note={tip.note} />)
   }
   return {
@@ -119,5 +113,4 @@ const barTooltip = showTooltip.compute(
 
 const theme = EditorView.theme({ '.cm-tooltip.cm-link-tip': { width: 'max-content' } })
 
-/** The link tooltip, for the note editor. */
 export const linkTooltip: Extension = [toolbarStateExtension, barTooltip, floatTheme, theme]

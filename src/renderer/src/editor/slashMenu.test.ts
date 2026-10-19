@@ -61,7 +61,6 @@ const labels = (marked: string) => {
   return trigger ? slashItems(s, trigger).map((item) => item.label) : []
 }
 
-/** The state after picking `id` in the menu the marked text opens. */
 function pick(marked: string, id: SlashId): EditorState {
   const s = state(marked)
   const trigger = slashTrigger(s)!
@@ -70,7 +69,6 @@ function pick(marked: string, id: SlashId): EditorState {
   return s.update(...specs!).state
 }
 
-/** A stand-in for the view an option's `apply` dispatches to. */
 function fakeView(s: EditorState) {
   const view = {
     state: s,
@@ -261,7 +259,6 @@ describe('slashSource', () => {
     s = s.update({ changes: { from: 2, to: 3 }, selection: { anchor: 2 } }).state
     expect(show(s)).toBe('/h^')
     expect(slashSource(context(s))).toBeNull()
-    // A new slash opens it again.
     s = s.update({ changes: { from: 0, to: 2, insert: '/' }, selection: { anchor: 1 } }).state
     expect(slashSource(context(s))).not.toBeNull()
   })

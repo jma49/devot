@@ -16,13 +16,9 @@ interface OpenEditor {
   text: Y.Text
 }
 
-/** The editor that shows each note now. */
 const editors = new Map<string, OpenEditor>()
 
-/**
- * Registers the editor that shows a note; returns the call that takes it
- * out again when it closes.
- */
+/** Registers the editor that shows a note; returns the call that takes it out again when it closes. */
 export function trackOpenEditor(noteId: string, view: EditorView, doc: Y.Doc, text: Y.Text) {
   const entry: OpenEditor = { view, doc, text }
   editors.set(noteId, entry)

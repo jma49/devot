@@ -22,7 +22,6 @@ describe('pasteFormats', () => {
     ])
     expect(types('https://example.com/a')).toEqual(['plain', 'title', 'emptyText', 'autolink'])
     expect(types('https://github.com/o/r/tree/main/src')).not.toContain('snippet')
-    // No block where the place cannot hold one.
     expect(
       pasteFormats('https://github.com/o/r/blob/main/a.ts', { block: false }).map((f) => f.type),
     ).not.toContain('snippet')
@@ -61,7 +60,6 @@ describe('formatUrl', () => {
       anchor: 1,
       head: 1,
     })
-    // The address keeps its balanced parentheses; `|` is encoded.
     expect(formatUrl('emptyText', url, null).insert).toBe('[](https://example.com/a_(b)%7Cc)')
     expect(formatUrl('title', 'https://a.b/', 'A [B]')).toEqual({
       insert: '[A \\[B\\]](https://a.b/)',

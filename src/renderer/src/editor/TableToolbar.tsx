@@ -56,7 +56,6 @@ const button = (id: TableBarId): TableBarButton => ({
   icon: `table.${id}` as IconName,
 })
 
-/** The groups, left to right, with a divider between each. */
 export const TABLE_BAR_GROUPS: readonly (readonly TableBarButton[])[] = (
   [
     ['format'],
@@ -69,7 +68,6 @@ export const TABLE_BAR_GROUPS: readonly (readonly TableBarButton[])[] = (
 
 const label = (b: TableBarButton) => t(command(b.command).label)
 
-/** A button's tooltip: the command's name and the key in effect for it. */
 export function tableBarTip(b: TableBarButton): Tip {
   return commandTip(b.command, label(b))
 }
@@ -87,7 +85,6 @@ export function tableBarAt(state: EditorState): { pos: number } | null {
   return { pos: state.doc.lineAt(state.selection.main.head).from }
 }
 
-/** The alignment each Align button sets. */
 const ALIGN_OF: Partial<Record<TableBarId, Align>> = {
   alignLeft: 'left',
   alignCenter: 'center',
@@ -158,7 +155,6 @@ function createBar(view: EditorView): TooltipView {
     positioned: (space) => {
       if (fit(space.right - space.left)) view.requestMeasure()
     },
-    // The caret moving or the table changing changes which buttons can act.
     update: (update) => {
       if (
         update.docChanged ||
@@ -190,5 +186,4 @@ const theme = EditorView.theme({
   '.cm-table-bar .cm-float-buttons::-webkit-scrollbar': { display: 'none' },
 })
 
-/** The table bar, for the note editor. */
 export const tableToolbar: Extension = [toolbarStateExtension, barTooltip, floatTheme, theme]

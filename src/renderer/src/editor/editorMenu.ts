@@ -1,10 +1,7 @@
-// The note editor's context menu: a native menu for a right-click in the
-// text (or the menu key at the caret). Links get Open Link and Copy Link
-// Address; a selection gets Look Up and New Note from Selection; the rest is
-// the usual edit items and Speech. Cut, Copy, Paste and Select All are the
-// system's own items, which act on the web view. Rust shows it, adding the
-// system's spelling guesses for the word at the point, Writing Tools,
-// Spelling and Grammar and Services (`systemMenu.ts`).
+// The note editor's context menu: a native menu for a right-click in the text (or the menu key at the caret). Links
+// get Open Link and Copy Link Address; a selection gets Look Up and New Note from Selection. Cut, Copy, Paste and
+// Select All are the system's own items. Rust shows it, adding spelling guesses, Writing Tools, Spelling and
+// Grammar and Services (`systemMenu.ts`).
 import { Facet, Prec, type EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { editorCommandKeys } from '../commands/registry'
@@ -44,13 +41,9 @@ export type EditorAction =
   | 'startSpeaking'
   | 'stopSpeaking'
 
-/** What the menu needs to know about where it opened. */
 export interface EditorMenuTarget {
-  /** The address of the link at the point, if any. */
   link: string | null
-  /** The selected text to look up and speak, if any. */
   selection: string | null
-  /** Whether New Note from Selection can run (a selection, in a note that is not in the Trash). */
   canMakeNote: boolean
 }
 
@@ -94,7 +87,6 @@ export const EDITOR_MENU: MenuGroups<EditorAction, EditorMenuTarget> = [
   [{ action: 'speech', label: 'editorMenu.speech', submenu: SPEECH }],
 ]
 
-/** Whether the menu shows `action` for a target. */
 export function editorMenuShows(action: EditorAction, target: EditorMenuTarget): boolean {
   return shownGroups(EDITOR_MENU, target).some((group) =>
     group.some((entry) => entry.action === action),
@@ -118,10 +110,8 @@ export function editorMenuTarget(
   }
 }
 
-/** The longest word the menu offers spelling guesses for (the same as Rust's). */
 const MAX_SPELLING_WORD = 100
 
-/** A word in the text, from `from` to `to`. */
 export interface WordRange {
   from: number
   to: number
@@ -157,14 +147,12 @@ export function replaceWord(view: EditorView, word: WordRange, guess: string): b
   return true
 }
 
-/** What opens the menu for the editor: the window shows it (`pos`: where in the text, if anywhere). */
 export type OpenEditorMenu = (view: EditorView, at: MenuPoint, pos: number | null) => void
 
 const menuOpener = Facet.define<OpenEditorMenu, OpenEditorMenu | undefined>({
   combine: (all) => all[0],
 })
 
-/** The menu's key (from the registry): the menu opens at the caret. */
 const menuKeys = registryKeys(() =>
   Prec.high(
     keymap.of(
@@ -204,7 +192,6 @@ const menuClicks = EditorView.domEventHandlers({
   },
 })
 
-/** The editor's menu, with the window's `open` to show it. */
 export const editorMenu = (open: OpenEditorMenu): Extension => [
   menuOpener.of(open),
   menuKeys(),
@@ -232,7 +219,6 @@ export function lookUpTarget(view: EditorView): { at: MenuPoint; font: LookUpFon
   }
 }
 
-/** The element that holds the character at a position. */
 function elementAt(view: EditorView, pos: number): Element | null {
   const { node, offset } = view.domAtPos(pos)
   // A position between an element's children is the start of the next one.

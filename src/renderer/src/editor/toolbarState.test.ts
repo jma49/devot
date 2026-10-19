@@ -113,7 +113,6 @@ describe('leavesEditor', () => {
 
 type Who = 'button' | 'other' | 'host' | 'body' | null
 
-/** A bar inside a shadow root: only the root knows which control has focus. */
 function fakeBar(rootActive: Who, docActive: Who): HTMLElement {
   const nodes = { button: {}, other: {}, host: {}, body: {} }
   const pick = (who: Who) => (who ? nodes[who] : null)

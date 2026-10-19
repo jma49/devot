@@ -15,7 +15,6 @@ import type { SyntaxNode, Tree } from '@lezer/common'
 import { lineMarks } from './lineMarks'
 import { FRONT_MATTER } from './markdown'
 
-/** The first line of an alert: a quote whose text is `[!NOTE]` and so on. */
 export const ALERT_LINE = /^ {0,3}>[ \t]?\[!(note|tip|important|warning|caution)\][ \t]*$/i
 
 /**
@@ -46,13 +45,10 @@ export const LITERAL_TEXT: ReadonlySet<string> = new Set([
   'ProcessingInstruction',
 ])
 
-/** The literal blocks' node names, as a set. */
 export const LITERAL_BLOCK_NAMES: ReadonlySet<string> = new Set(LITERAL_BLOCKS)
 
-/** A format command: the transaction to dispatch, or null when nothing applies. */
 export type FormatCommand = (state: EditorState) => TransactionSpec | null
 
-/** The user event of every format transaction. */
 export const FORMAT_EVENT = 'input.format'
 
 export function spec(changes: ChangeSpec, selection: EditorSelection): TransactionSpec {
@@ -65,9 +61,7 @@ export function spec(changes: ChangeSpec, selection: EditorSelection): Transacti
   }
 }
 
-/** How long a command may spend parsing the part of the note it needs. */
 export const COMMAND_PARSE_MS = 500
-/** How long the toolbar may wait for the parser each time it renders. */
 export const TOOLBAR_PARSE_MS = 50
 /**
  * The most lines of selection (all ranges together) the toolbar reads to show
@@ -136,7 +130,6 @@ export function nodeAt(cx: Cx, pos: number): SyntaxNode {
   return node
 }
 
-/** The innermost node named in `names` at or around `pos` (see nodeAt), if any. */
 export function blockAround(cx: Cx, pos: number, names: ReadonlySet<string>): SyntaxNode | null {
   for (let node: SyntaxNode | null = nodeAt(cx, pos); node; node = node.parent) {
     if (names.has(node.name)) return node
@@ -183,7 +176,6 @@ export function rangeLines(state: EditorState, range: SelectionRange): number[] 
   return lines
 }
 
-/** Whether the selection is short enough for the toolbar to read (see `TOOLBAR_MAX_LINES`). */
 export function toolbarReads(state: EditorState): boolean {
   let lines = 0
   for (const { from, to } of state.selection.ranges) {

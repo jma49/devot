@@ -27,7 +27,6 @@ const theme = EditorView.theme({
   },
 })
 
-/** The editor's hover cards of note links, filled by `load`. */
 export function noteLinkHover(load: LoadPreview): Extension {
   return [
     hoverTooltip(

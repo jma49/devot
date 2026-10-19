@@ -7,7 +7,6 @@ import { markerField, type MarkerScan } from './gutterMarkers'
 import { markdownLineStyles } from './lineStyles'
 import { noteMarkdown } from './markdown'
 
-/** Every marker the state's gutter-class sets hold, as `line:class`. */
 function markers(s: EditorState): string[] {
   const out: string[] = []
   for (const set of s.facet(gutterLineClass))
@@ -25,7 +24,6 @@ const make = (doc: string) => {
   return s.update({}).state
 }
 
-/** The markers of a state made from scratch from the same text. */
 const fresh = (s: EditorState) => markers(make(s.doc.toString()))
 
 const DOC = [
@@ -79,7 +77,6 @@ describe('the gutter line classes after an edit', () => {
       expect(markers(s)).toEqual(fresh(s))
       const t = s.update({ changes: edit(s) }).state
       ensureSyntaxTree(t, t.doc.length, 5000)
-      // The parser's catch-up comes with the next transaction.
       expect(markers(t.update({}).state)).toEqual(fresh(t))
     })
 
@@ -165,7 +162,6 @@ describe('the gutter line classes under random edits', () => {
 })
 
 describe('scanning for the gutter line classes', () => {
-  /** A scan that counts the text it looks at. */
   function counting() {
     let looked = 0
     const scan: MarkerScan = (state, from, to, mark) => {

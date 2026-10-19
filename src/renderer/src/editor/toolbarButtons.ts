@@ -21,29 +21,24 @@ const button = (id: ToolbarFormat): ToolbarButton => ({
   icon: `format.${id}` as IconName,
 })
 
-/** The groups, left to right, with a divider between each. */
 export const TOOLBAR_GROUPS: readonly (readonly ToolbarButton[])[] = [
   (['heading', 'bold', 'italic', 'strikethrough', 'highlight', 'link'] as const).map(button),
   (['code', 'codeBlock'] as const).map(button),
   (['bulletList', 'numberedList', 'taskList', 'quote', 'alert'] as const).map(button),
 ]
 
-/** Buttons whose tooltip shows no key. */
 const NO_KEY: ReadonlySet<ToolbarFormat> = new Set(['heading', 'highlight', 'alert'])
 
-/** A floating button's tooltip: a name, and a key when it has one. */
 export interface Tip {
   title: string
   key?: string
 }
 
-/** A tooltip of `title` with the first key in effect for a registry command, none if it has none. */
 export function commandTip(id: CommandId, title: string): Tip {
   const key = commandKeys(id)[0]
   return key === undefined ? { title } : { title, key: shortcutLabel(key) }
 }
 
-/** The tooltip of a toolbar button, with the format command's first key in effect. */
 export function toolbarTip(b: ToolbarButton): Tip {
   const title = t(b.title)
   return NO_KEY.has(b.id) ? { title } : commandTip(`format.${b.id}` as CommandId, title)

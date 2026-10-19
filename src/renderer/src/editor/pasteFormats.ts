@@ -8,13 +8,11 @@ import { linkAddress } from './formats'
 
 export type PasteFormatType = 'plain' | 'snippet' | 'title' | 'emptyText' | 'autolink'
 
-/** What a format needs fetched before it can write its text. */
 export type PasteFetch = 'title' | 'snippet'
 
 export interface PasteFormat {
   type: PasteFormatType
   label: MessageKey
-  /** The row's hint: what the text looks like. */
   detail: MessageKey
   fetch: PasteFetch | null
 }
@@ -61,18 +59,15 @@ export function pasteFormats(
   })
 }
 
-/** Text that goes between a link's brackets as it reads: Markdown punctuation escaped. */
 export function escapeLinkText(text: string): string {
   return text.replace(/[\\`{}[\]()<>|*_~]/g, (c) => `\\${c}`)
 }
 
-/** Whether the line around the URL has text before it and after it. */
 export interface LineAround {
   before: boolean
   after: boolean
 }
 
-/** A format's text, and where the selection goes in it (offsets into `insert`). */
 export interface FormattedUrl {
   insert: string
   anchor: number
@@ -120,7 +115,6 @@ export function formatUrl(
   }
 }
 
-/** Special file names, by their lower-cased name. */
 const FILE_LANGUAGES: Readonly<Record<string, string>> = {
   dockerfile: 'dockerfile',
   makefile: 'makefile',
@@ -128,7 +122,6 @@ const FILE_LANGUAGES: Readonly<Record<string, string>> = {
   '.env': 'env',
 }
 
-/** A fence language for a file path: by its name, else its extension; '' for none. */
 export function snippetLanguage(path: string): string {
   const name = (path.split('/').pop() ?? '').toLowerCase()
   const known = FILE_LANGUAGES[name]
@@ -138,9 +131,7 @@ export function snippetLanguage(path: string): string {
   return /^[a-z0-9_+#-]{1,32}$/.test(ext) ? ext : ''
 }
 
-/** A commit hash shows short in a fence: the first seven characters. */
 const SHORT_COMMIT = 7
-/** What the code block preview reads as a ref (code.ts REF). */
 const REF = /^[\w./-]{1,100}$/
 
 /**

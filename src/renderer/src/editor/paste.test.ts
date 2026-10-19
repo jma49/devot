@@ -40,7 +40,6 @@ const after = (s: EditorState, spec: TransactionSpec | null) => {
   return s.update(spec!).state
 }
 
-/** What pasting `text` does, or null when the editor's own paste runs. */
 const paste = (marked: string, text: string, style: PasteUrlStyle = 'plain') => {
   const s = state(marked)
   const spec = pasteTransaction(s, text, style)
@@ -55,7 +54,6 @@ describe('pastedUrl', () => {
     expect(pastedUrl('devot://note/0192a6f0-0000-7000-8000-00000000000a')).toBe(
       'devot://note/0192a6f0-0000-7000-8000-00000000000a',
     )
-    // `www.` gets its scheme.
     expect(pastedUrl('www.example.com/x')).toBe('https://www.example.com/x')
   })
 
@@ -80,10 +78,8 @@ describe('pasting a URL over selected text', () => {
     expect(paste('Read «the docs» now', 'https://example.com')).toBe(
       'Read [the docs](https://example.com)| now',
     )
-    // Whatever the setting for a lone URL.
     expect(paste('«docs»', 'https://example.com', 'autolink')).toBe('[docs](https://example.com)|')
     expect(paste('«docs»', ' www.example.com\n')).toBe('[docs](https://www.example.com)|')
-    // A copied note URI links to that note.
     expect(paste('See «Plan»', 'devot://note/0192a6f0-0000-7000-8000-00000000000a')).toBe(
       'See [Plan](devot://note/0192a6f0-0000-7000-8000-00000000000a)|',
     )
@@ -108,12 +104,10 @@ describe('pasting a URL over selected text', () => {
       '[one](https://example.com)|\n[two](https://example.com)|',
     )
     expect(paste('- «item»', 'https://example.com')).toBe('- [item](https://example.com)|')
-    // Text in a code span: the link takes the whole span, as Cmd+K does.
     expect(paste('`«code»`', 'https://example.com')).toBe('[`code`](https://example.com)|')
   })
 
   it('replaces what a link cannot wrap', () => {
-    // An existing link, a selected URL, code, front matter: the usual paste.
     for (const marked of [
       '[«old»](https://old.example)',
       '«https://old.example»',
@@ -167,7 +161,6 @@ describe('pasting a lone URL', () => {
   it('escapes a bang before an empty link, which would be an image', () => {
     expect(paste('Wow!|', 'https://example.com', 'link')).toBe('Wow\\![|](https://example.com)')
     expect(paste('Wow\\!|', 'https://example.com', 'link')).toBe('Wow\\![|](https://example.com)')
-    // An autolink or the text as copied does not start an image.
     expect(paste('Wow!|', 'https://example.com', 'autolink')).toBe('Wow!<https://example.com>|')
     expect(paste('Wow!|', 'https://example.com', 'plain')).toBeNull()
   })
@@ -202,7 +195,6 @@ describe('plainPaste', () => {
   it('inserts the text as it is, over the selection', () => {
     const s = state('Hello «there»!')
     expect(show(after(s, plainPaste(s, '[a](b) **c**')))).toBe('Hello [a](b) **c**|!')
-    // A URL stays a URL, whatever the selection or setting.
     const sel = state('«docs»')
     expect(show(after(sel, plainPaste(sel, 'https://example.com')))).toBe('https://example.com|')
   })

@@ -21,14 +21,10 @@ import {
 } from './formatContext'
 import { mayBeFrontMatter } from './markdown'
 
-/** Quote markers at the start of a line; a new block (a rule, a table) stays in the quote. */
 export const QUOTE_PREFIX = /^(?: {0,3}>[ \t]?)+/
-/** Blocks a new block goes after rather than into. */
 const WHOLE_BLOCKS = new Set(['Table', 'SetextHeading1', 'SetextHeading2'])
-/** What is left of an empty list item, task or heading (after its quote markers). */
 const EMPTY_MARKER = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])(?:[ \t]+\[[ xX]\])?|#{1,6})[ \t]*$/
 
-/** Whether a line holds nothing but quote markers and spaces. */
 const isBlank = (text: string) => text.replace(QUOTE_PREFIX, '').trim() === ''
 
 /**
@@ -52,17 +48,12 @@ function emptyItemOrHeading(cx: Cx, line: Line, at: number): boolean {
   return true
 }
 
-/** Where a new block goes for a line with a cursor. */
 export interface Place {
-  /** The line the block goes after, or in place of. */
   line: Line
-  /** Its quote markers, which every line of the block repeats. */
   prefix: string
   /** The block takes the line's place: it is blank, or an empty list item or heading. */
   replace: boolean
-  /** The line above is blank (or there is none). */
   aboveBlank: boolean
-  /** The line below is blank (or there is none). */
   belowBlank: boolean
 }
 
@@ -80,7 +71,6 @@ function places(state: EditorState): Place[] | null {
   for (const range of state.selection.ranges) {
     const last = rangeLines(state, range).at(-1) ?? doc.lineAt(range.to).number
     let line = doc.line(last)
-    // The line's text, after its indentation (an indented code block starts there).
     const at = line.from + line.text.length - line.text.trimStart().length
     if (inFrontMatter(cx, at) || blockAround(cx, at, LITERAL_BLOCK_NAMES)) continue
     const whole = blockAround(cx, at, WHOLE_BLOCKS)
@@ -102,7 +92,6 @@ function places(state: EditorState): Place[] | null {
   return found.size === 0 ? null : [...found.values()].sort((a, b) => a.line.from - b.line.from)
 }
 
-/** A new block's lines (without quote markers), and where the cursor goes in it. */
 export interface NewBlock {
   lines: readonly string[]
   /** A place in one of its lines; null: on a new line under the block. */
@@ -128,7 +117,6 @@ export function insertBlocks(
   let open = -1
   for (const place of found) {
     const { line, prefix } = place
-    // A line of only markers: `>` rather than `> `.
     const bare = prefix.trimEnd()
     const block = make(place)
     // A blank line above that the block before fills is not blank any more.

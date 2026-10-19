@@ -146,7 +146,6 @@ describe('bulleted, numbered and task lists', () => {
   it('numbers new items after the list they continue', () => {
     expect(list('3. a\n«- b\n- c»', 'numbered')).toBe('3. a\n4. «b\n5. c»')
     expect(list('«x»\n\n1. a\n2. b', 'numbered')).toBe('1. «x»\n\n2. a\n3. b')
-    // A line that only continues the item above lazily becomes an item of its own.
     expect(list('1. a\n«b»', 'numbered')).toBe('1. a\n2. «b»')
   })
 
@@ -164,13 +163,11 @@ describe('bulleted, numbered and task lists', () => {
   })
 
   it('renumbers the rest of a list when an item leaves it', () => {
-    // The line leaves the list for a paragraph of its own; the rest is a list of its own.
     const left = list('1. a\n«2. b»\n3. c', 'numbered')
     expect(left).toBe('1. a\n\n«b»\n\n1. c')
     expect(outline(strip(left))).toBe(
       'OrderedList(ListItem(Paragraph)) Paragraph OrderedList(ListItem(Paragraph))',
     )
-    // A bulleted item splits the list; the part after it counts from 1 again.
     expect(list('1. a\n«2. b»\n3. c', 'bullet')).toBe('1. a\n- «b»\n1. c')
     // Without its first item the list still starts at 1, so it stays a list.
     const rest = list('«1. a»\n2. b\n3. c', 'numbered')
@@ -178,7 +175,6 @@ describe('bulleted, numbered and task lists', () => {
     expect(outline(strip(rest))).toBe(
       'Paragraph OrderedList(ListItem(Paragraph) ListItem(Paragraph))',
     )
-    // A number losing a digit takes the item's children along.
     expect(list('9. «a»\n10. b\n    c', 'task')).toBe('- [ ] «a»\n1. b\n   c')
   })
 
@@ -199,7 +195,6 @@ describe('bulleted, numbered and task lists', () => {
     expect(outline(strip(doc))).toBe(
       'OrderedList(ListItem(Paragraph BulletList(ListItem(Paragraph)) Paragraph)) BulletList(ListItem(Paragraph))',
     )
-    // Taking the marker off moves its children out with it.
     expect(list('«- a»\n  - b', 'bullet')).toBe('«a»\n- b')
   })
 
@@ -268,14 +263,12 @@ describe('text that only looks like a list marker', () => {
     expect(numbered).toBe('We shipped in\n1. 2020\\. Then| we grew.')
     const bullet = list(wrapped, 'bullet')
     expect(bullet).toBe('We shipped in\n- 2020\\. Then| we grew.')
-    // A task's text is a paragraph after its box: nothing to escape.
     expect(list(wrapped, 'task')).toBe('We shipped in\n- [ ] 2020. Then| we grew.')
     expect(list('We moved on\n3) Then| we left.', 'bullet')).toBe(
       'We moved on\n- 3\\) Then| we left.',
     )
     expect(list('We moved on\n+|', 'bullet')).toBe('We moved on\n- \\+|')
     expect(list('We moved on\n*|', 'numbered')).toBe('We moved on\n1. \\*|')
-    // What was a paragraph's second line is now an item, with the numbers it had as its text.
     expect(outline(strip(numbered))).toBe('Paragraph OrderedList(ListItem(Paragraph))')
     expect(outline(strip(bullet))).toBe('Paragraph BulletList(ListItem(Paragraph))')
     expect(await previewShape(strip(numbered))).toBe(
@@ -344,7 +337,6 @@ describe('taking a quote or list off lines after others of the block', () => {
     expect(outline(strip(middle))).toBe(
       'BulletList(ListItem(Paragraph)) Paragraph BulletList(ListItem(Paragraph))',
     )
-    // Under an item nested deeper, the line stays in the item around the list.
     const nested = list('- x\n  - a\n  - «b»', 'bullet')
     expect(nested).toBe('- x\n  - a\n\n  «b»')
     expect(outline(strip(nested))).toBe(
@@ -403,7 +395,6 @@ describe('quotes', () => {
     expect(alert('> [!NOTE]\n> - «a\n>   b»', 'note')).toBe('- «a\n  b»')
     expect(quote('«> - a\n>   b»')).toBe('«- a\n  b»')
     expect(blockState(state('«> - a\n>   b»')).quote).toBe(true)
-    // Without its item's line, a continuation line is quoted inside the item.
     expect(quote('> - a\n>   «b»')).toBe('> - a\n>   > «b»')
   })
 
@@ -434,7 +425,6 @@ describe('quotes', () => {
     )
     const inAlert = alert('- «a»\n  ```\n  x\n  ```', 'note')
     expect(inAlert).toBe('> [!NOTE]\n> - «a»\n>   ```\n>   x\n>   ```')
-    // The alert line reads as a paragraph of its own.
     expect(outline(strip(inAlert))).toBe(
       'Blockquote(Paragraph BulletList(ListItem(Paragraph FencedCode)))',
     )
@@ -597,14 +587,12 @@ describe('code blocks', () => {
     expect(bullet).toBe('- ```\n  |\n  ```')
     expect(outline(strip(bullet))).toBe('BulletList(ListItem(FencedCode))')
     expect(code('10. a\n11. |')).toBe('10. a\n11. ```\n    |\n    ```')
-    // The fence goes in the item of a quote's list, and the item keeps its own text column.
     const quoted = code('> - |')
     expect(quoted).toBe('> - ```\n>   |\n>   ```')
     expect(outline(strip(quoted))).toBe('Blockquote(BulletList(ListItem(FencedCode)))')
     expect(code('- a\n  - |')).toBe('- a\n  - ```\n    |\n    ```')
     // A marker followed by extra spaces keeps one, so the lines under it stay in the item.
     expect(code('-   |')).toBe('- ```\n  |\n  ```')
-    // Taking the fences off again gives the empty item back.
     expect(code(bullet)).toBe('- |')
     expect(code(numbered)).toBe('1. Run this:\n2. |')
   })
@@ -622,9 +610,7 @@ describe('code blocks', () => {
     expect(code('- a\n\n  |')).toBe('- a\n\n  ```\n  |\n  ```')
     expect(code('- a\n  - b\n    |')).toBe('- a\n  - b\n    ```\n    |\n    ```')
     expect(code('> - a\n>   |')).toBe('> - a\n>   ```\n>   |\n>   ```')
-    // A blank line that is not indented into the item is not in it.
     expect(code('1. a\n\n|')).toBe('1. a\n\n```\n|\n```')
-    // Nor is one past the end of the quote the item is in: the fence stays a fence.
     const quoted = code('> - a\n    |')
     expect(outline(strip(quoted))).toBe('Blockquote(BulletList(ListItem(Paragraph))) FencedCode')
   })
@@ -679,7 +665,6 @@ describe('block format commands', () => {
 
   it.each(ids)('%s is one transaction and one undo step', (id, formatted) => {
     let s = state('')
-    // Typing right before and right after: neither joins the format's step.
     s = s.update({ changes: { from: 0, insert: 'word' }, userEvent: 'input.type' }).state
     s = s.update({ selection: EditorSelection.range(0, 4), userEvent: 'select' }).state
     const tr = s.update(FORMAT_COMMANDS[id](s) ?? {})

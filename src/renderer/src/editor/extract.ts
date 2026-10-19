@@ -16,7 +16,6 @@ import {
 import type { SyntaxNode } from '@lezer/common'
 import { context, LITERAL_BLOCKS } from './formatContext'
 
-/** What moving a selection needs of the editor view. */
 export interface ExtractView {
   readonly state: EditorState
   dispatch(spec: TransactionSpec): void
@@ -45,10 +44,8 @@ const tracked = StateField.define<Tracked | null>({
   },
 })
 
-/** The editor extension that moving a selection needs. */
 export const trackExtract = tracked
 
-/** Whether `pos` is inside a code block, an HTML block or front matter that `from`–`to` cuts into. */
 function cutsInto(node: SyntaxNode | null, from: number, to: number): boolean {
   for (; node; node = node.parent) {
     if (LITERAL_BLOCKS.includes(node.name) && (node.from < from || node.to > to)) return true
@@ -76,7 +73,6 @@ export function selectedText(state: EditorState): string | null {
   return text
 }
 
-/** The user event of the replacement. */
 const EXTRACT_EVENT = 'input.extract'
 
 /**

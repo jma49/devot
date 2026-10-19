@@ -14,7 +14,6 @@ import { imageAtCaret, imageSizeChange, type EditorImage } from './images'
 import { barsMayShow } from './barRules'
 import { releaseBarFocus, toolbarState, toolbarStateExtension } from './toolbarState'
 
-/** The preset the bar shows as current; none for a size that is no preset. */
 export function currentPreset(image: EditorImage): ImageSize | null {
   return image.dimensions ? null : image.size
 }
@@ -59,7 +58,6 @@ function createBar(view: EditorView): TooltipView {
   const root = createRoot(barContent(dom))
   const render = (state: EditorState) => {
     const image = imageAtCaret(state)
-    // Re-rendered for the image the caret is in now; the tooltip goes away without one.
     if (image) root.render(<ImageSizeBar view={view} image={image} />)
   }
   return {
@@ -89,5 +87,4 @@ const theme = EditorView.theme({
   '.cm-tooltip.cm-image-size-bar': { width: 'max-content' },
 })
 
-/** The image size bar, for the note editor. */
 export const imageSizeBar: Extension = [toolbarStateExtension, barTooltip, floatTheme, theme]

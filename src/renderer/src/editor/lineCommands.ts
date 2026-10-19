@@ -1,11 +1,6 @@
-// The editor's line and selection commands, on keys from the command
-// registry (the `edit.*` commands): a plain new line, blank lines above and
-// below, delete, select, move, copy, indent, join and sort lines, open the
-// link under the caret, more cursors and selections, matching brackets, case
-// and task boxes, overwrite mode. The palette runs them too (`runEditCommand`). Typing a
-// backtick over a selection wraps it too. The keys sit in a
-// compartment, so a change in Settings > Keyboard rebinds them in the open
-// editor (see registryKeys.ts).
+// The editor's line and selection commands, on keys from the command registry (the `edit.*` commands); the
+// palette runs them too (`runEditCommand`). A backtick typed over a selection wraps it. The keys sit in a
+// compartment, so a change in Settings > Keyboard rebinds them in the open editor (see registryKeys.ts).
 import {
   addCursorAbove,
   addCursorBelow,
@@ -42,19 +37,16 @@ import { editorCommandKeys, type CommandId } from '../commands/registry'
 import { toggleOverwrite } from './overwrite'
 import { registryKeys } from './registryKeys'
 
-/** What opens a link's address (the window opens a note link or a web page). */
 export const linkOpener = Facet.define<
   (href: string) => void,
   ((href: string) => void) | undefined
 >({ combine: (all) => all[0] })
 
-/** How sorting compares lines. */
 export interface SortOptions {
   caseSensitive: boolean
   reverse: boolean
 }
 
-/** The lines in order, upper and lower case alike unless `caseSensitive` (stable). */
 export function sortedLines(lines: readonly string[], { caseSensitive, reverse }: SortOptions) {
   const key = (line: string) => (caseSensitive ? line : line.toLowerCase())
   const out = [...lines].sort((a, b) => {
@@ -72,7 +64,6 @@ function selectedLines(state: EditorState) {
   return { first, last: state.doc.lineAt(lastPos) }
 }
 
-/** Sorts the selected lines; one change. A single line stays as it is. */
 export function sortLines(options: SortOptions) {
   return (view: EditorView): boolean => {
     const { state } = view
@@ -117,7 +108,6 @@ export function joinLines(view: EditorView): boolean {
   return true
 }
 
-/** A blank line above the caret's line, with the same indent; the caret moves to it. */
 export function insertLineAbove(view: EditorView): boolean {
   const { state } = view
   const spec = state.changeByRange((range) => {
@@ -132,7 +122,6 @@ export function insertLineAbove(view: EditorView): boolean {
   return true
 }
 
-/** A link in the note: its source range, its label and its address. */
 export interface LinkAt {
   /** The link's Markdown, `[text](address)`, `<address>` or the bare address. */
   from: number
@@ -142,7 +131,6 @@ export interface LinkAt {
   href: string
 }
 
-/** The link at `pos`: `[text](address)`, `<address>` or a bare one; undefined elsewhere. */
 export function linkAt(state: EditorState, pos: number): LinkAt | undefined {
   const tree = syntaxTree(state)
   for (const side of [-1, 1] as const) {
@@ -189,7 +177,6 @@ export function linkForNewNote(state: EditorState, pos: number): LinkAt | undefi
   return link
 }
 
-/** The text between a link's brackets, none for an autolink. */
 function labelOf(state: EditorState, link: SyntaxNode, urlFrom: number): string | undefined {
   if (link.name !== 'Link') return undefined
   const marks = link.getChildren('LinkMark')
@@ -201,7 +188,6 @@ function labelOf(state: EditorState, link: SyntaxNode, urlFrom: number): string 
 
 const addressOf = (text: string) => text.replace(/^<|>$/g, '').trim() || undefined
 
-/** Opens the link under the caret; false where there is none. */
 export function openLinkAtCaret(view: EditorView): boolean {
   const href = linkAt(view.state, view.state.selection.main.head)?.href
   const open = view.state.facet(linkOpener)
@@ -210,7 +196,6 @@ export function openLinkAtCaret(view: EditorView): boolean {
   return true
 }
 
-/** A backtick typed over selected text wraps it in backticks. */
 export function wrapInBackticks(state: EditorState, text: string): TransactionSpec | null {
   if (text !== '`' || state.selection.ranges.every((r) => r.empty)) return null
   return state.changeByRange((range) =>
@@ -365,7 +350,6 @@ export function changeCase(upper: boolean) {
   }
 }
 
-/** The offset of the mark in the task box on `line` (`[ ]`), if the syntax tree has one there. */
 function taskMarkOn(state: EditorState, line: { from: number; to: number }): number | null {
   let mark: number | null = null
   syntaxTree(state).iterate({
@@ -447,7 +431,6 @@ const RUN: Partial<Record<CommandId, (view: EditorView) => boolean>> = {
   'edit.toggleOverwrite': toggleOverwrite,
 }
 
-/** The commands this module runs. */
 export const LINE_COMMANDS = Object.keys(RUN) as readonly CommandId[]
 
 /** Runs one of them on `view` (the palette); false when it did nothing or is not one of them. */
@@ -456,19 +439,16 @@ export function runEditCommand(view: EditorView, id: CommandId): boolean {
   return run ? run(view) : false
 }
 
-/** Their keys in effect, in CodeMirror key notation. */
 export function lineKeys(): { id: CommandId; key: string }[] {
   return LINE_COMMANDS.flatMap((id) => editorCommandKeys(id).map((key) => ({ id, key })))
 }
 
-/** The line command keys (from the registry), ahead of CodeMirror's own bindings. */
 export const lineCommandKeys: () => Extension = registryKeys(() =>
   Prec.high(
     keymap.of(lineKeys().map(({ id, key }) => ({ key, run: RUN[id]!, preventDefault: true }))),
   ),
 )
 
-/** The line commands and the backtick wrap, for the editor (`opener` opens a link's address). */
 export function lineCommands(opener: (href: string) => void): Extension {
   return [lineCommandKeys(), backtickWrap, linkOpener.of(opener)]
 }

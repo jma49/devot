@@ -304,7 +304,6 @@ describe('transactions', () => {
     const ids: FormatId[] = ['bold', 'italic', 'strikethrough', 'highlight', 'code', 'link']
     for (const id of ids) {
       let s = state('', [noteMarkdown, history()])
-      // Typing right before and right after: neither joins the format's step.
       s = s.update({ changes: { from: 0, insert: 'word' }, userEvent: 'input.type' }).state
       s = s.update({ selection: EditorSelection.range(0, 4), userEvent: 'select' }).state
       const spec = FORMAT_COMMANDS[id](s)
@@ -496,7 +495,6 @@ describe('text that only looks like a list marker', () => {
     expect(heading('We moved on\n3) Then| we left.', 1)).toBe('We moved on\n# 3) Then| we left.')
     const s = state(wrapped)
     expect(show(apply(s, cycleHeading(s)))).toBe('We shipped in\n# 2020. Then| we grew.')
-    // A real item still takes the heading after its marker.
     expect(heading('- 2020 was good|', 2)).toBe('- ## 2020 was good|')
     expect(heading('1. a\n2. b|', 2)).toBe('1. a\n2. ## b|')
   })
@@ -508,7 +506,6 @@ describe('text that only looks like a list marker', () => {
     expect(inline('We moved on\n«3) Then we left.»', 'italic')).toBe(
       'We moved on\n*«3) Then we left.»*',
     )
-    // After a real marker the markers go after it.
     expect(inline('- «2020 was good»', 'bold')).toBe('- **«2020 was good»**')
     expect(inline('1. «one»\n2. «two»', 'bold')).toBe('1. **«one»**\n2. **«two»**')
   })
@@ -531,7 +528,6 @@ describe('an alert header', () => {
     expect(doc('«> [!NOTE]\n> text»', 'bold')).toBe('> [!NOTE]\n> **text**')
     expect(doc('«> [!TIP]\n> text»', 'italic')).toBe('> [!TIP]\n> *text*')
     expect(doc('«[!NOTE]\ntext»', 'bold')).toBe('**[!NOTE]**\n**text**')
-    // Only the first line of a quote is a header.
     expect(doc('> a\n> «[!NOTE]»', 'bold')).toBe('> a\n> **[!NOTE]**')
   })
 
@@ -563,10 +559,8 @@ describe('a bang before a link', () => {
   })
 
   it('stays as it is where it is not a bang before brackets already', () => {
-    // Already escaped: one backslash escapes it, two escape each other.
     expect(link('Hi\\!«there»')).toBe('Hi\\![there](|)')
     expect(link('Hi\\\\!«there»')).toBe('Hi\\\\\\![there](|)')
-    // Not directly before the link.
     expect(link('Hi! «there»')).toBe('Hi! [there](|)')
     expect(link('«!there»')).toBe('[!there](|)')
     expect(link('!|')).toBe('\\![|]()')
@@ -599,7 +593,6 @@ const QUOTE_CLOSE = cp(0x300d)
 const SMILE = cp(0x1f600)
 const IDEOGRAPHIC_SPACE = cp(0x3000)
 
-/** The tag the preview makes of text in this format, as `<strong>` or `<em>`. */
 const TAGS: Record<'bold' | 'italic' | 'strikethrough', string> = {
   bold: 'strong',
   italic: 'em',
@@ -612,7 +605,6 @@ describe('emphasis next to punctuation', () => {
     const s = state(marked)
     return apply(s, toggleInline(s, format))
   }
-  /** What the editor's parser and the preview's read as the format's text. */
   async function formatted(doc: string, format: (typeof FORMATS)[number]) {
     const node = { bold: 'StrongEmphasis', italic: 'Emphasis', strikethrough: 'Strikethrough' }[
       format
@@ -630,14 +622,12 @@ describe('emphasis next to punctuation', () => {
     for (const format of FORMATS) {
       const [open, close] =
         format === 'bold' ? ['**', '**'] : format === 'italic' ? ['*', '*'] : ['~~', '~~']
-      // A full stop after the text, between ideographs (no spaces in this prose).
       const stop = toggle(`${X}${X}«${Y}${Y}${STOP}»${Z}${Z}`, format)
       expect(stop.doc.toString()).toBe(`${X}${X}${open}${Y}${Y}${close}${STOP}${Z}${Z}`)
       expect(await formatted(stop.doc.toString(), format)).toEqual({
         editor: [`${open}${Y}${Y}${close}`],
         preview: [`${Y}${Y}`],
       })
-      // Fullwidth brackets and corner quotes around the text, both edges.
       for (const [a, b] of [
         [OPEN, CLOSE],
         [QUOTE_OPEN, QUOTE_CLOSE],
@@ -646,12 +636,9 @@ describe('emphasis next to punctuation', () => {
         expect(bracketed.doc.toString()).toBe(`${X}${a}${open}${Y}${Y}${close}${b}${Z}`)
         expect((await formatted(bracketed.doc.toString(), format)).preview).toEqual([`${Y}${Y}`])
       }
-      // Latin text and a full stop with a letter right after.
       const latin = toggle('a «word.»b', format)
       expect(latin.doc.toString()).toBe(`a ${open}word${close}.b`)
       expect((await formatted(latin.doc.toString(), format)).preview).toEqual(['word'])
-      // Several marks at an edge: the last one before an ideograph goes out, a
-      // comma before it may stay.
       const many = toggle(`${X}«${Y}${SMILE}${COMMA}${STOP}»${Z}`, format)
       expect(many.doc.toString()).toBe(`${X}${open}${Y}${SMILE}${COMMA}${close}${STOP}${Z}`)
       expect((await formatted(many.doc.toString(), format)).preview).toEqual([
@@ -673,7 +660,6 @@ describe('emphasis next to punctuation', () => {
         editor: [`${open}foo${close}`],
         preview: ['foo'],
       })
-      // And an emoji at an edge stays inside, between letters too.
       const emoji = toggle(`a«${SMILE}»b`, format)
       expect(emoji.doc.toString()).toBe(`a${open}${SMILE}${close}b`)
       expect((await formatted(emoji.doc.toString(), format)).preview).toEqual([SMILE])
@@ -710,12 +696,9 @@ describe('emphasis next to punctuation', () => {
       const start = `${X}${X}«${Y}${Y}${STOP}»${Z}${Z}`
       const on = toggle(start, format)
       expect(isInlineActive(on, format)).toBe(true)
-      // The same press again takes it off, not a second pair on.
       const off = apply(on, toggleInline(on, format))
       expect(off.doc.toString()).toBe(`${X}${X}${Y}${Y}${STOP}${Z}${Z}`)
-      // And on again from there.
       expect(apply(off, toggleInline(off, format)).doc.toString()).toBe(on.doc.toString())
-      // Selecting only the text inside the markers takes it off too.
       const inner = state(on.doc.toString().replace(Y + Y, `«${Y}${Y}»`))
       expect(apply(inner, toggleInline(inner, format)).doc.toString()).toBe(
         `${X}${X}${Y}${Y}${STOP}${Z}${Z}`,
@@ -724,7 +707,6 @@ describe('emphasis next to punctuation', () => {
   })
 
   it('does not tie the punctuation in the markers when a selection starts or ends in a span', () => {
-    // Part of a bold span selected with the stop after it: nothing doubles.
     const s = state(`${X}**${Y}${Y}**«${STOP}»${Z}`)
     const done = apply(s, toggleInline(s, 'bold'))
     expect(done.doc.toString().match(/\*\*/g)?.length ?? 0).toBeLessThanOrEqual(2)
@@ -734,7 +716,6 @@ describe('emphasis next to punctuation', () => {
     // A star that is text is escaped inside the markers, so it is never moved out.
     expect(toggle('x«* y»z', 'bold').doc.toString()).toBe('x* yz')
     expect(toggle('x «* y»z', 'bold').doc.toString()).toBe('x **\\* y**z')
-    // Italic text inside the selection keeps its own markers.
     const nested = toggle(`${X} «*${Y}*${STOP}»`, 'bold').doc.toString()
     expect(await previewTexts(nested, 'em')).toEqual([Y])
     expect(await previewTexts(nested, 'strong')).toEqual([`${Y}${STOP}`])
@@ -788,7 +769,6 @@ describe('emphasis the editor writes parses the way the preview does', () => {
       const doc = chars.join('')
       const selection = chars.slice(from, to).join('')
       const marked = `${chars.slice(0, from).join('')}«${selection}»${chars.slice(to).join('')}`
-      // The text the format can hold: the selection without edge punctuation and spaces.
       const core = selection.replace(/^[\s\p{P}\p{S}]+|[\s\p{P}\p{S}]+$/gu, '')
       for (const [format, node, tag] of kinds) {
         const s = state(marked)
@@ -941,7 +921,6 @@ describe('toolbar state of a long selection', () => {
   it('reads the longest selection it shows within a frame', (context) => {
     const s = state(`«${lines(TOOLBAR_MAX_LINES)}»`)
     ensureSyntaxTree(s, s.doc.length, 30_000)
-    // Once before, as in an editor that has been used.
     formatState(state(`«${lines(TOOLBAR_MAX_LINES)}»`))
     const start = performance.now()
     const on = formatState(s)
@@ -977,7 +956,6 @@ describe('inline formats on a long line with many spans', () => {
     },
   )
 
-  // What the formats made of such a line before the lookups were indexed.
   const units = (count: number, unit: (i: number) => string) =>
     Array.from({ length: count }, (_, i) => unit(i)).join(' ')
   const results: Record<InlineFormat, (count: number) => string> = {
@@ -1012,10 +990,8 @@ describe('inline formats on a long line with many spans', () => {
   })
 })
 
-// Review fixes: every result is checked with the editor's parser (GFM and front matter).
 const parse = (doc: string) => noteParser.parse(doc)
 
-/** The block structure of a document: the names of its block nodes, in order. */
 function blocksOf(doc: string): string[] {
   const names: string[] = []
   parse(doc).iterate({
@@ -1026,7 +1002,6 @@ function blocksOf(doc: string): string[] {
   return names
 }
 
-/** Where nodes of a type are in a document, as `[from, to]` pairs. */
 function nodesOf(doc: string, name: string): [number, number][] {
   const found: [number, number][] = []
   parse(doc).iterate({
@@ -1046,7 +1021,6 @@ describe('formats at a cursor never make block syntax', () => {
       const spec = toggleInline(s, format)
       if (spec === null) return
       const after = s.update(spec).state.doc.toString()
-      // The same blocks as a typed letter would give.
       const at = s.selection.main.head
       const typed = s.doc.sliceString(0, at) + 'x' + s.doc.sliceString(at)
       expect(blocksOf(after)).toEqual(blocksOf(typed))
@@ -1096,7 +1070,6 @@ describe('links next to other inline syntax', () => {
     expect(toggleInline(state('```\n|\n```'), 'bold')).toBeNull()
     expect(setHeading(state('```\nx\n|\n```'), 1)).toBeNull()
     expect(toggleLink(state('~~~\nx\n|\n'))).toBeNull()
-    // Outside it, a blank line takes an empty link.
     expect(show(apply(state('```\nx\n```\n|'), toggleLink(state('```\nx\n```\n|'))))).toBe(
       '```\nx\n```\n[|]()',
     )
@@ -1169,7 +1142,6 @@ describe('setext headings', () => {
   })
 })
 
-/** A parser that makes no progress until it is told to stop, like one far behind. */
 class StalledParser extends Parser {
   createParse(): PartialParse {
     const partial: PartialParse & { stoppedAt: number | null } = {
@@ -1253,7 +1225,6 @@ describe('formatCommand', () => {
   })
 
   it('changes nothing while an input method composes', () => {
-    // From compositionstart on, also before the composition changed any text.
     const started = { composing: false, compositionStarted: true }
     const composing = { composing: true, compositionStarted: true }
     expect(run('a «b» c', 'bold', started)).toEqual([false, 'a «b» c'])

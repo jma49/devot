@@ -37,7 +37,6 @@ function show(s: EditorState): string {
 
 const lines = (...l: string[]) => l.join('\n')
 
-/** Types `text` a character at a time, as the editor's input handlers see it. */
 function type(s: EditorState, text: string): EditorState {
   for (const ch of text) {
     const { head } = s.selection.main
@@ -53,7 +52,6 @@ function type(s: EditorState, text: string): EditorState {
   return s
 }
 
-/** The table's Return key (the command it runs in a table). */
 function enter(s: EditorState): EditorState {
   const spec = TABLE_COMMANDS.nextRow(s)
   expect(spec).not.toBeNull()
@@ -127,7 +125,6 @@ describe('typing a row by hand after Return', () => {
   })
 
   it('starts the row at its first cell when Return left the cursor in another', () => {
-    // Return inside a cell keeps its column.
     let s = enter(state(lines('| a | b |', '|-|-|', '| 1 | 2^ |')))
     expect(show(s)).toBe(lines('| a   | b   |', '| --- | --- |', '| 1   | 2   |', '|     | ^    |'))
     s = type(s, '| 3 | 4 |')
@@ -135,10 +132,8 @@ describe('typing a row by hand after Return', () => {
   })
 
   it('takes only the first pipe of the row as its opening pipe', () => {
-    // An extra space typed after the opening pipe.
     let s = type(enter(state(HEADER)), '|  | 2 |')
     expect(show(s)).toBe(lines('| a   | b   |', '| --- | --- |', '|     | 2   |^'))
-    // A letter typed in the second cell and deleted again.
     s = type(enter(state(HEADER)), '| | a')
     const { head } = s.selection.main
     s = s.update({ changes: { from: head - 1, to: head }, userEvent: 'delete.backward' }).state
@@ -158,7 +153,6 @@ describe('typing a row by hand after Return', () => {
     // As a change from another window arrives: no user event.
     let s = type(enter(state(HEADER)), '| 1 |')
     s = s.update({ changes: { from: 0, insert: 'intro\n\n' } }).state
-    // The space after the pipe is still padding.
     s = type(s, ' 2')
     expect(show(s)).toBe(lines('intro', '', '| a   | b   |', '| --- | --- |', '| 1   | 2^    |'))
     s = type(s, ' |')
@@ -209,11 +203,9 @@ describe('pipes that stay text', () => {
   })
 
   it('leaves rows the cursor was not brought to by a table key alone', () => {
-    // An existing row: the pipe is text, as anywhere else.
     const doc = lines('| a | b |', '|-|-|', '| 1 ^|  |')
     expect(typeInTable(state(doc), doc.indexOf('^'), doc.indexOf('^'), '|')).toBeNull()
     expect(show(type(state(doc), '|'))).toBe(lines('| a | b |', '|-|-|', '| 1 |^|  |'))
-    // Outside a table.
     expect(typeInTable(state('plain^'), 5, 5, '|')).toBeNull()
   })
 
@@ -230,7 +222,6 @@ describe('pipes that stay text', () => {
     expect(show(s)).toBe(lines('| a   | b   |', '| --- | --- |', '| 1  ^    |     |'))
     s = type(s, '|  2')
     expect(show(s)).toBe(lines('| a   | b   |', '| --- | --- |', '| 1   |  2^    |'))
-    // Only right after the pipe: once text is typed, a space is text.
     s = type(enter(state(HEADER)), '|x y')
     expect(show(s)).toBe(lines('| a   | b   |', '| --- | --- |', '| x y^    |     |'))
   })
@@ -315,7 +306,6 @@ describe('the completion list', () => {
     expect(completionStatus(v.state)).toBe('active')
     const { head } = v.state.selection.main
     expect(typeInTable(v.state, head, head, '|')).toBeNull()
-    // Once the list is closed, the same pipe ends the cell.
     closeCompletion(v)
     expect(completionStatus(v.state)).toBeNull()
     expect(typeInTable(v.state, head, head, '|')).not.toBeNull()

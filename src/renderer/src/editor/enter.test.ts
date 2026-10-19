@@ -22,7 +22,6 @@ const show = (s: EditorState) => {
   return `${text.slice(0, at)}^${text.slice(at)}`
 }
 
-/** Return in the editor: the state after it, and how many transactions it took. */
 function enter(marked: string): { text: string; state: EditorState; steps: number } {
   let now = state(marked)
   let steps = 0
@@ -39,7 +38,6 @@ function enter(marked: string): { text: string; state: EditorState; steps: numbe
   return { text: show(now), state: now, steps }
 }
 
-/** Return pressed in turn, then `typed` inserted at the cursor. */
 function typed(marked: string, returns: number, text: string): string {
   let current = marked
   for (let i = 0; i < returns; i++) current = enter(current).text
@@ -128,9 +126,7 @@ describe('Return on an empty quote line', () => {
   })
 
   it('only acts at the end of a line with nothing after the marker', () => {
-    // Text after the cursor: the language's own Return splits the line.
     expect(enter('> a\n> ^b').text).toBe('> a\n>\n> ^b')
-    // A quote marker in code is text: Return is the editor's default.
     const code = state('```\n> ^\n```')
     expect(
       insertNewlineLeavingMarkup({ state: code, dispatch: () => {} } as unknown as EditorView),
@@ -138,20 +134,16 @@ describe('Return on an empty quote line', () => {
   })
 
   it('continues the quote on an empty line in its middle, so the quote stays whole', async () => {
-    // A line of the quote follows: Return makes room in it, it does not split it.
     expect(enter('> a\n> ^\n> b').text).toBe('> a\n>\n> ^\n> b')
     expect(enter('> a\n>^\n> b').text).toBe('> a\n>\n> ^\n> b')
     const twice = typed('> a\n> ^\n> b', 2, 'c')
     expect(twice).toBe('> a\n>\n>\n> c\n> b')
     expect(await previewShape(twice)).toBe('<blockquote><p>a</p><p>cb</p></blockquote>')
-    // An alert keeps the text after the cursor.
     const alert = typed('> [!NOTE]\n> a\n>^\n> b', 1, 'c')
     expect(alert).toBe('> [!NOTE]\n> a\n>\n> c\n> b')
     expect(await previewShape(alert)).toContain('<p>a</p><p>cb</p></div>')
-    // The inner of two quotes goes on; where only the outer does, the inner is left.
     expect(enter('> > a\n> > ^\n> > b').text).toBe('> > a\n> >\n> > ^\n> > b')
     expect(enter('- > a\n  > ^\n  > b').text).toBe('- > a\n  >\n  > ^\n  > b')
-    // At the end of the quote the quote goes on too.
     expect(enter('> a\n> ^\n\nb').text).toBe('> a\n>\n> ^\n\nb')
   })
 
@@ -161,17 +153,14 @@ describe('Return on an empty quote line', () => {
     expect(await previewShape(typed('> - a\n>^\n>   b', 1, 'c'))).toBe(
       '<blockquote><ul><li>a</li></ul><p>cb</p></blockquote>',
     )
-    // The indent typed after the marker stays, so the line is in the item.
     const item = typed('> - a\n>   ^\n>   b', 1, 'c')
     expect(item).toBe('> - a\n>\n>   c\n>   b')
     expect(await previewShape(item)).toBe(
       '<blockquote><ul><li><p>a</p><p>cb</p></li></ul></blockquote>',
     )
-    // An alert with a list keeps the line after the cursor.
     const alert = typed('> [!NOTE]\n> - a\n>^\n>   b', 1, 'c')
     expect(alert).toBe('> [!NOTE]\n> - a\n>\n> c\n>   b')
     expect(await previewShape(alert)).toContain('<ul><li>a</li></ul><p>cb</p></div>')
-    // A code block in a quote is not cut in two, even on its last line.
     const code = typed('> ```\n> a\n> ^\n> b\n> ```', 1, 'c')
     expect(code).toBe('> ```\n> a\n>\n> c\n> b\n> ```')
     expect(await previewShape(code)).toBe('<blockquote><pre><code>acb</code></pre></blockquote>')

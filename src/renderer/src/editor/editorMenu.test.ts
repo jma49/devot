@@ -11,7 +11,6 @@ import {
 } from './editorMenu'
 import { noteMarkdown } from './markdown'
 
-/** A state with the main selection from `from` to `to`. */
 function state(doc: string, from: number, to = from): EditorState {
   return EditorState.create({
     doc,
@@ -20,7 +19,6 @@ function state(doc: string, from: number, to = from): EditorState {
   })
 }
 
-/** The menu's items for a target, one line per group. */
 const groupsFor = (target: EditorMenuTarget) =>
   shownGroups(EDITOR_MENU, target).map((group) =>
     group.map((entry) =>

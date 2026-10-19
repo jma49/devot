@@ -1,9 +1,6 @@
-// Markdown formats as named commands. Each turns an EditorState and its
-// selection into one transaction spec (or null when there is nothing to do):
-// one change set, the new selection, the `input.format` user event, and
-// isolated history, so Yjs and undo see a single step. The toolbar, the
-// editor's shortcuts, the Format menu, the command palette and the slash
-// menu (slashMenu.ts) run them.
+// Markdown formats as named commands. Each turns an EditorState into one transaction spec (null when
+// there is nothing to do): one change set, the new selection, the `input.format` user event and
+// isolated history, so Yjs and undo see a single step.
 import {
   EditorSelection,
   type ChangeSpec,
@@ -53,7 +50,6 @@ export type InlineFormat = 'bold' | 'italic' | 'strikethrough' | 'highlight' | '
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6
 export type AlertFormat = `alert${Capitalize<AlertKind>}`
 
-/** The command that puts the selection in an alert of `kind` (`alertNote` …). */
 export const alertFormat = (kind: AlertKind): AlertFormat =>
   `alert${kind.charAt(0).toUpperCase()}${kind.slice(1)}` as AlertFormat
 export type FormatId =
@@ -66,7 +62,6 @@ export type FormatId =
   | Exclude<BlockFormat, 'alert'>
   | AlertFormat
   | 'horizontalRule'
-/** What new markers wrap: an inline format, or a link's text. */
 type Wrap = InlineFormat | 'link'
 
 const INLINE: Record<InlineFormat, { node: string | null; open: string; close: string }> = {
@@ -108,7 +103,6 @@ interface Span {
   closeFrom: number
 }
 
-/** Other inline syntax; text inside a nesting one may carry its own formats. */
 interface Syntax extends Span {
   nest: boolean
 }
@@ -150,7 +144,6 @@ function spansNear(cx: Cx, format: Wrap, from: number, to: number): Span[] {
   return spans
 }
 
-/** `<mark>`…`</mark>` pairs on the lines of `from`–`to` that touch it. */
 function markSpans(cx: Cx, from: number, to: number): Span[] {
   const { state } = cx
   const lineFrom = state.doc.lineAt(from).from
@@ -172,13 +165,11 @@ function markSpans(cx: Cx, from: number, to: number): Span[] {
       return false
     },
   })
-  // Keep the outermost of nested pairs.
   return spans
     .filter((s) => touches(s, from, to))
     .filter((s, _, all) => !all.some((o) => o !== s && o.from <= s.from && o.to >= s.to))
 }
 
-/** Positions of other inline syntax (emphasis, code, link markers, tags) in `from`–`to`. */
 function syntaxMarks(cx: Cx, from: number, to: number): Set<number> {
   const marks = new Set<number>()
   cx.tree.iterate({
@@ -218,7 +209,6 @@ const NESTING_MARKS: Record<string, string> = {
 // Syntax nothing may be inserted into.
 const ATOMIC = new Set(['InlineCode', 'Autolink', 'URL', 'HTMLTag', 'Escape', 'Entity'])
 
-/** Inline syntax other than `format`'s own that touches `from`–`to`. */
 function otherSyntax(cx: Cx, format: Wrap, from: number, to: number): Syntax[] {
   const own = format === 'link' ? undefined : INLINE[format].node
   const found: Syntax[] = []
@@ -270,10 +260,6 @@ function otherSyntax(cx: Cx, format: Wrap, from: number, to: number): Syntax[] {
 // Syntax whose characters are text of their own: never escaped, never brackets.
 const LITERAL = new Set([...ATOMIC, 'LinkLabel', 'LinkTitle'])
 
-/**
- * Positions in `from`–`to` inside literal syntax (code, addresses, tags,
- * escapes …), and with `marks` also those of other syntax's markers.
- */
 function literalChars(cx: Cx, from: number, to: number, marks: boolean): Set<number> {
   const found = new Set<number>()
   cx.tree.iterate({
@@ -289,7 +275,6 @@ function literalChars(cx: Cx, from: number, to: number, marks: boolean): Set<num
   return found
 }
 
-// Blocks whose lines formats leave alone.
 const SKIPPED_BLOCKS = new Set([...LITERAL_BLOCKS, 'HorizontalRule', 'LinkReference'])
 
 type LineBlock =
@@ -306,7 +291,6 @@ function lineBlock(cx: Cx, line: Line): LineBlock {
   if (inFrontMatter(cx, line.from) || alertHeader(cx, line)) return { kind: 'skip' }
   let at = blockPrefix(cx, line)
   while (at < line.length && isSpace(line.text.charAt(at))) at++
-  // A blank line is text, unless it is in a code or HTML block.
   if (at >= line.length)
     return blockAround(cx, line.from, LITERAL_BLOCK_NAMES) ? { kind: 'skip' } : { kind: 'text' }
   for (let node: SyntaxNode | null = nodeAt(cx, line.from + at); node;) {
@@ -363,7 +347,6 @@ function rangeSegments(cx: Cx): Segment[][] {
   return segments
 }
 
-/** Whether a cursor sits where formats do not apply (code, a thematic break …). */
 function cursorSkipped(cx: Cx, pos: number): boolean {
   return lineBlock(cx, cx.state.doc.lineAt(pos)).kind === 'skip'
 }
@@ -386,7 +369,6 @@ function segmentActive(cx: Cx, format: InlineFormat, seg: Segment): boolean {
   return true
 }
 
-/** Whether applying the format to the segment would leave the text as it is. */
 function unchanged(cx: Cx, format: InlineFormat, part: Segment): boolean {
   const seg = widen(cx, format, part, true)
   const spans = spansNear(cx, format, seg.from, seg.to)
@@ -397,7 +379,6 @@ function unchanged(cx: Cx, format: InlineFormat, part: Segment): boolean {
   return text === cx.state.sliceDoc(from, to)
 }
 
-/** The span of the format a cursor is in (between or next to its markers). */
 function spanAtCursor(cx: Cx, format: InlineFormat, pos: number): Span | undefined {
   return spansNear(cx, format, pos, pos).find((s) => s.openTo <= pos && pos <= s.closeFrom)
 }
@@ -418,7 +399,6 @@ function inlineActive(cx: Cx, format: InlineFormat): boolean {
   return any
 }
 
-/** Whether the whole selection has the format (a cursor: whether it is inside one). */
 export function isInlineActive(state: EditorState, format: InlineFormat): boolean {
   const cx = context(state)
   return !!cx && inlineActive(cx, format)
@@ -443,15 +423,12 @@ function markersFor(format: InlineFormat, text: string): [string, string] {
   return [fence + pad, pad + fence]
 }
 
-/** A stretch of the document rewritten as a whole. */
 interface Region {
   from: number
   to: number
   spans: Span[]
   segments: Segment[]
-  /** A cursor's range index, and where it sits. */
   cursor?: { range: number; pos: number }
-  /** Remove the format from everything in the region (a cursor inside a span). */
   strip?: boolean
 }
 
@@ -479,12 +456,10 @@ const PUNCTUATION = [
   (ch: string) => /[\p{P}\p{S}]/u.test(ch),
   (ch: string) => /[!-/:-@[-`{-~]/.test(ch) || /\p{P}/u.test(ch),
 ]
-/** Whether markers between the text `before` and `after` them can open. */
 const canOpen = (before: string, after: string) => {
   const [b, a] = [before.slice(-1), after.slice(0, 1)]
   return !isWhite(a) && PUNCTUATION.every((punct) => !punct(a) || isWhite(b) || punct(b))
 }
-/** Whether markers between the text `before` and `after` them can close. */
 const canClose = (before: string, after: string) => {
   const [b, a] = [before.slice(-1), after.slice(0, 1)]
   return !isWhite(b) && PUNCTUATION.every((punct) => !punct(b) || isWhite(a) || punct(a))
@@ -518,7 +493,6 @@ function rebuild(cx: Cx, format: InlineFormat, region: Region, apply: boolean): 
   }
 
   let text = ''
-  // Where each old character went: its new start and end (after an escape).
   const offsets = new Map<number, [number, number]>()
   const put = (c: (typeof chars)[number], escape: boolean) => {
     const start = text.length
@@ -541,7 +515,6 @@ function rebuild(cx: Cx, format: InlineFormat, region: Region, apply: boolean): 
     // The pipe around a table cell is not text beside the cell's.
     return ch === '|' && lineBlock(cx, line).kind === 'table' ? '' : ch
   }
-  /** The last character of the output so far, whole. */
   const lastOut = () => Array.from(text.slice(-2)).at(-1) ?? ''
   /**
    * How many characters of a run's text go outside its markers at each end
@@ -629,7 +602,6 @@ function rebuild(cx: Cx, format: InlineFormat, region: Region, apply: boolean): 
     plain(core.slice(core.length - trail))
     plain(run.slice(b))
   }
-  // The characters are in document order: the first at or after a position.
   const indexAt = (pos: number) => {
     let low = 0
     let high = chars.length
@@ -648,7 +620,6 @@ function rebuild(cx: Cx, format: InlineFormat, region: Region, apply: boolean): 
     text,
     offsetOf,
     rangeOf: (from, to) => {
-      // The first and last character of `from`–`to` that are not spaces.
       const end = indexAt(to)
       let a = indexAt(from)
       let b = end - 1
@@ -802,7 +773,6 @@ export function toggleInline(state: EditorState, format: InlineFormat): Transact
   }
   if (found.length === 0) return null
 
-  // Merge regions that overlap or touch; a second insertion point is dropped.
   const regions: Region[] = []
   for (const r of found.sort((a, b) => a.from - b.from)) {
     const prev = regions.at(-1)
@@ -873,8 +843,6 @@ export function toggleInline(state: EditorState, format: InlineFormat): Transact
   return spec(changeSet, EditorSelection.create(ranges, state.selection.mainIndex))
 }
 
-// Links
-
 interface LinkNode {
   from: number
   to: number
@@ -898,7 +866,6 @@ function linksNear(cx: Cx, from: number, to: number): LinkNode[] {
   return links
 }
 
-/** Links the selection touches: overlapping a selected segment, or around a cursor. */
 function selectedLinks(cx: Cx): LinkNode[] {
   const found = new Map<number, LinkNode>()
   for (const [i, range] of cx.state.selection.ranges.entries()) {
@@ -914,7 +881,6 @@ function selectedLinks(cx: Cx): LinkNode[] {
   return [...found.values()]
 }
 
-/** Whether `from`–`to` lies inside syntax a link cannot go into: an image's text or an atom. */
 function noLinkAt(cx: Cx, from: number, to: number): boolean {
   let blocked = false
   cx.tree.iterate({
@@ -1039,13 +1005,11 @@ export function linkTo(state: EditorState, url: string): TransactionSpec | null 
   }
 }
 
-/** Whether the selection touches a link (the Link button then removes it). */
 export function selectionHasLink(state: EditorState): boolean {
   const cx = context(state)
   return !!cx && selectedLinks(cx).length > 0
 }
 
-/** A link's text with its lone brackets escaped, on one line. */
 function linkLabel(text: string): string {
   return text.replace(/\s*\n\s*/g, ' ').replace(/\\?[[\]]/g, (m) => (m.length === 2 ? m : `\\${m}`))
 }
@@ -1067,14 +1031,9 @@ export function insertLink(state: EditorState, text: string, url: string): Trans
 }
 
 /**
- * Removes the links the selection touches (keeping their text); otherwise
- * makes each selected line a link with an empty address and puts the cursor
- * in it. A selected address becomes the link's address instead, with the
- * cursor in its text; at a cursor, an empty link is inserted. Like inline
- * formats, a link widens over other syntax it would cut through, and lone
- * brackets in its text are escaped. Bracketed text that is not a link
- * (`[draft]`, `[[Note]]`) is wrapped like any text. Image text and atoms
- * (code, addresses, tags) take no link.
+ * Removes the links the selection touches (keeping their text); otherwise makes each selected line a
+ * link (a selected address becomes its address; at a cursor, an empty link is inserted).
+ * Like inline formats, it widens over syntax it would cut through and escapes lone brackets.
  */
 export function toggleLink(state: EditorState): TransactionSpec | null {
   const cx = context(state)
@@ -1139,7 +1098,6 @@ export function insertImage(state: EditorState): TransactionSpec | null {
   return newLinks(cx, '!')
 }
 
-/** What the `[[` note popup reads as its query: one line, no brackets (nor a pipe, a table's). */
 const NOTE_QUERY = /^[^[\]|\n]*$/
 
 /**
@@ -1159,11 +1117,8 @@ export function insertNoteLink(state: EditorState): TransactionSpec | null {
     { from, insert: '[[' },
     { from: to, insert: ']]' },
   ])
-  // After the selected text and the `[[` before it.
   return spec(changes, EditorSelection.single(to + 2))
 }
-
-// Headings
 
 /**
  * Where a line's heading goes: after its quote and list markers (those the
@@ -1178,7 +1133,6 @@ function lineHeading(cx: Cx, line: Line): { container: number; level: number; en
   return { container, level: 0, end: container }
 }
 
-/** The setext heading (a paragraph over `===` or `---`) a line is part of, if any. */
 function setextOf(cx: Cx, line: Line): SyntaxNode | null {
   const at = blockPrefix(cx, line)
   if (at >= line.length) return null
@@ -1189,14 +1143,12 @@ function setextOf(cx: Cx, line: Line): SyntaxNode | null {
   return null
 }
 
-/** The heading level of a line in its block (0 for none), ATX or setext. */
 function lineLevel(cx: Cx, line: Line): number {
   const setext = setextOf(cx, line)
   if (setext) return setext.name === 'SetextHeading1' ? 1 : 2
   return lineBlock(cx, line).kind === 'text' ? (lineHeading(cx, line)?.level ?? 0) : 0
 }
 
-/** One heading the commands change: its level now, and the edit to `target`. */
 interface HeadingEdit {
   level: number
   edit: (target: number) => ChangeSpec[]
@@ -1216,7 +1168,6 @@ function atxEdit(line: Line, container: number, level: number, end: number): Hea
   }
 }
 
-// What a line of a setext heading's text starts with before the text itself.
 const SETEXT_PREFIX = /^[ \t]*(?:>[ \t]?)*[ \t]*/
 
 /**
@@ -1306,7 +1257,6 @@ function headingSpec(
   return spec(changeSet, EditorSelection.create(ranges, state.selection.mainIndex))
 }
 
-/** Makes the selected lines headings of `level`; lines already at that level lose it. */
 export function setHeading(state: EditorState, level: number): TransactionSpec | null {
   const cx = context(state)
   return (
@@ -1336,8 +1286,6 @@ export function stepHeading(state: EditorState, way: 'bigger' | 'smaller'): Tran
   )
 }
 
-// Commands
-
 export const FORMAT_COMMANDS: Record<FormatId, FormatCommand> = {
   heading: cycleHeading,
   heading1: (s) => setHeading(s, 1),
@@ -1365,7 +1313,6 @@ export const FORMAT_COMMANDS: Record<FormatId, FormatCommand> = {
   ) as Record<AlertFormat, FormatCommand>),
 }
 
-/** The toolbar's inline formats, none of them pressed. */
 const NO_INLINE: Record<InlineFormat | 'link', boolean> = {
   bold: false,
   italic: false,
@@ -1427,7 +1374,6 @@ export function formatState(state: EditorState): Record<ToolbarFormat, boolean> 
   const cx = context(state, TOOLBAR_PARSE_MS)
   if (!cx) return { heading: false, ...NO_INLINE, ...NO_BLOCKS }
   const line = state.doc.lineAt(state.selection.main.from)
-  // A selection past the line limit is not read: only the heading is shown.
   if (!toolbarReads(state)) return { heading: lineLevel(cx, line) > 0, ...NO_INLINE, ...NO_BLOCKS }
   return {
     heading: lineLevel(cx, line) > 0,

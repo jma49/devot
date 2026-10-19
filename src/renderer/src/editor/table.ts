@@ -8,23 +8,18 @@
 // reads `x|y` in a cell as two cells too). Cell text is kept as written,
 // escapes included, so printing never changes what a cell says.
 
-/** A column's alignment, from its delimiter cell (`---`, `:--`, `--:`, `:-:`). */
 export type Align = 'none' | 'left' | 'center' | 'right'
 
-/** A table as data. Every row has as many cells as the header. */
 export interface Table {
   readonly header: readonly string[]
   readonly align: readonly Align[]
   readonly rows: readonly (readonly string[])[]
 }
 
-/** A cell of a row as written: its trimmed text and where it lies in the line. */
 export interface RowCell {
   text: string
-  /** The cell's span between its pipes (or the line's ends). */
   from: number
   to: number
-  /** Where its trimmed text starts. */
   textFrom: number
 }
 
@@ -92,7 +87,6 @@ export function escapedAt(line: string, ch: number): boolean {
 
 const DELIMITER_CELL = /^(:?)-+(:?)$/
 
-/** The alignment a delimiter cell sets, or null when it is not one. */
 export function parseAlign(cell: string): Align | null {
   const m = DELIMITER_CELL.exec(trimCell(cell))
   if (!m) return null
@@ -178,14 +172,12 @@ export function displayWidth(text: string): number {
   return width
 }
 
-/** A table printed: its lines, and where each cell's text lies in its line. */
 export interface Printed {
   lines: string[]
   /** Per line (header, delimiter, rows), per column: the cell's text, or its dashes. */
   cells: { from: number; to: number }[][]
 }
 
-/** Narrowest a column gets: room for `:-:`. */
 const MIN_WIDTH = 3
 
 function delimiterCell(align: Align, width: number): string {
@@ -201,7 +193,6 @@ function delimiterCell(align: Align, width: number): string {
   }
 }
 
-/** Spaces before and after a cell's text that fill its column as it is aligned. */
 function padding(align: Align, room: number): [number, number] {
   if (align === 'right') return [room, 0]
   if (align === 'center') return [Math.floor(room / 2), Math.ceil(room / 2)]
@@ -262,7 +253,6 @@ const removeAt = <T>(items: readonly T[], at: number): T[] => [
 const moveTo = <T>(items: readonly T[], from: number, to: number): T[] =>
   insertAt(removeAt(items, from), to, items[from]!)
 
-/** Inserts an empty row at `at` (0 makes it the first row). */
 export function insertRow(table: Table, at: number): Table {
   const row = table.header.map(() => '')
   return { ...table, rows: insertAt(table.rows, at, row) }
@@ -276,7 +266,6 @@ export function moveRow(table: Table, from: number, to: number): Table {
   return from === to ? table : { ...table, rows: moveTo(table.rows, from, to) }
 }
 
-/** Inserts an empty, unaligned column at `at`. */
 export function insertColumn(table: Table, at: number): Table {
   return {
     header: insertAt(table.header, at, ''),

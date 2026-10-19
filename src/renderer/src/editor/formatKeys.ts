@@ -7,7 +7,6 @@ import { ViewPlugin, type EditorView, type PluginValue, type ViewUpdate } from '
 import type { Extension } from '@codemirror/state'
 import { inertFormats, type FormatId } from './formats'
 
-/** How long the caret and text stay still before the formats are tried. */
 export const INERT_DELAY_MS = 150
 
 /**

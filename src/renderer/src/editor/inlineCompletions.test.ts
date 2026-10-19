@@ -66,7 +66,6 @@ describe('emoji completion', () => {
 describe('alert completion', () => {
   it('opens after `> [!` and filters the kinds', () => {
     expect(alertTrigger(state('> [!^'))).toEqual({ from: 2, to: 4, query: '' })
-    // The `]` the bracket closing added goes with the pick.
     expect(alertTrigger(state('> [!w^]'))).toEqual({ from: 2, to: 6, query: 'w' })
     expect(alertTrigger(state('[!^'))).toBeNull()
     expect(alertTrigger(state('> text [!^'))).toBeNull()

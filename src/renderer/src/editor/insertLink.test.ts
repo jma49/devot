@@ -18,7 +18,6 @@ describe('the link dialog result', () => {
     expect(tr.newDoc.toString()).toBe('see [docs](https://example.com) here')
     expect(tr.newSelection.main.empty).toBe(true)
     expect(tr.newSelection.main.head).toBe('see [docs](https://example.com)'.length)
-    // One undo step takes it all back.
     let back = tr.state
     undo({ state: back, dispatch: (t) => (back = t.state) })
     expect(back.doc.toString()).toBe('see docs here')
@@ -32,7 +31,6 @@ describe('the link dialog result', () => {
     expect(s.update(insertLink(s, '  ', 'https://a.test')).newDoc.toString()).toBe(
       '[https://a.test](https://a.test)',
     )
-    // An address that would end the link early is encoded.
     expect(s.update(insertLink(s, 'x', 'https://a.test/a)b')).newDoc.toString()).toBe(
       '[x](https://a.test/a%29b)',
     )

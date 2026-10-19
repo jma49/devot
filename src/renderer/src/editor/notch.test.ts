@@ -27,9 +27,7 @@ describe('notch geometry', () => {
   })
 
   it('keeps the tip on the anchor when the bar is held back at the window edge', () => {
-    // The bar starts at 0 but the anchor is 40 px in: the tip moves with it.
     expect(notchOffset(40, 0, 300, NOTCH_X)).toBe(40)
-    // It stays on the straight edge, not on a rounded corner.
     expect(notchOffset(3, 0, 300, NOTCH_X)).toBe(NOTCH_X)
     expect(NOTCH_X - NOTCH_WIDTH / 2).toBeGreaterThanOrEqual(BAR_RADIUS)
     expect(notchOffset(299, 0, 300, NOTCH_X)).toBe(300 - NOTCH_X)

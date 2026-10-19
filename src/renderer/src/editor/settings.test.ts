@@ -57,7 +57,6 @@ describe('editor setup from the settings', () => {
     expect(mode('prose').facet(unwrapMode)).toBe('all')
     expect(wrapClass(mode('unwrapAtCursor'))).toBe(true)
     expect(mode('unwrapAtCursor').facet(unwrapMode)).toBe('active')
-    // The default unwraps the block under the caret.
     expect(make(DEFAULT_EDITOR_SETTINGS).facet(unwrapMode)).toBe('active')
   })
 
@@ -82,7 +81,6 @@ describe('editor setup from the settings', () => {
       scrolls(make({ ...DEFAULT_EDITOR_SETTINGS, lineWrapping, readableWidth }))
     for (const mode of ['prose', 'unwrapAtCursor'] as const)
       expect(count(mode, true)).toBeGreaterThan(count(mode, false))
-    // Nothing unwraps in the other mode, so the column needs no scrolling.
     expect(count('all', true)).toBe(count('all', false))
   })
 
@@ -127,12 +125,10 @@ describe('editor setup from the settings', () => {
     const on = make(DEFAULT_EDITOR_SETTINGS)
     expect(on.facet(toolbarOff)).toBe(false)
     expect(make({ ...DEFAULT_EDITOR_SETTINGS, toolbar: false }).facet(toolbarOff)).toBe(true)
-    // Scroll past end is on by default and pads under the last line.
     const css = (state: EditorState) =>
       JSON.stringify(state.facet(EditorView.styleModule).map((m) => Object.values(m)))
     expect(css(on)).toContain('50vh')
     expect(css(make({ ...DEFAULT_EDITOR_SETTINGS, scrollPastEnd: false }))).not.toContain('50vh')
-    // The cursor scroll margin is a scroll margin on both edges, none at 0.
     const margins = (state: EditorState) =>
       state.facet(EditorView.scrollMargins).map((f) => f({} as EditorView))
     // With Scroll Past End the caret keeps four lines of room below it (13px at 1.5).
@@ -144,7 +140,6 @@ describe('editor setup from the settings', () => {
     expect(
       margins(make({ ...DEFAULT_EDITOR_SETTINGS, cursorScrollMargin: 120, scrollPastEnd: false })),
     ).toEqual([{ top: 120, bottom: 120 }])
-    // Drawn whitespace and tinted trailing whitespace are decorations of their own.
     const decorated = (settings: EditorSettings) =>
       make(settings).facet(EditorView.decorations).length
     const base = decorated(DEFAULT_EDITOR_SETTINGS)
@@ -152,7 +147,6 @@ describe('editor setup from the settings', () => {
     expect(decorated({ ...DEFAULT_EDITOR_SETTINGS, highlightTrailingWhitespace: true })).toBe(
       base + 1,
     )
-    // Each flag reconfigures only its own part.
     for (const key of ['toolbar', 'showInvisibles', 'highlightTrailingWhitespace'] as const) {
       expect(
         reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
@@ -161,7 +155,6 @@ describe('editor setup from the settings', () => {
         }),
       ).toHaveLength(1)
     }
-    // Scroll Past End also sets the room under the caret.
     expect(
       reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
         ...DEFAULT_EDITOR_SETTINGS,
@@ -219,7 +212,6 @@ describe('editor setup from the settings', () => {
     expect(attrs(after)).not.toHaveProperty('spellcheck')
     expect(after.doc.toString()).toBe('a')
     expect(after.selection.main.head).toBe(1)
-    // The gutter follows both line numbers and the current-line highlight.
     expect(
       reconfigureSetup(DEFAULT_EDITOR_SETTINGS, {
         ...DEFAULT_EDITOR_SETTINGS,
@@ -260,7 +252,6 @@ describe('CodeMirror bindings under keys the user set', () => {
   // As CodeMirror decides: Mod is Command on macOS, Control elsewhere.
   const mac = /Mac/.test(globalThis.navigator?.platform ?? '')
   const mod = mac ? 'Mod' : 'Ctrl'
-  /** The built-in bindings with these keys in effect (the rest their defaults). */
   const withKeys = (keys: Record<string, string[]>) => {
     setCommandKeys(new Map(COMMANDS.map((c) => [c.id, keys[c.id] ?? c.keys])))
     return make(DEFAULT_EDITOR_SETTINGS).facet(keymap).flat()
@@ -286,7 +277,6 @@ describe('CodeMirror bindings under keys the user set', () => {
       const bindings = withKeys(keys)
       for (const command of panels) expect(runs(bindings, command)).toBe(false)
     }
-    // The searches that open nothing stay.
     const bindings = withKeys({})
     expect(runs(bindings, selectNextOccurrence)).toBe(true)
     expect(runs(bindings, selectSelectionMatches)).toBe(true)

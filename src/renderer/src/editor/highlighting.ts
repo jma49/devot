@@ -16,7 +16,6 @@ import type { Tree } from '@lezer/common'
 import { highlightTree, type Highlighter } from '@lezer/highlight'
 import { joinOperatorRuns, type StyledSpan } from '../../../core/operatorRuns'
 
-/** The Markdown nodes whose text is code. */
 const CODE_NODES = new Set(['FencedCode', 'CodeBlock', 'InlineCode'])
 
 /**
@@ -46,7 +45,6 @@ export function highlightSpans(
   return spans
 }
 
-/** Highlighting with `style`, as `syntaxHighlighting(style)` without other highlighters. */
 export function noteHighlighting(style: HighlightStyle): Extension {
   const marks = new Map<string, Decoration>()
   const mark = (cls: string): Decoration => {

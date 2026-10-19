@@ -17,7 +17,6 @@ function state(marked: string, mode: 'all' | 'active' | null = 'all') {
   return s
 }
 
-/** The numbers of the lines that do not wrap. */
 const unwrapped = (s: EditorState) =>
   unwrapLines(s, [{ from: 0, to: s.doc.length }]).flatMap((block) =>
     block.lines.map((from) => s.doc.lineAt(from).number),
@@ -48,7 +47,6 @@ const NOTE = [
 
 describe('unwrapped blocks', () => {
   it('keeps every code block and table on one line each in prose mode', () => {
-    // Code in a quote or an alert keeps wrapping with it.
     expect(unwrapped(state(NOTE))).toEqual([3, 4, 5, 7, 8, 9, 11])
   })
 
@@ -65,7 +63,6 @@ describe('unwrapped blocks', () => {
       )
     expect(unwrapped(at(1))).toEqual([])
     expect(unwrapped(at(4, 3))).toEqual([3, 4, 5])
-    // At the end of a block's last line the caret is still in it.
     expect(unwrapped(at(5, 3))).toEqual([3, 4, 5])
     expect(unwrapped(at(8))).toEqual([7, 8, 9])
     expect(unwrapped(at(9, 9))).toEqual([7, 8, 9])
@@ -105,7 +102,6 @@ describe('unwrapped blocks', () => {
     const typed = s.update({ changes: { from: 0, insert: 'More\n' } }).state
     ensureSyntaxTree(typed, typed.doc.length, 5000)
     expect(activeBlock(typed)?.from).toBe(typed.doc.line(4).from)
-    // Leaving it to the prose above wraps it again.
     const left = typed.update({ selection: { anchor: 1 } }).state
     expect(activeBlock(left)).toBeNull()
     expect(unwrapped(left)).toEqual([])

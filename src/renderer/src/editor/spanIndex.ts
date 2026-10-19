@@ -2,7 +2,6 @@
 // Formats ask about every character of a region: scanning the spans for each
 // one makes a long line with many spans quadratic.
 
-/** A formatted span: `from`–`openTo` and `closeFrom`–`to` are its markers. */
 export interface IndexedSpan {
   from: number
   to: number
@@ -10,11 +9,9 @@ export interface IndexedSpan {
   closeFrom: number
 }
 
-/** Whether `pos` is in the span's markers. */
 export const isMarker = (span: IndexedSpan, pos: number) =>
   (span.from <= pos && pos < span.openTo) || (span.closeFrom <= pos && pos < span.to)
 
-/** Whether `pos` is in the span's text, between its markers. */
 export const isInside = (span: IndexedSpan, pos: number) =>
   span.openTo <= pos && pos < span.closeFrom
 
@@ -32,10 +29,8 @@ export class SpanIndex {
     this.disjoint = this.sorted.every((s, i) => i === 0 || (this.sorted[i - 1]?.to ?? 0) <= s.from)
   }
 
-  /** The span with `pos` in its markers or its text, if any. */
   at(pos: number): IndexedSpan | undefined {
     if (!this.disjoint) return this.sorted.find((s) => s.from <= pos && pos < s.to)
-    // The last span starting at or before `pos`.
     let low = 0
     let high = this.sorted.length
     while (low < high) {
@@ -47,14 +42,12 @@ export class SpanIndex {
     return span && pos < span.to ? span : undefined
   }
 
-  /** Whether `pos` is in one of the spans' markers. */
   marker(pos: number): boolean {
     if (!this.disjoint) return this.sorted.some((s) => isMarker(s, pos))
     const span = this.at(pos)
     return !!span && isMarker(span, pos)
   }
 
-  /** Whether `pos` is in one of the spans' text. */
   inside(pos: number): boolean {
     if (!this.disjoint) return this.sorted.some((s) => isInside(s, pos))
     const span = this.at(pos)
@@ -62,10 +55,6 @@ export class SpanIndex {
   }
 }
 
-/**
- * The positions covered by any of a set of ranges, which may overlap or
- * come in any order.
- */
 export class Covered {
   private readonly merged: { from: number; to: number }[] = []
 

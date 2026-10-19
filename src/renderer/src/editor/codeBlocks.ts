@@ -1,11 +1,7 @@
-// Fenced code blocks in the note editor. Every line of a block, its fences
-// included, sits in one box (a line decoration: the top and bottom lines are
-// rounded); a fence the note never closes boxes the rest of the note, as the
-// parser reads it. The fence's backticks and its info string take the markup
-// and heading syntax colours. While the selection is in a block (one not in
-// a quote or alert), a copy button in the box's top-right corner copies the
-// code without its fences. On an opening fence line, right after the
-// backticks, a completion lists the fence languages by alias.
+// Fenced code blocks: every line of a block, fences included, sits in one box (a line decoration);
+// an unclosed fence boxes the rest of the note, as the parser reads it. While the selection is in a
+// block outside a quote or alert, a copy button copies the code without its fences. A completion
+// after an opening fence's backticks lists the fence languages by alias.
 import type { Completion, CompletionContext, CompletionResult } from '@codemirror/autocomplete'
 import { startCompletion } from '@codemirror/autocomplete'
 import { indentUnit, syntaxTree } from '@codemirror/language'
@@ -47,7 +43,6 @@ export interface CodeBlockLine {
   closing: boolean
 }
 
-/** The fenced blocks the tree has between `from` and `to`. */
 function fencedBlocks(state: EditorState, from: number, to: number): SyntaxNode[] {
   const blocks: SyntaxNode[] = []
   syntaxTree(state).iterate({
@@ -80,7 +75,6 @@ function blockLines(
   return { first, last, closed: close !== undefined && doc.lineAt(close.from).number === last }
 }
 
-/** Every line of the fenced blocks between `from` and `to`, in order. */
 export function codeBlockLines(
   state: EditorState,
   from = 0,
@@ -97,7 +91,6 @@ export function codeBlockLines(
   return out
 }
 
-/** The fenced block around `pos`, if any. */
 export function blockAt(state: EditorState, pos: number): SyntaxNode | null {
   for (
     let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1);
@@ -159,7 +152,6 @@ const lineDeco = (line: CodeBlockLine) =>
 const fenceMark = Decoration.mark({ class: 'cm-codeblock-fence' })
 const infoMark = Decoration.mark({ class: 'cm-codeblock-info' })
 
-/** How long the copy button shows its check after a copy. */
 const COPIED_MS = 1000
 
 class CopyButton extends WidgetType {
@@ -309,9 +301,6 @@ const scanFirstLines: MarkerScan = (state, from, to, mark, touch) => {
 
 const gutterLines = markerField(scanFirstLines)
 
-// Languages
-
-/** A fence language: an alias written after the fence, and its display name. */
 export interface FenceLanguage {
   alias: string
   name: string
@@ -339,9 +328,7 @@ export function languageOptions(query: string): (FenceLanguage & { ranges: [numb
   }))
 }
 
-/** Where a fence's language goes: the info string from its start to its end, and the fence. */
 export interface FenceInfo {
-  /** The fence itself (its backticks or tildes). */
   fence: string
   from: number
   to: number
@@ -421,23 +408,13 @@ export function openLanguageList(view: EditorView): void {
   if (fenceInfoAt(view.state)) startCompletion(view)
 }
 
-// Typing inside
-
-/**
- * Where the cursor is in a block's text, with the block's container prefix
- * (its quote markers, and spaces for its list markers), or null: one empty
- * cursor past the opening fence and before the closing one.
- */
 /** Where the cursor is in a block's text, with what Return and Tab need of the block. */
 interface BlockText {
   pos: number
   /** The block's container prefix (a quote's markers, a list item's indent) as spaces and `>`. */
   prefix: string
-  /** The cursor is below the opening fence. */
   body: boolean
-  /** The opening fence's info string (`js`, `py title="x"`). */
   info: string
-  /** The block's lines, their container prefix removed. */
   lines: string[]
 }
 
@@ -466,7 +443,6 @@ function inBlockText(state: EditorState): BlockText | null {
   return { pos: main.head, prefix, body, info, lines }
 }
 
-/** The indent unit in a block: its own, else its language's, else the editor's. */
 function blockIndentUnit(state: EditorState, at: BlockText): string {
   return blockUnit(at.lines) ?? codeStyle(at.info).unit ?? state.facet(indentUnit)
 }
@@ -501,7 +477,6 @@ export function codeReturn(state: EditorState) {
   }
 }
 
-/** Tab in a block's text: the block's indent unit at the cursor. */
 export function codeTab(state: EditorState) {
   const at = inBlockText(state)
   if (!at?.body) return null
@@ -540,7 +515,6 @@ const theme = EditorView.theme({
   '.cm-line.cm-codeblock': {
     position: 'relative',
     zIndex: '0',
-    // The code font (Settings > Editor), SF Mono by default.
     fontFamily: 'var(--code-font-family, var(--font-family-mono))',
   },
   // The box is drawn behind the text, inset by the margin on the outer lines.
@@ -576,12 +550,10 @@ const theme = EditorView.theme({
   // fence stands from the top.
   '.cm-line.cm-codeblock-closing': { paddingBottom: BOX_MARGIN },
   '.cm-line.cm-codeblock-closing::before': { bottom: `calc(${BOX_MARGIN} + var(--space-1))` },
-  // The first line's number and fold chevron, level with its text.
   '.cm-gutterElement.cm-codeblock-gutter-first': {
     boxSizing: 'border-box',
     paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,
   },
-  // A highlight span inside a fence keeps the fence's colour.
   '.cm-codeblock-fence, .cm-codeblock-fence *': { color: 'var(--color-syntax-markup)' },
   '.cm-codeblock-info, .cm-codeblock-info *': { color: 'var(--color-syntax-heading)' },
   '.cm-codeblock-copy': {
@@ -600,7 +572,6 @@ const theme = EditorView.theme({
     background: 'var(--color-fill-button)',
     color: 'var(--color-text-secondary)',
     cursor: 'default',
-    // A control over the text: it grows a little as it fades in, and its colour eases.
     animation: buttonIn,
     transition: 'color var(--motion-duration-color) var(--motion-easing-standard)',
   },
@@ -620,7 +591,6 @@ const theme = EditorView.theme({
   },
 })
 
-/** The code block boxes, fence colours and copy button, for the note editor. */
 export function codeBlocks(): Extension {
   return [toolbarStateExtension, boxes, gutterLines, typingKeys, theme]
 }

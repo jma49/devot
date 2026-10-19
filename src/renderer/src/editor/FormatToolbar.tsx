@@ -52,7 +52,6 @@ interface ToolbarProps {
   showAlertMenu: ShowAlertMenu
 }
 
-/** Heading from the toolbar: one level up, then the caret goes to the end of the line. */
 function headingFromToolbar(view: EditorView) {
   if (!formatCommand('heading')(view)) return
   const line = view.state.doc.lineAt(view.state.selection.main.head)
@@ -100,7 +99,6 @@ function FormatToolbar(props: ToolbarProps) {
                 icon={b.icon}
                 tip={toolbarTip(b)}
                 pressed={active[b.id]}
-                // The Alert button opens a pop-up to pick the kind.
                 popup={b.id === 'alert'}
                 onShowTip={tip.show}
                 onHideTip={tip.hide}
@@ -140,7 +138,6 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
     dom.style.maxWidth = max
     return true
   }
-  // The notch follows the anchor when the bar is held back at an edge.
   let anchorX = 0
   const aimNotch = () => {
     const box = dom.getBoundingClientRect()
@@ -181,7 +178,6 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
       anchorX = anchor?.left ?? anchorX
       return anchor as Rect
     },
-    // The notch points at the selection's start, a little away from its line.
     offset: { x: -NOTCH_X, y: BAR_GAP },
     resize: false,
     // Unmount outside CodeMirror's (and possibly React's) update.
@@ -245,10 +241,7 @@ const theme = EditorView.theme({
   },
 })
 
-/**
- * The selection toolbar and the format shortcuts, for the note editor.
- * `showAlertMenu` opens the pop-up of the Alert button.
- */
+/** The selection toolbar and the format shortcuts; `showAlertMenu` opens the Alert button's pop-up. */
 export function formatToolbar(showAlertMenu: ShowAlertMenu): Extension {
   return [toolbarStateExtension, toolbarTooltip(showAlertMenu), formatKeys(), floatTheme, theme]
 }

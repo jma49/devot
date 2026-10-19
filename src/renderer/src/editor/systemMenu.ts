@@ -6,14 +6,12 @@
 import type { NativeItem, NativeItemOptions, NativeMenuApi, PredefinedKind } from '../contextMenu'
 import { invoke } from '../ipc'
 
-/** An item as Rust takes it. */
 export type SystemMenuEntry =
   | { kind: 'item'; id: string; text: string; accelerator?: string; checked?: boolean }
   | { kind: 'separator' }
   | { kind: 'predefined'; item: PredefinedKind }
   | { kind: 'submenu'; id: string; text: string; items: SystemMenuEntry[] }
 
-/** What Rust answers once the menu has closed. */
 export type SystemMenuPick = { kind: 'item'; id: string } | { kind: 'guess'; text: string } | null
 
 type Node =
@@ -54,7 +52,6 @@ function find(nodes: readonly Node[], id: string): Node | undefined {
   return undefined
 }
 
-/** The word at the point the system offers guesses for, and what to do with the one picked. */
 export interface Spelling {
   word: () => string | null
   replace: (guess: string) => void
@@ -68,7 +65,6 @@ export interface Spelling {
 export const systemMenusAvailable = (): boolean =>
   DEVOT_UI_TEST || /\bMac OS X\b/.test(navigator.userAgent)
 
-/** The native calls of `createContextMenu`, for a menu Rust shows with the system's items. */
 export function systemMenus(spelling: Spelling): NativeMenuApi {
   return {
     item: async (options) => {

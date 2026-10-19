@@ -17,7 +17,6 @@ export { insertImage, insertNoteLink } from './formats'
 
 export type InsertId = 'image' | 'table' | 'noteLink'
 
-/** A new table: two empty columns, a header and one row. */
 const NEW_TABLE: Table = { header: ['', ''], align: ['none', 'none'], rows: [['', '']] }
 
 /**
@@ -35,7 +34,6 @@ export function insertTable(state: EditorState): TransactionSpec | null {
   return insertBlocks(state, () => ({ lines: printed.lines, cursor: { line: 0, column } }))
 }
 
-/** Each insertion's command. */
 export const INSERT_COMMANDS: Record<InsertId, FormatCommand> = {
   image: insertImage,
   table: insertTable,
@@ -47,7 +45,6 @@ export const AFTER_INSERT: Partial<Record<InsertId, (view: EditorView) => void>>
   noteLink: (view) => void startCompletion(view),
 }
 
-/** An insertion for CodeMirror: dispatches its transaction (false when nothing goes in). */
 export function insertCommand(id: InsertId): Command {
   return (view) => {
     const tr = INSERT_COMMANDS[id](view.state)
@@ -58,7 +55,6 @@ export function insertCommand(id: InsertId): Command {
   }
 }
 
-/** The insertion keys from the command registry (none unless the user sets some). */
 export const insertKeymap: () => Extension = registryKeys(() =>
   Prec.high(
     keymap.of(

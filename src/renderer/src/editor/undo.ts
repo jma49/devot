@@ -1,22 +1,14 @@
-// The editor's one undo system is CodeMirror's history (`history()` in
-// settings.ts; Cmd+Z, Shift+Cmd+Z and Edit > Undo and Redo, which reach the
-// page as `historyUndo` and `historyRedo` input events, all go to it). It
-// holds the user's own edits in this editor, each command one step, and an
-// input method's composition as one step. What reaches the editor from its
-// Yjs document is not the user's: sync, another process (devot-mcp, the
-// Markdown mirror) and the core's merges change the text without entering
-// the history, which maps its steps through them instead. A restored version
-// is the one exception: the user asked for it, so it is a step of its own.
+// The editor's one undo system is CodeMirror's history (`history()` in settings.ts); Cmd+Z, Shift+Cmd+Z and
+// Edit > Undo and Redo reach it as `historyUndo` and `historyRedo` input events. It holds the user's own edits,
+// one step per command and one per input method composition. Changes arriving from the Yjs document (sync,
+// devot-mcp, the Markdown mirror, the core's merges) are not the user's: they bypass the history, which maps its
+// steps through them. A restored version is the exception: the user asked for it, so it is a step of its own.
 //
-// A note keeps its history while another note is shown (the last
-// `UNDO_NOTES` notes left), with the Yjs state its replica had then; shown
-// again, the Yjs changes made meanwhile are applied without entering the
-// history, exactly where they were made (as y-codemirror applies a change
-// while the note is open), so undo goes on with the user's own edits in their
-// places. When those changes cannot be told (the note's document is not the
-// one it was left with), the note starts with no history. It is kept here,
-// not in the core, so the core letting the note go from memory does not
-// touch it.
+// A note keeps its history while another note is shown (the last `UNDO_NOTES` notes left), with the Yjs state its
+// replica had then; shown again, the Yjs changes made meanwhile are applied without entering the history, exactly
+// where they were made, so undo goes on with the user's own edits in their places. When those changes cannot be
+// told, the note starts with no history. It is kept here, not in the core, so the core letting the note go does
+// not touch it.
 import { historyField, isolateHistory } from '@codemirror/commands'
 import {
   ChangeSet,
@@ -30,7 +22,6 @@ import { ySyncAnnotation } from 'y-codemirror.next'
 import * as Y from 'yjs'
 import { BODY } from '../../../core/notes'
 
-/** How many notes, once left, keep their undo history. */
 export const UNDO_NOTES = 10
 
 /**
@@ -48,18 +39,13 @@ export function yjsHistory(restoring: () => boolean): Extension {
 }
 
 interface Kept {
-  /** The note's text when it was left. */
   text: string
-  /** The replica's Yjs state when it was left. */
   state: Uint8Array
-  /** The history field, serialised. */
   history: unknown
 }
 
-/** The histories of the notes left, the least recently left first. */
 const kept = new Map<string, Kept>()
 
-/** Keeps the undo history of a note the editor leaves, with its Yjs replica `doc`. */
 export function keepUndo(noteId: string, state: EditorState, doc: Y.Doc): void {
   const { history } = state.toJSON({ history: historyField }) as {
     history: unknown
@@ -132,7 +118,6 @@ export function noteState(
 ): EditorState {
   const was = kept.get(noteId)
   if (!was) return EditorState.create(config)
-  // Shown again, it is kept anew when it is left.
   kept.delete(noteId)
   const changes = changesSince(was, doc)
   if (!changes) return EditorState.create(config)

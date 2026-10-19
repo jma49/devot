@@ -12,11 +12,8 @@ import {
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import { FORMAT_EVENT } from './formats'
 
-/** Hides the toolbar until the user selects again. */
 export const hideToolbar = StateEffect.define<null>()
-/** Lets the toolbar show for the next selection (closing the slash menu with Escape). */
 export const releaseToolbar = StateEffect.define<null>()
-/** The editor gained (true) or lost (false) focus. */
 export const setToolbarFocus = StateEffect.define<boolean>()
 
 interface ToolbarState {
@@ -44,7 +41,6 @@ export const toolbarState = StateField.define<ToolbarState>({
   },
 })
 
-/** Set by Settings > Editing > Toolbar when it is off: the toolbar never shows. */
 export const toolbarOff = Facet.define<boolean, boolean>({
   combine: (values) => values.some(Boolean),
 })
@@ -86,7 +82,6 @@ const focusOut = ViewPlugin.define((view) => {
 
 const asElement = (target: EventTarget | null) => (target instanceof Element ? target : null)
 
-/** The field plus the focus tracking it needs from the view. */
 export const toolbarStateExtension = [
   toolbarState,
   // Gaining focus is noted here; losing it below, where the new target is known.
@@ -138,7 +133,6 @@ export function releaseBarFocus(view: EditorView, bar: HTMLElement): void {
   })
 }
 
-/** Whether the editor has focus, as the floating bars know it. */
 export function editorFocused(state: EditorState): boolean {
   return state.field(toolbarState, false)?.focused ?? false
 }

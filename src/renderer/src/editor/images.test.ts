@@ -137,7 +137,6 @@ describe('setting an image size', () => {
     let s = state(`![a](${FILE}#half)`)
     s = s.update(imageSizeChange(s, findImages(s)[0]!, 'full')!).state
     expect(s.doc.toString()).toBe(`![a w:100%](${FILE})`)
-    // An image whose URL has another fragment takes a size too.
     let t = state('![x](y.png#page)')
     t = t.update(imageSizeChange(t, findImages(t)[0]!, 'small')!).state
     expect(t.doc.toString()).toBe('![x w:240](y.png#page)')
