@@ -483,7 +483,7 @@ test('in search results, Duplicate focuses the copy and the menu works', async (
   await createNote(page, 'Other')
   const search = page.getByRole('searchbox', { name: 'Search notes' })
   await search.fill('Alpha')
-  await expect(page.locator('.list .headline')).toHaveText('Search Results')
+  await expect(page.locator('.list .headline')).toHaveText('Search')
   await expect(noteRows(page)).toHaveCount(1)
   await focusRow(page, 'Alpha plan')
   const original = (await stored(page)).find((n) => n.title === 'Alpha plan')

@@ -98,11 +98,11 @@ test('the sidebar, list and editor show the window material through their washes
   expect(alpha(await css(page.getByRole('main'), 'background-color'))).toBeLessThan(1)
 })
 
-test('counts notes in the sidebar and the list header', async ({ page }) => {
+test('counts notes in the sidebar and for the note list', async ({ page }) => {
   await freshStart(page)
-  await expect(page.locator('.list .caption').getByText('0 notes')).toBeVisible()
+  await expect(page.locator('.list .list-count')).toHaveText('0 notes')
   await createNote(page, 'First')
-  await expect(page.locator('.list .caption').getByText('1 note', { exact: true })).toBeVisible()
+  await expect(page.locator('.list .list-count')).toHaveText('1 note')
   await expect(page.getByRole('button', { name: /All Notes/ })).toContainText('1')
 })
 

@@ -977,58 +977,70 @@ button {
   padding: 0 var(--space-6) 0 var(--space-8);
 }
 
-/* The list's header: sidebar toggle at the start, the view centred, New Note
-   at the end. The sides never shrink below their buttons; the view gives way. */
+/* The list's header: the sidebar toggle at the start and New Note at the end,
+   the view's name on one line centred in the room between them (so it moves
+   with the window controls' room). Everything sits on the toolbar's centre
+   line, which the traffic lights share. */
 .list-header {
-  display: grid;
-  grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
+  display: flex;
   align-items: center;
   border-bottom: 0;
 }
 
 .list-header-side {
   display: flex;
+  flex: none;
   align-items: center;
-  min-width: 0;
-}
-
-.list-header-end {
-  justify-content: flex-end;
 }
 
 .list .list-header .toolbar-title {
-  flex: none;
-  align-items: center;
-  max-width: 100%;
-}
-
-/* The room an icon before the title takes: its box (icon-sm, NoteList.tsx)
-   and the gap after it. Set on the title block, so the headline row and
-   the caption under it read the same value. */
-.toolbar-title {
-  --headline-gap: var(--space-3);
-  --headline-icon-room: calc(var(--size-icon-sm) + var(--headline-gap));
-}
-
-.headline-row {
   display: flex;
+  flex: 1;
+  flex-direction: row;
   align-items: center;
-  gap: var(--headline-gap);
+  justify-content: center;
+  gap: calc(var(--font-size-list-title) * 0.3);
   min-width: 0;
-  max-width: 100%;
+  /* The same room on both sides, so the name never touches a button. */
+  padding-inline: var(--space-3);
+  overflow: hidden;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
   color: var(--color-text-primary);
 }
 
-.headline-row .headline {
+.list-header .headline {
   min-width: 0;
+  overflow: hidden;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Under a title with an icon the caption takes the icon's room too, so it is
-   centred under the title rather than under icon and title together. */
-.headline-row:has(> .icon) + .caption {
-  max-width: 100%;
+/* The view's icon: a 1em square before the name, a little lighter. */
+.headline-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  opacity: var(--opacity-headline-icon);
+}
+
+.headline-icon > .icon {
+  width: 1em;
+  height: 1em;
+}
+
+/* A tag's colour: a small filled circle (the text colour for a tag without one). */
+.headline-dot {
   box-sizing: border-box;
-  padding-inline-start: var(--headline-icon-room);
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: var(--radius-capsule);
+  background: var(--tag-color, var(--color-text-secondary));
 }
 
 /* Filter field and sort chip under the header. */

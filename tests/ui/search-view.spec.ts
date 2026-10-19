@@ -7,7 +7,7 @@ import { expect, test, pickStatus } from './fixtures'
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
 const header = (page: Page) => page.locator('.list .headline')
-const caption = (page: Page) => page.locator('.list .caption')
+const caption = (page: Page) => page.locator('.list .list-count')
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', {
@@ -63,7 +63,7 @@ test('Shift+Cmd+F searches the current view; Shift+Opt+Cmd+F searches every note
   await expect(search(page)).toBeFocused()
   await expect(search(page)).toHaveAttribute('placeholder', 'Filter')
   await page.keyboard.type('plan')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(caption(page)).toHaveText('In Work · 1 note')
   await expect(noteRows(page)).toHaveText([/^Work plan/])
   // The notebook stays selected while its notes are searched.
@@ -149,7 +149,7 @@ test('qualifiers and exclusions narrow the results', async ({ page }) => {
   await showAllNotes(page)
 
   await search(page).fill('plan book:"weekly NOTES"')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveCount(2)
   await search(page).fill('plan book:"weekly NOTES" -archived')
   await expect(noteRows(page)).toHaveText([/^Week plan/])
@@ -157,7 +157,7 @@ test('qualifiers and exclusions narrow the results', async ({ page }) => {
   await expect(noteRows(page)).toHaveText([/^Loose plan/])
   // Malformed input is searched as text, never an error.
   await search(page).fill('status:"later')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveCount(0)
 })
 
@@ -228,7 +228,7 @@ test('excerpts read as text: no front matter and no Markdown markers', async ({ 
     ].join('\n'),
   )
   await search(page).fill('checklist')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   const row = noteRows(page).filter({ hasText: 'Launch' })
   await expect(row.locator('.row-excerpt')).toHaveText(
     'Board Inbox See Plan and the launch checklist',
@@ -237,7 +237,7 @@ test('excerpts read as text: no front matter and no Markdown markers', async ({ 
 
   // A word the front matter holds finds the note, with no excerpt from it.
   await search(page).fill('q4')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveCount(1)
   await expect(row.locator('.row-excerpt mark')).toHaveCount(0)
 })

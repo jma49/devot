@@ -900,7 +900,7 @@ test('a selection ends with its view and its summary tag field takes nothing off
 
 test('Copy Note Links copies the links of 1,500 notes', async ({ page }) => {
   await seedNotes(page, 1500)
-  const caption = page.getByRole('toolbar', { name: 'Toolbar' }).first().locator('.caption')
+  const caption = page.getByRole('toolbar', { name: 'Toolbar' }).first().locator('.list-count')
   await expect(caption).toHaveText('1,500 notes')
   const row = (title: string) =>
     noteRows(page).filter({

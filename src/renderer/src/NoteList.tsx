@@ -16,7 +16,7 @@ import type { NoteSummary, TagRecord } from '../../core'
 import { listCaption } from './format'
 import { currentLocale, t } from './i18n'
 import { Icon } from './icons/Icon'
-import type { IconName } from './icons/symbols'
+import type { MenuPoint } from './contextMenu'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import {
   openAfter,
@@ -48,7 +48,7 @@ interface Props {
   view: string
   /** The library shown: All Notes, a notebook, or the active filter. */
   title: string
-  /** The notebook a filter is narrowed to, shown in the caption. */
+  /** The notebook a filter is narrowed to, spoken with the count. */
   scope?: string | undefined
   /** Pinned notes, listed in their own section above `notes`. */
   pinned: NoteSummary[]
@@ -84,8 +84,10 @@ interface Props {
    * the open note's title or body (the row's note when none is open).
    */
   onEdit?: (part: 'title' | 'body', id: string) => void
-  /** The view's icon, shown beside its name in the header. */
-  icon?: IconName | undefined
+  /** The view's icon (a symbol, a notebook's own icon, a tag's colour), before its name in the header. */
+  icon?: ReactNode
+  /** A right-click on the header's name: the view's own menu (a notebook's or a tag's). */
+  onTitleMenu?: ((at: MenuPoint) => void) | undefined
   /** The Filter field under the header (the search field; none in the Trash). */
   filter?: ReactNode
   /** Shown first in the toolbar (Show Sidebar while the sidebar is hidden). */
@@ -701,24 +703,34 @@ export const NoteList = memo(function NoteList(props: Props) {
         <div className="list-header-side" data-tauri-drag-region>
           {props.leading}
         </div>
-        <div className="toolbar-title" data-tauri-drag-region>
-          <span className="headline-row" data-tauri-drag-region>
-            {props.icon ? <Icon name={props.icon} size="sm" /> : null}
-            {/* Long names are cut off with an ellipsis; the tooltip has the whole one. */}
-            <span className="headline" title={title} data-tauri-drag-region>
-              {title}
+        {/* The view's name on one line, centred between the toggle and New Note.
+            All of it drags the window (a double-click zooms it); the count is
+            only spoken. */}
+        <div
+          className="toolbar-title"
+          data-tauri-drag-region="deep"
+          onContextMenu={
+            props.onTitleMenu
+              ? (e) => {
+                  e.preventDefault()
+                  props.onTitleMenu?.({ x: e.clientX, y: e.clientY })
+                }
+              : undefined
+          }
+        >
+          {props.icon ? (
+            <span className="headline-icon" aria-hidden="true">
+              {props.icon}
             </span>
-          </span>
-          <span
-            className="caption"
-            aria-hidden="true"
-            title={scope ? caption : undefined}
-            data-tauri-drag-region
-          >
-            {caption}
-          </span>
+          ) : null}
+          <span className="headline">{title}</span>
           <span role="status" className="visually-hidden">
             {spoken}
+          </span>
+          {/* The count as it is now (the spoken one waits for it to settle);
+              never shown. */}
+          <span className="list-count" hidden>
+            {caption}
           </span>
         </div>
         <div className="list-header-side list-header-end" data-tauri-drag-region>

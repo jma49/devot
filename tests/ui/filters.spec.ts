@@ -141,7 +141,7 @@ test('filters combine with the selected notebook', async ({ page }) => {
   await page.getByRole('treeitem', { name: /^Work/ }).locator('> .book-row').click()
   await expect(noteRows(page)).toHaveCount(1)
   await expect(header(page)).toHaveText('Active')
-  await expect(page.locator('.list .caption')).toHaveText('Work · 1 note')
+  await expect(page.locator('.list .list-count')).toHaveText('Work · 1 note')
 })
 
 test('status, tags and pinning survive a reload', async ({ page }) => {

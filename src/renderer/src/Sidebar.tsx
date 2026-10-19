@@ -3,6 +3,7 @@ import {
   Fragment,
   memo,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -10,6 +11,7 @@ import {
   type DragEvent,
   type KeyboardEvent,
   type ReactNode,
+  type Ref,
 } from 'react'
 import { MAX_BOOK_NAME_CHARS, flattenBookTree, type BookNode } from '../../core/books'
 import type { NoteStatus, TagColor, TagRecord } from '../../core/storage'
@@ -209,6 +211,8 @@ interface Props {
   trashCount: number
   /** Opens the command palette scoped to notebooks (the Notebooks header's search button). */
   onSearchBooks: () => void
+  /** Filled with the notebook and tag menus, for the note list header's name to open. */
+  menus?: Ref<SidebarMenus> | undefined
   /** Opens the command palette scoped to tags (the Tags header's search button). */
   onSearchTags: () => void
   /** Asks to empty the Trash (the Trash row's menu). */
@@ -225,7 +229,14 @@ interface Props {
   onWorkspaceUp?: () => void
 }
 
-const STATUSES: { status: NoteStatus; icon: IconName; label: MessageKey }[] = [
+/** The sidebar's notebook and tag menus, opened from elsewhere (the note list header). */
+export interface SidebarMenus {
+  book: (id: string, at: MenuPoint) => void
+  tag: (id: string, at: MenuPoint) => void
+}
+
+/** The statuses, in the order the sidebar lists them, with their icons. */
+export const STATUSES: { status: NoteStatus; icon: IconName; label: MessageKey }[] = [
   { status: 'active', icon: 'status.active', label: 'status.active' },
   { status: 'on_hold', icon: 'status.onHold', label: 'status.on_hold' },
   { status: 'completed', icon: 'status.completed', label: 'status.completed' },
@@ -801,6 +812,19 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     ws ? withRowOutline(WORKSPACE_ROW, () => showWorkspaceMenu(placed(ws.book), at)) : undefined
   const openAllNotesMenu = (at?: MenuPoint) =>
     withRowOutline(allKey, () => showAllNotesMenu({ canCreate: props.onNewNote !== undefined }, at))
+
+  // The list header's name opens the same menus.
+  useImperativeHandle(props.menus, () => ({
+    book: (id, at) => {
+      if (ws?.book.id === id) return void openWorkspaceMenu(at)
+      const node = flattenBookTree(tree).find((n) => n.id === id)
+      if (node) void openMenu(node, at)
+    },
+    tag: (id, at) => {
+      const tag = props.tags.find((each) => each.id === id)
+      if (tag) void openTagMenu(tag, at)
+    },
+  }))
 
   const onKey = (event: KeyboardEvent, node: BookNode) => {
     if (event.target !== event.currentTarget) return

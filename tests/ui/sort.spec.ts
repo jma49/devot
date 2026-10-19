@@ -242,7 +242,7 @@ test('search results keep their relevance order until another order is picked', 
   await pickMenuItem(page, 'Use as Default')
 
   await search(page).fill('plan')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Relevance')
   await expect(rowTitles(page)).toHaveText(['plan c', 'plan a', 'plan b'])
   await openSortMenu(page)

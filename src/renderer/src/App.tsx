@@ -12,7 +12,13 @@ import type {
 } from '../../core'
 // Imported directly (not through the core index) so the main bundle does not
 // pull in the preview pipeline.
-import { bookCounts, bookWithDescendants, buildBookTree, TEMPLATES_BOOK_ID } from '../../core/books'
+import {
+  bookCounts,
+  bookIcon,
+  bookWithDescendants,
+  buildBookTree,
+  TEMPLATES_BOOK_ID,
+} from '../../core/books'
 import { noteLink } from '../../core/links'
 import { clipTitle } from '../../core/noteLimits'
 import {
@@ -47,7 +53,7 @@ import { isImeKey } from './ime'
 import { createQuitGuard, newProblems } from './saving'
 import { BackupsDialog } from './BackupsDialog'
 import { BookPicker, bookOptions, currentBookOption, NO_BOOK } from './BookPicker'
-import { useContextMenu } from './contextMenu'
+import { useContextMenu, type MenuPoint } from './contextMenu'
 import {
   CHIP_MENU,
   NOTEBOOK_MENU,
@@ -112,6 +118,7 @@ import { openAfter, selectAll, type ListSelection } from './listSelection'
 import { SelectionSummary } from './SelectionSummary'
 import { TrashView } from './TrashView'
 import { Icon } from './icons/Icon'
+import { BookIcon } from './BookIcon'
 import { StatusPicker } from './StatusPicker'
 import { TagEditor } from './TagEditor'
 import { BuiltInTemplate, BuiltInTemplates } from './BuiltInTemplates'
@@ -167,7 +174,14 @@ import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { Activity, useActivityMenu } from './Activity'
 import { choicesFromTree, notebookForNewNote, publishNotebooks } from './notebookChoices'
-import { Sidebar, stepSidebarRow, type Selection, type SidebarWorkspace } from './Sidebar'
+import {
+  Sidebar,
+  STATUSES,
+  stepSidebarRow,
+  type Selection,
+  type SidebarMenus,
+  type SidebarWorkspace,
+} from './Sidebar'
 import { useKept, useStable } from './stable'
 import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
@@ -512,6 +526,8 @@ export function App() {
   const [editorFind, setEditorFind] = useState<FindTarget | null>(null)
   const [previewFind, setPreviewFind] = useState<FindTarget | null>(null)
   const editorRef = useRef<EditorHandle | null>(null)
+  // The sidebar's notebook and tag menus, for the list header's name.
+  const sidebarMenus = useRef<SidebarMenus | null>(null)
   // Split mode keeps the editor and the preview at the same line, unless
   // turned off (an editor setting: View > Synced Scrolling, the palette).
   const syncScroll = useEditorSetting('syncScroll')
@@ -2896,6 +2912,48 @@ export function App() {
     }),
   )
 
+  // The header's icon for a library view: a filter's (a tag's colour, a
+  // status's icon), else the notebook's own; All Notes has none. Kept the
+  // same while it shows the same, so the list does not render again.
+  const filterTag =
+    activeFilter?.kind === 'tag' ? tags.find((tag) => tag.id === activeFilter.tagId) : undefined
+  const shownBookIcon = libraryBook ? bookIcon(libraryBook) : undefined
+  const iconKey =
+    activeFilter?.kind === 'tag'
+      ? `tag:${filterTag?.color ?? ''}`
+      : activeFilter?.kind === 'status'
+        ? `status:${activeFilter.status}`
+        : activeFilter?.kind === 'pinned'
+          ? 'pinned'
+          : shownBookIcon
+            ? `book:${shownBookIcon.icon ?? ''}:${shownBookIcon.iconColor ?? ''}`
+            : ''
+  const listIcon = useMemo(() => {
+    const [kind, a, b] = iconKey.split(':')
+    if (kind === 'tag') return <span className={`headline-dot${a ? ` tag-color-${a}` : ''}`} />
+    if (kind === 'status') {
+      const icon = STATUSES.find((s) => s.status === a)?.icon ?? 'status.none'
+      return <Icon name={icon} size="lg" />
+    }
+    if (kind === 'pinned') return <Icon name="notes.pinned" size="lg" />
+    if (kind === 'book')
+      return <BookIcon icon={a || null} color={(b || null) as TagColor | null} size="lg" />
+    return null
+  }, [iconKey])
+  // A right-click on the header's name: the notebook's or the tag's menu, as in the sidebar.
+  const menuKey =
+    activeFilter?.kind === 'tag'
+      ? `tag:${activeFilter.tagId}`
+      : !activeFilter && libraryBook
+        ? `book:${libraryBook.id}`
+        : ''
+  const listTitleMenu = useMemo(() => {
+    const [kind, id] = menuKey.split(/:(.*)/s)
+    if (!kind || !id) return undefined
+    return (at: MenuPoint) =>
+      kind === 'tag' ? sidebarMenus.current?.tag(id, at) : sidebarMenus.current?.book(id, at)
+  }, [menuKey])
+
   if (startFailure) return <StartFailure code={startFailure} onRetry={retryStart} />
 
   return (
@@ -2948,12 +3006,12 @@ export function App() {
         workspace={sidebarWorkspace}
         onOpenWorkspace={stableOpenWorkspace}
         onWorkspaceUp={sidebarWorkspaceUp}
+        menus={sidebarMenus}
       />
       {searching ? (
         <NoteList
           view={listView}
           title={t('search.results')}
-          icon="search"
           filter={filterField}
           scope={results?.search.scope ? format(t('search.in'), { view: viewName }) : undefined}
           highlight={highlight}
@@ -2981,7 +3039,7 @@ export function App() {
         <NoteList
           view={listView}
           title={t('sidebar.trash')}
-          icon="trash"
+          icon={<Icon name="trash" size="lg" />}
           empty="trash"
           filter={filterField}
           pinned={NO_NOTES}
@@ -3006,7 +3064,7 @@ export function App() {
         <NoteList
           view={listView}
           title={t('sidebar.templates')}
-          icon="templates"
+          icon={<Icon name="templates" size="lg" />}
           empty="templates"
           filter={filterField}
           pinned={templateRows.pinned}
@@ -3035,15 +3093,8 @@ export function App() {
         <NoteList
           view={listView}
           title={filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes')}
-          icon={
-            libraryBook
-              ? 'notebook'
-              : activeFilter?.kind === 'pinned'
-                ? 'notes.pinned'
-                : activeFilter
-                  ? 'tag'
-                  : 'notes.all'
-          }
+          icon={listIcon}
+          onTitleMenu={listTitleMenu}
           empty={activeFilter ? 'filter' : libraryBook ? 'notebook' : 'all'}
           filter={filterField}
           scope={filterLabel !== undefined ? libraryBook?.name : undefined}

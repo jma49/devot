@@ -29,7 +29,7 @@ export const en = {
   'search.placeholderView': 'Search in {view}',
   'search.in': 'In {view}',
   'search.filterInBook': '{filter} in {book}',
-  'search.results': 'Search Results',
+  'search.results': 'Search',
   'search.clear': 'Clear Search',
   'search.help': 'Search Syntax',
   'search.help.button': '?',

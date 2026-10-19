@@ -23,7 +23,8 @@ const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const lines = (page: Page) => page.locator('.cm-line').allTextContents()
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
-const caption = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.caption')
+const caption = (page: Page) =>
+  page.getByRole('toolbar', { name: 'Toolbar' }).locator('.list-count')
 const backButton = (page: Page) => page.getByRole('button', { name: 'Back', exact: true })
 const forwardButton = (page: Page) => page.getByRole('button', { name: 'Forward', exact: true })
 const source = (page: Page, name: string) =>

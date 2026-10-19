@@ -16,10 +16,12 @@ export const sizes = {
   "font.size.editor-h2": "18px",
   "font.size.editor-h3": "15px",
   "font.size.row": "14px",
+  "font.size.list-title": "16.8px",
   "font.weight.regular": "400",
   "font.weight.extralight": "200",
   "font.weight.semibold": "600",
   "font.weight.bold": "700",
+  "font.weight.medium": "500",
   "space.1": "2px",
   "space.2": "4px",
   "space.3": "6px",
@@ -130,7 +132,8 @@ export const sizes = {
   "opacity.tag.border-active": "0.3",
   "opacity.tag.dot": "0.3",
   "opacity.count": "0.6",
-  "opacity.filter-icon": "0.3"
+  "opacity.filter-icon": "0.3",
+  "opacity.headline-icon": "0.8"
 } as const
 
 export const light = {
