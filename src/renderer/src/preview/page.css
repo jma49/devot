@@ -19,9 +19,6 @@ body {
   max-width: var(--size-reading-width);
   margin: 0 auto;
   padding: var(--space-10) var(--space-9);
-  font-size: var(--font-size-preview);
-  line-height: 1.65;
-  overflow-wrap: anywhere;
 }
 
 .preview img {
@@ -74,5 +71,10 @@ body {
 
   .preview :is(h1, h2, h3, h4, h5, h6) {
     break-after: avoid;
+  }
+
+  .preview :is(p, li, blockquote, dd) {
+    orphans: 2;
+    widows: 2;
   }
 }

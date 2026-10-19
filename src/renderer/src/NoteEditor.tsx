@@ -476,7 +476,15 @@ const theme = EditorView.theme({
   },
   '&.cm-focused': { outline: 'none' },
   // Room for the boxes and quote bars that reach past the lines (editor/boxes.ts).
-  '.cm-content': { paddingInline: BOX_HANG },
+  '.cm-content': {
+    paddingInline: BOX_HANG,
+    fontKerning: 'normal',
+    lineBreak: 'strict',
+  },
+  '@supports (text-autospace: normal)': {
+    '.cm-content': { textAutospace: 'normal' },
+    '.cm-line.cm-codeblock, .cm-md-code': { textAutospace: 'no-autospace' },
+  },
   // Thin scroll bars, as in the rest of the window (app.css).
   '.cm-scroller::-webkit-scrollbar': {
     width: 'var(--size-scrollbar)',

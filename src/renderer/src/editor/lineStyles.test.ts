@@ -29,13 +29,12 @@ function marked(doc: string, className: string): string[] {
 }
 
 describe('editor line styles', () => {
-  it('gives heading lines their level, up to level 3', () => {
+  it('gives heading lines their level', () => {
     const lines = lineClasses('# One\n\n## Two\n\n### Three\n\n#### Four\n\nTitle\n=====\n')
     expect(lines[1]).toBe('cm-md-heading cm-md-h1')
     expect(lines[3]).toBe('cm-md-heading cm-md-h2')
     expect(lines[5]).toBe('cm-md-heading cm-md-h3')
-    // Level 4 and below are body size.
-    expect(lines[7]).toBeUndefined()
+    expect(lines[7]).toBe('cm-md-heading cm-md-h4')
     // A setext heading takes its level too.
     expect(lines[9]).toBe('cm-md-heading cm-md-h1')
   })
@@ -98,7 +97,7 @@ describe('the gutter', () => {
     expect(lines).toEqual(['3:cm-md-gutter-table'])
   })
 
-  it('drops the number of a large heading (levels 1 to 3) to its baseline, on every line', () => {
+  it('puts the number of a heading on its baseline, on every line', () => {
     const s = EditorState.create({
       doc: '# One\n\ntext\n\n### Three\n\n#### Four\n\nTwo\n---\n\n```\n# not\n```',
       extensions: [noteMarkdown],
@@ -110,6 +109,7 @@ describe('the gutter', () => {
     expect(lines).toEqual([
       '1:cm-md-gutter-h1',
       '5:cm-md-gutter-h3',
+      '7:cm-md-gutter-h4',
       '9:cm-md-gutter-h2',
       '10:cm-md-gutter-h2',
     ])

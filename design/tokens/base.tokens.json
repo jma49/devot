@@ -463,25 +463,39 @@
     "family": {
       "ui": {
         "$type": "fontFamily",
+        "$description": "The system font. On macOS its own fallback picks the CJK face for the text's language; elsewhere (an exported page) the CJK faces of font.family.cjk follow before the generic family, so Chinese never falls back to a Japanese or mismatched face.",
         "$value": [
           "-apple-system",
           "BlinkMacSystemFont",
           "SF Pro Text",
           "PingFang SC",
+          "Hiragino Sans GB",
+          "Microsoft YaHei",
+          "Noto Sans CJK SC",
           "sans-serif"
         ]
       },
       "mono": {
         "$type": "fontFamily",
+        "$description": "SF Mono (ui-monospace on macOS), then the CJK faces of font.family.cjk before the generic family: monospaced faces carry no CJK, and the generic one would pick any face.",
         "$value": [
-          "SFMono-Regular",
           "ui-monospace",
+          "SFMono-Regular",
           "Consolas",
           "Liberation Mono",
           "Menlo",
           "Courier",
+          "PingFang SC",
+          "Hiragino Sans GB",
+          "Microsoft YaHei",
+          "Noto Sans CJK SC",
           "monospace"
         ]
+      },
+      "cjk": {
+        "$type": "fontFamily",
+        "$description": "The CJK faces every family falls back to before its generic family (Simplified Chinese forms): macOS, then Windows, then Linux.",
+        "$value": ["PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC"]
       }
     },
     "size": {
@@ -550,30 +564,6 @@
         },
         "$description": "The open note's title, above its notebook, status and tags."
       },
-      "editor-h1": {
-        "$type": "dimension",
-        "$description": "A level 1 heading line in the editor, at the default 13 px text.",
-        "$value": {
-          "value": 22,
-          "unit": "px"
-        }
-      },
-      "editor-h2": {
-        "$type": "dimension",
-        "$description": "A level 2 heading line in the editor, at the default 13 px text.",
-        "$value": {
-          "value": 18,
-          "unit": "px"
-        }
-      },
-      "editor-h3": {
-        "$type": "dimension",
-        "$description": "A level 3 heading line in the editor, at the default 13 px text.",
-        "$value": {
-          "value": 15,
-          "unit": "px"
-        }
-      },
       "row": {
         "$type": "dimension",
         "$value": {
@@ -612,6 +602,95 @@
         "$type": "fontWeight",
         "$value": 500
       }
+    }
+  },
+  "note": {
+    "$description": "Note text: the preview, and exported and printed pages. One body line sets the vertical rhythm and headings follow one modular scale, so every block sits on the same steps at any preview size.",
+    "line-height": {
+      "$type": "number",
+      "body": {
+        "$value": 1.65,
+        "$description": "Body text, and the length of one body line (the rhythm's unit)."
+      },
+      "heading": {
+        "$value": 1.25,
+        "$description": "Headings: tighter than the body, as large type needs less room between lines."
+      }
+    },
+    "rhythm": {
+      "$type": "number",
+      "$description": "Vertical space in body lines, in quarter-line steps: rhythm.N is N quarters of a line.",
+      "1": {
+        "$value": 0.25,
+        "$description": "Under a small heading; between a list item's paragraphs."
+      },
+      "2": {
+        "$value": 0.5,
+        "$description": "Between paragraphs and other text blocks; under the two top headings."
+      },
+      "3": {
+        "$value": 0.75,
+        "$description": "Around boxed blocks: code, tables, framed images, math and diagrams."
+      },
+      "4": {
+        "$value": 1,
+        "$description": "Over the small headings (h4 to h6); around a rule."
+      },
+      "5": {
+        "$value": 1.25,
+        "$description": "Over a third-level heading."
+      },
+      "6": {
+        "$value": 1.5,
+        "$description": "Over a second-level heading; over the footnotes."
+      },
+      "8": {
+        "$value": 2,
+        "$description": "Over a first-level heading."
+      }
+    },
+    "heading": {
+      "$type": "number",
+      "$description": "Heading sizes in em of the body text: the major third (1.25) to the power 3, 2, 1, 0, -0.5 and -1.",
+      "h1": {
+        "$value": 1.953
+      },
+      "h2": {
+        "$value": 1.563
+      },
+      "h3": {
+        "$value": 1.25
+      },
+      "h4": {
+        "$value": 1
+      },
+      "h5": {
+        "$value": 0.894
+      },
+      "h6": {
+        "$value": 0.8
+      }
+    },
+    "size": {
+      "$type": "number",
+      "$description": "Inline sizes in em of the text around them.",
+      "code": {
+        "$value": 0.85,
+        "$description": "Code, inline and in blocks: monospaced faces run wide and tall, so they set smaller to match the body's weight on the line."
+      },
+      "small": {
+        "$value": 0.78,
+        "$description": "Keycaps and tag chips."
+      },
+      "script": {
+        "$value": 0.75,
+        "$description": "Superscripts and subscripts, footnote numbers among them."
+      }
+    },
+    "underline-offset": {
+      "$type": "number",
+      "$value": 0.2,
+      "$description": "How far under the text a link's underline sits, in em: clear of the letters, near enough to read as theirs."
     }
   },
   "space": {
