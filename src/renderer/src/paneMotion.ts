@@ -143,6 +143,9 @@ const textLeft = (el: Element) =>
 
 const shows = (el: Element) => el.getClientRects().length > 0
 
+const parentOf = (el: Element): Element | null =>
+  el.parentElement ?? (el.parentNode instanceof ShadowRoot ? el.parentNode.host : null)
+
 const fades = new Map<Pane, Animation[]>()
 const shifts = new Map<Pane, number>()
 const slides: Animation[] = []
@@ -163,10 +166,12 @@ export function measurePanes(shown: Record<Pane, boolean>): PaneBoxes {
     for (const item of el.querySelectorAll(RIDERS))
       if (shows(item)) riders.set(item, textLeft(item) - left)
     // The editor's lines may sit in the middle of it (the readable width
-    // setting): it slides by where they move.
+    // setting): its scroll box slides by where they move, while the line
+    // numbers and the scroll bar stay with the editor.
     for (const host of el.querySelectorAll('.editor')) {
-      const lines = host.shadowRoot?.querySelector('.cm-content')
-      if (lines && shows(lines)) riders.set(host, textLeft(lines) - left)
+      const scroller = host.shadowRoot?.querySelector('.cm-scroller')
+      const lines = scroller?.querySelector(':scope > .cm-content')
+      if (scroller && lines && shows(lines)) riders.set(scroller, textLeft(lines) - left)
     }
     boxes[pane] = {
       left,
@@ -213,11 +218,14 @@ export function movePanes(before: PaneBoxes, shown: Record<Pane, boolean>): void
     if (reduced || !el || !was?.shown || !is?.shown || !was.riders || !is.riders) continue
     const riders = is.riders
     const outer = (item: Element) => {
-      for (let node = item.parentElement; node && node !== el; node = node.parentElement)
+      for (let node = parentOf(item); node && node !== el; node = parentOf(node))
         if (riders.has(node)) return node
       return undefined
     }
-    for (const [item, dx] of riderMoves(was.riders, riders, outer))
+    for (const [item, dx] of riderMoves(was.riders, riders, outer)) {
       play(item, { frames: slideFrames(dx), add: true, fade: false }, pane)
+      const still = item.querySelector(':scope > .cm-gutters')
+      if (still) play(still, { frames: slideFrames(-dx), add: true, fade: false }, pane)
+    }
   }
 }
