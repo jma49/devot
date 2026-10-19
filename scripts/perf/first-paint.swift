@@ -27,6 +27,8 @@ guard seed || args.count == 2 else {
 let appPath = args[args.count - 1]
 let newNoteLabel = "New Note"
 let editorLabel = "Note body"
+// DEVOT_PROBE_LABEL waits for another element instead (pnpm bench:app waits for the title field).
+let waitLabel = ProcessInfo.processInfo.environment["DEVOT_PROBE_LABEL"] ?? editorLabel
 guard AXIsProcessTrusted() else {
   fputs("E_AX_NOT_TRUSTED: allow the terminal in Privacy & Security > Accessibility\n", stderr)
   exit(2)
@@ -93,7 +95,7 @@ while process.isRunning && millis(since: start) < 30_000 {
     shellMs = millis(since: start)
   }
   if shellMs != nil {
-    if windows.contains(where: { find($0, editorLabel) != nil }) {
+    if windows.contains(where: { find($0, waitLabel) != nil }) {
       print(String(format: "%.0f %.0f %d", shellMs!, millis(since: start), process.processIdentifier))
       exit(0)
     }

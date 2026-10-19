@@ -1,0 +1,290 @@
+{
+  "generatedAt": "2026-10-19T06:15:29.300Z",
+  "commit": "b0bfee5+dirty",
+  "quick": false,
+  "machine": {
+    "model": "MacBookPro18,3",
+    "cpu": "Apple M1 Pro",
+    "cores": 8,
+    "memoryGB": 16,
+    "os": "macOS 27.2 (Darwin 27.2.0, arm64)",
+    "node": "v26.12.0",
+    "webkit": "27.2",
+    "loadAverageAtStart": 8.42
+  },
+  "bundle": {
+    "startupMain": {
+      "files": 8,
+      "bytes": 2237762,
+      "gzip": 700141,
+      "js": 2116074,
+      "css": 121688,
+      "other": 0
+    },
+    "startupWorker": {
+      "files": 3,
+      "bytes": 766749,
+      "gzip": 246285
+    },
+    "lazy": {
+      "files": 481,
+      "bytes": 8777404,
+      "gzip": 2717583,
+      "largest": [
+        {
+          "file": "assets/elk-IJKZMXRS-S3Lumbxu.js",
+          "bytes": 1462469,
+          "gzip": 448985
+        },
+        {
+          "file": "assets/chunk-NGNAAXSQ-C2Wy9Xmz.js",
+          "bytes": 629049,
+          "gzip": 125827
+        },
+        {
+          "file": "assets/cytoscape.esm-CHBj4VkZ.js",
+          "bytes": 434616,
+          "gzip": 136262
+        },
+        {
+          "file": "assets/prod-B0dMY-86.js",
+          "bytes": 419329,
+          "gzip": 139246
+        },
+        {
+          "file": "assets/katex-B_JcIwqj.js",
+          "bytes": 258806,
+          "gzip": 76585
+        },
+        {
+          "file": "assets/chunk-VPRB5NB3-ovQkojJ9.js",
+          "bytes": 240352,
+          "gzip": 37237
+        },
+        {
+          "file": "assets/temml-DDM8yfCv.js",
+          "bytes": 205505,
+          "gzip": 59382
+        },
+        {
+          "file": "assets/temml-Cewk2nrq.js",
+          "bytes": 203560,
+          "gzip": 59242
+        }
+      ]
+    },
+    "total": {
+      "files": 492,
+      "bytes": 11781915,
+      "gzip": 3664009
+    }
+  },
+  "startup": {
+    "1000Notes": {
+      "readyMs": {
+        "n": 9,
+        "median": 160,
+        "p90": 173,
+        "min": 145,
+        "max": 173
+      },
+      "firstReadyMs": 156,
+      "loaded": {
+        "at": 150,
+        "files": 9,
+        "bytes": 2313608
+      }
+    },
+    "10000Notes": {
+      "readyMs": {
+        "n": 9,
+        "median": 325,
+        "p90": 398,
+        "min": 286,
+        "max": 398
+      },
+      "firstReadyMs": 288,
+      "loaded": {
+        "at": 377,
+        "files": 9,
+        "bytes": 2313608
+      }
+    }
+  },
+  "open": {
+    "20KB": {
+      "first": {
+        "editor": 88,
+        "preview": 343,
+        "mermaid": 778
+      },
+      "warm": {
+        "editorMs": {
+          "n": 14,
+          "median": 18,
+          "p90": 43,
+          "min": 15,
+          "max": 44
+        },
+        "previewMs": {
+          "n": 14,
+          "median": 124,
+          "p90": 205,
+          "min": 112,
+          "max": 209
+        },
+        "mermaidMs": {
+          "n": 14,
+          "median": 240,
+          "p90": 318,
+          "min": 221,
+          "max": 347
+        }
+      }
+    },
+    "100KB": {
+      "first": {
+        "editor": 1090,
+        "preview": 1826,
+        "mermaid": 2944
+      },
+      "warm": {
+        "editorMs": {
+          "n": 14,
+          "median": 26,
+          "p90": 35,
+          "min": 19,
+          "max": 44
+        },
+        "previewMs": {
+          "n": 14,
+          "median": 453,
+          "p90": 631,
+          "min": 434,
+          "max": 664
+        },
+        "mermaidMs": {
+          "n": 14,
+          "median": 1147,
+          "p90": 1306,
+          "min": 1106,
+          "max": 1331
+        }
+      }
+    }
+  },
+  "typing": {
+    "20KB": {
+      "keys": 30,
+      "editorMs": {
+        "n": 30,
+        "median": 10,
+        "p90": 13,
+        "min": 8,
+        "max": 27
+      },
+      "previewMs": {
+        "n": 30,
+        "median": 46,
+        "p90": 54,
+        "min": 41,
+        "max": 68
+      }
+    },
+    "100KB": {
+      "keys": 30,
+      "editorMs": {
+        "n": 30,
+        "median": 23,
+        "p90": 26,
+        "min": 20,
+        "max": 32
+      },
+      "previewMs": {
+        "n": 30,
+        "median": 203,
+        "p90": 211,
+        "min": 190,
+        "max": 227
+      }
+    }
+  },
+  "list": {
+    "1000Notes": {
+      "notes": 1000,
+      "notebooks": 12,
+      "switchMs": {
+        "toAllNotes": {
+          "n": 16,
+          "median": 6,
+          "p90": 15,
+          "min": 5,
+          "max": 16
+        },
+        "toBigNotebook": {
+          "n": 8,
+          "median": 8,
+          "p90": 15,
+          "min": 7,
+          "max": 15
+        },
+        "toSmallNotebook": {
+          "n": 8,
+          "median": 44,
+          "p90": 64,
+          "min": 39,
+          "max": 64
+        }
+      },
+      "scroll": {
+        "frameMs": {
+          "n": 1200,
+          "median": 17,
+          "p90": 18,
+          "min": 1,
+          "max": 89
+        },
+        "framesOver20ms": 5,
+        "rowsRendered": 25
+      }
+    },
+    "10000Notes": {
+      "notes": 10000,
+      "notebooks": 50,
+      "switchMs": {
+        "toAllNotes": {
+          "n": 16,
+          "median": 9,
+          "p90": 718,
+          "min": 8,
+          "max": 799
+        },
+        "toBigNotebook": {
+          "n": 8,
+          "median": 11,
+          "p90": 420,
+          "min": 10,
+          "max": 420
+        },
+        "toSmallNotebook": {
+          "n": 8,
+          "median": 897,
+          "p90": 957,
+          "min": 13,
+          "max": 957
+        }
+      },
+      "scroll": {
+        "frameMs": {
+          "n": 1200,
+          "median": 17,
+          "p90": 22,
+          "min": 2,
+          "max": 55
+        },
+        "framesOver20ms": 14.8,
+        "rowsRendered": 25
+      }
+    }
+  }
+}

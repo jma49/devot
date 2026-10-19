@@ -21,26 +21,32 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 
 ## Scripts
 
-| Script                          | What it does                                                                       |
-| ------------------------------- | ---------------------------------------------------------------------------------- |
-| `pnpm build`                    | Release build: `src-tauri/target/release/bundle/macos/Devot.app`                   |
-| `pnpm ui:dev` / `pnpm ui:build` | The UI alone, in a browser                                                         |
-| `pnpm mcp:build`                | Build devot-mcp into `dist-mcp/devot-mcp.mjs`                                      |
-| `pnpm ui:release`               | The UI for a release build; uploads source maps to Sentry when set up              |
-| `pnpm sentry:debug-files`       | Upload the release build's debug symbols to Sentry when set up                     |
-| `pnpm test` / `pnpm test:watch` | Vitest                                                                             |
-| `pnpm test:ui`                  | Playwright UI tests (WebKit, IPC mocked)                                           |
-| `pnpm tokens` / `tokens:check`  | Compile design tokens into CSS and TS / fail if the output is stale                |
-| `pnpm smoke:quit`               | Real-app check that quitting right after typing saves (macOS, needs Accessibility) |
-| `pnpm rust:check`               | cargo fmt, clippy, tests and cargo-deny                                            |
-| `pnpm deps:audit`               | `pnpm audit` for known vulnerabilities in the npm dependencies (high and above)    |
-| `pnpm lint`                     | oxlint, including the architecture boundary rules                                  |
-| `pnpm format`                   | oxfmt                                                                              |
-| `pnpm typecheck`                | TypeScript for tooling, tests, the core and the UI                                 |
+| Script                          | What it does                                                                           |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| `pnpm build`                    | Release build: `src-tauri/target/release/bundle/macos/Devot.app`                       |
+| `pnpm ui:dev` / `pnpm ui:build` | The UI alone, in a browser                                                             |
+| `pnpm mcp:build`                | Build devot-mcp into `dist-mcp/devot-mcp.mjs`                                          |
+| `pnpm ui:release`               | The UI for a release build; uploads source maps to Sentry when set up                  |
+| `pnpm sentry:debug-files`       | Upload the release build's debug symbols to Sentry when set up                         |
+| `pnpm test` / `pnpm test:watch` | Vitest                                                                                 |
+| `pnpm test:ui`                  | Playwright UI tests (WebKit, IPC mocked)                                               |
+| `pnpm bench`                    | Renderer performance baseline into `docs/benchmarks/results.json` (WebKit, IPC mocked) |
+| `pnpm bench:app`                | Launch time and memory of a built Devot.app (macOS, needs Accessibility)               |
+| `pnpm tokens` / `tokens:check`  | Compile design tokens into CSS and TS / fail if the output is stale                    |
+| `pnpm smoke:quit`               | Real-app check that quitting right after typing saves (macOS, needs Accessibility)     |
+| `pnpm rust:check`               | cargo fmt, clippy, tests and cargo-deny                                                |
+| `pnpm deps:audit`               | `pnpm audit` for known vulnerabilities in the npm dependencies (high and above)        |
+| `pnpm lint`                     | oxlint, including the architecture boundary rules                                      |
+| `pnpm format`                   | oxfmt                                                                                  |
+| `pnpm typecheck`                | TypeScript for tooling, tests, the core and the UI                                     |
 
 ### smoke:quit
 
 `pnpm smoke:quit` runs the debug bundle (`pnpm build:debug --bundles app`) on the debug builds' data folder, never on an installed Devot's: it starts the app with HOME in a temporary folder in which only that folder is real, so a bundle built before debug builds had a folder of their own opens a new database there, and the script stops. Each check starts from an empty database: a dev database that is there first is copied aside with SQLite's online backup (into `smoke-backups/` in that folder) and put back at the end, and the script refuses to start while another process has it open.
+
+### bench
+
+`pnpm bench` and `pnpm bench:app` measure speed and memory; method, machine and numbers are in `docs/benchmarks/README.md`. They are run locally before a release and are not CI jobs (the budgets CI enforces stay in the UI tests).
 
 ## Layout
 
