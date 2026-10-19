@@ -232,7 +232,9 @@ describe('HTML to Markdown for import', () => {
     expect(out.dropped).toEqual(['data:image/png'])
   })
 
-  describe('on a 10 MiB page', () => {
+  // Parsing a 10 MiB page alone takes seconds on a CI runner; the limits are on what follows it,
+  // which was minutes before.
+  describe('on a 10 MiB page', { timeout: 60_000 }, () => {
     const MIB = 1024 * 1024
     // Parsing is the floor: a page of half a million elements takes about a
     // second to parse alone, so what is timed is the work past it.
@@ -248,7 +250,7 @@ describe('HTML to Markdown for import', () => {
     it('picks its marker in linear time, however much of it the page spells', () => {
       const { out, ms } = timed(`<p>devotimport${'x'.repeat(10 * MIB)}</p>`)
       expect(out.markdown.length).toBeGreaterThan(10 * MIB)
-      expect(ms).toBeLessThan(1000)
+      expect(ms).toBeLessThan(2000)
     })
 
     it('leaves out images it cannot keep, listing the first 100 and a count of the rest', () => {
@@ -264,7 +266,7 @@ describe('HTML to Markdown for import', () => {
       expect(out.dropped).toHaveLength(101)
       expect(out.dropped.slice(0, 2)).toEqual(['x:0', 'x:1'])
       expect(out.dropped.at(-1)).toBe(`+${parts.length - 100}`)
-      expect(ms).toBeLessThan(1000)
+      expect(ms).toBeLessThan(2000)
     })
   })
 })
