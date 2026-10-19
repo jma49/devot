@@ -213,9 +213,11 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         usage::Limits::DEFAULT,
     )));
     // Editor settings: a small file, local to this device.
-    let editor_settings = std::sync::Arc::new(editor_settings::EditorSettingsStore::new(
-        &data_dir.join(editor_settings::FILE),
-    ));
+    let editor_settings =
+        editor_settings::EditorSettingsStore::new(&data_dir.join(editor_settings::FILE));
+    #[cfg(target_os = "macos")]
+    let editor_settings = editor_settings.with_default_paper(native::macos::system_paper);
+    let editor_settings = std::sync::Arc::new(editor_settings);
     app.manage(std::sync::Arc::clone(&editor_settings));
     app.manage(std::sync::Arc::new(fonts::Fonts::new(data_dir)));
     app.manage(std::sync::Arc::new(

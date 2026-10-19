@@ -1513,7 +1513,7 @@ use objc2_core_graphics::{
     CGContext, CGPDFContextAddDestinationAtPoint, CGPDFContextClose, CGPDFContextCreateWithURL,
     CGPDFContextSetDestinationForRect, CGPDFContextSetURLForRect,
 };
-use objc2_foundation::{NSDate, NSDateFormatter, NSDateFormatterStyle};
+use objc2_foundation::{NSDate, NSDateFormatter, NSDateFormatterStyle, NSLocale};
 use objc2_pdf_kit::{PDFActionGoTo, PDFActionURL, PDFDisplayBox, PDFDocument, PDFPrintScalingMode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2041,6 +2041,16 @@ pub fn print_note_in_window(
         return;
     };
     print_note(mtm, &window, html, layout, target, work, done);
+}
+
+/// The paper a page setup starts with: the system's default paper, or the
+/// region's (`page_setup::default_paper`).
+pub fn system_paper() -> Paper {
+    let width = NSPrintInfo::sharedPrintInfo().paperSize().width;
+    let region = NSLocale::currentLocale()
+        .countryCode()
+        .map(|code| code.to_string());
+    crate::page_setup::default_paper(Some(width), region.as_deref())
 }
 
 /// Today's date as the user's locale writes it in medium length.

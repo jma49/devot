@@ -461,6 +461,9 @@ struct Held {
 pub struct EditorSettingsStore {
     path: PathBuf,
     current: Mutex<Option<Held>>,
+    /// The page setup's paper until the user picks one (asked when the
+    /// file is read).
+    default_paper: fn() -> Paper,
 }
 
 impl EditorSettingsStore {
@@ -468,6 +471,15 @@ impl EditorSettingsStore {
         Self {
             path: path.to_owned(),
             current: Mutex::new(None),
+            default_paper: || Paper::A4,
+        }
+    }
+
+    /// The store with the paper the system uses as the page setup's default.
+    pub fn with_default_paper(self, default_paper: fn() -> Paper) -> Self {
+        Self {
+            default_paper,
+            ..self
         }
     }
 
@@ -495,7 +507,18 @@ impl EditorSettingsStore {
             let mode = if old { "unwrapAtCursor" } else { "off" };
             stored.insert("lineWrapping".into(), Value::from(mode));
         }
+<<<<<<< HEAD
         let mut settings = EditorSettings::default();
+||||||| parent of a56f824 (feat: page setup starts from the system's paper)
+        // Only values that are valid and known stay in `stored`.
+        let mut settings = EditorSettings::default();
+=======
+        // Only values that are valid and known stay in `stored`.
+        let mut settings = EditorSettings {
+            page_paper: (self.default_paper)(),
+            ..EditorSettings::default()
+        };
+>>>>>>> a56f824 (feat: page setup starts from the system's paper)
         let stored = stored
             .into_iter()
             .filter(|(key, value)| settings.set(key, value).is_ok())
@@ -1149,6 +1172,15 @@ mod tests {
             }
         );
         assert!(!dir.path().join(FILE).exists());
+    }
+
+    #[test]
+    fn the_paper_follows_the_system_until_one_is_picked() {
+        let dir = tempfile::tempdir().unwrap();
+        let open = || store(&dir).with_default_paper(|| Paper::Letter);
+        assert_eq!(open().get().unwrap().settings.page_paper, Paper::Letter);
+        open().update(&patch(json!({ "pagePaper": "a4" }))).unwrap();
+        assert_eq!(open().get().unwrap().settings.page_paper, Paper::A4);
     }
 
     #[test]

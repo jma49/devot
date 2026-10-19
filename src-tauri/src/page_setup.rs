@@ -28,6 +28,24 @@ impl Paper {
     }
 }
 
+/// Regions whose usual paper is US Letter.
+const LETTER_REGIONS: &[&str] = &[
+    "US", "CA", "MX", "PR", "PH", "CL", "CO", "VE", "GT", "CR", "PA", "DO", "SV", "NI", "HN", "BZ",
+];
+
+/// The paper a page setup starts with until the user picks one: US Letter
+/// when the system's default paper is as wide as Letter (Letter or Legal),
+/// A4 when it is A4's width, and otherwise by the region (`width` and
+/// `region` are what the system says, when it says).
+pub fn default_paper(width: Option<f64>, region: Option<&str>) -> Paper {
+    match width {
+        Some(w) if (w - 612.0).abs() < 1.0 => Paper::Letter,
+        Some(w) if (w - 595.0).abs() < 1.0 => Paper::A4,
+        _ if region.is_some_and(|r| LETTER_REGIONS.contains(&r)) => Paper::Letter,
+        _ => Paper::A4,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Margins {
@@ -232,6 +250,16 @@ mod tests {
         assert!(!valid_slot(&"a".repeat(SLOT_MAX_CHARS + 1)));
         assert!(!valid_slot("a\nb"));
         assert!(!valid_slot("a\u{7f}"));
+    }
+
+    #[test]
+    fn the_default_paper_follows_the_system() {
+        assert_eq!(default_paper(Some(612.0), Some("DE")), Paper::Letter);
+        assert_eq!(default_paper(Some(595.2), Some("US")), Paper::A4);
+        assert_eq!(default_paper(Some(842.0), Some("US")), Paper::Letter);
+        assert_eq!(default_paper(None, Some("CA")), Paper::Letter);
+        assert_eq!(default_paper(None, Some("GB")), Paper::A4);
+        assert_eq!(default_paper(None, None), Paper::A4);
     }
 
     #[test]

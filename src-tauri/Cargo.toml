@@ -91,6 +91,7 @@ objc2-foundation = { version = "0.3", features = [
   "NSRange",
   "NSDateFormatter",
   "NSFormatter",
+  "NSLocale",
   "NSAttributedString",
   "block2",
 ] }

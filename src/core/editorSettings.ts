@@ -65,6 +65,7 @@ export interface EditorSettings {
   listDates: ListDatesStyle
   autoDownloadUpdates: boolean
   animations: AnimationsChoice
+  /** Until the user picks one, Rust starts it from the system's default paper. */
   pagePaper: PagePaper
   pageMargins: PageMargins
   /**
