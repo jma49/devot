@@ -73,7 +73,6 @@ body {
     break-after: avoid;
   }
 
-  /* A page never starts or ends on a paragraph's lone line. */
   .preview :is(p, li, blockquote, dd) {
     orphans: 2;
     widows: 2;

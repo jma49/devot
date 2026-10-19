@@ -2008,7 +2008,7 @@ button {
   /* The note's title and meta line have the same side margins. */
   padding: var(--space-4) var(--space-9) var(--space-9);
   /* The app's font, or the note font once it is not the default (editorSettings.ts).
-     Its size, line height and line breaking are the note content's (preview/content.css). */
+     Size and line height are set in preview/content.css. */
   font-family: var(--preview-font-family, var(--font-family-ui));
   -webkit-user-select: text;
   user-select: text;

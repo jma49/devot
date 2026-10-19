@@ -1,10 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-// Note text is set from one system (preview/content.css, `note.*` tokens):
-// vertical space in quarter steps of one body line, headings on one scale,
-// and the CJK properties where the web view has them.
-
 async function newNote(page: Page, title: string, body: string) {
   const before = await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').count()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
@@ -85,14 +81,12 @@ test('note text keeps one rhythm: spaces in quarter lines, headings on one scale
     }
   })
 
-  // The heading scale: the major third, h4 at the body size; headings set tighter.
   expect(measured.h1 / measured.font).toBeCloseTo(1.953, 2)
   expect(measured.h2 / measured.font).toBeCloseTo(1.563, 2)
   expect(measured.h3 / measured.font).toBeCloseTo(1.25, 2)
   expect(measured.h4).toBeCloseTo(measured.font, 1)
   expect(measured.headingLine / measured.h2).toBeLessThan(measured.line / measured.font)
 
-  // Every gap between blocks is a whole number of quarter lines.
   const quarter = measured.line / 4
   const steps = Object.fromEntries(
     measured.gaps.map(({ pair, gap }) => [pair, Math.round((gap / quarter) * 100) / 100]),
@@ -100,7 +94,6 @@ test('note text keeps one rhythm: spaces in quarter lines, headings on one scale
   expect(steps).toMatchObject({
     'H1>P': 2,
     'P>P': 2,
-    // More space above a heading than below it.
     'P>H2': 6,
     'H2>DIV': 2,
     'DIV>UL': 3,
@@ -108,6 +101,39 @@ test('note text keeps one rhythm: spaces in quarter lines, headings on one scale
     'H3>H4': 3,
     'H4>TABLE': 1,
   })
+})
+
+test('the editor sizes heading lines on the same scale as the preview', async ({ page }) => {
+  await page.goto('/')
+  await newNote(page, 'Editor headings', '# One\n\n## Two\n\n### Three\n\n#### Four\n\n###### Six')
+  const sizes = await page.locator('.cm-content').evaluate((content) => {
+    type Style = { fontSize: string; lineHeight: string }
+    const css = (el: unknown) =>
+      (globalThis as unknown as { getComputedStyle(e: unknown): Style }).getComputedStyle(el)
+    const root = content as unknown as { querySelector(s: string): unknown }
+    const at = (level: number) => {
+      const style = css(root.querySelector(`.cm-md-h${level}`))
+      return { size: Number.parseFloat(style.fontSize), line: Number.parseFloat(style.lineHeight) }
+    }
+    return {
+      body: Number.parseFloat(css(content).fontSize),
+      h1: at(1),
+      h2: at(2),
+      h3: at(3),
+      h4: at(4),
+      h6: at(6),
+    }
+  })
+  for (const [level, ratio] of [
+    ['h1', 1.953],
+    ['h2', 1.563],
+    ['h3', 1.25],
+    ['h4', 1],
+    ['h6', 0.8],
+  ] as const) {
+    expect(sizes[level].size / sizes.body).toBeCloseTo(ratio, 2)
+    expect(sizes[level].line / sizes[level].size).toBeCloseTo(1.25, 2)
+  }
 })
 
 test('CJK text gets the line breaking and spacing the web view supports', async ({ page }) => {
@@ -135,7 +161,6 @@ test('CJK text gets the line breaking and spacing the web view supports', async 
   const code = preview(page).locator('.preview-body code').first()
   if (supported.autospace) {
     await expect(paragraph).toHaveCSS('text-autospace', 'normal')
-    // Code keeps its own spacing.
     await expect(code).toHaveCSS('text-autospace', 'no-autospace')
   }
   if (supported.trim) await expect(paragraph).toHaveCSS('text-spacing-trim', 'trim-start')

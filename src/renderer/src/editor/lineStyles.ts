@@ -66,7 +66,7 @@ export function lineStyles(
       const heading = HEADING.exec(name)
       if (heading) {
         const level = Number(heading[1])
-        if (level <= 3) lines(node.from, node.to, `cm-md-heading cm-md-h${level}`)
+        lines(node.from, node.to, `cm-md-heading cm-md-h${level}`)
         return
       }
       switch (name) {
@@ -180,21 +180,20 @@ const plugin = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 )
 
-/**
- * The gutter beside a large heading's lines: its line number (and fold
- * chevron) moves down onto the heading's baseline. A line's text sits
- * 0.75 of its size plus half its font's ascent less its descent below the
- * line's top (line height 1.5); 1.1 of the size difference is that for the
- * editor's fonts.
- */
+// Gutter numbers sit on a heading's baseline: with the heading's line height, a baseline
+// moves 0.35 of the size difference (half of ascent minus descent in the editor's fonts).
 class HeadingGutter extends GutterMarker {
   override elementClass: string
-  constructor(level: 1 | 2 | 3) {
+  constructor(level: HeadingLevel) {
     super()
     this.elementClass = `cm-md-gutter-h${level}`
   }
 }
-const headingGutters = { 1: new HeadingGutter(1), 2: new HeadingGutter(2), 3: new HeadingGutter(3) }
+type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6
+const LEVELS: readonly HeadingLevel[] = [1, 2, 3, 4, 5, 6]
+const headingGutters = Object.fromEntries(
+  LEVELS.map((level) => [level, new HeadingGutter(level)]),
+) as Record<HeadingLevel, HeadingGutter>
 
 /** The gutter beside a table's first line: padded as that line is, level with its text. */
 class TableGutter extends GutterMarker {
@@ -202,7 +201,7 @@ class TableGutter extends GutterMarker {
 }
 const tableGutter = new TableGutter()
 
-/** The gutter's classes in `from` to `to`: every line of a heading of levels 1 to 3, and each table's first line. */
+/** The gutter's classes in `from` to `to`: every line of a heading, and each table's first line. */
 const scanMarkdownGutter: MarkerScan = (state, from, to, mark, touch) => {
   syntaxTree(state).iterate({
     from,
@@ -215,9 +214,9 @@ const scanMarkdownGutter: MarkerScan = (state, from, to, mark, touch) => {
         return false
       }
       const level = Number(HEADING.exec(ref.name)?.[1] ?? 0)
-      if (level < 1 || level > 3) return undefined
+      if (level < 1) return undefined
       touch(ref.from, ref.to)
-      const marker = headingGutters[level as 1 | 2 | 3]
+      const marker = headingGutters[level as HeadingLevel]
       for (let at = ref.from; at <= ref.to;) {
         const line = state.doc.lineAt(at)
         mark(line.from, marker)
@@ -228,7 +227,7 @@ const scanMarkdownGutter: MarkerScan = (state, from, to, mark, touch) => {
   })
 }
 
-/** The gutter's classes: every line of a heading of levels 1 to 3, and each table's first line. */
+/** The gutter's classes: every line of a heading, and each table's first line. */
 export function markdownGutterLines(state: EditorState): RangeSet<GutterMarker> {
   return scanMarkers(state, scanMarkdownGutter)
 }
@@ -236,9 +235,8 @@ export function markdownGutterLines(state: EditorState): RangeSet<GutterMarker> 
 const headingGutter = markerField(scanMarkdownGutter)
 
 const token = (name: string) => `var(--color-${name})`
-/** A heading size, grown and shrunk with the editor's text (13 px is 1). */
-const headingSize = (level: 1 | 2 | 3) =>
-  `calc(var(--font-size-editor-h${level}) * var(--preview-scale, 1))`
+const BODY_SIZE = 'var(--editor-font-size, var(--font-size-body))'
+const headingSize = (level: HeadingLevel) => `calc(var(--note-heading-h${level}) * ${BODY_SIZE})`
 const BOX_BORDER = `1px solid ${token('code-block-border')}`
 
 const alertColours = Object.fromEntries(
@@ -255,18 +253,24 @@ const alertColours = Object.fromEntries(
  * The styles: a mark's class reaches the highlight spans inside it (`x *`),
  * whose own colour would otherwise win.
  */
-const gutterDrop = (level: 1 | 2 | 3) => ({
+const gutterDrop = (level: HeadingLevel) => ({
   boxSizing: 'border-box',
-  paddingTop: `calc((${headingSize(level)} - var(--editor-font-size, var(--font-size-body))) * 1.1)`,
+  lineHeight: `calc(${headingSize(level)} * var(--note-line-height-heading))`,
+  paddingTop: `max(0px, calc((${headingSize(level)} - ${BODY_SIZE}) * 0.35))`,
 })
 
+const headingStyles = Object.fromEntries(
+  LEVELS.flatMap((level) => [
+    [
+      `.cm-md-h${level}`,
+      { fontSize: headingSize(level), lineHeight: 'var(--note-line-height-heading)' },
+    ],
+    [`.cm-gutterElement.cm-md-gutter-h${level}`, gutterDrop(level)],
+  ]),
+)
+
 const theme = EditorView.theme({
-  '.cm-md-h1': { fontSize: headingSize(1) },
-  '.cm-md-h2': { fontSize: headingSize(2) },
-  '.cm-md-h3': { fontSize: headingSize(3) },
-  '.cm-gutterElement.cm-md-gutter-h1': gutterDrop(1),
-  '.cm-gutterElement.cm-md-gutter-h2': gutterDrop(2),
-  '.cm-gutterElement.cm-md-gutter-h3': gutterDrop(3),
+  ...headingStyles,
   '.cm-gutterElement.cm-md-gutter-table': {
     boxSizing: 'border-box',
     paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,

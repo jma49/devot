@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { sizes } from '../../src/renderer/src/theme/tokens'
 
-// Note text is set from one system (design/tokens, `note.*`): headings on one
-// modular scale, vertical space in quarter steps of one body line, and font
-// lists that reach a CJK face before their generic family.
-
 const num = (path: keyof typeof sizes) => Number(sizes[path])
 const families = (path: keyof typeof sizes) =>
   sizes[path].split(',').map((family) => family.trim().replace(/^'|'$/g, ''))

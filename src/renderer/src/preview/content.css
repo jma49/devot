@@ -1,16 +1,11 @@
 /*
  * Note content: how the preview shows a note's Markdown. The app and the
  * pages it exports and prints (exporter.ts) share these rules.
- *
- * Type and spacing come from the note tokens (`note.*` in design/tokens).
- * One body line is the unit of every vertical space: headings, lists,
- * quotes and boxes sit on the same quarter-line steps (--note-space-N is N
- * quarters of a line), and the steps grow and shrink with the preview's size.
+
  */
 .preview {
-  /* The editor's size keys scale it in the app (--preview-scale, see editorSettings.ts). */
   --note-font-size: calc(var(--font-size-preview) * var(--preview-scale, 1));
-  /* One body line as a length, so a heading or small text keeps the body's steps. */
+  /* An absolute length, so headings and small text keep the body's steps (--note-space-N is N quarter lines). */
   --note-line: calc(var(--note-font-size) * var(--note-line-height-body));
   --note-space-1: calc(var(--note-line) * var(--note-rhythm-1));
   --note-space-2: calc(var(--note-line) * var(--note-rhythm-2));
@@ -23,13 +18,10 @@
   line-height: var(--note-line-height-body);
   font-kerning: normal;
   font-variant-ligatures: common-ligatures;
-  /* A long URL or word breaks rather than widen its line past the column. */
   overflow-wrap: anywhere;
-  /* CJK: closing marks and small kana never start a line. */
   line-break: strict;
 }
 
-/* CJK and Latin side by side: the engine draws the space between them; typed spaces stay as they are. */
 @supports (text-autospace: normal) {
   .preview {
     text-autospace: normal;
@@ -40,7 +32,7 @@
   }
 }
 
-/* Fullwidth punctuation sets flush at a line's start and between adjacent marks. */
+/* Unsupported in WebKit as of macOS 27. */
 @supports (text-spacing-trim: trim-start) {
   .preview {
     text-spacing-trim: trim-start;
@@ -51,11 +43,7 @@
   }
 }
 
-/*
- * An opening mark at the start of a block hangs in the margin, so the text's
- * edge stays straight; a CJK comma or full stop may hang at a line's end
- * rather than take a character with it to the next line.
- */
+/* allow-end: a CJK stop hangs rather than drag the previous character to the next line. */
 @supports (hanging-punctuation: first allow-end) {
   .preview {
     hanging-punctuation: first allow-end;
@@ -66,7 +54,6 @@
   }
 }
 
-/* Headings break into lines of even length; paragraphs end on more than one word. */
 @supports (text-wrap: balance) {
   .preview :is(h1, h2, h3, h4, h5, h6) {
     text-wrap: balance;
@@ -79,7 +66,6 @@
   }
 }
 
-/* Inside a block, the first and last children leave its edges to the block's own spacing. */
 .preview > :first-child,
 .preview :is(.preview-body, blockquote, .alert, details, li, th, td) > :first-child {
   margin-top: 0;
@@ -90,7 +76,6 @@
   margin-bottom: 0;
 }
 
-/* Headings: more space above than below, so each sits with what it heads. */
 .preview :is(h1, h2, h3, h4, h5, h6) {
   margin: var(--note-space-4) 0 var(--note-space-1);
   line-height: var(--note-line-height-heading);
@@ -126,7 +111,7 @@
   font-size: calc(var(--note-heading-h6) * 1em);
 }
 
-/* What follows a heading starts right under it, a box too; a second heading keeps a little air. */
+/* A box's larger top margin would otherwise collapse over the heading's smaller bottom one. */
 .preview :is(h1, h2, h3, h4, h5, h6) + * {
   margin-top: 0;
 }
@@ -145,11 +130,7 @@
   border-bottom-width: 2px;
 }
 
-/*
- * Text blocks are a half line apart; boxes stand off by three quarters
- * (margins collapse, so the larger wins). Kept light (:where) so the rules
- * for headings and lists above and below win over them.
- */
+/* :where keeps these below the heading and list rules in specificity. */
 .preview :where(p, ul, ol, dl, blockquote, details, .alert) {
   margin: 0 0 var(--note-space-2);
 }
@@ -166,7 +147,7 @@
   text-decoration-skip-ink: auto;
 }
 
-/* Superscripts and subscripts (footnote numbers among them) never push their line apart. */
+/* line-height 0 keeps scripts from pushing their line apart. */
 .preview :is(sup, sub) {
   position: relative;
   font-size: calc(var(--note-size-script) * 1em);
@@ -195,12 +176,11 @@
   font-size: calc(var(--note-size-code) * 1em);
 }
 
-/* Inline code never makes its line taller than the text's. */
+/* The mono face's taller metrics would otherwise grow the line. */
 .preview :not(pre) > code {
   line-height: 1;
 }
 
-/* Figures line up in columns in tables and code. */
 .preview :is(table, pre) {
   font-variant-numeric: tabular-nums;
 }
@@ -290,7 +270,7 @@
   background: var(--color-table-stripe);
 }
 
-/* Highlighted text; a mark that wraps keeps its ends' padding on every line. */
+/* Highlighted text. */
 .preview mark {
   padding: 0 0.15em;
   border-radius: var(--space-2);
@@ -324,7 +304,6 @@
   margin-bottom: var(--note-space-1);
 }
 
-/* List numbers line up on their dots. */
 .preview ol > li::marker {
   font-variant-numeric: tabular-nums;
 }

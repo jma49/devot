@@ -476,13 +476,11 @@ const theme = EditorView.theme({
   },
   '&.cm-focused': { outline: 'none' },
   // Room for the boxes and quote bars that reach past the lines (editor/boxes.ts).
-  // Wrapped lines break CJK text as the preview does (preview/content.css).
   '.cm-content': {
     paddingInline: BOX_HANG,
     fontKerning: 'normal',
     lineBreak: 'strict',
   },
-  // The space between CJK and Latin text is drawn, as in the preview; code keeps its own spacing.
   '@supports (text-autospace: normal)': {
     '.cm-content': { textAutospace: 'normal' },
     '.cm-line.cm-codeblock, .cm-md-code': { textAutospace: 'no-autospace' },

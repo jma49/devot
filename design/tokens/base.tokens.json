@@ -564,30 +564,6 @@
         },
         "$description": "The open note's title, above its notebook, status and tags."
       },
-      "editor-h1": {
-        "$type": "dimension",
-        "$description": "A level 1 heading line in the editor, at the default 13 px text.",
-        "$value": {
-          "value": 22,
-          "unit": "px"
-        }
-      },
-      "editor-h2": {
-        "$type": "dimension",
-        "$description": "A level 2 heading line in the editor, at the default 13 px text.",
-        "$value": {
-          "value": 18,
-          "unit": "px"
-        }
-      },
-      "editor-h3": {
-        "$type": "dimension",
-        "$description": "A level 3 heading line in the editor, at the default 13 px text.",
-        "$value": {
-          "value": 15,
-          "unit": "px"
-        }
-      },
       "row": {
         "$type": "dimension",
         "$value": {
