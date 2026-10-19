@@ -74,16 +74,15 @@ test('restoring asks first, then restores and reloads', async ({ page }) => {
     ;(globalThis as unknown as { beforeReload?: boolean }).beforeReload = true
   })
   await restore.click()
+  const reloaded = page.waitForEvent('load')
   await page
     .getByRole('dialog', { name: /Restore the backup/ })
     .getByRole('button', { name: 'Restore' })
     .click()
-  // The page reloads, so the call log starts over; the marker is gone.
-  await expect
-    .poll(() =>
-      page.evaluate(() => (globalThis as unknown as { beforeReload?: boolean }).beforeReload),
-    )
-    .toBeUndefined()
+  await reloaded
+  expect(
+    await page.evaluate(() => (globalThis as unknown as { beforeReload?: boolean }).beforeReload),
+  ).toBeUndefined()
   await expect(page.getByRole('dialog', { name: 'Backups' })).toBeHidden()
 })
 
