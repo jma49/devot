@@ -488,6 +488,16 @@ pub fn write_replacing(path: &Path, bytes: &[u8]) -> io::Result<()> {
     write(path, bytes, Place::Replace)
 }
 
+pub const DAMAGED_SUFFIX: &str = ".damaged";
+
+/// A settings file that cannot be parsed is replaced by the next change, so its bytes are kept
+/// beside it first.
+pub fn keep_damaged(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut copy = path.as_os_str().to_owned();
+    copy.push(DAMAGED_SUFFIX);
+    write_replacing(Path::new(&copy), bytes)
+}
+
 /// Made new under a random hidden name, usable by its owner only (0700), and removed with
 /// everything in it when dropped. Make it only where nobody else can write (the app's data): its
 /// mode keeps others out, not from swapping it for a link while the writer runs. A folder found

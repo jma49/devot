@@ -47,6 +47,7 @@ pub const MAX_HASH_IDS: usize = 100;
 pub const KEPT_NAMED: usize = 20;
 
 const INVALID: &str = "E_MIRROR_SETTINGS_INVALID";
+const READ_FAILED: &str = "E_MIRROR_SETTINGS_READ_FAILED";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -125,7 +126,11 @@ pub struct Opened {
 
 #[derive(Default)]
 struct Inner {
+    /// False while the setting's file cannot be read: the mirror shows as off then, and nothing is
+    /// written over the file, which would drop the folder it names.
     loaded: bool,
+    /// A read failed: the setting read later is news to every window.
+    read_failed: bool,
     folder: Option<PathBuf>,
     include_attachments: bool,
     generation: u64,
@@ -177,21 +182,42 @@ impl Mirror {
         }
     }
 
-    fn lock(&self) -> Result<MutexGuard<'_, Inner>, &'static str> {
+    fn read_settings(&self) -> Option<Stored> {
+        match std::fs::read(&self.settings) {
+            Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
+                Ok(value @ Value::Object(_)) => Some(Stored::from_value(&value)),
+                _ => {
+                    log::warn!("W_MIRROR_SETTINGS_UNREADABLE");
+                    let kept = crate::atomic_file::keep_damaged(&self.settings, &bytes).is_ok();
+                    if !kept {
+                        log::warn!("W_MIRROR_SETTINGS_COPY_FAILED");
+                    }
+                    kept.then(Stored::default)
+                }
+            },
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(Stored::default()),
+            Err(_) => {
+                log::warn!("W_MIRROR_SETTINGS_READ_FAILED");
+                None
+            }
+        }
+    }
+
+    /// Reads the setting at first use, and again on every use while it cannot be read.
+    fn lock(&self, notify: Notify) -> Result<MutexGuard<'_, Inner>, &'static str> {
         let mut inner = self.inner.lock().map_err(|_| "E_MIRROR_LOCK_FAILED")?;
         if !inner.loaded {
-            let stored = match std::fs::read(&self.settings) {
-                Ok(bytes) => serde_json::from_slice::<Value>(&bytes)
-                    .map(|v| Stored::from_value(&v))
-                    .unwrap_or_else(|_| {
-                        log::warn!("W_MIRROR_SETTINGS_UNREADABLE");
-                        Stored::default()
-                    }),
-                Err(_) => Stored::default(),
-            };
-            inner.loaded = true;
+            let read = self.read_settings();
+            let stored = read.clone().unwrap_or_default();
+            inner.loaded = read.is_some();
             inner.folder = stored.folder.map(PathBuf::from);
             inner.include_attachments = stored.include_attachments;
+            if !inner.loaded {
+                inner.read_failed = true;
+            } else if inner.read_failed {
+                inner.generation += 1;
+                self.changed(&mut inner, notify);
+            }
         }
         Ok(inner)
     }
@@ -224,7 +250,15 @@ impl Mirror {
         inner.manifest.as_ref().map(Manifest::size) != inner.shown_size
     }
 
-    fn store(&self, folder: Option<&Path>, include_attachments: bool) -> Result<(), &'static str> {
+    fn store(
+        &self,
+        inner: &Inner,
+        folder: Option<&Path>,
+        include_attachments: bool,
+    ) -> Result<(), &'static str> {
+        if !inner.loaded {
+            return Err(READ_FAILED);
+        }
         let stored = Stored {
             folder: folder.map(|f| f.to_string_lossy().into_owned()),
             include_attachments,
@@ -244,8 +278,8 @@ impl Mirror {
         code
     }
 
-    pub fn get(&self) -> Result<Status, &'static str> {
-        let inner = self.lock()?;
+    pub fn get(&self, notify: Notify) -> Result<Status, &'static str> {
+        let inner = self.lock(notify)?;
         Ok(self.status(&inner))
     }
 
@@ -262,12 +296,12 @@ impl Mirror {
                 _ => return Err(INVALID),
             }
         }
-        let mut inner = self.lock()?;
+        let mut inner = self.lock(notify)?;
         let folder = if turn_off { None } else { inner.folder.clone() };
         let include = include.unwrap_or(inner.include_attachments);
         let setting_changed = folder != inner.folder || include != inner.include_attachments;
         if setting_changed {
-            self.store(folder.as_deref(), include)?;
+            self.store(&inner, folder.as_deref(), include)?;
             if folder != inner.folder {
                 log::info!("I_MIRROR_OFF");
                 inner.manifest = None;
@@ -298,7 +332,7 @@ impl Mirror {
         root: PathBuf,
         notify: Notify,
     ) -> Result<Status, &'static str> {
-        self.store(Some(&root), inner.include_attachments)?;
+        self.store(inner, Some(&root), inner.include_attachments)?;
         log::info!("I_MIRROR_FOLDER_CHOSEN");
         inner.folder = Some(root);
         inner.manifest = None;
@@ -323,7 +357,10 @@ impl Mirror {
             }
             Err(_) => false,
         };
-        let mut inner = self.lock()?;
+        let mut inner = self.lock(notify)?;
+        if !inner.loaded {
+            return Err(READ_FAILED);
+        }
         if usable {
             return Ok(Choice::Chosen {
                 status: self.use_folder(&mut inner, path, notify)?,
@@ -340,7 +377,7 @@ impl Mirror {
     }
 
     pub fn confirm(&self, token: u64, notify: Notify) -> Result<Status, &'static str> {
-        let mut inner = self.lock()?;
+        let mut inner = self.lock(notify)?;
         let path = inner
             .choices
             .remove(&token)
@@ -351,7 +388,7 @@ impl Mirror {
     }
 
     pub fn open(&self, known: Option<u64>, notify: Notify) -> Result<Opened, &'static str> {
-        let mut inner = self.lock()?;
+        let mut inner = self.lock(notify)?;
         let path = inner.folder.clone().ok_or("E_MIRROR_OFF")?;
         let root = match Root::open(&path) {
             Ok(root) => root,
@@ -453,7 +490,7 @@ impl Mirror {
             return Err("E_MIRROR_PATHS_INVALID");
         }
         let (root, listed) = {
-            let mut inner = self.lock()?;
+            let mut inner = self.lock(notify)?;
             let root = self.current(&mut inner, generation, notify)?;
             let manifest = inner.manifest.as_ref().ok_or("E_MIRROR_STALE")?;
             let listed: Vec<(String, String)> = manifest
@@ -497,7 +534,7 @@ impl Mirror {
         if ops.len() > MAX_OPS {
             return Err("E_MIRROR_OPS_INVALID");
         }
-        let mut inner = self.lock()?;
+        let mut inner = self.lock(notify)?;
         let root = self.current(&mut inner, generation, notify)?;
         let mut manifest = inner.manifest.take().ok_or("E_MIRROR_STALE")?;
         let kept_count = inner.kept_count;
@@ -568,9 +605,10 @@ fn announcer(app: &AppHandle) -> impl Fn(&Status) + Send + 'static {
 }
 
 #[tauri::command]
-pub async fn mirror_get(mirror: State<'_, Arc<Mirror>>) -> Result<Status, String> {
+pub async fn mirror_get(app: AppHandle, mirror: State<'_, Arc<Mirror>>) -> Result<Status, String> {
     let mirror = Arc::clone(&mirror);
-    blocking(move || mirror.get()).await
+    let notify = announcer(&app);
+    blocking(move || mirror.get(&notify)).await
 }
 
 #[tauri::command]

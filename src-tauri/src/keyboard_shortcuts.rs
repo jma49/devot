@@ -169,9 +169,16 @@ pub struct Snapshot {
     pub overrides: Overrides,
 }
 
+struct Held {
+    snapshot: Snapshot,
+    /// False while the file cannot be read: nothing is written over it then, since a change would
+    /// drop every key it holds.
+    read: bool,
+}
+
 pub struct KeyboardShortcutsStore {
     path: PathBuf,
-    current: Mutex<Option<Snapshot>>,
+    current: Mutex<Option<Held>>,
 }
 
 impl KeyboardShortcutsStore {
@@ -182,50 +189,79 @@ impl KeyboardShortcutsStore {
         }
     }
 
-    fn read(&self) -> Snapshot {
+    fn read(&self) -> Held {
         let overrides = match std::fs::read(&self.path) {
             Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(value) => from_stored(&value),
-                Err(_) => {
+                Ok(value @ Value::Object(_)) => Some(from_stored(&value)),
+                _ => {
                     log::warn!("W_KEYBOARD_SHORTCUTS_UNREADABLE");
-                    Overrides::new()
+                    let kept = crate::atomic_file::keep_damaged(&self.path, &bytes).is_ok();
+                    if !kept {
+                        log::warn!("W_KEYBOARD_SHORTCUTS_COPY_FAILED");
+                    }
+                    kept.then(Overrides::new)
                 }
             },
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Overrides::new(),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(Overrides::new()),
             Err(_) => {
                 log::warn!("W_KEYBOARD_SHORTCUTS_READ_FAILED");
-                Overrides::new()
+                None
             }
         };
-        Snapshot {
-            revision: 0,
-            overrides,
+        Held {
+            read: overrides.is_some(),
+            snapshot: Snapshot {
+                revision: 0,
+                overrides: overrides.unwrap_or_default(),
+            },
         }
     }
 
+    /// Read at first use, and again on every use while the file cannot be read; once a read
+    /// works, its keys take a newer revision than the defaults shown meanwhile.
+    fn held<'a>(&self, current: &'a mut Option<Held>) -> &'a mut Held {
+        let held = match current.take() {
+            Some(held) if held.read => held,
+            Some(unread) => {
+                let mut read = self.read();
+                if read.read {
+                    read.snapshot.revision = unread.snapshot.revision + 1;
+                    read
+                } else {
+                    unread
+                }
+            }
+            None => self.read(),
+        };
+        current.insert(held)
+    }
+
     pub fn get(&self) -> Result<Snapshot, &'static str> {
-        let mut held = self
+        let mut current = self
             .current
             .lock()
             .map_err(|_| "E_KEYBOARD_SHORTCUTS_LOCK_FAILED")?;
-        Ok(held.get_or_insert_with(|| self.read()).clone())
+        Ok(self.held(&mut current).snapshot.clone())
     }
 
     pub fn update(&self, patch: &Map<String, Value>) -> Result<Snapshot, &'static str> {
-        let mut held = self
+        let mut current = self
             .current
             .lock()
             .map_err(|_| "E_KEYBOARD_SHORTCUTS_LOCK_FAILED")?;
-        let now = held.get_or_insert_with(|| self.read());
+        let now = self.held(&mut current);
+        if !now.read {
+            return Err("E_KEYBOARD_SHORTCUTS_READ_FAILED");
+        }
         let next = Snapshot {
-            revision: now.revision + 1,
-            overrides: with_patch(&now.overrides, patch)?,
+            revision: now.snapshot.revision + 1,
+            overrides: with_patch(&now.snapshot.overrides, patch)?,
         };
         let json = serde_json::to_vec_pretty(&next.overrides)
             .map_err(|_| "E_KEYBOARD_SHORTCUTS_WRITE_FAILED")?;
         crate::atomic_file::write_replacing(&self.path, &json)
             .map_err(|_| "E_KEYBOARD_SHORTCUTS_WRITE_FAILED")?;
-        *held = Some(next.clone());
+        now.snapshot = next.clone();
         Ok(next)
     }
 }
@@ -261,6 +297,7 @@ pub async fn keyboard_shortcuts_set(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::atomic_file::DAMAGED_SUFFIX;
     use serde_json::json;
 
     fn patch(value: Value) -> Map<String, Value> {
@@ -493,28 +530,111 @@ mod tests {
     }
 
     #[test]
-    fn a_damaged_file_means_no_changes_and_is_replaced_on_the_next_change() {
+    fn a_damaged_file_means_no_changes_and_is_replaced_on_the_next_change_after_a_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        for damaged in [&b"{ not json"[..], b"[1, 2]"] {
+            std::fs::write(dir.path().join(FILE), damaged).unwrap();
+            let s = store(&dir);
+            assert!(s.get().unwrap().overrides.is_empty());
+            s.update(&patch(json!({ "format.bold": [] }))).unwrap();
+            assert_eq!(
+                store(&dir).get().unwrap().overrides["format.bold"],
+                Vec::<String>::new()
+            );
+            let copy = dir.path().join(format!("{FILE}{DAMAGED_SUFFIX}"));
+            assert_eq!(std::fs::read(copy).unwrap(), damaged);
+        }
+    }
+
+    #[test]
+    fn a_damaged_file_that_cannot_be_copied_is_never_written_over() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join(FILE), b"{ not json").unwrap();
-        let s = store(&dir);
-        assert!(s.get().unwrap().overrides.is_empty());
-        s.update(&patch(json!({ "format.bold": [] }))).unwrap();
+        std::fs::create_dir(dir.path().join(format!("{FILE}{DAMAGED_SUFFIX}"))).unwrap();
         assert_eq!(
-            store(&dir).get().unwrap().overrides["format.bold"],
-            Vec::<String>::new()
+            store(&dir).update(&patch(json!({ "format.bold": [] }))),
+            Err("E_KEYBOARD_SHORTCUTS_READ_FAILED")
         );
+        assert_eq!(std::fs::read(dir.path().join(FILE)).unwrap(), b"{ not json");
     }
 
     #[test]
     fn a_failed_write_changes_nothing() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir(dir.path().join(FILE)).unwrap();
-        let s = store(&dir);
+        let s = KeyboardShortcutsStore::new(&dir.path().join("gone").join(FILE));
         assert_eq!(
             s.update(&patch(json!({ "format.bold": [] }))),
             Err("E_KEYBOARD_SHORTCUTS_WRITE_FAILED")
         );
         assert_eq!(s.get().unwrap().revision, 0);
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_never_written_over() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join(FILE)).unwrap();
+        let s = store(&dir);
+        assert!(s.get().unwrap().overrides.is_empty());
+        assert_eq!(
+            s.update(&patch(json!({ "format.bold": [] }))),
+            Err("E_KEYBOARD_SHORTCUTS_READ_FAILED")
+        );
+        assert!(dir.path().join(FILE).is_dir());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_change_after_a_failed_read_keeps_the_other_shortcuts() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        let before = br#"{ "view.focus": ["Mod+Alt+J"], "palette.open": [] }"#;
+        std::fs::write(&path, before).unwrap();
+        let mode = |bits| std::fs::set_permissions(&path, std::fs::Permissions::from_mode(bits));
+        mode(0o000).unwrap();
+        if std::fs::read(&path).is_ok() {
+            return; // root reads it anyway
+        }
+        let s = store(&dir);
+        let shown = s.get().unwrap();
+        assert!(shown.overrides.is_empty());
+        assert_eq!(
+            s.update(&patch(json!({ "format.bold": ["Mod+P"] }))),
+            Err("E_KEYBOARD_SHORTCUTS_READ_FAILED")
+        );
+        mode(0o600).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        let next = s
+            .update(&patch(json!({ "format.bold": ["Mod+P"] })))
+            .unwrap();
+        assert!(next.revision > shown.revision);
+        let written: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(
+            written,
+            json!({ "view.focus": ["Mod+Alt+J"], "palette.open": [], "format.bold": ["Mod+P"] })
+        );
+        assert_eq!(serde_json::to_value(&next.overrides).unwrap(), written);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_read_that_works_again_shows_the_stored_keys_as_newer() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        std::fs::write(&path, br#"{ "view.focus": ["Mod+Alt+J"] }"#).unwrap();
+        let mode = |bits| std::fs::set_permissions(&path, std::fs::Permissions::from_mode(bits));
+        mode(0o000).unwrap();
+        if std::fs::read(&path).is_ok() {
+            return; // root reads it anyway
+        }
+        let s = store(&dir);
+        let shown = s.get().unwrap();
+        mode(0o600).unwrap();
+        let now = s.get().unwrap();
+        assert!(now.revision > shown.revision);
+        assert_eq!(now.overrides["view.focus"], ["Mod+Alt+J"]);
+        assert_eq!(s.get().unwrap(), now);
     }
 
     #[cfg(unix)]

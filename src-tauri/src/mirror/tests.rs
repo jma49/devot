@@ -37,6 +37,10 @@ impl Fixture {
         fs::canonicalize(path).unwrap()
     }
 
+    fn get(&self) -> Status {
+        self.mirror.get(&self.notify()).unwrap()
+    }
+
     fn choose(&self, folder: &Path) -> Choice {
         self.mirror.choose(folder, &self.notify()).unwrap()
     }
@@ -75,7 +79,7 @@ fn patch(value: Value) -> Map<String, Value> {
 #[test]
 fn is_off_by_default_and_turns_on_with_an_empty_folder() {
     let f = Fixture::new();
-    let status = f.mirror.get().unwrap();
+    let status = f.get();
     assert_eq!(status.folder, None);
     assert!(status.include_attachments);
     assert_eq!(f.open(), Err("E_MIRROR_OFF"));
@@ -88,7 +92,7 @@ fn is_off_by_default_and_turns_on_with_an_empty_folder() {
     assert_eq!(f.seen.borrow().last(), Some(&status));
     let again = Mirror::new(&f.data.join(SETTINGS_FILE), None);
     assert_eq!(
-        again.get().unwrap().folder.as_deref(),
+        again.get(&|_| {}).unwrap().folder.as_deref(),
         Some(folder.to_str().unwrap())
     );
     let opened = f.open().unwrap();
@@ -107,11 +111,7 @@ fn asks_before_using_a_folder_that_is_not_empty_and_has_no_manifest() {
         panic!("a folder in use needs a confirmation");
     };
     assert_eq!(name, "Documents");
-    assert_eq!(
-        f.mirror.get().unwrap().folder,
-        None,
-        "not used before it is confirmed"
-    );
+    assert_eq!(f.get().folder, None, "not used before it is confirmed");
     assert_eq!(
         f.mirror.confirm(token + 1, &f.notify()),
         Err("E_MIRROR_CHOICE_UNKNOWN")
@@ -169,7 +169,7 @@ fn changes_its_setting_and_refuses_anything_else() {
     let f = Fixture::new();
     let folder = f.folder("Notes");
     f.choose(&folder);
-    let before = f.mirror.get().unwrap();
+    let before = f.get();
     let status = f
         .mirror
         .set(&patch(json!({ "includeAttachments": false })), &f.notify())
@@ -200,24 +200,105 @@ fn changes_its_setting_and_refuses_anything_else() {
     assert!(!off.include_attachments);
     assert!(folder.is_dir());
     let again = Mirror::new(&f.data.join(SETTINGS_FILE), None);
-    assert_eq!(again.get().unwrap().folder, None);
-    assert!(!again.get().unwrap().include_attachments);
+    assert_eq!(again.get(&|_| {}).unwrap().folder, None);
+    assert!(!again.get(&|_| {}).unwrap().include_attachments);
 }
 
 #[test]
-fn reads_a_damaged_setting_as_off() {
-    let f = Fixture::new();
-    fs::write(f.data.join(SETTINGS_FILE), b"{ not json").unwrap();
-    assert_eq!(f.mirror.get().unwrap().folder, None);
+fn reads_a_damaged_setting_as_off_and_keeps_it_beside_before_the_next_change() {
+    for damaged in [&b"{ not json"[..], b"[1]"] {
+        let f = Fixture::new();
+        fs::write(f.data.join(SETTINGS_FILE), damaged).unwrap();
+        assert_eq!(f.get().folder, None);
+        let folder = f.folder("Notes");
+        assert!(matches!(f.choose(&folder), Choice::Chosen { .. }));
+        let copy = f.data.join(format!(
+            "{SETTINGS_FILE}{}",
+            crate::atomic_file::DAMAGED_SUFFIX
+        ));
+        assert_eq!(fs::read(copy).unwrap(), damaged);
+    }
     let g = Fixture::new();
     fs::write(
         g.data.join(SETTINGS_FILE),
         serde_json::to_vec(&json!({ "folder": "relative/path", "includeAttachments": 3 })).unwrap(),
     )
     .unwrap();
-    let status = g.mirror.get().unwrap();
+    let status = g.get();
     assert_eq!(status.folder, None);
     assert!(status.include_attachments);
+}
+
+#[test]
+fn never_writes_over_a_setting_it_cannot_read() {
+    let f = Fixture::new();
+    fs::create_dir(f.data.join(SETTINGS_FILE)).unwrap();
+    let status = f.get();
+    assert_eq!(status.folder, None);
+    assert!(status.include_attachments);
+    assert_eq!(
+        f.mirror
+            .set(&patch(json!({ "includeAttachments": false })), &f.notify()),
+        Err(READ_FAILED)
+    );
+    let empty = f.folder("Notes");
+    let theirs = f.folder("Theirs");
+    fs::write(theirs.join("a.md"), b"a").unwrap();
+    for folder in [&empty, &theirs] {
+        assert_eq!(f.mirror.choose(folder, &f.notify()), Err(READ_FAILED));
+        assert!(!folder.join(MANIFEST).exists());
+    }
+    assert!(f.data.join(SETTINGS_FILE).is_dir());
+    assert!(f.seen.borrow().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_change_after_a_failed_read_keeps_the_folder_and_every_window_is_told() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    f.mirror
+        .set(&patch(json!({ "includeAttachments": false })), &f.notify())
+        .unwrap();
+    let path = f.data.join(SETTINGS_FILE);
+    let before = fs::read(&path).unwrap();
+    let mode = |bits| fs::set_permissions(&path, fs::Permissions::from_mode(bits));
+    mode(0o000).unwrap();
+    if fs::read(&path).is_ok() {
+        return; // root reads it anyway
+    }
+    let launched = Mirror::new(&path, Some(f.data.clone()));
+    let seen = RefCell::new(Vec::new());
+    let notify = |status: &Status| seen.borrow_mut().push(status.clone());
+    let shown = launched.get(&notify).unwrap();
+    assert_eq!(shown.folder, None);
+    assert_eq!(launched.open(None, &notify), Err("E_MIRROR_OFF"));
+    assert_eq!(
+        launched.set(&patch(json!({ "includeAttachments": false })), &notify),
+        Err(READ_FAILED)
+    );
+    assert_eq!(launched.choose(&folder, &notify), Err(READ_FAILED));
+    mode(0o600).unwrap();
+    assert_eq!(fs::read(&path).unwrap(), before);
+    assert!(seen.borrow().is_empty());
+
+    let read = launched.get(&notify).unwrap();
+    assert_eq!(read.folder.as_deref(), Some("~/Notes"));
+    assert!(!read.include_attachments);
+    assert!(read.revision > shown.revision);
+    assert!(read.generation > shown.generation);
+    assert_eq!(seen.borrow().as_slice(), [read.clone()]);
+    assert_eq!(launched.get(&notify).unwrap(), read);
+
+    let next = launched
+        .set(&patch(json!({ "includeAttachments": true })), &notify)
+        .unwrap();
+    assert_eq!(next.folder.as_deref(), Some("~/Notes"));
+    let stored = Mirror::new(&path, None).get(&|_| {}).unwrap();
+    assert_eq!(stored.folder.as_deref(), Some(folder.to_str().unwrap()));
+    assert!(stored.include_attachments);
 }
 
 #[test]
@@ -228,15 +309,12 @@ fn pauses_when_the_folder_goes_and_resumes_with_the_manifest_read_again() {
     let opened = f.open().unwrap();
     let results = f.apply(opened.generation, &[note_op("Plan.md", "# Plan\n")]);
     assert_eq!(results[0].code, None);
-    assert_eq!(f.mirror.get().unwrap().size, Some(7));
+    assert_eq!(f.get().size, Some(7));
 
     let away = f.data.join("away");
     fs::rename(&folder, &away).unwrap();
     assert_eq!(f.open(), Err("E_MIRROR_FOLDER_MISSING"));
-    assert_eq!(
-        f.mirror.get().unwrap().paused,
-        Some("E_MIRROR_FOLDER_MISSING")
-    );
+    assert_eq!(f.get().paused, Some("E_MIRROR_FOLDER_MISSING"));
     let paused = f
         .seen
         .borrow()
@@ -258,7 +336,7 @@ fn pauses_when_the_folder_goes_and_resumes_with_the_manifest_read_again() {
     let resumed = f.open().unwrap();
     assert!(resumed.generation > opened.generation);
     assert_eq!(resumed.manifest.unwrap().notes[NOTE].path, "Plan.md");
-    assert_eq!(f.mirror.get().unwrap().paused, None);
+    assert_eq!(f.get().paused, None);
 }
 
 /// The chosen folder moved aside and a link put in its place between two
@@ -302,7 +380,7 @@ fn shows_the_size_of_a_mirror_once_it_reads_its_manifest() {
     f.choose(&folder);
     let opened = f.open().unwrap();
     f.apply(opened.generation, &[note_op("Plan.md", "# Plan\n")]);
-    assert_eq!(f.mirror.get().unwrap().size, Some(7));
+    assert_eq!(f.get().size, Some(7));
     // Turned off, then that folder chosen again: its size is not known
     // before its manifest is read...
     f.mirror
@@ -320,7 +398,7 @@ fn shows_the_size_of_a_mirror_once_it_reads_its_manifest() {
     f.mirror.open(Some(generation), &f.notify()).unwrap();
     assert_eq!(f.seen.borrow().len(), heard, "nothing new to tell");
     let launched = Mirror::new(&f.data.join(SETTINGS_FILE), None);
-    assert_eq!(launched.get().unwrap().size, None);
+    assert_eq!(launched.get(&|_| {}).unwrap().size, None);
     let seen = RefCell::new(Vec::new());
     launched
         .open(None, &|status: &Status| seen.borrow_mut().push(status.size))
@@ -382,7 +460,7 @@ fn applies_operations_of_its_own_generation_and_writes_the_manifest_back() {
         results[0].kept.as_deref(),
         Some("Plan (edited outside Devot).md")
     );
-    let status = f.mirror.get().unwrap();
+    let status = f.get();
     assert_eq!(status.kept, ["Plan (edited outside Devot).md"]);
     assert_eq!(status.kept_count, 1);
     assert_eq!(f.seen.borrow().last().unwrap().kept, status.kept);
@@ -417,7 +495,7 @@ fn names_only_the_first_kept_files_and_counts_them_all() {
         .map(|n| json!({ "kind": "keep", "entry": "note", "id": id(n), "path": format!("Note {n}.md") }))
         .collect();
     f.apply(generation, &keeps);
-    let status = f.mirror.get().unwrap();
+    let status = f.get();
     assert_eq!(status.kept.len(), KEPT_NAMED);
     assert_eq!(status.kept_count, (KEPT_NAMED + 5) as u64);
 }
@@ -436,17 +514,14 @@ fn writes_back_on_resume_a_manifest_it_could_not_write() {
     moved["from"] = json!("Plan.md");
     let results = f.apply(opened.generation, &[moved]);
     assert_eq!(results[0].code, None);
-    assert_eq!(
-        f.mirror.get().unwrap().paused,
-        Some("E_MIRROR_FOLDER_READ_ONLY")
-    );
+    assert_eq!(f.get().paused, Some("E_MIRROR_FOLDER_READ_ONLY"));
     // Resuming writes what memory holds, never the older file.
     fs::remove_dir(folder.join(MANIFEST)).unwrap();
     let resumed = f.open().unwrap();
     assert_eq!(resumed.manifest.unwrap().notes[NOTE].path, "Moved.md");
     let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
     assert_eq!(stored.notes[NOTE].path, "Moved.md");
-    assert_eq!(f.mirror.get().unwrap().paused, None);
+    assert_eq!(f.get().paused, None);
 }
 
 #[cfg(unix)]
@@ -613,7 +688,7 @@ fn hashes_attachments_one_at_a_time_and_leaves_out_missing_ones() {
 #[test]
 fn sends_the_status_with_the_names_the_ui_reads() {
     let f = Fixture::new();
-    let status = f.mirror.get().unwrap();
+    let status = f.get();
     assert_eq!(
         serde_json::to_value(status).unwrap(),
         json!({
