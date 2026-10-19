@@ -1537,8 +1537,6 @@ impl PrintTarget {
 /// Whether it printed (false when the user cancelled the panel), or an error code.
 pub type PrintDone = Box<dyn FnOnce(Result<bool, &'static str>)>;
 
-/// How long a page may take to load (its `data:` images decoded) before
-/// the job gives up, in seconds.
 const PRINT_LOAD_TIMEOUT: f64 = 60.0;
 
 /// So printing, like the preview, never fetches an image from the web: no server learns that a note
@@ -1574,7 +1572,6 @@ pub struct PrintJobState {
     window: Weak<NSWindow>,
     done: RefCell<Option<PrintDone>>,
     web_view: RefCell<Option<Retained<WKWebView>>>,
-    /// The document a PDF print job prints (`print_pdf`).
     document: RefCell<Option<Retained<PDFDocument>>>,
 }
 
@@ -1771,8 +1768,6 @@ impl PrintJob {
     }
 }
 
-/// A copy of the shared print info on `paper`, with `margin` points on
-/// every edge.
 fn print_info(paper: Paper, margin: f64) -> Retained<NSPrintInfo> {
     let info = NSPrintInfo::sharedPrintInfo().copy();
     let (width, height) = paper.size();
@@ -2053,7 +2048,6 @@ pub fn system_paper() -> Paper {
     crate::page_setup::default_paper(Some(width), region.as_deref())
 }
 
-/// Today's date as the user's locale writes it in medium length.
 fn today() -> String {
     let formatter = NSDateFormatter::new();
     formatter.setDateStyle(NSDateFormatterStyle::MediumStyle);
@@ -2068,7 +2062,6 @@ enum PageLink {
     Page(NSRect, String),
 }
 
-/// A named point a link goes to.
 type LinkTarget = (String, NSPoint);
 
 /// Each page's links, and the named points on each page they go to.
@@ -2215,7 +2208,6 @@ fn ns_color(c: &Rgba) -> Retained<NSColor> {
     NSColor::colorWithSRGBRed_green_blue_alpha(c.r, c.g, c.b, c.a)
 }
 
-/// The header and footer of one page, and their rules.
 fn draw_marks(context: &CGContext, layout: &PageLayout, places: &MarkPlaces, fields: &Fields) {
     let setup = &layout.setup;
     let look = &layout.look;

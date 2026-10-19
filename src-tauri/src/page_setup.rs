@@ -65,7 +65,6 @@ impl Margins {
     }
 }
 
-/// The longest header or footer slot, in characters.
 pub const SLOT_MAX_CHARS: usize = 100;
 
 /// A header or footer slot: up to `SLOT_MAX_CHARS` characters, none of
@@ -90,7 +89,6 @@ pub struct PageSetup {
     pub rules: bool,
 }
 
-/// What a slot's placeholders stand for on one page.
 pub struct Fields<'a> {
     pub title: &'a str,
     pub date: &'a str,

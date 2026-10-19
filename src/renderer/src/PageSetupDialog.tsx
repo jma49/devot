@@ -38,7 +38,6 @@ const BANDS = [
 
 const SLOT_LABELS = ['pageSetup.left', 'pageSetup.center', 'pageSetup.right'] as const
 
-/** The page setup in the settings now. */
 export const currentPageSetup = (settings: EditorSettings = editorSettings()): PageSetup =>
   Object.fromEntries(PAGE_SETUP_KEYS.map((key) => [key, settings[key]])) as PageSetup
 

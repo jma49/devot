@@ -475,7 +475,6 @@ impl EditorSettingsStore {
         }
     }
 
-    /// The store with the paper the system uses as the page setup's default.
     pub fn with_default_paper(self, default_paper: fn() -> Paper) -> Self {
         Self {
             default_paper,
@@ -507,18 +506,10 @@ impl EditorSettingsStore {
             let mode = if old { "unwrapAtCursor" } else { "off" };
             stored.insert("lineWrapping".into(), Value::from(mode));
         }
-<<<<<<< HEAD
-        let mut settings = EditorSettings::default();
-||||||| parent of a56f824 (feat: page setup starts from the system's paper)
-        // Only values that are valid and known stay in `stored`.
-        let mut settings = EditorSettings::default();
-=======
-        // Only values that are valid and known stay in `stored`.
         let mut settings = EditorSettings {
             page_paper: (self.default_paper)(),
             ..EditorSettings::default()
         };
->>>>>>> a56f824 (feat: page setup starts from the system's paper)
         let stored = stored
             .into_iter()
             .filter(|(key, value)| settings.set(key, value).is_ok())

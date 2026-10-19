@@ -350,7 +350,6 @@ impl PdfPartial {
         self.dir.path().join(PDF_NAME)
     }
 
-    /// The private folder, for the files a print job makes on the way.
     pub fn folder(&self) -> &Path {
         self.dir.path()
     }

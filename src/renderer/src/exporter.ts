@@ -46,11 +46,7 @@ export function pageStyles(): string {
   ].join('\n\n')
 }
 
-/**
- * How Rust draws a printed page's header and footer (src-tauri/src/page_setup.rs):
- * the light page's tertiary text and hairline, in the smallest caption size
- * (as points).
- */
+/** The printed header's and footer's look (src-tauri/src/page_setup.rs); sizes as points. */
 export function pageLook() {
   const channels = (token: string) => {
     const { rgb, alpha } = parseColor(token)

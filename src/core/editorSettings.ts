@@ -20,7 +20,6 @@ export type ThemeChoice = 'default' | 'ivory'
 export type ListDatesStyle = 'relative' | 'absolute'
 export type AnimationsChoice = 'always' | 'system' | 'off'
 
-/** The paper Print and Export as PDF lay a note out on (Page Setup). */
 export type PagePaper = 'a4' | 'letter' | 'a4Landscape' | 'slide'
 export type PageMargins = 'narrow' | 'normal' | 'wide'
 
@@ -81,7 +80,6 @@ export interface EditorSettings {
   pageFooterRight: string
   /** The first page goes without the header and footer. */
   pageSkipFirst: boolean
-  /** A thin rule under the header and above the footer. */
   pageRules: boolean
 }
 
@@ -184,7 +182,6 @@ export const LINE_WRAPPING_MODES: readonly LineWrappingMode[] = [
 
 export const LIST_DATES_STYLES: readonly ListDatesStyle[] = ['relative', 'absolute']
 export const ANIMATIONS: readonly AnimationsChoice[] = ['always', 'system', 'off']
-/** The papers and margins Page Setup offers, in its order. */
 export const PAGE_PAPERS: readonly PagePaper[] = ['a4', 'letter', 'a4Landscape', 'slide']
 export const PAGE_MARGINS: readonly PageMargins[] = ['narrow', 'normal', 'wide']
 export const PAGE_SLOT_MAX_CHARS = 100
