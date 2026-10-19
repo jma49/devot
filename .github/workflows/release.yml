@@ -1,11 +1,17 @@
 name: Release
 
-# Pushing a release tag (vMAJOR.MINOR.PATCH-betaN, see docs/releasing.md)
-# builds Devot for Apple Silicon, ad-hoc signed, with the updater bundle
-# signed by the updater key; publishes a new release for the tag (a
-# prerelease for a beta) with the dmg and the updater bundle; then points
-# the update feeds at it (in the fixed `updater` release: beta.json for a
-# beta, stable.json and beta.json for a stable release).
+# Pushing a release tag (vMAJOR.MINOR.PATCH-betaN, see docs/releasing.md) of a
+# commit on main builds Devot for Apple Silicon, ad-hoc signed; signs the
+# updater bundle with the updater key; publishes a new release for the tag (a
+# prerelease for a beta) with the dmg and the updater bundle; then points the
+# update feeds at it (in the fixed `updater` release: beta.json for a beta,
+# stable.json and beta.json for a stable release).
+#
+# The jobs keep the updater key and the write token away from the
+# dependencies' code: `build` runs it (pnpm install, build scripts, build.rs)
+# with a read-only token and no updater key; `sign` holds the key and runs
+# only Node and scripts/release/release.ts (node: modules only); `publish` and
+# `feed` hold the write token and run no dependency code either.
 #
 # The release notes are the tag's message (`git tag -a <tag> -F notes.md`);
 # a tag without one gets GitHub's generated notes.
@@ -20,32 +26,35 @@ on:
   push:
     tags: ['v*']
 
-# No concurrency group: GitHub would drop a tag's run that waits behind
-# another. Runs may overlap instead; a run only moves the feed forward
-# (`replaces-feed`), so the newest release keeps it.
-
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  build:
     # Apple Silicon with the macOS 26 SDK (minimumSystemVersion is 26.0).
     runs-on: macos-26
     timeout-minutes: 60
     env:
       TAG: ${{ github.ref_name }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      channel: ${{ steps.version.outputs.channel }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          # main's history, to check that the tag is on it.
+          fetch-depth: 0
           # The token stays out of .git/config: the build runs dependencies'
           # scripts and build.rs, which must not reach it.
           persist-credentials: false
-      # Checkout may leave an annotated tag as a plain one; fetch it again
-      # so its message (the release notes) is there.
-      - name: Fetch the tag
-        run: git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - name: Check the tag is on main
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$TAG is not on main: tag a commit of main (see docs/releasing.md)."
+            exit 1
+          fi
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: pnpm
@@ -53,50 +62,118 @@ jobs:
       - name: Set the version from the tag
         id: version
         run: node scripts/release/release.ts set-version "$TAG" >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: 1.99.0
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
       - name: Build
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
           DEVOT_SENTRY_DSN: ${{ secrets.DEVOT_SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
-          if [ -z "$PUBKEY" ] || [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+          if [ -z "$PUBKEY" ]; then
             echo "::error::The updater key is not set up (see docs/releasing.md)."
             exit 1
           fi
+          # Tauri refuses to make the updater bundle without a secret key, so
+          # it signs with a throwaway one; the sign job signs the bundle again.
+          pnpm tauri signer generate --ci -p '' -w "$RUNNER_TEMP/throwaway.key" > /dev/null
+          export TAURI_SIGNING_PRIVATE_KEY="$RUNNER_TEMP/throwaway.key" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=''
           # The "-" identity signs ad hoc: without a seal, downloaded copies
-          # are reported as damaged. The public key turns the updater on.
+          # are reported as damaged. The public key turns the updater on;
+          # requireSignedVersion makes it refuse a bundle signed for another
+          # version than the feed announces.
           config=$(jq -nc --arg key "$PUBKEY" '{
             bundle: { createUpdaterArtifacts: true, macOS: { signingIdentity: "-" } },
-            plugins: { updater: { pubkey: $key } }
+            plugins: { updater: { pubkey: $key, requireSignedVersion: true } }
           }')
           pnpm tauri build --bundles app,dmg --config "$config"
       - name: Verify and collect the files
-        id: files
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
         run: |
           bundle=src-tauri/target/release/bundle
           codesign --verify --deep --strict "$bundle/macos/Devot.app"
           dmg=$(ls "$bundle"/dmg/*.dmg)
           hdiutil verify "$dmg"
-          # A key pair that does not match would ship updates no install takes.
-          node scripts/release/release.ts verify-signature "$bundle/macos/Devot.app.tar.gz" \
-            "$bundle/macos/Devot.app.tar.gz.sig" "$PUBKEY"
           mkdir out
           cp "$dmg" "out/Devot_${VERSION}_aarch64.dmg"
           cp "$bundle/macos/Devot.app.tar.gz" "out/Devot_${VERSION}_aarch64.app.tar.gz"
-          cp "$bundle/macos/Devot.app.tar.gz.sig" "out/Devot_${VERSION}_aarch64.app.tar.gz.sig"
-          echo "updater=Devot_${VERSION}_aarch64.app.tar.gz" >> "$GITHUB_OUTPUT"
-      # The token goes only to the steps that publish (checkout keeps none).
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bundles
+          path: out/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Holds the updater key; runs no dependency code (no pnpm install).
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TAG: ${{ github.ref_name }}
+      UPDATER: Devot_${{ needs.build.outputs.version }}_aarch64.app.tar.gz
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: bundles
+          path: out
+      - name: Sign the updater bundle
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::The updater key is not set up (see docs/releasing.md)."
+            exit 1
+          fi
+          mkdir signed
+          node scripts/release/release.ts sign "$TAG" "out/$UPDATER" "signed/$UPDATER.sig"
+      # A key pair that does not match would ship updates no install takes.
+      - name: Verify the signature
+        env:
+          PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+        run: node scripts/release/release.ts verify-signature "out/$UPDATER" "signed/$UPDATER.sig" "$PUBKEY" "$TAG"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: signature
+          path: signed/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      # Checkout may leave an annotated tag as a plain one; fetch it again
+      # so its message (the release notes) is there.
+      - name: Fetch the tag
+        run: git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: '{bundles,signature}'
+          path: out
+          merge-multiple: true
       - name: Write the release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -104,18 +181,19 @@ jobs:
           # An annotated tag's message, without a signature block (PGP, SSH or
           # X.509); a lightweight tag has none (its "contents" would be the
           # commit message).
-          : > notes.md
+          mkdir notes
+          : > notes/notes.md
           if [ "$(git cat-file -t "refs/tags/$TAG")" = tag ]; then
-            git tag -l --format='%(contents)' "$TAG" | sed '/^-----BEGIN [A-Z0-9 ]*SIGNATURE-----$/,$d' > notes.md
+            git tag -l --format='%(contents)' "$TAG" | sed '/^-----BEGIN [A-Z0-9 ]*SIGNATURE-----$/,$d' > notes/notes.md
           fi
-          if ! grep -q '[^[:space:]]' notes.md; then
-            gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG" --jq .body > notes.md
+          if ! grep -q '[^[:space:]]' notes/notes.md; then
+            gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG" --jq .body > notes/notes.md
           fi
       - name: Publish the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
-          CHANNEL: ${{ steps.version.outputs.channel }}
+          VERSION: ${{ needs.build.outputs.version }}
+          CHANNEL: ${{ needs.build.outputs.channel }}
         run: |
           # A rerun of a run that failed later finds the release made: it
           # uploads the files again instead.
@@ -124,16 +202,50 @@ jobs:
           else
             flags=()
             if [ "$CHANNEL" = beta ]; then flags+=(--prerelease); fi
-            gh release create "$TAG" out/* --verify-tag --title "Devot $VERSION" --notes-file notes.md "${flags[@]}"
+            gh release create "$TAG" out/* --verify-tag --title "Devot $VERSION" --notes-file notes/notes.md "${flags[@]}"
           fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: notes
+          path: notes/
+          if-no-files-found: error
+          retention-days: 7
+
+  # One feed job at a time across runs, so reading a feed and replacing it
+  # cannot interleave with another release's. GitHub keeps only one job
+  # waiting per group: a third run cancels the waiting one, whose feed job
+  # then needs a re-run (a feed only moves forward, so that is safe).
+  feed:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: release-feed
+      cancel-in-progress: false
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: '{signature,notes}'
+          path: out
+          merge-multiple: true
       - name: Update the feeds
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UPDATER: ${{ steps.files.outputs.updater }}
+          UPDATER: Devot_${{ needs.build.outputs.version }}_aarch64.app.tar.gz
         run: |
           url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$UPDATER"
           mkdir feed
-          node scripts/release/release.ts feed "$TAG" "$url" "out/$UPDATER.sig" notes.md feed/release.json
+          node scripts/release/release.ts feed "$TAG" "$url" "out/$UPDATER.sig" out/notes.md feed/release.json
           # A beta goes in beta.json; a stable release in stable.json and in
           # beta.json too, so a beta install is offered the newest build.
           feeds=$(node scripts/release/release.ts feeds "$TAG")
@@ -148,7 +260,7 @@ jobs:
           # Only a newer release moves a feed.
           # Only a missing file means no feed yet: any other failure stops the
           # run, so an older run never takes a feed back.
-          mkdir current
+          mkdir current uploaded
           assets=$(gh release view updater --json assets --jq '.assets[].name')
           for channel in $feeds; do
             if grep -qx "$channel.json" <<< "$assets"; then
@@ -157,6 +269,12 @@ jobs:
             if node scripts/release/release.ts replaces-feed "$TAG" "current/$channel.json" | grep -qx 'replace=true'; then
               cp feed/release.json "feed/$channel.json"
               gh release upload updater "feed/$channel.json" --clobber
+              # Read it back: the feed must now be exactly what this run wrote.
+              gh release download updater --pattern "$channel.json" --dir uploaded --clobber
+              if ! cmp -s "feed/$channel.json" "uploaded/$channel.json"; then
+                echo "::error::$channel.json does not hold what this run uploaded."
+                exit 1
+              fi
             else
               echo "::notice::$channel.json already offers a newer version; it stays as it is."
             fi
