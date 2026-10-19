@@ -5,7 +5,8 @@
 // measured as the change renders (`useRowMotion`), before the window shows
 // it, and played back once it is laid out:
 // rows that stay slide to their new places; a new row fades in where it is,
-// and one that goes fades out where it was, out of the layout. `slide` (the
+// and one that goes fades out where it was, out of the layout, from how
+// opaque it was and only within what the list shows. `slide` (the
 // sidebar) and `grow` (the note list) differ only in how long that fade takes.
 // Reduce Motion shows every change at once.
 import { useLayoutEffect, useState } from 'react'
@@ -59,7 +60,51 @@ export const moveFrames = (dy: number): Keyframe[] => [
 
 export const enterFrames: Keyframe[] = [{ opacity: 0 }, { opacity: 1 }]
 
-export const leaveFrames: Keyframe[] = [...enterFrames].reverse()
+/** `from`: how opaque the row is drawn as it goes, so one still fading in never brightens. */
+export const leaveFrames = (from = 1): Keyframe[] => [{ opacity: from }, { opacity: 0 }]
+
+export interface Edges {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+/**
+ * The `clip-path` that keeps a box at `box` inside `visible`, both in window
+ * coordinates; null when none of it shows.
+ */
+export function clipInset(box: Edges, visible: Edges): string | null {
+  const top = Math.max(0, visible.top - box.top)
+  const right = Math.max(0, box.right - visible.right)
+  const bottom = Math.max(0, box.bottom - visible.bottom)
+  const left = Math.max(0, visible.left - box.left)
+  if (box.top + top >= box.bottom - bottom || box.left + left >= box.right - right) return null
+  return top || right || bottom || left
+    ? `inset(${top}px ${right}px ${bottom}px ${left}px)`
+    : 'none'
+}
+
+/** Where a child of `parent` can show: the intersection of the clipping boxes from `parent` up. */
+function visibleEdges(parent: Element): Edges {
+  const edges: Edges = { top: -Infinity, right: Infinity, bottom: Infinity, left: -Infinity }
+  for (let node: Element | null = parent; node; node = node.parentElement) {
+    const style = getComputedStyle(node)
+    const clipsX = style.overflowX !== 'visible'
+    const clipsY = style.overflowY !== 'visible'
+    if (!clipsX && !clipsY) continue
+    const rect = node.getBoundingClientRect()
+    if (clipsX) {
+      edges.left = Math.max(edges.left, rect.left + node.clientLeft)
+      edges.right = Math.min(edges.right, rect.left + node.clientLeft + node.clientWidth)
+    }
+    if (clipsY) {
+      edges.top = Math.max(edges.top, rect.top + node.clientTop)
+      edges.bottom = Math.min(edges.bottom, rect.top + node.clientTop + node.clientHeight)
+    }
+  }
+  return edges
+}
 
 interface RowBox {
   el: HTMLElement
@@ -67,11 +112,12 @@ interface RowBox {
   rect: DOMRect
   parent: Node | null
   next: Node | null
+  opacity: number
 }
 
 type Snapshot = Map<string, RowBox>
 
-function snapshot(container: HTMLElement, attr: string): Snapshot {
+function snapshot(container: HTMLElement, attr: string, leaving?: ReadonlySet<string>): Snapshot {
   const base = container.getBoundingClientRect().top - container.scrollTop
   const rows: Snapshot = new Map()
   for (const el of container.querySelectorAll<HTMLElement>(`[${attr}]`)) {
@@ -84,6 +130,7 @@ function snapshot(container: HTMLElement, attr: string): Snapshot {
       rect,
       parent: el.parentNode,
       next: el.nextSibling,
+      opacity: leaving?.has(key) ? Number.parseFloat(getComputedStyle(el).opacity) : 1,
     })
   }
   return rows
@@ -91,7 +138,9 @@ function snapshot(container: HTMLElement, attr: string): Snapshot {
 
 function leaveCopy(box: RowBox, attr: string): HTMLElement | null {
   const parent = box.parent
-  if (!parent?.isConnected) return null
+  if (!(parent instanceof Element) || !parent.isConnected) return null
+  const clip = clipInset(box.rect, visibleEdges(parent))
+  if (!clip) return null
   const copy = box.el.cloneNode(true) as HTMLElement
   // Not a row any more: nothing looks it up by its key.
   copy.removeAttribute(attr)
@@ -101,13 +150,21 @@ function leaveCopy(box: RowBox, attr: string): HTMLElement | null {
   copy.setAttribute('aria-hidden', 'true')
   copy.inert = true
   copy.style.position = 'fixed'
+  copy.style.boxSizing = 'border-box'
   copy.style.left = `${box.rect.left}px`
   copy.style.top = `${box.rect.top}px`
   copy.style.width = `${box.rect.width}px`
   copy.style.height = `${box.rect.height}px`
   copy.style.margin = '0'
   copy.style.pointerEvents = 'none'
+  copy.style.clipPath = clip
   parent.insertBefore(copy, box.next?.parentNode === parent ? box.next : null)
+  // A transformed ancestor, not the window, may place a fixed box.
+  const placed = copy.getBoundingClientRect()
+  if (placed.left !== box.rect.left || placed.top !== box.rect.top) {
+    copy.style.left = `${2 * box.rect.left - placed.left}px`
+    copy.style.top = `${2 * box.rect.top - placed.top}px`
+  }
   return copy
 }
 
@@ -135,7 +192,7 @@ function play(
     if (!box || box.el.isConnected) continue
     const copy = leaveCopy(box, attr)
     if (!copy) continue
-    const leave = copy.animate(leaveFrames, {
+    const leave = copy.animate(leaveFrames(box.opacity), {
       ...rowEnterTiming(motion),
       fill: 'forwards',
     })
@@ -166,7 +223,7 @@ export function useRowMotion(
       const change = rowChange(seen.keys, keys)
       // Read while the window still shows the rows where they were.
       if (playsChange(change, keys.length - change.entered.size)) {
-        next = { el, before: snapshot(el, attr), change }
+        next = { el, before: snapshot(el, attr, change.left), change }
       }
     }
     setSeen({ keys, scope, play: next })
