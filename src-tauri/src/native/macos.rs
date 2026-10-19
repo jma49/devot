@@ -3134,6 +3134,26 @@ pub fn self_test_editor_menu() -> Result<(), &'static str> {
     Ok(())
 }
 
+/// The user's own temporary folder (`DARWIN_USER_TEMP_DIR`), the same whatever `TMPDIR` says.
+pub fn user_temp_dir() -> Option<std::path::PathBuf> {
+    use std::os::unix::ffi::OsStringExt;
+    let mut buf = vec![0u8; 1024];
+    // SAFETY: `buf` is writable for `buf.len()` bytes, and confstr writes at most that many,
+    // the terminating NUL included; it returns the length it needed, NUL included, or 0.
+    let needed = unsafe {
+        libc::confstr(
+            libc::_CS_DARWIN_USER_TEMP_DIR,
+            buf.as_mut_ptr().cast(),
+            buf.len(),
+        )
+    };
+    if needed < 2 || needed > buf.len() {
+        return None;
+    }
+    buf.truncate(needed - 1);
+    Some(std::ffi::OsString::from_vec(buf).into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

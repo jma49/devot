@@ -42,6 +42,35 @@ fn random_name() -> String {
     format!(".devot-{}.tmp", uuid::Uuid::new_v4().simple())
 }
 
+pub fn effective_uid() -> u32 {
+    rustix::process::geteuid().as_raw()
+}
+
+/// Removes the private folders (`TempDir`) in `dir` last changed `age` or more before `now`; never
+/// what a link there points to.
+pub fn remove_stale_temp_dirs(dir: &Path, age: std::time::Duration, now: std::time::SystemTime) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let (Ok(name), Ok(meta)) = (entry.file_name().into_string(), entry.metadata()) else {
+            continue;
+        };
+        let stale = meta
+            .modified()
+            .ok()
+            .and_then(|at| now.duration_since(at).ok())
+            .is_some_and(|since| since >= age);
+        if meta.is_dir()
+            && is_temporary(&name)
+            && stale
+            && fs::remove_dir_all(entry.path()).is_err()
+        {
+            log::warn!("W_TEMP_DIR_SWEEP_FAILED");
+        }
+    }
+}
+
 pub fn is_temporary(name: &str) -> bool {
     name.strip_prefix(".devot-")
         .and_then(|rest| rest.strip_suffix(".tmp"))

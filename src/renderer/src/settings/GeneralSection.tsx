@@ -5,6 +5,7 @@ import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { readNotebooks, subscribeNotebooks } from '../notebookChoices'
 import { checkForUpdates, startUpdateStatus, updateStatusText, useUpdateStatus } from '../updates'
+import { cliToolFailure } from './cliTool'
 import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
 import {
   cliToolStatus,
@@ -56,7 +57,7 @@ export function GeneralSection() {
         (cliTool?.state === 'installed' ? uninstallCliTool() : installCliTool())
           .then(setCliTool)
           .finally(() => setCliBusy(false)),
-      'generalSettings.commandLineFailed',
+      cliToolFailure,
     )
   }
   const stored = useEditorSetting('defaultNotebook')
@@ -68,11 +69,17 @@ export function GeneralSection() {
   const notebooks = JSON.parse(
     useSyncExternalStore(subscribeNotebooks, notebooksJson),
   ) as ReturnType<typeof readNotebooks>
-  const run = (action: () => Promise<void>, message: MessageKey) => {
+  const run = (
+    action: () => Promise<void>,
+    message: MessageKey | ((code: string) => MessageKey),
+  ) => {
     setError(undefined)
     action().then(
       () => setError(undefined),
-      (e: unknown) => setError({ message, code: errorCode(e) }),
+      (e: unknown) => {
+        const code = errorCode(e)
+        setError({ message: typeof message === 'function' ? message(code) : message, code })
+      },
     )
   }
   // A notebook deleted since it was chosen shows as None; the setting itself

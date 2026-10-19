@@ -23,7 +23,8 @@ export function lookUpSelection(selected: string | null | undefined): string | n
 }
 
 export function lookUpLabel(text: string): string {
-  const flat = text.replace(/\s+/g, ' ')
+  // The native menu refuses a label with a control character.
+  const flat = text.replace(/[\s\p{Cc}]+/gu, ' ').trim()
   const chars = Array.from(flat)
   const shown =
     chars.length > LABEL_CHARS ? `${chars.slice(0, LABEL_CHARS).join('').trimEnd()}…` : flat

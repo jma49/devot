@@ -32,6 +32,7 @@ mod net;
 pub mod page_setup;
 mod settings;
 mod sidebar_material;
+mod single_instance;
 mod startup;
 mod storage;
 mod strings;
@@ -63,16 +64,8 @@ pub fn run() {
     // Sentry first, so its panic hook sees every panic; off without a DSN.
     let _crash_reporting = crash::init();
     let context = data_folder::context();
-    let mut builder = tauri::Builder::default();
-    // First: a second launch hands its arguments (a URL among them) to the
-    // running Devot and ends before it opens the data folder. Not when the
-    // plugin's socket is someone else's: the data-folder lock decides then.
-    if deep_link::single_instance_socket_trusted(&context.config().identifier) {
-        builder = builder.plugin(tauri_plugin_single_instance::init(
-            deep_link::on_second_instance,
-        ));
-    }
-    builder
+    tauri::Builder::default()
+        .plugin(single_instance::init())
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             native::symbol_png,
@@ -226,6 +219,11 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         keyboard_shortcuts::KeyboardShortcutsStore::new(&data_dir.join(keyboard_shortcuts::FILE)),
     ));
     mirror::manage(app, data_dir);
+    let now = std::time::SystemTime::now();
+    export::sweep_pdf_folders(&data_dir.join(export::PDF_DIR), now);
+    if let Ok(caches) = app.path().app_cache_dir() {
+        export::sweep_pdf_folders(&caches.join(export::PDF_DIR), now);
+    }
     backups::start(app.handle());
     watch::start(app.handle());
     // The updater, only with the public key the release workflow builds in.
