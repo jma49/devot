@@ -248,6 +248,43 @@ test('a sheet opened again while its dim fades keeps the page from brightening',
   await expect(page.locator('.dialog-backdrop')).toHaveCount(0)
 })
 
+test('a sheet closed before its dim has faded in fades the dim out from there', async ({
+  page,
+}) => {
+  await openWithMotion(page)
+  await startSampling(page, 'dialog.sheet[open]')
+  // Opened and closed from the page: Done goes once the dim shows, well before its 2 s fade ends.
+  const atClose = await page.evaluate(async () => {
+    dispatchEvent(new CustomEvent('devot:show-backups'))
+    const frame = () => new Promise((r) => requestAnimationFrame(r))
+    const sheet = () => document.querySelector<HTMLDialogElement>('dialog.sheet[open]')
+    const dim = () => {
+      const open = sheet()
+      return open ? Number.parseFloat(getComputedStyle(open, '::backdrop').opacity) : 0
+    }
+    for (let i = 0; i < 600 && dim() < 0.1; i++) await frame()
+    const drawn = dim()
+    const done = Array.from(sheet()?.querySelectorAll('button') ?? []).find(
+      (button) => button.textContent === 'Done',
+    )
+    done?.click()
+    return drawn
+  })
+  await expect(page.locator('dialog.sheet')).toHaveCount(0)
+  await expect(page.locator('.dialog-backdrop')).toHaveCount(0)
+  const { samples } = await stopSampling(page, 2)
+
+  expect(atClose).toBeGreaterThanOrEqual(0.1)
+  expect(atClose).toBeLessThan(0.9)
+  const closed = samples.findIndex(
+    (s, i) => i > 0 && s.liveId === null && samples[i - 1]?.liveId !== null,
+  )
+  expect(closed).toBeGreaterThan(0)
+  const dims = samples.slice(closed - 1).map((s) => s.dim)
+  const rises = dims.flatMap((d, i) => (i > 0 && d > (dims[i - 1] ?? 0) + 0.01 ? [i] : []))
+  expect(rises, dims.map((d) => d.toFixed(3)).join(' ')).toEqual([])
+})
+
 test('a dropdown opened again while it fades out never dips', async ({ page }) => {
   await openWithMotion(page)
   await newNoteButton(page).click()
