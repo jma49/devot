@@ -98,6 +98,8 @@ test('hiding the panes fades them and slides the editor, and Reduce Motion makes
   await expect(sidebar).toBeVisible()
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
+  // The window follows the system (fixtures.ts) once it hears of the change.
+  await expect(page.locator('html')).toHaveAttribute('data-motion', 'reduced')
   await page.keyboard.press('Meta+Shift+KeyD')
   await expect(page.locator('.window')).toHaveAttribute('data-focus', 'true')
   expect(await moves('content')).toEqual([])

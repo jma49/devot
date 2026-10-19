@@ -45,6 +45,11 @@ export type ThemeChoice = 'default' | 'ivory'
 
 /** How the note list shows a note's date: how long ago, or the date itself. */
 export type ListDatesStyle = 'relative' | 'absolute'
+/**
+ * Whether the windows animate (Settings > Appearance > Motion): always, as
+ * the system's Reduce Motion asks, or never.
+ */
+export type AnimationsChoice = 'always' | 'system' | 'off'
 
 export interface EditorSettings {
   lineNumbers: boolean
@@ -112,6 +117,8 @@ export interface EditorSettings {
   listDates: ListDatesStyle
   /** An update found downloads in the background (Settings > General). */
   autoDownloadUpdates: boolean
+  /** Whether the windows animate. */
+  animations: AnimationsChoice
 }
 
 /**
@@ -159,6 +166,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   defaultNotebook: null,
   listDates: 'relative',
   autoDownloadUpdates: true,
+  animations: 'always',
 })
 
 export const FONT_FAMILIES: readonly FontFamilyId[] = [
@@ -216,6 +224,7 @@ export const LINE_WRAPPING_MODES: readonly LineWrappingMode[] = [
 ]
 
 export const LIST_DATES_STYLES: readonly ListDatesStyle[] = ['relative', 'absolute']
+export const ANIMATIONS: readonly AnimationsChoice[] = ['always', 'system', 'off']
 export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 'link', 'choose']
 /** The appearances Settings offers, in its order. */
 export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
@@ -312,6 +321,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   defaultNotebook: isNotebookId,
   listDates: oneOf(LIST_DATES_STYLES),
   autoDownloadUpdates: isFlag,
+  animations: oneOf(ANIMATIONS),
 }
 
 const KEYS = Object.keys(VALID) as (keyof EditorSettings)[]

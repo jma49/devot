@@ -22,14 +22,12 @@
 }
 
 /* Reduce Motion: pop-ups only fade, nothing grows, shrinks or slides. */
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --popover-enter-scale: 1;
-    --popover-exit-scale: 1;
-    --dialog-enter-scale: 1;
-    --dialog-blur: 0px;
-    --chip-enter-scale: 1;
-  }
+:root[data-motion='reduced'] {
+  --popover-enter-scale: 1;
+  --popover-exit-scale: 1;
+  --dialog-enter-scale: 1;
+  --dialog-blur: 0px;
+  --chip-enter-scale: 1;
 }
 
 @keyframes popover-in {
@@ -372,10 +370,8 @@ button {
 }
 
 /* Reduce Motion: the ring only fades in, on the edge. */
-@media (prefers-reduced-motion: reduce) {
-  :is(.tool, .button, .popup, .segment, .search-clear) {
-    outline-offset: 0;
-  }
+:root[data-motion='reduced'] :is(.tool, .button, .popup, .segment, .search-clear) {
+  outline-offset: 0;
 }
 
 :is(.tool, .button, .popup, .segment, .search-clear):focus-visible {
@@ -862,10 +858,8 @@ button {
   rotate: 90deg;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .chevron {
-    transition: none;
-  }
+:root[data-motion='reduced'] .chevron {
+  transition: none;
 }
 
 .book-name-field {
@@ -1350,10 +1344,8 @@ button {
   transition: width var(--motion-duration-grow) var(--motion-easing-standard);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .progress-fill {
-    transition: none;
-  }
+:root[data-motion='reduced'] .progress-fill {
+  transition: none;
 }
 
 /* Tags on a row: small outlined pills. */
@@ -1862,11 +1854,9 @@ button {
   width: calc(var(--size-window-controls-inset) - var(--space-1));
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .window-inset,
-  .editor-toolbar {
-    transition: none;
-  }
+:root[data-motion='reduced'] .window-inset,
+:root[data-motion='reduced'] .editor-toolbar {
+  transition: none;
 }
 
 .sidebar-toggle.tool {
@@ -1900,12 +1890,10 @@ button {
     border-color var(--motion-duration-color) var(--motion-easing-standard);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .sidebar,
-  .list,
-  .content {
-    transition: none;
-  }
+:root[data-motion='reduced'] .sidebar,
+:root[data-motion='reduced'] .list,
+:root[data-motion='reduced'] .content {
+  transition: none;
 }
 
 .window[data-sidebar-hidden] > .sidebar,
@@ -3582,11 +3570,9 @@ button {
   opacity: var(--opacity-disabled);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .setting-toggle input[role='switch'],
-  .setting-toggle input[role='switch']::after {
-    transition: none;
-  }
+:root[data-motion='reduced'] .setting-toggle input[role='switch'],
+:root[data-motion='reduced'] .setting-toggle input[role='switch']::after {
+  transition: none;
 }
 
 .setting-toggle:has(input:disabled) .setting-label {
@@ -4162,17 +4148,17 @@ button.popup:focus-visible {
     menu-fold-up var(--motion-duration-toggle) var(--motion-easing-standard) forwards;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .picker-popover,
-  .tag-suggestions,
-  .picker-popover[data-side='above'] {
-    animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
-  }
+:root[data-motion='reduced'] .picker-popover,
+:root[data-motion='reduced'] .tag-suggestions,
+:root[data-motion='reduced'] .picker-popover[data-side='above'] {
+  animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
+}
 
+:root[data-motion='reduced']
   :is(.picker-popover, .tag-suggestions)[data-closing][data-closing-motion='scale'],
+:root[data-motion='reduced']
   .picker-popover[data-side='above'][data-closing][data-closing-motion='scale'] {
-    animation: fade-out var(--motion-duration-toggle) var(--motion-easing-standard) forwards;
-  }
+  animation: fade-out var(--motion-duration-toggle) var(--motion-easing-standard) forwards;
 }
 
 .picker-search {
@@ -4315,11 +4301,9 @@ button.popup:focus-visible {
   animation: fade-out var(--motion-duration-popover) var(--motion-easing-standard) forwards;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .tool-tip,
-  .tool-tip[data-closing] {
-    animation: none;
-  }
+:root[data-motion='reduced'] .tool-tip,
+:root[data-motion='reduced'] .tool-tip[data-closing] {
+  animation: none;
 }
 
 /* The notch: a turned square on the edge facing the button, kept at the

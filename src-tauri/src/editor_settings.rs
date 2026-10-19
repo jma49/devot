@@ -121,6 +121,16 @@ pub enum ListDates {
     Absolute,
 }
 
+/// Whether the windows animate (Settings > Appearance > Motion): always, as
+/// the system's Reduce Motion asks, or never.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Animations {
+    Always,
+    System,
+    Off,
+}
+
 /// The appearance the windows show (Settings > Appearance): the system's,
 /// or always light or dark.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -216,6 +226,8 @@ pub struct EditorSettings {
     pub list_dates: ListDates,
     /// An update found downloads in the background (see `updates`).
     pub auto_download_updates: bool,
+    /// Whether the windows animate.
+    pub animations: Animations,
 }
 
 impl Default for EditorSettings {
@@ -262,6 +274,7 @@ impl Default for EditorSettings {
             default_notebook: None,
             list_dates: ListDates::Relative,
             auto_download_updates: true,
+            animations: Animations::Always,
         }
     }
 }
@@ -377,6 +390,7 @@ impl EditorSettings {
             "defaultNotebook" => self.default_notebook = notebook_id(value)?,
             "listDates" => self.list_dates = choice(value)?,
             "autoDownloadUpdates" => self.auto_download_updates = flag(value)?,
+            "animations" => self.animations = choice(value)?,
             _ => return Err(INVALID),
         }
         Ok(())
@@ -654,6 +668,8 @@ mod tests {
         assert_eq!(d.preview_font_size, 15);
         assert_eq!(d.default_notebook, None);
         assert_eq!(d.list_dates, ListDates::Relative);
+        // The windows animate whatever the system's Reduce Motion says.
+        assert_eq!(d.animations, Animations::Always);
         // Split mode scrolls the editor and the preview together.
         assert!(d.sync_scroll);
         // Updates download in the background unless turned off.
@@ -710,6 +726,7 @@ mod tests {
                 "defaultNotebook": null,
                 "listDates": "relative",
                 "autoDownloadUpdates": true,
+                "animations": "always",
             })
         );
     }
@@ -747,8 +764,17 @@ mod tests {
                 "defaultNotebook": "0b0c-1d_2",
                 "listDates": "absolute",
                 "autoDownloadUpdates": false,
+                "animations": "off",
             })))
             .unwrap();
+        assert_eq!(next.animations, Animations::Off);
+        assert_eq!(
+            EditorSettings::default()
+                .with(&patch(json!({ "animations": "system" })))
+                .unwrap()
+                .animations,
+            Animations::System
+        );
         assert!(!next.auto_download_updates);
         assert_eq!(next.appearance, Appearance::Dark);
         assert_eq!(next.theme, Theme::Ivory);
@@ -946,6 +972,9 @@ mod tests {
             json!({ "listDates": "Absolute" }),
             json!({ "listDates": "never" }),
             json!({ "listDates": true }),
+            json!({ "animations": "never" }),
+            json!({ "animations": "System" }),
+            json!({ "animations": false }),
             json!({ "pasteUrl": "markdown" }),
             json!({ "pasteUrl": "Plain" }),
             json!({ "pasteUrl": true }),
@@ -1110,6 +1139,20 @@ mod tests {
         assert_eq!(
             EditorSettings::from_stored(&json!({ "theme": 7 })).theme,
             Theme::Default
+        );
+    }
+
+    #[test]
+    fn reads_a_file_from_before_the_animations_setting_as_always() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(FILE), br#"{ "sidebarMaterial": true }"#).unwrap();
+        assert_eq!(
+            store(&dir).get().unwrap().settings.animations,
+            Animations::Always
+        );
+        assert_eq!(
+            EditorSettings::from_stored(&json!({ "animations": "sometimes" })).animations,
+            Animations::Always
         );
     }
 

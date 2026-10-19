@@ -2,6 +2,7 @@
 // Actual Size, the backlinks opening) eases to it over `motion.duration.grow`
 // on the `motion.easing.standard` curve. Reduce Motion shows it at once.
 import { sizes } from './theme/tokens'
+import { motionReduced } from './motionPreference'
 
 interface Box {
   left: number
@@ -43,19 +44,16 @@ export const expandFrames = (height: number): Keyframe[] => [
   { height: `${height}px`, opacity: 1 },
 ]
 
-const reducedMotion = () =>
-  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-
 /** Eases `el`, now laid out, from the box it had (`from`). */
 export function resizeFrom(el: Element, from: Box): void {
-  const timing = resizeTiming(reducedMotion())
+  const timing = resizeTiming(motionReduced())
   const frames = resizeFrames(from, el.getBoundingClientRect())
   if (timing && frames && typeof el.animate === 'function') el.animate(frames, timing)
 }
 
 /** Grows `el`, a panel that has just opened, to its height as it fades in. */
 export function expand(el: HTMLElement): void {
-  const timing = resizeTiming(reducedMotion())
+  const timing = resizeTiming(motionReduced())
   if (!timing || typeof el.animate !== 'function') return
   el.style.overflow = 'hidden'
   const growth = el.animate(expandFrames(el.scrollHeight), timing)

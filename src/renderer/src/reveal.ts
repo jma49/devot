@@ -3,6 +3,7 @@
 // `motion.easing.out` curve, fading in; Reduce Motion shows it at once. Only
 // an open the user asked for moves: the first paint never does.
 import { sizes } from './theme/tokens'
+import { motionReduced } from './motionPreference'
 
 /** The timing of the growth, or null when nothing should move. */
 export function revealTiming(reduced: boolean): KeyframeAnimationOptions | null {
@@ -22,12 +23,9 @@ export const revealFrames = (height: number): Keyframe[] => [
 /** From `height` pixels to nothing, fading out. */
 export const concealFrames = (height: number): Keyframe[] => [...revealFrames(height)].reverse()
 
-const reducedMotion = () =>
-  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-
 /** Grows `el`, a list that has just been shown, to its height. */
 export function reveal(el: HTMLElement): void {
-  const timing = revealTiming(reducedMotion())
+  const timing = revealTiming(motionReduced())
   if (!timing || typeof el.animate !== 'function') return
   const overflow = el.style.overflow
   el.style.overflow = 'hidden'
@@ -44,7 +42,7 @@ export function reveal(el: HTMLElement): void {
  * Calls it at once when nothing should move.
  */
 export function conceal(el: HTMLElement | undefined, done: () => void): void {
-  const timing = revealTiming(reducedMotion())
+  const timing = revealTiming(motionReduced())
   if (!el || !timing || typeof el.animate !== 'function') return done()
   el.style.overflow = 'hidden'
   const shrink = el.animate(concealFrames(el.scrollHeight), {
@@ -81,7 +79,7 @@ export function slideTiming(reduced: boolean): KeyframeAnimationOptions | null {
 
 /** Slides the sidebar's rows in after a workspace opened (`1`) or closed (`-1`). */
 export function slideIn(els: Iterable<Element>, from: 1 | -1): void {
-  const timing = slideTiming(reducedMotion())
+  const timing = slideTiming(motionReduced())
   if (!timing) return
   for (const el of els) if (typeof el.animate === 'function') el.animate(slideFrames(from), timing)
 }

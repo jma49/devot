@@ -10,6 +10,7 @@ import { startShortcutSettings } from './commands/shortcutSettings'
 import { editorSettings, startEditorSettings, subscribeEditorSettings } from './editorSettings'
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
+import { startMotion } from './motionPreference'
 import { resolveLocale, setLocale, t } from './i18n'
 import { watchCompositions } from './ime'
 import { SettingsWindow } from './settings/SettingsWindow'
@@ -22,6 +23,7 @@ document.title = t('settings.title')
 watchCompositions(window)
 startEditorSettings()
 startAppearance()
+startMotion()
 startShortcutSettings()
 // The same accent as the main window, so "Match System Accent" shows here too.
 if (!DEVOT_UI_TEST) {

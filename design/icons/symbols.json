@@ -73,6 +73,7 @@
     "settings.theme": "swatchpalette",
     "settings.accent": "paintbrush.pointed",
     "settings.sidebar": "sidebar.left",
+    "settings.motion": "figure.run",
     "settings.appFont": "textformat.characters",
     "settings.noteFont": "doc.richtext",
     "settings.codeFont": "chevron.left.forwardslash.chevron.right",

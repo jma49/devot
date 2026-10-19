@@ -5,6 +5,7 @@
 // Animations API) over `motion.duration.slide` on the `motion.easing.slide`
 // curve. Their size changes at once. Reduce Motion shows the change at once.
 import { sizes } from './theme/tokens'
+import { motionReduced } from './motionPreference'
 
 /** The window's panes, in their order from the left. */
 export const PANES = ['sidebar', 'list', 'content'] as const
@@ -85,9 +86,6 @@ const paneElement = (pane: Pane) => document.querySelector<HTMLElement>(`.window
 /** The moves under way, stopped when another change comes. */
 const running: Animation[] = []
 
-const reducedMotion = () =>
-  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-
 /** Where the panes are now, as they look (a slide under way included). */
 export function measurePanes(shown: Record<Pane, boolean>): PaneBoxes {
   const boxes: PaneBoxes = {}
@@ -110,7 +108,7 @@ export function measurePanes(shown: Record<Pane, boolean>): PaneBoxes {
 export function movePanes(before: PaneBoxes, shown: Record<Pane, boolean>): void {
   for (const animation of running.splice(0)) animation.cancel()
   const moves = paneMoves(before, measurePanes(shown))
-  const reduced = reducedMotion()
+  const reduced = motionReduced()
   for (const pane of PANES) {
     const el = paneElement(pane)
     const move = moves[pane]

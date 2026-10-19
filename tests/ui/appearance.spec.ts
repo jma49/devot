@@ -165,3 +165,25 @@ test.describe('the Theme choice in Settings', () => {
     await expect(accent).toBeEnabled()
   })
 })
+
+test('the Animations choice reduces motion always, as the system asks, or never', async ({
+  page,
+}) => {
+  // The suite's system asks for Reduce Motion (playwright.config.ts).
+  await openSettings(page, 'Appearance')
+  const root = page.locator('html')
+  const choice = page.getByRole('combobox', { name: 'Animations' })
+  // The suite's windows follow the system (fixtures.ts); a new install animates always.
+  await expect(choice).toHaveValue('system')
+  await expect(root).toHaveAttribute('data-motion', 'reduced')
+
+  await choice.selectOption('always')
+  await expect(root).toHaveAttribute('data-motion', 'full')
+  await choice.selectOption('off')
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await expect(root).toHaveAttribute('data-motion', 'reduced')
+  await choice.selectOption('system')
+  await expect(root).toHaveAttribute('data-motion', 'full')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(root).toHaveAttribute('data-motion', 'reduced')
+})

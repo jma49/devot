@@ -13,6 +13,7 @@
 // Reduce Motion shows every change at once.
 import { useLayoutEffect, useState } from 'react'
 import { sizes } from './theme/tokens'
+import { motionReduced } from './motionPreference'
 
 /** What changed between two orders of a list's keys. */
 export interface RowChange {
@@ -89,9 +90,6 @@ interface RowBox {
 }
 
 type Snapshot = Map<string, RowBox>
-
-const reducedMotion = () =>
-  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 function snapshot(container: HTMLElement, attr: string): Snapshot {
   const base = container.getBoundingClientRect().top - container.scrollTop
@@ -203,7 +201,7 @@ export function useRowMotion(
   if (seen.scope !== scope || !sameKeys(seen.keys, keys)) {
     const el = container()
     let next: { el: HTMLElement; before: Snapshot; change: RowChange } | null = null
-    if (el && seen.scope === scope && !reducedMotion()) {
+    if (el && seen.scope === scope && !motionReduced()) {
       const change = rowChange(seen.keys, keys)
       // Read while the window still shows the rows where they were.
       if (playsChange(change, keys.length - change.entered.size)) {

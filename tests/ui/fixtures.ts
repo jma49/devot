@@ -216,12 +216,20 @@ export async function mockTauri(page: Page): Promise<void> {
           // Rust brings the window effect in line; the material it shows.
           if (cmd === 'sidebar_material_sync')
             return (w.devotEditorSettings?.['sidebarMaterial'] ?? true) !== false
+          // Animations follow the system unless a test chose otherwise, so
+          // the suite's emulated Reduce Motion stays in charge (not stored).
           if (cmd === 'editor_settings_get')
-            return { revision: w.devotEditorRevision ?? 0, settings: w.devotEditorSettings ?? {} }
+            return {
+              revision: w.devotEditorRevision ?? 0,
+              settings: { animations: 'system', ...w.devotEditorSettings },
+            }
           if (cmd === 'editor_settings_set') {
             w.devotEditorSettings = { ...w.devotEditorSettings, ...(args['patch'] as object) }
             w.devotEditorRevision = (w.devotEditorRevision ?? 0) + 1
-            const next = { revision: w.devotEditorRevision, settings: w.devotEditorSettings }
+            const next = {
+              revision: w.devotEditorRevision,
+              settings: { animations: 'system', ...w.devotEditorSettings },
+            }
             const win = globalThis as unknown as {
               dispatchEvent(e: unknown): void
               CustomEvent: new (t: string, init: { detail: unknown }) => unknown
@@ -560,7 +568,10 @@ export function changeEditorSettingsElsewhere(page: Page, settings: Record<strin
     }
     w.devotEditorSettings = stored
     w.devotEditorRevision = (w.devotEditorRevision ?? 0) + 1
-    const detail = { revision: w.devotEditorRevision, settings: stored }
+    const detail = {
+      revision: w.devotEditorRevision,
+      settings: { animations: 'system', ...stored },
+    }
     w.dispatchEvent(new w.CustomEvent('devot:editor-settings-changed', { detail }))
   }, settings)
 }

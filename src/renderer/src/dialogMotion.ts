@@ -5,6 +5,7 @@
 // copy that assistive tech does not see plays the motion where it was, as
 // closing pop-ups do (closing.ts). Reduce Motion closes them at once.
 import { animationMs, whenClosed } from './closing'
+import { motionReduced } from './motionPreference'
 
 /** The dialogs that open with motion (app.css), so close with it too. */
 export const MOVING_DIALOGS = 'dialog.confirm, dialog.sheet, dialog.link-dialog, dialog.palette'
@@ -42,9 +43,6 @@ export function closedDialogs<T>(
   }
   return [...closed].filter((dialog) => !stillOpen(dialog))
 }
-
-const reducedMotion = () =>
-  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const isMovingDialog = (node: unknown): node is HTMLDialogElement =>
   node instanceof HTMLDialogElement &&
@@ -91,7 +89,7 @@ function leaveDialogCopy(dialog: HTMLDialogElement): void {
 /** Watches the page for moving dialogs that close, and plays their exit. Returns a stop. */
 export function watchDialogExits(root: Node = document.body): () => void {
   const observer = new MutationObserver((mutations) => {
-    if (reducedMotion()) return
+    if (motionReduced()) return
     const records = mutations.map((m) => ({
       type: m.type,
       target: m.target,
