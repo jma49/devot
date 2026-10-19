@@ -1,5 +1,3 @@
-// Arrow-key movement in a wrapping grid of buttons (the notebook icon picker).
-
 /**
  * The cell the arrow keys move to in a grid of `count` cells, `columns` to a
  * row, from `at`; undefined for any other key. Left and Right step one cell,
@@ -32,7 +30,6 @@ export function gridStep(
   }
 }
 
-/** How many cells the first row of a grid holds (cells sharing its top edge). */
 export function columnsOf(grid: HTMLElement | null): number {
   const cells = grid ? [...grid.children] : []
   const top = (cells[0] as HTMLElement | undefined)?.offsetTop

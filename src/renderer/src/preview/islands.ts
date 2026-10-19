@@ -11,7 +11,6 @@ export interface IslandContext {
 
 export interface IslandContent {
   node: Node
-  /** Frees what the content holds outside the node (stylesheets). */
   dispose?: () => void
   /**
    * The content stands in for a failure that may pass (not an error in the
@@ -23,7 +22,6 @@ export interface IslandContent {
 export interface PreviewIsland {
   kind: string
   apiVersion: typeof PREVIEW_API_VERSION
-  /** Builds the content for `source`; loads its library on first use. */
   render(source: string, context: IslandContext): Promise<IslandContent>
 }
 
@@ -49,14 +47,10 @@ export function createIslandRegistry(initial: readonly PreviewIsland[] = []): Is
   return registry
 }
 
-/** What the mounter knows about one island element. */
 interface Slot {
   key: string
-  /** The newest render asked for, until it lands. */
   pending?: object | undefined
-  /** The content in the element, freed when it is replaced or removed. */
   shown?: IslandContent | undefined
-  /** The shown content asked to be rendered again (see `IslandContent.retry`). */
   retry: boolean
 }
 
@@ -67,7 +61,6 @@ export interface IslandMounter {
    * each time an island's content is put in place (the layout changed).
    */
   mount(host: Element, context: IslandContext, rendered?: () => void): void
-  /** Frees all content, including renders still on their way; mount starts over. */
   dispose(): void
 }
 

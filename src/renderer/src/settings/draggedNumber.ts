@@ -5,13 +5,10 @@
 // stored value (also after a change made elsewhere).
 import { useEffect, useRef, useState } from 'react'
 
-/** How often a dragged slider stores its value. */
 export const DRAG_SAVE_MS = 100
 
 export interface ThrottledStore {
-  /** Stores `value` now, or once DRAG_SAVE_MS has passed since the last store. */
   push(value: number): void
-  /** Stores a value still waiting, at once. */
   flush(): void
   cancel(): void
 }
@@ -56,7 +53,6 @@ export function useDraggedNumber({
 }) {
   const [dragged, setDragged] = useState<number | null>(null)
   const dragging = useRef(false)
-  // Made once: `store` stores a value the same way on every render.
   const [saver] = useState(() => throttledStore(store))
   useEffect(() => () => saver.cancel(), [saver])
   // Once the drag is over, the next stored value (the last one sent, or a

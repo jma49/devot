@@ -5,7 +5,6 @@ import type { IconName } from './icons/symbols'
 import { isImeKey } from './ime'
 import { usePickerOpen } from './Picker'
 
-/** The query syntax the help lists: what to type, and the message saying what it does. */
 const SYNTAX = [
   { example: 'word  "a phrase"  \'a phrase\'', note: 'search.help.text' },
   { example: 'title:  body:', note: 'search.help.part' },
@@ -28,9 +27,7 @@ export const SearchField = forwardRef<
     value: string
     onChange: (query: string) => void
     onClear: () => void
-    /** Says where the search looks (every note, or the current view). */
     placeholder: string
-    /** The icon at the field's start (a magnifier by default). */
     icon?: IconName
   }
 >(function SearchField({ value, onChange, onClear, placeholder, icon = 'filter' }, ref) {
@@ -58,7 +55,6 @@ export const SearchField = forwardRef<
       }}
     >
       <label className="search-field">
-        {/* A typed query takes the icon's place; the clear button shows instead. */}
         {value ? null : (
           <span className="search-icon">
             <Icon name={icon} size="sm" />

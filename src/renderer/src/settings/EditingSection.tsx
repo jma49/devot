@@ -110,18 +110,10 @@ function fontSizeHint(): string {
   return `${t('editorSettings.fontSizeHint')} ${keys}`
 }
 
-/** A stored value the list does not offer still shows (in order). */
 function withStored(list: readonly number[], stored: number): number[] {
   return list.includes(stored) ? [...list] : [...list, stored].sort((a, b) => a - b)
 }
 
-/**
- * Settings > Editing: how the note editor looks and behaves, in sections
- * (Interface, Markdown, Text Appearance, then the App, Note and Code
- * fonts). Every change is stored at
- * once and applies to the editor in every window; changes made elsewhere
- * (Cmd+= in the main window) show here as they happen.
- */
 export function EditingSection() {
   const settings = useEditorSettings()
   // The font size description names the keys in effect.
@@ -351,7 +343,6 @@ export function EditingSection() {
             aria-describedby={id('line-height-hint')}
             onChange={(e) => change({ lineHeight: Number(e.currentTarget.value) })}
           >
-            {/* A stored height the list does not offer still shows. */}
             {withStored(LINE_HEIGHTS, settings.lineHeight).map((h) => (
               <option key={h} value={String(h)}>
                 {decimal.format(h)}

@@ -8,7 +8,6 @@ import { checkForUpdates, startUpdateStatus, updateStatusText, useUpdateStatus }
 import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
 import { openDataFolder, showBackups } from './window'
 
-/** Indents a sub-notebook's name under its parent in a pop-up (no-break spaces). */
 const indented = (name: string, depth: number) => `${'  '.repeat(depth)}${name}`
 
 /**
@@ -17,15 +16,6 @@ const indented = (name: string, depth: number) => `${'  '.repeat(depth)}${name
  */
 const notebooksJson = () => JSON.stringify(readNotebooks())
 
-/**
- * Settings > General: Default Notebook (where a new note goes when the view
- * shown has no notebook; None by default), Open Data Folder (shows the
- * folder Devot keeps the notes, backups, logs and settings in; only that
- * folder: the command takes no path) and Show Backups… (opens the main
- * window's Backups dialog, as Devot > Backups… does), then Updates:
- * Automatically Download Updates (on by default) and Check Now, with the
- * updater's status under it.
- */
 export function GeneralSection() {
   const [error, setError] = useState<{ message: MessageKey; code: string }>()
   const [saveError, change] = useSettingsChange()

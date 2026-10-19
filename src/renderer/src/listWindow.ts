@@ -20,7 +20,6 @@ export function spacerHeight(offsets: Float64Array, from: number, to: number, ga
   return Math.max(0, offsets[to]! - offsets[from]! - gap)
 }
 
-/** The first index in [lo, hi) for which `test` holds, or hi; `test` must hold from some index on. */
 function firstWhere(lo: number, hi: number, test: (i: number) => boolean): number {
   while (lo < hi) {
     const mid = (lo + hi) >>> 1
@@ -47,7 +46,6 @@ export function windowRuns(
   if (visible) {
     const lo = visible.top - overscan
     const hi = visible.top + visible.height + overscan
-    // The first entry whose bottom is below `lo`, the first whose top is at `hi` or below.
     const start = firstWhere(0, count, (i) => offsets[i + 1]! - gap > lo)
     const end = firstWhere(start, count, (i) => offsets[i]! >= hi)
     if (start < end) runs.push([start, end])

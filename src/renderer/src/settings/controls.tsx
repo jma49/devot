@@ -24,10 +24,6 @@ export function useSettingsChange(): [
   return [error, change]
 }
 
-/**
- * A section of a pane: its title (17 px, bold, with an icon) over its
- * settings. Sections are set apart by a hairline (see app.css).
- */
 export function SettingsSection({
   icon,
   title,
@@ -49,11 +45,6 @@ export function SettingsSection({
   )
 }
 
-/**
- * One setting: its bold label and a grey description under it on the left,
- * its control on the right. With `htmlFor` the label names that control;
- * `descriptionId` lets the control point at the description.
- */
 export function Setting({
   label,
   description,
@@ -62,7 +53,6 @@ export function Setting({
   children,
 }: {
   label: MessageKey
-  /** The description as shown (translated). */
   description: string
   htmlFor?: string
   descriptionId?: string
@@ -87,12 +77,6 @@ export function Setting({
   )
 }
 
-/**
- * A setting that is on or off: its label and the grey description under it
- * on the left, like every setting, and its switch on the right. A `note`
- * replaces the description while the setting cannot be changed (it says
- * why).
- */
 export function SettingToggle({
   label,
   description,
@@ -135,7 +119,6 @@ export function SettingToggle({
   )
 }
 
-/** A note under a pane's settings, in the secondary colour. */
 export function SettingsNote({ id, children }: { id?: string | undefined; children: ReactNode }) {
   return (
     <p id={id} className="settings-note">

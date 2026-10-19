@@ -22,17 +22,13 @@ import {
 } from './mirror'
 import { useMirrorFolderChoice } from './MirrorFolderChoice'
 
-/** The launch reconcile waits this long once the window has restored. */
 export const LAUNCH_DELAY_MS = 2000
 
 export interface MarkdownMirror {
   status: MirrorStatus
-  /** Shows the folder panel (and asks first when the folder is not empty). */
   choose: () => Promise<void>
   turnOff: () => Promise<void>
-  /** The mirror's notices, for the window's notice stack. */
   notices: ReactNode[]
-  /** The confirmation for a folder that is not empty, while it is up. */
   dialog: ReactNode
 }
 
@@ -43,9 +39,7 @@ export interface MarkdownMirror {
 export function useMarkdownMirror(core: Core | undefined, ready: boolean): MarkdownMirror {
   const status = useMirrorStatus()
   const [started, setStarted] = useState(false)
-  // What could not be done (a folder used, the mirror turned off), with its code.
   const [failure, setFailure] = useState<{ message: MessageKey; code: string }>()
-  // The pause the user dismissed: hidden until another one.
   const [dismissedPause, setDismissedPause] = useState<string | null>(null)
   const launched = useRef(false)
 
@@ -78,7 +72,6 @@ export function useMarkdownMirror(core: Core | undefined, ready: boolean): Markd
     return () => clearTimeout(timer)
   }, [core, started, status.folder, status.generation])
 
-  // A paused mirror checks its folder again when the window comes to the front.
   useEffect(() => {
     if (!core || !started) return
     const wake = () => void core.mirrorWake()

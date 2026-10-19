@@ -4,7 +4,6 @@ import { invoke } from './ipc'
 type Answer = (cmd: string, args: unknown) => Promise<unknown>
 const global = globalThis as { window?: unknown }
 
-/** Tauri's IPC as the page sees it, answering every command with `answer`. */
 function commands(answer: Answer) {
   global.window = { __TAURI_INTERNALS__: { invoke: answer } }
 }

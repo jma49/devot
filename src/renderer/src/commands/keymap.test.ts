@@ -37,7 +37,6 @@ const press = (code: string, key: string, mods: Partial<RecordedPress> = {}): Re
   ...mods,
 })
 
-/** The keymap as commands with their keys, for `shortcutClashes`. */
 const asCommands = (keymap: ReturnType<typeof effectiveKeymap>) =>
   COMMANDS.map((c) => ({ id: c.id, scope: c.scope, keys: keymap.get(c.id) ?? [] }))
 
@@ -132,7 +131,6 @@ describe('effectiveKeymap', () => {
     expect(keymap.get('view.focus')).toEqual(['Mod+Alt+J'])
     expect(keymap.get('note.copyId')).toEqual(['Mod+Alt+I'])
     expect(keymap.get('note.new')).toEqual(['Mod+N'])
-    // No key at all.
     expect(effectiveKeymap({ 'format.bold': [] }).get('format.bold')).toEqual([])
   })
 
@@ -221,7 +219,6 @@ describe('assigning keys', () => {
       assignKey('format.bold', 'Mod+Alt+B', effectiveKeymap({})).patch,
     )
     expect(isCustomized('format.bold', overrides)).toBe(true)
-    // Recording the default key again is the default again.
     expect(assignKey('format.bold', 'Mod+B', effectiveKeymap(overrides)).patch).toEqual({
       'format.bold': null,
     })
@@ -229,7 +226,6 @@ describe('assigning keys', () => {
 
   it('clears a command, and resets one or all', () => {
     expect(clearKeys('format.bold')).toEqual({ 'format.bold': [] })
-    // A command without default keys has nothing to clear.
     expect(clearKeys('note.copyId')).toEqual({ 'note.copyId': null })
 
     let overrides = applyPatch({}, assignKey('format.bold', 'Mod+K', effectiveKeymap({})).patch)

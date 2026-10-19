@@ -9,16 +9,12 @@ import * as Comlink from 'comlink'
 import type { ImportReport, ImportScan, ImportSource } from '../../core'
 import type { Core } from './core-client'
 
-/** A folder scan started: `{ id, name, kind }`. */
 export const IMPORT_SCANNING = 'devot:import-scanning'
-/** How far a folder scan has got: `{ id, files, images }`. */
 export const IMPORT_PROGRESS = 'devot:import-progress'
-/** What a scan found (an `ImportScan`). */
 export const IMPORT_READY = 'devot:import-ready'
 /** Why a scan failed: `{ id, code }` (`id` null before it had a session). */
 export const IMPORT_FAILED = 'devot:import-failed'
 
-/** What a notebook's Import menu can pick (Rust's `Pick`). */
 export type ImportPick = 'markdownFiles' | 'markdownFolders' | 'htmlFiles'
 
 /**
@@ -28,7 +24,6 @@ export type ImportPick = 'markdownFiles' | 'markdownFolders' | 'htmlFiles'
 export const pickImport = (kind: ImportPick, bookId: string) =>
   invoke('import_pick', { kind, bookId }).then(() => undefined)
 
-/** Ends an import session in Rust; its folder can no longer be read. */
 export const finishImport = (id: number) =>
   invoke('import_finish', { id }).then(
     () => undefined,

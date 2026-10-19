@@ -62,7 +62,6 @@ describe('icon names', () => {
   })
 })
 
-/** A PNG's signature and header, `width` by `height` pixels, as a data URL. */
 function png(width: number, height: number): string {
   const be = (n: number) => [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]
   const bytes = [
@@ -128,7 +127,6 @@ describe('the shared canvas', () => {
       expect(side).toBe(18 * ratio)
       for (const [w, h] of sources) {
         const at = fitInCanvas(w, h, side)
-        // Whole pixels, inside the canvas, centred on both axes.
         for (const n of Object.values(at)) expect(Number.isInteger(n)).toBe(true)
         expect(at.x).toBeGreaterThanOrEqual(0)
         expect(at.x + at.width).toBeLessThanOrEqual(side)

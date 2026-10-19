@@ -1,11 +1,8 @@
 import type { Box } from './tipPlacement'
 
 export interface DropdownPlacement {
-  /** Which side of its button the list opens on. */
   side: 'below' | 'above'
-  /** How far to move the list sideways from the button's left edge (px). */
   shift: number
-  /** The most height the list can have on that side without touching the window margin. */
   room: number
 }
 

@@ -2,13 +2,10 @@ import { TAG_COLORS, type TagColor } from '../../core/storage'
 import { t } from './i18n'
 import { TagDot } from './TagEditor'
 
-/** A row of the palette's colours, and none, to pick one from (a tag's, a notebook icon's). */
 export function ColorSwatches(props: {
   value: TagColor | null
   onChange: (color: TagColor | null) => void
-  /** The group's accessible name. */
   label: string
-  /** The name of the option for no colour. */
   noneLabel: string
 }) {
   return (

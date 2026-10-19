@@ -7,21 +7,17 @@ import { editorSettings, subscribeEditorSettings } from './editorSettings'
 
 const REDUCE = '(prefers-reduced-motion: reduce)'
 
-/** Whether motion is reduced for `choice`, with the system asking for it or not. */
 export const reducesMotion = (choice: AnimationsChoice, systemReduces: boolean): boolean =>
   choice === 'off' || (choice === 'system' && systemReduces)
 
-/** What a root shows motion by. */
 export interface MotionTarget {
   dataset: DOMStringMap
 }
 
-/** Shows `reduced` on `root`. */
 export function applyMotion(reduced: boolean, root: MotionTarget): void {
   root.dataset['motion'] = reduced ? 'reduced' : 'full'
 }
 
-/** Whether the page's motion is reduced now (a page that never started motion animates). */
 export const motionReduced = (): boolean =>
   typeof document !== 'undefined' && document.documentElement.dataset['motion'] === 'reduced'
 

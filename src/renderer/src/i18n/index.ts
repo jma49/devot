@@ -9,7 +9,6 @@ const catalogs: Record<string, Partial<Messages>> = { en }
 
 export const SOURCE_LOCALE = 'en'
 
-/** Picks the first supported locale from the user's preferred languages. */
 export function resolveLocale(preferred: readonly string[]): string {
   for (const tag of preferred) {
     const lower = tag.toLowerCase()
@@ -28,12 +27,10 @@ export function setLocale(locale: string): void {
   activeLocale = catalogs[locale] ? locale : SOURCE_LOCALE
 }
 
-/** The locale the UI speaks, for `Intl` formatting. */
 export function currentLocale(): string {
   return activeLocale
 }
 
-/** The UI string for `key` in the active locale, falling back to English. */
 export function t(key: MessageKey): string {
   return active[key] ?? en[key]
 }

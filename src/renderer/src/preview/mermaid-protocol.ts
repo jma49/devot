@@ -8,12 +8,10 @@ export interface RenderRequest {
   id: number
   source: string
   appearance: 'light' | 'dark'
-  /** The preview's font, so the frame measures text as the preview draws it. */
   fontFamily: string
   fontSize: string
 }
 
-/** Sent by the frame to its parent window (not through the port). */
 export const READY = 'devot-mermaid-ready'
 
 /**
@@ -27,7 +25,6 @@ export type FrameMessage =
   | { type: 'rendered'; id: number; svg: string }
   | { type: 'failed'; id: number; reason: FailureReason }
 
-/** Diagram sources above this size are refused, not rendered. */
 export const MAX_SOURCE_LENGTH = 100_000
 
 export function isRenderRequest(data: unknown): data is RenderRequest {

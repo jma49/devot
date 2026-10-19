@@ -38,7 +38,6 @@ export function sanitizeEntry(value: unknown): LogEntry | undefined {
   return { level: level as LogLevel, code, ids: kept.slice(0, MAX_IDS) }
 }
 
-/** The entry for a console call, or nothing when it does not start with a code. */
 export function logEntry(level: LogLevel, args: unknown[]): LogEntry | undefined {
   const [code, ...rest] = args
   if (typeof code !== 'string' || !CODE.test(code)) return undefined
@@ -48,7 +47,6 @@ export function logEntry(level: LogLevel, args: unknown[]): LogEntry | undefined
 
 type Printer = (...args: unknown[]) => void
 
-/** Wraps `warn` and `error` so coded entries also go to `send`. */
 export function forwardConsole(
   target: { warn: Printer; error: Printer },
   send: (entry: LogEntry) => Promise<unknown>,
@@ -64,13 +62,11 @@ export function forwardConsole(
   }
 }
 
-/** What a window or a worker scope lets `forwardUncaught` listen to. */
 export interface UncaughtSource {
   addEventListener(type: 'error', listener: (e: ErrorEvent) => void): void
   addEventListener(type: 'unhandledrejection', listener: (e: PromiseRejectionEvent) => void): void
 }
 
-/** The codes uncaught errors and rejected promises are logged under. */
 export interface UncaughtCodes {
   uncaught: string
   rejection: string

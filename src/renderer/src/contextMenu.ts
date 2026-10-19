@@ -11,18 +11,12 @@ import { t, type MessageKey } from './i18n'
 
 export interface MenuEntry<A extends string, T> {
   action: A
-  /** A fixed label, or one chosen for the target. */
   label: MessageKey | ((target: T) => MessageKey)
   /** Shown in the menu; the menu's owner handles the key itself. */
   accelerator?: string
-  /** Whether the item shows for the target; it always shows without this. */
   shown?: (target: T) => boolean
-  /** Makes the item a checkbox: whether it is checked for the target. */
   checked?: (target: T) => boolean
-  /**
-   * Makes the item a submenu of these entries (its own `action` only names
-   * it). Submenu entries always show; they may be relabelled and checked.
-   */
+  /** Makes the item a submenu of these entries (its `action` only names it); submenu entries always show. */
   submenu?: readonly MenuEntry<A, T>[]
   /**
    * Makes the item a system item (Cut, Copy, Paste, Select All): the system
@@ -30,14 +24,11 @@ export interface MenuEntry<A extends string, T> {
    * menu's owner and `label` is not shown.
    */
   predefined?: PredefinedKind
-  /** The item's text for the target, in place of `label` (already translated). */
   text?: (target: T) => string
 }
 
-/** The system items a menu may hold (Tauri's predefined menu items). */
 export type PredefinedKind = 'Cut' | 'Copy' | 'Paste' | 'SelectAll'
 
-/** What `commandEntry` may add to a command's entry. */
 export type CommandEntryOptions<A extends string, T> = Pick<
   MenuEntry<A, T>,
   'shown' | 'checked'
@@ -45,11 +36,6 @@ export type CommandEntryOptions<A extends string, T> = Pick<
   label?: MenuEntry<A, T>['label']
 }
 
-/**
- * The entry for a registry command: the command's label and its first key in
- * effect as the accelerator (read each time, so it follows the user's
- * changes). `more` adds rules, or a label chosen per target.
- */
 export function commandEntry<A extends string, T>(
   action: A,
   id: CommandId,
@@ -65,10 +51,8 @@ export function commandEntry<A extends string, T>(
   })
 }
 
-/** A menu's entries, group by group; separators go between the groups. */
 export type MenuGroups<A extends string, T> = readonly (readonly MenuEntry<A, T>[])[]
 
-/** The entries shown for a target, group by group; empty groups are left out. */
 export function shownGroups<A extends string, T>(
   groups: MenuGroups<A, T>,
   target: T,
@@ -85,7 +69,6 @@ export interface NativeItemOptions {
   id: string
   text: string
   accelerator?: string
-  /** Set for a check item. */
   checked?: boolean
   action: () => void
 }
@@ -95,7 +78,6 @@ export interface NativeItem {
   setChecked?(checked: boolean): Promise<void>
 }
 
-/** A point in the window, in CSS pixels from its top-left corner. */
 export interface MenuPoint {
   x: number
   y: number
@@ -104,12 +86,10 @@ export interface MenuPoint {
 export interface NativeMenu {
   insert(items: NativeItem[], position: number): Promise<void>
   remove(item: NativeItem): Promise<void>
-  /** Pops up at `at`, or at the pointer; resolves once the menu has closed. */
   popup(at?: MenuPoint): Promise<void>
   close(): Promise<void>
 }
 
-/** The native calls a context menu needs (the Tauri menu API in the app). */
 export interface NativeMenuApi {
   item(options: NativeItemOptions): Promise<NativeItem>
   separator(): Promise<NativeItem>
@@ -119,15 +99,11 @@ export interface NativeMenuApi {
 }
 
 export interface ContextMenu<T> {
-  /** Updates the items for `target` and pops the menu up at `at`, or at the pointer. */
   popup(target: T, at?: MenuPoint): Promise<void>
   close(): Promise<void>
 }
 
-/**
- * Builds a context menu once, with every item it can show; `onPick` gets the
- * action of the item clicked. Item IDs are `devot.<name>.<action>`.
- */
+/** Builds a context menu once with every item it can show; `onPick` gets the clicked item's action. Item IDs are `devot.<name>.<action>`. */
 export async function createContextMenu<A extends string, T>(
   name: string,
   groups: MenuGroups<A, T>,
@@ -141,13 +117,11 @@ export async function createContextMenu<A extends string, T>(
     text: string
     checked: boolean | undefined
   }
-  // Submenu items: relabelled and checked with the rest, always shown.
   const nested: Slot[] = []
   const build = async (entry: MenuEntry<A, T>): Promise<Slot> => {
     const text = labelFor(entry, first)
     const id = `devot.${name}.${entry.action}`
     if (entry.predefined) {
-      // The system's own title and action; there is nothing to relabel.
       return { entry, item: await api.predefined(entry.predefined), text, checked: undefined }
     }
     if (entry.submenu) {
@@ -172,12 +146,9 @@ export async function createContextMenu<A extends string, T>(
     })
     return Object.assign(slot, { item })
   }
-  // Created side by side, in menu order.
   const slots: Slot[][] = await Promise.all(groups.map((group) => Promise.all(group.map(build))))
-  // `separators[i]` goes between group i and group i + 1.
   const separators = await Promise.all(groups.slice(1).map(() => api.separator()))
 
-  /** The items the menu shows for a target, separators included, in order. */
   const layout = (target: T): NativeItem[] => {
     const out: NativeItem[] = []
     slots.forEach((group, i) => {
@@ -226,7 +197,6 @@ export async function createContextMenu<A extends string, T>(
 
 type TauriItem = MenuItem | CheckMenuItem | PredefinedMenuItem | Submenu
 
-/** The Tauri menu API, loaded when the first menu is needed. */
 export async function tauriMenus(): Promise<NativeMenuApi> {
   const [native, { LogicalPosition }] = await Promise.all([
     import('@tauri-apps/api/menu'),
@@ -253,19 +223,13 @@ export async function tauriMenus(): Promise<NativeMenuApi> {
   }
 }
 
-/**
- * A context menu for this window, built on first use and kept for the
- * window's life. Returns `show(target, at?)`, which pops the menu up at `at`
- * (or at the pointer) and resolves once it has closed; a picked item calls
- * `onPick` with that target. `api` shows the menu (the Tauri menu API).
- */
+/** A context menu for this window, built on first use and kept for its life. `show(target, at?)` pops it up and resolves once it has closed; a picked item calls `onPick` with that target. */
 export function useContextMenu<A extends string, T>(
   name: string,
   groups: MenuGroups<A, T>,
   onPick: (action: A, target: T) => void,
   api: () => Promise<NativeMenuApi> = tauriMenus,
 ) {
-  // The menu's name, entries and API are fixed for the window's life.
   const spec = useRef({ name, groups, api })
   const pick = useRef(onPick)
   useEffect(() => {
@@ -273,7 +237,6 @@ export function useContextMenu<A extends string, T>(
   }, [onPick])
   const target = useRef<{ value: T }>(undefined)
   const menu = useRef<Promise<ContextMenu<T>>>(undefined)
-  /** The keys the menu was built with; changed keys build it afresh. */
   const builtWith = useRef<unknown>(undefined)
   useEffect(
     () => () => {
@@ -304,7 +267,6 @@ export function useContextMenu<A extends string, T>(
     try {
       await (await built).popup(next, at)
     } catch {
-      // Build it afresh next time; release what was built.
       menu.current = undefined
       void built.then((m) => m.close()).catch(() => {})
       console.warn('W_CONTEXT_MENU_FAILED', spec.current.name)

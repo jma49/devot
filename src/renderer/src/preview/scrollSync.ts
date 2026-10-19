@@ -11,7 +11,6 @@
 // The preview measures its blocks once per layout, so scrolling a long note
 // stays cheap.
 
-/** A block of the preview: its source line and its offset in the scrolled content. */
 export interface Anchor {
   line: number
   top: number
@@ -28,18 +27,15 @@ export function normalizeAnchors(raw: readonly Anchor[], end: Anchor): Anchor[] 
   const out: Anchor[] = [{ line: 1, top: 0 }]
   for (const anchor of [...raw, end]) {
     const last = out[out.length - 1]!
-    // A block on the first line is where that line shows.
     if (out.length === 1 && anchor.line === 1 && anchor.top >= 0) out[0] = anchor
     else if (anchor.line > last.line && anchor.top > last.top) out.push(anchor)
   }
   return out
 }
 
-/** The pair of anchors around `value` (by `key`), clamped to the ends. */
 function around(anchors: readonly Anchor[], key: keyof Anchor, value: number) {
   let lo = 0
   let hi = anchors.length - 1
-  // The last anchor at or before `value`.
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1
     if (anchors[mid]![key] <= value) lo = mid
@@ -48,7 +44,6 @@ function around(anchors: readonly Anchor[], key: keyof Anchor, value: number) {
   return { a: anchors[lo]!, b: anchors[Math.min(lo + 1, anchors.length - 1)]! }
 }
 
-/** The offset in the content where `line` shows. */
 export function topOf(anchors: readonly Anchor[], line: number): number {
   const first = anchors[0]!
   const last = anchors[anchors.length - 1]!
@@ -59,7 +54,6 @@ export function topOf(anchors: readonly Anchor[], line: number): number {
   return a.top + ((line - a.line) / (b.line - a.line)) * (b.top - a.top)
 }
 
-/** The line that shows at `top` in the content. */
 export function lineAt(anchors: readonly Anchor[], top: number): number {
   const first = anchors[0]!
   const last = anchors[anchors.length - 1]!
@@ -70,27 +64,20 @@ export function lineAt(anchors: readonly Anchor[], top: number): number {
   return a.line + ((top - a.top) / (b.top - a.top)) * (b.line - a.line)
 }
 
-/** What synced scrolling needs from a scrolled element. */
 export interface Scroller extends EventTarget {
   scrollTop: number
   readonly scrollHeight: number
   readonly clientHeight: number
 }
 
-/** A pane that scrolls by source line. */
 export interface ScrollPane {
-  /** The element that scrolls (its `scroll` events drive the other pane). */
   readonly element: Scroller
-  /** The (fractional) source line at the top of the pane. */
   topLine(): number
-  /** The scroll offset that puts `line` at the top of the pane. */
   offsetOf(line: number): number
-  /** Calls `listener` when the content was laid out anew (a render); returns a stop function. */
   onLayout?(listener: () => void): () => void
 }
 
 export interface SyncOptions {
-  /** The pane that leads at the start: the editor (`first`) unless the preview was being read. */
   lead?: 'first' | 'second'
   frame?: (run: () => void) => number
   cancel?: (handle: number) => void
@@ -103,12 +90,9 @@ export interface SyncOptions {
  * nothing, while the other pane scrolls for a reason of its own, such as find.)
  */
 const WORK = ['keydown', 'pointerdown'] as const
-/** How long a pane keeps the lead after a scroll gesture in it. */
 const GESTURE_HOLD_MS = 500
-/** Pixels in a line and a page of wheel scrolling, for wheels that count in those. */
 const WHEEL_LINE_PX = 40
 
-/** What synced scrolling reads from a wheel event. */
 export interface WheelInput {
   readonly deltaX: number
   readonly deltaY: number
@@ -131,7 +115,6 @@ export function wheelDistance(event: WheelInput, page: number): number | null {
   return deltaY
 }
 
-/** Whether an element between `target` and `pane` scrolls by `dy` itself. */
 function scrolledInside(target: unknown, pane: unknown, dy: number): boolean {
   if (typeof Element === 'undefined') return false
   for (let el = target instanceof Element ? target : null; el && el !== pane;) {
@@ -182,15 +165,11 @@ export function syncScrolling(
   }: SyncOptions = {},
 ): () => void {
   const other = (pane: ScrollPane) => (pane === first ? second : first)
-  /** The offset Devot set on a pane and has not yet seen its scroll event for. */
   const expected = new Map<ScrollPane, number>()
   let gesture: { pane: ScrollPane; at: number } | undefined
-  /** The pane the user last scrolled or worked in. */
   let current = lead === 'first' ? first : second
   let leader: ScrollPane | undefined
-  /** The follower was laid out anew: it lines up with the leader whatever it reports. */
   let relayout = false
-  /** The leader of the last move, looked at again a frame later. */
   let check: { pane: ScrollPane; top: number; tries: number } | undefined
   let handle: number | undefined
 
@@ -211,8 +190,6 @@ export function syncScrolling(
   // can sit a little off until it is laid out.
   function follow() {
     handle = undefined
-    // Looked at again only while the user is still in the leader, and it
-    // has not moved since.
     const again =
       leader === undefined && check?.pane === current && check.top === check.pane.element.scrollTop
         ? check
@@ -221,7 +198,6 @@ export function syncScrolling(
     leader = undefined
     check = undefined
     relayout = false
-    // A pane that cannot scroll says nothing about where the user is.
     if (!from || maxOffset(from.element) < 1) return
     const to = other(from)
     const target = to.element
@@ -239,14 +215,12 @@ export function syncScrolling(
     }
   }
 
-  /** Sets a pane's offset, as a scroll Devot made. */
   const place = (pane: ScrollPane, top: number) => {
     const el = pane.element
     const before = el.scrollTop
     el.scrollTop = top
     if (el.scrollTop !== before) expected.set(pane, el.scrollTop)
   }
-  /** Each pane's offset with the fraction the element rounds away, kept across wheel events. */
   const exact = new Map<ScrollPane, number>()
 
   // A wheel over a pane scrolls it here, rather than in the browser, and
@@ -261,7 +235,6 @@ export function syncScrolling(
     if (dy === null || event.defaultPrevented) return
     if (scrolledInside(event.target, el, dy)) return
     const to = other(pane)
-    // A pane that cannot scroll leaves the wheel to the browser.
     if (maxOffset(el) < 1 || maxOffset(to.element) < 1) return
     event.preventDefault()
     const kept = exact.get(pane)
@@ -310,7 +283,6 @@ export function syncScrolling(
       { capture: true },
     )
     for (const type of WORK) listen(pane.element, type, () => (current = pane), { capture: true })
-    // A pane laid out anew keeps its place while the user works in it.
     const stopLayout = pane.onLayout?.(() => {
       if (current !== pane) schedule(other(pane), true)
     })
@@ -325,9 +297,7 @@ export function syncScrolling(
   }
 }
 
-/** The preview as a scroll pane. */
 export interface PreviewScrollPane extends ScrollPane {
-  /** The preview's layout changed: a new rendering (of a text of `lines` lines) or a diagram. */
   changed(lines?: number): void
   dispose(): void
 }
@@ -359,7 +329,6 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
     return anchors
   }
 
-  /** The layout changed: measure again, and let the panes line up. */
   const relayout = () => {
     anchors = undefined
     for (const listener of listeners) listener()
@@ -379,7 +348,6 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
     relayout()
   })
   resize.observe(element)
-  // Images change the layout when they load.
   element.addEventListener('load', relayout, true)
 
   return {

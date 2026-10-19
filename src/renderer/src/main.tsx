@@ -18,7 +18,6 @@ import './theme/tokens.css'
 import './app.css'
 import './preview/content.css'
 
-// Coded warnings and errors also go to the local log.
 const sendLog = (entry: LogEntry) => invoke('log_write', { ...entry })
 forwardConsole(console, sendLog)
 forwardUncaught(window, sendLog)
@@ -40,7 +39,6 @@ startSidebarMaterial()
 startAppearance()
 startMotion()
 applyMotionScale(document.documentElement)
-// Modal dialogs blur and fade as they close.
 watchDialogExits()
 if (!DEVOT_UI_TEST) {
   void followSystemAccent(document.documentElement.style, () => editorSettings().systemAccent)

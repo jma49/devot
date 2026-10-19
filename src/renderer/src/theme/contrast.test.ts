@@ -36,7 +36,6 @@ const over = (theme: Theme, overlay: string, base: Rgb): Rgb =>
 
 const SURFACES = ['surface.list', 'surface.editor', 'surface.sidebar-opaque']
 
-/** What text can sit on: the surfaces, and the translucent fills drawn over them. */
 function backdrops(theme: Theme, overlays: string[] = []): Rgb[] {
   const surfaces = SURFACES.map((s) => solid(theme, s))
   return [...surfaces, ...surfaces.flatMap((s) => overlays.map((o) => over(theme, o, s)))]
@@ -69,10 +68,6 @@ function selectionStandsOut(theme: Theme, selection: Rgba): Record<string, numbe
 const below = (min: number, ratios: Record<string, number>): string[] =>
   Object.entries(ratios).flatMap(([name, r]) => (r < min ? [`${name} ${r.toFixed(3)}`] : []))
 
-/**
- * The colours the editor draws text in: its body text, front matter (the
- * secondary text), every syntax colour and every alert colour.
- */
 function editorText(theme: Theme): Record<string, Rgb> {
   const group = (prefix: string) =>
     Object.keys(theme)
@@ -103,7 +98,6 @@ const checkedOn = (colours: Record<string, Rgb>, backgrounds: Rgb[]) =>
 const worst = (fg: Rgb, backgrounds: Rgb[]) =>
   Math.min(...backgrounds.map((b) => contrastRatio(fg, b)))
 
-/** The names of the colours whose worst ratio on their backgrounds is under `min`, with it. */
 const under = (min: number, checks: Record<string, [Rgb, Rgb[]]>): string[] =>
   Object.entries(checks).flatMap(([name, [fg, backgrounds]]) => {
     const ratio = worst(fg, backgrounds)
@@ -136,7 +130,6 @@ describe('colour maths', () => {
     const darker = readableOn(yellow, [WHITE], 'darker', 4.5)
     expect(contrastRatio(darker, WHITE)).toBeGreaterThanOrEqual(4.5)
     expect(contrastRatio(darker, WHITE)).toBeLessThan(4.7)
-    // A colour that already passes is returned as it is.
     expect(readableOn([14, 107, 98], [WHITE], 'darker', 4.5)).toEqual([14, 107, 98])
   })
 })
@@ -176,7 +169,6 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
   })
 
   it('draws notebook icons in every tag colour at 3:1 on the sidebar, lists, editor and popovers', () => {
-    // Icons are graphics; the picker grid and the palette sit on popovers.
     const beneath = [...backdrops(theme), solid(theme, 'surface.popover')]
     const icons: Record<string, [Rgb, Rgb[]]> = {}
     for (const key of Object.keys(theme).filter((k) => k.startsWith('color.tag-icon.'))) {
@@ -214,7 +206,6 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
   it('puts the on-fill colour on the accent fill at 4.5:1 and keeps the fill visible', () => {
     const fill = solid(theme, 'accent.fill')
     expect(contrastRatio(solid(theme, 'accent.on-fill'), fill)).toBeGreaterThanOrEqual(4.5)
-    // The caret and focus rings are graphics.
     expect(worst(fill, backdrops(theme))).toBeGreaterThanOrEqual(3)
   })
 
@@ -268,7 +259,6 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     const editor = solid(theme, 'surface.editor')
     const lines = [editor, over(theme, 'editor.active-line', editor)]
     const colours = editorText(theme)
-    // Every colour of the syntax and alert groups is checked, not only the ones listed here.
     expect(Object.keys(colours)).toEqual(
       expect.arrayContaining(['text.editor', 'syntax.heading', 'syntax.link', 'alert.note']),
     )
@@ -377,7 +367,6 @@ describe('the system accent', () => {
         const backgrounds = selectionBackdrops(theme, selection)
         const link = read(`--system-accent-text-${appearance}`)
         expect(under(4.5, checkedOn(selectedText(theme, link), backgrounds))).toEqual([])
-        // Tertiary text may drop to 3:1 on the selection (only there).
         expect(under(3, { tertiary: [solid(theme, 'text.tertiary'), backgrounds] })).toEqual([])
       },
     )

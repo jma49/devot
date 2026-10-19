@@ -89,7 +89,6 @@ function render(
   )
 }
 
-/** Where each text first shows in the markup. */
 const order = (html: string, texts: string[]) =>
   texts.map((text) => [text, html.indexOf(`>${text}<`)] as const)
 
@@ -114,11 +113,9 @@ describe('Sidebar sections', () => {
     const storage = memory()
     expect(render(sectionStore(storage, 'main'))).toContain('Tutorial')
     sectionStore(storage, 'main').save(new Set(['tags']))
-    // A new mount reads the stored choice.
     const collapsed = render(sectionStore(storage, 'main'))
     expect(collapsed).not.toContain('Tutorial')
     expect(collapsed).toContain('aria-label="Expand Tags"')
-    // The other sections stay open.
     expect(collapsed).toContain('Active')
   })
 

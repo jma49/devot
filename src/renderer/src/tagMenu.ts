@@ -22,11 +22,9 @@ export type TagAction =
   | 'copyId'
   | 'delete'
 
-/** What the menu needs to know about the tag that was right-clicked. */
 export interface TagMenuTarget {
   id: string
   color: TagColor | null
-  /** Whether the list is filtered by this tag now. */
   filtered: boolean
   /** Shown in a workspace's sidebar, which deletes no tag (it is in notes outside it too). */
   inWorkspace?: boolean
@@ -43,7 +41,6 @@ const COLOR_ITEMS: MenuEntry<TagAction, TagMenuTarget>[] = [
 
 type CommandAction = Exclude<TagAction, `color${string}`>
 
-/** The registry command behind each tag action (its label and keys). */
 export const TAG_COMMANDS: Readonly<Record<CommandAction, CommandId>> = {
   rename: 'tag.rename',
   settings: 'tag.settings',
@@ -58,7 +55,6 @@ const entry = (
 ): MenuEntry<TagAction, TagMenuTarget> =>
   commandEntry<TagAction, TagMenuTarget>(action, TAG_COMMANDS[action], more)
 
-/** The menu's items, group by group; `tagShortcut` handles the keys shown. */
 export const TAG_MENU: MenuGroups<TagAction, TagMenuTarget> = [
   // Rename is F2 only: Tag Settings holds the name.
   [entry('settings'), { action: 'color', label: 'tagMenu.color', submenu: COLOR_ITEMS }],
@@ -67,14 +63,12 @@ export const TAG_MENU: MenuGroups<TagAction, TagMenuTarget> = [
   [entry('delete', { shown: (tag) => !tag.inWorkspace })],
 ]
 
-/** The colour a Colour item picks (null: none), or undefined for other actions. */
 export function colorOfAction(action: TagAction): TagColor | null | undefined {
   if (action === 'color.none') return null
   const id = action.startsWith('color.') ? action.slice('color.'.length) : undefined
   return TAG_COLORS.find((color) => color === id)
 }
 
-/** The tag action a key press on a tag row asks for, if any. */
 export function tagShortcut(e: KeyPress): CommandAction | undefined {
   return (Object.keys(TAG_COMMANDS) as CommandAction[]).find((action) =>
     commandMatches(TAG_COMMANDS[action], e),

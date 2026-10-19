@@ -41,13 +41,11 @@ const DELAY_FILE_WRITES = 'devot.test.delayFileWrites'
 const FAIL_REVISIONS = 'devot.test.failRevisions'
 const FAIL_LIST = 'devot.test.failList'
 
-/** Waits as long as a test asked for under `key` (a write that takes its time). */
 async function slowWrite(key: string) {
   const ms = Number(localStorage.getItem(key))
   if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** Throws the error code a UI test put under `key`, if any. */
 function failWith(key: string) {
   const failure = localStorage.getItem(key)
   if (failure) throw new Error(failure)
@@ -73,7 +71,6 @@ function read<T>(key: string): T[] {
   }
 }
 
-/** Takes `field` from whichever record has the newer `hlc`. */
 function newer<T>(current: T, next: T, field: keyof T, hlc: keyof T): Partial<T> {
   const a = String(current[hlc] ?? '')
   const b = String(next[hlc] ?? '')
@@ -161,7 +158,6 @@ export const memoryStorage: StorageAdapter = {
     const { purgedAt: _, ...record } = n
     return { ...record, bodyVersion: n.bodyVersion ?? 0, ydoc: new Uint8Array(n.ydoc) }
   },
-  // The query rules of the SQLite stores, in plain code (newest first, no ranking).
   async searchNotes(query, limit) {
     const live = await memoryStorage.listNotes()
     const stored = new Map(read<Stored>(NOTES).map((n) => [n.id, n]))
@@ -281,7 +277,6 @@ export const memoryStorage: StorageAdapter = {
     )
     localStorage.setItem(REVISIONS, JSON.stringify(kept))
   },
-  // The rules of the SQLite stores' compaction statements (REVISION_SQL).
   async listCompactable(from, to, after, limit) {
     const plain = read<StoredRevision>(REVISIONS).filter(
       (r) => r.kind === 'body' && r.value === null,
@@ -315,7 +310,6 @@ export const memoryStorage: StorageAdapter = {
     const at = localStorage.getItem(COMPACTION)
     return at === null ? null : Number(at)
   },
-  // The rules of the SQLite stores' activity statements (ACTIVITY_SQL).
   async listActivity(since) {
     const inOrder = read<StoredRevision>(REVISIONS)
       .filter((r) => r.kind === 'body' || r.kind === 'title')
@@ -348,7 +342,6 @@ export const memoryStorage: StorageAdapter = {
     checkNote(note)
     const all = read<Stored>(NOTES)
     const current = all.find((n) => n.id === note.id)
-    // A purge is final.
     if (current?.purgedAt !== undefined) return
     // Only over the body version the write is based on, as in SQL.
     if (current && (current.bodyVersion ?? 0) !== note.bodyVersion) {

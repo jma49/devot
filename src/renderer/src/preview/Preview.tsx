@@ -37,10 +37,8 @@ import { previewScrollPane, type PreviewScrollPane, type ScrollPane } from './sc
 
 const NOTE_LINK = /^devot:\/\/note\/([0-9a-f-]{36})$/
 
-/** Built-in islands, registered through the same API as any other. */
 export const islands = createIslandRegistry([mermaidIsland])
 
-/** The preview's labels, in the UI's language. */
 export function previewLabels(): PreviewLabels {
   return {
     alerts: {
@@ -70,27 +68,19 @@ interface RenderInput {
 interface Props {
   core: Core
   markdown: string
-  /** The note's info card over the content; none without it. */
   info?: NoteInfoData | undefined
-  /** Writes dates set on the info card; without it they cannot be changed. */
   onSetDates?: SetNoteDates | undefined
   onOpenNote: (id: string) => void
-  /** Gets the preview's find handle while it is shown, and null when it goes. */
   onFind?: (target: FindTarget | null) => void
-  /** Gets the preview as a scroll pane while it is shown, and null when it goes. */
   onScrollPane?: (pane: ScrollPane | null) => void
-  /** Double-click on an image: show it in the viewer. */
   onOpenImage?: (image: ViewedImage) => void
-  /** Right-click on an image: the image menu, at a point in the window. */
   onImageMenu?: (image: ImageMenuTarget, at: MenuPoint) => void
   /**
    * Where to scroll to once the note has rendered (a restored window); asked
    * once, at the first render with content.
    */
   initialScroll?: () => number | undefined
-  /** The user scrolled the preview; its scroll position. */
   onScroll?: (top: number) => void
-  /** A task's box was clicked; where its mark is in the Markdown. */
   onToggleTask?: (at: number) => void
 }
 
@@ -138,7 +128,6 @@ export function LivePreview({ text, ...props }: Omit<Props, 'markdown'> & { text
   return <Preview {...props} markdown={useText(text)} />
 }
 
-/** The rendered note. Rendering runs in the core worker; this patches the DOM. */
 export function Preview({
   core,
   markdown,
@@ -153,14 +142,11 @@ export function Preview({
   onScroll,
   onToggleTask,
 }: Props) {
-  /** The scrolling preview: the info card, then the note's content. */
   const pane = useRef<HTMLElement>(null)
-  /** The note's rendered content, patched from the core's tree. */
   const host = useRef<HTMLDivElement>(null)
   const [loadedEmbeds, setLoadedEmbeds] = useState<string[]>([])
   const appearance = useAppearance()
   const appearanceNow = useRef(appearance)
-  /** The preview as a scroll pane (see scrollSync.ts). */
   const scroll = useRef<PreviewScrollPane | null>(null)
   const [mounter] = useState(() => createIslandMounter(islands))
   const [codes, setCodes] = useState<HTMLElement[]>([])
@@ -217,7 +203,6 @@ export function Preview({
   }, [])
 
   useEffect(() => {
-    // A diagram drawn after the rendering moves the blocks below it.
     const islandRendered = () => scroll.current?.changed()
     // What the note links to, for its chips: asked again only when another
     // note opens or the set of linked notes changes.
@@ -270,7 +255,6 @@ export function Preview({
     )
   }, [core, mounter, keepRestoring])
 
-  // Diagrams follow light and dark.
   useEffect(() => {
     appearanceNow.current = appearance
     if (host.current) mounter.mount(host.current, { appearance }, () => scroll.current?.changed())
@@ -327,7 +311,6 @@ export function Preview({
     event.preventDefault()
     onOpenImage({ src: img.currentSrc || img.src, alt: img.alt })
   }
-  /** Where the menu was opened (Look Up's point when the selection has no box). */
   const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
   const pickMenuAction = useCallback((action: PreviewAction, target: PreviewMenuTarget) => {
     switch (action) {
@@ -375,7 +358,6 @@ export function Preview({
     if (target.closest('input, textarea, select, [contenteditable]')) return
     event.preventDefault()
     menuAt.current = at
-    // Only text selected in the preview is offered to Look Up and Speech.
     const selection = window.getSelection()
     const inPreview = !!selection?.anchorNode && !!pane.current?.contains(selection.anchorNode)
     const picked = previewMenuTarget(

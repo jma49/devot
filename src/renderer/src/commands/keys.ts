@@ -3,17 +3,14 @@
 // order (`normalizeShortcut` gives the canonical one: Mod, Ctrl, Alt, Shift),
 // then one key: a letter, a digit, a punctuation mark or a named key.
 
-/** A parsed shortcut. */
 export interface Shortcut {
   mod: boolean
   ctrl: boolean
   alt: boolean
   shift: boolean
-  /** A letter (upper case), a digit, a punctuation mark or a name in `NAMED`. */
   key: string
 }
 
-/** The parts of a key press a shortcut is matched against. */
 export interface KeyPress {
   /** The physical key (`KeyD`), which Option and Shift on digits and punctuation fall back to. */
   code?: string | undefined
@@ -25,7 +22,6 @@ export interface KeyPress {
   repeat?: boolean
 }
 
-/** Named keys and what macOS shows for them. */
 const NAMED: Readonly<Record<string, string>> = {
   Enter: '\u21a9',
   Backspace: '\u232b',
@@ -41,13 +37,10 @@ const NAMED: Readonly<Record<string, string>> = {
   End: '\u2198',
   PageUp: '\u21de',
   PageDown: '\u21df',
-  // The menu key (it opens the context menu where a keyboard has one).
   ContextMenu: 'Menu',
-  // Function keys show as themselves.
   ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`F${i + 1}`, `F${i + 1}`])),
 }
 
-/** Punctuation keys by their physical key. */
 const PUNCTUATION: Readonly<Record<string, string>> = {
   '.': 'Period',
   ',': 'Comma',
@@ -70,7 +63,6 @@ function keyName(token: string): string | undefined {
   return Object.hasOwn(NAMED, token) ? token : undefined
 }
 
-/** Shortcuts read so far: a key press is matched against many of them. */
 const parsed = new Map<string, Readonly<Shortcut>>()
 
 /** Reads a shortcut; throws `E_SHORTCUT_INVALID` for anything else. */
@@ -108,7 +100,6 @@ export function isShortcut(text: string): boolean {
   }
 }
 
-/** The canonical way to write a shortcut: `Mod+Ctrl+Alt+Shift+Key`. */
 export function normalizeShortcut(text: string): string {
   const s = parseShortcut(text)
   return [s.mod && 'Mod', s.ctrl && 'Ctrl', s.alt && 'Alt', s.shift && 'Shift', s.key]
@@ -116,7 +107,6 @@ export function normalizeShortcut(text: string): string {
     .join('+')
 }
 
-/** What the keypad's keys are in the shortcut notation (digits are read separately). */
 const NUMPAD: Readonly<Record<string, string>> = {
   NumpadDecimal: '.',
   NumpadDivide: '/',
@@ -126,7 +116,6 @@ const NUMPAD: Readonly<Record<string, string>> = {
   NumpadAdd: '=',
 }
 
-/** The key a physical key has on a US keyboard, the fallback when the character is not known. */
 function positionalKey(code: string): string | undefined {
   const letter = /^Key([A-Z])$/.exec(code)?.[1]
   if (letter) return letter
@@ -145,7 +134,6 @@ function positionalKey(code: string): string | undefined {
  */
 const typed = new Map<string, string>()
 
-/** The key a character is in the shortcut notation, if it has one. */
 function keyOfCharacter(ch: string, shift: boolean): string | undefined {
   if (/^[a-z]$/i.test(ch)) return ch.toUpperCase()
   // Shift and `=` makes a plus on a US keyboard; a plus key of its own makes it on others.
@@ -154,7 +142,6 @@ function keyOfCharacter(ch: string, shift: boolean): string | undefined {
   return /^[0-9]$/.test(ch) || Object.hasOwn(PUNCTUATION, ch) ? ch : undefined
 }
 
-/** The named key a press is, if it is one (the keypad's Enter is Enter). */
 function namedKey(e: Pick<KeyPress, 'code' | 'key'>): string | undefined {
   if (e.code === 'NumpadEnter') return 'Enter'
   if (e.code && Object.hasOwn(NAMED, e.code)) return e.code
@@ -197,7 +184,6 @@ export function rememberKey(e: Pick<KeyPress, 'code' | 'key' | 'altKey' | 'shift
   if (key !== undefined) typed.set(e.code, key)
 }
 
-/** Forgets what `rememberKey` learned. */
 export function forgetKeys(): void {
   typed.clear()
 }
@@ -215,7 +201,6 @@ export function keyMatches(shortcut: string, e: KeyPress, repeats = false): bool
   return pressedKey(e) === s.key
 }
 
-/** The shortcut as macOS shows it: `\u2303\u2325\u21e7\u2318` then the key. */
 export function shortcutLabel(shortcut: string): string {
   const s = parseShortcut(shortcut)
   return (
@@ -227,7 +212,6 @@ export function shortcutLabel(shortcut: string): string {
   )
 }
 
-/** The shortcut as a native menu accelerator (Tauri): `Alt+CmdOrCtrl+Y`. */
 export function shortcutAccelerator(shortcut: string): string {
   const s = parseShortcut(shortcut)
   return [s.ctrl && 'Ctrl', s.shift && 'Shift', s.alt && 'Alt', s.mod && 'CmdOrCtrl', s.key]
@@ -235,7 +219,6 @@ export function shortcutAccelerator(shortcut: string): string {
     .join('+')
 }
 
-/** The shortcut in CodeMirror's key notation: `Shift-Mod-x`. */
 export function shortcutCodeMirror(shortcut: string): string {
   const s = parseShortcut(shortcut)
   const key = /^[A-Z]$/.test(s.key) ? s.key.toLowerCase() : s.key

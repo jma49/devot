@@ -18,16 +18,13 @@ export interface MaterialTarget {
   dataset: Record<string, string | undefined>
 }
 
-/** What the settings ask for; the page catches up with it. */
 let wanted = true
 let target: MaterialTarget | undefined
 
-/** What the page shows. */
 function show(material: boolean) {
   if (target) target.dataset['sidebarMaterial'] = material ? 'on' : 'off'
 }
 
-/** Resolves once the page has painted what it shows now. */
 const painted = () =>
   new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),

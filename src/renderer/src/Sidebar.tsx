@@ -68,7 +68,6 @@ export type Selection =
   | { kind: 'templates' }
   | { kind: 'trash' }
 
-/** The note IDs a drag carries. */
 const draggedNotes = (event: DragEvent) =>
   event.dataTransfer.getData(DRAG_NOTE).split('\n').filter(Boolean)
 
@@ -79,7 +78,6 @@ const draggedNotes = (event: DragEvent) =>
  */
 type DropZone = 'before' | 'inside' | 'after'
 
-/** A drop on a notebook row (`id`) or on the Notebooks header (`id` null). */
 interface DropAt {
   id: string | null
   zone: DropZone
@@ -95,34 +93,24 @@ function zoneAt(event: DragEvent): DropZone {
   return 'inside'
 }
 
-/** Where a row's menu opens from the keyboard: under the row, at its left edge. */
 function below(row: Element | null | undefined): MenuPoint | undefined {
   if (!row) return undefined
   const box = row.getBoundingClientRect()
   return { x: box.left, y: box.bottom }
 }
 
-/**
- * A notebook open as a workspace: the sidebar shows only it (its title, its
- * notes as All Notes, its sub-notebooks, and the statuses and tags of its
- * notes), and no Pinned, Templates or Trash.
- */
+/** A notebook open as a workspace: the sidebar shows only it, its notes as All Notes, its sub-notebooks, and the statuses and tags of its notes; no Pinned, Templates or Trash. */
 export interface SidebarWorkspace {
-  /** The notebook open as the workspace. */
   book: BookNode
-  /** The notebooks above it, the top-level one first. */
   parents: readonly BookNode[]
   /** The whole notebook tree (the Move dialog lists every notebook). */
   library: readonly BookNode[]
 }
 
-/** The workspace title's row key. */
 const WORKSPACE_ROW = 'workspace'
 
-/** A notebook with the siblings shown just above and below it. */
 type PlacedNode = BookNode & BookMenuTarget
 
-/** Each notebook's previous and next sibling, in the tree's order. */
 function neighbours(
   tree: BookNode[],
 ): Map<string, { previousId: string | null; nextId: string | null }> {
@@ -139,7 +127,6 @@ function neighbours(
   return out
 }
 
-/** The IDs of a notebook and every notebook below it. */
 function subtree(tree: BookNode[], id: string): Set<string> {
   const ids = new Set<string>()
   const add = (n: BookNode) => {
@@ -154,49 +141,27 @@ function subtree(tree: BookNode[], id: string): Set<string> {
 
 interface Props {
   total: number
-  /** The notebook tree; in a workspace, the workspace's sub-notebooks. */
   tree: BookNode[]
   counts: ReadonlyMap<string, number>
-  /**
-   * What shows as selected: All Notes, a notebook or the Trash; null for
-   * nothing (while a search covers every note).
-   */
   selection: Selection | null
-  /** A notebook to show in rename mode (just created). */
   renaming: string | undefined
-  /**
-   * Shows All Notes, a notebook or the Trash; `clearFilter` also turns the
-   * filter off (the arrow keys show the row they arrive at as it is).
-   */
+  /** `clearFilter` also turns the filter off (the arrow keys show the row they arrive at as it is). */
   onSelect: (selection: Selection, options?: { clearFilter?: boolean }) => void
-  /**
-   * Creates a notebook (inside `parentId`, or at the top level) to name.
-   * Undefined until the core is ready; the button is disabled until then.
-   */
+  /** Undefined until the core is ready; the button is disabled until then. */
   onCreateBook: ((parentId: string | null) => void) | undefined
   onRenameBook: (id: string, name: string) => void
   onRenameDone: () => void
   onMoveBook: (id: string, parentId: string | null) => void
-  /** Puts a notebook right before or after another one, beside it in the tree. */
   onPlaceBook: (id: string, targetId: string, where: 'before' | 'after') => void
-  /** Turns Allow AI Access on or off for one notebook. */
   onSetAiAccess: (id: string, on: boolean) => void
-  /** Gives a notebook a catalog icon in a colour, or (null) the default icon. */
   onSetBookIcon: (id: string, icon: string | null, color: TagColor | null) => void
   onDeleteBook: (id: string) => void
-  /** Exports a notebook with its sub-notebooks (exporter.ts). */
   onExportBook: (action: 'exportMarkdown' | 'exportHtml', id: string) => void
-  /** Imports into a notebook: the panel for `action`, then the import sheet. */
   onImportBook: (action: ImportAction, id: string) => void
-  /** Notes dropped on a notebook row: they move there. */
   onMoveNotes: (noteIds: string[], bookId: string) => void
-  /** Notes dropped on a tag row: they get that tag. */
   onTagNotes?: (noteIds: string[], tagId: string) => void
-  /** Notes dropped on a status row: they get that status. */
   onSetNotesStatus?: (noteIds: string[], status: NoteStatus) => void
-  /** Notes dropped on the Trash: they move to the Trash. */
   onTrashNotes?: (noteIds: string[]) => void
-  /** The status, tag or pinned filter; combines with the notebook. */
   filter: NoteFilter | null
   onFilter: (filter: NoteFilter | null) => void
   pinnedCount: number
@@ -204,39 +169,29 @@ interface Props {
   tags: readonly TagRecord[]
   tagCounts: ReadonlyMap<string, number>
   onRenameTag: (id: string, name: string) => void
-  /** Sets a tag's colour, or takes it off (null). */
   onSetTagColor: (id: string, color: TagColor | null) => void
   onDeleteTag: (id: string) => void
-  /** Templates (notes in the Templates notebook), apart from the library. */
   templatesCount: number
   trashCount: number
-  /** Opens the command palette scoped to notebooks (the Notebooks header's search button). */
   onSearchBooks: () => void
   /** Filled with the notebook and tag menus, for the note list header's name to open. */
   menus?: Ref<SidebarMenus> | undefined
-  /** Opens the command palette scoped to tags (the Tags header's search button). */
   onSearchTags: () => void
-  /** Asks to empty the Trash (the Trash row's menu). */
   onEmptyTrash: () => void
   /** Makes a new note (the All Notes row's menu); absent while the library is not open. */
   onNewNote?: (() => void) | undefined
   /** Where the collapsed sections are kept; this window's local storage by default. */
   sectionStore?: SectionStore
-  /** The notebook open as a workspace, if any. */
   workspace?: SidebarWorkspace | undefined
-  /** Opens a notebook as the workspace (its menu, a parent in the workspace's title). */
   onOpenWorkspace?: (id: string) => void
-  /** Go Up a Level: the parent notebook's workspace, or out of workspaces. */
   onWorkspaceUp?: () => void
 }
 
-/** The sidebar's notebook and tag menus, opened from elsewhere (the note list header). */
 export interface SidebarMenus {
   book: (id: string, at: MenuPoint) => void
   tag: (id: string, at: MenuPoint) => void
 }
 
-/** The statuses, in the order the sidebar lists them, with their icons. */
 export const STATUSES: { status: NoteStatus; icon: IconName; label: MessageKey }[] = [
   { status: 'active', icon: 'status.active', label: 'status.active' },
   { status: 'on_hold', icon: 'status.onHold', label: 'status.on_hold' },
@@ -252,7 +207,6 @@ const sameFilter = (a: NoteFilter | null, b: NoteFilter) =>
 
 const format = (n: number) => new Intl.NumberFormat(currentLocale()).format(n)
 
-/** The rows a keyboard user can reach, in order. */
 function visibleRows(tree: BookNode[], collapsed: ReadonlySet<string>): BookNode[] {
   const out: BookNode[] = []
   const walk = (nodes: BookNode[]) =>
@@ -264,10 +218,7 @@ function visibleRows(tree: BookNode[], collapsed: ReadonlySet<string>): BookNode
   return out
 }
 
-/**
- * A row the arrow keys move between (`all`, `pinned`, `book:<id>`,
- * `status:<status>`, `tag:<id>`, `templates`, `trash`), and what it shows.
- */
+/** A row the arrow keys move between; its key is `all`, `pinned`, `book:<id>`, `status:<status>`, `tag:<id>`, `templates` or `trash`. */
 interface Row {
   key: string
   shows: { selection: Selection } | { filter: NoteFilter }
@@ -288,7 +239,6 @@ const filterRowOf = (filter: NoteFilter): Row => ({
   shows: { filter },
 })
 
-/** A tag row's lead: its colour as a dot, or the tag icon when it has none. */
 function TagGlyph(props: { color: TagColor | null }) {
   return props.color ? (
     <span className="tag-dot-box">
@@ -299,12 +249,7 @@ function TagGlyph(props: { color: TagColor | null }) {
   )
 }
 
-/**
- * A name edited in place, at most `max` code points. `byKey`: ended with
- * Return or Escape (focus goes back to the row), not by focus moving away.
- * The Return or Escape that ends an input method's composition ends only
- * that.
- */
+/** A name edited in place, at most `max` code points. `byKey`: ended with Return or Escape (focus goes back to the row), not by focus moving away; one that ends an input method's composition ends only that. */
 function NameField(props: {
   name: string
   max: number
@@ -344,17 +289,9 @@ function NameField(props: {
   )
 }
 
-/**
- * The left pane over the window material (or on an opaque surface when
- * Settings > Appearance turned the material off): All Notes and the
- * notebook tree. It renders again only when its props change: its owner
- * keeps them the same while nothing it shows changes (typing in a note
- * renders no sidebar).
- */
-/** The page event that moves the sidebar's view to the next (1) or previous (-1) row. */
+/** Renders again only when its props change: its owner keeps them the same while nothing it shows changes (typing in a note renders no sidebar). */
 const SIDEBAR_STEP = 'devot:sidebar-step'
 
-/** Shows the row after (1) or before (-1) the one shown (Next and Previous Sidebar Row). */
 export function stepSidebarRow(by: 1 | -1): void {
   window.dispatchEvent(new CustomEvent(SIDEBAR_STEP, { detail: by }))
 }
@@ -364,11 +301,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const { width: sidebarWidth, edge: resizeEdge } = usePaneResize(SIDEBAR_PANE)
   const { tree, counts, selection, renaming } = props
   const ws = props.workspace
-  // All Notes: in a workspace, the notes of the workspace notebook.
   const allSelection: Selection = ws ? { kind: 'book', id: ws.book.id } : { kind: 'all' }
   const allKey = libraryRow(allSelection).key
   const nav = useRef<HTMLElement>(null)
-  // The rows slide in when a workspace opens (from the right) or closes (from the left).
   const shownWorkspace = useRef(ws?.book.id)
   useEffect(() => {
     const before = shownWorkspace.current
@@ -381,7 +316,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       deeper ? 1 : -1,
     )
   })
-  // Notebooks and tags that come, go or move slide and fade (rowMotion.ts).
   const motionKeys = useMemo(
     () => [
       ...flattenBookTree(tree).map((n) => `book:${n.id}`),
@@ -391,7 +325,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   )
   const sidebarElement = () => nav.current
   useRowMotion(sidebarElement, 'data-motion-key', motionKeys, ws?.book.id ?? '', 'slide')
-  // Status and Tags fold, and so do notebooks; the choice is a view preference kept per window.
   const sections = useMemo(() => props.sectionStore ?? currentSectionStore(), [props.sectionStore])
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => sections.loadBooks())
   const [folded, setFolded] = useState<ReadonlySet<CollapsibleSection>>(() => sections.load())
@@ -399,18 +332,14 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   // build on the other's result, not on the sets of the render that began them.
   const collapsedNow = useRef(collapsed)
   const foldedNow = useRef(folded)
-  // The sections the user just opened: they grow in once (reveal.ts).
   const revealNext = useRef(new Set<string>())
-  /** A ref for the list of section `key`: it grows in if the user just opened it. */
   const lists = useRef(new Map<string, HTMLElement>())
-  // The lists shrinking away before they unmount (a second toggle waits).
   const closing = useRef(new Set<string>())
   const revealed = (key: string) => (el: HTMLElement | null) => {
     if (!el) return void lists.current.delete(key)
     lists.current.set(key, el)
     if (revealNext.current.delete(key)) reveal(el)
   }
-  /** Runs `change` now to open a list, or after the list `key` has shrunk away to close it. */
   const animated = (key: string, opening: boolean, change: () => void) => {
     if (closing.current.has(key)) return
     if (opening) return change()
@@ -434,33 +363,21 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     })
   }
   const sectionToggles = useRef(new Map<CollapsibleSection, HTMLButtonElement>())
-  // A notebook whose Move dialog is open, and a tag whose settings are.
   const [movingBook, setMovingBook] = useState<PlacedNode>()
-  /** The notebook whose Change Notebook Icon dialog is open. */
   const [iconBookId, setIconBookId] = useState<string>()
   const [tagSettings, setTagSettings] = useState<string>()
   const [editing, setEditing] = useState<string>()
   const [dropAt, setDropAt] = useState<DropAt>()
   // The notebook being dragged from this sidebar with its sub-notebooks: where it cannot go.
   const dragging = useRef<ReadonlySet<string> | undefined>(undefined)
-  // The notebook row being dragged: it dims until the drag ends.
   const [draggedBook, setDraggedBook] = useState<string>()
   const [editingTag, setEditingTag] = useState<string>()
-  // The notebook whose context menu is open: outlined, not selected.
   const [menuTarget, setMenuTarget] = useState<string>()
 
-  // The tag whose context menu is open: outlined.
   const [tagMenuTarget, setTagMenuTarget] = useState<string>()
-  // The fixed row (its row key) whose context menu is open: outlined.
   const [rowMenuTarget, setRowMenuTarget] = useState<string>()
-  // The status, tag or Trash row notes are dragged over (its row key).
   const [noteDrop, setNoteDrop] = useState<string>()
 
-  /**
-   * Drop handling for a row that takes dragged notes (a status, a tag, the
-   * Trash; `templates`: templates too). It shows as a drop target while
-   * notes are over it.
-   */
   const noteTarget = (
     key: string,
     take: ((ids: string[]) => void) | undefined,
@@ -499,10 +416,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
   }
 
-  /**
-   * A filter row: pressing it toggles the filter. A tag row shows its colour
-   * (if any) in place of the icon and has a context menu.
-   */
   const filterRow = (
     filter: NoteFilter,
     icon: IconName,
@@ -550,12 +463,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const rowList = visibleRows(tree, collapsed)
   const selectedBook = selection?.kind === 'book' ? selection.id : undefined
 
-  // The arrow keys move through every row in the order shown (a tag being
-  // renamed has no row then), and the sidebar is one tab stop: the row of
-  // the view shown (its filter, else its notebook, Templates, the Trash or All Notes).
+  // The arrow keys move through every row in the order shown, and the sidebar is one tab stop: the row of the view shown.
   const rowOrder: Row[] = [
     libraryRow(allSelection),
-    // A workspace shows no Pinned, Templates or Trash.
     ...(ws ? [] : [filterRowOf({ kind: 'pinned' }), libraryRow({ kind: 'templates' })]),
     ...rowList.map((n) => libraryRow({ kind: 'book', id: n.id })),
     ...(folded.has('status')
@@ -582,11 +492,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     },
   })
 
-  /**
-   * Moves the keyboard to a row, and the view follows: All Notes or a
-   * notebook shows without a filter, the Trash shows (a filter does not
-   * apply there), and a filter row turns its filter on.
-   */
+  /** All Notes or a notebook shows without a filter, the Trash shows (a filter does not apply there), and a filter row turns its filter on. */
   const arrive = (row: Row, focusRow = true) => {
     if (focusRow) rowElements.current.get(row.key)?.focus()
     if ('selection' in row.shows) {
@@ -596,10 +502,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     if (!sameFilter(props.filter, row.shows.filter)) props.onFilter(row.shows.filter)
   }
 
-  /** Up and Down, Home and End on any row. */
   const onRowsKey = (event: KeyboardEvent) => {
     const key = event.target instanceof HTMLElement ? event.target.dataset['sidebarRow'] : undefined
-    // A row that is neither a notebook nor a tag (the `sidebarRow` scope).
     const fixed =
       key === allKey ||
       key === WORKSPACE_ROW ||
@@ -607,8 +511,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       key === 'templates' ||
       key === 'trash' ||
       key?.startsWith('status:') === true
-    // Go Up a Level in a workspace: Command+Up on any row, Backspace on a
-    // row where it deletes nothing.
     if (
       key !== undefined &&
       ws &&
@@ -619,8 +521,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       event.preventDefault()
       return props.onWorkspaceUp?.()
     }
-    // The row-menu key on a fixed row (the notebook and tag rows and the
-    // workspace's title handle it themselves).
     if (
       key !== undefined &&
       !event.defaultPrevented &&
@@ -639,8 +539,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
     if (key === undefined || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
       return
-    // Left folds the Status or Tags section a row is in, and the keyboard
-    // moves to the section's chevron; Right there unfolds it.
     const section: CollapsibleSection | undefined = key.startsWith('status:')
       ? 'status'
       : key.startsWith('tag:')
@@ -661,15 +559,12 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
     if (!Object.hasOwn(moves, event.key)) return
     event.preventDefault()
-    // Up from the first row reaches a workspace's title.
     if (ws && at === 0 && event.key === 'ArrowUp') {
       return rowElements.current.get(WORKSPACE_ROW)?.focus()
     }
     const to = moves[event.key]
     if (to !== undefined && to.key !== key) arrive(to)
   }
-  // Next and Previous Sidebar Row, from anywhere: the view moves to the row
-  // after or before the one shown, and the keyboard stays where it is.
   useEffect(() => {
     const onStep = (e: Event) => {
       const by = (e as CustomEvent<unknown>).detail
@@ -686,7 +581,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     ...node,
     ...(siblings.get(node.id) ?? { previousId: null, nextId: null }),
   })
-  /** An open notebook with sub-notebooks: a notebook after it goes below all of them. */
   const openParent = (node: BookNode) => node.children.length > 0 && !collapsed.has(node.id)
 
   const toggle = (id: string, open?: boolean) => {
@@ -708,7 +602,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     rows.current.get(id)?.focus()
   }
 
-  /** Runs a notebook action, from the menu or a key, on that notebook. */
   const runAction = (action: BookAction, node: PlacedNode) => {
     switch (action) {
       case 'copyId':
@@ -755,7 +648,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     setMenuTarget((id) => (id === node.id ? undefined : id))
   }
 
-  /** Runs a tag action from its menu, on that tag. */
   const runTagAction = (action: TagAction, tag: TagMenuTarget) => {
     const color = colorOfAction(action)
     if (color !== undefined) return props.onSetTagColor(tag.id, color)
@@ -789,7 +681,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const keepFocusOnMenu = (e: { button: number; ctrlKey: boolean; preventDefault(): void }) => {
     if (e.button === 2 || e.ctrlKey) e.preventDefault()
   }
-  /** Shows a menu for a fixed row: the row is outlined while it is open. */
   const withRowOutline = async (key: string, show: () => Promise<void>) => {
     setRowMenuTarget(key)
     await show()
@@ -814,7 +705,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       showFilterMenu({ filter, filtered: sameFilter(props.filter, filter) }, at),
     )
   const openTrashMenu = async (at?: MenuPoint) => {
-    // An empty Trash has nothing to offer.
     if (props.trashCount === 0) return
     await withRowOutline('trash', () => showTrashMenu({ notes: props.trashCount }, at))
   }
@@ -824,7 +714,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const openAllNotesMenu = (at?: MenuPoint) =>
     withRowOutline(allKey, () => showAllNotesMenu({ canCreate: props.onNewNote !== undefined }, at))
 
-  // The list header's name opens the same menus.
   useImperativeHandle(props.menus, () => ({
     book: (id, at) => {
       if (ws?.book.id === id) return void openWorkspaceMenu(at)
@@ -846,7 +735,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       event.preventDefault()
       arrive(libraryRow({ kind: 'book', id: target.id }))
     }
-    // Up and Down go on to the rows around the tree (`onRowsKey`).
     switch (event.key) {
       case 'ArrowRight':
         event.preventDefault()
@@ -856,7 +744,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       case 'ArrowLeft':
         event.preventDefault()
         if (open) toggle(node.id, false)
-        // A workspace's own sub-notebook goes up to All Notes (the workspace notebook).
         else if (ws && node.parentId === ws.book.id) arrive(libraryRow(allSelection))
         else if (node.parentId) go(rowList.find((n) => n.id === node.parentId))
         return
@@ -873,7 +760,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
   }
 
-  /** Over a notebook row (`node`) or the Notebooks header (null). */
   const onDragOver = (event: DragEvent, node: BookNode | null) => {
     const types = event.dataTransfer.types
     const isBook = types.includes(DRAG_BOOK)
@@ -901,7 +787,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     const book = event.dataTransfer.getData(DRAG_BOOK)
     const note = event.dataTransfer.getData(DRAG_NOTE)
     if (book && node === null) {
-      // The header: first at the top level (of the workspace: inside its notebook).
       const first = tree[0]
       if (first && first.id !== book) props.onPlaceBook(book, first.id, 'before')
       else if (!first && ws && ws.book.id !== book) props.onMoveBook(book, ws.book.id)
@@ -925,9 +810,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     setDropAt((at) => (at?.id === id ? undefined : at))
   }
 
-  // A drag that ends anywhere (dropped, or cancelled with the pointer still
-  // over a row, when dragleave keeps the drop) ends the drop. Note drags
-  // start in the note list, and a notebook row stops its own dragend.
+  // A drag that ends anywhere (dropped, or cancelled over a row, where dragleave keeps the drop) ends the drop.
   useEffect(() => {
     const clear = () => {
       setDropAt(undefined)
@@ -942,10 +825,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
   }, [])
 
-  /**
-   * The drop classes for a notebook row. After an open notebook the line
-   * goes on its item, under its sub-notebooks, where the notebook will go.
-   */
+  /** After an open notebook the line goes on its item, under its sub-notebooks, where the notebook will go. */
   const dropClasses = (node: BookNode, part: 'item' | 'row') => {
     if (dropAt?.id !== node.id) return ''
     const onItem = dropAt.zone === 'after' && openParent(node)
@@ -1094,11 +974,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       ? undefined
       : flattenBookTree(ws?.library ?? tree).find((n) => n.id === iconBookId)
 
-  /**
-   * A section's header: its name, `tools` before the chevron, and (for Status
-   * and Tags) the chevron that folds it: down while it is open, up while it
-   * is folded.
-   */
   const sectionHeader = (
     section: CollapsibleSection,
     headingId: string,
@@ -1142,11 +1017,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     )
   }
 
-  /**
-   * A workspace's title: Go Up a Level, the notebook's icon and name, and the
-   * notebooks above it (each opens as the workspace). Its menu renames the
-   * notebook, changes its icon or copies its ID.
-   */
   const workspaceTitle = (space: SidebarWorkspace) => {
     const { book } = space
     const editingThis = nameEditing === book.id
@@ -1301,7 +1171,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           </>
         )}
       </ul>
-      {/* Notebooks, statuses and tags scroll; the top block, Trash and the footer stay put. */}
       <div className="sidebar-scroll">
         <div
           className={`section-header${dropAt && dropAt.id === null ? ' drop-target' : ''}`}

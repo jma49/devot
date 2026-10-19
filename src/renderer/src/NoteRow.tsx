@@ -16,7 +16,6 @@ import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
 import { chipClass, TagDot } from './TagEditor'
 
-/** Each status's icon, in its colour (see `.status-*`). */
 export const STATUS_ICONS: Readonly<Record<NoteStatus, IconName>> = {
   none: 'status.none',
   active: 'status.active',
@@ -25,7 +24,6 @@ export const STATUS_ICONS: Readonly<Record<NoteStatus, IconName>> = {
   dropped: 'status.dropped',
 }
 
-/** `text` with the runs that match `pattern` in `<mark>`; text nodes only, never markup. */
 export function Marked({ text, pattern }: { text: string; pattern: RegExp | null | undefined }) {
   if (!pattern) return text
   return matchSegments(text, pattern).map((s, i) =>
@@ -33,7 +31,6 @@ export function Marked({ text, pattern }: { text: string; pattern: RegExp | null
   )
 }
 
-/** Task progress as the core reports it ("done/total", see NoteService.progress). */
 export function parseProgress(
   text: string | undefined,
 ): { done: number; total: number } | undefined {
@@ -44,7 +41,6 @@ export function parseProgress(
   return total > 0 && done <= total ? { done, total } : undefined
 }
 
-/** A note's tasks: an icon, a small bar and "1 of 4". */
 export function TaskProgress({ done, total }: { done: number; total: number }) {
   const values = { done: String(done), total: String(total) }
   return (
@@ -67,7 +63,6 @@ export function TaskProgress({ done, total }: { done: number; total: number }) {
   )
 }
 
-/** What a row does with its events; one object for all rows, kept from render to render. */
 export interface RowEvents {
   setRow: (id: string, el: HTMLLIElement | null) => void
   mouseDown: (event: MouseEvent<HTMLLIElement>) => void
@@ -83,28 +78,18 @@ export interface RowProps {
   position: number | undefined
   setSize: number | undefined
   selected: boolean
-  /** The note is open in the editor: its row has the focus bar while the list has the keyboard. */
   open: boolean
-  /** The row takes Tab (see `tabStop`). */
   tabbable: boolean
   tags: ReadonlyMap<string, TagRecord>
-  /** Search results: what to mark in titles and in body excerpts (see `searchPattern`). */
   highlight: { title: RegExp | null; body: RegExp | null } | undefined
-  /** What shows for a note with no title: its first line, once known (see `useHeadlines`). */
   headline: string | undefined
-  /** The start of the note's body, once known (see `useHeadlines`). */
   preview: string | undefined
-  /** The note's task progress, "done/total", when it has tasks (see NoteService.progress). */
   progress: string | undefined
-  /** The time the row's relative date is measured from (see `useNow`). */
   now: number
   locale: string
-  /** Whether the date shows how long ago, or the date itself (Settings > General). */
   dates: ListDatesStyle
   draggable: boolean
-  /** The row is being dragged (with the selection it belongs to): it dims. */
   dragging: boolean
-  /** Right-click shows the note menu. */
   menu: boolean
   events: RowEvents
 }
@@ -184,7 +169,6 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
         ) : null
       ) : (
         <span className="row-excerpt">
-          {/* An untitled note: its first line (or Untitled, for one with no text) leads. */}
           <span className="row-headline">{props.headline ?? t('note.untitled')}</span>
           {excerpt ? (
             <>

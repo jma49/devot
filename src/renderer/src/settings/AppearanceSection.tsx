@@ -16,7 +16,6 @@ import { format, t, type MessageKey } from '../i18n'
 import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
 import { useDraggedNumber } from './draggedNumber'
 
-/** What the Transparency slider says it shows: the design washes, or more or less of the desktop. */
 function transparencyText(value: number): string {
   const design = DEFAULT_EDITOR_SETTINGS.windowTransparency
   if (value === design) return t('appearanceSettings.windowTransparencyDefault')

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_RECENT_TEMPLATES, recentTemplates, templateGroups } from './templates'
 
-/** A key-value store like localStorage, in memory. */
 function memory(initial: Record<string, string> = {}) {
   const items = new Map(Object.entries(initial))
   return {

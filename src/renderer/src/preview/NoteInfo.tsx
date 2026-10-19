@@ -32,13 +32,11 @@ function Field(props: { icon: IconName; label: string; children: ReactNode }) {
   )
 }
 
-/** The dates a note's info card writes (see NoteService.setDates). */
 export type SetNoteDates = (
   noteId: string,
   dates: { createdAt?: number; updatedAt?: number },
 ) => Promise<void>
 
-/** How a date edit ended: written, turned down (the dates would be out of order), or not written. */
 export type DateOutcome = 'saved' | 'refused' | 'failed'
 
 /**
@@ -127,16 +125,11 @@ interface Backlink {
   name: string
 }
 
-/**
- * The preview's first element (never part of an exported or printed page):
- * the note's task progress and dates, then the notes that link to it.
- */
 export function NoteInfo(props: {
   core: Core
   info: NoteInfoData
   tasks: TaskProgress
   onOpenNote: (id: string) => void
-  /** Writes dates set on the card; without it the dates cannot be changed. */
   onSetDates?: SetNoteDates | undefined
 }) {
   const { core, info, tasks, onOpenNote, onSetDates } = props
@@ -200,7 +193,6 @@ export function NoteInfo(props: {
           open={open}
           onToggle={(event) => {
             const now = event.currentTarget.open
-            // Opened by the user (not shown open): the list grows in.
             const list = event.currentTarget.querySelector('ul')
             if (now && !open && list) expand(list)
             setOpen(now)

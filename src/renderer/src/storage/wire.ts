@@ -10,18 +10,14 @@ import type { NoteRecord, RevisionRecord, StorageAdapter } from '../../../core'
 import { noteLinks } from '../../../core/links'
 import { checkNote } from '../../../core/noteLimits'
 
-/** A note record as it crosses: its Yjs state in base64. */
 export type WireNote = Omit<NoteRecord, 'ydoc'> & { ydoc: string }
-/** A revision as it crosses: a body version's Yjs state in base64. */
 export type WireRevision = Omit<RevisionRecord, 'ydoc'> & { ydoc: string | null }
 
-/** StorageAdapter as the page serves it to the worker (see fromWire). */
 export interface WireStorage extends Omit<
   StorageAdapter,
   'getNote' | 'putNote' | 'getRevision' | 'putRevision'
 > {
   getNote(id: string, options?: { trashed?: boolean }): Promise<WireNote | null>
-  /** Writes a note the worker checked, with the IDs its body links to (see noteLinks). */
   putNote(note: WireNote, links: string[]): Promise<void>
   getRevision(id: string): Promise<WireRevision | null>
   putRevision(revision: WireRevision): Promise<void>
@@ -33,10 +29,9 @@ type NativeCodec = { fromBase64?: (text: string) => Uint8Array }
 const ALPHABET = new TextEncoder().encode(
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/',
 )
-const PAD = 0x3d // '='
+const PAD = 0x3d
 const ascii = new TextDecoder()
 
-/** `bytes` in base64, by the engine's own coder where it has one. */
 export function toBase64(bytes: Uint8Array): string {
   const native = (Uint8Array.prototype as NativeBytes).toBase64
   if (native) return native.call(bytes)
@@ -65,7 +60,6 @@ export function toBase64(bytes: Uint8Array): string {
   return ascii.decode(out)
 }
 
-/** The bytes of base64 `text`, by the engine's own coder where it has one. */
 export function fromBase64(text: string): Uint8Array {
   const native = (Uint8Array as NativeCodec).fromBase64
   if (native) return native(text)
@@ -129,10 +123,6 @@ export function fromWire(wire: WireStorage): StorageAdapter {
   }
 }
 
-/**
- * A storage adapter served as the page serves storage to the worker: the UI
- * tests' in-memory storage, which lives in the page.
- */
 export function toWire(storage: StorageAdapter): WireStorage {
   return {
     ...storage,

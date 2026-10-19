@@ -10,7 +10,6 @@ const MODES: { mode: Mode; icon: IconName; label: MessageKey }[] = [
   { mode: 'preview', icon: 'mode.preview', label: 'mode.preview' },
 ]
 
-/** Segmented control: edit, split (source and preview) or preview. */
 export function ModeControl({ mode, onChange }: { mode: Mode; onChange: (mode: Mode) => void }) {
   return (
     <div className="segmented" role="group" aria-label={t('mode.label')}>

@@ -11,18 +11,14 @@ export interface NotePreview {
   excerpt: string
 }
 
-/** How long a loaded preview is reused, in ms. */
 export const PREVIEW_FRESH_MS = 3000
-/** How many previews are kept. */
 export const PREVIEW_KEPT = 50
 
-/** The core calls a preview needs. */
 export type PreviewCore = {
   linkTargets: (ids: string[]) => Promise<Record<string, { title: string }>>
   excerpts: (ids: string[]) => Promise<Record<string, string>>
 }
 
-/** A loader: the preview of a note, null when the note is gone or in the Trash. */
 export type LoadPreview = (id: string) => Promise<NotePreview | null>
 
 export function previewLoader(
@@ -54,7 +50,6 @@ export function previewLoader(
 
 const loaders = new WeakMap<object, LoadPreview>()
 
-/** The shared loader of a core. */
 export function previewsFor(core: Core): LoadPreview {
   let load = loaders.get(core)
   if (!load) {

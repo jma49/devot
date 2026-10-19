@@ -4,7 +4,6 @@ import { COMMANDS } from '../commands/registry'
 import { matchesQuery } from './shortcutSearch'
 
 const keymap = effectiveKeymap({})
-/** The IDs of the commands a search leaves in the table. */
 const found = (query: string, map = keymap) =>
   COMMANDS.filter((c) => matchesQuery(c, map.get(c.id) ?? [], query)).map((c) => c.id)
 

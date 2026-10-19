@@ -33,26 +33,19 @@ export function useNoteActions(deps: {
   notes: NoteSummary[]
   tree: BookNode[]
   tags: readonly TagRecord[]
-  /** Several notes selected in the list, in its order; undefined for one. */
   selection: readonly string[] | undefined
   duplicate: (id: string) => Promise<void>
   history: (id: string) => Promise<void>
   move: (ids: readonly string[], bookId: string | null) => Promise<void>
   setPinned: (ids: readonly string[], pinned: boolean) => Promise<void>
   setStatus: (ids: readonly string[], status: NoteStatus) => Promise<void>
-  /** Puts the tag of a name typed (made when missing) on the notes. */
   addTag: (ids: readonly string[], name: string) => Promise<void>
-  /** Puts a tag picked from the list on the notes, by its ID. */
   putTag: (ids: readonly string[], tagId: string) => Promise<void>
   removeTag: (ids: readonly string[], tagId: string) => Promise<void>
   trash: (ids: readonly string[]) => Promise<void>
-  /** Exports or prints a note (exporter.ts); one note at a time. */
   exportNote: (action: ExportAction, id: string) => Promise<void>
-  /** Exports several notes side by side (Markdown or HTML). */
   exportNotes: (action: 'exportMarkdown' | 'exportHtml', ids: readonly string[]) => Promise<void>
-  /** Shows that a copy did not complete, with its code (a notice). */
   copyFailed: (failure: ExportFailure, code: string) => void
-  /** Looks up the first line of notes with no title, which name them (headlines.ts). */
   headlines?: HeadlineLoader | undefined
 }) {
   const [moving, setMoving] = useState<readonly string[]>()
@@ -63,7 +56,6 @@ export function useNoteActions(deps: {
   const pinning = useRef(new Map<string, boolean>())
   const pinnedNow = (n: NoteSummary) => pinning.current.get(n.id) ?? n.pinned
 
-  /** The notes an action on `id` acts on: the selection when `id` is in it. */
   const idsFor = (id: string): readonly string[] =>
     deps.selection?.includes(id) ? deps.selection : [id]
 
@@ -77,11 +69,9 @@ export function useNoteActions(deps: {
         deps.copyFailed(failure, code)
       })
 
-  /** Whether the batch tag actions apply: several notes, none a template. */
   const taggable = (notes: readonly NoteSummary[]) =>
     notes.length > 1 && notes.every((n) => n.bookId !== TEMPLATES_BOOK_ID)
 
-  /** Runs an action on these notes; what it returns settles once it is done. */
   const runOn = (action: NoteMenuAction, ids: readonly string[]): void | Promise<unknown> => {
     const notes = listed(ids)
     const first = notes[0]
@@ -141,7 +131,6 @@ export function useNoteActions(deps: {
 
   const showMenu = useNoteMenu((action, target) => void runOn(action, target.ids))
 
-  /** What the menu shows for these notes. */
   const menuTarget = (ids: readonly string[]): NoteMenuTarget => {
     const notes = listed(ids)
     const status = notes[0]?.status ?? null
@@ -169,7 +158,6 @@ export function useNoteActions(deps: {
     run: (action: NoteAction, id: string) => runOn(action, idsFor(id)),
     runOn,
     menu: (id: string) => void showMenu(menuTarget(idsFor(id))),
-    /** The menu for the open note alone, at `at` (the editor's More button). */
     menuAt: (id: string, at: MenuPoint) => void showMenu(menuTarget([id]), at),
     dialog: (
       <>

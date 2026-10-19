@@ -4,7 +4,6 @@
 // so the changes are never dropped without the user knowing.
 import type { SaveProblem } from '../../core'
 
-/** The problems in `next` that are new: a note not failing before, or failing with another code. */
 export function newProblems(
   previous: readonly SaveProblem[],
   next: readonly SaveProblem[],
@@ -23,7 +22,6 @@ export interface SaveProblemsMessage {
   saveProblems: SaveProblem[]
 }
 
-/** The problems a message from the core worker carries; undefined for any other message. */
 export function saveProblemsIn(data: unknown): SaveProblem[] | undefined {
   if (typeof data !== 'object' || data === null || !('saveProblems' in data)) return undefined
   return Array.isArray(data.saveProblems) ? (data.saveProblems as SaveProblem[]) : undefined
@@ -38,7 +36,6 @@ export interface QuitGuard {
    * failing is held; the next one goes on without them.
    */
   answer(save: Promise<unknown>): Promise<'exit' | 'hold'>
-  /** The core's latest problems: once none is left, a later failure holds a quit again. */
   update(problems: readonly SaveProblem[]): void
 }
 

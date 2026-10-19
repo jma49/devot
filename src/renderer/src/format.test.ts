@@ -11,7 +11,6 @@ import {
   taskCount,
 } from './format'
 
-/** Counts `new Intl.DateTimeFormat(...)` until the test ends. */
 function countDateFormats(): { count: number } {
   const seen = { count: 0 }
   const original = Intl.DateTimeFormat

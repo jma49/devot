@@ -12,16 +12,6 @@ import {
 import { useMirrorFolderChoice } from '../MirrorFolderChoice'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
 
-/**
- * Settings > Markdown Mirror: the folder Devot keeps up to date with every
- * note as a Markdown file (off by default). Choose Folder… shows the folder
- * panel; a folder that is not empty is used only once the user agrees. On,
- * it shows the folder, the size of the files Devot wrote there (once Rust has
- * read the folder's manifest) and Turn Off; Include Attachments says whether
- * images are copied there. The folder is
- * written by Devot and never read back, which the section says. Changes made
- * elsewhere (the palette) show here as they happen.
- */
 export function MirrorSection() {
   const status = useMirrorStatus()
   const [error, setError] = useState<{ message: MessageKey; code: string }>()

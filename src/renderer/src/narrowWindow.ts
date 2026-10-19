@@ -12,6 +12,5 @@ function subscribe(onChange: () => void) {
   return () => query.removeEventListener('change', onChange)
 }
 
-/** Whether the window is narrower than the sidebar fits in; follows resizes. */
 export const useNarrowWindow = () =>
   useSyncExternalStore(subscribe, () => matchMedia(NARROW).matches)

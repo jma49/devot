@@ -7,10 +7,8 @@ import { useEffect, useRef } from 'react'
 
 export const DB_CHANGED = 'devot:db-changed'
 
-/** Calls `onChange` (one at a time, the latest last) whenever the database changed. */
 export function useExternalChanges(onChange: (() => Promise<void>) | undefined) {
   const latest = useRef(onChange)
-  // A change that came before the core was ready, still to reload for.
   const missed = useRef(false)
   useEffect(() => {
     latest.current = onChange

@@ -4,7 +4,6 @@ import { forwardWorkerLogs, workerLogIn, type WorkerLogMessage } from './workerL
 
 const NOTE_ID = '01920000-0000-7000-8000-000000000001'
 
-/** A worker's global scope as far as the forwarding touches it. */
 function fakeScope() {
   const listeners = new Map<string, (e: unknown) => void>()
   const scope = {

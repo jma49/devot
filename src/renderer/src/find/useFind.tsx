@@ -25,18 +25,15 @@ type Pane = 'editor' | 'preview'
 
 interface Input {
   mode: Mode
-  /** A note is open (not in the Trash). */
   noteOpen: boolean
   editor: FindTarget | null
   preview: FindTarget | null
 }
 
-/** Find actions that only act while the bar is open. */
 const TOGGLES: ReadonlySet<FindAction> = new Set(['regexp', 'caseSensitive'])
 
 export function useFind({ mode, noteOpen, editor, preview }: Input): {
   bar: ReactNode
-  /** The find commands that act now (for the palette), by registry ID. */
   commands: CommandHandlers
 } {
   const [open, setOpen] = useState(false)
@@ -50,11 +47,9 @@ export function useFind({ mode, noteOpen, editor, preview }: Input): {
   const [, setChanges] = useState(0)
   const [focusRequest, setFocusRequest] = useState(0)
   const field = useRef<HTMLInputElement>(null)
-  // A step to take when the bar reopens (Cmd+G with the bar closed).
   const pendingStep = useRef<FindStep | undefined>(undefined)
   const bar = useRef<HTMLDivElement>(null)
 
-  // Closing the note closes the bar.
   if (open && !noteOpen) setOpen(false)
 
   const pane: Pane = mode === 'edit' ? 'editor' : mode === 'preview' ? 'preview' : chosen
@@ -184,7 +179,6 @@ export function useFind({ mode, noteOpen, editor, preview }: Input): {
     }
   }, [])
 
-  // The same actions the keys run, offered where the keys act.
   const commands: CommandHandlers = {}
   if (noteOpen) {
     for (const action of Object.keys(FIND_COMMANDS) as FindAction[]) {
@@ -220,7 +214,6 @@ export function useFind({ mode, noteOpen, editor, preview }: Input): {
   }
 }
 
-/** Whether the current query matches all of `text` (so it need not become the query). */
 function matchesWhole(text: string, options: FindOptions): boolean {
   return findMatches(text, options).matches.some((m) => m.from === 0 && m.to === text.length)
 }

@@ -7,18 +7,14 @@
 // until Rust has answered (a failed change is dropped), and sends them one
 // at a time, in order, so the last one sent is the one that stays stored.
 
-/** What Rust reports: the value and its revision (higher is newer). */
 export interface Revision<V> {
   revision: number
   value: V
 }
 
 export interface SyncedStore<V, P> {
-  /** The value in effect in this window. */
   current(): V
-  /** Calls `notify` after every change of the value in effect. */
   subscribe(notify: () => void): () => void
-  /** Takes a value Rust reported, unless a newer one is known already. */
   confirm(reported: Revision<V> | undefined): void
   /**
    * Applies `patch` here at once and sends it with `send`, after the changes
@@ -29,21 +25,16 @@ export interface SyncedStore<V, P> {
 }
 
 export function createSyncedStore<V, P>(options: {
-  /** The value until Rust reports one, and its revision (-1: none yet). */
   initial: Revision<V>
-  /** The value with a patch applied. */
   apply: (value: V, patch: P) => V
   same: (a: V, b: V) => boolean
-  /** Called with each value taken from Rust. */
   confirmed?: (reported: Revision<V>) => void
 }): SyncedStore<V, P> {
   let confirmed = options.initial.value
   let confirmedRevision = options.initial.revision
-  /** This window's changes on their way to Rust, oldest first. */
   const inFlight: P[] = []
   let current = confirmed
   const subscribers = new Set<() => void>()
-  /** Changes are sent one at a time, in order. */
   let queue: Promise<unknown> = Promise.resolve()
 
   const recompute = () => {

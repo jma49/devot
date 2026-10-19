@@ -15,7 +15,6 @@ import { templateGroups } from './templates'
 
 const optionId = (i: number) => `template-option-${i}`
 
-/** What the picker previews: the note a template makes, and its notebook. */
 type Draft = TemplateDraft & { bookId: string | null }
 
 /**
@@ -29,9 +28,7 @@ type Draft = TemplateDraft & { bookId: string | null }
 export function TemplatePicker(props: {
   core: Core
   templates: readonly NoteSummary[]
-  /** Looks up the first line of a template with no title, which names it. */
   headlines?: HeadlineLoader | undefined
-  /** Template IDs used last on this device, newest first. */
   recent: readonly string[]
   books: readonly BookRecord[]
   /** The notebook a note goes to when its template names none. */
@@ -51,7 +48,6 @@ export function TemplatePicker(props: {
   useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
-    // Closing (rather than only removing) the dialog gives the keyboard back.
     return () => el?.close()
   }, [])
 
@@ -59,7 +55,6 @@ export function TemplatePicker(props: {
     () => templateGroups(props.templates, props.recent, query, props.locales),
     [props.templates, props.recent, query, props.locales],
   )
-  // The built-in starters come last, narrowed by the same query.
   const builtIn = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase()
     return STARTER_TEMPLATES.filter((s) => !needle || s.title.toLocaleLowerCase().includes(needle))
@@ -73,7 +68,6 @@ export function TemplatePicker(props: {
     document.getElementById(optionId(index))?.scrollIntoView({ block: 'nearest' })
   }, [index])
 
-  // The preview of the selected template, as of now.
   useEffect(() => {
     if (currentId === undefined) return
     let alive = true
@@ -92,7 +86,6 @@ export function TemplatePicker(props: {
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    // Keys that pick or confirm an input method's candidate are not ours.
     if (isImeKey(e.nativeEvent)) return
     const next = fieldStep(e.key, index, options.length)
     if (next !== undefined) {

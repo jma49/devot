@@ -43,7 +43,6 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-/** An island whose drawings land when the test says so; counts live sheets. */
 function testIsland() {
   const requests: { source: string; land: (content?: Partial<IslandContent>) => void }[] = []
   let live = 0

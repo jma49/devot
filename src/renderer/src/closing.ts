@@ -6,16 +6,13 @@
 // animation ends (or the animation's length passes, if `animationend` never
 // comes). A pop-up that opens again replaces its fading copy.
 
-/** How a pop-up closes: shrinking toward its anchor as it fades, or only fading. */
 export type CloseMotion = 'scale' | 'fade'
 
-/** What waiting for the end of an animation needs from an element (a stand-in in tests). */
 export interface ClosingTarget {
   addEventListener(type: string, listener: (event: { target: unknown }) => void): void
   removeEventListener(type: string, listener: (event: { target: unknown }) => void): void
 }
 
-/** Extra time past the animation's length before a copy goes anyway. */
 const FALLBACK_SLACK_MS = 100
 
 function seconds(time: string): number {
@@ -72,7 +69,6 @@ export function tooltipMotion(classes: Iterable<string>): CloseMotion | null {
   return list.has('cm-tooltip-autocomplete') ? 'fade' : null
 }
 
-/** Removes the closing copies of `kind` among `parent`'s children. */
 export function dropClosingCopies(parent: ParentNode | null, kind: string): void {
   if (!parent) return
   for (const child of Array.from(parent.children)) {
@@ -80,7 +76,6 @@ export function dropClosingCopies(parent: ParentNode | null, kind: string): void
   }
 }
 
-/** Scroll offsets of `el` and its descendants, in document order. */
 function scrollOffsets(el: Element): [number, number][] {
   return [el, ...Array.from(el.querySelectorAll('*'))].map((e) => [e.scrollTop, e.scrollLeft])
 }

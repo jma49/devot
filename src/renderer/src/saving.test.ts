@@ -33,7 +33,6 @@ describe('saveProblemsIn', () => {
 })
 
 describe('the quit guard', () => {
-  /** A quit's save that could not save note A (what the core's flush rejects with). */
   const failedSave = () => Promise.reject(new Error(`E_NOTE_SAVE_FAILED ${A}`))
 
   it('lets a quit go on once everything is saved', async () => {

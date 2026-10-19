@@ -8,7 +8,6 @@ import { STATUS_ICONS } from './NoteRow'
 import { PickerList, usePickerOpen, type PickerOption } from './Picker'
 import { STATUS_COMMANDS } from './statusKeys'
 
-/** The status pop-over's rows: each status's icon in its colour, its name and its key in grey. */
 export function statusOptions(): PickerOption[] {
   return NOTE_STATUSES.map((status) => {
     const key = commandKeys(STATUS_COMMANDS[status])[0]
@@ -32,12 +31,6 @@ export function statusOptions(): PickerOption[] {
   })
 }
 
-/**
- * Pop-up button for the open note's status, or for several notes' (`mixed`:
- * they differ, and it reads Mixed until one is picked). With no status it
- * reads Status, in grey. It opens a pop-over of the five statuses, each
- * with its key.
- */
 export function StatusPicker(props: {
   value: NoteStatus
   mixed?: boolean

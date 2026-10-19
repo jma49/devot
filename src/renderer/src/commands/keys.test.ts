@@ -73,7 +73,6 @@ describe('keyMatches', () => {
     expect(
       keyMatches('Mod+Alt+1', press('Digit1', '\u00a1', { metaKey: true, altKey: true })),
     ).toBe(true)
-    // Another modifier, a missing one, or Control for Command do not match.
     expect(keyMatches('Mod+D', press('KeyD', 'd', { metaKey: true, shiftKey: true }))).toBe(false)
     expect(keyMatches('Mod+Shift+D', press('KeyD', 'd', { metaKey: true }))).toBe(false)
     expect(keyMatches('Mod+D', press('KeyD', 'd', { ctrlKey: true }))).toBe(false)
@@ -119,7 +118,6 @@ describe('keyMatches on other keyboard layouts', () => {
     const quit = press('KeyA', 'q', cmd)
     expect(keyMatches('Mod+Q', quit)).toBe(true)
     expect(keyMatches('Mod+A', quit)).toBe(false)
-    // And Command+A, typed on the Q key, is Select All.
     expect(keyMatches('Mod+A', press('KeyQ', 'a', cmd))).toBe(true)
     expect(keyMatches('Mod+Q', press('KeyQ', 'a', cmd))).toBe(false)
   })
@@ -160,7 +158,6 @@ describe('keyMatches on other keyboard layouts', () => {
     // nothing about the key. Until the key is seen, its US position does.
     const optionY = press('KeyF', '\u00a5', { ...cmd, altKey: true })
     expect(keyMatches('Mod+Alt+F', optionY)).toBe(true)
-    // Dvorak: that key types Y.
     rememberKey(press('KeyF', 'y'))
     expect(keyMatches('Mod+Alt+Y', optionY)).toBe(true)
     expect(keyMatches('Mod+Alt+F', optionY)).toBe(false)

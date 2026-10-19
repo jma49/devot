@@ -1,4 +1,3 @@
-// Runs window commands: their keys (from the registry) and native menu items.
 import { useEffect, useRef } from 'react'
 import { isImeKey } from '../ime'
 import { rememberKey } from './keys'
@@ -7,12 +6,10 @@ import { windowCommand, type CommandHandlers } from './registry'
 /** Whether a modal sheet (a `<dialog>`) is up; window commands wait for it to close. */
 export const sheetOpen = () => document.querySelector('dialog[open]') !== null
 
-/** Whether an element is in the note editor (seen from outside: its shadow root's host). */
 export function inEditor(element: EventTarget | null): boolean {
   return element instanceof Element && element.closest('[data-devot-part="editor-body"]') !== null
 }
 
-/** Whether an element takes typed text: a field, or an editable part of the page. */
 export function inTextField(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&

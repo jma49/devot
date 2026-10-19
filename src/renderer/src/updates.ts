@@ -23,11 +23,8 @@ export type UpdateState =
 
 export type UpdateStatus = UpdateState & {
   revision: number
-  /** The running version. */
   current: string
-  /** Whether this build has an updater. */
   enabled: boolean
-  /** The window that asked for the last manual check, download or restart. */
   askedBy: string | null
 }
 
@@ -44,7 +41,6 @@ const CODE = /^E_[A-Z0-9_]+$/
 // prerelease and build part); shown in the UI, so nothing else gets through.
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
-/** A status from an answer or an event; undefined for anything else. */
 export function readUpdateStatus(value: unknown): UpdateStatus | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const v = value as Record<string, unknown>
@@ -82,7 +78,6 @@ export function readUpdateStatus(value: unknown): UpdateStatus | undefined {
   }
 }
 
-/** What a window shows in a notice: a text and the buttons beside it. */
 export interface UpdateNoticeModel {
   /** Changes with what the notice is about, so a dismissed one stays dismissed. */
   key: string
@@ -95,7 +90,6 @@ const downloadingText = (version: string, percent: number | null) =>
     ? format(t('updates.downloading'), { version })
     : format(t('updates.downloadingPercent'), { version, percent: String(percent) })
 
-/** The text of a failure: a build without an updater says so. */
 const failureText = (code: string) =>
   code === 'E_UPDATE_UNAVAILABLE' ? t('updates.unavailable') : format(t('updates.failed'), { code })
 
@@ -144,7 +138,6 @@ export function updateNotice(status: UpdateStatus, window: string): UpdateNotice
   }
 }
 
-/** The status line under Settings > General > Check for Updates. */
 export function updateStatusText(status: UpdateStatus): string {
   const version = format(t('generalSettings.version'), { version: status.current })
   const line = (key: MessageKey, values: Record<string, string> = {}) => format(t(key), values)
@@ -183,7 +176,6 @@ const subscribe = (listener: () => void) => {
 
 let started = false
 
-/** Reads the status and follows its changes. Once per page. */
 export function startUpdateStatus(): void {
   if (started) return
   started = true
@@ -205,7 +197,6 @@ export function startUpdateStatus(): void {
   }
 }
 
-/** The status in effect, re-rendering on every change. */
 export function useUpdateStatus(): UpdateStatus {
   return useSyncExternalStore(subscribe, () => current)
 }
@@ -214,8 +205,6 @@ export function useUpdateStatus(): UpdateStatus {
 export const checkForUpdates = (): Promise<void> =>
   invoke<void>('update_check').catch(() => console.warn('W_UPDATE_CHECK_FAILED'))
 
-/** Downloads the update found (main window). */
 export const downloadUpdate = (): Promise<void> => invoke('update_download')
 
-/** Installs the downloaded update, saves, and restarts (main window). */
 export const restartToUpdate = (): Promise<void> => invoke('update_restart')

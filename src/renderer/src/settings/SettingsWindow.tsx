@@ -41,7 +41,6 @@ export function SettingsWindow() {
   const select = (next: PaneId) => {
     setPane(next)
     store.write(next)
-    // A new pane starts at its top.
     body.current?.scrollTo({ top: 0 })
   }
 

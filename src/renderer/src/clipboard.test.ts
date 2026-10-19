@@ -3,7 +3,6 @@ import { NATIVE_CLIPBOARD_LIMIT, writeClipboardText } from './clipboard'
 
 afterEach(() => vi.unstubAllGlobals())
 
-/** Records what reaches Rust's `clipboard_write_text` and the page's clipboard API. */
 function clipboards(page: (text: string) => Promise<void> = async () => {}) {
   const native: string[] = []
   const written: number[] = []

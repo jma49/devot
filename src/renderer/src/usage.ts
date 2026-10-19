@@ -3,7 +3,6 @@
 import { invoke } from './ipc'
 import { createUsageTracker, type StoredUsageEvent } from '../../core/usage'
 
-/** Records a usage event from the catalog; never throws. */
 export const track = createUsageTracker({
   record: (event) =>
     invoke('usage_record', { name: event.name, properties: event.properties }).then(
@@ -13,7 +12,6 @@ export const track = createUsageTracker({
   onError: (code) => console.warn(code),
 })
 
-/** The stored events, newest first. */
 export const listUsage = () => invoke<StoredUsageEvent[]>('usage_list')
 
 export const clearUsage = () => invoke('usage_clear').then(() => undefined)

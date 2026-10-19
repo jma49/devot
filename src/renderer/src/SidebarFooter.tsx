@@ -8,13 +8,11 @@ import { pausedMessage, useMirrorStatus } from './mirror'
 const dateTime = (ms: number) =>
   new Intl.DateTimeFormat(currentLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(ms)
 
-/** What the last backup came to, or why it could not be read. */
 type Backups =
   | { kind: 'loading' }
   | { kind: 'ready'; status: BackupStatus }
   | { kind: 'failed'; code: string }
 
-/** The recent backup and the Markdown mirror, in a small panel over the footer. */
 function StatusPanel(props: { id: string; onClose: () => void }) {
   const mirror = useMirrorStatus()
   const [backups, setBackups] = useState<Backups>({ kind: 'loading' })
@@ -67,10 +65,6 @@ function StatusPanel(props: { id: string; onClose: () => void }) {
   )
 }
 
-/**
- * The sidebar's last line: when the last note was saved, and a chevron that
- * opens the recent backup and the mirror's state.
- */
 export function SidebarFooter() {
   const at = useLastWrite()
   const [open, setOpen] = useState(false)

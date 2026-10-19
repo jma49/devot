@@ -25,7 +25,6 @@ describe('the note list selection', () => {
     expect(selectToggle(sel(['a', 'b', 'd'], 'b'), 'a', 'b', order)).toEqual(sel(['a', 'd'], 'd'))
     expect(selectToggle(sel(['a', 'b', 'd'], 'd'), 'a', 'd', order)).toEqual(sel(['a', 'b'], 'b'))
     expect(selectToggle(sel(['a', 'b'], 'b'), 'a', 'a', order)).toEqual(sel(['b'], 'b'))
-    // The only selected row stays selected.
     expect(selectToggle(undefined, 'a', 'a', order)).toEqual(sel(['a'], 'a'))
   })
 
@@ -51,7 +50,6 @@ describe('the note list selection', () => {
     expect(s).toEqual(sel(['b'], 'b', 'b'))
     s = selectStep(s, 'b', -1, order)!
     expect(s).toEqual(sel(['a', 'b'], 'b', 'a'))
-    // At the end of the list nothing changes.
     expect(selectStep(s, 'b', -1, order)).toBeUndefined()
     expect(selectStep(undefined, undefined, 1, order)).toBeUndefined()
   })

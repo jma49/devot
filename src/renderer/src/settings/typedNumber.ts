@@ -4,7 +4,6 @@
 // elsewhere, or a refused one).
 import { useEffect, useRef, useState } from 'react'
 
-/** How long typing in a number field pauses before the value is stored. */
 export const TYPING_PAUSE_MS = 400
 
 export function useTypedNumber({

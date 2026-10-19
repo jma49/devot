@@ -33,7 +33,6 @@ export function nextArea(
   return undefined
 }
 
-/** The area an element is in, if any. */
 export function areaOf(element: Element | null): Area | undefined {
   const part = element?.closest('[data-devot-part="sidebar"], [data-devot-part="list"], main')
   if (!part) return undefined
@@ -41,7 +40,6 @@ export function areaOf(element: Element | null): Area | undefined {
   return part.matches('[data-devot-part="list"]') ? 'list' : 'editor'
 }
 
-/** Whether an element is in the page and shown. */
 export const visible = (el: HTMLElement | null): el is HTMLElement =>
   el !== null && el.isConnected && el.offsetParent !== null && !el.closest('[inert]')
 

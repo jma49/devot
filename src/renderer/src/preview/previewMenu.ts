@@ -21,11 +21,8 @@ export type PreviewAction =
   | 'startSpeaking'
   | 'stopSpeaking'
 
-/** What the menu needs to know about where it opened. */
 export interface PreviewMenuTarget {
-  /** The address of the link under the pointer, if it is one the app opens. */
   link: string | null
-  /** The selected text to look up and speak, if any. */
   selection: string | null
 }
 
@@ -57,7 +54,6 @@ export function openableHref(href: string | null): string | null {
   return /^https:\/\//i.test(href) || /^devot:\/\//i.test(href) ? href : null
 }
 
-/** The menu's target: the link element (if any) and the page's selected text. */
 export function previewMenuTarget(
   link: Element | null,
   selected: string | null | undefined,
@@ -68,12 +64,10 @@ export function previewMenuTarget(
   }
 }
 
-/** Selects the contents of `pane` alone (Select All in the preview). */
 export function selectAllIn(pane: Element, selection: Selection | null): void {
   selection?.selectAllChildren(pane)
 }
 
-/** A selected run of a text node: its text and the selected part, `start` to `end`. */
 export interface SelectedRun {
   text: string
   start: number

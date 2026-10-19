@@ -44,10 +44,8 @@ const THEMES = { light, dark } as const
  */
 export const SELECTION_CONTRAST = 1.3
 
-/** Graphics, such as a focus ring, keep 3:1 on what they sit on (WCAG AA). */
 export const GRAPHIC_CONTRAST = 3
 
-/** What a focus ring can sit on: the surfaces. */
 export function ringSurfaces(appearance: Appearance): Rgb[] {
   const theme = THEMES[appearance]
   return (['list', 'editor', 'sidebar-opaque', 'popover', 'float-bar'] as const).map(
@@ -55,10 +53,6 @@ export function ringSurfaces(appearance: Appearance): Rgb[] {
   )
 }
 
-/**
- * How strongly a focus ring shows `fill`: `from` (the design strength), or
- * more, in 1% steps, until the ring keeps `GRAPHIC_CONTRAST` on every surface.
- */
 export function ringAlpha(fill: Rgb, appearance: Appearance, from: number): number {
   const surfaces = ringSurfaces(appearance)
   for (let step = Math.round(from * 100); step <= 100; step++) {
@@ -70,7 +64,6 @@ export function ringAlpha(fill: Rgb, appearance: Appearance, from: number): numb
   return 1
 }
 
-/** The contrast of the selection of an editor without focus: lighter, still seen. */
 export const INACTIVE_SELECTION_CONTRAST = 1.15
 
 /**
@@ -102,14 +95,9 @@ export function selectionTints(fill: Rgb, appearance: Appearance): { focused: Rg
   return { focused, inactive: lightest(INACTIVE_SELECTION_CONTRAST) ?? focused }
 }
 
-/** The focused editor's selection for an accent fill (`selectionTints`). */
 export const selectionTint = (fill: Rgb, appearance: Appearance): Rgb =>
   selectionTints(fill, appearance).focused
 
-/**
- * What accent text can sit on: the surfaces, the track and selected-row fills
- * over them, and the editor selection over the editor and under its active line.
- */
 function textBackdrops(appearance: Appearance, selection: Rgb): Rgb[] {
   const theme = THEMES[appearance]
   const surfaces = (['list', 'editor', 'sidebar-opaque'] as const).map(
@@ -172,14 +160,8 @@ export function applyAccent(info: AccentInfo, style: StyleTarget): void {
 
 export const ACCENT_EVENT = 'devot://accent-changed'
 
-/** No system accent: every role falls back to Devot's palette. */
 const OWN_PALETTE: AccentInfo = { multicolor: true, light: null, dark: null }
 
-/**
- * Applies the system accent while `wanted()` says so (Settings >
- * Appearance), Devot's palette otherwise, and keeps it in sync: call the
- * returned `refresh` when the setting changes.
- */
 export async function followSystemAccent(
   style: StyleTarget,
   wanted: () => boolean,

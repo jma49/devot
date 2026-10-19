@@ -33,22 +33,17 @@ import {
   type CommandScope,
 } from './registry'
 
-/** The user's changes: a command's keys in place of its defaults. */
 export type ShortcutOverrides = Readonly<Record<string, readonly string[]>>
 
-/** A change to the overrides: new keys for a command, or null for its defaults. */
 export type ShortcutPatch = Readonly<Record<string, readonly string[] | null>>
 
-/** Every command's keys in effect. */
 export type Keymap = ReadonlyMap<CommandId, readonly string[]>
 
 /** At most this many keys per command (Rust refuses more). */
 export const MAX_KEYS_PER_COMMAND = 4
 
-/** Why a command cannot take a key. */
 export type KeyProblem = 'invalid' | 'reserved' | 'navigation' | 'editMenu' | 'needsModifier'
 
-/** Keys the Edit menu has (Undo, Redo, Cut, Copy, Paste, Select All). */
 export const EDIT_MENU_KEYS: readonly string[] = [
   'Mod+Z',
   'Mod+Shift+Z',
@@ -58,10 +53,7 @@ export const EDIT_MENU_KEYS: readonly string[] = [
   'Mod+A',
 ]
 
-/**
- * Scopes where text is typed (the editor, the title, fields) or that hold
- * them; the panes' keys also work in the editor's text (after Escape).
- */
+/** Scopes where text is typed or that hold them; the panes' keys also work in the editor's text (after Escape). */
 const TYPING_SCOPES: ReadonlySet<CommandScope> = new Set([
   'window',
   'outsideEditor',
@@ -69,7 +61,6 @@ const TYPING_SCOPES: ReadonlySet<CommandScope> = new Set([
   'panes',
 ])
 
-/** Keys that move through lists, the sidebar and text, whatever the modifiers. */
 const NAVIGATION_KEYS: ReadonlySet<string> = new Set([
   'ArrowUp',
   'ArrowDown',
@@ -83,7 +74,6 @@ const NAVIGATION_KEYS: ReadonlySet<string> = new Set([
 
 const isCommandId = (id: string): id is CommandId => COMMANDS.some((c) => c.id === id)
 
-/** Why `id` cannot take `key`, or undefined when it can. */
 export function keyProblem(id: CommandId, key: string): KeyProblem | undefined {
   if (!isShortcut(key) || normalizeShortcut(key) !== key) return 'invalid'
   const spec = command(id)
@@ -96,14 +86,9 @@ export function keyProblem(id: CommandId, key: string): KeyProblem | undefined {
   return s.mod || s.ctrl ? undefined : 'needsModifier'
 }
 
-/** Whether two commands' keys can both be live at once. */
 const overlap = (a: CommandId, b: CommandId) => scopesOverlap(command(a).scope, command(b).scope)
 
-/**
- * The keys a stored list gives `id`: valid ones, each once, at most four;
- * undefined (the defaults) when it is no list, or none of its keys is usable
- * (an empty list stays: no key).
- */
+/** The keys a stored list gives `id`: valid ones, each once, at most four; undefined (the defaults) when it is no list or none of its keys is usable (an empty list stays: no key). */
 function usableKeys(id: CommandId, keys: unknown): string[] | undefined {
   if (!Array.isArray(keys)) return undefined
   const out: string[] = []
@@ -114,7 +99,6 @@ function usableKeys(id: CommandId, keys: unknown): string[] | undefined {
   return out.length > 0 || keys.length === 0 ? out : undefined
 }
 
-/** The overrides as read from storage: known commands with a list of keys. */
 export function readOverrides(value: unknown): ShortcutOverrides {
   const out: Record<string, readonly string[]> = {}
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return out
@@ -126,7 +110,6 @@ export function readOverrides(value: unknown): ShortcutOverrides {
   return out
 }
 
-/** Every command's keys: its defaults, or the user's keys in their place. */
 export function effectiveKeymap(overrides: ShortcutOverrides): Keymap {
   const read = readOverrides(overrides)
   const user: [CommandId, string[]][] = []
@@ -152,7 +135,6 @@ export function effectiveKeymap(overrides: ShortcutOverrides): Keymap {
   )
 }
 
-/** The commands other than `id` that have `key` where `id`'s keys apply too. */
 export function keyClashes(id: CommandId, key: string, keymap: Keymap): CommandId[] {
   return COMMANDS.flatMap((c) =>
     c.id !== id && overlap(id, c.id) && (keymap.get(c.id) ?? []).includes(key) ? [c.id] : [],
@@ -162,14 +144,12 @@ export function keyClashes(id: CommandId, key: string, keymap: Keymap): CommandI
 const sameKeys = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((key, i) => key === b[i])
 
-/** A patch with each command's keys, written as null where they are its defaults. */
 function patchFor(changes: ReadonlyMap<CommandId, readonly string[]>): ShortcutPatch {
   const out: Record<string, readonly string[] | null> = {}
   for (const [id, keys] of changes) out[id] = sameKeys(keys, command(id).keys) ? null : [...keys]
   return out
 }
 
-/** Without the keys `id` takes from them, the commands it clashes with. */
 function takeFrom(
   id: CommandId,
   keys: readonly string[],
@@ -190,29 +170,22 @@ function takeFrom(
   return losers
 }
 
-/** A change and the commands it takes a key from. */
 export interface KeyChange {
   patch: ShortcutPatch
-  /** Commands that lose a key to it (the user is asked first). */
   takes: CommandId[]
 }
 
-/**
- * `id` gets `key` as its one key (a recorded key replaces the command's
- * keys); commands that have it where `id`'s keys apply lose it.
- */
+/** `id` gets `key` as its one key; commands that have it where `id`'s keys apply lose it. */
 export function assignKey(id: CommandId, key: string, keymap: Keymap): KeyChange {
   const changes = new Map<CommandId, readonly string[]>([[id, [key]]])
   const takes = takeFrom(id, [key], keymap, changes)
   return { patch: patchFor(changes), takes }
 }
 
-/** `id` gets no key. */
 export function clearKeys(id: CommandId): ShortcutPatch {
   return patchFor(new Map([[id, []]]))
 }
 
-/** `id` gets its default keys back, taking them from commands that have them now. */
 export function resetKeys(id: CommandId, keymap: Keymap): KeyChange {
   const defaults = command(id).keys
   const changes = new Map<CommandId, readonly string[]>([[id, defaults]])
@@ -220,12 +193,10 @@ export function resetKeys(id: CommandId, keymap: Keymap): KeyChange {
   return { patch: patchFor(changes), takes }
 }
 
-/** Every command back to its defaults. */
 export function resetAllKeys(overrides: ShortcutOverrides): ShortcutPatch {
   return Object.fromEntries(Object.keys(overrides).map((id) => [id, null]))
 }
 
-/** The overrides with a patch applied. */
 export function applyPatch(overrides: ShortcutOverrides, patch: ShortcutPatch): ShortcutOverrides {
   const out: Record<string, readonly string[]> = { ...overrides }
   for (const [id, keys] of Object.entries(patch)) {
@@ -235,12 +206,10 @@ export function applyPatch(overrides: ShortcutOverrides, patch: ShortcutPatch): 
   return out
 }
 
-/** Whether a command has keys of the user's own. */
 export function isCustomized(id: CommandId, overrides: ShortcutOverrides): boolean {
   return Object.hasOwn(overrides, id)
 }
 
-/** The parts of a key press that make a shortcut. */
 export interface RecordedPress {
   code?: string | undefined
   key: string

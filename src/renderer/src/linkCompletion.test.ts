@@ -12,7 +12,6 @@ import { linkCompletion, type LinkSources } from './linkCompletion'
 
 const ID = '0192a6f0-0000-7000-8000-000000000001'
 
-/** A promise settled from outside, to edit the note while one is being made. */
 function later<T>() {
   let settle!: (value: T) => void
   let fail!: (reason: unknown) => void
@@ -59,7 +58,6 @@ function setup(doc: string, head: number) {
   return { made, sources, view, source, type, asView: view as unknown as EditorView }
 }
 
-/** The popup's options for the cursor's place. */
 async function options(source: () => Promise<CompletionResult | null>) {
   const result = await source()
   if (!result) throw new Error('no popup')
@@ -92,7 +90,6 @@ describe('where the [[ popup opens', () => {
 })
 
 describe('the card beside a highlighted note', () => {
-  /** Just enough of a document to build the card. */
   const fakeDocument = () => ({
     createElement: () => ({
       className: '',

@@ -55,10 +55,6 @@ async function compose(rendered: string, box: number, ratio: number): Promise<Sy
 
 const placed = new Map<string, Promise<SymbolImage>>()
 
-/**
- * A symbol drawn for a box at a device pixel ratio (every symbol at one point
- * size and weight, in one canvas size). Never scaled in the page.
- */
 function placedSymbol(
   symbol: string,
   box: number,
@@ -81,7 +77,6 @@ function placedSymbol(
   return entry
 }
 
-/** The window's device pixel ratio; a change (another display) renders the symbols again. */
 function subscribeRatio(notify: () => void) {
   const query = matchMedia(`(resolution: ${devicePixelRatio}dppx)`)
   query.addEventListener('change', notify)
@@ -89,7 +84,6 @@ function subscribeRatio(notify: () => void) {
 }
 const currentRatio = () => (typeof devicePixelRatio === 'number' ? devicePixelRatio : 2)
 
-/** The appearance the page shows: the one chosen in Settings, else the system's. */
 export function useAppearance(): Appearance {
   return useSyncExternalStore(
     subscribeAppearance,
@@ -99,10 +93,6 @@ export function useAppearance(): Appearance {
   )
 }
 
-/**
- * An SF Symbol, coloured with the text colour of its parent, at `weight` (regular unless given). Decorative: the
- * control that holds it carries the accessible name.
- */
 export function Icon({
   name,
   size,
@@ -110,7 +100,6 @@ export function Icon({
 }: {
   name: IconName
   size: IconSize
-  /** The stroke weight; regular when left out. */
   weight?: SymbolWeight
 }) {
   return <SymbolIcon symbol={symbolFor(name)} size={size} {...(weight ? { weight } : {})} />
@@ -118,12 +107,7 @@ export function Icon({
 
 export type IconSize = keyof typeof BOXES
 
-/**
- * An SF Symbol by its system name (one Devot lists: `symbols.json` or the
- * notebook icon catalog), drawn like `Icon`. `lazy` renders it only once it
- * scrolls into view (a long grid of symbols); `fallback` is drawn instead
- * when the symbol cannot be rendered.
- */
+/** `lazy` renders only once it scrolls into view (a long grid of symbols); `fallback` is drawn when the symbol cannot be rendered. */
 export function SymbolIcon({
   symbol,
   size,
@@ -135,7 +119,6 @@ export function SymbolIcon({
   symbol: string
   size: IconSize
   weight?: SymbolWeight
-  /** More classes for the icon (a colour). */
   className?: string
   lazy?: boolean
   fallback?: string
@@ -191,11 +174,6 @@ export function SymbolIcon({
   )
 }
 
-/**
- * An SF Symbol as a plain element, for DOM that React does not render (the
- * editor's popups and widgets): placed like `Icon` on a `box`-pixel square,
- * its colour the text colour of its parent, in the current appearance.
- */
 export function iconElement(name: IconName, box: number): HTMLElement {
   const span = document.createElement('span')
   const symbol = symbolFor(name)

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { clockTime, lastWrite, markWrite } from './lastWrite'
 import { sectionStore } from './sidebarSections'
 
-/** A Storage on a Map. */
 const memory = () => {
   const map = new Map<string, string>()
   return {

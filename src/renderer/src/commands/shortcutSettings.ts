@@ -23,13 +23,11 @@ import { invoke } from '../ipc'
 export const KEYBOARD_SHORTCUTS_CHANGED = 'devot:keyboard-shortcuts-changed'
 const TAURI_EVENT = 'devot://keyboard-shortcuts-changed'
 
-/** A snapshot from Rust: the changes and their revision (higher is newer). */
 export interface ShortcutsSnapshot {
   revision: number
   overrides: ShortcutOverrides
 }
 
-/** A snapshot from an answer or an event; undefined for anything else. */
 export function readShortcutsSnapshot(value: unknown): ShortcutsSnapshot | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { revision, overrides } = value as Record<string, unknown>
@@ -41,52 +39,43 @@ export function readShortcutsSnapshot(value: unknown): ShortcutsSnapshot | undef
 const sameOverrides = (a: ShortcutOverrides, b: ShortcutOverrides) =>
   JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort())
 
-/** The stored changes with this window's on top (see syncedStore.ts). */
 const store = createSyncedStore<ShortcutOverrides, ShortcutPatch>({
   initial: { revision: -1, value: {} },
   apply: applyPatch,
   same: sameOverrides,
 })
 
-/** The keys in effect, for the changes in effect (computed once per change). */
 let keymap: Keymap = effectiveKeymap({})
 store.subscribe(() => {
   keymap = effectiveKeymap(store.current())
   setCommandKeys(keymap)
 })
 
-/** A snapshot from an answer or an event, as the store takes it. */
 const reported = (snapshot: ShortcutsSnapshot | undefined) =>
   snapshot && { revision: snapshot.revision, value: snapshot.overrides }
 
-/** The changes in effect in this window. */
 export function shortcutOverrides(): ShortcutOverrides {
   return store.current()
 }
 
-/** Every command's keys in effect in this window. */
 export function currentKeymap(): Keymap {
   return keymap
 }
 
-/** Calls `notify` after every change of the keys in effect. */
 export function subscribeKeymap(notify: () => void): () => void {
   return store.subscribe(notify)
 }
 
-/** The keys in effect, re-rendering on every change. */
 export function useKeymap(): Keymap {
   return useSyncExternalStore(subscribeKeymap, currentKeymap)
 }
 
-/** The changes in effect, re-rendering on every change. */
 export function useShortcutOverrides(): ShortcutOverrides {
   return useSyncExternalStore(subscribeKeymap, shortcutOverrides)
 }
 
 let started = false
 
-/** Reads the stored changes and follows changes made in any window. Once per page. */
 export function startShortcutSettings(): void {
   if (started) return
   started = true

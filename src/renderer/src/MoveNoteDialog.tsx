@@ -9,10 +9,6 @@ import { isImeKey } from './ime'
 
 const optionId = (i: number) => `move-note-option-${i}`
 
-/**
- * Picks a notebook for a note: type to filter, arrow keys and Return (or a
- * click) to move it, Escape to cancel.
- */
 export function MoveNoteDialog(props: {
   tree: BookNode[]
   title: string
@@ -21,7 +17,6 @@ export function MoveNoteDialog(props: {
    * the options (a template), so that every option, No Notebook too, moves it.
    */
   value: string | null | undefined
-  /** What the dialog says it moves, in place of the note's title (several notes). */
   detail?: string | undefined
   onMove: (bookId: string | null) => void
   onCancel: () => void
@@ -32,8 +27,6 @@ export function MoveNoteDialog(props: {
   useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
-    // Closing (rather than only removing) the dialog gives the keyboard back
-    // to the note list.
     return () => el?.close()
   }, [])
 
@@ -64,7 +57,6 @@ export function MoveNoteDialog(props: {
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    // Keys an input method composes with (picking a candidate) are its own.
     if (isImeKey(e.nativeEvent)) return
     const next = fieldStep(e.key, index, matches.length)
     if (next !== undefined) {

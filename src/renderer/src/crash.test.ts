@@ -4,9 +4,7 @@ import { crashEnvironment, scrubEvent } from './crash'
 
 const NOTE = 'buy oat milk'
 const TITLE = 'Diary 2026'
-/** A title in a script other than Latin. */
 const WIDE_TITLE = `${String.fromCodePoint(0x65e5, 0x8a18)} 2026`
-/** The first bytes of a PNG attachment, as base64 and as a data URL. */
 const ATTACHMENT = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB'
 const SECRET = `Grocery list: ${NOTE}, ${TITLE} ${WIDE_TITLE} /Users/alice/Documents/${TITLE}.md ${ATTACHMENT}`
 const SECRETS = [NOTE, TITLE, WIDE_TITLE, 'Grocery list', 'alice', "Alice's MacBook", ATTACHMENT]

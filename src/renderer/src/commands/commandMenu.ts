@@ -16,7 +16,6 @@ import { subscribeKeymap } from './shortcutSettings'
 
 let tail: Promise<unknown> = Promise.resolve()
 
-/** Runs `call` after the native menu calls queued before it. */
 export function queueMenuCall<T>(call: () => Promise<T>): Promise<T> {
   const run = tail.then(call)
   tail = run.catch(() => undefined)
@@ -26,7 +25,6 @@ export function queueMenuCall<T>(call: () => Promise<T>): Promise<T> {
 /** What Rust has: the defaults it built the items with, until told otherwise. */
 let sent = JSON.stringify(commandMenuKeys(defaultKeys))
 
-/** Gives the command items the keys in effect, if Rust does not have them yet. */
 export function syncCommandMenu(): void {
   const keys = commandMenuKeys()
   const said = JSON.stringify(keys)
@@ -39,7 +37,6 @@ export function syncCommandMenu(): void {
   })
 }
 
-/** Keeps the command items' keys the keys in effect, for the window's life. */
 export function useCommandMenu() {
   useEffect(() => {
     syncCommandMenu()

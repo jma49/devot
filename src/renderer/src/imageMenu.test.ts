@@ -9,7 +9,6 @@ import {
   type ImageMenuTarget,
 } from './imageMenu'
 
-/** The menu's lines for a target, with a submenu's items indented after it. */
 async function shown(target: ImageMenuTarget) {
   interface Item {
     text: string

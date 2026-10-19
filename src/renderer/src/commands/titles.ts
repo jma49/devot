@@ -5,7 +5,6 @@ import { format, t, type MessageKey } from '../i18n'
 import { shortcutLabel } from './keys'
 import { commandKeys, type CommandId } from './registry'
 
-/** `title` with the command's first key in effect, or alone when it has none. */
 export function titleWithKey(title: MessageKey, id: CommandId): string {
   const key = commandKeys(id)[0]
   return key === undefined

@@ -24,10 +24,8 @@ describe('nextArea', () => {
   })
 
   it('skips areas that are hidden or empty', () => {
-    // The sidebar hidden.
     expect(nextArea('editor', 1, shown('list', 'editor'))).toBe('list')
     expect(nextArea('list', -1, shown('list', 'editor'))).toBe('editor')
-    // No note open.
     expect(nextArea('list', 1, shown('sidebar', 'list'))).toBe('sidebar')
   })
 

@@ -248,7 +248,6 @@ export const en = {
   'note.searchBooks': 'Search notebooks\u2026',
   'note.noBooksFound': 'No notebooks found',
   'status.pickNone': 'None',
-  /** Follows a duplicated note's title: "Plan copy". */
   'note.copySuffix': 'copy',
   'note.titleLabel': 'Title',
   'note.bodyLabel': 'Note body',
@@ -1077,8 +1076,6 @@ export const en = {
   'palette.run': 'Run',
   'palette.open': 'Open',
   'palette.showTag': 'Show Notes with Tag',
-  // The paste chooser (editor/pasteChooser.ts): the formats a pasted URL can
-  // take, each with a hint of its text, and what a fetch shows.
   'pasteFormat.plain': 'Plain URL',
   'pasteFormat.plainDetail': 'https://…',
   'pasteFormat.snippet': 'GitHub Code Snippet',
@@ -1098,7 +1095,6 @@ export const en = {
   'pasteFormat.tooLarge': 'The file is too large.',
   'pasteFormat.noLines': 'The file has no such lines.',
   'pasteFormat.failed': 'Could not fetch this link.',
-  // The slash menu (editor/slashMenu.ts): its groups and the items with labels of their own.
   'slash.groupBasic': 'Basic Formatting',
   'slash.groupAlerts': 'Alerts',
   'slash.groupOther': 'Other',
@@ -1108,16 +1104,13 @@ export const en = {
   'slash.orderedList': 'Ordered List',
   'slash.remoteImage': 'Remote Image',
   'slash.unorderedList': 'Unordered List',
-  // Words in the items' Markdown hints, and the Remote Image's fields.
   'slash.hintAlt': 'alt',
   'slash.hintUrl': 'url',
   'slash.hintText': 'text',
   'slash.hintTitle': 'title',
-  // Ghost text in the editor (editor/hints.ts).
   'editor.slashHint': "Type '/' for commands...",
   'editor.emptyNoteHint': 'Just start typing, or',
   'editor.chooseTemplate': 'Choose a template',
-  // The copy button of a code block in the editor (editor/codeBlocks.ts).
   'editor.copyCodeBlock': 'Copy code block',
 } as const
 

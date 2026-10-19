@@ -4,7 +4,6 @@
 // and any client that reads an `mcpServers` JSON file.
 import { SERVER_NAME } from '../../../mcp/version'
 
-/** What Rust says about devot-mcp (`settings_mcp_setup`). */
 export interface McpSetup {
   /** The built script in the checkout this app came from; null when it is not there. */
   script: string | null
@@ -12,10 +11,8 @@ export interface McpSetup {
   db: string | null
 }
 
-/** Shown in place of the script's path when this app does not know it. */
 export const PLACEHOLDER_SCRIPT = '/path/to/devot/dist-mcp/devot-mcp.mjs'
 
-/** `node`'s arguments: the script, then `--db <path>` when one is needed. */
 export function mcpArgs(setup: McpSetup): string[] {
   const args = [setup.script ?? PLACEHOLDER_SCRIPT]
   if (setup.db !== null) args.push('--db', setup.db)
@@ -28,7 +25,6 @@ export function shellWord(word: string): string {
   return `'${word.replace(/'/g, `'\\''`)}'`
 }
 
-/** A TOML basic string. */
 function tomlString(text: string): string {
   let escaped = ''
   for (const c of text) {
@@ -41,25 +37,21 @@ function tomlString(text: string): string {
   return `"${escaped}"`
 }
 
-/** Claude Code: adds devot-mcp for every project of this user. */
 export function claudeCodeCommand(setup: McpSetup): string {
   const command = ['node', ...mcpArgs(setup)].map(shellWord).join(' ')
   return `claude mcp add --scope user ${SERVER_NAME} -- ${command}`
 }
 
-/** Codex: the table to add to `~/.codex/config.toml`. */
 export function codexConfig(setup: McpSetup): string {
   const args = mcpArgs(setup).map(tomlString).join(', ')
   return `[mcp_servers.${SERVER_NAME}]\ncommand = "node"\nargs = [${args}]\n`
 }
 
-/** Any client with an `mcpServers` JSON file (Claude Desktop, Cursor and others). */
 export function mcpServersJson(setup: McpSetup): string {
   const config = { mcpServers: { [SERVER_NAME]: { command: 'node', args: mcpArgs(setup) } } }
   return `${JSON.stringify(config, null, 2)}\n`
 }
 
-/** `value` as Rust's answer, or null when it is not one. */
 export function asMcpSetup(value: unknown): McpSetup | null {
   if (typeof value !== 'object' || value === null) return null
   const { script, db } = value as Record<string, unknown>

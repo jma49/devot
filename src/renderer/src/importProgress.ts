@@ -12,7 +12,6 @@ const NONE: ScanFound = { files: 0, images: 0 }
 const found = new Map<number, ScanFound>()
 const listeners = new Set<() => void>()
 
-/** What scan `id` has found so far (nothing yet, or no scan: zero). */
 export const scanFound = (id: number | null): ScanFound =>
   (id === null ? undefined : found.get(id)) ?? NONE
 
@@ -21,7 +20,6 @@ export function setScanFound(id: number, counts: ScanFound): void {
   for (const listener of listeners) listener()
 }
 
-/** Drops what scan `id` found, once its sheet has closed. */
 export function forgetScanFound(id: number): void {
   found.delete(id)
 }
@@ -31,7 +29,6 @@ export function subscribeScanFound(listener: () => void): () => void {
   return () => listeners.delete(listener)
 }
 
-/** What scan `id` has found so far, kept up to date. */
 export function useScanFound(id: number | null): ScanFound {
   return useSyncExternalStore(subscribeScanFound, () => scanFound(id))
 }

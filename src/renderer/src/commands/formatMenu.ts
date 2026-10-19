@@ -40,18 +40,10 @@ import {
 import { subscribeKeymap } from './shortcutSettings'
 
 export const FORMAT_MENU_EVENT = 'devot://format'
-/** What App re-sends a picked Format menu item as (tests dispatch it). */
 export const FORMAT_MENU_PAGE_EVENT = 'devot:format'
-/** The formats that do nothing at the editor's caret; their keys are left to the editor. */
 let inert: ReadonlySet<FormatId> = new Set()
-/** Sends the menu its state again; set while the hook is mounted. */
 let resend: (() => void) | undefined
 
-/**
- * Sets the formats that do nothing where the editor's caret is (see
- * `inertFormats`), empty when the editor is gone. The menu follows at once
- * when the set changes.
- */
 export function setInertFormats(formats: readonly FormatId[]): void {
   const same = formats.length === inert.size && formats.every((f) => inert.has(f))
   if (same) return
@@ -62,7 +54,6 @@ export function setInertFormats(formats: readonly FormatId[]): void {
 /** A menu event this soon after the editor's keys ran the same format is that key again. */
 const ECHO_MS = 500
 
-/** A format the editor's keys ran, and when. */
 export interface KeyFormat {
   format: FormatId
   at: number
@@ -70,12 +61,10 @@ export interface KeyFormat {
 
 let lastKeyFormat: KeyFormat | undefined
 
-/** Notes that the editor's keymap ran a format (see FormatToolbar). */
 export function formatKeyRan(format: FormatId): void {
   lastKeyFormat = { format, at: performance.now() }
 }
 
-/** Whether a Format menu event for `id` is the key the editor just ran `ran` for. */
 export function isEcho(id: CommandId, ran: KeyFormat | undefined, now: number): boolean {
   return ran !== undefined && formatOf(id) === ran.format && now - ran.at < ECHO_MS
 }
@@ -87,11 +76,6 @@ export function isEcho(id: CommandId, ran: KeyFormat | undefined, now: number): 
 const editorHasKeyboard = (focused: EventTarget | null = document.activeElement) =>
   document.hasFocus() && inEditor(focused)
 
-/**
- * Keeps the Format menu's keys live while the editor has the keyboard, and
- * runs a picked item through the window's handler for it (one exists while
- * the editor shows).
- */
 export function useFormatMenu(handlers: CommandHandlers) {
   const latest = useRef(handlers)
   useEffect(() => {

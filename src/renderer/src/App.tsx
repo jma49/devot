@@ -10,8 +10,7 @@ import type {
   TagRecord,
   TrashedNote,
 } from '../../core'
-// Imported directly (not through the core index) so the main bundle does not
-// pull in the preview pipeline.
+// Imported directly, not via the core index, to keep the preview pipeline out of the main bundle.
 import {
   bookCounts,
   bookIcon,
@@ -189,22 +188,17 @@ import { restartNow, useUpdates } from './UpdateNotice'
 import { checkForUpdates } from './updates'
 import { track } from './usage'
 
-/** File > Export > All Notes (`markdown` or `html`), from Rust's menu. */
 const EXPORT_ALL = 'devot:export-all'
 
-/** A query and the view it narrows (none: every note). */
 interface Search {
   query: string
   scope: SearchScope | undefined
 }
 
-/** A search counts as run (a usage event) once its results have shown this long. */
 const SEARCH_SETTLED_MS = 1000
 
-/** View > Command Palette… in the menu bar; App re-sends the Tauri event as this. */
 export const SHOW_PALETTE = 'devot:show-palette'
 
-/** View > Toggle Editor and Preview, and View > Show Editor and Preview. */
 export const TOGGLE_PREVIEW = 'devot:toggle-preview'
 export const SHOW_SPLIT = 'devot:show-split'
 
@@ -212,49 +206,28 @@ export const SHOW_SPLIT = 'devot:show-split'
 const PALETTE_HEADLINES = 500
 const NO_LIBRARY = { book: [], tag: [], note: [] }
 
-// Props that stay the same object, so the list and the sidebar (memoized)
-// do not render again for an equal one.
+// Stable identity so the memoized list and sidebar skip equal props.
 const NO_NOTES: NoteSummary[] = []
 const NO_TAGS: ReadonlyMap<string, TagRecord> = new Map()
 const ALL_NOTES: Selection = { kind: 'all' }
 
-/**
- * A title being typed shows in the lists once typing has paused this long:
- * each change re-sorts them, which costs more the more notes there are.
- */
+/** Each title change re-sorts the lists, so typing is debounced by this much. */
 const LIST_TITLE_MS = 150
 
-/** How long after the panes change the editor measures its lines again. */
 const EDITOR_REMEASURE_MS = 100
 
-/** View > Hide Sidebar in the menu bar; App re-sends the Tauri event as this. */
 export const TOGGLE_SIDEBAR = 'devot:toggle-sidebar'
 
-/**
- * The first menu bar toggle this soon after the key did the same is that key
- * press reaching the menu too (an echo), and is dropped.
- */
+/** A menu toggle this soon after the key did the same is that key press echoing through the menu; it is dropped. */
 const MENU_ECHO_MS = 500
 
-/**
- * The window's last state is saved this long after the selection or a
- * scroll position last changed (at once for a view, note or mode change).
- */
 const LAST_STATE_SAVE_MS = 400
 
-/**
- * Saves pending edits before something that reads storage. A note that
- * cannot be saved keeps its changes in the core, which tries again and
- * reports it (the save notice), so what was asked for goes on.
- */
+/** Flushes pending edits; a failed save stays in the core (which retries and reports it), so the caller goes on. */
 const saveEdits = (core: Core) => core.flush().catch(() => {})
 
-/**
- * Hides or shows the sidebar, from the start of the list's header. While the
- * sidebar is hidden, the window controls sit before it (app.css).
- */
 function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
-  // The tooltip names the key in effect.
+  // Re-render on keymap changes: the tooltip names the key in effect.
   useKeymap()
   return (
     <>
@@ -274,63 +247,47 @@ function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void
   )
 }
 
-/** How long a request for an area waits for it to show. */
 const AREA_ASK_MS = 1000
-/** How long after a workspace opens the sidebar takes the keyboard (the slide has begun). */
 const WORKSPACE_FOCUS_MS = 100
-/** How long after a workspace closes the sidebar takes the keyboard. */
 const WORKSPACE_LEAVE_FOCUS_MS = 10
 
-/** Where the keyboard goes once the window has rendered. */
 type FocusRequest =
   | { kind: 'area'; area: Area }
   /** `start`: the caret at the start of the body. */
   | { kind: 'title' | 'body'; id: string; start?: boolean }
 
-/** Where the keyboard was when the palette opened, to give it back. */
 interface FocusReturn {
   editor: boolean
   element: HTMLElement | null
 }
 
-/** The window: sidebar, note list and editor under a unified toolbar. */
 export function App() {
-  // Where this window was when it last closed (see lastState.ts): its view,
-  // filter and mode show at once; the open note once the lists have loaded.
+  // The last state restores view, filter and mode at once, the open note once the lists load (lastState.ts).
   const lastStateStore = useMemo(() => currentLastStateStore(), [])
   const [lastState] = useState(() => lastStateStore.load())
   // Tooltips name the keys in effect; they follow the user's changes.
   useKeymap()
   const [core, setCore] = useState<Core>()
-  // Why the core could not start (a code), until Try Again starts it again;
-  // `startAttempt` counts the starts.
   const [startFailure, setStartFailure] = useState<string>()
   const [startAttempt, setStartAttempt] = useState(0)
-  // The code of an error the running core worker raised (a notice).
   const [coreFailure, setCoreFailure] = useState<string>()
-  // What the lists show for a note with no title (see headlines.ts).
   const loadHeadlines = useMemo(
     () => (core ? (ids: string[]) => core.headlines(ids) : undefined),
     [core],
   )
-  // The body excerpts under the rows' titles (see NoteService.excerpts).
   const loadExcerpts = useMemo(
     () => (core ? (ids: string[]) => core.excerpts(ids) : undefined),
     [core],
   )
-  // The task progress on the rows (see NoteService.progress).
   const loadProgress = useMemo(
     () => (core ? (ids: string[]) => core.progress(ids) : undefined),
     [core],
   )
-  // The lists have loaded once (the last state is restored then).
   const [listsLoaded, setListsLoaded] = useState(false)
   const [notes, setNotes] = useState<NoteSummary[]>([])
   const [books, setBooks] = useState<BookRecord[]>([])
   const [library, setLibrary] = useState<Selection>(() => lastState?.view ?? { kind: 'all' })
-  // The notebook open as a workspace: the sidebar shows only it (see Sidebar's
-  // `workspace`). A view outside it, a note opened outside it, or the
-  // notebook going leaves it.
+  // Notebook open as a workspace (the sidebar shows only it); a view or note outside it, or the notebook going, leaves it.
   const [workspace, setWorkspace] = useState<string | null>(() =>
     lastState?.view.kind === 'book' ? (lastState.workspace ?? null) : null,
   )
@@ -339,20 +296,13 @@ export function App() {
     lastState?.view.kind === 'templates' ? null : (lastState?.filter ?? null),
   )
   const [trash, setTrash] = useState<TrashedNote[]>([])
-  // Notes in Templates: listed in their own view, never in the library.
   const [templates, setTemplates] = useState<NoteSummary[]>([])
-  // The built-in (starter) template shown read-only in the Templates view.
   const [builtIn, setBuiltIn] = useState<string>()
-  // The template picker (New Note from Template), and the templates used
-  // last on this device.
-  // The recently used ones are read when it opens. With `into`, the chosen
-  // template fills that (empty) note instead of making a new one.
+  // Template picker: recent ones are read on open; with `into`, the pick fills that empty note instead of making a new one.
   const [picking, setPicking] = useState<{ recent: string[]; into?: string }>()
   const recentTemplates = useMemo(() => currentRecentTemplates(), [])
   const [query, setQuery] = useState('')
-  // Where the query looks: every note, or the notes of the current view.
   const [searchIn, setSearchIn] = useState<'all' | 'view'>('view')
-  // The latest results, with the search they answer.
   const [results, setResults] = useState<{
     found: NoteSummary[]
     search: Search
@@ -360,9 +310,7 @@ export function App() {
   const searchField = useRef<HTMLInputElement>(null)
   const runSearch = useRef<(search: Search) => void>(undefined)
   const latestSearch = useRef<Search>({ query: '', scope: undefined })
-  // Results show only while there is a query.
   const searching = query.trim() !== '' && results !== undefined
-  // A permanent deletion waiting for the user's confirmation.
   const [confirm, setConfirm] = useState<
     | { kind: 'empty' }
     | { kind: 'one'; id: string; title: string }
@@ -370,26 +318,19 @@ export function App() {
     | { kind: 'tag'; id: string; name: string; count: number }
     | { kind: 'book'; id: string; name: string; subs: number; notes: number }
   >()
-  // A notebook just created, shown with its name ready to edit.
   const [renamingBook, setRenamingBook] = useState<string>()
   const [selected, setSelected] = useState<string>()
-  // Several notes selected in the list (see listSelection.ts); the open
-  // note stays open among them, and the editor pane shows a summary.
-  // It belongs to the view it was made in (see `listView`).
+  // Several notes selected (listSelection.ts); the open note stays open among them. Bound to the view it was made in (`listView`).
   const [multi, setMultiIn] = useState<{
     view: string
     selection: ListSelection
   }>()
-  // How many notes the last batch change could not change (a notice).
   const [batchFailed, setBatchFailed] = useState<number>()
   useEffect(() => refuseTextDrops(window), [])
   const [title, setTitle] = useState('')
-  // The note whose editor takes the keyboard when it opens: one just created,
-  // or one a palette action opened while the editor had the keyboard. Opening
-  // one from the list leaves the keyboard there.
+  // Note whose editor takes the keyboard on open: one just created, or opened by a palette action from the editor (opening from the list leaves it there).
   const [takesKeyboard, setTakesKeyboard] = useState<string>()
   const [mode, setMode] = useState<Mode>(() => lastState?.mode ?? 'edit')
-  // Focus mode hides the sidebar and the list; each window remembers it.
   const focusStore = useMemo(() => currentFocusStore(), [])
   const [focus, setFocus] = useState(() => focusStore.load())
   const toggleFocus = useCallback(() => {
@@ -398,24 +339,16 @@ export function App() {
       return !on
     })
   }, [focusStore])
-  // Each window remembers whether it hides the sidebar (Cmd+/, View > Hide
-  // Sidebar); focus mode hides it too.
   const sidebarStore = useMemo(() => currentSidebarStore(), [])
   const [sidebarHidden, setSidebarHidden] = useState(() => sidebarStore.load())
-  // A narrow window hides the sidebar until Show Sidebar asks for it; the
-  // request lasts until the window crosses the threshold again, and neither
-  // it nor the hiding is stored (the saved choice is the user's own).
+  // A narrow window hides the sidebar until Show Sidebar asks; the request lasts until the window crosses the threshold again. Neither is stored.
   const narrow = useNarrowWindow()
   const [askedIn, setAskedIn] = useState<boolean | null>(null)
-  // The request ends when the window is wide again.
   if (!narrow && askedIn !== null) setAskedIn(null)
   const sidebarOff = sidebarHidden || (narrow && askedIn !== narrow)
   const sidebarShown = !focus && !sidebarOff
-  // Hiding or showing the sidebar or the list fades it and slides the panes
-  // that stay (paneMotion.ts): where they were is measured while the window
-  // still shows it, as the change renders, and played back once it is laid
-  // out. The panes are inert from the first frame of a hide, so the keyboard
-  // leaves them as it did when they vanished at once.
+  // Hide/show fades and slides the panes (paneMotion.ts): positions are measured before the change renders and played back after layout.
+  // Panes are inert from the first frame of a hide, so the keyboard leaves them as it did when they vanished at once.
   const [panesSeen, setPanesSeen] = useState({ focus, sidebarOff })
   const panesBefore = useRef<PaneBoxes | null>(null)
   if (panesSeen.focus !== focus || panesSeen.sidebarOff !== sidebarOff) {
@@ -427,7 +360,6 @@ export function App() {
     panesBefore.current = null
     if (!before) return
     movePanes(before, shownPanes(panesSeen))
-    // The editor lays out its lines again once it has its new width.
     const timer = setTimeout(() => editorRef.current?.remeasure(), EDITOR_REMEASURE_MS)
     return () => clearTimeout(timer)
   }, [panesSeen])
@@ -436,18 +368,14 @@ export function App() {
     document.querySelector('.window > .list')?.toggleAttribute('inert', focus)
     // A start that failed is replaced by a fresh window (Try Again): its panes are new.
   }, [focus, sidebarOff, startFailure])
-  // The notes this window opened, for Back and Forward. The ref moves at
-  // once (quick presses each step on); the state renders it.
+  // Notes opened, for Back and Forward. The ref moves at once so quick presses each step on; the state renders it.
   const trailRef = useRef<Trail>(EMPTY_TRAIL)
   const [trail, setTrail] = useState(EMPTY_TRAIL)
   const moveTrail = (next: Trail) => {
     trailRef.current = next
     setTrail(next)
   }
-  // The note a navigation is opening, from the moment it starts until the
-  // window shows it: quick presses of Back, Forward, Next and Previous step
-  // on from it, not from the note still shown. Each open counts up `opens`;
-  // only the latest one shows its note.
+  // Note a navigation is opening until the window shows it: quick Back/Forward/Next/Previous presses step on from it. Each open bumps `opens`; only the latest shows.
   const openingRef = useRef<string | undefined>(undefined)
   const opens = useRef(0)
   const startOpening = (id: string) => {
@@ -457,8 +385,6 @@ export function App() {
   useEffect(() => {
     if (openingRef.current === selected) openingRef.current = undefined
   })
-  // Where the keyboard goes once the window has rendered (see the effect
-  // below); asking re-renders.
   const focusAfter = useRef<FocusRequest>(undefined)
   const focusAskedAt = useRef(0)
   const [, setFocusAsked] = useState(0)
@@ -468,68 +394,48 @@ export function App() {
     setFocusAsked((n) => n + 1)
   }
   const titleRef = useRef<HTMLInputElement>(null)
-  // The open note's tag field, which Return in the title goes on to.
   const tagInputRef = useRef<HTMLInputElement>(null)
-  // The backups dialog, and the code of a failed automatic backup.
   const [backupsOpen, setBackupsOpen] = useState(false)
   const [backupNotice, setBackupNotice] = useState<string>()
-  // The search index rebuild: running, then its result for a few seconds.
   const [indexState, setIndexState] = useState<RebuildState>()
   const indexRunning = useRef(false)
-  // The code of a notebook, tag or note change that was refused, shown in a notice.
   const [changeNotice, setChangeNotice] = useState<string>()
-  // The codes of pasted or dropped images that could not be stored, shown in a notice.
   const [imageNotice, setImageNotice] = useState<string[]>()
-  // A link from another app that could not be followed.
   const [linkNotice, setLinkNotice] = useState<DeepLinkProblem>()
-  // Updates: Rust checks and downloads; the notice offers the restart.
   const updates = useUpdates()
   const [exportNotice, setExportNotice] = useState<{
     failure: ExportFailure
     code: string
   }>()
-  // Notes the core could not save yet; it keeps their changes and tries
-  // again (saving.ts). Their notice shows unless dismissed since the last
-  // new failure; the first quit after they failed is held.
+  // Notes the core could not save yet (saving.ts). Their notice shows unless dismissed since the last new failure; the first quit after a failure is held.
   const [saveProblems, setSaveProblems] = useState<SaveProblem[]>([])
   const [saveNoticeDismissed, setSaveNoticeDismissed] = useState(false)
   const [quitHeld, setQuitHeld] = useState(false)
   const saveProblemsRef = useRef<SaveProblem[]>([])
   const quitGuard = useMemo(() => createQuitGuard(), [])
   const saveNoticeShown = saveProblems.length > 0 && !saveNoticeDismissed
-  // Imports: those waiting their turn, and the one the sheet shows (a scan
-  // goes on while it waits; its progress and result update its job).
   const importJobs = useRef<ImportJob[]>([])
   const [importJob, setImportJob] = useState<ImportJob>()
-  // Each job gets a fresh sheet.
   const [importKey, setImportKey] = useState(0)
-  // One sheet at a time: an import never runs while Backups is open (a
-  // restore replaces the database under it), and Backups waits for an import.
+  // One sheet at a time: no import while Backups is open (a restore replaces the database under it), and Backups waits for an import.
   const importShown = useRef(false)
   const backupsShown = useRef(false)
   const backupsWanted = useRef(false)
   // Sessions taken (their scan arrived) or closed: later events for them are ignored.
   const seenImports = useRef(new Set<number>())
-  // The session of the job the sheet shows.
   const shownImport = useRef<number | null>(null)
   const coreRef = useRef<Core>(undefined)
-  // The open note's Markdown, mirrored from the editor for the preview. It
-  // is not App state: typing renders only the preview, while it shows.
+  // The open note's Markdown mirrored for the preview; not App state, so typing renders only the preview.
   const [openText] = useState(() => textStore())
-  // The note whose Revision History sheet is open; the editor applies restores.
   const [historyFor, setHistoryFor] = useState<string>()
-  // View > Activity… shows the activity heatmap.
   const [activityOpen, setActivityOpen] = useState(false)
   useActivityMenu(() => setActivityOpen(true))
   const restoreRef = useRef<ApplyRestore | null>(null)
-  // Find in the open note: the editor's and the preview's handles.
   const [editorFind, setEditorFind] = useState<FindTarget | null>(null)
   const [previewFind, setPreviewFind] = useState<FindTarget | null>(null)
   const editorRef = useRef<EditorHandle | null>(null)
-  // The sidebar's notebook and tag menus, for the list header's name.
   const sidebarMenus = useRef<SidebarMenus | null>(null)
-  // Split mode keeps the editor and the preview at the same line, unless
-  // turned off (an editor setting: View > Synced Scrolling, the palette).
+  // Split mode keeps editor and preview at the same line unless synced scrolling is off (an editor setting).
   const syncScroll = useEditorSetting('syncScroll')
   const listDates = useEditorSetting('listDates')
   const [editorPane, setEditorPane] = useState<ScrollPane | null>(null)
@@ -542,25 +448,14 @@ export function App() {
     if (mode !== 'split' || !syncScroll || !editorPane || !previewPane) return
     return syncScrolling(editorPane, previewPane, { lead })
   }, [mode, syncScroll, editorPane, previewPane])
-  // The command palette, and where the keyboard goes back to when it closes.
   const [paletteOpen, setPaletteOpen] = useState(false)
-  // The source the palette opens scoped to (the sidebar's search buttons), and
-  // the open note's Markdown as it was then (the outline source lists it).
   const [paletteScope, setPaletteScope] = useState<PaletteSource | undefined>()
   const [paletteText, setPaletteText] = useState('')
-  // How many lines that text has (Go to Line), counted once on opening.
   const [paletteLines, setPaletteLines] = useState(0)
-  // Whether the editor's cursor was in a table when the palette opened: the
-  // palette offers the table commands then.
   const [paletteInTable, setPaletteInTable] = useState(false)
-  // Whether text was selected in the editor when the palette opened: the
-  // palette offers New Note from Selection then.
   const [paletteSelection, setPaletteSelection] = useState(false)
   const [paletteLink, setPaletteLink] = useState(false)
-  // The image at the editor's cursor when the palette opened: the palette
-  // offers the image commands for it then.
   const [paletteImage, setPaletteImage] = useState<ImageMenuTarget | null>(null)
-  // The image shown in the viewer (double-click on an image).
   const [viewing, setViewing] = useState<ViewedImage | null>(null)
   const paletteReturn = useRef<FocusReturn>(undefined)
   // While a palette action picked from the editor runs, a note it opens
@@ -588,14 +483,10 @@ export function App() {
     return { notes: nextNotes, templates: listed.templates, books: nextBooks }
   }, [])
 
-  // Every note write (a save, above all) dates the note in the lists at once:
-  // an edited note moves to where its new date puts it, without a reload.
-  // A change that reloads the lists when done (see `changeBooks`) is not
-  // shown write by write: a note it re-dates could move in the list before
-  // the reload takes it out, and the keyboard would go to the wrong row.
+  // Every note write dates the note in the lists at once, so an edited note moves without a reload.
+  // Not for a change that reloads the lists when done (`changeBooks`): a re-dated note could move before the reload removes it, sending the keyboard to the wrong row.
   const reloadsPending = useRef(0)
   const showWrites = useCallback((writes: ReadonlyMap<string, number>) => {
-    // The sidebar's footer shows when the last write was.
     for (const at of writes.values()) markWrite(at)
     if (reloadsPending.current > 0) return
     setNotes((list) => withWrites(list, writes))
@@ -606,11 +497,7 @@ export function App() {
     })
   }, [])
 
-  /**
-   * The core's list of notes not saved yet: each new failure is logged by
-   * code and brings the notice back; once a note saves after failing, the
-   * lists show what is stored now.
-   */
+  /** The core's unsaved notes: each new failure is logged by code and brings the notice back; once a note saves, the lists show what is stored. */
   const onSaveProblems = useCallback(
     (next: SaveProblem[]) => {
       const previous = saveProblemsRef.current
@@ -629,16 +516,11 @@ export function App() {
     [quitGuard, refresh],
   )
 
-  // Changes of view made from callbacks that outlive a render (a finished
-  // import, New Notebook) go through the latest rules (see `showLibrary`).
+  // Callbacks that outlive a render (finished import, New Notebook) change view through the latest rules (`showLibrary`).
   const showLibraryRef =
     useRef<(next: Selection, options?: { clearFilter?: boolean }) => void>(undefined)
 
-  /**
-   * Shows the next sheet unless one is up: an import job first (every
-   * result stays until the user closes it; an import ends by showing its
-   * notebook), then Backups if it was asked for meanwhile.
-   */
+  /** Shows the next sheet unless one is up: an import job first (its result stays until closed; an import ends by showing its notebook), then Backups if asked meanwhile. */
   const nextSheet = useCallback(() => {
     if (importShown.current || backupsShown.current) return
     const c = coreRef.current
@@ -657,7 +539,6 @@ export function App() {
     setImportJob(job)
   }, [])
 
-  /** Runs the import the sheet asked for; it shows the result or the failure. */
   const startImport = useCallback(
     async (
       scan: ImportScan,
@@ -692,7 +573,6 @@ export function App() {
   )
 
   const closeImport = (cancelled: boolean) => {
-    // Cancelled before Import: the session (or the scan still running) ends.
     const id = importJob?.id ?? null
     if (id !== null) forgetScanFound(id)
     if (cancelled && id !== null) {
@@ -717,7 +597,6 @@ export function App() {
   }
 
   const tree = useMemo(() => buildBookTree(books), [books])
-  // The Settings window offers these as the default notebook.
   useEffect(() => publishNotebooks(choicesFromTree(tree)), [tree])
   const counts = useKept(
     useMemo(() => bookCounts(notes, books), [notes, books]),
@@ -728,13 +607,10 @@ export function App() {
     () => (workspace === null ? undefined : findBookNode(tree, workspace)),
     [tree, workspace],
   )
-  // The workspace notebook with its sub-notebooks.
   const workspaceIds = useMemo(
     () => (workspaceFound ? bookWithDescendants(books, workspaceFound.id) : undefined),
     [books, workspaceFound],
   )
-  // The workspace, while its notebook exists and the view is in it (a view
-  // outside it leaves it, see `showLibrary`).
   const workspaceNode =
     workspaceFound && library.kind === 'book' && workspaceIds?.has(library.id)
       ? workspaceFound
@@ -759,12 +635,10 @@ export function App() {
       )),
     [trash],
   )
-  // A filter on a deleted tag falls back to none, like a deleted notebook.
   const activeFilter =
     inTemplates || (filter?.kind === 'tag' && !tags.some((tag) => tag.id === filter.tagId))
       ? null
       : filter
-  // Each view (a library, a filter, search results) keeps its own order.
   const listOrder = useListOrder(
     sortView({
       search: searching,
@@ -773,7 +647,6 @@ export function App() {
     }),
   )
   const order = listOrder.order
-  // What the note list shows; see NoteList's `view`.
   const listView = searching
     ? `search|${JSON.stringify(results.search)}`
     : inTrash
@@ -781,9 +654,7 @@ export function App() {
       : inTemplates
         ? 'templates'
         : `${sortView({ search: false, bookId: null, filter: activeFilter })}|${libraryBook?.id ?? ''}`
-  // The selection toolbar's alert pop-up, built once for the window.
   const showAlertMenu = useAlertMenu()
-  // The image context menu (preview and editor); its sizes go through the editor.
   const setImageSize = useCallback<SetImageSize>((source, size) => {
     editorRef.current?.setImageSize(source, size)
   }, [])
@@ -822,7 +693,6 @@ export function App() {
     [results, order, locales],
   )
   const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags])
-  // The sidebar counts statuses and tags over the workspace's notes while one is open.
   const sidebarNotes = useMemo(
     () =>
       workspaceNode && workspaceIds
@@ -838,7 +708,6 @@ export function App() {
     useMemo(() => tagCounts(sidebarNotes), [sidebarNotes]),
     sameCounts,
   )
-  // A workspace lists only the tags its notes have.
   const sidebarTags = useMemo(
     () => (workspaceNode ? tags.filter((tag) => (sidebarTagged.get(tag.id) ?? 0) > 0) : tags),
     [workspaceNode, tags, sidebarTagged],
@@ -870,7 +739,6 @@ export function App() {
   const selectedNote =
     notes.find((n) => n.id === selected) ?? templates.find((n) => n.id === selected)
   const selectedIsTemplate = selectedNote?.bookId === TEMPLATES_BOOK_ID
-  // The view a search can narrow (the Trash is never searched).
   const viewName =
     filterLabel !== undefined && libraryBook
       ? format(t('search.filterInBook'), {
@@ -879,14 +747,10 @@ export function App() {
         })
       : (filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes'))
   const inView = searchIn === 'view' && !inTrash && !inTemplates
-  // A search over every note shows nothing in the sidebar as selected; the
-  // view comes back when the search is cleared, and a row pressed meanwhile
-  // shows its own view.
+  // A search over every note shows nothing selected in the sidebar; the view returns when the search clears, and a row pressed meanwhile shows its own view.
   const searchingAll = searching && !inView
   /**
-   * Shows All Notes, a notebook, Templates or the Trash. Every change of view
-   * goes through here (the sidebar, the palette, New Notebook, a finished
-   * import), so the same rules apply to all of them:
+   * Every view change (sidebar, palette, New Notebook, finished import) goes through here, so the same rules apply:
    * - the search is cleared, and a search over every note, which hid the
    *   view, also drops the filter that did not show as pressed;
    * - switching between the Trash and the rest closes the open note;
@@ -896,10 +760,7 @@ export function App() {
    */
   const showLibrary = (next: Selection, options?: { clearFilter?: boolean }) => {
     const clearFilter = searchingAll || options?.clearFilter || next.kind === 'templates'
-    // A view outside the workspace (All Notes, Templates, the Trash, a
-    // notebook outside it) leaves it.
-    // A workspace no longer shown (its notebook, or the one shown in it, went
-    // or moved out) is dropped on the next change of view too.
+    // A view outside the workspace leaves it; so does a workspace no longer shown (its notebook went or moved out), on the next view change.
     if (
       workspace !== null &&
       (!workspaceNode || !(next.kind === 'book' && workspaceIds?.has(next.id)))
@@ -911,7 +772,6 @@ export function App() {
     if (clearFilter) setFilter(null)
     setLibrary(next)
   }
-  /** Turns a filter on or off; it covers every note, whatever view was shown. */
   const showFilter = (next: NoteFilter | null) => {
     // A search over every note hid its notebook: the filter pressed covers
     // every note (in a workspace, every note of the workspace).
@@ -921,9 +781,7 @@ export function App() {
       showLibrary(workspaceNode ? { kind: 'book', id: workspaceNode.id } : { kind: 'all' })
     setFilter(next)
   }
-  // Opening a workspace selects its first note unless the open note is in it.
   const firstNoteWanted = useRef(false)
-  /** Opens a notebook as the workspace: it shows, and the sidebar takes the keyboard. */
   const openWorkspace = (id: string) => {
     if (!books.some((b) => b.id === id)) return
     showLibraryRef.current?.({ kind: 'book', id }, { clearFilter: true })
@@ -931,12 +789,10 @@ export function App() {
     firstNoteWanted.current = true
     setTimeout(() => requestFocus({ kind: 'area', area: 'sidebar' }), WORKSPACE_FOCUS_MS)
   }
-  /** Back to the whole library; the notebook shown stays. */
   const leaveWorkspace = () => {
     setWorkspace(null)
     setTimeout(() => requestFocus({ kind: 'area', area: 'sidebar' }), WORKSPACE_LEAVE_FOCUS_MS)
   }
-  /** Go Up a Level: the parent notebook's workspace, or out of workspaces at the top level. */
   const workspaceUp = () => {
     if (!workspaceNode) return
     const parent = workspaceParent(tree, workspaceNode.id)
@@ -951,7 +807,6 @@ export function App() {
     () => (inView ? { bookId: viewBookId, filter: activeFilter } : undefined),
     [inView, viewBookId, activeFilter],
   )
-  // Marks follow the query the results answer, not one still being typed.
   const resultsQuery = results?.search.query ?? ''
   const highlight = useMemo(() => {
     const terms = highlightTerms(parseSearch(resultsQuery))
@@ -961,7 +816,6 @@ export function App() {
     }
   }, [resultsQuery])
 
-  // The notes the list shows, in its order, for the next and previous note.
   const listedIds = useMemo(
     () =>
       (searching
@@ -976,8 +830,7 @@ export function App() {
       ).map((n) => n.id),
     [searching, shownResults, inTrash, trash, inTemplates, templateRows, activeFilter, groups],
   )
-  // The multiple selection, kept to the notes listed: fewer than two left
-  // is none. Another view starts without one.
+  // Multi selection is kept to the listed notes: fewer than two is none.
   const setMulti = (selection: ListSelection | undefined) =>
     setMultiIn(selection ? { view: listView, selection } : undefined)
   const listedSet = useMemo(() => new Set(listedIds), [listedIds])
@@ -1020,7 +873,6 @@ export function App() {
         }
         await refresh(c)
         setListsLoaded(true)
-        // Folders picked before the core was ready.
         nextSheet()
       })
       .catch((e: unknown) => {
@@ -1042,7 +894,6 @@ export function App() {
     setStartAttempt((n) => n + 1)
   }
 
-  // Search: newest query wins, run shortly after typing stops.
   useEffect(() => {
     if (!core) return
     runSearch.current = latestOnly(
@@ -1069,9 +920,7 @@ export function App() {
     const timer = setTimeout(() => runSearch.current?.(search), 120)
     return () => clearTimeout(timer)
   }, [query, searchScope])
-  // A usage event once typing has paused and the results answer the query.
-  // Results that follow a change, or the same query in the same place
-  // again, are not a new search.
+  // A usage event once typing pauses and the results answer the query; results following a change, or the same query in the same place, are not a new search.
   const countedSearch = useRef('')
   useEffect(() => {
     if (!query.trim()) {
@@ -1092,8 +941,7 @@ export function App() {
     }, SEARCH_SETTLED_MS)
     return () => clearTimeout(timer)
   }, [query, results, inView])
-  // Typing a search in the Trash or Templates leaves it: neither is ever
-  // searched.
+  // Typing a search in the Trash or Templates leaves it: neither is searched.
   const changeQuery = (next: string) => {
     if ((inTrash || inTemplates) && next.trim()) {
       if (inTrash) setSelected(undefined)
@@ -1111,10 +959,7 @@ export function App() {
     setQuery('')
     setSearchIn('view')
   }
-  // The search shortcuts focus the field from anywhere: Shift+Cmd+F (or /
-  // in the list) searches the current view, Shift+Opt+Cmd+F every note.
-  // Results need the list, so they leave focus mode first; the field shows
-  // after that render.
+  // Search shortcuts focus the field from anywhere (Shift+Cmd+F: current view, Shift+Opt+Cmd+F: every note); results need the list, so they leave focus mode first.
   const [searchRequest, setSearchRequest] = useState(0)
   const startSearch = useCallback(
     (where: 'all' | 'view') => {
@@ -1167,14 +1012,12 @@ export function App() {
       unlisten?.()
     }
   }, [])
-  // A finished rebuild's notice clears itself.
   useEffect(() => {
     if (indexState?.phase !== 'done') return
     const timer = setTimeout(() => setIndexState(undefined), 5000)
     return () => clearTimeout(timer)
   }, [indexState])
 
-  // Backups: the menu opens the dialog; a failed backup shows a notice.
   useEffect(() => {
     // Rust sends the menu event to this window even while Settings or a
     // native panel has the keyboard; then it must open nothing behind it.
@@ -1184,7 +1027,6 @@ export function App() {
     const failed = (e: Event) => setBackupNotice(errorCode((e as CustomEvent).detail))
     window.addEventListener(SHOW_BACKUPS, show)
     window.addEventListener(BACKUP_FAILED, failed)
-    // A failure from before the page loaded.
     listBackups().then(
       (status) => status.lastError && setBackupNotice(status.lastError),
       () => {},
@@ -1207,11 +1049,8 @@ export function App() {
     }
   }, [showBackups])
 
-  // Import: Rust says a scan started and how far it got, then sends what it
-  // found (picked files come straight away) or why it failed. Each import
-  // waits its turn; a scan is taken once even if sent twice.
+  // Import: Rust reports a scan started and its progress, then what it found (picked files at once) or why it failed. Each import waits its turn; a scan is taken once even if sent twice.
   useEffect(() => {
-    /** Changes the job of session `id`, shown or waiting; false when there is none. */
     const update = (id: number, change: (job: ImportJob) => ImportJob) => {
       if (shownImport.current === id) {
         setImportJob((job) => (job && job.id === id ? change(job) : job))
@@ -1305,22 +1144,17 @@ export function App() {
     }
   }, [nextSheet])
 
-  // Another process (devot-mcp) changed the database. Notes in memory take
-  // in what it wrote before anything of theirs is saved, so no save writes
-  // over it, and the open note shows it. Then pending edits are saved, so
-  // the lists show them, and the lists reload.
+  // Another process (devot-mcp) changed the database: notes in memory take in its writes before saving anything (so no save overwrites them), then pending edits save and the lists reload.
   useExternalChanges(
     core
       ? async () => {
           const shown = selected && !inTrash ? selected : undefined
           const navigation = opens.current
           const titled = await core.mergeStored()
-          // The open editor's replica takes in only what it lacks.
           const editor = editorRef.current?.noteId === shown ? editorRef.current : null
           const opened = shown
             ? await core.open(shown, editor?.vector()).catch(() => undefined)
             : undefined
-          // Unless the window has moved on to another note meanwhile.
           if (opened && opens.current === navigation) {
             const outsideTitle = titled.find((note) => note.id === opened.id)?.title
             if (outsideTitle !== undefined) setTitle(outsideTitle)
@@ -1335,14 +1169,12 @@ export function App() {
             }
           }
           await saveEdits(core)
-          // The mirror follows notes devot-mcp wrote at its next pass.
           void core.mirrorTouch()
           await refresh(core)
         }
       : undefined,
   )
 
-  /** Saves pending edits, restores the backup, then reloads everything. */
   const restore = async (id: string) => {
     // No import runs while Backups is open; stopping one is a safeguard.
     await core?.stopImport()
@@ -1366,7 +1198,6 @@ export function App() {
     window.location.reload()
   }
 
-  // Save pending edits before the page goes away (quit, reload, close).
   useEffect(() => {
     if (!core) return
     const flush = () => void saveEdits(core)
@@ -1428,7 +1259,6 @@ export function App() {
     // Opening a note shows it alone, unless the selection itself moved the
     // open note (`keepSelection`).
     if (!keepSelection) setMulti(undefined)
-    // A built-in template shown gives way to the note.
     setBuiltIn(undefined)
     const open = startOpening(id)
     await saveEdits(core)
@@ -1460,7 +1290,6 @@ export function App() {
     return true
   }
 
-  // Opening a workspace selects its first note, unless the open note is in it.
   useEffect(() => {
     if (!firstNoteWanted.current || !workspaceIds || libraryBook?.id !== workspace) return
     const open = notes.find((n) => n.id === selected)
@@ -1469,7 +1298,6 @@ export function App() {
       firstNoteWanted.current = false
       return
     }
-    // A render before the timer fires schedules it again.
     const timer = setTimeout(() => {
       firstNoteWanted.current = false
       void select(first.id)
@@ -1477,27 +1305,20 @@ export function App() {
     return () => clearTimeout(timer)
   })
 
-  // The window's last state. Nothing is saved until it has been restored, so
-  // a window that is still loading never overwrites it.
+  // Nothing is saved until the last state is restored, so a loading window never overwrites it.
   const [restored, setRestored] = useState(false)
-  // The Markdown mirror starts once the window has restored its view.
   const mirror = useMarkdownMirror(core, restored)
-  // Where the user is in the open note, as last reported (the editor's
-  // selection and scroll position, the preview's scroll position).
   const noteState = useRef<NoteState>(undefined)
   // The state outside the Trash, which is kept while the Trash shows.
   const libraryState = useRef<LastState>(undefined)
-  // The restored note's place in the editor and the preview, taken once
-  // when that note has loaded.
+  // Restored note's place in editor and preview, applied once when it has loaded.
   const restoreEditor = useRef<{ id: string; place: Partial<EditorPlace> }>(undefined)
   const restorePreview = useRef<{ id: string; top: number }>(undefined)
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  /** The window's state now; in the Trash, the state from before it. */
   const currentState = (): LastState | undefined => {
     const known = noteState.current
     if (inTrash) {
       const before = libraryState.current
-      // Where the user was in the note left for the Trash, as last reported.
       if (before?.note && known?.id === before.note.id) {
         return { ...before, note: { ...known, keyboard: false } }
       }
@@ -1531,12 +1352,10 @@ export function App() {
     const state = currentState()
     if (state) lastStateStore.save(state)
   }
-  /** Saves once the selection or scrolling has paused. */
   const saveSoon = useCallback(() => {
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => saveNow.current?.(), LAST_STATE_SAVE_MS)
   }, [])
-  // A view, note or mode change is saved at once.
   useEffect(() => saveNow.current?.(), [restored, library, filter, selected, mode, workspace])
   // So is the state when the page goes away or out of sight, and the
   // keyboard moving in or out of the editor soon after.
@@ -1552,7 +1371,6 @@ export function App() {
       clearTimeout(saveTimer.current)
     }
   }, [saveSoon])
-  /** The editor reported where the user is in its note. */
   const editorPlaced = (id: string, place: EditorPlace) => {
     const known = noteState.current?.id === id ? noteState.current : { id, keyboard: false }
     noteState.current = {
@@ -1562,7 +1380,6 @@ export function App() {
     }
     saveSoon()
   }
-  /** The user scrolled the preview of the open note. */
   const previewScrolled = (top: number) => {
     if (selected === undefined) return
     const known = noteState.current?.id === selected ? noteState.current : undefined
@@ -1575,12 +1392,8 @@ export function App() {
   // The view and filter the window started with: a view picked while it
   // loads is the user's, and the restore leaves it alone.
   const startView = useRef({ library, filter })
-  // Restores the last state once the lists have loaded: the view and filter
-  // (a notebook or tag gone since falls back to none) and the open note with
-  // its place, unless it is gone. Its editor takes the keyboard if it had it.
-  // Opening it makes it the first entry of Back and Forward's trail.
+  // Restores the last state once the lists have loaded; a gone notebook, tag or note falls back to none. The restored note is the first Back/Forward entry.
   const restoreStarted = useRef(false)
-  // The note whose editor takes the keyboard from the restore, if nobody has it then.
   const restoreKeyboard = useRef<string>(undefined)
   useEffect(() => {
     if (restoreKeyboard.current !== selected) restoreKeyboard.current = undefined
@@ -1641,7 +1454,6 @@ export function App() {
     return pending && pending.id === selected ? pending.top : undefined
   }
 
-  /** Puts a trashed note back where it was. */
   const restoreTrashed = async (id: string) => {
     await changeBooks((c) => c.restore(id))
     setSelected(undefined)
@@ -1652,7 +1464,6 @@ export function App() {
     setConfirm({ kind: 'one', id, title: named.get(id) ?? '' })
   }
   const trashAction = (action: TrashAction, id: string) => {
-    // On a row of a multiple selection, the keys act on every selected note.
     const many = multiIds?.includes(id) ? multiIds : undefined
     if (many) return action === 'restore' ? restoreNotes(many) : confirmDeleteMany(many)
     return action === 'restore' ? restoreTrashed(id) : confirmDelete(id)
@@ -1675,12 +1486,7 @@ export function App() {
   }
 
   /**
-   * Shows a note just made (New Note, Duplicate, New Note from Template;
-   * `listed`: the lists reloaded since) in the list. When the view would not
-   * list it (the Trash, Templates for a note, the library for a template,
-   * another notebook, a filter it does not match, search results without
-   * it), the view that does shows instead: its notebook, All Notes or
-   * Templates, without a filter or a search.
+   * Shows a note just made (`listed`: lists reloaded since). If the view would not list it, the view that does shows instead: its notebook, All Notes or Templates, without filter or search.
    */
   const showMade = async (
     c: Core,
@@ -1712,7 +1518,6 @@ export function App() {
     showLibrary(homeOf(made), { clearFilter: true })
   }
 
-  /** The notebook a new note goes to: the one shown, else Settings > General's default. */
   const newNoteBookId = () =>
     notebookForNewNote(
       libraryBook?.id,
@@ -1724,18 +1529,13 @@ export function App() {
     if (!core) return
     // Save pending titles first, so the refreshed list shows them.
     await saveEdits(core)
-    // In Templates, a new note is a new template.
     const id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     if (!inTemplates) track('note.created', { from: 'new_note' })
     await showMade(core, id, await refresh(core))
     await select(id, { keyboard: true })
   }
 
-  /**
-   * Makes a note from a template and opens it; it goes to the notebook
-   * shown unless the template names one, and shows in the list (see
-   * `showMade`).
-   */
+  /** Makes a note from a template and opens it (see `showMade`); the template's notebook, if any, wins over the one shown. */
   const createFromTemplate = async (templateId: string) => {
     setPicking(undefined)
     if (!core) return
@@ -1752,11 +1552,7 @@ export function App() {
     await select(id, { keyboard: true })
   }
 
-  /**
-   * Fills the open note from a template (the empty note's "Choose a
-   * template"): no new note is made. The open editor takes in what the core
-   * wrote, the way it takes in another process's writes.
-   */
+  /** Fills the open note from a template without making a new one; the open editor takes in the core's writes like another process's. */
   const fillFromTemplate = async (templateId: string, noteId: string) => {
     setPicking(undefined)
     if (!core) return
@@ -1780,7 +1576,6 @@ export function App() {
     await refresh(core)
   }
 
-  /** Writes dates set on the preview's info card, then reloads the lists that show them. */
   const setNoteDates = useStable(
     async (id: string, dates: { createdAt?: number; updatedAt?: number }) => {
       if (!core) return
@@ -1789,7 +1584,6 @@ export function App() {
     },
   )
 
-  /** Saves a copy of a built-in template as the user's own, shows it and opens it. */
   const editBuiltInCopy = async (id: string) => {
     if (!core) return
     await saveEdits(core)
@@ -1807,13 +1601,8 @@ export function App() {
     setSelected(undefined)
     setBuiltIn(id)
   })
-  // A built-in template shows only in the Templates view, with no note open.
   const shownBuiltIn = selected === undefined && inTemplates ? builtIn : undefined
 
-  /**
-   * Copies a note (title with "copy" after it, body, notebook, status, tags;
-   * see `duplicateNote`) and opens the copy, shown in the list (see `showMade`).
-   */
   const duplicate = async (id: string) => {
     if (!core) return
     await saveEdits(core)
@@ -1822,34 +1611,25 @@ export function App() {
       console.warn('W_NOTE_DUPLICATE_FAILED', id, errorCode(e))
     })
     if (!copy) return
-    // A template's copy is a template, not a note.
     if (!templates.some((n) => n.id === id)) track('note.created', { from: 'duplicate' })
     await showMade(core, copy, await refresh(core))
     await select(copy)
   }
 
-  /**
-   * Notes for the `[[` popup: search results, or the first notes of the list
-   * for no query. It runs on every key, so it saves nothing (notes are found
-   * as stored) and takes no more of the list than the popup shows.
-   */
+  /** Targets for the `[[` popup: search results, or the first notes of the list for no query. Runs on every key, so it saves nothing and takes no more than the popup shows. */
   const findLinkTargets = async (linkQuery: string) => {
     if (!core) return []
     const found = linkQuery
       ? await core.search(linkQuery, undefined, { flush: false })
       : await core.list(MAX_LINK_NOTES + 1)
     const targets = found.filter((n) => n.id !== selected)
-    // The popup names an untitled note by its first line, as the list does.
     const named = await displayTitles(loadHeadlines, targets.slice(0, MAX_LINK_NOTES))
     return targets.map((n) => ({ ...n, title: named.get(n.id) ?? n.title }))
   }
 
   /**
-   * New Note from Selection: the selected text becomes a note of its own
-   * (titled after its first line, in the open note's notebook) and a link to
-   * it takes its place, as one undo step. The open note stays open. When the
-   * link cannot go in (the text was edited meanwhile, or another note was
-   * opened), the new note is deleted again: the text is still where it was.
+   * New Note from Selection: the selection becomes a note (titled after its first line, in the open note's notebook) and a link replaces it as one undo step.
+   * If the link cannot go in (text edited meanwhile, another note opened), the new note is deleted again.
    */
   const noteFromSelection = async (sourceId: string) => {
     const editor = editorRef.current
@@ -1878,12 +1658,8 @@ export function App() {
   }
 
   /**
-   * New Note from Link: the link at the caret becomes a note titled after
-   * its text (in the open note's notebook), and a note link takes the
-   * link's place, as one undo step. The new note starts with the link's
-   * address as its first line. The open note stays open. When the link
-   * cannot be replaced (it was edited meanwhile, or another note was
-   * opened), the new note is deleted again.
+   * New Note from Link: the link at the caret becomes a note titled after its text, with the link's address as first line, and a note link replaces it as one undo step.
+   * If the link cannot be replaced (edited meanwhile, another note opened), the new note is deleted again.
    */
   const noteFromLink = async (sourceId: string) => {
     const editor = editorRef.current
@@ -1913,7 +1689,6 @@ export function App() {
     await refresh(core)
   }
 
-  /** Close Note: the open note, a multiple selection or a template shown goes; the editor is empty. */
   const closeNote = async () => {
     if (core) await saveEdits(core)
     setMulti(undefined)
@@ -1921,14 +1696,12 @@ export function App() {
     setSelected(undefined)
   }
 
-  /** Deletes a note made for a link that could not go in, for good. */
   const dropNote = (c: Core, id: string) =>
     c
       .trash(id)
       .then(() => c.purge(id))
       .catch(() => console.warn('W_NOTE_DROP_FAILED', id))
 
-  /** A note created from the `[[` popup; the open note stays open. */
   const createLinkedNote = async (linkTitle: string) => {
     if (!core) throw new Error('E_CORE_NOT_READY')
     const id = await core.create(linkTitle, newNoteBookId())
@@ -1936,15 +1709,12 @@ export function App() {
     return id
   }
 
-  /** A note from the `[[` popup could not be linked (see linkCompletion.ts): it goes again. */
   const discardLinkedNote = async (id: string) => {
     if (!core) return
     await dropNote(core, id)
     await refresh(core)
   }
 
-  // A title being typed: the field shows it at once, the lists and search
-  // results once typing pauses (see LIST_TITLE_MS).
   const typedTitle = useRef<{ id: string; title: string }>(undefined)
   const typedTitleTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const listTypedTitle = useCallback(() => {
@@ -1966,7 +1736,6 @@ export function App() {
     // a long paste never stops the note from saving.
     const clean = clipTitle(next)
     setTitle(clean)
-    // Another note's title still waiting goes to the lists now.
     if (typedTitle.current && typedTitle.current.id !== selected) listTypedTitle()
     typedTitle.current = { id: selected, title: clean }
     clearTimeout(typedTitleTimer.current)
@@ -1974,10 +1743,7 @@ export function App() {
     void core.setTitle(selected, clean)
   }
 
-  /**
-   * Runs a notebook change, then reloads the lists; a refused change is
-   * logged by code and shown in a notice (a name too long, a tag name taken).
-   */
+  /** Runs a notebook change, then reloads the lists; a refused change is logged by code and shown in a notice. */
   const changeBooks = async (change: (c: Core) => Promise<unknown>) => {
     if (!core) return
     setChangeNotice(undefined)
@@ -2004,7 +1770,6 @@ export function App() {
       setRenamingBook(id)
     })
 
-  // A deleted notebook drops out of `books`, so the library falls back to All Notes.
   const deleteBook = (id: string) => changeBooks((c) => c.removeBook(id))
 
   const moveNote = (noteId: string, bookId: string | null) =>
@@ -2012,11 +1777,7 @@ export function App() {
   const setStatus = (noteId: string, status: NoteStatus) =>
     changeBooks((c) => c.setStatus(noteId, status))
 
-  /**
-   * One change to several notes, note by note (each with its own write and
-   * HLC), then the lists reload. Notes that could not be changed are logged
-   * by code and counted in a notice; the rest keep their change.
-   */
+  /** One change to several notes, note by note (each its own write); failures are logged by code and counted in a notice, the rest keep their change. */
   const runBatch = async (ids: readonly string[], change: BatchChange) => {
     if (!core || ids.length === 0) return
     setBatchFailed(undefined)
@@ -2037,9 +1798,7 @@ export function App() {
       reloadsPending.current -= 1
     }
   }
-  // Every note named gets the write, even one that seems to have the value
-  // already: the lists may not have caught up with a change just made (a
-  // quick second P unpins again).
+  // Every named note gets the write even if it seems to have the value: the lists may lag a change just made (a quick second P unpins again).
   const moveNotes = (ids: readonly string[], bookId: string | null) =>
     runBatch(ids, { kind: 'book', bookId })
   const setNotesStatus = (ids: readonly string[], status: NoteStatus) =>
@@ -2057,7 +1816,6 @@ export function App() {
   const trashNotes = async (ids: readonly string[]) => {
     await runBatch(ids, { kind: 'trash' })
     setSelected((open) => (open !== undefined && ids.includes(open) ? undefined : open))
-    // Notes back from the Trash come back unselected.
     setMultiIn((m) => (m?.selection.ids.some((id) => ids.includes(id)) ? undefined : m))
   }
   const restoreNotes = async (ids: readonly string[]) => {
@@ -2065,13 +1823,11 @@ export function App() {
     setSelected(undefined)
     setMulti(undefined)
   }
-  /** Opens the Revision History sheet for a note (opening the note first). */
   const showHistory = async (id: string | undefined) => {
     if (!id || inTrash) return
     if (id !== selected) await select(id)
     setHistoryFor(id)
   }
-  // The open note's history; none while several notes are selected.
   useHistoryMenu(() => void (multiIds === undefined && showHistory(selected)))
   // The sheet belongs to the open note: another note or the Trash closes it
   // for good (also when opening the note failed).
@@ -2085,10 +1841,7 @@ export function App() {
     preview: previewFind,
   })
   const listedNotes = useMemo(() => [...notes, ...templates], [notes, templates])
-  /**
-   * Runs an export, print or copy (exporter.ts, loaded on first use); a
-   * failure shows what did not complete, with its code, in a notice.
-   */
+  /** Runs an export, print or copy (exporter.ts, loaded on first use); a failure is shown with its code in a notice. */
   const runExport = async (
     failure: ExportFailure,
     run: (exporter: typeof import('./exporter')) => Promise<void>,
@@ -2111,7 +1864,6 @@ export function App() {
     runExport('export', (exporter) => exporter.runSelectionExport(core!, action, ids))
   const exportAll = (action: 'exportMarkdown' | 'exportHtml') =>
     runExport('export', (exporter) => exporter.runAllExport(core!, action))
-  // File > Export > All Notes: Rust sends `markdown` or `html`.
   useMenuEvent('devot://export-all', EXPORT_ALL, (format) => {
     if (format === 'markdown') void exportAll('exportMarkdown')
     else if (format === 'html') void exportAll('exportHtml')
@@ -2136,11 +1888,7 @@ export function App() {
     trash: trashNotes,
   })
 
-  // Back and Forward: the trail entry each opens, skipping notes deleted
-  // since (the Trash's notes are never entries). Templates are notes too:
-  // they are entries like any other. The open note is the current entry's,
-  // or the one a navigation is opening (`opening`); none in the Trash or
-  // when it was deleted.
+  // Back/Forward entries skip deleted notes (the Trash's notes are never entries); templates are entries. The open note is the current entry's or the one a navigation is opening; none in the Trash.
   const liveIds = useMemo(
     () => new Set([...notes, ...templates].map((n) => n.id)),
     [notes, templates],
@@ -2151,7 +1899,6 @@ export function App() {
   })
   const backAt = stepTarget(trail, -1, onTrail(trail))
   const forwardAt = stepTarget(trail, 1, onTrail(trail))
-  /** Goes back or forward; a key pressed in the editor leaves the keyboard there. */
   const step = (by: -1 | 1) => {
     const now = trailRef.current
     const at = stepTarget(now, by, onTrail(now, openingRef.current))
@@ -2164,10 +1911,7 @@ export function App() {
   }
   const nextId = adjacentNote(listedIds, selected, 1)
   const previousId = adjacentNote(listedIds, selected, -1)
-  /**
-   * Opens the next or previous note, after the one a navigation is opening
-   * when one is; one opened from the editor takes the keyboard there.
-   */
+  /** Opens the next or previous note, stepping on from one a navigation is opening; from the editor it takes the keyboard there. */
   const openListed = (by: -1 | 1) => {
     const id = adjacentNote(listedIds, openingRef.current ?? selected, by)
     if (id === undefined) return
@@ -2176,15 +1920,9 @@ export function App() {
     setMulti(undefined)
     setSelected(id)
   }
-  /**
-   * Return or Cmd+Return on a list row: edit the open note's title or body
-   * (opening the row's note first when none is open). The body shows the
-   * editor in preview mode; an editor still loading takes the keyboard when
-   * it has loaded.
-   */
+  /** Return or Cmd+Return on a list row: edit the open note's title or body (opening the row's note first). An editor still loading takes the keyboard when loaded. */
   const editNote = async (part: 'title' | 'body', id: string, start = false) => {
     const body = part === 'body'
-    // Editing goes back to the open note alone.
     setMulti(undefined)
     if (id !== selected) {
       if (!(await select(id, { keyboard: body }))) return
@@ -2193,21 +1931,13 @@ export function App() {
     requestFocus({ kind: part, id, start })
   }
 
-  /**
-   * The editor could not open its note (it is gone or in the Trash): the
-   * note closes, so no editor shows with a stale title and an empty body.
-   */
+  /** The editor could not open its note (gone or in the Trash): close it, so no editor shows a stale title and empty body. */
   const closeUnopenable = useStable((id: string, code: string) => {
     console.warn('W_NOTE_OPEN_FAILED', id, code)
     if (id === selected) setSelected(undefined)
   })
 
-  /**
-   * The list's selection changed (see listSelection.ts). One note left is
-   * the open note on its own; with several, the open note stays open while
-   * it is selected, else the anchor opens (see `openAfter`). Undefined
-   * (Escape) goes back to the open note alone.
-   */
+  /** One note left is the open note alone; with several, the open note stays open while selected, else the anchor opens (`openAfter`). Undefined (Escape) goes back to the open note alone. */
   const changeSelection = (next: ListSelection | undefined) => {
     if (!next) return setMulti(undefined)
     const open = next.ids.length > 1 ? openAfter(next, selected) : next.ids[0]
@@ -2222,19 +1952,15 @@ export function App() {
     setSelected(open)
   }
 
-  /** Moves the keyboard to the next or previous area (see areas.ts). */
   const moveArea = (by: 1 | -1, from = areaOf(document.activeElement)) => {
     const targets = areaTargets(editorRef.current)
     const to = nextArea(from, by, (area) => targets[area] !== undefined)
     if (to) targets[to]?.()
   }
   usePaneTab(moveArea)
-  // The keyboard never stays on the page when what had it goes away.
   useFocusRescue(() => editorRef.current)
 
-  // Hiding or showing the sidebar. Focus mode hides it too, so showing it
-  // leaves focus mode. When it hides with the keyboard, the list takes it;
-  // shown from the toggle in the list's header, the sidebar does.
+  // Focus mode hides the sidebar too, so showing it leaves focus mode. A hiding sidebar with the keyboard hands it to the list; shown from the list header toggle, the sidebar takes it.
   const sidebarKeyEcho = useRef(-Infinity)
   const toggleSidebar = () => {
     if (sidebarShown) {
@@ -2264,16 +1990,13 @@ export function App() {
     sidebarKeyEcho.current = -Infinity
     if (!echo) toggleSidebar()
   })
-  // The menu bar names what View > Hide Sidebar does now.
   useEffect(() => {
     invoke('sidebar_menu_set', { shown: sidebarShown }).catch(() =>
       console.warn('W_SIDEBAR_MENU_SET_FAILED'),
     )
   }, [sidebarShown])
 
-  // A requested keyboard move, once the window has rendered what it needs:
-  // an area, or a note's title or body once that note is open (an editor
-  // still loading takes the keyboard itself, see `editNote`).
+  // A requested keyboard move, once the window has rendered what it needs: an area, or a note's title/body once that note is open (a loading editor takes it itself, `editNote`).
   useEffect(() => {
     const request = focusAfter.current
     if (!request) return
@@ -2315,12 +2038,7 @@ export function App() {
     setPaletteScope(scope)
     setPaletteOpen(true)
   }
-  /**
-   * Gives the keyboard back where it was, then runs the picked action
-   * (`picked`), if any. Once the action is done (a note it opens is open, a
-   * note it trashes is gone) and rendered, the effect below checks the
-   * keyboard is still somewhere visible.
-   */
+  /** Returns the keyboard, then runs the picked action; once it is done and rendered, the effect below checks the keyboard is still visible. */
   const closePalette = (picked?: () => void | Promise<unknown>) => {
     setPaletteOpen(false)
     const back = paletteReturn.current
@@ -2339,12 +2057,7 @@ export function App() {
       }
     })()
   }
-  // The action may have hidden or removed what had the keyboard (Show
-  // Preview hides the editor, focus mode the list, Move to Trash and opening
-  // another note replace the editor): then the open note's row (or the
-  // list's first), its editor, its title, or a toolbar button takes it. A
-  // note opened from the editor takes it back into its own editor once that
-  // has loaded (see `takesKeyboard`).
+  // The action may have hidden or removed what had the keyboard (Show Preview, focus mode, Move to Trash, opening another note): then the open note's row, editor, title or a toolbar button takes it. A note opened from the editor takes it back once loaded (`takesKeyboard`).
   useEffect(() => {
     if (paletteDone === 0) return
     const now = document.activeElement
@@ -2381,8 +2094,6 @@ export function App() {
   })
   useMenuEvent('devot://show-split', SHOW_SPLIT, () => setMode('split'))
 
-  // Every command this window can run now, by registry ID: the window keys,
-  // the palette and the native menu run them.
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
   const handlers: CommandHandlers = {
     'palette.open': { run: () => openPalette() },
@@ -2433,7 +2144,6 @@ export function App() {
   if (mirror.status.folder !== null) handlers['mirror.turnOff'] = { run: mirror.turnOff }
   if (workspaceNode) handlers['view.leaveWorkspace'] = { run: leaveWorkspace }
   if (updates.status.state === 'ready') handlers['app.restartToUpdate'] = { run: restartNow }
-  // Sort Notes… opens the sort pop-up under the list's button.
   if (!focus && !inTrash) {
     handlers['view.sort'] = {
       run: () => {
@@ -2451,7 +2161,6 @@ export function App() {
       }
     }
   }
-  // Several notes selected: the note commands act on all of them.
   if (multiIds && inTrash) {
     const ids = multiIds
     handlers['trash.restore'] = {
@@ -2487,7 +2196,6 @@ export function App() {
       }
     }
   }
-  // Select All Notes (Cmd+A in a list): every note the list shows.
   if (!focus && listedIds.length > 1) {
     handlers['list.selectAll'] = {
       run: () => changeSelection(selectAll(shownSelection, selected, listedIds)),
@@ -2496,7 +2204,6 @@ export function App() {
   if (core) {
     handlers['note.new'] = {
       run: () => {
-        // A new note goes to the library, not the Trash.
         if (inTrash) showLibrary({ kind: 'all' })
         return create()
       },
@@ -2596,10 +2303,8 @@ export function App() {
   }
   // Find works while a note is open; its keys run ahead of the editor's (useFind).
   Object.assign(handlers, find.commands)
-  // Move to Notebook from anywhere runs what the list's key does.
   if (handlers['note.move']) handlers['note.moveAnywhere'] = handlers['note.move']
   useWindowCommands(handlers)
-  // The menu bar's Format menu runs the format commands too.
   useFormatMenu(handlers)
   useCommandMenu()
 
@@ -2617,11 +2322,9 @@ export function App() {
   )
 
   const stableOpenWorkspace = useStable((id: string) => openWorkspace(id))
-  /** What Return, Shift+Return and Command+Return do on a palette result. */
   const paletteActions = (entry: PaletteEntry): PaletteActions => {
     switch (entry.kind) {
       case 'source':
-        // The palette opens a source itself.
         return {
           primary: { label: t('palette.openSource'), run: () => undefined },
         }
@@ -2697,16 +2400,12 @@ export function App() {
     }
   }
 
-  // What the note list and the sidebar get, kept the same from render to
-  // render while it does not change: both are memoized, so typing in a note,
-  // or anything else they do not show, renders neither of them.
+  // Props for the memoized list and sidebar stay the same between renders, so typing in a note renders neither.
   const toggleSidebarNow = useStable(toggleSidebar)
-  // The list's header hides and shows the sidebar.
   const sidebarToggle = useMemo(
     () => <SidebarToggle shown={sidebarShown} onClick={toggleSidebarNow} />,
     [sidebarShown, toggleSidebarNow],
   )
-  // The Filter field under the list's header: the search, scoped to the view.
   const changeQueryStable = useStable((next: string) => changeQuery(next))
   const clearSearchStable = useStable(() => clearSearch())
   const filterField = useMemo(
@@ -2734,8 +2433,7 @@ export function App() {
     setMulti(undefined)
     setSelected(id)
   })
-  // Links other apps open (devot://note/<id>, devot://command/<id>), from
-  // the moment the window has restored its view; sheets hold them back.
+  // Links other apps open (devot://note/<id>, devot://command/<id>), once the window has restored its view; sheets hold them back.
   useDeepLinks(restored && core !== undefined, (link) => {
     setLinkNotice(undefined)
     if (link.kind === 'command') {
@@ -2763,13 +2461,11 @@ export function App() {
       )
       return
     }
-    // A note in the Trash opens there, as the Trash's own list opens it.
     if (target.kind === 'trash') {
       if (!inTrash) showLibrary({ kind: 'trash' })
       openTrashed(id)
       return
     }
-    // A note outside the list shown: the library that lists it first.
     if (target.kind === 'library') showLibrary({ kind: target.library }, { clearFilter: true })
     void select(id)
   })
@@ -2841,7 +2537,6 @@ export function App() {
   )
   const sidebarImportBook = useStable((action: ImportAction, id: string) => {
     const kind = IMPORT_PICKS[action]
-    // A failure shows in the import sheet, as one from File > Import does.
     pickImport(kind, id).catch((e: unknown) => {
       const code = errorCode(e)
       console.warn('W_IMPORT_PICK_FAILED', code)
@@ -2863,7 +2558,6 @@ export function App() {
   const sidebarSetTagColor = useStable(
     (id: string, color: TagColor | null) => void changeBooks((c) => c.setTagColor(id, color)),
   )
-  // The note header's menus: a tag chip's and the notebook label's.
   const [headerTagSettings, setHeaderTagSettings] = useState<string>()
   const removeOpenTag = useStable(
     (tagId: string) =>
@@ -2897,7 +2591,6 @@ export function App() {
   const sidebarSearchBooks = useStable(() => openPalette('book'))
   const sidebarSearchTags = useStable(() => openPalette('tag'))
   const sidebarNewNote = useStable(() => {
-    // As New Note does: a new note goes to the library, not the Trash.
     if (inTrash) showLibrary({ kind: 'all' })
     void create()
   })
@@ -2907,14 +2600,10 @@ export function App() {
       kind: 'tag',
       id,
       name: tags.find((tag) => tag.id === id)?.name ?? '',
-      // Every note with the tag, a workspace's sidebar counting only its own.
       count: notes.filter((n) => n.tagIds.includes(id)).length,
     }),
   )
 
-  // The header's icon for a library view: a filter's (a tag's colour, a
-  // status's icon), else the notebook's own; All Notes has none. Kept the
-  // same while it shows the same, so the list does not render again.
   const filterTag =
     activeFilter?.kind === 'tag' ? tags.find((tag) => tag.id === activeFilter.tagId) : undefined
   const shownBookIcon = libraryBook ? bookIcon(libraryBook) : undefined
@@ -2940,7 +2629,6 @@ export function App() {
       return <BookIcon icon={a || null} color={(b || null) as TagColor | null} size="lg" />
     return null
   }, [iconKey])
-  // A right-click on the header's name: the notebook's or the tag's menu, as in the sidebar.
   const menuKey =
     activeFilter?.kind === 'tag'
       ? `tag:${activeFilter.tagId}`
@@ -3345,7 +3033,6 @@ export function App() {
       saveNoticeShown ||
       updates.notice ||
       mirror.notices.length > 0 ? (
-        // One corner for every notice, stacked, so none covers another.
         <div className="notices">
           {saveNoticeShown ? (
             <SaveNotice
@@ -3424,13 +3111,11 @@ export function App() {
             command: commandEntries(handlers, t),
             source: sourceEntries(t),
             outline: outlineEntries(paletteText),
-            // The palette makes the line to go to from what is typed.
             line: [],
             ...(paletteLibrary ?? NO_LIBRARY),
           }}
           actions={paletteActions}
           initialScope={paletteScope}
-          // Go to Line is for a note open for editing.
           lineCount={handlers['edit.goToLine'] ? paletteLines : 0}
           onClose={closePalette}
         />

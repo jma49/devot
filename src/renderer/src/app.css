@@ -1,27 +1,18 @@
-/* App styles. Every colour, size and font comes from the generated design
-   tokens (theme/tokens.css); a policy test rejects colour literals here. */
+/* Every colour, size and font comes from the generated tokens (theme/tokens.css); a policy test rejects colour literals here. */
 
 :root {
   font: var(--font-size-body) / 1.4 var(--font-family-ui);
   -webkit-font-smoothing: antialiased;
-  /* Pop-ups (bars, menus, tooltips) grow from this scale out of their notch or
-     anchor as they fade in, and rest on a two-layer shadow. The editor's
-     shadow root reads both too. */
   --popover-enter-scale: var(--motion-scale-popover-enter);
-  /* They shrink to this scale, back toward the notch or anchor, as they fade out. */
   --popover-exit-scale: var(--motion-scale-popover-exit);
-  /* A modal dialog grows from this scale around its centre as it fades in,
-     out of this blur, and blurs again as it fades out. */
   --dialog-enter-scale: var(--motion-scale-dialog-enter);
   --dialog-blur: var(--motion-blur-dialog);
-  /* A tag chip pops in from this scale as it is added. */
   --chip-enter-scale: var(--motion-scale-chip-enter);
   --popover-shadow:
     0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
     0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
 }
 
-/* Reduce Motion: pop-ups only fade, nothing grows, shrinks or slides. */
 :root[data-motion='reduced'] {
   --popover-enter-scale: 1;
   --popover-exit-scale: 1;
@@ -58,8 +49,7 @@
   }
 }
 
-/* A menu unfolding from the edge it hangs from, and folding back. The clip
-   reaches past the menu's edges so its shadow shows throughout. */
+/* The clip reaches past the menu's edges so its shadow shows throughout. */
 @keyframes menu-unfold {
   from {
     clip-path: inset(var(--menu-clip) var(--menu-clip) 100% var(--menu-clip));
@@ -109,14 +99,11 @@
   }
 }
 
-/* A closing pop-up's copy (closing.ts): it shrinks toward the notch or
-   anchor it grew from as it fades, keeping the pop-up's transform origin. */
 [data-closing][data-closing-motion='scale'] {
   pointer-events: none;
   animation: popover-out var(--motion-duration-popover) var(--motion-easing-standard) forwards;
 }
 
-/* Modal dialogs open by growing out of their centre while the page dims. */
 dialog[open].confirm,
 dialog[open].sheet,
 dialog[open].link-dialog,
@@ -132,8 +119,6 @@ dialog[open].palette {
   animation: fade-in var(--motion-duration-backdrop) var(--motion-easing-standard);
 }
 
-/* A closed dialog's copy (dialogMotion.ts) blurs and fades where the dialog
-   was, over a copy of its dim that fades out more slowly. */
 dialog[open][data-closing='dialog'] {
   position: fixed;
   inset: 0;
@@ -157,12 +142,7 @@ body,
   background: transparent;
 }
 
-/* The window never scrolls as a whole: only its panes do. Without this, a
-   caret or popup scrolled into view near the bottom of a note scrolls the
-   page itself and slides the whole window up. The viewport still scrolls
-   for the caret even when its overflow is hidden, so the app's root paints
-   nothing outside itself, positioned popups included, and leaves the page
-   nothing to scroll. */
+/* The viewport scrolls for a caret even with overflow hidden, which would slide the whole window up; the root paints nothing outside itself (popups included), leaving nothing to scroll. */
 html,
 body {
   overflow: hidden;
@@ -178,7 +158,6 @@ body {
   cursor: default;
 }
 
-/* Thin scroll bars, a rounded thumb on a clear track. */
 ::-webkit-scrollbar {
   width: var(--size-scrollbar);
   height: var(--size-scrollbar);
@@ -200,14 +179,12 @@ button {
   height: 100%;
 }
 
-/* Window chrome is not selectable text. */
 .sidebar,
 .list {
   -webkit-user-select: none;
   user-select: none;
 }
 
-/* SF Symbols arrive black; the mask takes the colour of the text. */
 .icon {
   display: inline-block;
   flex-shrink: 0;
@@ -245,7 +222,6 @@ button {
   height: var(--size-icon-lg);
 }
 
-/* Toolbars: a unified 52 px band over the list and the editor. */
 .toolbar,
 .titlebar {
   height: var(--size-toolbar-height);
@@ -276,7 +252,6 @@ button {
   color: var(--color-text-secondary);
 }
 
-/* A long notebook name is cut off, never run under the buttons beside it. */
 .toolbar-title :is(.headline, .caption) {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -300,8 +275,6 @@ button {
   background: var(--color-fill-track);
 }
 
-/* Hover, press and selection: every control's fill, colour and edge change
-   over the hover duration; disclosure chevrons turn over the toggle one. */
 :is(
   .tool,
   .source,
@@ -334,13 +307,11 @@ button {
     opacity var(--motion-duration-hover) var(--motion-easing-out);
 }
 
-/* A sidebar row answers the pointer quickly. */
 .sidebar :is(.source, .book-row) {
   transition-duration: var(--motion-duration-quick);
   transition-timing-function: var(--motion-easing-quick);
 }
 
-/* A field's focus ring (its edge) comes as quickly as a button's. */
 :is(
   .search-field,
   .find-field,
@@ -353,9 +324,7 @@ button {
   transition-timing-function: var(--motion-easing-quick);
 }
 
-/* The keyboard is on a button: the focus ring on its edge (a segment sits
-   inside its frame, which clips, so its ring is drawn just inside). The ring
-   closes in on the edge as it comes. */
+/* A segment sits inside a clipping frame, so its focus ring is drawn just inside. */
 :is(.tool, .button, .popup, .segment, .search-clear) {
   outline-color: transparent;
   outline-offset: var(--size-focus-ring);
@@ -369,7 +338,6 @@ button {
     outline-offset var(--motion-duration-quick) var(--motion-easing-quick);
 }
 
-/* Reduce Motion: the ring only fades in, on the edge. */
 :root[data-motion='reduced'] :is(.tool, .button, .popup, .segment, .search-clear) {
   outline-offset: 0;
 }
@@ -383,7 +351,6 @@ button {
   outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
-/* The panes' toolbars: a rounder, stronger hover. */
 .toolbar .tool {
   border-radius: var(--radius-card);
 }
@@ -392,7 +359,6 @@ button {
   background: var(--color-fill-tool-hover);
 }
 
-/* Pressed: a step stronger than under the pointer. */
 .tool:active:not(:disabled, [aria-disabled='true']),
 .footer-toggle:active,
 .popup:active {
@@ -409,17 +375,11 @@ button {
   pointer-events: none;
 }
 
-/* Sidebar: the window material shows through its wash. Each region's wash
-   has its token's alpha a, adjusted by Settings > Appearance > Transparency
-   (--window-transparency, -100 to 100, set from the editor settings): 0
-   keeps a, -100 is opaque, 100 lets twice as much through
-   (1 - (1 - a) * (1 + level / 100), clamped). */
+/* Each region's wash has its token's alpha a, adjusted by --window-transparency (-100 to 100): 0 keeps a, -100 is opaque, 100 lets twice as much through (1 - (1 - a)(1 + level / 100), clamped). */
 .sidebar {
   position: relative;
-  /* The width the user dragged its right edge to (Sidebar sets --sidebar-width). */
   width: var(--sidebar-width, var(--size-sidebar-width));
-  /* In a narrow window the note list shrinks to its minimum first and the
-     editor keeps its two panes; only then does the sidebar give way. */
+  /* A narrow window shrinks the note list to its minimum first, the editor keeps its two panes, and only then does the sidebar give way. */
   max-width: calc(100% - var(--size-list-min-width) - var(--size-pane-min-width) * 2);
   min-width: var(--size-sidebar-min-width);
   flex-shrink: 0;
@@ -435,10 +395,7 @@ button {
   font-size: var(--font-size-row);
 }
 
-/* Settings > Appearance turned the material off (sidebarMaterial.ts): the
-   window draws no effect, so every region paints its own opaque surface, and
-   so does the root, behind every pane, before they render or while one
-   changes. */
+/* With the material off the window draws no effect, so every region, and the root behind the panes, paints an opaque surface. */
 :root[data-sidebar-material='off'] {
   background: var(--color-surface-window);
 }
@@ -470,8 +427,6 @@ button {
   gap: 0;
 }
 
-/* Every sidebar row (views, filters, tags, notebooks) has the same pitch,
-   padding and icon-to-label gap, so their labels share one edge. */
 .source {
   position: relative;
   display: flex;
@@ -506,11 +461,7 @@ button {
   opacity: var(--opacity-count);
 }
 
-/* The selected row of the sidebar (a pressed filter, the view shown, the
-   selected notebook): the same accent wash as a selected note row, focused or
-   not, with the text keeping its colours. While the sidebar has the keyboard
-   the row also has a solid accent bar on its left edge, drawn inside the row
-   so nothing shifts; a row the keyboard stands on has it too. */
+/* Same accent wash as a selected note row; the keyboard bar is drawn inside the row so nothing shifts. */
 .source.filter[aria-pressed='true'],
 .source[aria-current='true'],
 .books [aria-selected='true'] > .book-row {
@@ -521,9 +472,6 @@ button {
   );
 }
 
-/* A selected note row: a wash of the accent, focused or not; its text keeps
-   its colours. While the list has the keyboard the open note's row also has
-   a solid accent bar on its left edge. */
 .row[aria-selected='true'] {
   background: color-mix(
     in srgb,
@@ -547,7 +495,6 @@ button {
   box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
 }
 
-/* Buttons in the sidebar (section tools, the footer) show a ring when the keyboard is on them. */
 .sidebar :is(.tool, .footer-toggle):focus-visible {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--size-focus-ring));
@@ -582,7 +529,6 @@ button {
   mask-size: 55%;
 }
 
-/* Tag colours: a dot painted with the theme's token for the palette ID. */
 .tag-color-red {
   --tag-color: var(--color-tag-red);
   --tag-text: var(--color-tag-text-red);
@@ -631,7 +577,6 @@ button {
   --tag-icon: var(--color-tag-icon-gray);
 }
 
-/* A tag's colour dot: the colour at the dot strength inside a solid edge. */
 .tag-dot {
   flex-shrink: 0;
   box-sizing: border-box;
@@ -642,7 +587,6 @@ button {
   background: color-mix(in srgb, var(--tag-color) calc(var(--opacity-tag-dot) * 100%), transparent);
 }
 
-/* In a sidebar row the dot takes the tag icon's place. */
 .tag-dot-box {
   display: flex;
   flex-shrink: 0;
@@ -652,11 +596,6 @@ button {
   height: var(--size-icon-md);
 }
 
-/* Notebooks. */
-/* The label is centred on its tools (search, add, the section's chevron). */
-/* A workspace's title (Sidebar.tsx): Go Up a Level, the notebook's icon,
-   and its name under the notebooks above it. It fits the narrowest sidebar:
-   the names shorten with an ellipsis, the back button and icon keep their size. */
 .sidebar-workspace {
   display: flex;
   align-items: center;
@@ -794,9 +733,6 @@ button {
   border-radius: var(--radius-button);
 }
 
-/* Where a dragged notebook will go: a square-ended line across the row's full
-   width, just outside its top or bottom edge, above the rows; after an open
-   notebook, under its sub-notebooks (the line is on the notebook's item). */
 .drop-before::before,
 .drop-after::after {
   content: '';
@@ -816,7 +752,6 @@ button {
   bottom: calc(var(--size-drop-indicator) / -2);
 }
 
-/* A row being dragged dims while the drag lasts. */
 [data-dragging] {
   opacity: var(--opacity-dragged);
 }
@@ -825,7 +760,6 @@ button {
   background-color: var(--color-accent-text);
 }
 
-/* Allow AI Access is on: a small mark before the count. */
 .book-ai {
   display: flex;
   color: var(--color-text-secondary);
@@ -839,8 +773,6 @@ button {
   color: var(--color-text-tertiary);
 }
 
-/* A disclosure chevron (Chevron.tsx): one symbol pointing down, turned to
-   point right or up while its section is shut, over the toggle duration. */
 .chevron {
   display: inline-flex;
   transition: rotate var(--motion-duration-toggle) var(--motion-easing-move);
@@ -875,14 +807,11 @@ button {
   font: inherit;
 }
 
-/* A drop target: a dashed accent outline just inside the row. */
 .drop-target {
   outline: var(--size-drop-indicator) dashed var(--color-accent-fill);
   outline-offset: calc(-1 * var(--size-drop-indicator));
 }
 
-/* Notes dragged onto a row that takes them: the row fills with the accent. */
-/* (in step with the selected-row rules above) */
 .sidebar :is(.source, .book-row).drop-fill {
   background: var(--color-accent-fill);
   color: var(--color-accent-on-fill);
@@ -896,12 +825,10 @@ button {
   background-color: var(--color-accent-on-fill);
 }
 
-/* The notebook or tag whose context menu is open. */
 .menu-target {
   box-shadow: inset 0 0 0 2px var(--color-accent-fill);
 }
 
-/* The Templates view's Built-in group, under the user's templates. */
 .builtin {
   flex: none;
   max-height: 40%;
@@ -962,8 +889,6 @@ button {
   color: var(--color-text-secondary);
 }
 
-/* The sidebar's last line: when a note was last saved, and a chevron for the
-   backup and mirror state. */
 .sidebar-footer {
   position: relative;
   margin-top: auto;
@@ -1017,7 +942,6 @@ button {
   color: var(--color-status-dropped);
 }
 
-/* Tag Settings: a row of colour swatches under the name. */
 .sheet-field {
   display: block;
 }
@@ -1061,20 +985,16 @@ button {
   opacity: 0.4;
 }
 
-/* Note list. */
-/* The width the user dragged its right edge to (NoteList sets --list-width). */
 .list {
   position: relative;
   width: var(--list-width, var(--size-list-default-width));
   max-width: var(--size-list-max-width);
-  /* The list gives way to the editor in a narrow window, down to its minimum. */
   flex-shrink: 1;
   min-width: var(--size-list-min-width);
   display: flex;
   flex-direction: column;
   min-height: 0;
   box-sizing: border-box;
-  /* The window material shows through (opaque when it is off, above). */
   background: color(
     from var(--color-surface-list-wash) srgb r g b /
       clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
@@ -1086,10 +1006,7 @@ button {
   padding: 0 var(--space-6) 0 var(--space-8);
 }
 
-/* The list's header: the sidebar toggle at the start and New Note at the end,
-   the view's name on one line centred in the room between them (so it moves
-   with the window controls' room). Everything sits on the toolbar's centre
-   line, which the traffic lights share. */
+/* Everything sits on the toolbar's centre line, which the traffic lights share. */
 .list-header {
   display: flex;
   align-items: center;
@@ -1110,7 +1027,6 @@ button {
   justify-content: center;
   gap: calc(var(--font-size-list-title) * 0.3);
   min-width: 0;
-  /* The same room on both sides, so the name never touches a button. */
   padding-inline: var(--space-3);
   overflow: hidden;
   font-size: var(--font-size-list-title);
@@ -1127,7 +1043,6 @@ button {
   white-space: nowrap;
 }
 
-/* The view's icon: a 1em square before the name, a little lighter. */
 .headline-icon {
   display: flex;
   flex: none;
@@ -1143,7 +1058,6 @@ button {
   height: 1em;
 }
 
-/* A tag's colour: a small filled circle (the text colour for a tag without one). */
 .headline-dot {
   box-sizing: border-box;
   width: 0.6em;
@@ -1152,7 +1066,6 @@ button {
   background: var(--tag-color, var(--color-text-secondary));
 }
 
-/* Filter field and sort chip under the header. */
 .list-filter {
   display: flex;
   flex-direction: column;
@@ -1166,10 +1079,7 @@ button {
   width: 100%;
 }
 
-/* The note list's Filter field: an outlined white field (dark: near black).
-   At rest a faint funnel sits in a slot at its start; once a query is typed
-   the funnel goes and the clear button takes a slot at its end, so the text
-   moves to the start. */
+/* At rest a funnel sits in a slot at the start; once a query is typed the funnel goes and the clear button takes the end slot, so the text moves to the start. */
 .list-filter .search-field {
   gap: 0;
   height: var(--size-filter-field-height);
@@ -1241,13 +1151,11 @@ button {
   outline: none;
 }
 
-/* The list itself has the keyboard only when it is empty or after a click on its blank space. */
 .rows:focus-visible {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
-/* Stands for the rows of a long list that are not rendered (NoteList's window). */
 .rows-spacer {
   flex: none;
 }
@@ -1255,14 +1163,12 @@ button {
 .row {
   display: flex;
   flex-direction: column;
-  /* The same inset on both sides, for the title, the excerpt and the meta line. */
   padding: var(--space-1) var(--size-list-row-inset) var(--space-5);
   border-bottom: 1px solid var(--color-line-separator);
   border-radius: 0;
   outline: none;
 }
 
-/* Up to two lines; a long word breaks rather than overflows. */
 .row-title {
   display: -webkit-box;
   margin: var(--space-4) 0;
@@ -1275,12 +1181,10 @@ button {
   font-weight: var(--font-weight-semibold);
 }
 
-/* An untitled row starts with its excerpt: the same space above it as a title has. */
 .row > .row-meta:first-child {
   margin-top: var(--space-4);
 }
 
-/* One line of the body, Markdown and line breaks out (see listExcerpt). */
 .row-excerpt {
   padding: calc(var(--space-2) - 1px) 0 1px;
   overflow: hidden;
@@ -1290,7 +1194,6 @@ button {
   white-space: nowrap;
 }
 
-/* Words a filter matched: a box a shade darker at its edge. */
 .row mark {
   border-radius: var(--radius-mark);
   background: var(--color-match-bg);
@@ -1320,7 +1223,6 @@ button {
   background-color: var(--status-color);
 }
 
-/* Tasks done: an icon, a small bar and "1 of 4". */
 .row-progress {
   display: inline-flex;
   align-items: center;
@@ -1350,7 +1252,6 @@ button {
   transition: none;
 }
 
-/* Tags on a row: small outlined pills. */
 .row .chip {
   height: auto;
   padding: 0 var(--space-3);
@@ -1362,7 +1263,6 @@ button {
   line-height: 1.5;
 }
 
-/* A tag just added pops in (TagEditor.tsx). */
 @keyframes chip-in {
   from {
     opacity: 0;
@@ -1388,7 +1288,6 @@ button {
   white-space: nowrap;
 }
 
-/* An empty list says why, in the middle of the pane. */
 .list-empty {
   display: flex;
   flex: 1;
@@ -1411,7 +1310,6 @@ button {
   font-size: var(--font-size-footnote);
 }
 
-/* The right edge: drag it to make the pane wider or narrower. */
 .list-resize,
 .sidebar-resize {
   position: absolute;
@@ -1423,16 +1321,13 @@ button {
   cursor: col-resize;
 }
 
-/* The keyboard is on the edge: arrow keys resize, Enter resets. */
 .list-resize:focus-visible,
 .sidebar-resize:focus-visible {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
-/* The card under the pointer while notes are dragged (listDrag.ts), drawn
-   off screen for the drag's picture. The holder's padding is its distance
-   from the pointer. */
+/* Drawn off screen for the drag image (listDrag.ts); the holder's padding is its distance from the pointer. */
 .drag-card-holder {
   position: fixed;
   top: 0;
@@ -1465,7 +1360,6 @@ button {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  /* The rows' side padding: the label lines up with their titles. */
   padding: var(--space-4) var(--size-list-row-inset) var(--space-2);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
@@ -1473,17 +1367,12 @@ button {
   list-style: none;
 }
 
-/* Editor. */
-/* The editor keeps room for two split panes (and so for its toolbar): the
-   list gives way first, down to its minimum, and below size.sidebar-collapse-width
-   the sidebar goes. A narrow window whose sidebar was asked for squeezes the
-   editor instead. */
+/* The editor keeps room for two split panes (and its toolbar): the list gives way first, then the sidebar below size.sidebar-collapse-width. A narrow window whose sidebar was asked for squeezes the editor instead. */
 .content {
   flex: 1;
   min-width: calc(var(--size-pane-min-width) * 2);
   display: flex;
   flex-direction: column;
-  /* The window material shows through; the editor itself is transparent. */
   background: color(
     from var(--color-surface-editor-wash) srgb r g b /
       clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
@@ -1504,7 +1393,6 @@ button {
   font: var(--font-weight-regular) var(--font-size-note-title) / 1.25 var(--font-family-ui);
 }
 
-/* The note's notebook, status and tags: one compact line, no separators. */
 .note-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1514,7 +1402,6 @@ button {
   font-size: var(--font-size-body);
 }
 
-/* Tags in the note's line: outlined pills, their remove button on hover or keyboard focus. */
 /* The notebook pop-up's icon, not its hover fill, lines up with the title. */
 .note-meta > .picker:first-child {
   margin-inline-start: calc(-1 * var(--space-2));
@@ -1533,7 +1420,6 @@ button {
   margin-inline-start: 0;
 }
 
-/* Both ends are as wide as the remove button, so the label is centred. */
 .note-meta .chip {
   position: relative;
   height: var(--size-segment-height);
@@ -1565,9 +1451,6 @@ button {
   color: var(--color-text-tertiary);
 }
 
-/* A coloured tag's chip, in the note list and the note's line: its tag
-   colour at the opacity.tag strengths for the fill and edge, stronger under
-   the pointer or pressed, and its label in the tag's text colour. */
 .chip.tag-chip {
   border: 1px solid
     color-mix(in srgb, var(--tag-color) calc(var(--opacity-tag-border) * 100%), transparent);
@@ -1596,7 +1479,6 @@ button {
   color: var(--color-text-secondary);
 }
 
-/* Several notes selected: the editor pane sums them up, with their actions. */
 .selection-summary {
   display: flex;
   flex-direction: column;
@@ -1690,14 +1572,12 @@ button {
   box-shadow: inset 0 0 0 1px var(--color-focus-ring);
 }
 
-/* Pop-up button: a native select dressed as an AppKit pop-up. */
 .popup {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
   box-sizing: border-box;
-  /* No wider than its cap or its row: in a narrow window it gives way too. */
   min-width: 0;
   max-width: min(var(--size-popup-max-width), 100%);
   height: var(--size-segment-height);
@@ -1769,8 +1649,7 @@ button {
   text-overflow: ellipsis;
 }
 
-/* Focus mode, Back and Forward start it; the view modes and the More menu
-   sit at its end. No rule under it: it is part of the note's surface. */
+/* No rule under it: it is part of the note's surface. */
 .editor-toolbar {
   gap: var(--space-4);
   justify-content: flex-start;
@@ -1783,7 +1662,6 @@ button {
   flex-shrink: 0;
 }
 
-/* The view modes: an outlined group, the selected segment filled grey. */
 .editor-toolbar .segmented {
   gap: 0;
   padding: 0;
@@ -1813,19 +1691,16 @@ button {
   box-shadow: none;
 }
 
-/* The More menu's ellipsis stands upright. */
 .note-more .icon {
   transform: rotate(90deg);
 }
 
-/* Focus mode, Back and Forward, at the start of the editor's toolbar. */
 .trail-buttons {
   display: flex;
   gap: var(--space-1);
   margin-right: auto;
 }
 
-/* The sidebar's title bar: the traffic lights, then its Hide Sidebar button. */
 [data-devot-part='sidebar-titlebar'] {
   display: flex;
   align-items: center;
@@ -1836,9 +1711,7 @@ button {
   flex: 1;
 }
 
-/* The list's header: the window controls' room, the sidebar toggle, the
-   view and New Note. The room opens while the sidebar is hidden, when the
-   window controls sit over the list. */
+/* The room for the window controls opens while the sidebar is hidden and they sit over the list. */
 .list .list-header {
   padding: 0 var(--space-1);
 }
@@ -1849,8 +1722,6 @@ button {
   width: 0;
 }
 
-/* The toggle starts where the editor's header does in focus mode: past the
-   window controls by the inset (less the header's own padding). */
 .window[data-sidebar-hidden] .list-header .window-inset {
   width: calc(var(--size-window-controls-inset) - var(--space-1));
 }
@@ -1862,11 +1733,7 @@ button {
   padding: var(--space-3) var(--space-4);
 }
 
-/* Hiding or showing the sidebar and the list (the toggle, focus mode): a pane
-   that goes leaves the layout at once and one that comes takes its room at
-   once, and the panes that stay slide to their new places (paneMotion.ts).
-   A hidden pane keeps its size, out of the layout and out of sight, so it can
-   fade out where it was; the panes that stay paint over it as they slide. */
+/* A pane that goes leaves the layout at once and one that comes takes its room at once; panes that stay slide (paneMotion.ts). A hidden pane keeps its size out of layout and sight so it can fade out where it was. */
 
 .window {
   position: relative;
@@ -1877,7 +1744,6 @@ button {
   overflow: clip;
 }
 
-/* A theme or appearance change: the panes' washes and edges ease into the new colours. */
 .sidebar,
 .list,
 .content {
@@ -1902,8 +1768,6 @@ button {
   opacity: 0;
 }
 
-/* Focus mode: only the editor shows, at a reading width in the middle. */
-
 /* Clear the window controls, which now sit over the editor toolbar. No
    transition: its items slide with the panes (paneMotion.ts). */
 .window[data-focus] .editor-toolbar {
@@ -1916,7 +1780,6 @@ button {
   margin-inline: auto;
 }
 
-/* The side margins become padding, so text lines up as outside focus mode. */
 .window[data-focus] .content > .title,
 .window[data-focus] .content > .note-meta {
   padding-inline: var(--space-9);
@@ -1926,7 +1789,6 @@ button {
   width: min(var(--size-reading-width) * 2, 100% - var(--space-10) * 2);
 }
 
-/* Segmented control: the selected segment is raised and neutral. */
 .segmented {
   display: flex;
   gap: var(--space-1);
@@ -1954,7 +1816,6 @@ button {
   color: var(--color-text-primary);
 }
 
-/* Edit, split and preview. */
 .panes {
   flex: 1;
   min-height: 0;
@@ -1962,14 +1823,11 @@ button {
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* Each pane takes half the note area, with no reading width of its own, and
-   keeps a minimum; a content area too narrow for two scrolls sideways. */
 .panes-split {
   grid-template-columns: repeat(2, minmax(var(--size-pane-min-width), 1fr));
   overflow-x: auto;
 }
 
-/* Editor and preview stand apart by a small gutter of whitespace, no rule. */
 .panes-split .editor {
   --editor-reading-width: none;
   --editor-padding: 0 var(--space-4) 0 calc(var(--space-9) - var(--space-3) - var(--space-2));
@@ -1979,9 +1837,7 @@ button {
   padding-left: var(--space-6);
 }
 
-/* The host of the editor's shadow root. The box inside it scrolls and takes
-   this padding (NoteEditor.tsx); the host clips nothing, so a popup over the
-   first lines can reach up over the title. */
+/* The box inside the shadow root scrolls and takes this padding (NoteEditor.tsx); the host clips nothing, so a popup over the first lines can reach up over the title. */
 .editor {
   min-height: 0;
   /* The content pads its lines by space-2 (room for boxes, editor/boxes.ts)
@@ -1994,11 +1850,9 @@ button {
   display: none;
 }
 
-/* Preview: rendered note content. */
 .preview {
   min-height: 0;
   overflow: auto;
-  /* The note's title and meta line have the same side margins. */
   padding: var(--space-4) var(--space-9) var(--space-9);
   /* The app's font, or the note font once it is not the default (editorSettings.ts).
      Size and line height are set in preview/content.css. */
@@ -2007,10 +1861,7 @@ button {
   user-select: text;
 }
 
-/*
- * The preview takes focus on a click (for find) and from the keyboard (it
- * scrolls with the arrow keys and Page Down); the ring shows for the keyboard.
- */
+/* Focusable on click (for find) and from the keyboard (arrow keys, Page Down); the ring shows for the keyboard only. */
 .preview:focus {
   outline: none;
 }
@@ -2019,10 +1870,7 @@ button {
   box-shadow: inset 0 0 0 2px var(--color-accent-fill);
 }
 
-/*
- * The note info card: the first thing in the preview, never in an exported
- * or printed page. Task progress and dates, each an icon over a caption.
- */
+/* The first thing in the preview, never in an exported or printed page. */
 .note-info {
   margin: var(--space-1) 0 var(--space-7);
   font-size: var(--font-size-body);
@@ -2037,7 +1885,6 @@ button {
   align-items: center;
   gap: var(--space-3) var(--space-7);
   box-sizing: border-box;
-  /* An icon's box and the same space round it as between it and the card's edge. */
   min-height: calc(var(--space-10) + var(--space-4) * 2);
   padding: var(--space-4);
   border-radius: var(--radius-floating-bar);
@@ -2080,7 +1927,6 @@ button {
   text-transform: uppercase;
 }
 
-/* A date that can be changed: a click opens a date-time field. */
 .note-info-date {
   padding: 0 var(--space-1);
   border: 0;
@@ -2131,7 +1977,6 @@ button {
   white-space: nowrap;
 }
 
-/* "Linked to this note": the notes whose text links here. */
 .note-backlinks {
   margin-top: var(--space-4);
 }
@@ -2169,7 +2014,6 @@ button {
   white-space: nowrap;
 }
 
-/* Find matches in the preview, painted without touching its DOM. */
 ::highlight(devot-find) {
   background-color: var(--color-fill-match);
 }
@@ -2178,7 +2022,6 @@ button {
   background-color: var(--color-fill-match-current);
 }
 
-/* Find in note: a bar over the editor and the preview. */
 .find-bar {
   display: flex;
   flex-direction: column;
@@ -2250,7 +2093,6 @@ button {
   color: var(--color-accent-text);
 }
 
-/* Shown on hover, on keyboard focus and while it reports a copy. */
 .code-copy {
   position: absolute;
   top: var(--space-3);
@@ -2325,14 +2167,12 @@ button {
   user-select: none;
 }
 
-/* Printed notes show the note only. */
 @media print {
   [data-devot-ui] {
     display: none;
   }
 }
 
-/* Double-click opens the image viewer (the app's own control, not page CSS). */
 .preview img {
   cursor: zoom-in;
 }
@@ -2428,7 +2268,6 @@ button {
   color: var(--color-text-tertiary);
 }
 
-/* The syntax list a field's "?" button opens: under the field, over the list. */
 .search-field-box {
   position: relative;
   width: 100%;
@@ -2498,7 +2337,6 @@ button {
   color: var(--color-text-secondary);
 }
 
-/* Trash. */
 .trash-source {
   margin-top: auto;
   padding-top: var(--space-4);
@@ -2523,7 +2361,6 @@ button {
   margin-bottom: var(--space-6);
 }
 
-/* Push buttons and the confirmation sheet. */
 .button {
   height: var(--size-segment-height);
   padding: 0 var(--space-5);
@@ -2582,7 +2419,6 @@ button {
   gap: var(--space-4);
 }
 
-/* The selection toolbar's link dialog: a text and a URL field. */
 .link-dialog {
   box-sizing: border-box;
   width: var(--size-link-dialog-width);
@@ -2669,7 +2505,6 @@ button {
   opacity: var(--opacity-disabled);
 }
 
-/* Sheets: a modal panel with a title, like the backups list. */
 .sheet {
   width: calc(var(--size-list-width) * 1.5);
   padding: var(--space-8);
@@ -2725,7 +2560,6 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* A pick list in a sheet that filters as you type (Move to Notebook). */
 .pick-filter {
   width: 100%;
   height: var(--size-field-height);
@@ -2778,7 +2612,6 @@ button {
   background-color: var(--color-accent-on-fill);
 }
 
-/* The default push button of a sheet. */
 .button-default {
   background: var(--color-accent-fill);
   color: var(--color-accent-on-fill);
@@ -2792,7 +2625,6 @@ button {
   background: color-mix(in srgb, var(--color-accent-hover), var(--color-text-primary) 12%);
 }
 
-/* New Note from Template: the templates beside a preview of the note. */
 .sheet.templates {
   width: calc(var(--size-list-width) * 2.25);
   max-width: calc(100vw - var(--space-10) * 2);
@@ -2857,7 +2689,6 @@ button {
   overflow-wrap: anywhere;
 }
 
-/* Revision History: versions and events beside the changes since one. */
 .sheet.history {
   width: calc(var(--size-list-width) * 2.5);
   max-width: calc(100vw - var(--space-10) * 2);
@@ -2963,9 +2794,7 @@ button {
   font-family: var(--font-family-ui);
 }
 
-/* Activity: a heatmap of the last 52 weeks, weeks as columns, Monday first. */
 .sheet.activity {
-  /* As wide as the chart; text wraps to it. */
   width: min-content;
   min-width: calc(var(--size-list-width) * 2);
   max-width: calc(100vw - var(--space-10) * 2);
@@ -3098,8 +2927,6 @@ button {
   font-size: var(--font-size-caption);
 }
 
-/* Import: the scan, the folders it found, the notebook to import into, then
-   progress and what was not imported. */
 .sheet.import {
   width: calc(var(--size-list-width) * 2);
 }
@@ -3206,7 +3033,6 @@ button {
   font-size: var(--font-size-caption);
 }
 
-/* The core could not start: the whole window says so, in place of an empty library. */
 .start-failure {
   display: flex;
   flex-direction: column;
@@ -3242,7 +3068,6 @@ button {
   color: var(--color-text-secondary);
 }
 
-/* Notices floating over the window (a failed backup or export), stacked in one corner. */
 .notices {
   position: fixed;
   right: var(--space-7);
@@ -3267,8 +3092,6 @@ button {
   margin-right: var(--space-4);
 }
 
-/* Settings window: a navigation column on the left (a row per pane, its
-   name and its symbol) and the pane beside it, which scrolls. */
 .settings {
   box-sizing: border-box;
   display: flex;
@@ -3285,13 +3108,9 @@ button {
   padding-top: var(--space-2);
   overflow-y: auto;
   border-right: 1px solid var(--color-line-hairline);
-  /* The Settings window has no material: its sidebar is opaque. */
   background: var(--color-surface-sidebar-opaque);
 }
 
-/* A row: its name on the left and an outline symbol on the right. The
-   selected one has a neutral fill and a bar of the accent colour on its
-   right edge. */
 .settings-tab {
   display: flex;
   align-items: center;
@@ -3338,12 +3157,10 @@ button {
   color: var(--color-status-dropped);
 }
 
-/* The Markdown mirror's folder: a long path wraps anywhere. */
 .settings-section .mirror-folder {
   overflow-wrap: anywhere;
 }
 
-/* Settings > Integrations: a client config, as it is copied. */
 .integration-config {
   margin: 0 0 var(--space-6);
   padding: var(--space-6);
@@ -3358,8 +3175,6 @@ button {
   user-select: text;
 }
 
-/* A block of a pane: its title (17 px, bold, with a symbol) over its
-   settings; blocks are set apart by a hairline. */
 .settings-block + .settings-block {
   margin-top: var(--space-9);
   padding-top: var(--space-9);
@@ -3375,8 +3190,6 @@ button {
   font-weight: var(--font-weight-bold);
 }
 
-/* A setting: its bold label and a grey description under it, and its
-   control on the right. */
 .setting {
   display: flex;
   align-items: center;
@@ -3385,7 +3198,6 @@ button {
   margin-bottom: var(--space-7);
 }
 
-/* Settings > Appearance: a card per appearance, with a few lines of Markdown in its colours. */
 .theme-cards {
   display: flex;
   flex-wrap: wrap;
@@ -3412,7 +3224,6 @@ button {
 
 .theme-card:has(input:focus-visible) .theme-card-previews {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
-  /* Beside the selected card's ring, not over it. */
   outline-offset: var(--size-focus-ring);
 }
 
@@ -3428,7 +3239,6 @@ button {
   white-space: nowrap;
 }
 
-/* Match System shows half of each. */
 .theme-card-previews .theme-preview + .theme-preview,
 .theme-card-previews .theme-preview:has(+ .theme-preview) {
   width: calc(var(--space-10) * 1.5);
@@ -3483,15 +3293,12 @@ button {
   gap: var(--space-3);
 }
 
-/* A pop-up in the window's text size, as tall as the push buttons beside it,
-   with the same corners. */
 .setting-range {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-/* The slider's end labels, in the description's size and colour. */
 .setting-range-end {
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
@@ -3509,9 +3316,6 @@ button {
   font-size: var(--font-size-body);
 }
 
-/* The switch: a lane with a knob that slides across it; the native
-   checkbox underneath keeps the keyboard, the state and the label. It sits
-   in the control column, like every other setting's control. */
 .setting-toggle input[role='switch'] {
   position: relative;
   flex: none;
@@ -3614,7 +3418,6 @@ button {
   margin: var(--space-6) 0;
 }
 
-/* Hidden from view, not from assistive tech (a live region, table headers). */
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -3624,7 +3427,6 @@ button {
   white-space: nowrap;
 }
 
-/* Keyboard shortcuts: a search field over one table of every command. */
 .shortcuts-search {
   box-sizing: border-box;
   width: 100%;
@@ -3796,7 +3598,6 @@ button {
   overflow-wrap: anywhere;
 }
 
-/* The command palette: a field over grouped results, near the top of the window. */
 .palette {
   width: var(--size-palette-width);
   max-width: calc(100vw - var(--space-10) * 2);
@@ -3815,7 +3616,6 @@ button {
   background: transparent;
 }
 
-/* The field: a search icon (a back arrow once scoped) before the input. */
 .palette-field {
   display: flex;
   align-items: center;
@@ -3883,7 +3683,6 @@ button {
   align-items: center;
   gap: var(--space-4);
   height: var(--size-dialog-row);
-  /* An outline entry indents by its depth (--palette-depth, set per row). */
   padding: 0 var(--space-4) 0 calc(var(--space-4) + var(--palette-depth, 0) * var(--space-7));
   border-radius: var(--radius-control);
 }
@@ -3982,7 +3781,6 @@ button {
   color: var(--color-text-tertiary);
 }
 
-/* The image viewer: one image over the whole window. */
 .image-viewer {
   box-sizing: border-box;
   width: 100vw;
@@ -4011,8 +3809,7 @@ button {
   justify-content: space-between;
   gap: var(--space-4);
   height: var(--size-toolbar-height);
-  /* The viewer covers the title bar: its controls start clear of the
-     window controls, as the list's toolbar does with the sidebar hidden. */
+  /* Clears the window controls, which the viewer covers. */
   padding: 0 var(--space-8) 0 calc(var(--space-10) * 2 + var(--space-7) + var(--space-5));
   border-bottom: 1px solid var(--color-line-hairline);
 }
@@ -4035,7 +3832,6 @@ button {
   box-shadow: inset 0 0 0 2px var(--color-accent-fill);
 }
 
-/* Centred while it fits; scrolls from its top-left corner when larger. */
 .image-viewer-image {
   margin: auto;
   flex: none;
@@ -4054,12 +3850,10 @@ button {
   cursor: zoom-out;
 }
 
-/* Pop-up buttons that open a pop-over (BookPicker, StatusPicker). */
 .picker {
   position: relative;
   display: inline-flex;
   min-width: 0;
-  /* The pop-up's cap, on the box around it too: a long name does not take the row. */
   max-width: min(var(--size-popup-max-width), 100%);
 }
 
@@ -4115,14 +3909,12 @@ button.popup:focus-visible {
     menu-unfold var(--motion-duration-toggle) var(--motion-easing-move);
 }
 
-/* Closing, a menu fades as it folds back to the edge it hangs from. */
 :is(.picker-popover, .tag-suggestions)[data-closing][data-closing-motion='scale'] {
   animation:
     fade-out var(--motion-duration-toggle) var(--motion-easing-standard) forwards,
     menu-fold var(--motion-duration-toggle) var(--motion-easing-standard) forwards;
 }
 
-/* With no room below its button a picker opens over it, growing out of the button's top edge. */
 .picker-popover[data-side='above'] {
   top: auto;
   bottom: calc(100% + var(--space-2));
@@ -4202,23 +3994,18 @@ button.popup:focus-visible {
   background-color: var(--status-color, var(--color-text-secondary));
 }
 
-/* An option without an icon keeps its room, so the names share one edge. */
 .picker-icon-slot {
   flex: none;
   width: var(--size-icon-sm);
 }
 
-/* Every suggestion keeps a tag dot's slot (an empty one for a tag without a
-   colour and for Create), so every name starts at one edge. */
 .tag-suggestion:not(:has(> .tag-dot))::before {
   content: '';
   flex: none;
   width: var(--space-4);
 }
 
-/* The names start where the typed text does: the list moves left by its
-   padding, its edge, an option's padding and the dot's slot and gap, less
-   the field's own padding (both space-2). */
+/* Names start where the typed text does: the list moves left by its padding, its edge, an option's padding and the dot's slot and gap, less the field's padding. */
 .tag-suggestions {
   left: calc(-1 * (var(--space-4) + 1px + var(--space-4) + var(--space-3)));
 }
@@ -4246,7 +4033,6 @@ button.popup:focus-visible {
   color: var(--color-text-tertiary);
 }
 
-/* The tag field and its suggestions. */
 .tag-field {
   position: relative;
   display: inline-flex;
@@ -4262,11 +4048,6 @@ button.popup:focus-visible {
   color: var(--color-accent-on-fill);
 }
 
-/*
- * A button's tooltip: its name, then its key in a chip below it, centred
- * (ToolTips.tsx). It sits above the button with a notch pointing down at it
- * (below, notch up, when there is no room) and only fades.
- */
 .tool-tip {
   position: fixed;
   z-index: 30;
@@ -4296,8 +4077,6 @@ button.popup:focus-visible {
   animation: none;
 }
 
-/* The notch: a turned square on the edge facing the button, kept at the
-   button's centre (--tip-arrow-x), with the hairline on its two outer sides. */
 .tool-tip::before {
   content: '';
   position: absolute;
@@ -4330,15 +4109,12 @@ button.popup:focus-visible {
   font: inherit;
 }
 
-/* A notebook icon in a palette colour, wherever it shows (sidebar, pickers,
-   the palette, the icon picker's grid), at 3:1 on what it sits on. A selected or drop-target row keeps
-   its own icon colour (those rules are more specific). */
+/* At 3:1 on its background; a selected or drop-target row keeps its own icon colour (those rules are more specific). */
 .icon.book-icon-colored,
 .popup .icon.book-icon-colored:first-child {
   background-color: var(--tag-icon);
 }
 
-/* Change Notebook Icon: search, a tab per category, a grid of symbols. */
 .sheet.notebook-icon {
   width: calc(var(--size-list-width) * 1.75);
   max-width: calc(100vw - var(--space-10) * 2);
@@ -4419,8 +4195,6 @@ button.popup:focus-visible {
   justify-content: space-between;
 }
 
-/* A note link's hover card in the preview: the tooltip bubble, wider, with its
-   text wrapping (the card's own rules are in preview/content.css). */
 .tool-tip.note-card-pop {
   align-items: stretch;
   padding: 0;

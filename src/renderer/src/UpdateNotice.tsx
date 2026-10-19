@@ -13,7 +13,6 @@ const MAIN_WINDOW = 'main'
 
 const warn = (code: string) => () => console.warn(code)
 
-/** Installs the downloaded update and restarts; a failure comes as a status. */
 export const restartNow = () => restartToUpdate().catch(warn('W_UPDATE_RESTART_FAILED'))
 
 /**

@@ -107,7 +107,6 @@ describe('parseLastState', () => {
     ]) {
       expect(parse({ filter })?.filter).toBeNull()
     }
-    // The mode.
     for (const mode of ['source', 1, null]) expect(parse({ mode })?.mode).toBe('edit')
     // The note: no proper ID drops it; a bad position drops only that part.
     for (const note of [null, 'x', { id: 'x' }, { id: 3 }, { selection: { anchor: 1, head: 1 } }]) {

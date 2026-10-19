@@ -7,7 +7,6 @@ import type { NoteSummary } from '../../core'
 import { errorCode } from '../../core/errors'
 import { t } from './i18n'
 
-/** Looks up the headlines of notes by ID (see NoteService.headlines). */
 export type HeadlineLoader = (ids: string[]) => Promise<Record<string, string>>
 
 /**
@@ -41,7 +40,6 @@ export async function displayTitles(
   return new Map(notes.map((n) => [n.id, displayTitle(n.title, found[n.id])]))
 }
 
-/** The `limit` most recently written untitled notes of `notes`. */
 export function newestUntitled(notes: readonly NoteSummary[], limit: number): NoteSummary[] {
   return notes
     .filter((n) => n.title === '')
@@ -49,16 +47,13 @@ export function newestUntitled(notes: readonly NoteSummary[], limit: number): No
     .slice(0, limit)
 }
 
-/** A headline, and the `updatedAt` of the note it was read for. */
 export interface CachedHeadline {
   at: number
   text: string
 }
 
-/** Headlines kept, most recently read last; older ones are read again when shown. */
 const KEPT = 2000
 
-/** The untitled notes among `notes` whose headline is not in `cache` as of their last write. */
 export function staleHeadlines(
   notes: readonly NoteSummary[],
   cache: ReadonlyMap<string, CachedHeadline>,
@@ -67,7 +62,6 @@ export function staleHeadlines(
   return notes.filter((n) => (all || n.title === '') && cache.get(n.id)?.at !== n.updatedAt)
 }
 
-/** Drops the oldest entries of `cache` until at most `limit` are left. */
 export function keepRecent(cache: Map<string, CachedHeadline>, limit: number) {
   for (const id of cache.keys()) {
     if (cache.size <= limit) return
@@ -104,7 +98,6 @@ export function mergeHeadlines(
 export function useHeadlines(
   load: HeadlineLoader | undefined,
   notes: readonly NoteSummary[],
-  /** Look up every note, not only the untitled ones (body excerpts). */
   all = false,
 ): ReadonlyMap<string, string> {
   const [cache, setCache] = useState<ReadonlyMap<string, CachedHeadline>>(() => new Map())

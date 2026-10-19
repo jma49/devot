@@ -11,7 +11,6 @@ export interface BackupInfo {
 
 export interface BackupStatus {
   backups: BackupInfo[]
-  /** The code of the last backup, when it failed. */
   lastError: string | null
 }
 
@@ -21,7 +20,6 @@ export const BACKUP_FAILED = 'devot:backup-failed'
 export const listBackups = () => invoke<BackupStatus>('backups_list')
 export const backupNow = () => invoke<BackupInfo>('backup_now')
 
-/** Holding and resuming compaction sweeps (see NoteService.holdCompaction). */
 export interface Compaction {
   hold(): Promise<void>
   resume(): unknown
@@ -43,5 +41,4 @@ export async function restoreBackup(id: string, compaction?: Compaction) {
   }
 }
 
-/** The code a failed command reports, or a generic one (see core/errors.ts). */
 export { errorCode } from '../../core/errors'
