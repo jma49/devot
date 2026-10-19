@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest'
-import { concealFrames, revealFrames, revealTiming, slideFrames, slideTiming } from './reveal'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  conceal,
+  concealFrames,
+  reveal,
+  revealFrames,
+  revealTiming,
+  slideFrames,
+  slideTiming,
+} from './reveal'
 import { sizes } from './theme/tokens'
 
 describe('a section opening', () => {
@@ -25,10 +33,70 @@ describe('a section opening', () => {
 
 describe('a section closing', () => {
   it('shrinks to nothing, fading out, over the same timing', () => {
-    expect(concealFrames(84)).toEqual([
+    expect(concealFrames({ height: 84, opacity: 1 })).toEqual([
       { height: '84px', opacity: 1 },
       { height: '0px', opacity: 0 },
     ])
+  })
+})
+
+class FakeAnimation extends EventTarget {
+  constructor(readonly frames: Keyframe[]) {
+    super()
+  }
+  cancel() {
+    this.dispatchEvent(new Event('cancel'))
+  }
+  finish() {
+    this.dispatchEvent(new Event('finish'))
+  }
+}
+
+function section(drawn: { height: string; opacity: string }) {
+  const played: FakeAnimation[] = []
+  vi.stubGlobal('getComputedStyle', () => drawn)
+  const el = {
+    style: { overflow: 'visible' },
+    scrollHeight: 120,
+    animate: (frames: Keyframe[]) => {
+      const animation = new FakeAnimation(frames)
+      played.push(animation)
+      return animation
+    },
+  }
+  return { el: el as unknown as HTMLElement, played }
+}
+
+describe('a section toggled again before it has finished', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('turns a close back from where it is, and never closes', () => {
+    const { el, played } = section({ height: '45px', opacity: '0.4' })
+    const closed = vi.fn<() => void>()
+    conceal(el, closed)
+    expect(played[0]?.frames[0]).toEqual({ height: '120px', opacity: 1 })
+    reveal(el)
+    expect(played[1]?.frames).toEqual([
+      { height: '45px', opacity: 0.4 },
+      { height: '120px', opacity: 1 },
+    ])
+    played[1]?.finish()
+    expect(closed).not.toHaveBeenCalled()
+    expect(el.style.overflow).toBe('visible')
+  })
+
+  it('closes an open under way from where it is, never from its full height', () => {
+    const { el, played } = section({ height: '45px', opacity: '0.4' })
+    reveal(el)
+    const closed = vi.fn<() => void>()
+    conceal(el, closed)
+    expect(played[1]?.frames).toEqual([
+      { height: '45px', opacity: 0.4 },
+      { height: '0px', opacity: 0 },
+    ])
+    expect(el.style.overflow).toBe('hidden')
+    played[1]?.finish()
+    expect(closed).toHaveBeenCalledOnce()
   })
 })
 

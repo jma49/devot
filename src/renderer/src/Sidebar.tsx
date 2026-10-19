@@ -341,7 +341,14 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     if (revealNext.current.delete(key)) reveal(el)
   }
   const animated = (key: string, opening: boolean, change: () => void) => {
-    if (closing.current.has(key)) return
+    if (closing.current.has(key)) {
+      if (!opening) return
+      // Still open underneath: the close turns back from where it is.
+      closing.current.delete(key)
+      const el = lists.current.get(key)
+      if (el) reveal(el)
+      return
+    }
     if (opening) return change()
     closing.current.add(key)
     conceal(lists.current.get(key), () => {
@@ -350,8 +357,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     })
   }
   const toggleSection = (section: CollapsibleSection, open?: boolean) => {
-    const opening = open ?? folded.has(section)
-    animated(`section:${section}`, opening, () => {
+    const key = `section:${section}`
+    const opening = open ?? (folded.has(section) || closing.current.has(key))
+    animated(key, opening, () => {
       const next = new Set(foldedNow.current)
       if (opening) {
         revealNext.current.add(`section:${section}`)
@@ -584,9 +592,11 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const openParent = (node: BookNode) => node.children.length > 0 && !collapsed.has(node.id)
 
   const toggle = (id: string, open?: boolean) => {
-    const opening = open ?? collapsed.has(id)
-    if (opening === !collapsed.has(id)) return
-    animated(`book:${id}`, opening, () => {
+    const key = `book:${id}`
+    const shown = !collapsed.has(id) && !closing.current.has(key)
+    const opening = open ?? !shown
+    if (opening === shown) return
+    animated(key, opening, () => {
       if (opening) revealNext.current.add(`book:${id}`)
       const next = new Set(collapsedNow.current)
       if (opening) next.delete(id)
