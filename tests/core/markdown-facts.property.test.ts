@@ -78,6 +78,8 @@ describe('markdownFacts', () => {
       'Own',
     )
     expect(markdownFacts('    # code\n').title('Plan.md')).toBe('Plan')
+    // #201: the body is read on its own after Devot's block, so its leading `---` opens front matter.
+    expect(markdownFacts(`---\n${EXPORT_HEADER}\n---\n---\n# Title\n---`).title('Plan.md')).toBe('Plan')
     const html = '<p><IMG SRC="devot://file/0192a6f0-0000-7000-8000-00000000f003"></p>\n'
     expect(markdownFacts(html).links.map((link) => link.url)).toEqual([
       'devot://file/0192a6f0-0000-7000-8000-00000000f003',
