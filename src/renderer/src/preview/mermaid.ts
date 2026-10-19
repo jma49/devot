@@ -72,6 +72,8 @@ function rendererPort(): Promise<MessagePort> {
 type Answer =
   | { type: 'rendered'; svg: string }
   | { type: 'failed'; reason: FailureReason | 'timeout' }
+  /** Not sent: a newer render for its element came first. */
+  | { type: 'skipped' }
 
 let queue: Promise<unknown> = Promise.resolve()
 
@@ -83,14 +85,29 @@ interface Font {
 /** A diagram drawn once for a theme and font is not drawn again. */
 const drawn = keptAnswers<Answer>(64, (answer) => answer.type === 'rendered')
 
-function renderInFrame(source: string, appearance: IslandContext['appearance']): Promise<Answer> {
+/**
+ * Requests wait in one queue for the frame; one whose signal is aborted by
+ * the time its turn comes is not sent, so typing in a diagram draws only the
+ * latest source instead of every keystroke's.
+ */
+async function renderInFrame(
+  source: string,
+  appearance: IslandContext['appearance'],
+  signal?: AbortSignal,
+): Promise<Answer> {
   const preview = document.querySelector('.preview') ?? document.body
   const { fontFamily, fontSize } = getComputedStyle(preview)
-  return drawn(JSON.stringify([appearance, fontFamily, fontSize, source]), () => {
-    const turn = queue.then(() => ask(source, appearance, { fontFamily, fontSize }))
-    queue = turn
-    return turn
-  })
+  for (;;) {
+    const answer = await drawn(JSON.stringify([appearance, fontFamily, fontSize, source]), () => {
+      const turn = queue.then((): Answer | Promise<Answer> =>
+        signal?.aborted ? { type: 'skipped' } : ask(source, appearance, { fontFamily, fontSize }),
+      )
+      queue = turn
+      return turn
+    })
+    // A skipped answer may have been shared with a request still wanted: ask again.
+    if (answer.type !== 'skipped' || signal?.aborted) return answer
+  }
 }
 
 /**
@@ -205,9 +222,13 @@ function diagramLabel(source: string): string {
   return name ? fill(t('mermaid.labelNamed'), { name }) : t('mermaid.label')
 }
 
-async function render(source: string, { appearance }: IslandContext): Promise<IslandContent> {
+async function render(
+  source: string,
+  { appearance, signal }: IslandContext,
+): Promise<IslandContent> {
   if (source.length > MAX_SOURCE_LENGTH) return errorContent('parse')
-  const answer = await renderInFrame(source, appearance)
+  const answer = await renderInFrame(source, appearance, signal)
+  if (answer.type === 'skipped') return { node: document.createTextNode('') }
   if (answer.type !== 'rendered') {
     logFailure(answer.reason)
     return errorContent(answer.reason)
@@ -230,6 +251,7 @@ async function render(source: string, { appearance }: IslandContext): Promise<Is
 export async function mermaidMarkup(source: string): Promise<string | null> {
   if (source.length > MAX_SOURCE_LENGTH) return null
   const answer = await renderInFrame(source, 'light')
+  if (answer.type === 'skipped') return null
   if (answer.type !== 'rendered') {
     logFailure(answer.reason)
     return null

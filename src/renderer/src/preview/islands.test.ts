@@ -49,15 +49,20 @@ function deferred<T>() {
 }
 
 function testIsland() {
-  const requests: { source: string; land: (content?: Partial<IslandContent>) => void }[] = []
+  const requests: {
+    source: string
+    signal: AbortSignal | undefined
+    land: (content?: Partial<IslandContent>) => void
+  }[] = []
   let live = 0
   const island: PreviewIsland = {
     kind: 'test',
     apiVersion: PREVIEW_API_VERSION,
-    render(source) {
+    render(source, { signal }) {
       const gate = deferred<IslandContent>()
       requests.push({
         source,
+        signal,
         land: (extra = {}) => {
           // Like Mermaid: the sheet is taken when the drawing arrives.
           live += 1
@@ -104,6 +109,21 @@ describe('createIslandMounter', () => {
 
     expect(el.shown).toEqual([{ source: 'c' }])
     expect(live()).toBe(1)
+  })
+
+  it('aborts a render once a newer one for its element starts, or the mounter goes', () => {
+    const { island, requests } = testIsland()
+    const mounter = createIslandMounter(createIslandRegistry([island]))
+    const el = islandElement('a')
+    const host = hostOf([el])
+
+    mounter.mount(host, { appearance: 'light' })
+    el.source = 'b'
+    mounter.mount(host, { appearance: 'light' })
+    expect(requests.map((r) => r.signal?.aborted)).toEqual([true, false])
+
+    mounter.dispose()
+    expect(requests[1]!.signal?.aborted).toBe(true)
   })
 
   it('releases every sheet when it is disposed, including drawings still on their way', async () => {
