@@ -1,4 +1,4 @@
-import { STARTER_TEMPLATES, starterTemplate } from '../../core'
+import { STARTER_TEMPLATES, starterTemplate } from '../../core/starterTemplates'
 import { t } from './i18n'
 
 export function BuiltInTemplates(props: {

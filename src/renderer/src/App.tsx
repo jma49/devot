@@ -127,6 +127,7 @@ import { markWrite } from './lastWrite'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
 import { startCore, stopCore, type Core } from './core-client'
+import { warmUp } from './warmUp'
 import { welcomeContent } from './welcome/content'
 import { currentFocusStore, currentSidebarStore, keyboardIsFree } from './focus'
 import { useFocusRescue } from './focusRescue'
@@ -1310,6 +1311,12 @@ export function App() {
 
   // Nothing is saved until the last state is restored, so a loading window never overwrites it.
   const [restored, setRestored] = useState(false)
+  const warmed = useRef(false)
+  useEffect(() => {
+    if (!core || !restored || warmed.current) return
+    warmed.current = true
+    warmUp(core)
+  }, [core, restored])
   const mirror = useMarkdownMirror(core, restored)
   const noteState = useRef<NoteState>(undefined)
   // The state outside the Trash, which is kept while the Trash shows.
