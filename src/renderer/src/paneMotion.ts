@@ -3,12 +3,9 @@
 // once; the panes that stay slide from where they were to where they are now
 // (measured before and after the change, then played back with the Web
 // Animations API) over `motion.duration.slide` on the `motion.easing.move`
-// curve. Their size changes at once. The toolbar items that make room for the
-// window controls (the list header's after its inset, the editor toolbar's in
-// focus mode) take their new places at once too and slide there with the
-// panes. A change that comes while another is under way carries on from where
-// things are seen, at the speed they have (`drawnOffset`). Reduce Motion shows
-// the change at once.
+// curve. Their size changes at once, and so does the room for the window
+// controls; the toolbar items it moves slide with the panes. Reduce Motion
+// shows the change at once.
 import { motionReduced } from './motionPreference'
 import { drawnOffset, motionTiming } from './motionTiming'
 
@@ -20,9 +17,8 @@ export type Pane = (typeof PANES)[number]
 export interface PaneBox {
   left: number
   shown: boolean
-  /** How opaque it is seen now (a fade under way included). */
   opacity?: number
-  /** Where its toolbar items that make room for the window controls are, from its left edge. */
+  /** Toolbar items the window controls' room moves, from the pane's left edge. */
   riders?: Map<Element, number>
 }
 
@@ -65,11 +61,6 @@ export function paneMoves(before: PaneBoxes, after: PaneBoxes): Partial<Record<P
   return moves
 }
 
-/**
- * How far each toolbar item that stays in a pane moved within it, from
- * `before` to `after` (each from the pane's left edge). Items in only one,
- * or that did not move, do nothing.
- */
 export function riderMoves<T>(before: Map<T, number>, after: Map<T, number>): Map<T, number> {
   const moves = new Map<T, number>()
   for (const [item, left] of after) {
@@ -81,11 +72,7 @@ export function riderMoves<T>(before: Map<T, number>, after: Map<T, number>): Ma
   return moves
 }
 
-/**
- * The keyframes of a move; none under Reduce Motion (the change shows at
- * once). A slide adds to any slide under way; a fade starts from how opaque
- * the pane is seen (`from`), so a fade cut short turns back where it is.
- */
+/** `from`: the pane's opacity now, so a fade cut short turns back where it is. */
 export function paneFrames(move: PaneMove, reduced: boolean, from?: number): Keyframe[] | null {
   if (reduced) return null
   switch (move.kind) {
@@ -105,7 +92,6 @@ export function paneFrames(move: PaneMove, reduced: boolean, from?: number): Key
   }
 }
 
-/** From `dx` pixels away to the place in the layout, added to any slide under way. */
 export const slideFrames = (dx: number): Keyframe[] => [
   { transform: `translateX(${dx}px)` },
   { transform: 'translateX(0px)' },
@@ -114,23 +100,16 @@ export const slideFrames = (dx: number): Keyframe[] => [
 export const paneTiming = (): KeyframeAnimationOptions =>
   motionTiming('motion.duration.slide', 'motion.easing.move')
 
-/**
- * The toolbar items that make room for the window controls: the list
- * header's (after its inset) and the editor toolbar's (in focus mode).
- */
 const RIDERS =
   '.list-header .sidebar-toggle, .list-header .toolbar-title > :not([hidden], .visually-hidden), .list-header-end, .editor-toolbar > *'
 
 const paneElement = (pane: Pane) => document.querySelector<HTMLElement>(`.window > .${pane}`)
 
-/** Where `el` is in the layout, a slide under way left out. */
 const layoutLeft = (el: Element) => el.getBoundingClientRect().left - drawnOffset(el).x
 
-/** The fades under way, stopped when another change comes; slides carry on. */
 const fades: Animation[] = []
 const slides: Animation[] = []
 
-/** Where the panes and their toolbar items are now, in the layout. */
 export function measurePanes(shown: Record<Pane, boolean>): PaneBoxes {
   const boxes: PaneBoxes = {}
   for (const pane of PANES) {
@@ -149,12 +128,7 @@ export function measurePanes(shown: Record<Pane, boolean>): PaneBoxes {
   return boxes
 }
 
-/**
- * Plays the change from `before` (measured with `measurePanes` before the
- * window changed) to the panes as they are now. A fade still under way stops
- * and the new one starts from how it was seen; a slide still under way goes
- * on, and the new one adds to it.
- */
+/** `before`: measured by `measurePanes` before the window changed. */
 export function movePanes(before: PaneBoxes, shown: Record<Pane, boolean>): void {
   for (const animation of fades.splice(0)) animation.cancel()
   const reduced = motionReduced()
@@ -177,7 +151,6 @@ export function movePanes(before: PaneBoxes, shown: Record<Pane, boolean>): void
     const move = moves[pane]
     const frames = move && paneFrames(move, reduced, before[pane]?.opacity)
     if (el && move && frames) play(el, frames, move.kind === 'slide')
-    // Toolbar items of a pane that shows on both sides move within it.
     const was = before[pane]
     const is = after[pane]
     if (reduced || !was?.shown || !is?.shown || !was.riders || !is.riders) continue

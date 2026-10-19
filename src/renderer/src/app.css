@@ -1904,9 +1904,8 @@ button {
 
 /* Focus mode: only the editor shows, at a reading width in the middle. */
 
-/* Clear the window controls, which now sit over the editor toolbar. The
-   room opens at once; the toolbar's items slide to their places with the
-   panes (paneMotion.ts). */
+/* Clear the window controls, which now sit over the editor toolbar. No
+   transition: its items slide with the panes (paneMotion.ts). */
 .window[data-focus] .editor-toolbar {
   padding-left: var(--size-window-controls-inset);
 }

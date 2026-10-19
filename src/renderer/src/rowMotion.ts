@@ -4,10 +4,9 @@
 // growing open, scrolling or a resize never does. Where each row was is
 // measured as the change renders (`useRowMotion`), before the window shows
 // it, and played back once it is laid out:
-// rows that stay slide to their new places (a transform, so the list is laid
-// out once, not on every frame); a new row fades in where it is, and one that
-// goes fades out where it was, out of the layout. The sidebar (`slide`) and
-// the note list (`grow`) differ only in how long a row takes to come or go.
+// rows that stay slide to their new places; a new row fades in where it is,
+// and one that goes fades out where it was, out of the layout. `slide` (the
+// sidebar) and `grow` (the note list) differ only in how long that fade takes.
 // Reduce Motion shows every change at once.
 import { useLayoutEffect, useState } from 'react'
 import { drawnOffset, motionTiming } from './motionTiming'
@@ -59,7 +58,6 @@ export const rowEnterTiming = (motion: RowMotion): KeyframeAnimationOptions =>
     'motion.easing.move',
   )
 
-/** From `dy` pixels away to the row's place, added to any move under way. */
 export const moveFrames = (dy: number): Keyframe[] => [
   { transform: `translateY(${dy}px)` },
   { transform: 'translateY(0px)' },
@@ -71,7 +69,7 @@ export const leaveFrames: Keyframe[] = [...enterFrames].reverse()
 
 interface RowBox {
   el: HTMLElement
-  /** Its place in the list's content, scrolling aside and a move under way left out. */
+  /** Its place in the list's content, scrolling and a move under way left out. */
   top: number
   rect: DOMRect
   parent: Node | null
@@ -110,7 +108,7 @@ function leaveCopy(box: RowBox, attr: string): HTMLElement | null {
   copy.dataset['closing'] = 'row'
   copy.setAttribute('aria-hidden', 'true')
   copy.inert = true
-  // Out of the layout, over where it was seen.
+  // Out of the layout, over where it was.
   copy.style.position = 'fixed'
   copy.style.left = `${box.rect.left}px`
   copy.style.top = `${box.rect.top}px`
