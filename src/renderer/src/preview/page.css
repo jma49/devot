@@ -14,14 +14,12 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* A column as wide as the note's measure (content.css), in the middle of the page. */
 .preview {
-  box-sizing: border-box;
-  max-width: var(--size-reading-width);
+  box-sizing: content-box;
+  max-width: var(--note-measure-width);
   margin: 0 auto;
   padding: var(--space-10) var(--space-9);
-  font-size: var(--font-size-preview);
-  line-height: 1.65;
-  overflow-wrap: anywhere;
 }
 
 .preview img {
@@ -74,5 +72,11 @@ body {
 
   .preview :is(h1, h2, h3, h4, h5, h6) {
     break-after: avoid;
+  }
+
+  /* A page never starts or ends on a paragraph's lone line. */
+  .preview :is(p, li, blockquote, dd) {
+    orphans: 2;
+    widows: 2;
   }
 }
