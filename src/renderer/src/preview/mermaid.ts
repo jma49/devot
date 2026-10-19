@@ -25,13 +25,10 @@ const SVG_NS = 'http://www.w3.org/2000/svg'
 const XLINK_NS = 'http://www.w3.org/1999/xlink'
 const DROPPED = new Set(['script', 'foreignObject', 'iframe', 'image', 'use'])
 
-/** A request the frame does not answer in time shows the error box. */
 const TIMEOUT_MS = 10_000
-/** How long the frame may take to load, before its first request is sent. */
 const LOAD_TIMEOUT_MS = 30_000
 
 let frame: HTMLIFrameElement | undefined
-/** The current port to the frame; replaced whenever the frame (re)loads. */
 let port: Promise<MessagePort> | undefined
 let connect: ((port: MessagePort) => void) | undefined
 let counter = 0
@@ -44,7 +41,6 @@ function onReply(event: MessageEvent): void {
   waiting.delete(message.id)
 }
 
-/** The port to the hidden renderer frame, created on the first diagram. */
 function rendererPort(): Promise<MessagePort> {
   if (!frame) {
     const element = document.createElement('iframe')
@@ -72,12 +68,10 @@ function rendererPort(): Promise<MessagePort> {
   return port ?? Promise.reject(new Error('E_MERMAID_FRAME'))
 }
 
-/** The frame's answer, or the parent's own when the frame does not answer. */
 type Answer =
   | { type: 'rendered'; svg: string }
   | { type: 'failed'; reason: FailureReason | 'timeout' }
 
-/** One request at a time; the next is sent when the frame has answered. */
 let queue: Promise<unknown> = Promise.resolve()
 
 function renderInFrame(source: string, appearance: IslandContext['appearance']): Promise<Answer> {
@@ -127,7 +121,6 @@ function ask(source: string, appearance: IslandContext['appearance']): Promise<A
   })
 }
 
-/** Copies a parsed SVG into the page, applying styles through the CSSOM. */
 export function importSvg(markup: string): { svg: SVGSVGElement; css: string } {
   const parsed = new DOMParser().parseFromString(markup, 'image/svg+xml')
   const root = parsed.documentElement
@@ -199,12 +192,10 @@ function errorContent(reason: FailureReason | 'timeout' | 'svg'): IslandContent 
   return { node: box, retry: true }
 }
 
-/** Logs a failure that is not an error in the source (codes only). */
 function logFailure(reason: FailureReason | 'timeout' | 'svg'): void {
   if (reason !== 'parse') console.warn('W_MERMAID_FAILED', reason)
 }
 
-/** What a screen reader says for a drawing: "Diagram", with the diagram's own name if it has one. */
 function diagramLabel(source: string): string {
   const name = diagramName(source)
   return name ? fill(t('mermaid.labelNamed'), { name }) : t('mermaid.label')

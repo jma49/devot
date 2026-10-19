@@ -1,11 +1,4 @@
-// The command registry: every app command is declared here once, with its
-// catalog label, its group, where its keys work (its scope) and its default
-// keys (see `keys.ts`). Window shortcuts, find, the note status keys, the
-// note list, Trash, notebook and tag row keys, the context menus'
-// accelerators, the editor's format and find keymaps and the command palette
-// all read their keys from it (`commandKeys`: the defaults declared here with
-// the user's changes, see keymap.ts). The window binds a handler to each
-// command it can run (`CommandHandlers`); a command without one is not offered.
+// The command registry: every app command is declared once, with its catalog label, group, scope and default keys (keys.ts); window shortcuts, menus, editor keymaps and the palette all read it.
 import type { FormatId } from '../editor/formats'
 import type { InsertId } from '../editor/insert'
 import type { TableCommandId } from '../editor/tableCommands'
@@ -54,7 +47,6 @@ const SCOPE_PARENT: Readonly<Record<CommandScope, CommandScope | null>> = {
   sidebarRow: 'sidebar',
 }
 
-/** How commands are grouped (for a shortcuts list, and the palette's order). */
 export type CommandGroup =
   | 'note'
   | 'notebook'
@@ -80,7 +72,6 @@ export interface CommandSpec {
 }
 
 export const COMMANDS = [
-  // The window.
   {
     id: 'palette.open',
     label: 'command.palette',
@@ -90,11 +81,7 @@ export const COMMANDS = [
     palette: false,
   },
   { id: 'note.new', label: 'noteList.newNote', group: 'note', scope: 'window', keys: ['Mod+N'] },
-  // Moving between notes. Back and Forward follow the notes this window
-  // opened; Next and Previous follow the note list. Cmd+[ and Cmd+] work
-  // everywhere, the editor too (it indents and outdents with Tab and
-  // Shift+Tab); the arrow keys work only while no text field has the focus,
-  // where they move the caret (see dispatch.ts and editor/settings.ts).
+  // Back and Forward follow the notes this window opened; Next and Previous follow the note list. Cmd+[ and Cmd+] work in the editor too; the arrow keys only while no text field has focus (dispatch.ts).
   {
     id: 'note.back',
     label: 'command.back',
@@ -123,7 +110,6 @@ export const COMMANDS = [
     scope: 'window',
     keys: ['Mod+Shift+['],
   },
-  // In the note list: Return edits the open note's title, Cmd+Return its body.
   {
     id: 'note.editTitle',
     label: 'command.editTitle',
@@ -154,7 +140,6 @@ export const COMMANDS = [
     scope: 'window',
     keys: ['Mod+Alt+Y'],
   },
-  // The open note; the keys work in the note list.
   { id: 'note.move', label: 'noteMenu.move', group: 'note', scope: 'noteList', keys: ['M'] },
   // The same from anywhere, the editor too (the list's own key is a plain M).
   {
@@ -233,8 +218,6 @@ export const COMMANDS = [
     scope: 'noteList',
     keys: ['Mod+Backspace'],
   },
-  // Tags for the notes selected in the list (see SelectionSummary); offered
-  // only while several notes are selected.
   {
     id: 'note.addTag',
     label: 'batch.addTag',
@@ -249,10 +232,7 @@ export const COMMANDS = [
     scope: 'noteList',
     keys: [],
   },
-  // Selecting several notes in a list (the Trash's too): Shift+Up and
-  // Shift+Down extend the selection, Cmd+A selects every note listed (in the
-  // editor it stays Select All for the text), Escape goes back to the open
-  // note alone.
+  // Shift+Up/Down extend the selection, Cmd+A selects every listed note (in the editor it stays Select All), Escape goes back to the open note alone.
   {
     id: 'list.selectAll',
     label: 'command.selectAllNotes',
@@ -284,7 +264,6 @@ export const COMMANDS = [
     keys: ['Shift+ArrowDown'],
     palette: false,
   },
-  // The Trash: the open (trashed) note; the keys work in the Trash's list.
   {
     id: 'trash.restore',
     label: 'command.restoreFromTrash',
@@ -300,8 +279,7 @@ export const COMMANDS = [
     keys: ['Mod+Backspace'],
   },
   { id: 'trash.empty', label: 'trash.empty', group: 'note', scope: 'window', keys: [] },
-  // The open note's status (see statusKeys.ts); the keys work everywhere, the
-  // editor too, so they take a chord nothing else uses.
+  // The keys work everywhere, the editor too, so they take a chord nothing else uses.
   {
     id: 'status.none',
     label: 'command.statusNone',
@@ -338,7 +316,6 @@ export const COMMANDS = [
     keys: ['Mod+Ctrl+5'],
   },
   { id: 'notebook.new', label: 'book.new', group: 'notebook', scope: 'window', keys: [] },
-  // Shows the open note's notebook in the sidebar (the note header's notebook menu).
   {
     id: 'note.showNotebook',
     label: 'command.showNotebook',
@@ -346,10 +323,7 @@ export const COMMANDS = [
     scope: 'window',
     keys: [],
   },
-  // A notebook or tag row in the sidebar: its own menu (every action of the
-  // row, the notebook's export and Allow AI Access and the tag's colours
-  // too) opens at the row, from the keyboard. Shift+F10 and the menu key as
-  // on other systems; Control+Return as in Mac text fields.
+  // Opens the row's own menu from the keyboard: Shift+F10 and the menu key as on other systems; Control+Return as in Mac text fields.
   {
     id: 'sidebar.rowMenu',
     label: 'command.rowMenu',
@@ -358,7 +332,6 @@ export const COMMANDS = [
     keys: ['Shift+F10', 'ContextMenu', 'Ctrl+Enter'],
     palette: false,
   },
-  // A notebook row in the sidebar.
   {
     id: 'notebook.newInside',
     label: 'bookMenu.newInside',
@@ -487,9 +460,7 @@ export const COMMANDS = [
     keys: ['Backspace', 'Delete'],
     palette: false,
   },
-  // In a workspace: up to the parent notebook's workspace, or out of
-  // workspaces at the top level. Backspace on the rows where it deletes
-  // nothing; Command+Up (the enclosing folder) on every row.
+  // Go Up a Level: Backspace on rows where it deletes nothing; Command+Up (the enclosing folder) on every row.
   {
     id: 'sidebar.workspaceUp',
     label: 'command.workspaceUp',
@@ -506,7 +477,6 @@ export const COMMANDS = [
     keys: ['Mod+ArrowUp'],
     palette: false,
   },
-  // A tag row in the sidebar.
   {
     id: 'tag.rename',
     label: 'tagMenu.rename',
@@ -547,7 +517,6 @@ export const COMMANDS = [
     keys: ['Backspace', 'Delete'],
     palette: false,
   },
-  // Views.
   {
     id: 'view.allNotes',
     label: 'command.showAllNotes',
@@ -586,8 +555,6 @@ export const COMMANDS = [
     keys: ['Mod+P'],
   },
   { id: 'view.preview', label: 'command.modePreview', group: 'view', scope: 'window', keys: [] },
-  // Split mode: the editor and the preview scroll together (an editor
-  // setting; also View > Synced Scrolling in the menu bar).
   {
     id: 'view.syncScroll',
     label: 'command.syncScrollOn',
@@ -595,7 +562,6 @@ export const COMMANDS = [
     scope: 'window',
     keys: [],
   },
-  // The note list's date style (an editor setting; also in the sort pop-up).
   {
     id: 'view.toggleListDates',
     label: 'command.showAbsoluteDates',
@@ -604,9 +570,7 @@ export const COMMANDS = [
     keys: [],
   },
   { id: 'view.focus', label: 'mode.focus', group: 'view', scope: 'window', keys: ['Mod+Shift+D'] },
-  // The note list's sort pop-up, from the palette (its button is not a Tab stop).
   { id: 'view.sort', label: 'command.sort', group: 'view', scope: 'window', keys: [] },
-  // Also View > Hide Sidebar in the menu bar; the label follows the state.
   {
     id: 'view.sidebar',
     label: 'command.hideSidebar',
@@ -614,10 +578,7 @@ export const COMMANDS = [
     scope: 'window',
     keys: ['Mod+/'],
   },
-  // The keyboard moves between the sidebar, the note list and the editor:
-  // Tab and Shift+Tab on a sidebar row or in the list; Control+Tab and
-  // Control+Shift+Tab anywhere, the editor too, where Tab indents and moves
-  // between table cells (see areas.ts).
+  // Tab and Shift+Tab on a sidebar row or in the list; Control+Tab and Control+Shift+Tab anywhere, the editor too, where Tab indents and moves between table cells (areas.ts).
   {
     id: 'view.nextAreaInPane',
     label: 'command.nextArea',
@@ -650,8 +611,7 @@ export const COMMANDS = [
     keys: ['Ctrl+Shift+Tab'],
     palette: false,
   },
-  // The editor's font size (Settings > Editing), in every window that shows
-  // notes. Cmd+= with or without Shift, as Cmd++ is typed.
+  // Cmd+= with or without Shift, as Cmd++ is typed.
   {
     id: 'view.fontBigger',
     label: 'command.fontBigger',
@@ -673,7 +633,6 @@ export const COMMANDS = [
     scope: 'window',
     keys: ['Mod+0'],
   },
-  // Search.
   {
     id: 'search.view',
     label: 'command.searchView',
@@ -688,7 +647,6 @@ export const COMMANDS = [
     scope: 'window',
     keys: ['Mod+Alt+Shift+F'],
   },
-  // `/` in a note list: search the view it shows (every note from the Trash).
   {
     id: 'search.fromList',
     label: 'command.searchFromList',
@@ -697,9 +655,7 @@ export const COMMANDS = [
     keys: ['/'],
     palette: false,
   },
-  // Find in the open note (see find/useFind.tsx): window-wide while a note
-  // is open, ahead of the editor's own keys. Regular Expression and Match
-  // Case only act while the find bar is open.
+  // Window-wide while a note is open, ahead of the editor's own keys. Regular Expression and Match Case only act while the find bar is open.
   { id: 'find.find', label: 'find.label', group: 'find', scope: 'window', keys: ['Mod+F'] },
   {
     id: 'find.replace',
@@ -730,8 +686,6 @@ export const COMMANDS = [
     scope: 'window',
     keys: ['Mod+Alt+C'],
   },
-  // In the editor, with the find bar open, F3 steps through the matches too
-  // (editor/find.ts).
   {
     id: 'find.nextInEditor',
     label: 'find.next',
@@ -748,7 +702,6 @@ export const COMMANDS = [
     keys: ['Shift+F3'],
     palette: false,
   },
-  // Formats in the note editor (see editor/formats.ts).
   {
     id: 'format.heading1',
     label: 'command.heading1',
@@ -915,8 +868,7 @@ export const COMMANDS = [
     scope: 'editor',
     keys: [],
   },
-  // Insertions in the note editor (see editor/insert.ts). They have no keys:
-  // the slash menu (editor/slashMenu.ts) and the palette offer them.
+  // They have no keys: the slash menu and the palette offer them.
   {
     id: 'insert.image',
     label: 'command.insertImage',
@@ -938,9 +890,6 @@ export const COMMANDS = [
     scope: 'editor',
     keys: [],
   },
-  // The selection becomes a new note, linked from where it was (App's
-  // noteFromSelection, editor/extract.ts); the palette offers it while text
-  // is selected.
   {
     id: 'note.newFromSelection',
     label: 'command.newNoteFromSelection',
@@ -948,9 +897,6 @@ export const COMMANDS = [
     scope: 'editor',
     keys: [],
   },
-  // The link at the caret becomes a new note titled after its text, linked
-  // from where the link was (App's noteFromLink, editor/extract.ts); the
-  // palette offers it while the caret is on a link.
   {
     id: 'note.newFromLink',
     label: 'command.newNoteFromLink',
@@ -958,8 +904,6 @@ export const COMMANDS = [
     scope: 'editor',
     keys: [],
   },
-  // Closes the open note (or the multiple selection, or the template shown):
-  // the editor is left empty.
   {
     id: 'note.close',
     label: 'command.closeNote',
@@ -967,7 +911,6 @@ export const COMMANDS = [
     scope: 'window',
     keys: [],
   },
-  // Pastes the clipboard's text as it is: no link, no image (editor/paste.ts).
   {
     id: 'edit.pastePlain',
     label: 'command.pastePlainText',
@@ -975,8 +918,6 @@ export const COMMANDS = [
     scope: 'editor',
     keys: ['Mod+Alt+Shift+V'],
   },
-  // Opens the paste chooser for the clipboard's URL, or for the link at the
-  // caret (editor/pasteChooser.ts).
   {
     id: 'edit.pasteUrlAs',
     label: 'command.pasteUrlAs',
@@ -984,10 +925,7 @@ export const COMMANDS = [
     scope: 'editor',
     keys: [],
   },
-  // Tables in the note editor (see editor/tableCommands.ts). Their keys act
-  // only while the cursor is in a table; elsewhere Tab, Return and the rest
-  // keep doing what they do in the editor. The palette lists the commands
-  // only while the cursor is in a table.
+  // Their keys act only while the cursor is in a table; elsewhere Tab and Return keep doing what they do in the editor. The palette lists them only then.
   {
     id: 'table.nextCell',
     label: 'command.tableNextCell',
@@ -1117,11 +1055,7 @@ export const COMMANDS = [
     scope: 'editor',
     keys: [],
   },
-  // Images in the note editor (see imageMenu.ts): they act on the image at
-  // the cursor, or on the one right-clicked when run from the image context
-  // menu. The palette lists them only while the cursor is on a line with an
-  // image (the copy and save commands only for an attachment).
-  // View Image opens the viewer (what a double-click on the image does).
+  // The palette lists them only while the cursor is on a line with an image (copy and save only for an attachment); run from the image context menu they act on the right-clicked image.
   { id: 'image.view', label: 'command.imageView', group: 'image', scope: 'editor', keys: [] },
   { id: 'image.copy', label: 'command.imageCopy', group: 'image', scope: 'editor', keys: [] },
   { id: 'image.save', label: 'command.imageSave', group: 'image', scope: 'editor', keys: [] },
@@ -1153,11 +1087,7 @@ export const COMMANDS = [
     scope: 'editor',
     keys: [],
   },
-  // The app.
-  // Keys added with the editing keys (kept together): the note list and the
-  // sidebar rows from anywhere, and the editor's line commands (see
-  // editor/lineCommands.ts). Return continues list and quote markup; Shift+Return
-  // starts a plain line.
+  // Return continues list and quote markup; Shift+Return starts a plain line.
   {
     id: 'view.focusNoteList',
     label: 'command.focusNoteList',
@@ -1243,10 +1173,7 @@ export const COMMANDS = [
     scope: 'editor',
     keys: ['Alt+Shift+ArrowDown'],
   },
-  // Indent and Outdent have no keys of their own: in the editor Tab and
-  // Shift+Tab indent and outdent (a list item takes its marker along; in a
-  // table they move between cells, in a code block Tab inserts the indent
-  // unit), so Cmd+[ and Cmd+] stay Back and Forward (see note.back).
+  // Indent and Outdent have no keys: in the editor Tab and Shift+Tab do it, so Cmd+[ and Cmd+] stay Back and Forward (see note.back).
   {
     id: 'edit.outdent',
     label: 'command.outdent',
@@ -1268,8 +1195,7 @@ export const COMMANDS = [
     scope: 'editor',
     keys: ['Ctrl+Shift+O'],
   },
-  // The editor's menu opens at the caret, from the keyboard (the same keys
-  // as a row's menu in the sidebar, whose scope is a sibling of the editor's).
+  // The editor's menu opens at the caret from the keyboard (same keys as a sidebar row's menu, whose scope is a sibling of the editor's).
   {
     id: 'edit.contextMenu',
     label: 'command.editorMenu',
@@ -1405,8 +1331,6 @@ export const COMMANDS = [
     scope: 'editor',
     keys: [],
   },
-  // Opens the palette at Go to Line: from anywhere in the window while a
-  // note is open for editing (the line is the open note's).
   {
     id: 'edit.goToLine',
     label: 'command.goToLine',
@@ -1414,7 +1338,6 @@ export const COMMANDS = [
     scope: 'window',
     keys: ['Ctrl+G'],
   },
-  // Typed text replaces the characters after the caret (editor/overwrite.ts).
   {
     id: 'edit.toggleOverwrite',
     label: 'command.toggleOverwrite',
@@ -1423,7 +1346,6 @@ export const COMMANDS = [
     keys: [],
   },
   { id: 'app.backups', label: 'command.backups', group: 'app', scope: 'window', keys: [] },
-  // Updates (updates.ts): check now; restart into a downloaded update.
   {
     id: 'app.checkForUpdates',
     label: 'command.checkForUpdates',
@@ -1438,7 +1360,6 @@ export const COMMANDS = [
     scope: 'window',
     keys: [],
   },
-  // File > Export > All Notes (exporter.ts).
   {
     id: 'app.exportAllMarkdown',
     label: 'command.exportAllMarkdown',
@@ -1460,7 +1381,6 @@ export const COMMANDS = [
     scope: 'window',
     keys: [],
   },
-  // The Markdown mirror (mirror.ts): choose its folder, or turn it off.
   {
     id: 'mirror.chooseFolder',
     label: 'command.mirrorChooseFolder',
@@ -1552,22 +1472,18 @@ export function command(id: CommandId): CommandSpec {
  */
 let keysInEffect: ReadonlyMap<string, readonly string[]> | undefined
 
-/** Sets the keys in effect; undefined restores the defaults. */
 export function setCommandKeys(keys: ReadonlyMap<string, readonly string[]> | undefined): void {
   keysInEffect = keys
 }
 
-/** A command's keys in effect; the first is the one shown. */
 export function commandKeys(id: CommandId): readonly string[] {
   return keysInEffect?.get(id) ?? command(id).keys
 }
 
-/** A command's default keys (the registry's own). */
 export function defaultKeys(id: CommandId): readonly string[] {
   return command(id).keys
 }
 
-/** Whether a key press is one of this command's keys. */
 export function commandMatches(id: CommandId, e: KeyPress): boolean {
   return commandKeys(id).some((key) => keyMatches(key, e))
 }
@@ -1589,7 +1505,6 @@ export function heldCommandKey(e: KeyPress): boolean {
   )
 }
 
-/** Whether `outer` is `inner` or one of the scopes it lies within. */
 function within(inner: CommandScope, outer: CommandScope): boolean {
   for (let s: CommandScope | null = inner; s !== null; s = SCOPE_PARENT[s]) {
     if (s === outer) return true
@@ -1606,7 +1521,6 @@ export function scopesOverlap(a: CommandScope, b: CommandScope): boolean {
   return within(a, b) || within(b, a)
 }
 
-/** Keys that two commands take where both apply. */
 export function shortcutClashes(
   commands: readonly Pick<CommandSpec, 'id' | 'scope' | 'keys'>[],
 ): { key: string; ids: [string, string] }[] {
@@ -1635,12 +1549,10 @@ export function windowCommand(e: KeyPress, where: { inEditor: boolean }): Comman
   )?.id
 }
 
-/** What follows `prefix` in a command ID (`format.bold` -> `bold`), or undefined. */
 function idAfter(prefix: string, id: string): string | undefined {
   return id.startsWith(prefix) ? id.slice(prefix.length) : undefined
 }
 
-/** The editor keys of the commands whose IDs start with `prefix`, in CodeMirror key notation. */
 function editorKeys(prefix: string): { name: string; key: string }[] {
   return COMMANDS.flatMap((c) => {
     const name = c.scope === 'editor' ? idAfter(prefix, c.id) : undefined
@@ -1650,14 +1562,12 @@ function editorKeys(prefix: string): { name: string; key: string }[] {
   })
 }
 
-/** A command's editor keys, in CodeMirror key notation. */
 export function editorCommandKeys(id: CommandId): string[] {
   return commandKeys(id).map(shortcutCodeMirror)
 }
 
 const FORMAT_PREFIX = 'format.'
 
-/** The editor's format commands: their ID, the format each applies and their keys. */
 function formatCommands(): {
   id: CommandId
   format: FormatId
@@ -1676,14 +1586,12 @@ function formatCommands(): {
   )
 }
 
-/** The editor's format keymap, in CodeMirror key notation. */
 export function editorFormatKeys(): { format: FormatId; key: string }[] {
   return formatCommands().flatMap(({ format, keys }) =>
     keys.map((key) => ({ format, key: shortcutCodeMirror(key) })),
   )
 }
 
-/** The format a `format.*` command applies. */
 export function formatOf(id: CommandId): FormatId | undefined {
   return idAfter(FORMAT_PREFIX, id) as FormatId | undefined
 }
@@ -1702,26 +1610,22 @@ export function formatMenuKeys(inert: ReadonlySet<string> = new Set()): Record<s
   return out
 }
 
-/** Whether a Format menu item's payload names a format command. */
 export function isFormatMenuCommand(id: unknown): id is CommandId {
   return formatCommands().some((c) => c.id === id)
 }
 
 const INSERT_PREFIX = 'insert.'
 
-/** The editor's insertion keymap (none by default), in CodeMirror key notation. */
 export function editorInsertKeys(): { insert: InsertId; key: string }[] {
   return editorKeys(INSERT_PREFIX).map(({ name, key }) => ({ insert: name as InsertId, key }))
 }
 
-/** The insertion an `insert.*` command makes. */
 export function insertOf(id: CommandId): InsertId | undefined {
   return idAfter(INSERT_PREFIX, id) as InsertId | undefined
 }
 
 const TABLE_PREFIX = 'table.'
 
-/** The editor's table keymap, in CodeMirror key notation. */
 export function editorTableKeys(): { command: TableCommandId; key: string }[] {
   return editorKeys(TABLE_PREFIX).map(({ name, key }) => ({
     command: name as TableCommandId,
@@ -1729,7 +1633,6 @@ export function editorTableKeys(): { command: TableCommandId; key: string }[] {
   }))
 }
 
-/** The table command a `table.*` command runs. */
 export function tableOf(id: CommandId): TableCommandId | undefined {
   return idAfter(TABLE_PREFIX, id) as TableCommandId | undefined
 }

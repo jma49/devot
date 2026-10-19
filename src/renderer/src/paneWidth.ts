@@ -7,7 +7,6 @@ import { sizes } from './theme/tokens'
 const px = (value: string) => Number.parseFloat(value)
 
 export interface PaneSpec {
-  /** The local-storage key the width is kept under. */
   key: string
   min: number
   default: number
@@ -33,11 +32,9 @@ interface KeyValue {
   setItem(key: string, value: string): void
 }
 
-/** How far an arrow key moves the edge, and with Shift. */
 export const PANE_KEY_STEP = 10
 export const PANE_KEY_STEP_LARGE = 50
 
-/** `width` in whole pixels between the pane's minimum and maximum (the default for a non-number). */
 export function clampPaneWidth(pane: PaneSpec, width: number): number {
   if (!Number.isFinite(width)) return pane.default
   return Math.min(pane.max, Math.max(pane.min, Math.round(width)))
@@ -71,7 +68,6 @@ export function paneWidthForKey(
   }
 }
 
-/** The width last set, kept in `storage` (none: nothing is remembered). */
 export function paneWidthStore(pane: PaneSpec, storage: KeyValue | undefined) {
   return {
     read(): number {
@@ -93,7 +89,6 @@ export function paneWidthStore(pane: PaneSpec, storage: KeyValue | undefined) {
   }
 }
 
-/** The store in this webview's local storage. */
 export function currentPaneWidthStore(pane: PaneSpec) {
   let storage: KeyValue | undefined
   try {

@@ -1,4 +1,3 @@
-// Starts the core worker and connects it to storage.
 import * as Comlink from 'comlink'
 import type { SaveProblem, StorageAdapter } from '../../core'
 import { newNodeId } from '../../core/hlc'
@@ -19,18 +18,14 @@ export type { Core } from './coreConnect'
  */
 export const storage: StorageAdapter = DEVOT_UI_TEST ? memoryStorage : tauriStorage
 
-/** The same storage as the core worker reaches it: Yjs states as base64 (see wire.ts). */
 const wire: WireStorage = DEVOT_UI_TEST ? toWire(memoryStorage) : tauriWire
 
-/** The workers in use, so a core that failed to start can be stopped (see `stopCore`). */
 const workers = new WeakMap<Core, Worker>()
 
-/** Stops the worker behind `core`. */
 export function stopCore(core: Core) {
   workers.get(core)?.terminate()
 }
 
-/** A coded entry from the worker goes to the local log; an error also to crash reports. */
 function logFromWorker(entry: LogEntry) {
   void invoke('log_write', { ...entry }).catch(() => {})
   if (entry.level === 'error') reportCode(entry.code)

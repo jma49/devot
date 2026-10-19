@@ -7,10 +7,8 @@ import type { Core } from './core-client'
 import { countOf } from './format'
 import { currentLocale, format, t } from './i18n'
 
-/** View > Activity… in the menu bar; App re-sends the Tauri event as this. */
 export const SHOW_ACTIVITY = 'devot:show-activity'
 
-/** Calls `open` for View > Activity… (the menu bar), unless another sheet is up. */
 export function useActivityMenu(open: () => void) {
   const latest = useRef(open)
   useEffect(() => {
@@ -49,7 +47,6 @@ const dateOf = (day: number, locale: string, options: Intl.DateTimeFormatOptions
 const listOf = (parts: string[], locale: string) =>
   new Intl.ListFormat(locale, { type: 'unit', style: 'long' }).format(parts)
 
-/** What each day's square says, in order: its date and what happened. */
 function dayLabels(heatmap: ActivityHeatmap, locale: string): string[] {
   const date = new Intl.DateTimeFormat(locale, { dateStyle: 'full', timeZone: 'UTC' })
   const list = new Intl.ListFormat(locale, { type: 'unit', style: 'long' })
@@ -100,7 +97,6 @@ export function Activity(props: { core: Core; onClose: () => void }) {
   const grid = useRef<HTMLDivElement>(null)
   const [heatmap, setHeatmap] = useState<ActivityHeatmap>()
   const [error, setError] = useState<string>()
-  // The day with the keyboard focus (a roving tab stop), and the one under the pointer.
   const [active, setActive] = useState<number>()
   const [hovered, setHovered] = useState<number>()
   const locale = currentLocale()
@@ -224,7 +220,6 @@ export function Activity(props: { core: Core; onClose: () => void }) {
             <div className="activity-weekdays" aria-hidden="true">
               {Array.from({ length: WEEKDAYS }, (_, row) => (
                 <span key={row}>
-                  {/* Monday, Wednesday and Friday, as on a wall calendar. */}
                   {row % 2 === 0 && row < 6
                     ? dateOf(heatmap.first + row, locale, { weekday: 'short' })
                     : ''}

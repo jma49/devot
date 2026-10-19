@@ -15,7 +15,6 @@ interface Chord {
   cmd: boolean
   alt: boolean
   shift: boolean
-  /** KeyboardEvent.code */
   code: string
 }
 
@@ -29,7 +28,6 @@ const codeOf = (key: string): string => {
   )
 }
 
-/** A Tauri accelerator ("Alt+CmdOrCtrl+Y") or a registry key ("Mod+Shift+X"). */
 function chord(spec: string): Chord {
   const parts = spec.includes('+') ? spec.split('+') : spec.split('-')
   const key = parts.at(-1) ?? ''
@@ -43,7 +41,6 @@ function chord(spec: string): Chord {
   }
 }
 
-/** A status key: Control+Command and the key. */
 const statusChord = (code: string): Chord => ({
   ctrl: true,
   cmd: true,
@@ -57,7 +54,6 @@ const name = (c: Chord) =>
     .filter(Boolean)
     .join('+')
 
-/** The status keys, from the registry: the key pressed with Control and Command. */
 const STATUS_KEYS = Object.entries(STATUS_COMMANDS).flatMap(([status, id]) =>
   command(id).keys.map((key) => ({ status, key, code: chord(key).code })),
 )
@@ -87,10 +83,8 @@ const menuKeys = (groups: MenuGroups<string, never>) => {
   return keys(groups.flat())
 }
 
-/** Accelerators of the native menu bar's own items (src-tauri/src/menu.rs). */
 const nativeMenu = [...menuRs.matchAll(/\.accelerator\("([^"]+)"\)/g)].map((m) => m[1] ?? '')
 
-/** Keys the standard menu items and macOS itself use. */
 const system = [
   'Ctrl+Cmd+F', // View > Enter Full Screen
   'Ctrl+Cmd+Q', // Lock Screen
@@ -109,7 +103,6 @@ const system = [
 ]
 
 const others = [
-  // Every other command, wherever it works: the window's, the editor's, the lists'.
   ...COMMANDS.filter((c) => !statusIds.has(c.id)).flatMap((c) =>
     c.keys.map((spec: string) => ({ from: c.id, spec })),
   ),
@@ -132,7 +125,6 @@ describe('status shortcuts', () => {
     for (const { code, status } of STATUS_KEYS) {
       expect(statusShortcut(event(statusChord(code)))).toBe(status)
     }
-    // Declared in the registry as window-wide Control+Command chords.
     for (const { key } of STATUS_KEYS) expect(name(chord(key))).toMatch(/^Ctrl\+Cmd\+Digit\d$/)
     for (const id of Object.values(STATUS_COMMANDS)) expect(command(id).scope).toBe('window')
   })
@@ -163,7 +155,6 @@ describe('status shortcuts', () => {
   })
 
   it('takes no key the editor, a menu, the window or the system uses', () => {
-    // Make sure the lists were read.
     expect(nativeMenu).toContain('CmdOrCtrl+Q')
     expect(others.length).toBeGreaterThan(20)
     const taken = new Map(others.map(({ from, spec }) => [name(chord(spec)), from]))
@@ -171,7 +162,6 @@ describe('status shortcuts', () => {
       const mine = name(statusChord(code))
       expect([mine, taken.get(mine)]).toEqual([mine, undefined])
     }
-    // Nor does a status shortcut fire for any of those keys.
     for (const { from, spec } of others) {
       expect([from, spec, statusShortcut(event(chord(spec)))]).toEqual([from, spec, undefined])
     }

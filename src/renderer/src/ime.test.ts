@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { COMPOSITION_END_KEY_MS, isImeKey, watchCompositions } from './ime'
 
-/** A key down with the fields the guard reads (these tests run without a DOM). */
 function keyDown(fields: { key?: string; keyCode?: number; isComposing?: boolean } = {}) {
   const event = new Event('keydown')
   Object.assign(event, { key: 'Enter', keyCode: 13, isComposing: false, ...fields })
   return event as KeyboardEvent
 }
 
-/** A window whose compositions are watched on a clock the test moves. */
 function watched() {
   const clock = { now: 1000 }
   const target = new EventTarget()

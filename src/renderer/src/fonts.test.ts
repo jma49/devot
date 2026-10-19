@@ -9,7 +9,6 @@ describe('fontStack', () => {
   it('keeps SF Mono as the default and the last fallback of every monospaced font', () => {
     expect(stack({})).toBe('var(--font-family-mono)')
     expect(stack({}, 'code')).toBe('var(--font-family-mono)')
-    // The system font is the token's list, whatever the app font is.
     expect(stack({ fontFamily: 'system' })).toMatch(/^-apple-system/)
     for (const fontFamily of ['menlo', 'monaco', 'courierNew'] as const)
       expect(stack({ fontFamily })).toMatch(/, var\(--font-family-mono\)$/)
@@ -38,7 +37,6 @@ describe('fontStack', () => {
   })
 })
 
-/** A font env whose reads come from `files` (a missing name rejects). */
 function env(files: Record<string, string>) {
   const added = new Set<FontFace>()
   const fake: FontEnv = {

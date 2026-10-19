@@ -16,7 +16,6 @@ import { SymbolIcon } from './icons/Icon'
 import { ColorSwatches } from './ColorSwatches'
 import { columnsOf, gridStep } from './iconGrid'
 
-/** How long the search waits after the last key before it filters, in ms. */
 export const ICON_SEARCH_DELAY = 300
 
 const categoryLabel = (id: NotebookIconCategory) => t(`notebookIcon.category.${id}` as MessageKey)
@@ -46,17 +45,14 @@ export function NotebookIconDialog(props: {
   useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
-    // Closing (rather than only removing) the dialog gives the keyboard back.
     return () => el?.close()
   }, [])
 
-  /** Shows what `next` finds, from the top of the grid. */
   const search = (next: string) => {
     setQuery(next)
     gridBox.current?.scrollTo?.({ top: 0 })
   }
 
-  // The search filters once typing pauses.
   useEffect(() => {
     if (text === query) return
     const timer = setTimeout(() => {
@@ -74,7 +70,6 @@ export function NotebookIconDialog(props: {
   )
 
   const pickTab = (id: NotebookIconCategory) => {
-    // A category shows all of its symbols: the search is cleared.
     setText('')
     setCategory(id)
     search('')
@@ -129,7 +124,6 @@ export function NotebookIconDialog(props: {
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (isImeKey(e.nativeEvent)) return
-          // Return searches at once; Down goes to the first symbol.
           if (e.key === 'Enter') {
             e.preventDefault()
             search(text)

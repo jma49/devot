@@ -5,12 +5,6 @@ import { format, t } from '../i18n'
 import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
 import { useTypedNumber } from './typedNumber'
 
-/**
- * Settings > Preview: the preview's own font size (15 px by default) and
- * whether split mode scrolls the editor and the preview together. Stored
- * with the editor settings, so changes made elsewhere (View > Synced
- * Scrolling) show here as they happen.
- */
 export function PreviewSection() {
   const settings = useEditorSettings()
   const [error, change] = useSettingsChange()

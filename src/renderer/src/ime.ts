@@ -14,24 +14,17 @@
 //   its own key code (the editor, CodeMirror, ignores that key as well).
 // The last one needs `watchCompositions`, which each window's page starts.
 
-/** How soon after a composition ends a key down still counts as the key that ended it. */
 export const COMPOSITION_END_KEY_MS = 100
 
-/** What the check reads of a key down (React's events carry it as `nativeEvent`). */
 export interface KeyDownFields {
   readonly key: string
   readonly keyCode: number
   readonly isComposing: boolean
 }
 
-/** Key downs that came right after a composition ended (see `watchCompositions`). */
 const endingKeys = new WeakSet<object>()
 
-/**
- * Notes, on `target` (the window), each first key down that comes right after
- * a composition ended, before any handler of the page sees it. Returns a
- * function that stops watching.
- */
+/** Marks each first key down right after a composition ended, before any page handler sees it. Returns a function that stops watching. */
 export function watchCompositions(
   target: EventTarget,
   now: () => number = () => performance.now(),
@@ -56,7 +49,6 @@ export function watchCompositions(
   }
 }
 
-/** Whether a key down belongs to an input method (see above), so nothing else may act on it. */
 export function isImeKey(event: KeyDownFields): boolean {
   return (
     event.isComposing || event.keyCode === 229 || event.key === 'Process' || endingKeys.has(event)

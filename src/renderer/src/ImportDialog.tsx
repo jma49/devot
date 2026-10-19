@@ -22,18 +22,11 @@ import { useScanFound } from './importProgress'
 import { importReason } from './importReasons'
 import { fieldStep } from './Picker'
 
-/**
- * An import as App tracks it: from the moment Rust starts scanning (or
- * sends picked files) until the sheet is closed.
- */
 export interface ImportJob {
-  /** The import session; null when it failed before it had one. */
   id: number | null
   name: string
   kind: ImportKind
-  /** What the scan found; null while it runs. */
   scan: ImportScan | null
-  /** Why the scan failed. */
   failed: string | null
 }
 
@@ -92,7 +85,6 @@ function summaryKey(report: ImportReport): MessageKey {
   return report.attachments > 0 ? 'import.summaryWithImages' : 'import.summary'
 }
 
-/** What a folder holds, on one line: notes, images and their size. */
 function folderCounts(node: ImportFolder, locale: string) {
   return format(t('import.folderCounts'), {
     files: countOf(node.notes, locale, 'import.markdownOne', 'import.markdownOther'),
@@ -127,7 +119,6 @@ function FolderRows(props: { nodes: ImportFolder[]; depth: number; locale: strin
   )
 }
 
-/** The picked folders as a tree, and what will be skipped. */
 function Preview(props: { scan: ImportScan; locale: string }) {
   const root = useMemo(() => importTree(props.scan), [props.scan])
   const { scan, locale } = props
@@ -155,7 +146,6 @@ function Preview(props: { scan: ImportScan; locale: string }) {
   )
 }
 
-/** The destinations to choose from: No Notebook, then every notebook. */
 function destinationOptions(tree: BookNode[]): BookOption[] {
   return [
     { id: NO_BOOK, name: t('note.noBook'), depth: 0, ancestors: [], icon: null, iconColor: null },
@@ -163,11 +153,7 @@ function destinationOptions(tree: BookNode[]): BookOption[] {
   ]
 }
 
-/**
- * The notebook the import goes into: type to filter, arrow keys or a click
- * to choose. The filter (`query`) is the sheet's, so it knows whether the
- * choice is shown: one the filter hides is never imported into.
- */
+/** The notebook the import goes into. The filter (`query`) is the sheet's, so it knows whether the choice is shown: one the filter hides is never imported into. */
 function Destination(props: {
   all: BookOption[]
   query: string
@@ -250,7 +236,6 @@ function Destination(props: {
   )
 }
 
-/** Counts of what an import did: imported, skipped (before or when it stopped) and failed. */
 export function resultCounts(report: ImportReport, skipped: number) {
   const later = report.problems.slice(skipped)
   const stopped = later.filter((p) => p.code === 'E_IMPORT_STOPPED').length
@@ -273,14 +258,12 @@ export function resultCounts(report: ImportReport, skipped: number) {
 export function ImportDialog(props: {
   job: ImportJob
   tree: BookNode[]
-  /** The notebook the destination starts at; null for none. */
   initialDestination: string | null
   onImport: (
     scan: ImportScan,
     destination: string | null,
     onProgress: (done: number, total: number) => void,
   ) => Promise<ImportReport | null>
-  /** The sheet closed; `cancelled` before anything was imported. */
   onClose: (cancelled: boolean) => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -340,7 +323,6 @@ export function ImportDialog(props: {
   const running = step.kind === 'running'
 
   const started = useRef(false)
-  /** Imports into `chosen`; the stage follows from here (once only). */
   const launch = (from: ImportScan, chosen: string | null) => {
     started.current = true
     const progress = (done: number, total: number) =>

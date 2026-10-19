@@ -1,10 +1,6 @@
 import { STARTER_TEMPLATES, starterTemplate } from '../../core'
 import { t } from './i18n'
 
-/**
- * The Built-in group under the user's own templates: the starter templates,
- * which are read-only. Picking one shows it (BuiltInTemplate).
- */
 export function BuiltInTemplates(props: {
   selected: string | undefined
   onSelect: (id: string) => void
@@ -27,11 +23,6 @@ export function BuiltInTemplates(props: {
   )
 }
 
-/**
- * A starter template, read-only, as written (its instruction quote shows),
- * with what can be done with it: make a note from it, or edit a copy, which
- * becomes a template of the user's own.
- */
 export function BuiltInTemplate(props: {
   id: string
   onUse: (id: string) => void

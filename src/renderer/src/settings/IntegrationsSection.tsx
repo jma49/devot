@@ -7,7 +7,6 @@ import { SettingsSection } from './controls'
 import { claudeCodeCommand, codexConfig, mcpServersJson, type McpSetup } from './mcpConfigs'
 import { mcpSetup } from './window'
 
-/** Each client: its block's title, symbol, where the text goes, and the text. */
 const CLIENTS: readonly {
   id: string
   title: MessageKey
@@ -38,14 +37,6 @@ const CLIENTS: readonly {
   },
 ]
 
-/**
- * Settings > Integrations: devot-mcp's configs for Claude Code (a `claude mcp
- * add` command), Codex (`~/.codex/config.toml`) and any client with an
- * `mcpServers` JSON file, each with a Copy button. They run devot-mcp with
- * Node from the Devot checkout this app was built from when Rust finds it
- * there (`settings_mcp_setup`), or show a path to replace; a debug build's
- * configs name its own database.
- */
 export function IntegrationsSection() {
   const ids = useId()
   // Undefined until Rust answers; the configs show only then.

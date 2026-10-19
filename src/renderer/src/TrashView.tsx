@@ -5,7 +5,6 @@ import { displayTitle } from './headlines'
 import { t } from './i18n'
 import { Preview } from './preview/Preview'
 
-/** A trashed note, read-only, with Restore and Delete Permanently. */
 export function TrashView(props: {
   core: Core
   noteId: string

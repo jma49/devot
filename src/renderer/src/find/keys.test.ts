@@ -14,7 +14,6 @@ const key = (code: string, mods: Partial<KeyPress> = {}): KeyPress => ({
   ...mods,
 })
 
-/** A key press for a registry shortcut such as `Mod+Alt+F`. */
 const pressOf = (shortcut: string): KeyPress => {
   const parts = shortcut.split('+')
   return key(`Key${parts.at(-1)}`, {
@@ -78,15 +77,12 @@ describe('findShortcut', () => {
 
   it('leaves the window and note list shortcuts alone', () => {
     for (const event of [
-      // Search the current view, search every note, focus mode, history.
       key('KeyF', { metaKey: true, shiftKey: true }),
       key('KeyF', { metaKey: true, shiftKey: true, altKey: true }),
       key('KeyD', { metaKey: true, shiftKey: true }),
       key('KeyY', { metaKey: true, altKey: true }),
-      // Copy Note Link and Copy Note URI.
       key('KeyC', { metaKey: true }),
       key('KeyC', { metaKey: true, shiftKey: true }),
-      // Other modifiers and keys.
       key('KeyF'),
       key('KeyF', { ctrlKey: true }),
       key('KeyF', { metaKey: true, ctrlKey: true }),

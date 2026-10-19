@@ -6,7 +6,6 @@ import { EditorView } from '@codemirror/view'
 import { t } from './i18n'
 import type { NotePreview } from './notePreview'
 
-/** The card for a loaded preview; a note that is gone reads "Note not found". */
 export function noteCardDom(preview: NotePreview | null): HTMLElement {
   const card = document.createElement('div')
   card.className = 'note-card'
@@ -23,7 +22,6 @@ export function noteCardDom(preview: NotePreview | null): HTMLElement {
   return card
 }
 
-/** The card's rules in CodeMirror's theme format. */
 const noteCardStyles = {
   '.note-card': {
     boxSizing: 'border-box',
@@ -48,5 +46,4 @@ const noteCardStyles = {
   },
 }
 
-/** The card's look inside the editor (its shadow root has no app styles). */
 export const noteCardTheme = EditorView.theme(noteCardStyles)

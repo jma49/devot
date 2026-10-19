@@ -21,17 +21,12 @@ import { invoke } from './ipc'
 export const EDITOR_SETTINGS_CHANGED = 'devot:editor-settings-changed'
 const TAURI_EVENT = 'devot://editor-settings-changed'
 
-/** The type scale's preview size in pixels (what a preview scale of 1 is). */
 const PREVIEW_BASE_SIZE = parseFloat(sizes['font.size.preview'])
 
 export interface StyleTarget {
   setProperty(name: string, value: string): void
 }
 
-/**
- * Sets the CSS variables the editor's theme and the page read. An imported
- * font is named once `loaded` says its face is in place.
- */
 export function applyEditorStyle(
   settings: EditorSettings,
   style: StyleTarget,
@@ -39,21 +34,17 @@ export function applyEditorStyle(
 ): void {
   style.setProperty('--editor-font-size', `${settings.fontSize}px`)
   style.setProperty('--editor-font-weight', settings.fontWeight)
-  // The preview's own size: 1 is the type scale's preview size.
   style.setProperty('--preview-scale', String(settings.previewFontSize / PREVIEW_BASE_SIZE))
   style.setProperty('--editor-line-height', String(settings.lineHeight))
-  // How see-through the regions' washes are over the window material (app.css).
   style.setProperty('--window-transparency', String(settings.windowTransparency))
   for (const [name, value] of fontVariables(settings, loaded)) style.setProperty(name, value)
 }
 
-/** A snapshot from Rust: the settings and their revision (higher is newer). */
 export interface EditorSettingsSnapshot {
   revision: number
   settings: EditorSettings
 }
 
-/** A snapshot from an answer or an event; undefined for anything else. */
 export function readSnapshot(value: unknown): EditorSettingsSnapshot | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { revision, settings } = value as Record<string, unknown>
@@ -62,7 +53,6 @@ export function readSnapshot(value: unknown): EditorSettingsSnapshot | undefined
   return { revision, settings: parseEditorSettings(settings) }
 }
 
-/** Where the page keeps the newest snapshot it knows, for a reload. */
 const SESSION_KEY = 'devot.editorSettings'
 
 interface SessionStore {
@@ -73,7 +63,6 @@ interface SessionStore {
 const session = (): SessionStore | undefined =>
   (globalThis as { sessionStorage?: SessionStore }).sessionStorage
 
-/** Keeps a snapshot for a reload of this page; storage may be unavailable. */
 function remember(snapshot: EditorSettingsSnapshot) {
   try {
     session()?.setItem(SESSION_KEY, JSON.stringify(snapshot))
@@ -98,7 +87,6 @@ function remembered(): EditorSettingsSnapshot | undefined {
   }
 }
 
-/** The newer of two snapshots (either may be missing). */
 const newer = (a?: EditorSettingsSnapshot, b?: EditorSettingsSnapshot) =>
   !a || (b && b.revision > a.revision) ? b : a
 
@@ -114,7 +102,6 @@ const initial = newer(
   remembered(),
 )
 
-/** The stored settings with this window's changes on top (see syncedStore.ts). */
 const store = createSyncedStore<EditorSettings, Partial<EditorSettings>>({
   initial: initial
     ? { revision: initial.revision, value: initial.settings }
@@ -124,38 +111,28 @@ const store = createSyncedStore<EditorSettings, Partial<EditorSettings>>({
   confirmed: ({ revision, value }) => remember({ revision, settings: value }),
 })
 
-/** A snapshot from an answer or an event, as the store takes it. */
 const reported = (snapshot: EditorSettingsSnapshot | undefined) =>
   snapshot && { revision: snapshot.revision, value: snapshot.settings }
 
-/** The settings in effect in this window. */
 export function editorSettings(): EditorSettings {
   return store.current()
 }
 
-/** Calls `notify` after every change of the settings in effect. */
 export function subscribeEditorSettings(notify: () => void): () => void {
   return store.subscribe(notify)
 }
 
-/** The settings in effect, re-rendering on every change. */
 export function useEditorSettings(): EditorSettings {
   return useSyncExternalStore(subscribeEditorSettings, editorSettings)
 }
 
-/** One setting, re-rendering only when it changes. */
 export function useEditorSetting<K extends keyof EditorSettings>(key: K): EditorSettings[K] {
   return useSyncExternalStore(subscribeEditorSettings, () => store.current()[key])
 }
 
 let started = false
-/** Settles once the stored settings have been read (or could not be). */
 let loaded: Promise<void> = Promise.resolve()
 
-/**
- * Reads the stored settings, follows changes made in any window, and keeps
- * the CSS variables on `style` (the root element's) up to date. Once per page.
- */
 export function startEditorSettings(style: StyleTarget = document.documentElement.style): void {
   if (started) return
   started = true
@@ -165,7 +142,6 @@ export function startEditorSettings(style: StyleTarget = document.documentElemen
   }
   apply()
   subscribeEditorSettings(apply)
-  // A face that has loaded goes in the font lists.
   subscribeFontsLoaded(() => applyEditorStyle(store.current(), style))
   window.addEventListener(EDITOR_SETTINGS_CHANGED, (e) =>
     store.confirm(reported(readSnapshot((e as CustomEvent<unknown>).detail))),
@@ -198,10 +174,6 @@ export function changeEditorSettings(patch: Partial<EditorSettings>): Promise<Ed
   )
 }
 
-/**
- * Cmd+= (1), Cmd+- (-1) and Cmd+0 (0, the default size), from the stored
- * size once it has been read.
- */
 export async function stepEditorFontSize(delta: 1 | -1 | 0): Promise<void> {
   await loaded
   const now = store.current().fontSize

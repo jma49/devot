@@ -8,13 +8,10 @@ import { format, t } from './i18n'
 import { chooseMirrorFolder, confirmMirrorFolder } from './mirror'
 
 export interface MirrorFolderChoice {
-  /** Shows the folder panel; asks first when the folder picked is not empty. */
   choose: () => Promise<void>
-  /** The confirmation, while it is up. */
   dialog: ReactNode
 }
 
-/** `failed` hears the code when a folder could not be used. */
 export function useMirrorFolderChoice(failed: (code: string) => void): MirrorFolderChoice {
   const [confirming, setConfirming] = useState<{ token: number; name: string }>()
 

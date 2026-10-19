@@ -48,7 +48,6 @@ export interface PaletteActions {
   meta?: PaletteAction | undefined
 }
 
-/** The modifiers held now, which choose among a result's actions. */
 interface Held {
   shift: boolean
   meta: boolean
@@ -56,7 +55,6 @@ interface Held {
 
 const NO_MODIFIERS: Held = { shift: false, meta: false }
 
-/** The action the modifiers choose; undefined when the result has none for them. */
 function chosen(actions: PaletteActions, held: Held): PaletteAction | undefined {
   if (held.meta) return actions.meta
   if (held.shift) return actions.shift
@@ -83,7 +81,6 @@ const ICON: Readonly<Record<PaletteKind, IconName>> = {
   source: 'search',
 }
 
-/** The icon of each source's row in the root's list. */
 const SOURCE_ICON: Readonly<Record<PaletteSource, IconName>> = {
   command: 'terminal',
   book: 'notebook',
@@ -104,7 +101,6 @@ const PLACEHOLDER: Readonly<Record<PaletteSource, MessageKey>> = {
 
 const optionId = (i: number) => `palette-option-${i}`
 
-/** `text` with the ranges in `<mark>`; text nodes only. */
 function Marked({ text, ranges }: { text: string; ranges: readonly [number, number][] }) {
   const parts: { text: string; match: boolean }[] = []
   let at = 0
@@ -131,7 +127,6 @@ function Marked({ text, ranges }: { text: string; ranges: readonly [number, numb
 export function CommandPalette(props: {
   entries: Readonly<Record<PaletteKind, readonly PaletteEntry[]>>
   actions: (entry: PaletteEntry) => PaletteActions
-  /** The source to open scoped to (the sidebar's search buttons, Go to Line). */
   initialScope?: PaletteSource | undefined
   /** How many lines the open note has (Go to Line); 0 or none when no note is open. */
   lineCount?: number | undefined
@@ -193,7 +188,6 @@ export function CommandPalette(props: {
     return paletteResults(state, { ...entries, line: goTo })
   }, [state, entries, lineCount])
   const results = groups.flatMap((g) => g.results)
-  // Where each group starts in `results` (options are numbered across groups).
   const starts = groups.map((_, i) =>
     groups.slice(0, i).reduce((sum, g) => sum + g.results.length, 0),
   )
@@ -215,12 +209,10 @@ export function CommandPalette(props: {
   const change = (next: PaletteState) => {
     setState(next)
     setActive(0)
-    // New results start at the top.
     if (list.current) list.current.scrollTop = 0
     input.current?.focus()
   }
 
-  /** Runs what the held modifiers choose for a result (a source row opens the source). */
   const pick = (entry: PaletteEntry, modifiers: Held) => {
     if (entry.kind === 'source') {
       if (!modifiers.shift && !modifiers.meta)
@@ -231,7 +223,6 @@ export function CommandPalette(props: {
     if (action) close(() => action.run())
   }
 
-  /** Escape, from the field or the dialog: one step back, then closed. */
   const stepBack = () => {
     const next = escapeStep(state)
     if (next === null) close()
@@ -249,7 +240,6 @@ export function CommandPalette(props: {
       e.preventDefault()
       if (current) pick(current, { shift: e.shiftKey, meta: e.metaKey })
     } else if (e.key === 'Backspace' && state.scope !== null && state.query === '') {
-      // Nothing left to delete: the scope goes.
       e.preventDefault()
       change(ROOT)
     }
@@ -332,7 +322,6 @@ export function CommandPalette(props: {
           onChange={(e) => {
             setState(typeInto(state, e.target.value))
             setActive(0)
-            // New results start at the top.
             if (list.current) list.current.scrollTop = 0
           }}
           onKeyDown={onKeyDown}

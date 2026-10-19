@@ -1,4 +1,3 @@
-// What the note list says when it has no rows, by the view it shows.
 import type { MessageKey } from './i18n'
 
 export const LIST_EMPTY_KINDS = [
@@ -20,5 +19,4 @@ const TEXT: Readonly<Record<ListEmptyKind, { message: MessageKey; tip?: MessageK
   templates: { message: 'noteList.empty.templates', tip: 'noteList.empty.templatesTip' },
 }
 
-/** The message (and a tip, for some views) for an empty list of `kind`. */
 export const listEmpty = (kind: ListEmptyKind) => TEXT[kind]

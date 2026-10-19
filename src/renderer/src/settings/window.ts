@@ -4,17 +4,14 @@
 import { invoke } from '../ipc'
 import { asMcpSetup, type McpSetup } from './mcpConfigs'
 
-/** Shows the folder Devot keeps its data in, in Finder. */
 export function openDataFolder(): Promise<void> {
   return invoke('settings_open_data_folder')
 }
 
-/** Brings the main window to the front with its Backups dialog. */
 export function showBackups(): Promise<void> {
   return invoke('settings_show_backups')
 }
 
-/** Where devot-mcp and the database are, for Settings > Integrations. */
 export async function mcpSetup(): Promise<McpSetup> {
   const setup = asMcpSetup(await invoke<unknown>('settings_mcp_setup'))
   if (!setup) throw new Error('E_MCP_SETUP_INVALID')

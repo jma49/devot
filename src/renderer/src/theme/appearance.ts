@@ -15,18 +15,15 @@ export interface AppearanceTarget {
   dataset: Record<string, string | undefined>
 }
 
-/** Sent on the window after the chosen appearance or theme changed. */
 export const APPEARANCE_CHANGED = 'devot:appearance-changed'
 
 const DARK = '(prefers-color-scheme: dark)'
 
-/** Marks `root` with the chosen appearance; the system's leaves it unmarked. */
 export function applyAppearance(choice: AppearanceChoice, root: AppearanceTarget): void {
   if (choice === 'system') delete root.dataset['appearance']
   else root.dataset['appearance'] = choice
 }
 
-/** Marks `root` with the chosen theme; the default theme leaves it unmarked. */
 export function applyTheme(choice: ThemeChoice, root: AppearanceTarget): void {
   if (choice === 'default') delete root.dataset['theme']
   else root.dataset['theme'] = choice
@@ -34,14 +31,12 @@ export function applyTheme(choice: ThemeChoice, root: AppearanceTarget): void {
 
 const rootTarget = () => document.documentElement as unknown as AppearanceTarget
 
-/** The appearance the page shows now: the chosen one, else the system's. */
 export function shownAppearance(root: AppearanceTarget = rootTarget()): Appearance {
   const chosen = root.dataset['appearance']
   if (chosen === 'light' || chosen === 'dark') return chosen
   return matchMedia(DARK).matches ? 'dark' : 'light'
 }
 
-/** Calls `onChange` when the shown appearance may have changed. */
 export function subscribeAppearance(onChange: () => void): () => void {
   const query = matchMedia(DARK)
   query.addEventListener('change', onChange)

@@ -10,7 +10,6 @@ import type { BookNode } from '../../core/books'
 export interface NotebookChoice {
   id: string
   name: string
-  /** 0 for a top-level notebook. */
   depth: number
 }
 
@@ -29,7 +28,6 @@ function local(): KeyValue | undefined {
   }
 }
 
-/** The notebooks in the order the sidebar shows them, sub-notebooks under their parent. */
 export function choicesFromTree(tree: readonly BookNode[]): NotebookChoice[] {
   const out: NotebookChoice[] = []
   const walk = (nodes: readonly BookNode[]) => {
@@ -42,7 +40,6 @@ export function choicesFromTree(tree: readonly BookNode[]): NotebookChoice[] {
   return out
 }
 
-/** Stores the notebooks for the Settings window; a change in storage is ignored. */
 export function publishNotebooks(choices: readonly NotebookChoice[], storage = local()): void {
   try {
     const json = JSON.stringify(choices)
@@ -52,7 +49,6 @@ export function publishNotebooks(choices: readonly NotebookChoice[], storage = l
   }
 }
 
-/** The stored notebooks; entries that are not notebooks are left out. */
 export function readNotebooks(storage = local()): NotebookChoice[] {
   try {
     const stored: unknown = JSON.parse(storage?.getItem(KEY) ?? '[]')
@@ -70,7 +66,6 @@ export function readNotebooks(storage = local()): NotebookChoice[] {
   }
 }
 
-/** Calls `notify` when another window stores a new list of notebooks. */
 export function subscribeNotebooks(notify: () => void): () => void {
   const onStorage = (e: StorageEvent) => {
     if (e.key === KEY || e.key === null) notify()

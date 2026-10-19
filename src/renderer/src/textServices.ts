@@ -10,7 +10,6 @@ export const MAX_LOOK_UP_CHARS = 1000
 /** The longest text Speech takes (the same as Rust's). */
 export const MAX_SPEECH_CHARS = 100_000
 
-/** How many characters of the selection the Look Up item shows. */
 const LABEL_CHARS = 24
 
 /**
@@ -23,7 +22,6 @@ export function lookUpSelection(selected: string | null | undefined): string | n
   return text === '' ? null : Array.from(text).slice(0, MAX_SPEECH_CHARS).join('')
 }
 
-/** The Look Up item's text for a selection: `Look Up "text"`, the text cut short. */
 export function lookUpLabel(text: string): string {
   const flat = text.replace(/\s+/g, ' ')
   const chars = Array.from(flat)
@@ -32,7 +30,6 @@ export function lookUpLabel(text: string): string {
   return format(t('editorMenu.lookUp'), { text: shown })
 }
 
-/** How many characters of white space a selection starts with (Look Up trims them off). */
 export function leadingSpace(selected: string): number {
   return selected.length - selected.trimStart().length
 }
@@ -47,7 +44,6 @@ export function lookUpOrigin(start: { left: number; bottom: number }, descent: n
   return { x: start.left, y: start.bottom - Math.max(0, descent) }
 }
 
-/** The descent of a computed style's font, in CSS pixels (a fifth of its size when unknown). */
 export function fontDescent(style: CSSStyleDeclaration): number {
   const context = document.createElement('canvas').getContext('2d')
   if (context && style.font) {
@@ -70,7 +66,6 @@ export interface LookUpFont {
   italic: boolean
 }
 
-/** The parts of a computed style Look Up reads its font from. */
 export type FontStyle = Pick<
   CSSStyleDeclaration,
   'fontFamily' | 'fontSize' | 'fontWeight' | 'fontStyle'
@@ -111,14 +106,12 @@ export function lookUp(
   )
 }
 
-/** Starts speaking the selection (the system speaks it; `text` is the fallback). */
 export function startSpeaking(text: string | null): Promise<void> {
   return invoke<void>('text_speak', { action: 'start', text }).catch(() =>
     console.warn('W_SPEECH_FAILED'),
   )
 }
 
-/** Stops speaking. */
 export function stopSpeaking(): Promise<void> {
   return invoke<void>('text_speak', { action: 'stop', text: null }).catch(() =>
     console.warn('W_SPEECH_FAILED'),

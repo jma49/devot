@@ -5,7 +5,6 @@ import { stampDate, taskCount } from '../format'
 import { t } from '../i18n'
 import type { IconName } from '../icons/symbols'
 
-/** The note the info card is about. */
 export interface NoteInfoData {
   noteId: string
   createdAt: number
@@ -17,9 +16,7 @@ export interface InfoField {
   icon: IconName
   label: string
   value: string
-  /** The progress field's bar. */
   tasks?: TaskProgress
-  /** The dates' machine-readable time. */
   dateTime?: string
 }
 

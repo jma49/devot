@@ -12,15 +12,12 @@ import { useLayoutEffect, useState } from 'react'
 import { drawnOffset, motionTiming } from './motionTiming'
 import { motionReduced } from './motionPreference'
 
-/** What changed between two orders of a list's keys. */
 export interface RowChange {
   entered: ReadonlySet<string>
   left: ReadonlySet<string>
-  /** The keys in both no longer come in the same order. */
   reordered: boolean
 }
 
-/** Whether two orders of keys are the same. */
 export const sameKeys = (a: readonly string[], b: readonly string[]) =>
   a === b || (a.length === b.length && a.every((key, i) => b[i] === key))
 
@@ -38,7 +35,6 @@ export function rowChange(before: readonly string[], after: readonly string[]): 
   return { entered, left, reordered }
 }
 
-/** Whether a change is one to play: something changed, small enough, and some rows stayed. */
 export function playsChange(change: RowChange, kept: number): boolean {
   const moved = change.entered.size + change.left.size
   if (moved === 0 && !change.reordered) return false
@@ -47,11 +43,9 @@ export function playsChange(change: RowChange, kept: number): boolean {
 
 export type RowMotion = 'slide' | 'grow'
 
-/** How a row moving to a new place moves. */
 export const rowMoveTiming = (): KeyframeAnimationOptions =>
   motionTiming('motion.duration.slide', 'motion.easing.move')
 
-/** How a row coming or going comes or goes. */
 export const rowEnterTiming = (motion: RowMotion): KeyframeAnimationOptions =>
   motionTiming(
     motion === 'slide' ? 'motion.duration.slide' : 'motion.duration.insert',
@@ -69,7 +63,6 @@ export const leaveFrames: Keyframe[] = [...enterFrames].reverse()
 
 interface RowBox {
   el: HTMLElement
-  /** Its place in the list's content, scrolling and a move under way left out. */
   top: number
   rect: DOMRect
   parent: Node | null
@@ -96,7 +89,6 @@ function snapshot(container: HTMLElement, attr: string): Snapshot {
   return rows
 }
 
-/** An inert copy of a row that went, left in its place while it goes. */
 function leaveCopy(box: RowBox, attr: string): HTMLElement | null {
   const parent = box.parent
   if (!parent?.isConnected) return null
@@ -108,7 +100,6 @@ function leaveCopy(box: RowBox, attr: string): HTMLElement | null {
   copy.dataset['closing'] = 'row'
   copy.setAttribute('aria-hidden', 'true')
   copy.inert = true
-  // Out of the layout, over where it was.
   copy.style.position = 'fixed'
   copy.style.left = `${box.rect.left}px`
   copy.style.top = `${box.rect.top}px`
@@ -154,11 +145,7 @@ function play(
   }
 }
 
-/**
- * Animates the rows (`[attr]` elements, keyed by its value) in `container()`
- * when `keys`, the list's data in order, changes within one `scope` (a view;
- * another scope is another list).
- */
+/** Animates the rows (`[attr]` elements keyed by its value) in `container()` when `keys` (the list's data in order) change within one `scope` (a view; another scope is another list). */
 export function useRowMotion(
   container: () => HTMLElement | null,
   attr: string,
@@ -166,7 +153,6 @@ export function useRowMotion(
   scope: string,
   motion: RowMotion,
 ): void {
-  // What the list shows, and the change to play once it is laid out.
   const [seen, setSeen] = useState<{
     keys: readonly string[]
     scope: string
@@ -185,7 +171,6 @@ export function useRowMotion(
     }
     setSeen({ keys, scope, play: next })
   }
-  // Once for each change: `seen` is new only then.
   useLayoutEffect(() => {
     if (seen.play) play(seen.play.el, attr, seen.play.before, seen.play.change, motion)
   }, [seen, attr, motion])

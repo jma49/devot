@@ -5,10 +5,8 @@
 type KeyValue = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 const RECENT_KEY = 'devot.templates.recent'
-/** How many recently used templates the picker remembers. */
 export const MAX_RECENT_TEMPLATES = 5
 
-/** The templates used last on this device, newest first; storage failures read as none. */
 export function recentTemplates(storage: KeyValue | undefined) {
   const load = (): string[] => {
     try {
@@ -22,7 +20,6 @@ export function recentTemplates(storage: KeyValue | undefined) {
   }
   return {
     load,
-    /** Puts a template first. */
     use(id: string) {
       const next = [id, ...load().filter((other) => other !== id)].slice(0, MAX_RECENT_TEMPLATES)
       try {
@@ -34,7 +31,6 @@ export function recentTemplates(storage: KeyValue | undefined) {
   }
 }
 
-/** This window's store (none where local storage is unavailable). */
 export function currentRecentTemplates() {
   let storage: KeyValue | undefined
   try {

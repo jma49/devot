@@ -7,7 +7,6 @@ import { fieldStep } from './Picker'
 
 const optionId = (i: number) => `move-book-option-${i}`
 
-/** The option that stands for the top level. */
 const TOP = ''
 
 /**
@@ -17,7 +16,6 @@ const TOP = ''
  */
 export function MoveBookDialog(props: {
   tree: readonly BookNode[]
-  /** The notebook to move. */
   book: { id: string; name: string; parentId: string | null }
   onMove: (parentId: string | null) => void
   onCancel: () => void
@@ -30,7 +28,6 @@ export function MoveBookDialog(props: {
     if (el && !el.open) el.showModal()
     // The list takes the keyboard once, so the arrow keys work at once.
     list.current?.focus({ preventScroll: true })
-    // Closing (rather than only removing) the dialog gives the keyboard back.
     return () => el?.close()
   }, [])
 

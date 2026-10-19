@@ -11,7 +11,6 @@ interface Box {
   height: number
 }
 
-/** The timing of a size change, or null when nothing should move. */
 export function resizeTiming(reduced: boolean): KeyframeAnimationOptions | null {
   if (reduced) return null
   return motionTiming('motion.duration.grow', 'motion.easing.move')
@@ -35,20 +34,17 @@ export function resizeFrames(from: Box, to: Box): Keyframe[] | null {
   ]
 }
 
-/** From nothing to `height` pixels, fading in: a panel opening. */
 export const expandFrames = (height: number): Keyframe[] => [
   { height: '0px', opacity: 0 },
   { height: `${height}px`, opacity: 1 },
 ]
 
-/** Eases `el`, now laid out, from the box it had (`from`). */
 export function resizeFrom(el: Element, from: Box): void {
   const timing = resizeTiming(motionReduced())
   const frames = resizeFrames(from, el.getBoundingClientRect())
   if (timing && frames && typeof el.animate === 'function') el.animate(frames, timing)
 }
 
-/** Grows `el`, a panel that has just opened, to its height as it fades in. */
 export function expand(el: HTMLElement): void {
   const timing = resizeTiming(motionReduced())
   if (!timing || typeof el.animate !== 'function') return

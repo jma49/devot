@@ -24,7 +24,6 @@ import {
 // registry, so every one of them needs a keyboard path that runs it with the
 // keys in effect: a key recorded there must do something.
 
-/** A key every scope may take, and its press. */
 const KEY = 'Mod+Ctrl+Alt+Shift+J'
 const PRESS: KeyPress = {
   code: 'KeyJ',
@@ -74,7 +73,6 @@ const BOUND_IN: Partial<Record<CommandId, [file: string, call: string]>> = {
   'sidebar.workspaceUpFromAnyRow': ['../Sidebar.tsx', 'commandMatches'],
 }
 
-/** Whether the keyboard path for the command's scope runs it on `PRESS`. */
 function bound(id: CommandId): boolean {
   const known = BOUND_IN[id]
   if (known) return SOURCES[known[0]]?.includes(`${known[1]}('${id}'`) ?? false

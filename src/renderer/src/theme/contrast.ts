@@ -13,7 +13,6 @@ const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i
 const FUNCTIONAL = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:\s*[/,]\s*([\d.]+%?))?\s*\)$/i
 const FALLBACK = /^var\(\s*--[\w-]+\s*,\s*(.+)\)$/
 
-/** Reads three-, six- and eight-digit hex, the functional rgb notation and a variable's fallback value. */
 export function parseColor(css: string): Rgba {
   const text = css.trim()
   const fallback = FALLBACK.exec(text)
@@ -34,7 +33,6 @@ export function parseColor(css: string): Rgba {
   throw new Error(`E_COLOR_UNREADABLE ${text}`)
 }
 
-/** `fg` drawn over an opaque `background`. */
 export function composite(fg: Rgba, background: Rgb): Rgb {
   const mixed = fg.rgb.map((c, i) => c * fg.alpha + background[i]! * (1 - fg.alpha))
   return mixed as Rgb
@@ -49,13 +47,11 @@ export function luminance([r, g, b]: Rgb): number {
   return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
 }
 
-/** The WCAG contrast ratio of two opaque colours, 1 to 21. */
 export function contrastRatio(a: Rgb, b: Rgb): number {
   const [x, y] = [luminance(a), luminance(b)]
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
 }
 
-/** Six-digit hex, or eight digits when `alpha` is under 1. */
 export function toHex(rgb: Rgb, alpha = 1): string {
   const channels = alpha < 1 ? [...rgb, alpha * 255] : rgb
   return `#${channels.map((c) => Math.round(c).toString(16).padStart(2, '0')).join('')}`

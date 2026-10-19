@@ -28,7 +28,6 @@ export function withWrites<T extends NoteSummary>(
 const sameIds = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((id, i) => id === b[i])
 
-/** Whether two summaries show the same. */
 function sameNote(a: NoteSummary, b: NoteSummary): boolean {
   return (
     a.id === b.id &&
@@ -62,7 +61,6 @@ export function keepUnchanged<T extends NoteSummary>(prev: T[], next: T[]): T[] 
   return changed ? kept : prev
 }
 
-/** `list` with the note `id` titled `title`. */
 export function retitled<T extends NoteSummary>(list: T[], id: string, title: string): T[] {
   let changed = false
   const next = list.map((n) => {
@@ -73,7 +71,6 @@ export function retitled<T extends NoteSummary>(list: T[], id: string, title: st
   return changed ? next : list
 }
 
-/** A view of the note list that is not search results. */
 export type ListView =
   | { kind: 'trash' }
   | { kind: 'templates' }
@@ -95,13 +92,11 @@ export function viewLists(
   return filterNotes([note], books, { bookId: view.bookId, by: view.filter }).length > 0
 }
 
-/** The view that always lists a note: Templates, its notebook, or All Notes (with no filter). */
 export function homeOf(note: Pick<NoteSummary, 'bookId'>): Selection {
   if (note.bookId === TEMPLATES_BOOK_ID) return { kind: 'templates' }
   return note.bookId ? { kind: 'book', id: note.bookId } : { kind: 'all' }
 }
 
-/** Whether two counts (by notebook, status or tag) are the same. */
 export function sameCounts<K>(a: ReadonlyMap<K, number>, b: ReadonlyMap<K, number>): boolean {
   if (a.size !== b.size) return false
   for (const [key, count] of a) if (b.get(key) !== count) return false

@@ -55,7 +55,6 @@ function render(request: RenderRequest): void {
     .catch(() => reply({ type: 'failed', id: request.id, reason: 'render' }))
 }
 
-// The parent hands over a private port in answer to READY.
 window.addEventListener('message', (event) => {
   if (event.source !== window.parent || window.parent === window) return
   if (event.origin !== location.origin && location.origin !== 'null') return

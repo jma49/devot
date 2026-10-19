@@ -87,7 +87,6 @@ describe('anchors over blank lines and long blocks', () => {
   })
 
   it('move evenly through a long code block, which has one anchor', () => {
-    // Halfway through the block's 53 lines (8 to 61) is halfway down it.
     expect(topOf(anchors, 34.5)).toBe(620)
     expect(lineAt(anchors, 620)).toBe(34.5)
     let previous = -1
@@ -134,7 +133,6 @@ describe('wheelDistance', () => {
   })
 })
 
-/** A preview element whose blocks sit at `tops` (by source line). */
 function fakePreview(tops: Map<number, number>, height: number) {
   const element = Object.assign(new EventTarget(), {
     scrollTop: 0,
@@ -207,7 +205,6 @@ describe('previewScrollPane', () => {
   })
 })
 
-/** A pane over a fake scroller: one pixel per line, `height` pixels tall. */
 class FakePane implements ScrollPane {
   readonly element = Object.assign(new EventTarget(), {
     scrollTop: 0,
@@ -228,16 +225,13 @@ class FakePane implements ScrollPane {
     this.layout.add(listener)
     return () => this.layout.delete(listener)
   }
-  /** Sets the offset as the browser clamps it, without a scroll event. */
   set(top: number) {
     const max = this.element.scrollHeight - this.element.clientHeight
     this.element.scrollTop = Math.max(0, Math.min(max, top))
   }
-  /** The browser's scroll event for the current offset. */
   fire() {
     this.element.dispatchEvent(new Event('scroll'))
   }
-  /** The user scrolls to `top`. */
   userScroll(top: number) {
     this.set(top)
     this.fire()
@@ -248,7 +242,6 @@ class FakePane implements ScrollPane {
   gesture(type = 'wheel') {
     this.element.dispatchEvent(new Event(type))
   }
-  /** A wheel or trackpad scroll of `deltaY` pixels over the pane; whether it was taken. */
   wheel(deltaY: number, more: object = {}) {
     const event = Object.assign(new Event('wheel', { cancelable: true }), {
       deltaX: 0,
@@ -307,7 +300,6 @@ describe('syncScrolling', () => {
     flush()
     editor.userScroll(30)
     flush()
-    // The preview's scroll event for the offset set above.
     preview.fire()
     flush()
     expect(editor.scrolledTo).toEqual([])

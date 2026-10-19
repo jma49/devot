@@ -16,7 +16,6 @@ interface Item {
   action?: () => void
 }
 
-/** The menu's lines for a target ("---" between groups), and a way to click an item by ID. */
 export async function menuLines<A extends string, T>(
   name: string,
   groups: MenuGroups<A, T>,

@@ -8,16 +8,12 @@ import { storage } from './core-client'
 
 const newId = createIdGenerator()
 
-/** Image files among a paste or drop's items. */
 export function imageFiles(data: DataTransfer | null): File[] {
   return Array.from(data?.files ?? []).filter((f) => f.type.startsWith('image/'))
 }
 
-/** What storing a paste or drop's images gave. */
 export interface StoredImages {
-  /** The Markdown to insert, one image per line. */
   links: string
-  /** The code of each image that could not be stored, in order. */
   refused: string[]
 }
 

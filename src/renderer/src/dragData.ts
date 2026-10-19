@@ -14,14 +14,12 @@ export const DRAG_BOOK = 'application/x-devot-book'
 
 interface DragNote {
   id: string
-  /** The display title (see `displayTitle`). */
   title: string
 }
 
 const escapeHtml = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-/** The links of `notes` as HTML anchors, one per line break. */
 export function noteDragHtml(notes: readonly DragNote[]): string {
   return notes
     .map((n) => `<a href="${escapeHtml(noteUri(n.id))}">${escapeHtml(n.title)}</a>`)
@@ -41,7 +39,6 @@ export function setNoteDragData(dt: DataTransfer, notes: readonly DragNote[]): v
   dt.effectAllowed = 'copyMove'
 }
 
-/** Puts a notebook drag on `dt`: its ID, and `Name:<id>` as text. */
 export function setBookDragData(dt: DataTransfer, book: { id: string; name: string }): void {
   dt.setData(DRAG_BOOK, book.id)
   dt.setData('text/plain', `${book.name}:${book.id}`)

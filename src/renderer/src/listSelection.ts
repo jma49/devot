@@ -8,17 +8,13 @@
 // open note stays open while it is selected (see `openAfter`).
 
 export interface ListSelection {
-  /** The selected notes, in list order. */
   ids: readonly string[]
-  /** Where a Shift range starts: the row clicked last without Shift. */
   anchor: string
-  /** The far end of the range, which Shift+Up and Shift+Down move. */
   lead: string
 }
 
 const one = (id: string): ListSelection => ({ ids: [id], anchor: id, lead: id })
 
-/** The selection to change: the list's own, else the open note alone (when listed). */
 function base(
   current: ListSelection | undefined,
   open: string | undefined,
@@ -40,14 +36,12 @@ const inOrder = (ids: Iterable<string>, order: readonly string[]) => {
   return order.filter((id) => set.has(id))
 }
 
-/** The rows from `a` to `b`, either way round. */
 const range = (a: string, b: string, order: readonly string[]) => {
   const from = order.indexOf(a)
   const to = order.indexOf(b)
   return order.slice(Math.min(from, to), Math.max(from, to) + 1)
 }
 
-/** Cmd-click on `id`: adds it (as the anchor), or takes it out. */
 export function selectToggle(
   current: ListSelection | undefined,
   open: string | undefined,
@@ -74,7 +68,6 @@ export function selectToggle(
   return { ids, anchor, lead: anchor }
 }
 
-/** Shift-click on `id`: the rows from the anchor to it. */
 export function selectRange(
   current: ListSelection | undefined,
   open: string | undefined,
@@ -103,7 +96,6 @@ export function selectStep(
   return { ids: range(from.anchor, lead, order), anchor: from.anchor, lead }
 }
 
-/** Select All: every row; the anchor stays. */
 export function selectAll(
   current: ListSelection | undefined,
   open: string | undefined,

@@ -6,7 +6,6 @@ import { currentLocale, format, t } from './i18n'
 import { StatusPicker } from './StatusPicker'
 import { TagEditor } from './TagEditor'
 
-/** Titles listed by name; the rest are counted. */
 const SHOWN_TITLES = 8
 
 /**
@@ -17,11 +16,9 @@ const SHOWN_TITLES = 8
  * restore or delete permanently.
  */
 export function SelectionSummary(props: {
-  /** The selected notes, in list order. */
   notes: readonly NoteSummary[]
   view: 'notes' | 'templates' | 'trash'
   tags: readonly TagRecord[]
-  /** Looks up the first line of a note with no title, listed in its place. */
   headlines?: HeadlineLoader | undefined
   onMove: () => void
   onPin: (pinned: boolean) => void

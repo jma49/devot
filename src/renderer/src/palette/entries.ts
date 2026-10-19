@@ -1,5 +1,3 @@
-// What the command palette can list: the window's commands, and its
-// notebooks, tags and notes.
 import type { NoteSummary } from '../../../core'
 import type { BookNode } from '../../../core/books'
 import { shortcutLabel } from '../commands/keys'
@@ -41,7 +39,6 @@ export function libraryEntries(source: {
   tree: readonly BookNode[]
   tags: readonly { id: string; name: string }[]
   notes: readonly NoteSummary[]
-  /** The first line of untitled notes, by ID (see headlines.ts). */
   headlines: ReadonlyMap<string, string>
 }): { book: PaletteEntry[]; tag: PaletteEntry[]; note: PaletteEntry[] } {
   const book: PaletteEntry[] = []
@@ -75,7 +72,6 @@ export function libraryEntries(source: {
   return { book, tag, note }
 }
 
-/** The root's list: a row per source, with the key that scopes to it. */
 export function sourceEntries(label: (key: MessageKey) => string): PaletteEntry[] {
   const names: Record<PaletteSource, MessageKey> = {
     command: 'palette.source.command',
@@ -157,7 +153,6 @@ export function outlineEntries(markdown: string): PaletteEntry[] {
   return out
 }
 
-/** `query` with a clause that keeps only notes with the tag (unless it is already there). */
 export function withTagClause(query: string, tagName: string): string {
   const clause = `tag:${/[\s"]/.test(tagName) ? `"${tagName.replaceAll('"', '')}"` : tagName}`
   if (query.split(/\s+/).includes(clause)) return query

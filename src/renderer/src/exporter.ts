@@ -20,13 +20,8 @@ import pageCss from './preview/page.css?raw'
 import { previewLabels } from './preview/Preview'
 import { dark, light, sizes } from './theme/tokens'
 
-/** What a notebook's context menu exports it as (also every note, or chosen notes). */
 export type BookExport = 'exportMarkdown' | 'exportHtml'
 
-/**
- * The panel Rust shows for a target: a file for a note, else a folder in
- * which the export makes a folder of its own (`export_begin`'s `notebook`).
- */
 export const panelKind = (target: ExportTarget): 'note' | 'notebook' =>
   target.kind === 'note' ? 'note' : 'notebook'
 
@@ -35,11 +30,7 @@ interface Begun {
   fileName: string | null
 }
 
-/**
- * The page's styles: the design tokens (light, and dark on screens set to
- * dark; printing is always light), the preview's note content rules and
- * the page's own.
- */
+/** The page's styles: the design tokens (dark on dark screens; printing is always light), the preview's content rules and the page's own. */
 export function pageStyles(): string {
   const vars = (values: Readonly<Record<string, string>>, indent: string) =>
     Object.entries(values)
@@ -53,14 +44,12 @@ export function pageStyles(): string {
   ].join('\n\n')
 }
 
-/** 32 random hex digits: the placeholders' nonce, new for every page. */
 function nonce(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
     b.toString(16).padStart(2, '0'),
   ).join('')
 }
 
-/** The sources of the diagrams in a preview tree. */
 function diagramSources(tree: Root): Set<string> {
   const sources = new Set<string>()
   const walk = (node: Root | RootContent) => {
@@ -120,7 +109,6 @@ async function notePage(
 const finish = (id: number) =>
   invoke('export_finish', { id }).catch(() => console.warn('W_EXPORT_FINISH_FAILED', id))
 
-/** Exports a note or a notebook as Markdown files; null when cancelled. */
 async function exportMarkdown(core: Core, target: ExportTarget): Promise<ExportReport | null> {
   let session: number | undefined
   const sink: ExportSink = {

@@ -7,14 +7,12 @@ import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { clearUsage, listUsage } from '../usage'
 
-/** Every catalog event has a label. */
 const LABELS: Record<UsageEventName, MessageKey> = {
   'note.created': 'usage.event.note.created',
   'search.run': 'usage.event.search.run',
   'import.finished': 'usage.event.import.finished',
 }
 
-/** At most this many events are listed; the counts cover all of them. */
 const SHOWN = 500
 
 /**
@@ -24,11 +22,6 @@ const SHOWN = 500
 const label = (name: string) =>
   Object.hasOwn(USAGE_EVENTS, name) ? t(LABELS[name as UsageEventName]) : name
 
-/**
- * Settings > Usage Data: what the local usage events are, how many of each
- * are stored, every stored event on request (property keys and values as
- * stored), and a button that clears them after asking.
- */
 export function UsageSection() {
   const [events, setEvents] = useState<StoredUsageEvent[]>()
   const [shown, setShown] = useState(false)
@@ -49,7 +42,6 @@ export function UsageSection() {
     [],
   )
 
-  // Events recorded while the window was open show when it is back in front.
   useEffect(() => {
     void load()
     const reload = () => void load()

@@ -29,7 +29,6 @@ const REASONS: Record<string, MessageKey> = {
   E_IMPORT_CANCELLED: 'import.reason.cancelled',
 }
 
-/** Why a file or folder was not imported, for the user. */
 export function importReason(code: string): MessageKey | null {
   return Object.hasOwn(REASONS, code) ? (REASONS[code] ?? null) : null
 }

@@ -1,10 +1,6 @@
 import { countOf } from './format'
 import { currentLocale, format, t } from './i18n'
 
-/**
- * Tells the user that pasted or dropped images could not be stored (their
- * links were not inserted), with the code of the first.
- */
 export function ImageNotice(props: { codes: readonly string[]; onDismiss: () => void }) {
   const text = countOf(
     props.codes.length,

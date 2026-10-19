@@ -11,7 +11,6 @@ describe('entryOffsets', () => {
 describe('spacerHeight', () => {
   it('stands for the entries it replaces, less the gap that follows it', () => {
     const offsets = entryOffsets([10, 20, 30], 2)
-    // Entries 0 and 1: 10 + 2 + 20, the gap after 20 comes after the spacer.
     expect(spacerHeight(offsets, 0, 2, 2)).toBe(32)
     expect(spacerHeight(offsets, 2, 3, 2)).toBe(30)
   })
@@ -27,7 +26,6 @@ describe('windowRuns', () => {
   it('renders the entries that show, and those within the overscan', () => {
     expect(windowRuns(offsets, 0, { top: 200, height: 50 }, 0, [])).toEqual([[20, 25]])
     expect(windowRuns(offsets, 0, { top: 200, height: 50 }, 30, [])).toEqual([[17, 28]])
-    // Clamped to the list.
     expect(windowRuns(offsets, 0, { top: 0, height: 50 }, 30, [])).toEqual([[0, 8]])
     expect(windowRuns(offsets, 0, { top: 980, height: 50 }, 30, [])).toEqual([[95, 100]])
   })
@@ -57,7 +55,6 @@ describe('windowRuns', () => {
   })
 
   it('counts the gap between entries', () => {
-    // 10 px entries with 5 px gaps: entry i spans [15 i, 15 i + 10).
     const gapped = entryOffsets(
       Array.from({ length: 10 }, () => 10),
       5,

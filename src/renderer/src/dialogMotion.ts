@@ -9,13 +9,10 @@ import { motionReduced } from './motionPreference'
 
 /** The dialogs that open with motion (app.css), so close with it too. */
 export const MOVING_DIALOGS = 'dialog.confirm, dialog.sheet, dialog.link-dialog, dialog.palette'
-/** Those that dim the page behind them. */
 const DIMMING = '.confirm, .sheet, .link-dialog'
 
-/** Extra time past the animation's length before a copy goes anyway. */
 const FALLBACK_SLACK_MS = 100
 
-/** What a batch of DOM changes did to dialogs: the open ones that closed or left the page. */
 export interface DialogRecord {
   type: string
   target: unknown
@@ -56,7 +53,6 @@ const openDialogsIn = (node: unknown): HTMLDialogElement[] => {
   )
 }
 
-/** Leaves `el` on the page until its closing animation ends. */
 function removeWhenDone(el: HTMLElement): void {
   const style = getComputedStyle(el)
   const ms = animationMs(style.animationDuration, style.animationDelay)
@@ -64,7 +60,6 @@ function removeWhenDone(el: HTMLElement): void {
   whenClosed(el, () => el.remove(), ms + FALLBACK_SLACK_MS)
 }
 
-/** Plays a closed dialog's exit with an inert copy of it (and of its dim). */
 function leaveDialogCopy(dialog: HTMLDialogElement): void {
   const parent = document.body
   if (dialog.matches(DIMMING)) {
@@ -86,7 +81,6 @@ function leaveDialogCopy(dialog: HTMLDialogElement): void {
   removeWhenDone(copy)
 }
 
-/** Watches the page for moving dialogs that close, and plays their exit. Returns a stop. */
 export function watchDialogExits(root: Node = document.body): () => void {
   const observer = new MutationObserver((mutations) => {
     if (motionReduced()) return

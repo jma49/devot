@@ -12,18 +12,15 @@ import {
   type UncaughtSource,
 } from './log'
 
-/** What the worker posts for each entry, on its own channel (like SaveProblemsMessage). */
 export interface WorkerLogMessage {
   workerLog: LogEntry
 }
 
-/** The codes uncaught errors in the worker are logged under. */
 export const WORKER_CODES = {
   uncaught: 'E_WORKER_UNCAUGHT',
   rejection: 'E_WORKER_UNHANDLED_REJECTION',
 } as const
 
-/** Wraps the worker's console and listens for its uncaught errors, posting what is coded. */
 export function forwardWorkerLogs(
   scope: UncaughtSource & { console: Parameters<typeof forwardConsole>[0] },
   post: (message: WorkerLogMessage) => void,
@@ -36,7 +33,6 @@ export function forwardWorkerLogs(
   forwardUncaught(scope, send, WORKER_CODES)
 }
 
-/** The entry a message from the core worker carries; undefined for any other message. */
 export function workerLogIn(data: unknown): LogEntry | undefined {
   if (typeof data !== 'object' || data === null || !('workerLog' in data)) return undefined
   return sanitizeEntry(data.workerLog)

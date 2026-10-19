@@ -12,18 +12,13 @@ import { closingRef } from './closing'
 import { placeDropdown } from './dropdownPlacement'
 import { isImeKey } from './ime'
 
-/** One row of a picker's pop-over. */
 export interface PickerOption {
-  /** What picking it hands back. */
   id: string
-  /** What the row shows. */
   content: ReactNode
-  /** Its nesting depth, for an indented tree. */
   depth?: number
   className?: string
 }
 
-/** The row `key` moves to from `from` among `count` rows (-1 when there are none). */
 export function pickerStep(key: string, from: number, count: number): number | undefined {
   if (count === 0) return -1
   switch (key) {
@@ -49,10 +44,6 @@ export function fieldStep(key: string, from: number, count: number): number | un
   return key === 'ArrowDown' || key === 'ArrowUp' ? pickerStep(key, from, count) : undefined
 }
 
-/**
- * Open state for a pop-up button: what opens and closes it, and a click
- * anywhere outside `box` closing it.
- */
 export function usePickerOpen(box: RefObject<HTMLElement | null>) {
   const [open, setOpen] = useState(false)
   useEffect(() => {
@@ -67,7 +58,6 @@ export function usePickerOpen(box: RefObject<HTMLElement | null>) {
   return [open, setOpen] as const
 }
 
-/** A picker shrinks back toward its button as it closes. */
 const pickerRef = closingRef('scale', 'picker-popover')
 
 /**
@@ -79,7 +69,6 @@ const pickerRef = closingRef('scale', 'picker-popover')
 export function PickerList(props: {
   label: string
   options: readonly PickerOption[]
-  /** The row shown as current (in bold, and where the keyboard starts). */
   value: string | undefined
   onPick: (id: string) => void
   onClose: () => void
@@ -88,7 +77,6 @@ export function PickerList(props: {
     query: string
     onQuery: (query: string) => void
   }
-  /** Shown when no row is left. */
   empty?: string
 }) {
   const { options, value } = props
@@ -97,7 +85,6 @@ export function PickerList(props: {
   const [active, setActive] = useState(start >= 0 ? start : options.length > 0 ? 0 : -1)
   const list = useRef<HTMLUListElement>(null)
   const field = useRef<HTMLInputElement>(null)
-  // The keyboard goes to the search field, else the list.
   useEffect(() => {
     if (field.current) field.current.focus()
     else list.current?.focus()
@@ -121,7 +108,6 @@ export function PickerList(props: {
     panel.style.left = `${p.shift}px`
     panel.style.setProperty('--picker-room', `${p.room}px`)
   }, [])
-  // A narrower list keeps the keyboard on a row that is still there.
   const shownActive = active >= options.length ? options.length - 1 : active
   useEffect(() => {
     if (shownActive < 0) return

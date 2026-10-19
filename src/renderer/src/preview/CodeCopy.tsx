@@ -8,10 +8,8 @@ import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { UI_ATTRIBUTE } from './dom'
 
-/** How long the button shows that it copied (or could not). */
 const FEEDBACK_MS = 1500
 
-/** A code block's text as written in the note: no markup, without its last line break. */
 export function codeText(pre: Element): string {
   return (pre.querySelector(':scope > code')?.textContent ?? '').replace(/\n$/, '')
 }
@@ -87,10 +85,6 @@ const keyOf = (block: HTMLElement) => {
   return key
 }
 
-/**
- * Where a block's button goes: the block's header when it has one (a block
- * with a language or a title), else the block itself, in its corner.
- */
 export function buttonHost(block: HTMLElement): HTMLElement {
   const header = block.parentElement?.matches('.code-block')
     ? block.parentElement.querySelector<HTMLElement>(':scope > .code-header')
@@ -98,7 +92,6 @@ export function buttonHost(block: HTMLElement): HTMLElement {
   return header ?? block
 }
 
-/** A copy button for each of `blocks`. */
 export function CodeCopyButtons({ blocks }: { blocks: readonly HTMLElement[] }) {
   return blocks.map((block) =>
     createPortal(<CopyButton block={block} />, buttonHost(block), keyOf(block)),

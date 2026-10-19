@@ -3,7 +3,6 @@ import { TAG_COLORS } from '../../core/storage'
 import { createContextMenu, type NativeItem, type NativeMenuApi } from './contextMenu'
 import { TAG_MENU, colorOfAction, type TagAction, type TagMenuTarget } from './tagMenu'
 
-/** The menu's lines for a target, with a submenu's items indented after it. */
 async function shown(target: TagMenuTarget, pick: (a: TagAction) => void = () => {}) {
   interface Item {
     text: string

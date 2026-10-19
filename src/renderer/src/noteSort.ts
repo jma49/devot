@@ -20,13 +20,10 @@ import { useContextMenu, type MenuEntry, type MenuGroups } from './contextMenu'
 import { changeEditorSettings, editorSettings } from './editorSettings'
 import { t } from './i18n'
 
-/** A list order: one of the six, or search relevance (search results only). */
 export type ListOrder = NoteSort | 'relevance'
 
-/** The view the search results belong to. */
 const SEARCH = 'search'
 
-/** The name a view's order is kept under. A filter is keyed by itself alone. */
 export function sortView(options: {
   search: boolean
   bookId: string | null
@@ -44,14 +41,12 @@ type KeyValue = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 export interface ViewOrder {
   order: ListOrder
-  /** The view has no order of its own and shows the default. */
   followsDefault: boolean
 }
 
 const DEFAULT_KEY = 'devot.sort.default'
 const viewKey = (view: string) => `devot.sort.view.${view}`
 
-/** Reads and writes list orders; storage failures fall back to the defaults. */
 export function sortStore(storage: KeyValue | undefined) {
   const read = (key: string) => {
     try {
@@ -83,7 +78,6 @@ export function sortStore(storage: KeyValue | undefined) {
 
   return {
     load,
-    /** Gives the view its own order; picking the order it shows changes nothing. */
     choose(view: string, order: ListOrder) {
       if (order === 'relevance') {
         if (view === SEARCH) write(viewKey(view), null)
@@ -93,7 +87,6 @@ export function sortStore(storage: KeyValue | undefined) {
       if (current.followsDefault && sameOrder(current.order, order)) return
       write(viewKey(view), noteSortId(order))
     },
-    /** Makes the view's order the default; the view then follows the default. */
     makeDefault(view: string) {
       const { order } = load(view)
       if (view === SEARCH || order === 'relevance') return
@@ -106,7 +99,6 @@ export function sortStore(storage: KeyValue | undefined) {
 const sameOrder = (a: ListOrder, b: ListOrder) =>
   a === b || (a !== 'relevance' && b !== 'relevance' && noteSortId(a) === noteSortId(b))
 
-/** The store in this webview's local storage, shared by its windows. */
 export function currentSortStore() {
   let storage: KeyValue | undefined
   try {
@@ -122,14 +114,10 @@ export function sortLocales(preferred: readonly string[], uiLocale: string): str
   return [...preferred, uiLocale]
 }
 
-// The sort pop-up: a native menu with the orders as check items.
-
 export type SortAction = 'relevance' | 'default' | NoteSortId | 'dates.relative' | 'dates.absolute'
 
-/** What the menu needs to know about the list it sorts. */
 export interface SortMenuTarget extends ViewOrder {
   search: boolean
-  /** How the rows show their dates (the Note List Dates setting). */
   dates: ListDatesStyle
 }
 
@@ -142,7 +130,6 @@ const orderEntry = (order: NoteSort): MenuEntry<SortAction, SortMenuTarget> => {
   }
 }
 
-/** Relevance (search only), the six orders in pairs, Use as Default, then the date style. */
 export const SORT_MENU: MenuGroups<SortAction, SortMenuTarget> = [
   [
     {
@@ -175,7 +162,6 @@ export const SORT_MENU: MenuGroups<SortAction, SortMenuTarget> = [
   ],
 ]
 
-/** The date style a menu item picks; undefined for the order items. */
 export function datesAction(action: SortAction): ListDatesStyle | undefined {
   return action === 'dates.relative'
     ? 'relative'
@@ -184,30 +170,23 @@ export function datesAction(action: SortAction): ListDatesStyle | undefined {
       : undefined
 }
 
-/** The order a menu item picks; undefined for Use as Default and the date items. */
 export function sortAction(action: SortAction): ListOrder | undefined {
   return action === 'relevance' ? 'relevance' : parseNoteSort(action)
 }
 
-/** The label of an order, as the menu shows it. */
 export function orderLabel(order: ListOrder): string {
   return t(order === 'relevance' ? 'sort.relevance' : (`sort.${noteSortId(order)}` as const))
 }
 
-/** The short label of an order, as the sort chip shows it ("Date Updated \u2193"). */
 export function orderChip(order: ListOrder): string {
   return t(
     order === 'relevance' ? 'sort.chip.relevance' : (`sort.chip.${noteSortId(order)}` as const),
   )
 }
 
-/**
- * The order of one view and its pop-up. `show(anchor)` opens the menu under
- * the anchor (the header button); a pick re-sorts the list and is remembered.
- */
+/** The order of one view and its pop-up; `show(anchor)` opens the menu under the anchor, and a pick re-sorts the list and is remembered. */
 export function useListOrder(view: string) {
   const store = useMemo(() => currentSortStore(), [])
-  // Read on every render (two small reads); a pick re-renders.
   const current = store.load(view)
   const [, setPicks] = useState(0)
 
@@ -242,7 +221,6 @@ export function useListOrder(view: string) {
   return { ...current, show }
 }
 
-/** The rows in `order`; relevance keeps them as they came. */
 export function applyOrder<T extends SortableNote>(
   rows: readonly T[],
   order: ListOrder,

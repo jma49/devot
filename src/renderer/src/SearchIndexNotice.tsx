@@ -2,7 +2,6 @@ import { format, t } from './i18n'
 import { countOf } from './format'
 import type { RebuildState } from './searchIndex'
 
-/** Shows the search index rebuild: running (no progress to report), done, or failed with its code. */
 export function SearchIndexNotice(props: {
   state: RebuildState
   locale: string

@@ -6,7 +6,6 @@ import { commandMatches, type CommandId } from '../commands/registry'
 
 export type FindAction = 'find' | 'replace' | 'next' | 'previous' | 'regexp' | 'caseSensitive'
 
-/** The registry command behind each find action (its label and keys). */
 export const FIND_COMMANDS: Readonly<Record<FindAction, CommandId>> = {
   find: 'find.find',
   replace: 'find.replace',

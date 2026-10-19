@@ -17,7 +17,6 @@ export const PANES = [
 ] as const
 export type PaneId = (typeof PANES)[number]
 
-/** Each pane's navigation label and symbol. */
 export const PANE_TABS: Readonly<Record<PaneId, { label: MessageKey; icon: IconName }>> = {
   general: { label: 'settings.pane.general', icon: 'settings.general' },
   editing: { label: 'settings.pane.editing', icon: 'settings.editing' },
@@ -42,7 +41,6 @@ const isPane = (value: unknown): value is PaneId =>
 /** A pane that was renamed, by the name it was remembered under. */
 const RENAMED: Readonly<Record<string, PaneId>> = { editor: 'editing' }
 
-/** The pane last shown, kept in `storage` (none: nothing is remembered). */
 export function paneStore(storage: KeyValue | undefined) {
   return {
     read(): PaneId {
@@ -64,7 +62,6 @@ export function paneStore(storage: KeyValue | undefined) {
   }
 }
 
-/** The store in this webview's local storage. */
 export function currentPaneStore() {
   let storage: KeyValue | undefined
   try {

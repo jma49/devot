@@ -1,4 +1,3 @@
-// Locale-aware formatting for the note list and the sidebar.
 import { currentLocale, format, t, type MessageKey } from './i18n'
 
 const sameDay = (a: Date, b: Date) =>
@@ -24,7 +23,6 @@ function kept<
   return formatter
 }
 
-/** The time for notes updated today, the date otherwise (`now` may be any time of today). */
 export function noteDate(updatedAt: number, now: number, locale: string): string {
   const date = new Date(updatedAt)
   const today = sameDay(date, new Date(now))
@@ -34,10 +32,6 @@ export function noteDate(updatedAt: number, now: number, locale: string): string
   ).format(date)
 }
 
-/**
- * How long since a note changed, as the list shows it: "a few seconds",
- * "7 minutes", "3 hours", "3 days"; a month or more back, its date.
- */
 export function relativeTime(updatedAt: number, now: number, locale: string): string {
   const seconds = Math.max(0, Math.round((now - updatedAt) / 1000))
   const span = (count: number, unit: 'minute' | 'hour' | 'day') =>
@@ -53,10 +47,6 @@ export function relativeTime(updatedAt: number, now: number, locale: string): st
   return noteDate(updatedAt, now, locale)
 }
 
-/**
- * The date a list row shows: how long ago (`relative`), or the date itself
- * (`absolute`: the time for today, the medium date otherwise).
- */
 export function rowDate(
   at: number,
   now: number,
@@ -66,7 +56,6 @@ export function rowDate(
   return style === 'absolute' ? noteDate(at, now, locale) : relativeTime(at, now, locale)
 }
 
-/** A note's date and time in full, for tooltips. */
 export function fullDate(updatedAt: number, locale: string): string {
   return kept(
     `date|full|${locale}`,
@@ -78,7 +67,6 @@ export function fullDate(updatedAt: number, locale: string): string {
   ).format(new Date(updatedAt))
 }
 
-/** A count with the catalog's plural form for the locale ("1 note", "12 notes"). */
 export function countOf(count: number, locale: string, one: MessageKey, other: MessageKey): string {
   const plural = kept(`plural|${locale}`, () => new Intl.PluralRules(locale))
   const key = plural.select(count) === 'one' ? one : other
@@ -86,7 +74,6 @@ export function countOf(count: number, locale: string, one: MessageKey, other: M
   return format(t(key), { count: number.format(count) })
 }
 
-/** Task progress in the note info card: "1 of 2 tasks". */
 export function taskCount(done: number, total: number, locale: string): string {
   const plural = kept(`plural|${locale}`, () => new Intl.PluralRules(locale))
   const key = plural.select(total) === 'one' ? 'noteInfo.tasksOne' : 'noteInfo.tasksOther'
@@ -96,7 +83,6 @@ export function taskCount(done: number, total: number, locale: string): string {
 
 const pad = (value: number) => String(value).padStart(2, '0')
 
-/** A note's date in the note info card, in local time: `YYYY-MM-DD HH:mm:ss`. */
 export function stampDate(at: number): string {
   const d = new Date(at)
   const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -106,7 +92,6 @@ export function stampDate(at: number): string {
 export const noteCount = (count: number, locale: string) =>
   countOf(count, locale, 'noteList.countOne', 'noteList.countOther')
 
-/** The list's count line: "12 notes", or "<scope> \u00b7 12 notes" for a scoped view. */
 export function listCaption(count: number, scope: string | undefined, locale: string): string {
   const notes = noteCount(count, locale)
   return scope ? format(t('noteList.scopedCount'), { scope, notes }) : notes
@@ -133,7 +118,6 @@ export function bookDeleteDetail(subs: number, notes: number): string {
       })
 }
 
-/** "250 kB", "12.3 MB", "2.3 GB" (decimal units, as Finder shows them); nothing is "0 kB". */
 export function fileSize(bytes: number, locale: string): string {
   const [value, unit] =
     bytes < 1_000_000

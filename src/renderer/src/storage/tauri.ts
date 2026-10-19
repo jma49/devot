@@ -15,7 +15,6 @@ import type {
 } from '../../../core'
 import { fromWire, type WireNote, type WireRevision, type WireStorage } from './wire'
 
-/** What the page serves the core worker (see wire.ts). */
 export const tauriWire: WireStorage = {
   listNotes: () => invoke<NoteSummary[]>('notes_list'),
   getNote: (id, options) =>
@@ -53,5 +52,4 @@ export const tauriWire: WireStorage = {
   listActivity: (since) => invoke<ActivityData>('activity_list', { since }),
 }
 
-/** The same storage for the page's own calls (an attachment pasted). */
 export const tauriStorage: StorageAdapter = fromWire(tauriWire)

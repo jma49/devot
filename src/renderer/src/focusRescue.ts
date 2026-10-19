@@ -18,11 +18,9 @@ import { useEffect, useRef } from 'react'
 import { sheetOpen } from './commands/dispatch'
 import { areaOf, areaTargets, type Area } from './areas'
 
-/** Where the keyboard was last, outside the sheets. */
 interface Last {
   element: Element
   area: Area | undefined
-  /** In the sidebar: the keys of its rows in order, and the key of the row it was on. */
   rows?: { order: readonly string[]; at: string }
 }
 
@@ -50,7 +48,6 @@ export function rowCandidates(order: readonly string[], at: string): string[] {
 
 const SIDEBAR_ROWS = '[data-devot-part="sidebar"] [data-sidebar-row]'
 
-/** Whether an element is on the page and takes part in layout. */
 function shown(el: Element): boolean {
   if (!el.isConnected || el.closest('[inert]')) return false
   const visibility = (el as { checkVisibility?: (o: object) => boolean }).checkVisibility
@@ -59,7 +56,6 @@ function shown(el: Element): boolean {
     : el.getClientRects().length > 0
 }
 
-/** Whether the element can take the keyboard now. */
 const usable = (el: Element) => shown(el) && !el.matches(':disabled')
 
 function rowElement(key: string): HTMLElement | undefined {
@@ -68,10 +64,7 @@ function rowElement(key: string): HTMLElement | undefined {
   )
 }
 
-/**
- * Keeps the keyboard on the page. `editor` gives the open editor, for the
- * editor area's target (see `areaTargets`).
- */
+/** `editor` gives the open editor, for the editor area's target (`areaTargets`). */
 export function useFocusRescue(editor: () => { focus: () => void } | null): void {
   const latest = useRef(editor)
   useEffect(() => {
@@ -105,7 +98,6 @@ export function useFocusRescue(editor: () => { focus: () => void } | null): void
       last = { element: target, area, ...(rows ? { rows } : {}) }
     }
 
-    /** Moves the keyboard to the nearest sensible place for the element it lost. */
     const rescue = (from: Last) => {
       if (from.rows) {
         for (const key of rowCandidates(from.rows.order, from.rows.at)) {
@@ -123,7 +115,6 @@ export function useFocusRescue(editor: () => { focus: () => void } | null): void
       frame = 0
       const hidden = changed
       changed = false
-      // A sheet that is open has the keyboard; one that closed gave it back, or not.
       if (sheetOpen()) return
       const wasInSheet = inSheet
       inSheet = false
@@ -131,13 +122,11 @@ export function useFocusRescue(editor: () => { focus: () => void } | null): void
       const nowhere = active === null || active === document.body
       const from = last
       if (!from) {
-        // A sheet closed that nothing was focused before.
         if (wasInSheet && nowhere) rescue({ element: document.body, area: undefined })
         return
       }
       const element = from.element
       if (!nowhere) {
-        // Another element has the keyboard, or this one still does.
         if (active !== element || (element.isConnected && !hidden)) return
       }
       if (usable(element)) {

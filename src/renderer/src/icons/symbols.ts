@@ -4,7 +4,6 @@ import symbolsJson from '../../../../design/icons/symbols.json'
 
 export type IconName = keyof typeof symbolsJson.symbols
 export type Appearance = 'light' | 'dark'
-/** The stroke weights Rust draws a symbol at (`native::SYMBOL_WEIGHTS`). */
 export type SymbolWeight =
   | 'ultralight'
   | 'thin'
@@ -15,7 +14,6 @@ export type SymbolWeight =
   | 'bold'
   | 'heavy'
   | 'black'
-/** Renders a symbol and resolves to base64 PNG data. */
 export type RenderSymbol = (
   name: string,
   pointSize: number,
@@ -29,7 +27,6 @@ export function symbolFor(icon: IconName): string {
 }
 
 export interface SymbolCache {
-  /** A `data:` URL for the symbol; concurrent requests share one render. */
   get(
     name: string,
     pointSize: number,
@@ -63,7 +60,6 @@ export function createSymbolCache(render: RenderSymbol): SymbolCache {
  */
 export const PIXELS_PER_POINT = 2
 
-/** A rectangle in CSS pixels. */
 export interface Box {
   x: number
   y: number
@@ -71,7 +67,6 @@ export interface Box {
   height: number
 }
 
-/** A rendered symbol: its data URL, its size in CSS pixels, and where its ink is inside that. */
 export interface SymbolImage {
   url: string
   width: number
@@ -79,7 +74,6 @@ export interface SymbolImage {
   ink: Box
 }
 
-/** A symbol's size in CSS pixels, read from its PNG's header; null if unreadable. */
 export function symbolSize(dataUrl: string): { width: number; height: number } | null {
   const start = dataUrl.indexOf(',') + 1
   let header: string
@@ -136,7 +130,6 @@ export function inkBounds(alpha: ArrayLike<number>, width: number, height: numbe
  */
 export const renderPoints = (points: number, ratio: number) => (points * ratio) / PIXELS_PER_POINT
 
-/** The side, in device pixels, of the square canvas every symbol of a `box` is drawn into. */
 export const canvasPixels = (box: number, ratio: number) => Math.round(box * ratio)
 
 /**

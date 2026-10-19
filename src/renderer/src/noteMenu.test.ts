@@ -56,7 +56,6 @@ describe('noteShortcut', () => {
       key('KeyY', { metaKey: true }),
       key('KeyY', { metaKey: true, altKey: true, shiftKey: true }),
       key('KeyP', { repeat: true }),
-      // Cmd+P is the command palette.
       key('KeyP', { metaKey: true }),
     ]) {
       expect(noteShortcut(event)).toBeUndefined()
@@ -161,7 +160,6 @@ describe('NOTE_MENU', () => {
       'noteMenu.exportMarkdown',
       'noteMenu.exportPdf',
     ])
-    // One template exports like a note.
     expect(shown(target([ID], { templates: true })).flat()).toEqual(
       expect.arrayContaining([...EXPORT_ACTIONS]),
     )

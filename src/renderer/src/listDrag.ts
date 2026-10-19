@@ -1,10 +1,7 @@
-// What the card under the pointer shows while rows of the note list are dragged.
 import { noteCount } from './format'
 
-/** The most titles the card lists; more notes collapse to their count. */
 export const DRAG_CARD_TITLES = 4
 
-/** The card's lines: each dragged note's title, or one line with the count. */
 export function dragCardLines(titles: readonly string[], locale: string): string[] {
   if (titles.length > DRAG_CARD_TITLES) return [noteCount(titles.length, locale)]
   return [...titles]

@@ -5,10 +5,8 @@
 import { fuzzyRank } from '../../../core/fuzzy'
 import type { TagColor } from '../../../core/storage'
 
-/** What a scoped palette searches. */
 export type PaletteSource = 'command' | 'book' | 'tag' | 'outline' | 'line' | 'note'
 
-/** The sources in the order the root lists them. */
 export const PALETTE_SOURCES: readonly PaletteSource[] = [
   'command',
   'book',
@@ -18,7 +16,6 @@ export const PALETTE_SOURCES: readonly PaletteSource[] = [
   'note',
 ]
 
-/** The key that scopes the palette to a source (notes have none). */
 export const SOURCE_KEYS: Readonly<Record<PaletteSource, string | undefined>> = {
   command: '>',
   book: 'b',
@@ -28,13 +25,10 @@ export const SOURCE_KEYS: Readonly<Record<PaletteSource, string | undefined>> = 
   note: undefined,
 }
 
-/** What a result is; `source` rows are the root's list of sources. */
 export type PaletteKind = PaletteSource | 'source'
 
-/** The kinds the root's search matches, in the order they show (and on a tie). */
 export const PALETTE_KINDS: readonly PaletteKind[] = ['command', 'book', 'tag', 'note']
 
-/** Where the palette is: scoped to a source (null: the root) with a query typed. */
 export interface PaletteState {
   scope: PaletteSource | null
   query: string
@@ -81,32 +75,23 @@ export function lineOfQuery(query: string, lines: number): number | null {
   return n < 1 ? null : Math.min(n, lines)
 }
 
-/** Something the palette can list. */
 export interface PaletteEntry {
   kind: PaletteKind
   id: string
-  /** What is matched and shown. */
   label: string
-  /** Shown after the label, dimmed: a notebook's parent, a note's notebook. */
   detail?: string
-  /** A command's key, as macOS shows it; a source's key. */
   shortcut?: string
-  /** A command's description, shown after its name. */
   description?: string
   /** An outline entry or a line to go to: its line in the note (1 is the first). */
   line?: number
   /** An outline entry: a heading's level (1 to 6); 0 for a task. */
   level?: number
-  /** An outline entry: how far it is indented (headings by level, tasks below them). */
   depth?: number
-  /** An outline task: whether it is ticked. */
   done?: boolean
-  /** A notebook: its icon (null: the default one) and the colour it is drawn in. */
   bookIcon?: { icon: string | null; color: TagColor | null }
 }
 
 export interface PaletteResult extends PaletteEntry {
-  /** The matched parts of the label, `[from, to)`. */
   ranges: [number, number][]
 }
 
@@ -115,7 +100,6 @@ export interface PaletteGroup {
   results: PaletteResult[]
 }
 
-/** At most this many results of each kind for a query. */
 const QUERY_LIMIT: Readonly<Record<PaletteKind, number>> = {
   command: 50,
   book: 20,
@@ -126,7 +110,6 @@ const QUERY_LIMIT: Readonly<Record<PaletteKind, number>> = {
   source: 10,
 }
 
-/** With nothing typed: every command, and a few of each other kind. */
 const BROWSE_LIMIT: Readonly<Record<PaletteKind, number>> = {
   command: Infinity,
   book: 5,
@@ -137,7 +120,6 @@ const BROWSE_LIMIT: Readonly<Record<PaletteKind, number>> = {
   source: Infinity,
 }
 
-/** A scoped palette with nothing typed lists more than the root's glimpse. */
 const SCOPED_BROWSE_LIMIT: Readonly<Record<PaletteKind, number>> = {
   ...BROWSE_LIMIT,
   book: 100,

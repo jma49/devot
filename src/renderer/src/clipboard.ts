@@ -11,7 +11,6 @@ import { invoke } from './ipc'
  */
 export const NATIVE_CLIPBOARD_LIMIT = MAX_BODY_BYTES
 
-/** Whether `clipboard_write_text` takes `text`. */
 export function fitsNativeClipboard(text: string): boolean {
   // A UTF-16 code unit is at most three bytes in UTF-8: count only when it may not fit.
   if (text.length * 3 <= NATIVE_CLIPBOARD_LIMIT) return true
@@ -38,7 +37,6 @@ export async function writeClipboardText(text: string): Promise<void> {
   }
 }
 
-/** The clipboard's plain text ('' when it holds none). */
 export async function readClipboardText(): Promise<string> {
   const text = await invoke<unknown>('clipboard_read_text')
   return typeof text === 'string' ? text : ''

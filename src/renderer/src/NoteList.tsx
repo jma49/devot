@@ -47,97 +47,49 @@ interface Props {
    * to a neighbour; a new view starts afresh.
    */
   view: string
-  /** The library shown: All Notes, a notebook, or the active filter. */
   title: string
-  /** The notebook a filter is narrowed to, spoken with the count. */
   scope?: string | undefined
-  /** Pinned notes, listed in their own section above `notes`. */
   pinned: NoteSummary[]
   notes: NoteSummary[]
-  /** Tags by ID, for the chips on each row. */
   tags: ReadonlyMap<string, TagRecord>
   selected: string | undefined
   onSelect: (id: string) => void
   onCreate: (() => void) | undefined
-  /** The create button's label (New Note by default; New Template in Templates). */
   createLabel?: string | undefined
-  /** Replaces the New Note button (the Trash shows Empty Trash). */
   headerAction?: ReactNode
-  /** Shown under the list, outside its scrolling (the Templates view's Built-in group). */
   after?: ReactNode
-  /**
-   * A note shortcut pressed in the list (see `noteShortcut`), for the selected
-   * note; none in the Trash.
-   */
   onAction?: (action: NoteAction, id: string) => void
-  /** A Trash shortcut pressed in the Trash's list (see `trashShortcut`), for the selected note. */
   onTrashAction?: (action: TrashAction, id: string) => void
-  /** Right-click on a row: show the note menu for it. */
   onMenu?: (id: string) => void
-  /** The sort button: its tooltip (the current order) and what it opens. */
   sort?: { label: string; chip: string; onOpen: (anchor: HTMLElement) => void }
-  /** The sort chip itself (the palette's Sort Notes… opens its pop-up there). */
   sortButtonRef?: Ref<HTMLButtonElement>
-  /** `/` pressed on a row (`search.fromList`): search this view. */
   onFind?: () => void
-  /**
-   * Return (`note.editTitle`) or Cmd+Return (`note.editBody`) on a row: edit
-   * the open note's title or body (the row's note when none is open).
-   */
   onEdit?: (part: 'title' | 'body', id: string) => void
-  /** The view's icon (a symbol, a notebook's own icon, a tag's colour), before its name in the header. */
   icon?: ReactNode
-  /** A right-click on the header's name: the view's own menu (a notebook's or a tag's). */
   onTitleMenu?: ((at: MenuPoint) => void) | undefined
-  /** The Filter field under the header (the search field; none in the Trash). */
   filter?: ReactNode
-  /** Shown first in the toolbar (Show Sidebar while the sidebar is hidden). */
   leading?: ReactNode
-  /** Search results: what to mark in titles and in body excerpts (see `searchPattern`). */
   highlight?: { title: RegExp | null; body: RegExp | null }
-  /**
-   * Several notes selected (see listSelection.ts); undefined while the open
-   * note is the only one.
-   */
   selection?: ListSelection | undefined
-  /**
-   * The selection changed: Cmd-click, Shift-click, Shift+Up or Shift+Down,
-   * Select All (Cmd+A), or Escape (undefined: the open note alone). Without
-   * it the list selects one note at a time.
-   */
+  /** Cmd-click, Shift-click, Shift+Up/Down, Select All or Escape (undefined: the open note alone). Without it the list selects one note at a time. */
   onSelection?: (next: ListSelection | undefined) => void
-  /**
-   * What a row's drag carries: notes (the default), templates (which a
-   * status or tag row does not take), or nothing (the Trash's rows stay put).
-   */
+  /** What a row's drag carries: notes (default), templates (a status or tag row does not take them), or nothing (Trash rows stay put). */
   drag?: 'notes' | 'templates' | false
-  /**
-   * Looks up what a row shows for a note with no title: its first line.
-   * Without it such a row shows "Untitled".
-   */
+  /** Looks up the first line a row shows for an untitled note; without it such a row shows "Untitled". */
   headlines?: HeadlineLoader | undefined
   /** Looks up the body excerpt a row shows under its title (search results bring their own). */
   excerpts?: HeadlineLoader | undefined
-  /** Looks up each note's task progress, "done/total" (see NoteService.progress). */
   progress?: HeadlineLoader | undefined
-  /** What the list says when it has no rows (see listEmpty.ts). */
   empty?: ListEmptyKind | undefined
 }
 
 const MINUTE = 60_000
 
-/**
- * Lists longer than this render only the rows near the part that shows
- * (see listWindow.ts): with thousands of rows in the page, every change
- * anywhere in the window costs the browser more.
- */
+/** Lists longer than this render only the rows near the part that shows (listWindow.ts); with thousands of rows, every change anywhere in the window costs more. */
 const WINDOW_FROM = 200
-/** Rows rendered beyond each edge of the part that shows, in pixels. */
 const OVERSCAN_PX = 600
-/** Entries rendered before any has been measured. */
 const FIRST_ENTRIES = 50
 
-/** A row or a section header of the list. */
 type Entry =
   | { kind: 'section'; key: string; section: 'pinned' | 'others' }
   | { kind: 'row'; key: string; note: NoteSummary; index: number }
@@ -152,29 +104,20 @@ function useNow(): number {
   return now
 }
 
-/** Stands for entries of a windowed list that are not rendered. */
 function spacer(key: string, height: number) {
   return <li key={key} className="rows-spacer" role="presentation" style={{ height }} />
 }
 
-/**
- * The middle pane: a toolbar and the notes, navigable with the arrow keys.
- * It renders again only when its props change (its owner keeps them the
- * same while nothing it shows changes), and then only the rows that changed.
- */
-/** How long the count rests before a screen reader is told. */
+/** Renders again only when its props change (its owner keeps them the same while nothing it shows changes), and then only the rows that changed. */
 const STATUS_DELAY_MS = 500
 
 export const NoteList = memo(function NoteList(props: Props) {
   const { title, scope, pinned, selected, onSelect, onCreate, tags, sortButtonRef } = props
-  // Keyboard order: the pinned section, then the rest.
   const notes = useMemo(() => [...pinned, ...props.notes], [pinned, props.notes])
   const order = useMemo(() => notes.map((n) => n.id), [notes])
   const { selection, onSelection } = props
   const chosen = selection ? new Set(selection.ids) : undefined
-  // The row that takes Tab: the far end of a selection, else the open note's,
-  // else the first row (the open note may not be listed: another notebook, a
-  // filter): the list always keeps a Tab stop.
+  // The row that takes Tab: the far end of a selection, else the open note's, else the first row, so the list always keeps a Tab stop.
   const tabStop =
     selection && order.includes(selection.lead)
       ? selection.lead
@@ -183,20 +126,15 @@ export const NoteList = memo(function NoteList(props: Props) {
         : order[0]
   const rows = useRef(new Map<string, HTMLLIElement>())
   const list = useRef<HTMLUListElement>(null)
-  // Notes that come, go or change places in this view move (rowMotion.ts).
   const listElement = () => list.current
   useRowMotion(listElement, 'data-note-id', order, props.view, 'grow')
   const now = useNow()
   const locale = currentLocale()
   const dates = useEditorSetting('listDates')
 
-  // The width the user dragged the right edge to, saved when the drag ends.
   const { width, edge } = usePaneResize(LIST_PANE)
 
-  // A long list renders only the entries near the part that shows (see
-  // WINDOW_FROM), placed by their measured heights; the open note's row, the
-  // focused row, the row that takes Tab and their neighbours always render,
-  // so the keyboard never loses its row and the arrow keys find the next.
+  // Renders only entries near the visible part (WINDOW_FROM), placed by measured heights; the open note's row, the focused row, the Tab-stop row and their neighbours always render, so the keyboard never loses its row.
   const windowed = notes.length > WINDOW_FROM
   const entries = useMemo(() => {
     const out: Entry[] = []
@@ -209,9 +147,7 @@ export const NoteList = memo(function NoteList(props: Props) {
     })
     return out
   }, [notes, pinned.length])
-  // The row with the keyboard focus, which a windowed list keeps rendered.
   const [focusedRow, setFocusedRow] = useState<string>()
-  // The rows being dragged, dimmed until the drag ends (dropped or not).
   const [dragged, setDragged] = useState<ReadonlySet<string>>()
   useEffect(() => {
     if (!dragged) return
@@ -226,7 +162,6 @@ export const NoteList = memo(function NoteList(props: Props) {
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map())
   const [metrics, setMetrics] = useState({ gap: 0, padding: 0 })
   const [viewport, setViewport] = useState({ top: 0, height: 0 })
-  // A row the keyboard is sent to before it is rendered: rendered, then focused.
   const [revealed, setRevealed] = useState<string>()
   const toFocus = useRef<string>(undefined)
   const offsets = useMemo(() => {
@@ -246,7 +181,6 @@ export const NoteList = memo(function NoteList(props: Props) {
     for (const id of [selected, tabStop ?? order[0], focusedRow, revealed]) {
       const i = id === undefined ? undefined : entryAt.get(id)
       if (i === undefined) continue
-      // The neighbours in keyboard order, across a section header.
       kept.push(i - 2, i - 1, i, i + 1, i + 2)
     }
     // Nothing measured yet: the first entries, to measure.
@@ -269,7 +203,6 @@ export const NoteList = memo(function NoteList(props: Props) {
     viewport,
     metrics,
   ])
-  // The rows that render look up what they show for a note with no title.
   const rendered = useMemo(
     () =>
       runs.flatMap(([start, end]) =>
@@ -280,9 +213,7 @@ export const NoteList = memo(function NoteList(props: Props) {
   const headlines = useHeadlines(props.headlines, rendered)
   const previews = useHeadlines(props.excerpts, rendered, true)
   const progress = useHeadlines(props.progress, rendered, true)
-  // A long list measures its entries as they render and change size, and
-  // itself (its gaps, padding and height), and renders again when that
-  // moves anything.
+  // Measures its entries and the list itself (gaps, padding, height) as they change, and renders again when that moves anything.
   const [sizes] = useState(
     () =>
       new ResizeObserver((changes) => {
@@ -314,8 +245,6 @@ export const NoteList = memo(function NoteList(props: Props) {
         })
       }),
   )
-  // Rows and section headers rendered later are observed as they come (see
-  // `setRow`, `observeSection`).
   useEffect(() => {
     const el = list.current
     if (!windowed || !el) return
@@ -332,14 +261,12 @@ export const NoteList = memo(function NoteList(props: Props) {
     sizes.observe(el)
     return () => sizes.unobserve(el)
   })
-  /** Gives the keyboard to a row, rendering it first when the list is windowed. */
   const focusRow = (id: string) => {
     const row = rows.current.get(id)
     if (row) return row.focus()
     toFocus.current = id
     setRevealed(id)
   }
-  // After every render: the row may have just been rendered.
   useEffect(() => {
     const id = toFocus.current
     const row = id === undefined ? undefined : rows.current.get(id)
@@ -371,7 +298,6 @@ export const NoteList = memo(function NoteList(props: Props) {
     }
     follow.current = navigated.current === undefined && !opened ? selected : undefined
   }, [selected])
-  // After every render: the row may have just appeared.
   useEffect(() => {
     const row = follow.current ? rows.current.get(follow.current) : undefined
     if (!row) return
@@ -380,7 +306,6 @@ export const NoteList = memo(function NoteList(props: Props) {
     if (list.current?.contains(document.activeElement)) row.focus()
   })
 
-  /** The list moves the keyboard itself; `onSelect` follows. */
   const navigate = (id: string) => {
     // Back on the selected row with nothing pending: no selection change comes.
     if (id !== selected || navigated.current !== undefined) navigated.current = id
@@ -472,11 +397,7 @@ export const NoteList = memo(function NoteList(props: Props) {
     if (selected === undefined || selected === lost) navigate(next)
   })
 
-  /**
-   * A new selection from a gesture or key in the list. The note it leaves
-   * open (see `openAfter`) is opened by the owner; the list keeps the
-   * keyboard where the gesture put it.
-   */
+  /** A new selection from a gesture or key in the list; the owner opens the note it leaves open (`openAfter`), and the list keeps the keyboard where the gesture put it. */
   const changeSelection = (next: ListSelection | undefined) => {
     if (!onSelection) return
     const open =
@@ -500,7 +421,6 @@ export const NoteList = memo(function NoteList(props: Props) {
     return true
   }
 
-  /** Cmd+A, Escape, Shift+Up and Shift+Down; whether the key was one of them. */
   const selectionKey = (event: KeyboardEvent): boolean => {
     if (!onSelection) return false
     if (commandMatches('list.selectAll', event)) {
@@ -529,7 +449,6 @@ export const NoteList = memo(function NoteList(props: Props) {
     return true
   }
 
-  /** Keys on the list itself (it holds the keyboard when it is empty or clicked). */
   const listKey = (event: KeyboardEvent) => {
     if (event.target !== event.currentTarget) return
     if (heldKey(event)) return
@@ -587,7 +506,6 @@ export const NoteList = memo(function NoteList(props: Props) {
     navigate(next.id)
   }
 
-  // The rows' events, the same functions for every render (see NoteRow).
   const setRow = useStable((id: string, el: HTMLLIElement | null) => {
     if (el) {
       rows.current.set(id, el)
@@ -604,12 +522,10 @@ export const NoteList = memo(function NoteList(props: Props) {
   const pressed = useRef<string | undefined>(undefined)
   const mouseDown = useStable((e: MouseEvent<HTMLLIElement>) => {
     pressed.current = e.button === 0 ? e.currentTarget.dataset['noteId'] : undefined
-    // Shift-click selects rows, not the text between them.
     if (onSelection && e.shiftKey) e.preventDefault()
   })
   const click = useStable((id: string, e: MouseEvent<HTMLLIElement>) => {
     pressed.current = undefined
-    // Cmd-click adds or takes out a row, Shift-click selects a range.
     const gesture =
       onSelection && e.metaKey ? selectToggle : onSelection && e.shiftKey ? selectRange : undefined
     if (!gesture) return navigate(id)
@@ -617,7 +533,6 @@ export const NoteList = memo(function NoteList(props: Props) {
     changeSelection(gesture(selection, selected, id, order))
   })
   const dragStart = useStable((id: string, e: DragEvent<HTMLLIElement>) => {
-    // A selected row takes the whole selection with it.
     const ids = chosen?.has(id) ? (selection?.ids ?? [id]) : [id]
     const byId = new Map(notes.map((n) => [n.id, n]))
     const picked = ids.map((noteId) => ({
@@ -689,7 +604,6 @@ export const NoteList = memo(function NoteList(props: Props) {
   }
 
   const caption = listCaption(notes.length, scope, currentLocale())
-  // The count is spoken once it has settled, not for every keystroke of a search.
   const [spoken, setSpoken] = useState(caption)
   useEffect(() => {
     const timer = setTimeout(() => setSpoken(caption), STATUS_DELAY_MS)
@@ -733,7 +647,6 @@ export const NoteList = memo(function NoteList(props: Props) {
               {props.icon}
             </span>
           ) : null}
-          {/* A long name is cut off with an ellipsis; the tooltip has the whole one. */}
           <span className="headline" title={title}>
             {title}
           </span>
@@ -842,7 +755,6 @@ export const NoteList = memo(function NoteList(props: Props) {
   )
 })
 
-/** The empty list's message, and a tip for some views. */
 function EmptyList({ kind }: { kind: ListEmptyKind }) {
   const { message, tip } = listEmpty(kind)
   return (

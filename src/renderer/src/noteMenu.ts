@@ -34,7 +34,6 @@ export type NoteAction =
   | 'addTag'
   | 'removeTag'
 
-/** The note's export and print actions (see exporter.ts). */
 export type ExportAction =
   | 'exportHtml'
   | 'copyHtml'
@@ -52,7 +51,6 @@ export const EXPORT_ACTIONS: readonly ExportAction[] = [
   'print',
 ]
 
-/** The registry command behind each note action (its label and keys). */
 export const NOTE_COMMANDS: Readonly<Record<NoteAction, CommandId>> = {
   move: 'note.move',
   history: 'note.history',
@@ -72,39 +70,27 @@ export const NOTE_COMMANDS: Readonly<Record<NoteAction, CommandId>> = {
   removeTag: 'note.removeTag',
 }
 
-/**
- * Export actions that also act on several notes (they export them side by
- * side), with their labels for one note and for several.
- */
+/** Export actions that also act on several notes (side by side), with labels for one note and for several. */
 const SELECTION_EXPORT_LABELS: Partial<Record<ExportAction, readonly [MessageKey, MessageKey]>> = {
   exportMarkdown: ['noteMenu.exportMarkdown', 'noteMenu.exportSelectionMarkdown'],
   exportHtml: ['noteMenu.exportHtml', 'noteMenu.exportSelectionHtml'],
 }
 
-/** The export actions that also act on several notes. */
 export const SELECTION_EXPORTS: ReadonlySet<ExportAction> = new Set(
   Object.keys(SELECTION_EXPORT_LABELS) as ExportAction[],
 )
 
-/** Note actions for several selected notes only (see `NOTE_MENU`). */
 export const SELECTION_ONLY: ReadonlySet<NoteAction> = new Set(['addTag', 'removeTag'])
 
-/**
- * Everything the menu can do: the note actions, and for several notes their
- * status (`status:<status>`) and tags.
- */
 export type NoteMenuAction = NoteAction | 'status' | `status:${NoteStatus}`
 
-/** The menu's items, group by group; `noteShortcut` handles the keys shown. */
 const entry = (
   action: NoteAction,
   more: CommandEntryOptions<NoteMenuAction, NoteMenuTarget> = {},
 ) => commandEntry<NoteMenuAction, NoteMenuTarget>(action, NOTE_COMMANDS[action], more)
 
 const one = (target: NoteMenuTarget) => target.ids.length <= 1
-/** Several notes (not templates, whose status and tags are not used). */
 const severalNotes = (target: NoteMenuTarget) => !one(target) && !target.templates
-/** Several notes, some with a tag to take off. */
 const severalTagged = (target: NoteMenuTarget) => severalNotes(target) && target.tagged
 
 export const NOTE_MENU: MenuGroups<NoteMenuAction, NoteMenuTarget> = [
@@ -148,37 +134,27 @@ export const NOTE_MENU: MenuGroups<NoteMenuAction, NoteMenuTarget> = [
   [entry('trash', { label: (n) => (one(n) ? 'note.moveToTrash' : 'batch.trash') })],
 ]
 
-/**
- * The note action a key press on a note list row asks for, if any: the keys
- * of the note commands in the registry (Revision History's works window-wide
- * too). The tag actions act only on several notes (`SELECTION_ONLY`).
- */
+/** The note action a key press on a list row asks for: the note commands' keys in the registry (Revision History's works window-wide too). Tag actions act only on several notes (`SELECTION_ONLY`). */
 export function noteShortcut(e: KeyPress): NoteAction | undefined {
   return (Object.keys(NOTE_COMMANDS) as NoteAction[]).find((action) =>
     commandMatches(NOTE_COMMANDS[action], e),
   )
 }
 
-/** What the keys of the Trash's list do to the open (trashed) note. */
 export type TrashAction = 'restore' | 'deleteForever'
 
-/** The registry command behind each Trash action. */
 export const TRASH_COMMANDS: Readonly<Record<TrashAction, CommandId>> = {
   restore: 'trash.restore',
   deleteForever: 'trash.deleteForever',
 }
 
-/** The Trash action a key press on a row of the Trash's list asks for, if any. */
 export function trashShortcut(e: KeyPress): TrashAction | undefined {
   return (Object.keys(TRASH_COMMANDS) as TrashAction[]).find((action) =>
     commandMatches(TRASH_COMMANDS[action], e),
   )
 }
 
-/**
- * What the copy actions put on the clipboard. A note's `title` is its display
- * title (see `displayTitles`): without one, a link is named "Untitled".
- */
+/** What the copy actions put on the clipboard; a note's `title` is its display title (`displayTitles`), and without one a link is named "Untitled". */
 export function noteClipboardText(
   action: 'copyLink' | 'copyUri' | 'copyId',
   note: { id: string; title: string },
@@ -188,37 +164,24 @@ export function noteClipboardText(
   return noteLink(displayTitle(note.title, undefined), note.id)
 }
 
-/** Puts plain text on the system clipboard (through Rust: see `clipboard_write_text`). */
 export async function copyText(text: string): Promise<void> {
   await invoke('clipboard_write_text', { text })
 }
 
-/** The links Copy Note Links puts on the clipboard: one per line. */
 export function noteLinks(notes: readonly { id: string; title: string }[]): string {
   return notes.map((note) => noteClipboardText('copyLink', note)).join('\n')
 }
 
-/**
- * What the menu needs to know about the notes it acts on: the right-clicked
- * one, or every selected note when that one is selected with others.
- */
+/** The right-clicked note, or every selected note when it is selected with others. */
 export interface NoteMenuTarget {
-  /** The notes, the right-clicked one alone or the selection. */
   ids: readonly string[]
-  /** Whether every one of them is pinned. */
   pinned: boolean
-  /** The status they all have; null when they differ. */
   status: NoteStatus | null
-  /** Whether they are templates. */
   templates: boolean
-  /** Whether any of them has a tag. */
   tagged: boolean
 }
 
-/**
- * The note context menu for this window. Returns `show(target)`, which pops
- * the menu up at the pointer; a picked item calls `onPick` with that target.
- */
+/** Returns `show(target)`, which pops the menu up at the pointer; a picked item calls `onPick` with that target. */
 export function useNoteMenu(onPick: (action: NoteMenuAction, target: NoteMenuTarget) => void) {
   const pick = useCallback(
     (action: NoteMenuAction, target: NoteMenuTarget) => onPick(action, target),

@@ -10,10 +10,8 @@ import { currentLocale, format, t } from './i18n'
 
 const entryId = (i: number) => `history-entry-${i}`
 
-/** View > Revision History… in the menu bar; App re-sends the Tauri event as this. */
 export const SHOW_HISTORY = 'devot:show-history'
 
-/** Calls `open` for View > Revision History… in the menu bar (its key is a window command). */
 export function useHistoryMenu(open: () => void) {
   useMenuEvent('devot://show-history', SHOW_HISTORY, open)
 }
@@ -21,7 +19,6 @@ export function useHistoryMenu(open: () => void) {
 const when = (at: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at)
 
-/** What a history entry says happened. */
 function describe(entry: HistoryEntry, books: BookRecord[], locale: string): string {
   switch (entry.kind) {
     case 'body':
@@ -58,7 +55,6 @@ export function RevisionHistory(props: {
   noteId: string
   title: string
   books: BookRecord[]
-  /** A version was restored: apply the core's update to the editor, close. */
   onRestore: (update: Uint8Array) => void
   onClose: () => void
 }) {
@@ -71,7 +67,6 @@ export function RevisionHistory(props: {
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
   const locale = currentLocale()
-  // An untitled note is named by its first line, as the list names it.
   const [named, setNamed] = useState<string>()
   useEffect(() => {
     let current = true
@@ -87,7 +82,6 @@ export function RevisionHistory(props: {
     const el = dialog.current
     if (el && !el.open) el.showModal()
     list.current?.focus()
-    // Closing (rather than only removing) the dialog gives the keyboard back.
     return () => el?.close()
   }, [])
 
@@ -121,7 +115,6 @@ export function RevisionHistory(props: {
     document.getElementById(entryId(active))?.scrollIntoView({ block: 'nearest' })
   }, [active])
 
-  /** Selects an entry; an error about the one before goes away. */
   const pick = (i: number) => {
     setActive(i)
     setError(undefined)

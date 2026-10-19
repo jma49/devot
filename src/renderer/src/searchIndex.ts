@@ -7,7 +7,6 @@ import { errorCode } from '../../core/errors'
 
 export const REBUILD_SEARCH_INDEX = 'devot:rebuild-search-index'
 
-/** What the notice shows: the rebuild running, how many notes it covered, or its error code. */
 export type RebuildState =
   | { phase: 'running' }
   | { phase: 'done'; notes: number }

@@ -60,7 +60,6 @@ describe('paletteGroups', () => {
   })
 
   it('puts a later kind first when its best match beats the earlier kinds', () => {
-    // The tag is the whole query; the command has its letters only scattered.
     const groups = paletteGroups('reading', {
       ...source,
       command: entries('command', ['Reload Editing']),
@@ -121,7 +120,6 @@ describe('scoping', () => {
     expect(lineOfQuery('1.5', 40)).toBeNull()
     expect(lineOfQuery('-3', 40)).toBeNull()
     expect(lineOfQuery('abc', 40)).toBeNull()
-    // No note open: no line to go to.
     expect(lineOfQuery('3', 0)).toBeNull()
   })
 
@@ -156,7 +154,6 @@ describe('scoping', () => {
     state = escapeStep(state)!
     expect(state).toEqual(ROOT)
     expect(escapeStep(state)).toBeNull()
-    // Text typed at the root clears first.
     expect(escapeStep({ scope: null, query: 'abc' })).toEqual(ROOT)
   })
 })

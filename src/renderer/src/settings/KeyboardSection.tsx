@@ -21,7 +21,6 @@ import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { isImeKey } from '../ime'
 import { matchesQuery } from './shortcutSearch'
 
-/** Where a command's keys work, unless that is the whole window. */
 const SCOPES: Readonly<Record<Exclude<CommandScope, 'window'>, MessageKey>> = {
   editor: 'shortcuts.scope.editor',
   outsideEditor: 'shortcuts.scope.outsideEditor',
@@ -45,7 +44,6 @@ const PROBLEMS: Readonly<Record<KeyProblem, MessageKey>> = {
 
 const label = (id: CommandId) => t(command(id).label)
 
-/** A change waiting for the user to agree to take keys from other commands. */
 interface Pending {
   id: CommandId
   keys: readonly string[]
@@ -92,7 +90,6 @@ export function KeyboardSection() {
     )
   }
 
-  /** Applies a change, after asking when it takes keys from other commands. */
   const offer = (id: CommandId, keys: readonly string[], change: KeyChange) => {
     if (change.takes.length > 0) setPending({ id, keys, change })
     else apply(id, change, keys)
@@ -117,7 +114,6 @@ export function KeyboardSection() {
 
   const onRecorderKey = (id: CommandId, e: KeyboardEvent<HTMLButtonElement>) => {
     if (recording !== id) return
-    // Keys an input method is composing are its own.
     if (isImeKey(e.nativeEvent)) return
     e.preventDefault()
     e.stopPropagation()

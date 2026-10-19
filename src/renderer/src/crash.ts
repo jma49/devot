@@ -14,14 +14,10 @@ const CODE_PREFIX = /^[EWI]_[A-Z0-9_]{1,62}(?![A-Za-z0-9_])/
  * such as the code a command rejects with.
  */
 const WRAPPERS = ['Non-Error promise rejection captured with value: ', 'Uncaught ']
-/** An error type: `TypeError`, `UnhandledRejection`. */
 const ERROR_TYPE = /^[A-Za-z_$][\w$]{0,63}$/
-/** A mechanism: `generic`, `auto.browser.global_handlers.onerror`, `chained`. */
 const MECHANISM = /^[a-z][a-z0-9_.]{0,63}$/
-/** Where a linked error was found: `cause`, `errors[0]`. */
 const SOURCE = /^[A-Za-z_$][\w$.[\]]{0,63}$/
 const PRINTABLE = /^[\x20-\x7e]{1,512}$/
-/** The files a code location may name: scripts, never a document or data. */
 const SCRIPT = /\.(?:[cm]?js|jsx|tsx?|mts)$/
 const EVENT_ID = /^[0-9a-f]{32}$/
 const DEBUG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -30,7 +26,6 @@ const VERSION = /^\d[0-9A-Za-z.+-]{0,31}$/
 const SDK_NAME = /^[a-z][a-z0-9._-]{0,63}$/
 const LEVELS = ['fatal', 'error', 'warning', 'log', 'info', 'debug']
 
-/** The code a text starts with, after any wrapper the SDK put in front, or a placeholder. */
 function redact(text: string | undefined): string | undefined {
   if (text === undefined) return undefined
   const wrapper = WRAPPERS.find((w) => text.startsWith(w))
@@ -38,12 +33,10 @@ function redact(text: string | undefined): string | undefined {
   return CODE_PREFIX.exec(rest)?.[0] ?? REDACTED
 }
 
-/** Replaces the user name in home folder paths (`/Users/<name>/...`). */
 function scrubPath(path: string): string {
   return path.replace(/\/Users\/[^/\s"':]+/g, '/Users/<user>')
 }
 
-/** A script a frame is in, without its query or fragment and the user name. */
 function scriptPath(path: string | undefined): string | undefined {
   const file = path?.split(/[?#]/)[0]
   if (file === undefined || !SCRIPT.test(file)) return undefined
@@ -54,7 +47,6 @@ function scriptPath(path: string | undefined): string | undefined {
 const matching = (value: unknown, shape: RegExp): value is string =>
   typeof value === 'string' && shape.test(value)
 
-/** The parts of a frame that locate code; context lines, variables and data go. */
 function scrubFrame(frame: StackFrame): StackFrame[] {
   const out: StackFrame = {}
   if (matching(frame.function, PRINTABLE)) out.function = frame.function
@@ -116,7 +108,6 @@ function scrubDebugImages(images: readonly DebugImage[]): DebugImage[] {
 
 type Contexts = NonNullable<ErrorEvent['contexts']>
 
-/** The listed fields of a context that have the shape given for each. */
 function context(source: unknown, shapes: Record<string, RegExp>): Record<string, string> | null {
   if (typeof source !== 'object' || source === null) return null
   const out: Record<string, string> = {}
@@ -127,7 +118,6 @@ function context(source: unknown, shapes: Record<string, RegExp>): Record<string
   return Object.keys(out).length > 0 ? out : null
 }
 
-/** The system: OS and browser name and version; CPU, model and family, never the device's name. */
 function scrubContexts(contexts: Contexts): Contexts {
   const kept: Contexts = {}
   const os = context(contexts['os'], { name: /^[A-Za-z]{1,32}$/, version: VERSION })
@@ -196,7 +186,6 @@ export function reportCode(code: string) {
   started?.captureException(new Error(code))
 }
 
-/** Starts Sentry when this build has a DSN; the SDK loads only then. */
 export async function startCrashReporting(dsn: string | undefined, release: string) {
   if (!dsn) return
   const Sentry = await import('@sentry/browser')

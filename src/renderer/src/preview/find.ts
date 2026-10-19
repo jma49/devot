@@ -5,7 +5,6 @@
 import { findMatches, type FindOptions } from '../../../core/find'
 import { NO_MATCHES, seedQuery, type FindChange, type FindTarget } from '../find/target'
 
-/** Highlight names, styled in app.css with `::highlight(...)`. */
 export const MATCH_HIGHLIGHT = 'devot-find'
 export const CURRENT_HIGHLIGHT = 'devot-find-current'
 
@@ -17,7 +16,6 @@ const SKIP = '[data-devot-island], [data-find-skip], script, style, svg, templat
 interface TextMap {
   text: string
   nodes: Text[]
-  /** Where each node's text starts in `text`. */
   starts: number[]
 }
 
@@ -25,14 +23,12 @@ interface TextMap {
 // the source is only markup.
 const BREAKS = `${BLOCK}, hr, figure, thead, tbody, tfoot, colgroup, ${SKIP}`
 
-/** Whether `text` sits at a block's edge on `side`: no sibling there, or one that breaks the line. */
 function atBlockEdge(text: Text, side: 'previousSibling' | 'nextSibling'): boolean {
   let sibling = text[side]
   while (sibling?.nodeType === Node.COMMENT_NODE) sibling = sibling[side]
   return sibling === null || (sibling instanceof Element && sibling.matches(BREAKS))
 }
 
-/** The rendered text of `root`, with a line break between blocks and for `<br>`. */
 function readText(root: HTMLElement): TextMap {
   const nodes: Text[] = []
   const starts: number[] = []
@@ -71,7 +67,6 @@ function readText(root: HTMLElement): TextMap {
   return { text, nodes, starts }
 }
 
-/** The node and offset at `pos`; a position between nodes takes the next (or previous) one. */
 function point(map: TextMap, pos: number, end: boolean): [Text, number] {
   let lo = 0
   let hi = map.starts.length - 1
@@ -98,7 +93,6 @@ function rangeOf(map: TextMap, from: number, to: number): Range {
 const highlights = (): HighlightRegistry | undefined =>
   typeof CSS !== 'undefined' && 'highlights' in CSS ? CSS.highlights : undefined
 
-/** The find bar's handle on the preview element `root`. */
 export function previewFindTarget(root: HTMLElement): FindTarget {
   let options: FindOptions | null = null
   let ranges: Range[] = []
@@ -118,7 +112,6 @@ export function previewFindTarget(root: HTMLElement): FindTarget {
     registry.set(CURRENT_HIGHLIGHT, new Highlight(...(shown ? [shown] : [])))
   }
 
-  /** Matches for the text as it is now (an empty match is a collapsed range: counted, not painted). */
   const collect = () => {
     if (!options) {
       ranges = []

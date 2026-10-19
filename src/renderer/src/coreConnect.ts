@@ -11,29 +11,21 @@ import { workerLogIn } from './workerLog'
 
 export type Core = Comlink.Remote<CoreApi>
 
-/** How long a core may take to start before the start counts as failed. */
 export const START_TIMEOUT_MS = 30_000
 
-/** The code of a worker that failed: it did not load, or raised an error it did not catch. */
 export const WORKER_FAILED = 'E_CORE_WORKER_FAILED'
 
-/** What `connectCore` needs of a Worker. */
 export interface CoreWorker extends EventTarget {
   postMessage(message: unknown, transfer?: Transferable[]): void
   terminate(): void
 }
 
 export interface CoreConnection {
-  /** Starts the core (its `init` call); a rejection is the start failing. */
   start: (core: Core) => Promise<unknown>
-  /** Notes whose changes could not be saved yet (see SaveProblemsMessage). */
   onSaveProblems: (problems: SaveProblem[]) => void
-  /** A coded entry the worker's console or uncaught errors raised. */
   onLog: (entry: LogEntry) => void
-  /** The worker failed after it started (an event that is not a message). */
   onFailure: (code: string) => void
   timeoutMs?: number
-  /** Comlink's `wrap`, replaced in tests. */
   wrap?: (worker: CoreWorker) => Core
 }
 

@@ -57,7 +57,6 @@ describe('shownGroups', () => {
   })
 })
 
-/** A native menu stand-in: items are plain objects, the menu a list of them. */
 function fakeApi() {
   interface Item {
     kind: 'item' | 'separator' | 'submenu' | 'predefined'
@@ -136,7 +135,6 @@ function fakeApi() {
       return [`${indent}${item.text ?? ''}${accelerator}${check}`]
     })
   const shown = () => lines(menus[0] ?? [])
-  /** Clicks the item with this ID, in the menu or a submenu. */
   const click = (id: string) => {
     const all = (menus[0] ?? []).flatMap((i) => [i, ...(i.items ?? [])])
     const item = all.find((i) => i.options?.id === id)

@@ -12,10 +12,8 @@ import type { NoteFilter } from '../../core/tags'
 import { current } from './focus'
 import type { Mode } from './ModeControl'
 
-/** The library views a window restores (never the Trash or search results). */
 export type LibraryView = { kind: 'all' } | { kind: 'book'; id: string } | { kind: 'templates' }
 
-/** A selection in the editor, as document positions. */
 export interface SelectionState {
   anchor: number
   head: number
@@ -32,12 +30,10 @@ export interface EditorTop {
   offset: number
 }
 
-/** The open note and where the user was in it. */
 export interface NoteState {
   id: string
   selection?: SelectionState
   editorTop?: EditorTop
-  /** The preview's scroll position, in pixels (restored in preview mode). */
   previewTop?: number
   /** Whether the editor had the keyboard; it takes it again when restored. */
   keyboard: boolean
@@ -48,7 +44,6 @@ export interface LastState {
   filter: NoteFilter | null
   mode: Mode
   note?: NoteState
-  /** The notebook open as a workspace (the sidebar shows only it), if any. */
   workspace?: string
 }
 
@@ -101,7 +96,6 @@ function readNote(value: unknown): NoteState | undefined {
   return note
 }
 
-/** The state stored in `raw`; nothing when there is none or it is not Devot's. */
 export function parseLastState(raw: string | null): LastState | undefined {
   if (!raw) return undefined
   let value: unknown
@@ -123,7 +117,6 @@ export function parseLastState(raw: string | null): LastState | undefined {
   return state
 }
 
-/** The stored form of `state`. */
 export function serializeLastState(state: LastState): string {
   return JSON.stringify({ v: VERSION, ...state })
 }
@@ -151,10 +144,8 @@ export function lastStateStore(storage: KeyValue | undefined, label: string) {
   }
 }
 
-/** The last state store of the current window. */
 export const currentLastStateStore = () => current(lastStateStore)
 
-/** What still exists in the library: live notebooks, tags and notes (templates included). */
 export interface LiveLibrary {
   books: ReadonlySet<string>
   tags: ReadonlySet<string>
@@ -186,7 +177,6 @@ export function restorePlan(
   return { view, filter, ...(note ? { note } : {}), ...(workspace ? { workspace } : {}) }
 }
 
-/** A stored selection, moved inside a document of `length` characters. */
 export function clampSelection(selection: SelectionState, length: number): SelectionState {
   return {
     anchor: Math.min(selection.anchor, length),
@@ -194,7 +184,6 @@ export function clampSelection(selection: SelectionState, length: number): Selec
   }
 }
 
-/** A stored top line, moved inside a document of `length` characters. */
 export function clampTop(top: EditorTop, length: number): EditorTop {
   return { pos: Math.min(top.pos, length), offset: top.offset }
 }

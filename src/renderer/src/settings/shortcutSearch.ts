@@ -6,7 +6,6 @@ import { shortcutLabel } from '../commands/keys'
 import type { CommandGroup, CommandSpec } from '../commands/registry'
 import { t, type MessageKey } from '../i18n'
 
-/** Each group's name (every group has one). */
 export const GROUP_LABELS: Readonly<Record<CommandGroup, MessageKey>> = {
   note: 'shortcuts.group.note',
   notebook: 'shortcuts.group.notebook',
@@ -21,7 +20,6 @@ export const GROUP_LABELS: Readonly<Record<CommandGroup, MessageKey>> = {
   app: 'shortcuts.group.app',
 }
 
-/** Whether a command (with its keys in effect) matches what is typed in the search field. */
 export function matchesQuery(
   c: Pick<CommandSpec, 'label' | 'group'>,
   keys: readonly string[],

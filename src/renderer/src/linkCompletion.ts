@@ -33,36 +33,27 @@ export interface LinkTarget {
 }
 
 export interface LinkSources {
-  /** Notes matching the query (recent notes for an empty one). */
   find: (query: string) => Promise<LinkTarget[]>
-  /** Creates a note with this title; resolves to its ID. */
   create: (title: string) => Promise<string>
   /** Deletes a note `create` made that could not be linked after all. */
   discard: (id: string) => Promise<void>
-  /** The card the popup shows beside a highlighted note: its title and the start of its body. */
   preview?: (id: string) => Promise<NotePreview | null>
-  /** A note `create` made has been linked. */
   linked: (id: string) => void
 }
 
-/** A `[[` and the query typed after it, up to the cursor. */
 export const LINK_TRIGGER = /\[\[[^[\]\n]*$/
-/** How many notes the popup offers. */
 export const MAX_LINK_NOTES = 20
 
-/** `[[query]]` of a New Note pick, waiting for its note. */
 interface Pending {
   id: number
   from: number
   to: number
-  /** The text from `from` to `to` when it was picked. */
   text: string
 }
 
 const startPending = StateEffect.define<Pending>()
 const endPending = StateEffect.define<number>()
 
-/** The picks waiting for their notes, their ranges following the edits made meanwhile. */
 const pendingPicks = StateField.define<readonly Pending[]>({
   create: () => [],
   update(picks, tr) {
@@ -83,7 +74,6 @@ const pendingPicks = StateField.define<readonly Pending[]>({
 
 let picked = 0
 
-/** Replaces `[[query]]` (from `from` to the cursor, plus a closing `]]`) with the link. */
 function insertLink(view: EditorView, from: number, title: string, id: string) {
   const state = view.state
   const head = state.selection.main.head
@@ -141,7 +131,6 @@ function createAndLink(sources: LinkSources, view: EditorView, from: number, tit
   })
 }
 
-/** The card beside a highlighted note; none when it cannot load. */
 async function noteInfo(sources: LinkSources, id: string): Promise<Node | null> {
   const preview = await sources.preview?.(id).catch(() => undefined)
   return preview === undefined ? null : noteCardDom(preview)
@@ -181,7 +170,6 @@ export function linkCompletionSource(sources: LinkSources): CompletionSource {
   }
 }
 
-/** The card's panel beside the popup: the popup's surface. */
 const infoTheme = EditorView.theme({
   '.cm-tooltip.cm-completionInfo': {
     border: '0',
@@ -192,7 +180,6 @@ const infoTheme = EditorView.theme({
   },
 })
 
-/** The `[[` completion for the editor, alongside any other sources. */
 export function linkCompletion(sources: LinkSources) {
   // One source for the editor's life: CodeMirror keeps results per source
   // function, so a new function on every lookup would discard each result.

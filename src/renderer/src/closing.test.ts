@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { animationMs, tooltipMotion, whenClosed, type ClosingTarget } from './closing'
 
-/** An element stand-in: listeners by type, and `fire` to send an event from `target`. */
 function fakeTarget() {
   const listeners = new Map<string, Set<(e: { target: unknown }) => void>>()
   const target: ClosingTarget & {

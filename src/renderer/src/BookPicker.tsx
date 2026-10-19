@@ -10,16 +10,12 @@ import { PickerList, usePickerOpen, type PickerOption } from './Picker'
 export interface BookOption {
   id: string
   name: string
-  /** How deep it is nested (0: top level). */
   depth: number
-  /** The notebooks it is nested in, outermost first. */
   ancestors: string[]
-  /** Its icon (null: the default one) and the colour it is drawn in. */
   icon: string | null
   iconColor: TagColor | null
 }
 
-/** Notebooks in tree order; nesting shown by indentation in the menu. */
 export function bookOptions(tree: BookNode[]): BookOption[] {
   const out: BookOption[] = []
   const walk = (nodes: BookNode[], ancestors: string[]) =>
@@ -55,10 +51,8 @@ export function filterBooks(list: readonly BookOption[], query: string): BookOpt
   return list.filter((o) => keep.has(o.id))
 }
 
-/** The option value that stands for no notebook. */
 export const NO_BOOK = ''
 
-/** The option to show as current: the note's notebook while it is live, else none. */
 export function currentBookOption(list: BookOption[], value: string | null): string {
   return value !== null && list.some((o) => o.id === value) ? value : NO_BOOK
 }
@@ -73,7 +67,6 @@ export function BookPicker(props: {
   tree: BookNode[]
   value: string | null
   onChange: (bookId: string | null) => void
-  /** Right-click on the button: the notebook menu, at the pointer (for a notebook only). */
   onMenu?: (bookId: string, at: MenuPoint) => void
 }) {
   const box = useRef<HTMLDivElement>(null)

@@ -18,11 +18,9 @@ import {
 import { invoke } from './ipc'
 import { sizes } from './theme/tokens'
 
-/** The system font as a CSS font list (the token's, not the app font that may replace it). */
 const SYSTEM = sizes['font.family.ui']
 const MONO = 'var(--font-family-mono)'
 
-/** Each built-in font as a CSS font list; the monospaced ones fall back to SF Mono. */
 const STACKS = {
   system: SYSTEM,
   mono: MONO,
@@ -31,7 +29,6 @@ const STACKS = {
   courierNew: `'Courier New', ${MONO}`,
 } as const
 
-/** What an installed or imported font falls back to in each slot. */
 const FALLBACK: Readonly<Record<FontSlot, string>> = { app: SYSTEM, note: MONO, code: MONO }
 
 /**
@@ -65,7 +62,6 @@ export function fontStack(
   }
 }
 
-/** The CSS variable each slot's font list goes in. */
 export const FONT_VARIABLES: Readonly<Record<FontSlot, string>> = {
   app: '--font-family-ui',
   note: '--editor-font-family',
@@ -89,7 +85,6 @@ export function fontVariables(
   return [...out, ['--preview-font-family', preview]]
 }
 
-/** What loading a font face needs (the page's, or a test's). */
 export interface FontEnv {
   read(id: string): Promise<ArrayBuffer>
   load(family: string, bytes: ArrayBuffer): Promise<FontFace>
@@ -138,7 +133,6 @@ export function importedFontLoader(env: FontEnv = pageEnv(), loaded: () => void 
   }
 
   return {
-    /** Whether the face of a file is in place. */
     has: (id: string): boolean => faces.has(id),
     use(slot: FontSlot, id: string | null): Promise<boolean> {
       if (id === null) wanted.delete(slot)
@@ -167,16 +161,13 @@ export function importedFontLoader(env: FontEnv = pageEnv(), loaded: () => void 
 let pageLoader: ReturnType<typeof importedFontLoader> | undefined
 const fontsLoadedListeners = new Set<() => void>()
 
-/** Calls `notify` each time an imported font face has loaded (the editor measures its text again). */
 export function subscribeFontsLoaded(notify: () => void): () => void {
   fontsLoadedListeners.add(notify)
   return () => fontsLoadedListeners.delete(notify)
 }
 
-/** Whether an imported file's face is in place on this page. */
 export const importedFontLoaded = (id: string): boolean => pageLoader?.has(id) ?? false
 
-/** Loads the imported fonts the settings use, or drops the ones no slot uses. */
 export function syncImportedFonts(settings: EditorSettings): void {
   const ids = FONT_SLOT_ORDER.map((slot) => {
     const font = slotFont(settings, slot)
@@ -189,17 +180,13 @@ export function syncImportedFonts(settings: EditorSettings): void {
   for (const [slot, id] of ids) void pageLoader.use(slot, id)
 }
 
-/** An imported font: its file name (the ID) and the name Settings shows. */
 export interface FontFile {
   id: string
   name: string
 }
 
-/** The fonts installed on this Mac, by family name. */
 export const installedFonts = (): Promise<string[]> => invoke<string[]>('fonts_installed')
 
-/** The imported fonts. */
 export const importedFonts = (): Promise<FontFile[]> => invoke<FontFile[]>('fonts_list')
 
-/** Asks for a font file and imports it; null when the user cancelled. */
 export const importFont = (): Promise<FontFile | null> => invoke<FontFile | null>('font_import')

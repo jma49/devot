@@ -24,7 +24,6 @@ function handlers() {
   }
 }
 
-/** Connects with a `start` that the test settles by hand. */
 function connect(worker: FakeWorker, start: () => Promise<unknown>, timeoutMs = 1000) {
   const h = handlers()
   const core = connectCore(worker, {

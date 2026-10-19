@@ -44,7 +44,6 @@ function attributes(node: HastElement): Map<string, string> {
   return out
 }
 
-/** Colour swatches get their colour through the CSSOM, after validation. */
 function applySwatch(el: Element): void {
   const color = el.getAttribute('data-swatch-color')
   if (color && el instanceof HTMLElement && CSS.supports('color', color)) {
@@ -65,7 +64,6 @@ function syncAttributes(el: Element, node: HastElement): void {
   applySwatch(el)
 }
 
-/** Islands own their children (the UI renders them); the patcher skips them. */
 const isIsland = (node: HastElement) => node.properties['dataDevotIsland'] !== undefined
 
 function create(node: HastChild, parentNs: string | null): Node | null {
@@ -98,7 +96,6 @@ export const UI_ATTRIBUTE = 'data-devot-ui'
 
 const isUi = (node: Node) => node instanceof Element && node.hasAttribute(UI_ATTRIBUTE)
 
-/** Makes `parent`'s children match `next`, reusing nodes position by position. */
 export function patchChildren(parent: Node, next: readonly HastChild[]): void {
   const wanted = next.filter((n) => n.type === 'text' || n.type === 'element')
   const ns = parent instanceof Element ? parent.namespaceURI : HTML_NS

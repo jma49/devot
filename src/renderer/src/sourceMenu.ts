@@ -4,12 +4,9 @@
 import type { NoteFilter } from '../../core/tags'
 import { commandEntry, type MenuGroups } from './contextMenu'
 
-/** What the Trash row's menu can do. */
 export type TrashRowAction = 'emptyTrash'
 
-/** What the Trash row's menu needs to know. */
 export interface TrashRowTarget {
-  /** How many notes the Trash holds. */
   notes: number
 }
 
@@ -23,16 +20,12 @@ export const TRASH_ROW_MENU: MenuGroups<TrashRowAction, TrashRowTarget> = [
   ],
 ]
 
-/** What the All Notes row's menu can do. */
 export type AllNotesAction = 'showNotes' | 'newNote'
 
-/** What the All Notes row's menu needs to know. */
 export interface AllNotesTarget {
-  /** Whether a note can be made (the library is open). */
   canCreate: boolean
 }
 
-// Groups can be added here later (an Export All item is planned).
 export const ALL_NOTES_MENU: MenuGroups<AllNotesAction, AllNotesTarget> = [
   [
     commandEntry<AllNotesAction, AllNotesTarget>('showNotes', 'view.allNotes', {
@@ -46,14 +39,10 @@ export const ALL_NOTES_MENU: MenuGroups<AllNotesAction, AllNotesTarget> = [
   ],
 ]
 
-/** What a Status or Pinned row's menu can do. */
 export type FilterRowAction = 'filter'
 
-/** What the menu needs to know about the row that was right-clicked. */
 export interface FilterRowTarget {
-  /** The filter the row sets: pinned notes or one status. */
   filter: Extract<NoteFilter, { kind: 'status' | 'pinned' }>
-  /** Whether the list is filtered by this row now. */
   filtered: boolean
 }
 

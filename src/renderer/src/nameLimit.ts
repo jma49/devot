@@ -29,7 +29,6 @@ export function limitEdit(
   }
 }
 
-/** Limits the edit that turned `previous` into `field`'s text, in place; returns the text. */
 function limitField(field: HTMLInputElement, previous: string, max: number): string {
   const { value, caret } = limitEdit(previous, field.value, max)
   if (value !== field.value) {
@@ -39,12 +38,7 @@ function limitField(field: HTMLInputElement, previous: string, max: number): str
   return value
 }
 
-/**
- * Handlers for a controlled text field holding `value` that keep it within
- * `max` code points; `onValue` gets each value the field takes.
- */
 export function useNameLimit(value: string, max: number, onValue: (value: string) => void) {
-  // The text when a composition started; null while none runs.
   const before = useRef<string | null>(null)
   return {
     onCompositionStart: () => {

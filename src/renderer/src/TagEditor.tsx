@@ -10,7 +10,6 @@ import { isImeKey } from './ime'
 import { fieldStep } from './Picker'
 import { useNameLimit } from './nameLimit'
 
-/** A tag's colour: a dot painted with the theme's token for it, named for assistive tech. */
 export function TagDot(props: { color: TagColor }) {
   return (
     <span
@@ -22,16 +21,12 @@ export function TagDot(props: { color: TagColor }) {
   )
 }
 
-/** A tag chip's classes: a coloured tag's chip takes its tag colour (app.css `.tag-chip`). */
 export const chipClass = (color: TagColor | null | undefined) =>
   color ? `chip tag-chip tag-color-${color}` : 'chip'
 
-/** A row of the tag field's suggestions: an existing tag, or a new one to make. */
 export type TagRow = { kind: 'tag'; tag: TagRecord } | { kind: 'create'; name: string }
 
-/** Suggestions shown at most. */
 const MAX_SUGGESTIONS = 8
-/** The suggestions shrink back toward the field as they close. */
 const suggestionsRef = closingRef('scale', 'tag-suggestions')
 
 /**
@@ -78,20 +73,15 @@ export function TagEditor(props: {
   common?: readonly string[]
   onAdd: (name: string) => void
   onRemove: (tagId: string) => void
-  /** Right-click on a chip: the chip menu, at the pointer. */
   onChipMenu?: (tagId: string, at: MenuPoint) => void
-  /** The field, for the title's Return to go on to. */
   inputRef?: RefObject<HTMLInputElement | null>
 }) {
   const several = props.common !== undefined
   const full = props.common ?? props.value
   const [draft, setDraft] = useState('')
-  // The suggestion Up and Down moved to (-1: none), whether the suggestions
-  // show, and the chip Backspace or Left selected.
   const [active, setActive] = useState(-1)
   const [open, setOpen] = useState(false)
   const [chosenChip, setChosenChip] = useState<string>()
-  // The name just added, in lower case: its chip pops in (app.css `.chip[data-added]`).
   const [added, setAdded] = useState<string>()
   const ownField = useRef<HTMLInputElement>(null)
   const field = props.inputRef ?? ownField

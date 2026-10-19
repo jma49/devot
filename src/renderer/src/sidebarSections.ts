@@ -4,14 +4,12 @@
 // the note database, and never syncs.
 import { current } from './focus'
 
-/** The sections with a chevron that folds them. */
 export type CollapsibleSection = 'status' | 'tags'
 
 const SECTIONS: readonly CollapsibleSection[] = ['status', 'tags']
 
 type KeyValue = Pick<Storage, 'getItem' | 'setItem'>
 
-/** Reads and writes one window's collapsed sections; storage failures mean "none collapsed". */
 export function sectionStore(storage: KeyValue | undefined, label: string) {
   const key = `devot.sidebarCollapsed.${label}`
   const booksKey = `devot.sidebarBooksCollapsed.${label}`
@@ -54,5 +52,4 @@ export function sectionStore(storage: KeyValue | undefined, label: string) {
 
 export type SectionStore = ReturnType<typeof sectionStore>
 
-/** The store of the current window. */
 export const currentSectionStore = (): SectionStore => current(sectionStore)

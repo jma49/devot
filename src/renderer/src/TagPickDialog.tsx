@@ -11,22 +11,14 @@ import { TagDot } from './TagEditor'
 
 const optionId = (i: number) => `tag-pick-option-${i}`
 
-/** A tag picked: an existing one, or (adding) a new name. */
 export interface TagPick {
   tagId: string | null
   name: string
 }
 
-/**
- * Picks a tag to add to or remove from several notes: type to filter, arrow
- * keys and Return (or a click) to pick, Escape to cancel. Adding, a name no
- * tag has yet is offered as a new tag.
- */
 export function TagPickDialog(props: {
   mode: 'add' | 'remove'
-  /** The tags to offer: every tag (adding), or those on the notes (removing). */
   tags: readonly TagRecord[]
-  /** How many notes the tag goes on or comes off. */
   count: number
   onPick: (pick: TagPick) => void
   onCancel: () => void
@@ -37,7 +29,6 @@ export function TagPickDialog(props: {
   useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
-    // Closing (rather than only removing) the dialog gives the keyboard back.
     return () => el?.close()
   }, [])
 

@@ -18,7 +18,6 @@ export function changeMessage(code: string): string {
   }
 }
 
-/** Tells the user a change to notebooks, tags or a note's metadata was refused. */
 export function ChangeNotice(props: { code: string; onDismiss: () => void }) {
   return (
     <div role="alert" className="notice" data-devot-part="notice">

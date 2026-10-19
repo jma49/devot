@@ -7,11 +7,6 @@ import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
 import { ColorSwatches } from './ColorSwatches'
 
-/**
- * A tag's settings: its name, and its colour from the tag palette. Save
- * (Return in the name field) hands back what changed; Escape or Cancel
- * leaves the tag as it is.
- */
 export function TagSettingsDialog(props: {
   tag: Pick<TagRecord, 'id' | 'name' | 'color'>
   onSave: (change: { name: string; color: TagColor | null }) => void
@@ -25,7 +20,6 @@ export function TagSettingsDialog(props: {
   useLayoutEffect(() => {
     const el = dialog.current
     if (el && !el.open) el.showModal()
-    // Closing (rather than only removing) the dialog gives the keyboard back.
     return () => el?.close()
   }, [])
 

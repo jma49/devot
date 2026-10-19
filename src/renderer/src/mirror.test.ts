@@ -71,7 +71,6 @@ describe('the mirror notices', () => {
     for (const code of ['E_MIRROR_MANIFEST_MISSING', 'E_MIRROR_MANIFEST_INVALID']) {
       expect(pausedMessage(code)).not.toContain('resumes')
     }
-    // Any other code: the general notice.
     expect(pausedMessage('E_MIRROR_FOLDER_OTHER')).toBe(
       'The mirror is paused (E_MIRROR_FOLDER_OTHER). It resumes once its folder can be written again.',
     )

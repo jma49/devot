@@ -8,7 +8,6 @@ import { useSyncExternalStore } from 'react'
 export interface TextStore {
   get(): string
   set(text: string): void
-  /** Calls `listener` after each change; returns the unsubscribe. */
   subscribe(listener: () => void): () => void
 }
 
@@ -29,7 +28,6 @@ export function textStore(initial = ''): TextStore {
   }
 }
 
-/** The store's text; the component renders again when it changes. */
 export function useText(store: TextStore): string {
   return useSyncExternalStore(store.subscribe, store.get)
 }

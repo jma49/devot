@@ -4,10 +4,8 @@ import { t } from './i18n'
 import { sizes } from './theme/tokens'
 import { placeTip, type Box } from './tipPlacement'
 
-/** How long the pointer rests on a button before its tooltip shows (`motion.delay.tooltip`), in ms. */
 export const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
 
-/** Every icon or command button with a tooltip shows it as a bubble. */
 const TOOLS = 'button[title], button[data-tip]'
 
 const LIMITS = {
@@ -32,7 +30,6 @@ export function splitTip(title: string): { name: string; key: string | undefined
   return name !== undefined && key !== undefined ? { name, key } : { name: title, key: undefined }
 }
 
-/** A tooltip fades out as it goes. */
 const closeRef = closingRef('fade', 'tool-tip')
 
 interface Shown {
@@ -91,7 +88,6 @@ export function ToolTips() {
     }
     const over = (e: PointerEvent) =>
       engage(e.target instanceof Element ? e.target.closest<HTMLElement>(TOOLS) : null)
-    // Keyboard focus shows the same bubble (the shortcut included) as the pointer does.
     const focused = (e: FocusEvent) => {
       const el = e.target instanceof Element ? e.target.closest<HTMLElement>(TOOLS) : null
       if (el?.matches(':focus-visible')) engage(el)

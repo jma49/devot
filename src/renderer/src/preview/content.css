@@ -120,7 +120,6 @@
   margin-top: var(--note-space-3);
 }
 
-/* The two top levels are ruled off from what follows, the first more firmly. */
 .preview :is(h1, h2) {
   padding-bottom: var(--note-space-1);
   border-bottom: 1px solid var(--color-line-hairline);
@@ -270,7 +269,6 @@
   background: var(--color-table-stripe);
 }
 
-/* Highlighted text. */
 .preview mark {
   padding: 0 0.15em;
   border-radius: var(--space-2);
@@ -295,7 +293,6 @@
   margin-bottom: 0;
 }
 
-/* A numbered list inside another counts in roman numerals. */
 .preview :is(ol, ul) ol {
   list-style-type: lower-roman;
 }
@@ -308,7 +305,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Keys: small keycaps. */
 .preview kbd {
   display: inline-block;
   padding: 0 var(--space-2);
@@ -335,13 +331,11 @@
   accent-color: var(--color-accent-fill);
 }
 
-/* A done task is muted and struck through. */
 .preview li:has(> input[type='checkbox']:checked, > p > input[type='checkbox']:checked) {
   color: var(--color-text-secondary);
   text-decoration: line-through;
 }
 
-/* A task's box ticks the task in the note. */
 .preview input[data-task-at] {
   cursor: pointer;
 }
@@ -350,7 +344,6 @@
   max-width: 100%;
 }
 
-/* An image on a paragraph of its own sits in a light frame. */
 .preview img.image-block {
   box-sizing: border-box;
   padding: var(--space-7);
@@ -358,7 +351,6 @@
   background: var(--color-fill-track);
 }
 
-/* Preview images: a size preset (`w:240`, `w:50%` or `w:100%` in the alt text). */
 .preview img.image-size-small {
   width: 240px;
 }
@@ -375,7 +367,6 @@
   color: var(--color-text-secondary);
 }
 
-/* Front matter as properties: a compact grid of keys and values. */
 .preview dl.frontmatter {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -424,10 +415,6 @@
   white-space: nowrap;
 }
 
-/*
- * Code blocks with a language or a title: a header bar with the language's
- * mark and name, the title, and the page's copy button.
- */
 .preview .code-block {
   border: 1px solid var(--color-code-block-border);
   border-radius: var(--radius-button);
@@ -485,7 +472,6 @@
   margin-left: auto;
 }
 
-/* A block that names its source: the link, the lines and the ref, then the language. */
 .code-source {
   min-width: 0;
   overflow: hidden;
@@ -515,7 +501,6 @@
   margin-left: 0;
 }
 
-/* Highlighted code: the editor's syntax colours. */
 .hljs-keyword,
 .hljs-literal,
 .hljs-selector-tag,
@@ -576,7 +561,6 @@
   font-weight: var(--font-weight-bold);
 }
 
-/* Alerts: an accent bar, and an icon and title in the kind's colour. */
 .alert {
   padding: var(--space-1) 0 var(--space-1) var(--space-6);
   border-left: 3px solid var(--alert-color);
@@ -616,7 +600,6 @@
   --alert-color: var(--color-alert-caution);
 }
 
-/* Line icons drawn into the content (core/preview/glyphs.ts). */
 .glyph {
   flex: none;
   width: 1em;
@@ -634,7 +617,6 @@
   stroke: none;
 }
 
-/* Task progress: a short bar, filled as far as the tasks are done. */
 .task-bar {
   -webkit-appearance: none;
   appearance: none;
@@ -658,7 +640,6 @@
   background: var(--color-status-done);
 }
 
-/* A link to another note, shown as that note: status, title, progress, tags. */
 .preview a.note-chip {
   text-underline-offset: 4px;
 }
@@ -709,7 +690,6 @@
   vertical-align: 0.05em;
 }
 
-/* A link to a note that is gone. */
 .note-link-broken {
   margin-right: 0.2em;
 }
@@ -728,7 +708,6 @@
   color: var(--color-status-dropped);
 }
 
-/* Islands: diagrams the page draws itself. */
 .island {
   overflow-x: auto;
 }

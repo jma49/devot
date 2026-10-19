@@ -36,7 +36,6 @@ export type DeepLink =
 const isUrlCommand = (id: unknown): id is UrlCommand =>
   typeof id === 'string' && (URL_COMMANDS as readonly string[]).includes(id)
 
-/** A link as Rust sends it, or undefined for anything else. */
 export function readDeepLink(value: unknown): DeepLink | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { kind, id } = value as { kind?: unknown; id?: unknown }
@@ -45,15 +44,10 @@ export function readDeepLink(value: unknown): DeepLink | undefined {
   return undefined
 }
 
-/** Where a linked note is, and so what opening it takes. */
 export type NoteTarget =
-  /** In the list shown: open it. */
   | { readonly kind: 'listed' }
-  /** Live, outside the list shown: show this library first. */
   | { readonly kind: 'library'; readonly library: 'all' | 'templates' }
-  /** In the Trash: open it there. */
   | { readonly kind: 'trash' }
-  /** No such note. */
   | { readonly kind: 'missing' }
 
 interface Known {
@@ -63,7 +57,6 @@ interface Known {
   readonly trash: readonly { readonly id: string }[]
 }
 
-/** Where the note `id` is. */
 export function noteTarget(id: string, known: Known): NoteTarget {
   const has = (list: readonly { readonly id: string }[]) => list.some((n) => n.id === id)
   if (has(known.trash)) return { kind: 'trash' }
@@ -73,9 +66,7 @@ export function noteTarget(id: string, known: Known): NoteTarget {
   return { kind: 'missing' }
 }
 
-/** The most links waiting to run; later ones are dropped. */
 const MAX_WAITING = 16
-/** How long the same link sent again is dropped. */
 const REPEAT_MS = 1000
 
 /**
@@ -88,7 +79,6 @@ const REPEAT_MS = 1000
  */
 export class LinkQueue {
   private readonly waiting: DeepLink[] = []
-  /** The link pushed last and when, to drop the same one sent again at once. */
   private last: { readonly key: string; readonly at: number } | undefined
   private busy = false
   private cancelSettle: (() => void) | undefined
@@ -122,7 +112,6 @@ export class LinkQueue {
     this.flush()
   }
 
-  /** The window has rendered: the link run last has taken effect. */
   settled(): void {
     this.busy = false
     this.cancelSettle?.()
@@ -130,7 +119,6 @@ export class LinkQueue {
     this.flush()
   }
 
-  /** Runs the next link, unless one is still taking effect or a sheet is up. */
   flush(): void {
     if (this.stopped || this.busy) return
     if (this.waiting.length === 0 || !this.blocked()) this.stopWatching()
@@ -146,7 +134,6 @@ export class LinkQueue {
     this.run(link)
   }
 
-  /** Stops running links; returns those still waiting. */
   stop(): DeepLink[] {
     this.stopped = true
     const left = this.waiting.splice(0)
@@ -162,9 +149,7 @@ export class LinkQueue {
   }
 }
 
-/** How often a link waiting behind a sheet looks again (closing one renders too). */
 const SHEET_CHECK_MS = 200
-/** How long a link that changed nothing on screen holds the next one back. */
 const SETTLE_MS = 200
 
 const every = (changed: () => void) => {
@@ -177,7 +162,6 @@ const after = (done: () => void) => {
   return () => clearTimeout(timer)
 }
 
-/** The page event a link arrives as (Rust's `devot://open-url`, re-sent; tests send it too). */
 export const OPEN_URL = 'devot:open-url'
 const TAURI_EVENT = 'devot://open-url'
 
@@ -194,7 +178,6 @@ export function useDeepLinks(ready: boolean, handle: (link: DeepLink) => void): 
   const early = useRef<DeepLink[]>([])
   useEffect(() => {
     latest.current = handle
-    // After every render: the link run last has taken effect.
     queueRef.current?.settled()
   })
   useEffect(() => {

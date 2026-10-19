@@ -43,7 +43,6 @@ describe('COMMANDS', () => {
     expect(new Set(ids).size).toBe(ids.length)
     for (const c of COMMANDS) {
       expect(Object.hasOwn(en, c.label)).toBe(true)
-      // Written in canonical form, so the same key is always the same text.
       for (const key of c.keys) expect(normalizeShortcut(key)).toBe(key)
     }
   })
@@ -224,7 +223,6 @@ describe('COMMANDS', () => {
       scope: 'notebookRow',
       keys: ['Alt+ArrowDown'],
     })
-    // Every row action is in the row's menu, which has keys of its own.
     expect(command('sidebar.rowMenu')).toMatchObject({
       scope: 'sidebar',
       keys: ['Shift+F10', 'ContextMenu', 'Ctrl+Enter'],
@@ -278,7 +276,6 @@ describe('COMMANDS', () => {
 
   it('declares find, the status keys and the alerts', () => {
     const keys = (id: Parameters<typeof command>[0]) => command(id).keys
-    // Find: window-wide, plus F3 in the editor.
     expect(keys('find.find')).toEqual(['Mod+F'])
     expect(keys('find.replace')).toEqual(['Mod+Alt+F'])
     expect(keys('find.next')).toEqual(['Mod+G'])
@@ -290,14 +287,12 @@ describe('COMMANDS', () => {
     }
     expect(keys('find.nextInEditor')).toEqual(['F3'])
     expect(keys('find.previousInEditor')).toEqual(['Shift+F3'])
-    // Status: Control+Command+1 to 5, window-wide.
     expect(
       ['none', 'active', 'onHold', 'completed', 'dropped'].map((s) => {
         const c = command(`status.${s}` as Parameters<typeof command>[0])
         return [c.scope, ...c.keys]
       }),
     ).toEqual([1, 2, 3, 4, 5].map((n) => ['window', `Mod+Ctrl+${n}`]))
-    // Alerts: editor formats without keys.
     const alerts = COMMANDS.filter((c) => c.id.startsWith('format.alert'))
     expect(alerts.map((c) => [formatOf(c.id), c.scope, c.keys.length])).toEqual(
       ['alertNote', 'alertTip', 'alertImportant', 'alertWarning', 'alertCaution'].map((f) => [
@@ -393,7 +388,6 @@ describe('COMMANDS', () => {
       ['insert.noteLink', 'noteLink', 'editor', 'format', 0],
     ])
     for (const c of inserts) expect(INSERT_COMMANDS[insertOf(c.id)!]).toBeTypeOf('function')
-    // Not formats: the Format menu and the format keymap leave them out.
     for (const c of inserts) expect(formatOf(c.id)).toBeUndefined()
     expect(insertOf('format.link')).toBeUndefined()
   })
@@ -430,7 +424,6 @@ describe('COMMANDS', () => {
 })
 
 describe('labels with shortcuts', () => {
-  // Button tooltips name the key in effect of their command.
   const titles: [MessageKey, CommandId][] = [
     ['mode.focusTitle', 'view.focus'],
     ['history.buttonTitle', 'note.history'],
@@ -460,7 +453,6 @@ describe('labels with shortcuts', () => {
       const first = command(id).keys[0]
       expect(first).toBeDefined()
       expect(titleWithKey(key, id)).toBe(`${en[key]} (${shortcutLabel(first!)})`)
-      // The catalog's title names no key of its own.
       expect(en[key]).not.toMatch(/[\u2318\u2325\u21e7\u2303]/)
     }
     expect(headingTitle()).toBe(`Heading (${shortcutLabel('Mod+1')})`)
@@ -539,7 +531,6 @@ describe('heldCommandKey', () => {
     heldCommandKey(press(code, key, { repeat: true, ...mods }))
 
   it('is a held key of a command with Command or Control on it', () => {
-    // Select All, Copy Note Link and a window key.
     expect(held('KeyA', 'a', { metaKey: true })).toBe(true)
     expect(held('KeyC', 'c', { metaKey: true })).toBe(true)
     expect(held('KeyN', 'n', { metaKey: true })).toBe(true)
@@ -552,7 +543,6 @@ describe('heldCommandKey', () => {
     expect(held('Backspace', 'Backspace')).toBe(false)
     expect(held('KeyA', 'a')).toBe(false)
     expect(held('KeyQ', 'q', { metaKey: true })).toBe(false)
-    // Bold belongs to the editor, which repeats it as it likes.
     expect(held('KeyB', 'b', { metaKey: true })).toBe(false)
   })
 

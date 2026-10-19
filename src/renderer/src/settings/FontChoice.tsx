@@ -23,7 +23,6 @@ const FONT_LABELS: Readonly<Record<FontFamilyId, MessageKey>> = {
   imported: 'editorSettings.font.imported',
 }
 
-/** Each font's section: its icon, title and what the font is for. */
 const SLOT_SECTIONS: Readonly<
   Record<FontSlot, { icon: IconName; title: MessageKey; hint: MessageKey }>
 > = {
@@ -44,7 +43,6 @@ const SLOT_SECTIONS: Readonly<
   },
 }
 
-/** One font's section (App Font, Note Font, Code Font): its family and the font it names. */
 export function FontSection({
   slot,
   settings,
@@ -194,7 +192,6 @@ export function FontChoice({
   )
 }
 
-/** The names with the chosen one in them, so the menu shows what is in effect. */
 function withChosen(names: string[], chosen: string | null): string[] {
   return chosen === null || names.includes(chosen) ? names : [chosen, ...names]
 }

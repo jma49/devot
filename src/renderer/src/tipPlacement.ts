@@ -1,4 +1,3 @@
-/** A box in window coordinates. */
 export interface Box {
   left: number
   top: number
@@ -7,21 +6,15 @@ export interface Box {
 }
 
 export interface TipPlacement {
-  /** Where the bubble's top-left corner goes. */
   left: number
   top: number
-  /** Which side of the button the bubble is on. */
   side: 'above' | 'below'
-  /** How far the notch's centre is from the bubble's left edge. */
   arrowX: number
 }
 
 export interface TipLimits {
-  /** Between the button and the bubble. */
   gap: number
-  /** The least space between the bubble and the window's edge. */
   edge: number
-  /** The least distance from the notch's centre to the bubble's corner. */
   arrowInset: number
 }
 

@@ -9,22 +9,18 @@
 import { motionReduced } from './motionPreference'
 import { drawnOffset, motionTiming } from './motionTiming'
 
-/** The window's panes, in their order from the left. */
 export const PANES = ['sidebar', 'list', 'content'] as const
 export type Pane = (typeof PANES)[number]
 
-/** Where a pane's left edge is in the layout (a move under way left out), and whether it shows. */
 export interface PaneBox {
   left: number
   shown: boolean
   opacity?: number
-  /** Toolbar items the window controls' room moves, from the pane's left edge. */
   riders?: Map<Element, number>
 }
 
 export type PaneBoxes = Partial<Record<Pane, PaneBox>>
 
-/** Which panes show: focus mode hides the sidebar and the list, the toggle the sidebar. */
 export const shownPanes = (panes: {
   focus: boolean
   sidebarOff: boolean
@@ -34,7 +30,6 @@ export const shownPanes = (panes: {
   content: true,
 })
 
-/** What a pane does across a change. */
 export type PaneMove =
   | { kind: 'slide'; dx: number }
   | { kind: 'fade-in' }
@@ -128,7 +123,6 @@ export function measurePanes(shown: Record<Pane, boolean>): PaneBoxes {
   return boxes
 }
 
-/** `before`: measured by `measurePanes` before the window changed. */
 export function movePanes(before: PaneBoxes, shown: Record<Pane, boolean>): void {
   for (const animation of fades.splice(0)) animation.cancel()
   const reduced = motionReduced()

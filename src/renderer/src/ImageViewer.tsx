@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import { format, t } from './i18n'
 import { resizeFrom } from './resizeMotion'
 
-/** An image to show: its address and its alt text. */
 export interface ViewedImage {
   src: string
   alt: string
@@ -19,7 +18,6 @@ export function ImageViewer({ image, onClose }: { image: ViewedImage; onClose: (
   const dialog = useRef<HTMLDialogElement>(null)
   const close = useRef<HTMLButtonElement>(null)
   const [actual, setActual] = useState(false)
-  // Fit and Actual Size ease the image from the box it had (resizeMotion.ts).
   const shown = useRef<HTMLImageElement>(null)
   const zoomedFrom = useRef<DOMRect | null>(null)
   const zoom = (next: (was: boolean) => boolean) => {
@@ -65,7 +63,6 @@ export function ImageViewer({ image, onClose }: { image: ViewedImage; onClose: (
     event.preventDefault()
     const at = stops.findIndex((el) => el === document.activeElement)
     const step = event.shiftKey ? -1 : 1
-    // From outside the stops, the first (or last) one.
     const to =
       at < 0 ? (step > 0 ? 0 : stops.length - 1) : (at + step + stops.length) % stops.length
     stops[to]?.focus()

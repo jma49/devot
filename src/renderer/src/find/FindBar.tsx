@@ -14,7 +14,6 @@ interface Props {
   replacement: string
   regexp: boolean
   caseSensitive: boolean
-  /** Shows the replace row (only for a pane that can replace). */
   replace: boolean
   status: FindStatus
   onQuery: (query: string) => void
@@ -28,7 +27,6 @@ interface Props {
   onClose: () => void
 }
 
-/** What the bar says about the matches, or nothing before a query. */
 export function statusText(query: string, status: FindStatus, locale: string): string {
   if (query === '') return ''
   if (status.invalid) return t('find.invalid')
@@ -43,12 +41,10 @@ export function statusText(query: string, status: FindStatus, locale: string): s
   })
 }
 
-/** Keeps the keyboard in the field when a button is clicked. */
 const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault()
 
 function BarButton(props: {
   label: MessageKey
-  /** The tooltip; the label without one. */
   title?: string
   pressed?: boolean
   className: string
@@ -74,7 +70,6 @@ function BarButton(props: {
   )
 }
 
-/** Field props shared by the find and replace fields: text, not prose. */
 const textField = {
   type: 'text',
   autoCorrect: 'off',
@@ -82,10 +77,6 @@ const textField = {
   spellCheck: false,
 } as const
 
-/**
- * The find bar over the open note: a query with its options, the matches,
- * and (for the editor) replacing. Escape is handled by `useFind`.
- */
 export function FindBar({ fieldRef, barRef, ...props }: Props) {
   useKeymap()
   const { status } = props

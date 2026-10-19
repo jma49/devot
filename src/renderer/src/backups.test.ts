@@ -3,7 +3,6 @@ import { restoreBackup } from './backups'
 
 const global = globalThis as { window?: unknown }
 
-/** Tauri's IPC as the page sees it: records each command, answers with `answer`. */
 function commands(log: string[], answer: () => Promise<unknown>) {
   global.window = {
     __TAURI_INTERNALS__: {
@@ -19,7 +18,6 @@ afterEach(() => {
   delete global.window
 })
 
-/** Compaction that records its calls; hold finishes only when `finish` is called. */
 function compaction(log: string[]) {
   let finish = () => {}
   const running = new Promise<void>((resolve) => (finish = resolve))
