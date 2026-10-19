@@ -66,7 +66,6 @@ pub const EXPORT_DIAGNOSTICS: &str = "Export Diagnostics…";
 pub const QUIT: &str = "Quit Devot";
 pub const SETTINGS: &str = "Settings…";
 pub const BACKUPS: &str = "Backups…";
-/// Devot > Check for Updates…, by the updater's state (see `updates`).
 pub const UPDATES_CHECK: &str = "Check for Updates…";
 pub const UPDATES_CHECKING: &str = "Checking for Updates…";
 pub const UPDATES_DOWNLOADING: &str = "Downloading Update…";
@@ -74,13 +73,8 @@ pub const UPDATES_RESTART: &str = "Restart to Update";
 pub const SETTINGS_TITLE: &str = "Settings";
 pub const MIRROR_FOLDER_TITLE: &str = "Choose a Folder for the Markdown Mirror";
 pub const FONT_IMPORT_TITLE: &str = "Import a Font for the Editor";
-/// The file type the font panel offers.
 pub const FONT_FILTER: &str = "Fonts";
-/// What a mirrored file edited outside Devot is kept as: `Plan (edited outside Devot).md`.
 pub const MIRROR_EDITED_SUFFIX: &str = " (edited outside Devot)";
-/// A launch that cannot open the notes (`startup.rs`): the alert's title,
-/// what it says by the failure's kind, then where the notes are and the
-/// code.
 pub const STARTUP_FAILED_TITLE: &str = "Devot Can\u{2019}t Open Your Notes";
 pub const STARTUP_IN_USE_TITLE: &str = "Devot Is Already Open";
 pub const STARTUP_IN_USE: &str =
@@ -93,8 +87,6 @@ pub const STARTUP_UNWRITABLE: &str = "Devot can\u{2019}t write to its data folde
 pub const STARTUP_BUSY: &str =
     "Another program kept the notes database busy. Open Devot again in a moment.";
 pub const STARTUP_OTHER: &str = "Something went wrong while Devot was starting.";
-/// The alert's last lines: the data folder (when its path is known) and the
-/// code, filled in for `{folder}` and `{code}`.
 pub const STARTUP_FOLDER: &str = "Data folder: {folder}";
 pub const STARTUP_CODE: &str = "Code: {code}";
 

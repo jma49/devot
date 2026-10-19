@@ -1,13 +1,4 @@
-//! The Settings window (Devot > Settings..., Cmd+,): a column of panes on
-//! the left, one shown at a time in a window of a fixed size (a longer pane
-//! scrolls). Its capability (`capabilities/settings.json`) grants
-//! only what its panes need: the editor settings (see `editor_settings`),
-//! the keyboard shortcuts, the Markdown mirror's setting, reading and
-//! clearing the local usage events, opening the app's data folder in Finder
-//! (`settings_open_data_folder`, which takes no path), showing the main
-//! window's Backups dialog (`settings_show_backups`) and where devot-mcp
-//! and the database are, for the Integrations pane's client configs
-//! (`settings_mcp_setup`).
+//! The Settings window (Cmd+,): a column of panes, one shown at a time in a window of a fixed size. Its capability (`capabilities/settings.json`) grants only what its panes need.
 
 use std::path::Path;
 use std::process::Command;
@@ -18,12 +9,9 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 pub const LABEL: &str = "settings";
 const PAGE: &str = "settings.html";
 
-/// The window's content width.
 const WIDTH: f64 = 820.0;
-/// Its content height; a longer pane scrolls.
 const HEIGHT: f64 = 640.0;
 
-/// Opens the Settings window, or brings it to the front when it is open.
 pub fn open(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(LABEL) {
         if window.unminimize().and(window.set_focus()).is_err() {
@@ -31,7 +19,6 @@ pub fn open(app: &AppHandle) {
         }
         return;
     }
-    // The appearance chosen in Settings, or the system's.
     let theme = app
         .try_state::<std::sync::Arc<crate::editor_settings::EditorSettingsStore>>()
         .and_then(|store| store.get().ok())
@@ -67,9 +54,7 @@ fn open_folder_command(folder: &Path) -> Result<Command, &'static str> {
     Ok(open)
 }
 
-/// Settings > General > Open Data Folder: shows the folder Devot keeps its
-/// notes, backups, logs and settings in (`data_folder`) in Finder. It takes
-/// no path, so the page can open no other folder.
+/// Takes no path, so the page can open no other folder.
 #[tauri::command]
 pub fn settings_open_data_folder(app: AppHandle) -> Result<(), String> {
     let folder = app
@@ -82,9 +67,6 @@ pub fn settings_open_data_folder(app: AppHandle) -> Result<(), String> {
         .map_err(|_| String::from("E_DATA_FOLDER_OPEN_FAILED"))
 }
 
-/// Settings > General > Backups: does what Devot > Backups... does (the
-/// main window shows its Backups dialog) and brings the main window to the
-/// front, where the dialog is.
 #[tauri::command]
 pub fn settings_show_backups(app: AppHandle) -> Result<(), String> {
     let main = app
@@ -109,7 +91,6 @@ pub struct McpSetup {
     db: Option<String>,
 }
 
-/// The setup for an app built from `checkout`, keeping its data in `data_dir`.
 fn mcp_setup(checkout: &Path, data_dir: &Path, debug: bool) -> McpSetup {
     let script = checkout.join("dist-mcp").join("devot-mcp.mjs");
     let text = |path: &Path| path.to_str().map(String::from);
@@ -127,8 +108,6 @@ fn mcp_setup(checkout: &Path, data_dir: &Path, debug: bool) -> McpSetup {
     }
 }
 
-/// Settings > Integrations: where devot-mcp and the database are, for the
-/// configs the pane offers to copy. Takes no arguments.
 #[tauri::command]
 pub fn settings_mcp_setup(app: AppHandle) -> Result<McpSetup, String> {
     let data_dir = app

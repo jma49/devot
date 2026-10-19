@@ -1,8 +1,4 @@
-//! Outside changes: devot-mcp (or anything else) writing to the database
-//! while Devot runs. A thread asks SQLite every `EVERY` whether another
-//! connection has committed (`PRAGMA data_version` on the app's own
-//! connection, which ignores the app's own writes) and tells the window,
-//! which merges the changes into the notes it holds and reloads its lists.
+//! Outside changes (devot-mcp or anything else writing to the database while Devot runs): a thread polls `PRAGMA data_version`, which ignores the app's own writes, and tells the window to merge and reload.
 
 use crate::storage::Db;
 use std::time::Duration;
@@ -11,14 +7,12 @@ use tauri::{AppHandle, Emitter, Manager};
 pub const CHANGED_EVENT: &str = "devot://db-changed";
 const EVERY: Duration = Duration::from_secs(1);
 
-/// Remembers the last `data_version` seen; the first reading is the baseline.
 #[derive(Debug, Default)]
 pub struct ChangeWatch {
     last: Option<u32>,
 }
 
 impl ChangeWatch {
-    /// Takes a new reading; true when it differs from the one before.
     pub fn changed(&mut self, version: u32) -> bool {
         let changed = self.last.is_some_and(|last| last != version);
         self.last = Some(version);
@@ -26,7 +20,6 @@ impl ChangeWatch {
     }
 }
 
-/// Polls for outside changes for the life of the app.
 pub fn start(app: &AppHandle) {
     let app = app.clone();
     let spawned = std::thread::Builder::new()
@@ -45,7 +38,6 @@ pub fn start(app: &AppHandle) {
                             log::warn!("W_WATCH_EVENT_FAILED");
                         }
                     }
-                    // Logged once per run of failures, not every second.
                     Err(error) if !failing => {
                         failing = true;
                         log::warn!("W_WATCH_READ_FAILED {error}");

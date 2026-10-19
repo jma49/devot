@@ -1,16 +1,11 @@
-//! Usage events (see `src/core/usage.ts`), kept on this device only. They
-//! live in their own small database, `<app data>/usage.sqlite`, not in the
-//! notes database: they never sync, never go into backups (so restoring one
-//! cannot bring back cleared events), and devot-mcp never opens the file.
-//!
-//! The store is bounded: each write (and each listing) drops events older
-//! than `Limits::max_age_ms` and keeps only the newest `Limits::max_events`.
-//! Deleted rows are zeroed in the file (`secure_delete`), and clearing also
-//! empties the write-ahead log, so cleared events are not left in either.
-//! Events are disposable: the file uses WAL with `synchronous = NORMAL`, so a
-//! write costs no flush to disk, and a crash can lose the latest events only. The UI checks every event against its typed catalog; this
-//! module checks the shape again: a dotted lowercase name, and at most 16
-//! properties whose values are short lowercase tokens or whole numbers, so a
+//! Usage events (see `src/core/usage.ts`), kept on this device only in their own database, `<app
+//! data>/usage.sqlite`: they never sync, never go into backups (so restoring one cannot bring back
+//! cleared events), and devot-mcp never opens the file.
+//! The store is bounded: each write and listing drops events past `Limits::max_age_ms` and keeps
+//! the newest `Limits::max_events`. Deleted rows are zeroed in the file (`secure_delete`) and
+//! clearing also empties the write-ahead log. Events are disposable: WAL with `synchronous =
+//! NORMAL` costs no flush per write, and a crash can lose the latest events only.
+//! The UI checks every event against its typed catalog; this module checks the shape again, so a
 //! title or a sentence cannot be stored even by a faulty caller.
 
 use rusqlite::{Connection, params};
@@ -37,10 +32,8 @@ const MAX_NAME_LEN: usize = 64;
 const MAX_PROPERTIES: usize = 16;
 const MAX_KEY_LEN: usize = 32;
 const MAX_TOKEN_LEN: usize = 32;
-/// The largest whole number JavaScript represents exactly.
 const MAX_NUMBER: u64 = (1 << 53) - 1;
 
-/// How much the store keeps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
     pub max_events: i64,
@@ -57,7 +50,6 @@ impl Limits {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct UsageEvent {
     pub id: i64,
-    /// Milliseconds since the epoch, when the event was recorded.
     pub at: i64,
     pub name: String,
     pub properties: Value,
@@ -73,14 +65,12 @@ pub fn valid_name(name: &str) -> bool {
         })
 }
 
-/// `camelCase`, starting with a lowercase letter.
 fn valid_key(key: &str) -> bool {
     key.len() <= MAX_KEY_LEN
         && key.starts_with(|c: char| c.is_ascii_lowercase())
         && key.chars().all(|c| c.is_ascii_alphanumeric())
 }
 
-/// An enum value: a short lowercase token such as `new_note` or `2-5`.
 fn valid_token(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_TOKEN_LEN
@@ -90,7 +80,6 @@ fn valid_token(value: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "_+-".contains(c))
 }
 
-/// Checks an event's shape; returns the error code when it is not one.
 pub fn validate(name: &str, properties: &Map<String, Value>) -> Result<(), &'static str> {
     if !valid_name(name) {
         return Err("E_USAGE_NAME_INVALID");
@@ -167,7 +156,6 @@ impl UsageLog {
             "DELETE FROM usage_events WHERE at < ?1",
             [now.saturating_sub(self.limits.max_age_ms)],
         )?;
-        // Everything up to the first event past the newest `max_events`.
         conn.execute(
             "DELETE FROM usage_events WHERE id <=
                (SELECT id FROM usage_events ORDER BY id DESC LIMIT 1 OFFSET ?1)",
@@ -176,7 +164,6 @@ impl UsageLog {
         Ok(())
     }
 
-    /// Stores an event at `now`, then applies the limits.
     pub fn record(
         &self,
         name: &str,
@@ -196,8 +183,7 @@ impl UsageLog {
         })
     }
 
-    /// The stored events, newest first (in the order they were recorded,
-    /// whatever the clock did), after applying the limits at `now`.
+    /// Newest first, in the order recorded, whatever the clock did.
     pub fn list(&self, now: i64) -> Result<Vec<UsageEvent>, &'static str> {
         self.with(|conn| {
             self.prune(conn, now)?;
@@ -205,13 +191,11 @@ impl UsageLog {
         })
     }
 
-    /// What is on disk, without applying the limits first.
     #[cfg(test)]
     fn stored(&self) -> Vec<UsageEvent> {
         self.with(|conn| select_all(conn)).unwrap()
     }
 
-    /// Deletes every stored event, and the log's copies of them.
     pub fn clear(&self) -> Result<(), &'static str> {
         self.with(|conn| {
             conn.execute("DELETE FROM usage_events", [])?;
@@ -244,26 +228,22 @@ async fn blocking<T: Send + 'static>(
         .map_err(String::from)
 }
 
-/// Records one event (main window).
 #[tauri::command]
 pub async fn usage_record(
     log: State<'_, Arc<UsageLog>>,
     name: String,
     properties: Map<String, Value>,
 ) -> Result<(), String> {
-    // `record` checks the event before storing it.
     let log = Arc::clone(&log);
     blocking(move || log.record(&name, &properties, crate::logs::now_ms())).await
 }
 
-/// The stored events, newest first (Settings window).
 #[tauri::command]
 pub async fn usage_list(log: State<'_, Arc<UsageLog>>) -> Result<Vec<UsageEvent>, String> {
     let log = Arc::clone(&log);
     blocking(move || log.list(crate::logs::now_ms())).await
 }
 
-/// Deletes every stored event (Settings window).
 #[tauri::command]
 pub async fn usage_clear(log: State<'_, Arc<UsageLog>>) -> Result<(), String> {
     let log = Arc::clone(&log);
@@ -414,7 +394,6 @@ mod tests {
         log.record("a.edge", &Map::new(), T0 + 500).unwrap();
         // Exactly at the limit is kept; a millisecond more is not.
         log.record("a.new", &Map::new(), T0 + 1500).unwrap();
-        // Writing alone prunes the file; nothing has been listed yet.
         assert_eq!(stored_names(&log), ["a.new", "a.edge"].map(String::from));
         log.record("a.newer", &Map::new(), T0 + 1501).unwrap();
         assert_eq!(stored_names(&log), ["a.newer", "a.new"].map(String::from));
@@ -437,7 +416,6 @@ mod tests {
         log.record("a.old", &Map::new(), T0).unwrap();
         assert_eq!(names(&log, T0 + 1000).len(), 1);
         assert!(log.list(T0 + 1001).unwrap().is_empty());
-        // Gone for good, not just hidden.
         assert!(log.list(T0).unwrap().is_empty());
     }
 
@@ -455,7 +433,6 @@ mod tests {
             log.record("a.event", &props(json!({ "n": i })), T0 + i)
                 .unwrap();
         }
-        // Writing alone keeps the file bounded; nothing has been listed yet.
         let on_disk: Vec<Value> = log
             .stored()
             .into_iter()
@@ -481,7 +458,6 @@ mod tests {
         assert_eq!(names(&reopened, T0).len(), 1);
         reopened.clear().unwrap();
         assert!(reopened.list(T0).unwrap().is_empty());
-        // No copy of the event is left in the database or its log.
         for entry in std::fs::read_dir(dir.path()).unwrap() {
             let bytes = std::fs::read(entry.unwrap().path()).unwrap();
             assert!(!bytes.windows(12).any(|w| w == b"note.created"));

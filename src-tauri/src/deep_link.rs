@@ -1,30 +1,17 @@
-//! The app's URL scheme, registered with macOS through the bundle's
-//! Info.plist (`plugins.deep-link` in tauri.conf.json): another app opening
-//! `devot://note/<id>` brings Devot forward (launching it if needed) and opens
-//! the note; `devot://command/<id>` runs one of [`URL_COMMANDS`], a few
-//! commands that only show something. Debug builds answer to `devot-dev://`
-//! instead ([`SCHEME`], `tauri.debug.conf.json`), so a development bundle
-//! never takes the links meant for an installed Devot.
-//!
-//! Every URL is checked here, whole, before the page sees anything of it:
-//! the page gets a [`Link`] (a note ID in canonical UUIDv7 form, or a
-//! command from the list), never the URL. A URL refused is logged by its
-//! code alone (`W_DEEP_LINK_REFUSED`), never its text.
-//!
-//! The same scheme also names attachments inside the window
-//! (`devot://file/<id>`, `register_asynchronous_uri_scheme_protocol` in
-//! lib.rs). That protocol lives in the web view alone; this module refuses
-//! such a URL if another app sends one.
-//!
-//! Links wait in an [`Inbox`] until the main window has started and asked for
-//! them (`deep_link_take`; again after a reload), and while the Settings
-//! window is open: they are delivered, in order, once it has closed. Sheets
-//! inside the main window hold links back in the page itself (`deepLink.ts`).
-//!
-//! A second launch of the app (its binary started again, with a URL among its
-//! arguments or none) does not open the data folder: the single-instance
-//! plugin hands its arguments to this process ([`on_second_instance`]) and
-//! ends it.
+//! The app's URL scheme, registered with macOS through the bundle's Info.plist (`plugins.deep-link`
+//! in tauri.conf.json): `devot://note/<id>` opens the note and `devot://command/<id>` runs one of
+//! [`URL_COMMANDS`]. Debug builds answer to `devot-dev://` instead ([`SCHEME`]), so a development
+//! bundle never takes the links meant for an installed Devot.
+//! Every URL is checked here, whole, before the page sees anything of it: the page gets a [`Link`],
+//! never the URL. A refused URL is logged by its code alone (`W_DEEP_LINK_REFUSED`), never its
+//! text.
+//! `devot://file/<id>` names attachments inside the window
+//! (`register_asynchronous_uri_scheme_protocol` in lib.rs); that protocol lives in the web view
+//! alone and this module refuses such a URL from another app.
+//! Links wait in an [`Inbox`] until the main window has asked for them (`deep_link_take`; again
+//! after a reload) and while the Settings window is open. A second launch does not open the data
+//! folder: the single-instance plugin hands its arguments to this process ([`on_second_instance`])
+//! and ends it.
 
 use std::collections::VecDeque;
 use std::sync::Mutex;
@@ -37,11 +24,8 @@ use tauri_plugin_deep_link::DeepLinkExt;
 use crate::commands::notes::valid_note_id;
 use crate::{MAIN_WINDOW, settings};
 
-/// The scheme of a release build.
 pub(crate) const RELEASE_SCHEME: &str = "devot";
-/// The scheme of a debug build (`pnpm build:debug`, `pnpm dev`, tests).
 pub(crate) const DEBUG_SCHEME: &str = "devot-dev";
-/// The scheme this build answers to.
 pub(crate) const SCHEME: &str = if cfg!(debug_assertions) {
     DEBUG_SCHEME
 } else {
@@ -68,26 +52,18 @@ pub(crate) const URL_COMMANDS: &[&str] = &[
 
 /// Longer than any URL accepted (`devot-dev://note/` and an ID is 53).
 const MAX_URL_LEN: usize = 96;
-/// The most URLs taken from one event or one second launch.
 const MAX_PER_EVENT: usize = 4;
-/// The most links held while the window cannot take them; later ones are dropped.
 const MAX_HELD: usize = 16;
-/// The event that brings a link to the main window.
 pub(crate) const EVENT: &str = "devot://open-url";
 
-/// What a URL asks for, checked.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Link {
-    /// Open the note with this ID.
     Note { id: String },
-    /// Run this command (one of [`URL_COMMANDS`]).
     Command { id: &'static str },
 }
 
-/// Reads `url` as `<scheme>://note/<id>` or `<scheme>://command/<id>`, exactly:
-/// no query, fragment, escapes, trailing slash or other case. Returns the
-/// code of the refusal otherwise.
+/// Exact: no query, fragment, escapes, trailing slash or other case. Returns the code of the refusal otherwise.
 pub(crate) fn parse(url: &str, scheme: &str) -> Result<Link, &'static str> {
     if url.len() > MAX_URL_LEN {
         return Err("E_URL_TOO_LONG");
@@ -111,20 +87,16 @@ pub(crate) fn parse(url: &str, scheme: &str) -> Result<Link, &'static str> {
     }
 }
 
-/// Links on their way to the main window.
 #[derive(Debug, Default)]
 pub(crate) struct Inbox {
     /// The page has asked for the links (it listens from then on), and has
     /// not reloaded since.
     ready: bool,
-    /// The Settings window is open (set as it opens and once it is gone).
     settings_open: bool,
     held: VecDeque<Link>,
 }
 
 impl Inbox {
-    /// A link has come: the links to deliver now, in order (none while the
-    /// page is not ready or Settings is open: the link is held then).
     fn arrive(&mut self, link: Link) -> Vec<Link> {
         if self.held.len() < MAX_HELD {
             self.held.push_back(link);
@@ -134,24 +106,20 @@ impl Inbox {
         self.release()
     }
 
-    /// The page asks for the links held; it is ready from now on.
     fn take(&mut self) -> Vec<Link> {
         self.ready = true;
         self.release()
     }
 
-    /// The page is loading again (a reload): it listens only once it asks.
     fn page_started(&mut self) {
         self.ready = false;
     }
 
-    /// Settings opened or closed: the links held, once it has closed.
     fn settings(&mut self, open: bool) -> Vec<Link> {
         self.settings_open = open;
         self.release()
     }
 
-    /// The links held, when they can be delivered now.
     fn release(&mut self) -> Vec<Link> {
         if !self.ready || self.settings_open {
             return Vec::new();
@@ -160,7 +128,6 @@ impl Inbox {
     }
 }
 
-/// The app's [`Inbox`] (managed).
 #[derive(Default)]
 pub struct DeepLinks(Mutex<Inbox>);
 
@@ -198,8 +165,6 @@ pub(crate) fn listen(app: &tauri::App) {
     });
 }
 
-/// Another launch of the app handed over its arguments and ended: Devot
-/// comes forward, and each URL of this build's scheme among them is taken.
 pub(crate) fn on_second_instance<R: Runtime>(app: &AppHandle<R>, args: Vec<String>, _cwd: String) {
     bring_forward(app);
     let prefix = format!("{SCHEME}:");
@@ -213,7 +178,6 @@ pub(crate) fn on_second_instance<R: Runtime>(app: &AppHandle<R>, args: Vec<Strin
     }
 }
 
-/// Checks a URL and passes its link on, bringing Devot forward.
 fn receive<R: Runtime>(app: &AppHandle<R>, url: &str) {
     let link = match parse(url, SCHEME) {
         Ok(link) => link,
@@ -228,8 +192,6 @@ fn receive<R: Runtime>(app: &AppHandle<R>, url: &str) {
     }
 }
 
-/// Shows the window the user should see: Settings while it is open,
-/// otherwise the main window.
 fn bring_forward<R: Runtime>(app: &AppHandle<R>) {
     let window = app
         .get_webview_window(settings::LABEL)
@@ -247,14 +209,12 @@ fn bring_forward<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// The Settings window has opened (`settings::open`): links wait for it.
 pub(crate) fn settings_opened<R: Runtime>(app: &AppHandle<R>) {
     if let Some(links) = app.try_state::<DeepLinks>() {
         links.update(app, |inbox| inbox.settings(true));
     }
 }
 
-/// Delivers the links held while Settings was open, once it is gone.
 pub(crate) fn on_window_event(window: &Window, event: &WindowEvent) {
     if window.label() != settings::LABEL || !matches!(event, WindowEvent::Destroyed) {
         return;
@@ -265,8 +225,6 @@ pub(crate) fn on_window_event(window: &Window, event: &WindowEvent) {
     }
 }
 
-/// The main window's page has started loading (again, after a reload): links
-/// wait until it asks for them.
 pub(crate) fn on_page_load<R: Runtime>(webview: &tauri::Webview<R>, payload: &PageLoadPayload<'_>) {
     if webview.label() != MAIN_WINDOW || payload.event() != PageLoadEvent::Started {
         return;
@@ -276,15 +234,11 @@ pub(crate) fn on_page_load<R: Runtime>(webview: &tauri::Webview<R>, payload: &Pa
     }
 }
 
-/// The main window has started (its last view restored) and listens for
-/// links from now on: the links held for it.
 #[tauri::command]
 pub fn deep_link_take(links: tauri::State<'_, DeepLinks>) -> Vec<Link> {
     links.with(Inbox::take)
 }
 
-/// Where the single-instance plugin keeps its socket for `identifier`
-/// (its own naming, in the shared `/tmp`).
 fn single_instance_socket(identifier: &str) -> std::path::PathBuf {
     let name = identifier.replace(['.', '-'], "_");
     std::path::PathBuf::from(format!("/tmp/{name}_si.sock"))
@@ -299,10 +253,7 @@ fn socket_trusted(found: Option<(bool, u32)>, uid: Option<u32>) -> bool {
     found.is_none_or(|(is_socket, owner)| is_socket && Some(owner) == uid)
 }
 
-/// Whether the single-instance plugin may run: see [`socket_trusted`]. The
-/// user Devot runs for is the owner of its home folder (where its data
-/// lives). When the plugin may not run, the data-folder lock still keeps a
-/// second Devot out.
+/// When the plugin may not run, the data-folder lock still keeps a second Devot out.
 pub(crate) fn single_instance_socket_trusted(identifier: &str) -> bool {
     use std::os::unix::fs::{FileTypeExt, MetadataExt};
     let found = match std::fs::symlink_metadata(single_instance_socket(identifier)) {
@@ -336,7 +287,6 @@ mod tests {
 
     #[test]
     fn this_build_answers_to_the_debug_scheme() {
-        // Test builds are debug builds, like `pnpm dev` and debug bundles.
         assert_eq!(SCHEME, "devot-dev");
     }
 
@@ -381,9 +331,7 @@ mod tests {
         for id in [
             "",
             "not-an-id",
-            // A v4 UUID.
             "9b2e4c1a-6f3d-4e8a-9c7b-1d2e3f4a5b6c",
-            // Upper case, braces, no hyphens.
             "01890A5D-AC96-774B-BCCE-B302099A8057",
             "{01890a5d-ac96-774b-bcce-b302099a8057}",
             "01890a5dac96774bbcceb302099a8057",
@@ -469,7 +417,6 @@ mod tests {
         assert!(inbox.arrive(note()).is_empty());
         assert!(inbox.arrive(command("view.trash")).is_empty());
         assert_eq!(inbox.take(), vec![note(), command("view.trash")]);
-        // From then on a link goes straight through.
         assert_eq!(
             inbox.arrive(command("view.edit")),
             vec![command("view.edit")]
@@ -484,7 +431,6 @@ mod tests {
         assert!(inbox.settings(true).is_empty());
         assert!(inbox.arrive(note()).is_empty());
         assert!(inbox.arrive(command("view.focus")).is_empty());
-        // Settings closed: delivered in order, once.
         assert_eq!(inbox.settings(false), vec![note(), command("view.focus")]);
         assert!(inbox.release().is_empty());
     }

@@ -1,15 +1,9 @@
-//! The editor's own fonts (Settings > Editor > Font Family): a font
-//! installed on this Mac, by family name, or a font file the user imported.
-//!
-//! Installed fonts are listed by AppKit (`fonts_installed`). For an import, the user picks a
-//! font file in a native panel; it is checked here (its type, from the name
-//! and the file's first bytes, and its size) and copied into
-//! `<app data>/fonts/`, so it never leaves this device and keeps working when
-//! the original moves. The editor settings name the one in use
-//! (`customFont`); the main window reads its bytes back (`font_read`) and
-//! loads them as a font face of its own, so the web view never names a path.
-//! A file that is gone or no longer valid is refused here, and the window
-//! falls back to the default font.
+//! The editor's own fonts (Settings > Editor > Font Family): a font installed on this Mac, or a
+//! font file the user imported. An import is checked here (type from the name and first bytes,
+//! size) and copied into `<app data>/fonts/`, so it keeps working when the original moves. The main
+//! window reads the bytes back (`font_read`) and loads them as a font face, so the web view never
+//! names a path. A file that is gone or no longer valid is refused and the window falls back to the
+//! default font.
 
 use crate::atomic_file::{Folder, Place};
 use serde::Serialize;
@@ -20,16 +14,11 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
 pub const DIR: &str = "fonts";
-/// The largest font file accepted: a CJK font with every weight in one file
-/// still fits.
+/// A CJK font with every weight in one file still fits.
 pub const MAX_BYTES: u64 = 50 * 1024 * 1024;
-/// The longest file stem a font is stored under, in characters.
 const STEM_MAX: usize = 64;
-/// How many names an import tries (`Name.ttf`, `Name 2.ttf`, ...).
 const NAME_TRIES: u32 = 100;
-/// The longest installed font family name, in characters.
 const FAMILY_MAX: usize = 128;
-/// The extensions accepted, lowercase; a file's first bytes must match.
 const EXTENSIONS: [&str; 4] = ["ttf", "otf", "woff", "woff2"];
 
 const INVALID: &str = "E_FONT_INVALID";
@@ -37,15 +26,12 @@ const TOO_LARGE: &str = "E_FONT_TOO_LARGE";
 const MISSING: &str = "E_FONT_MISSING";
 const FAILED: &str = "E_FONT_FAILED";
 
-/// An imported font: its file name (the ID the settings keep) and the name
-/// Settings shows.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FontFile {
     pub id: String,
     pub name: String,
 }
 
-/// The fonts folder of the app's data folder.
 pub struct Fonts {
     dir: PathBuf,
 }
@@ -61,7 +47,6 @@ impl Fonts {
         Folder::open(&self.dir).map_err(|_| MISSING)
     }
 
-    /// Checks the file at `path` and stores a copy; the stored file's entry.
     pub fn import(&self, path: &Path) -> Result<FontFile, &'static str> {
         let file_name = path.file_name().and_then(OsStr::to_str).ok_or(INVALID)?;
         let id = stored_name(file_name).ok_or(INVALID)?;
@@ -87,7 +72,6 @@ impl Fonts {
         Err(FAILED)
     }
 
-    /// The stored fonts, by name; none when the folder does not exist yet.
     pub fn list(&self) -> Vec<FontFile> {
         let Ok(folder) = self.folder() else {
             return Vec::new();
@@ -104,8 +88,7 @@ impl Fonts {
         out
     }
 
-    /// The bytes of a stored font, checked again (the file may have been
-    /// replaced since it was imported).
+    /// Checked again: the file may have been replaced since it was imported.
     pub fn read(&self, id: &str) -> Result<Vec<u8>, &'static str> {
         if !valid_id(id) {
             return Err(INVALID);
@@ -128,7 +111,7 @@ fn entry(id: String) -> FontFile {
     }
 }
 
-/// Reads at most `MAX_BYTES`; a longer file is refused.
+/// A file longer than `MAX_BYTES` is refused.
 fn read_limited(file: std::fs::File) -> Result<Vec<u8>, &'static str> {
     let mut bytes = Vec::new();
     file.take(MAX_BYTES + 1)
@@ -145,9 +128,7 @@ fn extension(name: &str) -> Option<&str> {
     EXTENSIONS.into_iter().find(|e| *e == ext)
 }
 
-/// A stored font's file name: a stem of letters, digits, spaces, `-` and
-/// `_` (not starting with a space or `.`) and one of the extensions,
-/// lowercase. The same check runs in the web view (src/core/editorSettings.ts).
+/// The same check runs in the web view (src/core/editorSettings.ts).
 pub fn valid_id(id: &str) -> bool {
     let Some((stem, _)) = id.rsplit_once('.') else {
         return false;
@@ -161,10 +142,8 @@ pub fn valid_id(id: &str) -> bool {
             .all(|c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '_')
 }
 
-/// An installed font's family name: letters, digits, spaces and `-_.&+()`,
-/// not starting with a space or `.` (the system's hidden families). The same
-/// check runs in the web view (src/core/editorSettings.ts). It keeps quotes
-/// and backslashes out of the CSS font list the name goes into.
+/// It keeps quotes and backslashes out of the CSS font list the name goes into. The same check runs
+/// in the web view (src/core/editorSettings.ts).
 pub fn valid_family_name(name: &str) -> bool {
     let allowed = |c: char| c.is_alphanumeric() || " -_.&+()".contains(c);
     !name.is_empty()
@@ -173,7 +152,6 @@ pub fn valid_family_name(name: &str) -> bool {
         && name.chars().all(allowed)
 }
 
-/// Family names as Settings lists them: valid ones only, once each, by name.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn family_list(names: impl IntoIterator<Item = String>) -> Vec<String> {
     let mut out: Vec<String> = names.into_iter().filter(|n| valid_family_name(n)).collect();
@@ -182,9 +160,6 @@ fn family_list(names: impl IntoIterator<Item = String>) -> Vec<String> {
     out
 }
 
-/// The name a picked file is stored under: its stem with anything outside
-/// `valid_id` replaced by `_`, cut to `STEM_MAX`, and its extension in
-/// lowercase. None for a file without one of the extensions.
 fn stored_name(file_name: &str) -> Option<String> {
     let (stem, ext) = file_name.rsplit_once('.')?;
     let ext = ext.to_ascii_lowercase();
@@ -205,7 +180,6 @@ fn stored_name(file_name: &str) -> Option<String> {
     valid_id(&id).then_some(id)
 }
 
-/// `id` with ` n` after its stem from 2 on, the stem cut to keep it valid.
 fn numbered(id: &str, n: u32) -> String {
     if n == 1 {
         return id.to_string();
@@ -216,9 +190,8 @@ fn numbered(id: &str, n: u32) -> String {
     format!("{stem}{suffix}.{ext}")
 }
 
-/// The file's first bytes match its extension: an OpenType or TrueType font
-/// for `.ttf` and `.otf` (either outline kind, as files are often named
-/// for the other), WOFF or WOFF2.
+/// An OpenType or TrueType font for `.ttf` and `.otf` (either outline kind, as files are often
+/// named for the other), WOFF or WOFF2.
 fn check_bytes(id: &str, bytes: &[u8]) -> Result<(), &'static str> {
     let head = bytes.get(..4).ok_or(INVALID)?;
     let sfnt = matches!(head, [0, 1, 0, 0] | b"OTTO" | b"true");
@@ -231,7 +204,6 @@ fn check_bytes(id: &str, bytes: &[u8]) -> Result<(), &'static str> {
     if ok { Ok(()) } else { Err(INVALID) }
 }
 
-/// Runs file work off the async runtime's worker threads.
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
 ) -> Result<T, String> {
@@ -241,8 +213,6 @@ async fn blocking<T: Send + 'static>(
         .map_err(String::from)
 }
 
-/// Asks for a font file and imports it; None when the user cancelled
-/// (Settings window).
 #[tauri::command]
 pub async fn font_import(
     app: AppHandle,
@@ -266,8 +236,7 @@ pub async fn font_import(
     blocking(move || Fonts::new(&dir).import(&picked).map(Some)).await
 }
 
-/// The font families installed on this Mac (Settings window). AppKit is
-/// read on the main thread.
+/// AppKit is read on the main thread.
 #[tauri::command]
 pub async fn fonts_installed(app: AppHandle) -> Result<Vec<String>, String> {
     #[cfg(target_os = "macos")]
@@ -287,15 +256,12 @@ pub async fn fonts_installed(app: AppHandle) -> Result<Vec<String>, String> {
     }
 }
 
-/// The imported fonts (Settings window).
 #[tauri::command]
 pub async fn fonts_list(fonts: State<'_, std::sync::Arc<Fonts>>) -> Result<Vec<FontFile>, String> {
     let fonts = std::sync::Arc::clone(&fonts);
     blocking(move || Ok(fonts.list())).await
 }
 
-/// An imported font's bytes, for the window to load as a font face (main
-/// window).
 #[tauri::command]
 pub async fn font_read(
     fonts: State<'_, std::sync::Arc<Fonts>>,

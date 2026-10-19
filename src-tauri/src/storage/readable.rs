@@ -1,18 +1,13 @@
-//! The readable text of a note body: what a search result's excerpt shows.
-//! A leading front matter block is skipped and Markdown markers come out,
-//! while text that only looks like syntax stays, so what is left reads as
-//! text, with each run of whitespace one space. It never panics and runs in
-//! linear time.
-//!
-//! Same rules, step for step, as `readableText` in src/core/readable.ts
-//! (which documents them); tests/support/readable-text.json holds cases
-//! both sides must agree on. Positions are counted in chars (code points).
+//! The readable text of a note body, as a search result's excerpt shows it: front matter skipped,
+//! Markdown markers out, text that only looks like syntax kept, each run of whitespace one space.
+//! It never panics and runs in linear time.
+//! Same rules, step for step, as `readableText` in src/core/readable.ts (which documents them);
+//! tests/support/readable-text.json holds cases both sides must agree on. Positions are counted in
+//! chars (code points).
 
 use std::collections::{HashMap, HashSet};
 
-/// Most characters a reference label holds.
 const MAX_LABEL_CHARS: usize = 999;
-/// The kinds of alert a quote's marker line names, as the preview reads them.
 const ALERTS: [&str; 5] = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"];
 
 fn is_space(c: Option<char>) -> bool {
@@ -31,38 +26,31 @@ fn is_digit(c: Option<char>) -> bool {
     c.is_some_and(|c| c.is_ascii_digit())
 }
 
-/// Unicode whitespace; the start or end of a line counts.
 fn is_white(c: Option<char>) -> bool {
     c.is_none_or(char::is_whitespace)
 }
 
-/// A letter or a digit in any script.
 fn is_alnum(c: Option<char>) -> bool {
     c.is_some_and(char::is_alphanumeric)
 }
 
-/// For emphasis: anything that is neither whitespace nor a letter or digit.
 fn is_mark(c: Option<char>) -> bool {
     !is_white(c) && !is_alnum(c)
 }
 
-/// The whitespace an excerpt folds into one space.
 fn is_blank(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\n' | '\r' | '\u{c}' | '\u{b}')
 }
 
-/// A front matter fence: three dashes, then only spaces or tabs.
 pub(crate) fn is_fence(line: &str) -> bool {
     line.strip_prefix("---")
         .is_some_and(|rest| rest.chars().all(|c| c == ' ' || c == '\t'))
 }
 
-/// A run of `*`, `_` or `~` that may open or close emphasis; what is left unpaired shows.
 struct Delimiter {
     mark: char,
     open: bool,
     close: bool,
-    /// How many of its characters are not paired yet.
     left: usize,
 }
 
@@ -71,7 +59,6 @@ enum Piece {
     Delimiter(Delimiter),
 }
 
-/// A line of a paragraph to read inline, a line of code, or the end of a paragraph.
 enum Op {
     Text {
         line: Vec<char>,
@@ -82,7 +69,6 @@ enum Op {
     End,
 }
 
-/// Whitespace runs as one space, without one at either end.
 fn fold_blanks(text: &str) -> String {
     let mut folded = String::new();
     let mut blank = false;
@@ -100,7 +86,6 @@ fn fold_blanks(text: &str) -> String {
     folded
 }
 
-/// The readable text of `markdown`.
 pub(crate) fn readable_text(markdown: &str) -> String {
     let lines: Vec<&str> = markdown
         .split('\n')
@@ -114,9 +99,7 @@ pub(crate) fn readable_text(markdown: &str) -> String {
     }
     let (ops, labels) = blocks(&lines[first..]);
 
-    // Inline markers next, once every link reference is known.
     let mut out: Vec<String> = Vec::new();
-    // The paragraph being read: emphasis pairs within it.
     let mut paragraph: Vec<Piece> = Vec::new();
     for op in ops {
         match op {
@@ -141,12 +124,9 @@ pub(crate) fn readable_text(markdown: &str) -> String {
     fold_blanks(&out.join("\n"))
 }
 
-/// The block structure of `body`: its lines with block markers taken out,
-/// and the labels of its link reference definitions.
 fn blocks(body: &[&str]) -> (Vec<Op>, HashSet<String>) {
     let mut ops: Vec<Op> = Vec::new();
     let mut labels = HashSet::new();
-    // A paragraph is open, and whether it started on a list item.
     let mut open = false;
     let mut list_paragraph = false;
     let end = |ops: &mut Vec<Op>, open: &mut bool| {
@@ -155,11 +135,8 @@ fn blocks(body: &[&str]) -> (Vec<Op>, HashSet<String>) {
         }
         *open = false;
     };
-    // An open code fence: its character, its length, and the quote markers before it.
     let mut fence: Option<(char, usize, usize)> = None;
-    // Inside an HTML comment block, up to the line that closes it.
     let mut comment = false;
-    // Inside a table: from its header row (a delimiter row follows) to a blank line.
     let mut table = false;
     for (l, raw) in body.iter().enumerate() {
         if comment {
@@ -179,7 +156,6 @@ fn blocks(body: &[&str]) -> (Vec<Op>, HashSet<String>) {
         let chars: Vec<char> = raw.chars().collect();
         if let Some((mark, length, quotes)) = fence {
             let (line, found) = strip_quotes(&chars, quotes);
-            // Code in a quote ends with the quote.
             if found == quotes {
                 let run = run_of(line, 0, mark);
                 if run >= length && line[run..].iter().all(|&c| is_space(Some(c))) {
@@ -234,7 +210,6 @@ fn blocks(body: &[&str]) -> (Vec<Op>, HashSet<String>) {
             None => false,
         };
         let heading = strip_heading(line);
-        // These are blocks of their own.
         let own = heading.is_some() || table || footnote;
         if own || list {
             end(&mut ops, &mut open);
@@ -242,7 +217,6 @@ fn blocks(body: &[&str]) -> (Vec<Op>, HashSet<String>) {
         if !open {
             list_paragraph = list;
         }
-        // A line opening with <!-- that does not close it opens a comment block.
         let start = raw.trim_start_matches([' ', '\t']).starts_with("<!--");
         ops.push(Op::Text {
             line: heading.unwrap_or(line).to_vec(),
@@ -266,7 +240,6 @@ fn blocks(body: &[&str]) -> (Vec<Op>, HashSet<String>) {
 /// characters at a time while both runs have two, else one; what is left
 /// of a run shows.
 fn render(pieces: &mut [Piece]) -> String {
-    // Openers waiting for a closer, for `*`, `_` and `~`.
     let mut open: [Vec<usize>; 3] = [Vec::new(), Vec::new(), Vec::new()];
     let slot = |mark: char| match mark {
         '*' => 0,
@@ -333,8 +306,7 @@ fn render(pieces: &mut [Piece]) -> String {
     text
 }
 
-/// A reference label as definitions and links compare it, case and spacing
-/// ignored; None when it is blank or too long to be one.
+/// None when it is blank or too long to be one.
 fn normalize_label(label: &[char]) -> Option<String> {
     if label.len() > MAX_LABEL_CHARS {
         return None;
@@ -343,15 +315,12 @@ fn normalize_label(label: &[char]) -> Option<String> {
     (!key.is_empty()).then_some(key)
 }
 
-/// How many `mark` follow one another from `at`.
 fn run_of(chars: &[char], at: usize, mark: char) -> usize {
     chars
         .get(at..)
         .map_or(0, |rest| rest.iter().take_while(|&&c| c == mark).count())
 }
 
-/// Leading whitespace and up to `quotes` quote markers: a line of code in a
-/// quote; also how many there were.
 fn strip_quotes(line: &[char], quotes: usize) -> (&[char], usize) {
     let mut at = 0;
     let mut found = 0;
@@ -410,7 +379,6 @@ fn block_markers(line: &[char], paragraph: bool) -> (&[char], usize, bool) {
         while is_space(get(at)) {
             at += 1;
         }
-        // A task box right after a list marker.
         if get(at) == Some('[')
             && matches!(get(at + 1), Some(' ' | 'x' | 'X'))
             && get(at + 2) == Some(']')
@@ -421,8 +389,6 @@ fn block_markers(line: &[char], paragraph: bool) -> (&[char], usize, bool) {
     }
 }
 
-/// A thematic break (three or more of `-*_`, spaces allowed) or, under a
-/// paragraph, a setext underline (`=` or `-` repeated).
 fn is_break(line: &[char], paragraph: bool) -> bool {
     let Some(&mark @ ('=' | '-' | '*' | '_')) = line.first() else {
         return false;
@@ -436,7 +402,6 @@ fn is_break(line: &[char], paragraph: bool) -> bool {
     mark != '=' && line.iter().filter(|&&c| c == mark).count() >= 3
 }
 
-/// A table's delimiter row, such as `|---|:-:|`.
 fn is_delimiter_row(line: &[char]) -> bool {
     line.contains(&'|')
         && line.contains(&'-')
@@ -445,7 +410,6 @@ fn is_delimiter_row(line: &[char]) -> bool {
             .all(|&c| matches!(c, '|' | ':' | '-' | ' ' | '\t'))
 }
 
-/// An alert's marker line, such as `[!NOTE]`, in any case.
 fn is_alert(line: &[char]) -> bool {
     if line.first() != Some(&'[') || line.get(1) != Some(&'!') {
         return false;
@@ -459,14 +423,10 @@ fn is_alert(line: &[char]) -> bool {
 }
 
 enum Definition {
-    /// A link reference definition, `[label]: destination "title"`, all
-    /// syntax: its normalized label.
     Link(String),
-    /// A footnote definition, `[^label]: text`: where its text starts.
     Footnote(usize),
 }
 
-/// What a line that opens with `[label]:` defines, if anything.
 fn definition(line: &[char]) -> Option<Definition> {
     let get = |i: usize| line.get(i).copied();
     if get(0) != Some('[') {
@@ -484,7 +444,6 @@ fn definition(line: &[char]) -> Option<Definition> {
     if get(1) == Some('^') {
         return Some(Definition::Footnote(at));
     }
-    // The destination: <...>, or text up to a space.
     let start = at;
     if get(at) == Some('<') {
         while at < line.len() && line[at] != '>' {
@@ -508,7 +467,6 @@ fn definition(line: &[char]) -> Option<Definition> {
     (at == line.len() || is_title(line, at, line.len())).then_some(Definition::Link(label))
 }
 
-/// Whether `from` to `to` (spaces around allowed) is a link title: "...", '...' or (...).
 fn is_title(c: &[char], from: usize, to: usize) -> bool {
     let mut end = to;
     while end > from && is_space(c.get(end - 1).copied()) {
@@ -564,7 +522,6 @@ impl Ahead {
     }
 }
 
-/// Whether `from` to `to` (inside a link's parentheses) is a destination and an optional title.
 fn is_destination(c: &[char], ahead: &Ahead, from: usize, to: usize) -> bool {
     let mut at = ahead.solid[from].min(to);
     if at < to && c[at] == '<' {
@@ -581,7 +538,6 @@ fn is_destination(c: &[char], ahead: &Ahead, from: usize, to: usize) -> bool {
     at == to || is_title(c, at, to)
 }
 
-/// The text of an ATX heading without its hashes; None when the line is no heading.
 fn strip_heading(line: &[char]) -> Option<&[char]> {
     let get = |i: usize| line.get(i).copied();
     let level = run_of(line, 0, '#');
@@ -631,13 +587,11 @@ impl Marks {
     }
 }
 
-/// Inline markers out of one line, as pieces of text and emphasis
-/// delimiters. `labels` are the defined link references; `table` turns
-/// pipes into spaces. `start`: the line opens a comment block, so its text
-/// ends at the unclosed `<!--`; elsewhere an unclosed `<!--` is text.
+/// `labels` are the defined link references; `table` turns pipes into spaces. `start`: the line
+/// opens a comment block, so its text ends at the unclosed `<!--`; elsewhere an unclosed `<!--` is
+/// text.
 fn inline(c: &[char], labels: &HashSet<String>, table: bool, start: bool) -> Vec<Piece> {
     let n = c.len();
-    // Nothing to take out: the line as it is.
     if !c
         .iter()
         .any(|&ch| matches!(ch, '\\' | '`' | '*' | '_' | '~' | '[' | '<') || (table && ch == '|'))
@@ -669,7 +623,6 @@ fn inline(c: &[char], labels: &HashSet<String>, table: bool, start: bool) -> Vec
         next_same[r] = last_of.get(&runs[r].1).copied();
         last_of.insert(runs[r].1, r);
     }
-    // Code span start -> its closing run's start.
     let mut spans = Marks::new(n, has_code);
     let mut r = 0;
     while r < runs.len() {
@@ -681,10 +634,8 @@ fn inline(c: &[char], labels: &HashSet<String>, table: bool, start: bool) -> Vec
             _ => r += 1,
         }
     }
-    // A code span's closing run and run length, from its start.
     let span = |i: usize| spans.get(i).map(|close| (close, run_of(c, i, '`')));
 
-    // Matching brackets and parentheses, outside code spans and escapes.
     let mut bracket = Marks::new(n, has_links);
     let mut paren = Marks::new(n, has_links);
     let mut brackets: Vec<usize> = Vec::new();
@@ -716,7 +667,6 @@ fn inline(c: &[char], labels: &HashSet<String>, table: bool, start: bool) -> Vec
         }
         i += 1;
     }
-    // Whether the text from `from` to `to` names a link reference definition.
     let defined = |from: usize, to: usize| {
         !labels.is_empty()
             && to - from <= MAX_LABEL_CHARS
@@ -752,7 +702,6 @@ fn inline(c: &[char], labels: &HashSet<String>, table: bool, start: bool) -> Vec
         defined(open + 1, close).then_some(close)
     };
 
-    // Where each HTML comment's `-->` is, for the next one from a position.
     let mut comment_ends: Vec<usize> = Vec::new();
     if c.contains(&'<') {
         for k in 0..n.saturating_sub(2) {
@@ -798,7 +747,6 @@ fn inline(c: &[char], labels: &HashSet<String>, table: bool, start: bool) -> Vec
                 text.push(c[i + 1]);
                 i += 2;
             } else {
-                // A backslash ending the line is a hard line break.
                 if i + 1 < n {
                     text.push(ch);
                 }
@@ -906,9 +854,6 @@ fn inline(c: &[char], labels: &HashSet<String>, table: bool, start: bool) -> Vec
     pieces
 }
 
-/// Where the shown text of `[[target]]` or `[[target|label]]` starts, given
-/// the text between the double brackets (`from` to `to`): the label, else
-/// the target. None when that text holds a bracket: then it is no such link.
 fn wiki_text(c: &[char], from: usize, to: usize) -> Option<usize> {
     let mut label = None;
     for (k, &ch) in c.iter().enumerate().take(to).skip(from) {
@@ -922,7 +867,6 @@ fn wiki_text(c: &[char], from: usize, to: usize) -> Option<usize> {
     Some(label.unwrap_or(from))
 }
 
-/// Whether `from` to `to` is a footnote label: no whitespace and no brackets.
 fn footnote(c: &[char], from: usize, to: usize) -> bool {
     from < to
         && c[from..to]
@@ -931,17 +875,11 @@ fn footnote(c: &[char], from: usize, to: usize) -> bool {
 }
 
 enum Html {
-    /// An HTML comment that does not close on this line.
     Comment,
-    /// A comment or tag to drop, or an autolink whose address to keep, up to `end` (its `>`).
-    Skip {
-        end: usize,
-        keep: bool,
-    },
+    Skip { end: usize, keep: bool },
     None,
 }
 
-/// What a `<` at `at` opens; `comment_end` finds the next `-->` from a position.
 fn html_end(c: &[char], at: usize, comment_end: &mut impl FnMut(usize) -> Option<usize>) -> Html {
     let get = |i: usize| c.get(i).copied();
     if get(at + 1) == Some('!') && get(at + 2) == Some('-') && get(at + 3) == Some('-') {
@@ -953,7 +891,6 @@ fn html_end(c: &[char], at: usize, comment_end: &mut impl FnMut(usize) -> Option
             None => Html::Comment,
         };
     }
-    // An autolink: <scheme:address>.
     let mut k = at + 1;
     if is_letter(get(k)) {
         k += 1;
@@ -970,7 +907,6 @@ fn html_end(c: &[char], at: usize, comment_end: &mut impl FnMut(usize) -> Option
             }
         }
     }
-    // A tag: <name>, <name attributes...>, <name/> or </name>.
     k = at + 1;
     let closing = get(k) == Some('/');
     if closing {
@@ -1026,7 +962,6 @@ mod tests {
         }
     }
 
-    /// A small deterministic generator (xorshift), so the test needs no crate.
     struct Rng(u64);
     impl Rng {
         fn below(&mut self, n: usize) -> usize {
@@ -1039,8 +974,6 @@ mod tests {
 
     use std::time::{Duration, Instant};
 
-    /// The time of the quickest of five runs of `work` on `input` (a load
-    /// spike slows some runs, rarely all five).
     fn best_of_five(work: &impl Fn(&str), input: &str) -> Duration {
         (0..5)
             .map(|_| {
@@ -1052,13 +985,11 @@ mod tests {
             .unwrap_or_default()
     }
 
-    /// Longest any run may take: a hang, not a speed limit.
     const HANG_CEILING: Duration = Duration::from_secs(120);
 
-    /// Asserts `work` takes linear time on the inputs `make` builds:
-    /// four times the size takes about four times as long (sixteen times for
-    /// quadratic work; the limit is in between), whatever the machine's speed or load. Then runs the
-    /// full `size` once, under a ceiling that only a hang reaches.
+    /// Four times the size takes about four times as long (sixteen times for quadratic work; the
+    /// limit is in between), whatever the machine's speed or load. Then runs the full `size` once,
+    /// under a ceiling that only a hang reaches.
     fn assert_linear(work: impl Fn(&str), make: impl Fn(usize) -> String, size: usize) {
         let (small_input, large_input) = (make(size / 16), make(size / 4));
         // A load spike on a shared runner can slow one size more than the other:
@@ -1085,8 +1016,6 @@ mod tests {
         );
     }
 
-    /// The check itself: work that grows with the square of the input fails
-    /// it, work that grows with the input passes it.
     #[test]
     fn the_growth_check_tells_quadratic_from_linear() {
         let make = |n: usize| "a".repeat(n);
@@ -1110,7 +1039,6 @@ mod tests {
 
     #[test]
     fn stays_linear_on_input_made_to_be_slow() {
-        // Each makes an input of about `n` characters built to be slow.
         let makers: [fn(usize) -> String; 10] = [
             |n| "[".repeat(n),
             |n| "[[".repeat(n / 2) + &"]]".repeat(n / 2),
@@ -1137,9 +1065,7 @@ mod tests {
     #[test]
     fn checks_nested_link_destinations_in_linear_time() {
         let makers: [fn(usize) -> String; 2] = [
-            // Every `(` opens a destination that runs to the one late space.
             |k| "[a](".repeat(k) + " x" + &")".repeat(k),
-            // Every `<` opens a destination that runs to the first `>`.
             |k| "[a](<".repeat(k) + &">)".repeat(k),
         ];
         for make in makers {
@@ -1253,8 +1179,6 @@ mod tests {
                     1 => format!("[[{word}]]"),
                     _ => format!("[[Target|{word}]]"),
                 };
-                // Each emphasis character at most once around a word (see the
-                // TypeScript property test).
                 let mut used = [false; 3];
                 for _ in 0..rng.below(4) {
                     let k = rng.below(inline.len());

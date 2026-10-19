@@ -41,11 +41,8 @@ use startup::StartupError;
 use std::path::Path;
 use tauri::{Manager, WebviewWindowBuilder};
 
-/// The main window's label; other windows (Settings) come and go.
 pub(crate) const MAIN_WINDOW: &str = "main";
 
-/// Runs the native crash reporter when the binary was started as one
-/// (`crash_reporter`), returning its exit code; `None` for a normal launch.
 pub fn crash_reporter_main() -> Option<i32> {
     crash::reporter_main(&std::env::args_os().collect::<Vec<_>>())
 }
@@ -65,7 +62,6 @@ pub fn run() {
         ));
     }
     builder
-        // devot:// links from other apps (`deep_link`).
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             native::symbol_png,
@@ -154,7 +150,6 @@ pub fn run() {
             updates::update_restart,
             deep_link::deep_link_take,
         ])
-        // Attachments: devot://file/<id>, read from the database.
         .register_asynchronous_uri_scheme_protocol("devot", |ctx, request, responder| {
             commands::files::serve(ctx.app_handle(), request, responder)
         })
@@ -186,9 +181,7 @@ pub fn run() {
         .run(|app, event| exit::on_run_event(app, &event));
 }
 
-/// Opens the data folder in `data_dir` (held for this process alone) and
-/// its database, then sets up the app's state, menus and main window. Any
-/// failure has a code: `startup::fail` explains it and exits.
+/// Any failure has a code: `startup::fail` explains it and exits.
 fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     // One Devot per data folder, for the life of the process.
     let (held, db) = startup::open_data(data_dir, crash::start_native)?;
@@ -210,10 +203,8 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     app.manage(std::sync::Arc::new(
         keyboard_shortcuts::KeyboardShortcutsStore::new(&data_dir.join(keyboard_shortcuts::FILE)),
     ));
-    // The Markdown mirror: a folder and its setting, local to this device.
     mirror::manage(app, data_dir);
     backups::start(app.handle());
-    // devot-mcp writes while Devot runs: the window takes the changes in.
     watch::start(app.handle());
     // The updater, only with the public key the release workflow builds in.
     let with_updater = updates::configured(app.config().plugins.0.get("updater"))
@@ -233,10 +224,7 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         .find(|w| w.label == MAIN_WINDOW)
         .ok_or_else(|| StartupError::new("E_MAIN_WINDOW_CONFIG_MISSING"))?
         .clone();
-    // The sidebar material, as stored: an opaque sidebar starts without the
-    // window effect, and changes follow at run time
-    // (`sidebar_material_sync`). The page starts from the same settings, so
-    // its first paint matches the window.
+    // The sidebar material as stored: an opaque sidebar starts without the window effect, and the page starts from the same settings, so its first paint matches the window.
     let stored = editor_settings
         .get()
         .unwrap_or_else(|_| editor_settings::Snapshot {
@@ -246,7 +234,6 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     let configured = main.window_effects.take();
     let material = stored.settings.sidebar_material;
     main.window_effects = sidebar_material::effects_for(material, configured.as_ref());
-    // The appearance chosen in Settings, or the system's.
     main.theme = stored.settings.appearance.window_theme();
     // A debug build keeps its web data apart from the release app's.
     main.data_store_identifier = data_folder::this_build_web_data_store();

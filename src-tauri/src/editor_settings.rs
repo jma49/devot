@@ -1,18 +1,12 @@
-//! Editor settings (Settings > Editor): how the note editor looks and
-//! behaves, plus the window's sidebar material (Settings > Appearance, see
-//! `sidebar_material`). They are kept on this device only, in
-//! `<app data>/editor-settings.json`, never in the notes database, so they
-//! never sync and never go into backups.
-//!
-//! Rust holds them, so every window reads the same values: the Settings
-//! window changes them, the main window changes the font size from the
-//! keyboard, and after each change every window gets
-//! `devot://editor-settings-changed` with the full settings (and a revision
-//! number) and applies them at once. Each value is checked here (ranges for numbers, a fixed list for
-//! the rest): a change with an unknown key or a bad value is refused as a
-//! whole. Reading the file is lenient instead: a value that is missing or
-//! out of range (a file from another Devot version, or edited by hand) falls
-//! back to its default, and the other values are kept.
+//! Editor settings (Settings > Editor), plus the window's sidebar material (see
+//! `sidebar_material`). They are kept on this device only, in `<app data>/editor-settings.json`, so
+//! they never sync and never go into backups.
+//! Rust holds them so every window reads the same values: after each change every window gets
+//! `devot://editor-settings-changed` with the full settings and a revision number. Each value is
+//! checked here (ranges for numbers, a fixed list for the rest): a change with an unknown key or a
+//! bad value is refused as a whole. Reading the file is lenient instead: a missing or out-of-range
+//! value (a file from another Devot version, or edited by hand) falls back to its default and the
+//! others are kept.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -30,17 +24,13 @@ pub const LINE_HEIGHT_MAX: f64 = 2.5;
 pub const TAB_WIDTH_MIN: u64 = 1;
 pub const TAB_WIDTH_MAX: u64 = 8;
 pub const CURSOR_SCROLL_MARGIN_MAX: u64 = 200;
-/// How far the window transparency goes from the design washes, either way.
 pub const WINDOW_TRANSPARENCY_MAX: i64 = 100;
-/// The longest notebook ID the default notebook may name.
 const NOTEBOOK_ID_MAX: usize = 64;
 
 const INVALID: &str = "E_EDITOR_SETTINGS_INVALID";
 
-/// A font (the app's, the notes' or code's): the system font, one of the
-/// monospaced system fonts, a font installed on this Mac (`installed_font`
-/// and the like) or a font file the user imported (`imported_font` and the
-/// like, see `fonts`).
+/// The system font, one of the monospaced system fonts, a font installed on this Mac or a font file
+/// the user imported (see `fonts`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FontFamily {
@@ -53,7 +43,6 @@ pub enum FontFamily {
     Imported,
 }
 
-/// What one level of indentation inserts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum IndentUnit {
@@ -62,7 +51,6 @@ pub enum IndentUnit {
     Spaces4,
 }
 
-/// The bullet a new list item gets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ListMarker {
     #[serde(rename = "-")]
@@ -73,7 +61,6 @@ pub enum ListMarker {
     Plus,
 }
 
-/// The weight of the editor's text: the font's normal one or a CSS weight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FontWeight {
     #[serde(rename = "normal")]
@@ -90,8 +77,6 @@ pub enum FontWeight {
     W700,
 }
 
-/// How long lines wrap: never, always, everywhere but code blocks and
-/// tables (prose), or everywhere but the code block or table under the caret.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum LineWrapping {
@@ -101,9 +86,6 @@ pub enum LineWrapping {
     UnwrapAtCursor,
 }
 
-/// What pasting a lone URL inserts: the URL as copied, an autolink
-/// (`<url>`), a link with empty text (`[](url)`), or the URL with a list of
-/// formats to choose from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PasteUrl {
@@ -113,7 +95,6 @@ pub enum PasteUrl {
     Choose,
 }
 
-/// How the note list shows a note's date: how long ago, or the date itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ListDates {
@@ -121,8 +102,6 @@ pub enum ListDates {
     Absolute,
 }
 
-/// Whether the windows animate (Settings > Appearance > Motion): always, as
-/// the system's Reduce Motion asks, or never.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Animations {
@@ -131,8 +110,6 @@ pub enum Animations {
     Off,
 }
 
-/// The appearance the windows show (Settings > Appearance): the system's,
-/// or always light or dark.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Appearance {
@@ -141,9 +118,8 @@ pub enum Appearance {
     Dark,
 }
 
-/// The colour theme the windows show (Settings > Appearance): Devot's
-/// default, or Ivory. The page applies it (the tokens read `data-theme` on
-/// the root element); Rust validates and stores it.
+/// The page applies it (the tokens read `data-theme` on the root element); Rust validates and
+/// stores it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Theme {
@@ -152,7 +128,6 @@ pub enum Theme {
 }
 
 impl Appearance {
-    /// The theme a window takes: `None` follows the system.
     pub fn window_theme(self) -> Option<tauri::Theme> {
         match self {
             Self::System => None,
@@ -170,15 +145,11 @@ pub struct EditorSettings {
     pub readable_width: bool,
     pub font_size: u64,
     pub font_family: FontFamily,
-    /// The family name of the installed font the editor uses.
     pub installed_font: Option<String>,
-    /// The file name of the imported font the editor uses (in `fonts::DIR`).
     pub imported_font: Option<String>,
-    /// The font of the app's own text (the sidebar, the lists, Settings).
     pub app_font_family: FontFamily,
     pub app_installed_font: Option<String>,
     pub app_imported_font: Option<String>,
-    /// The font of code blocks and inline code, in the editor and the preview.
     pub code_font_family: FontFamily,
     pub code_installed_font: Option<String>,
     pub code_imported_font: Option<String>,
@@ -188,53 +159,36 @@ pub struct EditorSettings {
     pub list_marker: ListMarker,
     pub spell_check: bool,
     pub highlight_active_line: bool,
-    /// The whole window shows the material (the key keeps its old name); off,
-    /// the window is opaque.
+    /// The key keeps its old name.
     pub sidebar_material: bool,
     /// An adjustment of the regions' washes from their design values
     /// (Settings > Appearance > Transparency): 0 is the design, -100 opaque,
     /// 100 twice as see-through.
     pub window_transparency: i64,
     pub paste_url: PasteUrl,
-    /// Split mode keeps the editor and the preview at the same line
-    /// (View > Synced Scrolling).
     pub sync_scroll: bool,
-    /// Images (attachments) show under their lines in the editor.
     pub inline_images: bool,
-    /// Light, Dark, or the system's appearance (the default).
     pub appearance: Appearance,
-    /// Devot's default colour theme, or Ivory (which ignores the system accent).
+    /// Ivory ignores the system accent.
     pub theme: Theme,
-    /// The accent follows the macOS accent colour instead of Devot's palette.
     pub system_accent: bool,
-    /// The toolbar shows over selected text and above the current table row.
     pub toolbar: bool,
-    /// The editor scrolls past the end of the note.
     pub scroll_past_end: bool,
-    /// Pixels kept above and below the cursor when it nears the edge.
+    /// In pixels.
     pub cursor_scroll_margin: u64,
     pub font_weight: FontWeight,
-    /// Spaces, tabs and line breaks are drawn.
     pub show_invisibles: bool,
-    /// Spaces and tabs at the end of a line are tinted.
     pub highlight_trailing_whitespace: bool,
-    /// The preview's font size, in CSS pixels.
+    /// In CSS pixels.
     pub preview_font_size: u64,
-    /// The notebook a new note goes to when the view has none.
     pub default_notebook: Option<String>,
-    /// The note list shows how long ago a note changed, or its date.
     pub list_dates: ListDates,
-    /// An update found downloads in the background (see `updates`).
     pub auto_download_updates: bool,
-    /// Whether the windows animate.
     pub animations: Animations,
 }
 
 impl Default for EditorSettings {
-    /// The editor's defaults (SF Mono), the sidebar material on, synced
-    /// scrolling on, images shown under their lines, and the system's
-    /// appearance with Devot's own theme and accent. A default applies only to a
-    /// setting the user never set (see `EditorSettingsStore`).
+    /// A default applies only to a setting the user never set (see `EditorSettingsStore`).
     fn default() -> Self {
         Self {
             line_numbers: false,
@@ -297,7 +251,6 @@ fn whole(value: &Value, min: u64, max: u64) -> Result<u64, &'static str> {
         .ok_or(INVALID)
 }
 
-/// A notebook ID (a short run of letters, digits, `-` and `_`) or null.
 fn notebook_id(value: &Value) -> Result<Option<String>, &'static str> {
     match value {
         Value::Null => Ok(None),
@@ -314,7 +267,6 @@ fn notebook_id(value: &Value) -> Result<Option<String>, &'static str> {
     }
 }
 
-/// A string that `valid` accepts, or null.
 fn name_or_null(value: &Value, valid: fn(&str) -> bool) -> Result<Option<String>, &'static str> {
     match value {
         Value::Null => Ok(None),
@@ -328,7 +280,6 @@ fn choice<T: for<'de> Deserialize<'de>>(value: &Value) -> Result<T, &'static str
 }
 
 impl EditorSettings {
-    /// Sets one value; refuses an unknown key or a value out of range.
     fn set(&mut self, key: &str, value: &Value) -> Result<(), &'static str> {
         match key {
             "lineNumbers" => self.line_numbers = flag(value)?,
@@ -396,8 +347,7 @@ impl EditorSettings {
         Ok(())
     }
 
-    /// These settings with every change in `patch`, or an error code when any
-    /// key is unknown or any value is invalid (then nothing changes).
+    /// Nothing changes when any key is unknown or any value invalid.
     pub fn with(&self, patch: &Map<String, Value>) -> Result<Self, &'static str> {
         let mut next = self.clone();
         for (key, value) in patch {
@@ -406,15 +356,13 @@ impl EditorSettings {
         Ok(next)
     }
 
-    /// Settings read from a stored file: each valid value is kept, anything
-    /// else takes its default (the store itself keeps the valid values
+    /// Each valid value is kept, anything else takes its default (the store keeps the valid values
     /// apart, see `EditorSettingsStore::read`).
     #[cfg(test)]
     pub fn from_stored(value: &Value) -> Self {
         let mut out = Self::default();
         if let Value::Object(map) = value {
             for (key, value) in map {
-                // A bad value keeps the default; the rest still apply.
                 let _ = out.set(key, value);
             }
         }
@@ -431,14 +379,11 @@ pub struct Snapshot {
     pub settings: EditorSettings,
 }
 
-/// The global a window's page starts its settings from.
 pub const INITIAL_GLOBAL: &str = "devotInitialEditorSettings";
 
-/// A script that runs before the page's own (an initialization script, which
-/// the CSP does not apply to): it hands the page the settings the window was
-/// built with, so its first paint matches them (the sidebar material, the
-/// editor's font) instead of the defaults. The page still reads the settings
-/// and takes any newer revision.
+/// Runs before the page's own (an initialization script, which the CSP does not apply to), so the
+/// page's first paint matches the settings (the sidebar material, the editor's font) instead of the
+/// defaults. The page still reads the settings and takes any newer revision.
 pub fn initial_script(snapshot: &Snapshot) -> String {
     // JSON is a JavaScript literal; the values are booleans, numbers, a few
     // fixed words and names checked when set (no quotes or backslashes), so
@@ -447,16 +392,13 @@ pub fn initial_script(snapshot: &Snapshot) -> String {
     format!("window.{INITIAL_GLOBAL} = {json};")
 }
 
-/// What the store holds: the settings in effect and the values the user has
-/// set (the only ones written to the file, so a default that changes later
-/// still applies to every setting the user never touched).
+/// The values the user has set are the only ones written to the file, so a default that changes
+/// later still applies to every setting the user never touched.
 struct Held {
     snapshot: Snapshot,
     stored: Map<String, Value>,
 }
 
-/// The settings file. It is read on first use; a missing or unreadable file
-/// means the defaults.
 pub struct EditorSettingsStore {
     path: PathBuf,
     current: Mutex<Option<Held>>,
@@ -494,7 +436,6 @@ impl EditorSettingsStore {
             let mode = if old { "unwrapAtCursor" } else { "off" };
             stored.insert("lineWrapping".into(), Value::from(mode));
         }
-        // Only values that are valid and known stay in `stored`.
         let mut settings = EditorSettings::default();
         let stored = stored
             .into_iter()
@@ -509,7 +450,6 @@ impl EditorSettingsStore {
         }
     }
 
-    /// The current settings.
     pub fn get(&self) -> Result<Snapshot, &'static str> {
         let mut held = self
             .current
@@ -518,15 +458,10 @@ impl EditorSettingsStore {
         Ok(held.get_or_insert_with(|| self.read()).snapshot.clone())
     }
 
-    /// Applies `patch` and stores the result: a temporary file, flushed to
-    /// disk, then renamed over the old one, so a crash or a power loss leaves
-    /// either version whole. Returns the settings now in effect.
     pub fn update(&self, patch: &Map<String, Value>) -> Result<Snapshot, &'static str> {
         self.store_next(|_| patch.clone())
     }
 
-    /// Like `update`, with the change made from the current settings while
-    /// no other change can come between (a menu item that toggles one).
     pub fn update_from(
         &self,
         change: impl FnOnce(&EditorSettings) -> Map<String, Value>,
@@ -534,8 +469,6 @@ impl EditorSettingsStore {
         self.store_next(change)
     }
 
-    /// Stores the change `patch_for` makes to the current settings (see
-    /// `update`): the file holds the values the user set, and only those.
     fn store_next(
         &self,
         patch_for: impl FnOnce(&EditorSettings) -> Map<String, Value>,
@@ -565,7 +498,6 @@ impl EditorSettingsStore {
     }
 }
 
-/// The current editor settings (main and Settings windows).
 #[tauri::command]
 pub async fn editor_settings_get(
     store: State<'_, Arc<EditorSettingsStore>>,
@@ -577,9 +509,7 @@ pub async fn editor_settings_get(
         .map_err(String::from)
 }
 
-/// Tells every window about stored settings, and brings the menu bar's
-/// check items (View > Synced Scrolling) in line with them. Every window
-/// takes the chosen appearance, so its material, its controls and the page's
+/// Every window takes the chosen appearance, so its material, its controls and the page's
 /// `prefers-color-scheme` match it.
 pub fn announce(app: &AppHandle, next: &Snapshot) {
     if app.emit(CHANGED_EVENT, next).is_err() {
@@ -594,18 +524,15 @@ pub fn announce(app: &AppHandle, next: &Snapshot) {
     crate::menu::show_editor_settings(app, next);
 }
 
-/// The change View > Synced Scrolling stores: the opposite of the current value.
 pub fn toggle_sync_scroll(settings: &EditorSettings) -> Map<String, Value> {
     let mut patch = Map::new();
     patch.insert("syncScroll".into(), Value::Bool(!settings.sync_scroll));
     patch
 }
 
-/// Changes some editor settings, stores them and tells every window (main
-/// and Settings windows). Returns the settings now in effect. Two changes
-/// may announce themselves out of order; their revisions tell them apart.
-/// A change to synced scrolling is noted first, so the menu bar can tell
-/// its echo of the key that made it (see `menu::MENU_ECHO`).
+/// Two changes may announce themselves out of order; their revisions tell them apart. A change to
+/// synced scrolling is noted first, so the menu bar can tell its echo of the key that made it (see
+/// `menu::MENU_ECHO`).
 #[tauri::command]
 pub async fn editor_settings_set(
     app: AppHandle,
@@ -644,11 +571,9 @@ mod tests {
     fn defaults_are_roomy_and_helpful() {
         let d = EditorSettings::default();
         assert!(!d.line_numbers && !d.highlight_active_line);
-        // Everything wraps except the code block or table under the caret.
         assert_eq!(d.line_wrapping, LineWrapping::UnwrapAtCursor);
         assert!(!d.readable_width && d.spell_check);
         assert_eq!(d.font_size, 13);
-        // The app's text in the system font; notes and code in SF Mono.
         assert_eq!(d.app_font_family, FontFamily::System);
         assert_eq!(d.font_family, FontFamily::Mono);
         assert_eq!(d.code_font_family, FontFamily::Mono);
@@ -656,9 +581,7 @@ mod tests {
         assert_eq!(d.indent_unit, IndentUnit::Spaces2);
         assert_eq!(d.tab_width, 2);
         assert_eq!(d.list_marker, ListMarker::Star);
-        // The window shows the sidebar material unless turned off.
         assert!(d.sidebar_material);
-        // The washes as designed.
         assert_eq!(d.window_transparency, 0);
         assert_eq!(d.paste_url, PasteUrl::Link);
         assert!(d.toolbar && d.scroll_past_end);
@@ -668,17 +591,11 @@ mod tests {
         assert_eq!(d.preview_font_size, 15);
         assert_eq!(d.default_notebook, None);
         assert_eq!(d.list_dates, ListDates::Relative);
-        // The windows animate whatever the system's Reduce Motion says.
         assert_eq!(d.animations, Animations::Always);
-        // Split mode scrolls the editor and the preview together.
         assert!(d.sync_scroll);
-        // Updates download in the background unless turned off.
         assert!(d.auto_download_updates);
-        // Images show under their lines unless turned off.
         assert!(d.inline_images);
-        // The system's appearance, with Devot's own accent.
         assert_eq!(d.appearance, Appearance::System);
-        // Devot's own theme.
         assert_eq!(d.theme, Theme::Default);
         assert!(!d.system_accent);
     }
@@ -904,7 +821,6 @@ mod tests {
         assert_eq!(next.code_font_family, FontFamily::Imported);
         assert_eq!(next.code_installed_font.as_deref(), Some("PT Mono"));
         assert_eq!(next.code_imported_font.as_deref(), Some("Fira Code.ttf"));
-        // The note font is left as it was.
         assert_eq!(next.font_family, FontFamily::Mono);
         assert_eq!(next.imported_font, None);
         let cleared = next
@@ -1010,7 +926,6 @@ mod tests {
             json!({ "lineWrapping": "unwrap-at-cursor" }),
             json!({ "lineWrapping": "On" }),
             json!({ "lineWrapping": null }),
-            // One bad value spoils the good ones with it.
             json!({ "lineNumbers": false, "fontSize": 99 }),
         ];
         for value in bad {
@@ -1042,7 +957,6 @@ mod tests {
         assert!(!read.sync_scroll);
         assert_eq!(read.font_family, FontFamily::Menlo);
         assert_eq!(read.code_font_family, FontFamily::Monaco);
-        // Bad values take their defaults.
         assert_eq!(read.app_font_family, FontFamily::System);
         assert_eq!(read.font_size, 13);
         assert_eq!(read.list_marker, ListMarker::Star);
@@ -1105,7 +1019,6 @@ mod tests {
         let read = store(&dir).get().unwrap().settings;
         assert_eq!(read.theme, Theme::Ivory);
         assert_eq!(read.appearance, Appearance::Dark);
-        // A refused theme changes nothing.
         let held = store(&dir);
         assert_eq!(
             held.update(&patch(json!({ "theme": "other" }))),
@@ -1125,13 +1038,10 @@ mod tests {
         let held = store(&dir);
         let read = held.get().unwrap().settings;
         assert_eq!(read.theme, Theme::Default);
-        // The settings beside it still apply.
         assert_eq!(read.appearance, Appearance::Light);
-        // The stored value is dropped, not carried into the next write.
         held.update(&patch(json!({ "lineNumbers": true }))).unwrap();
         let file = std::fs::read_to_string(dir.path().join(FILE)).unwrap();
         assert!(!file.contains("other"), "{file}");
-        // A stored file reads the same value by value.
         assert_eq!(
             EditorSettings::from_stored(&json!({ "theme": "ivory", "fontSize": 99 })).theme,
             Theme::Ivory
@@ -1163,7 +1073,6 @@ mod tests {
         let read = store(&dir).get().unwrap().settings;
         assert!(read.sidebar_material);
         assert_eq!(read.window_transparency, 0);
-        // An out-of-range stored value reads as the default too.
         assert_eq!(
             EditorSettings::from_stored(&json!({ "windowTransparency": 101 })).window_transparency,
             0
@@ -1190,7 +1099,6 @@ mod tests {
             let read = held.get().unwrap().settings;
             assert_eq!(read.line_wrapping, mode, "{old}");
             assert_eq!(read.tab_width, 4);
-            // The next write stores the mode in place of the old value.
             held.update(&patch(json!({ "lineNumbers": true }))).unwrap();
             let written: Value =
                 serde_json::from_slice(&std::fs::read(dir.path().join(FILE)).unwrap()).unwrap();
@@ -1199,7 +1107,6 @@ mod tests {
                 json!({ "lineWrapping": name, "tabWidth": 4, "lineNumbers": true })
             );
         }
-        // An unknown stored mode takes the default and is dropped.
         std::fs::write(dir.path().join(FILE), br#"{ "lineWrapping": "sometimes" }"#).unwrap();
         let held = store(&dir);
         assert_eq!(
@@ -1236,13 +1143,11 @@ mod tests {
         assert_eq!(next.settings.font_size, 16);
         assert_eq!(first.get().unwrap(), next);
         let later = first.update(&patch(json!({ "spellCheck": true }))).unwrap();
-        // Each change counts, and earlier changes stay.
         assert_eq!(later.revision, 2);
         assert_eq!(later.settings.font_size, 16);
         assert!(later.settings.spell_check);
         let reopened = store(&dir).get().unwrap();
         assert_eq!(reopened.settings, later.settings);
-        // No temporary file is left behind.
         let names: Vec<_> = std::fs::read_dir(dir.path())
             .unwrap()
             .map(|e| e.unwrap().file_name())
@@ -1259,7 +1164,6 @@ mod tests {
         let written: Value =
             serde_json::from_slice(&std::fs::read(dir.path().join(FILE)).unwrap()).unwrap();
         assert_eq!(written, json!({ "fontSize": 16 }));
-        // Another change adds its key and keeps the first.
         store(&dir)
             .update(&patch(json!({ "lineHeight": 1.8 })))
             .unwrap();
@@ -1333,7 +1237,6 @@ mod tests {
     #[test]
     fn a_failed_write_changes_nothing() {
         let dir = tempfile::tempdir().unwrap();
-        // The settings "file" is a folder: it cannot be replaced.
         std::fs::create_dir(dir.path().join(FILE)).unwrap();
         let s = store(&dir);
         assert_eq!(

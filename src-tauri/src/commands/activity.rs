@@ -1,10 +1,8 @@
-//! The activity heatmap's command: what storage holds about writing from a
-//! time on. The core counts it per local day (src/core/activity.ts).
+//! The activity heatmap's command; the core counts per local day (src/core/activity.ts).
 
 use crate::storage::{ActivityData, Db};
 use tauri::State;
 
-/// The heatmap asks from about a year back; any time from the epoch is valid.
 fn validate_since(since: i64) -> Result<(), &'static str> {
     if since < 0 {
         return Err("E_ACTIVITY_TIME_INVALID");

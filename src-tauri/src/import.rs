@@ -1,24 +1,14 @@
-//! Markdown and HTML import (File > Import > Markdown Files…, Markdown
-//! Folder…, HTML Files…, and the same items in a notebook's Import menu,
-//! which `import_pick` opens with that notebook as the destination). Rust
-//! picks what to import, lists the files and
-//! reads them; the core worker turns them into notebooks and notes
+//! Markdown and HTML import (File > Import, and a notebook's Import menu). Rust picks what to
+//! import, lists the files and reads them; the core worker turns them into notebooks and notes
 //! (`src/core/import.ts`).
-//!
-//! The web view never names a path (only the kind of pick and a notebook
-//! ID): the user picks folders or files in a
-//! native panel and Rust keeps them as an import session. The UI asks for
-//! files by session ID and a path relative to what was picked (starting with
-//! a folder's name when several were picked), and Rust only reads files
-//! inside it: hidden files and folders are skipped, the scan never walks
-//! symbolic links (an image may be reached through one, but only to a
-//! visible file inside the folder), and files over 10 MB are left out.
-//! Images are stored as attachments straight from disk, so their bytes
-//! never cross IPC.
-//!
-//! A folder scan runs on its own thread and reports its progress; closing
-//! the session (`import_finish`) cancels a scan still running. Nothing is
-//! written until the UI imports the scan.
+//! The web view never names a path: the user picks folders or files in a native panel and Rust
+//! keeps them as an import session. The UI asks for files by session ID and a path relative to what
+//! was picked, and Rust only reads files inside it: hidden files and folders are skipped, the scan
+//! never walks symbolic links (an image may be reached through one, but only to a visible file
+//! inside the folder), and files over 10 MB are left out. Images are stored as attachments straight
+//! from disk, so their bytes never cross IPC.
+//! A folder scan runs on its own thread; closing the session (`import_finish`) cancels a scan still
+//! running. Nothing is written until the UI imports the scan.
 
 use crate::commands::files::{MAX_FILE_BYTES, Upload, store_upload};
 use crate::commands::notes::valid_note_id;
@@ -36,15 +26,12 @@ use tauri_plugin_dialog::DialogExt;
 
 /// Markdown files and images share the attachments' size cap.
 pub const MAX_NOTE_BYTES: u64 = MAX_FILE_BYTES as u64;
-/// Markdown files one import takes; a larger folder is refused.
 pub const MAX_FILES: usize = 10_000;
 /// Directory entries one scan looks at, so picking a huge folder fails fast.
 pub const MAX_ENTRIES: usize = 200_000;
-/// Folder nesting one scan follows.
 pub const MAX_DEPTH: usize = 64;
 const MAX_PATH_BYTES: usize = 4096;
 const MAX_NAME_CHARS: usize = 200;
-/// How often a scan reports its progress.
 const PROGRESS_EVERY: Duration = Duration::from_millis(100);
 
 pub const SCANNING_EVENT: &str = "devot://import-scanning";
@@ -58,14 +45,12 @@ pub struct Problem {
     pub code: &'static str,
 }
 
-/// A file found, by its path relative to what was picked, and its size.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Item {
     pub path: String,
     pub bytes: u64,
 }
 
-/// What was picked; it decides which folders become notebooks (import.ts).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
@@ -74,16 +59,12 @@ pub enum Kind {
     Files,
 }
 
-/// A picked folder (or a picked file's folder) and the first path
-/// component that stands for it (`""` when it is the only one).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Root {
     pub prefix: String,
     pub path: PathBuf,
 }
 
-/// What a scan found: notes and images (relative, `/`-separated, sorted)
-/// and the files it left out.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Found {
     pub roots: Vec<Root>,
@@ -94,7 +75,6 @@ pub struct Found {
     pub skipped: Vec<Problem>,
 }
 
-/// A scan as the UI sees it (no absolute paths).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Scan {
     pub id: u64,
@@ -103,13 +83,11 @@ pub struct Scan {
     pub files: Vec<Item>,
     pub images: Vec<Item>,
     pub skipped: Vec<Problem>,
-    /// The notebook the import goes into when it was started from that
-    /// notebook's menu (the sheet then skips choosing one); None from
-    /// File > Import.
+    /// None from File > Import; set when started from a notebook's menu (the sheet then skips
+    /// choosing one).
     pub destination: Option<String>,
 }
 
-/// A scan that has started (the wizard opens on it).
 #[derive(Debug, Clone, Serialize)]
 struct Scanning<'a> {
     id: u64,
@@ -117,7 +95,6 @@ struct Scanning<'a> {
     kind: Kind,
 }
 
-/// How far a scan has got.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct Progress {
     pub files: usize,
@@ -147,7 +124,6 @@ fn has_extension(name: &str, extensions: &[&str]) -> bool {
 
 const MARKDOWN: &[&str] = &["md", "markdown"];
 const HTML: &[&str] = &["html", "htm"];
-/// Image files a scan counts (attachments check the bytes themselves).
 const IMAGES: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "avif", "heic", "heif"];
 
 fn is_markdown(name: &str) -> bool {
@@ -162,14 +138,10 @@ fn join(rel: &str, name: &str) -> String {
     }
 }
 
-/// How much one scan takes on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
-    /// Markdown files; more and the folder is refused.
     pub files: usize,
-    /// Directory entries looked at; more and the folder is refused.
     pub entries: usize,
-    /// Folder nesting followed; deeper folders are left out.
     pub depth: usize,
 }
 
@@ -181,8 +153,6 @@ impl Limits {
     };
 }
 
-/// What a running scan watches: whether it was cancelled, and who hears
-/// its progress.
 pub struct Watch<'a> {
     pub cancelled: &'a AtomicBool,
     pub progress: &'a dyn Fn(Progress),
@@ -190,7 +160,6 @@ pub struct Watch<'a> {
 
 #[cfg(test)]
 impl Watch<'_> {
-    /// A watch that never cancels and hears nothing.
     fn idle<T>(f: impl FnOnce(&Watch<'_>) -> T) -> T {
         let cancelled = AtomicBool::new(false);
         f(&Watch {
@@ -200,19 +169,16 @@ impl Watch<'_> {
     }
 }
 
-/// Lists the Markdown files and images under `root`.
 #[cfg(test)]
 pub fn scan(root: &Path) -> Result<Found, &'static str> {
     scan_with(root, Limits::DEFAULT)
 }
 
-/// Lists the Markdown files and images under `root`, within `limits`.
 #[cfg(test)]
 pub fn scan_with(root: &Path, limits: Limits) -> Result<Found, &'static str> {
     Watch::idle(|watch| scan_folders(&[root.to_path_buf()], limits, watch))
 }
 
-/// `name`, or `name 2`, `name 3`… when it is taken (in any case).
 fn unique(name: &str, taken: &mut HashSet<String>) -> String {
     // A path component the UI sends back must not be hidden.
     let base = match name.trim_start_matches('.') {
@@ -236,9 +202,8 @@ fn folder_name(root: &Path) -> Result<String, &'static str> {
         .to_owned())
 }
 
-/// Lists the Markdown files and images under each of `roots`. One folder's
-/// paths are relative to it; several folders' start with each one's name
-/// (made unique). `limits` hold for all of them together.
+/// One folder's paths are relative to it; several folders' start with each one's name (made
+/// unique). `limits` hold for all of them together.
 pub fn scan_folders(
     roots: &[PathBuf],
     limits: Limits,
@@ -339,7 +304,6 @@ fn walk(
             }
             list.push(entry);
         }
-        // Sorted, so the same folder always gives the same result.
         list.sort_by_key(|e| e.file_name());
         for entry in list {
             if lists
@@ -412,10 +376,8 @@ fn walk(
     Ok(())
 }
 
-/// What the user picked as files: Markdown (`html` false) or HTML. Each
-/// file is read from its folder, which is also where its images may be.
-/// Files from one folder have plain names; from several, each path starts
-/// with its folder's name (made unique).
+/// Each file is read from its folder, which is also where its images may be. From several folders,
+/// each path starts with its folder's name (made unique).
 pub fn pick_found(paths: &[PathBuf], html: bool) -> Result<Found, &'static str> {
     let extensions = if html { HTML } else { MARKDOWN };
     let mut parents: Vec<PathBuf> = Vec::new();
@@ -486,7 +448,6 @@ pub fn pick_found(paths: &[PathBuf], html: bool) -> Result<Found, &'static str> 
         let path = at.map_or(name.clone(), |at| rel(at, &name));
         lists.skipped.push(Problem { path, code });
     }
-    // Named after the first file picked.
     let name = paths
         .first()
         .and_then(|p| p.file_name())
@@ -517,10 +478,8 @@ fn link_problem(root: &Path, link: &Path, name: &str) -> Option<&'static str> {
     }
 }
 
-/// A file inside `root` named by a relative path: only plain, visible path
-/// components, and the resolved file (links followed) must be inside `root`
-/// and not hidden there either. A `\` is an ordinary name character here, as
-/// it is on disk (only `/` separates components).
+/// The resolved file (links followed) must be inside `root` and not hidden there either. A `\` is
+/// an ordinary name character here, as it is on disk (only `/` separates components).
 pub fn resolve(root: &Path, rel: &str) -> Result<(PathBuf, u64), &'static str> {
     if rel.is_empty() || rel.len() > MAX_PATH_BYTES || rel.contains('\0') {
         return Err("E_IMPORT_PATH_INVALID");
@@ -551,7 +510,6 @@ pub fn resolve(root: &Path, rel: &str) -> Result<(PathBuf, u64), &'static str> {
     Ok((path, meta.len()))
 }
 
-/// Reads at most `max` bytes; more means the file grew past the cap.
 fn read_capped(path: &Path, max: u64) -> Result<Vec<u8>, &'static str> {
     let file = std::fs::File::open(path).map_err(|_| "E_IMPORT_UNREADABLE")?;
     let mut data = Vec::new();
@@ -564,7 +522,6 @@ fn read_capped(path: &Path, max: u64) -> Result<Vec<u8>, &'static str> {
     Ok(data)
 }
 
-/// A Markdown file's text, without a UTF-8 byte order mark.
 pub fn read_note(root: &Path, rel: &str) -> Result<String, &'static str> {
     let (path, size) = resolve(root, rel)?;
     if size > MAX_NOTE_BYTES {
@@ -584,8 +541,6 @@ pub struct Image {
     pub data: Vec<u8>,
 }
 
-/// An image file to attach, within the attachments' size cap; its name is
-/// the file name. Storing it checks it like any upload (`store_upload`).
 pub fn read_image(root: &Path, rel: &str) -> Result<Image, &'static str> {
     let (path, size) = resolve(root, rel)?;
     if size == 0 || size > MAX_FILE_BYTES as u64 {
@@ -616,7 +571,6 @@ pub fn read_image(root: &Path, rel: &str) -> Result<Image, &'static str> {
 struct Session {
     roots: Vec<Root>,
     files: HashSet<String>,
-    /// Picked files: their images may only be next to them (see `SHALLOW`).
     shallow: bool,
 }
 
@@ -626,9 +580,6 @@ struct Session {
 /// the rest of a large folder (all of Downloads, say) to the import.
 pub const SHALLOW: usize = 2;
 
-/// Reads the image at `rel` for a session: as `read_image`, and for picked
-/// files (`shallow`) only an image file (by its extension) whose real path,
-/// links followed, is at most `SHALLOW` components inside `root`.
 pub fn read_session_image(root: &Path, rel: &str, shallow: bool) -> Result<Image, &'static str> {
     if shallow {
         let (path, _) = resolve(root, rel)?;
@@ -649,13 +600,11 @@ pub fn read_session_image(root: &Path, rel: &str, shallow: bool) -> Result<Image
 #[derive(Default)]
 pub struct Imports {
     next: AtomicU64,
-    /// Scans still running, with the flag that cancels each.
     pending: Mutex<HashMap<u64, Arc<AtomicBool>>>,
     sessions: Mutex<HashMap<u64, Session>>,
 }
 
 impl Imports {
-    /// A new session ID for a scan about to run, and its cancel flag.
     pub fn begin(&self) -> (u64, Arc<AtomicBool>) {
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
         let cancelled = Arc::new(AtomicBool::new(false));
@@ -665,8 +614,7 @@ impl Imports {
         (id, cancelled)
     }
 
-    /// Keeps what scan `id` found as its session, to be imported into
-    /// `destination` when one was given; None when it was cancelled meanwhile.
+    /// None when the scan was cancelled meanwhile.
     pub fn ready(&self, id: u64, found: Found, destination: Option<String>) -> Option<Scan> {
         // The pending entry goes and the session comes under the one lock
         // `finish` takes first, so a finish never falls between them (and
@@ -694,7 +642,6 @@ impl Imports {
         })
     }
 
-    /// A session for what was found straight away (picked files).
     pub fn start(&self, found: Found, destination: Option<String>) -> Scan {
         let (id, _) = self.begin();
         // A session just begun is never cancelled: the fallback is not used.
@@ -709,20 +656,16 @@ impl Imports {
         })
     }
 
-    /// Scan `id` failed: it has no session.
     fn failed(&self, id: u64) {
         if let Ok(mut pending) = self.pending.lock() {
             pending.remove(&id);
         }
     }
 
-    /// The folder `rel` is in, and `rel` inside it.
     fn root_for(&self, id: u64, rel: &str, note: bool) -> Result<(PathBuf, String), &'static str> {
         self.place(id, rel, note).map(|(root, rel, _)| (root, rel))
     }
 
-    /// The folder `rel` is in, `rel` inside it, and whether the session's
-    /// images must be next to their notes (picked files).
     fn place(
         &self,
         id: u64,
@@ -749,8 +692,6 @@ impl Imports {
         Err("E_IMPORT_PATH_OUTSIDE")
     }
 
-    /// Ends session `id`: a scan still running stops, and its files can no
-    /// longer be read.
     pub fn finish(&self, id: u64) {
         if let Ok(pending) = self.pending.lock()
             && let Some(flag) = pending.get(&id)
@@ -815,7 +756,6 @@ pub fn import_finish(imports: State<'_, Imports>, id: u64) {
     imports.finish(id);
 }
 
-/// What the user can pick from File > Import (or a notebook's Import menu).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Pick {
@@ -835,7 +775,6 @@ fn fail(app: &AppHandle, id: Option<u64>, code: &'static str) {
     emit(app, FAILED_EVENT, Failed { id, code });
 }
 
-/// The notebook a web view's import names, checked: an ID or none.
 fn pick_destination(book_id: Option<String>) -> Result<Option<String>, &'static str> {
     match book_id {
         Some(id) if !valid_note_id(&id) => Err("E_BOOK_ID_INVALID"),
@@ -843,9 +782,7 @@ fn pick_destination(book_id: Option<String>) -> Result<Option<String>, &'static 
     }
 }
 
-/// Starts an import from the web view (a notebook's Import menu): the same
-/// panel and session as File > Import, with the session's destination set
-/// to `book_id`. A cancelled panel sends nothing, so no preset outlives it.
+/// A cancelled panel sends nothing, so no preset outlives it.
 #[tauri::command]
 pub fn import_pick(app: AppHandle, kind: Pick, book_id: Option<String>) -> Result<(), String> {
     let destination = pick_destination(book_id)?;
@@ -853,8 +790,6 @@ pub fn import_pick(app: AppHandle, kind: Pick, book_id: Option<String>) -> Resul
     Ok(())
 }
 
-/// Shows the panel for `pick`; what the user picks is scanned and sent to
-/// the window as a session, to be imported into `destination` if given.
 pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>) {
     let title = match pick {
         Pick::MarkdownFiles => strings::IMPORT_MARKDOWN_FILES_TITLE,
@@ -905,8 +840,6 @@ pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>) {
     }
 }
 
-/// Scans picked folders on a thread of their own, telling the window when
-/// it starts, how far it has got, and what it found.
 fn scan_in_background(app: AppHandle, paths: Vec<PathBuf>, destination: Option<String>) {
     let (id, cancelled) = app.state::<Imports>().begin();
     let name = paths
@@ -1087,7 +1020,6 @@ mod tests {
         );
     }
 
-    /// A folder holding `n` empty Markdown files.
     fn notes(n: usize) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         for i in 0..n {
@@ -1096,7 +1028,6 @@ mod tests {
         dir
     }
 
-    /// A chain of `n` nested folders `d/d/…`, with a note in the deepest.
     fn nested(n: usize) -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
         let rel = vec!["d"; n].join("/");
@@ -1133,11 +1064,9 @@ mod tests {
 
     #[test]
     fn refuses_a_folder_with_more_entries_than_the_limit() {
-        // Every entry counts, hidden ones and folders too.
         let dir = notes(3);
         write(dir.path(), ".hidden", b"");
         write(dir.path(), "Sub/a.txt", b"");
-        // Root: four files and Sub; Sub: one file.
         let limits = |entries| Limits {
             entries,
             ..Limits::DEFAULT
@@ -1268,7 +1197,6 @@ mod tests {
         write(&root, "C\\C++ notes.md", b"# C\n");
         write(&root, "shots\\one.png", PNG);
         assert_eq!(read_note(&root, "C\\C++ notes.md").as_deref(), Ok("# C\n"));
-        // What the scan lists, its session reads.
         let imports = Imports::default();
         let found = imports.start(scan(&root).unwrap(), None);
         assert!(found.files.iter().any(|f| f.path == "C\\C++ notes.md"));
@@ -1343,7 +1271,6 @@ mod tests {
             imports.root_for(scan.id, "notes.txt", true),
             Err("E_IMPORT_PATH_UNKNOWN")
         );
-        // Images are any file inside the folder; `resolve` checks the rest.
         assert!(
             imports
                 .root_for(scan.id, "Projects/img/board.png", false)
@@ -1392,7 +1319,6 @@ mod tests {
         );
         assert_eq!(paths(&found.images), ["Home/cat.png"]);
 
-        // A session reads each path from its own folder.
         let imports = Imports::default();
         let scan = imports.start(found, None);
         let (root, rel) = imports.root_for(scan.id, "Work 2/List.md", true).unwrap();
@@ -1403,7 +1329,6 @@ mod tests {
             imports.root_for(scan.id, "Elsewhere/cat.png", false),
             Err("E_IMPORT_PATH_OUTSIDE")
         );
-        // The limits hold for all the folders together.
         let limits = Limits {
             files: 2,
             ..Limits::DEFAULT
@@ -1452,7 +1377,6 @@ mod tests {
             imports.root_for(id, "Inbox.md", true),
             Err("E_IMPORT_SESSION")
         );
-        // A scan that finishes first opens its session.
         let (id, _) = imports.begin();
         assert!(imports.ready(id, scan(dir.path()).unwrap(), None).is_some());
         assert!(imports.root_for(id, "Inbox.md", true).is_ok());
@@ -1469,7 +1393,6 @@ mod tests {
         let big = fs::File::create(root.join("Saved/huge.html")).unwrap();
         big.set_len(MAX_NOTE_BYTES + 1).unwrap();
 
-        // From one folder: plain names.
         let one = pick_found(&[root.join("Inbox.md"), root.join("notes.txt")], false).unwrap();
         assert_eq!(one.kind, Kind::Files);
         assert_eq!(paths(&one.files), ["Inbox.md"]);
@@ -1576,16 +1499,13 @@ mod tests {
             image("Pictures/private/x.png"),
             Err("E_IMPORT_PATH_OUTSIDE")
         );
-        // Only image files, by their name.
         assert_eq!(image("img/notes.txt"), Err("E_IMPORT_PATH_OUTSIDE"));
-        // A link next to the file cannot reach deeper either.
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink(root.join("Pictures/private/x.png"), root.join("peek.png"))
                 .unwrap();
             assert_eq!(image("peek.png"), Err("E_IMPORT_PATH_OUTSIDE"));
         }
-        // A picked folder keeps reading images at any depth inside it.
         let folder = imports.start(super::scan(root).unwrap(), None);
         let (at, rel, shallow) = imports
             .place(folder.id, "Pictures/private/x.png", false)

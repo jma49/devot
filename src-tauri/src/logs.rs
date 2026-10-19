@@ -12,13 +12,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub const DIR: &str = "logs";
 const NAME: &str = "devot.log";
 const MAX_BYTES: u64 = 1024 * 1024;
-/// Rotated files kept next to the current one (devot.1.log is the newest).
 const KEEP: usize = 4;
 const MAX_UI_IDS: usize = 4;
-/// Log target for entries that come from the UI.
 const UI_TARGET: &str = "ui";
 
-/// A log file that moves to `devot.1.log` (and older ones up) when full.
 pub struct RotatingFile {
     dir: PathBuf,
     max_bytes: u64,
@@ -85,7 +82,6 @@ impl RotatingFile {
     }
 }
 
-/// The log files in `dir`, oldest first.
 pub fn files_oldest_first(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = (1..=KEEP)
         .rev()
@@ -95,7 +91,6 @@ pub fn files_oldest_first(dir: &Path) -> Vec<PathBuf> {
     files.into_iter().filter(|p| p.exists()).collect()
 }
 
-/// Replaces the user name in home folder paths (`/Users/<name>/...`).
 pub fn scrub_paths(text: &str) -> String {
     const HOME: &str = "/Users/";
     let mut out = String::with_capacity(text.len());
@@ -115,7 +110,6 @@ pub fn scrub_paths(text: &str) -> String {
     out
 }
 
-/// `E_…`, `W_…` or `I_…` followed by capitals, digits and underscores.
 pub fn is_code(text: &str) -> bool {
     let rest = match text.as_bytes() {
         [b'E' | b'W' | b'I', b'_', rest @ ..] => rest,
@@ -132,7 +126,6 @@ fn is_id(text: &str) -> bool {
     is_code(text) || crate::commands::notes::valid_note_id(text)
 }
 
-/// Milliseconds since the epoch as an ISO 8601 UTC time.
 pub fn utc_iso(ms: i64) -> String {
     let (secs, millis) = (ms.div_euclid(1000), ms.rem_euclid(1000));
     let (days, day_secs) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
@@ -160,7 +153,6 @@ pub fn now_ms() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
 }
 
-/// One log line: `{"ts":…,"level":…,"target":…,"msg":…}` and a newline.
 pub fn format_line(ms: i64, level: log::Level, target: &str, message: &str) -> String {
     // Written by hand to keep the field order; values are JSON-escaped.
     let json = |text: &str| serde_json::Value::from(text).to_string();
@@ -223,7 +215,6 @@ impl log::Log for Logger {
     fn flush(&self) {}
 }
 
-/// Installs the logger and a panic hook that records where a panic happened.
 pub fn install(dir: &Path) {
     // The logger lives for the rest of the process.
     if log::set_logger(Box::leak(Box::new(Logger::new(dir)))).is_ok() {
@@ -256,7 +247,6 @@ pub fn panic_code(message: &str) -> &str {
     if is_code(code) { code } else { "E_UNKNOWN" }
 }
 
-/// Checks a UI entry: a known level, a code, and at most a few IDs.
 fn ui_entry(level: &str, code: &str, ids: &[String]) -> Result<(log::Level, String), &'static str> {
     let level = match level {
         "error" => log::Level::Error,
@@ -281,7 +271,6 @@ fn ui_entry(level: &str, code: &str, ids: &[String]) -> Result<(log::Level, Stri
     Ok((level, text))
 }
 
-/// Writes a UI warning or error to the local log.
 #[tauri::command]
 pub fn log_write(level: String, code: String, ids: Vec<String>) -> Result<(), String> {
     let (level, text) = ui_entry(&level, &code, &ids).map_err(String::from)?;

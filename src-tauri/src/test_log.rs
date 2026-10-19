@@ -1,5 +1,4 @@
-//! What the unit tests logged. A process has one logger, set once, so every
-//! test module that checks a log line captures through this one.
+//! A process has one logger, set once, so every test module checks log lines through this one.
 
 use std::sync::{Mutex, Once};
 
@@ -21,7 +20,6 @@ impl log::Log for Capture {
     fn flush(&self) {}
 }
 
-/// Starts capturing log lines (from Info up), once per test binary.
 pub fn capture() {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
@@ -30,7 +28,6 @@ pub fn capture() {
     });
 }
 
-/// Every line logged so far by any test, as `LEVEL message`.
 pub fn lines() -> Vec<String> {
     LOGGED.lock().map(|lines| lines.clone()).unwrap_or_default()
 }

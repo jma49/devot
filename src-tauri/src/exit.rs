@@ -1,39 +1,29 @@
-//! Quit handshake: when the user quits or closes the window, Devot holds it,
-//! asks the UI to save pending edits, and exits when the UI reports back (or
-//! after a timeout, so a stuck UI can never block quitting).
-//!
-//! On macOS the standard Quit menu item terminates the app without a
-//! `RunEvent::ExitRequested`, so the app menu uses its own Quit item
-//! (`menu::QUIT_ID`) that starts this handshake. Quitting from the Dock or at
-//! logout still bypasses it; autosave bounds what that can lose.
-//!
-//! When a note could not be saved, the UI may call the quit off instead
-//! (`app_exit_cancel`): the app keeps running with the changes in memory, and
-//! a later quit asks again.
+//! Quit handshake: on quit or window close Devot holds it, asks the UI to save pending edits, and
+//! exits when the UI reports back (or after a timeout, so a stuck UI can never block quitting).
+//! On macOS the standard Quit menu item terminates the app without a `RunEvent::ExitRequested`, so
+//! the app menu has its own Quit item (`menu::QUIT_ID`) that starts this handshake. Quitting from
+//! the Dock or at logout still bypasses it; autosave bounds what that can lose.
+//! When a note could not be saved the UI may call the quit off (`app_exit_cancel`); a later quit
+//! asks again.
 
 use crate::MAIN_WINDOW;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, Window, WindowEvent};
 
-/// Event the UI listens for; it saves, then calls `app_exit_ready` (or
-/// `app_exit_cancel`).
 pub const FLUSH_EVENT: &str = "devot://flush-before-exit";
 const FLUSH_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Default)]
 pub struct ExitGate {
     ready: AtomicBool,
-    /// The round of the quit held while the UI saves (rounds count from 1),
-    /// or 0 when none is.
+    /// The round of the quit held while the UI saves (rounds count from 1), or 0 when none is.
     held: AtomicU64,
-    /// The last round started.
     rounds: AtomicU64,
 }
 
 impl ExitGate {
-    /// Holds a quit while the UI saves: its round, or None when one is held
-    /// already or the app is exiting.
+    /// Holds a quit while the UI saves: its round, or None when one is held already or the app is exiting.
     fn begin(&self) -> Option<u64> {
         if self.ready.load(Ordering::SeqCst) {
             return None;
@@ -45,18 +35,14 @@ impl ExitGate {
             .map(|_| round)
     }
 
-    /// Whether a quit is held, waiting for the UI.
     fn asked(&self) -> bool {
         self.held.load(Ordering::SeqCst) != 0
     }
 
-    /// The UI could not save: the quit held is called off.
     fn call_off(&self) {
         self.held.store(0, Ordering::SeqCst);
     }
 
-    /// Whether the timeout of `round` ends the app: that quit is still held
-    /// and the UI has not answered.
     fn timed_out(&self, round: u64) -> bool {
         !self.ready.load(Ordering::SeqCst) && self.held.load(Ordering::SeqCst) == round
     }
@@ -64,11 +50,8 @@ impl ExitGate {
 
 #[derive(Debug, PartialEq, Eq)]
 enum Decision {
-    /// Our own `exit()` call, or the UI already saved: let it through.
     Allow,
-    /// First quit request: hold it and ask the UI to save.
     HoldAndAsk,
-    /// Already asked; keep holding until the UI answers or time runs out.
     Hold,
 }
 
@@ -90,7 +73,6 @@ fn exit_now(app: &AppHandle) {
     }
 }
 
-/// Starts the handshake once; later calls while it runs do nothing.
 pub fn request_quit(app: &AppHandle) {
     let Some(round) = app.state::<ExitGate>().begin() else {
         return;
@@ -109,12 +91,10 @@ pub fn request_quit(app: &AppHandle) {
     });
 }
 
-/// Only the main window's close quits the app; other windows (Settings) just close.
 fn close_quits(label: &str) -> bool {
     label == MAIN_WINDOW
 }
 
-/// Closing the main window saves first too: hold the close and run the handshake.
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
     if let WindowEvent::CloseRequested { api, .. } = event {
         let app = window.app_handle();
@@ -125,7 +105,6 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
     }
 }
 
-/// Handles `RunEvent::ExitRequested`; ignores every other event.
 pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
     let RunEvent::ExitRequested { api, code, .. } = event else {
         return;
@@ -141,15 +120,11 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
     }
 }
 
-/// The UI saved everything; quit now.
 #[tauri::command]
 pub fn app_exit_ready(app: AppHandle) {
     exit_now(&app);
 }
 
-/// The UI could not save every note: the quit is called off, and the app
-/// keeps running with the changes in memory (the UI tells the user and keeps
-/// trying to save them). A later quit asks again.
 #[tauri::command]
 pub fn app_exit_cancel(app: AppHandle) {
     log::warn!("W_EXIT_CALLED_OFF");

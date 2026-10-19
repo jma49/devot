@@ -1,14 +1,10 @@
-//! Automatic local backups: a snapshot of the database in
-//! `<app data>/backups/` when the last one taken is a day old, keeping the
-//! last `KEEP`. Until sync exists these are the only second copy of the notes.
-//! Snapshots run on their own thread and connection; restoring first copies
-//! the current data aside (a safety copy, kept apart from the backups).
-//! Failures are logged by code and sent to the window.
-//!
-//! Backups go in the order they were taken, which the number in their names
-//! keeps (each one more than the highest there), never by the time beside
-//! it: the clock can be set back or ahead, and a backup taken then must
-//! neither be the first to go nor stay the newest.
+//! Automatic local backups: a snapshot of the database in `<app data>/backups/` when the last one
+//! taken is a day old, keeping the last `KEEP`. Until sync exists these are the only second copy of
+//! the notes. Snapshots run on their own thread and connection; restoring first copies the current
+//! data aside.
+//! Backups go in the order they were taken, which the number in their names keeps, never by the
+//! time beside it: the clock can be set back or ahead, and a backup taken then must neither be the
+//! first to go nor stay the newest.
 
 use crate::atomic_file::{self, Place, TempDir};
 use crate::{logs, storage};
@@ -19,49 +15,39 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
 
 pub const DIR: &str = "backups";
-/// Backups kept: the daily ones and those taken on request.
 pub const KEEP: usize = 7;
 /// Safety copies kept, apart from the backups: enough to restore every
 /// backup in turn and still go back to the notes from before the first.
 pub const KEEP_SAFETY: usize = KEEP;
 const DAY_MS: i64 = 86_400_000;
-/// A day by a clock that setting the time does not move.
+/// By a clock that setting the time does not move.
 const DAY: Duration = Duration::from_secs(86_400);
 const PREFIX: &str = "devot-";
 const SUFFIX: &str = ".sqlite";
-/// After the number in a safety copy's name.
 const SAFETY: &str = "-before-restore";
-/// The length of the time in a backup's name: `2026-10-10T12-34-56-789Z`.
 const STAMP_LEN: usize = 24;
-/// Waits after launch before the first check, then checks this often.
 const FIRST_CHECK: Duration = Duration::from_secs(20);
 const CHECK_EVERY: Duration = Duration::from_secs(3600);
 pub const FAILED_EVENT: &str = "devot://backup-failed";
 
-/// What a backup holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
-    /// A daily backup, or one taken on request (Back Up Now).
     Backup,
-    /// A safety copy: the notes a restore replaced, so it can be undone.
     Safety,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupInfo {
-    /// The file name, which is also how the UI names a backup to restore.
     pub id: String,
     pub created_at: i64,
     pub size: u64,
-    /// Its place in the order backups were taken (see `parse_name`).
     #[serde(skip)]
     pub seq: u64,
     #[serde(skip)]
     pub kind: Kind,
 }
 
-/// What a backup's name says.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Name {
     pub created_at: i64,
@@ -69,7 +55,6 @@ pub struct Name {
     pub kind: Kind,
 }
 
-/// The UTC time in a backup's name: `2026-10-10T12-34-56-789Z`.
 fn stamp(ms: i64) -> String {
     logs::utc_iso(ms).replace([':', '.'], "-")
 }
@@ -84,13 +69,10 @@ pub fn file_name(ms: i64, seq: u64, kind: Kind) -> String {
     format!("{PREFIX}{}-{seq}{tag}{SUFFIX}", stamp(ms))
 }
 
-/// A name from before backups were numbered:
-/// `devot-2026-10-10T12-34-56-789Z.sqlite`.
 fn unnumbered_name(ms: i64) -> String {
     format!("{PREFIX}{}{SUFFIX}", stamp(ms))
 }
 
-/// Milliseconds since the epoch for a civil UTC date and time.
 fn epoch_ms(year: i64, month: i64, day: i64, secs_of_day: i64, millis: i64) -> i64 {
     let y = if month <= 2 { year - 1 } else { year };
     let era = y.div_euclid(400);
@@ -102,7 +84,6 @@ fn epoch_ms(year: i64, month: i64, day: i64, secs_of_day: i64, millis: i64) -> i
     (days * 86_400 + secs_of_day) * 1000 + millis
 }
 
-/// The time a stamp names (checked by the caller's round trip).
 fn parse_stamp(stamp: &str) -> Option<i64> {
     let b = stamp.as_bytes();
     if b.len() != STAMP_LEN || b[10] != b'T' || b[23] != b'Z' {
@@ -118,9 +99,8 @@ fn parse_stamp(stamp: &str) -> Option<i64> {
     ))
 }
 
-/// What a backup's name says: when it was taken, its number and its kind.
-/// A name from before backups were numbered counts as number 0, so it comes
-/// before every numbered one. `None` when it is not one of ours.
+/// A name from before backups were numbered counts as number 0, so it comes before every numbered
+/// one.
 pub fn parse_name(name: &str) -> Option<Name> {
     let rest = name.strip_prefix(PREFIX)?.strip_suffix(SUFFIX)?;
     let created_at = parse_stamp(rest.get(..STAMP_LEN)?)?;
@@ -143,7 +123,6 @@ pub fn parse_name(name: &str) -> Option<Name> {
     })
 }
 
-/// Backups in `dir`, the last taken first.
 pub fn list(dir: &Path) -> Vec<BackupInfo> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
@@ -168,8 +147,6 @@ pub fn list(dir: &Path) -> Vec<BackupInfo> {
     backups
 }
 
-/// The next backup's number: one more than any in `dir`, so it comes last
-/// whatever the clock says.
 fn next_seq(dir: &Path) -> u64 {
     list(dir)
         .iter()
@@ -179,13 +156,11 @@ fn next_seq(dir: &Path) -> u64 {
         .saturating_add(1)
 }
 
-/// A backup is due when the last one taken is a day old by the wall clock
-/// (`now`) and this process has not taken one by itself within the last day
-/// (`since_last`, by a clock that setting the time does not move and that
-/// counts sleep, see `monotonic`; `None` before its first). One from the
-/// future means the clock was set back, and its age is unknown: one is due
-/// then on the second rule alone. So a clock set back, or set right after
-/// running slow, costs a backup a day, never one an hour.
+/// Due when the last backup taken is a day old by the wall clock (`now`) and this process has not
+/// taken one within the last day (`since_last`, see `monotonic`; `None` before its first). A backup
+/// from the future means the clock was set back and its age is unknown: then only the second rule
+/// applies. So a clock set back, or set right after running slow, costs a backup a day, never one
+/// an hour.
 pub fn due(backups: &[BackupInfo], now: i64, since_last: Option<Duration>) -> bool {
     let a_day_since_ours = since_last.is_none_or(|ran| ran >= DAY);
     match backups.first() {
@@ -195,9 +170,8 @@ pub fn due(backups: &[BackupInfo], now: i64, since_last: Option<Duration>) -> bo
     }
 }
 
-/// Time since a fixed point by a clock that setting the time does not move
-/// and that keeps counting while the Mac sleeps (`Instant` stops then), so
-/// a day by it is a day by the calendar, asleep or awake.
+/// A clock that setting the time does not move and that keeps counting while the Mac sleeps
+/// (`Instant` stops then).
 fn monotonic() -> Duration {
     #[cfg(target_os = "macos")]
     if let Some(since_boot) = crate::native::macos::time_since_boot() {
@@ -207,13 +181,10 @@ fn monotonic() -> Duration {
     START.get_or_init(Instant::now).elapsed()
 }
 
-/// Keeps the last `KEEP` backups and, apart from them, the last
-/// `KEEP_SAFETY` safety copies, in the order they were taken; `taken`, the
-/// backup just taken, always stays. So does the first safety copy taken
-/// after each of the backups kept: it holds the notes from before a run of
-/// restores, which no backup has (each later copy holds a restored backup).
-/// It goes once the backup before it has. Only names this module writes go,
-/// and only from `dir`.
+/// Keeps the last `KEEP` backups and, apart from them, the last `KEEP_SAFETY` safety copies;
+/// `taken`, the backup just taken, always stays. So does the first safety copy taken after each
+/// backup kept: it holds the notes from before a run of restores, which no backup has. It goes once
+/// the backup before it has. Only names this module writes go, and only from `dir`.
 pub fn prune(dir: &Path, taken: &str) {
     let backups = list(dir);
     let kept: Vec<&str> = backups
@@ -245,12 +216,10 @@ pub fn prune(dir: &Path, taken: &str) {
     tidy(dir);
 }
 
-/// Removes what no backup needs: the folder of a snapshot that never
-/// finished (the app quit or crashed during it), an older build's partial
-/// file, and the side files of a backup that is gone. A running snapshot
-/// keeps its folder locked (see `take`), and a locked folder stays; callers
-/// hold `Backups::lock` too, which keeps this process's snapshots safe
-/// where the file system cannot lock. Only what is in `dir` goes, never
+/// Removes the folder of a snapshot that never finished (the app quit or crashed during it), an
+/// older build's partial file, and the side files of a backup that is gone. A running snapshot
+/// keeps its folder locked (see `take`); callers hold `Backups::lock` too, which keeps this
+/// process's snapshots safe where the file system cannot lock. Only what is in `dir` goes, never
 /// what a link there points to.
 pub fn tidy(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -281,11 +250,8 @@ pub fn tidy(dir: &Path) {
     }
 }
 
-/// SQLite's files beside a database: its journal, write-ahead log and
-/// shared memory.
 const SIDE_FILES: [&str; 3] = ["-journal", "-wal", "-shm"];
 
-/// The database a side file belongs to.
 fn side_file_of(name: &str) -> Option<&str> {
     SIDE_FILES.iter().find_map(|side| name.strip_suffix(side))
 }
@@ -296,7 +262,7 @@ fn is_orphan_side_file(dir: &Path, name: &str) -> bool {
 }
 
 /// The partial file an older build wrote beside the backups
-/// (`.devot-2026-10-10T12-34-56-789Z.sqlite.partial`), or a side file of it.
+/// (`.devot-2026-10-10T12-34-56-789Z.sqlite.partial`).
 fn is_old_partial(name: &str) -> bool {
     side_file_of(name)
         .unwrap_or(name)
@@ -306,9 +272,7 @@ fn is_old_partial(name: &str) -> bool {
         .is_some()
 }
 
-/// Removes the folder of a snapshot that never finished, holding its lock
-/// meanwhile; `None` when a running snapshot holds it. On a file system
-/// that cannot lock, the folder goes.
+/// On a file system that cannot lock, the folder goes.
 fn remove_unfinished(folder: &Path) -> Option<std::io::Result<()>> {
     let handle = std::fs::File::open(folder).ok()?;
     if let Err(std::fs::TryLockError::WouldBlock) = handle.try_lock() {
@@ -317,24 +281,19 @@ fn remove_unfinished(folder: &Path) -> Option<std::io::Result<()>> {
     Some(std::fs::remove_dir_all(folder))
 }
 
-/// Locks a snapshot's folder for as long as the handle lives: `tidy` leaves
-/// a locked folder alone, whoever calls it. `None` where the file system
-/// cannot lock (the snapshot goes on).
+/// `tidy` leaves a locked folder alone, whoever calls it. `None` where the file system cannot lock
+/// (the snapshot goes on).
 fn lock_folder(folder: &Path) -> Option<std::fs::File> {
     let handle = std::fs::File::open(folder).ok()?;
     handle.try_lock().ok()?;
     Some(handle)
 }
 
-/// The snapshot's name in its private folder.
 const PARTIAL: &str = "backup.sqlite";
 
-/// Snapshots the database into a new private folder in `dir` (SQLite makes
-/// the file by its path, see `atomic_file::TempDir`), then moves it into
-/// `dir` under the next number, never over another file. The folder goes
-/// with anything SQLite left in it; a quit leaves it, locked until then, for
-/// `tidy`. The caller holds `Backups::lock`, so no other snapshot takes the
-/// same number.
+/// SQLite makes the file by its path (see `atomic_file::TempDir`), then it is moved into `dir`
+/// under the next number, never over another file. A quit leaves the folder, locked until then, for
+/// `tidy`. The caller holds `Backups::lock`, so no other snapshot takes the same number.
 pub fn take(db_path: &Path, dir: &Path, now: i64, kind: Kind) -> Result<BackupInfo, &'static str> {
     std::fs::create_dir_all(dir).map_err(|_| "E_BACKUP_DIR")?;
     let seq = next_seq(dir);
@@ -359,7 +318,6 @@ pub fn take(db_path: &Path, dir: &Path, now: i64, kind: Kind) -> Result<BackupIn
     })
 }
 
-/// Where backups live, and a lock so a snapshot and a restore never overlap.
 pub struct Backups {
     db_path: PathBuf,
     dir: PathBuf,
@@ -377,9 +335,8 @@ impl Backups {
         }
     }
 
-    /// A backup at `now` (Back Up Now, or a daily one that is due), then the
-    /// retention. What a quit left goes first, so its room is free for the
-    /// snapshot even when that fails. The caller holds `lock`.
+    /// What a quit left goes first, so its room is free for the snapshot even when that fails. The
+    /// caller holds `lock`.
     fn back_up(&self, now: i64) -> Result<BackupInfo, &'static str> {
         tidy(&self.dir);
         let info = take(&self.db_path, &self.dir, now, Kind::Backup)?;
@@ -387,10 +344,6 @@ impl Backups {
         Ok(info)
     }
 
-    /// The automatic check, shortly after launch and then hourly: a backup
-    /// when one is due (see `due`: `now` is the wall clock, `since_last` how
-    /// long this process has run since it last took one by itself), and the
-    /// folder tidied either way (see `tidy`).
     fn check(
         &self,
         now: i64,
@@ -405,9 +358,8 @@ impl Backups {
         }
     }
 
-    /// Replaces the notes with backup `id`, after copying the current data
-    /// aside as a safety copy, so the restore can be undone. It removes
-    /// nothing: not a backup, nor the copy it makes (see `prune`).
+    /// Copies the current data aside first as a safety copy, so the restore can be undone. It
+    /// removes nothing (see `prune`).
     async fn restore(&self, db: &storage::Db, id: &str, now: i64) -> Result<(), &'static str> {
         if parse_name(id).is_none() {
             return Err("E_BACKUP_ID_INVALID");
@@ -434,7 +386,6 @@ impl Backups {
         Ok(())
     }
 
-    /// Logs a failure and tells the window; a success clears the last failure.
     fn record(&self, app: &AppHandle, result: &Result<BackupInfo, &'static str>) {
         let error = result.as_ref().err().copied();
         if let Ok(mut last) = self.last_error.lock() {
@@ -449,14 +400,12 @@ impl Backups {
     }
 }
 
-/// Checks shortly after launch and then hourly whether a backup is due.
 pub fn start(app: &AppHandle) {
     let app = app.clone();
     let spawned = std::thread::Builder::new()
         .name("devot-backups".into())
         .spawn(move || {
             std::thread::sleep(FIRST_CHECK);
-            // When this process last took a backup by itself (see `monotonic`).
             let mut last: Option<Duration> = None;
             loop {
                 let backups = app.state::<Backups>();
@@ -480,7 +429,6 @@ pub fn start(app: &AppHandle) {
 #[serde(rename_all = "camelCase")]
 pub struct BackupStatus {
     backups: Vec<BackupInfo>,
-    /// The code of the last automatic or manual backup, when it failed.
     last_error: Option<&'static str>,
 }
 
@@ -510,8 +458,6 @@ pub async fn backup_now(app: AppHandle) -> Result<BackupInfo, String> {
     result.map_err(String::from)
 }
 
-/// Replaces the notes with a backup, after copying the current data aside
-/// (see `Backups::restore`).
 #[tauri::command]
 pub async fn backup_restore(
     app: AppHandle,
@@ -544,12 +490,10 @@ mod tests {
     const HOUR: i64 = 3_600_000;
     const YEAR: i64 = 365 * DAY_MS;
 
-    /// Hours on a clock that setting the time does not move.
     fn hours(n: i64) -> Option<Duration> {
         Some(Duration::from_secs(3600 * u64::try_from(n).unwrap()))
     }
 
-    /// A data folder with its database open, as the app has them.
     fn app_data() -> (tempfile::TempDir, Backups, storage::Db) {
         let dir = tempfile::tempdir().unwrap();
         let db_path = dir.path().join("devot.sqlite");
@@ -558,12 +502,10 @@ mod tests {
         (dir, backups, db)
     }
 
-    /// The backups' names, newest first.
     fn names(backups: &Backups) -> Vec<String> {
         list(&backups.dir).into_iter().map(|b| b.id).collect()
     }
 
-    /// A backup a day for a week, the last at `NOW`; their names, newest first.
     fn a_week_of_backups(backups: &Backups) -> Vec<String> {
         for day in (0..7).rev() {
             backups.back_up(NOW - day * DAY_MS).unwrap();
@@ -573,7 +515,6 @@ mod tests {
         week
     }
 
-    /// A private folder left as it is, as when the app quits during a snapshot.
     fn left_behind(folder: TempDir) -> PathBuf {
         let path = folder.path().to_owned();
         std::mem::forget(folder);
@@ -584,7 +525,6 @@ mod tests {
     fn a_restore_keeps_every_backup_and_the_copy_it_makes() {
         let (_dir, backups, db) = app_data();
         let week = a_week_of_backups(&backups);
-        // Looking for something lost: the newest four, one after another.
         for (n, id) in (0..).zip(&week[..4]) {
             let now = NOW + HOUR + n * 60_000;
             tauri::async_runtime::block_on(backups.restore(&db, id, now)).unwrap();
@@ -592,7 +532,6 @@ mod tests {
         let after = names(&backups);
         assert_eq!(after.len(), KEEP + 4, "{after:?}");
         assert!(week.iter().all(|id| after.contains(id)), "{after:?}");
-        // What each restore replaced, copied first.
         let copies: Vec<String> = after.into_iter().filter(|id| !week.contains(id)).collect();
         assert_eq!(copies.len(), 4);
 
@@ -617,10 +556,8 @@ mod tests {
         // The newest backup is from the future: one is due, and it stays.
         let first = backups.check(slow, None).expect("due").unwrap();
         assert_eq!(names(&backups)[0], first.id);
-        // Back Up Now keeps its backup too.
         let asked = backups.back_up(slow + HOUR).unwrap();
         assert_eq!(names(&backups)[0], asked.id);
-        // Then a day by the slow clock, checked hourly, before the next.
         for hour in 1..24 {
             let taken = backups.check(slow + HOUR + hour * HOUR, hours(hour + 1));
             assert!(taken.is_none(), "hour {hour}");
@@ -652,7 +589,6 @@ mod tests {
         let kept = names(&backups);
         assert_eq!(kept[0], ahead.id);
         assert_eq!(kept[1..], week[..KEEP - 1]);
-        // A day after the last, one is taken: the newest, whatever the times say.
         let next = backups
             .check(NOW + HOUR + DAY_MS, hours(24))
             .expect("due")
@@ -668,16 +604,13 @@ mod tests {
         let (_dir, backups, _db) = app_data();
         let kept = backups.back_up(NOW).unwrap();
         let dir = backups.dir.clone();
-        // The app quit during a snapshot: its private folder stayed.
         let quit = TempDir::new_in(&dir).unwrap();
         std::fs::write(quit.path().join(PARTIAL), vec![0; 4096]).unwrap();
         std::fs::write(quit.path().join(format!("{PARTIAL}-journal")), b"").unwrap();
         let quit = left_behind(quit);
-        // An older build's partial file, with SQLite's journal beside it.
         let old = format!(".{}.partial", unnumbered_name(NOW - DAY_MS));
         std::fs::write(dir.join(&old), b"partial").unwrap();
         std::fs::write(dir.join(format!("{old}-journal")), b"").unwrap();
-        // A snapshot still running: its folder is locked.
         let running = TempDir::new_in(&dir).unwrap();
         std::fs::write(running.path().join(PARTIAL), b"in progress").unwrap();
         let held = lock_folder(running.path()).expect("locked");
@@ -685,7 +618,6 @@ mod tests {
         let gone = file_name(NOW - DAY_MS, 9, Kind::Backup);
         std::fs::write(dir.join(format!("{gone}-journal")), b"").unwrap();
         std::fs::write(dir.join(format!("{}-wal", kept.id)), b"").unwrap();
-        // Not ours, so kept.
         std::fs::write(dir.join("notes.txt"), "mine").unwrap();
         std::fs::create_dir(dir.join(".devot-photos.tmp")).unwrap();
         let outside = tempfile::tempdir().unwrap();
@@ -743,15 +675,12 @@ mod tests {
             std::fs::write(quit.join(PARTIAL), vec![0; 4096]).unwrap();
             quit
         };
-        // The quit left a backup due: the check at launch.
         let quit = quit_during_snapshot();
         assert_eq!(backups.check(NOW, None), Some(failed()));
         assert!(!quit.exists());
-        // Back Up Now.
         let quit = quit_during_snapshot();
         assert_eq!(backups.back_up(NOW), failed());
         assert!(!quit.exists());
-        // A restore's safety copy.
         let id = file_name(NOW - DAY_MS, 1, Kind::Backup);
         std::fs::write(backups.dir.join(&id), b"backup").unwrap();
         let db = storage::Db::spawn(&dir.path().join("open.sqlite")).unwrap();
@@ -780,7 +709,6 @@ mod tests {
         backups.back_up(NOW + DAY_MS).unwrap();
         let kept = names(&backups);
         assert!(copies.iter().all(|id| kept.contains(id)), "{kept:?}");
-        // Once every backup from before the restores has gone, it goes too.
         for day in 2..=8 {
             backups.back_up(NOW + day * DAY_MS).unwrap();
         }
@@ -834,7 +762,6 @@ mod tests {
             ..backup
         };
         assert_eq!(parse_name(&copy), Some(safety));
-        // Named before backups were numbered: number 0, before all others.
         let unnumbered = unnumbered_name(NOW);
         assert_eq!(unnumbered, "devot-2026-10-10T12-34-56-789Z.sqlite");
         assert_eq!(parse_name(&unnumbered), Some(Name { seq: 0, ..backup }));
@@ -881,7 +808,6 @@ mod tests {
         let taken = [
             unnumbered_name(NOW - DAY_MS),
             unnumbered_name(NOW),
-            // The clock was a year ahead, then a year behind.
             file_name(NOW + YEAR, 1, Kind::Backup),
             file_name(NOW - YEAR, 2, Kind::Safety),
             file_name(NOW, 3, Kind::Backup),
@@ -921,7 +847,6 @@ mod tests {
             take(&db, &backups, NOW + n * DAY_MS, Kind::Backup).unwrap();
         }
         std::fs::write(backups.join("notes.txt"), "not a backup").unwrap();
-        // Side files of the oldest backup go with it.
         let oldest = file_name(NOW, 1, Kind::Backup);
         std::fs::write(backups.join(format!("{oldest}-wal")), "").unwrap();
         let listed = list(&backups);
@@ -932,7 +857,6 @@ mod tests {
         prune(&backups, &listed[0].id);
         let kept: Vec<u64> = list(&backups).iter().map(|b| b.seq).collect();
         assert_eq!(kept, [9, 8, 7, 6, 5, 4, 3]);
-        // Files that are not backups are left alone, and no partial remains.
         assert!(backups.join("notes.txt").exists());
         assert_eq!(std::fs::read_dir(&backups).unwrap().count(), KEEP + 1);
     }
@@ -942,7 +866,6 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let backups = dir.path().join(DIR);
         std::fs::create_dir(&backups).unwrap();
-        // Ten backups and nine safety copies, taken in turn.
         let mut taken = Vec::new();
         for seq in 1..=19_u64 {
             let kind = if seq % 2 == 0 {
@@ -1021,7 +944,6 @@ mod tests {
         );
         assert!(info.size > 0);
         assert_eq!(std::fs::read(&theirs).unwrap(), b"theirs");
-        // Nothing of the snapshot is left beside it: the backup and the link.
         assert_eq!(std::fs::read_dir(&backups).unwrap().count(), 2);
     }
 }

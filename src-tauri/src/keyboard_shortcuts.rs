@@ -1,23 +1,14 @@
-//! Keyboard shortcuts the user changed (Settings > Keyboard Shortcuts). The
-//! command registry (`src/renderer/src/commands/registry.ts`) declares every
-//! command with its default keys; this keeps only the changes: a command's
-//! keys in place of its defaults (an empty list: no key). They are kept on
-//! this device only, in `<app data>/keyboard-shortcuts.json`, never in the
-//! notes database, so they never sync and never go into backups.
-//!
-//! As with the editor settings, Rust holds them so every window reads the
-//! same: the Settings window changes them, and after each change every window
-//! gets `devot://keyboard-shortcuts-changed` with all of them (and a revision
-//! number) and rebinds its keys and menus at once.
-//!
-//! Checked here: command IDs look like the registry's (`format.bold`), keys
-//! are in the registry's key notation in canonical order (`Mod+Ctrl+Alt+Shift`
-//! then a key), never a key macOS or the app menu keeps (`RESERVED`) nor
-//! Escape, at most four per command, each once. What only the registry
-//! knows (which commands exist, where their keys apply, clashes between
-//! them) the UI checks, and it ignores a stored change it cannot use. A
-//! change with anything invalid is refused as a whole; reading the file is
-//! lenient instead (an invalid entry is dropped, the rest are kept).
+//! Keyboard shortcuts the user changed (Settings > Keyboard Shortcuts). The command registry
+//! (`src/renderer/src/commands/registry.ts`) declares every command with its default keys; this
+//! keeps only the changes, on this device only in `<app data>/keyboard-shortcuts.json`, so they
+//! never sync and never go into backups.
+//! As with the editor settings, Rust holds them so every window reads the same: after each change
+//! every window gets `devot://keyboard-shortcuts-changed` with all of them and a revision number.
+//! Checked here: command IDs look like the registry's, keys are in canonical order
+//! (`Mod+Ctrl+Alt+Shift` then a key), never a key macOS or the app menu keeps (`RESERVED`) nor
+//! Escape, at most four per command, each once. What only the registry knows (which commands exist,
+//! where keys apply, clashes) the UI checks. A change with anything invalid is refused as a whole;
+//! reading the file is lenient (an invalid entry is dropped, the rest kept).
 
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -29,9 +20,7 @@ use tauri::{AppHandle, Emitter, State};
 pub const FILE: &str = "keyboard-shortcuts.json";
 pub const CHANGED_EVENT: &str = "devot://keyboard-shortcuts-changed";
 
-/// At most this many keys per command.
 pub const MAX_KEYS: usize = 4;
-/// At most this many changed commands (the registry has about 140).
 pub const MAX_COMMANDS: usize = 256;
 const MAX_ID_LEN: usize = 64;
 
@@ -72,7 +61,6 @@ const NAMED: &[&str] = &[
     "PageDown",
 ];
 
-/// Whether `key` is a key the notation writes (Escape is never a shortcut).
 fn known_key(key: &str) -> bool {
     let mut chars = key.chars();
     match (chars.next(), chars.next()) {
@@ -89,7 +77,6 @@ fn known_key(key: &str) -> bool {
     }
 }
 
-/// Whether `shortcut` is a key in canonical notation a command may take.
 pub fn valid_shortcut(shortcut: &str) -> bool {
     if shortcut.len() > MAX_ID_LEN || RESERVED.contains(&shortcut) {
         return false;
@@ -98,7 +85,6 @@ pub fn valid_shortcut(shortcut: &str) -> bool {
         Some((modifiers, key)) => (Some(modifiers), key),
         None => (None, shortcut),
     };
-    // Modifiers in canonical order, each once.
     let mut next = 0;
     for part in modifiers.into_iter().flat_map(|m| m.split('+')) {
         match MODIFIERS[next..].iter().position(|m| *m == part) {
@@ -109,7 +95,6 @@ pub fn valid_shortcut(shortcut: &str) -> bool {
     known_key(key)
 }
 
-/// Whether `id` looks like a registry command ID: dotted camelCase words.
 pub fn valid_command_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= MAX_ID_LEN
@@ -121,7 +106,6 @@ pub fn valid_command_id(id: &str) -> bool {
         })
 }
 
-/// A command's keys, checked.
 fn keys_of(value: &Value) -> Result<Vec<String>, &'static str> {
     let list = value.as_array().ok_or(INVALID)?;
     if list.len() > MAX_KEYS {
@@ -138,11 +122,9 @@ fn keys_of(value: &Value) -> Result<Vec<String>, &'static str> {
     Ok(out)
 }
 
-/// The commands the user changed, by ID, with their keys.
 pub type Overrides = BTreeMap<String, Vec<String>>;
 
-/// `overrides` with `patch` applied: new keys for a command, or null to give
-/// it its defaults again. Anything invalid refuses the whole patch.
+/// A null value gives a command its defaults again; anything invalid refuses the whole patch.
 pub fn with_patch(
     overrides: &Overrides,
     patch: &Map<String, Value>,
@@ -164,7 +146,6 @@ pub fn with_patch(
     Ok(next)
 }
 
-/// Overrides read from a stored file: each valid entry is kept, the rest dropped.
 pub fn from_stored(value: &Value) -> Overrides {
     let mut out = Overrides::new();
     if let Value::Object(map) = value {
@@ -180,17 +161,14 @@ pub fn from_stored(value: &Value) -> Overrides {
     out
 }
 
-/// The overrides with their revision: it goes up by one with every stored
-/// change (from 0 when Devot starts), so a window can tell which of two
-/// events or answers is newer, whatever order they arrive in.
+/// The revision goes up by one with every stored change (from 0 when Devot starts), so a window can
+/// tell which of two events or answers is newer, whatever order they arrive in.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Snapshot {
     pub revision: u64,
     pub overrides: Overrides,
 }
 
-/// The shortcuts file. It is read on first use; a missing or unreadable
-/// file means no changes.
 pub struct KeyboardShortcutsStore {
     path: PathBuf,
     current: Mutex<Option<Snapshot>>,
@@ -225,7 +203,6 @@ impl KeyboardShortcutsStore {
         }
     }
 
-    /// The current overrides.
     pub fn get(&self) -> Result<Snapshot, &'static str> {
         let mut held = self
             .current
@@ -234,8 +211,6 @@ impl KeyboardShortcutsStore {
         Ok(held.get_or_insert_with(|| self.read()).clone())
     }
 
-    /// Applies `patch` and stores the result (see
-    /// `atomic_file::write_replacing`). Returns the overrides now in effect.
     pub fn update(&self, patch: &Map<String, Value>) -> Result<Snapshot, &'static str> {
         let mut held = self
             .current
@@ -255,7 +230,6 @@ impl KeyboardShortcutsStore {
     }
 }
 
-/// The keyboard shortcuts the user changed (main and Settings windows).
 #[tauri::command]
 pub async fn keyboard_shortcuts_get(
     store: State<'_, Arc<KeyboardShortcutsStore>>,
@@ -267,9 +241,6 @@ pub async fn keyboard_shortcuts_get(
         .map_err(String::from)
 }
 
-/// Changes some commands' keys (null: back to the defaults), stores them and
-/// tells every window (main and Settings windows). Returns the overrides now
-/// in effect.
 #[tauri::command]
 pub async fn keyboard_shortcuts_set(
     app: AppHandle,
@@ -399,7 +370,6 @@ mod tests {
         .unwrap();
         assert_eq!(start["format.bold"], ["Mod+Alt+B"]);
         assert_eq!(start["note.copyId"], ["Mod+Alt+I", "P"]);
-        // Null gives the defaults back; an empty list means no key.
         let next = with_patch(
             &start,
             &patch(json!({ "format.bold": null, "format.italic": [] })),
@@ -416,7 +386,6 @@ mod tests {
             json!({ "format.bold": ["Escape"] }),
             json!({ "format.bold": {} }),
             json!({ "Bold": ["Mod+B"] }),
-            // One bad entry spoils the good ones with it.
             json!({ "format.italic": ["Mod+I"], "format.bold": ["Hyper+B"] }),
         ] {
             assert_eq!(
@@ -492,7 +461,6 @@ mod tests {
         assert_eq!(later.overrides.len(), 3);
         let reopened = store(&dir).get().unwrap();
         assert_eq!(reopened.overrides, later.overrides);
-        // Reset all: every change goes.
         let reset = first
             .update(&patch(
                 json!({ "view.focus": null, "palette.open": null, "format.bold": null }),
@@ -556,7 +524,6 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         let theirs = outside.path().join("theirs.txt");
         std::fs::write(&theirs, b"theirs").unwrap();
-        // The name the changes once went to first.
         std::os::unix::fs::symlink(&theirs, dir.path().join(format!("{FILE}.partial"))).unwrap();
         store(&dir)
             .update(&patch(json!({ "format.bold": [] })))

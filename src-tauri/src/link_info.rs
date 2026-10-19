@@ -1,21 +1,15 @@
-//! What the paste chooser fetches about a pasted URL, only once the user
-//! highlights or picks a format that needs it: a page's title, and the file
-//! a GitHub blob link points to (unauthenticated, so public repositories
-//! only). Requests go through `net` (https only, capped); nothing runs a
-//! page's scripts, so a title a page sets from script is missed. Errors are
+//! Fetched only once the user highlights or picks a paste format that needs it. Requests go through
+//! `net`; nothing runs a page's scripts, so a title a page sets from script is missed. Errors are
 //! codes, never URLs or titles.
 
 use crate::net::{self, Get};
 use std::time::Duration;
 use tauri::Url;
 
-/// One fetch, redirects included.
 const TIMEOUT: Duration = Duration::from_secs(10);
 /// The start of a page read for its title: `<head>` comes first.
 const MAX_PAGE_BYTES: usize = 512 * 1024;
-/// The largest file a snippet takes.
 const MAX_SNIPPET_BYTES: usize = 1024 * 1024;
-/// The longest title returned, in characters.
 const MAX_TITLE_CHARS: usize = 300;
 
 async fn blocking<T: Send + 'static>(
@@ -27,15 +21,12 @@ async fn blocking<T: Send + 'static>(
         .map_err(String::from)
 }
 
-/// The title of the web page at `url` (https only); None when it has none.
 #[tauri::command]
 pub async fn link_title(url: String) -> Result<Option<String>, String> {
     let url = net::https_url(&url).map_err(String::from)?;
     blocking(move || fetch_title(&url)).await
 }
 
-/// The text of the file a `https://github.com/{owner}/{repo}/blob/{ref}/{path}`
-/// link points to, whole (the renderer slices the lines).
 #[tauri::command]
 pub async fn github_snippet(url: String) -> Result<String, String> {
     let api = github_contents_url(&url).map_err(String::from)?;
@@ -82,8 +73,8 @@ fn fetch_snippet(api: &Url) -> Result<String, &'static str> {
     String::from_utf8(file.body).map_err(|_| "E_GITHUB_BINARY")
 }
 
-/// A page's text when it is UTF-8 (its last character may be cut off by the
-/// byte cap); None for another encoding, whose title would come out garbled.
+/// None for another encoding, whose title would come out garbled; the byte cap may cut the last
+/// character.
 fn utf8_text(bytes: &[u8]) -> Option<&str> {
     match std::str::from_utf8(bytes) {
         Ok(text) => Some(text),
@@ -93,7 +84,6 @@ fn utf8_text(bytes: &[u8]) -> Option<&str> {
     }
 }
 
-/// Whether a `Content-Type` is an HTML page.
 fn is_html(content_type: Option<&str>) -> bool {
     content_type.is_some_and(|t| {
         let essence = t.split(';').next().unwrap_or("").trim();
@@ -101,7 +91,6 @@ fn is_html(content_type: Option<&str>) -> bool {
     })
 }
 
-/// A GitHub owner, repository or ref: one path segment of plain characters.
 fn plain_segment(segment: &str, max: usize) -> bool {
     !segment.is_empty()
         && segment.len() <= max
@@ -112,7 +101,6 @@ fn plain_segment(segment: &str, max: usize) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
-/// The contents API URL for a github.com blob link (the file, raw).
 fn github_contents_url(url: &str) -> Result<Url, &'static str> {
     const INVALID: &str = "E_GITHUB_URL_INVALID";
     let parsed = net::https_url(url)?;
@@ -149,8 +137,6 @@ fn github_contents_url(url: &str) -> Result<Url, &'static str> {
     .map_err(|_| INVALID)
 }
 
-/// The start of the tag `<name` (followed by `>`, a space or `/`) in `lower`
-/// at or after `from`.
 fn find_tag(lower: &str, name: &str, from: usize) -> Option<usize> {
     let open = format!("<{name}");
     let mut at = from;
@@ -166,8 +152,6 @@ fn find_tag(lower: &str, name: &str, from: usize) -> Option<usize> {
     None
 }
 
-/// A page's title: its `<title>`, else its `og:title`; entities decoded,
-/// white space collapsed, at most MAX_TITLE_CHARS. None when both are empty.
 fn page_title(html: &str) -> Option<String> {
     // ASCII lower-casing keeps every byte offset.
     let lower = html.to_ascii_lowercase();
@@ -181,7 +165,6 @@ fn page_title(html: &str) -> Option<String> {
     from_title.or_else(|| og_title(html, &lower))
 }
 
-/// The `content` of `<meta property="og:title">` (or `name=`).
 fn og_title(html: &str, lower: &str) -> Option<String> {
     let mut at = 0;
     while let Some(start) = find_tag(lower, "meta", at) {
@@ -201,7 +184,6 @@ fn og_title(html: &str, lower: &str) -> Option<String> {
     None
 }
 
-/// A tag's `name=value` pairs (names lower-cased); values quoted or bare.
 fn attributes(tag: &str) -> Vec<(String, String)> {
     let mut pairs = Vec::new();
     let mut rest = tag;
@@ -238,8 +220,6 @@ fn attributes(tag: &str) -> Vec<(String, String)> {
     }
 }
 
-/// Text with entities decoded and white space collapsed, cut to
-/// MAX_TITLE_CHARS; None when nothing is left.
 fn tidy(raw: &str) -> Option<String> {
     let decoded = decode_entities(raw);
     let collapsed = decoded.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -274,7 +254,6 @@ fn named_entity(name: &str) -> Option<char> {
     })
 }
 
-/// Decodes `&name;`, `&#NN;` and `&#xHH;`; anything else stays as it is.
 fn decode_entities(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
@@ -354,10 +333,8 @@ mod tests {
     #[test]
     fn reads_utf8_pages_only() {
         assert_eq!(utf8_text("caf\u{e9}".as_bytes()), Some("caf\u{e9}"));
-        // Cut inside the last character by the byte cap.
         let cut = &"a\u{e9}".as_bytes()[..2];
         assert_eq!(utf8_text(cut), Some("a"));
-        // windows-1252 or Latin-1 bytes.
         assert_eq!(utf8_text(b"caf\xe9 au lait"), None);
     }
 

@@ -15,15 +15,11 @@ mod mac {
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant};
 
-    /// Any DSN turns native crash reports on; this one is never contacted.
     const TEST_DSN: &str = "https://public@o0.ingest.us.sentry.io/0";
     const NOTE_TEXT: [&str; 3] = ["Grocery list", "buy oat milk", "Diary 2026"];
-    /// Note text used as a pointer: where the `text-call` mode jumps.
     const TEXT_ADDRESS: u64 = u64::from_le_bytes(*b"Diary \0\0");
-    /// The first bytes of a PNG attachment, and as base64.
     const PNG: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
     const PNG_BASE64: &str = "iVBORw0KGgo";
-    /// A system plug-in bundle that loads in any process.
     #[cfg(debug_assertions)]
     const BUNDLE: &str =
         "/System/Library/SystemConfiguration/IPConfiguration.bundle/Contents/MacOS/IPConfiguration";
@@ -41,7 +37,6 @@ mod mac {
         }
     }
 
-    /// The app side of a scenario.
     fn app(mode: &str, dir: &Path) {
         // By hand, a DSN build of devot can play the reporter instead:
         // `DEVOT_TEST_REPORTER=<path to devot> cargo test --test native_crash`.
@@ -65,7 +60,6 @@ mod mac {
         }
         println!("reporter {}", crash_reporter::reporter_pid().unwrap());
         if mode == "reporter-gone" {
-            // The driver stops the reporter; the handler then lets go.
             let start = Instant::now();
             while devot_lib::native::macos::crash_handler_attached() {
                 assert!(start.elapsed() < Duration::from_secs(10), "still attached");
@@ -74,8 +68,6 @@ mod mac {
             println!("detached");
             std::process::abort();
         }
-        // Note text and attachment bytes on the heap and on the stack when
-        // the app crashes.
         let heap = black_box(format!("{}: {}", NOTE_TEXT[0], NOTE_TEXT[1]));
         let attachment = black_box(PNG.repeat(64));
         let mut stack = [0u8; 32];
@@ -86,8 +78,6 @@ mod mac {
             "abort" => std::process::abort(),
             #[cfg(debug_assertions)]
             "bad-access" => devot_lib::native::macos::crash_with_bad_access(),
-            // A call through a pointer made of note text: the crash is at
-            // that address, and the bad access is there too.
             #[cfg(debug_assertions)]
             "text-call" => {
                 devot_lib::native::macos::crash_with_call_to(usize::try_from(TEXT_ADDRESS).unwrap())
@@ -112,12 +102,9 @@ mod mac {
         reporter: Option<u32>,
     }
 
-    /// How the app is made to crash.
     #[derive(Clone, Copy)]
     enum Crash {
-        /// From inside, by the app's own code (`mode`).
         Inside(&'static str),
-        /// From outside: another process sends the idle app this signal.
         Signal(&'static str),
     }
 
@@ -137,16 +124,12 @@ mod mac {
         }
     }
 
-    /// An idle app ends well within this, unless a signal failed to end it.
     const IDLE_LIMIT: Duration = Duration::from_secs(30);
 
     fn run_app(mode: &'static str, dir: &Path) -> Run {
         run(Crash::Inside(mode), dir)
     }
 
-    /// Starts the app, crashes it as `crash` says once its reporter runs,
-    /// and waits for it to end (stopping it if it is still running after
-    /// 10 s).
     fn run(crash: Crash, dir: &Path) -> Run {
         let mut child = Command::new(std::env::current_exe().unwrap())
             .args(["app", crash.mode()])
@@ -210,7 +193,6 @@ mod mac {
             .unwrap_or_default()
     }
 
-    /// Crashes the app and checks the one report the reporter saved.
     fn crash_and_check(crash: Crash, signal: i32, reason: &str) {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join(crash_reporter::DIR);
@@ -226,7 +208,6 @@ mod mac {
         let reporter = run.reporter.expect("the reporter's pid");
         wait_until("the reporter exits", || !alive(reporter));
 
-        // Only the scrubbed report: no minidump, no partial file.
         let saved = files(&dir);
         assert_eq!(saved.len(), 1, "{saved:?}");
         assert_eq!(saved[0].extension().unwrap(), "json");
@@ -264,7 +245,6 @@ mod mac {
         assert_eq!(exception.value.as_deref(), Some(crash_reporter::CRASH_CODE));
         let frames = &exception.stacktrace.as_ref().expect("a stack trace").frames;
         assert!(frames.len() >= 2, "{frames:?}");
-        // Every frame is an address in a named binary, and some are the app's.
         assert!(frames.iter().all(|f| f.instruction_addr.is_some()));
         let this = std::env::current_exe().unwrap();
         let this = this.file_name().unwrap().to_str().unwrap();
@@ -272,7 +252,6 @@ mod mac {
             frames.iter().any(|f| f.package.as_deref() == Some(this)),
             "no frame in {this}: {frames:?}"
         );
-        // The app's own frames, and only those, are in-app.
         for thread in std::iter::once(frames).chain(
             event
                 .threads
@@ -336,7 +315,6 @@ mod mac {
     }
 
     fn driver() {
-        // Without a DSN nothing starts: no process, no folder.
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join(crash_reporter::DIR);
         let child = Command::new(std::env::current_exe().unwrap())
@@ -386,7 +364,6 @@ mod mac {
         assert!(files(&dir).is_empty(), "a report without a reporter");
         println!("native_crash: the handler detaches once the reporter has gone");
 
-        // A normal exit ends the reporter and leaves no report.
         let run = run_app("exit", &dir);
         assert!(run.status.success());
         let reporter = run.reporter.expect("the reporter's pid");
@@ -395,7 +372,6 @@ mod mac {
         println!("native_crash: the reporter exits with the app");
 
         crash_and_check(Crash::Inside("abort"), libc_signal("ABRT"), "SIGABRT");
-        // A SIGABRT from another process ends the app too, once reported.
         crash_and_check(Crash::Signal("ABRT"), libc_signal("ABRT"), "SIGABRT");
         #[cfg(debug_assertions)]
         crash_and_check(
@@ -424,7 +400,6 @@ mod mac {
         assert!(started.unwrap().join().unwrap(), "the reporter started");
         let ready = start.elapsed();
         let pid = crash_reporter::reporter_pid().unwrap().to_string();
-        // Let it settle into its wait.
         std::thread::sleep(Duration::from_secs(2));
         let ps = Command::new("ps")
             .args(["-o", "rss=,%cpu=,time=", "-p", &pid])
@@ -436,7 +411,6 @@ mod mac {
             .lines()
             .find(|l| l.contains("Footprint:"))
             .unwrap_or("Footprint: unavailable");
-        // Wakeups and CPU over five seconds of waiting (the second sample).
         let top = Command::new("top")
             .args([
                 "-l",
@@ -462,7 +436,6 @@ mod mac {
         println!("{}", summary.trim());
     }
 
-    /// Signal numbers on macOS, without a libc dependency in the tests.
     fn libc_signal(name: &str) -> i32 {
         match name {
             "ABRT" => 6,

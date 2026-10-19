@@ -11,10 +11,8 @@ use tauri::{AppHandle, Manager, State};
 
 pub const MAX_FILE_BYTES: usize = 10 * 1024 * 1024;
 const MAX_NAME_CHARS: usize = 200;
-/// Attachments one copy may hold; far above what one selection shows.
 const MAX_COPIES: usize = 10_000;
 
-/// The MIME type of a supported raster image, from its first bytes.
 pub fn detect_image(bytes: &[u8]) -> Option<&'static str> {
     let starts = |magic: &[u8]| bytes.starts_with(magic);
     if starts(b"\x89PNG\r\n\x1a\n") {
@@ -39,7 +37,6 @@ pub fn detect_image(bytes: &[u8]) -> Option<&'static str> {
     None
 }
 
-/// Decodes a percent-encoded UTF-8 header value (file names may be any script).
 fn percent_decode(value: &str) -> Option<String> {
     let bytes = value.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -63,7 +60,6 @@ pub struct Upload {
     pub name: String,
 }
 
-/// Checks an upload's metadata and bytes; returns the detected MIME type.
 pub fn validate_upload(upload: &Upload, data: &[u8]) -> Result<&'static str, &'static str> {
     if !valid_note_id(&upload.id) {
         return Err("E_FILE_ID_INVALID");
@@ -87,8 +83,7 @@ fn header_text(request: &Request<'_>, name: &str) -> Option<String> {
     request.headers().get(name)?.to_str().ok().map(String::from)
 }
 
-/// Stores an attachment. The bytes are the raw request body; the IDs and
-/// the percent-encoded name travel in headers.
+/// The bytes are the raw request body; IDs and the percent-encoded name travel in headers.
 #[tauri::command]
 pub async fn file_put(db: State<'_, Db>, request: Request<'_>) -> Result<(), String> {
     let InvokeBody::Raw(data) = request.body() else {
@@ -104,7 +99,6 @@ pub async fn file_put(db: State<'_, Db>, request: Request<'_>) -> Result<(), Str
     store_upload(&db, upload, data.clone()).await
 }
 
-/// Checks an upload and stores it for its note (pasted, dropped or imported).
 pub async fn store_upload(db: &Db, upload: Upload, data: Vec<u8>) -> Result<(), String> {
     let mime = validate_upload(&upload, &data).map_err(String::from)?;
     let file = FileRecord {
@@ -126,7 +120,6 @@ pub async fn store_upload(db: &Db, upload: Upload, data: Vec<u8>) -> Result<(), 
     }
 }
 
-/// Checks a copy request: well-formed IDs, each copy a new ID of its own.
 fn validate_copies(note_id: &str, copies: &[FileCopy]) -> Result<(), &'static str> {
     if !valid_note_id(note_id) {
         return Err("E_NOTE_ID_INVALID");
@@ -143,9 +136,7 @@ fn validate_copies(note_id: &str, copies: &[FileCopy]) -> Result<(), &'static st
     Ok(())
 }
 
-/// Gives a note copies of attachments (a duplicate, a note made from
-/// selected text or from a template shows copies of its own, so purging the
-/// source keeps them).
+/// Copies, not shared files: purging the source must keep them.
 #[tauri::command]
 pub async fn files_copy(
     db: State<'_, Db>,
@@ -172,13 +163,11 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-/// The attachment ID in `devot://file/<id>`, if the URL is one.
 pub fn file_id_from_uri(uri: &str) -> Option<&str> {
     let id = uri.strip_prefix("devot://file/")?;
     valid_note_id(id).then_some(id)
 }
 
-/// The protocol response for a looked-up attachment.
 pub fn file_response(file: Option<FileRecord>) -> Response<Vec<u8>> {
     let builder = Response::builder()
         .header(header::X_CONTENT_TYPE_OPTIONS, "nosniff")
@@ -198,7 +187,6 @@ pub fn file_response(file: Option<FileRecord>) -> Response<Vec<u8>> {
     response.unwrap_or_else(|_| Response::new(Vec::new()))
 }
 
-/// Serves `devot://file/<id>` from the database, off the main thread.
 pub fn serve(
     app: &AppHandle,
     request: tauri::http::Request<Vec<u8>>,

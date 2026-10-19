@@ -70,7 +70,6 @@ fn event(id: &str, note_id: &str, kind: &str, at: i64, value: Option<&str>) -> R
     }
 }
 
-/// A search for notes whose title or body contains every term.
 fn words(terms: &[&str]) -> NoteQuery {
     NoteQuery {
         text: terms
@@ -126,7 +125,6 @@ fn refuses_a_database_from_a_newer_pen() {
     ));
 }
 
-/// The code a SQLite failure is reported and logged with.
 fn code(error: rusqlite::Error) -> String {
     StorageError::from(error).to_string()
 }
@@ -145,13 +143,11 @@ fn sqlite_failures_keep_their_kind_in_the_code() {
     let busy = waiting.execute_batch("BEGIN IMMEDIATE").unwrap_err();
     assert_eq!(code(busy), "E_STORAGE_BUSY");
     drop(holder);
-    // Read-only: a connection that may not write.
     let read_only = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
     let error = read_only
         .execute("INSERT INTO t VALUES (2)", [])
         .unwrap_err();
     assert_eq!(code(error), "E_STORAGE_READONLY");
-    // Full: the file may not grow any more.
     let full = Connection::open(dir.path().join("full.sqlite")).unwrap();
     full.execute_batch("CREATE TABLE t(x); PRAGMA max_page_count = 3;")
         .unwrap();
@@ -159,7 +155,6 @@ fn sqlite_failures_keep_their_kind_in_the_code() {
         .execute("INSERT INTO t VALUES (zeroblob(100000))", [])
         .unwrap_err();
     assert_eq!(code(error), "E_STORAGE_FULL");
-    // Corrupt: a file that is not a database, also when the store opens it.
     let not_a_database = dir.path().join("devot.sqlite");
     std::fs::write(&not_a_database, "buy oat milk ".repeat(512)).unwrap();
     let error = Connection::open(&not_a_database)
@@ -218,7 +213,6 @@ fn round_trips_a_note() {
     let (_dir, mut store) = temp_store();
     let original = note("a", "First", 10);
     store.put_note(&original, &[]).unwrap();
-    // Stored with its body at the next version.
     assert_eq!(
         store.get_note("a", false).unwrap(),
         Some(based_on(1, original))
@@ -250,7 +244,6 @@ fn hand_set_dates_with_a_newer_hlc_replace_both_dates() {
     let stored = store.get_note("a", false).unwrap().unwrap();
     assert_eq!((stored.created_at, stored.updated_at), (5, 20));
 
-    // A stale write (older dates HLC) keeps them; its update time only moves on.
     let mut stale = based_on(2, note("a", "A", 30));
     stale.created_at = 1;
     store.put_note(&stale, &[]).unwrap();
@@ -302,8 +295,6 @@ fn keeps_the_newer_value_of_each_note_field() {
     newer.book_hlc = "0000000000000030-0000-a".into();
     store.put_note(&newer, &[]).unwrap();
 
-    // A stale copy: older title and notebook, newer body (written over the
-    // body as stored).
     let mut stale = based_on(1, note("a", "Old title", 40));
     stale.title_hlc = "0000000000000010-0000-a".into();
     stale.book_id = Some("book-1".into());
@@ -324,7 +315,6 @@ fn keeps_the_newer_value_of_each_note_field() {
     );
 }
 
-/// `note` written over body version `version`.
 fn based_on(version: i64, note: NoteRecord) -> NoteRecord {
     NoteRecord {
         body_version: version,
@@ -341,7 +331,6 @@ fn moves_the_body_version_on_with_each_write_based_on_it() {
         .put_note(&based_on(1, note("a", "A", 11)), &[])
         .unwrap();
     assert_eq!(store.get_note("a", false).unwrap().unwrap().body_version, 2);
-    // In the Trash too.
     let trashed = in_trash(based_on(2, note("a", "A", 12)), 12);
     store.put_note(&trashed, &[]).unwrap();
     assert_eq!(store.get_note("a", true).unwrap().unwrap().body_version, 3);
@@ -364,7 +353,6 @@ fn refuses_a_write_based_on_another_body_version_and_leaves_a_purged_note_alone(
     stale.pinned_hlc = "0000000000000099-0000-test".into();
     let refused = store.put_note(&stale, &["c".into()]).unwrap_err();
     assert_eq!(refused.to_string(), "E_NOTE_BODY_STALE");
-    // Based on a version storage never had.
     let ahead = based_on(7, note("a", "A", 13));
     let refused = store.put_note(&ahead, &[]).unwrap_err();
     assert_eq!(refused.to_string(), "E_NOTE_BODY_STALE");
@@ -409,7 +397,6 @@ fn a_body_written_on_another_connection_makes_a_write_based_on_the_one_before_st
     let stored = window.get_note("a", false).unwrap().unwrap();
     assert_eq!(stored.body_md, "middle end");
 
-    // After taking that in, the window writes again, based on it.
     let merged = NoteRecord {
         body_md: "start middle end".into(),
         ..stored
@@ -451,7 +438,6 @@ fn notebooks_keep_ai_access_off_by_default_and_merge_it_per_field() {
     on.ai_access_hlc = "0000000000000030-0000-a".into();
     store.put_book(&on).unwrap();
 
-    // A stale copy: a newer name, but an older AI access switch.
     let mut stale = book("b1", "Job", "0000000000000040-0000-a");
     stale.ai_access = false;
     stale.ai_access_hlc = "0000000000000020-0000-a".into();
@@ -475,7 +461,6 @@ fn notebooks_merge_their_sort_key_per_field() {
     moved.sort_key_hlc = "0000000000000030-0000-a".into();
     store.put_book(&moved).unwrap();
 
-    // A stale copy: a newer name, but an older place.
     let mut stale = book("b1", "Job", "0000000000000040-0000-a");
     stale.sort_key = "a5".into();
     stale.sort_key_hlc = "0000000000000020-0000-a".into();
@@ -503,7 +488,6 @@ fn notebooks_have_no_icon_by_default_and_merge_icon_and_colour_together() {
     iconed.icon_hlc = "0000000000000030-0000-a".into();
     store.put_book(&iconed).unwrap();
 
-    // A stale copy: a newer name, but an older icon and no colour.
     let mut stale = book("b1", "Job", "0000000000000040-0000-b");
     stale.icon = Some("star".into());
     stale.icon_hlc = "0000000000000020-0000-b".into();
@@ -518,7 +502,6 @@ fn notebooks_have_no_icon_by_default_and_merge_icon_and_colour_together() {
     assert_eq!(books[0].icon_color.as_deref(), Some("green"));
     assert_eq!(books[0].icon_hlc, "0000000000000030-0000-a");
 
-    // Reverted to the default: both go, the clock stays.
     let mut reverted = book("b1", "Job", "0000000000000040-0000-b");
     reverted.icon_hlc = "0000000000000050-0000-b".into();
     store.put_book(&reverted).unwrap();
@@ -550,7 +533,6 @@ fn notebooks_read_an_unknown_icon_or_colour_as_unset() {
         (books[0].icon.clone(), books[0].icon_color.clone()),
         (None, None)
     );
-    // A write from this version keeps the stored values (same clock).
     let mut renamed = book("b1", "Job", "0000000000000040-0000-a");
     renamed.icon_hlc = books[0].icon_hlc.clone();
     store.put_book(&renamed).unwrap();
@@ -568,7 +550,6 @@ fn the_book_icon_migration_keeps_the_notebooks() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("devot.sqlite");
     {
-        // A version 17 database with a notebook.
         let conn = Connection::open(&path).unwrap();
         for (index, sql) in MIGRATIONS.iter().take(17).enumerate() {
             conn.execute_batch(sql).unwrap();
@@ -619,7 +600,6 @@ fn the_book_order_migration_adds_unset_keys_and_keeps_the_rows() {
     let path = dir.path().join("devot.sqlite");
     let id = |n: u32| format!("0192a6f0-0000-7000-8000-{:012}", 999 - n);
     {
-        // A version 9 database with notebooks made before sort keys existed.
         let conn = Connection::open(&path).unwrap();
         for (index, sql) in MIGRATIONS.iter().take(9).enumerate() {
             conn.execute_batch(sql).unwrap();
@@ -680,7 +660,6 @@ fn tags_have_no_colour_by_default_and_merge_it_per_field() {
     red.color_hlc = "0000000000000030-0000-a".into();
     store.put_tag(&red).unwrap();
 
-    // A stale copy: a newer name, but an older colour.
     let mut stale = tag("ideas", "0000000000000040-0000-b");
     stale.color = Some("blue".into());
     stale.color_hlc = "0000000000000020-0000-b".into();
@@ -694,7 +673,6 @@ fn tags_have_no_colour_by_default_and_merge_it_per_field() {
     );
     assert_eq!(tags[0].color_hlc, "0000000000000030-0000-a");
 
-    // Taking the colour off is a write like any other.
     let mut cleared = tag("ideas", "0000000000000040-0000-b");
     cleared.color_hlc = "0000000000000050-0000-b".into();
     store.put_tag(&cleared).unwrap();
@@ -733,11 +711,9 @@ fn data_version_moves_only_for_commits_from_other_connections() {
     let mut store = Store::open(&path).unwrap();
     let start = store.data_version().unwrap();
 
-    // The app's own writes do not count as outside changes.
     store.put_note(&note("own", "Own", 10), &[]).unwrap();
     assert_eq!(store.data_version().unwrap(), start);
 
-    // devot-mcp writes through its own connection.
     let other = Connection::open(&path).unwrap();
     other
         .execute(
@@ -760,9 +736,8 @@ fn data_version_moves_only_for_commits_from_other_connections() {
 /// the busy timeout.
 const HOLD: Duration = Duration::from_millis(250);
 
-/// Another connection holding the write lock for `hold`, as devot-mcp does
-/// while it writes; returns once the lock is held. Joining the thread
-/// waits for its commit.
+/// Holds the write lock for `hold`, as devot-mcp does while it writes; returns once the lock is
+/// held. Joining the thread waits for its commit.
 fn another_writer(path: &Path, hold: Duration) -> std::thread::JoinHandle<()> {
     let path = path.to_owned();
     let (held, holding) = std::sync::mpsc::channel();
@@ -919,7 +894,6 @@ fn lists_live_tags_on_notes_and_merges_membership() {
     store
         .put_note_tag(&link("t2", true, "0000000000000010-0000-a"))
         .unwrap();
-    // An older removal loses; a newer one wins.
     store
         .put_note_tag(&link("t1", false, "0000000000000005-0000-b"))
         .unwrap();
@@ -930,7 +904,6 @@ fn lists_live_tags_on_notes_and_merges_membership() {
         store.list_notes().unwrap()[0].tag_ids,
         vec!["t1".to_string()]
     );
-    // A deleted tag disappears from notes.
     let mut gone = tag("t1");
     gone.deleted_at = Some(30);
     gone.deleted_hlc = Some("0000000000000030-0000-a".into());
@@ -952,7 +925,6 @@ fn reads_a_membership_row_with_its_clock() {
     };
     store.put_note_tag(&on).unwrap();
     assert_eq!(store.get_note_tag("n", "t1").unwrap(), Some(on.clone()));
-    // Taken off later: the row says so, with the later clock.
     let off = NoteTagRecord {
         present: false,
         hlc: "0000000000000020-0000-b".into(),
@@ -981,7 +953,6 @@ fn lists_the_trash_and_purges_for_good() {
         .unwrap();
     assert!(store.list_trash().unwrap().is_empty());
     assert!(store.get_note("a", true).unwrap().is_none());
-    // A stale copy written later never brings it back.
     let mut stale = note("a", "Revived", 40);
     stale.title_hlc = "9999999999999999-0000-z".into();
     store.put_note(&stale, &[]).unwrap();
@@ -1079,8 +1050,6 @@ fn short_search_terms_ignore_case_in_every_script() {
 
 #[test]
 fn scans_without_folding_only_text_that_folding_cannot_change() {
-    // `None`: no other character folds to a caseless one; `Ascii`: only the
-    // Kelvin sign folds to ASCII from outside it.
     for c in (0..=0x10ffff_u32).filter_map(char::from_u32) {
         let f = fold(c);
         if caseless(f) {
@@ -1139,8 +1108,6 @@ fn short_terms_find_what_folding_finds_in_every_way_of_scanning() {
             .map(|n| n.id)
             .collect()
     };
-    // What folding the title, a line break and the body finds, in the order
-    // of `ranked` (the notes' ranks for `merge`, or the list's order).
     let expected = |term: &str, field: TextField, negate: bool, ranked: &[String]| {
         let wanted = fold_text(term);
         ranked
@@ -1198,7 +1165,6 @@ fn short_terms_find_what_folding_finds_in_every_way_of_scanning() {
                     want,
                     "merge {term:?} {field:?} {negate}"
                 );
-                // A page stops early, in rank order.
                 let first: Vec<String> = want.iter().take(1).cloned().collect();
                 assert_eq!(
                     ids(query(true), 1),
@@ -1294,8 +1260,6 @@ fn the_search_index_follows_edits_and_purges() {
     assert_eq!(found(&store, "second"), 0);
 }
 
-/// Notes in Work (w) and its sub-notebook Projects (p, the store sees only
-/// IDs), tagged, with statuses; every note mentions "plan".
 fn search_world() -> (tempfile::TempDir, Store) {
     let (dir, mut store) = temp_store();
     let mut put = |id: &str, title: &str, body: &str, book: Option<&str>, status: &str| {
@@ -1475,7 +1439,6 @@ fn searches_titles_or_bodies_only_and_excludes_text() {
         found(&store, vec![text(TextField::Any, "relay", true)], vec![]),
         ["loose"]
     );
-    // Short text is scanned in every position too.
     assert_eq!(
         found(&store, vec![text(TextField::Title, "41", false)], vec![]),
         ["week"]
@@ -1491,7 +1454,6 @@ fn searches_titles_or_bodies_only_and_excludes_text() {
         ),
         ["editor", "relay", "week"]
     );
-    // FTS syntax is plain text.
     assert!(found(&store, vec![text(TextField::Title, "NEAR(", false)], vec![]).is_empty());
 }
 
@@ -1599,7 +1561,6 @@ fn returns_the_body_around_the_first_searched_word_found() {
         excerpt(words(&["relay"])).as_deref(),
         Some("one Relay here")
     );
-    // Case folds beyond ASCII, as the index does.
     assert_eq!(
         excerpt(words(&["\u{e4}RGER"])).as_deref(),
         Some("Kein \u{c4}rger im Team")
@@ -1613,7 +1574,6 @@ fn returns_the_body_around_the_first_searched_word_found() {
         None,
         "a title search shows no excerpt"
     );
-    // Listing never carries one.
     assert!(
         store
             .list_notes()
@@ -1629,7 +1589,6 @@ fn a_write_rewrites_the_search_index_only_when_title_or_markdown_changes() {
     let mut plan = note("plan", "Launch plan", 1);
     plan.body_md = "The relay goes first.".into();
     store.put_note(&plan, &[]).unwrap();
-    // Rows changed by a write, the index's own tables included.
     let cost = |store: &mut Store, record: &NoteRecord| {
         let before = store.conn.total_changes();
         store.put_note(record, &[]).unwrap();
@@ -1660,7 +1619,6 @@ fn a_write_rewrites_the_search_index_only_when_title_or_markdown_changes() {
     edited.body_md = "Snapshot first.".into();
     assert!(cost(&mut store, &edited) > 1, "a new body is indexed");
     assert_eq!((found(&store, "relay"), found(&store, "snapshot")), (0, 1));
-    // The index agrees with the table: nothing stale is left in it.
     store
         .conn
         .execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
@@ -1684,7 +1642,6 @@ fn lists_and_searches_read_covering_indexes() {
     };
     assert!(plan(NOTES_LIST_SQL, &[]).starts_with("SCAN notes USING COVERING INDEX notes_list"));
     assert!(plan(TRASH_LIST_SQL, &[]).starts_with("SEARCH notes USING COVERING INDEX notes_trash"));
-    // Ranked text: its matches first, joined to the list's index.
     let (sql, values) = search_sql(&words(&["snapshot"]), 200);
     let ranked = plan(&sql, &values);
     assert!(ranked.contains("MATERIALIZE hits"), "{ranked}");
@@ -1703,8 +1660,6 @@ fn lists_and_searches_read_covering_indexes() {
     let (sql, values) = search_sql(&words(&["snapshot", "\u{540c}\u{6b65}"]), 200);
     let scanned = plan(&sql, &values);
     assert!(scanned.contains("MATERIALIZE ranked"), "{scanned}");
-    // Each sort's step at the top of the plan: under `ranked`, none of the
-    // whole result.
     let sorts: Vec<String> = {
         let mut statement = store
             .conn
@@ -1734,7 +1689,6 @@ fn lists_and_searches_read_covering_indexes() {
             .collect()
     };
     assert_eq!(sorts, ["MATERIALIZE ranked"], "{scanned}");
-    // Qualifiers alone: the index's order, so a page stops early.
     let qualifiers = NoteQuery {
         text: vec![],
         sets: vec![set(SetKind::Status, &["active"], false)],
@@ -1867,7 +1821,6 @@ fn stores_attachments_for_live_notes_and_purges_them_with_the_note() {
     assert_eq!(store.get_file("f1").unwrap().unwrap().data, vec![1, 2, 3]);
     assert!(store.get_file("f2").unwrap().is_none());
 
-    // Trashed: the attachment stays. Purged: it goes.
     let mut trashed = based_on(1, note("n", "Note", 10));
     trashed.deleted_at = Some(20);
     trashed.deleted_hlc = Some("0000000000000020-0000-a".into());
@@ -1970,7 +1923,6 @@ fn copies_attachments_to_a_live_note_and_keeps_them_when_the_source_is_purged() 
     assert!(store.get_file("f1").unwrap().is_none());
     assert_eq!(store.get_file("f2").unwrap().unwrap().data, vec![1, 2, 3]);
 
-    // A trashed note takes no copies.
     let mut trashed = based_on(1, note("b", "Extracted", 11));
     trashed.deleted_at = Some(70);
     trashed.deleted_hlc = Some("0000000000000070-0000-a".into());
@@ -1979,7 +1931,6 @@ fn copies_attachments_to_a_live_note_and_keeps_them_when_the_source_is_purged() 
     assert!(store.get_file("f5").unwrap().is_none());
 }
 
-/// A note whose Markdown is `body`.
 fn note_showing(id: &str, body: &str) -> NoteRecord {
     NoteRecord {
         body_md: body.into(),
@@ -2004,7 +1955,6 @@ fn attachment(id: &str, note_id: &str) -> FileRecord {
     }
 }
 
-/// The note an attachment belongs to; None once it is deleted.
 fn owner(store: &Store, file: &str) -> Option<String> {
     store.get_file(file).unwrap().map(|f| f.note_id)
 }
@@ -2028,8 +1978,6 @@ fn purging_a_note_keeps_the_attachments_other_notes_still_show() {
     for id in [F1, F2, F3, F4] {
         assert!(store.put_file(&attachment(id, "a")).unwrap());
     }
-    // Links that reached other notes without a copy (pasted, dragged, an
-    // old duplicate): b is in the Trash, c and d are live.
     store
         .put_note(&in_trash(note_showing("b", &shows(&[F1, F2])), 20), &[])
         .unwrap();
@@ -2038,8 +1986,6 @@ fn purging_a_note_keeps_the_attachments_other_notes_still_show() {
     store
         .put_note(&note_showing("c", &shows(&[F1])), &[])
         .unwrap();
-    // Mentions that are not the address as written keep nothing: in
-    // capitals, cut short, the ID alone, only in a title.
     let near = format!(
         "DEVOT://FILE/{} devot://file/{} {F4}",
         F3.to_uppercase(),
@@ -2053,20 +1999,17 @@ fn purging_a_note_keeps_the_attachments_other_notes_still_show() {
     store
         .purge_note("a", 30, "0000000000000030-0000-a")
         .unwrap();
-    // A live note first (c, before d), else one in the Trash; nothing shows F3 or F4.
     assert_eq!(owner(&store, F1).as_deref(), Some("c"));
     assert_eq!(owner(&store, F2).as_deref(), Some("b"));
     assert_eq!(owner(&store, F3), None);
     assert_eq!(owner(&store, F4), None);
     assert_eq!(store.get_file(F1).unwrap().unwrap().data, vec![1, 2, 3]);
 
-    // Emptying the Trash: nothing left shows F2.
     store
         .purge_note("b", 40, "0000000000000040-0000-a")
         .unwrap();
     assert_eq!(owner(&store, F2), None);
     assert_eq!(owner(&store, F1).as_deref(), Some("c"));
-    // F1 passes on again, then goes with the last note that shows it.
     store
         .purge_note("c", 50, "0000000000000050-0000-a")
         .unwrap();
@@ -2087,7 +2030,6 @@ fn an_attachment_no_other_note_shows_any_more_goes_with_its_note() {
     store
         .put_note(&note_showing("b", &format!("![](devot://file/{F1})")), &[])
         .unwrap();
-    // b's link is edited away before the purge: only its latest body counts.
     store
         .put_note(
             &based_on(1, note_showing("b", "The image was removed")),
@@ -2123,7 +2065,6 @@ fn keeps_each_notes_link_rows_with_its_latest_body() {
         link_rows(&store),
         [pair("a", "b"), pair("a", "c"), pair("b", "a")]
     );
-    // A new body replaces the rows; trashing keeps them; purging drops them.
     store
         .put_note(&based_on(1, note("a", "A", 11)), &["d".into()])
         .unwrap();
@@ -2136,7 +2077,6 @@ fn keeps_each_notes_link_rows_with_its_latest_body() {
         .purge_note("b", 13, "0000000000000013-0000-a")
         .unwrap();
     assert_eq!(link_rows(&store), [pair("a", "d")]);
-    // A write to a purged note changes nothing.
     store.put_note(&note("b", "B", 14), &["a".into()]).unwrap();
     assert_eq!(link_rows(&store), [pair("a", "d")]);
 }
@@ -2174,7 +2114,6 @@ fn the_link_migration_indexes_existing_bodies_like_the_core() {
     assert_eq!(link_rows(&store), [pair(a), pair(b)]);
 }
 
-/// Everything a restore must bring back, read through the public API.
 #[derive(Debug, PartialEq)]
 struct Contents {
     notes: Vec<NoteSummary>,
@@ -2260,10 +2199,8 @@ fn restoring_a_snapshot_brings_back_every_record() {
     let (dir, mut store) = filled_store();
     let before = contents(&store);
     let snapshot = dir.path().join("snapshot.sqlite");
-    // Taken from a second connection while the store stays open.
     super::snapshot(&dir.path().join("devot.sqlite"), &snapshot).unwrap();
 
-    // Change everything after the snapshot.
     store
         .put_note(&note("late", "Groceries later", 20), &[])
         .unwrap();
@@ -2289,7 +2226,6 @@ fn restoring_a_snapshot_brings_back_every_record() {
     }
     assert!(store.integrity_ok().unwrap());
     assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
-    // The restored database keeps working.
     store
         .put_note(&note("late", "After restore", 30), &[])
         .unwrap();
@@ -2349,7 +2285,6 @@ fn crash_child_writer() {
 #[test]
 fn crash_safety_keeps_every_committed_note() {
     let exe = std::env::current_exe().unwrap();
-    // Deterministic but varied kill points across rounds.
     for (round, kill_after_ms) in [37_u64, 113, 251, 409].into_iter().enumerate() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("devot.sqlite");
@@ -2457,7 +2392,6 @@ fn updates_a_revision_only_for_its_own_note_and_kind() {
         store.get_revision("t").unwrap(),
         Some(event("t", "a", "title", 150, Some("Draft")))
     );
-    // The same ID from another note or kind changes nothing.
     store
         .put_revision(&event("t", "b", "title", 160, Some("Other")))
         .unwrap();
@@ -2485,9 +2419,6 @@ fn compaction_deletes_only_the_named_revisions_of_the_note() {
     assert_eq!(store.list_revisions("b").unwrap().len(), 1);
 }
 
-/// a: two versions, one taken in 200..300; b: one version before 300, one
-/// after; c: two versions, both before 200; d: one version and an event; e:
-/// one version beside a baseline, which compaction keeps.
 fn compaction_world() -> (tempfile::TempDir, Store) {
     let (dir, mut store) = temp_store();
     for id in ["a", "b", "c", "d", "e"] {
@@ -2526,7 +2457,6 @@ fn lists_every_plain_version_of_the_notes_a_sweep_weighs() {
             .collect()
     };
     let listed = |from, to| page(from, to, "", 500);
-    // Each note's versions, newest first; e's baseline does not make two.
     assert_eq!(listed(200, 300), ["a/r2@250", "a/r1@100"]);
     assert_eq!(
         listed(0, 300),
@@ -2539,7 +2469,6 @@ fn lists_every_plain_version_of_the_notes_a_sweep_weighs() {
         ]
     );
     assert_eq!(listed(300, 500), ["b/r4@400", "b/r3@250"]);
-    // A page at a time, by note.
     assert_eq!(page(0, 500, "", 1), ["a/r2@250", "a/r1@100"]);
     assert_eq!(
         page(0, 500, "a", 2),
@@ -2560,7 +2489,6 @@ fn compaction_deletes_only_plain_versions_and_records_the_sweep() {
             .collect()
     };
     assert_eq!(store.last_compaction().unwrap(), None);
-    // An event, a baseline and an unknown ID are never deleted.
     let named = ["r1", "r8", "r9", "zz"].map(String::from);
     store.compact_revisions(&named, None).unwrap();
     assert_eq!(ids(&store, "a"), ["r2"]);
@@ -2592,7 +2520,6 @@ fn trashing_keeps_revisions_and_purging_deletes_them_for_good() {
         .purge_note("a", 30, "0000000000000030-0000-a")
         .unwrap();
     assert!(store.list_revisions("a").unwrap().is_empty());
-    // Late writes to a purged or unknown note are dropped.
     store.put_revision(&version("r2", "a", 31, &[1])).unwrap();
     store.put_revision(&version("r3", "zz", 31, &[1])).unwrap();
     assert!(store.list_revisions("a").unwrap().is_empty());
@@ -2602,7 +2529,6 @@ fn trashing_keeps_revisions_and_purging_deletes_them_for_good() {
 #[test]
 fn lists_activity_since_a_time() {
     let (_dir, mut store) = temp_store();
-    // Created before `since`, written in it.
     let mut a = note("a", "A", 500);
     a.created_at = 10;
     store.put_note(&a, &[]).unwrap();
@@ -2617,14 +2543,12 @@ fn lists_activity_since_a_time() {
         .put_revision(&version("r3", "a", 250, &[1, 2, 3]))
         .unwrap();
     store.put_revision(&version("r4", "a", 250, &[1])).unwrap();
-    // A title spelled like the marker is still a title change.
     store
         .put_revision(&event("r5", "a", "title", 300, Some(BASELINE)))
         .unwrap();
     store
         .put_revision(&event("r6", "a", "status", 300, Some("active")))
         .unwrap();
-    // Created in the window; one in the Trash still counts.
     let mut b = note("b", "B", 150);
     b.created_at = 150;
     store.put_note(&b, &[]).unwrap();
@@ -2643,7 +2567,6 @@ fn lists_activity_since_a_time() {
     d.deleted_at = Some(170);
     d.deleted_hlc = Some("0000000000000170-0000-a".into());
     store.put_note(&d, &[]).unwrap();
-    // Purged: left out with its history.
     let mut c = note("c", "C", 400);
     c.created_at = 400;
     store.put_note(&c, &[]).unwrap();
@@ -2694,7 +2617,6 @@ fn rebuilding_the_search_index_restores_search() {
     let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 10).unwrap().len();
     assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
 
-    // Empty the index behind the table's back.
     store
         .conn
         .execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('delete-all')")
@@ -2707,7 +2629,6 @@ fn rebuilding_the_search_index_restores_search() {
         .conn
         .execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
         .unwrap();
-    // Rebuilding an intact index changes nothing.
     assert_eq!(store.rebuild_search_index().unwrap(), 2);
     assert_eq!(found(&store, "relay"), 1);
 }

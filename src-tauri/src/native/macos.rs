@@ -22,14 +22,11 @@ use objc2_app_kit::{
 use objc2_foundation::{NSData, NSDictionary, NSString};
 use tauri::Manager;
 
-/// WebKit feature that paces page rendering updates near 60 fps by default,
-/// even on 120 Hz displays.
+/// Paces page rendering updates near 60 fps by default, even on 120 Hz displays.
 const SIXTY_FPS_FEATURE: &str = "PreferPageRenderingUpdatesNear60FPSEnabled";
 
-/// Runs `call`, which sends private messages, so that nothing it throws gets
-/// out: an Objective-C exception (which `catch_unwind` cannot stop; it would
-/// end the app) and a Rust panic are both caught, logged as `code` and give
-/// `None`, the caller's fallback.
+/// An Objective-C exception (which `catch_unwind` cannot stop; it would end the app) and a Rust
+/// panic are both caught, logged as `code` and give `None`, the caller's fallback.
 fn guarded<R>(code: &'static str, call: impl FnOnce() -> Option<R>) -> Option<R> {
     let caught = catch_unwind(AssertUnwindSafe(|| {
         objc2::exception::catch(AssertUnwindSafe(call))
@@ -47,7 +44,6 @@ fn guarded<R>(code: &'static str, call: impl FnOnce() -> Option<R>) -> Option<R>
     }
 }
 
-/// Lets the main webview render at the display's refresh rate.
 pub fn unlock_high_refresh_rate(app: &tauri::App) {
     let Some(window) = app.get_webview_window("main") else {
         log::warn!("E_NATIVE_MAIN_WINDOW_MISSING");
@@ -90,7 +86,6 @@ unsafe fn disable_sixty_fps_feature(web_view: *mut AnyObject) -> bool {
     unsafe { set_sixty_fps_feature(preferences, false) }
 }
 
-/// Finds WebKit's private `_WKFeature` object for the 60 fps preference.
 fn sixty_fps_feature() -> Option<*mut AnyObject> {
     let class = AnyClass::get(c"WKPreferences")?;
     // `_features` is a class method, so ask the class object itself;
@@ -108,10 +103,8 @@ fn sixty_fps_feature() -> Option<*mut AnyObject> {
     }
 }
 
-/// The feature in `features` whose `key` is `key`. WebKit's private objects
-/// can change in any update, so each message is sent only to an object that
-/// answers it (`respondsToSelector:`) and the key is read only when it is a
-/// string; anything else is skipped, never sent a message it would throw on.
+/// WebKit's private objects can change in any update, so each message is sent only to an object
+/// that answers it (`respondsToSelector:`) and the key is read only when it is a string.
 ///
 /// # Safety
 /// `features` must be null or a live Objective-C object.
@@ -155,10 +148,7 @@ unsafe fn is_kind_of(object: *mut AnyObject, class: &AnyClass) -> bool {
     answer.as_bool()
 }
 
-/// Checks the private API guards on objects that stand in for WebKit's: a
-/// list whose objects lost `key` gives no feature and no crash, and the one
-/// whose `key` matches is found. Run on the main thread
-/// (`tests/main_thread.rs`).
+/// Run on the main thread (`tests/main_thread.rs`).
 #[doc(hidden)]
 pub fn self_test_private_api_guards() -> Result<(), &'static str> {
     use objc2::runtime::NSObject;
@@ -187,7 +177,6 @@ pub fn self_test_private_api_guards() -> Result<(), &'static str> {
     if unsafe { find_feature(array_ptr, SIXTY_FPS_FEATURE) }.is_some() {
         return Err("E_NATIVE_FOUND_A_FEATURE_IN_PLAIN_OBJECTS");
     }
-    // Objects that answer `key`: a nil key, another key, the one looked for.
     let unnamed = sort_descriptor(None)?;
     let other = sort_descriptor(Some("Other"))?;
     let wanted = sort_descriptor(Some(SIXTY_FPS_FEATURE))?;
@@ -219,8 +208,7 @@ pub fn self_test_private_api_guards() -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Turns the 60 fps preference on or off. Returns false when WebKit does not
-/// offer it.
+/// Returns false when WebKit does not offer it.
 ///
 /// # Safety
 /// `preferences` must be null or a live `WKPreferences`.
@@ -250,10 +238,8 @@ unsafe fn responds(object: *mut AnyObject, selector: objc2::runtime::Sel) -> boo
     answer.as_bool()
 }
 
-/// Renders an SF Symbol to PNG bytes at twice `point_size` pixels. Safe off
-/// the main thread, one call at a time (`native::render_one_at_a_time`);
-/// AppKit's temporaries go in an autorelease pool of the call's own, as a
-/// blocking thread has none to empty.
+/// One call at a time (`native::render_one_at_a_time`); AppKit's temporaries go in an autorelease
+/// pool of the call's own, as a blocking thread has none to empty.
 pub fn symbol_png(name: &str, point_size: f64, weight: &str) -> Option<Vec<u8>> {
     catch_unwind(|| {
         objc2::rc::autoreleasepool(|_| {
@@ -283,8 +269,6 @@ pub fn symbol_png(name: &str, point_size: f64, weight: &str) -> Option<Vec<u8>> 
     .flatten()
 }
 
-/// AppKit's font weight for a validated weight name (`native::SYMBOL_WEIGHTS`);
-/// regular for any other.
 fn symbol_weight(name: &str) -> f64 {
     // SAFETY: these are immutable AppKit constants (macOS 10.11+), valid for
     // the life of the process.
@@ -303,8 +287,7 @@ fn symbol_weight(name: &str) -> f64 {
     }
 }
 
-/// The font families installed on this Mac, as AppKit names them. Must run
-/// on the main thread; none when it is not.
+/// Must run on the main thread; none when it is not.
 pub fn font_families() -> Vec<String> {
     let Some(mtm) = objc2::MainThreadMarker::new() else {
         return Vec::new();
@@ -322,7 +305,6 @@ pub fn font_families() -> Vec<String> {
     .unwrap_or_default()
 }
 
-/// Replaces the general pasteboard's contents with plain text.
 pub fn write_clipboard_text(text: &str) -> bool {
     catch_unwind(|| {
         let pasteboard = NSPasteboard::generalPasteboard();
@@ -335,30 +317,21 @@ pub fn write_clipboard_text(text: &str) -> bool {
     .unwrap_or(false)
 }
 
-/// An image ready for the pasteboard: PNG data (when it could be made) and
-/// TIFF data, the two types other apps paste.
 pub struct PasteboardImage {
     pub png: Option<Vec<u8>>,
     pub tiff: Vec<u8>,
 }
 
-/// Decodes an attachment into the data the pasteboard gets. A PNG keeps its
-/// own bytes; other formats are converted. Safe off the main thread (NSImage
-/// and NSBitmapImageRep decode on any thread), so the work never stalls the
-/// UI. `E_IMAGE_UNREADABLE` when AppKit cannot read the bytes as an image,
-/// `E_IMAGE_TOO_LARGE` when its header gives it more than `max_pixels`
-/// pixels: nothing is decoded then.
-///
-/// AppKit's temporaries (several decoded copies of the image) go in an
-/// autorelease pool of the call's own, emptied before it returns: a thread
-/// with no pool keeps them until it exits, and a blocking-pool thread lives
-/// on for 10 s and more, so a few copies of a large photo held hundreds of
-/// MB. What is returned is Rust's own copy.
+/// A PNG keeps its own bytes; other formats are converted. Safe off the main thread (NSImage and
+/// NSBitmapImageRep decode on any thread), so the work never stalls the UI. `E_IMAGE_TOO_LARGE`
+/// when its header gives more than `max_pixels` pixels: nothing is decoded then.
+/// AppKit's temporaries (several decoded copies) go in an autorelease pool of the call's own: a
+/// thread with no pool keeps them until it exits, and a blocking-pool thread lives on for 10 s and
+/// more, so a few copies of a large photo held hundreds of MB.
 pub fn pasteboard_image(bytes: &[u8], max_pixels: u64) -> Result<PasteboardImage, &'static str> {
     catch_unwind(AssertUnwindSafe(|| {
         objc2::rc::autoreleasepool(|_| {
             let data = NSData::with_bytes(bytes);
-            // The size, read from the header without decoding the pixels.
             let header = NSBitmapImageRep::imageRepWithData(&data).ok_or("E_IMAGE_UNREADABLE")?;
             let side = |n: isize| u64::try_from(n).unwrap_or(0);
             if side(header.pixelsWide()).saturating_mul(side(header.pixelsHigh())) > max_pixels {
@@ -392,8 +365,6 @@ pub fn pasteboard_image(bytes: &[u8], max_pixels: u64) -> Result<PasteboardImage
     .unwrap_or(Err("E_IMAGE_UNREADABLE"))
 }
 
-/// Replaces a pasteboard's contents with an image. False when nothing could
-/// be written. Run on the main thread.
 pub fn write_image(pasteboard: &NSPasteboard, image: &PasteboardImage) -> bool {
     catch_unwind(AssertUnwindSafe(|| {
         pasteboard.clearContents();
@@ -410,15 +381,11 @@ pub fn write_image(pasteboard: &NSPasteboard, image: &PasteboardImage) -> bool {
     .unwrap_or(false)
 }
 
-/// Replaces the general pasteboard's contents with an image (see `write_image`).
 pub fn write_clipboard_image(image: &PasteboardImage) -> bool {
     write_image(&NSPasteboard::generalPasteboard(), image)
 }
 
-/// Checks the image pasteboard path on a private pasteboard (the user's
-/// clipboard is left alone): a PNG decoded on another thread goes on as PNG
-/// (its own bytes) and TIFF, and bytes that are not an image are refused.
-/// Run on the main thread.
+/// Uses a private pasteboard (the user's clipboard is left alone). Run on the main thread.
 pub fn self_test_image_pasteboard(png: &[u8]) -> Result<(), &'static str> {
     let owned = png.to_vec();
     let image = std::thread::spawn(move || pasteboard_image(&owned, u64::MAX))
@@ -463,9 +430,8 @@ pub fn self_test_image_pasteboard(png: &[u8]) -> Result<(), &'static str> {
     result
 }
 
-/// This process's physical memory footprint in bytes, as Activity Monitor
-/// shows it; None when the kernel does not answer. The main-thread tests
-/// read it to check that native work frees what it used.
+/// As Activity Monitor shows it; the main-thread tests read it to check that native work frees what
+/// it used.
 #[doc(hidden)]
 pub fn memory_footprint() -> Option<u64> {
     use mach2::task_info::{TASK_VM_INFO, task_vm_info};
@@ -486,8 +452,7 @@ pub fn memory_footprint() -> Option<u64> {
     (result == mach2::kern_return::KERN_SUCCESS).then_some(info.phys_footprint)
 }
 
-/// The general pasteboard's plain text: `Ok(None)` when it holds none, an
-/// error code when AppKit failed.
+/// `Ok(None)` when the pasteboard holds no text; an error code when AppKit failed.
 pub fn read_clipboard_text() -> Result<Option<String>, &'static str> {
     catch_unwind(|| {
         let pasteboard = NSPasteboard::generalPasteboard();
@@ -499,8 +464,6 @@ pub fn read_clipboard_text() -> Result<Option<String>, &'static str> {
     .map_err(|_| "E_CLIPBOARD_READ_FAILED")
 }
 
-/// Reads the 60 fps preference back, if WebKit exposes it.
-///
 /// # Safety
 /// `preferences` must be a live `WKPreferences`.
 unsafe fn sixty_fps_enabled(preferences: *mut AnyObject) -> Option<bool> {
@@ -516,9 +479,7 @@ unsafe fn sixty_fps_enabled(preferences: *mut AnyObject) -> Option<bool> {
     }
 }
 
-/// Checks on a throwaway `WKPreferences` that the 60 fps preference can be
-/// found, turned off and turned back on. WebKit kills the process when this
-/// runs off the main thread, so it refuses to.
+/// WebKit kills the process when this runs off the main thread, so it refuses to.
 #[doc(hidden)]
 pub fn self_test_sixty_fps_toggle() -> Result<(), &'static str> {
     if objc2::MainThreadMarker::new().is_none() {
@@ -551,8 +512,6 @@ pub fn self_test_sixty_fps_toggle() -> Result<(), &'static str> {
     }
 }
 
-// ---- System accent colour --------------------------------------------------
-
 use super::{AccentInfo, hex_from_unit_rgb};
 use block2::RcBlock;
 use objc2_app_kit::{
@@ -571,7 +530,6 @@ fn accent_is_multicolor() -> bool {
         .is_none()
 }
 
-/// The control accent colour as sRGB hex, resolved under `appearance`.
 fn accent_hex_under(appearance: &NSAppearance) -> Option<String> {
     let result = Cell::new(None);
     let resolve =
@@ -586,7 +544,6 @@ fn accent_hex_under(appearance: &NSAppearance) -> Option<String> {
     result.take()
 }
 
-/// Reads the system accent for both appearances. Must run on the main thread.
 pub fn system_accent() -> AccentInfo {
     catch_unwind(|| {
         if accent_is_multicolor() {
@@ -605,8 +562,7 @@ pub fn system_accent() -> AccentInfo {
     .unwrap_or_else(|_| AccentInfo::multicolor())
 }
 
-/// Calls `on_change` on the main thread whenever the user changes the accent
-/// colour in System Settings. The observer lives for the rest of the process.
+/// The observer lives for the rest of the process.
 pub fn observe_accent_changes(on_change: impl Fn() + 'static) {
     let block = RcBlock::new(move |_note: NonNull<NSNotification>| on_change());
     let center = NSDistributedNotificationCenter::defaultCenter();
@@ -626,23 +582,16 @@ pub fn observe_accent_changes(on_change: impl Fn() + 'static) {
     std::mem::forget(block);
 }
 
-// ---- Format menu keys --------------------------------------------------------
-
 use objc2::MainThreadMarker;
 use objc2::rc::{Retained, Weak};
 use objc2_app_kit::{NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSMenu, NSWindow};
 
-/// Offers every key-down with Command or Control in the main window to the
-/// Format menu before anything else sees it, and swallows the keys the menu
-/// takes. AppKit asks the key window's views for a key equivalent before
-/// the menu bar, and the web view took Command-I in the editor without
-/// passing it on; a local event monitor runs before both. Only the
-/// Format menu is asked, so every other key goes its usual way, and that
-/// menu has keys only while the editor has the keyboard (`format_menu`).
-/// While an input method composes (marked text), no key is offered: the
-/// web view hands it to the input method first. Must run on the main
-/// thread after the main window exists; the monitor lives for the rest of
-/// the process.
+/// AppKit asks the key window's views for a key equivalent before the menu bar, and the web view
+/// took Command-I in the editor without passing it on; a local event monitor runs before both. Only
+/// the Format menu is asked, so every other key goes its usual way, and that menu has keys only
+/// while the editor has the keyboard (`format_menu`). While an input method composes (marked text)
+/// no key is offered. Must run on the main thread after the main window exists; the monitor lives
+/// for the rest of the process.
 pub fn give_format_menu_keys_priority(app: &tauri::App, menu_title: &'static str) {
     let Some(mtm) = MainThreadMarker::new() else {
         log::warn!("W_FORMAT_KEY_MONITOR_NOT_MAIN_THREAD");
@@ -688,8 +637,6 @@ pub fn give_format_menu_keys_priority(app: &tauri::App, menu_title: &'static str
     std::mem::forget(block);
 }
 
-/// Hands a key-down to the Format menu when `offers_to_format_menu` says
-/// so; true when an item of the menu took it (and ran).
 fn offer_to_format_menu(
     mtm: MainThreadMarker,
     main_window: &Weak<NSWindow>,
@@ -741,7 +688,6 @@ fn offer_to_format_menu(
     taken
 }
 
-/// Which window an event or the key window is, for the debug log.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WindowIs {
     None = 0,
@@ -749,14 +695,10 @@ enum WindowIs {
     Other = 2,
 }
 
-/// Logs what the key monitor decided for a key with Command or Control, as
-/// codes and numbers only (debug builds): the outcome (TAKEN, REFUSED: the
-/// menu said no; NOT_OFFERED: the window check failed or an input method
-/// composes; NO_MENU: the menu bar has no Format menu), the event's window
-/// and the key window (0 none, 1 main, 2 other), whether the main window
-/// has marked text, the device-independent modifier bits, the key code,
-/// auto-repeat, and whether an item of the menu has this key by a plain
-/// comparison (`item`: 0 none, 1 enabled, 2 disabled).
+/// Logs, as codes and numbers only, the outcome (TAKEN, REFUSED: the menu said no; NOT_OFFERED: the
+/// window check failed or an input method composes; NO_MENU: no Format menu), the event's window
+/// and the key window (0 none, 1 main, 2 other), marked text, modifier bits, key code, auto-repeat,
+/// and whether an item has this key by a plain comparison (0 none, 1 enabled, 2 disabled).
 #[cfg(debug_assertions)]
 fn log_key_decision(
     outcome: &str,
@@ -785,10 +727,7 @@ fn log_key_decision(
     );
 }
 
-/// Whether an item of `menu` (or its submenus) has the event's key and
-/// modifiers, compared plainly (the key ignoring modifiers, case folded):
-/// `Some(enabled)` for the first such item. A diagnostic only; AppKit's own
-/// matching also knows keyboard layouts.
+/// A diagnostic only; AppKit's own matching also knows keyboard layouts.
 #[cfg(debug_assertions)]
 fn item_with_key(menu: &NSMenu, event: &NSEvent) -> Option<bool> {
     let relevant = NSEventModifierFlags::Command
@@ -810,12 +749,9 @@ fn item_with_key(menu: &NSMenu, event: &NSEvent) -> Option<bool> {
     })
 }
 
-/// Takes every key equivalent off the menu bar's menu titled `menu_title`
-/// and its submenus. The menu library cannot take a key away (setting no
-/// accelerator leaves the old one), and AppKit lets a disabled item with a
-/// key take that key without running, so the Format menu would swallow its
-/// keys outside the editor. Must run on the main thread; false when the
-/// menu is missing.
+/// The menu library cannot take a key away (setting no accelerator leaves the old one), and AppKit
+/// lets a disabled item with a key take that key without running, so the Format menu would swallow
+/// its keys outside the editor. Must run on the main thread; false when the menu is missing.
 pub fn clear_key_equivalents(menu_title: &str) -> bool {
     fn clear(menu: &NSMenu) {
         let empty = NSString::new();
@@ -838,11 +774,8 @@ pub fn clear_key_equivalents(menu_title: &str) -> bool {
     .unwrap_or(false)
 }
 
-/// Takes the key equivalents off the items titled one of `item_titles` in
-/// the menu bar's menu titled `menu_title` (not its submenus), leaving its
-/// other items alone: the View menu's items that run a command lose their
-/// key when the user takes it away, and full screen keeps its own. Must run
-/// on the main thread; false when the menu is missing.
+/// The View menu's items that run a command lose their key when the user takes it away, and full
+/// screen keeps its own. Must run on the main thread; false when the menu is missing.
 pub fn clear_item_key_equivalents(menu_title: &str, item_titles: &[&str]) -> bool {
     let Some(mtm) = MainThreadMarker::new() else {
         return false;
@@ -858,10 +791,8 @@ pub fn clear_item_key_equivalents(menu_title: &str, item_titles: &[&str]) -> boo
     .unwrap_or(false)
 }
 
-/// Like `clear_item_key_equivalents` for the app menu (Devot), the menu
-/// bar's first menu: AppKit names it after the process, so it is found by
-/// position, not title. Must run on the main thread; false when it is
-/// missing.
+/// AppKit names the app menu after the process, so it is found by position, not title. Must run on
+/// the main thread; false when it is missing.
 pub fn clear_app_menu_key_equivalents(item_titles: &[&str]) -> bool {
     let Some(mtm) = MainThreadMarker::new() else {
         return false;
@@ -903,10 +834,8 @@ fn format_menu(app: &NSApplication, title: &str) -> Option<Retained<NSMenu>> {
         .submenu()
 }
 
-/// Whether the window's first responder has marked text, that is, an input
-/// method is composing in it (the web view answers for its focused field or
-/// editor). False when the responder cannot say: `hasMarkedText` belongs to
-/// NSTextInputClient, which not every responder adopts.
+/// False when the responder cannot say: `hasMarkedText` belongs to NSTextInputClient, which not
+/// every responder adopts.
 fn has_marked_text(window: &NSWindow) -> bool {
     let Some(responder) = window.firstResponder() else {
         return false;
@@ -923,12 +852,7 @@ fn has_marked_text(window: &NSWindow) -> bool {
     marked.as_bool()
 }
 
-/// Checks on a throwaway menu bar that a Command key goes to the Format
-/// menu's item that has it (and runs that item, not one with the same key
-/// in another menu), that a key no item has is not taken, that a disabled
-/// item still takes its key, and that clearing the keys (submenus too)
-/// leaves the menu taking nothing. AppKit wants the main thread, so it
-/// refuses to run anywhere else.
+/// AppKit wants the main thread, so it refuses to run anywhere else.
 #[doc(hidden)]
 pub fn self_test_format_menu_keys() -> Result<(), &'static str> {
     use objc2::MainThreadOnly;
@@ -938,7 +862,6 @@ pub fn self_test_format_menu_keys() -> Result<(), &'static str> {
     const TITLE: &str = "Format";
     let mtm = MainThreadMarker::new().ok_or("E_NATIVE_NOT_MAIN_THREAD")?;
     let app = NSApplication::sharedApplication(mtm);
-    // An item records that it ran by adding itself to its array.
     let item = |key: &str, ran: &NSMutableArray<NSObject>| {
         let item = NSMenuItem::new(mtm);
         item.setKeyEquivalent(&NSString::from_str(key));
@@ -1012,7 +935,6 @@ pub fn self_test_format_menu_keys() -> Result<(), &'static str> {
             return Err("E_FORMAT_KEY_DISABLED_ITEM_CHANGED");
         }
         format_italic.setEnabled(true);
-        // Off the editor the items have no keys, in submenus too.
         if !clear_key_equivalents(TITLE) {
             return Err("E_FORMAT_KEYS_NOT_CLEARED");
         }
@@ -1023,7 +945,6 @@ pub fn self_test_format_menu_keys() -> Result<(), &'static str> {
         {
             return Err("E_FORMAT_KEYS_CLEARED_WRONG_ITEMS");
         }
-        // Items picked by title lose their key; the menu's others keep theirs.
         let kept = item("k", &edit_ran);
         kept.setTitle(&NSString::from_str("Kept"));
         let named = item("j", &edit_ran);
@@ -1046,7 +967,6 @@ pub fn self_test_format_menu_keys() -> Result<(), &'static str> {
         {
             return Err("E_ITEM_KEYS_CLEARED_WRONG_ITEMS");
         }
-        // The app menu is the bar's first menu, found by position.
         let first = app
             .mainMenu()
             .and_then(|bar| bar.itemAtIndex(0))
@@ -1093,7 +1013,6 @@ pub fn self_test_marked_text() -> Result<(), &'static str> {
     // SAFETY: the window is owned here; AppKit must not release it on close.
     unsafe { window.setReleasedWhenClosed(false) };
     let result = (|| {
-        // The window itself has the keyboard, and it has no say on text.
         window.makeFirstResponder(None);
         if has_marked_text(&window) {
             return Err("E_MARKED_TEXT_WITHOUT_CLIENT");
@@ -1108,7 +1027,6 @@ pub fn self_test_marked_text() -> Result<(), &'static str> {
         if has_marked_text(&window) {
             return Err("E_MARKED_TEXT_BEFORE_COMPOSING");
         }
-        // An input method composes "ni": marked until it commits.
         let replace_nothing = NSRange::new(NSNotFound as usize, 0);
         // SAFETY: the string is an NSString, as the method expects; the
         // selection lies within it and NSNotFound means no replacement.
@@ -1126,8 +1044,6 @@ pub fn self_test_marked_text() -> Result<(), &'static str> {
         if has_marked_text(&window) {
             return Err("E_MARKED_TEXT_AFTER_COMMIT");
         }
-        // The editor's web view answers the same question, with nothing
-        // marked while no input method composes.
         // SAFETY: a fresh configuration, made on the main thread.
         let config = unsafe { WKWebViewConfiguration::new(mtm) };
         // SAFETY: a fresh allocation with a valid frame and configuration.
@@ -1153,14 +1069,10 @@ pub fn self_test_marked_text() -> Result<(), &'static str> {
     result
 }
 
-// ---- Look Up and Speech -----------------------------------------------------
-
 thread_local! {
-    /// The synthesizer that speaks when the web view cannot (main thread only).
     static SYNTHESIZER: RefCell<Option<Retained<AnyObject>>> = const { RefCell::new(None) };
 }
 
-/// What the web view answers to, for Look Up and Speech.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TextServices {
     pub look_up: bool,
@@ -1168,8 +1080,6 @@ pub struct TextServices {
     pub stop_speaking: bool,
 }
 
-/// What `web_view` can do for Look Up and Speech.
-///
 /// # Safety
 /// `web_view` must be null or point to a live `WKWebView`.
 unsafe fn text_services(web_view: *mut AnyObject) -> TextServices {
@@ -1191,10 +1101,7 @@ unsafe fn text_services(web_view: *mut AnyObject) -> TextServices {
     }
 }
 
-/// Shows the system dictionary for `text` at a point in the web view
-/// (CSS pixels from its top-left corner, which is how a flipped view
-/// counts). `Err` carries a code: the point is outside the view, or the
-/// web view cannot look up.
+/// `Err` carries a code: the point is outside the view, or the web view cannot look up.
 pub fn look_up(
     webview: &tauri::webview::PlatformWebview,
     text: &str,
@@ -1259,8 +1166,6 @@ unsafe fn look_up_in(
     Ok(())
 }
 
-/// The font a Look Up draws its word in: the first of the style's sources
-/// that resolves, else the system font at its size. Main thread.
 fn look_up_font(style: &super::LookUpStyle) -> Retained<NSFont> {
     let size = style.size.unwrap_or_else(NSFont::systemFontSize);
     let weight = symbol_weight(style.weight);
@@ -1286,8 +1191,7 @@ fn look_up_font(style: &super::LookUpStyle) -> Retained<NSFont> {
     }
 }
 
-/// An installed family at the style's weight (and italic), or the family's
-/// regular face when it has no such face; None when it is not installed.
+/// None when the family is not installed.
 fn installed_font(family: &str, style: &super::LookUpStyle, size: f64) -> Option<Retained<NSFont>> {
     let manager = NSFontManager::sharedFontManager(objc2::MainThreadMarker::new()?);
     let family = NSString::from_str(family);
@@ -1307,36 +1211,26 @@ fn installed_font(family: &str, style: &super::LookUpStyle, size: f64) -> Option
 
 #[link(name = "CoreText", kind = "framework")]
 unsafe extern "C" {
-    /// Returns a new CFArray of CTFontDescriptor (empty for data that is
-    /// not a font); registers nothing.
     fn CTFontManagerCreateFontDescriptorsFromData(data: *const AnyObject) -> *mut AnyObject;
-    /// Returns a new CTFont (toll-free bridged with NSFont).
     fn CTFontCreateWithFontDescriptor(
         descriptor: *const AnyObject,
         size: f64,
         matrix: *const std::ffi::c_void,
     ) -> *mut AnyObject;
-    /// Returns a new copy of a descriptor's attribute, or null.
     fn CTFontDescriptorCopyAttribute(
         descriptor: *const AnyObject,
         attribute: *const AnyObject,
     ) -> *mut AnyObject;
-    /// The traits attribute: a CFDictionary of the keys below.
     #[allow(non_upper_case_globals)]
     static kCTFontTraitsAttribute: *const AnyObject;
-    /// The weight trait: a CFNumber from -1 to 1 (the NSFontWeight scale).
     #[allow(non_upper_case_globals)]
     static kCTFontWeightTrait: *const AnyObject;
-    /// The symbolic traits: a CFNumber of bits (`kCTFontTraitItalic` is 1).
     #[allow(non_upper_case_globals)]
     static kCTFontSymbolicTrait: *const AnyObject;
 }
 
-/// `kCTFontTraitItalic`, the italic bit of the symbolic traits.
 const ITALIC_TRAIT: u32 = 1 << 0;
 
-/// A font descriptor's weight trait and whether it is italic; None when it
-/// has no weight to read.
 fn face_traits(descriptor: &AnyObject) -> Option<(f64, bool)> {
     // SAFETY: `descriptor` is a live CTFontDescriptor and the attribute an
     // immutable CoreText constant; the result is a +1 CFDictionary (toll-free
@@ -1358,10 +1252,7 @@ fn face_traits(descriptor: &AnyObject) -> Option<(f64, bool)> {
     Some((weight, symbolic & ITALIC_TRAIT != 0))
 }
 
-/// The face of an imported font file's (checked) bytes closest to `weight`
-/// (the NSFontWeight scale) and `italic`, the first when none can be told
-/// apart, at `size`; made for this call only: nothing is registered with
-/// the system.
+/// Made for this call only: nothing is registered with the system.
 fn file_font(bytes: &[u8], size: f64, weight: f64, italic: bool) -> Option<Retained<NSFont>> {
     let data = NSData::with_bytes(bytes);
     // SAFETY: NSData is toll-free bridged with CFData; the function returns
@@ -1382,9 +1273,8 @@ fn file_font(bytes: &[u8], size: f64, weight: f64, italic: bool) -> Option<Retai
     }
 }
 
-/// Starts or stops speaking. The web view speaks its own selection when it
-/// can (the system's Speech actions); otherwise `text` is spoken by a
-/// speech synthesizer. Stopping stops both.
+/// The web view speaks its own selection when it can (the system's Speech actions); otherwise
+/// `text` is spoken by a speech synthesizer. Stopping stops both.
 pub fn speak(
     webview: &tauri::webview::PlatformWebview,
     start: bool,
@@ -1479,9 +1369,8 @@ fn speak_with_synthesizer(text: &str) -> Result<(), &'static str> {
     })
 }
 
-/// Checks on a real web view, without showing anything, that it answers to
-/// the Look Up and Speech selectors the commands send, and that a missing
-/// selector gives a code, not a crash. Main thread only.
+/// Checks on a real web view, without showing anything, that a missing selector gives a code, not a
+/// crash. Main thread only.
 #[doc(hidden)]
 pub fn self_test_look_up_speech() -> Result<(), &'static str> {
     let mtm = MainThreadMarker::new().ok_or("E_NATIVE_NOT_MAIN_THREAD")?;
@@ -1527,10 +1416,7 @@ pub fn self_test_look_up_speech() -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Checks that a Look Up style resolves to the font it names: the system
-/// and monospaced fonts, an installed family with its weight and italic, a
-/// font file's own face, and the system font for anything else. Main thread
-/// only.
+/// Main thread only.
 #[doc(hidden)]
 pub fn self_test_look_up_fonts() -> Result<(), &'static str> {
     use super::{FontSource, LookUpFont, look_up_style};
@@ -1582,7 +1468,6 @@ pub fn self_test_look_up_fonts() -> Result<(), &'static str> {
     if family(&garbage).as_deref() != Some("Menlo") {
         return Err("E_LOOK_UP_FONT_FILE_INVALID");
     }
-    // A font file's face, read from its bytes only.
     if let Ok(bytes) = std::fs::read("/System/Library/Fonts/Menlo.ttc") {
         let from_file = look_up_font(&super::LookUpStyle {
             sources: vec![FontSource::File(bytes.clone())],
@@ -1591,7 +1476,6 @@ pub fn self_test_look_up_fonts() -> Result<(), &'static str> {
         if family(&from_file).as_deref() != Some("Menlo") {
             return Err("E_LOOK_UP_FONT_FILE");
         }
-        // Of its several faces, the one with the text's weight and italic.
         let bold_italic = font("\"Devot Font Menlo ttf\"", 700.0, true, Some(bytes.clone()));
         if family(&bold_italic).as_deref() != Some("Menlo")
             || !traits(&bold_italic).contains(wanted)
@@ -1606,8 +1490,6 @@ pub fn self_test_look_up_fonts() -> Result<(), &'static str> {
     Ok(())
 }
 
-// ---- Printing and PDF --------------------------------------------------------
-
 use objc2::runtime::ProtocolObject;
 use objc2::{DefinedClass, MainThreadOnly, define_class};
 use objc2_app_kit::{
@@ -1620,19 +1502,15 @@ use objc2_foundation::{
 use objc2_web_kit::{WKNavigation, WKNavigationDelegate, WKWebView, WKWebViewConfiguration};
 use std::cell::RefCell;
 
-/// Where a printed page goes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrintTarget {
-    /// The print panel, as a sheet on the window.
     Printer,
-    /// A PDF file at this path, written without a panel.
     Pdf(std::path::PathBuf),
 }
 
 impl PrintTarget {
-    /// What the print operation's `success` flag means for this target. A
-    /// print through the panel either printed or was cancelled there; a PDF
-    /// has no panel to cancel, so a PDF that was not written failed.
+    /// A print through the panel either printed or was cancelled there; a PDF has no panel to
+    /// cancel, so a PDF that was not written failed.
     pub fn outcome(&self, success: bool) -> Result<bool, &'static str> {
         match (self, success) {
             (_, true) => Ok(true),
@@ -1642,33 +1520,22 @@ impl PrintTarget {
     }
 }
 
-/// What a print job reports once it is over: whether it printed (false when
-/// the user cancelled the panel), or an error code.
+/// Whether it printed (false when the user cancelled the panel), or an error code.
 pub type PrintDone = Box<dyn FnOnce(Result<bool, &'static str>)>;
 
-/// The page's layout width before printing lays it out for the paper
-/// (US Letter's width in points).
+/// US Letter's width in points.
 const PRINT_VIEW_WIDTH: f64 = 612.0;
 const PRINT_VIEW_HEIGHT: f64 = 792.0;
-/// Paper margins, in points (half an inch).
 const PRINT_MARGIN: f64 = 36.0;
-/// How long a page may take to load (its `data:` images decoded) before
-/// the job gives up, in seconds.
 const PRINT_LOAD_TIMEOUT: f64 = 60.0;
 
-/// What a printed page may load, whatever its own policy says: its inline
-/// styles and `data:` images (attachments are put in as those), nothing
-/// from elsewhere. So printing, like the preview, never fetches an image
-/// from the web: no server learns that a note was printed, and no slow host
-/// holds the job up. The UI gives its pages to print the same policy
+/// So printing, like the preview, never fetches an image from the web: no server learns that a note
+/// was printed, and no slow host holds the job up. The UI gives its pages to print the same policy
 /// (`PRINT_CSP` in src/core/htmlExport.ts).
 pub const PRINT_POLICY: &str = "default-src 'none'; img-src data:; style-src 'unsafe-inline'";
 
-/// `html` as the print view loads it: a doctype, then the print policy as a
-/// `<meta>` before anything of the page's (whose own doctype, if it starts
-/// with one, gives way to this one). Nothing in the page comes before the
-/// policy, so it applies to every load the page asks for, and the page's
-/// own policy can only narrow it further (every policy applies).
+/// Nothing in the page comes before the policy, so it applies to every load the page asks for, and
+/// the page's own policy can only narrow it further (every policy applies).
 pub fn with_print_policy(html: &str) -> String {
     const DOCTYPE: &str = "<!doctype html>";
     let page = match html.get(..DOCTYPE.len()) {
@@ -1741,11 +1608,10 @@ define_class!(
     }
 
     impl PrintJob {
-        /// The print operation's `didRunSelector`. AppKit calls it on the
-        /// thread the operation printed on, which is not the main thread
-        /// when the operation ran on a thread of its own (WebKit's print
-        /// operations may, and a PDF's does), so it touches nothing of the
-        /// job's and hands `success` to the main thread, where the job ends.
+        /// AppKit calls it on the thread the operation printed on, which is not the main thread
+        /// when the operation ran on a thread of its own (WebKit's print operations may, and a
+        /// PDF's does), so it touches nothing of the job's and hands `success` to the main thread,
+        /// where the job ends.
         #[unsafe(method(printOperationDidRun:success:contextInfo:))]
         fn print_operation_did_run(
             &self,
@@ -1768,21 +1634,16 @@ define_class!(
             }
         }
 
-        /// The print operation is over (on the main thread): the job ends
-        /// with what `success` means for its target.
         #[unsafe(method(printOperationEnded:))]
         fn print_operation_ended(&self, success: &NSNumber) {
             self.finish(self.ivars().target.outcome(success.boolValue()));
         }
 
-        /// The page did not load in time: the job ends (a print already
-        /// under way is left alone).
         #[unsafe(method(loadTimedOut))]
         fn load_timed_out(&self) {
             self.load_failed("E_PRINT_TIMEOUT");
         }
 
-        /// Lets the web view go, once the call that finished the job is over.
         #[unsafe(method(releaseWebView))]
         fn release_web_view(&self) {
             self.ivars().web_view.take();
@@ -1791,12 +1652,10 @@ define_class!(
 );
 
 thread_local! {
-    /// The job running (one at a time); the web view's delegate is weak.
     static PRINT_JOBS: RefCell<Vec<Retained<PrintJob>>> = const { RefCell::new(Vec::new()) };
 }
 
 impl PrintJob {
-    /// The page has loaded: print it.
     fn print(&self, web_view: &WKWebView) {
         if !self.ivars().loading.replace(false) {
             return;
@@ -1855,25 +1714,20 @@ impl PrintJob {
         }
     }
 
-    /// The page could not be laid out: the job ends with `code`, unless it
-    /// is printing already. Then AppKit holds the job as the print
-    /// operation's delegate (without retaining it) until `didRunSelector`,
-    /// which ends it; ending it here would free it under AppKit.
+    /// When it is printing already, AppKit holds the job as the print operation's delegate (without
+    /// retaining it) until `didRunSelector`, which ends it; ending it here would free it under
+    /// AppKit.
     fn load_failed(&self, code: &'static str) {
         if self.ivars().loading.get() {
             self.finish(Err(code));
         }
     }
 
-    /// Reports the result once and lets the job go: it leaves PRINT_JOBS,
-    /// so the next job can start. Runs on the main thread, as every path
-    /// that ends a job does (a page that cannot print, a load failure, the
-    /// load timeout, the print operation's result).
+    /// Runs on the main thread, as every path that ends a job does.
     fn finish(&self, result: Result<bool, &'static str>) {
         let Some(done) = self.ivars().done.take() else {
             return;
         };
-        // Nothing starts printing any more.
         self.ivars().loading.set(false);
         // The web view is released on the next turn of the run loop, not
         // inside one of its own callbacks; the delayed call keeps the job
@@ -1889,7 +1743,6 @@ impl PrintJob {
                 withObject: std::ptr::null::<AnyObject>(),
                 afterDelay: 0.0f64
             ];
-            // The load timeout has nothing left to do.
             let _: () = msg_send![
                 objc2::class!(NSObject),
                 cancelPreviousPerformRequestsWithTarget: self,
@@ -1905,11 +1758,9 @@ impl PrintJob {
     }
 }
 
-/// Lays `html` out in an offscreen web view (scripts off, nothing loaded
-/// from elsewhere: see `with_print_policy`) and prints it through the
-/// system print pipeline: to the print panel as a sheet on `window`, or to
-/// a PDF file without a panel. `done` runs once on the main thread when the
-/// job is over. One job runs at a time.
+/// Lays `html` out in an offscreen web view (scripts off, nothing loaded from elsewhere: see
+/// `with_print_policy`) and prints it to the print panel as a sheet on `window`, or to a PDF file
+/// without a panel. `done` runs once on the main thread. One job runs at a time.
 pub fn print_html(
     mtm: MainThreadMarker,
     window: &NSWindow,
@@ -1968,8 +1819,6 @@ pub fn print_html(
     }
 }
 
-/// `print_html` with the main window as the parent (its sheet shows the
-/// print panel). Must run on the main thread.
 pub fn print_in_main_window(
     app: &tauri::AppHandle,
     html: &str,
@@ -1995,9 +1844,6 @@ pub fn print_in_main_window(
     print_html(mtm, window, html, title, target, done);
 }
 
-/// Prints `html` to a PDF file at `path` through `print_html`, with an
-/// offscreen window as the parent, running the run loop until it is done.
-/// For the main-thread tests (`tests/main_thread.rs`).
 #[doc(hidden)]
 pub fn self_test_print_to_pdf(html: &str, path: &std::path::Path) -> Result<(), &'static str> {
     use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSRunLoop};
@@ -2057,16 +1903,11 @@ pub fn self_test_print_to_pdf(html: &str, path: &std::path::Path) -> Result<(), 
     }
 }
 
-/// How many print jobs hold the print slot (none once every job is over).
-/// For the main-thread tests (`tests/main_thread.rs`).
 #[doc(hidden)]
 pub fn self_test_print_jobs() -> usize {
     PRINT_JOBS.with(|jobs| jobs.borrow().len())
 }
 
-/// The Mach exceptions the crash handler catches (`crash_handler` takes the
-/// same set): bad memory access, bad instruction, arithmetic, breakpoint,
-/// crash, resource and guard.
 const CRASH_EXCEPTIONS: mach2::exception_types::exception_mask_t = {
     use mach2::exception_types::*;
     EXC_MASK_BAD_ACCESS
@@ -2080,8 +1921,6 @@ const CRASH_EXCEPTIONS: mach2::exception_types::exception_mask_t = {
 /// `EXC_TYPES_COUNT` in `<mach/exception_types.h>`.
 const EXCEPTION_TYPES: usize = 14;
 
-/// What handled crashes before the crash handler was attached: the
-/// `SIGABRT` action and the task's exception ports.
 struct Before {
     abort: libc::sigaction,
     count: usize,
@@ -2092,23 +1931,17 @@ struct Before {
 }
 
 static BEFORE: std::sync::OnceLock<Before> = std::sync::OnceLock::new();
-/// The `SIGABRT` action `crash_handler` installed, which `on_abort` runs.
 static HANDLER_ABORT: std::sync::OnceLock<libc::sigaction> = std::sync::OnceLock::new();
 
-/// The process-wide native crash handler, attached for the app's life.
 pub struct CrashHandler {
     _handler: crash_handler::CrashHandler,
 }
 
-/// Attaches the process-wide native crash handler (Mach exception ports,
-/// plus a `SIGABRT` hook for aborts and for the signal sent by another
-/// process). `on_crash` runs on the handler's own thread while every other
-/// thread is suspended; it returns whether the crash was handed to the crash
-/// reporter. Once a crash has been reported the process ends as it would
-/// have without the handler: a Mach exception goes on to the handlers that
-/// were there before, and a `SIGABRT` is raised again under the action that
-/// was there before (the default ends the process). One handler per
-/// process; it is never attached again (`detach_crash_handler`).
+/// `on_crash` runs on the handler's own thread while every other thread is suspended; it returns
+/// whether the crash was handed to the crash reporter. Once a crash has been reported the process
+/// ends as it would have without the handler: a Mach exception goes on to the handlers that were
+/// there before, and a `SIGABRT` is raised again under the action that was there before. One
+/// handler per process; it is never attached again (`detach_crash_handler`).
 pub fn attach_crash_handler(
     on_crash: impl Fn(&crash_handler::CrashContext) -> bool + Send + Sync + 'static,
 ) -> Result<CrashHandler, crash_handler::Error> {
@@ -2164,7 +1997,6 @@ pub fn attach_crash_handler(
     Ok(CrashHandler { _handler: handler })
 }
 
-/// The `SIGABRT` action and exception ports before the handler is attached.
 fn save_crash_handling() -> Option<Before> {
     // SAFETY: plain C structs and arrays on this stack, filled by sigaction
     // and task_get_exception_ports, which write at most `count` entries.
@@ -2191,11 +2023,9 @@ fn save_crash_handling() -> Option<Before> {
     }
 }
 
-/// Detaches the crash handler, for good: the `SIGABRT` action and the
-/// exception ports go back to what they were before it was attached, so a
-/// crash takes the system's default course. Safe to call more than once, and
-/// from a signal handler (it only makes system calls). The handler's own
-/// thread stays, idle, as no exception reaches it any more. Returns whether
+/// The `SIGABRT` action and the exception ports go back to what they were before it was attached,
+/// so a crash takes the system's default course. Safe to call more than once, and from a signal
+/// handler (it only makes system calls). The handler's own thread stays, idle. Returns whether
 /// there was anything to restore.
 pub fn detach_crash_handler() -> bool {
     let Some(before) = BEFORE.get() else {
@@ -2220,9 +2050,6 @@ pub fn detach_crash_handler() -> bool {
     true
 }
 
-/// Whether a crash would reach the crash handler now: `SIGABRT` runs its
-/// hook, or a bad memory access goes to another port than before it was
-/// attached.
 pub fn crash_handler_attached() -> bool {
     let Some(before) = BEFORE.get() else {
         return false;
@@ -2262,11 +2089,9 @@ pub fn crash_handler_attached() -> bool {
     }
 }
 
-/// The `SIGABRT` handler: an abort or a `kill -ABRT` from another process.
-/// Hands the crash to `crash_handler` (which waits for the reporter), then
-/// detaches and raises the signal again. The signal stays blocked until this
-/// returns, so it is then taken by the action from before: by default, the
-/// process ends with `SIGABRT`.
+/// Hands the crash to `crash_handler` (which waits for the reporter), then detaches and raises the
+/// signal again. The signal stays blocked until this returns, so it is then taken by the action
+/// from before: by default, the process ends with `SIGABRT`.
 extern "C" fn on_abort(
     signal: libc::c_int,
     info: *mut libc::siginfo_t,
@@ -2287,8 +2112,6 @@ extern "C" fn on_abort(
     }
 }
 
-/// Runs a saved signal action's handler, if it has one.
-///
 /// # Safety
 /// `info` and `context` must be what the kernel passed to the running
 /// signal handler.
@@ -2314,7 +2137,6 @@ unsafe fn run_action(
     }
 }
 
-/// The path of a running process's executable, as the system knows it.
 pub fn executable_of(pid: u32) -> Option<std::path::PathBuf> {
     let pid = libc::c_int::try_from(pid).ok()?;
     let mut buffer = vec![0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
@@ -2354,9 +2176,8 @@ pub fn crash_with_bad_access() -> ! {
     unreachable!("E_BAD_ACCESS_DID_NOT_CRASH")
 }
 
-/// Time since boot, sleep included: `CLOCK_MONOTONIC` keeps counting while
-/// the Mac sleeps (`Instant` is `CLOCK_UPTIME_RAW`, which stops), and
-/// setting the time does not move it. `None` if the call fails.
+/// `CLOCK_MONOTONIC` keeps counting while the Mac sleeps (`Instant` is `CLOCK_UPTIME_RAW`, which
+/// stops), and setting the time does not move it. `None` if the call fails.
 pub fn time_since_boot() -> Option<std::time::Duration> {
     let mut now = libc::timespec {
         tv_sec: 0,
@@ -2386,13 +2207,8 @@ pub fn crash_with_call_to(address: usize) -> ! {
     unreachable!("E_CALL_DID_NOT_CRASH")
 }
 
-// ---- Launch failure alert ----------------------------------------------------
-
 use objc2_app_kit::{NSAlert, NSAlertStyle};
 
-/// Shows a critical alert and waits until it is dismissed, bringing the app
-/// forward first (at launch it has no window yet). Public AppKit only. False,
-/// showing nothing, off the main thread.
 pub fn show_critical_alert(title: &str, message: &str) -> bool {
     let Some(mtm) = MainThreadMarker::new() else {
         return false;
@@ -2406,17 +2222,13 @@ pub fn show_critical_alert(title: &str, message: &str) -> bool {
     true
 }
 
-// ---- The editor's menu -------------------------------------------------------
-
 use super::{EditorMenuEntry, EditorMenuPick, KeyEquivalent, SystemItem};
 use crate::strings;
 use objc2::runtime::Sel;
 use objc2_app_kit::{NSControlStateValueOn, NSMenuItem, NSSpellChecker, NSView};
 
-/// The most spelling guesses the editor's menu offers.
 const MAX_SPELLING_GUESSES: usize = 8;
 
-/// What an item of the editor's menu stands for; its tag is its index.
 enum MenuChoice {
     Item(String),
     Guess(String),
@@ -2424,7 +2236,6 @@ enum MenuChoice {
 }
 
 thread_local! {
-    /// The tag of the item picked in the editor's menu shown now (main thread only).
     static EDITOR_MENU_PICK: Cell<Option<isize>> = const { Cell::new(None) };
 }
 
@@ -2440,7 +2251,6 @@ define_class!(
     unsafe impl NSObjectProtocol for EditorMenuTarget {}
 
     impl EditorMenuTarget {
-        /// An item that is not the system's was picked: its tag says which.
         #[unsafe(method(pick:))]
         fn pick(&self, sender: &NSMenuItem) {
             EDITOR_MENU_PICK.with(|pick| pick.set(Some(sender.tag())));
@@ -2448,9 +2258,6 @@ define_class!(
     }
 );
 
-/// Builds the editor's menu: the items that tell the target they were
-/// picked, and the system's, which AppKit sends to the first responder (the
-/// web view) and enables, checks and fills as it does in its own menus.
 struct EditorMenuBuilder<'a> {
     mtm: MainThreadMarker,
     target: &'a EditorMenuTarget,
@@ -2458,8 +2265,6 @@ struct EditorMenuBuilder<'a> {
 }
 
 impl EditorMenuBuilder<'_> {
-    /// An item with no target: AppKit sends `action` up the responder chain;
-    /// without one it is disabled.
     fn item(&self, title: &str, action: Option<Sel>, key: &str) -> Retained<NSMenuItem> {
         // SAFETY: a fresh allocation; the title, action and key are valid.
         unsafe {
@@ -2472,7 +2277,6 @@ impl EditorMenuBuilder<'_> {
         }
     }
 
-    /// An item that tells the target it was picked.
     fn choice(&mut self, title: &str, choice: MenuChoice) -> Retained<NSMenuItem> {
         let item = self.item(title, Some(sel!(pick:)), "");
         item.setTag(self.choices.len() as isize);
@@ -2487,7 +2291,6 @@ impl EditorMenuBuilder<'_> {
         NSMenuItem::separatorItem(self.mtm)
     }
 
-    /// Adds the page's items, in its order.
     fn add_entries(&mut self, menu: &NSMenu, entries: &[EditorMenuEntry]) {
         for entry in entries {
             match entry {
@@ -2528,7 +2331,6 @@ impl EditorMenuBuilder<'_> {
         }
     }
 
-    /// The system's guesses for a misspelled `word`, then Learn Spelling.
     fn add_spelling_guesses(&mut self, menu: &NSMenu, word: &str) {
         let Some(guesses) = spelling_guesses(word) else {
             return;
@@ -2546,7 +2348,6 @@ impl EditorMenuBuilder<'_> {
         menu.addItem(&self.separator());
     }
 
-    /// Spelling and Grammar, as in the system's text menus.
     fn spelling_menu(&self) -> Retained<NSMenuItem> {
         let submenu = NSMenu::new(self.mtm);
         submenu.addItem(&self.item(
@@ -2590,8 +2391,6 @@ fn modifier_flags(key: &KeyEquivalent) -> NSEventModifierFlags {
     flags
 }
 
-/// The system's guesses for `word` (at most `MAX_SPELLING_GUESSES`), or
-/// `None` when it is spelled right.
 fn spelling_guesses(word: &str) -> Option<Vec<String>> {
     let checker = NSSpellChecker::sharedSpellChecker();
     let string = NSString::from_str(word);
@@ -2615,11 +2414,6 @@ fn spelling_guesses(word: &str) -> Option<Vec<String>> {
     )
 }
 
-/// Shows the editor's menu at a point in the web view (CSS pixels from its
-/// top-left corner, which is how a flipped view counts) and waits until it
-/// closes: the page's items, after the spelling guesses for `word` when it
-/// is misspelled, then Writing Tools, Spelling and Grammar and Services.
-/// Returns what the page has to act on, if anything was picked.
 pub fn editor_menu(
     webview: &tauri::webview::PlatformWebview,
     entries: &[EditorMenuEntry],
@@ -2638,8 +2432,6 @@ pub fn editor_menu(
     .unwrap_or(Err("E_EDITOR_MENU_FAILED"))
 }
 
-/// The editor's menu (see `editor_menu`) and the Services submenu in it,
-/// which AppKit fills while it is the app's Services menu.
 fn build_editor_menu(
     builder: &mut EditorMenuBuilder<'_>,
     entries: &[EditorMenuEntry],
@@ -2686,7 +2478,6 @@ impl Drop for RestoreServices {
     }
 }
 
-/// The choice of the item picked since the last call, if any.
 fn picked_choice(choices: &[MenuChoice]) -> Option<&MenuChoice> {
     EDITOR_MENU_PICK
         .with(Cell::take)
@@ -2736,9 +2527,6 @@ fn show_editor_menu(
     })
 }
 
-/// Builds the editor's menu without showing it: spelling guesses for a
-/// misspelled word (none for a word spelled right), the page's items with
-/// their keys, the system's items, and a pick that reaches the target.
 pub fn self_test_editor_menu() -> Result<(), &'static str> {
     let mtm = MainThreadMarker::new().ok_or("E_TEST_NOT_MAIN_THREAD")?;
     let target = EditorMenuTarget::alloc(mtm).set_ivars(());
@@ -2876,15 +2664,11 @@ mod tests {
         let meta =
             format!("<meta http-equiv=\"Content-Security-Policy\" content=\"{PRINT_POLICY}\">");
         let start = format!("<!doctype html>{meta}");
-        // The page's own doctype, in any case, gives way to the one before
-        // the policy; everything else stays as it was, in order.
         let page = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">";
         assert_eq!(
             with_print_policy(page),
             format!("{start}\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">")
         );
-        // Without a doctype of its own (or with another one), nothing of
-        // the page is dropped.
         assert_eq!(
             with_print_policy("<img src=\"http://example.com/a.png\">"),
             format!("{start}<img src=\"http://example.com/a.png\">")
@@ -2892,7 +2676,6 @@ mod tests {
         let legacy = "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\"><p>x</p>";
         assert_eq!(with_print_policy(legacy), format!("{start}{legacy}"));
         assert_eq!(with_print_policy(""), start);
-        // Only images from the page itself.
         assert!(PRINT_POLICY.contains("default-src 'none'"));
         assert!(PRINT_POLICY.contains("img-src data:;"));
         assert!(!PRINT_POLICY.contains("http"));
