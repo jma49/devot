@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { seedNotes } from './renders'
 import {
   pickBook,
   pickStatus,
@@ -248,4 +249,32 @@ test('a new note made in Preview opens in Edit, ready for typing', async ({ page
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(modes.getByRole('button', { name: 'Edit' })).toHaveAttribute('aria-pressed', 'true')
   await expect(body(page)).toBeVisible()
+})
+
+test('the title field waits while another note opens, so typing never lands on the note left (#250)', async ({
+  page,
+}) => {
+  await seedNotes(page, 3)
+  const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
+  const row = (title: string) =>
+    rows.filter({ has: page.locator('.row-title', { hasText: new RegExp(`^${title}$`) }) })
+  await row('Note 1').click()
+  await expect(titleField(page)).toHaveValue('Note 1')
+
+  const readOnlyAtClick = await page.evaluate(async () => {
+    const target = Array.from(document.querySelectorAll('[role=option] .row-title')).find(
+      (el) => el.textContent === 'Note 2',
+    )
+    target?.closest('[role=option]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    // React commits the click's state in a microtask; the open itself waits on the core.
+    await new Promise<void>((resolve) => queueMicrotask(resolve))
+    const field = document.querySelector<HTMLInputElement>('input.title')
+    return field?.readOnly
+  })
+  expect(readOnlyAtClick).toBe(true)
+  await titleField(page).fill('Food')
+  await expect(titleField(page)).toHaveValue('Food')
+  await expect(row('Food')).toHaveCount(1)
+  await expect(row('Note 1')).toHaveCount(1)
+  await expect(row('Note 2')).toHaveCount(0)
 })
