@@ -165,6 +165,10 @@ settings:
 overrides:
   katex: ^0.18.2
 
+patchedDependencies:
+  mdast-util-find-and-replace@3.0.3: f2a138f01555f88ef3a2e4281e6cf15a93d3df2eaf4348d7bff388f160bd942a
+  unist-util-visit@5.1.0: d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f
+
 importers:
 
   .:
@@ -4521,7 +4525,7 @@ snapshots:
       mdast-util-to-hast: 13.2.1
       parse5: 7.3.0
       unist-util-position: 5.0.0
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f)
       vfile: 6.0.3
       web-namespaces: 2.0.1
       zwitch: 2.0.4
@@ -4561,7 +4565,7 @@ snapshots:
       rehype-minify-whitespace: 6.0.2
       trim-trailing-lines: 2.1.0
       unist-util-position: 5.0.0
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f)
 
   hast-util-to-parse5@8.0.1:
     dependencies:
@@ -4766,7 +4770,7 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  mdast-util-find-and-replace@3.0.3:
+  mdast-util-find-and-replace@3.0.3(patch_hash=f2a138f01555f88ef3a2e4281e6cf15a93d3df2eaf4348d7bff388f160bd942a):
     dependencies:
       '@types/mdast': 4.0.4
       escape-string-regexp: 5.0.0
@@ -4806,7 +4810,7 @@ snapshots:
       '@types/mdast': 4.0.4
       ccount: 2.0.1
       devlop: 1.1.0
-      mdast-util-find-and-replace: 3.0.3
+      mdast-util-find-and-replace: 3.0.3(patch_hash=f2a138f01555f88ef3a2e4281e6cf15a93d3df2eaf4348d7bff388f160bd942a)
       micromark-util-character: 2.1.1
 
   mdast-util-gfm-footnote@2.1.0:
@@ -4884,7 +4888,7 @@ snapshots:
       micromark-util-sanitize-uri: 2.0.1
       trim-lines: 3.0.1
       unist-util-position: 5.0.0
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f)
       vfile: 6.0.3
 
   mdast-util-to-markdown@2.2.0:
@@ -4898,7 +4902,7 @@ snapshots:
       micromark-util-classify-character: 2.0.1
       micromark-util-decode-string: 2.0.1
       micromark-util-html-tag-name: 2.0.1
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f)
       zwitch: 2.0.4
 
   mdast-util-to-string@4.0.0:
@@ -5574,7 +5578,7 @@ snapshots:
   unist-util-remove-position@5.0.0:
     dependencies:
       '@types/unist': 3.0.3
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f)
 
   unist-util-stringify-position@4.0.0:
     dependencies:
@@ -5585,7 +5589,7 @@ snapshots:
       '@types/unist': 3.0.3
       unist-util-is: 6.0.1
 
-  unist-util-visit@5.1.0:
+  unist-util-visit@5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f):
     dependencies:
       '@types/unist': 3.0.3
       unist-util-is: 6.0.1

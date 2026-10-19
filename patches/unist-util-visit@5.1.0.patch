@@ -1,0 +1,30 @@
+diff --git a/lib/index.js b/lib/index.js
+index 697b299b0bf9028e44eb9fd68b689dce3a949343..6486ad26a9a3fa5ef0f56c472b82813035d47bea 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -306,7 +306,24 @@ export function visit(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
+    */
+   function overload(node, parents) {
+     const parent = parents[parents.length - 1]
+-    const index = parent ? parent.children.indexOf(node) : undefined
++    const index = parent ? indexIn(parent.children, node) : undefined
+     return visitor(node, index, parent)
+   }
+ }
++
++// Siblings are visited in order, so the last index found in a list is checked
++// first: `indexOf` alone made a visit quadratic in a parent's children.
++const lastIndexes = new WeakMap()
++
++function indexIn(children, node) {
++  const last = lastIndexes.get(children)
++  let index = -1
++  if (last !== undefined) {
++    if (children[last + 1] === node) index = last + 1
++    else if (children[last] === node) index = last
++    else if (children[last - 1] === node) index = last - 1
++  }
++  if (index === -1) index = children.indexOf(node)
++  lastIndexes.set(children, index)
++  return index
++}

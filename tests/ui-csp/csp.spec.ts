@@ -151,11 +151,14 @@ test('a note exports as an HTML page with its diagram drawn, under the policy', 
   expect(await violations(page)).toEqual([])
 })
 
-test('a Markdown folder import runs in the built worker under the policy', async ({ page }) => {
+test('a folder import runs in the built workers under the policy', async ({ page }) => {
   await page.addInitScript(() => {
     const w = globalThis as unknown as { devotIpcMocks: Record<string, unknown> }
     w.devotIpcMocks = {
-      import_read: () => '---\ntags: [csp]\n---\n# Imported\n\n![Pic](pic.png)\n',
+      import_read: ({ path }: { path: string }) =>
+        path.endsWith('.html')
+          ? '<title>Page</title><h1>Page</h1><p>Some <b>bold</b> text.</p>'
+          : '---\ntags: [csp]\n---\n# Imported\n\n![Pic](pic.png)\n',
       import_attach: null,
       import_finish: null,
     }
@@ -171,7 +174,10 @@ test('a Markdown folder import runs in the built worker under the policy', async
       id: 1,
       name: 'Folder',
       kind: 'folder',
-      files: [{ path: 'Note.md', bytes: 50 }],
+      files: [
+        { path: 'Note.md', bytes: 50 },
+        { path: 'page.html', bytes: 60 },
+      ],
       images: [],
       skipped: [],
     }
@@ -180,13 +186,22 @@ test('a Markdown folder import runs in the built worker under the policy', async
   const dialog = page.getByRole('dialog', { name: 'Import Markdown Folder' })
   await dialog.getByRole('button', { name: 'Continue' }).click()
   await dialog.getByRole('button', { name: 'Import', exact: true }).click()
-  await expect(dialog).toContainText('Imported 1 note.')
+  await expect(dialog).toContainText('Imported 2 notes.')
   await dialog.getByRole('button', { name: 'Done' }).click()
-  await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').first().click()
-  await expect(page.getByRole('textbox', { name: 'Note body' })).toContainText(
-    '![Pic](devot://file/',
-  )
+  const notes = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
+  const body = page.getByRole('textbox', { name: 'Note body' })
+  await notes.filter({ hasText: 'Imported' }).click()
+  await expect(body).toContainText('![Pic](devot://file/')
+  await notes.filter({ hasText: 'Page' }).click()
+  await expect(body).toContainText('Some **bold** text.')
   expect(await violations(page)).toEqual([])
+  // The core worker would parse the files itself, logging this, had the import worker not started.
+  const logged = await page.evaluate(() =>
+    (globalThis as unknown as TestWindow).devotIpcCalls
+      .filter((call) => call.cmd === 'log_write')
+      .map((call) => JSON.stringify(call.args)),
+  )
+  expect(logged.filter((entry) => entry.includes('W_IMPORT_WORKER_FAILED'))).toEqual([])
 })
 
 test('the notebook menu works and outlines its notebook under the policy', async ({ page }) => {

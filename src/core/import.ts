@@ -23,7 +23,7 @@ import remarkMath from 'remark-math'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { isMap, isScalar, isSeq, parseDocument } from 'yaml'
-import { htmlToMarkdown } from './htmlImport'
+import { htmlToMarkdown, type HtmlImage } from './htmlImport'
 import { folderOf, isHtmlFile, noteFolder } from './importTree'
 import { MAX_BOOK_NAME_CHARS, type BookService } from './books'
 import { errorCode } from './errors'
@@ -94,6 +94,31 @@ export interface ImportOptions {
   onProgress?: (done: number, total: number) => unknown
   /** Once true, the import ends there (the file it was on is finished first) and the rest are listed as not imported. */
   stopped?: () => boolean
+  /** Where files are converted and parsed; in this thread when left out. */
+  prepare?: ImportPreparer
+}
+
+/** What a file becomes before anything is written: all the parsing an import does. */
+export interface PreparedImport {
+  title: string
+  meta: FrontMatterMeta
+  /** The body as stored, before its image links are rewritten. */
+  text: string
+  images: ImageLinks
+  /** An HTML file's embedded images, as attachments to store (none without IDs to give them). */
+  embedded: HtmlImage[]
+  /** What an HTML file's conversion left out. */
+  dropped: string[]
+}
+
+export interface ImageLinks {
+  links: ImageLink[]
+  unlocated: string[]
+}
+
+export interface ImportPreparer {
+  file(raw: string, path: string, withImages: boolean): Promise<PreparedImport>
+  links(text: string): Promise<ImageLinks>
 }
 
 export interface FrontMatterMeta {
@@ -622,11 +647,35 @@ export function imageLinks(markdown: string): ImageLink[] {
   return imagesOf(parse(markdown), markdown).links
 }
 
+/** Embedded images take their IDs from `newId`; without it they are left out. */
+export function prepareImportFile(raw: string, path: string, newId?: () => string): PreparedImport {
+  const source = lineFeeds(raw)
+  const html = isHtmlFile(path) ? htmlToMarkdown(source, newId) : null
+  const own = ownMeta(html ? html.markdown : source)
+  const tree = parse(own.body)
+  return {
+    title: own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, path)),
+    meta: own.meta,
+    text: own.body,
+    images: imagesOf(tree, own.body),
+    embedded: html?.images ?? [],
+    dropped: html?.dropped ?? [],
+  }
+}
+
+export const imagesIn = (text: string): ImageLinks => imagesOf(parse(text), text)
+
+export const preparerHere = (newId: () => string): ImportPreparer => ({
+  file: async (raw, path, withImages) =>
+    prepareImportFile(raw, path, withImages ? newId : undefined),
+  links: async (text) => imagesIn(text),
+})
+
 export function unlocatedImages(markdown: string): string[] {
   return imagesOf(parse(markdown), markdown).unlocated
 }
 
-function imagesOf(tree: Root, markdown: string): { links: ImageLink[]; unlocated: string[] } {
+function imagesOf(tree: Root, markdown: string): ImageLinks {
   const inline: ImageLink[] = []
   const unlocated: string[] = []
   const used = new Set<string>()
@@ -711,6 +760,7 @@ function bookName(name: string): string {
 
 export async function importMarkdown(options: ImportOptions): Promise<ImportReport> {
   const { notes, books, tags, newId, scan, source, onProgress, stopped, files: store } = options
+  const prepare = options.prepare ?? preparerHere(newId)
   const destination = options.destination ?? null
   const problems: ImportProblem[] = [...scan.skipped]
   // Notebooks are made when their first note is imported; `made` collects them so a failed file can take them back.
@@ -741,21 +791,17 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
     const made: string[] = []
     const found: ImportProblem[] = []
     try {
-      const raw = lineFeeds(await source.read(path))
-      const html = isHtmlFile(path) ? htmlToMarkdown(raw, store ? newId : undefined) : null
-      const own = ownMeta(html ? html.markdown : raw)
-      let text = own.body
-      let tree = parse(text)
-      const meta = own.meta
-      const title = own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, path))
-      id = await notes.create(title, await folder(noteFolder(scan.kind, path), made))
+      const prepared = await prepare.file(await source.read(path), path, store !== undefined)
+      const { meta } = prepared
+      let { text, images } = prepared
+      id = await notes.create(prepared.title, await folder(noteFolder(scan.kind, path), made))
       const noteId = id
-      for (const dropped of html?.dropped ?? []) {
+      for (const dropped of prepared.dropped) {
         found.push({ path, image: dropped, code: 'E_IMPORT_HTML_CONTENT_DROPPED' })
       }
-      if (html && store) {
+      if (store) {
         let refused = false
-        for (const image of html.images) {
+        for (const image of prepared.embedded) {
           const file = { id: image.id, noteId, name: `image.${EXTENSIONS[image.mime] ?? 'png'}` }
           try {
             checkUpload(file, image.data)
@@ -772,12 +818,11 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
             })
           }
         }
-        if (refused) tree = parse(text)
+        if (refused) images = await prepare.links(text)
       }
 
       const files = new Map<string, string | null>()
       const edits: TextEdit[] = []
-      const images = imagesOf(tree, text)
       for (const url of images.unlocated) {
         const target = resolve(path, url)
         if (target.kind === 'outside') {

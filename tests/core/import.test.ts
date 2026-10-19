@@ -1,5 +1,7 @@
 import { join } from 'node:path'
 import { EditorState } from '@codemirror/state'
+import type { Root } from 'mdast'
+import { gfmFromMarkdown } from 'mdast-util-gfm'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import {
@@ -15,15 +17,18 @@ import {
   importMarkdown,
   importTree,
   lineFeeds,
+  preparerHere,
   replaceRanges,
   resolveImagePath,
   type BookNode,
   type ImportFolder,
+  type ImportPreparer,
   type ImportScan,
   type ImportSource,
   type NoteRecord,
   type StorageAdapter,
 } from '../../src/core'
+import { expectLinearGrowth, fourfoldGrowth } from '../support/growth'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -880,5 +885,94 @@ describe('import preview', () => {
       notes: 1,
       problems: [{ path: 'Huge.md', code: 'E_IMPORT_FILE_TOO_LARGE' }],
     })
+  })
+
+  // The core worker hands this work to a worker of its own (#290), so it must all go through here.
+  it('leaves every conversion and parse to the preparer it is given', async () => {
+    const { sqlite, services } = await setup()
+    const png = Buffer.from(PNG).toString('base64')
+    const files = {
+      'a.md': '# A\n\n![Board](img/board.png)\n',
+      'page.html': `<h1>P</h1><img src="data:image/png;base64,${png}" alt="Shot"><img src="b.png">`,
+    }
+    const here = preparerHere(services.newId)
+    const asked: string[] = []
+    const prepare: ImportPreparer = {
+      file: (raw, path, withImages) => {
+        asked.push(`file ${path} ${withImages}`)
+        return here.file(raw, path, withImages)
+      },
+      links: (text) => {
+        asked.push(`links ${text}`)
+        return here.links(text)
+      },
+    }
+    const refusing = { putFile: () => Promise.reject(new Error('E_FILE_SIZE_INVALID')) }
+    const { source, attached } = sourceFor(sqlite, files, { 'img/board.png': PNG, 'b.png': PNG })
+    const report = await importMarkdown({
+      ...services,
+      files: refusing,
+      scan: scanOf(files, { kind: 'files' }),
+      source,
+      prepare,
+    })
+    expect(asked).toEqual([
+      'file a.md true',
+      'file page.html true',
+      'links # P\n\n![Shot]()![](b.png)\n',
+    ])
+    expect(report).toMatchObject({ notes: 2, attachments: 2 })
+    const [board, b] = attached
+    expect([board?.path, b?.path]).toEqual(['img/board.png', 'b.png'])
+    expect((await noteByTitle(sqlite, 'A')).record.bodyMd).toBe(
+      `# A\n\n![Board](devot://file/${board?.id})\n`,
+    )
+    expect((await noteByTitle(sqlite, 'P')).record.bodyMd).toBe(
+      `# P\n\n![Shot]()![](devot://file/${b?.id})\n`,
+    )
+  })
+
+  it('ends the file it is on when the preparer fails, and goes on with the rest', async () => {
+    const { sqlite, services } = await setup()
+    const files = { 'a.md': '# A\n', 'b.md': '# B\n' }
+    const here = preparerHere(services.newId)
+    const report = await importMarkdown({
+      ...services,
+      scan: scanOf(files),
+      source: sourceFor(sqlite, files).source,
+      prepare: {
+        ...here,
+        file: (raw, path, withImages) =>
+          path === 'a.md'
+            ? Promise.reject(new Error('E_IMPORT_FAILED'))
+            : here.file(raw, path, withImages),
+      },
+    })
+    expect(report.problems).toEqual([{ path: 'a.md', code: 'E_IMPORT_FAILED' }])
+    expect((await sqlite.listNotes()).map((n) => n.title)).toEqual(['B'])
+  })
+})
+
+// Finding bare links looked each paragraph up among the rest, which took time growing with the
+// square of their number (#290): about 11 times as long for four times the paragraphs here.
+describe('linking bare URLs in parsed Markdown', () => {
+  it('takes time linear in the paragraphs', { timeout: 60_000 }, (context) => {
+    const transforms = gfmFromMarkdown().flatMap((extension) => extension.transforms ?? [])
+    const growth = fourfoldGrowth((n) => {
+      const tree: Root = {
+        type: 'root',
+        children: Array.from({ length: n }, () => ({
+          type: 'paragraph',
+          children: [{ type: 'text', value: 'see www.example.com now' }],
+        })),
+      }
+      return () => {
+        for (const transform of transforms) transform(tree)
+        expect(tree.children[n - 1]).toMatchObject({
+          children: [{ value: 'see ' }, { type: 'link', url: 'http://www.example.com' }, {}],
+        })
+      }
+    }, 10_000)
+    expectLinearGrowth(context, growth)
   })
 })

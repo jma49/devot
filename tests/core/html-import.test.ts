@@ -1,6 +1,7 @@
 import { fromHtml } from 'hast-util-from-html'
 import { describe, expect, it } from 'vitest'
 import { htmlToMarkdown } from '../../src/core'
+import { expectLinearGrowth, fourfoldGrowth } from '../support/growth'
 
 const PNG_B64 = 'iVBORw0KGgoAAAANAQ=='
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1])
@@ -267,6 +268,23 @@ describe('HTML to Markdown for import', () => {
       expect(out.dropped.slice(0, 2)).toEqual(['x:0', 'x:1'])
       expect(out.dropped.at(-1)).toBe(`+${parts.length - 100}`)
       expect(ms).toBeLessThan(2000)
+    })
+  })
+
+  // A step that looked each element up among its siblings took time growing with the square of a
+  // parent's children (#290). Rules convert cheaply, so that square would show at this size (about
+  // 9 times as long for four times the rules).
+  describe('in time linear in the children of a parent', { timeout: 120_000 }, () => {
+    const rules = (n: number) => '<hr>'.repeat(n)
+    it.for([
+      ['on the page', rules],
+      ['in one block', (n: number) => `<div>${rules(n)}</div>`],
+    ] as const)('%s', ([, page], context) => {
+      const growth = fourfoldGrowth((n) => {
+        const html = page(n)
+        return () => htmlToMarkdown(html)
+      }, 25_000)
+      expectLinearGrowth(context, growth)
     })
   })
 })

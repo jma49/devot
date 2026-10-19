@@ -14,6 +14,7 @@ import {
   importMarkdown,
   observeWrites,
   planExport,
+  preparerHere,
   renderPreview,
   renderPreviewPieces,
   type BatchChange,
@@ -36,6 +37,7 @@ import {
   seedWelcome,
 } from '../../core'
 import { errorCode } from '../../core/errors'
+import { preparerOffThread } from './importWorker'
 import type { SaveProblemsMessage } from './saving'
 import { fromWire, type WireStorage } from './storage/wire'
 import { forwardWorkerLogs } from './workerLog'
@@ -195,6 +197,11 @@ export const coreApi = {
   ) => {
     if (!newId) throw new Error('E_CORE_NOT_READY')
     stopImport = false
+    const prepare = preparerOffThread(
+      () => new Worker(new URL('./import.worker.ts', import.meta.url), { type: 'module' }),
+      preparerHere(newId),
+      () => console.warn('W_IMPORT_WORKER_FAILED'),
+    )
     const run = importMarkdown({
       notes: required(),
       books: requiredBooks(),
@@ -206,8 +213,9 @@ export const coreApi = {
       destination,
       onProgress,
       stopped: () => stopImport,
+      prepare,
     })
-    importing = run.catch(() => undefined)
+    importing = run.catch(() => undefined).finally(prepare.close)
     return run
   },
   stopImport: async () => {
