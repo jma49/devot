@@ -292,7 +292,11 @@ describe('the menu at the end of a long note', () => {
     return doc
   }
 
-  /** The longest the menu took for the keys `/`, `l`, `i` typed one after the other after `doc`. */
+  /**
+   * The longest the menu took for the keys `/`, `l`, `i` typed one after the other after `doc`.
+   * Each key counts its fastest of three runs on the same state: a garbage collection
+   * or a busy runner can stretch one run, but a slow path is slow every time.
+   */
   function typing(doc: string): number {
     const start = state(`${doc}^`)
     expect(ensureSyntaxTree(start, start.doc.length, 30_000)).not.toBeNull()
@@ -304,11 +308,15 @@ describe('the menu at the end of a long note', () => {
         selection: { anchor: typed.doc.length + 1 },
       }).state
       if (key === '\n') continue
-      const from = performance.now()
-      const trigger = slashTrigger(typed)
-      const items = trigger ? slashItems(typed, trigger) : []
-      worst = Math.max(worst, performance.now() - from)
-      expect(items.length).toBeGreaterThan(0)
+      let fastest = Infinity
+      for (let run = 0; run < 3; run++) {
+        const from = performance.now()
+        const trigger = slashTrigger(typed)
+        const items = trigger ? slashItems(typed, trigger) : []
+        fastest = Math.min(fastest, performance.now() - from)
+        expect(items.length).toBeGreaterThan(0)
+      }
+      worst = Math.max(worst, fastest)
     }
     return worst
   }
