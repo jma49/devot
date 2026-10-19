@@ -19,6 +19,7 @@ import contentCss from './preview/content.css?raw'
 import { mermaidMarkup } from './preview/mermaid'
 import pageCss from './preview/page.css?raw'
 import { previewLabels } from './preview/Preview'
+import { parseColor } from './theme/contrast'
 import { dark, light, sizes } from './theme/tokens'
 
 export type BookExport = 'exportMarkdown' | 'exportHtml'
@@ -43,6 +44,19 @@ export function pageStyles(): string {
     contentCss,
     pageCss,
   ].join('\n\n')
+}
+
+/** The printed header's and footer's look (src-tauri/src/page_setup.rs); sizes as points. */
+export function pageLook() {
+  const channels = (token: string) => {
+    const { rgb, alpha } = parseColor(token)
+    return { r: rgb[0] / 255, g: rgb[1] / 255, b: rgb[2] / 255, a: alpha }
+  }
+  return {
+    text: channels(light['color.text.tertiary']),
+    rule: channels(light['color.line.hairline']),
+    fontSize: parseFloat(sizes['font.size.caption2']),
+  }
 }
 
 function nonce(): string {
@@ -228,10 +242,10 @@ export async function runNoteExport(core: Core, action: ExportAction, noteId: st
       if (action === 'copyHtml' || action === 'copySimpleHtml') {
         await invoke('clipboard_write_html', { html, images })
       } else if (action === 'print') {
-        await invoke<boolean>('note_print', { title, html, images })
+        await invoke<boolean>('note_print', { title, html, images, look: pageLook() })
       } else {
         const name = fileStem(title, t('note.untitled'))
-        await invoke<boolean>('export_pdf', { name, title, html, images })
+        await invoke<boolean>('export_pdf', { name, title, html, images, look: pageLook() })
       }
     }
   }

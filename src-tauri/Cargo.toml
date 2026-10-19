@@ -89,6 +89,10 @@ objc2-foundation = { version = "0.3", features = [
   "NSGeometry",
   "NSObjCRuntime",
   "NSRange",
+  "NSDateFormatter",
+  "NSFormatter",
+  "NSLocale",
+  "NSAttributedString",
   "block2",
 ] }
 objc2-app-kit = { version = "0.3", features = [
@@ -119,6 +123,9 @@ objc2-app-kit = { version = "0.3", features = [
   "NSView",
   "NSPrintInfo",
   "NSPrintOperation",
+  # The header and footer drawn on printed pages (page_setup.rs).
+  "NSStringDrawing",
+  "NSParagraphStyle",
   # Marked text: what the Format key monitor asks before it offers a key.
   "NSText",
   "NSTextView",
@@ -134,6 +141,32 @@ objc2-web-kit = { version = "0.3", default-features = false, features = [
   "WKWebView",
   "WKWebViewConfiguration",
   "WKWebpagePreferences",
+] }
+# Page setup (page_setup.rs): the printed PDF's pages are drawn again with
+# their header and footer, links kept, and printed from the PDF.
+objc2-core-foundation = { version = "0.3", default-features = false, features = [
+  "std",
+  "CFURL",
+  "CFString",
+  "CFCGTypes",
+] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = [
+  "std",
+  "CGContext",
+  "CGPDFContext",
+] }
+objc2-pdf-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "objc2-app-kit",
+  "objc2-core-graphics",
+  "PDFDocument",
+  "PDFPage",
+  "PDFAnnotation",
+  "PDFAnnotationUtilities",
+  "PDFAction",
+  "PDFActionURL",
+  "PDFActionGoTo",
+  "PDFDestination",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]

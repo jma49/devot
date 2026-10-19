@@ -19,14 +19,16 @@
 
 use crate::atomic_file::{self, Folder, Place, TempDir};
 use crate::commands::notes::valid_note_id;
+use crate::editor_settings::EditorSettingsStore;
+use crate::page_setup::{PageLayout, PageLook};
 use crate::storage::Db;
 use crate::strings;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
@@ -346,6 +348,10 @@ impl PdfPartial {
 
     pub fn file(&self) -> PathBuf {
         self.dir.path().join(PDF_NAME)
+    }
+
+    pub fn folder(&self) -> &Path {
+        self.dir.path()
     }
 
     /// The panel asked before replacing a file there.
@@ -829,6 +835,19 @@ pub async fn clipboard_write_html(
     }
 }
 
+/// The page setup in the editor settings, and how the header and footer look.
+fn page_layout(app: &AppHandle, title: String, look: PageLook) -> Result<PageLayout, String> {
+    if !look.valid() {
+        return Err("E_PRINT_LOOK_INVALID".into());
+    }
+    let snapshot = app.state::<Arc<EditorSettingsStore>>().get()?;
+    Ok(PageLayout {
+        setup: snapshot.settings.page_setup(),
+        look,
+        title,
+    })
+}
+
 #[cfg(target_os = "macos")]
 pub(crate) async fn print_page(
     app: &AppHandle,
@@ -837,25 +856,61 @@ pub(crate) async fn print_page(
     title: String,
     target: crate::native::macos::PrintTarget,
 ) -> Result<bool, String> {
-    let (reply, answer) = tokio::sync::oneshot::channel();
     let handle = app.clone();
-    app.run_on_main_thread(move || {
-        crate::native::macos::print_in_window(
+    on_main_thread(app, move |done| {
+        crate::native::macos::print_in_window(&handle, label, &page, &title, target, done)
+    })
+    .await
+}
+
+#[cfg(target_os = "macos")]
+async fn print_note_page(
+    app: &AppHandle,
+    page: String,
+    layout: PageLayout,
+    target: crate::native::macos::PrintTarget,
+    work: PathBuf,
+) -> Result<bool, String> {
+    let handle = app.clone();
+    on_main_thread(app, move |done| {
+        crate::native::macos::print_note_in_window(
             &handle,
-            label,
+            crate::MAIN_WINDOW,
             &page,
-            &title,
+            layout,
             target,
-            Box::new(move |result| {
-                let _ = reply.send(result);
-            }),
-        );
+            &work,
+            done,
+        )
+    })
+    .await
+}
+
+#[cfg(target_os = "macos")]
+async fn on_main_thread(
+    app: &AppHandle,
+    start: impl FnOnce(crate::native::macos::PrintDone) + Send + 'static,
+) -> Result<bool, String> {
+    let (reply, answer) = tokio::sync::oneshot::channel();
+    app.run_on_main_thread(move || {
+        start(Box::new(move |result| {
+            let _ = reply.send(result);
+        }))
     })
     .map_err(|_| String::from("E_NATIVE_MAIN_THREAD_UNAVAILABLE"))?;
     answer
         .await
         .map_err(|_| String::from("E_PRINT_FAILED"))?
         .map_err(String::from)
+}
+
+#[cfg(target_os = "macos")]
+fn print_folder(app: &AppHandle) -> Result<PdfPartial, String> {
+    let data = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| String::from("E_EXPORT_PDF_FOLDER_FAILED"))?;
+    PdfPartial::new_in(&data.join(PDF_DIR)).map_err(String::from)
 }
 
 /// True when it printed; false when the user cancelled.
@@ -866,17 +921,19 @@ pub async fn note_print(
     title: String,
     html: String,
     images: Vec<PageImage>,
+    look: PageLook,
 ) -> Result<bool, String> {
-    let title = job_title(&title);
+    let layout = page_layout(&app, job_title(&title), look)?;
     let page = page_with_images(&db, html, images).await?;
     #[cfg(target_os = "macos")]
     {
-        let printed = print_page(
+        let work = print_folder(&app)?;
+        let printed = print_note_page(
             &app,
-            crate::MAIN_WINDOW,
             page,
-            title,
+            layout,
             crate::native::macos::PrintTarget::Printer,
+            work.folder().to_owned(),
         )
         .await?;
         log::info!("I_PRINT_DONE printed={printed}");
@@ -884,7 +941,7 @@ pub async fn note_print(
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (app, page, title);
+        let _ = (app, page, layout);
         Err("E_PRINT_UNSUPPORTED".into())
     }
 }
@@ -898,11 +955,12 @@ pub async fn export_pdf(
     title: String,
     html: String,
     images: Vec<PageImage>,
+    look: PageLook,
 ) -> Result<bool, String> {
     if !valid_stem(&name) {
         return Err("E_EXPORT_NAME_INVALID".into());
     }
-    let title = job_title(&title);
+    let layout = page_layout(&app, job_title(&title), look)?;
     let page = page_with_images(&db, html, images).await?;
     let Some(path) = ask_save(
         &app,
@@ -918,17 +976,13 @@ pub async fn export_pdf(
     let (folder, name) = chosen_file(&path, "pdf")?;
     #[cfg(target_os = "macos")]
     {
-        let data = app
-            .path()
-            .app_data_dir()
-            .map_err(|_| String::from("E_EXPORT_PDF_FOLDER_FAILED"))?;
-        let partial = PdfPartial::new_in(&data.join(PDF_DIR))?;
-        let printed = print_page(
+        let partial = print_folder(&app)?;
+        let printed = print_note_page(
             &app,
-            crate::MAIN_WINDOW,
             page,
-            title,
+            layout,
             crate::native::macos::PrintTarget::Pdf(partial.file()),
+            partial.folder().to_owned(),
         )
         .await;
         let saved = match printed {
@@ -946,7 +1000,7 @@ pub async fn export_pdf(
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (folder, name, page, title);
+        let _ = (folder, name, page, layout);
         Err("E_PRINT_UNSUPPORTED".into())
     }
 }

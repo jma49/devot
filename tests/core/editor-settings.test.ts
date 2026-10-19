@@ -17,6 +17,8 @@ import {
   TAB_WIDTHS,
   checkEditorSettingsPatch,
   indentText,
+  PAGE_MARGINS,
+  PAGE_PAPERS,
   parseEditorSettings,
   slotFont,
   stepFontSize,
@@ -64,7 +66,49 @@ describe('editor settings', () => {
       listDates: 'relative',
       autoDownloadUpdates: true,
       animations: 'always',
+      // A4 with page numbers at the foot of each page.
+      pagePaper: 'a4',
+      pageMargins: 'normal',
+      pageHeaderLeft: '',
+      pageHeaderCenter: '',
+      pageHeaderRight: '',
+      pageFooterLeft: '',
+      pageFooterCenter: '{page} / {total}',
+      pageFooterRight: '',
+      pageSkipFirst: false,
+      pageRules: false,
     })
+  })
+
+  it('takes a page setup the Rust side accepts', () => {
+    // The same lists and limits as src-tauri/src/page_setup.rs.
+    expect(PAGE_PAPERS).toEqual(['a4', 'letter', 'a4Landscape', 'slide'])
+    expect(PAGE_MARGINS).toEqual(['narrow', 'normal', 'wide'])
+    const setup = {
+      pagePaper: 'slide',
+      pageMargins: 'wide',
+      pageHeaderLeft: '{title}',
+      pageHeaderCenter: '\u4e00'.repeat(100),
+      pageHeaderRight: '{date}',
+      pageFooterRight: 'Page {page} of {total}',
+      pageSkipFirst: true,
+      pageRules: true,
+    }
+    expect(checkEditorSettingsPatch(setup)).toEqual(setup)
+    for (const bad of [
+      { pagePaper: 'a5' },
+      { pageMargins: 'none' },
+      { pageHeaderLeft: null },
+      { pageFooterCenter: 'x'.repeat(101) },
+      { pageFooterLeft: 'a\nb' },
+      { pageFooterLeft: 'a\u007fb' },
+      { pageSkipFirst: 'yes' },
+      { pageRules: 1 },
+    ])
+      expect(() => checkEditorSettingsPatch(bad)).toThrow('E_EDITOR_SETTINGS_INVALID')
+    expect(parseEditorSettings({ pageFooterCenter: 'x'.repeat(101) }).pageFooterCenter).toBe(
+      '{page} / {total}',
+    )
   })
 
   it('offers choices that the Rust side accepts', () => {

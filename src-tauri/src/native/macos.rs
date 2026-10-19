@@ -1501,6 +1501,20 @@ use objc2_foundation::{
 };
 use objc2_web_kit::{WKNavigation, WKNavigationDelegate, WKWebView, WKWebViewConfiguration};
 use std::cell::RefCell;
+use std::path::Path;
+
+use crate::page_setup::{Fields, Margins, MarkPlaces, PageLayout, PageSetup, Paper, Rgba, expand};
+use objc2_app_kit::{
+    NSFontAttributeName, NSForegroundColorAttributeName, NSGraphicsContext, NSLineBreakMode,
+    NSMutableParagraphStyle, NSPaperOrientation, NSParagraphStyleAttributeName, NSTextAlignment,
+};
+use objc2_core_foundation::{CFRetained, CFString, CFURL, CGPoint, CGRect, CGSize};
+use objc2_core_graphics::{
+    CGContext, CGPDFContextAddDestinationAtPoint, CGPDFContextClose, CGPDFContextCreateWithURL,
+    CGPDFContextSetDestinationForRect, CGPDFContextSetURLForRect,
+};
+use objc2_foundation::{NSDate, NSDateFormatter, NSDateFormatterStyle, NSLocale};
+use objc2_pdf_kit::{PDFActionGoTo, PDFActionURL, PDFDisplayBox, PDFDocument, PDFPrintScalingMode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrintTarget {
@@ -1523,10 +1537,6 @@ impl PrintTarget {
 /// Whether it printed (false when the user cancelled the panel), or an error code.
 pub type PrintDone = Box<dyn FnOnce(Result<bool, &'static str>)>;
 
-/// US Letter's width in points.
-const PRINT_VIEW_WIDTH: f64 = 612.0;
-const PRINT_VIEW_HEIGHT: f64 = 792.0;
-const PRINT_MARGIN: f64 = 36.0;
 const PRINT_LOAD_TIMEOUT: f64 = 60.0;
 
 /// So printing, like the preview, never fetches an image from the web: no server learns that a note
@@ -1552,6 +1562,8 @@ pub fn with_print_policy(html: &str) -> String {
 
 pub struct PrintJobState {
     target: PrintTarget,
+    paper: Paper,
+    margins: Margins,
     /// The page is still loading: its load starts printing, and a load
     /// failure ends the job. False once printing has begun (from then on
     /// only the print operation ends the job) or the job is over.
@@ -1560,6 +1572,7 @@ pub struct PrintJobState {
     window: Weak<NSWindow>,
     done: RefCell<Option<PrintDone>>,
     web_view: RefCell<Option<Retained<WKWebView>>>,
+    document: RefCell<Option<Retained<PDFDocument>>>,
 }
 
 define_class!(
@@ -1647,6 +1660,7 @@ define_class!(
         #[unsafe(method(releaseWebView))]
         fn release_web_view(&self) {
             self.ivars().web_view.take();
+            self.ivars().document.take();
         }
     }
 );
@@ -1664,11 +1678,7 @@ impl PrintJob {
             self.finish(Err("E_PRINT_NO_WINDOW"));
             return;
         };
-        let info = NSPrintInfo::sharedPrintInfo().copy();
-        info.setTopMargin(PRINT_MARGIN);
-        info.setBottomMargin(PRINT_MARGIN);
-        info.setLeftMargin(PRINT_MARGIN);
-        info.setRightMargin(PRINT_MARGIN);
+        let info = print_info(self.ivars().paper, self.ivars().margins.points());
         info.setHorizontallyCentered(false);
         info.setVerticallyCentered(false);
         let to_pdf = if let PrintTarget::Pdf(path) = &self.ivars().target {
@@ -1758,18 +1768,50 @@ impl PrintJob {
     }
 }
 
+fn print_info(paper: Paper, margin: f64) -> Retained<NSPrintInfo> {
+    let info = NSPrintInfo::sharedPrintInfo().copy();
+    let (width, height) = paper.size();
+    info.setOrientation(if width > height {
+        NSPaperOrientation::Landscape
+    } else {
+        NSPaperOrientation::Portrait
+    });
+    info.setPaperSize(NSSize::new(width, height));
+    info.setTopMargin(margin);
+    info.setBottomMargin(margin);
+    info.setLeftMargin(margin);
+    info.setRightMargin(margin);
+    info
+}
+
+fn print_job(mtm: MainThreadMarker, state: PrintJobState) -> Retained<PrintJob> {
+    let job = PrintJob::alloc(mtm).set_ivars(state);
+    // SAFETY: NSObject's `init` on a freshly allocated subclass instance.
+    let job: Retained<PrintJob> = unsafe { msg_send![super(job), init] };
+    PRINT_JOBS.with(|jobs| jobs.borrow_mut().push(job.clone()));
+    job
+}
+
+fn print_busy() -> bool {
+    PRINT_JOBS.with(|jobs| !jobs.borrow().is_empty())
+}
+
 /// Lays `html` out in an offscreen web view (scripts off, nothing loaded from elsewhere: see
-/// `with_print_policy`) and prints it to the print panel as a sheet on `window`, or to a PDF file
-/// without a panel. `done` runs once on the main thread. One job runs at a time.
+/// `with_print_policy`) on `paper` with `margins` and prints it to the print panel as a sheet on
+/// `window`, or to a PDF file without a panel. `done` runs once on the main thread. One job runs
+/// at a time.
+#[allow(clippy::too_many_arguments)]
 pub fn print_html(
     mtm: MainThreadMarker,
     window: &NSWindow,
     html: &str,
     title: &str,
     target: PrintTarget,
+    paper: Paper,
+    margins: Margins,
     done: PrintDone,
 ) {
-    if PRINT_JOBS.with(|jobs| !jobs.borrow().is_empty()) {
+    if print_busy() {
         done(Err("E_PRINT_BUSY"));
         return;
     }
@@ -1781,24 +1823,25 @@ pub fn print_html(
             .setAllowsContentJavaScript(false);
         config
     };
-    let frame = NSRect::new(
-        NSPoint::new(0.0, 0.0),
-        NSSize::new(PRINT_VIEW_WIDTH, PRINT_VIEW_HEIGHT),
-    );
+    let (width, height) = paper.size();
+    let frame = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height));
     // SAFETY: a fresh allocation initialised with a valid configuration.
     let web_view =
         unsafe { WKWebView::initWithFrame_configuration(WKWebView::alloc(mtm), frame, &config) };
-    let job = PrintJob::alloc(mtm).set_ivars(PrintJobState {
-        target,
-        loading: Cell::new(true),
-        title: title.to_owned(),
-        window: Weak::new(window),
-        done: RefCell::new(Some(done)),
-        web_view: RefCell::new(Some(web_view.clone())),
-    });
-    // SAFETY: NSObject's `init` on a freshly allocated subclass instance.
-    let job: Retained<PrintJob> = unsafe { msg_send![super(job), init] };
-    PRINT_JOBS.with(|jobs| jobs.borrow_mut().push(job.clone()));
+    let job = print_job(
+        mtm,
+        PrintJobState {
+            target,
+            paper,
+            margins,
+            loading: Cell::new(true),
+            title: title.to_owned(),
+            window: Weak::new(window),
+            done: RefCell::new(Some(done)),
+            web_view: RefCell::new(Some(web_view.clone())),
+            document: RefCell::new(None),
+        },
+    );
     let page = NSString::from_str(&with_print_policy(html));
     // SAFETY: the web view's delegate is weak; the job is kept alive in
     // PRINT_JOBS until `finish`, and then by its pending `releaseWebView`
@@ -1819,6 +1862,133 @@ pub fn print_html(
     }
 }
 
+/// Prints the PDF at `path` through the print panel, as a sheet on
+/// `window`, each page scaled down to the paper the user picks if it does
+/// not fit. `done` runs once on the main thread: true when it printed,
+/// false when the user cancelled.
+fn print_pdf(
+    mtm: MainThreadMarker,
+    window: &NSWindow,
+    path: &Path,
+    title: &str,
+    paper: Paper,
+    done: PrintDone,
+) {
+    if print_busy() {
+        done(Err("E_PRINT_BUSY"));
+        return;
+    }
+    let Some(url) = file_url(path) else {
+        done(Err("E_PRINT_PATH_INVALID"));
+        return;
+    };
+    // SAFETY: a fresh allocation initialised from a file URL.
+    let Some(document) = (unsafe { PDFDocument::initWithURL(PDFDocument::alloc(), &url) }) else {
+        done(Err("E_PRINT_LOAD_FAILED"));
+        return;
+    };
+    let info = print_info(paper, 0.0);
+    // SAFETY: the document and the print info are live; the scaling mode is
+    // one of PDFKit's own.
+    let operation = unsafe {
+        document.printOperationForPrintInfo_scalingMode_autoRotate(
+            Some(&info),
+            PDFPrintScalingMode::PageScaleDownToFit,
+            true,
+            mtm,
+        )
+    };
+    let Some(operation) = operation else {
+        done(Err("E_PRINT_FAILED"));
+        return;
+    };
+    operation.setShowsPrintPanel(true);
+    operation.setShowsProgressPanel(true);
+    operation.setJobTitle(Some(&NSString::from_str(title)));
+    let job = print_job(
+        mtm,
+        PrintJobState {
+            target: PrintTarget::Printer,
+            paper,
+            margins: Margins::Normal,
+            loading: Cell::new(false),
+            title: title.to_owned(),
+            window: Weak::new(window),
+            done: RefCell::new(Some(done)),
+            web_view: RefCell::new(None),
+            document: RefCell::new(Some(document)),
+        },
+    );
+    // SAFETY: as in `PrintJob::print`: the job implements the selector and
+    // stays in PRINT_JOBS until it has run.
+    unsafe {
+        operation.runOperationModalForWindow_delegate_didRunSelector_contextInfo(
+            window,
+            Some(job.as_ref()),
+            Some(sel!(printOperationDidRun:success:contextInfo:)),
+            std::ptr::null_mut(),
+        );
+    }
+}
+
+fn file_url(path: &Path) -> Option<Retained<NSURL>> {
+    path.to_str()
+        .map(|path| NSURL::fileURLWithPath(&NSString::from_str(path)))
+}
+
+/// Prints a note's page with its page setup. WebKit draws no CSS page-margin boxes, so it lays the
+/// page out into a PDF in `work`, whose pages `stamp_pdf` draws again with the header and footer:
+/// into a PDF target's file, or into one more PDF in `work` that the print panel prints.
+pub fn print_note(
+    mtm: MainThreadMarker,
+    window: &NSWindow,
+    html: &str,
+    layout: PageLayout,
+    target: PrintTarget,
+    work: &Path,
+    done: PrintDone,
+) {
+    let laid_out = work.join("layout.pdf");
+    let out = match &target {
+        PrintTarget::Pdf(path) => path.clone(),
+        PrintTarget::Printer => work.join("print.pdf"),
+    };
+    let window = objc2::Message::retain(window);
+    let source = laid_out.clone();
+    let PageSetup { paper, margins, .. } = layout.setup;
+    let title = layout.title.clone();
+    print_html(
+        mtm,
+        &window.clone(),
+        html,
+        &title,
+        PrintTarget::Pdf(laid_out),
+        paper,
+        margins,
+        Box::new(move |result| {
+            if let Err(code) = result.and_then(|_| stamp_pdf(&source, &out, &layout)) {
+                return done(Err(code));
+            }
+            match target {
+                PrintTarget::Pdf(_) => done(Ok(true)),
+                PrintTarget::Printer => print_pdf(mtm, &window, &out, &layout.title, paper, done),
+            }
+        }),
+    );
+}
+
+fn ns_window(app: &tauri::AppHandle, label: &str) -> Option<Retained<NSWindow>> {
+    let window = app
+        .get_webview_window(label)
+        .and_then(|window| window.ns_window().ok())
+        .filter(|window| !window.is_null())?;
+    // SAFETY: `ns_window()` returns the window's live NSWindow (checked non-null above); retaining
+    // it keeps it alive for the caller.
+    unsafe { Retained::retain(window.cast::<NSWindow>()) }
+}
+
+/// `print_html` on the system's paper, as the command-line export prints. Must run on the main
+/// thread.
 pub fn print_in_window(
     app: &tauri::AppHandle,
     label: &str,
@@ -1831,23 +2001,383 @@ pub fn print_in_window(
         done(Err("E_NATIVE_NOT_MAIN_THREAD"));
         return;
     };
-    let window = app
-        .get_webview_window(label)
-        .and_then(|window| window.ns_window().ok())
-        .filter(|window| !window.is_null());
-    let Some(window) = window else {
+    let Some(window) = ns_window(app, label) else {
         done(Err("E_PRINT_NO_WINDOW"));
         return;
     };
-    // SAFETY: `ns_window()` returns the window's live NSWindow (checked
-    // non-null above), borrowed only for this call.
-    let window = unsafe { &*window.cast::<NSWindow>() };
-    print_html(mtm, window, html, title, target, done);
+    print_html(
+        mtm,
+        &window,
+        html,
+        title,
+        target,
+        system_paper(),
+        Margins::Narrow,
+        done,
+    );
+}
+
+/// `print_note` in the window `label`. Must run on the main thread.
+pub fn print_note_in_window(
+    app: &tauri::AppHandle,
+    label: &str,
+    html: &str,
+    layout: PageLayout,
+    target: PrintTarget,
+    work: &Path,
+    done: PrintDone,
+) {
+    let Some(mtm) = MainThreadMarker::new() else {
+        done(Err("E_NATIVE_NOT_MAIN_THREAD"));
+        return;
+    };
+    let Some(window) = ns_window(app, label) else {
+        done(Err("E_PRINT_NO_WINDOW"));
+        return;
+    };
+    print_note(mtm, &window, html, layout, target, work, done);
+}
+
+/// The paper a page setup starts with: the system's default paper, or the
+/// region's (`page_setup::default_paper`).
+pub fn system_paper() -> Paper {
+    let width = NSPrintInfo::sharedPrintInfo().paperSize().width;
+    let region = NSLocale::currentLocale()
+        .regionCode()
+        .map(|code| code.to_string());
+    crate::page_setup::default_paper(Some(width), region.as_deref())
+}
+
+fn today() -> String {
+    let formatter = NSDateFormatter::new();
+    formatter.setDateStyle(NSDateFormatterStyle::MediumStyle);
+    formatter.setTimeStyle(NSDateFormatterStyle::NoStyle);
+    formatter.stringFromDate(&NSDate::now()).to_string()
+}
+
+/// A link on a laid-out page, to keep on the page drawn again.
+enum PageLink {
+    Url(NSRect, Retained<NSURL>),
+    /// To a point on a page (by index), by the destination's name.
+    Page(NSRect, String),
+}
+
+type LinkTarget = (String, NSPoint);
+
+/// Each page's links, and the named points on each page they go to.
+fn page_links(document: &PDFDocument, pages: usize) -> (Vec<Vec<PageLink>>, Vec<Vec<LinkTarget>>) {
+    let mut links: Vec<Vec<PageLink>> = (0..pages).map(|_| Vec::new()).collect();
+    let mut targets: Vec<Vec<LinkTarget>> = (0..pages).map(|_| Vec::new()).collect();
+    for (index, on_page) in links.iter_mut().enumerate() {
+        // SAFETY: `index` is below the document's page count.
+        let Some(page) = (unsafe { document.pageAtIndex(index) }) else {
+            continue;
+        };
+        // SAFETY: plain property reads on live PDFKit objects; a GoTo
+        // action is checked by class before it is used as one.
+        unsafe {
+            for annotation in page.annotations().iter() {
+                let rect = annotation.bounds();
+                let action = annotation.action();
+                let url = annotation.URL().or_else(|| {
+                    action
+                        .as_ref()
+                        .and_then(|a| a.downcast_ref::<PDFActionURL>())
+                        .and_then(|a| a.URL())
+                });
+                if let Some(url) = url {
+                    on_page.push(PageLink::Url(rect, url));
+                    continue;
+                }
+                let destination = annotation.destination().or_else(|| {
+                    action
+                        .as_ref()
+                        .and_then(|a| a.downcast_ref::<PDFActionGoTo>())
+                        .map(|a| a.destination())
+                });
+                let Some(destination) = destination else {
+                    continue;
+                };
+                let Some(to) = destination.page() else {
+                    continue;
+                };
+                let to_index = document.indexForPage(&to);
+                if to_index >= pages {
+                    continue;
+                }
+                let bounds = to.boundsForBox(PDFDisplayBox::MediaBox);
+                let point = destination.point();
+                // An unspecified coordinate is a huge number: the page's top left.
+                let point = NSPoint::new(
+                    if point.x <= bounds.size.width {
+                        point.x
+                    } else {
+                        0.0
+                    },
+                    if point.y <= bounds.size.height {
+                        point.y
+                    } else {
+                        bounds.size.height
+                    },
+                );
+                let name = format!("devot-{index}-{}", on_page.len());
+                targets[to_index].push((name.clone(), point));
+                on_page.push(PageLink::Page(rect, name));
+            }
+        }
+    }
+    (links, targets)
+}
+
+fn cf_string(text: &str) -> CFRetained<CFString> {
+    CFString::from_str(text)
+}
+
+/// Draws the PDF at `source` again into `out` with the header and footer
+/// of `layout`, keeping its links. Runs on the main thread (AppKit draws
+/// the text).
+pub fn stamp_pdf(source: &Path, out: &Path, layout: &PageLayout) -> Result<(), &'static str> {
+    MainThreadMarker::new().ok_or("E_NATIVE_NOT_MAIN_THREAD")?;
+    let url = file_url(source).ok_or("E_PRINT_PATH_INVALID")?;
+    // SAFETY: a fresh allocation initialised from a file URL.
+    let document = unsafe { PDFDocument::initWithURL(PDFDocument::alloc(), &url) }
+        .ok_or("E_PRINT_STAMP_READ_FAILED")?;
+    // SAFETY: a plain property read.
+    let pages = unsafe { document.pageCount() };
+    if pages == 0 {
+        return Err("E_PRINT_STAMP_READ_FAILED");
+    }
+    let out_url = file_url(out).ok_or("E_PRINT_PATH_INVALID")?;
+    // SAFETY: NSURL and CFURL are toll-free bridged: the same object.
+    let out_url: &CFURL = unsafe { &*(Retained::as_ptr(&out_url).cast::<CFURL>()) };
+    // SAFETY: a valid file URL; no media box (each page gives its own) and
+    // no extra info.
+    let context = unsafe { CGPDFContextCreateWithURL(Some(out_url), std::ptr::null(), None) }
+        .ok_or("E_PRINT_STAMP_WRITE_FAILED")?;
+    let (links, targets) = page_links(&document, pages);
+    let date = today();
+    let places = MarkPlaces::new(layout.setup.paper, layout.setup.margins);
+    for index in 0..pages {
+        // SAFETY: `index` is below the page count.
+        let Some(page) = (unsafe { document.pageAtIndex(index) }) else {
+            continue;
+        };
+        // SAFETY: a plain property read.
+        let bounds = unsafe { page.boundsForBox(PDFDisplayBox::MediaBox) };
+        let media = CGRect::new(
+            CGPoint::new(0.0, 0.0),
+            CGSize::new(bounds.size.width, bounds.size.height),
+        );
+        // SAFETY: `media` lives for the call; the page is drawn into the
+        // context it began.
+        unsafe {
+            CGContext::begin_page(Some(&context), &media);
+            page.drawWithBox_toContext(PDFDisplayBox::MediaBox, &context);
+        }
+        for (name, point) in &targets[index] {
+            CGPDFContextAddDestinationAtPoint(Some(&context), &cf_string(name), *point);
+        }
+        for link in &links[index] {
+            match link {
+                PageLink::Url(rect, url) => {
+                    // SAFETY: as above, toll-free bridged.
+                    let url: &CFURL = unsafe { &*(Retained::as_ptr(url).cast::<CFURL>()) };
+                    CGPDFContextSetURLForRect(Some(&context), url, *rect);
+                }
+                PageLink::Page(rect, name) => {
+                    CGPDFContextSetDestinationForRect(Some(&context), &cf_string(name), *rect);
+                }
+            }
+        }
+        if !(layout.setup.skip_first && index == 0) {
+            let fields = Fields {
+                title: &layout.title,
+                date: &date,
+                page: index + 1,
+                total: pages,
+            };
+            draw_marks(&context, layout, &places, &fields);
+        }
+        CGContext::end_page(Some(&context));
+    }
+    CGPDFContextClose(Some(&context));
+    Ok(())
+}
+
+fn ns_color(c: &Rgba) -> Retained<NSColor> {
+    NSColor::colorWithSRGBRed_green_blue_alpha(c.r, c.g, c.b, c.a)
+}
+
+fn draw_marks(context: &CGContext, layout: &PageLayout, places: &MarkPlaces, fields: &Fields) {
+    let setup = &layout.setup;
+    let look = &layout.look;
+    let graphics = NSGraphicsContext::graphicsContextWithCGContext_flipped(context, false);
+    NSGraphicsContext::saveGraphicsState_class();
+    NSGraphicsContext::setCurrentContext(Some(&graphics));
+    let font = NSFont::systemFontOfSize(look.font_size);
+    let color = ns_color(&look.text);
+    let line = look.font_size * 1.5;
+    let third = (places.right - places.left) / 3.0;
+    for (slots, centre, rule_y) in [
+        (&setup.header, places.header_y, places.header_rule_y),
+        (&setup.footer, places.footer_y, places.footer_rule_y),
+    ] {
+        if slots.iter().all(String::is_empty) {
+            continue;
+        }
+        for (i, (template, alignment)) in slots
+            .iter()
+            .zip([
+                NSTextAlignment::Left,
+                NSTextAlignment::Center,
+                NSTextAlignment::Right,
+            ])
+            .enumerate()
+        {
+            let text = expand(template, fields);
+            if text.is_empty() {
+                continue;
+            }
+            let style = NSMutableParagraphStyle::new();
+            style.setAlignment(alignment);
+            style.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
+            // SAFETY: AppKit's attribute name constants, valid for the life
+            // of the process.
+            let keys = unsafe {
+                [
+                    NSFontAttributeName,
+                    NSForegroundColorAttributeName,
+                    NSParagraphStyleAttributeName,
+                ]
+            };
+            let values: [&AnyObject; 3] = [font.as_ref(), color.as_ref(), style.as_ref()];
+            let attributes = NSDictionary::<NSString, AnyObject>::from_slices(&keys, &values);
+            let rect = NSRect::new(
+                NSPoint::new(places.left + third * i as f64, centre - line / 2.0),
+                NSSize::new(third, line),
+            );
+            // SAFETY: `drawInRect:withAttributes:` draws into the current
+            // context, set above; the attributes map AppKit's keys to values
+            // of their types.
+            unsafe {
+                let _: () = msg_send![
+                    &*NSString::from_str(&text),
+                    drawInRect: rect,
+                    withAttributes: &*attributes
+                ];
+            }
+        }
+        if setup.rules {
+            let r = &look.rule;
+            CGContext::set_rgb_stroke_color(Some(context), r.r, r.g, r.b, r.a);
+            CGContext::set_line_width(Some(context), 0.5);
+            CGContext::move_to_point(Some(context), places.left, rule_y);
+            CGContext::add_line_to_point(Some(context), places.right, rule_y);
+            CGContext::stroke_path(Some(context));
+        }
+    }
+    NSGraphicsContext::restoreGraphicsState_class();
 }
 
 #[doc(hidden)]
 pub fn self_test_print_to_pdf(html: &str, path: &std::path::Path) -> Result<(), &'static str> {
-    use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSRunLoop};
+    self_test_print(|mtm, window, done| {
+        print_html(
+            mtm,
+            window,
+            html,
+            "Devot",
+            PrintTarget::Pdf(path.to_owned()),
+            Paper::Letter,
+            Margins::Narrow,
+            done,
+        )
+    })
+}
+
+/// Prints `html` to a PDF file at `path` as Export as PDF does, through
+/// `print_note` with `layout`, its files on the way in `path`'s folder.
+/// For the main-thread tests.
+#[doc(hidden)]
+pub fn self_test_print_note_to_pdf(
+    html: &str,
+    layout: PageLayout,
+    path: &Path,
+) -> Result<(), &'static str> {
+    let work = path.parent().ok_or("E_PRINT_PATH_INVALID")?;
+    self_test_print(|mtm, window, done| {
+        print_note(
+            mtm,
+            window,
+            html,
+            layout,
+            PrintTarget::Pdf(path.to_owned()),
+            work,
+            done,
+        )
+    })
+}
+
+/// A PDF page as a test checks it: its size, its text and its links (the
+/// URLs, and the page each link inside the document goes to).
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct SelfTestPage {
+    pub width: f64,
+    pub height: f64,
+    pub text: String,
+    pub urls: Vec<String>,
+    pub to_pages: Vec<usize>,
+}
+
+/// The pages of the PDF at `path`, read through PDFKit. For the
+/// main-thread tests.
+#[doc(hidden)]
+pub fn self_test_pdf_pages(path: &Path) -> Result<Vec<SelfTestPage>, &'static str> {
+    let url = file_url(path).ok_or("E_PRINT_PATH_INVALID")?;
+    // SAFETY: a fresh allocation initialised from a file URL.
+    let document = unsafe { PDFDocument::initWithURL(PDFDocument::alloc(), &url) }
+        .ok_or("E_PRINT_STAMP_READ_FAILED")?;
+    // SAFETY: a plain property read.
+    let count = unsafe { document.pageCount() };
+    let mut pages = Vec::with_capacity(count);
+    for index in 0..count {
+        // SAFETY: `index` is below the page count; plain property reads.
+        unsafe {
+            let page = document
+                .pageAtIndex(index)
+                .ok_or("E_PRINT_STAMP_READ_FAILED")?;
+            let bounds = page.boundsForBox(PDFDisplayBox::MediaBox);
+            let mut out = SelfTestPage {
+                width: bounds.size.width,
+                height: bounds.size.height,
+                text: page.string().map(|s| s.to_string()).unwrap_or_default(),
+                urls: Vec::new(),
+                to_pages: Vec::new(),
+            };
+            for annotation in page.annotations().iter() {
+                if let Some(url) = annotation.URL() {
+                    out.urls.push(
+                        url.absoluteString()
+                            .map(|s| s.to_string())
+                            .unwrap_or_default(),
+                    );
+                } else if let Some(to) = annotation.destination().and_then(|d| d.page()) {
+                    out.to_pages.push(document.indexForPage(&to));
+                }
+            }
+            pages.push(out);
+        }
+    }
+    Ok(pages)
+}
+
+/// Runs a print job that `start` begins, with an offscreen window as the
+/// parent, running the run loop until it is done.
+fn self_test_print(
+    start: impl FnOnce(MainThreadMarker, &NSWindow, PrintDone),
+) -> Result<(), &'static str> {
+    use objc2_foundation::{NSDefaultRunLoopMode, NSRunLoop};
     let mtm = MainThreadMarker::new().ok_or("E_NATIVE_NOT_MAIN_THREAD")?;
     let _app = NSApplication::sharedApplication(mtm);
     let rect = NSRect::new(
@@ -1868,12 +2398,9 @@ pub fn self_test_print_to_pdf(html: &str, path: &std::path::Path) -> Result<(), 
     unsafe { window.setReleasedWhenClosed(false) };
     let result = std::rc::Rc::new(RefCell::new(None));
     let slot = std::rc::Rc::clone(&result);
-    print_html(
+    start(
         mtm,
         &window,
-        html,
-        "Devot",
-        PrintTarget::Pdf(path.to_owned()),
         Box::new(move |r| *slot.borrow_mut() = Some(r)),
     );
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);

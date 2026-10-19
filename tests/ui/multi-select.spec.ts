@@ -552,6 +552,10 @@ test('export and print act on one note: not offered or run while several are sel
   await palette.getByRole('combobox').press('Escape')
   await expect(palette).toHaveCount(0)
   await page.keyboard.press('Meta+Shift+P')
+  await page
+    .getByRole('dialog', { name: 'Page Setup' })
+    .getByRole('button', { name: 'Print…' })
+    .click()
   await expect.poll(printed).toBe(1)
 })
 

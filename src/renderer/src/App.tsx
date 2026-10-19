@@ -62,6 +62,7 @@ import {
   type NotebookMenuTarget,
 } from './headerMenus'
 import { TagSettingsDialog } from './TagSettingsDialog'
+import { PageSetupDialog, type PageSetup } from './PageSetupDialog'
 import { ImportDialog, type ImportJob } from './ImportDialog'
 import { forgetScanFound, setScanFound } from './importProgress'
 import {
@@ -407,6 +408,11 @@ export function App() {
   const [exportNotice, setExportNotice] = useState<{
     failure: ExportFailure
     code: string
+  }>()
+  // Print and Export as PDF ask for the page setup first.
+  const [pageSetupFor, setPageSetupFor] = useState<{
+    action: 'print' | 'exportPdf'
+    id: string
   }>()
   // Notes the core could not save yet (saving.ts). Their notice shows unless dismissed since the last new failure; the first quit after a failure is held.
   const [saveProblems, setSaveProblems] = useState<SaveProblem[]>([])
@@ -1857,8 +1863,20 @@ export function App() {
       setExportNotice({ failure, code })
     }
   }
-  const exportNote = (action: ExportAction, id: string) =>
-    runExport(failureOf(action), (exporter) => exporter.runNoteExport(core!, action, id))
+  const exportNote = async (action: ExportAction, id: string) => {
+    if (action === 'print' || action === 'exportPdf') setPageSetupFor({ action, id })
+    else await runExport(failureOf(action), (exporter) => exporter.runNoteExport(core!, action, id))
+  }
+  /** Remembers the page setup (Rust lays the page out by it), then prints. */
+  const printWith = (setup: PageSetup) => {
+    if (!pageSetupFor) return
+    const { action, id } = pageSetupFor
+    setPageSetupFor(undefined)
+    void runExport(failureOf(action), async (exporter) => {
+      await changeEditorSettings(setup).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED'))
+      await exporter.runNoteExport(core!, action, id)
+    })
+  }
   const exportBook = (action: 'exportMarkdown' | 'exportHtml', id: string) =>
     runExport('export', (exporter) => exporter.runBookExport(core!, action, id))
   const exportNotes = (action: 'exportMarkdown' | 'exportHtml', ids: readonly string[]) =>
@@ -3162,6 +3180,13 @@ export function App() {
       {viewing ? <ImageViewer image={viewing} onClose={() => setViewing(null)} /> : null}
       {core && activityOpen ? (
         <Activity core={core} onClose={() => setActivityOpen(false)} />
+      ) : null}
+      {pageSetupFor ? (
+        <PageSetupDialog
+          action={pageSetupFor.action}
+          onConfirm={printWith}
+          onCancel={() => setPageSetupFor(undefined)}
+        />
       ) : null}
       {headerTag ? (
         <TagSettingsDialog

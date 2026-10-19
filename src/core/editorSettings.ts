@@ -20,6 +20,9 @@ export type ThemeChoice = 'default' | 'ivory'
 export type ListDatesStyle = 'relative' | 'absolute'
 export type AnimationsChoice = 'always' | 'system' | 'off'
 
+export type PagePaper = 'a4' | 'letter' | 'a4Landscape' | 'slide'
+export type PageMargins = 'narrow' | 'normal' | 'wide'
+
 export interface EditorSettings {
   lineNumbers: boolean
   lineWrapping: LineWrappingMode
@@ -61,6 +64,23 @@ export interface EditorSettings {
   listDates: ListDatesStyle
   autoDownloadUpdates: boolean
   animations: AnimationsChoice
+  /** Until the user picks one, Rust starts it from the system's default paper. */
+  pagePaper: PagePaper
+  pageMargins: PageMargins
+  /**
+   * The header's and footer's slots, printed on every page: text with
+   * `{title}`, `{page}`, `{total}` and `{date}` filled in (Rust draws them,
+   * src-tauri/src/page_setup.rs).
+   */
+  pageHeaderLeft: string
+  pageHeaderCenter: string
+  pageHeaderRight: string
+  pageFooterLeft: string
+  pageFooterCenter: string
+  pageFooterRight: string
+  /** The first page goes without the header and footer. */
+  pageSkipFirst: boolean
+  pageRules: boolean
 }
 
 /** A default applies to a setting the user never set: Rust keeps only the values the user set. */
@@ -103,6 +123,16 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   listDates: 'relative',
   autoDownloadUpdates: true,
   animations: 'always',
+  pagePaper: 'a4',
+  pageMargins: 'normal',
+  pageHeaderLeft: '',
+  pageHeaderCenter: '',
+  pageHeaderRight: '',
+  pageFooterLeft: '',
+  pageFooterCenter: '{page} / {total}',
+  pageFooterRight: '',
+  pageSkipFirst: false,
+  pageRules: false,
 })
 
 export const FONT_FAMILIES: readonly FontFamilyId[] = [
@@ -152,6 +182,15 @@ export const LINE_WRAPPING_MODES: readonly LineWrappingMode[] = [
 
 export const LIST_DATES_STYLES: readonly ListDatesStyle[] = ['relative', 'absolute']
 export const ANIMATIONS: readonly AnimationsChoice[] = ['always', 'system', 'off']
+export const PAGE_PAPERS: readonly PagePaper[] = ['a4', 'letter', 'a4Landscape', 'slide']
+export const PAGE_MARGINS: readonly PageMargins[] = ['narrow', 'normal', 'wide']
+export const PAGE_SLOT_MAX_CHARS = 100
+/**
+ * A header or footer slot: up to 100 characters, no control characters.
+ * The same check runs in Rust (src-tauri/src/page_setup.rs).
+ */
+export const isPageSlot = (v: unknown): v is string =>
+  typeof v === 'string' && [...v].length <= PAGE_SLOT_MAX_CHARS && !/\p{Cc}/u.test(v)
 export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 'link', 'choose']
 export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
 export const THEMES: readonly ThemeChoice[] = ['default', 'ivory']
@@ -230,6 +269,16 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   listDates: oneOf(LIST_DATES_STYLES),
   autoDownloadUpdates: isFlag,
   animations: oneOf(ANIMATIONS),
+  pagePaper: oneOf(PAGE_PAPERS),
+  pageMargins: oneOf(PAGE_MARGINS),
+  pageHeaderLeft: isPageSlot,
+  pageHeaderCenter: isPageSlot,
+  pageHeaderRight: isPageSlot,
+  pageFooterLeft: isPageSlot,
+  pageFooterCenter: isPageSlot,
+  pageFooterRight: isPageSlot,
+  pageSkipFirst: isFlag,
+  pageRules: isFlag,
 }
 
 const KEYS = Object.keys(VALID) as (keyof EditorSettings)[]
