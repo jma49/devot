@@ -8,6 +8,7 @@
 //   else its URL, as the text); a `picture`'s other sources are left out. An exported page keeps them as images.
 // - Islands (Mermaid diagrams) take the SVG the UI drew, cleaned again here (no scripts, foreign objects, event handlers, links out, or `<` in its CSS, which could end
 //   the style element); without one, the diagram's source shows as a code block.
+// - A link within the note (`#x`) points at the prefixed id the preview gives its target (`#user-content-x`), so it jumps on the page too.
 // - Video embeds and embeds that load on a click become links. Colour swatches get their colour as an inline style. `data-*` attributes are left out.
 // - Simple HTML (Copy as Simple HTML) also leaves out every class and style, heading ids, front matter, swatches, code block headers and highlighting, and diagram
 //   drawings; alerts become block quotes with a bold title. A sized image gets no `width` either (Half has no pixel width to give).
@@ -16,6 +17,7 @@ import type { Element, ElementContent, Properties, Root, RootContent } from 'has
 import { fromHtml } from 'hast-util-from-html'
 import { toHtml } from 'hast-util-to-html'
 import { FILE_URL } from './export'
+import { fragmentId } from './preview/headingIds'
 
 export interface PageImage {
   placeholder: string
@@ -176,6 +178,8 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
       const id = NOTE_URL.exec(String(node.properties['href'] ?? ''))?.[1]
       const href = id === undefined ? null : (options.noteHref?.(id) ?? null)
       if (href !== null) properties['href'] = href
+      const fragment = /^#(.+)$/s.exec(String(node.properties['href'] ?? ''))?.[1]
+      if (fragment !== undefined) properties['href'] = `#${fragmentId(fragment)}`
     }
     if (names.includes('swatch')) {
       const color = node.properties['dataSwatchColor']

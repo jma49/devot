@@ -137,7 +137,7 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
   expect(html).toContain("default-src 'none'")
   expect(html).toMatch(/--color-text-primary: [^;]+;/)
   expect(html).toContain('.alert .alert-title')
-  expect(html).toContain('<article class="preview"><h1 id="plan">Plan</h1>')
+  expect(html).toContain('<article class="preview"><h1 id="user-content-plan">Plan</h1>')
   expect(html).toMatch(
     /<div class="alert alert-note"><p class="alert-title">(<svg[^>]*>.*?<\/svg>)?Note<\/p>/,
   )
@@ -187,7 +187,7 @@ test('Print… and Shift+Cmd+P print the preview; Export as PDF… saves it', as
   await expect(page.getByRole('dialog', { name: 'Command Palette' })).toHaveCount(0)
   const printed = (await calls(page, 'note_print'))[0]!.args as { title: string; html: string }
   expect(printed.title).toBe('Plan')
-  expect(printed.html).toContain('<article class="preview"><h1 id="plan">Plan</h1>')
+  expect(printed.html).toContain('<article class="preview"><h1 id="user-content-plan">Plan</h1>')
 
   await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
   await confirmPageSetup(page, 'Export…')
