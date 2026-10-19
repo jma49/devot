@@ -24,7 +24,7 @@ import { useText, type TextStore } from '../textStore'
 import type { FindTarget } from '../find/target'
 import { t } from '../i18n'
 import { useAppearance } from '../icons/Icon'
-import { patchChildren } from './dom'
+import { patchPieces, type ShownPiece } from './dom'
 import { previewFindTarget } from './find'
 import { createIslandMounter, createIslandRegistry } from './islands'
 import { CodeCopyButtons, codeBlocks } from './CodeCopy'
@@ -148,10 +148,13 @@ export function Preview({
   const appearance = useAppearance()
   const appearanceNow = useRef(appearance)
   const scroll = useRef<PreviewScrollPane | null>(null)
-  const [mounter] = useState(() => createIslandMounter(islands))
+  const [mounter] = useState(() =>
+    createIslandMounter(islands, { scroller: (body) => body.parentElement }),
+  )
   const [codes, setCodes] = useState<HTMLElement[]>([])
 
   const render = useRef<(input: RenderInput) => void>(undefined)
+  const pieces = useRef<ShownPiece[]>([])
   /** The Markdown the preview on screen was rendered from (images point into it). */
   const shown = useRef('')
   const findHandle = useRef(onFind)
@@ -222,26 +225,39 @@ export function Preview({
       }
       return known.targets
     }
-    render.current = latestOnly(
+    const run = latestOnly(
       (input: RenderInput) =>
         targetsFor(input.markdown)
           .then((targets) =>
-            core.renderPreview(input.markdown, {
-              labels: previewLabels(),
-              loadedEmbeds: input.loadedEmbeds,
-              ...(targets ? { noteLinks: targets } : {}),
-            }),
+            core.renderPreviewPieces(
+              input.markdown,
+              {
+                labels: previewLabels(),
+                loadedEmbeds: input.loadedEmbeds,
+                ...(targets ? { noteLinks: targets } : {}),
+              },
+              pieces.current.map((piece) => piece.key),
+            ),
           )
-          .then((tree) => ({ tree, lines: lineCount(input.markdown), markdown: input.markdown })),
-      ({ tree, lines, markdown: from }) => {
+          .then((next) => ({ next, input })),
+      ({ next, input }) => {
         if (!host.current) return
-        patchChildren(host.current, tree.children)
-        shown.current = from
+        try {
+          pieces.current = patchPieces(host.current, pieces.current, next)
+        } catch {
+          // The worker counted on a piece the page no longer has: start over.
+          console.warn('W_PREVIEW_PIECES_RESET')
+          host.current.replaceChildren()
+          pieces.current = []
+          run(input)
+          return
+        }
+        shown.current = input.markdown
         mounter.mount(host.current, { appearance: appearanceNow.current }, islandRendered)
-        const next = codeBlocks(host.current)
-        setCodes((now) => (sameList(now, next) ? now : next))
-        scroll.current?.changed(lines)
-        if (tree.children.length > 0 && !scrollAskedOnce.current) {
+        const blocks = codeBlocks(host.current)
+        setCodes((now) => (sameList(now, blocks) ? now : blocks))
+        scroll.current?.changed(lineCount(input.markdown))
+        if (!scrollAskedOnce.current && pieces.current.some((piece) => piece.nodes.length > 0)) {
           scrollAskedOnce.current = true
           const top = scrollAsked.current?.()
           if (top !== undefined) {
@@ -253,6 +269,7 @@ export function Preview({
       },
       () => console.warn('W_PREVIEW_RENDER_FAILED'),
     )
+    render.current = run
   }, [core, mounter, keepRestoring])
 
   useEffect(() => {

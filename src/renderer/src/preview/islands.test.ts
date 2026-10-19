@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import {
   createIslandMounter,
@@ -11,6 +11,7 @@ import {
 // plain objects stand in for the page's elements.
 interface FakeElement {
   source: string
+  top: number
   isConnected: boolean
   shown: unknown[]
   getAttribute(name: string): string | null
@@ -20,6 +21,7 @@ interface FakeElement {
 function islandElement(source: string): FakeElement {
   return {
     source,
+    top: 0,
     isConnected: true,
     shown: [],
     getAttribute(name) {
@@ -30,7 +32,10 @@ function islandElement(source: string): FakeElement {
     replaceChildren(...nodes) {
       this.shown = nodes
     },
-  }
+    getBoundingClientRect(this: FakeElement) {
+      return { top: this.top }
+    },
+  } as FakeElement
 }
 
 function hostOf(elements: FakeElement[]): Element {
@@ -170,5 +175,86 @@ describe('createIslandMounter', () => {
     expect(calls).toBe(2)
     expect(warn).toHaveBeenCalledWith('W_PREVIEW_ISLAND_FAILED', 'test')
     warn.mockRestore()
+  })
+
+  describe('with a scroller', () => {
+    // A view 100 px high at the top of the window: islands start above 200.
+    function scroller(height = 100) {
+      const listeners = new Map<string, () => void>()
+      return {
+        clientHeight: height,
+        getBoundingClientRect: () => ({ bottom: height }),
+        addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
+        removeEventListener: (type: string) => listeners.delete(type),
+        scroll: () => listeners.get('scroll')?.(),
+        listeners,
+      }
+    }
+    let frames: (() => void)[] = []
+    const nextFrame = () => {
+      const run = frames
+      frames = []
+      run.forEach((f) => f())
+    }
+    beforeEach(() => {
+      frames = []
+      vi.stubGlobal('requestAnimationFrame', (f: () => void) => frames.push(f))
+      vi.stubGlobal('cancelAnimationFrame', () => {})
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          observe() {}
+          disconnect() {}
+        },
+      )
+    })
+    afterEach(() => vi.unstubAllGlobals())
+
+    const mounterFor = (island: PreviewIsland, view: ReturnType<typeof scroller>) =>
+      createIslandMounter(createIslandRegistry([island]), {
+        scroller: () => view as unknown as HTMLElement,
+      })
+
+    it('draws islands above the view and up to a screen below it, the rest when scrolled near', () => {
+      const { island, requests } = testIsland()
+      const view = scroller()
+      const mounter = mounterFor(island, view)
+      const above = Object.assign(islandElement('above'), { top: -500 })
+      const near = Object.assign(islandElement('near'), { top: 150 })
+      const far = Object.assign(islandElement('far'), { top: 900 })
+      mounter.mount(hostOf([above, near, far]), { appearance: 'light' })
+      expect(requests).toHaveLength(0)
+      nextFrame()
+      expect(requests.map((r) => r.source)).toEqual(['above', 'near'])
+
+      far.top = 180
+      view.scroll()
+      nextFrame()
+      expect(requests.map((r) => r.source)).toEqual(['above', 'near', 'far'])
+      mounter.dispose()
+      expect(view.listeners.size).toBe(0)
+    })
+
+    it('draws nothing while the view is hidden', () => {
+      const { island, requests } = testIsland()
+      const mounter = mounterFor(island, scroller(0))
+      mounter.mount(hostOf([islandElement('a')]), { appearance: 'light' })
+      nextFrame()
+      expect(requests).toHaveLength(0)
+    })
+
+    it('draws a waiting island for its newest source only', () => {
+      const { island, requests } = testIsland()
+      const view = scroller()
+      const mounter = mounterFor(island, view)
+      const el = Object.assign(islandElement('a'), { top: 900 })
+      const host = hostOf([el])
+      mounter.mount(host, { appearance: 'light' })
+      el.source = 'b'
+      mounter.mount(host, { appearance: 'dark' })
+      el.top = 0
+      nextFrame()
+      expect(requests.map((r) => r.source)).toEqual(['b'])
+    })
   })
 })

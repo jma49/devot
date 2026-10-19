@@ -354,3 +354,52 @@ test('a diagram whose drawing cannot be read is not promised again', async ({ pa
   await expect(svgs.nth(1)).toContainText('Alice')
   await expect(error).toHaveText('This diagram cannot be drawn.')
 })
+
+// A note long enough that the preview renders it in several pieces.
+const sections = (count: number, extra: (n: number) => string = () => '') =>
+  Array.from(
+    { length: count },
+    (_, i) =>
+      `## Part ${i + 1}\n\n${'A paragraph that fills the piece with words. '.repeat(12)}\n\n${extra(i + 1)}`,
+  ).join('\n\n')
+
+test('a task far down a long note still ticks its own line after typing above it', async ({
+  page,
+}) => {
+  await newNote(
+    page,
+    'Long',
+    sections(12, (n) => (n === 11 ? '- [ ] far task\n' : '')),
+  )
+  await mode(page, 'Split').click()
+  const box = preview(page).getByRole('checkbox')
+  await expect(box).toHaveCount(1)
+  const heading = preview(page).getByRole('heading', { name: 'Part 12' })
+  const lineBefore = Number(await heading.getAttribute('data-source-line'))
+
+  await page.getByRole('textbox', { name: 'Note body' }).click()
+  await page.keyboard.press('ControlOrMeta+Home')
+  await page.keyboard.insertText('Typed first.\n\n')
+  await expect(preview(page).locator('p').first()).toHaveText('Typed first.')
+  await expect(heading).toHaveAttribute('data-source-line', String(lineBefore + 2))
+
+  await box.click()
+  await expect(page.getByRole('textbox', { name: 'Note body' })).toContainText('- [x] far task')
+  await expect(box).toBeChecked()
+})
+
+test('a diagram far below the view is drawn only once scrolled near', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 })
+  await newNote(page, 'Far', `${DIAGRAM}\n\n${sections(30)}\n\n${SECOND_FLOWCHART}\n`)
+  await mode(page, 'Preview').click()
+  const svgs = preview(page).locator('.island-mermaid svg')
+  await expect(svgs).toHaveCount(1, { timeout: 20_000 })
+  await page.waitForTimeout(500)
+  await expect(svgs).toHaveCount(1)
+
+  await preview(page).evaluate((e) => {
+    e.scrollTop = e.scrollHeight
+  })
+  await expect(svgs).toHaveCount(2, { timeout: 20_000 })
+  await expect(svgs.nth(1)).toContainText('Review')
+})

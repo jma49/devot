@@ -3,7 +3,7 @@ import { renderPreview, type PreviewLabels } from '../../src/core'
 
 // What the preview makes of Markdown, flat for assertions: checks that text the editor writes reads as intended by the shared parser.
 
-const labels: PreviewLabels = {
+export const labels: PreviewLabels = {
   alerts: {
     note: 'Note',
     tip: 'Tip',

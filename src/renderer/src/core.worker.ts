@@ -15,6 +15,7 @@ import {
   observeWrites,
   planExport,
   renderPreview,
+  renderPreviewPieces,
   type BatchChange,
   type MirrorHost,
   type MirrorRunner,
@@ -231,6 +232,9 @@ export const coreApi = {
       sink,
     }),
   renderPreview: (markdown: string, options: PreviewOptions) => renderPreview(markdown, options),
+  /** The open note's preview in pieces; `known` are the keys of the pieces the page shows. */
+  renderPreviewPieces: (markdown: string, options: PreviewOptions, known: string[]) =>
+    renderPreviewPieces(markdown, options, known),
   /** Prepares the mirror (once); nothing runs until `mirrorReconcile`. */
   startMirror: (host: MirrorHost, untitled: string, logFailure: (code: string) => void) => {
     if (mirror || !mirrorStorage) return

@@ -64,9 +64,23 @@ export interface IslandMounter {
   dispose(): void
 }
 
-export function createIslandMounter(registry: IslandRegistry): IslandMounter {
+/**
+ * With a `scroller`, an island renders only once it is above the bottom of
+ * the scroller's view plus one more screen: content below the view costs
+ * nothing until it is scrolled near, and content above it is always drawn,
+ * so what is in view never moves because something above it drew late.
+ */
+export function createIslandMounter(
+  registry: IslandRegistry,
+  { scroller }: { scroller?: (host: Element) => HTMLElement | null } = {},
+): IslandMounter {
   const slots = new Map<Element, Slot>()
+  const waiting = new Map<Element, () => void>()
   let onRendered: (() => void) | undefined
+  let lastHost: Element | undefined
+  let watched: HTMLElement | undefined
+  let frame: number | undefined
+  let sizes: ResizeObserver | undefined
 
   const release = (slot: Slot) => {
     slot.pending = undefined
@@ -74,13 +88,82 @@ export function createIslandMounter(registry: IslandRegistry): IslandMounter {
     slot.shown = undefined
   }
 
+  const startNear = () => {
+    frame = undefined
+    const root = lastHost && scroller?.(lastHost)
+    if (!root || root.clientHeight === 0) return
+    const limit = root.getBoundingClientRect().bottom + root.clientHeight
+    for (const [el, start] of waiting) {
+      if (!el.isConnected) {
+        waiting.delete(el)
+        continue
+      }
+      if (el.getBoundingClientRect().top > limit) continue
+      waiting.delete(el)
+      start()
+    }
+  }
+  const schedule = () => {
+    if (frame === undefined && waiting.size > 0) frame = requestAnimationFrame(startNear)
+  }
+  const watch = () => {
+    const root = lastHost && scroller?.(lastHost)
+    if (!root || root === watched) return
+    unwatch()
+    watched = root
+    root.addEventListener('scroll', schedule, { passive: true })
+    root.addEventListener('load', schedule, true)
+    sizes = new ResizeObserver(schedule)
+    sizes.observe(root)
+  }
+  const unwatch = () => {
+    watched?.removeEventListener('scroll', schedule)
+    watched?.removeEventListener('load', schedule, true)
+    sizes?.disconnect()
+    watched = undefined
+  }
+
+  const render = (
+    el: Element,
+    slot: Slot,
+    island: PreviewIsland,
+    source: string,
+    context: IslandContext,
+  ) => {
+    const request = slot.pending
+    const current = () => slots.get(el) === slot && slot.pending === request
+    island.render(source, context).then(
+      (content) => {
+        // A newer render for this element won the race, or the element
+        // is gone: drop this one.
+        if (!current()) return content.dispose?.()
+        slot.pending = undefined
+        slot.shown?.dispose?.()
+        slot.shown = content
+        slot.retry = content.retry === true
+        el.replaceChildren(content.node)
+        onRendered?.()
+        schedule()
+      },
+      () => {
+        if (current()) {
+          slot.pending = undefined
+          slot.retry = true
+        }
+        console.warn('W_PREVIEW_ISLAND_FAILED', island.kind)
+      },
+    )
+  }
+
   return {
     mount(host, context, rendered) {
       onRendered = rendered
+      lastHost = host
       for (const [el, slot] of slots) {
         if (!el.isConnected) {
           release(slot)
           slots.delete(el)
+          waiting.delete(el)
         }
       }
       for (const el of host.querySelectorAll('[data-devot-island]')) {
@@ -95,34 +178,22 @@ export function createIslandMounter(registry: IslandRegistry): IslandMounter {
         slots.set(el, slot)
         slot.key = key
         slot.retry = false
-        const request = {}
-        slot.pending = request
-        const current = () => slots.get(el) === slot && slot.pending === request
-        island.render(source, context).then(
-          (content) => {
-            // A newer render for this element won the race, or the element
-            // is gone: drop this one.
-            if (!current()) return content.dispose?.()
-            slot.pending = undefined
-            slot.shown?.dispose?.()
-            slot.shown = content
-            slot.retry = content.retry === true
-            el.replaceChildren(content.node)
-            onRendered?.()
-          },
-          () => {
-            if (current()) {
-              slot.pending = undefined
-              slot.retry = true
-            }
-            console.warn('W_PREVIEW_ISLAND_FAILED', kind)
-          },
-        )
+        slot.pending = {}
+        if (scroller) waiting.set(el, () => render(el, slot, island, source, context))
+        else render(el, slot, island, source, context)
+      }
+      if (scroller) {
+        watch()
+        schedule()
       }
     },
     dispose() {
       for (const slot of slots.values()) release(slot)
       slots.clear()
+      waiting.clear()
+      if (frame !== undefined) cancelAnimationFrame(frame)
+      frame = undefined
+      unwatch()
     },
   }
 }
