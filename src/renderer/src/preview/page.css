@@ -14,10 +14,9 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* A column as wide as the note's measure (content.css), in the middle of the page. */
 .preview {
-  box-sizing: content-box;
-  max-width: var(--note-measure-width);
+  box-sizing: border-box;
+  max-width: var(--size-reading-width);
   margin: 0 auto;
   padding: var(--space-10) var(--space-9);
 }

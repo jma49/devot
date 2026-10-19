@@ -19,13 +19,11 @@
   --note-space-5: calc(var(--note-line) * var(--note-rhythm-5));
   --note-space-6: calc(var(--note-line) * var(--note-rhythm-6));
   --note-space-8: calc(var(--note-line) * var(--note-rhythm-8));
-  /* The measure, in ems of the note text: a CJK character is one em wide. */
-  --note-measure-width: calc(var(--note-font-size) * var(--note-measure));
   font-size: var(--note-font-size);
   line-height: var(--note-line-height-body);
   font-kerning: normal;
   font-variant-ligatures: common-ligatures;
-  /* A long URL or word breaks rather than widen its line past the measure. */
+  /* A long URL or word breaks rather than widen its line past the column. */
   overflow-wrap: anywhere;
   /* CJK: closing marks and small kana never start a line. */
   line-break: strict;
@@ -79,16 +77,6 @@
   .preview :is(p, li) {
     text-wrap: pretty;
   }
-}
-
-/*
- * Text keeps to the measure; code, tables, math and diagrams may take the
- * whole width. The right edge is the same for every text block, indented
- * or not.
- */
-.preview :where(p, ul, ol, dl, blockquote, details, .alert, h1, h2, h3, h4, h5, h6, .footnotes) {
-  box-sizing: border-box;
-  max-width: var(--note-measure-width);
 }
 
 /* Inside a block, the first and last children leave its edges to the block's own spacing. */

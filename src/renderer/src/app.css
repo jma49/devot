@@ -2031,8 +2031,6 @@ button {
  * or printed page. Task progress and dates, each an icon over a caption.
  */
 .note-info {
-  /* As wide as the note's text, whose right edge it shares. */
-  max-width: var(--note-measure-width);
   margin: var(--space-1) 0 var(--space-7);
   font-size: var(--font-size-body);
   line-height: 1.3;

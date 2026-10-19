@@ -3,8 +3,7 @@ import { expect, test } from './fixtures'
 
 // Note text is set from one system (preview/content.css, `note.*` tokens):
 // vertical space in quarter steps of one body line, headings on one scale,
-// the measure from the preview's size, and the CJK properties where the
-// web view has them.
+// and the CJK properties where the web view has them.
 
 async function newNote(page: Page, title: string, body: string) {
   const before = await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').count()
@@ -62,7 +61,7 @@ test('note text keeps one rhythm: spaces in quarter lines, headings on one scale
   await expect(body.locator('table')).toBeVisible()
 
   const measured = await body.evaluate((root) => {
-    type Style = { fontSize: string; lineHeight: string; maxWidth: string }
+    type Style = { fontSize: string; lineHeight: string }
     const css = (el: unknown) =>
       (globalThis as unknown as { getComputedStyle(e: unknown): Style }).getComputedStyle(el)
     type El = { tagName: string; getBoundingClientRect(): Box; children: ArrayLike<El> }
@@ -77,7 +76,6 @@ test('note text keeps one rhythm: spaces in quarter lines, headings on one scale
     return {
       font: Number.parseFloat(css(p).fontSize),
       line: Number.parseFloat(css(p).lineHeight),
-      measure: Number.parseFloat(css(p).maxWidth),
       h1: size('H1'),
       h2: size('H2'),
       h3: size('H3'),
@@ -93,8 +91,6 @@ test('note text keeps one rhythm: spaces in quarter lines, headings on one scale
   expect(measured.h3 / measured.font).toBeCloseTo(1.25, 2)
   expect(measured.h4).toBeCloseTo(measured.font, 1)
   expect(measured.headingLine / measured.h2).toBeLessThan(measured.line / measured.font)
-  // The measure follows the preview's size: 35 ems of its text.
-  expect(measured.measure).toBeCloseTo(measured.font * 35, 0)
 
   // Every gap between blocks is a whole number of quarter lines.
   const quarter = measured.line / 4

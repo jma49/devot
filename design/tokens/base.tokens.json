@@ -715,11 +715,6 @@
       "$type": "number",
       "$value": 0.2,
       "$description": "How far under the text a link's underline sits, in em: clear of the letters, near enough to read as theirs."
-    },
-    "measure": {
-      "$type": "number",
-      "$value": 35,
-      "$description": "The widest a line of note text runs, in ic (the advance of one CJK character): 35 CJK characters, about 75 Latin ones in the system font. It follows the preview's font size."
     }
   },
   "space": {

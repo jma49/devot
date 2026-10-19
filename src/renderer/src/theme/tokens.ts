@@ -42,7 +42,6 @@ export const sizes = {
   "note.size.small": "0.78",
   "note.size.script": "0.75",
   "note.underline-offset": "0.2",
-  "note.measure": "35",
   "space.1": "2px",
   "space.2": "4px",
   "space.3": "6px",

@@ -30,11 +30,6 @@ describe('note type', () => {
     }
   })
 
-  it('keeps the measure between 35 and 40 CJK characters', () => {
-    expect(num('note.measure')).toBeGreaterThanOrEqual(35)
-    expect(num('note.measure')).toBeLessThanOrEqual(40)
-  })
-
   it('falls back to the CJK faces before the generic family, in every font list', () => {
     const cjk = families('font.family.cjk')
     for (const [path, generic] of [
