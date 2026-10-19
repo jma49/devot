@@ -69,6 +69,14 @@ async function pickFromNoteMenu(page: Page, title: string, item: string) {
   await pickMenuItem(page, item)
 }
 
+const pageSetup = (page: Page) => page.getByRole('dialog', { name: 'Page Setup' })
+
+/** Print or Export as PDF goes on from Page Setup, as it is. */
+async function confirmPageSetup(page: Page, button: 'Print…' | 'Export…') {
+  await pageSetup(page).getByRole('button', { name: button }).click()
+  await expect(pageSetup(page)).toHaveCount(0)
+}
+
 async function noteId(page: Page, title: string): Promise<string> {
   const before = (await clipboardWrites(page)).length
   await pickFromNoteMenu(page, title, 'Copy Note ID')
@@ -168,10 +176,13 @@ test('Print… and Shift+Cmd+P print the preview; Export as PDF… saves it', as
   await createNote(page, 'Plan', BODY)
   await mockExport(page)
   await pickFromNoteMenu(page, 'Plan', 'Print…')
+  await confirmPageSetup(page, 'Print…')
   await expect.poll(async () => (await calls(page, 'note_print')).length).toBe(1)
-  // From the editor too (Cmd+P is Split view).
+  // From the editor too (Cmd+P is Split view); Return prints.
   await body(page).click()
   await page.keyboard.press('Meta+Shift+P')
+  await expect(pageSetup(page)).toBeVisible()
+  await page.keyboard.press('Enter')
   await expect.poll(async () => (await calls(page, 'note_print')).length).toBe(2)
   await expect(page.getByRole('dialog', { name: 'Command Palette' })).toHaveCount(0)
   const printed = (await calls(page, 'note_print'))[0]!.args as { title: string; html: string }
@@ -179,11 +190,90 @@ test('Print… and Shift+Cmd+P print the preview; Export as PDF… saves it', as
   expect(printed.html).toContain('<article class="preview"><h1 id="plan">Plan</h1>')
 
   await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
+  await confirmPageSetup(page, 'Export…')
   await expect.poll(async () => (await calls(page, 'export_pdf')).length).toBe(1)
   const pdf = (await calls(page, 'export_pdf'))[0]!.args as Record<string, unknown>
   expect(pdf['name']).toBe('Plan')
   expect(pdf['title']).toBe('Plan')
   expect(String(pdf['html'])).toContain('<article class="preview">')
+})
+
+test('Page Setup comes first: it remembers the paper, margins, header and footer', async ({
+  page,
+}) => {
+  await createNote(page, 'Plan', BODY)
+  await mockExport(page)
+  await pickFromNoteMenu(page, 'Plan', 'Print…')
+  const dialog = pageSetup(page)
+  await expect(dialog).toBeVisible()
+  // The defaults: A4, normal margins, page numbers in the footer's centre.
+  await expect(dialog.getByRole('combobox', { name: 'Paper' })).toHaveValue('a4')
+  await expect(dialog.getByRole('combobox', { name: 'Margins' })).toHaveValue('normal')
+  await expect(dialog.getByRole('textbox', { name: 'Footer Centre' })).toHaveValue(
+    '{page} / {total}',
+  )
+  await expect(dialog.getByRole('button', { name: 'Print…' })).toBeFocused()
+
+  // Cancel prints nothing and keeps the settings.
+  await dialog.getByRole('textbox', { name: 'Header Left' }).fill('Draft')
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(dialog).toHaveCount(0)
+  await pickFromNoteMenu(page, 'Plan', 'Print…')
+  await expect(dialog.getByRole('textbox', { name: 'Header Left' })).toHaveValue('')
+  // So does Escape.
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  expect(await calls(page, 'note_print')).toHaveLength(0)
+
+  await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
+  await dialog.getByRole('combobox', { name: 'Paper' }).selectOption('slide')
+  await dialog.getByRole('combobox', { name: 'Margins' }).selectOption('narrow')
+  await dialog.getByRole('textbox', { name: 'Header Left' }).fill('{title}')
+  await dialog.getByRole('textbox', { name: 'Footer Right' }).fill('{date}')
+  await dialog.getByRole('checkbox', { name: 'Leave them off the first page' }).check()
+  await dialog
+    .getByRole('checkbox', { name: 'Thin rules under the header and above the footer' })
+    .check()
+  // Return in a slot goes on, like the button.
+  await dialog.getByRole('textbox', { name: 'Footer Right' }).press('Enter')
+  await expect(dialog).toHaveCount(0)
+  await expect.poll(async () => (await calls(page, 'export_pdf')).length).toBe(1)
+  // Stored before the PDF is made: Rust lays the page out by the settings.
+  const sets = await calls(page, 'editor_settings_set')
+  expect(sets.at(-1)!.args['patch']).toEqual({
+    pagePaper: 'slide',
+    pageMargins: 'narrow',
+    pageHeaderLeft: '{title}',
+    pageHeaderCenter: '',
+    pageHeaderRight: '',
+    pageFooterLeft: '',
+    pageFooterCenter: '{page} / {total}',
+    pageFooterRight: '{date}',
+    pageSkipFirst: true,
+    pageRules: true,
+  })
+  const ipc = await page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls)
+  const order = ipc.map((c: IpcCall) => c.cmd)
+  expect(order.lastIndexOf('editor_settings_set')).toBeLessThan(order.indexOf('export_pdf'))
+  // How the header and footer look comes from the design tokens.
+  const look = (await calls(page, 'export_pdf'))[0]!.args['look'] as {
+    text: Record<string, number>
+    rule: Record<string, number>
+    fontSize: number
+  }
+  expect(look.fontSize).toBe(10)
+  for (const c of [look.text, look.rule])
+    for (const v of Object.values(c)) expect(v >= 0 && v <= 1).toBe(true)
+
+  // The next time it starts from what was used.
+  await pickFromNoteMenu(page, 'Plan', 'Print…')
+  await expect(dialog.getByRole('combobox', { name: 'Paper' })).toHaveValue('slide')
+  await expect(dialog.getByRole('textbox', { name: 'Header Left' })).toHaveValue('{title}')
+  await expect(
+    dialog.getByRole('checkbox', { name: 'Leave them off the first page' }),
+  ).toBeChecked()
+  await confirmPageSetup(page, 'Print…')
+  await expect.poll(async () => (await calls(page, 'note_print')).length).toBe(1)
 })
 
 test('Print right after the preview opens draws every diagram', async ({ page }) => {
@@ -196,6 +286,7 @@ test('Print right after the preview opens draws every diagram', async ({ page })
     .getByRole('button', { name: 'Split' })
     .click()
   await pickFromNoteMenu(page, 'Charts', 'Print…')
+  await confirmPageSetup(page, 'Print…')
   await expect
     .poll(async () => (await calls(page, 'note_print')).length, { timeout: 20_000 })
     .toBe(1)
@@ -220,8 +311,10 @@ test('a page to print loads nothing from the web: its images from there print as
     await createNote(page, 'Plan', `${BODY}\n![Pixel](${remote})\n`)
     await mockExport(page, { export_begin: { id: 3, fileName: 'Plan.html' } })
     await pickFromNoteMenu(page, 'Plan', 'Print…')
+    await confirmPageSetup(page, 'Print…')
     await expect.poll(async () => (await calls(page, 'note_print')).length).toBe(1)
     await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
+    await confirmPageSetup(page, 'Export…')
     await expect.poll(async () => (await calls(page, 'export_pdf')).length).toBe(1)
     const printed = [...(await calls(page, 'note_print')), ...(await calls(page, 'export_pdf'))]
     for (const call of printed) {

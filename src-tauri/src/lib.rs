@@ -29,6 +29,7 @@ mod mirror;
 #[doc(hidden)]
 pub mod native;
 mod net;
+pub mod page_setup;
 mod settings;
 mod sidebar_material;
 mod startup;

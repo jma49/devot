@@ -2927,6 +2927,80 @@ button {
   font-size: var(--font-size-caption);
 }
 
+/* Page Setup, before Print and Export as PDF: the paper and margins side
+   by side, then the header's and the footer's three slots in a row. */
+.sheet.page-setup {
+  width: calc(var(--size-list-width) * 2);
+}
+
+.page-setup-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  margin: var(--space-6) 0;
+}
+
+.page-setup-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.page-setup-choice .sheet-detail,
+.page-setup-band .sheet-detail {
+  margin: 0;
+}
+
+.page-setup select {
+  box-sizing: border-box;
+  height: var(--size-segment-height);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: var(--font-size-body);
+}
+
+.page-setup-band {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  border: 0;
+}
+
+.page-setup-band legend {
+  float: left;
+  grid-column: 1 / -1;
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.page-setup-band .pick-filter {
+  margin: 0;
+}
+
+.page-setup-fields {
+  margin: 0 0 var(--space-6);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+}
+
+.page-setup-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+.page-setup-check input {
+  margin: 0;
+  accent-color: var(--color-accent-fill);
+}
+
+.page-setup .confirm-actions {
+  margin-top: var(--space-7);
+}
+
 .sheet.import {
   width: calc(var(--size-list-width) * 2);
 }

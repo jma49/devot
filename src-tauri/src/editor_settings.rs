@@ -14,6 +14,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::page_setup::{Margins, PageSetup, Paper, valid_slot};
+
 pub const FILE: &str = "editor-settings.json";
 pub const CHANGED_EVENT: &str = "devot://editor-settings-changed";
 
@@ -185,6 +187,17 @@ pub struct EditorSettings {
     pub list_dates: ListDates,
     pub auto_download_updates: bool,
     pub animations: Animations,
+    /// Page setup for Print and Export as PDF (`page_setup`).
+    pub page_paper: Paper,
+    pub page_margins: Margins,
+    pub page_header_left: String,
+    pub page_header_center: String,
+    pub page_header_right: String,
+    pub page_footer_left: String,
+    pub page_footer_center: String,
+    pub page_footer_right: String,
+    pub page_skip_first: bool,
+    pub page_rules: bool,
 }
 
 impl Default for EditorSettings {
@@ -229,6 +242,16 @@ impl Default for EditorSettings {
             list_dates: ListDates::Relative,
             auto_download_updates: true,
             animations: Animations::Always,
+            page_paper: Paper::A4,
+            page_margins: Margins::Normal,
+            page_header_left: String::new(),
+            page_header_center: String::new(),
+            page_header_right: String::new(),
+            page_footer_left: String::new(),
+            page_footer_center: String::from("{page} / {total}"),
+            page_footer_right: String::new(),
+            page_skip_first: false,
+            page_rules: false,
         }
     }
 }
@@ -271,6 +294,13 @@ fn name_or_null(value: &Value, valid: fn(&str) -> bool) -> Result<Option<String>
     match value {
         Value::Null => Ok(None),
         Value::String(name) if valid(name) => Ok(Some(name.clone())),
+        _ => Err(INVALID),
+    }
+}
+
+fn slot(value: &Value) -> Result<String, &'static str> {
+    match value {
+        Value::String(text) if valid_slot(text) => Ok(text.clone()),
         _ => Err(INVALID),
     }
 }
@@ -342,9 +372,38 @@ impl EditorSettings {
             "listDates" => self.list_dates = choice(value)?,
             "autoDownloadUpdates" => self.auto_download_updates = flag(value)?,
             "animations" => self.animations = choice(value)?,
+            "pagePaper" => self.page_paper = choice(value)?,
+            "pageMargins" => self.page_margins = choice(value)?,
+            "pageHeaderLeft" => self.page_header_left = slot(value)?,
+            "pageHeaderCenter" => self.page_header_center = slot(value)?,
+            "pageHeaderRight" => self.page_header_right = slot(value)?,
+            "pageFooterLeft" => self.page_footer_left = slot(value)?,
+            "pageFooterCenter" => self.page_footer_center = slot(value)?,
+            "pageFooterRight" => self.page_footer_right = slot(value)?,
+            "pageSkipFirst" => self.page_skip_first = flag(value)?,
+            "pageRules" => self.page_rules = flag(value)?,
             _ => return Err(INVALID),
         }
         Ok(())
+    }
+
+    pub fn page_setup(&self) -> PageSetup {
+        PageSetup {
+            paper: self.page_paper,
+            margins: self.page_margins,
+            header: [
+                self.page_header_left.clone(),
+                self.page_header_center.clone(),
+                self.page_header_right.clone(),
+            ],
+            footer: [
+                self.page_footer_left.clone(),
+                self.page_footer_center.clone(),
+                self.page_footer_right.clone(),
+            ],
+            skip_first: self.page_skip_first,
+            rules: self.page_rules,
+        }
     }
 
     /// Nothing changes when any key is unknown or any value invalid.
@@ -385,9 +444,9 @@ pub const INITIAL_GLOBAL: &str = "devotInitialEditorSettings";
 /// page's first paint matches the settings (the sidebar material, the editor's font) instead of the
 /// defaults. The page still reads the settings and takes any newer revision.
 pub fn initial_script(snapshot: &Snapshot) -> String {
-    // JSON is a JavaScript literal; the values are booleans, numbers, a few
-    // fixed words and names checked when set (no quotes or backslashes), so
-    // nothing in it can end the statement early.
+    // JSON is a JavaScript literal: serde_json escapes quotes, backslashes
+    // and control characters in the strings (the page setup's slots are free
+    // text), so nothing in it can end the statement early.
     let json = serde_json::to_string(snapshot).unwrap_or_else(|_| String::from("null"));
     format!("window.{INITIAL_GLOBAL} = {json};")
 }
@@ -602,7 +661,33 @@ mod tests {
 
     #[test]
     fn serializes_with_the_names_the_ui_reads() {
-        let value = serde_json::to_value(EditorSettings::default()).unwrap();
+        let mut value = serde_json::to_value(EditorSettings::default()).unwrap();
+        // Checked apart: one json! of every key passes the macro recursion limit.
+        let map = value.as_object_mut().unwrap();
+        let keys: Vec<String> = map
+            .keys()
+            .filter(|k| k.starts_with("page"))
+            .cloned()
+            .collect();
+        let page: Map<String, Value> = keys
+            .into_iter()
+            .filter_map(|k| map.remove(&k).map(|v| (k, v)))
+            .collect();
+        assert_eq!(
+            Value::Object(page),
+            json!({
+                "pagePaper": "a4",
+                "pageMargins": "normal",
+                "pageHeaderLeft": "",
+                "pageHeaderCenter": "",
+                "pageHeaderRight": "",
+                "pageFooterLeft": "",
+                "pageFooterCenter": "{page} / {total}",
+                "pageFooterRight": "",
+                "pageSkipFirst": false,
+                "pageRules": false,
+            })
+        );
         assert_eq!(
             value,
             json!({
@@ -646,6 +731,62 @@ mod tests {
                 "animations": "always",
             })
         );
+    }
+
+    #[test]
+    fn page_setup_takes_every_paper_margin_and_slot() {
+        for (paper, want) in [
+            ("a4", Paper::A4),
+            ("letter", Paper::Letter),
+            ("a4Landscape", Paper::A4Landscape),
+            ("slide", Paper::Slide),
+        ] {
+            let next = EditorSettings::default()
+                .with(&patch(json!({ "pagePaper": paper })))
+                .unwrap();
+            assert_eq!(next.page_setup().paper, want);
+        }
+        let next = EditorSettings::default()
+            .with(&patch(json!({
+                "pageMargins": "wide",
+                "pageHeaderLeft": "{title}",
+                "pageHeaderCenter": "Draft",
+                "pageHeaderRight": "{date}",
+                "pageFooterLeft": "",
+                "pageFooterCenter": "",
+                "pageFooterRight": "{page} of {total}",
+                "pageSkipFirst": true,
+                "pageRules": true,
+            })))
+            .unwrap();
+        assert_eq!(
+            next.page_setup(),
+            PageSetup {
+                paper: Paper::A4,
+                margins: Margins::Wide,
+                header: ["{title}".into(), "Draft".into(), "{date}".into()],
+                footer: [String::new(), String::new(), "{page} of {total}".into()],
+                skip_first: true,
+                rules: true,
+            }
+        );
+        for bad in [
+            json!({ "pagePaper": "a5" }),
+            json!({ "pagePaper": "A4" }),
+            json!({ "pageMargins": "none" }),
+            json!({ "pageHeaderLeft": null }),
+            json!({ "pageHeaderLeft": 3 }),
+            json!({ "pageFooterRight": "a\tb" }),
+            json!({ "pageFooterCenter": "x".repeat(101) }),
+            json!({ "pageSkipFirst": "yes" }),
+            json!({ "pageRules": 1 }),
+        ] {
+            assert_eq!(
+                EditorSettings::default().with(&patch(bad.clone())),
+                Err(INVALID),
+                "{bad}"
+            );
+        }
     }
 
     #[test]

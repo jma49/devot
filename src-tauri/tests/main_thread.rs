@@ -54,6 +54,7 @@ fn main() {
         image_decode_frees_its_memory();
         print_to_pdf();
         print_jobs_end();
+        print_with_page_setup();
         print_loads_nothing_remote();
 
         let accent = macos::system_accent();
@@ -188,6 +189,100 @@ fn print_jobs_end() {
         );
     }
     println!("main_thread: three PDF prints in a row each end and free the print slot");
+}
+
+/// A note printed with a page setup (`print_note`): the pages are the
+/// paper's size, the header and footer are on them as text with their
+/// placeholders filled in (but not on the first page when it is to go
+/// without), and the page's links still go where they went.
+#[cfg(target_os = "macos")]
+fn print_with_page_setup() {
+    use devot_lib::native::macos;
+    use devot_lib::page_setup::{Margins, PageLayout, PageLook, PageSetup, Paper, Rgba};
+
+    let dir = tempfile::tempdir().unwrap();
+    let paragraphs: String = (0..120)
+        .map(|i| format!("<p>Paragraph {i} of a long printed note.</p>"))
+        .collect();
+    let html = format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Plan</title></head><body>\
+         <p><a href=\"https://example.com/x\">Out</a> <a href=\"#end\">Down</a></p>\
+         {paragraphs}<h2 id=\"end\">End</h2></body></html>"
+    );
+    let grey = Rgba {
+        r: 0.4,
+        g: 0.4,
+        b: 0.4,
+        a: 1.0,
+    };
+    let layout = |paper, skip_first| PageLayout {
+        setup: PageSetup {
+            paper,
+            margins: Margins::Normal,
+            header: ["{title}".into(), String::new(), "Header right".into()],
+            footer: [
+                String::new(),
+                "Page {page} of {total}".into(),
+                String::new(),
+            ],
+            skip_first,
+            rules: true,
+        },
+        look: PageLook {
+            text: grey,
+            rule: grey,
+            font_size: 9.0,
+        },
+        title: "Plan".into(),
+    };
+
+    let path = dir.path().join("landscape.pdf");
+    macos::self_test_print_note_to_pdf(&html, layout(Paper::A4Landscape, true), &path)
+        .expect("a note prints to a PDF with its page setup");
+    let pages = macos::self_test_pdf_pages(&path).expect("the PDF reads");
+    let total = pages.len();
+    assert!(total >= 3, "a long note takes several pages, got {total}");
+    for (i, page) in pages.iter().enumerate() {
+        assert_eq!(
+            (page.width, page.height),
+            (842.0, 595.0),
+            "page {i} is A4 landscape"
+        );
+        let footer = format!("Page {} of {total}", i + 1);
+        if i == 0 {
+            assert!(!page.text.contains(&footer), "the first page goes without");
+            assert!(!page.text.contains("Header right"));
+        } else {
+            assert!(page.text.contains(&footer), "page {i}: {:?}", page.text);
+            assert!(page.text.contains("Header right"));
+        }
+    }
+    assert_eq!(
+        pages[0].urls,
+        ["https://example.com/x"],
+        "the web link is kept"
+    );
+    assert_eq!(
+        pages[0].to_pages,
+        [total - 1],
+        "the link to the end goes there"
+    );
+    assert_eq!(macos::self_test_print_jobs(), 0, "the job is over");
+
+    let path = dir.path().join("slide.pdf");
+    macos::self_test_print_note_to_pdf(&html, layout(Paper::Slide, false), &path)
+        .expect("a note prints on 16:9 slides");
+    let pages = macos::self_test_pdf_pages(&path).expect("the PDF reads");
+    assert_eq!((pages[0].width, pages[0].height), (960.0, 540.0));
+    assert!(
+        pages[0]
+            .text
+            .contains(&format!("Page 1 of {}", pages.len()))
+    );
+    assert!(pages[0].text.contains("Plan"));
+    println!(
+        "main_thread: a page setup prints on its paper with its header and footer, links kept"
+    );
 }
 
 /// Printing loads nothing from elsewhere, whatever the page allows itself:
