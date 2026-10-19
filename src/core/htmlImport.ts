@@ -1,20 +1,10 @@
-// HTML import: an HTML file becomes Markdown before it imports as a Markdown
-// file does (import.ts). The page is sanitized first (the default
-// GitHub-style schema: no scripts, styles, event handlers, comments, frames
-// or `javascript:`/`data:` URLs), then converted, so the note holds only
-// Markdown and no raw HTML. Local images stay relative links, which import
-// turns into attachments; remote ones stay links. Before that:
-// - An image embedded as a `data:` URI (a PNG, JPEG, GIF, WebP, AVIF or
-//   HEIC in base64, as Export as HTML and page savers write them) is taken
-//   out to be stored as an attachment, and its link points at it
-//   (`devot://file/<id>`). A lazy-loaded image's `data-src` wins over the
-//   placeholder in its `src`.
-// - MathML that carries its TeX source (an `application/x-tex`
-//   annotation) becomes math again (`$...$`, or a `$$` block for display
-//   math); a KaTeX page's HTML drawing of it is left out.
-// - Whatever else holds content the note cannot keep (SVG, other MathML,
-//   frames, objects, media, other `data:` and local-file URLs) is listed in
-//   `dropped`, so import can say so.
+// HTML import: an HTML file becomes Markdown before it imports as a Markdown file does (import.ts). The page is sanitized first (the default GitHub-style schema: no
+// scripts, styles, event handlers, comments, frames or `javascript:`/`data:` URLs), then converted, so the note holds no raw HTML. Local images stay relative links
+// (import turns them into attachments); remote ones stay links. Before that:
+// - An image embedded as a `data:` URI (as Export as HTML and page savers write them) is taken out to be stored as an attachment, and its link points at it
+//   (`devot://file/<id>`). A lazy-loaded image's `data-src` wins over the placeholder in its `src`.
+// - MathML that carries its TeX source (an `application/x-tex` annotation) becomes math again; a KaTeX page's HTML drawing of it is left out.
+// - Whatever else holds content the note cannot keep (SVG, other MathML, frames, objects, media, other `data:` and local-file URLs) is listed in `dropped`.
 
 import type { Element, ElementContent, Nodes, Root } from 'hast'
 import { fromHtml } from 'hast-util-from-html'
@@ -26,7 +16,6 @@ import { mathToMarkdown } from 'mdast-util-math'
 import { toMarkdown } from 'mdast-util-to-markdown'
 import { detectImage, fileUri } from './files'
 
-// Dropped with their content, not only their tags.
 const STRIP = [
   'script',
   'style',
@@ -41,41 +30,25 @@ const STRIP = [
 
 const SCHEMA: Schema = { ...defaultSchema, strip: STRIP }
 
-/**
- * Elements whose content (or what they show) the note cannot keep: listed
- * as left out. Media and canvas are unwrapped by the sanitizer, so their
- * fallback content is still looked at.
- */
+/** Media and canvas are unwrapped by the sanitizer, so their fallback content is still looked at. */
 const DROPPED = new Set(['svg', 'math', 'iframe', 'object', 'embed', 'video', 'audio', 'canvas'])
 
-/**
- * A base64 `data:` URL, whatever type it names: its bytes decide whether
- * it is an image import stores as an attachment (`detectImage`).
- */
+/** Whatever type it names: its bytes decide whether import stores it as an attachment (`detectImage`). */
 const BASE64_URL = /^data:[^,]*;base64,([\s\S]*)$/i
 
-/** A URL with a scheme the sanitizer keeps in an image's `src`. */
 const KEPT_SRC = /^https?:/i
 
-/** An image a page held in a `data:` URI: the attachment ID its link uses, and its bytes. */
 export interface HtmlImage {
   id: string
-  /** Its type, from its bytes. */
   mime: string
   data: Uint8Array
 }
 
 export interface HtmlConversion {
-  /** The page's `<title>` (spaces tidied); null when it has none or it is blank. */
   title: string | null
   markdown: string
-  /** Embedded images, which `markdown` links as `devot://file/<id>`; import stores them. */
   images: HtmlImage[]
-  /**
-   * What the conversion left out, each once, in order: an element as
-   * `<name>` (`<svg>`), a `data:` URL by its type (`data:image/bmp`), any
-   * other image URL as written.
-   */
+  /** Each once, in order: an element as `<name>` (`<svg>`), a `data:` URL by its type (`data:image/bmp`), any other image URL as written. */
   dropped: string[]
 }
 
@@ -104,7 +77,6 @@ const stringProperty = (node: Element, name: string) => {
   return typeof value === 'string' ? value : null
 }
 
-/** The TeX source a MathML element carries, if it has one. */
 function texOf(math: Element): string | null {
   const walk = (node: Nodes): string | null => {
     if (node.type === 'element' && node.tagName === 'annotation') {
@@ -121,18 +93,15 @@ function texOf(math: Element): string | null {
   return walk(math)
 }
 
-/** Whether an element holds MathML that carries its TeX source. */
 function hasTexMath(node: Element): boolean {
   return node.children.some(
     (c) => c.type === 'element' && (c.tagName === 'math' ? texOf(c) !== null : hasTexMath(c)),
   )
 }
 
-/** A `data:` URL by its type alone (it can be megabytes long), as `dropped` lists it. */
 const dataLabel = (url: string) =>
   'data:' + (/^data:([^;,]*)/i.exec(url)?.[1] ?? '').toLowerCase().slice(0, 100)
 
-/** The bytes of base64 text, or null when it is not base64. */
 function base64Bytes(text: string): Uint8Array | null {
   try {
     return Uint8Array.from(atob(text.replace(/[\t\n\f\r ]/g, '')), (c) => c.charCodeAt(0))
@@ -141,7 +110,6 @@ function base64Bytes(text: string): Uint8Array | null {
   }
 }
 
-/** All text of a parsed page and its attribute values (as HTML reads them, references decoded). */
 function contentOf(node: Nodes): string {
   const parts: string[] = []
   const walk = (n: Nodes) => {
@@ -155,11 +123,7 @@ function contentOf(node: Nodes): string {
   return parts.join('\n').toLowerCase()
 }
 
-/**
- * A marker no page holds (it is in none of its text or attribute values):
- * placeholders built on it survive the sanitizer, as a relative image URL
- * or as text.
- */
+/** A marker no page holds, so placeholders built on it survive the sanitizer. */
 function markerFor(page: Nodes): string {
   const content = contentOf(page)
   let marker = 'devotimport'
@@ -169,18 +133,12 @@ function markerFor(page: Nodes): string {
 
 interface Prepared {
   images: HtmlImage[]
-  /** The attachment ID of each image placeholder (`<marker>i<n>`). */
   imageIds: string[]
-  /** The TeX of each math placeholder (`<marker>m<n>e`), and whether it is display math. */
   math: { tex: string; display: boolean }[]
   dropped: string[]
 }
 
-/**
- * Takes out of `root` (before it is sanitized) what the sanitizer would
- * lose: embedded images and MathML with TeX become placeholders, and what
- * cannot be kept is listed.
- */
+/** Takes out of `root` (before it is sanitized) what the sanitizer would lose: embedded images and MathML with TeX become placeholders. */
 function prepare(root: Root, marker: string, newId?: () => string): Prepared {
   const out: Prepared = { images: [], imageIds: [], math: [], dropped: [] }
   const drop = (label: string) => {
@@ -248,10 +206,6 @@ function prepare(root: Root, marker: string, newId?: () => string): Prepared {
   return out
 }
 
-/**
- * Puts back what `prepare` took out: attachment links, and math. Returns
- * the IDs of the images linked.
- */
 function restore(tree: MdRoot, marker: string, prepared: Prepared): Set<string> {
   const linked = new Set<string>()
   const imageAt = new RegExp(`^${marker}i(\\d+)$`)
@@ -321,11 +275,7 @@ function restore(tree: MdRoot, marker: string, prepared: Prepared): Set<string> 
   return linked
 }
 
-/**
- * An HTML page as Markdown, its `<title>`, the images it embeds and what it
- * left out (see the rules at the top). Embedded images take their IDs from
- * `newId`; without it they are left out.
- */
+/** Embedded images take their IDs from `newId`; without it they are left out. */
 export function htmlToMarkdown(html: string, newId?: () => string): HtmlConversion {
   const page = fromHtml(html)
   // The page's own title is in its head; an SVG `<title>` in the body is not it.

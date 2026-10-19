@@ -11,7 +11,6 @@
 export const STARTER_PREFIX = 'starter:'
 
 export interface StarterTemplate {
-  /** `starter:` and a short name. */
   id: string
   title: string
   body: string
@@ -152,9 +151,7 @@ title: Daily Report {{date}}
   ),
 ])
 
-/** Whether `id` names a starter template (it need not exist). */
 export const isStarterTemplate = (id: string) => id.startsWith(STARTER_PREFIX)
 
-/** The starter template with this ID, or undefined. */
 export const starterTemplate = (id: string): StarterTemplate | undefined =>
   STARTER_TEMPLATES.find((t) => t.id === id)

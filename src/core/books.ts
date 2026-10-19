@@ -1,10 +1,6 @@
-// Notebooks ("books"): nestable folders for notes. Each field (name, parent,
-// place among siblings, deletion) is last-writer-wins by HLC. Deleting a
-// notebook deletes its sub-notebooks too; their notes stay and count as in
-// no notebook. Siblings are in the user's order: a sort key per notebook
-// (order.ts), ties broken by ID, so every device shows the same order.
-// Notebooks from before sort keys (schema v10) have none until the core
-// keys them (`settleOrder`); until then they show as before, by name.
+// Notebooks ("books"): nestable folders for notes. Each field is last-writer-wins by HLC. Deleting a notebook deletes its sub-notebooks; their notes stay and count
+// as in no notebook. Siblings are ordered by a sort key (order.ts), ties broken by ID, so every device shows the same order. Notebooks from before sort keys
+// (schema v10) have none until the core keys them (`settleOrder`); until then they show by name.
 
 import { receiveStored, type Clock } from './hlc'
 import { compareKeys, isSortKey, keyBetween, MAX_SORT_KEY_LENGTH, sequentialKeys } from './order'
@@ -20,13 +16,7 @@ import { charCount, trimWhitespace } from './text'
 
 export const MAX_BOOK_NAME_CHARS = 200
 
-/**
- * The reserved notebook that holds note templates (see templates.ts). Every
- * device knows it by this ID, so the copies two devices make of it merge
- * into one row. It is UUIDv7-shaped (version 7, variant 10) with a zero
- * timestamp, which no generated ID has. It is not one of the user's
- * notebooks: the notebook service never lists or changes it.
- */
+/** Every device knows it by this ID, so the copies two devices make merge into one row. UUIDv7-shaped with a zero timestamp, which no generated ID has. Not one of the user's notebooks: the notebook service never lists or changes it. */
 export const TEMPLATES_BOOK_ID = '00000000-0000-7000-8000-000000000001'
 
 export interface BookServiceOptions {
@@ -34,43 +24,20 @@ export interface BookServiceOptions {
   clock: Clock
   newId: () => string
   now?: () => number
-  /** The collation locale for names; the runtime's default when left out. */
   locale?: string
 }
 
 export interface BookService {
-  /** Notebooks that are not deleted (never Templates, see TEMPLATES_BOOK_ID). */
   list(): Promise<BookRecord[]>
-  /**
-   * Creates a notebook after the others in `parentId` (null: top level),
-   * with Allow AI Access off unless `aiAccess` is on.
-   */
   create(name: string, parentId: string | null, options?: { aiAccess?: boolean }): Promise<string>
   rename(id: string, name: string): Promise<void>
-  /** Moves a notebook under `parentId` (null: top level), after the others there. */
   move(id: string, parentId: string | null): Promise<void>
-  /**
-   * Puts a notebook right before or after `targetId`, under the same parent.
-   * Writes only the moved notebook, unless its neighbours share one key.
-   */
   place(id: string, targetId: string, where: 'before' | 'after'): Promise<void>
-  /** Deletes a notebook and its sub-notebooks. Notes are kept. */
   remove(id: string): Promise<void>
-  /** Turns Allow AI Access on or off for this notebook alone. */
   setAiAccess(id: string, on: boolean): Promise<void>
-  /**
-   * Gives a notebook an icon from the catalog (notebookIcons.ts) drawn in
-   * `color` (null: the text colour), or, with `icon` null, the default icon
-   * and no colour. Throws E_BOOK_ICON_INVALID for anything else.
-   */
+  /** Throws E_BOOK_ICON_INVALID for an unknown icon or colour. */
   setIcon(id: string, icon: string | null, color: TagColor | null): Promise<void>
-  /**
-   * Gives every notebook without a sort key (from before schema v10) one,
-   * keeping the order it shows in: by name in the locale's collation, as
-   * the sidebar sorted before, ahead of any keyed siblings. The keys get no
-   * clock, so any later move wins, and where two devices keyed a notebook
-   * differently the greater key wins on both. Run once when the core starts.
-   */
+  /** Keeps the order the notebooks show in (by name in the locale's collation, ahead of keyed siblings). The keys get no clock, so any later move wins; where two devices keyed a notebook differently the greater key wins on both. Run once when the core starts. */
   settleOrder(): Promise<void>
 }
 
@@ -80,14 +47,11 @@ export interface BookNode {
   parentId: string | null
   depth: number
   aiAccess: boolean
-  /** Its own icon (a catalog symbol), or null for the default one. */
   icon: string | null
-  /** The palette ID its icon is drawn in, or null for the text colour. */
   iconColor: TagColor | null
   children: BookNode[]
 }
 
-/** A notebook's icon and colour as stored, or null where it is unset or unknown. */
 export function bookIcon(book: Pick<BookRecord, 'icon' | 'iconColor'>): {
   icon: string | null
   iconColor: TagColor | null
@@ -99,7 +63,6 @@ export function bookIcon(book: Pick<BookRecord, 'icon' | 'iconColor'>): {
   }
 }
 
-/** A notebook name trimmed as Rust trims it (src-tauri/src/commands/books.rs checks the same). */
 function cleanName(name: string): string {
   const trimmed = trimWhitespace(name)
   if (!trimmed || trimmed.includes('\n') || charCount(trimmed) > MAX_BOOK_NAME_CHARS) {
@@ -108,12 +71,7 @@ function cleanName(name: string): string {
   return trimmed
 }
 
-/**
- * The effective parent of every notebook. A parent that is missing (deleted,
- * or not synced yet) makes a notebook top level; a parent cycle (possible
- * after concurrent moves on two devices) is broken at its smallest ID, the
- * same way on every device.
- */
+/** A missing parent (deleted, or not synced yet) makes a notebook top level; a parent cycle (after concurrent moves) is broken at its smallest ID, the same on every device. */
 function effectiveParents(books: readonly BookRecord[]): Map<string, string | null> {
   const byId = new Map(books.map((b) => [b.id, b]))
   const parents = new Map<string, string | null>()
@@ -136,32 +94,24 @@ function effectiveParents(books: readonly BookRecord[]): Map<string, string | nu
   return parents
 }
 
-/** The order notebooks had before sort keys: by name in the locale's collation. */
 const nameOrder =
   (locale?: string) =>
   (a: Pick<BookRecord, 'name'>, b: Pick<BookRecord, 'name'>): number =>
     a.name.localeCompare(b.name, locale, { sensitivity: 'base' })
 
-/** Whether a notebook is from before sort keys and not keyed yet. */
 const unkeyed = (book: Pick<BookRecord, 'sortKey' | 'sortKeyHlc'>) =>
   book.sortKey === '' && book.sortKeyHlc === ''
 
 type Ordered = Pick<BookRecord, 'id' | 'name' | 'sortKey' | 'sortKeyHlc'>
 
-/**
- * Sibling order: by sort key, then by ID (equal keys come from concurrent
- * moves). Unkeyed notebooks (empty keys) come first, by name as before.
- */
 export const bookOrder = (a: Ordered, b: Ordered, locale?: string): number =>
   compareKeys(a.sortKey, b.sortKey) ||
   Number(unkeyed(b)) - Number(unkeyed(a)) ||
   (unkeyed(a) ? nameOrder(locale)(a, b) : 0) ||
   compareKeys(a.id, b.id)
 
-/** Top-level notebooks with their children, each level in the user's order. */
 export function buildBookTree(books: readonly BookRecord[]): BookNode[] {
   const parents = effectiveParents(books)
-  // Visited in sibling order, so every list fills up in order.
   const ordered = [...books].sort((a, b) => bookOrder(a, b))
   const nodes = new Map<string, BookNode>(
     books.map((b) => [
@@ -195,27 +145,19 @@ export function buildBookTree(books: readonly BookRecord[]): BookNode[] {
   return roots
 }
 
-/** Every notebook in tree order: each one followed by its sub-notebooks. */
 export function flattenBookTree(nodes: readonly BookNode[]): BookNode[] {
   return nodes.flatMap((n) => [n, ...flattenBookTree(n.children)])
 }
 
-/** A notebook a Move Notebook dialog lists, and whether it can take the moved one. */
 export interface MoveTarget {
   id: string
   name: string
   depth: number
-  /** Its icon (null: the default one) and the colour it is drawn in. */
   icon: string | null
   iconColor: TagColor | null
-  /** The notebook itself and every notebook below it: a notebook cannot go inside them. */
   disabled: boolean
 }
 
-/**
- * The notebooks a notebook can move into, in tree order with their depth.
- * The notebook itself and its sub-notebooks are listed but disabled.
- */
 export function moveTargets(tree: readonly BookNode[], movingId: string): MoveTarget[] {
   const out: MoveTarget[] = []
   const walk = (nodes: readonly BookNode[], disabled: boolean) => {
@@ -236,13 +178,6 @@ export function moveTargets(tree: readonly BookNode[], movingId: string): MoveTa
   return out
 }
 
-/**
- * The sort key that puts a notebook at `index` among `siblings` (sorted,
- * without it), and new keys for siblings when there is no room: their keys
- * are equal there, malformed, or the new key would be too long. Then the
- * whole list gets fresh keys, and only the siblings whose key changes are
- * returned.
- */
 export function slotKeys(
   siblings: readonly Pick<BookRecord, 'id' | 'sortKey'>[],
   index: number,
@@ -266,7 +201,6 @@ export function slotKeys(
   return { key: keys[index]!, others }
 }
 
-/** A notebook's ID with the IDs of all its sub-notebooks. */
 export function bookWithDescendants(books: readonly BookRecord[], id: string): Set<string> {
   const parents = effectiveParents(books)
   const ids = new Set([id])
@@ -283,10 +217,6 @@ export function bookWithDescendants(books: readonly BookRecord[], id: string): S
   return ids
 }
 
-/**
- * The notes in a notebook and its sub-notebooks; `null` gives the notes in
- * no (live) notebook.
- */
 export function notesInBook<T extends Pick<NoteSummary, 'bookId'>>(
   notes: readonly T[],
   books: readonly BookRecord[],
@@ -300,7 +230,6 @@ export function notesInBook<T extends Pick<NoteSummary, 'bookId'>>(
   return notes.filter((n) => n.bookId !== null && ids.has(n.bookId))
 }
 
-/** Notes per notebook, each count including the notebook's sub-notebooks. */
 export function bookCounts(
   notes: readonly Pick<NoteSummary, 'bookId'>[],
   books: readonly BookRecord[],
@@ -317,7 +246,6 @@ export function bookCounts(
   return counts
 }
 
-/** The HLCs of a notebook's fields. */
 const bookStamps = (b: BookRecord) => [
   b.nameHlc,
   b.parentHlc,
@@ -337,11 +265,7 @@ export function createBookService(options: BookServiceOptions): BookService {
   const { storage, clock, newId } = options
   const now = options.now ?? Date.now
 
-  /**
-   * The user's notebooks that are not deleted: every one but Templates. Their
-   * stamps are taken in by the clock, so a write based on them always wins
-   * over them (see receiveStored).
-   */
+  /** Their stamps are taken in by the clock, so a write based on them always wins (see receiveStored). */
   const listBooks = async () => {
     const all = await storage.listBooks()
     receiveStored(clock, all.flatMap(bookStamps))
@@ -353,7 +277,6 @@ export function createBookService(options: BookServiceOptions): BookService {
   const write = (book: BookRecord) =>
     storage.putBook({ ...book, updatedAt: Math.max(now(), book.createdAt) })
 
-  /** Live notebooks under the effective parent `parentId`, in order, without `except`. */
   const siblingsOf = (books: readonly BookRecord[], parentId: string | null, except?: string) => {
     const parents = effectiveParents(books)
     return books
@@ -361,10 +284,7 @@ export function createBookService(options: BookServiceOptions): BookService {
       .sort((a, b) => bookOrder(a, b, options.locale))
   }
 
-  /**
-   * The key for a notebook at `index` among `siblings`. Writes new keys for
-   * the siblings only when there is no room between its neighbours.
-   */
+  /** Writes new keys for the siblings only when there is no room between the neighbours. */
   const slot = async (siblings: readonly BookRecord[], index: number): Promise<string> => {
     const { key, others } = slotKeys(siblings, index)
     for (const sibling of siblings) {
@@ -374,13 +294,7 @@ export function createBookService(options: BookServiceOptions): BookService {
     return key
   }
 
-  /**
-   * Writes `book` under the effective parent `parentId` at `index` among
-   * `siblings` (one row, see `slot`). The parent and its clock change only
-   * when the notebook shows under another parent: a notebook shown at the
-   * top level because its parent is missing keeps that parent when it is
-   * only reordered.
-   */
+  /** The parent and its clock change only when the notebook shows under another parent: one shown at the top level because its parent is missing keeps that parent when only reordered. */
   const putAt = async (
     books: readonly BookRecord[],
     book: BookRecord,

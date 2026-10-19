@@ -1,31 +1,16 @@
-// The readable text of a note body: what a search result's excerpt shows.
-// A leading front matter block is skipped (the same fences the editor and
-// the preview read), and Markdown markers come out: heading, list, quote,
-// task and alert markers, emphasis, strong and strikethrough, code fences
-// and code span backticks, link and image syntax (their text and alt text
-// stay), footnote references, link reference definitions, table pipes, HTML
-// tags and comments. Text that only looks like syntax stays, as the preview
-// shows it: an unpaired `*` or `_`, brackets that make no link, a `<` that
-// opens no tag. What is left reads as text, with each run of whitespace one
-// space. It never throws and runs in linear time.
+// The readable text of a note body: what a search result's excerpt shows. A leading front matter block is skipped and Markdown markers come out; text that only
+// looks like syntax stays, as the preview shows it (an unpaired `*` or `_`, brackets that make no link, a `<` that opens no tag). Whitespace runs become one space.
+// It never throws and runs in linear time.
 //
-// This follows CommonMark closely but not fully: emphasis pairs within a
-// paragraph by the flanking rules, without the rule of three; indented code
-// is read as text; `[[target]]` and `[[target|label]]` (from other tools)
-// show their label, else their target. The Rust store's `readable_text`
-// (src-tauri/src/storage/readable.rs) follows the same rules step for step;
-// tests/support/readable-text.json holds cases both sides must agree on.
-// Positions are counted in code points on both sides.
+// This follows CommonMark closely but not fully: emphasis pairs within a paragraph by the flanking rules, without the rule of three; indented code is read as text;
+// `[[target]]` and `[[target|label]]` show their label, else their target. The Rust store's `readable_text` (src-tauri/src/storage/readable.rs) follows the same rules
+// step for step; tests/support/readable-text.json holds cases both sides must agree on. Positions are counted in code points on both sides.
 
 import { isWhitespace } from './text'
 
-/** A front matter fence: three dashes, then only spaces or tabs (as the editor and preview read it). */
 export const FRONT_MATTER_FENCE = /^---[ \t]*$/
-/** The whitespace an excerpt folds into one space. */
 const BLANKS = /[ \t\n\r\f\v]+/g
-/** An alert's marker line in a quote, as the preview reads it. */
 const ALERT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*$/i
-/** Most characters a reference label holds. */
 const MAX_LABEL_CHARS = 999
 
 const isSpace = (c: string | undefined) => c === ' ' || c === '\t'
@@ -34,30 +19,23 @@ const isLetter = (c: string | undefined) => c !== undefined && /^[A-Za-z]$/.test
 const isDigit = (c: string | undefined) => c !== undefined && c >= '0' && c <= '9'
 const PUNCTUATION = new Set('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~')
 const isPunctuation = (c: string | undefined) => c !== undefined && PUNCTUATION.has(c)
-/** Unicode whitespace (as Rust's `char::is_whitespace`); the start or end of a line counts. */
 const isWhite = (c: string | undefined) => c === undefined || isWhitespace(c)
-/** A letter or a digit in any script (as Rust's `char::is_alphanumeric`). */
 const isAlnum = (c: string | undefined) => c !== undefined && /[\p{Alphabetic}\p{N}]/u.test(c)
-/** For emphasis: anything that is neither whitespace nor a letter or digit. */
 const isMark = (c: string | undefined) => !isWhite(c) && !isAlnum(c)
 
-/** A run of `*`, `_` or `~` that may open or close emphasis; what is left unpaired shows. */
 interface Delimiter {
   char: string
   open: boolean
   close: boolean
-  /** How many of its characters are not paired yet. */
   left: number
 }
 type Piece = string | Delimiter
 
-/** A line of a paragraph to read inline, a line of code, or the end of a paragraph. */
 type Op =
   | { kind: 'text'; line: string[]; table: boolean; start: boolean }
   | { kind: 'code'; text: string }
   | { kind: 'end' }
 
-/** The readable text of `markdown`; see the top of this file. */
 export function readableText(markdown: string): string {
   const lines = markdown.split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l))
   let first = 0
@@ -67,9 +45,7 @@ export function readableText(markdown: string): string {
   }
   const { ops, labels } = blocks(lines.slice(first))
 
-  // Inline markers next, once every link reference is known.
   const out: string[] = []
-  // The paragraph being read: emphasis pairs within it.
   let paragraph: Piece[] = []
   for (const op of ops) {
     if (op.kind === 'end') {
@@ -86,27 +62,17 @@ export function readableText(markdown: string): string {
   return out.join('\n').replace(BLANKS, ' ').replace(/^ | $/g, '')
 }
 
-/**
- * The block structure of `body`: its lines with block markers taken out
- * (code fences, headings, quotes, lists, breaks, tables, definitions, HTML
- * comment blocks, alert markers), and the labels of its link reference
- * definitions.
- */
 function blocks(body: readonly string[]): { ops: Op[]; labels: Set<string> } {
   const ops: Op[] = []
   const labels = new Set<string>()
-  // A paragraph is open, and whether it started on a list item.
   let open = false
   let listParagraph = false
   const end = () => {
     if (open) ops.push({ kind: 'end' })
     open = false
   }
-  // An open code fence: its character, its length, and the quote markers before it.
   let fence: { char: string; length: number; quotes: number } | null = null
-  // Inside an HTML comment block, up to the line that closes it.
   let comment = false
-  // Inside a table: from its header row (a delimiter row follows) to a blank line.
   let table = false
   for (const [l, raw] of body.entries()) {
     if (comment) {
@@ -182,13 +148,7 @@ function blocks(body: readonly string[]): { ops: Op[]; labels: Set<string> } {
   return { ops, labels }
 }
 
-/**
- * The text of a paragraph's pieces: delimiters that pair come out, two
- * characters at a time while both runs have two, else one; what is left of
- * a run shows.
- */
 function render(pieces: Piece[]): string {
-  // Openers waiting for a closer, by character.
   const open: Record<string, number[]> = { '*': [], _: [], '~': [] }
   for (const [k, piece] of pieces.entries()) {
     if (typeof piece === 'string') continue
@@ -213,24 +173,18 @@ function render(pieces: Piece[]): string {
   return pieces.map((p) => (typeof p === 'string' ? p : p.char.repeat(p.left))).join('')
 }
 
-/**
- * A reference label as definitions and links compare it, case and spacing
- * ignored; null when it is blank or too long to be one.
- */
 function normalizeLabel(label: readonly string[]): string | null {
   if (label.length > MAX_LABEL_CHARS) return null
   const key = label.join('').replace(BLANKS, ' ').replace(/^ | $/g, '').toLowerCase()
   return key === '' ? null : key
 }
 
-/** How many `char` follow one another from `at`. */
 function runOf(chars: readonly string[], at: number, char: string): number {
   let end = at
   while (chars[end] === char) end += 1
   return end - at
 }
 
-/** Leading whitespace and up to `quotes` quote markers: a line of code in a quote. */
 function stripQuotes(line: string[], quotes: number): { line: string[]; quotes: number } {
   let at = 0
   let found = 0
@@ -242,12 +196,7 @@ function stripQuotes(line: string[], quotes: number): { line: string[]; quotes: 
   }
 }
 
-/**
- * Leading whitespace, quote markers, list markers and task boxes, nested in
- * any order; also how many quote markers there were and whether a list
- * marker was among them. In a paragraph (`paragraph`), only an ordered list
- * starting at 1 begins a list, so a line such as "2019. Then" stays text.
- */
+/** In a paragraph (`paragraph`), only an ordered list starting at 1 begins a list, so a line such as "2019. Then" stays text. */
 function blockMarkers(
   line: string[],
   paragraph: boolean,
@@ -283,7 +232,6 @@ function blockMarkers(
     at += marker
     list = true
     while (isSpace(line[at])) at += 1
-    // A task box right after a list marker.
     const box = line[at + 1]
     if (
       line[at] === '[' &&
@@ -295,10 +243,6 @@ function blockMarkers(
   }
 }
 
-/**
- * A thematic break (three or more of `-*_`, spaces allowed) or, under a
- * paragraph (`paragraph`), a setext underline (`=` or `-` repeated).
- */
 function isBreak(line: readonly string[], paragraph: boolean): boolean {
   const mark = line[0]
   if (mark !== '=' && mark !== '-' && mark !== '*' && mark !== '_') return false
@@ -307,7 +251,6 @@ function isBreak(line: readonly string[], paragraph: boolean): boolean {
   return mark !== '=' && line.filter((c) => c === mark).length >= 3
 }
 
-/** A table's delimiter row, such as `|---|:-:|`. */
 function isDelimiterRow(line: readonly string[]): boolean {
   return (
     line.includes('|') &&
@@ -316,11 +259,6 @@ function isDelimiterRow(line: readonly string[]): boolean {
   )
 }
 
-/**
- * A line that defines a link reference (`[label]: destination "title"`):
- * its normalized label; a footnote (`[^label]: text`): where its text
- * starts; else null.
- */
 function definition(line: readonly string[]): string | number | null {
   if (line[0] !== '[') return null
   const close = line.indexOf(']')
@@ -330,7 +268,6 @@ function definition(line: readonly string[]): string | number | null {
   let at = close + 2
   while (isSpace(line[at])) at += 1
   if (line[1] === '^') return at
-  // The destination: <...>, or text up to a space.
   const start = at
   if (line[at] === '<') {
     while (at < line.length && line[at] !== '>') at += 1
@@ -342,7 +279,6 @@ function definition(line: readonly string[]): string | number | null {
   return at === line.length || isTitle(line, at, line.length) ? label : null
 }
 
-/** Whether `from` to `to` (spaces around allowed) is a link title: "...", '...' or (...). */
 function isTitle(c: readonly string[], from: number, to: number): boolean {
   let end = to
   while (end > from && isSpace(c[end - 1])) end -= 1
@@ -350,12 +286,7 @@ function isTitle(c: readonly string[], from: number, to: number): boolean {
   return closer !== undefined && end - from >= 2 && c[end - 1] === closer
 }
 
-/**
- * From each position of a line (and its end): the next space or tab, the
- * next character that is neither, and the next unescaped `<` or `>`; the
- * line's length when there is none. With these a destination is checked in
- * constant time, however many links share a long run of text.
- */
+/** With these a destination is checked in constant time, however many links share a long run of text. */
 interface Ahead {
   space: Int32Array
   solid: Int32Array
@@ -383,7 +314,6 @@ function aheadOf(c: readonly string[]): Ahead {
   return { space, solid, angle }
 }
 
-/** Whether `from` to `to` (inside a link's parentheses) is a destination and an optional title. */
 function isDestination(c: readonly string[], ahead: Ahead, from: number, to: number): boolean {
   let at = Math.min(ahead.solid[from]!, to)
   if (at < to && c[at] === '<') {
@@ -396,7 +326,6 @@ function isDestination(c: readonly string[], ahead: Ahead, from: number, to: num
   return at === to || isTitle(c, at, to)
 }
 
-/** The text of an ATX heading without its hashes; null when the line is no heading. */
 function stripHeading(line: string[]): string[] | null {
   const level = runOf(line, 0, '#')
   if (level === 0 || level > 6 || (line[level] !== undefined && !isSpace(line[level]))) return null
@@ -410,12 +339,7 @@ function stripHeading(line: string[]): string[] | null {
   return line.slice(start, end)
 }
 
-/**
- * Inline markers out of one line, as pieces of text and emphasis
- * delimiters. `labels` are the defined link references; `table` turns
- * pipes into spaces. `start`: the line opens a comment block, so its text
- * ends at the unclosed `<!--`; elsewhere an unclosed `<!--` is text.
- */
+/** `start`: the line opens a comment block, so its text ends at the unclosed `<!--`; elsewhere an unclosed `<!--` is text. */
 function inline(
   c: readonly string[],
   labels: ReadonlySet<string>,
@@ -442,7 +366,6 @@ function inline(
     nextSame[r] = lastOf.get(run.length)
     lastOf.set(run.length, r)
   }
-  // Code span start -> its closing run's start.
   const spans = new Map<number, number>()
   for (let r = 0; r < runs.length;) {
     const close = nextSame[r]
@@ -477,17 +400,11 @@ function inline(
     else if (ch === ')' && parens.length > 0) paren.set(parens.pop()!, i)
     i += 1
   }
-  /** Whether the text from `from` to `to` names a link reference definition. */
   const defined = (from: number, to: number) => {
     if (labels.size === 0 || to - from > MAX_LABEL_CHARS) return false
     const key = normalizeLabel(c.slice(from, to))
     return key !== null && labels.has(key)
   }
-  /**
-   * The end of a link's destination or reference, when `[` at `open` starts
-   * one: `(destination "title")`, `[label]` naming a definition, `[]` after
-   * a text that names one, or the text alone naming one.
-   */
   let tables: Ahead | undefined
   const linkEnd = (open: number): number | undefined => {
     const close = bracket.get(open)
@@ -506,7 +423,6 @@ function inline(
     return defined(open + 1, close) ? close : undefined
   }
 
-  // Where each HTML comment's `-->` is, for the next one from a position.
   const commentEnds: number[] = []
   if (c.includes('<')) {
     for (let k = 0; k + 2 < n; k += 1)
@@ -520,8 +436,6 @@ function inline(
 
   const pieces: Piece[] = []
   let text = ''
-  // Where to go on from a link text's closing bracket: past its destination;
-  // and those closing brackets still ahead, innermost last.
   const resume = new Map<number, number>()
   const ahead: number[] = []
   const goOn = (from: number, to: number) => {
@@ -648,11 +562,7 @@ function inline(
   return pieces
 }
 
-/**
- * Where the shown text of `[[target]]` or `[[target|label]]` starts, given
- * the text between the double brackets (`from` to `to`): the label, else the
- * target. Undefined when that text holds a bracket: then it is no such link.
- */
+/** Undefined when the text between the brackets holds a bracket: then it is no such link. */
 function wikiText(c: readonly string[], from: number, to: number): number | undefined {
   let label: number | undefined
   for (let k = from; k < to; k += 1) {
@@ -662,18 +572,11 @@ function wikiText(c: readonly string[], from: number, to: number): number | unde
   return label ?? from
 }
 
-/** Whether `from` to `to` is a footnote label: no whitespace and no brackets. */
 function footnote(c: readonly string[], from: number, to: number): boolean {
   for (let k = from; k < to; k += 1) if (isSpace(c[k]) || c[k] === '[' || c[k] === ']') return false
   return from < to
 }
 
-/**
- * What a `<` at `at` opens: an HTML comment that does not close on this
- * line, a comment or tag to drop (up to `end`, its `>`), an autolink whose
- * address to keep, or nothing (undefined). `commentEnd` finds the next
- * `-->` from a position.
- */
 function htmlEnd(
   c: readonly string[],
   at: number,

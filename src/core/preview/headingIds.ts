@@ -4,15 +4,12 @@
 import type { Element, Root, RootContent } from 'hast'
 import { PREVIEW_API_VERSION, type PreviewRenderer } from './registry'
 
-/** The characters a slug keeps: letters, marks, numbers, `_`, `-` and spaces. */
 const DROPPED = /[^\p{L}\p{M}\p{N}\p{Pc}\- ]/gu
 
-/** The slug of heading text; empty when nothing is left. */
 export function slug(text: string): string {
   return text.toLowerCase().replace(DROPPED, '').replace(/ /g, '-')
 }
 
-/** Makes slugs unique: the first `a` is `a`, then `a-1`, `a-2`. */
 export function createSlugger(): (text: string) => string {
   const used = new Map<string, number>()
   return (text) => {

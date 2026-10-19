@@ -12,7 +12,6 @@ import { GRAMMARS, GRAMMAR_ALIASES } from './grammars'
 const lowlight = createLowlight()
 const loading = new Map<string, Promise<void>>()
 
-/** The grammar `language` names (a grammar or an alias of one), or null. */
 function grammarName(language: string): string | null {
   const key = language.toLowerCase()
   if (Object.hasOwn(GRAMMARS, key)) return key
@@ -39,11 +38,7 @@ function ensure(name: string): Promise<void> {
   return pending
 }
 
-/**
- * `code` highlighted as `language`, or null when there is no such grammar.
- * Each operator (`!=`, `=>`) stays in one element, so a code font can draw
- * it as a ligature.
- */
+/** Each operator (`!=`, `=>`) stays in one element, so a code font can draw it as a ligature. */
 export async function highlight(language: string, code: string): Promise<ElementContent[] | null> {
   const name = grammarName(language)
   if (!name) return null

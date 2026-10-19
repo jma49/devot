@@ -1,33 +1,16 @@
-// HTML export, Copy as HTML and printing: a note's preview (the sanitized
-// tree `renderPreview` gives) as a page of its own. No scripts: what the
-// preview's page adds itself becomes plain markup.
+// HTML export, Copy as HTML and printing: a note's preview (the sanitized tree `renderPreview` gives) as a page of its own. No scripts: what the preview's page adds
+// itself becomes plain markup.
 //
 // Rules:
-// - Images of attachments (`devot://file/<id>`, a UUIDv7 as Rust accepts)
-//   get a placeholder token in their `src`, one per attachment
-//   (`devot-image-<nonce>-<n>`); Rust puts the bytes in as `data:` URIs
-//   (src-tauri/src/export.rs), so the page stands alone. Any other image
-//   stays as written. The preview already moved an image's size preset
-//   (`#half`) from its URL to a class (`image-size-half`), which the page's
-//   styles size as the preview does.
-// - A page to print (Print… and Export as PDF…) loads nothing from the web,
-//   so no slow host holds a print job up: its policy allows only `data:` images,
-//   and each image from the web becomes a link to it, its alt text (else its
-//   URL) as the link's text (only that text inside a link, since links do
-//   not nest); a `picture`'s other sources are left out. An exported page
-//   keeps them as images, which load where the page is opened.
-// - Islands (Mermaid diagrams, which the page draws) take the SVG the UI
-//   drew, cleaned again here (no scripts, foreign objects, event handlers
-//   or links out of the drawing, and no `<` in its CSS, which could end the
-//   style element); without one, the diagram's source shows as a code block.
-// - Video embeds and embeds that load on a click become links to them.
-// - Colour swatches get their colour as an inline style.
-// - Attributes the preview uses for itself (`data-*`) are left out.
-// - Simple HTML (Copy as Simple HTML) also leaves out every class and
-//   style, headings' ids, front matter, swatches, code block headers and highlighting,
-//   and diagrams' drawings (their source shows as code), and alerts become block quotes with a bold title. A
-//   sized image gets no `width` either (Half has no pixel width to give):
-//   it shows at its own size, as in other Markdown tools.
+// - Images of attachments (`devot://file/<id>`) get a placeholder token in their `src` (`devot-image-<nonce>-<n>`); Rust puts the bytes in as `data:` URIs
+//   (src-tauri/src/export.rs), so the page stands alone. The preview already moved an image's size preset (`#half`) to a class (`image-size-half`).
+// - A page to print (Print... and Export as PDF...) loads nothing from the web, so no slow host holds a print job up: each web image becomes a link to it (its alt text,
+//   else its URL, as the text); a `picture`'s other sources are left out. An exported page keeps them as images.
+// - Islands (Mermaid diagrams) take the SVG the UI drew, cleaned again here (no scripts, foreign objects, event handlers, links out, or `<` in its CSS, which could end
+//   the style element); without one, the diagram's source shows as a code block.
+// - Video embeds and embeds that load on a click become links. Colour swatches get their colour as an inline style. `data-*` attributes are left out.
+// - Simple HTML (Copy as Simple HTML) also leaves out every class and style, heading ids, front matter, swatches, code block headers and highlighting, and diagram
+//   drawings; alerts become block quotes with a bold title. A sized image gets no `width` either (Half has no pixel width to give).
 
 import type { Element, ElementContent, Properties, Root, RootContent } from 'hast'
 import { fromHtml } from 'hast-util-from-html'
@@ -40,33 +23,23 @@ export interface PageImage {
 }
 
 export interface PageOptions {
-  /** A fresh random value for this page: 32 lowercase hex digits. */
   nonce: string
-  /** Simple HTML (see the rules at the top). */
   simple?: boolean
-  /** An island's drawing as SVG markup, or null for its source as code. */
   island?: (kind: string, source: string) => string | null
-  /** Where a link to a note goes instead of `devot://note/<id>`, if anywhere. */
   noteHref?: (noteId: string) => string | null
-  /** A page to print: images from the web become links (see the rules at the top). */
   print?: boolean
 }
 
 export interface PageBody {
-  /** The note's markup. */
   html: string
-  /** The image placeholders in it. */
   images: PageImage[]
 }
 
 const NOTE_URL = /^devot:\/\/note\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 const NONCE = /^[0-9a-f]{32}$/
-/** An image from the web (the preview allows no other remote scheme). */
 const WEB_URL = /^https?:/i
-/** A heading element: the preview gives each an id to link to. */
 const HEADING = /^h[1-6]$/
 
-/** SVG elements a drawing never keeps (as the preview's own copy, preview/mermaid.ts). */
 const DROPPED_SVG = new Set(['script', 'foreignObject', 'iframe', 'image', 'use'])
 
 const el = (tagName: string, properties: Properties, children: ElementContent[] = []): Element => ({
@@ -91,7 +64,6 @@ const textOf = (node: ElementContent): string =>
 
 const link = (href: string): Element => el('p', {}, [el('a', { href }, [txt(href)])])
 
-/** A drawing's SVG markup as a clean tree, or null when it is not one. */
 function drawing(markup: string): Element | null {
   const tree = fromHtml(markup, { fragment: true })
   const svg = tree.children.find((c): c is Element => c.type === 'element')
@@ -118,10 +90,6 @@ function drawing(markup: string): Element | null {
   return clean(svg)
 }
 
-/**
- * The note's preview tree as page markup (see the rules at the top), with
- * the image placeholders it uses. The tree is not changed.
- */
 export function pageBody(tree: Root, options: PageOptions): PageBody {
   if (!NONCE.test(options.nonce)) throw new Error('E_EXPORT_NONCE_INVALID')
   const simple = options.simple ?? false
@@ -136,7 +104,6 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
   }
 
   const print = options.print ?? false
-  /** `node` as page markup; `inLink`: it is inside a link. */
   const convert = (node: RootContent, inLink = false): RootContent[] => {
     if (node.type !== 'element') return node.type === 'text' ? [node] : []
     const names = classes(node)
@@ -227,28 +194,14 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
   }
 }
 
-/** Text as HTML text. */
 const escapeText = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-/**
- * What an exported page may load: images from itself and the web, its own
- * styles and nothing else (no scripts, frames, fonts or connections).
- */
 export const PAGE_CSP = "default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'"
 
-/**
- * What a page to print may load: images from itself (attachments are put in
- * as `data:` URIs) and its own styles, nothing from the web. Rust prints
- * every page under this same policy, whatever the page says
- * (`PRINT_POLICY` in src-tauri/src/native/macos.rs).
- */
 export const PRINT_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'"
 
-/**
- * A page of its own around a note's markup (`pageBody`), styled by `css`;
- * `print`: a page to print, under PRINT_CSP.
- */
+/** `print`: a page to print, under PRINT_CSP. */
 export function htmlDocument(page: {
   title: string
   body: string

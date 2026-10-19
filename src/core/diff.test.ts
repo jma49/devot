@@ -5,7 +5,6 @@ import { foldUnchanged, lineDiff, type DiffLine } from './diff'
 const side = (lines: DiffLine[], drop: DiffLine['kind']) =>
   lines.filter((l) => l.kind !== drop).map((l) => l.text)
 
-/** The length of a longest common subsequence, by dynamic programming. */
 function lcs(a: string[], b: string[]): number {
   const row = new Array<number>(b.length + 1).fill(0)
   for (const x of a) {

@@ -1,58 +1,21 @@
-// The Markdown mirror: Devot keeps a folder the user picked up to date with
-// every note as a Markdown file, so other tools (editors, grep, Git,
-// Spotlight, agents) read the notes without an export. SQLite stays the
-// source of truth: the folder is written by Devot and never read back.
+// The Markdown mirror: a folder the user picked, kept up to date with every note as a Markdown file, laid out like an export of all notebooks (export.ts).
+// SQLite stays the source of truth: the folder is written by Devot and never read back.
 //
-// The folder looks like an export of every notebook at once (export.ts):
-// one folder per notebook (sub-notebooks nested), one `.md` file per note
-// named after its title, one `attachments` folder at the top, and Devot's
-// front matter where import would not read a note's title, tags or status
-// back, so importing the folder gives the same notes. Notes in no notebook
-// sit at the top. Templates and the Trash are left out.
+// Rust holds the folder and its manifest (`.devot-mirror.json`, src-tauri/src/mirror.rs) and runs the operations planned here, re-checking each against the manifest
+// and the disk. Devot moves or deletes only paths the manifest lists, and only while they still hold what it wrote; a file changed outside Devot is kept under a
+// new name and dropped from the manifest.
 //
-// Rust holds the folder and its manifest (`.devot-mirror.json` in it; see
-// src-tauri/src/mirror.rs) and runs the operations planned here, one by
-// one, checking each against the manifest and the disk again before it
-// acts. The manifest maps note and attachment IDs to the paths Devot wrote
-// and the SHA-256 of each file. Devot moves or deletes only those paths,
-// and only while they hold what it wrote: a file changed outside Devot is
-// kept under a new name (`Plan (edited outside Devot).md`; Rust names it),
-// dropped from the manifest so it is never touched again, and Devot writes
-// its own version.
-//
-// Rules of the plan (`planMirror`, a pure function of the database, the
-// manifest and what is known about the disk):
-// - Names stay: a note keeps its file, and a notebook its folder, while the
-//   name still fits its title (its file-safe stem, or the stem numbered), so
-//   a change touches only the files it affects. A new name is the first of
-//   `Plan.md`, `Plan 2.md`, ... free in its folder: not held by a file or
-//   folder of the manifest (a moving one keeps its old name until the next
-//   pass), nor given in this pass, nor anything else on disk (a folder Devot
-//   did not make may be shared, a file never). Names are compared as export
-//   numbers them (`nameKey`): two names macOS takes for one file, whatever
-//   their case or the form of their accents, are one name (as, to be safe,
-//   are two apart only by a compatibility form, `x²` and `x2`). A folder
-//   keeps its name only across what macOS itself folds (`fileKey`).
-// - A file the manifest does not list that holds exactly what Devot would
-//   write there is taken back (Rust adopts it), not written again under
-//   another name: a batch's files reach the disk before its manifest does,
-//   so a crash or a quit in between leaves them unlisted, as does a folder
-//   chosen again after its manifest was lost. An attachment's copy likewise,
-//   by the hash of its bytes (asked only for a file in the way of a copy).
-// - A path that reads `other` is a link or lies under something that is
-//   not a real folder: the folders on the way are asked. A notebook's
-//   folder that is no longer a real folder is lost, and the notebook gets a
-//   new one; `attachments` cannot be replaced, so while it is not a real
-//   folder only names are kept there, as with Include Attachments off.
-// - A note's file is written only when what it is written from (`source`:
-//   the note's update time, title, status, tags, path and the paths of the
-//   attachments it shows) changed, or its file is missing or was changed.
-// - Attachments: one copy for each attachment a mirrored note shows (with
-//   Include Attachments), copied once and removed when no mirrored note
-//   shows it any more. Without it, links still point at `attachments/<name>`
-//   as in export and the manifest keeps the name, but no bytes are copied.
-// - Work comes in slices (`limit`): a first mirror of many notes reads,
-//   renders and writes a few hundred notes at a time.
+// Rules of the plan (`planMirror`, pure):
+// - Names stay: a note keeps its file and a notebook its folder while the name still fits its title. A new name is the first of `Plan.md`, `Plan 2.md`, ... free in
+//   its folder (not in the manifest, not given in this pass, nothing else on disk). Names are compared by `nameKey`, so two names macOS takes for one file are one
+//   name; a folder keeps its name only across what macOS folds (`fileKey`).
+// - An unlisted file that holds exactly what Devot would write is adopted, not rewritten: a batch's files reach the disk before its manifest, so a crash leaves
+//   them unlisted. An attachment copy is matched by the hash of its bytes.
+// - A path that reads `other` is a link or lies under a non-folder: the folders on the way are asked. A notebook folder that is no longer a real folder is lost and
+//   replaced; `attachments` cannot be, so only names are kept there.
+// - A note's file is written only when its `source` changed, or the file is missing or was changed.
+// - Attachments are copied once per attachment a mirrored note shows (with Include Attachments) and removed when none does; without it only names are kept.
+// - Work comes in slices (`limit`), so a first mirror of many notes does a few hundred at a time.
 
 import { buildBookTree, TEMPLATES_BOOK_ID, type BookNode } from './books'
 import { errorCode } from './errors'
@@ -67,76 +30,46 @@ import {
 import { sha256Hex } from './sha256'
 import type { NoteStatus, NoteSummary, StorageAdapter, TagRecord, BookRecord } from './storage'
 
-// --- The manifest --------------------------------------------------------------
-
-/** A note's file in the mirror, as the manifest records it. */
 export interface MirrorNoteEntry {
   path: string
-  /** The SHA-256 (hex) of the file Devot wrote. */
   sha256: string
-  /** Its size in bytes. */
   size: number
-  /** What it was written from (see `noteSource`). */
   source: string
-  /** The attachments its Markdown shows. */
   files: string[]
 }
 
-/** An attachment in the mirror, as the manifest records it. */
 export interface MirrorFileEntry {
-  /** `attachments/<name>`. */
   path: string
   /** The SHA-256 of the copy Devot wrote; null: no copy, only the name (Include Attachments off). */
   sha256: string | null
   size: number
 }
 
-/** Everything Devot wrote in the folder, by note, attachment and notebook ID. */
 export interface MirrorManifest {
   notes: Record<string, MirrorNoteEntry>
   files: Record<string, MirrorFileEntry>
-  /** The folder of each notebook that holds mirrored notes (at any depth). */
   books: Record<string, string>
 }
 
 export const emptyManifest = (): MirrorManifest => ({ notes: {}, files: {}, books: {} })
 
-/**
- * What is at a path in the folder: a regular file's SHA-256 (hex), a folder
- * (`dir`), anything else (`other`: a link, say), or nothing (null).
- */
+/** A regular file's SHA-256 (hex), `dir`, `other` (a link, say), or null for nothing. */
 export type DiskState = string | 'dir' | 'other' | null
 
 const DIR = 'dir'
 const OTHER = 'other'
 
-/** Whether a disk state is a regular file (its hash). */
 const isFile = (state: DiskState | undefined): state is string =>
   typeof state === 'string' && state !== DIR && state !== OTHER
 
-// --- Operations ------------------------------------------------------------------
-
 export type MirrorEntryKind = 'note' | 'file'
 
-/** What Rust does in the folder, one operation at a time (src-tauri/src/mirror.rs). */
 export type MirrorOp =
-  /**
-   * The file at `path` was changed outside Devot: it stays, renamed to a free
-   * "edited outside Devot" name, and leaves the manifest.
-   */
   | { kind: 'keep'; entry: MirrorEntryKind; id: string; path: string }
   /** The entry leaves the manifest; nothing on disk changes (its file is gone, or not Devot's). */
   | { kind: 'forget'; entry: MirrorEntryKind; id: string }
-  /** Deletes Devot's file at `path`, which must still hold `sha256`, and drops the entry. */
   | { kind: 'remove'; entry: MirrorEntryKind; id: string; path: string; sha256: string }
-  /**
-   * Note `id` at `path` with the content whose SHA-256 is `sha256`: `text`,
-   * left out when its file at `path` holds it already. `from`: its file now
-   * (it must still hold what the manifest says, or `sha256`), moved there;
-   * null when it has none (any old entry's file must be gone). A file
-   * already at `path` that is not Devot's is never replaced, unless it holds
-   * exactly `text`: then Devot takes it as its own.
-   */
+  /** `from`: the note's file now (must still hold what the manifest says, or `sha256`), moved to `path`. A file already at `path` that is not Devot's is never replaced unless it holds exactly `text`: then Devot adopts it. */
   | {
       kind: 'note'
       id: string
@@ -147,27 +80,19 @@ export type MirrorOp =
       source: string
       files: string[]
     }
-  /** Attachment `id` at `path`: copied from the database (`copy`), or only its name kept. */
   | { kind: 'file'; id: string; path: string; copy: boolean }
-  /** Records the folder of notebook `id` (null: forgets it). */
   | { kind: 'book'; id: string; path: string | null }
 
-/** What Rust did with one operation. */
 export interface MirrorResult {
-  /** The error code, when the operation was not done. */
   code?: string
   /** E_MIRROR_EXISTS and E_MIRROR_CHANGED: the path in the way, and what is there now. */
   path?: string
   state?: DiskState
-  /** note and file operations: the size of the file (0 for a name only). */
   size?: number
-  /** file operations that copied: the copy's SHA-256. */
   sha256?: string | null
-  /** keep: the path the file was kept under. */
   kept?: string
 }
 
-/** The manifest after `op` succeeded with `result`. */
 export function applyResult(manifest: MirrorManifest, op: MirrorOp, result: MirrorResult): void {
   switch (op.kind) {
     case 'keep':
@@ -198,9 +123,6 @@ export function applyResult(manifest: MirrorManifest, op: MirrorOp, result: Mirr
   }
 }
 
-// --- Note files ------------------------------------------------------------------
-
-/** What a note's file is rendered from (see `renderMirrorText`). */
 export interface MirrorTextSpec {
   id: string
   /** Identifies the inputs: a text rendered under another key is stale. */
@@ -209,21 +131,17 @@ export interface MirrorTextSpec {
   bodyMd: string
   tags: string[]
   status: NoteStatus
-  /** The file's path in the folder (its rendering is kept by note and path). */
   path: string
   fileName: string
-  /** Each attachment the note shows, with its path from the note's folder. */
   paths: [string, string][]
 }
 
-/** A note's file: its Markdown and the SHA-256 the manifest records. */
 export interface MirrorText {
   key: string
   text: string
   sha256: string
 }
 
-/** Renders a note's file (export's Markdown file for it, see export.ts). */
 export function renderMirrorText(spec: MirrorTextSpec): MirrorText {
   const text = markdownFile(
     { title: spec.title, bodyMd: spec.bodyMd, tags: spec.tags, status: spec.status },
@@ -233,7 +151,6 @@ export function renderMirrorText(spec: MirrorTextSpec): MirrorText {
   return { key: spec.key, text, sha256: sha256Hex(text) }
 }
 
-/** A short hash of `text` (64 bits, hex); it tells whether a note's inputs changed. */
 function digest(text: string): string {
   let h1 = 0xdeadbeef
   let h2 = 0x41c6ce57
@@ -247,11 +164,7 @@ function digest(text: string): string {
   return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0')
 }
 
-/**
- * What a note's file is written from: its update time (any body change
- * moves it), title, status, tags, path, and the path of each attachment it
- * shows (`-` for one that is not in the database).
- */
+/** Any body change moves the update time, so it stands for the body. `-` marks an attachment not in the database. */
 export function noteSource(
   note: Pick<NoteSummary, 'updatedAt' | 'title' | 'status'>,
   tags: readonly string[],
@@ -275,18 +188,12 @@ export function noteSource(
   return source
 }
 
-// --- Paths -----------------------------------------------------------------------
-
 const joinPath = (folder: string, name: string) => (folder ? `${folder}/${name}` : name)
 const parentOf = (path: string) => path.slice(0, Math.max(path.lastIndexOf('/'), 0))
 const nameOf = (path: string) => path.slice(path.lastIndexOf('/') + 1)
-/**
- * A path's key: its names' keys (`nameKey`), joined by a character no name
- * holds, so two paths with one key name one file.
- */
+/** Names' keys joined by a character no name holds, so two paths with one key name one file. */
 const pathKey = (path: string) => path.split('/').map(nameKey).join('\u0000')
 
-/** Whether `name` is `stem` + `ext`, or `stem N` + `ext` with N of 2 or more. */
 function fits(name: string, stem: string, ext: string): boolean {
   if (!name.endsWith(ext)) return false
   const base = name.slice(0, name.length - ext.length)
@@ -294,18 +201,15 @@ function fits(name: string, stem: string, ext: string): boolean {
   return base.startsWith(`${stem} `) && /^(?:[2-9]|[1-9]\d+)$/.test(base.slice(stem.length + 1))
 }
 
-/** `name` with ` n` before its extension (`board 2.png`), as Rust numbers attachments. */
 export function numberedName(name: string, n: number): string {
   if (n <= 1) return name
   const dot = name.lastIndexOf('.')
   return dot > 0 ? `${name.slice(0, dot)} ${n}${name.slice(dot)}` : `${name} ${n}`
 }
 
-/** Child names of folders, by their keys (`nameKey`, `pathKey`). */
 class Names {
   private readonly byFolder = new Map<string, Set<string>>()
 
-  /** Marks every folder on `path` and its last name as taken. */
   addPath(path: string): void {
     let folder = ''
     for (const part of path.split('/')) {
@@ -326,52 +230,29 @@ class Names {
   }
 }
 
-// --- The plan ----------------------------------------------------------------------
-
 export interface MirrorPlanInput {
-  /** Live notes, as `StorageAdapter.listNotes` lists them (templates are left out here). */
   notes: readonly NoteSummary[]
   books: readonly BookRecord[]
   tags: readonly TagRecord[]
   manifest: MirrorManifest
   includeAttachments: boolean
-  /** The name of a note without a title (the UI's "Untitled"). */
   untitled: string
-  /** Note bodies (Markdown snapshots) by ID, as far as known. */
   bodies: ReadonlyMap<string, string>
-  /** Attachments by ID: their file name (Rust's, see `mirror_files`), or null when not in the database. */
   files: ReadonlyMap<string, string | null>
-  /**
-   * Attachments by ID: the SHA-256 of their bytes (Rust's, see
-   * `mirror_hashes`), or null when not in the database; asked only for one
-   * whose copy has a file in the way.
-   */
+  /** Asked only for attachments whose copy has a file in the way. */
   hashes: ReadonlyMap<string, string | null>
-  /**
-   * Rendered note files by note ID, then by the path each was rendered for
-   * (see `needs.texts`): a note may be rendered for a place it does not take
-   * in the end, to tell whether a file there is its own.
-   */
+  /** A note may be rendered for a place it does not take in the end, to tell whether a file there is its own. */
   texts: ReadonlyMap<string, ReadonlyMap<string, MirrorText>>
-  /** What is on disk at paths in the folder, as far as known. */
   disk: ReadonlyMap<string, DiskState>
-  /** Notes to leave as they are in this pass (their work failed). */
   skip?: ReadonlySet<string>
-  /** At most this many notes get new files in one plan; the rest wait (`deferred`). */
   limit?: number
-  /** Results of pure steps kept between plans of one pass (see `createMirrorMemo`). */
   memo?: MirrorMemo
 }
 
-/**
- * What one pass's plans compute again and again for the same inputs (file
- * stems of titles, note sources), kept so a plan over many notes stays
- * short. Only a cache: a plan gives the same result with or without it.
- */
+/** Cache only; a plan gives the same result without it. */
 export interface MirrorMemo {
   stems: Map<string, string>
   sources: Map<string, string>
-  /** The attachments each body shows, by body. */
   links: Map<string, string[]>
 }
 
@@ -382,11 +263,6 @@ export const createMirrorMemo = (): MirrorMemo => ({
 })
 
 export interface MirrorPlan {
-  /**
-   * What the plan still needs: note bodies, attachment names and hashes,
-   * rendered files and disk states. The operations are final only when all
-   * five are empty.
-   */
   needs: {
     bodies: string[]
     files: string[]
@@ -394,9 +270,7 @@ export interface MirrorPlan {
     texts: MirrorTextSpec[]
     paths: string[]
   }
-  /** The operations, in the order to run them. */
   ops: MirrorOp[]
-  /** Notes left for a later plan by `limit`. */
   deferred: number
 }
 
@@ -406,7 +280,6 @@ interface Place {
   depth: number
 }
 
-/** The mirror's operations for the database as it is (see the rules at the top). */
 export function planMirror(input: MirrorPlanInput): MirrorPlan {
   const { manifest, disk } = input
   const skip = input.skip ?? new Set<string>()
@@ -428,7 +301,6 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
   const mirrored = new Map(notes.map((n) => [n.id, n]))
   const bookOf = (note: NoteSummary) =>
     note.bookId !== null && liveBooks.has(note.bookId) ? note.bookId : null
-  // Tag names (sorted) by tag set, and file stems by title, worked out once.
   const tagLists = new Map<string, string[]>()
   const tagsOf = (note: NoteSummary) => {
     const key = note.tagIds.join()
@@ -474,18 +346,15 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
       for (let folder = parentOf(path); folder; folder = parentOf(folder)) ask(folder)
     }
   }
-  /** A file Devot's entry no longer holds (replaced by a folder or a link). */
   const lost = (path: string) => {
     const state = known(path)
     return state === DIR || state === OTHER
   }
-  /** A notebook's folder, or `attachments`, that is no longer a real folder (a link or a file). */
   const folderLost = (path: string) => {
     const state = known(path)
     return state !== undefined && state !== null && state !== DIR
   }
 
-  // --- Attachments every mirrored note shows, and the path of each.
   const links = input.memo?.links ?? new Map<string, string[]>()
   const linksOf = (body: string) => {
     let ids = links.get(body)
@@ -495,8 +364,6 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
     }
     return ids
   }
-  // A note's body, once read (it is rendered from it), else what it showed
-  // when last written.
   const shown = new Map<string, string[]>()
   for (const note of notes) {
     const body = input.bodies.get(note.id)
@@ -510,26 +377,17 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
       else if (name !== null) wanted.add(id)
     }
   }
-  // The attachments of notes left as they are this pass stay as they are.
   const held = new Set<string>()
   for (const id of skip) for (const fileId of manifest.notes[id]?.files ?? []) held.add(fileId)
-  // While `attachments` is not a real folder, no copy can go there.
   const attachmentsLost = folderLost(ATTACHMENTS_FOLDER)
   const copies = input.includeAttachments && !attachmentsLost
-  /**
-   * Whether a file is the copy of attachment `id` (one a batch wrote before
-   * the manifest listing it was saved), by its bytes' hash: asked when not
-   * known, and until then the file is taken to be the copy (the notes that
-   * show it wait for the answer).
-   */
+  /** Until the answer is known the file is taken to be the copy, and the notes that show it wait. */
   const isCopy = (id: string, state: DiskState | undefined) => {
     if (!copies || !isFile(state)) return false
     const hash = input.hashes.get(id)
     if (hash === undefined) needHashes.add(id)
     return hash === undefined || hash === state
   }
-  // Each wanted attachment's path: its manifest path while it still fits,
-  // else the first free numbered name in `attachments`.
   const fileTaken = new Set<string>()
   const filePath = new Map<string, string>()
   const fileLost = (id: string, entry: MirrorFileEntry) => {
@@ -555,7 +413,6 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
   for (const [id, entry] of Object.entries(manifest.files)) {
     if (fileLost(id, entry)) fileTaken.add(pathKey(entry.path))
   }
-  /** Whether `path` is free for attachment `id`: no other has it, and nothing else is there but its copy. */
   const fileFree = (id: string, path: string) =>
     !fileTaken.has(pathKey(path)) &&
     (attachmentsLost || !foreign.has(pathKey(path)) || isCopy(id, foreign.get(pathKey(path))))
@@ -570,12 +427,7 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
     filePath.set(id, path)
   }
 
-  // --- What a note's file at a place is rendered from.
-  /**
-   * The attachments `note` shows, with their paths from a file `depth`
-   * folders down, and the key of its file at `path`; undefined while one of
-   * them is not decided (its name or its hash not known yet).
-   */
+  /** Undefined while an attachment's name or hash is not known yet. */
   const layoutAt = (note: NoteSummary, path: string, depth: number) => {
     const ids = shown.get(note.id) ?? []
     if (ids.some((id) => input.files.get(id) === undefined || needHashes.has(id))) return undefined
@@ -590,12 +442,7 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
     )
     return { ids, paths, tags, key }
   }
-  /**
-   * Whether a file the manifest does not list, at `path`, holds exactly
-   * what Devot would write there for `note`: by the note rendered for that
-   * very place, so whatever the note was rendered for before, it finds its
-   * own file. Until that is rendered the file is taken to be its own.
-   */
+  /** Rendered for that very place, so whatever the note was rendered for before, it finds its own file. Until rendered the file is taken to be its own. */
   const holdsText = (note: NoteSummary, path: string, depth: number, state: DiskState) => {
     if (!isFile(state)) return false
     const layout = layoutAt(note, path, depth)
@@ -603,7 +450,6 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
     return layout === undefined || text?.key !== layout.key || text.sha256 === state
   }
 
-  // --- Layout: a folder for each notebook that holds notes, a name for each note.
   const notePlace = new Map<string, Place>()
   const bookFolder = new Map<string, string>()
   const byBook = new Map<string | null, NoteSummary[]>()
@@ -625,10 +471,6 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
 
   const place = (folder: string, depth: number, here: NoteSummary[], subs: BookNode[]) => {
     const given = new Set<string>()
-    /**
-     * Whether `name` is free here for a notebook's folder, or for the file
-     * of `note`, whose own path now is `own` (see `ownPath`).
-     */
     const free = (name: string, own: string | undefined, note?: NoteSummary) => {
       const key = nameKey(name)
       if (given.has(key) || (depth === 0 && key === nameKey(ATTACHMENTS_FOLDER))) return false
@@ -647,7 +489,6 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
       // when it holds exactly what Devot would write there for it.
       return note === undefined ? state === DIR : holdsText(note, path, depth, state)
     }
-    /** The note's or notebook's own path when it is in this folder, a name it may take again (a case change). */
     const ownPath = (path: string | undefined, gone: (path: string) => boolean) =>
       path !== undefined && pathKey(parentOf(path)) === pathKey(folder) && !gone(path)
         ? path
@@ -713,7 +554,6 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
   }
   place('', 0, byBook.get(null) ?? [], tree)
 
-  // --- Which notes need a new file.
   const fileMark = (id: string): string => {
     const name = input.files.get(id)
     if (name === undefined) {
@@ -739,20 +579,17 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
     }
     candidates.push(note)
   }
-  // Recently changed notes first; the rest of a large first mirror waits.
   candidates.sort((a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : 1))
   const limit = input.limit ?? Infinity
   const active = candidates.slice(0, limit)
   for (const note of active) if (!input.bodies.has(note.id)) needBodies.add(note.id)
 
-  // --- Operations.
   const keeps: MirrorOp[] = []
   const forgets: MirrorOp[] = []
   const removes: MirrorOp[] = []
   const fileOps: MirrorOp[] = []
   const noteOps: MirrorOp[] = []
   const bookOps: MirrorOp[] = []
-  /** Takes an entry's file out of the mirror: removed while it is Devot's, kept when changed. */
   const takeOut = (kind: MirrorEntryKind, id: string, path: string, sha256: string) => {
     const state = known(path)
     if (state === undefined) return ask(path)
@@ -795,7 +632,6 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
     let from: string | null = null
     let state: DiskState | undefined
     if (entry) {
-      // Unchanged in place: only what the manifest records may change.
       if (entry.path === path && entry.sha256 === text.sha256) {
         state = known(path)
         if (state === undefined || state === entry.sha256) {
@@ -837,8 +673,6 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
       continue
     }
     if (from !== path) {
-      // A new place (its own name in another case too): what is there, and
-      // every folder on the way, must be known.
       ask(path)
       let folder = where.folder
       while (folder && !taken.has(parentOf(folder), nameOf(folder))) {
@@ -862,18 +696,14 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
     })
   }
 
-  // Which attachments stay is known once every one a note shows is known.
   const filesKnown = needFiles.size === 0
   for (const [id, entry] of filesKnown ? Object.entries(manifest.files) : []) {
-    // Shown by a note left as it is this pass: it is left as it is too.
     if (held.has(id) && !wanted.has(id)) continue
     const keepName = wanted.has(id) && filePath.get(id) === entry.path
     if (entry.sha256 === null) {
       if (!keepName) forgets.push({ kind: 'forget', entry: 'file', id })
       continue
     }
-    // A copy goes when no mirrored note shows it, when copies are off, or
-    // when it moved; one changed outside Devot stays under a new name.
     if (!keepName || !copies) takeOut('file', id, entry.path, entry.sha256)
     else {
       const state = known(entry.path)
@@ -922,44 +752,26 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
   }
 }
 
-// --- Running it ----------------------------------------------------------------
-
-/** What a pass learns when it starts (Rust's `mirror_open`). */
 export interface MirrorOpened {
-  /** Changes whenever the folder or Include Attachments changes. */
   generation: number
   includeAttachments: boolean
-  /** The folder's manifest; null when the caller already holds this generation's. */
   manifest: MirrorManifest | null
 }
 
-/** The folder side of the mirror (in the app: Rust, see src-tauri/src/mirror.rs). */
 export interface MirrorHost {
-  /**
-   * Starts a pass: checks the folder (and resumes a paused mirror) and hands
-   * over the manifest unless `known` is its generation. Throws E_MIRROR_OFF,
-   * or the code the mirror paused with.
-   */
+  /** Throws E_MIRROR_OFF, or the code the mirror paused with. */
   open(known: number | null): Promise<MirrorOpened>
-  /** The Markdown snapshots of these notes (live ones only). */
   bodies(ids: readonly string[]): Promise<{ id: string; bodyMd: string }[]>
-  /** The attachments among `ids` that are in the database, with their file names. */
   files(ids: readonly string[]): Promise<{ id: string; name: string }[]>
-  /** The attachments among `ids` that are in the database, with the SHA-256 of their bytes. */
   hashes(ids: readonly string[]): Promise<{ id: string; sha256: string }[]>
-  /**
-   * What is on disk at `paths`; for null, at every manifest path whose file
-   * does not hold what the manifest says (the others are left out).
-   */
+  /** For null, every manifest path whose file does not hold what the manifest says. */
   check(generation: number, paths: readonly string[] | null): Promise<Record<string, DiskState>>
-  /** Runs the operations in order: one result each, up to a failure that stops them all. */
   apply(generation: number, ops: readonly MirrorOp[]): Promise<MirrorResult[]>
 }
 
 export interface MirrorRunnerOptions {
   storage: Pick<StorageAdapter, 'listNotes' | 'listBooks' | 'listTags'>
   host: MirrorHost
-  /** The name of a note without a title. */
   untitled: string
   /** A pass runs this long after the last change... */
   delayMs?: number
@@ -967,52 +779,30 @@ export interface MirrorRunnerOptions {
   maxWaitMs?: number
   /** A paused mirror checks its folder again this often (and on `wake`). */
   retryMs?: number
-  /** Notes rendered and written per slice. */
   slice?: number
-  /** Reports a pass that ended with an error code (logs). */
   onError?: (code: string) => void
   /** Hands the event loop back between steps (the worker answers the UI meanwhile). */
   yieldNow?: () => Promise<void>
 }
 
 export interface MirrorRunner {
-  /** Something the mirror follows changed: a pass runs soon (coalesced). */
   touch(): void
-  /**
-   * The mirror is on (turned on, launched, restored, settings changed): a
-   * full pass runs soon, unless one for `generation` (Rust's, when known)
-   * runs or ran already (a resume starts one itself).
-   */
+  /** A full pass runs soon unless one for `generation` runs or ran already (a resume starts one itself). */
   reconcile(generation?: number): void
-  /** A paused mirror checks its folder now (the window came to the front). */
   wake(): void
-  /**
-   * The mirror is off (or the app quits): nothing more runs until
-   * `reconcile`. A pass running ends after the call it is in (a batch of
-   * operations finishes, so the manifest records it); settles then.
-   */
+  /** A running pass ends after its current batch, so the manifest records it. */
   stop(): Promise<void>
-  /** Settles once no pass runs or waits (tests). */
   idle(): Promise<void>
 }
 
-/** Codes after which the mirror waits for its folder (Rust shows it paused). */
 const PAUSED = /^E_MIRROR_(FOLDER|MANIFEST)_/
-/** Codes for something in the way: the plan learns what is there and tries again. */
 const RETRYABLE = new Set(['E_MIRROR_EXISTS', 'E_MIRROR_CHANGED'])
-/** An operation was planned from a manifest Rust has moved past. */
 const STALE = 'E_MIRROR_STALE'
 /** A safety net: a pass never plans more often than this. */
 const MAX_PLANS = 10_000
-/** Times an entry's operation may meet something in the way in one pass. */
 const MAX_TRIES = 3
-/**
- * Times a note's file may be rendered in one pass: one whose place keeps
- * changing (something new in its way every time) is then left as it is, so
- * it never holds up the others.
- */
+/** Times a note's file may be rendered in one pass; one whose place keeps changing is then left as it is so it never holds up the others. */
 const MAX_RENDERS = 10
-/** The code for a note left as it is because its place never settled. */
 const UNSETTLED = 'E_MIRROR_UNSETTLED'
 const CHUNK = { bodies: 200, files: 1000, hashes: 20, paths: 2000, ops: 200 }
 
@@ -1024,18 +814,11 @@ const chunks = <T>(list: readonly T[], size: number): T[][] => {
   return out
 }
 
-/** One key per manifest entry an operation acts on. */
 const entryKey = (op: MirrorOp) =>
   op.kind === 'book'
     ? `book:${op.id}`
     : `${op.kind === 'note' ? 'note' : op.kind === 'file' ? 'file' : op.entry}:${op.id}`
 
-/**
- * Runs mirror passes: one soon after changes (coalesced), a full one (every
- * manifest file checked on disk) when the mirror starts, and checks of a
- * paused mirror's folder until it can go on. Passes run one at a time and
- * hand the event loop back between steps.
- */
 export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
   const { storage } = options
   const delayMs = options.delayMs ?? 1000
@@ -1050,13 +833,9 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
   let firstWait: number | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   let running: Promise<void> | undefined
-  // Counts stops: a pass ends at its next step once the count moved on.
   let epoch = 0
-  // The manifest as Rust holds it, and the generation it belongs to.
   let manifest: MirrorManifest | null = null
   let generation: number | null = null
-  // The generation of the full pass running or done last, and the one a
-  // reconcile asked for while a pass ran (null: not known).
   let reconciled: number | null = null
   let askedFor: number | null = null
 
@@ -1105,7 +884,6 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
 
   const pass = async (full: boolean) => {
     const mine = epoch
-    /** What a step resolves to, unless the mirror stopped meanwhile. */
     const step = async <T>(work: Promise<T>): Promise<T> => {
       const value = await work
       if (epoch !== mine) throw new Error(STOPPED)
@@ -1140,15 +918,11 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
     const disk = new Map<string, DiskState>()
     const skip = new Set<string>()
     const memo = createMirrorMemo()
-    // Entries whose operation failed for good in this pass, and how often
-    // something was in the way of each (a few tries, then it waits).
     const failed = new Set<string>()
     const tries = new Map<string, number>()
-    // How often each note's file was rendered in this pass.
     const renders = new Map<string, number>()
     let stale = false
     if (full) {
-      // Every manifest file holds what it should, except those Rust lists.
       for (const entry of [...Object.values(current.notes), ...Object.values(current.files)]) {
         if (entry.sha256 !== null) disk.set(entry.path, entry.sha256)
       }
@@ -1202,7 +976,6 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
       const ops = plan.ops.filter((op) => !failed.has(entryKey(op)))
       if (ops.length === 0) {
         if (stale) {
-          // Read the manifest again next time.
           manifest = null
           generation = null
         }
@@ -1254,7 +1027,6 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
     options.onError?.(UNSETTLED)
   }
 
-  /** Learns what a plan needs: bodies, attachment names and hashes, rendered files and disk states. */
   const gather = async (
     host: MirrorHost,
     pause: () => Promise<void>,
@@ -1340,10 +1112,8 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
   }
 }
 
-/** The code a pass ends with when the mirror stopped while it ran (not a failure). */
 const STOPPED = 'E_MIRROR_STOPPED'
 
-/** `host` with each call's result passed through `step`. */
 function stepping(host: MirrorHost, step: <T>(work: Promise<T>) => Promise<T>): MirrorHost {
   return {
     open: (known) => step(host.open(known)),
@@ -1355,18 +1125,11 @@ function stepping(host: MirrorHost, step: <T>(work: Promise<T>) => Promise<T>): 
   }
 }
 
-/** Forgets what the disk held at the paths an operation changed (they are the manifest's now). */
 function forgetDisk(disk: Map<string, DiskState>, op: MirrorOp) {
   if ('path' in op && op.path !== null) disk.delete(op.path)
   if (op.kind === 'note' && op.from !== null) disk.delete(op.from)
 }
 
-// --- Following the database --------------------------------------------------
-
-/**
- * `storage` calling `changed` after each write the mirror follows: notes,
- * their tags, notebooks, tags and attachments (not revisions).
- */
 export function observeWrites(storage: StorageAdapter, changed: () => void): StorageAdapter {
   const after =
     <A extends unknown[]>(write: (...args: A) => Promise<void>) =>

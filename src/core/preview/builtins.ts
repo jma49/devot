@@ -19,14 +19,9 @@ import { noteLinkChips } from './noteLinks'
 import { parse, stringify } from 'yaml'
 
 type Parent = Root | Element
-/** `undefined` keeps the element (and visits its children); `null` removes it. */
 type Rewrite = (el: Element, parent: Parent) => ElementContent | ElementContent[] | null | undefined
 
-/**
- * Rewrites elements depth-first; a replaced element's subtree is not visited.
- * A replacement takes the replaced element's place in the source (its
- * position), so the preview still knows which line it comes from.
- */
+/** A replacement takes the replaced element's place in the source, so the preview still knows which line it comes from. */
 function rewrite(node: Parent, fn: Rewrite): void {
   const out: RootContent[] = []
   for (const child of node.children) {
@@ -64,16 +59,12 @@ function textOf(node: RootContent | Root): string {
 
 const isBlank = (node: RootContent) => node.type === 'text' && node.value.trim() === ''
 
-// --- Front matter ----------------------------------------------------------
-
-/** A front matter value as text: scalars as written, anything else as YAML. */
 function valueText(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (typeof value === 'object' && !(value instanceof Date)) return stringify(value).trimEnd()
   return value instanceof Date ? value.toISOString() : String(value)
 }
 
-/** The rows of a properties block, or null when the YAML is not a plain map. */
 function propertiesBlock(yaml: string): Element | null {
   let data: unknown
   try {
@@ -97,10 +88,7 @@ function propertiesBlock(yaml: string): Element | null {
   return rows.length > 0 ? el('dl', { className: ['frontmatter'] }, rows) : null
 }
 
-/**
- * Front matter shows as a compact block of properties (key and value per
- * row, lists as chips); YAML that is not a map of keys shows as code.
- */
+/** YAML that is not a map of keys shows as code. */
 const frontmatter: PreviewRenderer = {
   id: 'devot.frontmatter',
   apiVersion: PREVIEW_API_VERSION,
@@ -116,8 +104,6 @@ const frontmatter: PreviewRenderer = {
     tree.children.unshift(block)
   },
 }
-
-// --- Alerts ------------------------------------------------------------------
 
 const ALERT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*(?:\r?\n|$)/i
 
@@ -150,16 +136,9 @@ const alerts: PreviewRenderer = {
   },
 }
 
-// --- Task lists ----------------------------------------------------------------
-
 const TASK = /^(?:[-*+]|\d{1,9}[.)])[ \t]+\[[ xX]\]/
 
-/**
- * A task's checkbox gets where its mark (the space or `x` between the
- * brackets) is in the Markdown (`data-task-at`), so the preview can tick it
- * by changing the note; such a box is not disabled. Pages made from the tree
- * (export) disable every box again.
- */
+/** `data-task-at` is where the mark is in the Markdown, so the preview can tick it by changing the note; such a box is not disabled. Pages made from the tree (export) disable every box again. */
 const tasks: PreviewRenderer = {
   id: 'devot.tasks',
   apiVersion: PREVIEW_API_VERSION,
@@ -189,13 +168,7 @@ const tasks: PreviewRenderer = {
   },
 }
 
-// --- Islands: content the page renders itself ------------------------------
-
-/**
- * Marks an element whose content the UI renders (it needs the page's layout
- * engine, as Mermaid does). The patcher leaves an island's children alone; the
- * UI's island registry fills it from `data-island-source`.
- */
+/** The patcher leaves an island's children alone; the UI's island registry fills it from `data-island-source`. */
 export function island(kind: string, source: string): Element {
   return el('div', {
     className: ['island', `island-${kind}`],
@@ -218,8 +191,6 @@ const mermaid: PreviewRenderer = {
   },
 }
 
-// --- Colour swatches -------------------------------------------------------
-
 const COLOR =
   /^(?:#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})|rgba?\([0-9.,%\s/]+\)|hsla?\([0-9.,%\sdegra/]+\))$/i
 
@@ -241,17 +212,7 @@ const swatches: PreviewRenderer = {
   },
 }
 
-// --- Images ------------------------------------------------------------------
-
-/**
- * An image's size (see core/images.ts) leaves its alt text and URL: a
- * preset (`w:240` in the alt text, or an old `#small` on the URL) becomes a
- * class, and any other size its `width` and `height`; an image
- * alone in its paragraph gets `image-block`. An image
- * written as `![alt](url)` also gets where it is in the Markdown
- * (`data-image-from`, `data-image-to`), so its size can be set from the
- * preview; reference images and raw HTML get none.
- */
+/** Reference images and raw HTML get no `data-image-from`/`data-image-to` (where the image is in the Markdown, so its size can be set from the preview). */
 const images: PreviewRenderer = {
   id: 'devot.images',
   apiVersion: PREVIEW_API_VERSION,
@@ -280,7 +241,6 @@ const images: PreviewRenderer = {
         }
       }
       if (size !== 'auto') names.push(`image-size-${size}`)
-      // An image on a paragraph of its own shows in a frame.
       const alone =
         parent.type === 'element' &&
         parent.tagName === 'p' &&
@@ -297,8 +257,6 @@ const images: PreviewRenderer = {
     })
   },
 }
-
-// --- devot:// links ----------------------------------------------------------
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const NOTE_URL = new RegExp(`^devot://note/${UUID}$`)
@@ -322,9 +280,6 @@ const links: PreviewRenderer = {
   },
 }
 
-// --- Embeds ----------------------------------------------------------------
-
-/** Origins that load without a click: privacy-friendly video players. */
 const DIRECT_HOSTS = new Set([
   'www.youtube-nocookie.com',
   'player.vimeo.com',
@@ -342,7 +297,6 @@ function parseHttps(value: unknown): URL | null {
   }
 }
 
-/** The player URL for a video page on a well-known provider. */
 export function videoEmbedUrl(value: string): string | null {
   const url = parseHttps(value)
   if (!url) return null
