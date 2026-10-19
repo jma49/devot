@@ -594,11 +594,17 @@ export const NoteList = memo(function NoteList(props: Props) {
     if (gone) sizes.unobserve(gone)
     rows.current.delete(id)
   })
+  // The row a press began on: pressing a row can reorder the list under the
+  // pointer (the title field it leaves saves the open note's new title),
+  // and the release then lands elsewhere; the press still opens its row.
+  const pressed = useRef<string | undefined>(undefined)
   const mouseDown = useStable((e: MouseEvent<HTMLLIElement>) => {
+    pressed.current = e.button === 0 ? e.currentTarget.dataset['noteId'] : undefined
     // Shift-click selects rows, not the text between them.
     if (onSelection && e.shiftKey) e.preventDefault()
   })
   const click = useStable((id: string, e: MouseEvent<HTMLLIElement>) => {
+    pressed.current = undefined
     // Cmd-click adds or takes out a row, Shift-click selects a range.
     const gesture =
       onSelection && e.metaKey ? selectToggle : onSelection && e.shiftKey ? selectRange : undefined
@@ -789,6 +795,17 @@ export const NoteList = memo(function NoteList(props: Props) {
         // Not a tab stop (a row is), but it can hold the keyboard.
         tabIndex={-1}
         onKeyDown={listKey}
+        onMouseUp={(e) => {
+          // A press whose row moved away before the release (see `pressed`):
+          // the release lands on another row or none, and no click follows.
+          const id = pressed.current
+          if (!id || e.button !== 0) return
+          const on = (e.target as Element).closest<HTMLElement>('[data-note-id]')
+          if (on?.dataset['noteId'] === id) return
+          pressed.current = undefined
+          const plain = !e.metaKey && !e.shiftKey && !e.ctrlKey && !e.altKey
+          if (plain) navigate(id)
+        }}
         onScroll={
           windowed
             ? (e) =>
