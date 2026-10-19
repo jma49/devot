@@ -334,9 +334,9 @@ Notes are not only written by the user: imports, sync and AI also write them. So
 - **Protocol first:** a versioned message format over WebSocket, with no dependency on any one host.
 - **Relay:** plain TypeScript logic with a storage interface and two implementations: Cloudflare Durable Objects (SQLite storage) and Node + SQLite for a VPS. One test suite runs against both. The relay URL is a client setting.
 - The relay is not a source of truth. Every device holds the full data, so moving to another relay means pointing clients at a new URL; they re-upload.
-- The relay only sees ciphertext and cannot merge. Clients compact: they upload an encrypted merged snapshot, then drop older updates.
+- The relay only sees ciphertext. It stores the latest encrypted state of each record, and clients merge on a rejected push (docs/adr/0002-sync-latest-state-per-record.md).
 - **First deployment:** a dedicated Cloudflare account on the Workers Free plan. When a free limit is exceeded, requests fail instead of being billed; the worst case is that sync pauses until the daily reset, while local data is unaffected.
-- **Cost guards (required on any host):** the WebSocket Hibernation API only; client reconnects with exponential backoff, jitter and a rate cap; Yjs updates batched for 1–2 s before sending; server-side per-device rate and message-size limits; a client circuit breaker that stops sync when it detects abnormal send rates.
+- **Cost guards (required on any host):** the WebSocket Hibernation API only; client reconnects with exponential backoff, jitter and a rate cap; Yjs updates batched for 1–2 s before sending; server-side per-device rate and message-size limits; a client circuit breaker that stops sync when it detects abnormal send rates; a self-imposed cap at 80% of every free limit.
 - **Encryption:** AES-256-GCM, done in Rust. Keys come from device pairing: the first device generates the key, new devices pair by QR code, and keys live in each device's keychain. A recovery key is generated for printing or safe storage.
 
 ## Local HTTP API (phase 2)
