@@ -9,7 +9,7 @@
 use crate::MAIN_WINDOW;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager, RunEvent, Window, WindowEvent};
+use tauri::{AppHandle, Emitter, Env, Manager, RunEvent, Window, WindowEvent};
 
 pub const FLUSH_EVENT: &str = "devot://flush-before-exit";
 const FLUSH_TIMEOUT: Duration = Duration::from_secs(2);
@@ -17,6 +17,7 @@ const FLUSH_TIMEOUT: Duration = Duration::from_secs(2);
 #[derive(Default)]
 pub struct ExitGate {
     ready: AtomicBool,
+    restart: AtomicBool,
     /// The round of the quit held while the UI saves (rounds count from 1), or 0 when none is.
     held: AtomicU64,
     rounds: AtomicU64,
@@ -37,6 +38,10 @@ impl ExitGate {
 
     fn asked(&self) -> bool {
         self.held.load(Ordering::SeqCst) != 0
+    }
+
+    fn quitting(&self) -> bool {
+        self.ready.load(Ordering::SeqCst) || self.asked()
     }
 
     fn call_off(&self) {
@@ -64,13 +69,32 @@ fn decide(exit_code: Option<i32>, ready: bool, already_asked: bool) -> Decision 
 }
 
 fn exit_now(app: &AppHandle) {
-    app.state::<ExitGate>().ready.store(true, Ordering::SeqCst);
+    let gate = app.state::<ExitGate>();
     // Restart to Update restarts into the update it installed (see `updates`).
-    if crate::updates::on_exit(app) {
-        app.request_restart();
-    } else {
-        app.exit(0);
-    }
+    let restart = crate::updates::on_exit(app);
+    gate.restart.store(restart, Ordering::SeqCst);
+    gate.ready.store(true, Ordering::SeqCst);
+    app.exit(0);
+}
+
+/// From a quit request until it is called off, and while the app exits. Long work on the database
+/// thread (Rebuild Search Index) stops then, so the saves queued behind it run before the exit.
+pub fn quitting(app: &AppHandle) -> bool {
+    app.try_state::<ExitGate>()
+        .is_some_and(|gate| gate.quitting())
+}
+
+/// Tauri's own restart passes on every argument this process was launched with, and a launch
+/// from the `devot` command carries the files it handed over (`cli::handoff_args`): they would be
+/// imported again after each update (#274).
+fn restart_env(mut env: Env) -> Env {
+    env.args_os.truncate(1);
+    env
+}
+
+fn restart(app: &AppHandle) -> ! {
+    app.cleanup_before_exit();
+    tauri::process::restart(&restart_env(app.env()))
 }
 
 pub fn request_quit(app: &AppHandle) {
@@ -106,17 +130,22 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
 }
 
 pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
-    let RunEvent::ExitRequested { api, code, .. } = event else {
-        return;
-    };
-    let gate = app.state::<ExitGate>();
-    match decide(*code, gate.ready.load(Ordering::SeqCst), gate.asked()) {
-        Decision::Allow => {}
-        Decision::Hold => api.prevent_exit(),
-        Decision::HoldAndAsk => {
-            api.prevent_exit();
-            request_quit(app);
+    match event {
+        RunEvent::ExitRequested { api, code, .. } => {
+            let gate = app.state::<ExitGate>();
+            match decide(*code, gate.ready.load(Ordering::SeqCst), gate.asked()) {
+                Decision::Allow => {}
+                Decision::Hold => api.prevent_exit(),
+                Decision::HoldAndAsk => {
+                    api.prevent_exit();
+                    request_quit(app);
+                }
+            }
         }
+        // The plugins have seen the exit by now, so the single-instance socket is gone and the new
+        // process cannot hand its launch back to this one.
+        RunEvent::Exit if app.state::<ExitGate>().restart.load(Ordering::SeqCst) => restart(app),
+        _ => {}
     }
 }
 
@@ -135,6 +164,12 @@ pub fn app_exit_cancel(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::{Db, NoteRecord, Store};
+    use std::ffi::OsString;
+    use std::sync::{Arc, mpsc};
+    use std::task::{Context, Waker};
+    use std::time::Instant;
+    use tauri::async_runtime::block_on;
 
     #[test]
     fn holds_the_first_user_quit_and_asks_the_ui_to_save() {
@@ -184,5 +219,118 @@ mod tests {
         gate.ready.store(true, Ordering::SeqCst);
         assert!(!gate.timed_out(round));
         assert_eq!(gate.begin(), None);
+    }
+
+    #[test]
+    fn a_restart_starts_without_the_files_a_cli_launch_handed_over() {
+        let open = crate::cli::Open {
+            files: vec!["/Users/me/x.md".into()],
+            notebook: Some("Work".into()),
+        };
+        let binary = "/Applications/Devot.app/Contents/MacOS/devot";
+        let mut launched = Env::default();
+        launched.args_os = std::iter::once(binary.to_owned())
+            .chain(crate::cli::handoff_args(&open))
+            .map(OsString::from)
+            .collect();
+        assert!(
+            launched
+                .args_os
+                .iter()
+                .any(|arg| arg == crate::cli::OPEN_FLAG)
+        );
+        // Tauri restarts with `open -n <bundle> --args` and these from the second on.
+        assert_eq!(restart_env(launched).args_os, [binary]);
+    }
+
+    #[test]
+    fn quitting_lasts_from_a_quit_request_until_it_is_called_off_or_the_app_exits() {
+        let gate = ExitGate::default();
+        assert!(!gate.quitting());
+        gate.begin().unwrap();
+        assert!(gate.quitting());
+        gate.call_off();
+        assert!(!gate.quitting());
+        gate.ready.store(true, Ordering::SeqCst);
+        assert!(gate.quitting());
+    }
+
+    fn note(id: &str) -> NoteRecord {
+        NoteRecord {
+            id: id.into(),
+            title: format!("Relay {id}"),
+            title_hlc: "0000000000001-0000-test".into(),
+            body_md: format!("# Relay {id}\n"),
+            ydoc: vec![1],
+            body_version: 0,
+            book_id: None,
+            book_hlc: String::new(),
+            status: "none".into(),
+            status_hlc: String::new(),
+            pinned: false,
+            pinned_hlc: String::new(),
+            created_at: 1,
+            updated_at: 1,
+            dates_hlc: String::new(),
+            deleted_at: None,
+            deleted_hlc: None,
+        }
+    }
+
+    #[test]
+    fn a_write_queued_behind_a_rebuild_survives_a_quit_request() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devot.sqlite");
+        let db = Db::spawn(&path).unwrap();
+        block_on(
+            db.call(|store| {
+                (0..200).try_for_each(|i| store.put_note(&note(&format!("n{i}")), &[]))
+            }),
+        )
+        .unwrap();
+
+        let gate = Arc::new(ExitGate::default());
+        let (running, rebuild_runs) = mpsc::channel();
+        let stop = {
+            let gate = Arc::clone(&gate);
+            let mut running = Some(running);
+            move || {
+                // The first ask holds the rebuild inside its statement until the quit request.
+                if let Some(running) = running.take() {
+                    running.send(()).unwrap();
+                    let until = Instant::now() + Duration::from_secs(10);
+                    while !gate.quitting() && Instant::now() < until {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                }
+                gate.quitting()
+            }
+        };
+        let rebuild = {
+            let db = db.clone();
+            std::thread::spawn(move || block_on(crate::commands::search_index::rebuild(&db, stop)))
+        };
+        rebuild_runs.recv_timeout(Duration::from_secs(10)).unwrap();
+        let mut save = std::pin::pin!(db.call(|store| store.put_note(&note("typed"), &[])));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(
+            save.as_mut().poll(&mut cx).is_pending(),
+            "queued behind the rebuild"
+        );
+
+        let asked = Instant::now();
+        gate.begin().expect("a quit request");
+        block_on(save).unwrap();
+        assert!(
+            asked.elapsed() < FLUSH_TIMEOUT,
+            "saved before the quit times out"
+        );
+        assert_eq!(
+            rebuild.join().unwrap(),
+            Err("E_SEARCH_REBUILD_STOPPED".to_owned())
+        );
+        let reopened = Store::open(&path).unwrap();
+        assert!(reopened.get_note("typed", false).unwrap().is_some());
+        assert!(reopened.integrity_ok().unwrap());
     }
 }

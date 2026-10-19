@@ -9,7 +9,10 @@ pub use db::Db;
 use rusqlite::backup::{Backup, StepResult};
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
+use std::ffi::c_int;
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Numbered migrations, applied in order. Never edit a released one.
 const MIGRATIONS: &[&str] = &[
@@ -42,6 +45,7 @@ pub enum StorageError {
     SnapshotCheckFailed,
     /// Another process wrote the note since its writer read it.
     BodyStale,
+    RebuildStopped,
 }
 
 /// Never SQLite's message, which can quote a statement or the data it was given.
@@ -65,6 +69,7 @@ impl std::fmt::Display for StorageError {
             Self::NewerSchema(found) => write!(f, "E_STORAGE_SCHEMA_TOO_NEW v{found}"),
             Self::SnapshotCheckFailed => f.write_str("E_STORAGE_SNAPSHOT_CHECK_FAILED"),
             Self::BodyStale => f.write_str("E_NOTE_BODY_STALE"),
+            Self::RebuildStopped => f.write_str("E_SEARCH_REBUILD_STOPPED"),
         }
     }
 }
@@ -73,7 +78,10 @@ impl std::error::Error for StorageError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Sqlite(error) => Some(error),
-            Self::NewerSchema(_) | Self::SnapshotCheckFailed | Self::BodyStale => None,
+            Self::NewerSchema(_)
+            | Self::SnapshotCheckFailed
+            | Self::BodyStale
+            | Self::RebuildStopped => None,
         }
     }
 }
@@ -928,6 +936,20 @@ fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
     (sql, values)
 }
 
+const REBUILD_STOP_STEPS: c_int = 100;
+
+fn rebuild_checked(conn: &Connection) -> rusqlite::Result<u32> {
+    conn.execute_batch(
+        "INSERT INTO notes_fts (notes_fts) VALUES ('rebuild');
+         INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1);",
+    )?;
+    conn.query_row(
+        "SELECT count(*) FROM notes WHERE purged_at IS NULL",
+        [],
+        |row| row.get(0),
+    )
+}
+
 pub struct Store {
     conn: Connection,
 }
@@ -1003,18 +1025,33 @@ impl Store {
     }
 
     /// FTS5 reports no progress, so it is one statement, then checked against the table, all in one
-    /// transaction: a failed check rolls the rebuild back.
-    pub fn rebuild_search_index(&mut self) -> Result<u32> {
+    /// transaction: a failed check rolls the rebuild back, and so does `stop` answering true. SQLite
+    /// asks it from a progress handler: `sqlite3_interrupt` would be lost between two statements
+    /// and could stop the next job's statement instead.
+    pub fn rebuild_search_index(
+        &mut self,
+        mut stop: impl FnMut() -> bool + Send + 'static,
+    ) -> Result<u32> {
+        let stopped = Arc::new(AtomicBool::new(false));
+        let seen = Arc::clone(&stopped);
         let tx = self.conn.transaction()?;
-        tx.execute_batch(
-            "INSERT INTO notes_fts (notes_fts) VALUES ('rebuild');
-             INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1);",
+        tx.progress_handler(
+            REBUILD_STOP_STEPS,
+            Some(move || {
+                let now = stop();
+                if now {
+                    seen.store(true, Ordering::Relaxed);
+                }
+                now
+            }),
         )?;
-        let notes = tx.query_row(
-            "SELECT count(*) FROM notes WHERE purged_at IS NULL",
-            [],
-            |row| row.get(0),
-        )?;
+        let rebuilt = rebuild_checked(&tx);
+        // Off before the transaction ends, so nothing stops its commit or rollback.
+        tx.progress_handler(REBUILD_STOP_STEPS, None::<fn() -> bool>)?;
+        if stopped.load(Ordering::Relaxed) {
+            return Err(StorageError::RebuildStopped);
+        }
+        let notes = rebuilt?;
         tx.commit()?;
         Ok(notes)
     }

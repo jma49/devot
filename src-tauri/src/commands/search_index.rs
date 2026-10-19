@@ -1,11 +1,13 @@
 //! The Rebuild Search Index command (Help menu and command palette). The
 //! rebuild is one FTS5 statement on the database thread, so saves and reads
-//! queue behind it for its duration; only one runs at a time.
+//! queue behind it for its duration; only one runs at a time. A quit stops it
+//! (its transaction rolls back), so the saves queued behind it run before the
+//! app exits.
 
 use crate::storage::Db;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
@@ -26,13 +28,20 @@ impl Drop for Running<'_> {
 }
 
 #[tauri::command]
-pub async fn search_index_rebuild(db: State<'_, Db>) -> Result<u32, String> {
+pub async fn search_index_rebuild(app: AppHandle, db: State<'_, Db>) -> Result<u32, String> {
     let Some(_running) = Running::begin(&RUNNING) else {
         return Err("E_SEARCH_REBUILD_BUSY".into());
     };
+    rebuild(&db, move || crate::exit::quitting(&app)).await
+}
+
+pub(crate) async fn rebuild(
+    db: &Db,
+    stop: impl FnMut() -> bool + Send + 'static,
+) -> Result<u32, String> {
     let started = Instant::now();
     let notes = db
-        .call(|store| store.rebuild_search_index())
+        .call(move |store| store.rebuild_search_index(stop))
         .await
         .map_err(|e| e.to_string())?;
     log::info!(
