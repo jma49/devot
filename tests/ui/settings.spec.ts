@@ -325,14 +325,14 @@ test('Integrations still offers configs, with a path to replace, when Rust canno
 test('General installs and removes the devot command, showing whether it is there', async ({
   page,
 }) => {
-  const path = '/usr/local/bin/devot'
-  await page.addInitScript((path) => {
+  await page.addInitScript(() => {
     const w = globalThis as unknown as TestWindow
+    const path = '/usr/local/bin/devot'
     w.devotIpcMocks = {
       cli_tool_install: { state: 'installed', path },
       cli_tool_uninstall: { state: 'absent', path },
     }
-  }, path)
+  })
   await page.goto('/settings.html')
   const row = page.getByRole('region', { name: 'Command Line' })
   const install = row.getByRole('button', { name: 'Install' })
