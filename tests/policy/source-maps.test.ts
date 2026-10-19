@@ -10,6 +10,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
@@ -27,6 +28,8 @@ import { tempDir } from '../support/temp-dirs'
 // carries a source map nor the UI tests' in-memory storage. Scripts run against a fake sentry-cli.
 
 const root = join(import.meta.dirname, '../..')
+// Configs written outside the repo have no node_modules to resolve a bare 'vite' from.
+const vite = JSON.stringify(createRequire(import.meta.url).resolve('vite'))
 const work = tempDir('devot-release-')
 afterAll(() => rmSync(work, { recursive: true, force: true }))
 
@@ -301,9 +304,8 @@ describe('release UI build', () => {
       writeFileSync(
         config,
         `import { readdirSync, writeFileSync } from 'node:fs'
-import { mergeConfig } from 'vite'
+import { mergeConfig } from ${vite}
 import base from ${JSON.stringify(join(root, 'vite.config.ts'))}
-import { tempDir } from '../support/temp-dirs'
 export default mergeConfig(base, {
   plugins: [{
     name: 'fail-after-writing',
@@ -341,7 +343,7 @@ export default mergeConfig(base, {
       const config = join(work, 'storage.vite.config.ts')
       writeFileSync(
         config,
-        `import { mergeConfig } from 'vite'
+        `import { mergeConfig } from ${vite}
 import base from ${JSON.stringify(join(root, 'vite.config.ts'))}
 export default mergeConfig(base, { envDir: ${JSON.stringify(envDir)} })
 `,
