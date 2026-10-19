@@ -1,8 +1,5 @@
-// Notes in the core's memory: only the most recently used stay once nothing
-// uses them, so browsing a library never keeps every note it opened. A note
-// leaves only when nothing of it can be lost: no unsaved or failed change,
-// no write under way, no editor holding it; typing not kept as a version yet
-// becomes one first.
+// Only the most recently used notes stay in memory once unused. A note leaves only when nothing can be lost
+// (unsaved or failed change, write under way, open editor); unversioned typing becomes a version first.
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
@@ -25,6 +22,7 @@ afterEach(async () => {
   open.splice(0).forEach((a) => a.close())
 })
 
+/** Note service on a fresh SQLite file: counts storage reads, can hold the next read, refuses writes while `refuse` says so; time is `now`. */
 function setup(path = join(tempDir('devot-memory-'), 'devot.sqlite')) {
   const sqlite = openSqliteAdapter(path)
   open.push(sqlite)
@@ -63,6 +61,7 @@ function setup(path = join(tempDir('devot-memory-'), 'devot.sqlite')) {
       const counted = reads.splice(0)
       return (id: string) => counted.filter((r) => r === id).length
     },
+    /** The next note read waits until the returned function is called. */
     holdNextRead() {
       let release = () => {}
       gate = new Promise((resolve) => (release = resolve))
@@ -74,6 +73,7 @@ function setup(path = join(tempDir('devot-memory-'), 'devot.sqlite')) {
   }
 }
 
+/** `count` saved notes made by a separate service, so none is in memory. */
 async function library(path: string, count: number) {
   const { notes } = setup(path)
   const ids: string[] = []
@@ -151,7 +151,6 @@ describe('notes in memory', () => {
     )
     for (const id of others) await browse(s.notes, id)
     s.reads()
-    // The failed rename is still waiting in memory, and saves once it can.
     expect((await s.notes.open(failing!)).title).toBe('Renamed, not saved yet')
     expect(s.reads()(failing!)).toBe(0)
     s.refuseWrites(() => false)
@@ -194,6 +193,7 @@ describe('notes in memory', () => {
     const replica = new Y.Doc()
     Y.applyUpdate(replica, (await s.notes.open(note!)).state)
     for (const id of others) await browse(s.notes, id)
+    // Another process writes the note meanwhile.
     const other = setup(path)
     await other.notes.setBody(note!, 'body 0, edited elsewhere')
     await other.notes.flush()

@@ -6,6 +6,7 @@ const grid = (page: Page) => sheet(page).getByRole('grid', { name: 'Activity by 
 const day = (page: Page, label: string | RegExp) =>
   grid(page).getByRole('gridcell', { name: label })
 
+/** View > Activity… (the native menu reaches the page as this event). */
 const showActivity = (page: Page) =>
   page.evaluate(() => {
     const w = globalThis as unknown as {
@@ -15,6 +16,10 @@ const showActivity = (page: Page) =>
     w.dispatchEvent(new w.CustomEvent('devot:show-activity'))
   })
 
+/**
+ * Fixes `Date.now()` at Wednesday 2026-10-07 15:00 local and stores two notes with history around it. Playwright's
+ * clock is not used: its script does not run with Object.prototype frozen, as the app has it.
+ */
 async function seed(page: Page) {
   await page.addInitScript(() => {
     const fixed = new Date(2026, 9, 7, 15).getTime()
@@ -77,6 +82,7 @@ test('shows 52 weeks of activity, each day with its totals', async ({ page }) =>
   await seed(page)
   await showActivity(page)
   await expect(sheet(page)).toBeVisible()
+  // 51 full weeks, then Monday to Wednesday of this one.
   await expect(grid(page).getByRole('row')).toHaveCount(7)
   await expect(grid(page).getByRole('gridcell')).toHaveCount(51 * 7 + 3)
   await expect(
@@ -123,7 +129,6 @@ test('hovering or moving through the days shows their totals', async ({ page }) 
   await page.keyboard.press('ArrowUp')
   await expect(day(page, /^Tuesday, October 6, 2026:/)).toBeFocused()
   await expect(readout).toHaveText('Tuesday, October 6, 2026: 1 note edited, 60 characters changed')
-  // Never past today.
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowDown')
   await expect(today).toBeFocused()

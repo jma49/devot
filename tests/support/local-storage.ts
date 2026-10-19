@@ -1,7 +1,5 @@
-// The UI tests' storage adapter (src/renderer/src/storage/memory.ts) keeps
-// its records in localStorage. Vitest runs in Node, whose own localStorage
-// warns when read without a file, so a test that runs the adapter gives it
-// an empty one in memory and puts Node's back afterwards.
+// The UI tests' storage adapter (storage/memory.ts) keeps records in localStorage. Node's own localStorage
+// warns when read without a file, so a test gives the adapter an empty one in memory and restores Node's after.
 
 // Taken without reading it.
 const nodeLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')

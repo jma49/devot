@@ -1,3 +1,4 @@
+// When the row that has the keyboard leaves the list, the next row (previous at the end) opens and takes it, or the list when empty.
 import type { Page } from '@playwright/test'
 import {
   expect,
@@ -268,6 +269,12 @@ test('switching views from the keyboard opens no note', async ({ page }) => {
   await expect(titleField(page)).toHaveValue('Gamma')
 })
 
+/**
+ * Acts as on a loaded machine: React's scheduler yields after every task and the
+ * focus rescue's frames (focusRescue.ts) come at once, so the rescue looks for the
+ * keyboard before React ran the effects of the render that removed a row.
+ * Applies from the next load while `devotRescueFirst` is set.
+ */
 async function rescueFirst(page: Page) {
   await page.addInitScript(() => {
     const w = globalThis as unknown as { devotRescueFirst?: boolean }

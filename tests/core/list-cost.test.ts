@@ -23,11 +23,8 @@ import {
 } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Listing and searching cost the same whatever the size of the notes: the
-// note list, the Trash and search read live notes from indexes that cover
-// what they show and filter on (migration 0014), never from a note's row,
-// whose small columns come after its Markdown and its Yjs state. They must
-// still answer exactly as the statements they replace did.
+// Lists and searches read from covering indexes (migration 0014), never the note row, and must answer
+// exactly as the statements they replace did.
 
 const open: { close(): void }[] = []
 afterEach(() => open.splice(0).forEach((db) => db.close()))
@@ -40,6 +37,7 @@ function sqlite(): SqliteAdapter {
 
 type Params = Record<string, string | number>
 
+/** Per sort in a plan, the top-level step it sits under ('' for a sort of the whole result). */
 const sortsUnder = (db: Database.Database, sql: string, params: Params = {}) => {
   const rows = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(params) as {
     id: number
@@ -79,8 +77,7 @@ const query = (
   pinned,
 })
 
-// The statements this replaced, kept as the reference the new ones must
-// answer like (rows and order).
+// The replaced statements, kept as the reference (rows and order) the new ones must match.
 const BEFORE_LIST = `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
         (SELECT group_concat(nt.tag_id) FROM note_tags nt
            JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
@@ -149,7 +146,6 @@ function beforeSearch(db: Database.Database, q: NoteQuery, limit: number) {
   return db.prepare(sql).all(params)
 }
 
-/** A search's rows as the reference statements gave them, without excerpts. */
 const summaries = (found: NoteSummary[]) =>
   found.map((note) => {
     const { excerpt: _, ...row } = note
@@ -218,21 +214,15 @@ describe('lists and search read covering indexes', () => {
         true,
       ),
     ]) {
-      // A deliberate trade-off: every ranked search walks the whole list
-      // index, so a word found in one note costs O(notes) (10,000 notes:
-      // 0.7 ms, 50,000: about 2.5 ms; 0.05-0.3 ms when its matches drive
-      // the join), but a word found in many notes costs half as much or
-      // less (10,000 notes, every note found: 17 ms against 38 ms), since
-      // a match's small columns sit after its blobs in the row.
+      // Deliberate trade-off: a ranked search walks the whole list index, so a word in one note costs O(notes)
+      // (10,000 notes 0.7 ms, 50,000 about 2.5 ms), but a word in many notes costs less (17 ms against 38 ms).
       const ranked = explain(q)
       expect(ranked).toMatch(/MATERIALIZE hits/)
       expect(ranked).toMatch(/SCAN n USING COVERING INDEX notes_list/)
       expect(ranked).toMatch(/AUTOMATIC (PARTIAL )?COVERING INDEX \(rid=\?\)/)
       expect(ranked).not.toMatch(/INTEGER PRIMARY KEY|SCAN n$/m)
     }
-    // Text under three characters reads the bodies: of the ranked matches
-    // only, when there are some, in rank order (sorted once, before the
-    // scan), so a page of results stops it (#48).
+    // Text under three characters reads the bodies of the ranked matches only, in rank order, so a page stops the scan (#48).
     const short = explain(query([text('any', 'snapshot'), text('body', 'zz', true)]))
     expect(short).toMatch(/MATERIALIZE ranked/)
     expect(short).toMatch(/SEARCH h USING AUTOMATIC (PARTIAL )?COVERING INDEX \(rid=\?\)/)
@@ -244,8 +234,7 @@ describe('lists and search read covering indexes', () => {
       200,
     )
     expect(sortsUnder(db, sql, params)).toEqual(['MATERIALIZE ranked'])
-    // Without ranked text the index gives the order, and a page stops early
-    // (a scan reads each body from the row the index points to).
+    // Without ranked text the index gives the order and a page stops early.
     const sets = explain(query([text('any', 'zz', true)], [set('status', ['active'])]))
     expect(sets).toMatch(/^SCAN n USING INDEX notes_list$/m)
     expect(sets).not.toMatch(/TEMP B-TREE FOR ORDER BY/)
@@ -322,7 +311,7 @@ describe('lists and search answer as before', () => {
             })
             void i
           }
-          // Distinct times, so the order the statements give is total.
+          // Distinct times, so the statements' order is total.
           const times = [...new Set(notes.map((n, i) => n.updatedAt * 100 + i))]
           for (const [i, n] of notes.entries()) {
             const id = `0192a6f0-0000-7000-8000-${String(i).padStart(12, '0')}`
@@ -363,6 +352,7 @@ describe('lists and search answer as before', () => {
   }, 120_000)
 
   it('reads the bodies of ranked matches only up to a page of results', async () => {
+    // A page of 5 reads about 5 bodies, not 1,000; counting devot_fold calls counts the texts read.
     const storage = sqlite()
     storage.db.transaction(() => {
       for (let i = 0; i < 1000; i += 1) {

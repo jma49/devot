@@ -1,7 +1,5 @@
-// Storage between the core worker and the page: Yjs states cross as base64,
-// coded in the worker, so a save or an open costs the UI thread no work for
-// each byte of a note's state (a long, much-edited note's state is several
-// MiB). The page hands the strings to the Tauri commands as they are.
+// Yjs states cross between the core worker and the page as base64 coded in the worker, so a save or an open costs
+// the UI thread no per-byte work (a long, much-edited note's state is several MiB).
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type NoteRecord, type RevisionRecord } from '../../src/core'
@@ -35,6 +33,7 @@ const fields = ({ ydoc, ...rest }: NoteRecord) => ({
   ydoc: Buffer.from(ydoc).toString('base64'),
 })
 
+/** Not all alike, so nothing compresses. */
 const bytes = (length: number) => {
   const out = new Uint8Array(length)
   let s = length + 1
@@ -98,10 +97,13 @@ describe('base64 for Yjs states', () => {
   })
 
   it('codes a 1 MiB state in the worker in well under a frame', (context) => {
+    // Engines before V8 14 (Node 24) have no coder of their own; the next
+    // test times the fallback they run instead.
     if (!hasNativeBase64()) context.skip('engine has no base64 of its own')
     const data = bytes(MIB)
     const start = performance.now()
     for (let i = 0; i < 10; i += 1) fromBase64(toBase64(data))
+    // Ten saves and opens; the byte loop this replaced took about 11 ms for one.
     expectWithinBudget(context, performance.now() - start, 40)
   })
 
@@ -110,6 +112,8 @@ describe('base64 for Yjs states', () => {
     withoutNativeBase64(() => {
       const start = performance.now()
       for (let i = 0; i < 10; i += 1) fromBase64(toBase64(data))
+      // Ten saves and opens: about 35 ms on Node 24; the spread-and-btoa
+      // loop the fallback replaced took about 250 ms.
       expectWithinBudget(context, performance.now() - start, 120)
     })
   })
@@ -153,7 +157,6 @@ describe('the worker’s side', () => {
     expect(fields((await sqlite.getNote(record.id))!)).toEqual(stored)
     expect(fields((await storage.getNote(record.id))!)).toEqual(stored)
 
-    // What note_put refuses never leaves the worker.
     await expect(storage.putNote(note({ title: 'Two\nlines' }))).rejects.toThrow(
       'E_NOTE_TITLE_INVALID',
     )

@@ -16,13 +16,16 @@ import { createClock, createIdGenerator, createNoteService } from '../../src/cor
 import { openSqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
+// scripts/app-data.sh runs in bash with HOME in a temporary folder, as the scripts source it:
+// the data folder comes from HOME alone.
+
 const root = join(import.meta.dirname, '../..')
 const LIBRARY = join(root, 'scripts/app-data.sh')
 const DEV_FOLDER = 'Library/Application Support/io.github.jma49.devot.dev'
+/** A release build's data folder, or a debug build's from before they had their own. */
 const RELEASE_FOLDER = 'Library/Application Support/io.github.jma49.devot'
 
-/** For the tests that start sqlite3, lsof and Node processes, which a busy
- *  machine starts slowly; none of them measures time. */
+/** sqlite3, lsof and Node processes start slowly on a busy machine; none measures time. */
 const PROCESSES = { timeout: 30_000 }
 
 const has = (tool: string) => spawnSync('sh', ['-c', `command -v ${tool}`]).status === 0
@@ -100,6 +103,7 @@ it("makes a HOME for an app it starts in which only the dev folder is the user's
   expect(readFileSync(join(data, 'kept'), 'utf8')).toBe('dev data')
 })
 
+// macOS has both tools; a Linux machine may lack them, and the scripts run on macOS only.
 describe.skipIf(!has('sqlite3') || !has('lsof'))('with sqlite3 and lsof', PROCESSES, () => {
   it('copies the dev notes aside before a run and puts them back after it', async () => {
     const { dir, data, db } = home()
@@ -115,6 +119,7 @@ describe.skipIf(!has('sqlite3') || !has('lsof'))('with sqlite3 and lsof', PROCES
     expect(copy.pragma('journal_mode', { simple: true })).toBe('delete')
     copy.close()
 
+    // The smoke run: a fresh database each time, left behind by a killed app.
     expect(bash(dir, 'dev_data_clear').status).toBe(0)
     expect(existsSync(db)).toBe(false)
     await database(db, ['Smoke'])
@@ -125,7 +130,6 @@ describe.skipIf(!has('sqlite3') || !has('lsof'))('with sqlite3 and lsof', PROCES
     expect(titles(db)).toEqual(['Kept one', 'Kept two'])
     expect(existsSync(`${db}-wal`)).toBe(false)
     expect(existsSync(`${db}-shm`)).toBe(false)
-    // The copy stays until someone deletes it.
     expect(existsSync(backup)).toBe(true)
   })
 
@@ -187,6 +191,7 @@ describe.skipIf(!has('sqlite3') || !has('lsof'))('with sqlite3 and lsof', PROCES
     holdOpen(db)
     expect(bash(dir, `app_wait_for_db ${process.pid} "$DEVOT_DEV_DATA" 5`).status).toBe(0)
 
+    // A process that has ended opens nothing more.
     const ended = spawnSync('sh', ['-c', 'echo $$'], { encoding: 'utf8' }).stdout.trim()
     expect(bash(dir, `app_wait_for_db ${ended} "$DEVOT_DEV_DATA" 5`).status).toBe(1)
   })
@@ -197,6 +202,7 @@ describe.skipIf(!has('sqlite3') || !has('lsof'))('with sqlite3 and lsof', PROCES
     const appHome = join(tempDir('devot-work-'), 'home')
     expect(bash(dir, `dev_app_home "${appHome}"`).status).toBe(0)
 
+    // An app takes its folders from its HOME: a build that does not add `.dev` opens a new one.
     const stale = join(appHome, RELEASE_FOLDER, 'devot.sqlite')
     await database(stale, [])
     const held = holdOpen(stale)

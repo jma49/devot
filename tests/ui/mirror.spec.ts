@@ -9,6 +9,8 @@ import {
   type TestWindow,
 } from './fixtures'
 
+// The Markdown mirror in the UI; Rust's side is the fixture's fake (tests/core covers the passes on real files). App shortcuts are pressed with Meta.
+
 const ON: Partial<MockMirror> = { folder: '~/Notes', generation: 1, size: 12_345_678 }
 
 const section = (page: Page) => page.getByRole('region', { name: 'Markdown Mirror' }).first()
@@ -106,6 +108,7 @@ test.describe('Settings > Markdown Mirror', () => {
   })
 
   test('shows no size until the mirror has read its folder', async ({ page }) => {
+    // A folder just chosen, or a launch: Rust has not read the manifest yet.
     await openWith(page, '/settings.html', { ...ON, size: null })
     await expect(section(page)).toContainText('~/Notes')
     await expect(section(page)).not.toContainText('Size on disk')

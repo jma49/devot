@@ -1,3 +1,5 @@
+// Lists under a typing field (tag suggestions, Move and Tag dialogs, palette) move with Up and Down
+// like the pop-up pickers: Down goes to the first row, Up to the last, ends stop rather than wrap.
 import type { Page } from '@playwright/test'
 import { expect, openApp, test } from './fixtures'
 
@@ -22,6 +24,7 @@ test('the tag suggestions stop at their ends, Return picks and Escape closes', a
   }
   await newNote(page, 'Second')
   await tagField(page).fill('al')
+  // alpha, alps, then the row that makes "al".
   await expect(suggestions(page)).toHaveCount(3)
   const selected = () =>
     suggestions(page).evaluateAll((rows) =>

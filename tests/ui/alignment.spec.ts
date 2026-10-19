@@ -2,10 +2,6 @@ import { readFileSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
 
-// Edges, centres and spacings that are easy to break without noticing: the
-// toolbars and the window's traffic lights, the note list's header and rows,
-// the sidebar's row pitch, and the note's text edges in edit and preview.
-
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
@@ -84,6 +80,8 @@ test('toolbar buttons sit on the toolbar centre line, and so do the traffic ligh
     }
   }
 
+  // macOS centres the lights 2 pt above the configured inset (an inset of 20
+  // puts their centre at 18): that centre is at most 2 pt from the toolbar's.
   const conf = JSON.parse(
     readFileSync(new URL('../../src-tauri/tauri.conf.json', import.meta.url), 'utf8'),
   ) as { app: { windows: { trafficLightPosition: { x: number; y: number } }[] } }
@@ -128,6 +126,7 @@ test("the list header's toggle, name and New Note share the toolbars' centre lin
   const create = header.getByRole('button', { name: 'New Note', exact: true })
   const name = header.locator('.headline')
   const inset = header.locator('.window-inset')
+  // The line the traffic lights sit on: the middle of the 52 px toolbars.
   const line = centreY(await box(header))
   expect(line).toBe(26)
   const sameLine = async (what: string, b: Box) =>

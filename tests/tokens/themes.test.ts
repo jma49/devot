@@ -11,6 +11,9 @@ import {
 } from '../../src/renderer/src/theme/contrast'
 import { dark, ivoryDark, ivoryLight, light } from '../../src/renderer/src/theme/tokens'
 
+// Every theme has the default theme's tokens in light and dark; the palette checks pin
+// the design values (design/README.md "Themes").
+
 type Appearance = 'light' | 'dark'
 const APPEARANCES: Appearance[] = ['light', 'dark']
 const FILES = 'design/tokens/themes'
@@ -62,6 +65,8 @@ describe.each(BUILT_IN_THEMES.map((t) => t.id))('the %s theme', (id) => {
     })
 
     it("takes the default theme's accent tokens, except the ones contrast moved", () => {
+      // The dark Ivory editor is lighter than the default's, so fill, accent text, selections
+      // and focus ring moved to keep AA (contrast.test.ts, design/README.md).
       const moved: Record<Appearance, string[]> = {
         light: [],
         dark: [
@@ -121,6 +126,7 @@ describe('Ivory', () => {
     expect(rgb('light', 'color.surface.sidebar').rgb).toEqual(
       rgb('light', 'color.surface.sidebar-opaque').rgb,
     )
+    // The sidebar keeps the default theme's translucency, for the window material.
     expect(rgb('light', 'color.surface.sidebar').alpha).toBe(
       parseColor(light['color.surface.sidebar']!).alpha,
     )
@@ -177,6 +183,7 @@ describe('Ivory', () => {
     expect(hex('light', 'color.text.secondary')).toBe('#3d3d3a')
     expect(hex('dark', 'color.text.primary')).toBe('#faf9f5')
     expect(hex('dark', 'color.text.secondary')).toBe('#c2c0b6')
+    // Tertiary is the design value, or the nearest value that passes (README says which).
     const close = (appearance: Appearance, design: string) => {
       const a = rgb(appearance, 'color.text.tertiary').rgb
       const b = parseColor(design).rgb
@@ -250,8 +257,8 @@ describe('Ivory', () => {
   })
 
   it('maps the status tints: info, danger, success and warning', () => {
-    // Design values; contrast.test.ts holds what each must reach. A tint that
-    // had to move records how far in its `$description` (design/README.md).
+    // Design values (contrast.test.ts holds what each must reach); a tint that moved
+    // records how far in its `$description`.
     const near = (appearance: Appearance, path: string, design: string, slack: number) => {
       const a = rgb(appearance, path).rgb
       const b = parseColor(design).rgb

@@ -27,6 +27,7 @@ describe('tag colour palette', () => {
       }
     }
     const css = read('src/renderer/src/theme/tokens.css')
+    // Per theme: the system's light and dark, then each appearance chosen in Settings.
     const counts = TAG_COLORS.map((id) => css.split(`--color-tag-${id}:`).length - 1)
     expect(counts).toEqual(TAG_COLORS.map(() => 4 * THEME_IDS.length))
   })

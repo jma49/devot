@@ -40,6 +40,7 @@ test('an edited note moves to the top with its new date', async ({ page }) => {
   await body(page).click()
   await page.keyboard.type('Fresh words')
 
+  // The list follows the save; no other change reloads it.
   await expect(rowTitles(page)).toHaveText(['Note 3', 'Note 1', 'Note 2'])
   const shown = await row(page, 'Note 3').locator('time').getAttribute('datetime')
   expect(Date.parse(shown ?? '')).toBeGreaterThanOrEqual(started - 1000)

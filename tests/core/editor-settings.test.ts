@@ -48,7 +48,6 @@ describe('editor settings', () => {
       sidebarMaterial: true,
       windowTransparency: 0,
       pasteUrl: 'link',
-      // Split mode scrolls the editor and the preview together unless turned off.
       syncScroll: true,
       inlineImages: true,
       appearance: 'system',
@@ -63,13 +62,13 @@ describe('editor settings', () => {
       previewFontSize: 15,
       defaultNotebook: null,
       listDates: 'relative',
-      // An update found downloads in the background unless turned off.
       autoDownloadUpdates: true,
       animations: 'always',
     })
   })
 
   it('offers choices that the Rust side accepts', () => {
+    // The same lists and ranges as src-tauri/src/editor_settings.rs.
     expect(FONT_FAMILIES).toEqual([
       'system',
       'mono',
@@ -132,6 +131,7 @@ describe('editor settings', () => {
     })
     expect(read).not.toHaveProperty('future')
     expect(parseEditorSettings({ syncScroll: 0 }).syncScroll).toBe(true)
+    // An invalid value falls back to its default, a stored old value is kept.
     expect(parseEditorSettings({ lineHeight: 9, cursorScrollMargin: 'a' })).toEqual(
       DEFAULT_EDITOR_SETTINGS,
     )
@@ -276,6 +276,7 @@ describe('editor settings', () => {
       installed: null,
       imported: 'Fira Code.ttf',
     })
+    // Settings stored before these fonts existed keep the defaults.
     expect(slotFont(parseEditorSettings({ fontFamily: 'imported' }), 'code').family).toBe('mono')
     for (const bad of [
       { appFontFamily: 'Papyrus' },
@@ -305,6 +306,7 @@ describe('editor settings', () => {
       expect(parseEditorSettings({ theme }).theme).toBe('default')
       expect(() => checkEditorSettingsPatch({ theme })).toThrow('E_EDITOR_SETTINGS_INVALID')
     }
+    // A theme with a bad value does not spoil the settings beside it.
     expect(parseEditorSettings({ theme: 'nope', appearance: 'dark' })).toMatchObject({
       theme: 'default',
       appearance: 'dark',

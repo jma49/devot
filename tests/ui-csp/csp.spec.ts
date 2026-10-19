@@ -15,10 +15,10 @@ import {
   type Rgb,
 } from '../../src/renderer/src/theme/contrast'
 
-// The built UI under the production CSP (scripts/serve-csp.ts). `pnpm dev`
-// relaxes the policy, so only these tests see what the app sees.
+// Runs the built UI under the production CSP (scripts/serve-csp.ts); `pnpm dev` relaxes it.
 
 declare global {
+  // This config has no DOM types: only the members read here.
   var devotCspViolations: string[]
 }
 
@@ -34,9 +34,7 @@ async function start(page: Page, path = '/') {
     }
     globalThis.devotCspViolations = []
     win.addEventListener('securitypolicyviolation', (event) => {
-      // WebKit styles a <select>'s internal parts through a style attribute
-      // and reports it against the page's policy; the control still renders
-      // and works. Every other violation counts.
+      // WebKit reports a <select>'s internal style attribute as a violation; the control still works.
       if (event.violatedDirective === 'style-src-attr' && event.target?.nodeName === 'SELECT')
         return
       globalThis.devotCspViolations.push(`${event.violatedDirective} ${event.blockedURI}`)
@@ -91,6 +89,7 @@ test('the [[ link popup is styled and positioned under the policy', async ({ pag
   await page.keyboard.type('[[')
   const popup = page.locator('.cm-tooltip-autocomplete')
   await expect(popup.getByRole('option', { name: 'Target' })).toBeVisible()
+  // Its position is set through CSSOM, which the CSP allows.
   await expect(popup.getByRole('option').first()).not.toHaveCSS('border-radius', '0px')
   const line = await page.locator('.cm-line').filter({ hasText: '[[' }).first().boundingBox()
   const box = await popup.boundingBox()
@@ -208,6 +207,7 @@ test('the notebook menu works and outlines its notebook under the policy', async
   })
   await row.click({ button: 'right' })
   await expect.poll(() => shownMenu(page)).toContain('New Notebook Inside')
+  // A selected row under the keyboard also has a 5 px bar in its box-shadow.
   await expect(row).toHaveCSS('box-shadow', /0px 0px 0px 2px inset$/)
   await page.evaluate(() => (globalThis as unknown as { closeMenu: () => void }).closeMenu())
   await expect(row).not.toHaveCSS('box-shadow', /0px 0px 0px 2px inset$/)
@@ -241,6 +241,7 @@ test('notebook drops show their insertion line and indent under the policy', asy
     if (!b) throw new Error('E_TEST_NO_BOX')
     return b
   }
+  // The indent comes from a custom property set through the CSSOM.
   const alpha = await box('Alpha')
   await row('Charlie').dragTo(row('Alpha'), {
     targetPosition: { x: alpha.width / 2, y: alpha.height / 2 },
@@ -263,7 +264,6 @@ test('notebook drops show their insertion line and indent under the policy', asy
   const to = await box('Alpha')
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
   await page.mouse.down()
-  // After the open Alpha: the line is on its item, under Charlie, across Alpha's width.
   await page.mouse.move(to.x + to.width / 2, to.y + to.height - 2, { steps: 4 })
   const alphaItem = page.getByRole('treeitem', { name: /^Alpha\b/ }).locator('+ li')
   await expect(alphaItem).toHaveClass(/drop-after/)
@@ -304,6 +304,7 @@ test('the selection toolbar is styled and placed by the editor under the policy'
   await page.getByRole('button', { name: 'Edit' }).click()
   const body = page.getByRole('textbox', { name: 'Note body' })
   await body.click()
+  // Mouse word selection is the same on every platform; the word-move keys differ.
   const at = await page
     .locator('.cm-line')
     .last()
@@ -337,6 +338,7 @@ test('the selection toolbar is styled and placed by the editor under the policy'
   await page.mouse.dblclick(at.x, at.y)
   const toolbar = page.getByRole('toolbar', { name: 'Format' })
   await expect(toolbar).toBeVisible()
+  // Its theme (constructed sheet), icon masks and position all go through the CSSOM.
   const bold = toolbar.getByRole('button', { name: 'Bold' })
   await expect(bold).toHaveCSS('width', '28px')
   await expect(bold).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
@@ -390,6 +392,7 @@ test('find marks matches in the editor and the preview under the policy', async 
   await start(page)
   await newNote(page, 'alpha **beta** alpha')
   const bar = page.getByRole('search', { name: 'Find in Note' })
+  // Marks come from the editor's constructed sheet.
   await page.getByRole('textbox', { name: 'Note body' }).click()
   await page.keyboard.press('Meta+f')
   await page.keyboard.type('alpha')
@@ -466,6 +469,7 @@ test('the editor settings work under the policy in both windows', async ({ page 
   await newNote(page, 'Some text')
   const content = page.locator('.cm-content')
   await expect(content).toHaveCSS('font-size', '18px')
+  // Split gives each pane half the note area; Edit keeps the reading width.
   await expect(content).toHaveCSS('max-width', 'none')
   await page.getByRole('button', { name: 'Edit', exact: true }).click()
   await expect(content).toHaveCSS('max-width', '740px')
@@ -519,7 +523,7 @@ test('the activity heatmap is styled under the policy', async ({ page }) => {
   await expect(today).toHaveAccessibleName(
     /: 1 note created, 1 note edited, 13 characters changed$/,
   )
-  // Shades come from the stylesheet, never from inline styles.
+  // Shades come from the stylesheet, never inline styles.
   await expect(today).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(sheet.locator('.activity-legend .activity-level-0')).not.toHaveCSS(
     'background-color',
@@ -534,7 +538,7 @@ test('code blocks get a styled copy button and split mode scrolls together under
 }) => {
   await start(page)
   const sections = Array.from({ length: 80 }, (_, i) => `## Part ${i + 1}\n\nText ${i + 1}.`)
-  // A bare fence: its button sits in the block's corner (a header holds it otherwise).
+  // A bare fence has its button in the block's corner; otherwise a header holds it.
   await newNote(page, '```\nconst x = 1\n```\n\n' + sections.join('\n\n'))
   const preview = page.getByRole('article', { name: 'Preview' })
   const copy = preview.getByRole('button', { name: 'Copy Code' })
@@ -573,6 +577,7 @@ test('an image from the web loads in the preview and under its line, within the 
   page,
 }) => {
   await start(page)
+  // A 1x1 PNG served for the web address; nothing leaves the machine.
   const png = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
     'base64',
@@ -594,6 +599,7 @@ test('an image from the web loads in the preview and under its line, within the 
   expect(await violations(page)).toEqual([])
 })
 
+// The editor's colours come from the design tokens in both appearances.
 interface Seen {
   color: string
   background: string
@@ -744,6 +750,7 @@ for (const scheme of ['light', 'dark'] as const) {
       `${scheme} active gutter cell`,
     ).toBeGreaterThanOrEqual(4.5)
 
+    // CodeMirror draws the selection in a layer below the lines, so it is also checked against the active line's tint.
     await page.keyboard.press('ControlOrMeta+a')
     const painted = async () => {
       const selection = await partStyle(page, '.cm-selectionBackground')

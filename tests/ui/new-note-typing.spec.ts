@@ -44,6 +44,7 @@ test.beforeEach(async ({ page }) => {
       const delayed = (event: Event) => {
         const id = (event as MessageEvent<{ id?: unknown }>).data?.id
         if (!late.has(id)) return listener.call(this, event)
+        // Every listener on the worker sees the reply late; the id is done after.
         setTimeout(() => {
           late.delete(id)
           listener.call(this, event)
@@ -65,7 +66,6 @@ test('notes made back to back keep each title in the title and each body in the 
     const before = await noteRows(page).count()
     await page.getByRole('button', { name: 'New Note', exact: true }).click()
     await expect(noteRows(page)).toHaveCount(before + 1)
-    // No wait for the body: straight into the title, as fast as a user can.
     await titleField(page).click()
     await page.keyboard.type('Title ')
     await expect(body(page)).toBeVisible()

@@ -8,9 +8,8 @@ import {
   MAX_YDOC_BYTES,
 } from '../../src/core'
 
-// The app's note_put refuses a note outside these limits, and the core keeps
-// notes within them (titles are cut, every storage adapter checks the rest):
-// both sides must agree, or a note the core keeps could never be saved.
+// note_put refuses notes outside these limits and the core keeps notes within them: both sides must
+// agree, or a note the core keeps could never be saved.
 const NOTES = readFileSync('src-tauri/src/commands/notes.rs', 'utf8')
 
 function rustConst(name: string): number {

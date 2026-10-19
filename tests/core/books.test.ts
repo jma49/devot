@@ -89,7 +89,6 @@ describe('notebooks on SQLite', () => {
     expect(names(await books.list())).toEqual(['Keep'])
     const summaries = await notes.list()
     expect(summaries.map((n) => n.title).sort()).toEqual(['In Devot', 'In Keep'])
-    // Its notebook is gone, so the note shows under no notebook.
     expect(notesInBook(summaries, await books.list(), null).map((n) => n.id)).toEqual([inDevot])
   })
 
@@ -152,6 +151,7 @@ describe('notebook metadata merges per field (HLC)', () => {
     const stale = (await storage.getNote(id))!
     await notes.setBook(id, b)
     await notes.flush()
+    // The older copy's fields, written over the body as stored now.
     const { bodyVersion } = (await storage.getNote(id))!
     await storage.putNote({ ...stale, title: 'Stale write', bodyVersion })
     const now = (await storage.getNote(id))!

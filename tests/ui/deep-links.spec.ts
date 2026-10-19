@@ -103,6 +103,7 @@ test('a command link runs an allowed command', async ({ page }) => {
 
 test('a command that cannot run now shows a notice', async ({ page }) => {
   await open(page)
+  // Edit Mode needs an open note.
   await sendLink(page, { kind: 'command', id: 'view.edit' })
   await expect(notice(page)).toContainText('That command can’t run right now.')
 })

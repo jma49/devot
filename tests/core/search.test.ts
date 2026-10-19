@@ -58,6 +58,8 @@ const titles = async (notes: NoteService, query: string, scope?: SearchScope) =>
 
 const any = (value: string, negate = false): SearchClause => ({ field: 'any', value, negate })
 
+// "\u540c\u6b65\u65b9\u6848" is a four-character Chinese phrase ("sync plan");
+// "\u540c\u6b65" is its two-character first word.
 const SYNC_PLAN = '\u540c\u6b65\u65b9\u6848'
 const SYNC = '\u540c\u6b65'
 
@@ -72,6 +74,7 @@ const EXCERPT_CASES = JSON.parse(
 ) as ExcerptCase[]
 const excerptBody = (parts: ExcerptCase['parts']) => parts.map(([t, n]) => t.repeat(n)).join('')
 
+// 200 excerpts (a full page) of 110 KB bodies: reading each body whole took about a second.
 const EXCERPTS_BUDGET_MS = 100
 
 describe('parseSearch', () => {
@@ -169,6 +172,7 @@ describe('parseSearch', () => {
       any('pinned:maybe'),
       any('pinned:""'),
     ])
+    // A UUID of another version is no ID of Devot's.
     expect(parseSearch('bookId:0192a6f0-0000-4000-8000-0000000000b1')).toEqual([
       any('bookId:0192a6f0-0000-4000-8000-0000000000b1'),
     ])
@@ -181,6 +185,7 @@ describe('parseSearch', () => {
       { field: 'book', value: 'Weekly notes', negate: false },
       { field: 'title', value: 'a b', negate: false },
     ])
+    // The closing quote is the one before a space: 'don't stop' is one phrase.
     expect(parseSearch("'don't stop' next")).toEqual([any("don't stop"), any('next')])
     expect(parseSearch(`'say "hi"' "it's"`)).toEqual([any('say "hi"'), any("it's")])
     expect(parseSearch("don't 'tis rock'n'roll")).toEqual([
@@ -371,6 +376,7 @@ describe('highlighting', () => {
 
 describe('bodyExcerpt', () => {
   it('cuts the body around the first term found, folding case beyond ASCII', () => {
+    // "\u00c4rger" is the German word "anger" with a capital A umlaut.
     expect(bodyExcerpt('Kein \u00c4rger im Team', ['missing', '\u00e4RGER'])).toBe(
       'Kein \u00c4rger im Team',
     )
@@ -387,6 +393,7 @@ describe('bodyExcerpt', () => {
     const cut = bodyExcerpt(body, ['needle'])
     expect(cut).toBe(`…${body.slice(77)}`)
     expect(cut?.startsWith('…abcdefghij needle')).toBe(false)
+    // Where the 40th character is a word's first, nothing moves.
     expect(bodyExcerpt(`${'abcdefghi '.repeat(10)}needle`, ['needle'])).toBe(
       `…${'abcdefghi '.repeat(10).slice(60)}needle`,
     )
@@ -397,6 +404,7 @@ describe('bodyExcerpt', () => {
     expect(bodyExcerpt(chinese, ['marker'])).toBe(`…${chinese.slice(80 - 40)}`)
   })
 
+  // Shared with the Rust store (storage/tests.rs): long bodies, read only around the place a word is found.
   it.each(EXCERPT_CASES)('$name', ({ parts, terms, excerpt }) => {
     expect(bodyExcerpt(excerptBody(parts), terms) ?? null).toBe(excerpt)
   })
@@ -423,6 +431,7 @@ describe('full-text search on SQLite', () => {
     expect(await titles(notes, 'hibernat')).toEqual(['Relay design'])
     expect(await titles(notes, 'RELAY')).toEqual(['Relay design'])
     expect(await titles(notes, SYNC_PLAN)).toEqual([SYNC_PLAN])
+    // Two characters: below the trigram length, still found.
     expect(await titles(notes, SYNC)).toEqual([SYNC_PLAN])
     expect(await titles(notes, 'ap')).toEqual(['Groceries'])
   })
@@ -596,6 +605,7 @@ describe('qualifiers combined with full-text search on SQLite', () => {
 
   it('applies qualifiers before the result limit, so no match is dropped', async () => {
     const { notes, storage, books } = await world()
+    // More notes than the limit match "plan"; only the qualifier tells them apart.
     const insert = storage.db.transaction(() => {
       for (let i = 0; i < SEARCH_LIMIT + 50; i += 1) {
         storage.db

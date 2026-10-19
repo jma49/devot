@@ -23,11 +23,8 @@ import {
 } from '../../scripts/sentry/upload'
 import { tempDir } from '../support/temp-dirs'
 
-// Release builds upload the UI's source maps (and the app's debug symbols)
-// to Sentry when its settings are set, and the app bundle never carries a
-// source map either way, nor the UI tests' in-memory storage. The scripts
-// run here against a fake sentry-cli that only records how it was called;
-// nothing reaches the network.
+// Release builds upload source maps and debug symbols to Sentry when configured; the app bundle never
+// carries a source map nor the UI tests' in-memory storage. Scripts run against a fake sentry-cli.
 
 const root = join(import.meta.dirname, '../..')
 const work = tempDir('devot-release-')
@@ -75,6 +72,7 @@ describe('upload settings', () => {
   })
 
   it('name the release as the app does', () => {
+    // Cargo.toml's version, as Rust reports it (tests/policy/release.test.ts).
     const cargo = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8')
     const version = /\[package\][^[]*?\nversion = "([^"]+)"/.exec(cargo)?.[1]
     expect(releaseName(root)).toBe(`devot@${version}`)
@@ -90,6 +88,7 @@ describe('source map checks', () => {
       'assets/a.js.map': '{}',
       'assets/b.css': 'p{}\n/*# sourceMappingURL=b.css.map */\n',
       'assets/old.js': 'f()\n//@ sourceMappingURL=old.js.map',
+      // Text that only mentions the comment is not one.
       'assets/clean.js': 'const s = "//# sourceMappingURL=x"; //# debugId=1\n',
       'assets/w/c.mjs.map': '{}',
     })
@@ -113,9 +112,8 @@ describe('source map checks', () => {
     ])
   })
 
-  // Tauri names the triple with or without --target, so both folders may hold
-  // a build: the one built last wins. Rebuilding rewrites the binary and the
-  // DWARF file inside an existing dSYM but keeps the dSYM folder's own time.
+  // Tauri names the triple with or without --target, so both folders may hold a build: the last wins.
+  // Rebuilding rewrites the binary and DWARF file inside a dSYM but keeps the dSYM folder's own time.
   describe('with and without --target', () => {
     const dir = join(work, 'target-triples')
     const env = { CARGO_TARGET_DIR: dir, TAURI_ENV_TARGET_TRIPLE: 'aarch64-apple-darwin' }
@@ -172,6 +170,7 @@ describe('source map checks', () => {
   })
 })
 
+/** A sentry-cli stand-in: logs each call and the source maps present then. */
 function fakeCli(name: string, failOn?: string): { cli: string; log: string } {
   const cli = join(work, `${name}-sentry-cli.mjs`)
   const log = join(work, `${name}-calls.jsonl`)
@@ -223,6 +222,7 @@ function runScript(script: string, cli: string, env: Record<string, string>, arg
       ...clean,
       DEVOT_SENTRY_DSN: '',
       DEVOT_SENTRY_CLI: cli,
+      // Were the fake ever bypassed, sentry-cli would find nothing here.
       SENTRY_URL: 'http://127.0.0.1:9',
       ...env,
     },
@@ -245,6 +245,7 @@ describe('release UI build', () => {
         ['sourcemaps', 'inject', out],
         ['sourcemaps', 'upload', '--release', releaseName(root), out],
       ])
+      // The maps existed while sentry-cli ran; the token went by environment.
       expect(made[1]!.maps).toBeGreaterThan(10)
       for (const call of made) {
         expect(call.env).toEqual(Object.values(SETTINGS))
@@ -294,6 +295,7 @@ describe('release UI build', () => {
     'removes the maps when the build itself fails after writing them',
     () => {
       const out = join(work, 'dist-broken')
+      // The app's config plus a plugin that fails once every file is written and maps remain.
       const config = join(work, 'broken.vite.config.ts')
       const counted = join(work, 'broken-maps.txt')
       writeFileSync(
@@ -327,14 +329,13 @@ export default mergeConfig(base, {
     BUILD,
   )
 
-  // The UI tests keep notes in an in-memory storage (storage/memory.ts),
-  // chosen at build time by their own Vite config. The app must never use
-  // it: its notes would sit in the web view's local storage, where neither
-  // backups nor devot-mcp see them.
+  // The UI tests' in-memory storage (storage/memory.ts) is chosen at build time by their Vite config;
+  // the app must never use it, or notes would sit in local storage where backups and devot-mcp can't see them.
   it(
     "leaves the UI tests' storage out, whatever VITE_DEVOT_STORAGE says",
     () => {
       const out = join(work, 'dist-storage')
+      // The old switch, in .env.local and in the environment, does nothing.
       const envDir = mkdtempSync(join(work, 'storage-env-'))
       writeFileSync(join(envDir, '.env.local'), 'VITE_DEVOT_STORAGE=memory\n')
       const config = join(work, 'storage.vite.config.ts')

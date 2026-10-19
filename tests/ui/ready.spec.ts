@@ -1,8 +1,4 @@
-// The window marks itself ready (`data-ready` on `.window`) once its lists
-// have loaded and its last state is restored. Every listener the window adds
-// in an effect is added by then, so a test that acts at that moment is heard;
-// before it, a key or an event can be lost. `openApp` and `reloadApp` wait
-// for the mark.
+// `data-ready` on `.window` means every effect listener is added; before it a key or event can be lost.
 import { expect, openApp, reloadApp, test } from './fixtures'
 
 const READY = '.window[data-ready]'
@@ -57,6 +53,7 @@ test('openApp and reloadApp return with the window ready', async ({ page }) => {
   })
   await reloadApp(page)
   await expect(page.locator(READY)).toHaveCount(1)
+  // A fresh page: the marker of the old one is gone.
   expect(
     await page.evaluate(() => (globalThis as unknown as { devotMarker?: boolean }).devotMarker),
   ).toBeUndefined()

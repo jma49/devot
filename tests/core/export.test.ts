@@ -32,9 +32,11 @@ import { tempDir } from '../support/temp-dirs'
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1])
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 2])
+// Written as code points: no CJK characters in the source.
 const CJK = String.fromCodePoint(0x4e2d, 0x6587, 0x7b14, 0x8bb0)
 const ID1 = '0192a6f0-0000-7000-8000-00000000f001'
 const ID2 = '0192a6f0-0000-7000-8000-00000000f002'
+/** UUID-shaped but version 4: no attachment has such an ID. */
 const V4 = '0192a6f0-0000-4000-8000-00000000f003'
 const NOTE = '0192a6f0-0000-7000-8000-000000000009'
 
@@ -79,8 +81,10 @@ describe('names', () => {
     expect(relativeHref([], ['Plans', 'Plan.html'])).toBe('Plans/Plan.html')
     expect(relativeHref(['Plans'], ['Inbox.html'])).toBe('../Inbox.html')
     expect(relativeHref(['A', 'B', 'C'], ['A', 'D', 'E', 'x.html'])).toBe('../../D/E/x.html')
+    // A folder named like the page is still a folder.
     expect(relativeHref(['A', 'B'], ['A', 'B.html'])).toBe('../B.html')
     expect(relativeHref(['Plan'], ['Plan.html'])).toBe('../Plan.html')
+    // Each name percent-encoded, so `#`, `%` and spaces stay part of it.
     expect(relativeHref([], ['My notes', '100% #1?.html'])).toBe('My%20notes/100%25%20%231%3F.html')
     expect(relativeHref(['My notes'], [`${CJK}.html`])).toBe(`../${encodeURIComponent(CJK)}.html`)
   })
@@ -122,6 +126,7 @@ describe('Markdown files', () => {
   })
 
   it('finds the attachments of <img> tags in raw HTML in a note with no Markdown image', () => {
+    // Nothing starts with `![` here: the tags alone show the attachments.
     const body = [
       `<p align="center"><IMG SRC="devot://file/${ID1}" width="300"></p>`,
       '',
@@ -160,6 +165,7 @@ describe('Markdown files', () => {
     const body = [
       `![a](devot://file/${ID1}#half) ![b](devot://file/${ID1}) ![c](<devot://file/${ID1}#small>)`,
       `![d](devot://file/${ID2}\\#full "Full")`,
+      // Not a size: not an attachment link either (the preview drops it too).
       `![e](devot://file/${ID1}#other)`,
       '',
     ].join('\n')
@@ -207,6 +213,7 @@ describe('Markdown files', () => {
         '',
       ].join('\n'),
     )
+    // Import reads it back and leaves it out of the note.
     expect(readFrontMatter(out)).toEqual({
       title: "Plan: Bob's",
       notebook: null,
@@ -224,6 +231,7 @@ describe('Markdown files', () => {
     const own = ['---', 'title: Plan', 'tags:', '  - work', 'author: me', '---', 'Text', ''].join(
       '\n',
     )
+    // Its title is its file name's, and it has no tags or status: kept as written.
     expect(markdownFile(entry(own, { title: 'x' }), 'x.md', new Map())).toBe(own)
     const out = markdownFile(
       entry(own, { title: 'Renamed', tags: ['work', 'new'], status: 'active' }),
@@ -263,6 +271,7 @@ function library() {
 
 type Library = ReturnType<typeof library>
 
+/** Writes into `root` like the Rust commands, attachments from the database. */
 function folderSink(sqlite: SqliteAdapter, root: string, fileName?: string) {
   const written: string[] = []
   const sink: ExportSink = {
@@ -298,6 +307,7 @@ function walk(root: string, rel = ''): string[] {
     })
 }
 
+/** Imports the folder at `root` as Rust scans it: Markdown files, sorted. */
 async function importFolder(lib: Library, root: string, name: string) {
   const files = walk(root).filter((p) => p.endsWith('.md'))
   const scan: ImportScan = {
@@ -321,6 +331,7 @@ async function importFolder(lib: Library, root: string, name: string) {
   return importMarkdown({ ...lib.services, newId: lib.newId, scan, source, destination })
 }
 
+/** Body with each attachment ID replaced by its bytes. */
 function bodyWithBytes(sqlite: SqliteAdapter, body: string): string {
   return body.replace(/devot:\/\/file\/([0-9a-f-]{36})/g, (_, id: string) => {
     const file = sqlite.db.prepare('SELECT data FROM files WHERE id = ?').get(id) as
@@ -400,6 +411,7 @@ async function sampleLibrary() {
         '',
         `![Board](devot://file/${board} "The board") and ![again](devot://file/${board}).`,
         '',
+        // Sized: the same file as above, and one only shown sized.
         `![half](devot://file/${board}#half) ![Shot][shot]`,
         '',
         `[shot]: devot://file/${shot}`,
@@ -453,8 +465,7 @@ describe('Markdown export', () => {
       'attachments/my shot (1).jpg',
       'attachments 2/Untitled.md',
     ])
-    // The two Specs' images share a name; the sink keeps the last, so the
-    // Rust side numbers them (tested there). Here, check the links.
+    // The two Specs' images share a name and the sink keeps the last; Rust numbers them
     const plan = readFileSync(join(root, 'Plans 2026/Launch plan.md'), 'utf8')
     expect(plan).toContain('![Board](../attachments/board.png "The board")')
     expect(plan).toContain('![again](../attachments/board.png)')
@@ -483,6 +494,7 @@ describe('Markdown export', () => {
     const report = await importFolder(fresh, root, 'Work')
     expect(report.problems).toEqual([])
     expect(report.notes).toBe(7)
+    // Notebook names come back file-safe: no colon, and `attachments` is taken.
     const safe = (book: string) =>
       book.replace('Plans: 2026', 'Plans 2026').replace(/^Work\/attachments$/, 'Work/attachments 2')
     const before = (await snapshot(lib, 'Work')).map((n) => ({ ...n, book: safe(n.book) }))
@@ -505,6 +517,7 @@ describe('Markdown export', () => {
     const own = ['---', 'author: me', 'tags: [plain]', '---', '# A heading', '', 'Text.', ''].join(
       '\n',
     )
+    // Import alone would title these after their heading or file name.
     await note('', own, ['plain'])
     await note('', own.replace('author: me', 'author: you'), ['#urgent', 'plain'])
     await note('Tagged', '# Tagged\n', ['#urgent', '##twice'])
@@ -594,6 +607,7 @@ describe('Markdown export', () => {
     const root = join(tempDir('devot-export-out-'), 'Folder')
     const { sink } = folderSink(lib.sqlite, root, 'Old.md')
     const asked: string[] = []
+    // Like Rust's export_attach, which refuses any ID that is not a UUIDv7.
     const strict: ExportSink = {
       ...sink,
       attach: (fileId) => {
@@ -652,6 +666,7 @@ describe('Markdown export', () => {
   })
 })
 
+// Written as code points: composed and decomposed forms look alike in source.
 const E_ACUTE = String.fromCodePoint(0xe9)
 const ACUTE = String.fromCodePoint(0x301)
 const SHARP_S = String.fromCodePoint(0xdf)
@@ -669,8 +684,7 @@ describe('exporting every note, or chosen notes', () => {
       return id
     }
     const loose = await add('Loose', null)
-    // A note in no notebook named like a notebook's folder, and one named
-    // like the attachments folder: the files and folders never clash.
+    // Notes named like a notebook's folder or the attachments folder never clash.
     await add('Work', null)
     await add('attachments', null)
     await add('Kept', await books.create('attachments', null))
@@ -827,6 +841,7 @@ describe('names macOS takes for one', () => {
       await notes.setBody(id, `Text of a note.\n`)
       await notes.release(id)
     }
+    // Sibling notebooks named alike in the same ways, and a note whose file would clash with a folder.
     for (const name of [`Caf${E_ACUTE}`, `cafe${ACUTE}`]) {
       const book = await books.create(name, top)
       await notes.release(await notes.create(`Inside ${name}`, book))
@@ -841,6 +856,7 @@ describe('names macOS takes for one', () => {
     const folders = new Set(plan.entries.map((e) => e.folder.map(nameKey).join('/')))
     expect(folders.size).toBe(3)
 
+    // On disk, where macOS takes such names for one, and back: every note keeps its title.
     const root = join(tempDir('devot-export-out-'), 'Top')
     const report = await exportMarkdown({
       ...lib.services,
@@ -893,6 +909,7 @@ describe("Devot's metadata", () => {
     const title = `Q1${LINE_SEPARATOR}plan "draft" \\ it's`
     const tags = [`a${LINE_SEPARATOR}b`, `c${PARAGRAPH_SEPARATOR}d`, 'it\'s, "x"', 'plain', '\\']
     const out = markdownFile(entry('Text.\n', { title, tags }), 'Q1 plan.md', new Map())
+    // Each value stays on its line: no raw separator is written.
     expect(out).not.toContain(LINE_SEPARATOR)
     expect(out).not.toContain(PARAGRAPH_SEPARATOR)
     const note = await importOne('Q1 plan.md', out)
@@ -913,6 +930,7 @@ describe("Devot's metadata", () => {
     const out = markdownFile(entry('Body.\n', { title, tags: ['t'] }), 'a b.md', new Map())
     expect(out).not.toContain(CR)
     const note = await importOne('a b.md', out)
+    // A title is one line: the carriage returns read back as spaces.
     expect(note.title).toBe('a --- b')
     expect(note.tags).toEqual(['t'])
     expect(note.body).toBe('Body.\n')
@@ -952,6 +970,7 @@ describe("Devot's metadata", () => {
 })
 
 describe('images', () => {
+  /** A note in `book` showing an attachment per name (distinct bytes), as `body` says. */
   async function noteWithImages(
     lib: Library,
     book: string | null,
@@ -994,6 +1013,7 @@ describe('images', () => {
         '',
         `Inline <img alt="s" src="${uri('sized.png')}#small"> and <img src='${uri('single.png')}'>.`,
         '',
+        // Unquoted (in a block: inline, a value with a slash is no HTML).
         `<div><img src=${uri('bare.png')}></div>`,
         '',
       ].join('\n'),
@@ -1026,6 +1046,7 @@ describe('images', () => {
   it('exports and imports back an HTML image after text that grows when lowercased', async () => {
     const lib = library()
     const top = await lib.services.books.create('Top', null)
+    // A dotted capital I lowercases to two code units.
     const dotted = String.fromCodePoint(0x130)
     const names = ['after-text.png', 'after-script.png']
     await noteWithImages(lib, top, names, (uri) =>

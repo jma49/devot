@@ -5,6 +5,7 @@ import { gitIn, listFiles } from '../support/git-files'
 import { CJK, hasCjk } from '../support/policy-patterns'
 import { tempDir } from '../support/temp-dirs'
 
+// English-only codebase: UI text lives in locale catalogs, CJK test data uses \u escapes.
 const BINARY = /\.(png|icns|ico|sqlite|woff2?)$/
 
 it('no tracked file contains CJK characters', () => {
@@ -28,6 +29,7 @@ it('no tracked file contains CJK characters', () => {
 it('the file listing returns a non-ASCII file name as written, not quoted', () => {
   const repo = tempDir('devot-cjk-names-')
   gitIn(repo, 'init', '-q')
+  // Built from code points so this file holds no CJK itself.
   const name = `${String.fromCodePoint(0x4e2d)}.txt`
   writeFileSync(join(repo, name), 'x')
   const files = listFiles(repo)
@@ -35,6 +37,7 @@ it('the file listing returns a non-ASCII file name as written, not quoted', () =
   expect(files.some(hasCjk)).toBe(true)
 })
 
+// Sample characters by code point, so this file holds no CJK itself.
 const SAMPLES: Record<string, number> = {
   'a Han ideograph': 0x4e2d,
   'a Han ideograph of extension A': 0x3400,

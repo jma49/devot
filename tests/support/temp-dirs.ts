@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+// Folders made here are removed when the test file ends (temp-dirs.setup.ts).
+
 const made: string[] = []
 
 export function tempDir(prefix: string): string {

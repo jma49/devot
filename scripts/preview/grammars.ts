@@ -1,6 +1,4 @@
-// Generates src/core/preview/grammars.ts: a lazy loader for every highlight.js
-// grammar, plus the alias table, so a code block loads only its own grammar.
-// Run `pnpm grammars` after upgrading highlight.js; a test fails when stale.
+// Generates src/core/preview/grammars.ts; run `pnpm grammars` after upgrading highlight.js (a test fails when stale).
 import hljs from 'highlight.js'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'

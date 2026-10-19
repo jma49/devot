@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test'
 import { changeShortcutsElsewhere, expect, test, pickNoteMore } from './fixtures'
 
+// The find shortcuts check the Command key, so these tests press Meta on every platform.
+
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const bar = (page: Page) => page.getByRole('search', { name: 'Find in Note' })
@@ -59,7 +61,6 @@ test('Cmd+F finds in the note; Cmd+G steps through matches; Escape returns to th
   await expect(findField(page)).toBeFocused()
   await expect(replaceField(page)).toHaveCount(0)
   await page.keyboard.type('one')
-  // Matches are marked; the one after the cursor (wrapping) is current.
   await expect(findStatus(page)).toHaveText('1 of 3')
   await expect(page.locator('.cm-find-match')).toHaveCount(3)
   await expect(page.locator('.cm-find-current')).toHaveCount(1)
@@ -86,6 +87,7 @@ test('Cmd+F finds in the note; Cmd+G steps through matches; Escape returns to th
   await expect(bar(page)).toHaveCount(0)
   await expect(body(page)).toBeFocused()
   await expect(page.locator('.cm-find-match')).toHaveCount(0)
+  // The last match stays selected, so typing replaces it.
   await page.keyboard.type('four')
   await expect.poll(() => savedBody(page, 'Find')).toBe('one two one\nthree four')
 })
@@ -105,6 +107,8 @@ test('the count follows edits, and Cmd+F again picks up the selection', async ({
   await expect(findStatus(page)).toHaveText('1 of 2')
   await page.keyboard.press('Shift+F3')
   await expect(findStatus(page)).toHaveText('2 of 2')
+  // Escape closes the bar once the editor's own popups are gone (a pending word completion
+  // ends when the cursor moves).
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('Escape')
   await expect(bar(page)).toHaveCount(0)
@@ -118,6 +122,7 @@ test('the count follows edits, and Cmd+F again picks up the selection', async ({
   await expect(findStatus(page)).toHaveText('1 of 1')
   await page.keyboard.press('Escape')
   await expect(body(page)).toBeFocused()
+  // With the bar closed, F3 does not open the editor's built-in search.
   await page.keyboard.press('F3')
   await expect(page.locator('.cm-search')).toHaveCount(0)
   await expect(bar(page)).toHaveCount(0)
@@ -236,7 +241,6 @@ test('in preview mode, Cmd+F searches the rendered text and highlights it', asyn
   await findField(page).fill('**')
   await expect(findStatus(page)).toHaveText('No matches')
   await expect.poll(() => previewHighlights(page)).toEqual([0, 0])
-  // The preview cannot be edited, so there is no replace.
   await page.keyboard.press('Alt+Meta+f')
   await expect(replaceField(page)).toHaveCount(0)
 
@@ -268,6 +272,7 @@ test('the preview highlights follow the text as it changes', async ({ page }) =>
 })
 
 test('a hard line break in the preview separates the text around it', async ({ page }) => {
+  // Two trailing spaces: a hard break, rendered as <br>.
   await newNote(page, 'Break', 'alpha  \nbeta')
   await mode(page, 'Preview').click()
   await expect(preview(page).locator('br')).toHaveCount(1)
@@ -291,6 +296,7 @@ test('in split mode, Cmd+F searches the pane that has focus', async ({ page }) =
   await expect(page.locator('.cm-find-match')).toHaveCount(1)
   await expect.poll(() => previewHighlights(page)).toEqual([0, 0])
 
+  // From the preview: the rendered text, which has no asterisks.
   await preview(page).locator('em').click()
   await page.keyboard.press('Meta+f')
   await expect(findField(page)).toBeFocused()
@@ -326,6 +332,7 @@ test('Cmd+G with the bar closed goes on to the next match with the same query', 
   await page.keyboard.type('\\d+')
   await expect(findStatus(page)).toHaveText('1 of 3')
 
+  // Escape leaves the match selected; that selection is not a new query.
   await page.keyboard.press('Escape')
   await expect(bar(page)).toHaveCount(0)
   await page.keyboard.press('Meta+g')
@@ -365,10 +372,13 @@ test("CodeMirror's Go to Line and search panel never open, even on a freed Find 
 }) => {
   await newNote(page, 'Panels', 'one two one')
   const panels = page.locator('.cm-panels, .cm-search, .cm-gotoLine, .cm-panel')
+  // Go to Line is Alt+G (Cmd+Option+G on macOS).
   for (const keys of ['Alt+g', 'ControlOrMeta+Alt+g']) {
     await page.keyboard.press(keys)
     await expect(panels).toHaveCount(0)
   }
+  // Find Next moved to another key leaves Cmd+G free, which CodeMirror's own
+  // Find Next would take (and open its panel with).
   await changeShortcutsElsewhere(page, { 'find.next': ['Mod+Shift+J'] })
   for (const keys of ['Meta+g', 'ControlOrMeta+g', 'F3', 'ControlOrMeta+f']) {
     await page.keyboard.press(keys)
@@ -387,6 +397,7 @@ test('replacing from the keyboard keeps Escape working', async ({ page }) => {
   expect(await lines(page)).toEqual(['dog dog'])
   await expect(findStatus(page)).toHaveText('No matches')
   await expect(barButton(page, 'Replace All')).toBeDisabled()
+  // A button with nothing left to do still holds the focus, so Escape closes.
   await page.keyboard.press('Escape')
   await expect(bar(page)).toHaveCount(0)
   await expect(body(page)).toBeFocused()
@@ -403,6 +414,7 @@ test('a soft line break between formatted words is a space in the preview', asyn
   await expect(findStatus(page)).toHaveText('1 of 1')
   await findField(page).fill('ab')
   await expect(findStatus(page)).toHaveText('No matches')
+  // Between blocks it is still a line break, not a space.
   await findField(page).fill('b c')
   await expect(findStatus(page)).toHaveText('No matches')
 })

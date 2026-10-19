@@ -13,15 +13,14 @@ import { folderHost, type FolderHost } from '../support/mirror-host'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Acceptance benchmark: the first mirror of 10,000 notes runs in the
-// background without holding the event loop (the core worker keeps
-// answering the UI, so typing never waits on it), and afterwards a single
-// note edit writes exactly one file.
+// First mirror of 10,000 notes must not hold the event loop (the worker keeps answering the
+// UI), and a single note edit must write exactly one file.
 const NOTES = 10_000
 const BOOKS = 50
-/** The longest the runner may compute at a stretch (the worker answers the UI in between). */
+/** The longest the runner may compute at a stretch; the worker answers the UI in between. */
 const STALL_BUDGET_MS = 200
 const EDIT_BUDGET_MS = 1500
+// Setting up 10k notes and running a first mirror is not the measured stall.
 const TIMEOUT_MS = 300_000
 
 let sqlite: SqliteAdapter
@@ -111,11 +110,8 @@ const files = (dir: string): number =>
   )
 
 /**
- * The runner as the core worker runs it, timed: in the app the storage and
- * folder calls are IPC, during which the worker answers the UI, so what
- * counts is the longest stretch the runner itself computes between them
- * (or between its own yields). The stand-ins here do their work in this
- * thread, so their time is left out.
+ * The runner as the worker runs it, timed. Storage and folder calls are IPC there, so only the
+ * runner's own stretches between them count; the stand-ins here run in this thread and are left out.
  */
 function timedRunner(slice?: number) {
   let resumed = performance.now()

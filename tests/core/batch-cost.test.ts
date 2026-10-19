@@ -1,3 +1,6 @@
+// Batch change cost per note: one notebook check per batch; a note not in memory is written back
+// as stored (no Yjs document); the search index is untouched unless title or Markdown change.
+// Its history stays what writing the note in memory would give.
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -50,11 +53,15 @@ function servicesOn(path: string) {
     notes,
     books,
     services: { notes, tags },
+    /** The next note write waits until the function returned is called. */
     holdNextWrite() {
       let release = () => {}
       gate = new Promise((resolve) => (release = resolve))
       return release
     },
+    /**
+     * Storage calls made since the last time, by name; compaction sweeps (at most hourly) left out.
+     */
     calls() {
       for (const sweep of ['lastCompaction', 'listCompactable', 'compactRevisions']) {
         calls.delete(sweep)
@@ -92,6 +99,8 @@ describe('a batch change', () => {
     const result = await applyBatch(s.services, ids, { kind: 'book', bookId: book })
     await s.notes.flush()
     expect(result).toEqual({ changed: ids, failed: [] })
+    // Per note: the note read, its history checked, a baseline kept (these
+    // notes have none yet), the note written and its event recorded.
     expect(s.calls()).toEqual({
       listBooks: 1,
       getNote: 100,
@@ -127,6 +136,7 @@ describe('a batch change', () => {
     ]
     expect(await history(cold!)).toEqual(expected)
     expect(await history(warm!)).toEqual(expected)
+    // The baseline is the body as it was saved, dated by that save.
     const [baseline] = (await s.sqlite.listRevisions(cold!)).filter((r) => r.kind === 'body')
     expect(baseline?.at).toBeLessThan((await s.sqlite.getNote(cold!))!.updatedAt + 1)
   })
@@ -160,6 +170,7 @@ describe('a batch change', () => {
 })
 
 describe('the search index', () => {
+  /** Rows the last statements changed, those of triggers (the index) included. */
   const changes = (sqlite: SqliteAdapter) =>
     (sqlite.db.prepare('SELECT total_changes() AS n').get() as { n: number }).n
 
@@ -192,6 +203,8 @@ describe('the search index', () => {
         await sqlite.searchNotes(resolveSearch(parseSearch(query), { books: [], tags: [] })!, 10)
       ).map((n) => n.id)
     await sqlite.putNote(record({}))
+    // Each write changes the note's row; a text change also takes the old text out of the index
+    // and puts the new in (index tables), each based on the body version the one before left.
     let bodyVersion = 1
     const cost = async (fields: Partial<NoteRecord>) => {
       const before = changes(sqlite)
@@ -214,7 +227,6 @@ describe('the search index', () => {
     ).toBeGreaterThan(1)
     expect(await found('relay')).toEqual([])
     expect(await found('snapshot')).toEqual(['note'])
-    // FTS5 agrees with its table: nothing stale is left in the index.
     sqlite.db.exec(`INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)`)
   })
 })

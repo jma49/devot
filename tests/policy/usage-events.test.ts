@@ -2,9 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { USAGE_EVENTS } from '../../src/core/usage'
 
-// Usage events never carry note content, titles, names or IDs. The catalog
-// is the only way an event gets its properties, so these rules hold for
-// every event the app can record.
+// Usage events never carry note content, titles, names or IDs; the catalog is the only source of properties.
 
 const FORBIDDEN = new Set([
   'body',
@@ -36,6 +34,7 @@ const words = (key: string) =>
     .split(/[^a-z0-9]+/)
     .filter(Boolean)
 
+// The same patterns the Rust command checks (src-tauri/src/usage.rs).
 const EVENT_NAME = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/
 const PROPERTY_KEY = /^[a-z][a-zA-Z0-9]{0,31}$/
 const ENUM_VALUE = /^[a-z0-9][a-z0-9_+-]{0,31}$/

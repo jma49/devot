@@ -75,6 +75,7 @@ test('the palette checks for updates, and the window reports its own check', asy
   await expect(page.locator('[data-devot-update]')).toContainText(
     'Devot 0.3.0-beta.1 is the latest version.',
   )
+  // A check asked for in Settings is reported there, not here.
   await page.getByRole('button', { name: 'Dismiss' }).click()
   await sendStatus(page, { ...IDLE, revision: 2, askedBy: 'settings', state: 'upToDate' })
   await expect(page.locator('[data-devot-update]')).toHaveCount(0)

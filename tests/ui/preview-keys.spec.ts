@@ -1,3 +1,5 @@
+// The rendered note takes the keyboard and scrolls with it, in Preview mode and the Trash;
+// the font size keys (Cmd+=, Cmd+-, Cmd+0) resize it.
 import type { Page } from '@playwright/test'
 import { expect, test, pickNoteMore } from './fixtures'
 
@@ -162,6 +164,7 @@ test('Cmd+E swaps editor and preview, and Cmd+P shows both', async ({ page }) =>
   await pressed('Edit')
   await key('KeyP')
   await pressed('Split')
+  // From split, the pane with the keyboard stays: the editor has it here.
   await page.getByRole('textbox', { name: 'Note body' }).click()
   await key('KeyE')
   await pressed('Edit')

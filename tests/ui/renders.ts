@@ -1,10 +1,14 @@
 import type { Page } from '@playwright/test'
 
+// Render counting through the hook React offers its developer tools. A component counts as rendered in a commit
+// when its fiber holds props or hook state not seen before; a skipped component keeps the old ones.
+
 interface RenderWindow {
   devotRenders: Record<string, number>
   devotNoteWrites: number
 }
 
+/** Counts renders of the named components (function names, as the dev server keeps them) from the next page load on. Call before `page.goto`. */
 export async function countRenders(page: Page, names: readonly string[]): Promise<void> {
   await page.addInitScript((watched) => {
     const w = globalThis as unknown as RenderWindow & Record<string, unknown>
@@ -79,11 +83,7 @@ export function resetRenderCounts(page: Page): Promise<void> {
   })
 }
 
-/**
- * Stores `count` notes titled "Note 1", "Note 2", ... (each updated a minute
- * before the one before it, so "Note 1" is the newest) in the test storage,
- * then reloads and waits for the list to show them.
- */
+/** Stores `count` notes in the test storage, "Note 1" the newest, then reloads and waits for the list. */
 export async function seedNotes(page: Page, count: number): Promise<void> {
   await page.goto('/')
   await page.evaluate((n) => {

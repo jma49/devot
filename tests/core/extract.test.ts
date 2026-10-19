@@ -108,6 +108,7 @@ describe('a new note from selected text', () => {
     const { notes, storage } = services()
     const source = await notes.create('Source')
     const made = await notes.extract(source, 'Moved text')
+    // No flush: the first write already holds the body (search and the list read it).
     expect(await storage.getNote(made.id)).toMatchObject({ bodyMd: 'Moved text' })
     expect((await notes.search('Moved')).map((n) => n.id)).toEqual([made.id])
   })

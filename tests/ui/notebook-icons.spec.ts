@@ -28,6 +28,7 @@ async function openIconDialog(page: Page, name: string) {
   await expect(dialog(page)).toBeVisible()
 }
 
+/** The symbol names `symbol_png` was asked for so far. */
 const rendered = (page: Page) =>
   page.evaluate(() =>
     (globalThis as unknown as TestWindow).devotIpcCalls
@@ -135,6 +136,7 @@ test('Escape and Cancel leave the icon; the keyboard walks the grid and Return p
   await expect(dialog(page)).toHaveCount(0)
   await expect(rowIcon(page, 'Work')).toHaveAttribute('data-symbol', 'person.2')
 
+  // Down goes from the search to the first symbol of what was typed, at once; Right to the next one.
   await openIconDialog(page, 'Work')
   await search(page).fill('team')
   await search(page).press('ArrowDown')
@@ -153,6 +155,7 @@ test('Escape and Cancel leave the icon; the keyboard walks the grid and Return p
 
 test('only the symbols in view are rendered', async ({ page }) => {
   await openIconDialog(page, 'Work')
+  // A search that finds most of the catalog: far more than the grid shows.
   await search(page).fill('e')
   const results = dialog(page).locator('.icon-cell')
   await expect.poll(() => results.count()).toBeGreaterThan(150)

@@ -3,10 +3,7 @@ import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import { npmManifest, npmReadme, type RootPackage } from './src/mcp/npmPackage'
 
-/**
- * Writes the npm package's manifest, README and licence beside the bundle,
- * so the output folder is the devot-mcp package (see src/mcp/npmPackage.ts).
- */
+/** Writes the npm package's manifest, README and licence beside the bundle (src/mcp/npmPackage.ts). */
 function npmPackage(): Plugin {
   return {
     name: 'devot-mcp-package',
@@ -26,6 +23,8 @@ function npmPackage(): Plugin {
   }
 }
 
+// devot-mcp: one ES module for Node, everything bundled except better-sqlite3 (native, loaded from
+// node_modules; not in the app bundle, since Tauri ships `dist/` only).
 export default defineConfig({
   publicDir: false,
   clearScreen: false,

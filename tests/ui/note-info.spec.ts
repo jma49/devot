@@ -53,6 +53,7 @@ test('a date on the card is edited in a date-time field: Return saves, Escape ca
   const created = card(page).locator('time[data-info="created"]')
   const updated = card(page).locator('time[data-info="updated"]')
   await expect(created).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+  // The typed body saves a moment later and moves the update date (to the second): read it once it has held for over a second.
   await expect
     .poll(async () => {
       const first = await updated.textContent()

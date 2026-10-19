@@ -1,10 +1,8 @@
 import type { Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
 
-// Editing a Markdown table in the editor. Editor keys are platform-neutral
-// (Tab, Return, Alt+Return, ControlOrMeta for undo), and the cursor is placed
-// by typing and clicking, never with macOS text-navigation keys. The palette
-// opens with Meta+P like in the other specs: app-level shortcuts check metaKey.
+// Editor keys are platform-neutral (Tab, Return, Alt+Return, ControlOrMeta for undo); the cursor is placed by typing and
+// clicking, never macOS text-navigation keys.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const lines = (page: Page) => page.locator('.cm-line').allTextContents()
@@ -108,6 +106,7 @@ test('a table typed by hand without outer pipes keeps its columns', async ({ pag
   await page.keyboard.press('Enter')
   await page.keyboard.type('--|--')
   await page.keyboard.press('Enter')
+  // Its pipe ends the first cell; the last one is formatted when it is left.
   await page.keyboard.type('1 | 2')
   expect(await lines(page)).toEqual(['| a   | b   |', '| --- | --- |', '| 1   | 2    |'])
 })
@@ -116,6 +115,7 @@ test('a pipe typed inside a cell text stays text', async ({ page }) => {
   await newNote(page, '| a | b |\n|---|---|')
   await page.keyboard.press('Enter')
   await page.keyboard.type('| ab')
+  // Between a and b (a plain arrow key moves one character on every platform).
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.type('|')
   expect(await lines(page)).toEqual(['| a   | b   |', '| --- | --- |', '| a|b    |     |'])
@@ -155,6 +155,7 @@ test('the palette runs table commands while the cursor is in a table', async ({ 
 
 test('outside a table Tab indents and Return starts a line', async ({ page }) => {
   await newNote(page, 'plain')
+  // Control+Tab leaves the editor.
   await page.keyboard.press('Tab')
   await expect.poll(() => lines(page)).toEqual(['  plain'])
   await page.keyboard.press('Shift+Tab')

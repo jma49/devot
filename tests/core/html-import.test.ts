@@ -127,6 +127,7 @@ describe('HTML to Markdown for import', () => {
     const page = [
       `<p>Inline <span class="math-inline">${tex('x^2_i')}</span> here.</p>`,
       `<div class="math-display">${tex('\\frac{a}{b}', ' display="block"')}</div>`,
+      // A KaTeX page: its HTML drawing of the math is no text of the note.
       `<p><span class="katex"><span class="katex-mathml">${tex('y')}</span>`,
       '<span class="katex-html" aria-hidden="true"><span>y</span></span></span></p>',
     ].join('')

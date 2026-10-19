@@ -1,8 +1,6 @@
 import { expect, test } from './fixtures'
 
-// A library that has never held anything opens with a Getting started
-// notebook: a welcome note and a Markdown example (core/welcome.ts). The
-// tests' libraries start empty unless a test asks for the notes.
+// The tests' libraries start empty unless a test asks for the Getting started notes (core/welcome.ts).
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {

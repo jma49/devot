@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './fixtures'
 
+// The highlighted format shows in the URL's place; a page title or hosted file is fetched (mocked: link_title, github_snippet) only once highlighted.
+
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const line = (page: Page, n: number) => page.locator('.cm-line').nth(n)
 const lines = (page: Page) => page.locator('.cm-line').allTextContents()
@@ -22,6 +24,7 @@ async function newNote(page: Page, text: string) {
 
 async function paste(page: Page, text: string) {
   await body(page).evaluate((el, value) => {
+    // This config has no DOM types: the few browser classes used here.
     const w = globalThis as unknown as {
       DataTransfer: new () => { setData(type: string, value: string): void }
       ClipboardEvent: new (type: string, init: object) => unknown
@@ -35,6 +38,7 @@ async function paste(page: Page, text: string) {
   }, text)
 }
 
+/** Waits past CodeMirror's `interactionDelay` (75 ms), during which keys go to the editor. */
 const settleList = (page: Page) => page.waitForTimeout(150)
 
 const calls = (page: Page, cmd: string) =>
@@ -84,7 +88,6 @@ test('a pasted URL offers its formats; the title is fetched only once highlighte
   await expect(previewOf(page)).toHaveText('[Example \\[Docs\\]](https://example.com/docs)')
   expect(await calls(page, 'link_title')).toBe(1)
 
-  // The empty link previews too, without fetching.
   await page.keyboard.press('ArrowDown')
   await expect(previewOf(page)).toHaveText('[](https://example.com/docs)')
   await page.keyboard.press('ArrowUp')

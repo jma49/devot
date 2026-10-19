@@ -8,11 +8,8 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// The appearance (Settings > Appearance): Light, Dark or Match System, the
-// default. A chosen appearance marks the root element (`data-appearance`),
-// and the generated tokens switch with it whatever the system shows. The
-// setting is stored with the editor settings, so a change in the Settings
-// window reaches the main window as `devot:editor-settings-changed`.
+// A chosen appearance marks the root (`data-appearance`) and the generated tokens switch with it whatever the system
+// shows. Stored with the editor settings, so a Settings window change arrives as `devot:editor-settings-changed`.
 
 const EDITOR = { light: '#ffffff', dark: '#0a0a0a' } as const
 
@@ -68,11 +65,10 @@ test.describe('with the system in dark', () => {
   })
 })
 
-// The theme (Settings > Appearance > Theme): Default, or Ivory, a warm one. A
-// chosen theme marks the root element (`data-theme`); the generated tokens
-// scope each built-in theme by it, so the surfaces change at once, in both
+// A chosen theme marks the root (`data-theme`); the generated tokens scope each built-in theme by it, in both
 // appearances, and the choice reaches every window like the appearance does.
 
+/** The editor pane and sidebar as painted over the window material, per theme and appearance. */
 const SURFACES = {
   default: {
     light: { editor: 'rgba(255, 255, 255, 0.7)', sidebar: 'rgba(255, 255, 255, 0.02)' },
@@ -164,9 +160,11 @@ test.describe('the Theme choice in Settings', () => {
 test('the Animations choice reduces motion always, as the system asks, or never', async ({
   page,
 }) => {
+  // The suite's system asks for Reduce Motion (playwright.config.ts).
   await openSettings(page, 'Appearance')
   const root = page.locator('html')
   const choice = page.getByRole('combobox', { name: 'Animations' })
+  // The suite's windows follow the system (fixtures.ts); a new install animates always.
   await expect(choice).toHaveValue('system')
   await expect(root).toHaveAttribute('data-motion', 'reduced')
 

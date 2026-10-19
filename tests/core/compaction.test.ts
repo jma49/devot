@@ -1,7 +1,5 @@
-// Compaction, on real SQLite: sweeps run on a queue of their own that no
-// user action waits for, start where the last one left off (in a new
-// session too), and weigh the library in a few storage calls; storage lists
-// and deletes from indexes that never read a version's Yjs state.
+// Real SQLite: sweeps run on their own queue, resume where the last left off (also in a new session),
+// weigh the library in few storage calls, and list/delete from indexes that never read Yjs state.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,8 +27,9 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 const WEEK = 7 * DAY
+// Noon UTC: the versions below fall on one local day in any time zone.
 const NOW = Date.UTC(2026, 9, 12, 12)
-// The injected clock; timers are faked so they follow it.
+// Injected clock; timers are faked to follow it.
 let time = NOW
 
 const open: SqliteAdapter[] = []
@@ -132,6 +131,7 @@ const event = (n: number, noteId: string, at: number) =>
     value: 'T',
   }) satisfies RevisionRecord
 
+/** a: two versions, one in 200..300; b: one before 300, one after; c: two before 200; d: one version and an event; e: one beside a baseline, which compaction keeps. */
 async function world(storage: StorageAdapter) {
   const [a, b, c, d, e] = [id(901), id(902), id(903), id(904), id(905)]
   for (const note of [a, b, c, d, e]) await putNote(storage, note)
@@ -157,6 +157,7 @@ describe('the storage a compaction sweep uses', () => {
     const { a, b, c } = await world(storage)
     const listed = async (from: number, to: number) =>
       (await storage.listCompactable(from, to, '', 500)).map((v) => `${v.noteId}/${v.id}@${v.at}`)
+    // Each note's versions, newest first; e's baseline does not make two.
     expect(await listed(200, 300)).toEqual([`${a}/${id(2)}@250`, `${a}/${id(1)}@100`])
     expect(await listed(0, 300)).toEqual([
       `${a}/${id(2)}@250`,
@@ -191,7 +192,6 @@ describe('the storage a compaction sweep uses', () => {
     const storage = sqlite()
     const { a, d, e } = await world(storage)
     expect(await storage.lastCompaction()).toBeNull()
-    // An event, a baseline and an unknown ID are never deleted.
     await storage.compactRevisions([id(1), id(8), id(9), id(999)], null)
     expect((await storage.listRevisions(a)).map((r) => r.id)).toEqual([id(2)])
     expect((await storage.listRevisions(d)).map((r) => r.id)).toEqual([id(8), id(7)])
@@ -199,6 +199,7 @@ describe('the storage a compaction sweep uses', () => {
     expect(await storage.lastCompaction()).toBeNull()
     await storage.compactRevisions([], 5000)
     expect(await storage.lastCompaction()).toBe(5000)
+    // A clock set back records the earlier time: the next sweep starts there.
     await storage.compactRevisions([id(2)], 4000)
     expect(await storage.lastCompaction()).toBe(4000)
     expect(await storage.listRevisions(a)).toEqual([])
@@ -276,7 +277,6 @@ describe('the storage a compaction sweep uses', () => {
   })
 })
 
-/** A stored note with an empty body, made without the note service. */
 const record = (noteId: string): NoteRecord => ({
   id: noteId,
   title: '',
@@ -296,6 +296,7 @@ const record = (noteId: string): NoteRecord => ({
   deletedHlc: null,
 })
 
+/** `notes` notes, each with newest versions from the last day and two from one hour two days ago; a sweep drops the older of those two. */
 function seedLibrary(storage: SqliteAdapter, notes: number) {
   const hour = Math.floor((NOW - 2 * DAY) / HOUR) * HOUR
   let n = 0
@@ -349,7 +350,6 @@ describe('compaction sweeps', () => {
     expect(await finishes(notes.history(today))).toBe(true)
     expect(await finishes(notes.activity(time))).toBe(true)
     expect(await finishes(notes.trash(other))).toBe(true)
-    // Quitting keeps the typing not in a version yet, without waiting either.
     await type(notes, today, 'last words')
     expect(await finishes(notes.flush({ versions: true }))).toBe(true)
     const [quitVersion] = (await storage.listRevisions(today)).filter((r) => r.kind === 'body')
@@ -357,13 +357,11 @@ describe('compaction sweeps', () => {
 
     held.open()
     await sweeps.until(1)
-    // A few calls for the whole library, never one per note.
     const count = (name: string) => held.calls.filter((call) => call === name).length
     expect(held.calls[0]).toBe('lastCompaction')
     expect(count('listCompactable')).toBe(Math.floor(library.length / COMPACT_PAGE) + 1)
     expect(count('compactRevisions')).toBe(Math.floor(library.length / COMPACT_BATCH) + 1)
     expect(held.calls.at(-1)).toBe('compactRevisions')
-    // Each note lost the older of its two versions from two days ago.
     for (const noteId of [library[0]!, library.at(-1)!]) {
       const left = await storage.listRevisions(noteId)
       expect(left).toHaveLength(KEEP_NEWEST + 1)
@@ -411,14 +409,18 @@ describe('compaction sweeps', () => {
     const storage = sqlite()
     const noteId = id(500)
     await putNote(storage, noteId)
+    // Ten versions from the last hours, and two from one day ten days ago:
+    // a sweep keeps that day's later one, W, and drops V.
     const recent = Array.from({ length: KEEP_NEWEST }, (_, k) =>
       version(600 + k, noteId, NOW - (k + 1) * 10 * MINUTE),
     )
     const v = version(700, noteId, NOW - 10 * DAY + 5 * MINUTE)
     const w = version(701, noteId, NOW - 10 * DAY + 50 * MINUTE)
     for (const row of [...recent, v, w]) await storage.putRevision(row)
+    // The backup was taken between V and W: it has V, not W, and no sweep.
     const backup = [...recent, v]
 
+    // Hold the sweep after its listing, at its first delete.
     let release = () => {}
     const gate = new Promise<void>((resolve) => (release = resolve))
     const sweep = { deleting: false }
@@ -436,6 +438,7 @@ describe('compaction sweeps', () => {
     }
     expect(sweep.deleting).toBe(true)
 
+    // As Backups runs it: save, hold compaction, replace.
     const restoring = (async () => {
       await notes.flush()
       await notes.holdCompaction()
@@ -448,8 +451,7 @@ describe('compaction sweeps', () => {
     await restoring
     await sweeps.until(1)
 
-    // The sweep weighed the old data and thinned it before the restore; the
-    // restored history is whole, with no sweep time of the old data.
+    // The old data was weighed and thinned before the restore; restored history is whole, with no sweep time.
     const ids = (await storage.listRevisions(noteId)).map((r) => r.id)
     expect(ids.sort()).toEqual(backup.map((r) => r.id).sort())
     expect(await storage.lastCompaction()).toBeNull()
@@ -467,6 +469,7 @@ describe('compaction sweeps', () => {
   it('weigh every note again when the clock was set back past the last sweep', async () => {
     const storage = sqlite()
     const library = seedLibrary(storage, 2)
+    // Recorded by a start whose clock ran eight days fast.
     await storage.compactRevisions([], NOW + 8 * DAY)
     const asked: [number, number][] = []
     const list = storage.listCompactable.bind(storage)

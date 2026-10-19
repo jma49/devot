@@ -1,9 +1,8 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-// Each start of the window stamps its writes (HLC timestamps) with a node ID
-// of its own. Two processes never share one, even builds that share the web
-// view's storage, so their timestamps never tie.
+// Each start of the window stamps its writes (HLC) with its own node ID; two processes never
+// share one, even builds sharing the web view's storage, so timestamps never tie.
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 
@@ -35,5 +34,6 @@ test('each start of the window stamps its writes with a node ID of its own', asy
   expect(first).toMatch(/^[a-z0-9]{1,32}$/)
   expect(second).toMatch(/^[a-z0-9]{1,32}$/)
   expect(second).not.toBe(first)
+  // Nothing of it is kept in the web view's storage, which other builds share.
   expect(await page.evaluate(() => localStorage.getItem('devot.node'))).toBeNull()
 })

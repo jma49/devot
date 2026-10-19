@@ -1,3 +1,5 @@
+// Window shortcuts are pressed with Meta (the registry's Mod matches metaKey on every platform);
+// editor keys are platform-neutral, and the caret is placed by typing and clicking only.
 import type { Page } from '@playwright/test'
 import {
   expect,
@@ -39,6 +41,7 @@ async function createNote(page: Page, title: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
+/** Alpha, Beta, Gamma, opened in that order; the list shows them newest first. */
 async function threeNotes(page: Page) {
   for (const title of ['Alpha', 'Beta', 'Gamma']) await createNote(page, title)
   await expect(noteRows(page)).toHaveText([/^Gamma/, /^Beta/, /^Alpha/])
@@ -59,6 +62,7 @@ const ipcCalls = (page: Page, cmd: string) =>
     cmd,
   )
 
+/** Presses a window shortcut twice before the note the first press opens has loaded. */
 const pressTwiceAtOnce = (page: Page, code: 'BracketLeft' | 'BracketRight', shift = false) =>
   page.evaluate(
     (press) => {
@@ -78,6 +82,7 @@ const pressTwiceAtOnce = (page: Page, code: 'BracketLeft' | 'BracketRight', shif
     { code, shift },
   )
 
+/** View > Hide Sidebar from the menu bar; the page receives it as this event. */
 const pickViewHideSidebar = (page: Page) =>
   page.evaluate(() => {
     const w = globalThis as unknown as {
@@ -102,6 +107,7 @@ test.describe('Back and Forward', () => {
     await expect(backButton(page)).toBeEnabled()
     await expect(forwardButton(page)).toBeDisabled()
 
+    // In the editor they go back too (Tab and Shift+Tab indent there).
     await typeBody(page, 'gamma text')
     await page.keyboard.press('Meta+BracketLeft')
     await expect(titleField(page)).toHaveValue('Beta')
@@ -144,6 +150,7 @@ test.describe('Back and Forward', () => {
     await expect(body(page)).toBeFocused()
     await page.keyboard.press('Shift+Tab')
     await expect.poll(() => lines(page)).toEqual(['- one', '- two'])
+    // Cmd+Left still moves the caret in the text, not back.
     await page.keyboard.press('Meta+ArrowLeft')
     await expect(titleField(page)).toHaveValue('Gamma')
   })
@@ -160,6 +167,7 @@ test.describe('Back and Forward', () => {
 
   test('quick presses from the Trash each go one note further', async ({ page }) => {
     await threeNotes(page)
+    // The Trash shows no open note: the first Back opens the newest entry.
     await source(page, 'Trash').click()
     await expect(header(page)).toHaveText('Trash')
     await pressTwiceAtOnce(page, 'BracketLeft')
@@ -241,6 +249,7 @@ test('Return on a row edits the title, Cmd+Return the body', async ({ page }) =>
   await page.keyboard.insertText('beta text')
   await expect.poll(() => lines(page)).toEqual(['beta text'])
 
+  // The window starts with no note open: it forgets where it was.
   await page.addInitScript(() => localStorage.removeItem('devot.lastState.main'))
   await reloadApp(page)
   await expect(titleField(page)).toBeHidden()
@@ -278,7 +287,6 @@ test.describe('Tab between the areas', () => {
     await expect(noteRow(page, 'Alpha')).toBeFocused()
     await page.keyboard.press('Shift+Tab')
     await expect(allNotes).toBeFocused()
-    // Round the window: before the sidebar comes the editor.
     await page.keyboard.press('Shift+Tab')
     await expect(body(page)).toBeFocused()
     await expect.poll(() => lines(page)).toEqual(['- item'])
@@ -338,6 +346,7 @@ test('the arrow keys move through the sidebar, and the selection follows', async
   await expect(source(page, 'idea')).toBeVisible()
   await pickNoteMore(page, 'Pin to Top')
 
+  // One tab stop among the rows; the resize edge is a stop of its own.
   const stops = sidebar(page).locator('[tabindex="0"]:not(.sidebar-resize)')
   await expect(stops).toHaveCount(1)
   await source(page, 'All Notes').click()
@@ -432,8 +441,7 @@ test.describe('the sidebar', () => {
     const toggle = bar.getByRole('button', { name: 'Hide Sidebar' })
     await expect(toggle).toHaveAttribute('title', 'Hide Sidebar (⌘/)')
     await expect(bar.getByRole('button').first()).toHaveAccessibleName('Hide Sidebar')
-    // Its controls are never part of the window's drag region around them,
-    // which would take the press for a window drag.
+    // Its controls are never in the window's drag region, which would take the press for a drag.
     for (const button of await bar.getByRole('button').all())
       await expect(button).toHaveAttribute('data-tauri-drag-region', 'false')
     const inset = bar.locator('.window-inset')
@@ -441,8 +449,7 @@ test.describe('the sidebar', () => {
 
     await toggle.click()
     await expect(sidebar(page)).toBeHidden()
-    // The window controls get their room before the toggle: it starts 84 px
-    // in, clear of them, where the editor's header starts in focus mode.
+    // The toggle starts 84 px in, clear of the window controls, where the editor header starts in focus mode.
     const show = bar.getByRole('button', { name: 'Show Sidebar' })
     await expect.poll(async () => (await show.boundingBox())?.x).toBe(84)
     await show.click()
@@ -497,6 +504,7 @@ test.describe('the sidebar', () => {
       })
     })
     await page.keyboard.down('Meta')
+    // A repeat that ran the command too would show the sidebar again.
     await page.keyboard.down('Slash')
     await page.keyboard.down('Slash')
     await page.keyboard.up('Slash')
@@ -511,6 +519,7 @@ test.describe('the sidebar', () => {
   })
 
   test('the same Cmd+/ reaching the menu bar too is dropped once', async ({ page }) => {
+    // The key, then at once the menu item with that key, as if the menu bar saw the same press.
     await page.evaluate(() => {
       const w = globalThis as unknown as {
         document: { body: { dispatchEvent(e: unknown): void } }
@@ -523,6 +532,7 @@ test.describe('the sidebar', () => {
       w.dispatchEvent(new w.CustomEvent('devot:toggle-sidebar'))
     })
     await expect(sidebar(page)).toBeHidden()
+    // A later pick is the user's own.
     await pickViewHideSidebar(page)
     await expect(sidebar(page)).toBeVisible()
   })

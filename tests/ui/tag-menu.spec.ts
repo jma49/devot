@@ -13,6 +13,7 @@ const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).ge
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
+/** A tag's filter row in the sidebar ("<name> <count>", after its colour if it has one). */
 const tagRow = (page: Page, name: string) =>
   sidebar(page).getByRole('button', { name: new RegExp(`^(?:[A-Z][a-z]+ )?${name} \\d+$`) })
 const editorTags = (page: Page) => page.getByRole('group', { name: 'Tags' })
@@ -23,6 +24,7 @@ interface StoredTag {
   color: string | null
 }
 
+/** Tags the in-memory store holds (saved state, not the screen). */
 const storedTags = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('devot.test.tags') ?? '[]') as StoredTag[])
 
@@ -39,6 +41,7 @@ async function addTag(page: Page, name: string) {
   const field = page.getByRole('combobox', { name: 'Add Tag' })
   await field.fill(name)
   await field.press('Enter')
+  // A chip, not the suggestions' closing copy that fades out beside them.
   await expect(
     editorTags(page)
       .locator('.chip')
@@ -60,6 +63,7 @@ async function openMenu(page: Page, name: string) {
   await expect.poll(() => popups(page)).toBe(before + 1)
 }
 
+/** "One" tagged sync and idea, "Two" tagged idea; "Two" is open. */
 async function setUp(page: Page) {
   await createNote(page, 'One')
   await addTag(page, 'sync')
@@ -72,6 +76,7 @@ async function setUp(page: Page) {
 const painted = (page: Page, selector: string, color: string) =>
   page.evaluate(
     ([sel, id]) => {
+      // This config has no DOM types.
       interface El {
         style: { setProperty(name: string, value: string): void }
         remove(): void
@@ -141,6 +146,7 @@ test('a colour shows as the sidebar dot and on chips, and survives a reload', as
   await expect(
     editorTags(page).locator('.chip', { hasText: 'idea' }).locator('.tag-dot'),
   ).toHaveAttribute('data-color', 'purple')
+  // Edged with the theme's token for the colour (its fill is a wash of it).
   const { got, want } = await painted(page, '.sources.tags .tag-dot', 'purple')
   expect(got).toBe(want)
   expect(await storedTags(page)).toEqual(

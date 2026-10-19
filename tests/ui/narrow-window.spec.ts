@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
+/** size.pane-min-width */
 const PANE_MIN = 240
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -114,6 +115,7 @@ test('the sidebar shows at 1000 px, gives way below it, and comes back on reques
   await page.getByRole('button', { name: 'Hide Sidebar' }).click()
   await expect(sidebar(page)).toBeHidden()
 
+  // A wide window shows it again: the narrow window's choice was not saved.
   await page.setViewportSize({ width: 1280, height: 700 })
   await expect(sidebar(page)).toBeVisible()
   await page.reload()
@@ -128,6 +130,7 @@ test('a sidebar asked for in a narrow window is hidden again after a trip throug
   await expect(sidebar(page)).toBeVisible()
   await page.setViewportSize({ width: 1280, height: 700 })
   await expect(sidebar(page)).toBeVisible()
+  // The window has rendered as a wide one before it narrows again.
   await expect(page.locator('.window')).not.toHaveAttribute('data-narrow')
   await page.setViewportSize({ width: 800, height: 700 })
   await expect(sidebar(page)).toBeHidden()

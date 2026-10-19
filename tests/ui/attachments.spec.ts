@@ -4,6 +4,7 @@ import { expect, reloadApp, test, pickNoteMore } from './fixtures'
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 
+// The first bytes of a PNG file: enough for format detection.
 const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]
 const LINK = /!\[(.*?)\]\(devot:\/\/file\/([0-9a-f-]{36})\)/
 
@@ -21,6 +22,7 @@ async function sendFiles(
 ) {
   await body(page).evaluate(
     (el, { kind: action, files: list }) => {
+      // No DOM types in this config: the few browser classes used here.
       type Data = { items: { add(file: unknown): void } }
       const w = globalThis as unknown as {
         DataTransfer: new () => Data
@@ -172,6 +174,7 @@ test('an SVG, a TIFF and an oversized image are refused with a notice, the rest 
 
   await sendFiles(page, 'paste', [
     { name: 'scan.tiff', type: 'image/tiff', bytes: [0x49, 0x49, 0x2a, 0] },
+    // One byte over 10 MiB.
     { name: 'huge.png', type: 'image/png', bytes: PNG, size: 10 * 1024 * 1024 + 1 },
     { name: 'Shot.png', type: 'image/png', bytes: PNG },
   ])
@@ -208,7 +211,6 @@ test('an image whose note was left during the upload is linked in that note', as
   await page.keyboard.type('Alpha text ')
   await sendFiles(page, 'paste', [{ name: 'Shot.png', type: 'image/png', bytes: PNG }])
 
-  // Another note is opened before the file is stored.
   await newNote(page)
   await page.getByRole('textbox', { name: 'Title' }).fill('Beta')
   await expect.poll(async () => (await stored(page)).length).toBe(1)
@@ -219,6 +221,7 @@ test('an image whose note was left during the upload is linked in that note', as
   await noteRows(page).filter({ hasText: 'Alpha' }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Alpha')
   await expect(body(page)).toHaveText(`Alpha text ${link}`)
+  // And it is saved, not only shown.
   await noteRows(page).filter({ hasText: 'Beta' }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Beta')
   await noteRows(page).filter({ hasText: 'Alpha' }).click()

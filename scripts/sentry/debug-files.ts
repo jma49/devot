@@ -1,11 +1,6 @@
-// Uploads the app's debug symbols (devot.dSYM, made by release builds next to
-// the binary) to Sentry, so that native crash reports show function names.
-// Tauri runs it after compiling the app and before bundling it
-// (`beforeBundleCommand`); the dSYM is never part of the bundle. Uploads run
-// only for release builds with the Sentry upload settings (upload.ts).
-//
-// Options: --env-dir <dir> (where .env files are read, default the
-// repository root).
+// Uploads devot.dSYM (made by release builds) to Sentry for native crash symbolication. Tauri runs it before bundling
+// (`beforeBundleCommand`); only for release builds with the upload settings (upload.ts).
+// Options: --env-dir <dir> (where .env files are read, default the repository root).
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'

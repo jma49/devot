@@ -1,3 +1,5 @@
+// devot-mcp's tools through an MCP client on a real database: notes outside notebooks with Allow AI Access,
+// in the trash or in no notebook are invisible to every tool.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { existsSync } from 'node:fs'
@@ -132,7 +134,6 @@ describe('devot-mcp tools', () => {
       const search = JSON.stringify(await call(client, 'search_notes', { query: 'kiwi' }))
       expect(search).not.toContain(id)
     }
-    // An ID that never existed reads the same.
     expect(await call(client, 'read_note', { id: '0192a6f0-0000-7000-8000-000000000999' })).toEqual(
       { error: 'E_NOTE_NOT_FOUND: No note with this ID is available to AI.' },
     )
@@ -162,7 +163,6 @@ describe('devot-mcp tools', () => {
     Y.applyUpdate(doc, record.ydoc)
     expect(doc.getText(BODY).toString()).toBe('# Agenda\n\n1. Kiwi harvest\n')
     expect(record.bodyMd).toBe('# Agenda\n\n1. Kiwi harvest\n')
-    // Logs carry codes and IDs, never the title or body.
     expect(logs).toEqual([`I_MCP_NOTE_CREATED ${id} ${world.books.shared}`])
 
     const again = await call(client, 'search_notes', { query: 'harvest' })
@@ -330,6 +330,7 @@ describe('opening without migrating', () => {
       /^E_STORAGE_NOT_FOUND$/,
     )
     expect(existsSync(join(dir, 'none.sqlite'))).toBe(false)
+    // A folder where the file should be.
     expect(() => openSqliteAdapter(dir, { migrate: false })).toThrow(/^E_STORAGE_OPEN_FAILED$/)
   })
 })

@@ -1,6 +1,8 @@
 import type { Element, Root, RootContent } from 'hast'
 import { renderPreview, type PreviewLabels } from '../../src/core'
 
+// What the preview makes of Markdown, flat for assertions: checks that text the editor writes reads as intended by the shared parser.
+
 const labels: PreviewLabels = {
   alerts: {
     note: 'Note',
@@ -28,10 +30,7 @@ const textOf = (node: Root | RootContent): string => {
   return 'children' in node ? node.children.map(textOf).join('') : ''
 }
 
-/**
- * The preview as markup without attributes: elements as `<tag>…</tag>`,
- * text as it is, whitespace between blocks left out.
- */
+/** The preview as markup without attributes: elements as `<tag>…</tag>`, whitespace between blocks left out. */
 export function previewShape(markdown: string): Promise<string> {
   const show = (node: Root | RootContent): string => {
     if (node.type === 'text') return node.value

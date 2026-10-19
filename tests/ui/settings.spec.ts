@@ -9,6 +9,7 @@ import {
 
 const AT = Date.UTC(2026, 9, 10, 9, 30)
 
+// usage_list returns newest first.
 const EVENTS = [
   {
     id: 4,
@@ -23,6 +24,7 @@ const EVENTS = [
     name: 'search.run',
     properties: { scope: 'all', clauses: 2, results: '2-5' },
   },
+  // From another Devot version: shown by its name.
   { id: 1, at: AT, name: 'sync.finished', properties: { durationMs: 40 } },
 ]
 
@@ -221,8 +223,7 @@ test('the column is one tab stop; Up, Down, Home and End move between panes', as
   await expect(tab(page, 'Usage')).toBeFocused()
   await page.keyboard.press('Home')
   await expect(tab(page, 'General')).toBeFocused()
-  // Tab leaves the column for the pane's first control (WebKit on macOS
-  // tabs to buttons with Option, or with Full Keyboard Access).
+  // Tab leaves the column for the pane's first control (WebKit on macOS tabs to buttons only with Option or Full Keyboard Access).
   await page.keyboard.press('Alt+Tab')
   await expect(page.getByRole('combobox', { name: 'Default Notebook' })).toBeFocused()
 })
@@ -248,6 +249,7 @@ test('General opens the data folder and the Backups dialog', async ({ page }) =>
   await expect(openFolder).toHaveAccessibleDescription(/notes, attachments, backups/)
   await openFolder.click()
   await general.getByRole('button', { name: 'Show Backups\u2026' }).click()
+  // The command takes no path: it only opens the app's own folder.
   expect(await calls(page, 'settings_open_data_folder')).toEqual([
     { cmd: 'settings_open_data_folder', args: {} },
   ])
@@ -282,6 +284,7 @@ test('Integrations offers devot-mcp configs to copy for each client', async ({ p
   expect(await calls(page, 'clipboard_write_text')).toEqual([
     { cmd: 'clipboard_write_text', args: { text: command } },
   ])
+  // StrictMode runs the effect twice in dev.
   const setups = await calls(page, 'settings_mcp_setup')
   expect(setups.length).toBeGreaterThan(0)
   for (const call of setups) expect(call).toEqual({ cmd: 'settings_mcp_setup', args: {} })
@@ -528,6 +531,7 @@ test('each control stores its change at once', async ({ page }) => {
   await checkbox(page, 'Toolbar').uncheck()
   await checkbox(page, 'Line Numbers').check()
   await checkbox(page, 'Highlight Active Line').check()
+  // Readable Line Length applies only to wrapped lines: set it first.
   await checkbox(page, 'Readable Line Length').check()
   await select(page, 'Line Wrapping').selectOption('Off')
   await checkbox(page, 'Inline Image Widgets').uncheck()
@@ -579,6 +583,7 @@ test('the readable width setting is off limits while lines do not wrap, and says
 
   await select(page, 'Line Wrapping').selectOption('Off')
   await expect(width).toBeDisabled()
+  // It still shows the stored value, which applies again once lines wrap.
   await expect(width).toBeChecked()
   await expect(width).toHaveAccessibleDescription('Applies only when lines wrap.')
 
@@ -588,6 +593,7 @@ test('the readable width setting is off limits while lines do not wrap, and says
   expect(await setCalls(page)).toEqual([{ lineWrapping: 'off' }])
 })
 
+/** The number fields' typing pause plus margin. */
 const PAST_TYPING_PAUSE_MS = 600
 
 test('a font size out of range is not stored, and leaving the field shows the stored one', async ({
@@ -616,10 +622,7 @@ test('a font size out of range is not stored, and leaving the field shows the st
   expect(errors).toEqual([])
 })
 
-/**
- * Types each value into the font size field in one go (no timer runs between
- * them, however slow the machine): a burst of keystrokes with no pause.
- */
+/** Types each value in one go with no timer between keystrokes, however slow the machine. */
 const typeBurst = (page: Page, values: string[]) =>
   fontSize(page).evaluate((input, typed) => {
     const field = input as unknown as {

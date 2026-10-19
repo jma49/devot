@@ -1,8 +1,5 @@
-// A stand-in for Rust's side of the Markdown mirror (src-tauri/src/mirror.rs)
-// in core tests: the same operations with the same checks, on a real folder,
-// with note bodies and attachments read from the test's SQLite database. It
-// follows the Rust code rule for rule, so the core's plans run against real
-// files; Rust's own tests check the Rust side.
+// Stand-in for Rust's Markdown mirror (src-tauri/src/mirror.rs) in core tests: the same checks on a real folder,
+// with note bodies and attachments read from the test's SQLite database.
 import { createHash, randomUUID } from 'node:crypto'
 import {
   lstatSync,
@@ -32,17 +29,15 @@ const EDITED = ' (edited outside Devot)'
 const sha = (data: string | Buffer) => createHash('sha256').update(data).digest('hex')
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 const fail = (code: string) => new Error(code)
+/** Whether `error` says a name is taken (Rust's `AlreadyExists`). */
 const taken = (error: unknown) => (error as NodeJS.ErrnoException).code === 'EEXIST'
 
+/** Rust's `atomic_file::Place`. */
 type Place = 'new' | 'replace'
 
 /**
- * Moves `from` to `to` (Rust's `atomic_file::rename`), whole: the old name
- * goes in the same step, or nothing changes. `new` only where nothing is
- * yet: as Rust does where a rename cannot refuse a taken name itself, a new
- * empty file claims the name first (it fails with EEXIST on any name there,
- * a link included), the rename goes over it, and a rename that fails takes
- * the claim back; `replace` over what is there.
+ * Rust's `atomic_file::rename`. For `new`, a rename cannot refuse a taken name, so an empty file claims it first
+ * (EEXIST on any name, links included); a failed rename releases the claim.
  */
 function moveFile(from: string, to: string, place: Place) {
   if (place === 'replace') return renameSync(from, to)
@@ -56,11 +51,7 @@ function moveFile(from: string, to: string, place: Place) {
   }
 }
 
-/**
- * Writes `data` at `path` through a new temporary file of a random hidden
- * name in its folder, created new (never through a link), then put in place
- * (Rust's `atomic_file::write_unflushed`).
- */
+/** Rust's `atomic_file::write_unflushed`: a random hidden temp file created new (never through a link), then put in place. */
 function writeThroughTemp(dir: string, path: string, data: string | Buffer, place: Place) {
   const partial = join(dir, `.devot-${randomUUID().replaceAll('-', '')}.tmp`)
   writeFileSync(partial, data, { flag: 'wx' })
@@ -70,11 +61,12 @@ function writeThroughTemp(dir: string, path: string, data: string | Buffer, plac
     try {
       unlinkSync(partial)
     } catch {
-      // Gone already.
+      // Put in place: gone already.
     }
   }
 }
 
+/** Rust's `attachment_name`. */
 export function attachmentName(stored: string, mime: string): string {
   const cleaned = [...stored]
     .map((c) => (/[\p{Cc}/\\:]/u.test(c) ? '-' : c))
@@ -108,6 +100,7 @@ export function attachmentName(stored: string, mime: string): string {
   return `${stem}.${[...ext].slice(0, 16).join('')}`
 }
 
+/** Rust's path check. */
 function plain(path: string): boolean {
   if (!path || Buffer.byteLength(path) > 4096) return false
   return path
@@ -129,6 +122,7 @@ export interface FolderHostLog {
   written: string[]
   moved: [string, string][]
   removed: string[]
+  /** Paths files were kept under. */
   kept: string[]
 }
 
@@ -147,6 +141,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
   let include = true
   let generation = 1
   let manifest: MirrorManifest | null = null
+  // The manifest changed but could not be written back.
   let dirty = false
   let paused: string | null = null
   const log: FolderHostLog = { written: [], moved: [], removed: [], kept: [] }
@@ -160,6 +155,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
     }
   }
 
+  /** What is at `rel`; a folder on the way that is a link or a file makes it `other`. */
   const state = (rel: string): DiskState => {
     const parts = rel.split('/')
     for (let i = 1; i < parts.length; i += 1) {
@@ -181,11 +177,13 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
     return !!x && !!y && x.ino === y.ino && x.dev === y.dev
   }
 
+  /** Writes `data` at `rel`: a new file only where nothing is yet, or over Devot's own. */
   const writeFile = (rel: string, data: string | Buffer, place: Place) => {
     const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : ''
     writeThroughTemp(join(folder!, dir), abs(rel), data, place)
   }
 
+  /** What is in the way of a write or move to `rel`. */
   const inTheWayAt = (rel: string, error: unknown): MirrorResult => {
     if (taken(error)) return { code: 'E_MIRROR_EXISTS', path: rel, state: state(rel) }
     throw error
@@ -231,6 +229,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
     }
   }
 
+  /** Renames a file changed outside Devot to a free "edited outside Devot" name. */
   const keepAside = (rel: string): string => {
     const slash = rel.lastIndexOf('/')
     const dir = slash < 0 ? '' : rel.slice(0, slash + 1)
@@ -256,6 +255,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
   const manifestText = () => JSON.stringify({ version: 1, ...manifest })
   const save = () => writeFile(MANIFEST, manifestText(), 'replace')
 
+  /** Rust's `probe_writable`. */
   const probe = (dir: string) => {
     const name = join(dir, `.devot-${randomUUID().replaceAll('-', '')}.tmp`)
     writeFileSync(name, '', { flag: 'wx' })
@@ -279,6 +279,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
           return { code: 'E_MIRROR_STALE' }
         }
         const now = state(op.path)
+        // Unchanged after all: nothing to keep; the plan learns it.
         if (now !== null && now === entry.sha256) {
           return { code: 'E_MIRROR_CHANGED', path: op.path, state: now }
         }
@@ -355,14 +356,14 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         const blockedAt = inTheWay(op.path)
         if (blockedAt) return blockedAt
         const target = state(op.path)
+        // The same file under another case of its name.
         const renamed = target !== null && from !== null && sameFile(from, op.path)
         let adopt = false
         if (target !== null && !renamed) {
           if (target === op.sha256) adopt = true
           else return { code: 'E_MIRROR_EXISTS', path: op.path, state: target }
         }
-        // Without the text, only a file that holds it already can go there:
-        // checked before anything on disk changes.
+        // Without the text only a file that holds it already can go there; checked before anything changes.
         const holdsIt = adopt || (from !== null && fromState === op.sha256)
         if (op.text === undefined && !holdsIt) {
           return { code: 'E_MIRROR_CHANGED', path: op.from ?? op.path, state: fromState }
@@ -396,6 +397,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         prune(from)
         if (fromState === op.sha256) return record(lstat(abs(op.path))!.size)
         if (op.text === undefined) return { code: 'E_MIRROR_CHANGED', path: op.path, state: null }
+        // Moved: Devot's own file is there now, and its new text goes over it.
         writeFile(op.path, op.text, 'replace')
         log.written.push(op.path)
         return record(Buffer.byteLength(op.text))
@@ -482,6 +484,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
       if (paused !== null) {
         generation += 1
         if (dirty && manifest !== null) {
+          // The last batch is only in memory: it goes back first.
           try {
             save()
           } catch {
@@ -521,6 +524,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         }
         if (fresh) {
           manifest = { notes: {}, files: {}, books: {} }
+          // Only while the folder still has none (one that appeared stays).
           try {
             writeFile(MANIFEST, manifestText(), 'new')
           } catch (error) {

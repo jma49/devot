@@ -1,5 +1,4 @@
-// Every storage adapter refuses what the app's note_put refuses, with its
-// codes, so the core and its tests see the same refusals as the app.
+// Every storage adapter refuses what the app's note_put refuses, with its codes.
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import {
@@ -78,6 +77,7 @@ const CASES: [string, () => Partial<NoteRecord>, string | null][] = [
   ],
 ]
 
+/** `putNote`'s answer per case: error code, or null when stored. Each write is based on the body version the earlier stored writes left. */
 async function answers(storage: StorageAdapter) {
   const result: (string | null)[] = []
   let bodyVersion = 0

@@ -92,6 +92,7 @@ test('Export as Markdown… writes the note with its attachments linked relative
   expect((await calls(page, 'export_begin')).map((c) => c.args)).toEqual([
     { kind: 'note', format: 'markdown', name: 'Plan' },
   ])
+  // Copied once; the sized link keeps its size as the path's fragment.
   expect((await calls(page, 'export_attach')).map((c) => c.args)).toEqual([{ id: 7, fileId: FILE }])
   const [write] = await calls(page, 'export_write')
   expect(write?.args).toEqual({
@@ -110,6 +111,7 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
   await createNote(page, 'Plan', `${BODY}\n${SIZED}\n${DIAGRAM}`)
   await mockExport(page, { export_begin: { id: 3, fileName: 'Plan.html' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as HTML…')
+  // Draw the diagram first: Mermaid loads on first use.
   await expect
     .poll(async () => (await calls(page, 'export_finish')).length, { timeout: 20_000 })
     .toBe(1)
@@ -167,6 +169,7 @@ test('Print… and Shift+Cmd+P print the preview; Export as PDF… saves it', as
   await mockExport(page)
   await pickFromNoteMenu(page, 'Plan', 'Print…')
   await expect.poll(async () => (await calls(page, 'note_print')).length).toBe(1)
+  // From the editor too (Cmd+P is Split view).
   await body(page).click()
   await page.keyboard.press('Meta+Shift+P')
   await expect.poll(async () => (await calls(page, 'note_print')).length).toBe(2)
@@ -187,6 +190,7 @@ test('Print right after the preview opens draws every diagram', async ({ page })
   const sequence = '```mermaid\nsequenceDiagram\n  Alice->>Bob: Hello\n```\n'
   await createNote(page, 'Charts', `${DIAGRAM}\n${sequence}`)
   await mockExport(page)
+  // The preview asks for both diagrams; the page for printing asks again at once.
   await page
     .getByRole('group', { name: 'View mode' })
     .getByRole('button', { name: 'Split' })
@@ -228,6 +232,7 @@ test('a page to print loads nothing from the web: its images from there print as
       expect(html).toContain(`<a href="${remote}">Pixel</a>`)
       expect(html).not.toContain(`src="${remote}"`)
       expect(images.map((i) => i.fileId)).toEqual([FILE])
+      // Laid out in a web view of its own, as Rust prints it.
       const view = await context.newPage()
       await view.setContent(html, { waitUntil: 'load' })
       await expect(view.getByRole('link', { name: 'Pixel' })).toBeVisible()
@@ -246,6 +251,7 @@ test('a page to print loads nothing from the web: its images from there print as
 })
 
 test('a cancelled panel writes nothing and shows nothing', async ({ page }) => {
+  // A failure logs its code, even when a later action's start hides its notice.
   const failures: string[] = []
   page.on('console', (message) => {
     if (message.text().includes('W_EXPORT_FAILED')) failures.push(message.text())
@@ -264,6 +270,7 @@ test('a cancelled panel writes nothing and shows nothing', async ({ page }) => {
     await mockExport(page, { export_begin: null })
     await pickFromNoteMenu(page, 'Plan', item)
     await expect.poll(async () => (await calls(page, 'export_begin')).length).toBe(1)
+    // The same export again, saved this time: only the second one wrote (the cancelled one is long over).
     await mockExport(page, { export_begin: { id: 4, fileName: file } })
     await pickFromNoteMenu(page, 'Plan', item)
     await expect
@@ -274,6 +281,7 @@ test('a cancelled panel writes nothing and shows nothing', async ({ page }) => {
     await expect(page.getByRole('alert')).toHaveCount(0)
   }
 
+  // Print… and Export as PDF… answer false when the panel was cancelled.
   await mockExport(page, { note_print: false, export_pdf: false })
   await pickFromNoteMenu(page, 'Plan', 'Print…')
   await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
@@ -303,6 +311,7 @@ test('a failure shows what did not complete, with its code, until dismissed', as
   await pickFromNoteMenu(page, 'Plan', 'Copy as Simple HTML')
   await expect(notice).toHaveText(/^The note could not be copied \(E_CLIPBOARD_WRITE_FAILED\)\./)
 
+  // A PDF that could not be written fails (there is no panel to cancel).
   await mockExport(page, { export_pdf: { error: 'E_EXPORT_PDF_FAILED' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
   await expect(notice).toHaveText(/^The export did not complete \(E_EXPORT_PDF_FAILED\)\./)
@@ -323,6 +332,7 @@ test("an export's notice and a backup's both show, each with its buttons", async
   const exported = page.getByRole('alert').filter({ hasText: 'E_EXPORT_WRITE_FAILED' })
   await expect(backup).toBeVisible()
   await expect(exported).toBeVisible()
+  // Neither covers the other: each one's Dismiss takes a click.
   await backup.getByRole('button', { name: 'Dismiss' }).click({ timeout: 5_000 })
   await expect(backup).toHaveCount(0)
   await expect(exported).toBeVisible()

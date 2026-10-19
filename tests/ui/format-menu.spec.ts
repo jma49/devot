@@ -1,6 +1,9 @@
 import type { Page } from '@playwright/test'
 import { expect, test, type TestWindow } from './fixtures'
 
+// The Format menu (src-tauri/src/format_menu.rs): keys come from the command registry and are live only while
+// the editor has the keyboard; a picked item (`devot://format`, re-sent as `devot:format`) formats the selection.
+
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const title = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 
@@ -21,6 +24,10 @@ const pick = (page: Page, id: unknown) =>
     w.dispatchEvent(new w.CustomEvent('devot:format', { detail }))
   }, id)
 
+/**
+ * The key and, at once, the menu item with that key, in one task: the item counts as an echo of the key only within
+ * a short window, which two round trips could outlast on a loaded machine.
+ */
 const keyThenPick = (page: Page, code: string, id: string) =>
   page.evaluate(
     ([keyCode, detail, key]) => {
@@ -96,6 +103,7 @@ test('the Format menu has its keys while the editor has the keyboard', async ({ 
     w.dispatchEvent(new w.Event('focus'))
   })
   await expect.poll(() => lastMenuState(page)).toMatchObject({ enabled: true })
+  // Only changes are sent, not every focus move inside the editor.
   const count = (await menuStates(page)).length
   await page.keyboard.press('Shift+Home')
   await body(page).click()
@@ -110,7 +118,6 @@ test('a picked Format menu item formats the selection once', async ({ page }) =>
   await expect(body(page)).toHaveText('*word*')
   await pick(page, 'format.italic')
   await expect(body(page)).toHaveText('word')
-  // Items without keys work too.
   await pick(page, 'format.heading2')
   await expect(body(page)).toHaveText('## word')
   await pick(page, 'format.alertTip')
@@ -122,6 +129,7 @@ test('a format key is offered only where the format does something', async ({ pa
   await expect
     .poll(async () => (await lastMenuState(page))?.keys['format.italic'])
     .toBe('CmdOrCtrl+I')
+  // In code the inline formats do nothing: their keys are left to the editor (Cmd+I selects the parent syntax there).
   await page.keyboard.press('Enter')
   await page.keyboard.insertText('```')
   await page.keyboard.press('Enter')
@@ -140,7 +148,6 @@ test('a format key is offered only where the format does something', async ({ pa
     ),
   ).toBe('code')
   expect(await body(page).innerText()).not.toContain('*')
-  // Back in text they are offered again.
   await page.keyboard.press('ControlOrMeta+Home')
   await expect
     .poll(async () => (await lastMenuState(page))?.keys['format.italic'])
@@ -153,7 +160,6 @@ test('Format menu items do nothing outside the editor', async ({ page }) => {
   await page.keyboard.press('Shift+Home')
   await title(page).click()
   await pick(page, 'format.bold')
-  // Anything but a format command is ignored too.
   await pick(page, 'note.trash')
   await pick(page, 'format.nope')
   await body(page).click()
@@ -168,8 +174,7 @@ test('Format menu items do nothing outside the editor', async ({ page }) => {
 test('a format key the editor ran is not run again by the menu', async ({ page }) => {
   await newNote(page, 'word')
   await page.keyboard.press('Shift+Home')
-  // The key reaches the page and the menu (as when WebKit passes a key the
-  // page saw on to the menu bar): one format, not two.
+  // The key reaches the page and the menu (as when WebKit passes on a key the page saw): one format, not two.
   await keyThenPick(page, 'KeyI', 'format.italic')
   await expect(body(page)).toHaveText('*word*')
   await page.waitForTimeout(100)
@@ -177,7 +182,6 @@ test('a format key the editor ran is not run again by the menu', async ({ page }
   // Only that one event is an echo: picking the item again runs it.
   await pick(page, 'format.italic')
   await expect(body(page)).toHaveText('word')
-  // Another format right after a key is a pick of its own.
   await page.keyboard.press('ControlOrMeta+KeyI')
   await expect(body(page)).toHaveText('*word*')
   await pick(page, 'format.bold')

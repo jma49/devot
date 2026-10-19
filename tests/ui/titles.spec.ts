@@ -90,6 +90,7 @@ test('Return in the title moves to the tags, and an input method keeps its Retur
   await page.keyboard.press('Enter')
   await expect(page.getByRole('group', { name: 'Tags' })).toContainText('ideas')
 
+  // The Return that picks a candidate of an input method stays in the title.
   await titleField(page).focus()
   await titleField(page).evaluate((el) => {
     const w = globalThis as unknown as {

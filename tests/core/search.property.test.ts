@@ -23,6 +23,7 @@ import {
 import { openSqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
+// Two Chinese characters ("sync"): below the trigram length, so storage scans for them.
 const SYNC = '\u540c\u6b65'
 
 const STATUS_NAMES: Record<NoteStatus, string[]> = {
@@ -55,6 +56,7 @@ const queryText = fc.string({
       ),
     },
     { weight: 3, arbitrary: fc.string({ unit: 'binary', minLength: 1, maxLength: 3 }) },
+    // Lone surrogates: a query is any JavaScript string.
     { weight: 1, arbitrary: fc.constantFrom('\ud800', '\udc00') },
   ),
   maxLength: 60,
@@ -147,9 +149,8 @@ describe('matchSegments', () => {
   })
 })
 
-// Search on SQLite must agree with a plain model of the query rules, whatever
-// the notes and the query.
-
+// Cased non-ASCII words too, short ones among them ("ém" is scanned, not looked up in the trigram index).
+// No sigma or dotted capital I: their lower case depends on context in toLowerCase (storage folds per character; tests/support/folds.json).
 const WORDS = [
   'plan',
   'relay',
@@ -266,6 +267,7 @@ function matches(n: ModelNote, c: SearchClause): boolean {
       return n.pinned === (c.value === 'true')
     case 'bookId':
     case 'tagId':
+      // IDs are not known when queries are drawn; the unit tests cover them.
       throw new Error('E_TEST_UNEXPECTED_FIELD')
   }
 }
@@ -320,6 +322,7 @@ describe('search on SQLite', () => {
               if (view.filter?.kind === 'status') filter = view.filter
               if (view.filter?.kind === 'tag') {
                 const tagId = tagIds[view.filter.tag]
+                // A filter on a tag no note has: the sidebar would not show it.
                 if (tagId) filter = { kind: 'tag', tagId }
               }
               const inView = (n: ModelNote) => {

@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test'
 import { expect, test, type TestWindow, pickNoteMore, pickStatus } from './fixtures'
 
+// Window shortcuts are pressed with Meta, as the app's registry takes it on every platform.
+
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>

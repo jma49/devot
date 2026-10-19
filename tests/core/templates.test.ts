@@ -1,3 +1,5 @@
+// Templates are ordinary notes in a reserved notebook with the same ID on every device; they
+// stay out of the library and AI tools.
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
@@ -56,6 +58,7 @@ const storedFile = (d: Device, id: string) =>
     | undefined
 
 const UTC: OffsetAt = () => 0
+// Tuesday 2026-03-03 09:05 UTC.
 const CLOCK = { now: Date.parse('2026-03-03T09:05:00Z'), offsetAt: UTC }
 
 async function template(d: Device, title: string, body: string) {
@@ -217,6 +220,8 @@ describe('AI tools (devot-mcp) never see templates', () => {
     const visible = await d.notes.create('Visible kiwi', shared)
     await d.notes.setBody(visible, 'A kiwi.')
     const tpl = await template(d, 'Template kiwi', 'A kiwi template.')
+    // An older Devot showed Templates as a plain notebook, where AI access
+    // could be turned on.
     const row = (await d.storage.listBooks()).find((b) => b.id === TEMPLATES_BOOK_ID)!
     await d.storage.putBook({ ...row, aiAccess: true, aiAccessHlc: d.clock.tick() })
     await d.notes.flush()
@@ -321,6 +326,7 @@ describe('a note from a template', () => {
     const [copy] = shownFiles(body)
     expect(copy).toMatch(UUID_V7)
     expect(copy).not.toBe(FILE_ID)
+    // Only the ID changed: the size preset stays.
     expect(body).toBe(`# Shot\n\n![shot](devot://file/${copy}#half)\n`)
     expect(shownFiles((await d.storage.getNote(tpl))?.bodyMd ?? '')).toEqual([FILE_ID])
 
@@ -437,6 +443,7 @@ describe('applying a template to a note', () => {
     const d = device(freshPath())
     const t = await template(d, 'Daily', '# {{title}}\n\nPlan\n')
     const note = await d.notes.create('', null)
+    // The user types between the fill's read and its write.
     const listNotes = d.storage.listNotes.bind(d.storage)
     let typed = false
     d.storage.listNotes = async (...args: Parameters<typeof listNotes>) => {

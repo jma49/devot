@@ -16,6 +16,7 @@ const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 
+/** Page globals these tests read; no DOM types in this config. */
 interface PageGlobals {
   document: {
     createRange(): {
@@ -105,7 +106,6 @@ test('the notebook, status and tags share one compact line, worked by click and 
   await pickStatus(page, 'Active')
   await expect(meta.locator('.status-active .popup-value')).toHaveText('Active')
 
-  // Tags are outlined pills after which Add Tags waits.
   const add = page.getByRole('combobox', { name: 'Add Tag' })
   await expect(add).toHaveAttribute('placeholder', 'Add Tags')
   await add.fill('work')
@@ -155,6 +155,7 @@ for (const scheme of ['light', 'dark'] as const) {
     const mark = await colourOf('###')
     const heading = await colourOf(' Free Mode')
     expect(mark).not.toBe(heading)
+    // Inline code keeps the text colour (its box sets it apart).
     for (const colour of [mark, heading, await colourOf('kbd')]) expect(colour).not.toBe(text)
     await expect(
       page.locator('.cm-content span', { hasText: /^https:\/\/example\.com$/ }),
@@ -225,7 +226,6 @@ test('a code block in the preview is headed by its language mark and title', asy
   await expect(heads.nth(0).locator('.code-title')).toHaveText('app.ts')
   await expect(heads.nth(0).locator('svg.code-lang-icon')).toHaveCount(1)
   await expect(heads.nth(1).locator('.code-lang')).toHaveText('Python')
-  // A language without a mark shows the generic mark and its name.
   await expect(heads.nth(2).locator('.code-lang')).toHaveText('nolang')
   await expect(heads.nth(2).locator('.code-lang-icon-generic')).toHaveCount(1)
   const head = await heads.nth(0).boundingBox()

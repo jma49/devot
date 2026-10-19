@@ -11,6 +11,7 @@ describe('uiPorts', () => {
   it('gives different checkouts different ports', () => {
     const seen = new Set<number>()
     for (let i = 0; i < 20; i++) seen.add(uiPorts(`/work/devot-wt/${i}-fix`, {}).ui)
+    // 400 pairs: a collision among 20 folders is possible but a handful at most.
     expect(seen.size).toBeGreaterThan(15)
   })
 

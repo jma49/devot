@@ -25,7 +25,6 @@ async function createNote(page: Page, title: string) {
   await expect(noteRow(page, title)).toHaveCount(1)
 }
 
-/** The menu's lines without their keys. */
 async function labels(page: Page): Promise<string[]> {
   return (await shownMenu(page)).map((line) =>
     line.replace(/ (?:(?:Cmd|Ctrl|Alt|Shift|Super|CmdOrCtrl)\+)*(?:Backspace|\S\S*)$/, (m) =>

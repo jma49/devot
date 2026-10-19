@@ -166,6 +166,7 @@ describe('replacing a body', () => {
     await editor.settled()
     const base = (await notes.open(id)).state
 
+    // A replica edits from the same base while the body is replaced.
     const replica = new Y.Doc()
     Y.applyUpdate(replica, base)
     replica.getText(BODY).insert(8, '!')
@@ -173,6 +174,7 @@ describe('replacing a body', () => {
     await notes.applyUpdate(id, Y.encodeStateAsUpdate(replica))
     await notes.flush()
 
+    // A whole-text rewrite would have moved the replica's edit out of place.
     expect((await storage.getNote(id))!.bodyMd).toBe('Howdy wo!rld')
   })
 
@@ -227,11 +229,11 @@ describe('titles', () => {
     const { notes, storage } = service(freshPath())
     const id = await notes.create('Short')
     await notes.release(id)
+    // Stored past the limit (by an older build, say).
     const long = 'x'.repeat(MAX_TITLE_CHARS + 500)
     storage.db.prepare('UPDATE notes SET title = ? WHERE id = ?').run(long, id)
     await notes.setBody(id, 'typed later')
     await notes.flush()
-    // The body is saved; the title stays as stored until it is renamed.
     expect(await storage.getNote(id)).toMatchObject({ title: long, bodyMd: 'typed later' })
     expect((await notes.history(id)).map((e) => e.kind)).not.toContain('title')
     await notes.setTitle(id, 'Renamed')
@@ -297,6 +299,7 @@ describe('hand-set dates', () => {
     await app.notes.flush()
     const stale = (await app.storage.getNote(id))!
     await app.notes.setDates(id, { createdAt: MAR_1, updatedAt: MAR_2 })
+    // Another process writes its older copy (no dates HLC) on the current body.
     const current = (await app.storage.getNote(id))!
     await app.storage.putNote({ ...stale, bodyVersion: current.bodyVersion, updatedAt: MAR_1 })
     const stored = (await app.storage.getNote(id))!

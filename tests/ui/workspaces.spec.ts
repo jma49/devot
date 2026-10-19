@@ -1,3 +1,5 @@
+// Workspaces: a notebook opened as the whole sidebar; Go Up a Level goes to the parent's
+// workspace, and out of workspaces at the top level.
 import type { Page } from '@playwright/test'
 import { expect, pickMenuItem, reloadApp, test } from './fixtures'
 
@@ -48,6 +50,9 @@ async function createNote(page: Page, title: string, more: { active?: boolean; t
   }
 }
 
+/**
+ * Home and Work > Devot: Chores (Home, active, #chore), Memo (Work, #work), Plan (Devot, active).
+ */
 async function setUp(page: Page) {
   await createBook(page, 'Home')
   await createBook(page, 'Work')
@@ -83,6 +88,7 @@ test('Open as Workspace shows only the notebook, with scoped counts', async ({ p
   for (const hidden of [/^Pinned/, /^Templates/, /^Trash/]) {
     await expect(sidebar(page).getByRole('button', { name: hidden })).toHaveCount(0)
   }
+  // All Notes is the notebook with its sub-notebooks, and the counts are its own.
   await expect(header(page)).toHaveText('Work')
   await expect(allNotes(page)).toHaveAttribute('aria-current', 'true')
   await expect(allNotes(page).locator('.source-count')).toHaveText('2')
@@ -90,6 +96,8 @@ test('Open as Workspace shows only the notebook, with scoped counts', async ({ p
   await expect(count(page, /^Active/)).toHaveText('1')
   await expect(sidebar(page).getByRole('button', { name: /^work/ })).toBeVisible()
   await expect(sidebar(page).getByRole('button', { name: /^chore/ })).toHaveCount(0)
+  // The sidebar has the keyboard; Backspace on All Notes goes up, out of
+  // workspaces from a top-level notebook.
   await expect(allNotes(page)).toBeFocused()
   await page.keyboard.press('Backspace')
   await expect(anyWorkspace(page)).toHaveCount(0)

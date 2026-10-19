@@ -1,5 +1,3 @@
-// Saving notes: a failed save keeps its changes, retries them and reports
-// the note; writes of one note go one at a time, and flush waits for them.
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -17,7 +15,6 @@ import { tempDir } from '../support/temp-dirs'
 const open: SqliteAdapter[] = []
 const services: { notes: NoteService; allowWrites: () => void }[] = []
 afterEach(async () => {
-  // Nothing left failing: no retry outlives its test.
   for (const s of services.splice(0)) {
     s.allowWrites()
     await s.notes.flush().catch(() => {})
@@ -27,13 +24,7 @@ afterEach(async () => {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-/**
- * A note service on a fresh SQLite file whose note writes the test controls:
- * they fail with E_TEST_WRITE while `failWrites` says so, and `holdNextWrite`
- * keeps the next one waiting. Retries wait `retryDelayMs` (long by default,
- * so only the test's own saves write). The service's reports are kept, and
- * also passed to `listener`.
- */
+/** Note writes fail with E_TEST_WRITE while `failWrites` says so; `holdNextWrite` keeps the next one waiting; retries wait `retryDelayMs` (long, so only the test's saves write). */
 function setup({
   retryDelayMs = 60_000,
   listener,
@@ -203,7 +194,6 @@ describe('a save that fails', () => {
     s.allowWrites()
     await s.notes.flush()
     expect((await s.stored(id))?.bodyMd).toBe('kept')
-    // Saved, so no longer reported, and nothing is left to try again.
     expect(s.problems()).toEqual([])
     await s.notes.setBody(id, 'kept, and more')
     await s.notes.flush()
@@ -229,7 +219,6 @@ describe('saves of one note', () => {
     const id = await s.notes.create()
     const release = s.holdNextWrite()
     await s.notes.setBody(id, 'last words before quitting')
-    // The autosave has started and waits.
     await vi.waitFor(() => expect(s.writes).toHaveLength(2))
     let flushed = false
     const flushing = s.notes.flush({ versions: true }).then(() => {
@@ -251,7 +240,6 @@ describe('saves of one note', () => {
     await s.notes.setBody(id, 'newer')
     const searching = s.notes.search('newer')
     await sleep(20)
-    // The second write waits for the first.
     expect(s.writes).toHaveLength(2)
     release()
     expect((await searching).map((n) => n.id)).toEqual([id])

@@ -11,6 +11,9 @@ import {
   searchPattern,
 } from '../../src/core'
 
+// Excerpts show readable text; the shared cases hold the Rust store
+// (src-tauri/src/storage/readable.rs) to the same rules.
+
 interface Case {
   name: string
   markdown: string
@@ -20,6 +23,7 @@ const CASES = JSON.parse(
   readFileSync(join(import.meta.dirname, '../support/readable-text.json'), 'utf8'),
 ) as Case[]
 
+// Chinese words, built from code points: "meeting", "sync", "plan".
 const MEETING = String.fromCodePoint(0x4f1a, 0x8bae)
 const SYNC = String.fromCodePoint(0x540c, 0x6b65)
 const PLAN = String.fromCodePoint(0x8ba1, 0x5212)
@@ -83,6 +87,7 @@ describe('bodyExcerpt', () => {
   })
 })
 
+// Plain words: letters, digits, Chinese and a character outside the BMP.
 const word = fc
   .array(
     fc.constantFrom('a', 'Z', 'q', '7', MEETING[0]!, SYNC[1]!, PLAN, String.fromCodePoint(0x1f680)),
@@ -162,6 +167,8 @@ describe('readableText properties', () => {
     const inline = fc.tuple(
       word,
       fc.nat(AROUND_WORD.length - 1),
+      // Each emphasis character at most once around a word: markers of one character right
+      // inside each other (`*_*w*_*`) pair the other way; four tildes opening a line make a fence.
       fc.array(fc.nat(INLINE.length - 1), { maxLength: 3 }).filter((wraps) => {
         const marks = wraps.map((k) => EMPHASIS[k]).filter((m) => m !== undefined)
         return new Set(marks).size === marks.length

@@ -55,6 +55,7 @@ function service(path = freshPath()) {
   return { path, storage, notes, books: createBookService({ storage, clock, newId }) }
 }
 
+/** An editor replica wired to the service as the UI wires its Yjs document. Undo is CodeMirror's own (undo.test.ts, history.spec.ts). */
 async function editorFor(notes: NoteService, id: string) {
   const doc = new Y.Doc()
   Y.applyUpdate(doc, (await notes.open(id)).state, 'remote')
@@ -131,6 +132,7 @@ describe('taking versions', () => {
   })
 
   it('keeps the text from before the first edit when no version holds it', async () => {
+    // Notes from import, devot-mcp or before history existed have no version: the first edit records the old text.
     const first = service()
     const id = await first.notes.create('Imported')
     await first.notes.setBody(id, 'from a file')
@@ -231,6 +233,8 @@ describe('compaction', () => {
     await sweeps.until(1)
     const [seed] = await bodies(storage, id)
     const ydoc = (await storage.getRevision(seed!.id))!.ydoc!
+    // Two versions in one hour (the start is on the hour), just under a day
+    // old, and the newest versions, which are always kept, since.
     const olds = versionsAt(
       id,
       [10, 40].map((minute) => start - DAY + minute * MINUTE),
@@ -241,6 +245,7 @@ describe('compaction', () => {
     for (const r of [...olds, ...versionsAt(id, recent, ydoc, 100)]) await storage.putRevision(r)
     const ids = async () => new Set((await bodies(storage, id)).map((r) => r.id))
 
+    // Both are a day old after this, but the last sweep ran under an hour ago.
     await advance(59 * MINUTE - REVISION_PAUSE_MS)
     await editor.type('seed, more')
     await notes.flush()
@@ -270,6 +275,8 @@ describe('compaction', () => {
     const ydoc = Y.encodeStateAsUpdate(doc)
     let n = 0
     const old = (at: number): RevisionRecord => versionsAt(quiet, [at], ydoc, (n += 1))[0]!
+    // A day of editing a month ago, an hour three days ago, two hours just under a week ago, one just
+    // under a day ago; and the newest versions, always kept, in the last hour.
     const month = Array.from({ length: 6 }, (_, i) => old(time - 30 * DAY - i * 10 * MINUTE))
     const days = Array.from({ length: 3 }, (_, i) => old(time - 3 * DAY + i * MINUTE))
     const week = [old(time - 7 * DAY + 90 * MINUTE), old(time - 7 * DAY + 150 * MINUTE)]
@@ -289,6 +296,8 @@ describe('compaction', () => {
     await sweeps.until(1)
     expect(await ids()).toEqual(kept(month[0]!, days[2]!, ...week, ...day))
 
+    // Hours later, nothing more: ages count from the note's newest version
+    // (see revisionsToDrop), and the note took none since.
     await advance(3 * HOUR)
     await editor.type('busy, still')
     await notes.flush()
@@ -323,6 +332,7 @@ describe('restoring a version', () => {
     const kept = await storage.getRevision(older.id)
     const before = Y.encodeStateVector(editor.doc)
 
+    // One update, applied in one transaction: the editor makes it one undo step.
     const update = await notes.restoreRevision(id, older.id)
     let transactions = 0
     editor.doc.on('afterTransaction', () => (transactions += 1))
@@ -375,6 +385,7 @@ describe('metadata events', () => {
   it('logs a revision write that failed with the code it was refused with', async () => {
     const { storage, notes } = service()
     const id = await notes.create('Draft')
+    // Storage behind Tauri rejects with the code Rust sends, as a string.
     storage.putRevision = () => Promise.reject('E_STORAGE_BUSY')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {

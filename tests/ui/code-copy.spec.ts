@@ -1,13 +1,10 @@
 import type { Page } from '@playwright/test'
 import { clipboardWrites, expect, test } from './fixtures'
 
-// A copy button on each fenced code block in the preview. It copies the
-// block's text as written, is reachable from the keyboard, says that it
-// copied, and is the page's own control: never in the note's HTML or on paper.
-
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const copyButtons = (page: Page) => preview(page).getByRole('button', { name: 'Copy Code' })
 
+/** The page's globals the paste test touches (this config has no DOM types). */
 interface PasteGlobals {
   devotPastedHtml?: string
   document: {
@@ -73,6 +70,7 @@ test('each fenced code block has a copy button that copies its text as written',
   page,
 }) => {
   await openNote(page, NOTE)
+  // Two code blocks: not the front matter, inline code or the diagram.
   await expect(copyButtons(page)).toHaveCount(2)
   await expect(preview(page).locator('pre').first().getByRole('button')).toHaveCount(0)
 
@@ -98,10 +96,9 @@ test('each fenced code block has a copy button that copies its text as written',
 test('the button is reachable from the keyboard', async ({ page }) => {
   await openNote(page, '```\nkeyboard\n```')
   await expect(copyButtons(page)).toHaveCount(1)
-  // A click on the code puts the keyboard there; Option+Tab goes on to the
-  // button (WebKit on macOS tabs to buttons with Option, or with Full
-  // Keyboard Access; elsewhere Tab alone does, with or without Alt). The
-  // click is on the code, past the info card's date buttons above it.
+  // A click on the code puts the keyboard there; Option+Tab goes on to the button (WebKit on
+  // macOS tabs to buttons with Option, or with Full Keyboard Access; elsewhere Tab alone does).
+  // The click is on the code, past the info card's date buttons above it.
   await preview(page)
     .locator('pre code')
     .click({ position: { x: 2, y: 2 } })
@@ -130,6 +127,7 @@ test('a failed copy says so', async ({ page }) => {
 })
 
 test('a long block goes through the native clipboard command too', async ({ page }) => {
+  // The command takes as much as a note may hold (64 KiB once): any block.
   const long = 'x'.repeat(70 * 1024)
   await openNote(page, '```\n' + long + '\n```')
   await copyButtons(page).click()
@@ -145,6 +143,7 @@ test('the button stays while the block is edited and is never part of the note',
   await expect(copyButtons(page)).toHaveCount(1)
   await copyButtons(page).evaluate((el) => Object.assign(el, { devotMark: true }))
 
+  // Typing at the end re-renders the preview; the patcher leaves the button alone.
   await page.getByRole('textbox', { name: 'Note body' }).click()
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.insertText('\n\nMore text.')
@@ -181,7 +180,6 @@ test('copying a selection across a block leaves the button out of the copied HTM
     })
     w.document.body.append(target)
   })
-  // Select from the paragraph before the block to the one after it.
   await preview(page).evaluate((article) => {
     const w = globalThis as unknown as PasteGlobals
     const paragraphs = article.querySelectorAll('p')

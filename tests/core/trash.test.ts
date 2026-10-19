@@ -90,6 +90,7 @@ describe('trash on SQLite', () => {
 
   it('restores a note whose stored title storage would refuse now', async () => {
     const { notes, storage } = setup()
+    // Stored by an older build: a carriage return, and past the limit.
     for (const title of ['two\rlines', 'x'.repeat(1500)]) {
       const id = await notes.create('Old', null)
       await notes.release(id)

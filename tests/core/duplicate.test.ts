@@ -52,6 +52,7 @@ function services(path = freshPath()) {
   }
 }
 
+/** An editor replica that forwards its edits to the service, like the UI does. */
 async function editorFor(notes: NoteService, id: string) {
   const doc = new Y.Doc()
   Y.applyUpdate(doc, (await notes.open(id)).state, 'remote')
@@ -103,6 +104,7 @@ describe('duplicating a note', () => {
     if (!source || !copied) throw new Error('missing note')
     const copyDoc = stateOf(copied.ydoc)
     expect(copyDoc.getText(BODY).toString()).toBe('world!')
+    // The copy holds the source's Yjs items, not text inserted afresh.
     expect(Y.encodeStateVector(copyDoc)).toEqual(Y.encodeStateVector(stateOf(source.ydoc)))
   })
 
@@ -176,6 +178,7 @@ describe('duplicating a note', () => {
 
     const copy = await notes.duplicate(id)
     expect(await storage.getNote(copy)).toMatchObject({ bookId: null, bookHlc: '' })
+    // The source keeps its notebook, so restoring it brings the note back.
     expect((await storage.getNote(id))?.bookId).toBe(book)
   })
 
@@ -216,6 +219,7 @@ describe('duplicating a note', () => {
     // The suffix survives: the copy never gets the original's title.
     expect(cutTitle.endsWith(' copy')).toBe(true)
 
+    // An untitled note stays untitled: its list row shows its first line.
     const untitled = await notes.create('')
     const plain = await duplicateNote({ notes, tags }, untitled, { suffix: 'copy' })
     expect((await storage.getNote(plain))?.title).toBe('')
@@ -265,6 +269,7 @@ describe('duplicating a note', () => {
     }
     expect(copyA).not.toBe(copyB)
     expect(record.bodyMd).toBe(body.replaceAll(FILE_A, copyA).replaceAll(FILE_B, copyB))
+    // Through Yjs: the copy holds the source's items, plus the edits to the IDs.
     const copyDoc = stateOf(record.ydoc)
     expect(copyDoc.getText(BODY).toString()).toBe(record.bodyMd)
     const sourceClocks = Y.decodeStateVector(Y.encodeStateVector(stateOf(sourceState)))
@@ -285,7 +290,6 @@ describe('duplicating a note', () => {
     expect(file(FILE_A)).toBeUndefined()
     expect(file(FILE_B)).toBeUndefined()
 
-    // The copy reopens with its own links after the original is gone.
     await notes.release(copy)
     expect((await editorFor(notes, copy)).text.toString()).toBe(record.bodyMd)
   })
@@ -296,6 +300,7 @@ describe('duplicating a note', () => {
     await storage.putFile({ id: FILE_A, noteId: id, name: 'a.png' }, PNG_A)
     await notes.setBody(id, `![](devot://file/${FILE_A})`)
     await notes.flush()
+    // A real failure inside the copy's write, on the real database.
     storage.db.exec(
       "CREATE TEMP TRIGGER no_copies BEFORE INSERT ON files BEGIN SELECT RAISE(ABORT, 'E_DISK_FULL'); END",
     )

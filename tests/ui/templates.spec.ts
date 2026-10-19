@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test'
 import { expect, test, statusPicker, bookPicker } from './fixtures'
 
+// Window shortcuts take Meta, as the app's registry does on every platform.
+
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const templatesRow = (page: Page) => sidebar(page).getByRole('button', { name: /^Templates \d+$/ })
 const allNotesRow = (page: Page) => sidebar(page).getByRole('button', { name: /^All Notes/ })
@@ -154,7 +156,6 @@ test('the picker lists recently used templates first and previews the one select
   await picker(page).getByRole('combobox', { name: 'Filter templates' }).fill('bet')
   await expect(pickerOptions(page)).toHaveText(['Beta'])
   await expect(preview(page)).toContainText('Beta body')
-  // A click selects; Escape leaves without making a note.
   await page.keyboard.press('Escape')
   await expect(picker(page)).toHaveCount(0)
   await expect(noteRows(page)).toHaveCount(1)
@@ -197,6 +198,7 @@ test('the command palette offers New Note from Template', async ({ page }) => {
 })
 
 test('with no templates of your own the picker offers the built-in ones', async ({ page }) => {
+  // Cmd+T works once the core is up, as New Note does.
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
   await page.keyboard.press('Meta+KeyT')
   await expect(pickerOptions(page)).toHaveCount(0)
@@ -207,6 +209,7 @@ test('with no templates of your own the picker offers the built-in ones', async 
     'Planning',
     'Daily Report',
   ])
+  // The instruction quote shows in the template's own preview, not in the note.
   await expect(picker(page).getByRole('button', { name: 'Create' })).toBeEnabled()
   await picker(page).getByRole('combobox', { name: 'Filter templates' }).fill('daily')
   await page.keyboard.press('Enter')
@@ -272,6 +275,7 @@ test('Move to Notebook takes a template out to No Notebook', async ({ page }) =>
   await page.keyboard.press('KeyM')
   const move = page.getByRole('dialog', { name: 'Move to Notebook' })
   await expect(move).toBeVisible()
+  // A template is in none of the notebooks offered, so none is marked.
   await expect(move.getByRole('option', { checked: true })).toHaveCount(0)
   await expect(move.getByRole('option', { name: 'No Notebook' })).toHaveAttribute(
     'aria-selected',

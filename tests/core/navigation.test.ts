@@ -62,6 +62,7 @@ describe('stepTarget', () => {
   })
 
   it('skips entries for the note that is open', () => {
+    // a, b, a: after b is deleted, back from the second a has nowhere new to go.
     const trail = trailOf('a', 'b', 'a')
     expect(stepTarget(trail, -1, { live: (id) => id !== 'b', current: 'a' })).toBeUndefined()
   })

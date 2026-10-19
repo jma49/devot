@@ -1,3 +1,5 @@
+// Restoring the last editing state on launch (library view, open note, selection, scroll, view mode).
+// The caret is placed with clicks only (no platform text-navigation keys).
 import type { Locator, Page } from '@playwright/test'
 import { expect, reloadApp, test, pickNoteMore, pickStatus } from './fixtures'
 
@@ -21,13 +23,12 @@ const book = (page: Page, name: string) =>
 const modeButton = (page: Page, name: string) =>
   page.getByRole('group', { name: 'View mode' }).getByRole('button', { name, exact: true })
 const backButton = (page: Page) => page.getByRole('button', { name: 'Back', exact: true })
+/** The editor's scroll box (in its shadow root, around CodeMirror). */
 const scroller = (page: Page) => page.locator('[data-devot-part="editor-scroll"]')
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 /**
- * The scroll position once it stopped moving. CodeMirror corrects a position
- * set from outside a frame or two later (700 became 728 once its measured
- * line heights settled), so a read right after the set is not the position
- * that is stored: read again after two frames until it holds.
+ * CodeMirror corrects a scroll set from outside a frame or two later (700 became 728),
+ * so read again after two frames until the position holds.
  */
 const settledTop = (target: Locator) =>
   target.evaluate(async (e) => {
@@ -147,7 +148,6 @@ test('a reload restores the view, its filter, the open note, its selection and s
   expect(top).toBeGreaterThan(300)
   await dblclickWord(page, 'line 60', 5, 7)
   await expect(body(page)).toBeFocused()
-  // Saved shortly after the selection changes, before the page goes away.
   // "60" on line 60: after lines 1 to 9 (7 characters each with the line
   // break) and 10 to 59 (8 each), and "line ".
   const sixty = { anchor: 9 * 7 + 50 * 8 + 5, head: 9 * 7 + 50 * 8 + 7 }
@@ -202,6 +202,7 @@ test('preview mode comes back scrolled where it was, without taking the keyboard
   await expect(modeButton(page, 'Preview')).toHaveAttribute('aria-pressed', 'true')
   await expect(preview(page).getByText('line 150', { exact: true })).toBeAttached()
   await expect.poll(() => preview(page).evaluate((e) => e.scrollTop)).toBe(top)
+  // The editor is hidden in preview mode; it did not take the keyboard.
   await expect(scroller(page)).toBeHidden()
   expect(
     await page.evaluate(() => {
@@ -260,6 +261,7 @@ test('a note deleted meanwhile is skipped quietly, and the view stays', async ({
     }
     localStorage.setItem('devot.test.notes', JSON.stringify(notes))
   }, goneId)
+  // Watched from the reload that finds the note gone.
   const warnings: string[] = []
   page.on('console', (m) => warnings.push(m.text()))
   await reloadApp(page)
@@ -268,7 +270,6 @@ test('a note deleted meanwhile is skipped quietly, and the view stays', async ({
   await expect(noteRows(page)).toHaveText([/^Kept/])
   await expect(titleField(page)).toHaveCount(0)
   await expect(backButton(page)).toBeDisabled()
-  // Nothing was opened, so nothing failed to open.
   expect(warnings.filter((w) => /W_NOTE_OPEN_FAILED|W_LAST_STATE_RESTORE_FAILED/.test(w))).toEqual(
     [],
   )
@@ -286,6 +287,8 @@ test('a note shorter than its stored scroll position still reports and saves typ
     page,
     (s) => (openNoteState(s)['selection'] as { head?: number } | undefined)?.head === 3,
   )
+  // Stored when the note was longer (a backup restored since, or another
+  // process that edited it while the window was away).
   const stale = { ...saved, note: { ...openNoteState(saved), editorTop: { pos: 500, offset: 0 } } }
   await page.addInitScript(
     ([key, value]) => {

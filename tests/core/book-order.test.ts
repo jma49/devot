@@ -18,6 +18,9 @@ import {
 import { openSqliteAdapter, SCHEMA_VERSION, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
+// Manual order: each notebook has a fractional-index sort key (src/core/order.ts) with its own HLC; siblings
+// sort by key, ties by ID, and a move rewrites only the moved notebook's row.
+
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
@@ -129,7 +132,9 @@ describe('manual notebook order', () => {
     expect(writes.map((w) => w.id)).toEqual([apple, apple])
   })
 
+  /** A write that came from another device; this device's clock has seen it. */
   const remote = (clock: ReturnType<typeof createClock>) => {
+    // Its clock runs a second ahead.
     const hlc = formatHlc({ wall: Date.now() + 1000, counter: 0, node: 'iphone' })
     clock.receive(hlc)
     return hlc
@@ -140,6 +145,7 @@ describe('manual notebook order', () => {
     const a = await books.create('A', null)
     const b = await books.create('B', null)
     const c = await books.create('C', null)
+    // Two devices put B and C into the same gap: equal keys.
     const all = await books.list()
     const keyOf = (id: string) => all.find((r) => r.id === id)!.sortKey
     for (const id of [b, c]) {
@@ -186,6 +192,7 @@ describe('manual notebook order', () => {
     const gone = await books.create('Gone', null)
     const orphan = await books.create('Orphan', gone)
     const top = await books.create('Top', null)
+    // Sync deletes the parent alone (the child's deletion has not arrived).
     const parent = (await books.list()).find((r) => r.id === gone)!
     await storage.putBook({ ...parent, deletedAt: 1, deletedHlc: '9999999999999999-0000-zz' })
     expect(shape(await tree())).toEqual(['Orphan', 'Top'])
@@ -197,6 +204,7 @@ describe('manual notebook order', () => {
   })
 
   it('merges keys with equal clocks (old notebooks keyed apart) to the same key in any order', async () => {
+    // The same old notebook, keyed on two devices to different keys.
     const migrated = (sortKey: string): BookRecord => ({
       id: '0192a6f0-0000-7000-8000-000000000001',
       name: 'Work',
@@ -256,6 +264,7 @@ describe('the schema v10 migration', () => {
       db.pragma(`user_version = ${i + 1}`)
     })
     const ids = books.map((_, i) => `0192a6f0-0000-7000-8000-${String(i).padStart(12, '0')}`)
+    // IDs in reverse, so ID order differs from the order the names give.
     ids.reverse()
     const insert = db.prepare(
       `INSERT INTO books (id, name, name_hlc, parent_id, parent_hlc, created_at, updated_at,
@@ -296,6 +305,7 @@ describe('the schema v10 migration', () => {
     expect(unset.every((r) => r.sortKey === '' && r.sortKeyHlc === '')).toBe(true)
     const expectOldOrder = async () => {
       const result = await tree()
+      // Equal names (ignoring case) keep ID order: 'Alpha' was given the smaller ID.
       expect(result.map((n) => n.id)).toEqual([ids[3], ids[2], ids[0], ids[1]])
       expect(shape(result.slice(2))).toEqual([['beta', ['apple', 'Zed']], 'Gamma'])
       expect(result[0]?.children.map((n) => n.name)).toEqual(
@@ -332,6 +342,7 @@ describe('the schema v10 migration', () => {
       ['\u5b89', 3],
       ['\u5317', 3],
     ])
+    // A Chinese-language system sorted these by pinyin, not by code point.
     const { books, tree } = setup(path, 'zh')
     await books.settleOrder()
     expect(shape(await tree())).toEqual([

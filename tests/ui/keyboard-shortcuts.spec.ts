@@ -9,8 +9,10 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// ControlOrMeta is Command on macOS and Control elsewhere (CI runs Linux):
-// what the recorder stores and shows for it.
+// Rust stores shortcut changes and tells every window (`devot://keyboard-shortcuts-changed`, sent in the page
+// as `devot:keyboard-shortcuts-changed`), which rebinds its keys and menus at once.
+
+// ControlOrMeta is Command on macOS and Control elsewhere (CI runs Linux); the recorder stores and shows it so.
 const MAC = process.platform === 'darwin'
 const MOD = MAC ? 'Mod' : 'Ctrl'
 const withMod = (rest: string) => (MAC ? `${rest}\u2318` : `\u2303${rest}`)
@@ -18,6 +20,7 @@ const withMod = (rest: string) => (MAC ? `${rest}\u2318` : `\u2303${rest}`)
 const section = (page: Page) => page.getByRole('region', { name: 'Keyboard Shortcuts' })
 const table = (page: Page) => section(page).getByRole('table', { name: 'Keyboard Shortcuts' })
 const search = (page: Page) => section(page).getByRole('searchbox', { name: 'Search keybindings' })
+/** By registry ID: labels repeat, with a scope after them. */
 const row = (page: Page, id: string) => section(page).locator(`tr[data-command="${id}"]`)
 const recorder = (page: Page, command: string) =>
   section(page).getByRole('button', { name: new RegExp(`^${command} shortcut`) })
@@ -116,6 +119,7 @@ test('waits for a key after modifiers, ignores composing, and Escape cancels', a
   await recorder(page, 'Italic').click()
   await page.keyboard.down('Shift')
   await page.keyboard.up('Shift')
+  // Keys an input method is composing are its own.
   await recorder(page, 'Italic').evaluate((el) => {
     const w = globalThis as unknown as {
       KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown
@@ -153,6 +157,7 @@ test('refuses keys macOS keeps, Edit menu keys and keys that type text', async (
   await expect(row(page, 'format.bold')).toContainText(
     'J would type text; shortcuts that work while you type need Command or Control.',
   )
+  // On a note list row a plain key is fine.
   await record(page, 'Duplicate', 'KeyJ')
   await expect(recorder(page, 'Duplicate')).toHaveText('J')
   expect(await storedShortcuts(page)).toEqual({ 'note.duplicate': ['J'] })
@@ -195,6 +200,7 @@ test('asks before taking a key from another command', async ({ page }) => {
 
 test('clears a key, resets one and resets all', async ({ page }) => {
   await openSettings(page)
+  // From the keyboard: a button with nothing more to do keeps the focus.
   const clear = row(page, 'format.italic').getByRole('button', {
     name: 'Clear the shortcut for Italic',
   })
@@ -278,9 +284,9 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   await record(settings, 'Bold', 'ControlOrMeta+Alt+KeyB')
   await record(settings, 'Duplicate', 'KeyJ')
   await record(settings, 'Command Palette', 'ControlOrMeta+Alt+KeyP')
-  // What Rust sends every window after the change.
   await changeShortcutsElsewhere(page, await storedShortcuts(settings))
   await settings.close()
+  // The toolbar hides while the editor lacks the keyboard; shown again, it names the new key.
   await page.bringToFront()
   await page.keyboard.press('ControlOrMeta+End')
   await expect(page.getByRole('toolbar', { name: 'Format' })).toBeHidden()

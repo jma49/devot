@@ -1,12 +1,7 @@
 import type { Page } from '@playwright/test'
 import { changeShortcutsElsewhere, expect, test } from './fixtures'
 
-// The slash menu: `/` at the start of a line lists the insertions in three
-// groups; the query filters them (a substring of the label), Return inserts,
-// Escape closes the list and keeps the text, and a query that matches
-// nothing closes it for that slash. Keys are platform-neutral (ControlOrMeta
-// for the command key, no macOS text-navigation keys), so the tests run the
-// same on Linux.
+// Keys are platform-neutral (ControlOrMeta, no macOS text-navigation keys) so the tests run the same on Linux.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const lines = (page: Page) => page.locator('.cm-line').allTextContents()
@@ -30,9 +25,8 @@ async function newNote(page: Page, text: string) {
 }
 
 /**
- * Waits for the list to show `label` first and to take keys: past the
- * running queries (the list is disabled meanwhile) and CodeMirror's
- * `interactionDelay` (75 ms), during which keys go to the editor instead.
+ * Waits until the list shows `label` first and takes keys: past the running queries (the list is disabled
+ * meanwhile) and CodeMirror's `interactionDelay` (75 ms), when keys go to the editor instead.
  */
 async function waitForFirst(page: Page, label: string) {
   await expect(options(page).first()).toContainText(label)
@@ -44,6 +38,7 @@ async function typeQuery(page: Page, query: string) {
   await page.keyboard.type(`/${query}`)
 }
 
+/** Waits long enough for a list that would open to open. */
 async function settle(page: Page) {
   await page.waitForTimeout(400)
 }
@@ -54,8 +49,6 @@ test.beforeEach(async ({ page }) => {
   await page.reload()
 })
 
-// The query typed after the slash, the item it puts first, and the lines
-// after Return and typing `x` where the cursor went.
 const KINDS: [string, string, string[]][] = [
   ['blockq', 'Blockquote', ['Intro', '', '> x']],
   ['heading 2', 'Heading 2', ['Intro', '', '## x']],
@@ -111,7 +104,6 @@ test('Codeblock writes the fences and opens the language list', async ({ page })
   await expect(options(page)).toHaveCount(1)
   await page.keyboard.press('Enter')
   expect(await lines(page)).toEqual(['```', '', '```'])
-  // The language list opens at once, right after the opening fence.
   await expect(options(page).first()).toContainText('```')
   await page.keyboard.type('rust')
   await waitForFirst(page, '```rust')
@@ -215,6 +207,7 @@ test('Return from an input method does not pick', async ({ page }) => {
   await waitForFirst(page, 'Blockquote')
   // The Return that ends a composition (WebKit may report it after compositionend).
   const handled = await body(page).evaluate((el) => {
+    // This config has no DOM types: the one browser class used here.
     const w = globalThis as unknown as {
       KeyboardEvent: new (type: string, init: object) => { defaultPrevented: boolean }
     }

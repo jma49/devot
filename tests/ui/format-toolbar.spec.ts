@@ -15,11 +15,13 @@ async function newNote(page: Page, text: string) {
 
 type Box = { x: number; y: number; width: number; height: number }
 
+/** Double-clicks `word` on line `n` (from 1): a real mouse word selection, the same on every platform. */
 async function selectWord(page: Page, n: number, word: string) {
   const at = await page
     .locator('.cm-line')
     .nth(n - 1)
     .evaluate((line, target) => {
+      // This config has no DOM types: only the members used here.
       const doc = (
         globalThis as unknown as {
           document: {
@@ -45,6 +47,7 @@ async function selectWord(page: Page, n: number, word: string) {
       return null
     }, word)
   if (!at) throw new Error('E_TEST_NO_WORD')
+  // A shown toolbar can cover the word.
   if (await toolbar(page).isVisible()) await page.keyboard.press('Escape')
   await expect(toolbar(page)).toBeHidden()
   await page.mouse.dblclick(at.x, at.y)
@@ -71,7 +74,7 @@ async function expectBesideSelection(page: Page): Promise<Box> {
   await expect(toolbar(page)).toBeVisible()
   const selected = page.locator('.cm-selectionBackground')
   await expect(selected.first()).toBeVisible()
-  // Wait for CodeMirror to place it (it measures in the next frame).
+  // CodeMirror measures in the next frame.
   await page.evaluate(
     () =>
       new Promise((done) =>
@@ -202,9 +205,11 @@ test('the bar is one outlined box with a separate notch, and its icons sit on wh
       mask: icon.getPropertyValue('mask-size') || icon.getPropertyValue('-webkit-mask-size'),
     }
   })
+  // The outline is a 1 px ring in the box shadow (no spread blur), under the notch's strip.
   expect(look.shadow).toMatch(/0px 0px 0px 1px/)
   expect(look.filter).toBe('none')
   expect(look.notch).toEqual([12, 6])
+  // Whole pixels, and the mask is exactly the box: nothing is scaled.
   for (const px of look.size) expect(Number.isInteger(Number.parseFloat(px ?? ''))).toBe(true)
   expect(look.mask).toBe(look.size.join(' '))
 })
@@ -226,6 +231,7 @@ test('the toolbar hides on Escape, a collapsed selection and typing', async ({ p
 
 test('the toolbar follows the selection and never covers it', async ({ page }) => {
   await newNote(page, 'first line\nsecond line of the note\nthird line\nfourth line')
+  // The first line: the toolbar reaches up over the meta line, still above it.
   await selectWord(page, 1, 'first')
   const onFirst = await expectBesideSelection(page)
   const firstLine = (await page.locator('.cm-selectionBackground').first().boundingBox())!
@@ -258,11 +264,11 @@ test('the buttons apply and remove each format', async ({ page }) => {
     await expect(button(page, name)).toHaveAttribute('aria-pressed', 'false')
     await button(page, name).click()
     expect(await lines(page), name).toEqual([formatted])
-    // The text stays selected, so the toolbar stays and shows the format as on.
     await expect(button(page, name)).toHaveAttribute('aria-pressed', 'true')
     await button(page, name).click()
     expect(await lines(page), name).toEqual(['alpha beta'])
   }
+  // The body keeps focus: typing replaces the selection.
   await page.keyboard.type('done')
   expect(await lines(page)).toEqual(['done'])
 })
@@ -296,7 +302,6 @@ test('the link button asks for the address in a dialog and inserts the link', as
   await page.keyboard.press('Enter')
   await expect(dialog).toBeHidden()
   expect(await lines(page)).toEqual(['Read the [docs](https://example.com) today'])
-  // The caret is after the link, back in the body.
   await page.keyboard.insertText('!')
   expect(await lines(page)).toEqual(['Read the [docs](https://example.com)! today'])
 
@@ -377,9 +382,8 @@ test('Edit > Undo also takes back one format at a time', async ({ page }) => {
   await page.keyboard.press('ControlOrMeta+i')
   await page.keyboard.press('End')
   await page.keyboard.type('!')
-  // The menu item reaches the page as a `historyUndo` input event, which
-  // CodeMirror's history handles (it comes before the Yjs binding); format
-  // transactions isolate their history, so each one is its own step.
+  // The menu item reaches the page as a `historyUndo` input event, handled by CodeMirror's history
+  // before the Yjs binding; format transactions isolate their history, so each is its own step.
   const menuUndo = () =>
     body(page).evaluate((el) => {
       const Input = (globalThis as unknown as { InputEvent: new (t: string, o: object) => unknown })
@@ -397,6 +401,7 @@ test('Edit > Undo also takes back one format at a time', async ({ page }) => {
 test('bold next to punctuation keeps it outside the markers and toggles off again', async ({
   page,
 }) => {
+  // Ideographs and an ideographic full stop, built from code points.
   const [x, y, stop] = [0x4e2d, 0x6587, 0x3002].map((c) => String.fromCodePoint(c))
   await newNote(page, `${x}${x}${y}${y}${stop}${x}${x}`)
   // The text before the last two ideographs: the cursor sits after the stop.
@@ -504,6 +509,7 @@ test('the notch keeps pointing at the selection start when the bar is held back 
         page.locator('.cm-selectionBackground').first().boundingBox(),
       ])
       if (!sel || Number.isNaN(placed.notch)) return false
+      // The bar is held back (the notch is past its resting place) and still on the start.
       return placed.notch > 20 && Math.abs(placed.left + placed.notch - sel.x) < 2
     })
     .toBe(true)
@@ -529,6 +535,7 @@ test('a toolbar button focused by a screen reader keeps the editor open and gets
   await newNote(page, manyLines)
   await page.keyboard.press('ControlOrMeta+Home')
   await selectWord(page, 12, 'note')
+  // VoiceOver focuses a button before it presses it.
   await button(page, 'Bold').focus()
   await expect(toolbar(page)).toBeVisible()
   await page.keyboard.press('Space')

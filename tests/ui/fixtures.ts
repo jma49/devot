@@ -1,5 +1,6 @@
 import { expect, test as base, type Locator, type Page } from '@playwright/test'
 
+// A 1x1 black PNG: what `symbol_png` returns, at a smaller size.
 const PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
 
@@ -18,6 +19,7 @@ export interface MockMenu {
     items?: [number, string][]
     item?: string
   }
+  /** Messages on this channel are clicks on the item. */
   handler?: { onmessage: (id: unknown) => void }
 }
 
@@ -27,16 +29,19 @@ export type EditorMenuEntry =
   | { kind: 'predefined'; item: string }
   | { kind: 'submenu'; id: string; text: string; items: EditorMenuEntry[] }
 
+/** The page globals these tests touch; this config has no DOM types. */
 export interface TestWindow {
   devotIpcCalls: IpcCall[]
   devotIpcMocks?: Record<string, unknown>
   devotMenus: Record<number, MockMenu>
   devotEditorMenu?: { items: EditorMenuEntry[]; answer: (pick: unknown) => void } | undefined
+  /** Only the settings that were set; the rest are defaults. */
   devotEditorSettings?: Record<string, unknown>
   devotEditorRevision?: number
   devotShortcutOverrides?: Record<string, string[]>
   devotShortcutRevision?: number
   devotMirror?: MockMirror
+  /** Next folder pick for `mirror_choose`: used at once when `empty`, else after `mirror_confirm`; none cancels. */
   devotMirrorPick?: { folder: string; name: string; empty: boolean } | null
   devotMirrorApplied?: { kind: string; id: string; path?: string | null; text?: string }[]
 }
@@ -58,26 +63,8 @@ export interface MockMirror {
 }
 
 /**
- * Every UI test runs with Object.prototype frozen (as the app does) and
- * Tauri's IPC mocked: commands are recorded in
- * `window.devotIpcCalls` and `symbol_png` answers with a tiny PNG. Native
- * menus are kept in `window.devotMenus` (see `shownMenu`, `pickMenuItem`);
- * `clipboard_write_text`, `usage_record`, `format_menu_set`,
- * `text_look_up`, `text_speak` and `sidebar_menu_set` succeed, and
- * `sidebar_material_sync` answers with the stored sidebar material. The editor settings live
- * in `window.devotEditorSettings` (revision `devotEditorRevision`; see
- * `changeEditorSettingsElsewhere`): `editor_settings_set` merges its change
- * into them and, as Rust does for every window, sends
- * `devot:editor-settings-changed` (the page event the app re-sends Rust's
- * event as). The keyboard shortcut changes live in
- * `window.devotShortcutOverrides` the same way (`keyboard_shortcuts_set`
- * applies its patch and sends `devot:keyboard-shortcuts-changed`; see
- * `changeShortcutsElsewhere`), and `command_menu_set` succeeds. The Markdown
- * mirror is off unless a test sets `window.devotMirror`; its commands keep
- * the status and setting as Rust does (sending `devot:mirror-changed`), pick
- * `devotMirrorPick` in the folder panel, and record the window's passes in
- * `devotMirrorApplied`. Storage stays in the in-memory adapter (the UI
- * tests' build, vite.ui-test.config.ts).
+ * Every UI test runs with Object.prototype frozen (as the app does) and Tauri IPC mocked;
+ * the `window.devot*` globals hold the mock state. Storage is the in-memory adapter (vite.ui-test.config.ts).
  */
 export const test = base.extend({
   page: async ({ page }, use) => {
@@ -87,17 +74,13 @@ export const test = base.extend({
       if (REBUNDLED.test(message.text())) rebundled.push(message.text())
     })
     await use(page)
+    // Vite re-bundled late and reloaded the page under the test (`optimizeDeps.entries` in vite.config.ts lists them up front).
     if (rebundled.length > 0)
       throw new Error(`Vite re-bundled while the page was open: ${rebundled[0]}`)
   },
 })
 
-/**
- * Opens the app and returns once the window is ready (`data-ready` on
- * `.window`): its lists have loaded, its last state is restored and every
- * listener it adds in an effect is in place. Acting right after `page.goto`
- * can lose a key or an event that no listener heard yet.
- */
+/** Resolves once `data-ready` is on `.window`; acting earlier can lose a key or event no listener heard yet. */
 export async function openApp(page: Page, path = '/'): Promise<void> {
   await page.goto(path)
   await appReady(page)
@@ -117,10 +100,12 @@ export function appReady(page: Page): Promise<void> {
   return page.locator('.window[data-ready]').waitFor()
 }
 
+/** What Vite's client logs when its pre-bundle changed under an open page. */
 const REBUNDLED = /new dependencies optimized|optimized dependencies changed/
 
 export async function mockTauri(page: Page): Promise<void> {
   await page.addInitScript((png) => {
+    // As in the app: Tauri freezes Object.prototype in the main frame before page scripts run.
     if ((globalThis as unknown as { top: unknown }).top === globalThis)
       Object.freeze(Object.prototype)
     const w = globalThis as unknown as TestWindow
@@ -150,8 +135,7 @@ export async function mockTauri(page: Page): Promise<void> {
             cmd === 'text_speak'
           )
             return null
-          // The editor's menu stays open until an item is picked in it
-          // (`pickMenuItem`, `answerEditorMenu`) or another menu opens.
+          // Stays open until an item is picked or another menu opens.
           if (cmd === 'editor_menu_popup') {
             w.devotEditorMenu?.answer(null)
             return new Promise((answer) => {
@@ -183,8 +167,7 @@ export async function mockTauri(page: Page): Promise<void> {
           }
           if (cmd === 'sidebar_material_sync')
             return (w.devotEditorSettings?.['sidebarMaterial'] ?? true) !== false
-          // Animations follow the system unless a test chose otherwise, so
-          // the suite's emulated Reduce Motion stays in charge (not stored).
+          // Follow the system unless a test chose otherwise, so the suite's emulated Reduce Motion stays in charge.
           if (cmd === 'editor_settings_get')
             return {
               revision: w.devotEditorRevision ?? 0,
@@ -386,6 +369,10 @@ export function symbolRequests(calls: IpcCall[]): string[] {
     .map((c) => `${String(c.args['name'])}@${String(c.args['pointSize'])}`)
 }
 
+/**
+ * The native menu shown last, one line per item: label and accelerator, then `[x]`/`[ ]` for a check
+ * item or `---` for a separator. A submenu shows as `<label> >`, its items after it indented two spaces.
+ */
 export async function shownMenu(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const w = globalThis as unknown as TestWindow
@@ -393,6 +380,7 @@ export async function shownMenu(page: Page): Promise<string[]> {
       (c) => c.cmd === 'plugin:menu|popup' || c.cmd === 'editor_menu_popup',
     )
     if (shown?.cmd === 'editor_menu_popup') {
+      // Rust adds the system's items (spelling, Writing Tools, Services).
       const system: Record<string, string> = { SelectAll: 'Select All' }
       const lines = (items: EditorMenuEntry[], indent: string): string[] =>
         items.flatMap((item) => {
@@ -415,6 +403,7 @@ export async function shownMenu(page: Page): Promise<string[]> {
         const item = w.devotMenus[rid]
         if (!item) return ['---']
         if (item.kind === 'Predefined') {
+          // The system titles its own items.
           const system: Record<string, string> = { SelectAll: 'Select All' }
           const kind = item.options.item ?? 'Separator'
           return [kind === 'Separator' ? '---' : `${indent}${system[kind] ?? kind}`]
@@ -442,8 +431,7 @@ export async function answerEditorMenu(page: Page, pick: unknown): Promise<void>
 }
 
 export async function pickMenuItem(page: Page, label: string, submenu?: string): Promise<void> {
-  // The click that opens the menu returns before the app has built it: try
-  // again until the item is there.
+  // The opening click returns before the app has built the menu: retry.
   const deadline = Date.now() + 5000
   while (!(await pickMenuItemNow(page, label, submenu))) {
     if (Date.now() > deadline) {
@@ -503,6 +491,7 @@ export async function clipboardWrites(page: Page): Promise<string[]> {
   )
 }
 
+/** A change made in another window: stores all of `settings` with the next revision and sends the page Rust's event. */
 export function changeEditorSettingsElsewhere(page: Page, settings: Record<string, unknown>) {
   return page.evaluate((stored) => {
     const w = globalThis as unknown as TestWindow & {
@@ -523,6 +512,7 @@ export function storedShortcuts(page: Page): Promise<Record<string, string[]>> {
   return page.evaluate(() => (globalThis as unknown as TestWindow).devotShortcutOverrides ?? {})
 }
 
+/** A change made in another window (Settings): stores all of `overrides` with the next revision and sends Rust's event. */
 export function changeShortcutsElsewhere(page: Page, overrides: Record<string, string[]>) {
   return page.evaluate((stored) => {
     const w = globalThis as unknown as TestWindow & {
@@ -568,11 +558,7 @@ const menuPopups = (page: Page) =>
       ).length,
   )
 
-/**
- * Opens the open note's More menu (the ellipsis at the end of the editor's
- * toolbar) and resolves to its items, as `shownMenu` lists them. With
- * `keepFocus`, the button is clicked without taking the keyboard.
- */
+/** Opens the note's More menu and returns its items; `keepFocus` clicks the button without taking the keyboard. */
 export async function openNoteMore(
   page: Page,
   options: { keepFocus?: boolean } = {},
@@ -590,6 +576,7 @@ export async function pickNoteMore(page: Page, label: string): Promise<void> {
   await pickMenuItem(page, label)
 }
 
+/** Whether the note is pinned (its More menu offers Unpin); leaves the keyboard alone. */
 export async function openNotePinned(page: Page): Promise<boolean> {
   const items = await openNoteMore(page, { keepFocus: true })
   return items.some((line) => line === 'Unpin' || line.startsWith('Unpin '))
@@ -619,6 +606,7 @@ export async function pickBook(scope: Page | Locator, label: string): Promise<vo
     .click()
 }
 
+/** Computed colour as `rgb()`/`rgba()`: a token-derived colour (`color(from ...)`) comes back as `color(srgb r g b / a)`. */
 export function paintedColour(css: string): string {
   const srgb = /^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.e-]+))?\)$/.exec(css)
   if (!srgb) return css

@@ -21,9 +21,7 @@ import {
   type TagRecord,
 } from '../../src/core'
 
-// The mirror's plan: the database, the manifest and what is known about the
-// disk in; the operations Rust runs out. Pure, so every rule is checked here
-// without files; tests/core/mirror-sync.test.ts runs plans on real files.
+// Pure plan checks without files; mirror-sync.test.ts runs plans on real files.
 
 const id = (n: number) => `0192a6f0-0000-7000-8000-${String(n).padStart(12, '0')}`
 
@@ -82,6 +80,7 @@ interface World {
   bodies: Record<string, string>
   files?: Record<string, string>
   disk?: Record<string, DiskState>
+  /** Links or files where a folder should be; Rust reads them and everything under them as `other`. */
   linked?: string[]
   hashes?: Record<string, string>
   manifest?: MirrorManifest
@@ -92,7 +91,6 @@ interface World {
 
 type Asked = { bodies: string[]; paths: string[]; hashes: string[] }
 
-/** Plans like the runner: answers what the plan needs until it needs nothing. */
 function settle(world: World): MirrorPlan & { asked: Asked } {
   const bodies = new Map<string, string>()
   const files = new Map<string, string | null>()
@@ -348,6 +346,7 @@ describe('keeping it up to date', () => {
   it('a case change renames the file in place, unless someone else holds that name', () => {
     const world = mirrored()
     const recased = changeNote(world, 4, { title: 'loose' })
+    // Case-insensitive disk: the new name is the same file and already holds the text (Rust renames it; no text goes).
     const sha = world.manifest!.notes[id(4)]!.sha256
     const same = settle({ ...recased, disk: { ...recased.disk, 'loose.md': sha } })
     expect(kinds(same.ops)).toEqual(['note Loose.md -> loose.md (record)'])
@@ -437,6 +436,7 @@ describe('names', () => {
     expect(settle(recased).ops).toEqual([])
   })
 
+  // One name written two ways (precomposed vs combining mark), and the sharp s, which macOS folds to ss.
   const NFC = 'Caf\u00e9'
   const NFD = 'CAFE\u0301'
   const SHARP = 'Stra\u00dfe'
@@ -466,6 +466,7 @@ describe('names', () => {
         `attachments/${NFD} 2.png`,
       ].sort(),
     )
+    // Someone else's file under one spelling of the name blocks the other spelling too.
     const onDisk = settle({ ...world, disk: { [`${NFC}.md`]: sha256Hex('theirs') } })
     expect(onDisk.ops.flatMap((op) => (op.kind === 'note' ? [op.path] : [])).sort()).toEqual(
       [`${NFC} 2.md`, `${NFD} 3.md`, 'STRASSE.md', `${SHARP} 2.md`].sort(),
@@ -488,11 +489,13 @@ describe('names', () => {
       ...changeNote(world, 2, { title: NFD }),
       books: [{ ...cafe, name: NFD }],
     }
+    // On macOS the file is the same one under its new name and already holds the text: renamed, no text goes.
     const sha = world.manifest!.notes[id(2)]!.sha256
     const plan = settle({ ...renamed, disk: { ...renamed.disk, [`${NFD}.md`]: sha } })
     expect(kinds(plan.ops)).toEqual([`note ${NFC}.md -> ${NFD}.md (record)`])
   })
 
+  // Names export numbers as one but macOS takes as two (superscript 2 vs 2, full-width letters).
   const SQUARED = 'x\u00b2'
   const WIDE = '\uff37\uff4f\uff52\uff4b'
 
@@ -512,6 +515,7 @@ describe('names', () => {
         `note ${oldName}/Menu.md -> ${newName}/Menu.md`,
         `book ${newName}`,
       ])
+      // A shared file Devot did not make is in the way: the note is numbered.
       const theirs = settle({
         ...renamed,
         disk: { ...renamed.disk, [newName]: 'dir', [`${newName}/Menu.md`]: sha256Hex('theirs') },
@@ -521,6 +525,7 @@ describe('names', () => {
         `book ${newName}`,
       ])
     }
+    // The fi ligature is only another case of `fi` to macOS: the folder stays.
     const ligature = book(100, '\ufb01nance')
     const world = mirrored({
       notes: [note(1, 'Menu', { bookId: ligature.id })],
@@ -665,9 +670,8 @@ describe('files changed outside Devot', () => {
 })
 
 describe('files Devot wrote that the manifest does not list', () => {
-  // A batch's files reach the disk before its manifest does: a crash, a
-  // power loss or a quit in between leaves them without entries (as does a
-  // folder chosen again after its manifest was lost).
+  // A crash, power loss or quit between a batch's files and its manifest leaves files without entries
+  // (as does re-choosing a folder after its manifest was lost).
   it('a note file that holds exactly what Devot would write there is taken back, not numbered', () => {
     const world = library()
     world.disk = { 'Loose.md': sha256Hex('At the top.\n') }
@@ -692,14 +696,14 @@ describe('files Devot wrote that the manifest does not list', () => {
     expect(kinds(again.ops)).toEqual(
       kinds(first.ops).map((k) => (k.startsWith('note') ? `${k} (record)` : k)),
     )
+    // An attachment's bytes are hashed only when a file is in the way of its copy.
     expect(again.asked.hashes).toEqual([id(300)])
     const theirs = settle({ ...world, disk: { ...disk, 'attachments/board.png': sha256Hex('x') } })
     expect(kinds(theirs.ops)).toContain('file attachments/board 2.png')
   })
 
   it('a note file is checked against what Devot would write at that very place, whatever came first', () => {
-    // The image went to `board 2.png` (someone's own `board.png` was there),
-    // so the note's file links that one.
+    // The image went to `board 2.png` (someone's own `board.png` was there), so the note links that one.
     const board = id(300)
     const world: World = {
       notes: [note(1, 'Plan')],
@@ -801,6 +805,7 @@ describe('folders that are no longer folders', () => {
 describe('attachments', () => {
   const shared = (): World => {
     const world = library()
+    // An older note shares the board (made before duplicates copied images).
     world.notes = [...world.notes, note(8, 'Shares', {})]
     world.bodies = { ...world.bodies, [id(8)]: `![b](devot://file/${id(300)})\n` }
     return world
@@ -860,7 +865,6 @@ describe('attachments', () => {
       'remove attachments/board.png',
       'file attachments/board.png (name)',
     ])
-    // Changed outside Devot: kept, never deleted.
     const editedCopy = settle({
       ...world,
       includeAttachments: false,

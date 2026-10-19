@@ -18,6 +18,7 @@ async function newNote(page: Page, title: string) {
 
 async function dragStart(row: ReturnType<typeof noteRows>) {
   return row.evaluate((el) => {
+    // This config has no DOM types: the few browser classes used here.
     const w = globalThis as unknown as {
       DataTransfer: new () => {
         effectAllowed: string

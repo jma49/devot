@@ -21,6 +21,7 @@ const alpha = (color: string) => {
       .match(/(?:rgba?|color)\(([^)]*)\)/)?.[1]
       ?.split(/[\s,/]+/)
       .filter(Boolean) ?? []
+  // rgb(r g b / a) or color(srgb r g b / a)
   const channels = parts[0] === 'srgb' ? parts.slice(1) : parts
   return channels.length === 4 ? Number(channels[3]) : 1
 }
@@ -108,6 +109,7 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
   const icon = newNote.locator('[data-symbol]')
   await expect(icon).toHaveAttribute('data-symbol', 'square.and.pencil')
   await expect.poll(() => css(icon, '-webkit-mask-image')).toContain('data:image/png;base64,')
+  // The symbol is black; the theme colours it.
   expect(await css(icon, 'background-color')).toBe(await css(newNote, 'color'))
 
   const requests = () =>
@@ -116,6 +118,7 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
   const once = await requests()
   expect(once.filter((r) => r === 'square.and.pencil@18')).toHaveLength(1)
 
+  // A new appearance renders again; returning to a seen one uses the cache.
   await page.emulateMedia({ colorScheme: 'dark' })
   await expect
     .poll(async () => (await requests()).filter((r) => r === 'square.and.pencil@18'))

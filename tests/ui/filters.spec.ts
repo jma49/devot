@@ -21,10 +21,12 @@ async function createNote(page: Page, title: string) {
   await page.getByRole('textbox', { name: 'Title' }).fill(title)
 }
 
+/** `shown` is the chip text when an existing tag is reused. */
 async function addTag(page: Page, name: string, shown = name) {
   const field = page.getByRole('combobox', { name: 'Add Tag' })
   await field.fill(name)
   await field.press('Enter')
+  // A chip, not the suggestions' closing copy that fades out beside them.
   await expect(
     page
       .getByRole('group', { name: 'Tags' })
@@ -158,10 +160,13 @@ test('the count on a selected filter row stays a number while the sidebar has th
   await pickStatus(page, 'Active')
   await filter(page, 'Active').click()
   await expect(filter(page, 'Active')).toHaveAttribute('aria-pressed', 'true')
+  // A click does not focus a button in every browser: the keyboard goes to the row.
   await filter(page, 'Active').focus()
 
   const count = filter(page, 'Active').locator('.source-count')
   await expect(count).toHaveText('1')
+  // With the sidebar focused the selected row is the accent wash with a bar on its left edge; the count
+  // keeps its colour and has no background, and the icon keeps its mask fill.
   await expect(count).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(count).not.toHaveCSS('color', rgb(light['color.accent.on-fill']))
   await expect(filter(page, 'Active')).toHaveCSS('box-shadow', /^rgb.* 5px 0px 0px 0px inset$/)

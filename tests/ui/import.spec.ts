@@ -2,7 +2,9 @@ import type { Page } from '@playwright/test'
 import { expect, pickMenuItem, test, type TestWindow, pickNoteMore } from './fixtures'
 
 const FILES: Record<string, string> = {
+  // Front matter of its own: kept in the note, nothing read from it.
   'Inbox.md': '---\nauthor: me\ntags: [ignored]\n---\n# Inbox\n\nSee [[Plan]] later.\n',
+  // Exported by Devot: its own front matter gives the title, tags and status.
   'Projects/Plan.md': [
     '---',
     '# Devot metadata',
@@ -15,6 +17,7 @@ const FILES: Record<string, string> = {
     '![Board](img/board.png)',
     '',
   ].join('\n'),
+  // Written on Windows: CRLF line endings.
   'Projects/Deep/Spec.md': 'No heading here.\r\n\r\n![Missing](missing.png)\r\n',
 }
 
@@ -177,6 +180,7 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
   await expect(problems.nth(1)).toContainText('Projects/Deep/Spec.md')
   await expect(problems.nth(1)).toContainText('Projects/Deep/missing.png')
   await expect(problems.nth(1)).toContainText('File not found (E_IMPORT_FILE_NOT_FOUND)')
+  // A usage event with the counts only: no names or paths.
   await expect
     .poll(async () => (await calls(page, 'usage_record')).map((c) => c.args))
     .toContainEqual({
@@ -285,6 +289,7 @@ test('can be cancelled at every step before Import, which ends the session', asy
   await scanning(page, 7)
   await button(page, 'Cancel').click()
   await expect(dialog(page)).toBeHidden()
+  // What a cancelled scan sends later is ignored.
   await send(page, 'devot:import-progress', { id: 7, files: 1, images: 0 })
   await send(page, 'devot:import-ready', SCAN)
   await expect(dialog(page)).toHaveCount(0)
@@ -351,6 +356,7 @@ test("a notebook's Import menu imports into that notebook without asking where",
   const args = (await calls(page, 'import_pick'))[0]!.args as { kind: string; bookId: string }
   expect(args.kind).toBe('markdownFiles')
 
+  // Rust answers with the session, its destination set: picked files import at once.
   await send(page, 'devot:import-ready', {
     id: 21,
     name: 'Inbox.md',
@@ -485,7 +491,6 @@ test('imports picked in a row wait until the previous one is closed', async ({ p
   await scanning(page, 9, 'Second')
   await send(page, 'devot:import-failed', { id: null, code: 'E_IMPORT_ROOT_INVALID' })
   await send(page, 'devot:import-ready', SCAN)
-  // A waiting scan goes on, and is ready when its turn comes.
   await send(page, 'devot:import-ready', { ...SCAN, id: 9, name: 'Second', skipped: [] })
   await confirm(page)
   await expect(dialog(page)).toContainText('Importing \u201cVault\u201d\u2026')

@@ -27,6 +27,7 @@ const HOUR = 60 * MINUTE
 const UTC: OffsetAt = () => 0
 
 const open: SqliteAdapter[] = []
+// A Wednesday noon; the injected clock, with timers faked to follow it.
 const NOW = Date.UTC(2026, 9, 7, 12)
 let time = NOW
 const today = NOW / DAY_MS - 0.5
@@ -98,6 +99,7 @@ describe('activity on SQLite', () => {
     const versions = async () =>
       (await storage.listRevisions(id)).filter((r) => r.kind === 'body').length
     expect(await versions()).toBe(1)
+    // The pause that follows takes no second version of the same text.
     await advance(REVISION_PAUSE_MS + 1000)
     expect(await versions()).toBe(1)
     expect(await dayOf(notes, today)).toEqual({ created: 1, edited: 1, chars: 11 })
@@ -143,6 +145,7 @@ describe('activity on SQLite', () => {
     await notes.flush()
     expect(await dayOf(notes, today - 100)).toEqual({ created: 1, edited: 0, chars: 0 })
     expect(await dayOf(notes, today)).toEqual({ created: 0, edited: 0, chars: 0 })
+    // The pin kept the text the note arrived with, as its baseline.
     const versions = (await storage.listRevisions(id)).filter((r) => r.kind === 'body')
     expect(versions.map((v) => [v.at, v.value])).toEqual([[NOW - 100 * DAY_MS, 'baseline']])
   })
@@ -186,7 +189,6 @@ describe('activity on SQLite', () => {
 
   it('keeps typing as a version on quit, on the day it was typed', async () => {
     const storage = sqlite()
-    // Day -100: a note typed, then the app quits before the pause.
     time = NOW - 100 * DAY_MS
     const first = service(storage).notes
     const id = await first.create()
@@ -251,6 +253,8 @@ describe('activity on SQLite', () => {
       await advance(REVISION_PAUSE_MS + 1000)
       time += HOUR
     }
+    // Later writing, over a week on: the newest versions, which compaction
+    // always keeps, and from which it counts the old day's age.
     time = (day + 10) * DAY_MS + 9 * HOUR
     for (let i = 0; i < KEEP_NEWEST; i += 1) {
       await type(notes, id, 'b'.repeat(i + 1))
@@ -311,6 +315,7 @@ describe('the UI tests’ memory adapter', () => {
       await advance(REVISION_PAUSE_MS + 1000)
       await notes.setTitle(a, 'A2')
       time = NOW - 3 * DAY_MS
+      // Arrives with its text, then is edited: its baseline is left out.
       const e = await notes.create('E')
       await notes.setBody(e, 'arrived')
       await notes.release(e)
@@ -328,6 +333,7 @@ describe('the UI tests’ memory adapter', () => {
       time = NOW
       await notes.flush()
       const data = await storage.listActivity(activitySince(heatmapStart(today)))
+      // IDs differ per run; compare by order of creation.
       const ids = [a, b, c, d, e]
       const named = (id: string) => `#${ids.indexOf(id)}`
       const sorted = <T>(rows: T[]) => rows.map((r) => JSON.stringify(r)).sort()

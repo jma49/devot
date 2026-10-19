@@ -1,3 +1,5 @@
+// Release-build Sentry upload settings, debug-symbol lookup, and checks that keep source maps
+// and UI-test storage out of the app bundle.
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
@@ -11,12 +13,7 @@ export interface Upload {
   project: string
 }
 
-/**
- * The upload settings for a release build, or none: uploads need the token,
- * the organisation and the project. Some but not all of them is a mistake,
- * which stops the build instead of skipping the upload unnoticed. Debug
- * builds (`tauri build --debug`) never upload.
- */
+/** Some but not all settings is a mistake: it stops the build instead of skipping the upload. Debug builds never upload. */
 export function uploadSettings(env: Env): Upload | undefined {
   if (env['TAURI_ENV_DEBUG'] === 'true') return undefined
   const [token = '', org = '', project = ''] = UPLOAD_SETTINGS.map((k) => env[k]?.trim() ?? '')
@@ -30,7 +27,7 @@ export function uploadSettings(env: Env): Upload | undefined {
   return { token, org, project }
 }
 
-/** The environment sentry-cli gets: the settings travel here, never as arguments. */
+/** The settings travel in the environment, never as arguments. */
 export function cliEnv(upload: Upload): Env {
   return {
     ...process.env,
@@ -40,6 +37,7 @@ export function cliEnv(upload: Upload): Env {
   }
 }
 
+/** `version` in src-tauri/Cargo.toml's [package] table; tauri.conf.json names none. */
 export function appVersion(root: string): string {
   const lines = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8').split('\n')
   const start = lines.indexOf('[package]')
@@ -55,6 +53,10 @@ export function releaseName(root: string): string {
   return `devot@${appVersion(root)}`
 }
 
+/**
+ * Newest of the binary and the dSYM's DWARF file (the dSYM folder keeps the time of the build
+ * that first made it); -1 without a dSYM.
+ */
 function builtAt(release: string): number {
   const dsym = join(release, 'devot.dSYM')
   if (!existsSync(dsym)) return -1
@@ -67,11 +69,8 @@ function builtAt(release: string): number {
 }
 
 /**
- * The dSYM folders of the release build Tauri has just compiled. Tauri names
- * the target triple even without `--target`, so the build made last in
- * `target/<triple>/release` and `target/release` is the one; a universal
- * build has one per architecture. A missing folder is still listed, so the
- * caller can name it.
+ * Tauri names the target triple even without `--target`, so the newest of `target/<triple>/release`
+ * and `target/release` is the build. A missing folder is still listed so the caller can name it.
  */
 export function dsymPaths(root: string, env: Env): string[] {
   const target = env['CARGO_TARGET_DIR'] || join(root, 'src-tauri/target')
@@ -92,7 +91,6 @@ function files(dir: string): string[] {
 }
 
 const isMap = (file: string) => file.endsWith('.map')
-// A `//# sourceMappingURL=` comment line (or its CSS form, or the old `//@`).
 const MAP_COMMENT = /^[ \t]*(?:\/\/|\/\*)[#@][ \t]*sourceMappingURL=/m
 const TEXT = /\.(?:[cm]?js|css|html)$/
 
@@ -109,6 +107,10 @@ export function sourceMapLeaks(dir: string): string[] {
   )
 }
 
+/**
+ * Key prefix of the UI tests' in-memory storage (src/renderer/src/storage/memory.ts); a bundle
+ * holding it would keep notes where backups and devot-mcp don't see them.
+ */
 export const TEST_STORAGE_MARKER = 'devot.test.'
 
 export function testStorageLeaks(dir: string): string[] {
@@ -123,6 +125,7 @@ export function argument(name: string): string | undefined {
   return i === -1 ? undefined : process.argv[i + 1]
 }
 
+/** sentry-cli from the dev dependencies; tests put a stand-in in its place. */
 export function sentryCli(root: string): string {
   return process.env['DEVOT_SENTRY_CLI'] || join(root, 'node_modules/.bin/sentry-cli')
 }

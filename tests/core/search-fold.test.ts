@@ -12,11 +12,9 @@ import { foldText, scanFolding } from '../../src/core/search'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Text shorter than three characters is scanned in SQL, not looked up in the
-// trigram index (which folds case for every script). Both stores scan with
-// the same SQL function, devot_fold, so a short term finds what a long one
-// would: tests/support/folds.json holds the cases the Rust store (storage
-// tests) and this adapter agree on.
+// Text shorter than three characters is scanned in SQL (devot_fold), not looked up in the trigram
+// index, in both stores, so a short term finds what a long one would; tests/support/folds.json
+// holds the cases the Rust store (storage tests) and this adapter agree on.
 
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
@@ -100,6 +98,8 @@ describe('scans of short terms', () => {
   }
 
   it('skip folding only where folding could change nothing', () => {
+    // `none`: no other character folds to a caseless one; `ascii`: only the
+    // Kelvin sign folds to ASCII from outside it.
     const toCaseless: number[] = []
     const toAscii: number[] = []
     const unfolded: number[] = []

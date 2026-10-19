@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-// The release workflow runs once per tag, unattended: what went wrong on the
-// first signed release (v0.8.0-beta.1) must not come back.
+// Guards what went wrong on the first signed release (v0.8.0-beta.1).
 const workflow = readFileSync('.github/workflows/release.yml', 'utf8')
 
 function step(name: string): string {

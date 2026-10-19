@@ -1,6 +1,9 @@
 import type { Page } from '@playwright/test'
 import { expect, reloadApp, test, type TestWindow } from './fixtures'
 
+// The app records a few usage events through `usage_record`; none of them
+// carries a title, a query or an ID.
+
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
 const header = (page: Page) => page.locator('.list .headline')
@@ -48,6 +51,7 @@ test('records note creation and searches without their text', async ({ page }) =
       },
     ])
 
+  // Results that follow a change (here a new note) are not a new search.
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect
     .poll(async () => (await recorded(page)).filter((e) => e['name'] === 'note.created'))

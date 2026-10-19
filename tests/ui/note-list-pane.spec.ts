@@ -135,6 +135,7 @@ test('dragging several notes shows a card with their titles, and the count past 
   const cards = () =>
     page.evaluate(() => (globalThis as unknown as { dragCards: string[][] }).dragCards)
   for (const title of ['One', 'Two', 'Three', 'Four', 'Five']) await createNote(page, title)
+  // Somewhere that takes no drop: only the drag's start matters here.
   const away = pane(page).locator('.toolbar-title')
 
   await noteRow(page, 'Two').click()

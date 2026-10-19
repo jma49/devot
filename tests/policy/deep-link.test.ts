@@ -4,6 +4,7 @@ import { COMMANDS } from '../../src/renderer/src/commands/registry'
 
 const rust = readFileSync('src-tauri/src/deep_link.rs', 'utf8')
 
+/** deepLink.ts's list, read as text (it is UI code). */
 const URL_COMMANDS = [
   ...(
     readFileSync('src/renderer/src/deepLink.ts', 'utf8').match(

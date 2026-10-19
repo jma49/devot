@@ -5,7 +5,6 @@ type Held = TestWindow & { releaseRebuild?: (notes: number) => void }
 test('Rebuild Search Index from the palette shows progress, then the result', async ({ page }) => {
   await openApp(page)
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
-  // The rebuild stays running until the test lets it finish.
   await page.evaluate(() => {
     const w = globalThis as unknown as Held
     w.devotIpcMocks = {

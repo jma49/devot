@@ -23,6 +23,7 @@ test('a selected row is washed in the sidebar and the note list; both bar it whe
   await expect(row).toHaveAttribute('aria-selected', 'true')
   await expect(allNotes(page)).toHaveAttribute('aria-current', 'true')
 
+  // The title field has the keyboard: both lists show the wash.
   await page.getByRole('textbox', { name: 'Title' }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toBeFocused()
   const wash = await background(row)
@@ -30,11 +31,13 @@ test('a selected row is washed in the sidebar and the note list; both bar it whe
   expect(wash).not.toBe('rgba(0, 0, 0, 0)')
   expect(sidebarWash).not.toBe('rgba(0, 0, 0, 0)')
 
+  // The note list has it: its selection keeps the wash, the sidebar's too.
   await row.click()
   await expect(row).toBeFocused()
   await expect.poll(() => background(row)).toBe(wash)
   await expect.poll(() => background(allNotes(page))).toBe(sidebarWash)
 
+  // The sidebar has it: the same wash, plus the bar on the row's left edge.
   await allNotes(page).focus()
   await expect.poll(() => background(allNotes(page))).toBe(sidebarWash)
   await expect(allNotes(page)).toHaveCSS('box-shadow', /^rgb.* 5px 0px 0px 0px inset$/)

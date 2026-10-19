@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test'
 import { clipboardWrites, expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
 
+// Keys are platform-neutral: ControlOrMeta for the command key, selections via Select All, not macOS text-navigation keys.
+
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const toolbar = (page: Page) => page.getByRole('toolbar', { name: 'Format' })
 const button = (page: Page, name: string) =>
@@ -107,6 +109,7 @@ test('the alert button picks the kind from a pop-up', async ({ page }) => {
   await page.keyboard.type('done')
   expect(await lines(page)).toEqual(['done'])
 
+  // Another note uses the same pop-up: it is built once for the window.
   await newNote(page, 'Second')
   await selectAll(page)
   await button(page, 'Alert').click()

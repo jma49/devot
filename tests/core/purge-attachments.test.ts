@@ -1,9 +1,6 @@
-// Purging a note on real SQLite keeps the attachments other notes still
-// show. An attachment belongs to one note, but its link can reach another
-// note without a copy: cut, copied or dragged Markdown, Paste as Plain Text,
-// devot-mcp, a restored version, or a duplicate or a note from a template
-// made before those copied their images. Such an attachment passes to a
-// note that shows it; only what no note left shows is deleted.
+// An attachment belongs to one note, but its link can reach another without a copy (cut or copied
+// Markdown, Paste as Plain Text, devot-mcp, a restored version, older duplicates and templates):
+// purging keeps what any note still shows.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -132,6 +129,7 @@ describe('purging a note', () => {
   it('hands an image to a live note first, then to the smallest ID', async () => {
     const s = setup()
     const source = await withImages(s, 'Source', F)
+    // IDs grow in creation order: the note in the Trash has the smallest.
     const trashed = await noteWith(s.notes, 'Trashed', shows(F))
     const first = await noteWith(s.notes, 'First', shows(F))
     await noteWith(s.notes, 'Second', shows(F))
@@ -146,6 +144,7 @@ describe('purging a note', () => {
     const source = await withImages(s, 'Source', F, G, H)
     const trashed = await noteWith(s.notes, 'Trashed', shows(F, G))
     const kept = await noteWith(s.notes, 'Kept', shows(G))
+    // Whichever is purged first, F goes: only notes in the Trash show it.
     await s.notes.trash(trashed)
     await s.notes.trash(source)
 
@@ -157,6 +156,7 @@ describe('purging a note', () => {
 
   it('keeps the images duplicates and notes from templates still share from before they were copied', async () => {
     const s = setup()
+    // Notes made before Duplicate and templates copied images show the original's files.
     const original = await withImages(s, 'Original', F)
     const duplicate = await noteWith(s.notes, 'Original', shows(F))
     const template = await s.templates.create('Shot')
@@ -236,6 +236,7 @@ describe('purging a note and revision history', () => {
 
     await purge(s.notes, source)
     expect(ownerOf(s.storage, F)).toBeUndefined()
+    // Restoring that version brings the link back, not the image.
     await s.notes.restoreRevision(other, older)
     await s.notes.flush()
     expect((await s.storage.getNote(other))?.bodyMd).toBe(`With ${shows(F)}`)

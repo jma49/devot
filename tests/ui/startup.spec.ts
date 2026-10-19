@@ -1,9 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test, type TestWindow } from './fixtures'
 
-// A core that cannot start never looks like an empty library: the window
-// says so, with the cause code and Try Again. Warnings the core worker
-// raises reach the local log like the page's own.
+// A core that cannot start never looks like an empty library; core worker warnings reach the local log like the page's own.
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
@@ -83,6 +81,7 @@ test('a warning from the core worker reaches the local log by code', async ({ pa
   await page.evaluate(() => localStorage.setItem('devot.test.failRevisions', 'E_STORAGE_FULL'))
   await titleField(page).fill('Warned again')
   await expect.poll(() => logged(page, 'W_REVISION_FAILED')).toContainEqual(['E_STORAGE_FULL'])
+  // Codes only: nothing of the note.
   const lines = await page.evaluate(() =>
     JSON.stringify((globalThis as unknown as TestWindow).devotIpcCalls),
   )

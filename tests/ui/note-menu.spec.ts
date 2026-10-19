@@ -25,6 +25,7 @@ interface StoredNote {
   bodyMd: string
   bookId: string | null
   pinned: boolean
+  /** Empty until the pin was written once. */
   pinnedHlc: string
   deletedAt: number | null
 }
@@ -54,6 +55,7 @@ async function createBook(page: Page, name: string) {
   await expect(page.getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })).toBeVisible()
 }
 
+// Clicking a row also opens the note, so give the keyboard to it directly.
 async function focusRow(page: Page, title: string) {
   await noteRow(page, title).click()
   await expect(noteRow(page, title)).toBeFocused()
@@ -103,6 +105,7 @@ test('right-click shows the native note menu, grouped, with its shortcuts', asyn
     '---',
     'Move to Trash CmdOrCtrl+Backspace',
   ])
+  // The web view's own menu is suppressed.
   const prevented = await noteRow(page, 'Plan').evaluate((el) => {
     const { MouseEvent } = globalThis as unknown as {
       MouseEvent: new (type: string, init: object) => { defaultPrevented: boolean }
@@ -194,6 +197,7 @@ test('Duplicate copies the title, body and notebook and opens the copy', async (
   await openMenu(page, 'Weekly plan')
   await pickMenuItem(page, 'Duplicate')
   await expect(noteRow(page, 'Weekly plan')).toHaveCount(3)
+  // The first row is the earlier copy, so this is a copy of a copy.
   await expect(titleField(page)).toHaveValue('Weekly plan copy copy')
 })
 
@@ -225,6 +229,7 @@ test('M opens a notebook picker that filters as you type', async ({ page }) => {
   await expect(picker(page)).toBeVisible()
   const filter = picker(page).getByRole('combobox', { name: 'Filter notebooks' })
   await expect(filter).toBeFocused()
+  // The key that opened it is not typed into the filter.
   await expect(filter).toHaveValue('')
   const options = picker(page).getByRole('option')
   await expect(options).toHaveText(['No Notebook', 'Work', 'Home'])
@@ -304,6 +309,8 @@ test('Cmd+Delete moves the selected note to the trash', async ({ page }) => {
 
 test('shortcuts do nothing while the editor or a text field has focus', async ({ page }) => {
   await createNote(page, 'Typing', 'mp')
+  // The editor: keys type, and Cmd+C stays the editor's (Cmd+D and
+  // Shift+Cmd+C are editor commands there: Delete Line and Code Block).
   await body(page).click()
   await page.keyboard.press('KeyM')
   await page.keyboard.press('KeyP')
@@ -421,6 +428,8 @@ test('pressing P twice quickly pins and then unpins', async ({ page }) => {
       row.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', bubbles: true }))
     }
   })
+  // The positive signal first: the pin was written (clock set) and is off again, so both presses ran.
+  // A swallowed second press leaves it pinned; a swallowed first leaves the clock empty.
   await expect
     .poll(async () => {
       const note = (await stored(page))[0]

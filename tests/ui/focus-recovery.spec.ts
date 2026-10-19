@@ -1,8 +1,5 @@
-// The keyboard never falls to the page: when the element that has it is
-// removed, hidden or disabled, or a sheet that had it closes, it lands on a
-// sensible visible element. Each test checks `document.activeElement` after
-// the action. Window shortcuts use Meta (the registry's Mod matches
-// metaKey everywhere).
+// The keyboard never falls to the page when its element is removed, hidden or disabled, or its sheet closes.
+// Window shortcuts use Meta (the registry's Mod matches metaKey everywhere).
 import type { Page } from '@playwright/test'
 import { expect, pickMenuItem, pickNoteMore, shownMenu, test, type TestWindow } from './fixtures'
 
@@ -247,6 +244,7 @@ test('the Backups sheet opens on Done, and closing it gives the keyboard back', 
   const dialog = page.getByRole('dialog', { name: 'Backups' })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Done' })).toBeFocused()
+  // Return dismisses it without taking a backup.
   await page.keyboard.press('Enter')
   await expect(dialog).toBeHidden()
   await expect(row).toBeFocused()

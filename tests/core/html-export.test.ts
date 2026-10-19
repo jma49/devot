@@ -31,6 +31,7 @@ const labels: PreviewLabels = {
 const NONCE = '0123456789abcdef0123456789abcdef'
 const ID1 = '0192a6f0-0000-7000-8000-00000000f001'
 const ID2 = '0192a6f0-0000-7000-8000-00000000f002'
+/** UUID-shaped but version 4: no attachment has such an ID (Rust refuses it). */
 const V4 = '0192a6f0-0000-4000-8000-00000000f003'
 const NOTE = '0192a6f0-0000-7000-8000-000000000009'
 
@@ -138,6 +139,7 @@ describe('HTML pages', () => {
     const tree = await renderPreview(md, { labels, loadedEmbeds: [] })
     for (const options of [{}, { simple: true }, { print: true }]) {
       const { html, images } = pageBody(tree, { nonce: NONCE, ...options })
+      // Rust refuses the whole page when one image's ID is not a UUIDv7.
       expect(images).toEqual([{ placeholder: `devot-image-${NONCE}-0`, fileId: ID1 }])
       expect(html).toContain(`<img src="devot://file/${V4}" alt="old">`)
     }
@@ -192,6 +194,7 @@ describe('HTML pages', () => {
   })
 
   it("never lets a drawing's stylesheet end its style element", async () => {
+    // As the UI's serializer writes it: `<` in the CSS as `&lt;`.
     const css =
       ".a{content:'&lt;/style&gt;&lt;img src=x onerror=alert(1)&gt;'} .b{} &lt;/STYLE &gt;"
     const svg = `<svg xmlns="http://www.w3.org/2000/svg"><style>${css}</style><rect class="a"/></svg>`
@@ -200,6 +203,7 @@ describe('HTML pages', () => {
     const drawing = html.slice(html.indexOf('<svg', island), html.indexOf('</svg>', island))
     expect(drawing).not.toMatch(/<img/i)
     expect(drawing.match(/<\/style/gi)).toHaveLength(1)
+    // The CSS still means the same: `\3c ` is `<` in CSS.
     expect(drawing).toContain(
       "<style>.a{content:'\\3c /style>\\3c img src=x onerror=alert(1)>'} .b{} \\3c /STYLE ></style>",
     )

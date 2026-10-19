@@ -3,6 +3,7 @@ import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './
 
 const SECTIONS = 120
 
+/** The DOM these tests touch (this config has no DOM types). */
 interface DomNode {
   scrollTop: number
   readonly scrollHeight: number
@@ -50,10 +51,7 @@ async function openLongNote(page: Page) {
   await expect(preview(page).getByRole('heading', { name: `Section ${SECTIONS}` })).toBeAttached()
 }
 
-/**
- * Scrolls the editor (the element that scrolls it) until the line `text`
- * is at its top, as a user's scrolling would, one step per frame.
- */
+/** Scrolls the editor until the line `text` is at its top, one step per frame as a user would. */
 async function scrollEditorTo(page: Page, text: string) {
   await page.evaluate(async (wanted) => {
     const win = globalThis as unknown as PageGlobals
@@ -81,7 +79,6 @@ async function scrollEditorTo(page: Page, text: string) {
   }, text)
 }
 
-/** Scrolls the preview so the heading `name` is at its top. */
 async function scrollPreviewTo(page: Page, name: string) {
   await preview(page)
     .getByRole('heading', { name, exact: true })
@@ -102,6 +99,7 @@ function previewOffset(page: Page, name: string) {
     })
 }
 
+/** How far the editor line `text` is below the editor's top edge, or null when it is not drawn. */
 function editorOffset(page: Page, text: string) {
   return page.evaluate((wanted) => {
     const win = globalThis as unknown as PageGlobals
@@ -168,6 +166,7 @@ test('a wheel over either pane scrolls both, and the follower never scrolls back
   await page.mouse.move(editorBox.x + editorBox.width / 2, editorBox.y + editorBox.height / 2)
   await page.mouse.wheel(0, 1500)
   await expect.poll(async () => (await scrollTops(page)).preview).toBeGreaterThan(500)
+  // Once both have settled, nothing moves any more: no scroll went back and forth.
   const settled = await page.evaluate(async () => {
     const win = globalThis as unknown as PageGlobals
     const frame = () => new Promise<void>((done) => win.requestAnimationFrame(() => done()))
@@ -231,9 +230,7 @@ test('the preview keeps up while typing above what it shows', async ({ page }) =
   await openLongNote(page)
   await scrollEditorTo(page, '## Section 60')
   await expect.poll(() => previewOffset(page, 'Section 60').then(near)).toBe(true)
-  // A paragraph typed at the top of the editor's view, not at the top of the
-  // note: the preview, rendered anew with a block above what it shows, must
-  // line up with the editor again.
+  // A paragraph typed at the top of the editor view: the preview, rendered anew with a block above, must line up again.
   await page.getByRole('textbox', { name: 'Note body' }).getByText('## Section 60').click()
   await page.keyboard.press('Home')
   await page.keyboard.insertText('Inserted paragraph\n\n')
@@ -272,6 +269,7 @@ test('is on by default and turned off and on from the palette', async ({ page })
     )
     .toEqual([{ syncScroll: false }])
 
+  // The preview stays where it is (the top of its first block, at most).
   const still = (await scrollTops(page)).preview
   await scrollEditorTo(page, '## Section 50')
   await page.waitForTimeout(200)
@@ -292,6 +290,7 @@ test('follows the setting changed elsewhere (View > Synced Scrolling, Settings)'
 }) => {
   await openLongNote(page)
   await changeEditorSettingsElsewhere(page, { syncScroll: false })
+  // The preview stays where it is (the top of its first block, at most).
   const still = (await scrollTops(page)).preview
   await scrollEditorTo(page, '## Section 45')
   await page.waitForTimeout(200)
@@ -305,6 +304,7 @@ test('applies only in split mode, and keeps the place read in Preview', async ({
   await mode(page, 'Preview').click()
   await scrollPreviewTo(page, 'Section 90')
   await mode(page, 'Split').click()
+  // The preview keeps the place being read; the editor comes to it.
   await expect.poll(() => editorOffset(page, '## Section 90').then(near)).toBe(true)
   expect(await previewOffset(page, 'Section 90').then(near)).toBe(true)
 })

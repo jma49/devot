@@ -4,6 +4,7 @@ import { expect, pickMenuItem, shownMenu, test, type TestWindow, bookPicker } fr
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })
+/** A notebook's own row (the treeitem holds only the row; sub-notebooks sit beside it). */
 const row = (page: Page, name: string) => book(page, name).locator('> .book-row')
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
@@ -28,6 +29,7 @@ async function createNote(page: Page, title: string) {
   await expect(noteRows(page).filter({ hasText: title })).toHaveCount(1)
 }
 
+/** Home selected, so menus below act on other notebooks. */
 async function setUp(page: Page) {
   await createBook(page, 'Home')
   await createBook(page, 'Work')
@@ -177,8 +179,7 @@ test('a menu opened at the centre of an expanded notebook acts on that notebook'
   page,
 }) => {
   await setUp(page)
-  // Assistive technology presses and opens menus at an element's centre: for
-  // an expanded Work that must still be Work, not its sub-notebook Devot.
+  // Assistive technology presses at an element's centre: for an expanded Work that must still be Work, not Devot.
   const before = await popups(page)
   await book(page, 'Work').click({ button: 'right' })
   await expect.poll(() => popups(page)).toBe(before + 1)
@@ -253,9 +254,11 @@ test('the keyboard stays on the selected notebook after a right-click', async ({
   await setUp(page)
   await row(page, 'Home').click()
   await expect(book(page, 'Home')).toBeFocused()
+  // The mock menu closes at once, with nothing picked.
   await openMenu(page, 'Work')
   await expect(book(page, 'Home')).toBeFocused()
   await expect(book(page, 'Home')).toHaveAttribute('aria-selected', 'true')
+  // The keys act on the selected notebook, not on the one right-clicked.
   await page.keyboard.press('ArrowDown')
   await expect(book(page, 'Work')).toBeFocused()
   await row(page, 'Home').click()
@@ -332,7 +335,6 @@ test('Rename from the menu keeps the keyboard when the selected notebook is hidd
   await setUp(page)
   await row(page, 'Devot').click()
   await expect(book(page, 'Devot')).toHaveAttribute('aria-selected', 'true')
-  // Collapsing Work hides the selected notebook without changing the selection.
   await row(page, 'Work').locator('.disclosure').click()
   await expect(book(page, 'Devot')).toHaveCount(0)
   await openMenu(page, 'Home')
@@ -355,6 +357,7 @@ test('Allow AI Access switches the clicked notebook alone and shows on its row',
   await openMenu(page, 'Work')
   await pickMenuItem(page, 'Allow AI Access')
   await expect(aiBadge(page, 'Work')).toBeVisible()
+  // Not inherited: the sub-notebook keeps its own switch, off.
   await expect(aiBadge(page, 'Devot')).toHaveCount(0)
   await expect(aiBadge(page, 'Home')).toHaveCount(0)
   await expect(book(page, 'Home')).toHaveAttribute('aria-selected', 'true')
@@ -410,6 +413,7 @@ test('Move Notebook keeps the focus on Cancel through a re-render, so Return can
   const cancel = dialog.getByRole('button', { name: 'Cancel' })
   await cancel.focus()
   await expect(cancel).toBeFocused()
+  // The mouse crossing a row re-renders the dialog.
   await dialog.getByRole('option', { name: 'Top Level' }).hover()
   await expect(dialog.getByRole('option', { name: 'Top Level' })).toHaveAttribute(
     'aria-selected',
@@ -419,6 +423,7 @@ test('Move Notebook keeps the focus on Cancel through a re-render, so Return can
   await page.keyboard.press('Enter')
   await expect(dialog).toHaveCount(0)
   await expect(page.getByRole('treeitem', { name: /^Work\b/ })).toBeVisible()
+  // Work is still at the top level: nothing moved into Home.
   await expect(
     page.getByRole('treeitem', { name: /^Home\b/ }).getByRole('treeitem', { name: /^Work\b/ }),
   ).toHaveCount(0)

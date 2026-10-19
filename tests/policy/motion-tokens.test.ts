@@ -3,9 +3,7 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { isColorChecked } from '../support/policy-patterns'
 
-// Motion comes from the design tokens too: durations, easing curves and the
-// scales a pop-up grows from and shrinks to are `--motion-*` tokens, never
-// literals, and Reduce Motion turns every scale off (pop-ups only fade).
+// Motion comes from `--motion-*` tokens, never literals; Reduce Motion turns every scale off (pop-ups only fade).
 const UI_ROOT = 'src/renderer/src'
 
 function files(dir: string): string[] {
@@ -61,6 +59,7 @@ it('things grow and shrink only through the scale variables, which Reduce Motion
     .flatMap((file) => readFileSync(file, 'utf8').match(/(?<![\w-])scale[:(][^;\n]*/g) ?? [])
   expect(scales.length).toBeGreaterThan(0)
   expect(
+    // At rest a thing is at its own size (`scale: 1`).
     scales.filter(
       (s) => !/var\(--(popover-(enter|exit)|dialog-enter|chip-enter)-scale\)|^scale: 1$/.test(s),
     ),

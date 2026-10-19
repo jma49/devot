@@ -1,10 +1,7 @@
 import type { StorageAdapter } from '../../src/core'
 
-// The note service compacts history on a queue of its own that no user
-// action waits for (NoteService's sweep), so a test that checks what a sweep
-// did waits for it here: every sweep ends with the storage call that records
-// its time (compactRevisions with a time). This counts those calls on the
-// adapter the service writes to.
+// NoteService compacts history on a queue nothing waits for; every sweep ends with a
+// compactRevisions call carrying a time, which is counted here.
 
 export interface Sweeps {
   readonly count: number

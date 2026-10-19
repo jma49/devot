@@ -107,7 +107,6 @@ describe('token compiler', () => {
   it('applies an appearance chosen in Settings, or shown by a preview, over the system one', () => {
     const { css } = compile(base, light, dark)
     const [, darkBlock = ''] = css.split('@media (prefers-color-scheme: dark)')
-    // The system's dark appearance applies unless Light was chosen.
     expect(darkBlock).toContain(":root:not([data-appearance='light']) {")
     const chosen = (appearance: string) => {
       const start = css.indexOf(
@@ -187,8 +186,7 @@ describe('token compiler', () => {
     })
 
     it('shows a theme in a preview card, in the appearance the card names', () => {
-      // A card with `data-theme-preview` shows that theme whatever theme the page has;
-      // one without it keeps the default theme's rules (`data-appearance-preview` alone).
+      // `data-theme-preview` shows that theme whatever the page's theme; without it the default theme's rules apply.
       expect(css).toContain("[data-theme-preview='ivory'][data-appearance-preview='dark']")
       expect(css).not.toContain(":root[data-theme='ivory'] [data-appearance-preview")
     })
@@ -198,6 +196,7 @@ describe('token compiler', () => {
         ":root[data-appearance='light'], [data-appearance-preview='light'] {",
       )
       expect(css.indexOf(":root[data-theme='ivory'] {")).toBeGreaterThan(lastDefault)
+      // More specific than a default rule's one attribute.
       expect(css).toContain(":root[data-theme='ivory'][data-appearance='dark']")
     })
 

@@ -15,6 +15,8 @@ import {
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
+// Han characters read an, bei and zhong in pinyin; their code points run the
+// other way (zhong < bei < an).
 const AN = '\u5b89'
 const BEI = '\u5317'
 const ZHONG = '\u4e2d'

@@ -8,8 +8,7 @@ import { tempDir } from '../support/temp-dirs'
 const NOTES = 10_000
 const VERSIONS = 4
 const BUDGET_MS = 250
-// Body versions hold the note's Yjs state; a realistic size puts most of them
-// in overflow pages, which counting must never read.
+// Body versions hold the note's Yjs state; a realistic size puts most of them in overflow pages, which counting must never read.
 const STATE_BYTES = 8_000
 
 const NOW = Date.UTC(2026, 9, 7, 12)
@@ -22,8 +21,7 @@ function random(seed: number) {
 
 let storage: SqliteAdapter
 
-// Building the data is setup, not the measured work; give it room on a busy
-// machine. The budget below is unchanged.
+// Building the data is setup, not the measured work; give it room on a busy machine.
 const SETUP_TIMEOUT_MS = 120_000
 
 beforeAll(() => {

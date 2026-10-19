@@ -4,12 +4,8 @@ import { createServer } from 'vite'
 import { expect, it } from 'vitest'
 import { tempDir } from '../support/temp-dirs'
 
-// Vite's dependency scan reads the page entries and follows their imports,
-// but not `new Worker(new URL(...))`: a package only the core worker imports
-// is found when the worker first loads, and Vite then re-bundles and reloads
-// every open page. A cold start (CI, a fresh checkout) hit that in the UI
-// tests' first specs. `optimizeDeps.entries` names the worker too, so the
-// scan finds every package the UI imports before the first page loads.
+// Vite's dependency scan misses `new Worker(new URL(...))`: a package only the core worker imports is found when the worker
+// loads, and Vite then re-bundles and reloads every page (hit on cold CI starts). `optimizeDeps.entries` names the worker too.
 
 const root = join(import.meta.dirname, '../..')
 
@@ -21,6 +17,7 @@ function sources(dir: string): string[] {
   })
 }
 
+/** The runtime packages the UI's and the core's code imports (not type-only imports). */
 function importedPackages(dependencies: string[]): string[] {
   const code = [...sources(join(root, 'src/renderer')), ...sources(join(root, 'src/core'))]
     .map((file) => readFileSync(file, 'utf8'))

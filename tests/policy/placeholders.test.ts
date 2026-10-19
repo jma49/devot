@@ -2,10 +2,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 
-// A `{name}` placeholder is filled with `format` (the core's
-// `fillPlaceholders`), never with `String.replace`: a replacement string
-// reads `$$`, `$&`, `$'` and `` $` `` as patterns, so a title holding them
-// would show garbled.
+// Fill with `format` (core `fillPlaceholders`), never `String.replace`: its replacement string reads
+// `$$`, `$&`, `$'` and `` $` `` as patterns, which would garble a title holding them.
 const PLACEHOLDER_REPLACE = /\.replace(?:All)?\(\s*(['"`])\{/g
 
 function files(dir: string): string[] {

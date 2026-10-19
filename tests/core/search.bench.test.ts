@@ -5,14 +5,16 @@ import { expectWithinBudget } from '../support/budget'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
+// Acceptance benchmark: listing and searching 10,000 notes takes under 50 ms (median), excerpts included.
+// Notes are realistic (1 to a few KB of Markdown, Yjs state 3x the text), so most of a row sits in
+// overflow pages, which neither lists nor search may read.
 const NOTES = 10_000
 const BUDGET_MS = 50
-// Text under three characters cannot use the trigram index: a search for it
-// reads bodies (not the Yjs states). Only a full scan, which reads every
-// body because nothing stops it early, gets more room; every other search
-// keeps the product's budget.
+// Text under three characters cannot use the trigram index and reads bodies. Only a full scan (reads
+// every body, nothing stops it early) gets more room; every other search keeps the product's budget.
 const FULL_SCAN_BUDGET_MS = 100
 
+// Small vocabulary of English words and common Chinese characters, as escapes (no CJK in tracked files).
 const WORDS =
   'sync relay offline merge editor preview notebook status trash search index snapshot'.split(' ')
 const HAN =
@@ -25,8 +27,7 @@ function random(seed: number) {
 
 let storage: SqliteAdapter
 
-// Building 10k notes is setup, not the measured work; give it room on a busy
-// machine. The budgets below are unchanged.
+// Building 10k notes is setup, not the measured work; give it room on a busy machine.
 const SETUP_TIMEOUT_MS = 180_000
 // A median takes 15 runs; a slow run should fail on its budget, not time out.
 const TEST_TIMEOUT_MS = 60_000
@@ -37,6 +38,7 @@ beforeAll(() => {
   const pick = <T>(list: readonly T[]) => list[Math.floor(rand() * list.length)]!
   const word = () =>
     rand() < 0.5 ? pick(WORDS) : Array.from({ length: 4 }, () => pick([...HAN])).join('')
+  // Yjs states: random bytes, three times as long as the text they hold.
   const noise = new Uint8Array(32_000).map(() => Math.floor(rand() * 256))
   const insert = storage.db.transaction(() => {
     for (let i = 0; i < NOTES; i += 1) {
@@ -120,7 +122,6 @@ describe(`lists and search across ${NOTES} notes of a few KB`, () => {
     ['a two-character Chinese word', '\u540c\u6b65'],
     ['qualifiers with an exclusion', 'title:note body:merge -relay status:none -tag:x'],
     ['qualifiers alone', 'status:active'],
-    // Worst cases: nothing matches, so every note is examined.
     ['a missing English word', 'zyxwvut'],
     ['an exclusion of a missing word', 'snapshot -zyxwvut'],
   ])(
@@ -131,9 +132,8 @@ describe(`lists and search across ${NOTES} notes of a few KB`, () => {
     },
   )
 
-  // A word found in nearly every note and a two-character word: the
-  // ranked matches are every note, so the scan reads them in rank order and
-  // stops at a page of results (#48).
+  // A word found in nearly every note and a two-character word: the ranked matches are every note,
+  // so the scan reads them in rank order and stops at a page of results (#48).
   it(
     `answers a word and a two-character Chinese word in under ${BUDGET_MS} ms`,
     { timeout: TEST_TIMEOUT_MS },

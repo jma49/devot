@@ -1,10 +1,5 @@
-// Clock steps: the system clock ran fast for a while (a day or more), then
-// was set right. Writes made after that must still win over the values
-// written while it ran fast, because the core's clock takes in every stamp
-// it reads before writing over it (see receiveStored in hlc.ts). Run on
-// real SQLite and on the UI tests' memory storage, which must answer alike.
-// And compaction, which ages history by the clock, must not thin a note's
-// latest work while the clock runs fast (see revisionsToDrop).
+// The system clock ran fast (a day or more), then was set right: later writes must still win, since the core's clock takes in
+// every stamp it reads (receiveStored, hlc.ts), on real SQLite and memory storage alike; compaction must not thin latest work meanwhile (revisionsToDrop).
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
@@ -58,6 +53,7 @@ const databases: [string, () => Database][] = [
   ],
 ]
 
+/** One app start on `database` with its own clock reading `at`, as each window has. */
 function start(database: Database, at: number, node: string) {
   const storage = database()
   const now = () => at
@@ -179,6 +175,7 @@ describe.each(databases)('writes after the clock is set back, on %s', (_, fresh)
 describe('compaction across clock steps, on SQLite', () => {
   it('keeps a note’s newest versions through a start eight days fast', async () => {
     const database = sqlite()
+    // A day of writing on a right clock, a version every forty minutes, then a sweep.
     const right = start(database, NOW, 'right')
     const written = await right.notes.create('Written')
     const ydoc = (await right.storage.getNote(written))!.ydoc
@@ -194,6 +191,7 @@ describe('compaction across clock steps, on SQLite', () => {
     for (const version of versions) await right.storage.putRevision(version)
     await right.storage.compactRevisions([], NOW)
 
+    // Clock now eight days ahead: a save of another note sweeps, and that day's versions all stay (ages count from the note's newest version, not from now).
     const fast = start(database, FAST, 'fast')
     const sweeps = watchSweeps(fast.storage)
     const edited = await fast.notes.create('Edited')
@@ -203,8 +201,7 @@ describe('compaction across clock steps, on SQLite', () => {
     const left = (await fast.storage.listRevisions(written)).map((r) => r.id)
     expect(left).toEqual(versions.map((v) => v.id))
 
-    // Set right again, a day on: the last sweep looks to come from the
-    // future, so the next one weighs every note again, and records now.
+    // Set right again: the last sweep looks to come from the future, so the next one weighs every note again.
     const later = start(database, NOW + DAY, 'later')
     const laterSweeps = watchSweeps(later.storage)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

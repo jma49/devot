@@ -16,10 +16,8 @@ import {
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Notebook moves on two devices, with the devices exchanging their writes
-// now and then (in any order) and once more at the end, must leave both
-// showing the same tree in the same order; on one device, every move does
-// what was asked and writes one row.
+// Two devices exchanging writes in any order must converge on the same tree; on one device,
+// every move does what was asked and writes one row.
 
 type Op =
   | { kind: 'place'; device: number; book: number; target: number; after: boolean }
@@ -132,6 +130,7 @@ async function attempt(change: () => Promise<unknown>): Promise<string | null> {
   }
 }
 
+/** Codes a random change may end with: moving into its own sub-notebooks is refused. */
 const ALLOWED = [null, 'E_BOOK_CYCLE']
 
 describe('manual notebook order across devices', () => {
@@ -201,6 +200,7 @@ describe('manual notebook order across devices', () => {
             here.writes.length = 0
             let expected = siblingsOf(before, id)!
             let code: string | null
+            // Placing a notebook beside itself writes nothing.
             let rows = 1
             if (step.kind === 'place') {
               const target = pick(step.target)

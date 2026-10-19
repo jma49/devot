@@ -9,6 +9,9 @@ import {
 } from '../../src/renderer/src/theme/contrast'
 import { dark, light, sizes } from '../../src/renderer/src/theme/tokens'
 
+// Text and lines are tiers of one ink per appearance. Text tiers are solid and may move toward
+// black or white only where contrast needs it; line tiers are the ink at the tier's alpha.
+
 type Appearance = 'light' | 'dark'
 const THEMES: Record<Appearance, Record<string, string>> = { light, dark }
 
@@ -22,6 +25,7 @@ interface Tiered {
   tier: number
 }
 
+/** The theme tokens that name a tier (`$extensions.app.devot.tier`). */
 function tiered(appearance: Appearance, group: 'text' | 'line'): Tiered[] {
   const raw = tree(appearance) as { color: Record<string, Record<string, unknown>> }
   return Object.entries(raw.color[group] ?? {}).flatMap(([name, token]) => {
@@ -54,11 +58,14 @@ describe.each(['light', 'dark'] as const)('the %s tiers', (appearance) => {
 
   it('draws every text tier from the ink, moved only toward more contrast', () => {
     const ink = rgb(appearance, 'color.ink.text').rgb
+    // Placeholders and disabled text are not held to text contrast: exactly the tier.
     const exempt = new Set(['color.text.placeholder', 'color.text.disabled'])
     const wrong = tiered(appearance, 'text').flatMap(({ path, tier }) => {
       const design = composite({ rgb: ink, alpha: tier }, editor)
       const token = rgb(appearance, path).rgb
       if (close(token, design)) return []
+      // Moved (contrast.test.ts holds what for): further from the editor
+      // than the tier, keeping the grey.
       const moved =
         !exempt.has(path) &&
         contrastRatio(token, editor) > contrastRatio(design, editor) &&

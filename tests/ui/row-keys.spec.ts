@@ -1,3 +1,5 @@
+// Every notebook and tag row action has a keyboard route: Shift+F10, the menu key or Control+Return
+// opens the row's native menu; window shortcuts use Meta (the registry's Mod matches metaKey everywhere).
 import type { Page } from '@playwright/test'
 import { expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
 
@@ -93,7 +95,6 @@ test('the menu key opens the menu of a tag row, with the Colour submenu', async 
   await pickMenuItem(page, 'Purple', 'Colour')
   await expect(sidebar(page).getByRole('img', { name: 'Purple' })).toBeVisible()
   await expect(tagRow(page, 'idea')).toBeFocused()
-  // A row without a menu does nothing.
   await sidebar(page)
     .getByRole('button', { name: /^Templates/ })
     .focus()

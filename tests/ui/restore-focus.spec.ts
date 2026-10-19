@@ -1,6 +1,4 @@
-// A restore on launch never moves a keyboard the user already moved: the
-// note it opens takes the keyboard only while the page still has none and
-// no search is typed.
+// A restore on launch never moves a keyboard the user already moved.
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
@@ -24,10 +22,7 @@ async function leaveWithKeyboardInEditor(page: Page) {
     .toContain('original')
 }
 
-/**
- * Before the app has restored anything, once the search field exists: moves
- * the keyboard to it, and with `text` types a query there.
- */
+/** Runs before the app restores anything, once the search field exists: moves the keyboard there and, with `text`, types a query. */
 async function userStartsSearching(page: Page, text?: string) {
   await page.addInitScript((typed) => {
     interface Field {

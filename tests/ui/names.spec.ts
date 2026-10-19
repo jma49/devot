@@ -19,6 +19,7 @@ interface Link {
   present: boolean
 }
 
+/** Reads the store, not the screen. */
 const storedTagIds = (page: Page, title: string) =>
   page.evaluate((t) => {
     const read = <T>(key: string) => JSON.parse(localStorage.getItem(key) ?? '[]') as T[]
@@ -39,6 +40,7 @@ const storedTagNames = (page: Page) =>
 const FIRST = '0192a6f0-0000-7000-8000-0000000000a1'
 const SECOND = '0192a6f0-0000-7000-8000-0000000000a2'
 
+/** Two tags of one name, as sync or data from before names were unique can bring. */
 async function twoTodoTags(page: Page) {
   const tag = (id: string, name: string, at: number) => ({
     id,
@@ -148,6 +150,7 @@ test('name fields stop at their limits, counted in characters', async ({ page })
   await expect(tagField).toHaveValue('x'.repeat(100))
   await tagField.press('y')
   await expect(tagField).toHaveValue('x'.repeat(100))
+  // An emoji is one character, as the core counts it.
   await tagField.fill('\u{1f600}'.repeat(120))
   await expect(tagField).toHaveValue('\u{1f600}'.repeat(100))
   await tagField.press('Enter')

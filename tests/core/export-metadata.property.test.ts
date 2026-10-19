@@ -22,6 +22,9 @@ import {
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
+// Export then import gives the same note (title exactly as stored, tags with case, status, body), whatever it holds.
+// A note with its own front matter comes back with the keys export set, and exporting again gives the same file.
+
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
@@ -67,6 +70,7 @@ async function importOne(fileName: string, text: string) {
   }
 }
 
+// Code points: separators, other spaces, controls, a byte order mark, composed and decomposed accents, an emoji.
 const chars = (...codes: number[]) => codes.map((c) => String.fromCodePoint(c))
 const SPECIAL = chars(
   0x2028,
@@ -118,12 +122,10 @@ const CR = String.fromCodePoint(0xd)
 const text = (maxLength: number, pieces: readonly string[] = PIECES) =>
   fc.array(fc.constantFrom(...pieces), { maxLength }).map((parts) => parts.join(''))
 
-// A title as stored: one line, within the limit (a carriage return reads
-// as a space, as it does in the title field).
+// As stored: one line, within the limit (a carriage return reads as a space).
 const title = text(8, [...PIECES, CR]).map(clipTitle)
 
-// Tag names as the tag service keeps them: trimmed, on one line, each a
-// different tag (names match in any case).
+// As the tag service keeps them: trimmed, one line, each a different tag (names match in any case).
 const tag = text(4)
   .map(trimWhitespace)
   .filter((t) => t !== '' && !/[\r\n]/.test(t) && charCount(t) <= MAX_TAG_NAME_CHARS)
@@ -136,9 +138,7 @@ const tags = fc
 
 const status = fc.constantFrom<NoteStatus>(...NOTE_STATUSES)
 
-// A body as stored (no carriage returns), with or without front matter of
-// its own, which may say a title, tags or anything else, or start the way
-// Devot's own block does.
+// As stored (no carriage returns); its own front matter may say a title, tags or anything, or start like Devot's block.
 const ownMatter = fc.record({
   header: fc.boolean(),
   title: fc.option(text(4)),
@@ -176,9 +176,7 @@ describe('Markdown export then import', () => {
           status: entry.status,
           body: devot ? devot.body : file,
         })
-        // Devot's block leaves the body as it was; front matter of the
-        // note's own changes only in the keys export set in it, after
-        // which they agree.
+        // Devot's block leaves the body as it was; a note's own front matter changes only in the keys export set.
         expect(devot?.body ?? entry.bodyMd).toBe(entry.bodyMd)
         expect(markdownFile({ ...entry, bodyMd: back.body! }, fileName, new Map())).toBe(file)
       }),

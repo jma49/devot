@@ -113,11 +113,13 @@ describe('image Markdown', () => {
   })
 
   it('reads a size whose `#` is escaped, and removes the escape together with the size', () => {
+    // CommonMark reads `\#small` as `#small`: the image shows small.
     const escaped = `![a](${FILE}\\#small)`
     expect(parseImageMarkdown(escaped)).toMatchObject({ url: FILE, size: 'small' })
     expect(parseImageMarkdown(`![a](<${FILE}\\#half>)`)).toMatchObject({ url: FILE, size: 'half' })
     expect(setImageMarkdownSize(escaped, 'auto')).toBe(`![a](${FILE})`)
     expect(setImageMarkdownSize(escaped, 'full')).toBe(`![a w:100%](${FILE})`)
+    // An escaped backslash (`\\`) before `#` escapes nothing: it stays in the URL.
     expect(parseImageMarkdown('![a](x\\\\#small)')).toMatchObject({ url: 'x\\\\', size: 'small' })
   })
 

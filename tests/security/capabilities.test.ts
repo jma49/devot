@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
+// Commands declared in build.rs need an explicit `allow-<command>` grant.
 function declaredCommands(): string[] {
   const build = readFileSync('src-tauri/build.rs', 'utf8')
   const list = build.match(/\.commands\(&\[([^\]]*)\]\)/)?.[1] ?? ''
@@ -60,7 +61,9 @@ describe('Tauri command permissions', () => {
     expect(windowsWith('allow-editor-settings-get')).toEqual(['main', 'settings'])
     expect(windowsWith('allow-editor-settings-set')).toEqual(['main', 'settings'])
     const settings = capabilities().filter((c) => c.windows.includes('settings'))
+    // It hears changes made in the main window (Cmd+= and Cmd+-) as events.
     expect(settings.flatMap(permissionIds).sort()).toEqual([
+      // Settings > Integrations copies devot-mcp's configs.
       'allow-clipboard-write-text',
       'allow-editor-settings-get',
       'allow-editor-settings-set',

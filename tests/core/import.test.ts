@@ -201,6 +201,7 @@ describe('Markdown folder import', () => {
       source: sourceFor(sqlite).source,
     })
     const books = await sqlite.listBooks()
+    // The picked folder is no notebook itself, nor are folders with only images (assets, img).
     expect(names(buildBookTree(books))).toEqual([
       [
         'Vault',
@@ -498,6 +499,7 @@ describe('Markdown folder import', () => {
     const { source, attached } = sourceFor(sqlite)
     await importMarkdown({ ...services, scan: scanOf(SAMPLE), source })
     for (const [path, title] of Object.entries(TITLES)) {
+      // Line breaks are the one other change (see the next test).
       const original = lineFeeds(SAMPLE[path]!)
       const note = await noteByTitle(sqlite, title)
       const body = note.record.bodyMd
@@ -541,7 +543,6 @@ describe('Markdown folder import', () => {
     const { source, attached } = sourceFor(sqlite, files, { 'img/shot.png': PNG })
     const report = await importMarkdown({ ...services, scan: scanOf(files), source })
     expect(report).toMatchObject({ notes: 1, attachments: 1, problems: [] })
-    // One file, without the fragment, whatever size each link shows it at.
     expect(attached.map((a) => a.path)).toEqual(['img/shot.png'])
     const file = `devot://file/${attached[0]!.id}`
     expect((await noteByTitle(sqlite, 'Sized')).record.bodyMd).toBe(
@@ -626,6 +627,7 @@ describe('Markdown folder import', () => {
 
   it('takes back the notebooks made for a file whose note cannot be made', async () => {
     const { sqlite, services } = await setup()
+    // The failing file comes first, so even the folder's notebook is made for it.
     const files = { 'A/Deep/a.md': '# A\n', 'Other/b.md': '# B\n' }
     const failing = {
       ...services.notes,
@@ -655,6 +657,7 @@ describe('Markdown folder import', () => {
       scan: scanOf(files),
       source: {
         ...source,
+        // Asked to stop while the first file is half done.
         attach: (path, file) => {
           stop = true
           return source.attach(path, file)

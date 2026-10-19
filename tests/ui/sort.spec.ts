@@ -11,6 +11,7 @@ import {
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
+// A row's name: its title, or for an untitled note the first line of its excerpt.
 const rowTitles = (page: Page) => list(page).locator('.row-title, .row-headline')
 const sections = (page: Page) => list(page).locator('.list-section')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
@@ -139,7 +140,7 @@ test('the sort pop-up lists the six orders and shows the current one', async ({ 
 test('an order re-sorts the list, pinned notes in their own section, and survives a reload', async ({
   page,
 }) => {
-  // Created in this order; then Cherry is edited, so it is the newest updated.
+  // Cherry is edited last, so it is the newest updated.
   for (const title of ['banana', 'Cherry', 'apple', 'Date']) await createNote(page, title)
   await pinOpenNote(page)
   await noteRows(page).filter({ hasText: 'apple' }).click()
@@ -206,7 +207,6 @@ test('each view keeps its own order; Use as Default sets the rest', async ({ pag
   await openSortMenu(page)
   expect(await shownMenu(page)).toEqual(menuWith('Date Created (Oldest First)', true))
 
-  // A view without its own order follows the default; All Notes keeps its own.
   await filter(page, 'Pinned').click()
   await expect(header(page)).toHaveText('Pinned')
   await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Date Created (Oldest First)')
@@ -262,6 +262,7 @@ test('a new note is scrolled into view when the order puts it at the bottom', as
   expect(await overflow()).toEqual({ top: 0, hidden: true })
   await expect(noteRows(page).last()).not.toBeInViewport()
 
+  // The editor takes the keyboard; the new row, last in this order, still shows.
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(noteRows(page)).toHaveCount(9)
   const created = noteRows(page).last()

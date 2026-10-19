@@ -70,9 +70,7 @@ test('Shift+Cmd+F searches the current view; Shift+Opt+Cmd+F searches every note
   await expect(caption(page)).toHaveText('2 notes')
   await expect(noteRows(page)).toHaveCount(2)
 
-  // / in the results moves to the field without changing where it looks:
-  // a new query there still searches every note, so it finds the loose
-  // note, which is outside Work.
+  // `/` in results focuses the field without changing scope: a new query still searches every note.
   await noteRows(page).first().click()
   await page.keyboard.press('/')
   await expect(search(page)).toBeFocused()
@@ -105,6 +103,7 @@ test('searching a filter narrows within it', async ({ page }) => {
 })
 
 test('the view a search narrows is named as typed', async ({ page }) => {
+  // A string replacement would read $$ and $& as patterns.
   await createBook(page, 'Make $$ $&')
   await createNote(page, 'Kit plan')
   await page.keyboard.press('Meta+Shift+KeyF')
@@ -145,7 +144,6 @@ test('qualifiers and exclusions narrow the results', async ({ page }) => {
   await expect(noteRows(page)).toHaveText([/^Week plan/])
   await search(page).fill('body:relay -title:week')
   await expect(noteRows(page)).toHaveText([/^Loose plan/])
-  // Malformed input is searched as text, never an error.
   await search(page).fill('status:"later')
   await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveCount(0)
@@ -174,6 +172,7 @@ test('matched words are highlighted in titles and body excerpts', async ({ page 
   await expect(design.locator('mark')).toHaveText(['design'])
   await expect(design.locator('.row-excerpt mark')).toHaveCount(0)
 
+  // Excluded words are not marked, even where the exclusion does not look (WebSocket in an excerpt, Bold in a title).
   await search(page).fill('relay -title:websocket -body:bold')
   await expect(noteRows(page)).toHaveCount(2)
   await expect(design.locator('.row-excerpt')).toHaveText(
@@ -256,8 +255,7 @@ test('searching every note shows nothing in the sidebar as selected until it is 
   await expect(book(page, 'Work')).toHaveAttribute('aria-selected', 'true')
   await expect(selected).toHaveCount(1)
 
-  // Searching the notebook right after: it never stops looking selected,
-  // although the list shows the last results for a moment.
+  // Never stops looking selected, although the list shows the last results for a moment.
   await page.evaluate(`(() => {
     window.devotSelectionLost = false
     const row = [...document.querySelectorAll('[role=treeitem]')]
@@ -288,8 +286,7 @@ test('searching every note shows nothing in the sidebar as selected until it is 
   await expect(header(page)).toHaveText('Active')
   await expect(active).toHaveAttribute('aria-pressed', 'true')
 
-  // A sidebar row pressed during such a search shows that view, without
-  // the filter that did not show as pressed.
+  // A sidebar row pressed during such a search shows that view, without the filter that did not look pressed.
   await page.keyboard.press('Meta+Alt+Shift+KeyF')
   await page.keyboard.type('plan')
   await expect(caption(page)).toHaveText('2 notes')
@@ -319,8 +316,6 @@ test('a filter pressed while searching every note leaves the hidden notebook', a
   await pickStatus(page, 'Active')
   await expect(header(page)).toHaveText('Work')
 
-  // Shift+Opt+Cmd+F searches every note: the notebook no longer looks
-  // selected, so a filter pressed now covers every note.
   await page.keyboard.press('Meta+Alt+Shift+KeyF')
   await page.keyboard.type('plan')
   await expect(caption(page)).toHaveText('2 notes')

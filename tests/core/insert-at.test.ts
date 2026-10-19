@@ -38,6 +38,7 @@ describe('inserting text at a position the editor remembered', () => {
     const { text } = await replicaOf(notes, id)
     const anchor = anchorAt(text, 6)
 
+    // Text typed before it moves it; text typed at it stays after it.
     await notes.setBody(id, 'Top: Hello world')
     await notes.insertAt(id, anchor, '![shot](devot://file/x)')
     await notes.flush()

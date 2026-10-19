@@ -2,8 +2,7 @@ import type { Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { expect, test } from './fixtures'
 
-// devot-mcp writes to the database while Devot runs; Rust notices and sends
-// `devot://db-changed`, which the page re-sends as this window event.
+// devot-mcp writes while Devot runs; Rust sends `devot://db-changed`, which the page re-sends as this window event.
 const DB_CHANGED = 'devot:db-changed'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -50,6 +49,7 @@ const signalChange = (page: Page) =>
     w.dispatchEvent(new w.CustomEvent(name))
   }, DB_CHANGED)
 
+/** Lets pending timers, worker round trips and renders run. */
 const settle = (page: Page) => page.waitForTimeout(500)
 
 test.beforeEach(async ({ page }) => {
@@ -71,9 +71,9 @@ test('a note written by another process shows up when the database changes', asy
   )
 
   await writeOutside(page, 'From Claude', 'Written by devot-mcp.', bookId)
+  // Nothing reloads by itself: give a reload time to happen, then look once.
   await settle(page)
   expect(await noteRows(page).count()).toBe(0)
-  // ...until the change is announced.
   await signalChange(page)
   await expect(noteRows(page)).toHaveCount(1)
   await expect(noteRows(page).first()).toContainText('From Claude')
@@ -93,11 +93,12 @@ test('a change while a note is open keeps it open and its edits', async ({ page 
   const title = page.getByRole('textbox', { name: 'Title' })
   await expect(title).toHaveValue('')
   await title.fill('Mine')
+  // The title is not saved yet; the list row already shows it.
   await expect(noteRows(page).filter({ hasText: 'Mine' })).toHaveCount(1)
   await writeOutside(page, 'From Claude', 'Written by devot-mcp.', null)
   await signalChange(page)
   await expect(noteRows(page)).toHaveCount(2)
-  // ...and the reload read the saved title back: the edit was flushed first.
+  // The reload read the saved title back: the edit was flushed first.
   // Looked at once, so a later save cannot make it pass.
   expect(await noteRows(page).filter({ hasText: 'Mine' }).count()).toBe(1)
   expect(await title.inputValue()).toBe('Mine')
@@ -113,6 +114,7 @@ interface StoredNote {
   titleHlc: string
   bodyMd: string
   ydoc: number[]
+  /** Missing in a note stored before body versions: 0. */
   bodyVersion?: number
 }
 
@@ -120,10 +122,8 @@ const storedNotes = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as StoredNote[])
 
 /**
- * Edits the stored note `id` behind the app's back, as another process
- * would: `edit` changes its Yjs document (so the change merges with the
- * app's) and storage moves its body version on, and a `title` replaces its
- * title with a newer timestamp.
+ * Edits stored note `id` behind the app's back: `edit` changes its Yjs document (so it merges with the app's),
+ * storage moves its body version on, and `title` replaces the title with a newer timestamp.
  */
 async function editOutside(page: Page, id: string, edit: (doc: Y.Doc) => void, title?: string) {
   const notes = await storedNotes(page)
@@ -149,7 +149,6 @@ test('the open note takes in what another process wrote to it', async ({ page })
   await title.fill('Shared')
   await body.click()
   await page.keyboard.type('Typed here.')
-  // Saved, so the other process starts from it.
   await expect.poll(async () => (await storedNotes(page))[0]?.bodyMd).toBe('Typed here.')
   const [{ id }] = (await storedNotes(page)) as [StoredNote]
 
@@ -177,6 +176,7 @@ test('typing saved before the window hears of an outside write keeps both', asyn
   await expect.poll(async () => (await storedNotes(page))[0]?.bodyMd).toBe('Typed here.')
   const [{ id }] = (await storedNotes(page)) as [StoredNote]
 
+  // Another process writes; the window types and saves before it hears of that.
   await editOutside(page, id, (doc) => doc.getText('body').insert(0, 'From Claude. '))
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.type(' More.')
@@ -220,6 +220,7 @@ test('an outside edit to the open note keeps the caret, the selection and undo',
 
   await page.keyboard.type('X')
   await expect(body).toHaveText('Start. Alpha X Gamma End.')
+  // Undo takes back only the typing: the outside text stays, the selection returns.
   await page.keyboard.press('ControlOrMeta+z')
   await expect(body).toHaveText('Start. Alpha Beta Gamma End.')
   await expect

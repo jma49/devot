@@ -7,11 +7,8 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// Editor commands: Insert Horizontal Rule, New Note from Selection, Paste as
-// Plain Text, and pasting URLs. Editor keys use ControlOrMeta (CodeMirror's
-// Mod); window keys use Meta, like the other specs. Selections come from
-// clicks and Shift with Home, End or ControlOrMeta+End, never from macOS
-// text-navigation keys, so the tests run the same on Linux.
+// Editor keys use ControlOrMeta (CodeMirror's Mod), window keys Meta. Selections come from clicks and Shift with
+// Home, End or ControlOrMeta+End, never macOS text-navigation keys, so the tests run the same on Linux.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const title = (page: Page) => page.getByRole('textbox', { name: 'Title' })
@@ -52,6 +49,7 @@ async function selectLine(page: Page, n: number) {
 
 async function paste(page: Page, text: string) {
   await body(page).evaluate((el, value) => {
+    // This config has no DOM types: the few browser classes used here.
     const w = globalThis as unknown as {
       DataTransfer: new () => { setData(type: string, value: string): void }
       ClipboardEvent: new (type: string, init: object) => unknown
@@ -93,7 +91,6 @@ test('Shift+Cmd+H inserts a horizontal rule under the line, and the palette offe
   await page.keyboard.press('End')
   await page.keyboard.press('ControlOrMeta+Shift+h')
   expect(await lines(page)).toEqual(['Above', '', '---', '', 'Below'])
-  // The cursor waits on the new line under the rule.
   await page.keyboard.insertText('typed')
   expect(await lines(page)).toEqual(['Above', '', '---', 'typed', 'Below'])
   await page.keyboard.press('ControlOrMeta+z')
@@ -147,7 +144,6 @@ test('New Note from Selection moves the text into a note and links to it', async
   await expect(line(page, 0)).toHaveText('Notes from the call')
   await expect(title(page)).toHaveValue('Meeting')
   await expect(body(page)).toBeFocused()
-  // The new note is in the same notebook, titled after the text's first line.
   await expect(noteRows(page)).toHaveCount(2)
   const followUps = noteRows(page).filter({
     has: page.locator('.row-title', { hasText: 'Follow-ups' }),
@@ -156,6 +152,7 @@ test('New Note from Selection moves the text into a note and links to it', async
 
   await page.keyboard.press('ControlOrMeta+z')
   expect(await lines(page)).toEqual(['Notes from the call', '## Follow-ups', 'Send the deck'])
+  // Redo: Shift+Cmd+Z on macOS; CodeMirror binds Ctrl+Y elsewhere.
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y')
   await expect(line(page, 1)).toHaveText(/^\[Follow-ups\]/)
 
@@ -167,6 +164,7 @@ test('New Note from Selection moves the text into a note and links to it', async
 test('Shift+Opt+Cmd+V pastes the clipboard text as it is', async ({ page }) => {
   await newNote(page, 'Read the docs today')
   await setClipboard(page, 'https://example.com')
+  // A usual paste of a URL over a selected word would make it a link.
   await line(page, 0).dblclick({ position: { x: 14, y: 4 } })
   await page.keyboard.press('ControlOrMeta+Alt+Shift+KeyV')
   await expect.poll(() => clipboardReads(page)).toBe(1)
@@ -188,8 +186,7 @@ test('keys set in Settings run New Note from Selection and Paste as Plain Text',
   page,
 }) => {
   await newNote(page, 'Keep this\nMove this', 'Source')
-  // ControlOrMeta is Command on macOS and Control elsewhere. Shift+Cmd+K is
-  // also CodeMirror's Delete Line, which the user's key must win over.
+  // Shift+Cmd+K is also CodeMirror's Delete Line, which the user's key must win over.
   const mod = process.platform === 'darwin' ? 'Mod' : 'Ctrl'
   await changeShortcutsElsewhere(page, {
     'note.newFromSelection': [`${mod}+Shift+J`],
@@ -290,8 +287,7 @@ test('the palette lists the editing commands and runs them at the caret', async 
 test('Ctrl+G goes to a line through the palette, and a colon does too', async ({ page }) => {
   await newNote(page, 'one\ntwo\nthree\nfour')
   await line(page, 0).click()
-  // Off macOS, CodeMirror's Mod is Control, so an editor key made of Mod
-  // and G takes Control+G first; press it from the title there.
+  // Off macOS CodeMirror's Mod is Control, so Control+G in the editor is taken first; press it from the title.
   if (!(await page.evaluate(() => /Mac/.test(navigator.platform)))) await title(page).click()
   await page.keyboard.press('Control+KeyG')
   await expect(paletteField(page)).toBeFocused()
@@ -304,6 +300,7 @@ test('Ctrl+G goes to a line through the palette, and a colon does too', async ({
   await page.keyboard.type('>')
   await expect(line(page, 2)).toHaveText('>three')
 
+  // Past the last line: the last; not a number: nothing to pick.
   await search(page, ':99')
   await expect(palette(page).getByRole('option')).toHaveText(['Go to Line 4'])
   await paletteField(page).fill('x')

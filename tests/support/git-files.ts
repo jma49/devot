@@ -1,11 +1,8 @@
 import { execFileSync } from 'node:child_process'
 
 /**
- * The environment for a git command that must work on the repository found
- * from its folder alone. A git hook (pre-push runs the tests) exports
- * GIT_DIR, GIT_INDEX_FILE and friends; inherited, they point every git
- * command at the hook's repository, whatever folder it runs in, so a scratch
- * repository's init, config and commits would land in the real one.
+ * Hooks (pre-push) export GIT_DIR, GIT_INDEX_FILE and friends; inherited, they would send a scratch
+ * repository's init, config and commits into the real one.
  */
 export function gitEnv(): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')))
@@ -15,11 +12,7 @@ export function gitIn(repo: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd: repo, encoding: 'utf8', env: gitEnv() })
 }
 
-/**
- * The files git tracks or would track (not ignored) under the given paths,
- * relative to `cwd`. NUL-separated with quoting off, so a name with
- * non-ASCII characters comes back as written, not as a quoted escape.
- */
+/** NUL-separated with quoting off, so non-ASCII names come back as written. */
 export function listFiles(cwd: string, ...paths: string[]): string[] {
   const out = execFileSync(
     'git',

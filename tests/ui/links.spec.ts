@@ -6,6 +6,7 @@ const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const popup = (page: Page) => page.locator('.cm-tooltip-autocomplete')
 const LINK = /\[([^\]]*)\]\(devot:\/\/note\/[0-9a-f-]{36}\)/
 
+// "\u540c\u6b65\u65b9\u6848" is a Chinese title ("sync plan"); "\u65b9\u6848" its second word.
 const SYNC_PLAN = '\u540c\u6b65\u65b9\u6848'
 
 async function createNote(page: Page, title: string) {
@@ -17,8 +18,8 @@ async function createNote(page: Page, title: string) {
 }
 
 /**
- * Waits for the results of the typed query, then past CodeMirror's
- * `interactionDelay` (75 ms), during which keys go to the editor instead.
+ * Waits for the typed query's results, then past CodeMirror's `interactionDelay` (75 ms),
+ * during which keys go to the editor.
  */
 async function waitForResults(page: Page, query: string) {
   await expect(
@@ -44,7 +45,6 @@ test('[[ offers other notes and inserts a standard link', async ({ page }) => {
   await createNote(page, 'Groceries')
   await createNote(page, 'Weekly plan')
   await startLink(page, '')
-  // Recent notes, without the open one.
   await expect(popup(page).getByRole('option', { name: 'Groceries' })).toBeVisible()
   await expect(popup(page).getByRole('option', { name: 'Weekly plan' })).toHaveCount(0)
   await page.keyboard.insertText('groc')
@@ -95,6 +95,7 @@ test('a second Return while the note is made does not make another', async ({ pa
   await expect(
     noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Plan B' }) }),
   ).toHaveCount(1)
+  // The link stands once; the second Return was an ordinary line break.
   expect(((await body(page).textContent()) ?? '').match(/devot:\/\/note\//g)).toHaveLength(1)
   expect(await body(page).textContent()).not.toContain('[[')
 })
@@ -156,10 +157,12 @@ test('no note is left unlinked when its brackets were edited meanwhile', async (
   await page.evaluate(() => localStorage.setItem('devot.test.delayNoteWrites', '600'))
   await popup(page).getByRole('option', { name: 'New Note \u201cPlan B\u201d' }).click()
   await page.evaluate(() => localStorage.removeItem('devot.test.delayNoteWrites'))
+  // The query is changed under the pick: the text is still the user's, no link goes in.
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.type('!')
+  // Past the time the note takes to make (and to be taken away again).
   await page.waitForTimeout(1500)
   await expect(noteRows(page)).toHaveCount(1)
   expect(await body(page).textContent()).not.toMatch(LINK)
@@ -170,7 +173,6 @@ test('[[ opens no popup in code', async ({ page }) => {
   await createNote(page, 'Source')
   await body(page).click()
   await page.keyboard.type('```lua')
-  // The fence's language list opens; Escape leaves the language as typed.
   await expect(popup(page)).toBeVisible()
   await page.keyboard.press('Escape')
   await page.keyboard.press('Enter')
@@ -233,7 +235,6 @@ test('a link survives renaming its target', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Food')
 })
 
-/** A note "Groceries" with a body, then "Weekly plan" linking to it, the caret after a typed word. */
 async function linkedPair(page: Page) {
   await createNote(page, 'Groceries')
   await body(page).click()
@@ -248,7 +249,6 @@ async function linkedPair(page: Page) {
 
 test('the caret in a note link shows Open Note, which opens it', async ({ page }) => {
   await linkedPair(page)
-  // Typing hid the tooltip; moving the caret inside the link shows it.
   await page.keyboard.press('ArrowLeft')
   const tip = page.locator('.cm-link-tip')
   await expect(tip.getByRole('button', { name: 'Open Note' })).toBeVisible()
@@ -298,7 +298,6 @@ test('the highlighted note of the [[ popup shows its card', async ({ page }) => 
   await expect(page.locator('.cm-completionInfo')).toContainText('Milk and eggs')
 })
 
-/** Runs the palette command labelled `label`. */
 async function runCommand(page: Page, label: string) {
   await page.keyboard.press('Meta+k')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
@@ -324,9 +323,7 @@ test('New Note from Link makes a note of the link and links it; undo restores th
     noteRows(page).filter({ has: page.locator('.row-title', { hasText: 'Foo' }) }),
   ).toHaveCount(1)
   await expect(body(page)).toContainText(/See \[Foo\]\(devot:\/\/note\/[0-9a-f-]{36}\) and more/)
-  // The note being edited stays open.
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Source')
-  // The new note keeps the address as its first line.
   await noteRows(page)
     .filter({ has: page.locator('.row-title', { hasText: 'Foo' }) })
     .click()

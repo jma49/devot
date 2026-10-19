@@ -36,6 +36,7 @@ describe('release versions', () => {
       'v0.9.01-beta1',
       'v0.9.1-beta0',
       'v0.9.1-beta01',
+      // One digit only: `beta10` would sort before `beta2`.
       'v0.9.1-beta10',
       'v0.9.0-beta.1',
       'updater',
@@ -112,15 +113,13 @@ describe('feed order', () => {
     const old = JSON.stringify({ version: '0.9.0-beta.1' })
     expect(replacesFeed('0.9.1-beta1', old)).toBe(true)
     expect(replacesFeed('0.8.9-beta1', old)).toBe(false)
-    // No feed yet, an empty file, or one without a version.
     expect(replacesFeed('0.3.0-beta.1', '')).toBe(true)
     expect(replacesFeed('0.3.0-beta.1', '{}')).toBe(true)
     expect(replacesFeed('0.3.0-beta.1', '{"version":"latest"}')).toBe(true)
   })
 
   it('puts a stable release in the beta feed too', () => {
-    // A beta install reads beta.json, so it is offered the newest build of
-    // either kind; a stable install never gets a beta.
+    // A beta install reads beta.json and gets the newest build of either kind; a stable install never gets a beta.
     expect(feedChannels('1.0.0')).toEqual(['stable', 'beta'])
     expect(feedChannels('1.0.0-beta3')).toEqual(['beta'])
     expect(replacesFeed('1.0.0', JSON.stringify({ version: '1.0.0-beta5' }))).toBe(true)
@@ -215,6 +214,7 @@ describe('update signatures', () => {
     return { pub, privateKey, keyId }
   }
 
+  /** A prehashed minisign signature, base64 whole, as Tauri writes it. */
   function signature(file: Buffer, privateKey: KeyObject, keyId: Buffer, trusted = 'file:x') {
     const body = sign(null, createHash('blake2b512').update(file).digest(), privateKey)
     const global = sign(null, Buffer.concat([body, Buffer.from(trusted)]), privateKey)
@@ -240,6 +240,7 @@ describe('update signatures', () => {
     const other = keyPair(2)
     const sig = signature(file, one.privateKey, one.keyId)
     expect(() => verifySignature(file, sig, other.pub)).toThrow('E_RELEASE_SIGNATURE_KEY_MISMATCH')
+    // The same key ID, another key: the signature itself fails.
     const twin = keyPair(1)
     expect(() => verifySignature(file, sig, twin.pub)).toThrow('E_RELEASE_SIGNATURE_INVALID')
     expect(() => verifySignature(Buffer.from('other'), sig, one.pub)).toThrow(

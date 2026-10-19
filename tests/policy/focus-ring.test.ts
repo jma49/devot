@@ -3,9 +3,12 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { cssRules } from '../support/css-rules'
 
+// One `size.focus-ring` ring in `color.focus.ring` on every custom control, just inside when the control clips children;
+// the theme card's ring sits beside its selection ring. Native form controls keep the system ring.
 const UI_ROOT = 'src/renderer/src'
 const RING = 'var(--size-focus-ring) solid var(--color-focus-ring)'
 const OFFSETS = new Set(['0', 'calc(-1 * var(--size-focus-ring))', 'var(--size-focus-ring)'])
+/** Not a focus ring: where a drag will drop (`.drop-target`), dashed. */
 const DROP = 'var(--size-drop-indicator) dashed var(--color-accent-fill)'
 
 function files(dir: string): string[] {

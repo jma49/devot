@@ -21,6 +21,7 @@ it("names the release from one version, Cargo.toml's", () => {
   expect(read('src-tauri/src/crash.rs')).toContain(
     'const RELEASE: &str = concat!("devot@", env!("CARGO_PKG_VERSION"));',
   )
+  // Without a version in tauri.conf.json, Tauri reports Cargo.toml's (the app bundle's version comes from it too).
   expect(JSON.parse(read('src-tauri/tauri.conf.json'))).not.toHaveProperty('version')
   expect(read('src/renderer/src/main.tsx')).toContain('`devot@${version}`')
   expect(appVersion('.')).toBe(version)
@@ -33,6 +34,7 @@ it('names the environment as Rust does', () => {
   expect(read('src/renderer/src/crash.ts')).toContain(
     "crashEnvironment(import.meta.env['TAURI_ENV_DEBUG']",
   )
+  // Rust: development with debug assertions (`tauri dev`, `tauri build --debug`).
   expect(read('src-tauri/src/crash.rs')).toMatch(
     /if cfg!\(debug_assertions\) \{\s*"development"\s*\} else \{\s*"production"\s*\}/,
   )

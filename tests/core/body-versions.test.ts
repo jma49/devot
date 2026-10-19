@@ -1,10 +1,5 @@
-// Every note write compares before it overwrites: a record carries the
-// version of the body its writer last saw (`bodyVersion`, as getNote gives
-// it), and storage writes it only while the stored body is still at that
-// version, moving it on by one. A write based on any other version is
-// refused with E_NOTE_BODY_STALE and changes nothing; its writer takes the
-// stored body in (a Yjs merge) and writes again, so a body written meanwhile
-// on another connection is never lost. Every storage adapter answers alike.
+// A write carries the body version its writer last saw (`bodyVersion`); storage writes only while the stored body is still at it, otherwise
+// it refuses with E_NOTE_BODY_STALE and changes nothing, and the writer merges (Yjs) and writes again. Every storage adapter answers alike.
 import { join } from 'node:path'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
@@ -27,7 +22,6 @@ const withBody = (note: NoteRecord, doc: Y.Doc): NoteRecord => ({
   ydoc: Y.encodeStateAsUpdate(doc),
 })
 
-/** A note whose body is `text`, written over body version 0 unless `change` says otherwise. */
 function record(text: string, change: Partial<NoteRecord> = {}): NoteRecord {
   const doc = new Y.Doc()
   doc.getText(BODY).insert(0, text)
@@ -97,6 +91,7 @@ describe.each(ADAPTERS)('note writes in the %s adapter', (_, make) => {
     await storage.putNote(record('one'))
     await storage.putNote(record('one two', { bodyVersion: 1 }))
 
+    // Based on a version a write has moved on from: refused whole, with its newer title and pin.
     const stale = record('one three', {
       bodyVersion: 1,
       title: 'Late',
@@ -105,7 +100,6 @@ describe.each(ADAPTERS)('note writes in the %s adapter', (_, make) => {
       pinnedHlc: LATER,
     })
     await expect(storage.putNote(stale)).rejects.toThrow('E_NOTE_BODY_STALE')
-    // Based on a version storage never had.
     await expect(storage.putNote(record('one four', { bodyVersion: 7 }))).rejects.toThrow(
       'E_NOTE_BODY_STALE',
     )
@@ -116,6 +110,7 @@ describe.each(ADAPTERS)('note writes in the %s adapter', (_, make) => {
       bodyVersion: 2,
     })
 
+    // A purge is final: a write to a purged note is left alone, whatever its version.
     await storage.purgeNote(ID, 5, LATER)
     await storage.putNote(record('revived', { bodyVersion: 0 }))
     await storage.putNote(record('revived', { bodyVersion: 2 }))

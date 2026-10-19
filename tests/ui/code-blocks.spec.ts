@@ -1,6 +1,9 @@
 import type { Page } from '@playwright/test'
 import { clipboardWrites, expect, test, type TestWindow } from './fixtures'
 
+// The preview's code blocks show a header and highlighting; task boxes tick the task in the note;
+// front matter shows as properties.
+
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 
@@ -30,6 +33,7 @@ test('a code block shows its language, title and mark, highlighted, with the cop
   const header = block.locator('.code-header')
   await expect(header.locator('.code-title')).toHaveText('app.ts')
   await expect(header.locator('.code-lang')).toHaveText('TypeScript')
+  // The mark is real SVG, drawn at its size.
   const mark = header.locator('svg.code-lang-icon')
   expect(await mark.evaluate((el) => el.namespaceURI)).toBe('http://www.w3.org/2000/svg')
   expect((await mark.boundingBox())?.width).toBeGreaterThan(8)

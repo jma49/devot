@@ -1,3 +1,4 @@
+// The built devot-mcp CLI, driven over stdio with raw MCP messages as Claude Code and Claude Desktop run it.
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import Database from 'better-sqlite3'
 import { spawn } from 'node:child_process'
@@ -114,6 +115,7 @@ describe('the npm package', () => {
       bin: { 'devot-mcp': 'devot-mcp.mjs' },
       files: ['devot-mcp.mjs', 'README.md', 'LICENSE'],
       engines: root.engines,
+      // The bundle leaves only the native driver out, at the version the app tests.
       dependencies: { 'better-sqlite3': root.dependencies['better-sqlite3'] },
     })
     expect(manifest['private']).toBeUndefined()
@@ -171,6 +173,7 @@ describe('devot-mcp over stdio', () => {
       app.close()
     }
 
+    // stdout carried MCP messages only; stderr carried codes and IDs only.
     for (const line of mcp.stdout) expect(JSON.parse(line)).toMatchObject({ jsonrpc: '2.0' })
     expect(mcp.stderr()).toContain('devot-mcp I_MCP_STARTED')
     expect(mcp.stderr()).toContain(`devot-mcp I_MCP_NOTE_CREATED ${id} ${world.books.shared}`)

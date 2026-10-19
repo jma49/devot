@@ -1,6 +1,8 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
+// Front matter reads as metadata, not a heading; a `---` further down still makes a heading or a rule.
+
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const line = (page: Page, n: number) => page.locator('.cm-line').nth(n)
 
@@ -11,6 +13,7 @@ async function newNote(page: Page, text: string) {
   await page.keyboard.insertText(text)
 }
 
+// The page's DOM, which the Node types of the test files do not describe.
 interface Dom {
   getComputedStyle(element: unknown): {
     fontWeight: string
@@ -71,6 +74,7 @@ test('front matter is styled as metadata, a later setext heading as a heading', 
     await expect
       .poll(() => lineStyle(line(page, n)), { message: `line ${n}` })
       .toEqual({ weight: 400, underline: false, colors: [tertiary] })
+  // The paragraph over the later `---` is still a heading: bold, not underlined (that is for links).
   await expect.poll(() => lineStyle(line(page, 5))).toMatchObject({ weight: 700, underline: false })
 })
 
@@ -88,6 +92,7 @@ test('front matter becomes a heading again when its first fence goes', async ({ 
 
 async function paste(page: Page, text: string) {
   await body(page).evaluate((el, value) => {
+    // This config has no DOM types: the few browser classes used here.
     const w = globalThis as unknown as {
       DataTransfer: new () => { setData(type: string, value: string): void }
       ClipboardEvent: new (type: string, init: object) => unknown

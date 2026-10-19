@@ -1,3 +1,4 @@
+// Opening a note gives the replica the whole state once; later outside changes reach it as only what it lacks (open with its state vector).
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'

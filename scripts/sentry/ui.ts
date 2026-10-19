@@ -1,12 +1,9 @@
-// Builds the UI for a release; Tauri runs it before compiling the app
-// (`beforeBuildCommand`), which embeds dist/ in the binary. With the Sentry
-// upload settings (upload.ts) it builds hidden source maps, gives every
-// script a debug ID, uploads the maps with sentry-cli and deletes them;
-// without, it builds no maps. Either way the build fails if dist/ still holds
-// a source map or a comment pointing to one, so the app never ships one. It
-// also fails, before uploading anything, if dist/ holds the UI tests'
-// in-memory storage (their own build, vite.ui-test.config.ts), so the app
-// never keeps notes where backups and devot-mcp cannot see them.
+// Builds the UI for a release; Tauri runs it as `beforeBuildCommand`, which embeds dist/.
+// With the Sentry upload settings (upload.ts) it builds hidden source maps, gives every script
+// a debug ID, uploads the maps and deletes them; without, it builds none. The build fails if
+// dist/ holds a source map or a comment pointing to one, or (before uploading) the UI tests'
+// in-memory storage (vite.ui-test.config.ts), so the app never keeps notes where backups and
+// devot-mcp cannot see them.
 //
 // Options: --out-dir <dir> (default dist/), --env-dir <dir> (where .env files
 // are read, default the repository root), --config <file> (the Vite config,
@@ -31,6 +28,7 @@ const root = join(import.meta.dirname, '../..')
 const outDir = resolve(argument('--out-dir') ?? join(root, 'dist'))
 const configFile = resolve(argument('--config') ?? join(root, 'vite.config.ts'))
 const env = { ...process.env, ...loadEnv('production', argument('--env-dir') ?? root, 'SENTRY_') }
+// vite.config.ts names its root relative to the working directory.
 process.chdir(root)
 
 function fail(message: string): never {
@@ -74,6 +72,7 @@ try {
     )
   }
 } finally {
+  // Even when the build or the upload fails, no map stays in dist/.
   if (existsSync(outDir)) removeSourceMaps(outDir)
 }
 if (testStorage.length > 0) {

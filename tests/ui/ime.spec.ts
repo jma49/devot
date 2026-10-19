@@ -2,17 +2,9 @@ import type { Locator, Page } from '@playwright/test'
 import { COMPOSITION_END_KEY_MS } from '../../src/renderer/src/ime'
 import { expect, openSettings, test } from './fixtures'
 
-// Keys an input method uses are its own (src/renderer/src/ime.ts). WebKit
-// sends them while a composition is open with `isComposing` set, and the
-// Return or Escape that ends one after `compositionend`, with key code 229
-// and `isComposing` false, or now and then with the key's own code: only the
-// watch each window starts on its compositions (`watchCompositions`, in
-// main.tsx and settings.tsx) tells that key apart. No field, window shortcut
-// or editor key may act on them: the Return that picks a candidate must not
-// also submit a field, nor the Escape that cancels a composition close or
-// clear one.
+// Input-method keys (src/renderer/src/ime.ts) arrive with `isComposing` set, or after `compositionend` with key code 229 or sometimes
+// the key's own code; only `watchCompositions` tells them apart. No field, shortcut or editor key may act on them.
 
-/** The two ways WebKit sends an input method's key: during a composition, or as the key that ended it. */
 const HOW = ['composing', 'ended'] as const
 type How = (typeof HOW)[number]
 
@@ -31,6 +23,7 @@ const TAB: Press = { key: 'Tab', code: 'Tab' }
 function imeKey(target: Locator, press: Press, how: How): Promise<boolean> {
   return target.evaluate(
     (el, sent) => {
+      // This config has no DOM types: the one browser class used here.
       const w = globalThis as unknown as {
         KeyboardEvent: new (type: string, init: object) => { defaultPrevented: boolean }
       }
@@ -62,7 +55,6 @@ const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })
 
-/** Starts or ends an input method's composition in the editor, as WebKit reports it. */
 const composition = (page: Page, type: 'compositionstart' | 'compositionend') =>
   body(page).evaluate((el, name) => {
     const w = globalThis as unknown as {
@@ -72,12 +64,7 @@ const composition = (page: Page, type: 'compositionstart' | 'compositionend') =>
     ;(el as unknown as { dispatchEvent(e: unknown): boolean }).dispatchEvent(event)
   }, type)
 
-/**
- * Runs a composition on `target` and, at once, sends `press` with `keyCode`
- * as the key that ended it, as WebKit does: with key code 229, or now and
- * then with the key's own. Returns how many milliseconds the page took from
- * the composition's start to that key.
- */
+/** Runs a composition and sends `press` right after it, as WebKit does; returns ms from composition start to the key. */
 const keyEndingComposition = (target: Locator, press: Press, keyCode: number) =>
   target.evaluate(
     (el, sent) => {
@@ -99,12 +86,7 @@ const keyEndingComposition = (target: Locator, press: Press, keyCode: number) =>
     { press, keyCode },
   )
 
-/**
- * A key with its own code is the input method's only when it comes right
- * after the composition ended (`COMPOSITION_END_KEY_MS`). Should a stalled
- * machine have taken longer than that to send it, the key was rightly the
- * user's and the run shows nothing: the test is skipped, not passed.
- */
+/** A key with its own code only counts as the input method's right after the composition ends; on a stalled machine skip, don't pass. */
 function skipUnlessAtOnce(took: number) {
   test.skip(took >= COMPOSITION_END_KEY_MS, `the page took ${Math.round(took)} ms to send the key`)
 }
@@ -161,6 +143,7 @@ test('in Move to Notebook, composition keys neither move the choice nor pick', a
   await expect(options.first()).toHaveAttribute('aria-selected', 'true')
   for (const how of HOW) {
     await imeKey(filter, ARROW_DOWN, how)
+    // Return would move the note out of Work.
     await imeKey(filter, ENTER, how)
   }
   await expect(picker).toBeVisible()
@@ -216,9 +199,11 @@ test('in the tag field, the Return right after a composition adds no tag, whatev
   const field = page.getByRole('combobox', { name: 'Add Tag' })
   const chips = page.getByRole('group', { name: 'Tags' }).locator('.chip')
   await field.fill('draft')
+  // Return's own key code (13), not 229: only the main window's watch makes it the input method's.
   skipUnlessAtOnce(await keyEndingComposition(field, ENTER, 13))
   await expect(field).toHaveValue('draft')
   await expect(chips).toHaveCount(0)
+  // Only that one key: the next Return is the user's.
   await field.press('Enter')
   await expect(chips).toHaveText(['draft'])
   await expect(field).toHaveValue('')
@@ -269,8 +254,7 @@ test('Cmd+B and the Format menu leave a composition in the editor alone', async 
   await createNote(page, 'Bold', 'word')
   await page.keyboard.press('Shift+Home')
   await composition(page, 'compositionstart')
-  // The input method passes Cmd+B on (it takes no Command keys), so the page
-  // gets it while the composition is open; it must not end it.
+  // The input method passes Cmd+B on, so the page gets it mid-composition; it must not end it.
   const mod = process.platform === 'darwin' ? { metaKey: true } : { ctrlKey: true }
   expect(await imeKey(body(page), { key: 'b', code: 'KeyB', ...mod }, 'composing')).toBe(false)
   await pickFormat(page, 'format.bold')
@@ -284,6 +268,7 @@ test('the Return or Escape that ends a composition adds no line and keeps the fi
   page,
 }) => {
   await createNote(page, 'List', '- item')
+  // Return in a list item would start the next item.
   for (const how of HOW) await imeKey(body(page), ENTER, how)
   expect(await lines(page)).toEqual(['- item'])
   await page.keyboard.press('Enter')
@@ -295,6 +280,7 @@ test('the Return or Escape that ends a composition adds no line and keeps the fi
   await expect(findStatus(page)).toHaveText('1 of 1')
   await body(page).click()
   await expect(body(page)).toBeFocused()
+  // Escape in the editor would close the bar.
   for (const how of HOW) await imeKey(body(page), ESCAPE, how)
   await expect(findBar(page)).toBeVisible()
   await expect(findField(page)).toHaveValue('item')
@@ -304,16 +290,13 @@ test('the Return or Escape that ends a composition adds no line and keeps the fi
 
 test('the Tab that ends a composition keeps the keyboard in the editor', async ({ page }) => {
   await createNote(page, 'Tabs', 'text')
-  // A composition ends and WebKit sends its last key at once, as it does:
-  // the editor leaves that key alone, and a Tab the editor leaves alone
-  // moves to the next area (see areas.ts). The key comes with key code 229,
-  // or now and then with Tab's own (9), which only the main window's watch
-  // on its compositions tells apart.
+  // The editor leaves the composition's last key alone, so Tab moves to the next area (areas.ts); sent with code 229 or Tab's own (9).
   await keyEndingComposition(body(page), TAB, 229)
   await expect(body(page)).toBeFocused()
   skipUnlessAtOnce(await keyEndingComposition(body(page), TAB, 9))
   await expect(body(page)).toBeFocused()
   expect(await lines(page)).toEqual(['text'])
+  // The next Tab is the user's: the editor indents the line with it.
   await page.keyboard.press('Tab')
   await expect.poll(() => lines(page)).toEqual([expect.stringMatching(/^\s+text$/)])
   await expect(body(page)).toBeFocused()
@@ -328,11 +311,10 @@ test('in Settings, the Escape right after a composition keeps the shortcut recor
     .getByRole('button', { name: /^Bold shortcut/ })
   await recorder.click()
   await expect(recorder).toHaveAttribute('aria-pressed', 'true')
-  // The shortcut recorder is the Settings window's one key handler. Escape's
-  // own key code (27), not 229: only that window's watch on its compositions
-  // makes this key the input method's, so it does not cancel the recording.
+  // Escape's own key code (27), not 229: only the Settings window's watch makes it the input method's.
   skipUnlessAtOnce(await keyEndingComposition(recorder, ESCAPE, 27))
   await expect(recorder).toHaveAttribute('aria-pressed', 'true')
+  // Only that one key: the next Escape is the user's.
   await page.keyboard.press('Escape')
   await expect(recorder).toHaveAttribute('aria-pressed', 'false')
 })

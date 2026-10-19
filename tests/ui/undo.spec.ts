@@ -2,10 +2,8 @@ import type { Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { expect, test } from './fixtures'
 
-// The editor has one undo system, CodeMirror's history (docs/architecture.md,
-// Merging and history): it holds the user's own edits, never what reaches
-// the note from outside the editor, and a note keeps it while another note
-// is shown.
+// The editor has one undo system, CodeMirror's history (docs/architecture.md, Merging and history): it holds the
+// user's own edits, never what reaches the note from outside, and a note keeps it while another is shown.
 
 const DB_CHANGED = 'devot:db-changed'
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -19,6 +17,7 @@ interface StoredNote {
   title: string
   bodyMd: string
   ydoc: number[]
+  /** Missing in a note stored before body versions: 0. */
   bodyVersion?: number
 }
 
@@ -28,6 +27,7 @@ const storedNotes = (page: Page) =>
 const savedBody = async (page: Page, title: string) =>
   (await storedNotes(page)).find((n) => n.title === title)?.bodyMd
 
+/** Writes to the stored note's Yjs document behind the app's back, as another process would. */
 async function editOutside(page: Page, title: string, edit: (doc: Y.Doc) => void) {
   const notes = await storedNotes(page)
   const note = notes.find((n) => n.title === title)
@@ -39,6 +39,7 @@ async function editOutside(page: Page, title: string, edit: (doc: Y.Doc) => void
   note.bodyMd = doc.getText('body').toString()
   note.bodyVersion = (note.bodyVersion ?? 0) + 1
   await page.evaluate((all) => localStorage.setItem('devot.test.notes', JSON.stringify(all)), notes)
+  // Rust's `devot://db-changed`, as the page re-sends it.
   await page.evaluate((name) => {
     const w = globalThis as unknown as {
       dispatchEvent(e: unknown): void
@@ -105,6 +106,7 @@ test('undo goes on after switching to another note and back', async ({ page }) =
 
 test('undo goes on after more notes were shown than the core keeps in memory', async ({ page }) => {
   await createNote(page, 'Kept', 'Typed first.')
+  // Nine other notes: the core lets the first one go from memory and reads it again.
   for (let i = 1; i <= 9; i += 1) await createNote(page, `Other ${i}`, `Note ${i}.`)
   await show(page, 'Kept')
   await expect(body(page)).toHaveText('Typed first.')

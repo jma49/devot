@@ -18,6 +18,7 @@ describe('fuzzyMatch', () => {
   })
 
   it('prefers word starts and runs of letters', () => {
+    // "nb" at the starts of "New" and "Book" beats the n and b inside "unbox".
     const words = fuzzyMatch('nb', 'New Book')!
     const inside = fuzzyMatch('nb', 'unbox')!
     expect(words.score).toBeGreaterThan(inside.score)

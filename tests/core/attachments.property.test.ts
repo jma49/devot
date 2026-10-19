@@ -5,13 +5,9 @@ import { createClock, createIdGenerator, createNoteService, fileUri } from '../.
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-// Purging notes deletes exactly the attachments they owned that no other
-// note left (live or in the Trash) shows; each of the others passes to a
-// note that shows it, a live one first, then the smallest ID. Checked after
-// every purge and every Empty Trash, whatever sequence of attaching,
-// editing, trashing, restoring and purging led there: so a purge never
-// deletes an attachment a note left shows, and none is left to a purged
-// note.
+// Purging notes deletes exactly the attachments they owned that no other note left (live or in the Trash)
+// shows; each other passes to a note that shows it (live first, then smallest ID). Checked after every
+// purge and Empty Trash, whatever sequence led there.
 
 const NOTES = 4
 const FILES = [1, 2, 3, 4, 5].map((n) => `0192a6f0-0000-7000-8000-00000000f00${n}`)
@@ -74,6 +70,10 @@ const ownersIn = (storage: SqliteAdapter) =>
       .map((r) => [r.id, r.noteId]),
   )
 
+/**
+ * Owners once `purging` is purged: an attachment passes to the first remaining note that shows it
+ * (live first, then by ID), or is deleted.
+ */
 function expectedOwners(before: Map<string, string>, notes: NoteRow[], purging: Set<string>) {
   const left = notes
     .filter((n) => !n.purged && !purging.has(n.id))
@@ -129,6 +129,7 @@ describe('attachments', () => {
             }
             const id = ids[step.note] as string
             if (step.kind === 'purge') {
+              // Delete forever: to the Trash first if needed, then purge.
               await notes.trash(id).catch(() => {})
               await purgeChecked(
                 (n) => n === id,
@@ -140,7 +141,7 @@ describe('attachments', () => {
               const stored = await storage
                 .putFile({ id: fileId, noteId: id, name: 'shot.png' }, PNG)
                 .then(() => true)
-                .catch(() => false)
+                .catch(() => false) // the note is in the Trash or purged
               if (stored) attached.add(fileId)
             } else if (step.kind === 'show') {
               const body = [

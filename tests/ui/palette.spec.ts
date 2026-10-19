@@ -1,8 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test, pickNoteMore, openNotePinned, statusPicker, bookPicker } from './fixtures'
 
-// App-level shortcuts check metaKey (Command on macOS), so they are pressed
-// with Meta here on every platform, like the other specs.
+// App shortcuts check metaKey (Command on macOS), so Meta is pressed on every platform.
 
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palette' })
 const field = (page: Page) => palette(page).getByRole('combobox', { name: 'Command Palette' })
@@ -85,7 +84,6 @@ test('lists commands with their shortcuts and runs the one picked', async ({ pag
     '\u2318D',
   )
   await expect(commands.getByRole('option').filter({ hasText: 'Pin to Top' })).toBeVisible()
-  // The palette never lists itself.
   await expect(commands.getByRole('option').filter({ hasText: 'Command Palette' })).toHaveCount(0)
 
   await field(page).fill('focmo')
@@ -163,6 +161,7 @@ test('block formats and alerts are commands while the editor shows', async ({ pa
   await field(page).press('Enter')
   await expect(body(page)).toContainText('> [!WARNING]')
   await expect(body(page)).toBeFocused()
+  // In preview mode there is no editor to format.
   await search(page, 'show preview')
   await field(page).press('Enter')
   await search(page, 'alert')
@@ -295,6 +294,7 @@ test('groups results by kind, best match first, and moves by arrow keys', async 
   await addTag(page, 'work')
   await search(page, 'work')
   await expect(results(page).getByRole('group')).toHaveCount(2)
+  // Equally good matches keep the kind order: tags before notes.
   await expect(results(page).getByRole('group').first()).toHaveAttribute('aria-label', 'Tags')
   await expect(active(page)).toHaveText('work')
   await field(page).press('ArrowDown')
@@ -328,6 +328,7 @@ test('a menu item picked while another window has the keyboard acts on nothing h
   page,
 }) => {
   await createNote(page, 'Menu')
+  // With Settings or a native panel focused, Rust still sends the menu item's event to this window.
   const focus = (windowHasFocus: boolean) =>
     page.evaluate((on) => {
       ;(globalThis as unknown as { document: { hasFocus(): boolean } }).document.hasFocus = () => on
@@ -365,6 +366,7 @@ test('Shift-click runs the Shift variant; a modifier without one does nothing', 
     .click({ modifiers: ['Shift'] })
   await expect(palette(page)).toBeHidden()
   await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Archive/)
+  // A command has no Shift variant: Shift+Return does nothing.
   await search(page, 'focus mode')
   await field(page).press('Shift+Enter')
   await expect(palette(page)).toBeVisible()
@@ -399,6 +401,7 @@ test('a click outside closes it; a click on its own padding does not', async ({ 
   await search(page, '')
   const box = await palette(page).boundingBox()
   if (!box) throw new Error('E_TEST_NO_BOX')
+  // Between the field and the results, on the palette's own padding.
   await page.mouse.click(box.x + 3, box.y + box.height / 2)
   await expect(palette(page)).toBeVisible()
   await page.mouse.click(box.x + box.width / 2, box.y + box.height + 40)
@@ -421,6 +424,7 @@ test('a notebook named as typed comes before a command with the letters apart', 
 }) => {
   await createBook(page, 'Stash')
   await search(page, 'stash')
+  // Show Trash has the letters too, but the notebook is the whole query.
   await expect(group(page, 'Commands').getByRole('option')).toContainText(['Show Trash'])
   await expect(results(page).getByRole('group')).toHaveCount(2)
   await expect(results(page).getByRole('group').first()).toHaveAttribute('aria-label', 'Notebooks')
@@ -529,6 +533,7 @@ test('runs the Trash commands: Restore, Delete Permanently, Empty Trash', async 
   await expect(confirm).toContainText('\u201cGone\u201d')
   await confirm.getByRole('button', { name: 'Cancel' }).click()
 
+  // The key comes from the registry too.
   await noteRows(page).first().click()
   await page.keyboard.press('Meta+Backspace')
   await expect(confirm).toContainText('\u201cGone\u201d')

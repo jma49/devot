@@ -1,3 +1,5 @@
+// What AI tools (devot-mcp) can see and do, on real SQLite: only the live
+// notes filed directly in notebooks with Allow AI Access on.
 import { once } from 'node:events'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
@@ -38,6 +40,7 @@ function setup() {
   const books = createBookService({ storage, clock, newId })
   const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
   const tags = createTagService({ storage, clock, newId })
+  // devot-mcp's side: the same file, its own clock.
   const ai = createAiService({
     storage,
     clock: createClock('mcptest'),
@@ -49,7 +52,6 @@ function setup() {
 
 type Setup = ReturnType<typeof setup>
 
-/** The notes of `world` AI must never see. */
 const HIDDEN_NOTES = ['inside', 'priv', 'loose', 'trashed', 'purged', 'orphan'] as const
 
 async function note({ notes }: Setup, title: string, body: string, bookId: string | null) {
@@ -59,6 +61,10 @@ async function note({ notes }: Setup, title: string, body: string, bookId: strin
   return id
 }
 
+/**
+ * Shared (allowed) with a sub-notebook Inside (not allowed), Private (not allowed),
+ * Gone (allowed, then deleted). Every note holds the word "kiwi".
+ */
 async function world(s: Setup) {
   const shared = await s.books.create('Shared', null)
   const inside = await s.books.create('Inside', shared)
@@ -133,7 +139,6 @@ describe('what AI can see', () => {
     expect(await found(`kiwi tagId:${tagId}`)).toEqual([ids.shared])
     expect(await found('kiwi pinned:true')).toEqual([ids.shared])
     expect(await found('kiwi pinned:false')).toEqual([])
-    // A notebook AI may not see cannot be named by its ID either.
     expect(await found(`kiwi bookId:${books.priv}`)).toEqual([])
     expect(await found(`kiwi bookId:${books.inside}`)).toEqual([])
     expect(await found(`kiwi -bookId:${books.priv}`)).toEqual([ids.shared])
@@ -204,6 +209,7 @@ describe('what AI can see', () => {
     const s = setup()
     const shared = await s.books.create('Shared', null)
     await s.books.setAiAccess(shared, true)
+    // "\u540c\u6b65" is a two-character Chinese word ("sync").
     const id = await note(s, 'Plan', 'Notes on \u540c\u6b65 and more.', shared)
     const [hit] = await s.ai.search('\u540c\u6b65')
     expect(hit?.id).toBe(id)
@@ -223,10 +229,12 @@ describe('creating notes', () => {
     const record = (await s.storage.getNote(created.id))!
     expect(record.bookId).toBe(shared)
     expect(record.title).toBe('From AI')
+    // Line breaks become \n, and the snapshot is what the Yjs document holds.
     expect(record.bodyMd).toBe('# Plan\n\n- one\n- two\n')
     const doc = new Y.Doc()
     Y.applyUpdate(doc, record.ydoc)
     expect(doc.getText(BODY).toString()).toBe(record.bodyMd)
+    // Its clocks carry devot-mcp's own node ID.
     expect(parseHlc(record.titleHlc).node).toBe('mcptest')
     expect(parseHlc(record.bookHlc).node).toBe('mcptest')
 
@@ -308,6 +316,7 @@ describe('creating notes', () => {
     const newId = createIdGenerator()
     const ids = Array.from({ length: MAX_NOTE_LINKS + 1 }, () => newId())
     const index = ids.map((id) => noteLink('n', id)).join('\n')
+    // Well under the size limit: only the link count is wrong.
     expect(new TextEncoder().encode(index).length).toBeLessThan(MAX_AI_BODY_BYTES)
     await expect(
       s.ai.create({ title: 'Index', markdown: index, notebook: shared }),
@@ -335,10 +344,8 @@ describe('creating notes', () => {
 })
 
 /**
- * The app writing on its own connection, in a thread of its own, while
- * devot-mcp works: it writes one small row again and again and, when
- * stopped, reports how many writes it made and the longest one took
- * (waiting for the database included).
+ * The app writing on its own connection in its own thread while devot-mcp works;
+ * on stop, the writes made and the longest (database wait included).
  */
 async function appWriter(path: string, bookId: string) {
   const driver = createRequire(import.meta.url).resolve('better-sqlite3')
@@ -414,12 +421,12 @@ describe('editing notes', () => {
       status: 'active',
     })
     const record = (await s.storage.getNote(ids.shared))!
+    // The snapshot is what the Yjs document holds, written by devot-mcp's clock.
     const doc = new Y.Doc()
     Y.applyUpdate(doc, record.ydoc)
     expect(doc.getText(BODY).toString()).toBe('A new body.\nTwo lines.')
     expect(parseHlc(record.titleHlc).node).toBe('mcptest')
     expect(parseHlc(record.bookHlc).node).toBe('mcptest')
-    // History can bring the text from before the edit back.
     expect(await versionTexts(s, ids.shared)).toContain('A shared kiwi note.')
     const kinds = (await s.storage.listRevisions(ids.shared)).map((r) => r.kind)
     expect(kinds).toEqual(expect.arrayContaining(['title', 'book', 'status']))
@@ -446,6 +453,7 @@ describe('editing notes', () => {
       body: {
         patches: [
           { find: 'one two', replace: 'ONE' },
+          // Found once now that the first patch replaced the other.
           { find: 'two', replace: '2\r\n' },
         ],
       },
@@ -455,6 +463,7 @@ describe('editing notes', () => {
     for (const [patches, code] of [
       [[{ find: 'missing', replace: 'x' }], 'E_AI_PATCH_NOT_FOUND'],
       [[{ find: 'e', replace: 'x' }], 'E_AI_PATCH_AMBIGUOUS'],
+      // A later patch failing leaves the earlier ones unwritten.
       [
         [
           { find: 'ONE', replace: 'x' },
@@ -549,6 +558,7 @@ describe('editing notes', () => {
   it('merges with edits the app holds of the open note', async () => {
     const s = setup()
     const { ids } = await world(s)
+    // The app holds the note, with typing not saved yet.
     s.notes.hold(ids.shared)
     await s.notes.insertAt(ids.shared, null, ' Typed in the app.')
     await s.ai.update({
@@ -631,6 +641,7 @@ describe('creating notebooks', () => {
     }
     await expect(s.ai.createNotebook({ name: 'Shared' })).rejects.toThrow('E_BOOK_NAME_TAKEN')
     await expect(s.ai.createNotebook({ name: ' ' })).rejects.toThrow('E_BOOK_NAME_INVALID')
+    // A hidden notebook's name is no reason to refuse: that would reveal it.
     const named = await s.ai.createNotebook({ name: 'Private' })
     expect(named.name).toBe('Private')
     expect((await s.books.list()).filter((b) => b.name === 'X')).toEqual([])
@@ -641,6 +652,7 @@ describe('applyPatches', () => {
   it('applies patches in turn, line breaks as \\n', () => {
     expect(applyPatches('a b c', [{ find: 'b', replace: 'B' }])).toBe('a B c')
     expect(applyPatches('x\ny', [{ find: 'x\r\ny', replace: 'z' }])).toBe('z')
+    // Overlapping matches count as two.
     expect(() => applyPatches('aaa', [{ find: 'aa', replace: 'b' }])).toThrow(
       'E_AI_PATCH_AMBIGUOUS',
     )
@@ -654,6 +666,8 @@ describe('creating notes beside a long history', () => {
     const s = setup()
     const shared = await s.books.create('Shared', null)
     await s.books.setAiAccess(shared, true)
+    // 200 notes AI may see, each with versions a sweep would thin: its
+    // newest from today, and two from one hour a month ago.
     const now = Date.now()
     const month = Math.floor((now - 30 * 86_400_000) / 3_600_000) * 3_600_000
     const state = new Uint8Array(8_000).map((_, i) => (i * 31) % 251)
@@ -702,6 +716,8 @@ describe('creating notes beside a long history', () => {
       (s.storage.db.prepare('SELECT COUNT(*) AS n FROM revisions').get() as { n: number }).n
     const before = revisions()
 
+    // devot-mcp's side, on its own connection, timing how long each create
+    // holds the write lock; any history read or compaction call is noted.
     const mcp = openSqliteAdapter(s.path, { migrate: false })
     open.push(mcp)
     const calls: string[] = []
@@ -777,6 +793,7 @@ describe('snippet', () => {
   })
 
   it('finds the match even when lower-casing would change the text length', () => {
+    // "\u0130" lower-cases to two UTF-16 units.
     const text = `${'\u0130'.repeat(120)} then Kiwi`
     expect(snippet(text, ['kiwi'])).toContain('then Kiwi')
   })

@@ -25,7 +25,6 @@ const saveFailures = (page: Page) =>
       .map((c) => c.args['ids']),
   )
 
-/** Note writes fail with `code` (a full disk, say), or work again without one. */
 const failNoteWrites = (page: Page, code?: string) =>
   page.evaluate((c) => {
     if (c) localStorage.setItem('devot.test.failNoteWrites', c)
@@ -93,6 +92,8 @@ test('changes that cannot be saved stay, are reported and are saved once writing
 test('the window hears of a failed save before the reply of the call it failed in', async ({
   page,
 }) => {
+  // What a quit's save relies on: by its reply the notice knows the notes. The test starts a core of its
+  // own to see what the window has heard when the reply comes.
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeVisible()
   const heard = await page.evaluate(async (url) => {
     interface Problem {

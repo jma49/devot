@@ -1,15 +1,13 @@
 import type { Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './fixtures'
 
-// Editor settings in the main window. Rust keeps them and, after every
-// change, sends `devot://editor-settings-changed` to every window; the page
-// re-sends it as `devot:editor-settings-changed`, which these tests send to
-// stand in for a change made in the Settings window. Changes apply to the open editor at
-// once, without rebuilding it.
+// Rust sends `devot://editor-settings-changed` to every window; the page re-sends it as
+// `devot:editor-settings-changed`, which these tests send to stand in for a change from the Settings window.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const content = (page: Page) => page.locator('.cm-content')
 const scroller = (page: Page) => page.locator('.cm-scroller')
+/** toHaveText would collapse the indent. */
 const lineText = (page: Page, n: number) =>
   page
     .locator('.cm-line')
@@ -90,12 +88,14 @@ test('a change from another window applies to the open editor at once', async ({
   await expect(page.locator('.cm-gutters')).toHaveCount(0)
   await expect(page.locator('.cm-activeLine')).toHaveCount(0)
   await expect(content(page)).not.toHaveClass(/cm-lineWrapping/)
+  // Only wrapped lines keep to the readable width.
   await expect(content(page)).toHaveCSS('max-width', 'none')
   await expect(content(page)).toHaveCSS('font-size', '20px')
   await expect(scroller(page)).toHaveCSS('font-family', /^Menlo/)
   await expect(scroller(page)).toHaveCSS('line-height', '40px')
   await expect(content(page)).toHaveCSS('tab-size', '8')
   await expect(content(page)).toHaveAttribute('spellcheck', 'true')
+  // The same editor, reconfigured, with the text and the keyboard focus kept.
   await expect(page.locator('.cm-editor')).toHaveAttribute('data-probe', '1')
   await expect(body(page)).toBeFocused()
   await expect(body(page)).toContainText('alpha')
@@ -124,6 +124,7 @@ test('new list items take the list marker, and indenting takes the indent unit',
   await page.keyboard.press('Tab')
   await expect.poll(() => lineText(page, 0)).toBe('\t* alpha')
 
+  // A line that becomes an item later takes the marker set then.
   await changed(page, { listMarker: '-', indentUnit: 'spaces4' })
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.insertText('\n\nbeta')
@@ -155,11 +156,7 @@ test('Cmd+= and Cmd+- change the font size, and Cmd+0 resets it', async ({ page 
   await expect(body(page)).toContainText('alpha!')
 })
 
-/**
- * Makes `editor_settings_set` hold its answers: each call stores the change
- * as Rust would and waits in `devotHeld` until `release` answers it. The
- * event Rust sends every window waits too, until `announce` sends it.
- */
+/** Holds `editor_settings_set` answers until `release`; Rust's event waits until `announce`. */
 const holdAnswers = (page: Page) =>
   page.evaluate(() => {
     const w = globalThis as unknown as TestWindow & {
@@ -195,6 +192,7 @@ const announce = (page: Page, n: number) =>
     ;(globalThis as unknown as { devotHeld: { event: () => void }[] }).devotHeld[i]!.event()
   }, n - 1)
 
+/** Reads the size as it is now, without waiting. */
 const fontSizeNow = (page: Page) =>
   content(page).evaluate(
     (el) =>
@@ -206,12 +204,14 @@ const fontSizeNow = (page: Page) =>
 test('quick presses all count, whatever order the answers come in', async ({ page }) => {
   await newNote(page, 'alpha')
   await holdAnswers(page)
+  // Three presses before any answer: each steps from the size shown.
   await page.keyboard.press('Meta+Equal')
   await page.keyboard.press('Meta+Equal')
   await page.keyboard.press('Meta+Equal')
   expect(await fontSizeNow(page)).toBe('16px')
   expect(await setCalls(page)).toEqual([{ fontSize: 14 }])
 
+  // The first answer arrives before its event; the size shown stays.
   await release(page, 1)
   await expect.poll(() => setCalls(page)).toEqual([{ fontSize: 14 }, { fontSize: 15 }])
   expect(await fontSizeNow(page)).toBe('16px')
@@ -220,6 +220,7 @@ test('quick presses all count, whatever order the answers come in', async ({ pag
     .poll(() => setCalls(page))
     .toEqual([{ fontSize: 14 }, { fontSize: 15 }, { fontSize: 16 }])
   expect(await fontSizeNow(page)).toBe('16px')
+  // The last event arrives before its answer, then the older events, last first.
   await announce(page, 3)
   expect(await fontSizeNow(page)).toBe('16px')
   await release(page, 3)
@@ -239,8 +240,10 @@ test('an answer older than a change made elsewhere changes nothing', async ({ pa
   await page.keyboard.press('Meta+Equal')
   await expect.poll(() => setCalls(page)).toEqual([{ fontSize: 14 }])
   expect(await fontSizeNow(page)).toBe('14px')
+  // Another window stores a size after this change was stored (revision 2).
   await changed(page, { fontSize: 20 })
   expect(await fontSizeNow(page)).toBe('14px')
+  // This window's answer (revision 1) arrives late: the newer size stays.
   await release(page, 1)
   await expect(content(page)).toHaveCSS('font-size', '20px')
   await announce(page, 1)
@@ -348,6 +351,7 @@ test('with the reading width an unwrapped table scrolls inside the column', asyn
   }))
   expect(box.overflowX).toBe('auto')
   expect(box.scrolls).toBe(true)
+  // The column stays inside the editor: nothing reaches into the margin.
   expect(box.right).toBeLessThanOrEqual(box.editorRight)
 })
 
@@ -378,6 +382,8 @@ test('typing at the end of a long unwrapped line keeps the caret inside the colu
   await page.keyboard.press('ArrowUp')
   await page.keyboard.press('End')
   await page.keyboard.type('!')
+  // The drawn cursor: the document's selection only reaches the editor's
+  // shadow host, not the caret inside it.
   await expect.poll(() => content(page).evaluate((el) => el.scrollLeft > 0)).toBe(true)
   await expect
     .poll(async () => {

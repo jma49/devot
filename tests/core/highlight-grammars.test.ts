@@ -13,6 +13,7 @@ describe('lazily loaded grammars', () => {
       for (const alias of hljs.getLanguage(name)?.aliases ?? []) {
         const key = alias.toLowerCase()
         if (key === name || names.includes(key)) continue
+        // Two grammars can share an alias; either one is a fair answer.
         const owner = GRAMMAR_ALIASES[key] ?? ''
         const owned = (hljs.getLanguage(owner)?.aliases ?? []).map((a) => a.toLowerCase())
         expect(owned).toContain(key)

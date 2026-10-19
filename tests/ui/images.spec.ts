@@ -10,12 +10,8 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// Images in the editor and the preview: previews under their lines, size
-// presets, the viewer, the image context menu and the image commands.
-// Attachments (devot://file) do not load in Playwright's browser; an image at a
-// path on the page's own origin (routed here) does, so the viewer is checked with
-// one. Editor keys
-// are platform-neutral; the palette opens with Meta+P like in the other specs.
+// Attachments (devot://file) do not load in Playwright's browser, so the viewer is checked with an image
+// routed on the page's own origin.
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
@@ -100,6 +96,7 @@ test('double-clicking a preview image opens the viewer, fitted to the window', a
   const actual = viewer(page).getByRole('button', { name: 'Actual Size' })
   await expect(fit).toHaveAttribute('aria-pressed', 'true')
   await expect(actual).toHaveAttribute('aria-pressed', 'false')
+  // The viewer covers the title bar: its first control clears the window controls (70 px in the real window).
   expect((await fit.boundingBox())!.x).toBeGreaterThanOrEqual(80)
 
   const window = page.viewportSize()!
@@ -205,6 +202,7 @@ test('size presets show in the preview and stay in the Markdown', async ({ page 
   await expect(imgs).toHaveCount(4)
   const article = (await preview(page).locator('p').first().boundingBox())!
   const width = async (i: number) => (await imgs.nth(i).boundingBox())!.width
+  // Auto's width comes from the loaded image, so measure only once all have loaded.
   for (let i = 0; i < 4; i += 1) {
     await expect
       .poll(() =>
@@ -249,6 +247,7 @@ test('attachments show under their lines in the editor, unless turned off', asyn
   await expect(inlineImages(page)).toHaveCount(1)
   await expect(inlineImages(page).locator('img')).toHaveCount(2)
   await expect(inlineImages(page).locator('img').first()).toHaveAttribute('src', FILE)
+  // Fixed height, so nothing moves when the image loads or fails.
   const expectUnderShotLine = async () => {
     const line = (await page.locator('.cm-line').filter({ hasText: 'Shot' }).boundingBox())!
     const block = (await inlineImages(page).boundingBox())!
@@ -333,6 +332,7 @@ test('an image dropped on an image under its line goes into the note', async ({ 
 
 test('a key the user gives an image command acts on the image at the cursor', async ({ page }) => {
   await newNote(page, `intro\n![Shot](${FILE})`)
+  // What Rust sends every window after Settings > Keyboard Shortcuts stores it.
   await changeShortcutsElsewhere(page, { 'image.sizeHalf': ['Mod+Alt+J'] })
   const shot = page.locator('.cm-line').filter({ hasText: 'Shot' })
   await shot.click()

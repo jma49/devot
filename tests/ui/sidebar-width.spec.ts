@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
+// Sidebar width: 200 px default, resized 170 to 500 px by its right edge, kept per window, yielding to a narrow window only after the note list is at its minimum.
+
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const list = (page: Page) => page.getByRole('region', { name: 'Notes' })
 const handle = (page: Page) => page.getByRole('separator', { name: 'Resize Sidebar' })
@@ -89,6 +91,7 @@ test('in a narrow window the note list shrinks first, then the sidebar is clampe
   await page.keyboard.press('End')
   await expect.poll(() => width(page)).toBe(500)
 
+  // 1100 px: the list shrinks to its 220 px minimum, then the sidebar is clamped to 400 px.
   await page.setViewportSize({ width: 1100, height: 800 })
   await expect.poll(() => listWidth(page)).toBe(220)
   await expect.poll(() => width(page)).toBe(400)

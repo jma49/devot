@@ -23,6 +23,7 @@ describe('reportingNoteWrites', () => {
     let clock = 1_000
     const adapter = storage()
     const notes = createNoteService({
+      // As the window serves storage to the core worker (see core-client.ts).
       storage: fromWire(
         reportingNoteWrites(toWire(adapter), (writes) => heard.push(new Map(writes))),
       ),

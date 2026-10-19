@@ -1,12 +1,8 @@
-// Patterns behind the policy tests (tests/policy), kept here so the tests can
-// check the patterns themselves against sample text.
+// Patterns behind tests/policy, kept here so tests can check them against sample text.
 
 /**
- * Any CJK character: the Han, Hiragana, Katakana, Hangul and Bopomofo scripts
- * (so also the supplementary planes, U+20000 and up), plus the blocks that
- * hold their punctuation, marks and compatibility forms but belong to no
- * script of their own. Script, not Script_Extensions: that one also takes
- * ordinary characters such as the middle dot (U+00B7).
+ * Any CJK character: Han, Hiragana, Katakana, Hangul and Bopomofo (incl. supplementary planes), plus the blocks for
+ * their punctuation and compatibility forms. Script, not Script_Extensions, which also takes the middle dot (U+00B7).
  */
 export const CJK = new RegExp(
   '[' +
@@ -16,17 +12,17 @@ export const CJK = new RegExp(
       '\\p{Script=Katakana}',
       '\\p{Script=Hangul}',
       '\\p{Script=Bopomofo}',
-      '\\u3000-\\u303f',
-      '\\u3040-\\u30ff',
-      '\\u3100-\\u312f',
+      '\\u3000-\\u303f', // CJK symbols and punctuation
+      '\\u3040-\\u30ff', // Hiragana and Katakana, with their marks
+      '\\u3100-\\u312f', // Bopomofo
       '\\u3130-\\u318f', // Hangul compatibility jamo
-      '\\u3190-\\u319f',
-      '\\u31a0-\\u31bf',
-      '\\u31c0-\\u31ef',
-      '\\u31f0-\\u31ff',
-      '\\u3200-\\u33ff',
-      '\\uff00-\\uffef',
-      '\\u{1f200}-\\u{1f2ff}',
+      '\\u3190-\\u319f', // Kanbun
+      '\\u31a0-\\u31bf', // Bopomofo extended
+      '\\u31c0-\\u31ef', // CJK strokes
+      '\\u31f0-\\u31ff', // Katakana phonetic extensions
+      '\\u3200-\\u33ff', // enclosed and compatibility CJK
+      '\\uff00-\\uffef', // fullwidth and halfwidth forms
+      '\\u{1f200}-\\u{1f2ff}', // enclosed ideographic supplement
     ].join('') +
     ']',
   'u',
@@ -37,15 +33,14 @@ export function hasCjk(text: string): boolean {
 }
 
 /**
- * Whether a line writes out a colour: hex, rgb(), hsl() and the like, or a
- * named colour as a style value (`color: red`, `color: 'red'`). A quoted name
- * must be lower case, as in styles; a capitalised label such as 'Red' is text.
- * Unquoted values are CSS, where case does not matter.
+ * Whether a line writes out a colour: hex, rgb(), hsl(), or a named colour as a style value. A quoted name must be
+ * lower case; a capitalised one such as 'Red' is a label.
  */
 const COLOR_FUNCTION_OR_HEX = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(/i
 const COLOR_WORDS = 'white|black|red|green|blue|gray|grey'
-// Unquoted (a CSS value): CSS ignores case, so any case counts.
+// Unquoted (CSS): any case counts.
 const COLOR_NAME_BARE = new RegExp(`:\\s*(?:${COLOR_WORDS})\\b`, 'i')
+// Quoted (TypeScript): lower case only, a capitalised string is a label.
 const COLOR_NAME_QUOTED = new RegExp(`:\\s*['"](?:${COLOR_WORDS})\\b`)
 export function hasColorLiteral(line: string): boolean {
   return (
@@ -53,8 +48,10 @@ export function hasColorLiteral(line: string): boolean {
   )
 }
 
+/** The system temp folder named in code; tests reach it only through tempDir. */
 export const TEMP_FOLDER_REFERENCE = /\btmpdir\b|\bTMPDIR\b/
 
+/** The generated design tokens are the one place colours are written out. */
 const GENERATED_TOKENS = /theme\/tokens\.(css|ts)$/
 
 export function isColorChecked(path: string): boolean {

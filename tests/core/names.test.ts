@@ -18,11 +18,7 @@ import {
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
-/**
- * Names and what they are once cleaned (null: no name). The Rust commands
- * check the same cases (src-tauri/src/commands/tags.rs and books.rs), so a
- * name the core cleans is one Rust accepts.
- */
+/** Names and their cleaned form (null: no name); the Rust commands check the same cases (src-tauri/src/commands/tags.rs, books.rs). */
 const CASES = JSON.parse(
   readFileSync(join(import.meta.dirname, '../support/names.json'), 'utf8'),
 ) as { why: string; name: string; clean: string | null }[]

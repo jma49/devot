@@ -184,6 +184,7 @@ for (const width of [1280, 800]) {
       expect(p.width).toBeLessThan(300)
       expect(p.x + p.width).toBeLessThanOrEqual(content.x + content.width)
       expect(s.x + s.width).toBeLessThanOrEqual(content.x + content.width)
+      // At 800 px the row is narrower than the picker and Status together, as for any notebook name.
       if (width === 1280) expect(Math.abs(s.y - p.y)).toBeLessThan(6)
       const chevron = await box(popup.locator('.icon').last())
       expect(chevron.x + chevron.width).toBeLessThanOrEqual(p.x + p.width + 1)

@@ -3,9 +3,8 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { htmlToMarkdown } from '../../src/core'
 
-// Hand-written pages in tests/core/fixtures/html-import: `pages/` convert to
-// the Markdown beside them (`name.md`); `hostile/` holds XSS vectors that must
-// come out as inert text, never as markup, script or a dangerous link.
+// Hand-written pages in tests/core/fixtures/html-import: `pages/` convert to the Markdown beside
+// them; `hostile/` holds XSS vectors that must come out as inert text, never markup or script.
 const ROOT = join(__dirname, 'fixtures', 'html-import')
 
 const fixtures = (dir: string) =>

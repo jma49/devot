@@ -84,6 +84,8 @@ test('Tab and Shift+Tab go round every stop of the viewer', async ({ page }) => 
   const close = viewer(page).getByRole('button', { name: 'Close' })
   const stage = viewer(page).locator('.image-viewer-stage')
   await expect(close).toBeFocused()
+  // The viewer handles every Tab itself: with macOS's default keyboard
+  // setting the web view would skip the buttons, or leave the dialog.
   const handled = (shiftKey: boolean) =>
     page.evaluate((shift) => {
       const w = globalThis as unknown as {

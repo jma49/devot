@@ -11,6 +11,7 @@ import { tempDir } from '../support/temp-dirs'
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13])
 const F1 = '0192a6f0-0000-7000-8000-00000000f001'
 const F2 = '0192a6f0-0000-7000-8000-00000000f002'
+/** How long the other writer holds the database: well within the busy timeout. */
 const HOLD_MS = 250
 
 const open: SqliteAdapter[] = []
@@ -29,10 +30,7 @@ db.exec('COMMIT')
 db.close()
 `
 
-/**
- * Starts another writer on `path`; resolves once it holds the lock, with
- * its commit (in an object: an async function would wait for a promise).
- */
+/** Starts another writer on `path`; resolves once it holds the lock, with its commit (in an object: an async function would wait for a promise). */
 async function anotherWriter(path: string): Promise<{ committed: Promise<void> }> {
   const module = createRequire(import.meta.url).resolve('better-sqlite3')
   const worker = new Worker(HOLDER, { eval: true, workerData: { module, path, hold: HOLD_MS } })

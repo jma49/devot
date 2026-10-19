@@ -191,6 +191,7 @@ test('diagrams keep their styles under a CSP without inline styles', async ({ pa
   await newNote(page, 'Strict', DIAGRAM)
   await mode(page, 'Split').click()
   type Styles = { getComputedStyle(el: unknown): { fill: string; width: string } }
+  // The policy is in force: the dev server's injected <style> tags are blocked.
   const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
   expect(
     await sidebar.evaluate((el) => (globalThis as unknown as Styles).getComputedStyle(el).width),
@@ -198,6 +199,7 @@ test('diagrams keep their styles under a CSP without inline styles', async ({ pa
 
   const node = preview(page).locator('.island-mermaid svg .node rect').first()
   await expect(node).toBeVisible()
+  // SVG paints black by default; the theme colour proves Mermaid's own CSS applied.
   await expect
     .poll(() => node.evaluate((el) => (globalThis as unknown as Styles).getComputedStyle(el).fill))
     .not.toBe('rgb(0, 0, 0)')
@@ -292,6 +294,7 @@ test('a diagram that fails to draw for a passing reason is asked for again', asy
   const svgs = preview(page).locator('.island-mermaid svg')
   await expect(svgs).toHaveCount(1)
 
+  // The frame's next drawing fails before Mermaid runs (as when it runs out of memory).
   const frame = await mermaidFrame(page)
   await frame.evaluate(() => {
     type Body = { appendChild: (node: unknown) => unknown }
@@ -325,6 +328,7 @@ test('a diagram whose drawing cannot be read is not promised again', async ({ pa
   const svgs = preview(page).locator('.island-mermaid svg')
   await expect(svgs).toHaveCount(1)
 
+  // The frame's next drawing reaches the preview as something other than SVG.
   const frame = await mermaidFrame(page)
   await frame.evaluate(() => {
     type Port = { postMessage(message: unknown, ...rest: unknown[]): void }
@@ -343,6 +347,8 @@ test('a diagram whose drawing cannot be read is not promised again', async ({ pa
   await expect(error).toHaveText('This diagram cannot be drawn.')
   expect(warnings).toContain('W_MERMAID_FAILED svg')
 
+  // A later change does not ask for it again: a diagram added after it draws
+  // (requests are answered in order) while the box stays.
   await appendToNote(page, `\nAfter.\n\n${SEQUENCE}\n`)
   await expect(svgs).toHaveCount(2, { timeout: 20_000 })
   await expect(svgs.nth(1)).toContainText('Alice')

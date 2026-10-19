@@ -127,6 +127,7 @@ describe('tag colours on SQLite', () => {
     await tags.setColor(id, 'red')
     const [current] = await tags.list()
     if (!current) throw new Error('no tag')
+    // Another device renamed the tag later, from a copy with an older colour.
     await storage.putTag({
       ...current,
       name: 'later',
@@ -154,7 +155,6 @@ describe('tag colours on SQLite', () => {
     expect(await tags.list()).toMatchObject([
       { color: null, colorHlc: '9999999999999999-0000-later' },
     ])
-    // Renaming writes the record back without undoing the newer colour.
     await tags.rename(id, 'renamed')
     const row = storage.db.prepare('SELECT name, color FROM tags WHERE id = ?').get(id)
     expect(row).toEqual({ name: 'renamed', color: 'ultraviolet' })

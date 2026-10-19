@@ -9,11 +9,12 @@ import {
   type TestWindow,
 } from './fixtures'
 
+// Rust shows the editor's native menu and adds spelling guesses for the word sent with it; Cut, Copy, Paste and Select All are the system's own.
+
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const line = (page: Page, n: number) => page.locator('.cm-line').nth(n)
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 
-/** The menu lines without the accelerators the keys add. */
 async function menu(page: Page): Promise<string[]> {
   const lines = await shownMenu(page)
   return lines.map((l) => l.replace(/ (?:Ctrl|Shift|Alt|CmdOrCtrl)(?:\+\S+)+$/, ''))
@@ -140,6 +141,7 @@ test('New Note from Selection in the menu moves the text into a note', async ({ 
 })
 
 test('a right-click away from the selection moves the caret there first', async ({ page }) => {
+  // The selection toolbar covers the lines next to the selection; the line clicked is far enough away.
   await newNote(page, 'move this\n\n\nkeep this')
   await selectLine(page, 0)
   await rightClick(page, 'keep', 3)

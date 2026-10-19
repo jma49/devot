@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { hasColorLiteral, isColorChecked } from '../support/policy-patterns'
 
+// UI colours come only from generated tokens; CodeMirror themes live in .ts files, so TypeScript is scanned too.
 const UI_ROOT = 'src/renderer/src'
 
 function files(dir: string): string[] {

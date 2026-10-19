@@ -1,9 +1,6 @@
-// Another process writing to the database while Devot runs (devot-mcp; any
-// writer on another connection): the window hears of it (devot://db-changed)
-// and the note service takes what storage holds into the notes it keeps in
-// memory (mergeStored), so its next write keeps the other's changes. A write
-// made before the window hears of it is refused by storage (its body version
-// moved on) and made again after a merge, so it keeps them too.
+// Another process (devot-mcp, any writer on another connection) writes while Devot runs: the window
+// hears devot://db-changed and merges (mergeStored). A write made before that is refused by storage
+// (stale body version) and redone after the merge, so it keeps the other's changes too.
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
@@ -53,6 +50,7 @@ async function shared(a: NoteService, b: NoteService, body: string) {
   return id
 }
 
+/** Writes as another process that read the note: its Yjs document takes `edit`, over the body version it read. */
 async function editStored(storage: SqliteAdapter, id: string, edit: (text: Y.Text) => void) {
   const stored = await storage.getNote(id, { trashed: true })
   if (!stored) throw new Error(`E_TEST_NO_NOTE ${id}`)
@@ -71,9 +69,8 @@ const appendStored = (storage: SqliteAdapter, id: string, text: string) =>
   editStored(storage, id, (body) => body.insert(body.length, text))
 
 /**
- * A process on the database at `path` whose storage runs what `afterNextRead`
- * was given once its next read of a note has landed, before the caller has
- * it: another process writing between that read and the write based on it.
+ * A process whose storage runs `afterNextRead` once its next note read has landed: another
+ * process writing between that read and the write based on it.
  */
 function processReadingOn(path: string, node: string) {
   const sqlite = openSqliteAdapter(path)
@@ -130,6 +127,8 @@ describe('writes from another process', () => {
   it('writes the note again when the other wrote over edits it had saved', async () => {
     const { a, b } = twoProcesses()
     const id = await shared(a.notes, b.notes, 'one')
+    // B writes a copy that lacks A's edit, over the stored body version so storage takes it
+    // (a writer that put back an old copy, say).
     await a.notes.setBody(id, 'one two')
     await a.notes.flush()
     const copy = new Y.Doc()
@@ -296,8 +295,6 @@ describe('a write made before the window hears of an outside write', () => {
   it('reports the title another process gave a note a save took in before the window heard', async () => {
     const { a, b } = twoProcesses()
     const id = await shared(a.notes, b.notes, 'text')
-    // B renames; A types and saves before it hears of B's write, taking the
-    // title in on the retry.
     await b.notes.setTitle(id, 'Renamed in B')
     await b.notes.flush()
     await a.notes.setBody(id, 'text, typed in A')
@@ -359,6 +356,7 @@ describe('a write made before the window hears of an outside write', () => {
     open.push(other)
     const sqlite = openSqliteAdapter(path)
     open.push(sqlite)
+    // While `ahead`, the other process writes to the note just before each write of this one.
     let ahead = false
     let theirs = 0
     const storage = Object.assign(Object.create(sqlite) as SqliteAdapter, {
@@ -399,6 +397,8 @@ describe('a write made before the window hears of an outside write', () => {
     open.push(other)
     const sqlite = openSqliteAdapter(path)
     open.push(sqlite)
+    // While `racing`, the other process writes just before this one's write and deletes the note
+    // for good just before this one reads it again.
     let racing = false
     const storage = Object.assign(Object.create(sqlite) as SqliteAdapter, {
       async putNote(record: NoteRecord) {
