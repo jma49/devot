@@ -287,7 +287,13 @@ fn decode_entities(text: &str) -> String {
         }
         let Some(end) = semi.filter(|s| s - amp - 1 <= MAX_ENTITY_LEN) else {
             // No `&` before this point is near enough to that `;` either.
-            from = from.max(semi.map_or(from, |s| s - MAX_ENTITY_LEN - 1));
+            if let Some(s) = semi {
+                let mut skip = s - MAX_ENTITY_LEN - 1;
+                while !text.is_char_boundary(skip) {
+                    skip += 1;
+                }
+                from = from.max(skip);
+            }
             continue;
         };
         if let Some(c) = entity(&text[amp + 1..end]) {
@@ -349,6 +355,11 @@ mod tests {
         assert_eq!(decode_entities("&amp;&#x2014;&ampx;"), "&\u{2014}&ampx;");
         assert_eq!(decode_entities("&&&&&&&&&&&&&&amp;"), "&&&&&&&&&&&&&&");
         assert_eq!(decode_entities("&x;&lt;&;"), "&x;<&;");
+        assert_eq!(decode_entities("&éééééé;"), "&éééééé;");
+        assert_eq!(
+            decode_entities("R&D \u{4e2d}\u{6587}\u{6807}\u{9898}\u{6d4b} &mdash; \u{5b8c}"),
+            "R&D \u{4e2d}\u{6587}\u{6807}\u{9898}\u{6d4b} \u{2014} \u{5b8c}"
+        );
     }
 
     #[test]

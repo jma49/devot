@@ -256,6 +256,7 @@ fn hand_off(args: &[String]) -> Result<(), &'static str> {
     let message = handoff_message(&cwd, &exe, args);
     hand_off_with(
         single_instance::send(&identifier, message.as_bytes()),
+        !args.is_empty(),
         || data_folder(&identifier).is_some_and(|dir| startup::folder_held(&dir)),
         || launch_command(&exe, args),
     )
@@ -263,13 +264,15 @@ fn hand_off(args: &[String]) -> Result<(), &'static str> {
 
 fn hand_off_with(
     sent: Result<bool, &'static str>,
+    has_args: bool,
     running: impl FnOnce() -> bool,
     launch: impl FnOnce() -> Result<(), &'static str>,
 ) -> Result<(), &'static str> {
     if sent? {
         return Ok(());
     }
-    if running() {
+    // With nothing to hand over, launching just brings a running Devot forward.
+    if has_args && running() {
         return Err("E_CLI_HANDOFF_UNREACHABLE");
     }
     launch()
@@ -615,6 +618,7 @@ mod tests {
         assert_eq!(
             hand_off_with(
                 sent,
+                true,
                 || startup::folder_held(&data),
                 || {
                     launched = true;
@@ -629,6 +633,7 @@ mod tests {
         assert_eq!(
             hand_off_with(
                 sent,
+                true,
                 || startup::folder_held(&data),
                 || {
                     launched = true;
@@ -639,9 +644,25 @@ mod tests {
         );
         assert!(launched);
         assert_eq!(
-            hand_off_with(Ok(true), || unreachable!(), || unreachable!()),
+            hand_off_with(Ok(true), true, || unreachable!(), || unreachable!()),
             Ok(())
         );
+        let held = startup::take_folder(&data).unwrap();
+        let mut launched = false;
+        assert_eq!(
+            hand_off_with(
+                sent,
+                false,
+                || startup::folder_held(&data),
+                || {
+                    launched = true;
+                    Ok(())
+                }
+            ),
+            Ok(())
+        );
+        assert!(launched);
+        drop(held);
         assert_eq!(
             data_folder("io.github.jma49.devot")
                 .map(|d| d.ends_with("Library/Application Support/io.github.jma49.devot")),
