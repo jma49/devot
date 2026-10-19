@@ -65,6 +65,7 @@ const isFile = (state: DiskState | undefined): state is string =>
 export type MirrorEntryKind = 'note' | 'file'
 
 export type MirrorOp =
+  /** The file at `path` was changed outside Devot: it stays, renamed to a free "edited outside Devot" name, and leaves the manifest. */
   | { kind: 'keep'; entry: MirrorEntryKind; id: string; path: string }
   /** The entry leaves the manifest; nothing on disk changes (its file is gone, or not Devot's). */
   | { kind: 'forget'; entry: MirrorEntryKind; id: string }
@@ -81,6 +82,7 @@ export type MirrorOp =
       files: string[]
     }
   | { kind: 'file'; id: string; path: string; copy: boolean }
+  /** A null path forgets the notebook's folder. */
   | { kind: 'book'; id: string; path: string | null }
 
 export interface MirrorResult {
@@ -238,13 +240,16 @@ export interface MirrorPlanInput {
   includeAttachments: boolean
   untitled: string
   bodies: ReadonlyMap<string, string>
+  /** Attachment file names (Rust's, see `mirror_files`); null when not in the database. */
   files: ReadonlyMap<string, string | null>
   /** Asked only for attachments whose copy has a file in the way. */
   hashes: ReadonlyMap<string, string | null>
   /** A note may be rendered for a place it does not take in the end, to tell whether a file there is its own. */
   texts: ReadonlyMap<string, ReadonlyMap<string, MirrorText>>
   disk: ReadonlyMap<string, DiskState>
+  /** Notes to leave as they are in this pass (their work failed). */
   skip?: ReadonlySet<string>
+  /** At most this many notes get new files in one plan; the rest wait (`deferred`). */
   limit?: number
   memo?: MirrorMemo
 }
@@ -755,17 +760,21 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
 export interface MirrorOpened {
   generation: number
   includeAttachments: boolean
+  /** Null when the caller already holds this generation's. */
   manifest: MirrorManifest | null
 }
 
 export interface MirrorHost {
   /** Throws E_MIRROR_OFF, or the code the mirror paused with. */
   open(known: number | null): Promise<MirrorOpened>
+  /** Live notes only. */
   bodies(ids: readonly string[]): Promise<{ id: string; bodyMd: string }[]>
+  /** Attachments that are in the database only. */
   files(ids: readonly string[]): Promise<{ id: string; name: string }[]>
   hashes(ids: readonly string[]): Promise<{ id: string; sha256: string }[]>
   /** For null, every manifest path whose file does not hold what the manifest says. */
   check(generation: number, paths: readonly string[] | null): Promise<Record<string, DiskState>>
+  /** One result each, in order, up to a failure that stops them all. */
   apply(generation: number, ops: readonly MirrorOp[]): Promise<MirrorResult[]>
 }
 
@@ -792,6 +801,7 @@ export interface MirrorRunner {
   wake(): void
   /** A running pass ends after its current batch, so the manifest records it. */
   stop(): Promise<void>
+  /** Settles once no pass runs or waits (tests). */
   idle(): Promise<void>
 }
 

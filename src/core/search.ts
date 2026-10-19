@@ -79,6 +79,7 @@ export function statusFromName(name: string): NoteStatus | null {
   return (NOTE_STATUSES as readonly string[]).includes(key) ? (key as NoteStatus) : null
 }
 
+/** True, false, yes, no, 1, 0 in any case; null for any other value. */
 export function pinnedFromValue(value: string): 'true' | 'false' | null {
   const key = value.trim().toLowerCase()
   if (key === 'true' || key === 'yes' || key === '1') return 'true'
@@ -86,6 +87,7 @@ export function pinnedFromValue(value: string): 'true' | 'false' | null {
   return null
 }
 
+/** Replaces each lone surrogate (it cannot cross to storage as text) with U+FFFD. */
 export const wellFormed = (text: string) =>
   text.replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, '\ufffd')
 
@@ -100,6 +102,7 @@ const clip = (value: string, field: SearchField = 'any') =>
     .join('')
     .trim()
 
+/** Never throws: what cannot be read is searched as text. */
 export function parseSearch(query: string): SearchClause[] {
   const text = wellFormed(query)
   const clauses: SearchClause[] = []
@@ -189,6 +192,7 @@ export function highlightTerms(clauses: readonly SearchClause[]): {
 
 export const escapeRegExp = (text: string) => text.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
 
+/** Longest terms first; null for none. */
 export function searchPattern(terms: readonly string[]): RegExp | null {
   const pattern = [...new Set(terms.filter((t) => t !== ''))]
     .sort((a, b) => b.length - a.length)
@@ -251,6 +255,7 @@ const CASELESS_WIDE = String.raw`\u{3000}-\u{9fff}\u{ac00}-\u{d7a3}\u{f900}-\u{f
 const CASELESS = new RegExp(String.raw`^[\0-\x40\x5b-\x60\x7b-\x7f${CASELESS_WIDE}]*$`, 'u')
 const ASCII_OR_CASELESS = new RegExp(String.raw`^[\0-\x7f${CASELESS_WIDE}]*$`, 'u')
 
+/** UTF-16 index `count` code points before `at` (0 at the most). */
 function codePointsBack(text: string, at: number, count: number): number {
   let i = at
   for (let n = 0; n < count && i > 0; n += 1) {
@@ -262,6 +267,7 @@ function codePointsBack(text: string, at: number, count: number): number {
   return i
 }
 
+/** UTF-16 index `count` code points after `at` (the end at the most). */
 function codePointsAhead(text: string, at: number, count: number): number {
   let i = at
   for (let n = 0; n < count && i < text.length; n += 1) {
@@ -337,7 +343,7 @@ const excerptAt = (
 }
 
 /**
- * About 160 characters of readable text around the first of `terms`, with an ellipsis when it starts mid-text.
+ * About 160 characters of readable text around the first of `terms`, with an ellipsis when it starts mid-text; undefined when no term is found.
  *
  * A body longer than twice EXCERPT_STRETCH is not read whole, so a page of results costs the same however long the notes are: terms are looked for as written, at
  * most EXCERPT_PLACES times, and each place is read with EXCERPT_STRETCH characters on each side as a body of its own. What lies outside the stretch (an open code

@@ -46,10 +46,12 @@ export interface ImportItem {
 
 /** Paths are relative, with `/`: to the folder for one folder; starting with each folder's name for several (and with the name of each file's folder for files). */
 export interface ImportScan {
+  /** The import session; Rust only reads files for a session it started. */
   id: number
   name: string
   kind: ImportKind
   files: ImportItem[]
+  /** Attached only when a note shows one; sorted. */
   images: ImportItem[]
   skipped: ImportProblem[]
   /** The notebook to import into when the import started from its menu; null or missing from File > Import. */
@@ -85,6 +87,7 @@ export interface ImportOptions {
   source: ImportSource
   /** Without it, embedded images are listed as not imported. */
   files?: Pick<StorageAdapter, 'putFile'> | undefined
+  /** The notebook the notes (and notebooks made for folders) go into; null or left out for none. */
   destination?: string | null
   onProgress?: (done: number, total: number) => unknown
   /** Once true, the import ends there (the file it was on is finished first) and the rest are listed as not imported. */
@@ -154,6 +157,7 @@ export function withoutFrontMatterKeys(markdown: string, keys: readonly string[]
   return markdown.slice(0, start) + block + rest
 }
 
+/** Of a double-quoted scalar only `\"` and `\\` are read. */
 function scalar(raw: string): string {
   const value = trimWhitespace(raw)
   if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
@@ -208,6 +212,7 @@ function splitList(raw: string): string[] {
   return items
 }
 
+/** Without a leading `#` (unless `exact`), trimmed, no empty or repeated names. */
 function cleanTags(names: readonly string[], exact = false): string[] {
   const seen = new Set<string>()
   const tags: string[] = []
@@ -242,6 +247,7 @@ function textOf(node: unknown): { text: string | null; quoted: boolean } | undef
   return { text: NULL_WORDS.has(value) ? null : value, quoted: false }
 }
 
+/** Undefined when the YAML is not valid; everything is read as text (failsafe schema), so `2024` and `true` stay as written. */
 function yamlValue(chunk: string): YamlValue | undefined {
   const doc = parseDocument(chunk, { schema: 'failsafe', uniqueKeys: false })
   if (doc.errors.length > 0 || !isMap(doc.contents) || doc.contents.items.length !== 1) {
@@ -322,6 +328,7 @@ const clip = (text: string, max: number) => {
   return chars.length > max ? chars.slice(0, max).join('').trim() : text
 }
 
+/** On one line, at most MAX_TITLE_CHARS characters. */
 export const noteTitle = (text: string) => clip(oneLine(text), MAX_TITLE_CHARS)
 
 function baseName(path: string): string {
@@ -556,6 +563,7 @@ function attributeValue(raw: string, quote: string): string {
   return typeof src === 'string' ? src : raw
 }
 
+/** Null when a line's text is not the end of the note's line. */
 function sourceOffsets(markdown: string, start: number, end: number, value: string) {
   const source = markdown.slice(start, end)
   if (source === value) return (offset: number) => start + offset
@@ -672,6 +680,7 @@ function resolve(notePath: string, url: string): Resolved {
   return segments.length === 0 ? { kind: 'outside' } : { kind: 'path', path: segments.join('/') }
 }
 
+/** Null when the destination is not a local file inside the import folder; a leading `/` means the import folder. */
 export function resolveImagePath(notePath: string, url: string): string | null {
   const resolved = resolve(notePath, url)
   return resolved.kind === 'path' ? resolved.path : null
@@ -806,6 +815,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
     await onProgress?.(index + 1, total)
   }
 
+  /** Takes back a failed file's note (purging also deletes its attachments) and the notebooks made only for it. False when that fails. */
   async function discard(noteId: string | undefined, made: string[]): Promise<boolean> {
     try {
       if (noteId !== undefined) {

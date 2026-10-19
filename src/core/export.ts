@@ -79,6 +79,7 @@ export interface ExportReport {
 
 const encoder = new TextEncoder()
 
+/** Never cuts inside a character. */
 function clipBytes(text: string, max: number): string {
   // A UTF-16 code unit is at most three UTF-8 bytes: short text fits as it is.
   if (text.length * 3 <= max) return text
@@ -92,6 +93,7 @@ function clipBytes(text: string, max: number): string {
   return out
 }
 
+/** One line, no path separators, colons or leading dot, at most 200 bytes; `fallback` when nothing is left. */
 export function fileStem(text: string, fallback: string): string {
   const cleaned = text
     .replace(/[\p{Cc}\p{Cf}/\\:]/gu, ' ')
@@ -131,6 +133,7 @@ export interface PlanOptions {
   untitled: string
 }
 
+/** Null when the name comes from the note or notebook, not known before planning. */
 export function exportName(target: ExportTarget): string | null {
   return target.kind === 'all' || target.kind === 'notes' ? fileStem(target.name, '_') : null
 }
@@ -244,16 +247,19 @@ export async function planExport(options: PlanOptions): Promise<ExportPlan> {
 /** Any other ID names no attachment, so its image stays as written (Rust would refuse it, and the whole page with it). */
 export const FILE_URL = new RegExp(`^${fileUri(`(${FILE_ID_SOURCE})`)}$`)
 
+/** Null for URLs that are not attachments. */
 function attachmentOf(url: string): { id: string; size: ImageSize } | null {
   const sized = splitImageSize(url)
   const id = FILE_URL.exec(sized.url)?.[1]
   return id === undefined ? null : { id, size: sized.size }
 }
 
+/** Each attachment once, in order, at any size. */
 const attachmentsOf = (urls: readonly string[]) => [
   ...new Set(urls.flatMap((url) => attachmentOf(url)?.id ?? [])),
 ]
 
+/** Markdown images and raw HTML `<img>` tags, each attachment once, in order. */
 export function attachmentIds(markdown: string): string[] {
   // Without a `![` or an `<img` there is no image: nothing to parse.
   if (!mayShowImages(markdown)) return []
@@ -342,6 +348,7 @@ export interface ExportOptions extends PlanOptions {
   sink: ExportSink
 }
 
+/** Null when the user cancelled. A note that cannot be written, or an image that cannot be copied or whose link cannot be found (its link stays as it was), is listed as a problem. */
 export async function exportMarkdown(options: ExportOptions): Promise<ExportReport | null> {
   const { sink } = options
   // A folder whose name is known asks first: every note is read only once

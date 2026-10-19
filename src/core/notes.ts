@@ -4,6 +4,7 @@
 // Every write is based on the stored body version (NoteRecord.bodyVersion); when another process wrote first, the note merges the stored copy in
 // (Yjs merge, newer HLC per metadata field) and writes again (see put).
 // Only the NOTES_IN_MEMORY most recently used notes stay loaded, and only when nothing would be lost (see trim).
+// Writes of one note are serialised, each taken from the note as it is when it starts, so an older snapshot never lands after a newer one.
 // Revision history lives in revisions.ts; compaction sweeps run on their own queue so no user action waits for them (see sweep).
 
 import * as Y from 'yjs'
@@ -121,15 +122,18 @@ export interface NoteService {
   setBody(id: string, markdown: string): Promise<void>
   /** On a failed save the note is dropped anyway and the error thrown: the caller (import, devot-mcp) undoes or reports it. */
   release(id: string): Promise<void>
+  /** Line breaks become spaces and the title is cut to MAX_TITLE_CHARS (see clipTitle), so storage always takes it. */
   setTitle(id: string, title: string): Promise<void>
   setBook(id: string, bookId: string | null): Promise<void>
   setStatus(id: string, status: NoteStatus): Promise<void>
   /** Both dates take one new HLC so the change wins over older writes (schema v17). */
+  /** Throws E_NOTE_TIME_INVALID for a date that is not a whole, non-negative millisecond time, or an update before the creation. */
   setDates(id: string, dates: { createdAt?: number; updatedAt?: number }): Promise<void>
   setPinned(id: string, pinned: boolean): Promise<void>
   /** Writes now (a batch writes each note before the next). On failure it rejects and the field reverts unless changed again meanwhile. A note not in memory is not loaded: its stored record is rewritten with the field changed. `bookChecked`: the caller already ran checkBook. */
   writeMeta(id: string, change: MetaChange, options?: { bookChecked?: boolean }): Promise<void>
   /** Templates count as a notebook; null always passes. */
+  /** Throws E_BOOK_NOT_FOUND unless notes can go in `bookId`: a live notebook or Templates. */
   checkBook(bookId: string | null): Promise<void>
   /** With `versions` (quitting), unversioned typing also becomes a version. Rejects with E_NOTE_SAVE_FAILED and the IDs once the rest are saved. */
   flush(options?: { versions?: boolean }): Promise<void>
@@ -138,6 +142,7 @@ export interface NoteService {
   resumeCompaction(): void
   /** Templates are never found. `flush: false` (the `[[` popup runs on every key) searches as stored and writes nothing. */
   search(query: string, scope?: SearchScope, options?: { flush?: boolean }): Promise<NoteSummary[]>
+  /** Pending edits are saved first; when the write fails it rejects and the note stays where it was. */
   trash(id: string): Promise<void>
   restore(id: string): Promise<void>
   listTrash(): Promise<TrashedNote[]>
@@ -148,20 +153,26 @@ export interface NoteService {
     createdAt: number
     updatedAt: number
   }>
+  /** Live notes only (never the Trash), as stored. */
   backlinks(id: string): Promise<NoteSummary[]>
+  /** Pending edits included; a missing or trashed note is left out. */
   linkTargets(ids: readonly string[]): Promise<Record<string, NoteLinkTarget>>
   /** Pending edits are saved first so a link pasted a moment ago keeps its image. */
   purge(id: string): Promise<void>
+  /** Resolves to how many notes were deleted. */
   emptyTrash(): Promise<number>
   history(id: string): Promise<HistoryEntry[]>
+  /** Throws E_REVISION_NOT_FOUND for anything but a body version of this note. */
   compareRevision(id: string, revisionId: string): Promise<DiffBlock[]>
   /** Returns the Yjs update the edit made, for the editor's replica to apply as one undoable step. */
   restoreRevision(id: string, revisionId: string): Promise<Uint8Array>
+  /** Pending edits are saved and unversioned typing becomes a version, so it counts. */
   activity(now: number, offsetAt?: OffsetAt): Promise<ActivityHeatmap>
   /**
    * Takes in what another process wrote (devot-mcp, or a writer on another connection; see `devot://db-changed`), so the next write keeps the other's changes.
    * Every note in memory merges the stored state. Returns the notes whose title the other process changed.
    */
+  /** A note deleted for good meanwhile is let go; the others stay in memory (letting one go could lose an edit that has just loaded it). A note that cannot be read is left as it was. */
   mergeStored(): Promise<{ id: string; title: string }[]>
 }
 
@@ -190,6 +201,7 @@ interface Live {
   savedEdits: number
   queue: Promise<void>
   writes: number
+  /** Service calls using the note now (see using): it stays in memory while any does. */
   users: number
   /** Set when a retried write took in a title another process gave the note; mergeStored reports it. */
   retitled: boolean
@@ -313,6 +325,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
   const now = options.now ?? Date.now
   const saveDelayMs = options.saveDelayMs ?? 300
   const retryDelayMs = options.retryDelayMs ?? 1000
+  // Notes in memory, the least recently used first (see load and trim).
   const live = new Map<string, Live>()
   const loading = new Map<string, { note: Promise<Live>; users: number }>()
   const holds = new Map<string, number>()
@@ -522,6 +535,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     note.edits !== note.savedEdits || META_HLCS.some((key) => note.record[key] !== note.saved[key])
 
   /** Serialises writes of a note so they never overlap and land in order. */
+  // Serialises the note's writes: they never overlap and land in the order asked for.
   const exclusive = <T>(note: Live, work: () => Promise<T>): Promise<T> => {
     note.writes += 1
     const run = note.queue.then(work)
@@ -543,6 +557,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     if (failing.delete(note.record.id)) report()
   }
 
+  // The changes stay pending: retried after a delay that doubles with each failure in a row, and reported.
   const failed = (note: Live, error: unknown) => {
     const { id } = note.record
     // A note let go meanwhile is not tried again.
@@ -698,6 +713,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     }
   }
 
+  // Nothing of the note would be lost if it left memory: no user, no editor hold, no write pending or failed, title not being typed.
   const idle = (note: Live) =>
     note.users === 0 &&
     note.writes === 0 &&
@@ -708,6 +724,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     !failing.has(note.record.id) &&
     !(note.rev.title && now() - note.rev.title.at < REVISION_PAUSE_MS)
 
+  // Lets the least recently used idle notes go beyond NOTES_IN_MEMORY; unversioned typing becomes a version first.
   const trim = () => {
     let over = live.size - NOTES_IN_MEMORY
     for (const note of live.values()) {
@@ -758,6 +775,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     bookId !== null && (await isLiveBook(bookId)) ? bookId : null
 
   /** writeMeta for a note not in memory: the stored record is rewritten with the field changed and its body as stored, so no Yjs document is built and the search index is left alone (schema v15). */
+  // Writes of one note made this way go one at a time, and a load of it waits for them.
   const writeStored = (id: string, change: MetaChange): Promise<void> => {
     const run = (coldWrites.get(id) ?? Promise.resolve()).then(() =>
       untilWritten(async () => {

@@ -28,12 +28,18 @@ export interface BookServiceOptions {
 }
 
 export interface BookService {
+  /** Not deleted, and never Templates (TEMPLATES_BOOK_ID). */
   list(): Promise<BookRecord[]>
+  /** After the others in `parentId` (null: top level), with Allow AI Access off unless `aiAccess`. */
   create(name: string, parentId: string | null, options?: { aiAccess?: boolean }): Promise<string>
   rename(id: string, name: string): Promise<void>
+  /** Under `parentId` (null: top level), after the others there. */
   move(id: string, parentId: string | null): Promise<void>
+  /** Right before or after `targetId`, under the same parent; writes only the moved notebook unless its neighbours share a key. */
   place(id: string, targetId: string, where: 'before' | 'after'): Promise<void>
+  /** Also deletes the sub-notebooks; the notes are kept. */
   remove(id: string): Promise<void>
+  /** For this notebook alone. */
   setAiAccess(id: string, on: boolean): Promise<void>
   /** Throws E_BOOK_ICON_INVALID for an unknown icon or colour. */
   setIcon(id: string, icon: string | null, color: TagColor | null): Promise<void>

@@ -116,10 +116,12 @@ export interface AiTag {
 export interface AiService {
   notebooks(): Promise<AiNotebook[]>
   search(query: string, limit?: number): Promise<AiSearchHit[]>
+  /** Any ID that is not a visible note fails with E_NOTE_NOT_FOUND. */
   read(id: string): Promise<AiNote>
   create(input: AiNewNote): Promise<{ id: string; title: string; notebook: AiNotebookRef }>
-  /** Keeps the body as it was as a version first. */
+  /** Keeps the body as it was as a version first; returns the note as it is after the change. */
   update(input: AiNoteUpdate): Promise<AiNote>
+  /** Never deletes for good. */
   trash(id: string): Promise<{ id: string; title: string }>
   tags(): Promise<AiTag[]>
   /** At the top level or inside an allowed notebook (ID or exact name). */

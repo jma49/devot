@@ -9,11 +9,14 @@ export interface NoteRecord {
   id: string
   title: string
   titleHlc: string
+  /** Derived from `ydoc`; never written on its own. */
   bodyMd: string
   ydoc: Uint8Array
   /** Version of the stored body this body is based on (see putNote). 0 for a new note and for a body stored before versions (schema v16). */
   bodyVersion: number
+  /** null for none; a deleted notebook counts as none. */
   bookId: string | null
+  /** HLC fields are '' when never set. */
   bookHlc: string
   status: NoteStatus
   statusHlc: string
@@ -46,6 +49,7 @@ export interface NoteSummary {
   status: NoteStatus
   pinned: boolean
   tagIds: string[]
+  /** Search results only: the body around the first searched word, if any is found. */
   excerpt?: string
 }
 
@@ -57,6 +61,7 @@ export interface TextCondition {
 
 export interface SetCondition {
   kind: 'book' | 'tag' | 'status'
+  /** Never empty. */
   ids: string[]
   negate: boolean
 }
@@ -64,6 +69,7 @@ export interface SetCondition {
 export interface NoteQuery {
   text: TextCondition[]
   sets: SetCondition[]
+  /** null: either. */
   pinned: boolean | null
 }
 
@@ -104,6 +110,7 @@ export interface BookRecord {
   id: string
   name: string
   nameHlc: string
+  /** null: top level. */
   parentId: string | null
   parentHlc: string
   createdAt: number
@@ -113,6 +120,7 @@ export interface BookRecord {
   /** Allow AI Access: devot-mcp sees live notes filed directly in this notebook (not its sub-notebooks). */
   aiAccess: boolean
   aiAccessHlc: string
+  /** Siblings show in key order, equal keys in ID order (order.ts). */
   sortKey: string
   sortKeyHlc: string
   /** An unknown name (from a later catalog, through sync) reads as null. */
@@ -164,26 +172,34 @@ export interface ActivityData {
 }
 
 export interface StorageAdapter {
+  /** Notes not in the trash, most recently updated first. */
   listNotes(): Promise<NoteSummary[]>
+  /** Null for a purged note; a note in the trash is returned only with `trashed`. */
   getNote(id: string, options?: { trashed?: boolean }): Promise<NoteRecord | null>
+  /** Live notes meeting every condition, best matches first, each with its excerpt; at most `limit`. */
   searchNotes(query: NoteQuery, limit: number): Promise<NoteSummary[]>
+  /** Not purged, most recently deleted first. */
   listTrash(): Promise<TrashedNote[]>
   /** Final: no later write restores it. An attachment another non-purged note still shows passes to that note, a live one before one in the Trash, then the smallest ID. */
   purgeNote(id: string, at: number, hlc: string): Promise<void>
   /** A compare-and-set on the body: written only while the stored body is at `note.bodyVersion`, then moved to the next version. Otherwise refused with E_NOTE_BODY_STALE; the writer merges the stored body (Yjs) and writes again. Metadata merges per field (newer HLC wins). Records outside the limits are refused (checkNote in noteLimits.ts). A purged note is left alone. */
   putNote(note: NoteRecord): Promise<void>
+  /** For a note not in the trash. Throws an error code for an unknown note, a refused format or a size out of range. */
   putFile(meta: FileMeta, data: Uint8Array): Promise<void>
-  /** A file that does not exist is skipped. */
+  /** A file that does not exist is skipped. Throws E_NOTE_NOT_FOUND for an unknown or trashed note. */
   copyFiles(noteId: string, copies: readonly FileCopy[]): Promise<void>
   listBooks(): Promise<BookRecord[]>
   putBook(book: BookRecord): Promise<void>
   listTags(): Promise<TagRecord[]>
   putTag(tag: TagRecord): Promise<void>
   putNoteTag(link: NoteTagRecord): Promise<void>
+  /** On or off, with its HLC; null when never written. */
   getNoteTag(noteId: string, tagId: string): Promise<NoteTagRecord | null>
   /** Replaces the time, state and value of the revision with its ID. Ignored for a purged or unknown note. */
   putRevision(revision: RevisionRecord): Promise<void>
+  /** Without state, newest first. */
   listRevisions(noteId: string): Promise<RevisionSummary[]>
+  /** With its state, or null. */
   getRevision(id: string): Promise<RevisionRecord | null>
   deleteRevisions(noteId: string, ids: readonly string[]): Promise<void>
   /** Weighed by a compaction sweep (see compactionWindows), a page of notes at a time. Read from indexes, never a version's state. */
@@ -193,8 +209,9 @@ export interface StorageAdapter {
     after: string,
     limit: number,
   ): Promise<CompactableVersion[]>
-  /** With `sweptAt`, records the sweep time in the same write. */
+  /** An event, a baseline or an unknown ID is left alone. With `sweptAt`, records the sweep time in the same write. */
   compactRevisions(ids: readonly string[], sweptAt: number | null): Promise<void>
+  /** Null before the first sweep. */
   lastCompaction(): Promise<number | null>
   /** Purged notes and their revisions are gone. */
   listActivity(since: number): Promise<ActivityData>
