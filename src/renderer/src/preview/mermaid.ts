@@ -9,6 +9,7 @@
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import { format as fill, t } from '../i18n'
 import type { IslandContent, IslandContext, PreviewIsland } from './islands'
+import { keptAnswers } from './kept'
 import {
   diagramName,
   isFrameMessage,
@@ -74,10 +75,22 @@ type Answer =
 
 let queue: Promise<unknown> = Promise.resolve()
 
+interface Font {
+  fontFamily: string
+  fontSize: string
+}
+
+/** A diagram drawn once for a theme and font is not drawn again. */
+const drawn = keptAnswers<Answer>(64, (answer) => answer.type === 'rendered')
+
 function renderInFrame(source: string, appearance: IslandContext['appearance']): Promise<Answer> {
-  const turn = queue.then(() => ask(source, appearance))
-  queue = turn
-  return turn
+  const preview = document.querySelector('.preview') ?? document.body
+  const { fontFamily, fontSize } = getComputedStyle(preview)
+  return drawn(JSON.stringify([appearance, fontFamily, fontSize, source]), () => {
+    const turn = queue.then(() => ask(source, appearance, { fontFamily, fontSize }))
+    queue = turn
+    return turn
+  })
 }
 
 /**
@@ -85,7 +98,7 @@ function renderInFrame(source: string, appearance: IslandContext['appearance']):
  * still loading has a limit of its own, so a slow start is not taken for a
  * failed drawing.
  */
-function ask(source: string, appearance: IslandContext['appearance']): Promise<Answer> {
+function ask(source: string, appearance: IslandContext['appearance'], font: Font): Promise<Answer> {
   const id = (counter += 1)
   return new Promise<Answer>((resolve) => {
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -104,16 +117,7 @@ function ask(source: string, appearance: IslandContext['appearance']): Promise<A
         if (!waiting.has(id)) return
         clearTimeout(timer)
         timer = setTimeout(expire, TIMEOUT_MS)
-        const preview = document.querySelector('.preview') ?? document.body
-        const font = getComputedStyle(preview)
-        const request: RenderRequest = {
-          type: 'render',
-          id,
-          source,
-          appearance,
-          fontFamily: font.fontFamily,
-          fontSize: font.fontSize,
-        }
+        const request: RenderRequest = { type: 'render', id, source, appearance, ...font }
         target.postMessage(request)
       },
       () => answer({ type: 'failed', reason: 'render' }),

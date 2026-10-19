@@ -241,10 +241,16 @@ async function openOnce(page: Page, title: string, diagrams: number): Promise<Op
       const [editor, shown, mermaid] = await Promise.all([
         track(() => body().includes('Benchmark sample')),
         track(() => (preview()?.textContent ?? '').includes(end)),
-        track(
-          () => (preview()?.querySelectorAll('.island-mermaid svg').length ?? 0) >= count,
-          30_000,
-        ),
+        // Diagrams draw once they are within a screen of the view (islands.ts).
+        track(() => {
+          const pane = preview()
+          if (!pane || !(pane.textContent ?? '').includes(end)) return false
+          const limit = pane.getBoundingClientRect().bottom + pane.clientHeight
+          const near = [...pane.querySelectorAll('.island-mermaid')].filter(
+            (el: Win) => el.getBoundingClientRect().top <= limit,
+          )
+          return near.length <= count && near.every((el: Win) => el.querySelector('svg'))
+        }, 30_000),
       ])
       return { editor, preview: shown, mermaid }
     },
