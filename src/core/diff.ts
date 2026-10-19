@@ -39,6 +39,7 @@ export function lineDiff(from: string, to: string): DiffLine[] {
   return [...a.slice(0, start).map(same), ...middle, ...a.slice(endA).map(same)]
 }
 
+/** Null past MAX_EDITS. */
 function myers(a: string[], b: string[]): DiffLine[] | null {
   const n = a.length
   const m = b.length

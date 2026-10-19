@@ -8,7 +8,7 @@ const CONTAINER_MARKERS =
 const SYNTAX_ONLY = /^(?:(?:`{3,}|~{3,}).*|([-*_])(?:[ \t]*\1){2,}[ \t]*|=+[ \t]*)$/
 const HEADING = /^#{1,6}(?:[ \t]+(.*?))??(?:[ \t]+#+)?[ \t]*$/
 
-/** Code fences, rules and setext underlines are skipped; inline Markdown stays as typed. */
+/** Code fences, rules and setext underlines are skipped; inline Markdown stays as typed. Empty when no line has text. */
 export function extractTitle(text: string): string {
   for (const line of text.split(/\r\n?|\n/)) {
     const title = lineTitle(line)
@@ -17,6 +17,7 @@ export function extractTitle(text: string): string {
   return ''
 }
 
+/** Empty for a line of syntax only. */
 function lineTitle(line: string): string {
   const rest = line.replace(CONTAINER_MARKERS, '')
   if (SYNTAX_ONLY.test(rest)) return ''
@@ -27,7 +28,7 @@ function lineTitle(line: string): string {
 const HEADLINE_SCAN_CHARS = 4000
 export const HEADLINE_CHARS = 120
 
-/** Shown, never stored as the title. Only the start of the body is read. */
+/** Shown, never stored as the title. Only the start of the body is read. Empty when it holds no text. */
 export function headline(markdown: string): string {
   const lines = markdown.slice(0, HEADLINE_SCAN_CHARS).split(/\r\n?|\n/)
   let first = 0
@@ -45,7 +46,7 @@ export function headline(markdown: string): string {
 const EXCERPT_SCAN_CHARS = 2000
 export const LIST_EXCERPT_CHARS = 200
 
-/** For a note with no title the first line is its headline, so the excerpt starts after it. */
+/** For a note with no title the first line is its headline, so the excerpt starts after it. Empty when nothing is left. */
 export function listExcerpt(markdown: string, title: string): string {
   let text = readableText(markdown.slice(0, EXCERPT_SCAN_CHARS))
   if (title === '') {

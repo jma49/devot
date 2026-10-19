@@ -27,6 +27,7 @@ export function noteSortId(sort: NoteSort): NoteSortId {
   return `${sort.key}-${sort.direction}`
 }
 
+/** Undefined for anything that is not a known order. */
 export function parseNoteSort(value: unknown): NoteSort | undefined {
   return NOTE_SORTS.find((sort) => noteSortId(sort) === value)
 }

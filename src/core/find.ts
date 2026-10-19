@@ -57,6 +57,7 @@ function* matchesOf(text: string, re: RegExp): Generator<FindMatch> {
   }
 }
 
+/** Never throws. */
 export function findMatches(
   text: string,
   options: FindOptions,
@@ -146,6 +147,7 @@ export interface FindChange {
   insert: string
 }
 
+/** In order and never overlapping; none for an invalid pattern. */
 export function replacementChanges(
   text: string,
   options: FindOptions,

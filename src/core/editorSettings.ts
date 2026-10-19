@@ -252,6 +252,7 @@ export function parseEditorSettings(value: unknown): EditorSettings {
   return out as unknown as EditorSettings
 }
 
+/** Throws `E_EDITOR_SETTINGS_INVALID` for an unknown key or a bad value. */
 export function checkEditorSettingsPatch(patch: unknown): Partial<EditorSettings> {
   const from = record(patch)
   for (const [key, value] of Object.entries(from)) {

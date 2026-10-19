@@ -122,4 +122,5 @@ export function sequentialKeys(n: number): string[] {
   return keys
 }
 
+/** Plain string order, never locale-aware. */
 export const compareKeys = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)

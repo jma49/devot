@@ -125,5 +125,6 @@ export function usageCounts(
 
 /** Nothing implements it, and no code path sends events anywhere. An upload ships with accounts and only as an opt-in. */
 export interface UsageTransport {
+  /** Oldest first; rejects with a code when it cannot deliver. */
   send(events: readonly StoredUsageEvent[]): Promise<void>
 }

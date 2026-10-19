@@ -102,6 +102,7 @@ function hasTexMath(node: Element): boolean {
 const dataLabel = (url: string) =>
   'data:' + (/^data:([^;,]*)/i.exec(url)?.[1] ?? '').toLowerCase().slice(0, 100)
 
+/** Null when the text is not base64. */
 function base64Bytes(text: string): Uint8Array | null {
   try {
     return Uint8Array.from(atob(text.replace(/[\t\n\f\r ]/g, '')), (c) => c.charCodeAt(0))
@@ -206,6 +207,7 @@ function prepare(root: Root, marker: string, newId?: () => string): Prepared {
   return out
 }
 
+/** Returns the IDs of the images linked. */
 function restore(tree: MdRoot, marker: string, prepared: Prepared): Set<string> {
   const linked = new Set<string>()
   const imageAt = new RegExp(`^${marker}i(\\d+)$`)

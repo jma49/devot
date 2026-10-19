@@ -173,6 +173,7 @@ function render(pieces: Piece[]): string {
   return pieces.map((p) => (typeof p === 'string' ? p : p.char.repeat(p.left))).join('')
 }
 
+/** Case and spacing ignored; null when blank or too long to be a label. */
 function normalizeLabel(label: readonly string[]): string | null {
   if (label.length > MAX_LABEL_CHARS) return null
   const key = label.join('').replace(BLANKS, ' ').replace(/^ | $/g, '').toLowerCase()

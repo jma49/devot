@@ -54,6 +54,7 @@ export function splitAltSize(alt: string): { name: string; dimensions: ImageDime
   }
 }
 
+/** Null for any other size. */
 export function presetOf(dimensions: ImageDimensions): ImageSize | null {
   if (dimensions.height !== undefined) return null
   for (const [size, width] of Object.entries(PRESET_WIDTHS)) {
@@ -94,6 +95,7 @@ function splitWrittenSize(dest: string): { url: string; size: ImageSize } {
 
 const ATTACHMENT = new RegExp(`^${fileUri(`(${FILE_ID_SOURCE})`)}$`)
 
+/** Null when the URL shows no attachment, with or without a size. */
 export function attachmentId(url: string): string | null {
   return ATTACHMENT.exec(splitImageSize(url).url)?.[1] ?? null
 }

@@ -51,6 +51,7 @@ export function replaceFileLinks(markdown: string, copies: readonly FileCopy[]):
 const ascii = (bytes: Uint8Array, start: number, text: string) =>
   [...text].every((c, i) => bytes[start + i] === c.charCodeAt(0))
 
+/** Null when the bytes are no supported raster image. */
 export function detectImage(bytes: Uint8Array): string | null {
   if ([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((b, i) => bytes[i] === b)) {
     return 'image/png'
@@ -66,6 +67,7 @@ export function detectImage(bytes: Uint8Array): string | null {
   return null
 }
 
+/** Returns the MIME type or throws an error code. */
 export function checkUpload(meta: FileMeta, data: Uint8Array): string {
   const name = meta.name
   if (!name || [...name].length > MAX_FILE_NAME_CHARS || /\p{Cc}/u.test(name)) {

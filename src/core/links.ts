@@ -20,6 +20,7 @@ export function noteUri(id: string): string {
   return `devot://note/${id}`
 }
 
+/** Undefined for any other address. */
 export function noteIdOf(href: string): string | undefined {
   return /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)?.[1]
 }
@@ -35,6 +36,7 @@ export function backlinkQuery(id: string): NoteQuery {
   return { text: [{ field: 'body', value: noteUri(id), negate: false }], sets: [], pinned: null }
 }
 
+/** Live notes only (never the Trash), the note itself left out. */
 export async function findBacklinks(
   storage: Pick<StorageAdapter, 'searchNotes'>,
   id: string,
