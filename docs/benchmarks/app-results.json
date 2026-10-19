@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-19T06:28:41.985Z",
+  "generatedAt": "2026-10-19T16:28:07.281Z",
   "app": {
-    "version": "0.9.2-beta1",
-    "path": "/Applications/Devot.app"
+    "version": "0.9.3-beta1",
+    "path": "/private/tmp/claude-501/-Users-jinchengma/06360df3-5379-4934-82cd-18db295121ad/scratchpad/rel/Devot.app"
   },
   "machine": {
     "model": "MacBookPro18,3",
@@ -14,31 +14,45 @@
   "samples": {
     "warm.firstFrameMs": {
       "n": 5,
-      "median": 666,
-      "p90": 766,
-      "min": 594,
-      "max": 766
+      "median": 579,
+      "p90": 593,
+      "min": 557,
+      "max": 593
     },
     "warm.openNoteMs": {
       "n": 5,
-      "median": 832,
-      "p90": 930,
-      "min": 765,
-      "max": 930
+      "median": 710,
+      "p90": 741,
+      "min": 680,
+      "max": 741
+    },
+    "warm.footprintMB": {
+      "n": 5,
+      "median": 165,
+      "p90": 168,
+      "min": 159,
+      "max": 168
     },
     "warm.residentMB": {
       "n": 5,
-      "median": 286,
+      "median": 290,
       "p90": 296,
-      "min": 216,
+      "min": 252,
       "max": 296
     },
+    "idle.footprintMB": {
+      "n": 7,
+      "median": 163,
+      "p90": 188,
+      "min": 163,
+      "max": 188
+    },
     "idle.residentMB": {
-      "n": 1,
-      "median": 213,
-      "p90": 213,
-      "min": 213,
-      "max": 213
+      "n": 7,
+      "median": 204,
+      "p90": 249,
+      "min": 198,
+      "max": 249
     }
   }
 }
