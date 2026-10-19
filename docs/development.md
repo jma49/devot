@@ -48,6 +48,15 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 
 `pnpm bench` and `pnpm bench:app` measure speed and memory; method, machine and numbers are in `docs/benchmarks/README.md`. They are run locally before a release and are not CI jobs (the budgets CI enforces stay in the UI tests).
 
+## Stacked pull requests
+
+Stack only changes that depend on each other: the same tokens, the same stylesheet, the same module. Independent work still branches from `main` and runs in parallel.
+
+- **Start a layer**: branch from the layer below and open the PR with `gh pr create --base <lower-branch>`. CI runs on every pull request whatever its base.
+- **Merge bottom-up**: squash-merge each layer after its CI is green. Then run `scripts/stack/restack.sh <merged-branch> <next-branch> [<further-branch> ...]`: it rebases the next layer onto `main` without the commits the squash replaced, then each further layer onto its rebased parent, points the next PR at `main` and pushes with `--force-with-lease`. Wait for CI on the rebased layer before merging it. `--dry-run` prints the commands only. If the merged branch was deleted, the script reads its last commit from the PR; `--old-tip <sha>` gives it explicitly.
+- **Conflicts**: the script stops with exit 1 and leaves the rebase in progress. Resolve it, run `git rebase --continue`, push, and run the script again for the layers that are not rebased yet.
+- **Release**: before a beta, line the release's PRs up as one stack. Build the QA debug app from the top layer and device-check once, merge bottom-up, then tag from `main` (`docs/releasing.md`).
+
 ## Layout
 
 | Path                     | Contents                                                      |
