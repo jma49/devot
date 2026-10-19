@@ -104,7 +104,7 @@ test('the Tags chevron turns up over the toggle duration and back down, and Redu
   await expect(chevron).not.toHaveAttribute('data-turn')
   await expect(sidebar(page).locator('#tags-list')).toBeVisible()
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  expect(await style('transition-duration')).toBe('0s')
+  await expect.poll(() => style('transition-duration')).toBe('0s')
 })
 
 test('the search buttons open the palette scoped to notebooks and to tags', async ({ page }) => {

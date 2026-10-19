@@ -88,7 +88,7 @@ test('templates live in their own view, out of All Notes and search', async ({ p
   await expect(allNotesRow(page)).toHaveText(/0$/)
 
   await page.getByRole('searchbox', { name: 'Search notes' }).fill('kiwi')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveCount(0)
 })
 
@@ -190,7 +190,7 @@ test('the picker lists recently used templates first and previews the one select
 test('a note made while search results show opens in a list that shows it', async ({ page }) => {
   await newTemplate(page, 'Plan', 'Plan body')
   await page.getByRole('searchbox', { name: 'Search notes' }).fill('nothing like it')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await page.keyboard.press('Meta+KeyT')
   await expect(pickerOptions(page)).toHaveText(['Plan'])
   await page.keyboard.press('Enter')

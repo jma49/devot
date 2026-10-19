@@ -23,7 +23,8 @@ const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const lines = (page: Page) => page.locator('.cm-line').allTextContents()
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
-const caption = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.caption')
+const caption = (page: Page) =>
+  page.getByRole('toolbar', { name: 'Toolbar' }).locator('.list-count')
 const backButton = (page: Page) => page.getByRole('button', { name: 'Back', exact: true })
 const forwardButton = (page: Page) => page.getByRole('button', { name: 'Forward', exact: true })
 const source = (page: Page, name: string) =>
@@ -465,6 +466,31 @@ test('Sort Notes\u2026 in the palette opens the list\u2019s sort pop-up', async 
 })
 
 test.describe('the sidebar', () => {
+  test('one toggle at the start of the list header hides and shows it', async ({ page }) => {
+    const bar = page.getByRole('region', { name: 'Notes' }).getByRole('toolbar')
+    await expect(sidebar(page).getByRole('button', { name: 'Hide Sidebar' })).toHaveCount(0)
+    const toggle = bar.getByRole('button', { name: 'Hide Sidebar' })
+    await expect(toggle).toHaveAttribute('title', 'Hide Sidebar (⌘/)')
+    await expect(bar.getByRole('button').first()).toHaveAccessibleName('Hide Sidebar')
+    // Its controls are never part of the window's drag region around them,
+    // which would take the press for a window drag.
+    for (const button of await bar.getByRole('button').all())
+      await expect(button).toHaveAttribute('data-tauri-drag-region', 'false')
+    const inset = bar.locator('.window-inset')
+    await expect.poll(async () => (await inset.boundingBox())?.width).toBe(0)
+
+    await toggle.click()
+    await expect(sidebar(page)).toBeHidden()
+    // The window controls get their room before the toggle: it starts 84 px
+    // in, clear of them, where the editor's header starts in focus mode.
+    const show = bar.getByRole('button', { name: 'Show Sidebar' })
+    await expect.poll(async () => (await show.boundingBox())?.x).toBe(84)
+    await show.click()
+    await expect(sidebar(page)).toBeVisible()
+    await expect.poll(async () => (await inset.boundingBox())?.width).toBe(0)
+    await expect(bar.getByRole('button', { name: 'Hide Sidebar' })).toBeVisible()
+  })
+
   test('Cmd+/ hides and shows it, from the editor too, and the window remembers it', async ({
     page,
   }) => {

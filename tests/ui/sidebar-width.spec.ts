@@ -83,7 +83,7 @@ test('the sidebar width does not change the note list width', async ({ page }) =
 })
 
 test('a hidden sidebar has no edge to grab', async ({ page }) => {
-  await sidebar(page).getByRole('button', { name: 'Hide Sidebar' }).click()
+  await page.getByRole('button', { name: 'Hide Sidebar' }).click()
   await expect(handle(page)).toBeHidden()
 })
 

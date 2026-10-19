@@ -91,6 +91,8 @@ export function TagEditor(props: {
   const [active, setActive] = useState(-1)
   const [open, setOpen] = useState(false)
   const [chosenChip, setChosenChip] = useState<string>()
+  // The name just added, in lower case: its chip pops in (app.css `.chip[data-added]`).
+  const [added, setAdded] = useState<string>()
   const ownField = useRef<HTMLInputElement>(null)
   const field = props.inputRef ?? ownField
   const listId = useId()
@@ -111,6 +113,8 @@ export function TagEditor(props: {
   const pick = (row: TagRow | undefined) => {
     const name = row ? (row.kind === 'tag' ? row.tag.name : row.name) : draft
     if (!trimWhitespace(name)) return
+    const key = trimWhitespace(name).toLowerCase()
+    if (!onNote.some((tag) => tag.name.toLowerCase() === key)) setAdded(key)
     props.onAdd(name)
     close()
   }
@@ -122,6 +126,10 @@ export function TagEditor(props: {
           key={tag.id}
           className={chipClass(tag.color)}
           data-selected={chosenChip === tag.id || undefined}
+          data-added={tag.name.toLowerCase() === added || undefined}
+          onAnimationEnd={(e) => {
+            if (e.target === e.currentTarget) setAdded(undefined)
+          }}
           onContextMenu={
             props.onChipMenu
               ? (e) => {

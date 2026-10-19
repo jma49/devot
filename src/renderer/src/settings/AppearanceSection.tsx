@@ -1,11 +1,13 @@
 import { useId } from 'react'
 import {
+  ANIMATIONS,
   APPEARANCES,
   DEFAULT_EDITOR_SETTINGS,
   THEMES,
   WINDOW_TRANSPARENCY_MAX,
   WINDOW_TRANSPARENCY_STEP,
   themeFollowsSystemAccent,
+  type AnimationsChoice,
   type AppearanceChoice,
   type ThemeChoice,
 } from '../../../core/editorSettings'
@@ -23,6 +25,12 @@ function transparencyText(value: number): string {
       ? 'appearanceSettings.windowTransparencyMoreOpaque'
       : 'appearanceSettings.windowTransparencyMoreClear',
   )
+}
+
+const ANIMATION_LABELS: Readonly<Record<AnimationsChoice, MessageKey>> = {
+  always: 'appearanceSettings.animations.always',
+  system: 'appearanceSettings.animations.system',
+  off: 'appearanceSettings.animations.off',
 }
 
 const CARD_LABELS: Readonly<Record<AppearanceChoice, MessageKey>> = {
@@ -90,6 +98,7 @@ export function AppearanceSection() {
   const theme = useEditorSetting('theme')
   const systemAccent = useEditorSetting('systemAccent')
   const material = useEditorSetting('sidebarMaterial')
+  const animations = useEditorSetting('animations')
   const [error, change] = useSettingsChange()
   const id = useId()
   const transparency = useDraggedNumber({
@@ -222,6 +231,27 @@ export function AppearanceSection() {
               {t('appearanceSettings.windowTransparencyReset')}
             </button>
           )}
+        </Setting>
+      </SettingsSection>
+      <SettingsSection icon="settings.motion" title="appearanceSettings.motion">
+        <Setting
+          label="appearanceSettings.animations"
+          description={t('appearanceSettings.animationsHint')}
+          htmlFor={`${id}-animations`}
+          descriptionId={`${id}-animations-hint`}
+        >
+          <select
+            id={`${id}-animations`}
+            value={animations}
+            aria-describedby={`${id}-animations-hint`}
+            onChange={(e) => change({ animations: e.currentTarget.value as AnimationsChoice })}
+          >
+            {ANIMATIONS.map((choice) => (
+              <option key={choice} value={choice}>
+                {t(ANIMATION_LABELS[choice])}
+              </option>
+            ))}
+          </select>
         </Setting>
       </SettingsSection>
     </section>

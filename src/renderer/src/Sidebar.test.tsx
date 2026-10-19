@@ -80,7 +80,6 @@ function render(
       onDeleteTag={noop}
       templatesCount={0}
       trashCount={0}
-      onHide={noop}
       onSearchBooks={noop}
       onSearchTags={noop}
       onEmptyTrash={noop}

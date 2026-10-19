@@ -10,20 +10,24 @@
   --popover-enter-scale: var(--motion-scale-popover-enter);
   /* They shrink to this scale, back toward the notch or anchor, as they fade out. */
   --popover-exit-scale: var(--motion-scale-popover-exit);
-  /* A modal dialog grows from this scale around its centre as it fades in. */
+  /* A modal dialog grows from this scale around its centre as it fades in,
+     out of this blur, and blurs again as it fades out. */
   --dialog-enter-scale: var(--motion-scale-dialog-enter);
+  --dialog-blur: var(--motion-blur-dialog);
+  /* A tag chip pops in from this scale as it is added. */
+  --chip-enter-scale: var(--motion-scale-chip-enter);
   --popover-shadow:
     0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
     0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
 }
 
 /* Reduce Motion: pop-ups only fade, nothing grows, shrinks or slides. */
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --popover-enter-scale: 1;
-    --popover-exit-scale: 1;
-    --dialog-enter-scale: 1;
-  }
+:root[data-motion='reduced'] {
+  --popover-enter-scale: 1;
+  --popover-exit-scale: 1;
+  --dialog-enter-scale: 1;
+  --dialog-blur: 0px;
+  --chip-enter-scale: 1;
 }
 
 @keyframes popover-in {
@@ -36,7 +40,59 @@
 @keyframes dialog-in {
   from {
     opacity: 0;
+    filter: blur(var(--dialog-blur));
     scale: var(--dialog-enter-scale);
+  }
+}
+
+@keyframes dialog-out {
+  to {
+    opacity: 0;
+    filter: blur(var(--dialog-blur));
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* A menu unfolding from the edge it hangs from, and folding back. The clip
+   reaches past the menu's edges so its shadow shows throughout. */
+@keyframes menu-unfold {
+  from {
+    clip-path: inset(var(--menu-clip) var(--menu-clip) 100% var(--menu-clip));
+  }
+  to {
+    clip-path: inset(var(--menu-clip));
+  }
+}
+
+@keyframes menu-fold {
+  from {
+    clip-path: inset(var(--menu-clip));
+  }
+  to {
+    clip-path: inset(var(--menu-clip) var(--menu-clip) 100% var(--menu-clip));
+  }
+}
+
+@keyframes menu-fold-up {
+  from {
+    clip-path: inset(var(--menu-clip));
+  }
+  to {
+    clip-path: inset(100% var(--menu-clip) var(--menu-clip) var(--menu-clip));
+  }
+}
+
+@keyframes menu-unfold-up {
+  from {
+    clip-path: inset(100% var(--menu-clip) var(--menu-clip) var(--menu-clip));
+  }
+  to {
+    clip-path: inset(var(--menu-clip));
   }
 }
 
@@ -74,6 +130,23 @@ dialog[open].palette {
 .link-dialog::backdrop {
   background: var(--color-fill-backdrop);
   animation: fade-in var(--motion-duration-backdrop) var(--motion-easing-standard);
+}
+
+/* A closed dialog's copy (dialogMotion.ts) blurs and fades where the dialog
+   was, over a copy of its dim that fades out more slowly. */
+dialog[open][data-closing='dialog'] {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  animation: dialog-out var(--motion-duration-dialog) var(--motion-easing-standard) forwards;
+}
+
+.dialog-backdrop[data-closing] {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: var(--color-fill-backdrop);
+  animation: fade-out var(--motion-duration-backdrop-exit) var(--motion-easing-standard) forwards;
 }
 
 html,
@@ -261,8 +334,46 @@ button {
     opacity var(--motion-duration-hover) var(--motion-easing-out);
 }
 
+/* A sidebar row answers the pointer quickly. */
+.sidebar :is(.source, .book-row) {
+  transition-duration: var(--motion-duration-quick);
+  transition-timing-function: var(--motion-easing-quick);
+}
+
+/* A field's focus ring (its edge) comes as quickly as a button's. */
+:is(
+  .search-field,
+  .find-field,
+  .link-dialog-field,
+  .tag-input,
+  .shortcuts-search,
+  .settings-number
+):focus-within {
+  transition-duration: var(--motion-duration-quick);
+  transition-timing-function: var(--motion-easing-quick);
+}
+
 /* The keyboard is on a button: the focus ring on its edge (a segment sits
-   inside its frame, which clips, so its ring is drawn just inside). */
+   inside its frame, which clips, so its ring is drawn just inside). The ring
+   closes in on the edge as it comes. */
+:is(.tool, .button, .popup, .segment, .search-clear) {
+  outline-color: transparent;
+  outline-offset: var(--size-focus-ring);
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    border-color var(--motion-duration-hover) var(--motion-easing-out),
+    box-shadow var(--motion-duration-hover) var(--motion-easing-out),
+    color var(--motion-duration-hover) var(--motion-easing-out),
+    opacity var(--motion-duration-hover) var(--motion-easing-out),
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
+    outline-offset var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+/* Reduce Motion: the ring only fades in, on the edge. */
+:root[data-motion='reduced'] :is(.tool, .button, .popup, .segment, .search-clear) {
+  outline-offset: 0;
+}
+
 :is(.tool, .button, .popup, .segment, .search-clear):focus-visible {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: 0;
@@ -747,10 +858,8 @@ button {
   rotate: 90deg;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .chevron {
-    transition: none;
-  }
+:root[data-motion='reduced'] .chevron {
+  transition: none;
 }
 
 .book-name-field {
@@ -977,57 +1086,70 @@ button {
   padding: 0 var(--space-6) 0 var(--space-8);
 }
 
-/* The list's header: sidebar toggle at the start, the view centred, New Note at the end. */
+/* The list's header: the sidebar toggle at the start and New Note at the end,
+   the view's name on one line centred in the room between them (so it moves
+   with the window controls' room). Everything sits on the toolbar's centre
+   line, which the traffic lights share. */
 .list-header {
-  display: grid;
-  grid-template-columns: minmax(var(--space-10), 1fr) minmax(0, auto) minmax(var(--space-10), 1fr);
+  display: flex;
   align-items: center;
   border-bottom: 0;
 }
 
 .list-header-side {
   display: flex;
+  flex: none;
   align-items: center;
-  min-width: 0;
-}
-
-.list-header-end {
-  justify-content: flex-end;
 }
 
 .list .list-header .toolbar-title {
-  flex: none;
-  align-items: center;
-  max-width: 100%;
-}
-
-/* The room an icon before the title takes: its box (icon-sm, NoteList.tsx)
-   and the gap after it. Set on the title block, so the headline row and
-   the caption under it read the same value. */
-.toolbar-title {
-  --headline-gap: var(--space-3);
-  --headline-icon-room: calc(var(--size-icon-sm) + var(--headline-gap));
-}
-
-.headline-row {
   display: flex;
+  flex: 1;
+  flex-direction: row;
   align-items: center;
-  gap: var(--headline-gap);
+  justify-content: center;
+  gap: calc(var(--font-size-list-title) * 0.3);
   min-width: 0;
-  max-width: 100%;
+  /* The same room on both sides, so the name never touches a button. */
+  padding-inline: var(--space-3);
+  overflow: hidden;
+  font-size: var(--font-size-list-title);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
   color: var(--color-text-primary);
 }
 
-.headline-row .headline {
+.list-header .headline {
   min-width: 0;
+  overflow: hidden;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Under a title with an icon the caption takes the icon's room too, so it is
-   centred under the title rather than under icon and title together. */
-.headline-row:has(> .icon) + .caption {
-  max-width: 100%;
+/* The view's icon: a 1em square before the name, a little lighter. */
+.headline-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  opacity: var(--opacity-headline-icon);
+}
+
+.headline-icon > .icon {
+  width: 1em;
+  height: 1em;
+}
+
+/* A tag's colour: a small filled circle (the text colour for a tag without one). */
+.headline-dot {
   box-sizing: border-box;
-  padding-inline-start: var(--headline-icon-room);
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: var(--radius-capsule);
+  background: var(--tag-color, var(--color-text-secondary));
 }
 
 /* Filter field and sort chip under the header. */
@@ -1219,6 +1341,11 @@ button {
   display: block;
   height: 100%;
   background: var(--color-accent-fill);
+  transition: width var(--motion-duration-grow) var(--motion-easing-standard);
+}
+
+:root[data-motion='reduced'] .progress-fill {
+  transition: none;
 }
 
 /* Tags on a row: small outlined pills. */
@@ -1231,6 +1358,20 @@ button {
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption2);
   line-height: 1.5;
+}
+
+/* A tag just added pops in (TagEditor.tsx). */
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    scale: var(--chip-enter-scale);
+  }
+}
+
+.chip[data-added] {
+  animation:
+    chip-in var(--motion-duration-grow) var(--motion-easing-spring),
+    fade-in var(--motion-duration-grow) var(--motion-easing-standard);
 }
 
 .chip {
@@ -1693,103 +1834,87 @@ button {
   flex: 1;
 }
 
-/* A hidden sidebar: the list's toolbar clears the window controls and
-   shows the sidebar's button. */
-
-.window[data-sidebar-hidden] .list .toolbar {
-  padding-left: calc(var(--space-10) * 2 + var(--space-7));
+/* The list's header: the window controls' room, the sidebar toggle, the
+   view and New Note. The room opens while the sidebar is hidden, when the
+   window controls sit over the list. */
+.list .list-header {
+  padding: 0 var(--space-1);
 }
 
-.sidebar-show {
-  margin-right: var(--space-4);
+.window-inset {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 0;
+  transition: width var(--motion-duration-inset) var(--motion-easing-out);
 }
 
-/* Hiding or showing the sidebar and the list (the toggle, focus mode) slides
-   them: the width runs to zero and the editor, which fills the rest, follows.
-   The panes keep their inner width while they shrink, so text does not
-   reflow, and they are inert from the first frame (App.tsx). `data-pane-motion`
-   is on the window only for the length of a toggle, so a resize or the first
-   paint never animates. */
+/* The toggle starts where the editor's header does in focus mode: past the
+   window controls by the inset (less the header's own padding). */
+.window[data-sidebar-hidden] .list-header .window-inset {
+  width: calc(var(--size-window-controls-inset) - var(--space-1));
+}
+
+:root[data-motion='reduced'] .window-inset,
+:root[data-motion='reduced'] .editor-toolbar {
+  transition: none;
+}
+
+.sidebar-toggle.tool {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: var(--size-sidebar-toggle-width);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* Hiding or showing the sidebar and the list (the toggle, focus mode): a pane
+   that goes leaves the layout at once and one that comes takes its room at
+   once, and the panes that stay slide to their new places (paneMotion.ts).
+   A hidden pane keeps its size, out of the layout and out of sight, so it can
+   fade out where it was; the panes that stay paint over it as they slide. */
+
+.window {
+  position: relative;
+}
 
 .sidebar,
 .list {
   overflow: clip;
 }
 
-/* The content keeps the width of the open sidebar while it slides shut, but
-   never more than the sidebar can have in this window (its max-width above,
-   floored at its minimum): a wider one would spill under the note list. */
-.sidebar > * {
-  min-width: calc(
-    max(
-        var(--size-sidebar-min-width),
-        min(
-          var(--sidebar-width, var(--size-sidebar-width)),
-          100vw - var(--size-list-min-width) - var(--size-pane-min-width) * 2
-        )
-      ) -
-      var(--space-5) * 2 - 1px
-  );
-}
-
-.list > * {
-  min-width: calc(var(--size-list-min-width) - 1px);
-}
-
-/* The resize edge stays a thin strip. */
-.list > .list-resize,
-.sidebar-resize {
-  min-width: 0;
-}
-
-.window[data-pane-motion] > .sidebar,
-.window[data-pane-motion] > .list {
+/* A theme or appearance change: the panes' washes and edges ease into the new colours. */
+.sidebar,
+.list,
+.content {
   transition:
-    width var(--motion-duration-pane) var(--motion-easing-standard),
-    min-width var(--motion-duration-pane) var(--motion-easing-standard),
-    padding var(--motion-duration-pane) var(--motion-easing-standard),
-    border-right-width var(--motion-duration-pane) var(--motion-easing-standard),
-    visibility 0s linear;
+    background-color var(--motion-duration-color) var(--motion-easing-standard),
+    border-color var(--motion-duration-color) var(--motion-easing-standard);
+}
+
+:root[data-motion='reduced'] .sidebar,
+:root[data-motion='reduced'] .list,
+:root[data-motion='reduced'] .content {
+  transition: none;
 }
 
 .window[data-sidebar-hidden] > .sidebar,
 .window[data-focus] > .sidebar,
 .window[data-focus] > .list {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
   visibility: hidden;
-  width: 0;
-  min-width: 0;
-  padding-inline: 0;
-  border-right-width: 0;
-}
-
-/* Hidden panes leave the page once the slide is done. */
-.window[data-pane-motion][data-sidebar-hidden] > .sidebar,
-.window[data-pane-motion][data-focus] > .sidebar,
-.window[data-pane-motion][data-focus] > .list {
-  transition:
-    width var(--motion-duration-pane) var(--motion-easing-standard),
-    min-width var(--motion-duration-pane) var(--motion-easing-standard),
-    padding var(--motion-duration-pane) var(--motion-easing-standard),
-    border-right-width var(--motion-duration-pane) var(--motion-easing-standard),
-    visibility 0s linear var(--motion-duration-pane);
-}
-
-/* As specific as the hiding rules above, so it wins over them too. */
-@media (prefers-reduced-motion: reduce) {
-  .window[data-pane-motion] > .sidebar,
-  .window[data-pane-motion] > .list,
-  .window[data-pane-motion][data-sidebar-hidden] > .sidebar,
-  .window[data-pane-motion][data-focus] > .sidebar,
-  .window[data-pane-motion][data-focus] > .list {
-    transition: none;
-  }
+  opacity: 0;
 }
 
 /* Focus mode: only the editor shows, at a reading width in the middle. */
 
 /* Clear the window controls, which now sit over the editor toolbar. */
+.editor-toolbar {
+  transition: padding-left var(--motion-duration-inset) var(--motion-easing-out);
+}
+
 .window[data-focus] .editor-toolbar {
-  padding-left: calc(var(--space-10) * 2 + var(--space-7));
+  padding-left: var(--size-window-controls-inset);
 }
 
 .window[data-focus] .content > :not(.toolbar) {
@@ -2152,8 +2277,10 @@ button {
   box-shadow: 0 0 0 0.5px var(--color-line-hairline);
   color: var(--color-text-secondary);
   opacity: 0;
+  scale: var(--popover-enter-scale);
   transition:
-    opacity var(--motion-duration-fade) var(--motion-easing-standard),
+    opacity var(--motion-duration-toggle) var(--motion-easing-standard),
+    scale var(--motion-duration-toggle) var(--motion-easing-standard),
     color var(--motion-duration-color) var(--motion-easing-standard);
 }
 
@@ -2179,6 +2306,7 @@ button {
 .code-copy:focus-visible,
 .code-copy:not([data-state='idle']) {
   opacity: 1;
+  scale: 1;
 }
 
 .code-copy:hover {
@@ -3442,11 +3570,9 @@ button {
   opacity: var(--opacity-disabled);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .setting-toggle input[role='switch'],
-  .setting-toggle input[role='switch']::after {
-    transition: none;
-  }
+:root[data-motion='reduced'] .setting-toggle input[role='switch'],
+:root[data-motion='reduced'] .setting-toggle input[role='switch']::after {
+  transition: none;
 }
 
 .setting-toggle:has(input:disabled) .setting-label {
@@ -3988,11 +4114,22 @@ button.popup:focus-visible {
   font-weight: var(--font-weight-regular);
   list-style: none;
   box-shadow: var(--popover-shadow);
-  /* Grows out of the button it hangs from, on its own layer so text does not shimmer. */
+  /* Grows out of the button it hangs from, on its own layer so text does not
+     shimmer, unfolding to its height. */
   transform: translateZ(0);
   transform-origin: top left;
   backface-visibility: hidden;
-  animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
+  --menu-clip: calc(-1 * var(--shadow-popover-ambient-blur));
+  animation:
+    popover-in var(--motion-duration-popover) var(--motion-easing-standard),
+    menu-unfold var(--motion-duration-toggle) var(--motion-easing-standard);
+}
+
+/* Closing, a menu fades as it folds back to the edge it hangs from. */
+:is(.picker-popover, .tag-suggestions)[data-closing][data-closing-motion='scale'] {
+  animation:
+    fade-out var(--motion-duration-toggle) var(--motion-easing-standard) forwards,
+    menu-fold var(--motion-duration-toggle) var(--motion-easing-standard) forwards;
 }
 
 /* With no room below its button a picker opens over it, growing out of the button's top edge. */
@@ -4000,6 +4137,28 @@ button.popup:focus-visible {
   top: auto;
   bottom: calc(100% + var(--space-2));
   transform-origin: bottom left;
+  animation:
+    popover-in var(--motion-duration-popover) var(--motion-easing-standard),
+    menu-unfold-up var(--motion-duration-toggle) var(--motion-easing-standard);
+}
+
+.picker-popover[data-side='above'][data-closing][data-closing-motion='scale'] {
+  animation:
+    fade-out var(--motion-duration-toggle) var(--motion-easing-standard) forwards,
+    menu-fold-up var(--motion-duration-toggle) var(--motion-easing-standard) forwards;
+}
+
+:root[data-motion='reduced'] .picker-popover,
+:root[data-motion='reduced'] .tag-suggestions,
+:root[data-motion='reduced'] .picker-popover[data-side='above'] {
+  animation: popover-in var(--motion-duration-popover) var(--motion-easing-standard);
+}
+
+:root[data-motion='reduced']
+  :is(.picker-popover, .tag-suggestions)[data-closing][data-closing-motion='scale'],
+:root[data-motion='reduced']
+  .picker-popover[data-side='above'][data-closing][data-closing-motion='scale'] {
+  animation: fade-out var(--motion-duration-toggle) var(--motion-easing-standard) forwards;
 }
 
 .picker-search {
@@ -4142,17 +4301,9 @@ button.popup:focus-visible {
   animation: fade-out var(--motion-duration-popover) var(--motion-easing-standard) forwards;
 }
 
-@keyframes fade-out {
-  to {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tool-tip,
-  .tool-tip[data-closing] {
-    animation: none;
-  }
+:root[data-motion='reduced'] .tool-tip,
+:root[data-motion='reduced'] .tool-tip[data-closing] {
+  animation: none;
 }
 
 /* The notch: a turned square on the edge facing the button, kept at the

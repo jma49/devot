@@ -15,7 +15,7 @@ const rows = (page: Page) => list(page).getByRole('option')
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const caption = (page: Page) =>
-  page.getByRole('toolbar', { name: 'Toolbar' }).first().locator('.caption')
+  page.getByRole('toolbar', { name: 'Toolbar' }).first().locator('.list-count')
 
 const row = (page: Page, title: string) =>
   rows(page).filter({ has: page.locator('.row-title', { hasText: new RegExp(`^${title}$`) }) })

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ANIMATIONS,
   DEFAULT_EDITOR_SETTINGS,
   FONT_FAMILIES,
   FONT_WEIGHTS,
@@ -69,6 +70,8 @@ describe('editor settings', () => {
       listDates: 'relative',
       // An update found downloads in the background unless turned off.
       autoDownloadUpdates: true,
+      // The windows animate whatever the system's Reduce Motion says.
+      animations: 'always',
     })
   })
 
@@ -91,6 +94,9 @@ describe('editor settings', () => {
     expect(LIST_DATES_STYLES).toEqual(['relative', 'absolute'])
     expect(APPEARANCES).toEqual(['light', 'dark', 'system'])
     expect(THEMES).toEqual(['default', 'ivory'])
+    expect(ANIMATIONS).toEqual(['always', 'system', 'off'])
+    for (const animations of ANIMATIONS)
+      expect(checkEditorSettingsPatch({ animations })).toEqual({ animations })
     expect([FONT_SIZE_MIN, FONT_SIZE_MAX]).toEqual([10, 32])
     for (const h of LINE_HEIGHTS) expect(h >= 1 && h <= 2.5).toBe(true)
     expect(LINE_HEIGHTS).toContain(DEFAULT_EDITOR_SETTINGS.lineHeight)
@@ -205,6 +211,8 @@ describe('editor settings', () => {
       { defaultNotebook: '' },
       { defaultNotebook: 5 },
       { listDates: 'never' },
+      { animations: 'never' },
+      { animations: true },
       { listDates: true },
       { pasteUrl: 'markdown' },
       { pasteUrl: true },

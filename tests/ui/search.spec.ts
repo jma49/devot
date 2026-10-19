@@ -32,7 +32,7 @@ test('finds notes by title and body, in English and Chinese', async ({ page }) =
   await createNote(page, 'Groceries', 'apples')
 
   await search(page).fill('hibernat')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveText([/^Relay design/])
 
   await search(page).fill('\u540c\u6b65')
@@ -54,7 +54,7 @@ test('results follow edits and the trash', async ({ page }) => {
   await createNote(page, 'Draft', 'first words')
   await search(page).fill('first')
   // The library list also has one row: wait for the results to replace it.
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveCount(1)
   await noteRows(page).first().click()
   await pickNoteMore(page, 'Move to Trash')
@@ -81,7 +81,7 @@ test('after clearing a search, the next query does not show the previous results
   await createNote(page, 'Foo plan')
   await createNote(page, 'Bar plan')
   await search(page).fill('foo')
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveText([/^Foo plan/])
   await search(page).fill('')
   await expect(header(page)).toHaveText('All Notes')
@@ -94,7 +94,7 @@ test('after clearing a search, the next query does not show the previous results
   await expect(header(page)).toHaveText('All Notes')
   await expect(noteRows(page)).toHaveCount(2)
   await page.clock.resume()
-  await expect(header(page)).toHaveText('Search Results')
+  await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveText([/^Bar plan/])
 })
 

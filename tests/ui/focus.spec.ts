@@ -68,27 +68,40 @@ for (const keys of ['Meta+Alt+Shift+KeyF', 'Meta+Shift+KeyF']) {
   })
 }
 
-test('hiding the panes slides them, and Reduce Motion makes it immediate', async ({ page }) => {
+test('hiding the panes fades them and slides the editor, and Reduce Motion makes it immediate', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await freshStart(page)
   const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
-  // By class: a hidden sidebar has no role to find it by.
+  // By class: a hidden pane has no role to find it by.
+  const moves = (pane: string) =>
+    page.locator(`.window > .${pane}`).evaluate((el) =>
+      el
+        .getAnimations()
+        .filter((a) => !('animationName' in a) && !('transitionProperty' in a))
+        .map((a) => JSON.stringify((a.effect as KeyframeEffect).getKeyframes()[0])),
+    )
   const widthOf = () =>
     page.locator('.window > .sidebar').evaluate((el) => el.getBoundingClientRect().width)
   const full = await widthOf()
 
   await page.keyboard.press('Meta+Shift+KeyD')
-  // Mid-slide the sidebar is narrower than it was and not yet gone.
-  await expect.poll(widthOf).toBeLessThan(full)
+  // The sidebar and the list fade where they were; the editor slides from its place.
+  await expect.poll(() => moves('content')).toEqual([expect.stringContaining('translateX(')])
+  expect(await moves('sidebar')).toEqual([expect.stringContaining('"opacity":"1"')])
   await expect(sidebar).toBeHidden()
+  // A hidden pane keeps its size, out of the layout.
+  expect(await widthOf()).toBe(full)
   await page.keyboard.press('Meta+Shift+KeyD')
   await expect(sidebar).toBeVisible()
-  await expect.poll(widthOf).toBe(full)
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
+  // The window follows the system (fixtures.ts) once it hears of the change.
+  await expect(page.locator('html')).toHaveAttribute('data-motion', 'reduced')
   await page.keyboard.press('Meta+Shift+KeyD')
   await expect(page.locator('.window')).toHaveAttribute('data-focus', 'true')
-  expect(await widthOf()).toBe(0)
+  expect(await moves('content')).toEqual([])
   await expect(sidebar).toBeHidden({ timeout: 100 })
 })

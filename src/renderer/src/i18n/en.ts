@@ -29,7 +29,7 @@ export const en = {
   'search.placeholderView': 'Search in {view}',
   'search.in': 'In {view}',
   'search.filterInBook': '{filter} in {book}',
-  'search.results': 'Search Results',
+  'search.results': 'Search',
   'search.clear': 'Clear Search',
   'search.help': 'Search Syntax',
   'search.help.button': '?',
@@ -453,6 +453,13 @@ export const en = {
   'appearanceSettings.systemAccent': 'Use the system accent colour',
   'appearanceSettings.systemAccentHint':
     'Buttons, links and selections follow the accent colour chosen in System Settings.',
+  'appearanceSettings.motion': 'Motion',
+  'appearanceSettings.animations': 'Animations',
+  'appearanceSettings.animationsHint':
+    'Whether panes, lists, menus and dialogs move. Follow System uses the Reduce Motion setting in System Settings > Accessibility > Display.',
+  'appearanceSettings.animations.always': 'Always',
+  'appearanceSettings.animations.system': 'Follow System',
+  'appearanceSettings.animations.off': 'Off',
   'appearanceSettings.sidebar': 'Window',
   'appearanceSettings.sidebarMaterial': 'Translucent Window',
   'appearanceSettings.sidebarMaterialHint':

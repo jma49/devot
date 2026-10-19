@@ -124,16 +124,60 @@ test('toolbar glyphs are large, and the view modes are 44 by 30 segments', async
   expect(offsets.size).toBe(1)
 })
 
-test("the list header's caption is centred under its title, not under icon and title", async ({
+test("the list header's toggle, name and New Note share the toolbars' centre line", async ({
   page,
 }) => {
   await newNote(page, 'Plan')
   const header = page.locator('.list-header')
-  await expect(header.locator('.headline-row .icon')).toHaveCount(1)
-  const title = await textBox(header.locator('.headline'))
-  const caption = await textBox(header.locator('.caption'))
-  const centreX = (b: Box) => b.x + b.width / 2
-  expect(Math.abs(centreX(caption) - centreX(title))).toBeLessThanOrEqual(1)
+  const toggle = header.locator('.sidebar-toggle')
+  const create = header.getByRole('button', { name: 'New Note', exact: true })
+  const name = header.locator('.headline')
+  const inset = header.locator('.window-inset')
+  // The line the traffic lights sit on: the middle of the 52 px toolbars.
+  const line = centreY(await box(header))
+  expect(line).toBe(26)
+  const sameLine = async (what: string, b: Box) =>
+    expect(Math.abs(centreY(b) - line), what).toBeLessThanOrEqual(0.5)
+  const check = async () => {
+    await sameLine('toggle', await box(toggle))
+    await sameLine('New Note', await box(create))
+    await sameLine('name', await textBox(name))
+    // Each symbol sits in the middle of its button.
+    for (const button of [toggle, create]) {
+      const b = await box(button)
+      const icon = await box(button.locator('.icon'))
+      expect(Math.abs(icon.x + icon.width / 2 - (b.x + b.width / 2))).toBeLessThanOrEqual(0.5)
+      expect(Math.abs(centreY(icon) - centreY(b))).toBeLessThanOrEqual(0.5)
+    }
+    // The toggle starts where the window controls' room ends, and nothing touches.
+    const room = await box(inset)
+    const t = await box(toggle)
+    expect(t.x).toBe(room.x + room.width)
+    const text = await textBox(name)
+    expect(text.x).toBeGreaterThan(t.x + t.width)
+    expect(text.x + text.width).toBeLessThan((await box(create)).x)
+  }
+  await check()
+  // The editor's toolbar buttons and the sidebar's title bar share the line too.
+  for (const button of await page.locator('.editor-toolbar .tool').all())
+    await sameLine('editor button', await box(button))
+  await sameLine('sidebar title bar', await box(page.locator('[data-devot-part=sidebar-titlebar]')))
+
+  // A view with an icon (the Trash): the icon and the name share the line.
+  await page
+    .getByRole('navigation', { name: 'Sidebar' })
+    .getByRole('button', { name: /^Trash/ })
+    .click()
+  await expect(name).toHaveText('Trash')
+  const icon = await box(header.locator('.headline-icon'))
+  await sameLine('icon', icon)
+  expect(Math.abs(centreY(icon) - centreY(await textBox(name)))).toBeLessThanOrEqual(0.5)
+
+  // With the sidebar hidden, the toggle clears the window controls.
+  await page.getByRole('button', { name: 'Hide Sidebar' }).click()
+  await expect.poll(async () => (await box(toggle)).x).toBe(84)
+  await sameLine('toggle', await box(toggle))
+  await sameLine('icon', await box(header.locator('.headline-icon')))
 })
 
 test('a note row insets its title and meta line by the same amount on both sides', async ({

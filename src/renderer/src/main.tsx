@@ -11,6 +11,8 @@ import { startShortcutSettings } from './commands/shortcutSettings'
 import { startSidebarMaterial } from './sidebarMaterial'
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
+import { startMotion } from './motionPreference'
+import { watchDialogExits } from './dialogMotion'
 import './theme/tokens.css'
 import './app.css'
 import './preview/content.css'
@@ -35,6 +37,9 @@ startEditorSettings()
 startShortcutSettings()
 startSidebarMaterial()
 startAppearance()
+startMotion()
+// Modal dialogs blur and fade as they close.
+watchDialogExits()
 if (!DEVOT_UI_TEST) {
   void followSystemAccent(document.documentElement.style, () => editorSettings().systemAccent)
     .then((refresh) => subscribeEditorSettings(refresh))
