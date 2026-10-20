@@ -166,8 +166,9 @@ overrides:
   katex: ^0.18.2
 
 patchedDependencies:
-  mdast-util-find-and-replace@3.0.3: f2a138f01555f88ef3a2e4281e6cf15a93d3df2eaf4348d7bff388f160bd942a
-  unist-util-visit@5.1.0: d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f
+  hast-util-minify-whitespace@1.0.1: b9ea89b02adb67b4cc26bd8568b76e42c54a4aa725a6a86b6440fe5e237dfdc6
+  mdast-util-find-and-replace@3.0.3: ac2102d0fa57a38080c1a2e32460c2b6d65a6a44b777912319bb38cf9e80db1f
+  unist-util-visit@5.1.0: 1c03916197c3d127f7f242a28c89c4903e4493484a6976d21adfc5ce6d602e3d
 
 importers:
 
@@ -4494,7 +4495,7 @@ snapshots:
     dependencies:
       '@types/hast': 3.0.5
 
-  hast-util-minify-whitespace@1.0.1:
+  hast-util-minify-whitespace@1.0.1(patch_hash=b9ea89b02adb67b4cc26bd8568b76e42c54a4aa725a6a86b6440fe5e237dfdc6):
     dependencies:
       '@types/hast': 3.0.5
       hast-util-embedded: 3.0.0
@@ -4525,7 +4526,7 @@ snapshots:
       mdast-util-to-hast: 13.2.1
       parse5: 7.3.0
       unist-util-position: 5.0.0
-      unist-util-visit: 5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f)
+      unist-util-visit: 5.1.0(patch_hash=1c03916197c3d127f7f242a28c89c4903e4493484a6976d21adfc5ce6d602e3d)
       vfile: 6.0.3
       web-namespaces: 2.0.1
       zwitch: 2.0.4
@@ -4565,7 +4566,7 @@ snapshots:
       rehype-minify-whitespace: 6.0.2
       trim-trailing-lines: 2.1.0
       unist-util-position: 5.0.0
-      unist-util-visit: 5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f)
+      unist-util-visit: 5.1.0(patch_hash=1c03916197c3d127f7f242a28c89c4903e4493484a6976d21adfc5ce6d602e3d)
 
   hast-util-to-parse5@8.0.1:
     dependencies:
@@ -4770,7 +4771,7 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  mdast-util-find-and-replace@3.0.3(patch_hash=f2a138f01555f88ef3a2e4281e6cf15a93d3df2eaf4348d7bff388f160bd942a):
+  mdast-util-find-and-replace@3.0.3(patch_hash=ac2102d0fa57a38080c1a2e32460c2b6d65a6a44b777912319bb38cf9e80db1f):
     dependencies:
       '@types/mdast': 4.0.4
       escape-string-regexp: 5.0.0
@@ -4810,7 +4811,7 @@ snapshots:
       '@types/mdast': 4.0.4
       ccount: 2.0.1
       devlop: 1.1.0
-      mdast-util-find-and-replace: 3.0.3(patch_hash=f2a138f01555f88ef3a2e4281e6cf15a93d3df2eaf4348d7bff388f160bd942a)
+      mdast-util-find-and-replace: 3.0.3(patch_hash=ac2102d0fa57a38080c1a2e32460c2b6d65a6a44b777912319bb38cf9e80db1f)
       micromark-util-character: 2.1.1
 
   mdast-util-gfm-footnote@2.1.0:
@@ -4888,7 +4889,7 @@ snapshots:
       micromark-util-sanitize-uri: 2.0.1
       trim-lines: 3.0.1
       unist-util-position: 5.0.0
-      unist-util-visit: 5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f)
+      unist-util-visit: 5.1.0(patch_hash=1c03916197c3d127f7f242a28c89c4903e4493484a6976d21adfc5ce6d602e3d)
       vfile: 6.0.3
 
   mdast-util-to-markdown@2.2.0:
@@ -4902,7 +4903,7 @@ snapshots:
       micromark-util-classify-character: 2.0.1
       micromark-util-decode-string: 2.0.1
       micromark-util-html-tag-name: 2.0.1
-      unist-util-visit: 5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f)
+      unist-util-visit: 5.1.0(patch_hash=1c03916197c3d127f7f242a28c89c4903e4493484a6976d21adfc5ce6d602e3d)
       zwitch: 2.0.4
 
   mdast-util-to-string@4.0.0:
@@ -5305,7 +5306,7 @@ snapshots:
   rehype-minify-whitespace@6.0.2:
     dependencies:
       '@types/hast': 3.0.5
-      hast-util-minify-whitespace: 1.0.1
+      hast-util-minify-whitespace: 1.0.1(patch_hash=b9ea89b02adb67b4cc26bd8568b76e42c54a4aa725a6a86b6440fe5e237dfdc6)
 
   rehype-raw@7.0.0:
     dependencies:
@@ -5578,7 +5579,7 @@ snapshots:
   unist-util-remove-position@5.0.0:
     dependencies:
       '@types/unist': 3.0.3
-      unist-util-visit: 5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f)
+      unist-util-visit: 5.1.0(patch_hash=1c03916197c3d127f7f242a28c89c4903e4493484a6976d21adfc5ce6d602e3d)
 
   unist-util-stringify-position@4.0.0:
     dependencies:
@@ -5589,7 +5590,7 @@ snapshots:
       '@types/unist': 3.0.3
       unist-util-is: 6.0.1
 
-  unist-util-visit@5.1.0(patch_hash=d20cdad8f2d3796e5a95c9bdd115352ef94113547e1c72c41d1e4d2cf1027c9f):
+  unist-util-visit@5.1.0(patch_hash=1c03916197c3d127f7f242a28c89c4903e4493484a6976d21adfc5ce6d602e3d):
     dependencies:
       '@types/unist': 3.0.3
       unist-util-is: 6.0.1

@@ -107,7 +107,6 @@ export interface PreparedImport {
   images: ImageLinks
   /** An HTML file's embedded images, as attachments to store (none without IDs to give them). */
   embedded: HtmlImage[]
-  /** What an HTML file's conversion left out. */
   dropped: string[]
 }
 

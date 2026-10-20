@@ -4,9 +4,9 @@
 //! can never take the arguments and a debug build never meets the release app.
 //! The message is `cwd\0\0argv joined by \0`. The running Devot answers one byte once it has taken
 //! the message, and takes none while it quits: only that answer completes a hand-off.
-//! Only the process holding `<identifier>.lock` beside the socket (an exclusive `flock`, kept for
+//! Only the process holding an exclusive `flock` on `<identifier>.lock` beside the socket (kept for
 //! its life) removes or binds the socket, so of two launches at once, the one that goes on to fail
-//! can never leave the other without a socket.
+//! can never leave the other without a socket. A volume without locks goes without that guard.
 
 use std::fs::{File, TryLockError};
 use std::io::{ErrorKind, Read, Write};
@@ -24,11 +24,9 @@ use crate::atomic_file::{effective_uid, open_lock_file};
 
 const MAX_MESSAGE: u64 = 1024 * 1024;
 const READ_TIMEOUT: Duration = Duration::from_secs(5);
-/// How long a hand-off waits for the running Devot to take the message.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(5);
 const TAKEN: u8 = 0x06;
 
-/// The socket this process bound and the lock that let it.
 struct Claimed {
     listener: UnixListener,
     socket: PathBuf,
@@ -119,10 +117,12 @@ fn send_within(
         }
         Err(_) => return Err("E_CLI_HANDOFF_FAILED"),
     };
+    // Before writing: macOS refuses the option once the other end has answered and closed.
     stream
-        .write_all(message)
+        .set_read_timeout(Some(wait))
+        .and_then(|()| stream.set_write_timeout(Some(wait)))
+        .and_then(|()| stream.write_all(message))
         .and_then(|()| stream.shutdown(Shutdown::Write))
-        .and_then(|()| stream.set_read_timeout(Some(wait)))
         .map_err(|_| "E_CLI_HANDOFF_FAILED")?;
     let mut answer = [0u8; 1];
     loop {
@@ -161,14 +161,20 @@ fn read_message(stream: &mut UnixStream) -> Option<(String, Vec<String>)> {
     Some((cwd.to_owned(), args.split('\0').map(String::from).collect()))
 }
 
-/// Answers each message `take` took; one it refused, or could not read, is closed unanswered.
-fn serve(listener: &UnixListener, take: impl Fn(String, Vec<String>) -> bool) {
+/// Answers a message `accept` takes before `run` handles it, since bringing Devot forward and
+/// finding the files can take longer than a sender waits; one refused, or unreadable, is closed
+/// unanswered.
+fn serve(listener: &UnixListener, accept: impl Fn() -> bool, run: impl Fn(String, Vec<String>)) {
     for mut stream in listener.incoming().flatten() {
-        if let Some((cwd, args)) = read_message(&mut stream)
-            && take(cwd, args)
-        {
-            let _ = stream.write_all(&[TAKEN]);
+        let Some((cwd, args)) = read_message(&mut stream) else {
+            continue;
+        };
+        if !accept() {
+            continue;
         }
+        let _ = stream.write_all(&[TAKEN]);
+        drop(stream);
+        run(cwd, args);
     }
 }
 
@@ -199,7 +205,6 @@ fn claim(lock: &Path, socket: &Path, wait: bool) -> std::io::Result<Option<Claim
     }))
 }
 
-/// Removes the socket only if it is still the one this process bound.
 fn remove_bound(socket: &Path, bound: (u64, u64)) {
     let ours =
         std::fs::symlink_metadata(socket).is_ok_and(|meta| (meta.dev(), meta.ino()) == bound);
@@ -224,14 +229,17 @@ fn listen(app: &AppHandle, claimed: Claimed) {
     let started = std::thread::Builder::new()
         .name("devot-single-instance".into())
         .spawn(move || {
-            serve(&listener, |cwd, args| {
-                if crate::exit::quitting(&app) {
-                    log::warn!("W_SINGLE_INSTANCE_QUITTING");
-                    return false;
-                }
-                crate::deep_link::on_second_instance(&app, args, cwd);
-                true
-            });
+            serve(
+                &listener,
+                || {
+                    let quitting = crate::exit::quitting(&app);
+                    if quitting {
+                        log::warn!("W_SINGLE_INSTANCE_QUITTING");
+                    }
+                    !quitting
+                },
+                |cwd, args| crate::deep_link::on_second_instance(&app, args, cwd),
+            );
         });
     if started.is_err() {
         log::warn!("W_SINGLE_INSTANCE_LISTEN_FAILED");
@@ -332,14 +340,17 @@ mod tests {
 
     type Taken = std::sync::mpsc::Receiver<(String, Vec<String>)>;
 
-    /// Serves `listener` on a thread, taking every message (`take`) and passing it on.
+    /// Serves `listener` on a thread, taking every message or none (`take`), and passes on those taken.
     fn serving(listener: UnixListener, take: bool) -> Taken {
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            serve(&listener, |cwd, args| {
-                let _ = tx.send((cwd, args));
-                take
-            })
+            serve(
+                &listener,
+                || take,
+                |cwd, args| {
+                    let _ = tx.send((cwd, args));
+                },
+            )
         });
         rx
     }
@@ -377,7 +388,7 @@ mod tests {
             send_to(&refusing, b"/w\0\0devot", uid),
             Err("E_CLI_HANDOFF_REFUSED")
         );
-        assert_eq!(taken.recv().unwrap(), ("/w".into(), vec!["devot".into()]));
+        assert!(taken.recv_timeout(Duration::from_millis(200)).is_err());
 
         let silent = dir.path().join("silent.sock");
         let listener = UnixListener::bind(&silent).unwrap();

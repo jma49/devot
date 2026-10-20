@@ -271,19 +271,24 @@ describe('HTML to Markdown for import', () => {
     })
   })
 
-  // A step that looked each element up among its siblings took time growing with the square of a
-  // parent's children (#290). Rules convert cheaply, so that square would show at this size (about
-  // 9 times as long for four times the rules).
-  describe('in time linear in the children of a parent', { timeout: 120_000 }, () => {
-    const rules = (n: number) => '<hr>'.repeat(n)
+  // Steps that looked each element up among its siblings, or took whitespace out from between them
+  // one at a time, took time growing with the square of a parent's children (#290). Rules convert
+  // cheaply, so that square would show at this size (about 9 times as long for four times the rules).
+  describe('in time linear in the children of a parent', { timeout: 180_000 }, () => {
     it.for([
-      ['on the page', rules],
-      ['in one block', (n: number) => `<div>${rules(n)}</div>`],
+      ['on the page', (n: number) => '<hr>'.repeat(n)],
+      ['in one block', (n: number) => `<div>${'<hr>'.repeat(n)}</div>`],
+      ['on lines of their own', (n: number) => '<hr>\n'.repeat(n)],
+      ['on lines of their own in one block', (n: number) => `<div>\n${'<hr>\n'.repeat(n)}</div>`],
     ] as const)('%s', ([, page], context) => {
-      const growth = fourfoldGrowth((n) => {
-        const html = page(n)
-        return () => htmlToMarkdown(html)
-      }, 25_000)
+      const growth = fourfoldGrowth(
+        (n) => {
+          const html = page(n)
+          return () => htmlToMarkdown(html)
+        },
+        25_000,
+        5,
+      )
       expectLinearGrowth(context, growth)
     })
   })

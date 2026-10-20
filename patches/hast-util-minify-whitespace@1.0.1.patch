@@ -1,0 +1,51 @@
+diff --git a/lib/index.js b/lib/index.js
+index bd0ef226d8f5aa258bd20f1f9297aed2d925da46..3fa724a8fb94be1ee606d734e2bcefd48f6ccebf 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -159,31 +159,37 @@ function all(parent, state) {
+   let before = state.before
+   const after = state.after
+   const children = parent.children
+-  let length = children.length
++  const length = children.length
+   let index = -1
++  // The children kept are moved down in place: removing each with `splice`
++  // made a page of blocks with whitespace between them quadratic.
++  let kept = 0
+ 
+   while (++index < length) {
+-    const result = minify(children[index], {
++    const child = children[index]
++    const result = minify(child, {
+       ...state,
+       after: collapsableAfter(children, index, after),
+       before
+     })
+ 
+-    if (result.remove) {
+-      children.splice(index, 1)
+-      index--
+-      length--
+-    } else if (!result.ignore) {
+-      before = result.stripAtStart
++    if (!result.remove) {
++      children[kept++] = child
++
++      if (!result.ignore) {
++        before = result.stripAtStart
++      }
+     }
+ 
+     // If this element, such as a `<select>` or `<img>`, contributes content
+     // somehow, allow whitespace again.
+-    if (content(children[index])) {
++    if (content(children[kept - 1])) {
+       before = false
+     }
+   }
+ 
++  children.length = kept
++
+   return {ignore: false, stripAtStart: Boolean(before || after), remove: false}
+ }
+ 

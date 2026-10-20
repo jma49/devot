@@ -1,5 +1,5 @@
 diff --git a/lib/index.js b/lib/index.js
-index 35e1e9a22f4ba634962e94a9a07c6e2d36c31e50..e3da04513e4828773a30afad42cbdbcfb08d5d63 100644
+index 35e1e9a22f4ba634962e94a9a07c6e2d36c31e50..5377de90bb169a5475d1a4fd8fe5ca5093fbe5a0 100644
 --- a/lib/index.js
 +++ b/lib/index.js
 @@ -103,7 +103,7 @@ export function findAndReplace(tree, list, options) {
@@ -20,12 +20,12 @@ index 35e1e9a22f4ba634962e94a9a07c6e2d36c31e50..e3da04513e4828773a30afad42cbdbcf
      let change = false
      /** @type {Array<PhrasingContent>} */
      let nodes = []
-@@ -218,6 +218,23 @@ export function findAndReplace(tree, list, options) {
+@@ -218,6 +218,24 @@ export function findAndReplace(tree, list, options) {
    }
  }
  
-+// Text is visited in order, so the last index found in a list is checked
-+// first: `indexOf` alone made a pass quadratic in a parent's children.
++// Text is visited in order, so the search starts next to the last index found
++// in a list: `indexOf` alone made a pass quadratic in a parent's children.
 +const lastIndexes = new WeakMap()
 +
 +function indexIn(children, node) {
@@ -36,6 +36,7 @@ index 35e1e9a22f4ba634962e94a9a07c6e2d36c31e50..e3da04513e4828773a30afad42cbdbcf
 +    else if (children[last] === node) index = last
 +    else if (children[last - 1] === node) index = last - 1
 +  }
++  if (index === -1 && last !== undefined) index = children.indexOf(node, last + 1)
 +  if (index === -1) index = children.indexOf(node)
 +  lastIndexes.set(children, index)
 +  return index

@@ -285,6 +285,56 @@ test('a sheet closed before its dim has faded in fades the dim out from there', 
   expect(rises, dims.map((d) => d.toFixed(3)).join(' ')).toEqual([])
 })
 
+test('a sheet opened again over its fading dim and closed early fades the dim out from there', async ({
+  page,
+}) => {
+  await openWithMotion(page)
+  await startSampling(page, 'dialog.sheet[open]')
+  // From the page: closed once the dim shows, opened again while its copy fades (the dim goes on
+  // from there), and closed again before that fade has ended.
+  const atCloses = await page.evaluate(async () => {
+    const frame = () => new Promise((r) => requestAnimationFrame(r))
+    const sheet = () =>
+      document.querySelector<HTMLDialogElement>('dialog.sheet[open]:not([data-closing])')
+    const dim = () => {
+      const open = sheet()
+      return open ? Number.parseFloat(getComputedStyle(open, '::backdrop').opacity) : 0
+    }
+    const done = () =>
+      Array.from(sheet()?.querySelectorAll('button') ?? [])
+        .find((button) => button.textContent === 'Done')
+        ?.click()
+    const drawn: number[] = []
+    dispatchEvent(new CustomEvent('devot:show-backups'))
+    for (let i = 0; i < 600 && dim() < 0.1; i++) await frame()
+    drawn.push(dim())
+    done()
+    await frame()
+    dispatchEvent(new CustomEvent('devot:show-backups'))
+    for (let i = 0; i < 600 && !sheet(); i++) await frame()
+    const resumed = dim()
+    for (let i = 0; i < 600 && dim() < resumed + 0.05; i++) await frame()
+    drawn.push(dim())
+    done()
+    return drawn
+  })
+  await expect(page.locator('dialog.sheet')).toHaveCount(0)
+  await expect(page.locator('.dialog-backdrop')).toHaveCount(0)
+  const { samples } = await stopSampling(page, 2)
+
+  for (const drawn of atCloses) {
+    expect(drawn).toBeGreaterThan(0.05)
+    expect(drawn).toBeLessThan(0.9)
+  }
+  const closed = samples.findLastIndex(
+    (s, i) => i > 0 && s.liveId === null && samples[i - 1]?.liveId !== null,
+  )
+  expect(samples.filter((s, i) => i > 0 && s.liveId !== samples[i - 1]?.liveId).length).toBe(4)
+  const dims = samples.slice(closed - 1).map((s) => s.dim)
+  const rises = dims.flatMap((d, i) => (i > 0 && d > (dims[i - 1] ?? 0) + 0.01 ? [i] : []))
+  expect(rises, dims.map((d) => d.toFixed(3)).join(' ')).toEqual([])
+})
+
 test('a dropdown opened again while it fades out never dips', async ({ page }) => {
   await openWithMotion(page)
   await newNoteButton(page).click()

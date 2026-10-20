@@ -166,8 +166,9 @@ export function measurePanes(shown: Record<Pane, boolean>): PaneBoxes {
     for (const item of el.querySelectorAll(RIDERS))
       if (shows(item)) riders.set(item, textLeft(item) - left)
     // The editor's lines may sit in the middle of it (the readable width
-    // setting): its scroll box slides by where they move, while the line
-    // numbers and the scroll bar stay with the editor.
+    // setting): the box of its lines and line numbers slides by where the
+    // lines move, while the line numbers and the scroll bar stay with the
+    // editor.
     for (const host of el.querySelectorAll('.editor')) {
       const scroller = host.shadowRoot?.querySelector('.cm-scroller')
       const lines = scroller?.querySelector(':scope > .cm-content')

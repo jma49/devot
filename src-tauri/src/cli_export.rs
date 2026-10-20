@@ -28,7 +28,6 @@ struct Ending {
     status: Option<i32>,
     abandoned: bool,
     pdf_folder: Option<PathBuf>,
-    /// The temporary file beside the target while it is written.
     temp: Option<(Folder, OsString)>,
 }
 
@@ -51,9 +50,17 @@ fn write_target(
     name: &str,
     from: &mut dyn Read,
 ) -> Result<(), String> {
-    let temp_name = atomic_file::temporary_name();
-    lock(ending).temp = Some((folder.clone(), temp_name.clone()));
-    let written = folder.temporary_file(temp_name).and_then(|mut temp| {
+    // Made while held, so an early exit either comes first or finds the file to remove.
+    let made = {
+        let mut held = lock(ending);
+        if held.abandoned {
+            return Err("E_CLI_EXPORT_INTERRUPTED".into());
+        }
+        let name = atomic_file::temporary_name();
+        held.temp = Some((folder.clone(), name.clone()));
+        folder.temporary_file(name)
+    };
+    let written = made.and_then(|mut temp| {
         temp.write_from(from)?;
         Ok(temp)
     });

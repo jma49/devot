@@ -12,5 +12,6 @@ overrides:
   katex: ^0.18.2
 
 patchedDependencies:
+  hast-util-minify-whitespace@1.0.1: patches/hast-util-minify-whitespace@1.0.1.patch
   mdast-util-find-and-replace@3.0.3: patches/mdast-util-find-and-replace@3.0.3.patch
   unist-util-visit@5.1.0: patches/unist-util-visit@5.1.0.patch
