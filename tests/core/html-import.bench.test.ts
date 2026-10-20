@@ -66,10 +66,10 @@ describe('HTML to Markdown for import', () => {
     it('reads a page in time linear in its lines', (context) => {
       const growth = fourfoldGrowth(
         (n) => {
-          const html = `<p>${'x'.repeat(200)}</p>\n`.repeat(n)
+          const html = `<p>${'x'.repeat(20)}</p>\n`.repeat(n)
           return () => fromHtml(html)
         },
-        5_000,
+        20_000,
         9,
       )
       expectLinearGrowth(context, growth)
