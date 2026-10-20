@@ -161,7 +161,9 @@ test('the image menu copies and saves an attachment, and sets its size', async (
   await expect(img).toHaveAttribute('src', FILE)
 
   const before = await popups(page)
-  await img.click({ button: 'right' })
+  // Attachments do not load here, and WebKit sometimes lays the broken image out at zero size, so
+  // the event goes to the image directly.
+  await img.dispatchEvent('contextmenu', { clientX: 20, clientY: 20, bubbles: true })
   await expect.poll(() => popups(page)).toBe(before + 1)
   expect(await shownMenu(page)).toEqual([
     'Copy Image',
@@ -184,7 +186,7 @@ test('the image menu copies and saves an attachment, and sets its size', async (
   await expect(img).toHaveClass('image-size-small')
   await expect(img).toHaveAttribute('src', FILE)
 
-  await img.click({ button: 'right' })
+  await img.dispatchEvent('contextmenu', { clientX: 20, clientY: 20, bubbles: true })
   await expect.poll(() => popups(page)).toBe(before + 2)
   expect(await shownMenu(page)).toContain('  Small [x]')
   await pickMenuItem(page, 'Auto', 'Size')
