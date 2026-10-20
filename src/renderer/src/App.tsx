@@ -143,6 +143,7 @@ import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
 import { LINE_COMMANDS } from './editor/lineCommands'
 import { NoteEditor, type ApplyRestore, type EditorHandle, type EditorPlace } from './NoteEditor'
+import { BODY_PLACEHOLDER_MS, useLate } from './late'
 import {
   changeEditorSettings,
   editorSettings,
@@ -381,16 +382,33 @@ export function App() {
   const opens = useRef(0)
   // The title field shows the note being left until the switch lands; typing then would rename that
   // note or merge with the title that arrives, so it is read-only meanwhile.
-  const [switching, setSwitching] = useState(false)
+  // The list draws the note being opened as selected at once.
+  const [openingId, setOpeningId] = useState<string>()
+  const switching = openingId !== undefined && openingId !== selected
   const startOpening = (id: string) => {
     openingRef.current = id
-    setSwitching(id !== selected)
+    setOpeningId(id)
     return ++opens.current
   }
   const stopOpening = () => {
     openingRef.current = undefined
-    setSwitching(false)
+    setOpeningId(undefined)
   }
+  // A body opened for the editor to show next, held until the editor takes it.
+  const preopened = useRef<{ core: Core; noteId: string; state: Uint8Array } | null>(null)
+  const handOver = (next: { core: Core; noteId: string; state: Uint8Array }) => {
+    const before = preopened.current
+    if (before) void before.core.unhold(before.noteId)
+    preopened.current = next
+  }
+  const takePreopened = useStable((from: Core, noteId: string) => {
+    const given = preopened.current
+    if (given?.core !== from || given.noteId !== noteId) return undefined
+    preopened.current = null
+    return given.state
+  })
+  const [editorLoading, setEditorLoading] = useState(false)
+  const bodyLate = useLate(switching || editorLoading, BODY_PLACEHOLDER_MS)
   useEffect(() => {
     if (openingRef.current === selected) stopOpening()
   })
@@ -1276,23 +1294,36 @@ export function App() {
     setBuiltIn(undefined)
     const open = startOpening(id)
     await saveEdits(core)
+    // Another note's body is asked for before its title, so it has usually
+    // arrived with the title and shows in the same frame. A body later than
+    // the title is left to the editor, which keeps the note on screen until then.
+    const another = id !== selected
+    let body: Uint8Array | undefined
+    if (another) {
+      void core.hold(id)
+      core.open(id).then(
+        (opened) => {
+          body = opened.state
+        },
+        () => undefined,
+      )
+    }
     // A link may point at a note that is gone; leave the selection alone then.
-    // The note loads in the core for its editor; only its title comes here.
-    const title = await core.title(id).catch((e: unknown) => {
+    const name = await core.title(id).catch((e: unknown) => {
       console.warn('W_NOTE_OPEN_FAILED', id, errorCode(e))
       return undefined
     })
-    if (open !== opens.current) return false
-    if (title === undefined) {
+    const overtaken = open !== opens.current
+    if (another && (overtaken || name === undefined || !body)) void core.unhold(id)
+    if (overtaken) return false
+    if (name === undefined) {
       stopOpening()
       return false
     }
-    // The open note's editor stays mounted and does not report its text
-    // again: keep the preview's copy.
-    if (id !== selected) openText.set('')
+    if (body) handOver({ core, noteId: id, state: body })
     setTakesKeyboard(keyboard || paletteFromEditor.current ? id : undefined)
     setSelected(id)
-    setTitle(title)
+    setTitle(name)
     if (!fromTrail) moveTrail(visit(trailRef.current, id))
     // A note opened outside the workspace (a note link, a search over every
     // note, the palette) leaves it.
@@ -2792,6 +2823,7 @@ export function App() {
           notes={shownResults}
           tags={tagsById}
           selected={selected}
+          opening={openingId}
           onSelect={openFromList}
           onCreate={core ? createFromList : undefined}
           onAction={runNoteAction}
@@ -2840,6 +2872,7 @@ export function App() {
           notes={templateRows.others}
           tags={tagsById}
           selected={selected}
+          opening={openingId}
           onSelect={openFromList}
           onCreate={core ? createFromList : undefined}
           createLabel={t('templates.new')}
@@ -2870,6 +2903,7 @@ export function App() {
           notes={activeFilter?.kind === 'pinned' ? groups.pinned : groups.others}
           tags={tagsById}
           selected={selected}
+          opening={openingId}
           onSelect={openFromList}
           onCreate={core ? createFromList : undefined}
           onAction={runNoteAction}
@@ -3024,11 +3058,12 @@ export function App() {
               </div>
             )}
             {find.bar}
-            <div className={`panes panes-${mode}`}>
+            <div className={`panes panes-${mode}`} data-loading={bodyLate || undefined}>
               <NoteEditor
-                key={selected}
                 core={core}
                 noteId={selected}
+                takePreopened={takePreopened}
+                onLoading={setEditorLoading}
                 autoFocus={selected === takesKeyboard}
                 autoFocusIfFree={selected === restoreKeyboard.current}
                 hidden={mode === 'preview'}

@@ -1864,6 +1864,17 @@ button {
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* A note slow to load: the one being left fades back while it waits. The next note
+   replaces it at once, with no fade. */
+.panes[data-loading] > :is(.editor, .preview) {
+  opacity: var(--opacity-disabled);
+  transition: opacity var(--motion-duration-color) var(--motion-easing-standard);
+}
+
+:root[data-motion='reduced'] .panes[data-loading] > :is(.editor, .preview) {
+  transition: none;
+}
+
 .panes-split {
   grid-template-columns: repeat(2, minmax(var(--size-pane-min-width), 1fr));
   overflow-x: auto;

@@ -1,8 +1,8 @@
 import { isolateHistory } from '@codemirror/commands'
-import { EditorSelection } from '@codemirror/state'
-import { Facet, Prec, type Extension } from '@codemirror/state'
+import { EditorSelection, Facet, Prec, type EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
-import { useCallback, useEffect, useRef, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
+import { flushSync } from 'react-dom'
 import { yCollab } from 'y-codemirror.next'
 import * as Y from 'yjs'
 import type { ImageSize } from '../../core/images'
@@ -536,9 +536,29 @@ function shadowContainer(host: HTMLElement): {
   return { root, frame, scroller, parent }
 }
 
-interface Props {
+interface Shown {
   core: Core
   noteId: string
+  place: EditorPlace
+  handle: EditorHandle
+  applyStep: ApplyRestore
+  /** Lets the note go; `left` is the editor state it was left with. */
+  close: (left: EditorState) => void
+}
+
+interface EditorBox {
+  view: EditorView
+  settings: ReturnType<typeof useEditorSettings>
+}
+
+interface Props {
+  core: Core
+  /** Changing it keeps the note shown until the next one has loaded, then swaps the view's state. */
+  noteId: string
+  /** A body the window opened and holds (`core.hold`) for this note, if any: the editor takes it and the hold. */
+  takePreopened?: (core: Core, noteId: string) => Uint8Array | undefined
+  /** Whether a note is loading while the previous one stays on screen. */
+  onLoading?: (loading: boolean) => void
   /** Focus the body once it loads (a note just created, or Cmd+Return on its row). */
   autoFocus: boolean
   /** With `autoFocus`: only if nothing has the keyboard when the body has loaded (a restore). */
@@ -570,6 +590,8 @@ interface Props {
 export function NoteEditor({
   core,
   noteId,
+  takePreopened,
+  onLoading,
   autoFocus,
   autoFocusIfFree = false,
   hidden,
@@ -597,12 +619,12 @@ export function NoteEditor({
   const focusOnlyIfFree = useRef(autoFocusIfFree)
   const settings = useEditorSettings()
   const latestSettings = useRef(settings)
-  const open = useRef<{
-    view: EditorView
-    settings: typeof settings
-    scroller: HTMLElement
-    place: EditorPlace
-  } | null>(null)
+  const box = useRef<ReturnType<typeof shadowContainer> | null>(null)
+  const editor = useRef<EditorBox | null>(null)
+  const shown = useRef<Shown | null>(null)
+  const loading = useRef(onLoading)
+  const preopened = useRef(takePreopened)
+  const alertMenu = useRef(showAlertMenu)
   const report = useRef(onText)
   const linkSources = useRef(links)
   const findHandle = useRef(onFind)
@@ -618,7 +640,7 @@ export function NoteEditor({
   const noteOpener = useRef(onOpenNote)
   const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
   const pickMenuAction = useCallback((action: EditorAction, target: EditorMenuTarget) => {
-    const view = open.current?.view
+    const view = editor.current?.view
     if (!view) return
     switch (action) {
       case 'openLink':
@@ -674,7 +696,8 @@ export function NoteEditor({
       : tauriMenus(),
   )
   const menuOpener = useRef<(view: EditorView, at: MenuPoint, pos: number | null) => void>(() => {})
-  useEffect(() => {
+  // Before the effect that shows a note, which reads them in the same commit.
+  useLayoutEffect(() => {
     menuOpener.current = (view, at, pos) => {
       menuAt.current = at
       const target = editorMenuTarget(view.state, pos, fromSelection.current !== undefined)
@@ -696,21 +719,24 @@ export function NoteEditor({
     imagesRefused.current = onImagesRefused
     openFailed.current = onOpenFailed
     noteOpener.current = onOpenNote
+    loading.current = onLoading
+    preopened.current = takePreopened
+    alertMenu.current = showAlertMenu
     latestSettings.current = settings
     imageHandlers.current = { open: onOpenImage, menu: showImageMenu }
   })
 
   useEffect(
     () =>
-      subscribeKeymap(() => open.current?.view.dispatch({ effects: reconfigureRegistryKeys() })),
+      subscribeKeymap(() => editor.current?.view.dispatch({ effects: reconfigureRegistryKeys() })),
     [],
   )
 
   // An imported font face that has loaded changes the text's size: measure again.
-  useEffect(() => subscribeFontsLoaded(() => open.current?.view.requestMeasure()), [])
+  useEffect(() => subscribeFontsLoaded(() => editor.current?.view.requestMeasure()), [])
 
   useEffect(() => {
-    const now = open.current
+    const now = editor.current
     if (!now || now.settings === settings) return
     const effects = reconfigureSetup(now.settings, settings)
     // The note or code font, its size or the line height change the line heights.
@@ -730,281 +756,346 @@ export function NoteEditor({
 
   // Shown again after preview mode: a hidden box can lose its scroll position, and a place restored while hidden is not applied yet.
   useEffect(() => {
-    const now = open.current
-    if (hidden || !now?.place.top) return
-    scrollToTop(now.view, now.scroller, now.place.top)
+    const view = editor.current?.view
+    const top = shown.current?.place.top
+    const scroller = box.current?.scroller
+    if (hidden || !view || !top || !scroller) return
+    scrollToTop(view, scroller, top)
   }, [hidden])
 
-  useEffect(() => {
-    let view: EditorView | undefined
-    let untrackEditor: (() => void) | undefined
+  useLayoutEffect(
+    () => () => {
+      const view = editor.current?.view
+      if (view) shown.current?.close(view.state)
+      shown.current = null
+      view?.destroy()
+      editor.current = null
+      box.current = null
+      report.current('')
+    },
+    [],
+  )
+
+  useLayoutEffect(() => {
     let cancelled = false
-    const doc = new Y.Doc()
-    const forward = (update: Uint8Array, origin: unknown) => {
-      if (origin !== REMOTE && origin !== RESTORE) void core.applyUpdate(noteId, update)
+    let held = false
+    const unpublish = () => {
+      if (restoreRef) restoreRef.current = null
+      if (handleRef) handleRef.current = null
+      findHandle.current?.(null)
+      scrollHandle.current?.(null)
+    }
+    const publish = (s: Shown) => {
+      const view = editor.current?.view
+      const scroller = box.current?.scroller
+      if (!view || !scroller) return
+      if (restoreRef) restoreRef.current = s.applyStep
+      if (handleRef) handleRef.current = s.handle
+      findHandle.current?.(editorFindTarget(view))
+      scrollHandle.current?.(editorScrollPane(view, scroller))
     }
 
-    // The core keeps the note in memory while the editor shows it, so its
-    // replica and the core's document never part (see NoteService.hold).
-    void core.hold(noteId)
-    void core.open(noteId).then(
-      (opened) => {
-        if (cancelled || !host.current) return
-        Y.applyUpdate(doc, opened.state, REMOTE)
-        doc.on('update', forward)
-        const text = doc.getText(BODY)
-        report.current(text.toString())
-        text.observe(() => report.current(text.toString()))
-        const { root, frame, scroller, parent } = shadowContainer(host.current)
-        // True while a restored version is applied: an undo step of its own,
-        // where every other change from the Yjs document is none (editor/undo.ts).
-        let restoring = false
-        const applyStep: ApplyRestore = (update) => {
-          restoring = true
-          try {
-            Y.applyUpdate(doc, update, RESTORE)
-          } finally {
-            restoring = false
-          }
+    const show = (state: Uint8Array) => {
+      const el = host.current
+      if (!el) {
+        void core.unhold(noteId)
+        return
+      }
+      const { root, frame, scroller, parent } = (box.current ??= shadowContainer(el))
+      const doc = new Y.Doc()
+      const forward = (update: Uint8Array, origin: unknown) => {
+        if (origin !== REMOTE && origin !== RESTORE) void core.applyUpdate(noteId, update)
+      }
+      Y.applyUpdate(doc, state, REMOTE)
+      doc.on('update', forward)
+      const text = doc.getText(BODY)
+      const reportText = () => report.current(text.toString())
+      text.observe(reportText)
+      // True while a restored version is applied: an undo step of its own,
+      // where every other change from the Yjs document is none (editor/undo.ts).
+      let restoring = false
+      const applyStep: ApplyRestore = (update) => {
+        restoring = true
+        try {
+          Y.applyUpdate(doc, update, RESTORE)
+        } finally {
+          restoring = false
         }
-        if (restoreRef) restoreRef.current = applyStep
-        const setupFor = latestSettings.current
-        const images = attachImages(core, noteId, text, (codes) => imagesRefused.current?.(codes))
-        const imageChooser = images.choose
-        const body = text.toString()
-        const restored = placeAsked.current?.()
-        const selection = restored?.selection && clampSelection(restored.selection, body.length)
-        const place: EditorPlace = {
-          selection: selection ?? { anchor: 0, head: 0 },
-        }
-        // Kept inside the note, as the selection is: the note can be shorter
-        // than when it was stored, and edits map the top line through changes.
-        if (restored?.top) place.top = clampTop(restored.top, body.length)
-        const placeChanged = () => placeReport.current?.(noteId, { ...place })
-        const initial = noteState(
-          noteId,
-          {
-            doc: body,
-            ...(selection
-              ? {
-                  selection: EditorSelection.single(selection.anchor, selection.head),
-                }
-              : {}),
-            extensions: [
-              editorSetup(setupFor),
-              // No keymap acts on the keys an input method composes with.
-              imeKeys(),
-              theme,
-              // Operators in code keep one style each, so code fonts form ligatures.
-              noteHighlighting(noteHighlightStyle),
-              markdownLineStyles,
-              noteMarkdown,
-              images.extension,
-              pasteUrls,
-              pasteChooser(linkFetcher),
-              pastePlainKeys(),
-              pasteUrlAsKeys(),
-              newFromSelectionKeys(),
-              editorMenu((target, at, pos) => menuOpener.current(target, at, pos)),
-              newFromLinkKeys(),
-              lineCommands((href) => {
-                const note = /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)
-                if (note?.[1]) noteOpener.current?.(note[1])
-                else if (/^https:\/\//i.test(href)) {
-                  invoke('open_external', { url: href }).catch(() =>
-                    console.warn('W_OPEN_EXTERNAL_FAILED'),
-                  )
-                }
-              }),
-              insertKeymap(),
-              imageCommandKeys(),
-              newFromSelection.of(() => {
-                const run = fromSelection.current
-                run?.()
-                return run !== undefined
-              }),
-              newFromLink.of(() => {
-                const run = fromLink.current
-                run?.()
-                return run !== undefined
-              }),
-              trackExtract,
-              linkCompletion({
-                find: (query) => linkSources.current.find(query),
-                create: (title) => linkSources.current.create(title),
-                discard: (id) => linkSources.current.discard(id),
-                preview: (id) => previewsFor(core)(id),
-                linked: (id) => linkSources.current.linked(id),
-              }),
-              editorCompletions({
-                chooseImageFiles: (target) => imageChooser(target),
-                chooseTemplate: () => chooseTemplateRef.current?.(),
-              }),
-              formatToolbar(showAlertMenu),
-              imageSizeBar,
-              tableToolbar,
-              linkTooltip,
-              noteLinkHover(previewsFor(core)),
-              formatKeyAvailability(setInertFormats),
-              tableKeymap(),
-              tableTyping(),
-              // After table typing, whose rules come first in a table.
-              overwrite(),
-              editorFind(),
-              imageActions.of({
-                open: (image) => imageHandlers.current.open?.(image),
-                menu: (image, at) => imageHandlers.current.menu?.(imageMenuTarget(image), at),
-              }),
-              popupSpace(frame),
-              // Undo is CodeMirror's history alone: no Yjs undo manager.
-              yCollab(text, null, { undoManager: false }),
-              yjsHistory(() => restoring),
-              EditorView.contentAttributes.of({
-                'aria-label': t('note.bodyLabel'),
-              }),
-              EditorView.updateListener.of((update) => {
-                if (!update.selectionSet && !update.docChanged) return
-                if (update.docChanged && place.top) {
-                  place.top = {
-                    ...place.top,
-                    pos: update.changes.mapPos(place.top.pos),
-                  }
-                }
-                const { anchor, head } = update.state.selection.main
-                place.selection = { anchor, head }
-                placeChanged()
-              }),
-              EditorView.domEventHandlers({
-                scroll: (_event, scrolled) => {
-                  const top = editorTop(scrolled, scroller)
-                  if (!top) return
-                  place.top = top
-                  placeChanged()
-                },
-              }),
-            ],
-          },
-          doc,
-        )
-        view = new EditorView({
-          root,
-          state: initial,
-          // With no scroll position, the selection shows in the middle.
-          ...(selection && !restored?.top
+      }
+      const setupFor = latestSettings.current
+      const images = attachImages(core, noteId, text, (codes) => imagesRefused.current?.(codes))
+      const imageChooser = images.choose
+      const body = text.toString()
+      const restored = placeAsked.current?.()
+      const selection = restored?.selection && clampSelection(restored.selection, body.length)
+      const place: EditorPlace = {
+        selection: selection ?? { anchor: 0, head: 0 },
+      }
+      // Kept inside the note, as the selection is: the note can be shorter
+      // than when it was stored, and edits map the top line through changes.
+      if (restored?.top) place.top = clampTop(restored.top, body.length)
+      const placeChanged = () => placeReport.current?.(noteId, { ...place })
+      const initial = noteState(
+        noteId,
+        {
+          doc: body,
+          ...(selection
             ? {
-                scrollTo: EditorView.scrollIntoView(selection.head, {
-                  y: 'center',
-                }),
+                selection: EditorSelection.single(selection.anchor, selection.head),
               }
             : {}),
-          parent,
-        })
-        open.current = { view, settings: setupFor, scroller, place }
-        untrackEditor = trackOpenEditor(noteId, view, doc, text)
-        findHandle.current?.(editorFindTarget(view))
-        scrollHandle.current?.(editorScrollPane(view, scroller))
-        const ready = view
-        if (handleRef) {
-          handleRef.current = {
-            noteId,
-            vector: () => Y.encodeStateVector(doc),
-            takeState: (state) => Y.applyUpdate(doc, state, REMOTE),
-            takeStep: applyStep,
-            focus: () => ready.focus(),
-            focusStart: () => {
-              ready.focus()
-              ready.dispatch({ selection: { anchor: 0 }, scrollIntoView: true })
-            },
-            remeasure: () => ready.requestMeasure(),
-            format: (id) => {
-              ready.focus()
-              formatCommand(id)(ready)
-            },
-            insert: (id) => {
-              ready.focus()
-              insertCommand(id)(ready)
-            },
-            text: () => ready.state.doc.toString(),
-            goToLine: (line, where = 'start') => {
-              const text = ready.state.doc
-              const at = text.line(Math.min(text.lines, Math.max(1, Math.floor(line)))).from
-              ready.focus()
-              ready.dispatch({
-                selection: EditorSelection.cursor(at),
-                effects: EditorView.scrollIntoView(
-                  at,
-                  where === 'center' ? { y: 'center' } : { y: 'start', yMargin: 24 },
-                ),
-              })
-            },
-            inTable: () => inTable(ready.state),
-            table: (id) => {
-              ready.focus()
-              const tr = TABLE_COMMANDS[id](ready.state)
-              if (tr) ready.dispatch(tr)
-            },
-            hasSelection: () => selectedText(ready.state) !== null,
-            moveSelection: (make) => moveSelection(ready, make, () => !cancelled),
-            linkAtCursor: () =>
-              linkForNewNote(ready.state, ready.state.selection.main.head) ?? null,
-            moveRange: (from, to, make) => moveRange(ready, from, to, make, () => !cancelled),
-            pastePlain: () => {
-              ready.focus()
-              return pastePlain(ready)
-            },
-            runLine: (id) => {
-              ready.focus()
-              runEditCommand(ready, id)
-            },
-            pasteUrlAs: () => {
-              ready.focus()
-              return pasteUrlAsIn(ready)
-            },
-            imageAtCursor: () => {
-              const image = imageAt(ready.state, ready.state.selection.main.head)
-              return image ? imageMenuTarget(image) : null
-            },
-            viewImage: () => viewImageAt(ready),
-            setImageSize: (source, size) => setImageSize(ready, source, size),
-            toggleTask: (at) => {
-              const change = taskToggle(ready.state, at)
-              if (change) ready.dispatch(change)
-              return change !== null
-            },
-          }
-        }
-        // The body took a while to load: a title or palette field the user
-        // went to meanwhile keeps the keyboard.
-        const take = focusOnlyIfFree.current
-          ? keyboardIsFree()
-          : !typingElsewhere(document.activeElement, host.current)
-        if (focusOnOpen.current && take && !earlyKeysKeptForAnother(noteId)) view.focus()
-        const typed = takeEarlyKeys(noteId)
-        if (typed.length) replayEarlyKeys(view, typed)
-        if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
-      },
-      (e: unknown) => {
-        if (!cancelled) openFailed.current?.(noteId, errorCode(e))
-      },
-    )
+          extensions: [
+            editorSetup(setupFor),
+            // No keymap acts on the keys an input method composes with.
+            imeKeys(),
+            theme,
+            // Operators in code keep one style each, so code fonts form ligatures.
+            noteHighlighting(noteHighlightStyle),
+            markdownLineStyles,
+            noteMarkdown,
+            images.extension,
+            pasteUrls,
+            pasteChooser(linkFetcher),
+            pastePlainKeys(),
+            pasteUrlAsKeys(),
+            newFromSelectionKeys(),
+            editorMenu((target, at, pos) => menuOpener.current(target, at, pos)),
+            newFromLinkKeys(),
+            lineCommands((href) => {
+              const note = /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)
+              if (note?.[1]) noteOpener.current?.(note[1])
+              else if (/^https:\/\//i.test(href)) {
+                invoke('open_external', { url: href }).catch(() =>
+                  console.warn('W_OPEN_EXTERNAL_FAILED'),
+                )
+              }
+            }),
+            insertKeymap(),
+            imageCommandKeys(),
+            newFromSelection.of(() => {
+              const run = fromSelection.current
+              run?.()
+              return run !== undefined
+            }),
+            newFromLink.of(() => {
+              const run = fromLink.current
+              run?.()
+              return run !== undefined
+            }),
+            trackExtract,
+            linkCompletion({
+              find: (query) => linkSources.current.find(query),
+              create: (title) => linkSources.current.create(title),
+              discard: (id) => linkSources.current.discard(id),
+              preview: (id) => previewsFor(core)(id),
+              linked: (id) => linkSources.current.linked(id),
+            }),
+            editorCompletions({
+              chooseImageFiles: (target) => imageChooser(target),
+              chooseTemplate: () => chooseTemplateRef.current?.(),
+            }),
+            formatToolbar((...args) => alertMenu.current(...args)),
+            imageSizeBar,
+            tableToolbar,
+            linkTooltip,
+            noteLinkHover(previewsFor(core)),
+            formatKeyAvailability(setInertFormats),
+            tableKeymap(),
+            tableTyping(),
+            // After table typing, whose rules come first in a table.
+            overwrite(),
+            editorFind(),
+            imageActions.of({
+              open: (image) => imageHandlers.current.open?.(image),
+              menu: (image, at) => imageHandlers.current.menu?.(imageMenuTarget(image), at),
+            }),
+            popupSpace(frame),
+            // Undo is CodeMirror's history alone: no Yjs undo manager.
+            yCollab(text, null, { undoManager: false }),
+            yjsHistory(() => restoring),
+            EditorView.contentAttributes.of({
+              'aria-label': t('note.bodyLabel'),
+            }),
+            EditorView.updateListener.of((update) => {
+              if (!update.selectionSet && !update.docChanged) return
+              if (update.docChanged && place.top) {
+                place.top = {
+                  ...place.top,
+                  pos: update.changes.mapPos(place.top.pos),
+                }
+              }
+              const { anchor, head } = update.state.selection.main
+              place.selection = { anchor, head }
+              placeChanged()
+            }),
+            EditorView.domEventHandlers({
+              scroll: (_event, scrolled) => {
+                const top = editorTop(scrolled, scroller)
+                if (!top) return
+                place.top = top
+                placeChanged()
+              },
+            }),
+          ],
+        },
+        doc,
+      )
+      // With no scroll position, the selection shows in the middle.
+      const scrollTo =
+        selection && !restored?.top
+          ? EditorView.scrollIntoView(selection.head, { y: 'center' })
+          : undefined
+      const before = editor.current
+      const left = shown.current
+      let view: EditorView
+      if (before) {
+        view = before.view
+        const leftState = view.state
+        scroller.scrollTop = 0
+        view.setState(initial)
+        if (scrollTo) view.dispatch({ effects: scrollTo })
+        before.settings = setupFor
+        left?.close(leftState)
+      } else {
+        view = new EditorView({ root, state: initial, ...(scrollTo ? { scrollTo } : {}), parent })
+        editor.current = { view, settings: setupFor }
+      }
+      const untrackEditor = trackOpenEditor(noteId, view, doc, text)
+      const ready = view
+      const s: Shown = {
+        core,
+        noteId,
+        place,
+        applyStep,
+        close: (leftWith) => {
+          keepUndo(noteId, leftWith, doc)
+          untrackEditor()
+          text.unobserve(reportText)
+          doc.off('update', forward)
+          doc.destroy()
+          void core.unhold(noteId)
+        },
+        handle: {
+          noteId,
+          vector: () => Y.encodeStateVector(doc),
+          takeState: (update) => Y.applyUpdate(doc, update, REMOTE),
+          takeStep: applyStep,
+          focus: () => ready.focus(),
+          focusStart: () => {
+            ready.focus()
+            ready.dispatch({ selection: { anchor: 0 }, scrollIntoView: true })
+          },
+          remeasure: () => ready.requestMeasure(),
+          format: (id) => {
+            ready.focus()
+            formatCommand(id)(ready)
+          },
+          insert: (id) => {
+            ready.focus()
+            insertCommand(id)(ready)
+          },
+          text: () => ready.state.doc.toString(),
+          goToLine: (line, where = 'start') => {
+            const lines = ready.state.doc
+            const at = lines.line(Math.min(lines.lines, Math.max(1, Math.floor(line)))).from
+            ready.focus()
+            ready.dispatch({
+              selection: EditorSelection.cursor(at),
+              effects: EditorView.scrollIntoView(
+                at,
+                where === 'center' ? { y: 'center' } : { y: 'start', yMargin: 24 },
+              ),
+            })
+          },
+          inTable: () => inTable(ready.state),
+          table: (id) => {
+            ready.focus()
+            const tr = TABLE_COMMANDS[id](ready.state)
+            if (tr) ready.dispatch(tr)
+          },
+          hasSelection: () => selectedText(ready.state) !== null,
+          moveSelection: (make) => moveSelection(ready, make, () => shown.current === s),
+          linkAtCursor: () => linkForNewNote(ready.state, ready.state.selection.main.head) ?? null,
+          moveRange: (from, to, make) =>
+            moveRange(ready, from, to, make, () => shown.current === s),
+          pastePlain: () => {
+            ready.focus()
+            return pastePlain(ready)
+          },
+          runLine: (id) => {
+            ready.focus()
+            runEditCommand(ready, id)
+          },
+          pasteUrlAs: () => {
+            ready.focus()
+            return pasteUrlAsIn(ready)
+          },
+          imageAtCursor: () => {
+            const image = imageAt(ready.state, ready.state.selection.main.head)
+            return image ? imageMenuTarget(image) : null
+          },
+          viewImage: () => viewImageAt(ready),
+          setImageSize: (source, size) => setImageSize(ready, source, size),
+          toggleTask: (at) => {
+            const change = taskToggle(ready.state, at)
+            if (change) ready.dispatch(change)
+            return change !== null
+          },
+        },
+      }
+      shown.current = s
+      reportText()
+      publish(s)
+      // The body took a while to load: a title or palette field the user
+      // went to meanwhile keeps the keyboard.
+      const take = focusOnlyIfFree.current
+        ? keyboardIsFree()
+        : !typingElsewhere(document.activeElement, el)
+      if (focusOnOpen.current && take && !earlyKeysKeptForAnother(noteId)) view.focus()
+      const typed = takeEarlyKeys(noteId)
+      if (typed.length) replayEarlyKeys(view, typed)
+      if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
+    }
+
+    const given = preopened.current?.(core, noteId)
+    const now = shown.current
+    if (now?.noteId === noteId && now.core === core) {
+      // Already shown and held: the window's hold is one too many.
+      if (given) void core.unhold(noteId)
+      publish(now)
+    } else if (given) {
+      show(given)
+    } else {
+      held = true
+      loading.current?.(true)
+      // The core keeps the note in memory while the editor shows it, so its
+      // replica and the core's document never part (see NoteService.hold).
+      void core.hold(noteId)
+      void core.open(noteId).then(
+        (opened) => {
+          if (cancelled) return
+          held = false
+          show(opened.state)
+          // In the frame that shows the note, or it would show faded first.
+          flushSync(() => loading.current?.(false))
+        },
+        (e: unknown) => {
+          if (cancelled) return
+          loading.current?.(false)
+          openFailed.current?.(noteId, errorCode(e))
+        },
+      )
+    }
 
     return () => {
       cancelled = true
-      if (restoreRef) restoreRef.current = null
-      if (view) {
-        keepUndo(noteId, view.state, doc)
-        findHandle.current?.(null)
-        scrollHandle.current?.(null)
+      if (held) {
+        void core.unhold(noteId)
+        loading.current?.(false)
       }
-      if (handleRef) handleRef.current = null
-      open.current = null
-      untrackEditor?.()
-      doc.off('update', forward)
-      view?.destroy()
-      doc.destroy()
-      void core.unhold(noteId)
+      unpublish()
     }
-  }, [core, noteId, restoreRef, showAlertMenu, handleRef])
+  }, [core, noteId, restoreRef, handleRef])
 
   return <div className="editor" data-devot-part="editor-body" ref={host} hidden={hidden} />
 }
