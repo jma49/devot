@@ -3,10 +3,11 @@ import { skipIfOverloaded } from './budget'
 
 // Whether work grows linearly, as a ratio of two sizes measured on the same machine moments apart,
 // so no budget depends on how fast the machine is: four times the input takes about 4 times as
-// long in linear time and 16 times in quadratic time. Each round runs both sizes, so load that
-// drifts meanwhile weighs on both, and the fastest of the rounds counts.
+// long in linear time and up to 16 times in quadratic time. Each round runs both sizes, so load
+// that drifts meanwhile weighs on both, and the fastest of the rounds counts. A busy hosted runner
+// has measured linear work at 6.5, so a check must have quadratic work at 9 or more.
 
-const LIMIT = 6
+const LIMIT = 7
 
 const timed = (work: () => void) => {
   const start = performance.now()

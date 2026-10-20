@@ -273,8 +273,8 @@ describe('HTML to Markdown for import', () => {
 
   // Steps that looked each element up among its siblings, took whitespace out from between them one
   // at a time, or read the rest of the page for each line's end, took time growing with the square
-  // of a parent's children or of a page's lines (#290). Rules and breaks are cheap, so that square
-  // would show at these sizes (9 to 14 times as long for four times as many).
+  // of a parent's children or of a page's lines (#290). Rules and text are cheap, so that square
+  // would show at these sizes (9 to 12 times as long for four times as many).
   describe('in time linear in the children of a parent', { timeout: 180_000 }, () => {
     it.for([
       ['side by side', (n: number) => '<hr>'.repeat(n)],
@@ -294,10 +294,10 @@ describe('HTML to Markdown for import', () => {
     it('reads a page in time linear in its lines', (context) => {
       const growth = fourfoldGrowth(
         (n) => {
-          const html = '<br>\n'.repeat(n)
+          const html = `<p>${'x'.repeat(200)}</p>\n`.repeat(n)
           return () => fromHtml(html)
         },
-        50_000,
+        5_000,
         5,
       )
       expectLinearGrowth(context, growth)
