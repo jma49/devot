@@ -12,6 +12,8 @@ const lines = (page: Page) => page.locator('.cm-line').allTextContents()
 async function newNote(page: Page, text: string) {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
+  // The title clears before the new note's editor replaces the last one.
+  await expect(body(page)).toHaveText('')
   await body(page).click()
   await page.keyboard.insertText(text)
 }
