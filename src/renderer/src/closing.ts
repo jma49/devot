@@ -101,6 +101,8 @@ export function timeReaching(
   return reached
 }
 
+const entering = new WeakMap<HTMLElement, () => void>()
+
 /**
  * Retargets `el`'s entrance from `copy`, the closing copy it replaces: the
  * copy goes and `el`'s CSS animations start ahead, where its opacity matches
@@ -110,6 +112,10 @@ export function timeReaching(
 export function enterFrom(el: HTMLElement, copy: Element): void {
   const opacity = Number.parseFloat(getComputedStyle(copy).opacity)
   copy.remove()
+  // A second take-over of the same element (StrictMode mounts twice) must not
+  // measure from the first one's head start.
+  entering.get(el)?.()
+  el.style.removeProperty('animation-delay')
   const style = getComputedStyle(el)
   const end = animationMs(style.animationDuration, style.animationDelay)
   if (end <= 0 || style.animationName === 'none' || !(opacity > 0)) return
@@ -127,7 +133,13 @@ export function enterFrom(el: HTMLElement, copy: Element): void {
     el.style.animationDelay = `${-(head + performance.now() - since)}ms`
   }
   el.addEventListener('animationstart', onStart)
-  setTimeout(() => el.removeEventListener('animationstart', onStart), end)
+  const stop = () => {
+    clearTimeout(timer)
+    el.removeEventListener('animationstart', onStart)
+    if (entering.get(el) === stop) entering.delete(el)
+  }
+  const timer = setTimeout(stop, end)
+  entering.set(el, stop)
 }
 
 /** Clears the fading copies of `kind` in `parent` as `el` opens there, taking over from the latest. */

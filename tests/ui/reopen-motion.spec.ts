@@ -364,6 +364,33 @@ test('a dropdown opened again while it fades out never dips', async ({ page }) =
   expectTakesOver(sampled)
 })
 
+test('a dropdown opened again before its fade draws a frame stays fully shown', async ({
+  page,
+}) => {
+  await openWithMotion(page)
+  await newNoteButton(page).click()
+  await statusPicker(page).click()
+  const list: Locator = page.locator('.picker-popover:not([data-closing])')
+  await settled(list)
+  await startSampling(page, '.picker-popover')
+  // In one task, so no frame comes between the close and the reopen.
+  await page.evaluate(
+    async ([popover, button]) => {
+      popover?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+      )
+      await Promise.resolve()
+      ;(button as HTMLElement | null)?.click()
+    },
+    [await list.elementHandle(), await statusPicker(page).elementHandle()] as const,
+  )
+  await expect(list).toBeVisible()
+  const sampled = await stopSampling(page)
+
+  expect(Math.max(...sampled.samples.map((s) => s.count))).toBe(1)
+  expectTakesOver(sampled)
+})
+
 test('the palette fades out where its results were scrolled to', async ({ page }) => {
   await openWithMotion(page)
   await page.keyboard.press('Meta+KeyK')
