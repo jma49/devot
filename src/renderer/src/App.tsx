@@ -407,6 +407,14 @@ export function App() {
     preopened.current = null
     return given.state
   })
+  // The editor takes a body in the commit that selects its note, in a layout effect that runs before
+  // this one: a body still here was not taken (no editor shown, a multiple selection) and would go stale.
+  useLayoutEffect(() => {
+    const left = preopened.current
+    if (!left) return
+    preopened.current = null
+    void left.core.unhold(left.noteId)
+  })
   const [editorLoading, setEditorLoading] = useState(false)
   const bodyLate = useLate(switching || editorLoading, BODY_PLACEHOLDER_MS)
   useEffect(() => {

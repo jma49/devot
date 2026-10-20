@@ -99,3 +99,30 @@ test('quick switches show only the last note chosen, with its own text and undo'
   await page.keyboard.press('Meta+z')
   await expect(body(page)).toHaveText('First body.')
 })
+
+const storedBodies = (page: Page) =>
+  page.evaluate(() =>
+    (
+      JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
+        title: string
+        bodyMd: string
+      }[]
+    )
+      .map(({ title, bodyMd }) => `${title}: ${bodyMd}`)
+      .sort(),
+  )
+
+test('keys typed while the next note loads go to that note, not the one being left', async ({
+  page,
+}) => {
+  await body(page).click()
+  await page.keyboard.press('End')
+  // Back to First, from the editor; its body is 500 ms late.
+  await page.keyboard.press('Meta+[')
+  await page.keyboard.type('Z')
+  await expect(body(page)).toContainText('First body.')
+  await expect(body(page)).toContainText('Z')
+  await expect
+    .poll(() => storedBodies(page))
+    .toEqual(['First: First body.Z', 'Second: Second body.'])
+})

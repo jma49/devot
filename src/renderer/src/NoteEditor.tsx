@@ -1,5 +1,12 @@
 import { isolateHistory } from '@codemirror/commands'
-import { EditorSelection, Facet, Prec, type EditorState, type Extension } from '@codemirror/state'
+import {
+  Compartment,
+  EditorSelection,
+  EditorState,
+  Facet,
+  Prec,
+  type Extension,
+} from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
@@ -52,7 +59,13 @@ import { noteLinkHover } from './editor/noteLinkHover'
 import { previewsFor } from './notePreview'
 import { formatKeyAvailability } from './editor/formatKeys'
 import { imeKeys } from './editor/imeKeys'
-import { earlyKeysKeptForAnother, replayEarlyKeys, takeEarlyKeys } from './editor/earlyKeys'
+import {
+  earlyKeysKeptForAnother,
+  replayEarlyKeys,
+  startEarlyKeys,
+  takeEarlyKeys,
+  type EarlyKeysTicket,
+} from './editor/earlyKeys'
 import { editorScrollPane } from './editor/scrollPane'
 import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
 import { imageActions, imageAt, imageSizeChange, viewImageAt } from './editor/images'
@@ -91,6 +104,9 @@ import type { ScrollPane } from './preview/scrollSync'
 import { clampSelection, clampTop, type EditorTop, type SelectionState } from './lastState'
 
 const REMOTE = 'remote'
+// The note being left while the next one loads: on screen, but nothing typed may land in it.
+const pausedSlot = new Compartment()
+const PAUSED = [EditorView.editable.of(false), EditorState.readOnly.of(true)]
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
 const RESTORE = 'restore'
 
@@ -779,6 +795,7 @@ export function NoteEditor({
   useLayoutEffect(() => {
     let cancelled = false
     let held = false
+    let keys: EarlyKeysTicket | undefined
     const unpublish = () => {
       if (restoreRef) restoreRef.current = null
       if (handleRef) handleRef.current = null
@@ -910,6 +927,7 @@ export function NoteEditor({
               menu: (image, at) => imageHandlers.current.menu?.(imageMenuTarget(image), at),
             }),
             popupSpace(frame),
+            pausedSlot.of([]),
             // Undo is CodeMirror's history alone: no Yjs undo manager.
             yCollab(text, null, { undoManager: false }),
             yjsHistory(() => restoring),
@@ -1051,7 +1069,9 @@ export function NoteEditor({
       const take = focusOnlyIfFree.current
         ? keyboardIsFree()
         : !typingElsewhere(document.activeElement, el)
-      if (focusOnOpen.current && take && !earlyKeysKeptForAnother(noteId)) view.focus()
+      if ((focusOnOpen.current || keys !== undefined) && take && !earlyKeysKeptForAnother(noteId)) {
+        view.focus()
+      }
       const typed = takeEarlyKeys(noteId)
       if (typed.length) replayEarlyKeys(view, typed)
       if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
@@ -1062,12 +1082,23 @@ export function NoteEditor({
     if (now?.noteId === noteId && now.core === core) {
       // Already shown and held: the window's hold is one too many.
       if (given) void core.unhold(noteId)
+      editor.current?.view.dispatch({ effects: pausedSlot.reconfigure([]) })
       publish(now)
     } else if (given) {
       show(given)
     } else {
       held = true
       loading.current?.(true)
+      const leaving = editor.current?.view
+      if (leaving) {
+        // Keys typed into the note being left are kept for this one instead.
+        if (leaving.hasFocus) {
+          leaving.contentDOM.blur()
+          keys = startEarlyKeys()
+          keys.claim(noteId)
+        }
+        leaving.dispatch({ effects: pausedSlot.reconfigure(PAUSED) })
+      }
       // The core keeps the note in memory while the editor shows it, so its
       // replica and the core's document never part (see NoteService.hold).
       void core.hold(noteId)
@@ -1081,6 +1112,7 @@ export function NoteEditor({
         },
         (e: unknown) => {
           if (cancelled) return
+          keys?.fail()
           loading.current?.(false)
           openFailed.current?.(noteId, errorCode(e))
         },
