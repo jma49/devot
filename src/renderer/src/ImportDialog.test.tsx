@@ -77,4 +77,13 @@ describe('ImportDialog folder list', () => {
     expect(html).not.toMatch(/role="(tree|treeitem|group)"/)
     expect(html).not.toContain('aria-selected')
   })
+
+  // WebKit drops list semantics from a list styled without markers unless the role is explicit.
+  it('keeps list roles on every level so VoiceOver reads its depth', () => {
+    const nested = { ...scan('folder', null), files: [{ path: 'Vault/Sub/a.md', bytes: 10 }] }
+    const html = render(nested)
+    const lists = html.match(/<ul [^>]*class="import-tree(-group)?"[^>]*>/g) ?? []
+    expect(lists.length).toBeGreaterThan(1)
+    for (const list of lists) expect(list).toContain('role="list"')
+  })
 })
