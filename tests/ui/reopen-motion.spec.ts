@@ -233,6 +233,12 @@ test('a sheet opened again while its dim fades keeps the page from brightening',
   await showBackups()
   const sheet = page.getByRole('dialog', { name: 'Backups' })
   await settled(sheet)
+  // On a busy runner the sheet can settle before its slow dim draws, leaving no dim to take over.
+  await expect
+    .poll(() =>
+      sheet.evaluate((node) => Number.parseFloat(getComputedStyle(node, '::backdrop').opacity)),
+    )
+    .toBeGreaterThanOrEqual(0.1)
   await startSampling(page, 'dialog.sheet[open]')
   // Halfway through the copy's 200 ms fade.
   await soonAfter(page, 'keydown', { event: 'devot:show-backups' }, 100)
