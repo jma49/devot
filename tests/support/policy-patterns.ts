@@ -61,3 +61,6 @@ export function isColorChecked(path: string): boolean {
     !GENERATED_TOKENS.test(path)
   )
 }
+
+/** A duration compared straight against a limit, which fails on an overloaded machine instead of skipping. */
+export const RAW_TIME_ASSERTION = /expect\((?:ms|elapsed|took|duration|time)\b[^)]*\)\.toBeLessThan/
