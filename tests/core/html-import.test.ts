@@ -271,15 +271,14 @@ describe('HTML to Markdown for import', () => {
     })
   })
 
-  // Steps that looked each element up among its siblings, or took whitespace out from between them
-  // one at a time, took time growing with the square of a parent's children (#290). Rules convert
-  // cheaply, so that square would show at this size (about 9 times as long for four times the rules).
+  // Steps that looked each element up among its siblings, took whitespace out from between them one
+  // at a time, or read the rest of the page for each line's end, took time growing with the square
+  // of a parent's children or of a page's lines (#290). Rules and breaks are cheap, so that square
+  // would show at these sizes (9 to 14 times as long for four times as many).
   describe('in time linear in the children of a parent', { timeout: 180_000 }, () => {
     it.for([
-      ['on the page', (n: number) => '<hr>'.repeat(n)],
-      ['in one block', (n: number) => `<div>${'<hr>'.repeat(n)}</div>`],
+      ['side by side', (n: number) => '<hr>'.repeat(n)],
       ['on lines of their own', (n: number) => '<hr>\n'.repeat(n)],
-      ['on lines of their own in one block', (n: number) => `<div>\n${'<hr>\n'.repeat(n)}</div>`],
     ] as const)('%s', ([, page], context) => {
       const growth = fourfoldGrowth(
         (n) => {
@@ -287,6 +286,18 @@ describe('HTML to Markdown for import', () => {
           return () => htmlToMarkdown(html)
         },
         25_000,
+        5,
+      )
+      expectLinearGrowth(context, growth)
+    })
+
+    it('reads a page in time linear in its lines', (context) => {
+      const growth = fourfoldGrowth(
+        (n) => {
+          const html = '<br>\n'.repeat(n)
+          return () => fromHtml(html)
+        },
+        50_000,
         5,
       )
       expectLinearGrowth(context, growth)

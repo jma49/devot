@@ -169,6 +169,7 @@ patchedDependencies:
   hast-util-minify-whitespace@1.0.1: b9ea89b02adb67b4cc26bd8568b76e42c54a4aa725a6a86b6440fe5e237dfdc6
   mdast-util-find-and-replace@3.0.3: ac2102d0fa57a38080c1a2e32460c2b6d65a6a44b777912319bb38cf9e80db1f
   unist-util-visit@5.1.0: 1c03916197c3d127f7f242a28c89c4903e4493484a6976d21adfc5ce6d602e3d
+  vfile-location@5.0.3: acf2bbbc87b84d43862dcc7f5ef2f2dd84401c36f2253111c3c1af65452f7b76
 
 importers:
 
@@ -4480,7 +4481,7 @@ snapshots:
       hastscript: 9.0.1
       property-information: 7.2.0
       vfile: 6.0.3
-      vfile-location: 5.0.3
+      vfile-location: 5.0.3(patch_hash=acf2bbbc87b84d43862dcc7f5ef2f2dd84401c36f2253111c3c1af65452f7b76)
       web-namespaces: 2.0.1
 
   hast-util-has-property@3.0.0:
@@ -5602,7 +5603,7 @@ snapshots:
 
   vary@1.1.2: {}
 
-  vfile-location@5.0.3:
+  vfile-location@5.0.3(patch_hash=acf2bbbc87b84d43862dcc7f5ef2f2dd84401c36f2253111c3c1af65452f7b76):
     dependencies:
       '@types/unist': 3.0.3
       vfile: 6.0.3
