@@ -143,12 +143,6 @@ function markerFor(page: Nodes): string {
   return marker
 }
 
-/** Nothing here reads positions, and copying them is much of what sanitizing and converting cost. */
-function dropPositions(node: Nodes): void {
-  delete node.position
-  if ('children' in node) for (const child of node.children) dropPositions(child as Nodes)
-}
-
 function capped(dropped: Set<string>): string[] {
   const all = [...dropped]
   if (all.length <= MAX_DROPPED) return all
@@ -309,7 +303,6 @@ export function htmlToMarkdown(html: string, newId?: () => string): HtmlConversi
   const title = named ? textOf(named).replace(/\s+/g, ' ').trim() || null : null
   const body = find(page, 'body')
   const root: Root = { type: 'root', children: body ? body.children : [] }
-  dropPositions(root)
   const marker = markerFor(page)
   const prepared = prepare(root, marker, newId)
   // A frameset page has no body: its frames are other pages.
