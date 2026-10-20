@@ -1,16 +1,16 @@
 # Releasing Devot
 
-Until 1.0 every build ships as a GitHub prerelease on the beta channel. A release is made by pushing a tag: the release workflow (`.github/workflows/release.yml`) builds, signs and publishes it, and points the update feed at it. There is no manual confirm step.
+Releases are stable from 1.0.0 on; a beta is an optional preview of the next version, shipped as a GitHub prerelease. A release is made by pushing a tag: the release workflow (`.github/workflows/release.yml`) builds, signs and publishes it, and points the update feed at it. There is no manual confirm step.
 
 ## Versions and tags
 
-- Tags look like `vMAJOR.MINOR.PATCH-betaN`, for example `v0.9.1-beta1`. Stable tags (from 1.0) are `vMAJOR.MINOR.PATCH`.
+- Stable tags look like `vMAJOR.MINOR.PATCH`, for example `v1.0.1`; beta tags like `vMAJOR.MINOR.PATCH-betaN`, for example `v1.0.2-beta1`.
 - The tag decides the version. The workflow writes it (without the leading `v`) into `package.json` and `src-tauri/Cargo.toml` before building (`scripts/release/release.ts set-version`); `tauri.conf.json` takes its version from Cargo. The committed versions stay `0.0.0`.
-- Each release gets a new tag and a new prerelease. Never replace an existing release or move an existing tag.
-- Every release raises PATCH and starts at `beta1` (`v0.9.1-beta1`, then `v0.9.2-beta1`, ...).
-- N goes up only for a rebuild of the same version (`v0.9.1-beta2`). It stays a single digit, 1 to 9: as a semver prerelease identifier `beta10` would sort before `beta2`, so `set-version` refuses it.
+- Each release gets a new tag and a new release (a prerelease for a beta). Never replace an existing release or move an existing tag.
+- Every stable release raises PATCH (`v1.0.1`, then `v1.0.2`, ...); MINOR or MAJOR goes up only when the owner decides. A beta previews the next version and starts at `beta1` (`v1.0.2-beta1` before `v1.0.2`).
+- N goes up only for a rebuild of the same beta (`v1.0.2-beta2`). It stays a single digit, 1 to 9: as a semver prerelease identifier `beta10` would sort before `beta2`, so `set-version` refuses it.
 - Releases before `v0.9.1-beta1` used `vMAJOR.MINOR.PATCH-beta.N` (the last was `v0.9.0-beta.1`). The feed comparison still reads that form, so a feed that offers one is replaced by a newer release.
-- Stable releases start at 1.0. Until then the update feed has no `stable.json` (the first stable release writes it) and only `beta.json` is published. A stable release goes in both feeds (see Update feed).
+- The first stable release, `v1.0.0`, wrote `stable.json`; before it only `beta.json` was published. A stable release goes in both feeds (see Update feed).
 - Apple Silicon only.
 
 ## When to release
@@ -45,13 +45,13 @@ Watch the run in the Actions tab; when it fails, fix the cause and release under
 
 ## After a release
 
-Once the new beta's release is published and `beta.json` offers it, delete the previous beta releases together with their tags:
+Once the new release is published and its feeds offer it, delete the releases it replaces together with their tags: the previous stable release, and every beta that is not newer than the newest stable release.
 
 ```sh
 gh release delete <tag> --yes --cleanup-tag
 ```
 
-Only the newest beta release is kept. Never delete the `updater` release (see Update feed).
+Only the newest stable release is kept, plus a beta newer than it if one is out. Never delete the `updater` release (see Update feed).
 
 ## Update feed
 
