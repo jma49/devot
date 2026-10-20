@@ -8,6 +8,7 @@
   --dialog-enter-scale: var(--motion-scale-dialog-enter);
   --dialog-blur: var(--motion-blur-dialog);
   --chip-enter-scale: var(--motion-scale-chip-enter);
+  --bar-enter-shift: var(--space-4);
   --popover-shadow:
     0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
     0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
@@ -19,6 +20,7 @@
   --dialog-enter-scale: 1;
   --dialog-blur: 0px;
   --chip-enter-scale: 1;
+  --bar-enter-shift: 0px;
 }
 
 @keyframes popover-in {
@@ -40,6 +42,20 @@
   to {
     opacity: 0;
     filter: blur(var(--dialog-blur));
+  }
+}
+
+@keyframes bar-in {
+  from {
+    opacity: 0;
+    translate: 0 var(--bar-enter-shift);
+  }
+}
+
+@keyframes bar-out {
+  to {
+    opacity: 0;
+    translate: 0 var(--bar-enter-shift);
   }
 }
 
@@ -816,6 +832,20 @@ button {
   background: var(--color-surface-editor);
   color: var(--color-text-primary);
   font: inherit;
+}
+
+:where(.sidebar) :is(.source, .book-row, .section-header) {
+  outline-style: dashed;
+  outline-width: var(--size-drop-indicator);
+  outline-color: transparent;
+  outline-offset: calc(-1 * var(--size-drop-indicator));
+  transition:
+    background-color var(--motion-duration-quick) var(--motion-easing-quick),
+    border-color var(--motion-duration-quick) var(--motion-easing-quick),
+    box-shadow var(--motion-duration-quick) var(--motion-easing-quick),
+    color var(--motion-duration-quick) var(--motion-easing-quick),
+    opacity var(--motion-duration-quick) var(--motion-easing-quick),
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick);
 }
 
 .drop-target {
@@ -2042,6 +2072,12 @@ button {
   border-radius: var(--radius-card);
   background: var(--color-fill-track);
   font-size: var(--font-size-body);
+  animation: bar-in var(--motion-duration-popover) var(--motion-easing-move);
+}
+
+.find-bar[data-closing] {
+  pointer-events: none;
+  animation: bar-out var(--motion-duration-popover) var(--motion-easing-move) forwards;
 }
 
 .find-row {
@@ -3171,6 +3207,12 @@ button {
   border-radius: var(--radius-card);
   background: var(--color-surface-editor);
   box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  animation: bar-in var(--motion-duration-popover) var(--motion-easing-move);
+}
+
+.notice[data-closing] {
+  pointer-events: none;
+  animation: bar-out var(--motion-duration-popover) var(--motion-easing-move) forwards;
 }
 
 .notice-text {

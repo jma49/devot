@@ -1,6 +1,7 @@
 import { useKeymap } from '../commands/shortcutSettings'
 import { titleWithKey } from '../commands/titles'
-import type { KeyboardEvent, ReactNode, RefObject } from 'react'
+import { useCallback, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { closingRef } from '../closing'
 import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
@@ -41,6 +42,8 @@ export function statusText(query: string, status: FindStatus, locale: string): s
   })
 }
 
+const findBarRef = closingRef('fade', 'find-bar')
+
 const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault()
 
 function BarButton(props: {
@@ -80,6 +83,17 @@ const textField = {
 export function FindBar({ fieldRef, barRef, ...props }: Props) {
   useKeymap()
   const { status } = props
+  const mount = useCallback(
+    (el: HTMLDivElement | null) => {
+      barRef.current = el
+      const leave = findBarRef(el)
+      return () => {
+        barRef.current = null
+        leave?.()
+      }
+    },
+    [barRef],
+  )
   const said = statusText(props.query, status, currentLocale())
   const none = status.total === 0
   const onFindKey = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -95,7 +109,7 @@ export function FindBar({ fieldRef, barRef, ...props }: Props) {
   }
   return (
     <div
-      ref={barRef}
+      ref={mount}
       className="find-bar"
       role="search"
       aria-label={t('find.label')}

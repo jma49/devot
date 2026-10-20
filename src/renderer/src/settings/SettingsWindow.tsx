@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Icon } from '../icons/Icon'
 import { t } from '../i18n'
 import { AppearanceSection } from './AppearanceSection'
@@ -38,11 +38,18 @@ export function SettingsWindow() {
   const body = useRef<HTMLDivElement>(null)
   const tabs = useRef(new Map<PaneId, HTMLButtonElement>())
 
+  const scrolls = useRef(new Map<PaneId, number>())
+
   const select = (next: PaneId) => {
+    if (next === pane) return
+    scrolls.current.set(pane, body.current?.scrollTop ?? 0)
     setPane(next)
     store.write(next)
-    body.current?.scrollTo({ top: 0 })
   }
+
+  useLayoutEffect(() => {
+    body.current?.scrollTo({ top: scrolls.current.get(pane) ?? 0 })
+  }, [pane])
 
   const onNavKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
