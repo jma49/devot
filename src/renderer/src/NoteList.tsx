@@ -54,6 +54,8 @@ interface Props {
   notes: NoteSummary[]
   tags: ReadonlyMap<string, TagRecord>
   selected: string | undefined
+  /** The note being opened, drawn as selected until it is. */
+  opening?: string | undefined
   onSelect: (id: string) => void
   onCreate: (() => void) | undefined
   createLabel?: string | undefined
@@ -600,7 +602,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         note={n}
         position={windowed ? entry.index + 1 : undefined}
         setSize={windowed ? notes.length : undefined}
-        selected={chosen ? chosen.has(n.id) : n.id === selected}
+        selected={chosen ? chosen.has(n.id) : n.id === (props.opening ?? selected)}
         open={n.id === selected}
         tabbable={n.id === tabStop || (!tabStop && entry.index === 0)}
         tags={tags}
