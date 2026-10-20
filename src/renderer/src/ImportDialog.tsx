@@ -109,7 +109,7 @@ function FolderRows(props: { nodes: ImportFolder[]; depth: number; locale: strin
             <span className="import-folder-counts">{folderCounts(node, props.locale)}</span>
           </div>
           {node.folders.length > 0 ? (
-            <ul className="import-tree-group">
+            <ul role="list" className="import-tree-group">
               <FolderRows nodes={node.folders} depth={props.depth + 1} locale={props.locale} />
             </ul>
           ) : null}
@@ -134,7 +134,7 @@ function Preview(props: { scan: ImportScan; locale: string }) {
       <p className="sheet-detail import-mapping">
         {t(scan.kind === 'folders' ? 'import.mapping.folders' : 'import.mapping.folder')}
       </p>
-      <ul aria-label={t('import.treeLabel')} className="import-tree">
+      <ul role="list" aria-label={t('import.treeLabel')} className="import-tree">
         <FolderRows
           nodes={scan.kind === 'folders' ? root.folders : [root]}
           depth={0}
