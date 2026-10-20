@@ -478,9 +478,11 @@ test('in search results, Duplicate focuses the copy and the menu works', async (
   await expect.poll(async () => (await stored(page)).length).toBe(3)
   await expect(noteRows(page)).toHaveCount(2)
   const copy = (await stored(page)).find((n) => n.title === 'Alpha plan copy')
-  const selectedRow = noteRows(page).and(page.locator('[aria-selected="true"]'))
-  await expect(selectedRow).toHaveCount(1)
-  await expect(selectedRow).toBeFocused()
+  // The original stays selected and focused until the copy has opened.
+  const copyRow = noteRow(page, 'Alpha plan copy')
+  await expect(copyRow).toHaveAttribute('aria-selected', 'true')
+  await expect(noteRows(page).and(page.locator('[aria-selected="true"]'))).toHaveCount(1)
+  await expect(copyRow).toBeFocused()
   await page.keyboard.press('Meta+Shift+KeyC')
   await expect.poll(() => clipboardWrites(page)).toEqual([`devot://note/${copy?.id}`])
 
