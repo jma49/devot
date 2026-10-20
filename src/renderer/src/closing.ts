@@ -193,6 +193,14 @@ export function leaveClosingCopy(
   // Ids would repeat the pop-up's (a new one may be open with them).
   for (const node of [copy, ...Array.from(copy.querySelectorAll('[id]'))])
     node.removeAttribute('id')
+  // A copy of a live region would be announced (and found) a second time.
+  for (const node of [
+    copy,
+    ...Array.from(copy.querySelectorAll('[role=alert],[role=status],[aria-live]')),
+  ]) {
+    if (node.matches('[role=alert],[role=status]')) node.removeAttribute('role')
+    node.removeAttribute('aria-live')
+  }
   copy.style.removeProperty('animation-delay')
   copy.dataset['closing'] = kind
   copy.dataset['closingMotion'] = motion
