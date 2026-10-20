@@ -82,6 +82,8 @@ describe('the release workflow', () => {
       /\bpnpm\b|\bnpx\b|\bnpm\b|\bcargo\b|(?<!package-manager-)cache:|GITHUB_TOKEN/,
     )
     expect(sign).toContain('release.ts sign "$TAG"')
+    expect(sign).toMatch(/^    environment: release$/m)
+    expect(jobNames().filter((name) => /^    environment:/m.test(job(name)))).toEqual(['sign'])
     // The build signs with a throwaway key only: Tauri will not make the updater bundle without one.
     const build = job('build')
     expect(build).toContain('tauri signer generate')

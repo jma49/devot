@@ -16,9 +16,10 @@ name: Release
 # The release notes are the tag's message (`git tag -a <tag> -F notes.md`);
 # a tag without one gets GitHub's generated notes.
 #
-# Needs, in the repository settings:
+# Needs, in the `release` environment (deployments limited to v* tags):
 #   secrets.TAURI_SIGNING_PRIVATE_KEY           the updater's private key
 #   secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
+# and in the repository settings:
 #   vars.TAURI_UPDATER_PUBKEY                   the matching public key, built into the app
 # Optional (crash reporting, as in a local build's .env.local):
 #   secrets.DEVOT_SENTRY_DSN, secrets.SENTRY_AUTH_TOKEN, vars.SENTRY_ORG, vars.SENTRY_PROJECT
@@ -114,6 +115,7 @@ jobs:
   # Holds the updater key; runs no dependency code (no pnpm install).
   sign:
     needs: build
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

@@ -63,7 +63,7 @@ Release builds check 30 seconds after launch and then daily, and on Devot > Chec
 
 ## Signing key
 
-The updater accepts only bundles signed by the updater key. Its private key and password are the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, which only the sign job reads; the public key is the repository variable `TAURI_UPDATER_PUBKEY`, passed to the build with `--config`. No key is committed, so local builds have no updater (a manual check says updates are unavailable).
+The updater accepts only bundles signed by the updater key. Its private key and password are the secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` of the `release` environment, whose deployments are limited to `v*` tags; only the sign job uses that environment; the public key is the repository variable `TAURI_UPDATER_PUBKEY`, passed to the build with `--config`. No key is committed, so local builds have no updater (a manual check says updates are unavailable).
 
 The key pair is made once with `pnpm tauri signer generate -w <path>/devot-updater.key`, which asks for the password and writes the private key there and the public key to `devot-updater.key.pub`. Keep an offline backup of the private key and its password: losing either means installed copies can never update again, and a new key only reaches users who install a new copy by hand.
 
