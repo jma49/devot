@@ -233,6 +233,12 @@ test('a sheet opened again while its dim fades keeps the page from brightening',
   await showBackups()
   const sheet = page.getByRole('dialog', { name: 'Backups' })
   await settled(sheet)
+  // On a busy runner the sheet can settle before its slow dim draws, leaving no dim to take over.
+  await expect
+    .poll(() =>
+      sheet.evaluate((node) => Number.parseFloat(getComputedStyle(node, '::backdrop').opacity)),
+    )
+    .toBeGreaterThanOrEqual(0.1)
   await startSampling(page, 'dialog.sheet[open]')
   // Halfway through the copy's 200 ms fade.
   await soonAfter(page, 'keydown', { event: 'devot:show-backups' }, 100)
@@ -361,6 +367,33 @@ test('a dropdown opened again while it fades out never dips', async ({ page }) =
   const { samples } = sampled
 
   expect(Math.max(...samples.map((s) => s.count))).toBe(1)
+  expectTakesOver(sampled)
+})
+
+test('a dropdown opened again before its fade draws a frame stays fully shown', async ({
+  page,
+}) => {
+  await openWithMotion(page)
+  await newNoteButton(page).click()
+  await statusPicker(page).click()
+  const list: Locator = page.locator('.picker-popover:not([data-closing])')
+  await settled(list)
+  await startSampling(page, '.picker-popover')
+  // In one task, so no frame comes between the close and the reopen.
+  await page.evaluate(
+    async ([popover, button]) => {
+      popover?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+      )
+      await Promise.resolve()
+      ;(button as HTMLElement | null)?.click()
+    },
+    [await list.elementHandle(), await statusPicker(page).elementHandle()] as const,
+  )
+  await expect(list).toBeVisible()
+  const sampled = await stopSampling(page)
+
+  expect(Math.max(...sampled.samples.map((s) => s.count))).toBe(1)
   expectTakesOver(sampled)
 })
 

@@ -9,7 +9,8 @@
 // A UI test makes note writes fail (a full disk, say) by putting an error
 // code in `devot.test.failNoteWrites`, makes writes slow with a number of
 // milliseconds in `devot.test.delayNoteWrites` (notes) or
-// `devot.test.delayFileWrites` (attachments), makes revision writes fail with
+// `devot.test.delayFileWrites` (attachments), or holds them for as long as
+// that key is `hold`, makes revision writes fail with
 // one in `devot.test.failRevisions`, and the listing of notes (the first load
 // of the lists) with one in `devot.test.failList`.
 import { isNotebookSymbol } from '../../../core/notebookIcons'
@@ -42,6 +43,9 @@ const FAIL_REVISIONS = 'devot.test.failRevisions'
 const FAIL_LIST = 'devot.test.failList'
 
 async function slowWrite(key: string) {
+  while (localStorage.getItem(key) === 'hold') {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
   const ms = Number(localStorage.getItem(key))
   if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms))
 }

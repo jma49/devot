@@ -19,6 +19,8 @@ const spoken = (page: Page) =>
 const row = (page: Page, title: string) =>
   rows(page).filter({ has: page.locator('.row-title', { hasText: new RegExp(`^${title}$`) }) })
 
+const excerpt = (page: Page, title: string) => row(page, title).locator('.row-excerpt')
+
 async function openNote(page: Page, title: string) {
   await row(page, title).click()
   await expect(titleField(page)).toHaveValue(title)
@@ -38,11 +40,14 @@ test('typing in a note renders neither the window nor the list nor the sidebar',
 
   await page.keyboard.type('Typing stays in the editor')
   await expect(body(page)).toContainText('Typing stays in the editor')
-  // Only a save may render (the list shows the new date): at most one render per write, never one per key.
+  await expect(excerpt(page, 'Note 3')).toContainText('Typing stays in the editor')
+  // Only a save renders, never a key: the window once for the new date, the list and the row once more for the
+  // excerpt read after the write. How many saves land depends on the machine's pauses between keys.
   const { renders, writes } = await renderCounts(page)
+  expect(writes).toBeGreaterThan(0)
   expect(renders['App']).toBeLessThanOrEqual(writes)
-  expect(renders['NoteList']).toBeLessThanOrEqual(writes)
-  expect(renders['NoteRow']).toBeLessThanOrEqual(writes)
+  expect(renders['NoteList']).toBeLessThanOrEqual(2 * writes)
+  expect(renders['NoteRow']).toBeLessThanOrEqual(2 * writes)
   expect(renders['Sidebar']).toBe(0)
 })
 
@@ -118,9 +123,11 @@ test('with 10,000 notes a keystroke stays within its budget and renders no row',
       page.evaluate(() => (globalThis as unknown as { devotKeyMs: number[] }).devotKeyMs.length),
     )
     .toBe(KEYS.length)
+  await expect(excerpt(page, 'Note 1')).toContainText(KEYS)
 
   const { renders, writes } = await renderCounts(page)
-  expect(renders['NoteRow']).toBeLessThanOrEqual(writes)
+  expect(writes).toBeGreaterThan(0)
+  expect(renders['NoteRow']).toBeLessThanOrEqual(2 * writes)
   expect(renders['Sidebar']).toBe(0)
   const times = await page.evaluate(
     () => (globalThis as unknown as { devotKeyMs: number[] }).devotKeyMs,
