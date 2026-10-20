@@ -154,16 +154,21 @@ test('no note is left unlinked when its brackets were edited meanwhile', async (
   await createNote(page, 'Source')
   await startLink(page, 'Plan B')
   await waitForResults(page, 'Plan B')
-  await page.evaluate(() => localStorage.setItem('devot.test.delayNoteWrites', '600'))
+  await page.evaluate(() => localStorage.setItem('devot.test.delayNoteWrites', 'hold'))
   await popup(page).getByRole('option', { name: 'New Note \u201cPlan B\u201d' }).click()
-  await page.evaluate(() => localStorage.removeItem('devot.test.delayNoteWrites'))
   // The query is changed under the pick: the text is still the user's, no link goes in.
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.type('!')
-  // Past the time the note takes to make (and to be taken away again).
-  await page.waitForTimeout(1500)
+  await page.evaluate(() => localStorage.removeItem('devot.test.delayNoteWrites'))
+  const purged = () =>
+    page.evaluate(() =>
+      (
+        JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as { purgedAt?: number }[]
+      ).some((n) => n.purgedAt !== undefined),
+    )
+  await expect.poll(purged).toBe(true)
   await expect(noteRows(page)).toHaveCount(1)
   expect(await body(page).textContent()).not.toMatch(LINK)
   expect(await body(page).textContent()).toBe('[[Plan !B]]')
@@ -331,6 +336,8 @@ test('New Note from Link makes a note of the link and links it; undo restores th
   await noteRows(page)
     .filter({ has: page.locator('.row-title', { hasText: 'Source' }) })
     .click()
+  // Opening a note is async: until it shows, the note left keeps the editor and would take the undo.
+  await expect(body(page)).toContainText(/See \[Foo\]\(devot:/)
   await body(page).click()
   await page.keyboard.press('ControlOrMeta+z')
   await expect(body(page)).toContainText('See [Foo](https://example.com/a) and more')
