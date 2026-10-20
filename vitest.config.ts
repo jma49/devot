@@ -2,7 +2,8 @@ import { defineConfig } from 'vitest/config'
 
 const include = ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}']
 // Benchmarks and real builds: about half the suite's time in a handful of files. `pnpm test` and CI
-// run them; `pnpm test:fast` (the pre-push hook) leaves them out.
+// run them after the rest, so timings never share the CPU with other tests; `pnpm test:fast`
+// (the pre-push hook) leaves them out.
 const slow = ['**/*.bench.test.ts', 'tests/policy/source-maps.test.ts']
 
 export default defineConfig({
@@ -18,8 +19,11 @@ export default defineConfig({
     // Machine-load lets time budgets skip on an overloaded machine; temp-dirs removes each test file's temporary folders.
     setupFiles: ['tests/support/machine-load.ts', 'tests/support/temp-dirs.setup.ts'],
     projects: [
-      { extends: true, test: { name: 'fast', include, exclude: slow } },
-      { extends: true, test: { name: 'slow', include: slow } },
+      {
+        extends: true,
+        test: { name: 'fast', include, exclude: slow, sequence: { groupOrder: 0 } },
+      },
+      { extends: true, test: { name: 'slow', include: slow, sequence: { groupOrder: 1 } } },
     ],
   },
 })
