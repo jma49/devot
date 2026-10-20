@@ -16,9 +16,24 @@ test('the find bar fades in and leaves a fading copy when it closes', async ({ p
   const name = (selector: string) =>
     page.locator(selector).evaluate((el) => getComputedStyle(el).animationName)
   expect(await name('.find-bar')).toBe('bar-in')
+  // Read as the copy is put in, in the page: it lives one popover duration, less than a slow round trip.
+  await page.evaluate(() => {
+    const w = globalThis as unknown as { devotClosing?: string }
+    new MutationObserver((_, observer) => {
+      const copy = document.querySelector('.find-bar[data-closing]')
+      if (!copy) return
+      observer.disconnect()
+      w.devotClosing = getComputedStyle(copy).animationName
+    }).observe(document.body, { childList: true, subtree: true })
+  })
   await page.keyboard.press('Escape')
   await expect(bar(page)).toHaveCount(0)
-  await expect(page.locator('.find-bar[data-closing]')).toHaveCount(1)
-  expect(await name('.find-bar[data-closing]')).toBe('bar-out')
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (globalThis as unknown as { devotClosing?: string }).devotClosing ?? null,
+      ),
+    )
+    .toBe('bar-out')
   await expect(page.locator('.find-bar')).toHaveCount(0)
 })

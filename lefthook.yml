@@ -40,7 +40,7 @@ pre-push:
       glob:
         - '*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,html}'
         - '**/*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,html,rs,sql,sqlite}'
-      run: pnpm test
+      run: pnpm test:fast
     - name: rust
       glob:
         - 'src-tauri/*.{rs,toml,json}'

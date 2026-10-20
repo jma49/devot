@@ -27,6 +27,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "test": "vitest run",
+    "test:fast": "vitest run --project fast",
     "test:watch": "vitest",
     "test:ui": "playwright test",
     "rust:check": "cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo deny check",
