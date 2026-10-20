@@ -235,8 +235,8 @@ pub(crate) fn run(request: Export) -> i32 {
     }
 }
 
-/// Exits now. Held while the target is put in place, so the file is either there and the export
-/// succeeded, or never placed.
+/// Exits now. It waits while the target is put in place, so the file is either there (the export
+/// succeeded) or never placed.
 fn abandon(code: &str) -> ! {
     let mut ending = lock(&ENDING);
     let status = wind_up(&mut ending)

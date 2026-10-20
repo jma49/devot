@@ -47,7 +47,7 @@ pub fn temporary_name() -> OsString {
     OsString::from(random_name())
 }
 
-/// A disk image mounts read-only; an app's own disk does not.
+/// Whether `path` is on a volume mounted read-only, as a disk image is.
 pub fn on_read_only_volume(path: &Path) -> bool {
     rustix::fs::statvfs(path).is_ok_and(|volume| {
         volume
