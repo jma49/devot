@@ -9,9 +9,8 @@
 // A UI test makes note writes fail (a full disk, say) by putting an error
 // code in `devot.test.failNoteWrites`, makes writes slow with a number of
 // milliseconds in `devot.test.delayNoteWrites` (notes) or
-// `devot.test.delayFileWrites` (attachments), holds note writes while
-// `devot.test.delayNoteWrites` is `hold` and attachment writes while
-// `devot.test.holdFileWrites` is set, makes revision writes fail with
+// `devot.test.delayFileWrites` (attachments), or holds them for as long as
+// that key is `hold`, makes revision writes fail with
 // one in `devot.test.failRevisions`, and the listing of notes (the first load
 // of the lists) with one in `devot.test.failList`.
 import { isNotebookSymbol } from '../../../core/notebookIcons'
@@ -40,7 +39,6 @@ const COMPACTION = 'devot.test.compaction'
 const FAIL_NOTE_WRITES = 'devot.test.failNoteWrites'
 const DELAY_NOTE_WRITES = 'devot.test.delayNoteWrites'
 const DELAY_FILE_WRITES = 'devot.test.delayFileWrites'
-const HOLD_FILE_WRITES = 'devot.test.holdFileWrites'
 const FAIL_REVISIONS = 'devot.test.failRevisions'
 const FAIL_LIST = 'devot.test.failList'
 
@@ -50,10 +48,6 @@ async function slowWrite(key: string) {
   }
   const ms = Number(localStorage.getItem(key))
   if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-async function heldWrite(key: string) {
-  while (localStorage.getItem(key)) await new Promise((resolve) => setTimeout(resolve, 20))
 }
 
 function failWith(key: string) {
@@ -217,7 +211,6 @@ export const memoryStorage: StorageAdapter = {
   async putFile(meta, data) {
     const mime = checkUpload(meta, data)
     await slowWrite(DELAY_FILE_WRITES)
-    await heldWrite(HOLD_FILE_WRITES)
     const live = read<Stored>(NOTES).some((n) => n.id === meta.noteId && n.deletedAt === null)
     if (!live) throw new Error('E_NOTE_NOT_FOUND')
     const base64 = btoa(String.fromCharCode(...data))

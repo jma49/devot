@@ -188,13 +188,13 @@ test('an image lands where it was pasted, however the text changed during the up
   page,
 }) => {
   await newNote(page)
-  await page.evaluate(() => localStorage.setItem('devot.test.holdFileWrites', '1'))
+  await page.evaluate(() => localStorage.setItem('devot.test.delayFileWrites', 'hold'))
   await page.keyboard.type('Before ')
   await sendFiles(page, 'paste', [{ name: 'Shot.png', type: 'image/png', bytes: PNG }])
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.type('Top. ')
   await expect(body(page)).toHaveText('Top. Before ')
-  await page.evaluate(() => localStorage.removeItem('devot.test.holdFileWrites'))
+  await page.evaluate(() => localStorage.removeItem('devot.test.delayFileWrites'))
   await expect(body(page)).toContainText('devot://file/')
   expect(await body(page).textContent()).toMatch(
     /^Top\. Before !\[Shot\]\(devot:\/\/file\/[0-9a-f-]{36}\)$/,
