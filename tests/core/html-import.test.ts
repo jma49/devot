@@ -298,7 +298,7 @@ describe('HTML to Markdown for import', () => {
           return () => fromHtml(html)
         },
         5_000,
-        5,
+        9,
       )
       expectLinearGrowth(context, growth)
     })
