@@ -100,7 +100,7 @@ test('quick switches show only the last note chosen, with its own text and undo'
   await row(page, 'First').click()
   await expect(body(page)).toHaveText('First body. More.')
   await body(page).click()
-  await page.keyboard.press('Meta+z')
+  await page.keyboard.press('ControlOrMeta+z')
   await expect(body(page)).toHaveText('First body.')
 })
 

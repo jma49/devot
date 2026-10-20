@@ -143,7 +143,7 @@ import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
 import { LINE_COMMANDS } from './editor/lineCommands'
 import { NoteEditor, type ApplyRestore, type EditorHandle, type EditorPlace } from './NoteEditor'
-import { BODY_PLACEHOLDER_MS, useLate } from './late'
+import { BODY_PLACEHOLDER_MS, useLateAttribute } from './late'
 import {
   changeEditorSettings,
   editorSettings,
@@ -416,7 +416,8 @@ export function App() {
     void left.core.unhold(left.noteId)
   })
   const [editorLoading, setEditorLoading] = useState(false)
-  const bodyLate = useLate(switching || editorLoading, BODY_PLACEHOLDER_MS)
+  const panesRef = useRef<HTMLDivElement>(null)
+  useLateAttribute(panesRef, 'data-loading', switching || editorLoading, BODY_PLACEHOLDER_MS)
   useEffect(() => {
     if (openingRef.current === selected) stopOpening()
   })
@@ -2831,7 +2832,7 @@ export function App() {
           notes={shownResults}
           tags={tagsById}
           selected={selected}
-          opening={openingId}
+          opening={switching ? openingId : undefined}
           onSelect={openFromList}
           onCreate={core ? createFromList : undefined}
           onAction={runNoteAction}
@@ -2880,7 +2881,7 @@ export function App() {
           notes={templateRows.others}
           tags={tagsById}
           selected={selected}
-          opening={openingId}
+          opening={switching ? openingId : undefined}
           onSelect={openFromList}
           onCreate={core ? createFromList : undefined}
           createLabel={t('templates.new')}
@@ -2911,7 +2912,7 @@ export function App() {
           notes={activeFilter?.kind === 'pinned' ? groups.pinned : groups.others}
           tags={tagsById}
           selected={selected}
-          opening={openingId}
+          opening={switching ? openingId : undefined}
           onSelect={openFromList}
           onCreate={core ? createFromList : undefined}
           onAction={runNoteAction}
@@ -3066,7 +3067,7 @@ export function App() {
               </div>
             )}
             {find.bar}
-            <div className={`panes panes-${mode}`} data-loading={bodyLate || undefined}>
+            <div className={`panes panes-${mode}`} ref={panesRef}>
               <NoteEditor
                 core={core}
                 noteId={selected}

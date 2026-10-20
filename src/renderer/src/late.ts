@@ -1,18 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, type RefObject } from 'react'
 
 /** How long a note may take to load before its body shows as loading. */
 export const BODY_PLACEHOLDER_MS = 150
 
-/** True once `on` has held for `ms`; false in the same render `on` turns false. */
-export function useLate(on: boolean, ms: number): boolean {
-  const [late, setLate] = useState(false)
-  useEffect(() => {
-    if (!on) return
-    const timer = setTimeout(() => setLate(true), ms)
+/**
+ * Sets `attribute` on the element once `on` has held for `ms`, and takes it off in the commit `on` turns false.
+ * Set on the element, not through state, so a slow switch does not render the window again.
+ */
+export function useLateAttribute(
+  element: RefObject<HTMLElement | null>,
+  attribute: string,
+  on: boolean,
+  ms: number,
+): void {
+  useLayoutEffect(() => {
+    const el = element.current
+    if (!on || !el) return
+    const timer = setTimeout(() => el.setAttribute(attribute, ''), ms)
     return () => {
       clearTimeout(timer)
-      setLate(false)
+      el.removeAttribute(attribute)
     }
-  }, [on, ms])
-  return on && late
+  }, [element, attribute, on, ms])
 }
