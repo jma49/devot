@@ -106,7 +106,12 @@ import { clampSelection, clampTop, type EditorTop, type SelectionState } from '.
 const REMOTE = 'remote'
 // The note being left while the next one loads: on screen, but nothing typed may land in it.
 const pausedSlot = new Compartment()
-const PAUSED = [EditorView.editable.of(false), EditorState.readOnly.of(true)]
+const PAUSED = [
+  EditorView.editable.of(false),
+  EditorState.readOnly.of(true),
+  // Not offered as the body to type into until the next note is.
+  EditorView.contentAttributes.of({ 'aria-hidden': 'true' }),
+]
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
 const RESTORE = 'restore'
 
@@ -779,18 +784,24 @@ export function NoteEditor({
     scrollToTop(view, scroller, top)
   }, [hidden])
 
-  useLayoutEffect(
-    () => () => {
-      const view = editor.current?.view
-      if (view) shown.current?.close(view.state)
-      shown.current = null
-      view?.destroy()
-      editor.current = null
-      box.current = null
-      report.current('')
-    },
-    [],
-  )
+  const mounted = useRef(false)
+  useLayoutEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      // StrictMode mounts again at once; the note stays shown for it.
+      queueMicrotask(() => {
+        if (mounted.current) return
+        const view = editor.current?.view
+        if (view) shown.current?.close(view.state)
+        shown.current = null
+        view?.destroy()
+        editor.current = null
+        box.current = null
+        report.current('')
+      })
+    }
+  }, [])
 
   useLayoutEffect(() => {
     let cancelled = false
@@ -1066,15 +1077,24 @@ export function NoteEditor({
       publish(s)
       // The body took a while to load: a title or palette field the user
       // went to meanwhile keeps the keyboard.
-      const take = focusOnlyIfFree.current
-        ? keyboardIsFree()
-        : !typingElsewhere(document.activeElement, el)
-      if ((focusOnOpen.current || keys !== undefined) && take && !earlyKeysKeptForAnother(noteId)) {
-        view.focus()
+      const settle = () => {
+        if (shown.current !== s) return
+        const take = focusOnlyIfFree.current
+          ? keyboardIsFree()
+          : !typingElsewhere(document.activeElement, el)
+        if (
+          (focusOnOpen.current || keys !== undefined) &&
+          take &&
+          !earlyKeysKeptForAnother(noteId)
+        ) {
+          view.focus()
+        }
+        const typed = takeEarlyKeys(noteId)
+        if (typed.length) replayEarlyKeys(view, typed)
+        if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
       }
-      const typed = takeEarlyKeys(noteId)
-      if (typed.length) replayEarlyKeys(view, typed)
-      if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
+      // Focus and typing taken in the commit's layout effects are lost: the caret goes back to the start.
+      queueMicrotask(settle)
     }
 
     const given = preopened.current?.(core, noteId)

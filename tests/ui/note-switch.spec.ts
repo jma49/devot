@@ -7,7 +7,11 @@ import { slowCore } from './slowCore'
 // never blank in between, however slow the load.
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
+const row = (page: Page, title: string) =>
+  noteRows(page).filter({ hasText: new RegExp(`^${title}`) })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
+// The lines on screen, also while the note being left is no longer offered to type into.
+const shownBody = (page: Page) => page.locator('[data-devot-part="editor-body"] .cm-content')
 
 async function newNote(page: Page, title: string, text: string) {
   const before = await noteRows(page).count()
@@ -60,13 +64,13 @@ test('a slow open keeps the note being left until the next one shows, never a bl
   page,
 }) => {
   await watchFrames(page)
-  const first = noteRows(page).filter({ hasText: 'First' })
+  const first = row(page, 'First')
   await first.click()
   // The list moves at once; the body waits for its note.
   await expect(first).toHaveAttribute('aria-selected', 'true')
-  await expect(body(page)).toHaveText('Second body.')
+  await expect(shownBody(page)).toHaveText('Second body.')
   await expect(page.locator('.panes[data-loading]')).toHaveCount(1)
-  await expect(body(page)).toHaveText('First body.')
+  await expect(shownBody(page)).toHaveText('First body.')
   await expect(page.locator('.panes[data-loading]')).toHaveCount(0)
   await expect(page.getByRole('article', { name: 'Preview' })).toContainText('First body.')
 
@@ -79,9 +83,9 @@ test('a slow open keeps the note being left until the next one shows, never a bl
 test('quick switches show only the last note chosen, with its own text and undo', async ({
   page,
 }) => {
-  await noteRows(page).filter({ hasText: 'First' }).click()
-  await noteRows(page).filter({ hasText: 'Second' }).click()
-  await noteRows(page).filter({ hasText: 'First' }).click()
+  await row(page, 'First').click()
+  await row(page, 'Second').click()
+  await row(page, 'First').click()
   await expect(body(page)).toHaveText('First body.')
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('First')
   await page.waitForTimeout(1200)
@@ -91,9 +95,9 @@ test('quick switches show only the last note chosen, with its own text and undo'
   await page.keyboard.press('End')
   await page.keyboard.type(' More.')
   await expect(body(page)).toHaveText('First body. More.')
-  await noteRows(page).filter({ hasText: 'Second' }).click()
+  await row(page, 'Second').click()
   await expect(body(page)).toHaveText('Second body.')
-  await noteRows(page).filter({ hasText: 'First' }).click()
+  await row(page, 'First').click()
   await expect(body(page)).toHaveText('First body. More.')
   await body(page).click()
   await page.keyboard.press('Meta+z')
@@ -116,13 +120,15 @@ test('keys typed while the next note loads go to that note, not the one being le
   page,
 }) => {
   await body(page).click()
-  await page.keyboard.press('End')
   // Back to First, from the editor; its body is 500 ms late.
   await page.keyboard.press('Meta+[')
+  // The window shows First's title while its body still loads.
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('First')
+  await expect(shownBody(page)).toHaveText('Second body.')
   await page.keyboard.type('Z')
   await expect(body(page)).toContainText('First body.')
   await expect(body(page)).toContainText('Z')
   await expect
     .poll(() => storedBodies(page))
-    .toEqual(['First: First body.Z', 'Second: Second body.'])
+    .toEqual(['First: ZFirst body.', 'Second: Second body.'])
 })
