@@ -124,14 +124,30 @@ test('with motion on, a closing dialog blurs and fades away as the dim fades', a
   })
   const dialog = page.getByRole('dialog', { name: 'Backups' })
   await expect(dialog).toBeVisible()
+  // Read as the copies are put in, in the page: the dialog's lives 200 ms, less than a slow round trip.
+  await page.evaluate(() => {
+    const w = globalThis as unknown as { devotClosing?: Record<string, string | null> }
+    new MutationObserver((_, observer) => {
+      const copy = document.querySelector('dialog[data-closing="dialog"]')
+      const dim = document.querySelector('.dialog-backdrop[data-closing]')
+      if (!copy || !dim) return
+      observer.disconnect()
+      w.devotClosing = {
+        copy: getComputedStyle(copy).animationName,
+        dim: getComputedStyle(dim).animationName,
+        hidden: copy.getAttribute('aria-hidden'),
+      }
+    }).observe(document.body, { childList: true })
+  })
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
-  const copy = page.locator('dialog[data-closing="dialog"]')
-  const dim = page.locator('.dialog-backdrop[data-closing]')
-  await expect(copy).toHaveCount(1)
-  expect(await copy.evaluate((el) => getComputedStyle(el).animationName)).toBe('dialog-out')
-  expect(await dim.evaluate((el) => getComputedStyle(el).animationName)).toBe('fade-out')
-  await expect(copy).toHaveAttribute('aria-hidden', 'true')
-  await expect(copy).toHaveCount(0)
-  await expect(dim).toHaveCount(0)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (globalThis as unknown as { devotClosing?: unknown }).devotClosing ?? null,
+      ),
+    )
+    .toEqual({ copy: 'dialog-out', dim: 'fade-out', hidden: 'true' })
+  await expect(page.locator('dialog[data-closing="dialog"]')).toHaveCount(0)
+  await expect(page.locator('.dialog-backdrop[data-closing]')).toHaveCount(0)
 })

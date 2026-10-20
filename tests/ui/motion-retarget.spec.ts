@@ -113,15 +113,31 @@ function stopSampling(page: Page): Promise<number[][]> {
   })
 }
 
-/** From the old place to the new one, never back and never in one step. */
-function expectGlide(xs: number[]) {
-  const first = xs[0] ?? Number.NaN
-  const total = (xs.at(-1) ?? Number.NaN) - first
+/** The slide and fade duration at motion scale 5, and how fast either can go at most. */
+const PANE_MS = 380 * 5
+// The move curve is at most three times as steep as a straight line.
+const OPACITY_PER_MS = 3.5 / PANE_MS
+const PX_PER_MS = (3.5 * 600) / PANE_MS
+
+/** Each sample's animation time and clock come last (`startSampling`). */
+const msBetween = (was: number[], is: number[]) =>
+  Math.max((is.at(-2) ?? 0) - (was.at(-2) ?? 0), (is.at(-1) ?? 0) - (was.at(-1) ?? 0))
+
+/**
+ * From the old place to the new one, never back, and between two frames never further than the
+ * move curve goes in the time between them (a frame a slow runner drops is one longer step).
+ */
+function expectGlide(seen: number[][], value: (s: number[]) => number) {
+  const total = value(seen.at(-1) ?? []) - value(seen[0] ?? [])
   expect(Math.abs(total)).toBeGreaterThan(20)
-  for (let i = 1; i < xs.length; i++) {
-    const step = (xs[i] ?? Number.NaN) - (xs[i - 1] ?? Number.NaN)
+  for (let i = 1; i < seen.length; i++) {
+    const was = seen[i - 1] ?? []
+    const is = seen[i] ?? []
+    const step = value(is) - value(was)
     expect(step * Math.sign(total)).toBeGreaterThanOrEqual(-0.5)
-    expect(Math.abs(step)).toBeLessThanOrEqual(Math.abs(total) * 0.35)
+    expect(Math.abs(step)).toBeLessThanOrEqual(
+      1 + ((3.5 * Math.abs(total)) / PANE_MS) * msBetween(was, is),
+    )
   }
 }
 
@@ -360,8 +376,8 @@ test('entering and leaving focus mode slides the note column from where it was',
     await expect(focusButton(page)).toHaveAttribute('aria-pressed', pressed)
     await page.waitForTimeout(2500)
     const seen = await stopSampling(page)
-    expectGlide(seen.map(([title]) => title ?? Number.NaN))
-    expectGlide(seen.map(([, line]) => line ?? Number.NaN))
+    expectGlide(seen, ([title]) => title ?? Number.NaN)
+    expectGlide(seen, ([, line]) => line ?? Number.NaN)
   }
 })
 
@@ -377,15 +393,9 @@ test('with the readable width, hiding the sidebar slides the lines from where th
     await page.getByRole('button', { name }).click()
     await page.waitForTimeout(2500)
     const seen = await stopSampling(page)
-    expectGlide(seen.map(([, line]) => line ?? Number.NaN))
+    expectGlide(seen, ([, line]) => line ?? Number.NaN)
   }
 })
-
-/** The slide and fade duration at motion scale 5, and how fast either can go at most. */
-const PANE_MS = 380 * 5
-// The move curve is at most three times as steep as a straight line.
-const OPACITY_PER_MS = 3.5 / PANE_MS
-const PX_PER_MS = (3.5 * 600) / PANE_MS
 
 test('with line numbers and the readable width, the numbers stay with the editor as its lines slide', async ({
   page,
@@ -408,9 +418,6 @@ test('with line numbers and the readable width, the numbers stay with the editor
     const seen = await stopSampling(page)
     const box = (s: number[]) => s[0] ?? Number.NaN
     const numbers = (s: number[]) => (s[1] ?? Number.NaN) - box(s)
-    const line = (s: number[]) => s[2] ?? Number.NaN
-    const total = line(seen.at(-1) ?? []) - line(seen[0] ?? [])
-    expect(Math.abs(total)).toBeGreaterThan(10)
     for (let i = 1; i < seen.length; i++) {
       const was = seen[i - 1] ?? []
       const is = seen[i] ?? []
@@ -418,11 +425,8 @@ test('with line numbers and the readable width, the numbers stay with the editor
       // allow part of what the editor's box itself moved since the last frame.
       const moved = Math.abs(box(is) - box(was))
       expect(Math.abs(numbers(is) - numbers(seen[0] ?? []))).toBeLessThanOrEqual(0.5 + moved / 2)
-      const step = line(is) - line(was)
-      const ms = Math.max((is[4] ?? 0) - (was[4] ?? 0), (is[5] ?? 0) - (was[5] ?? 0))
-      expect(step * Math.sign(total)).toBeGreaterThanOrEqual(-0.5)
-      expect(Math.abs(step)).toBeLessThanOrEqual(1 + ((3.5 * Math.abs(total)) / PANE_MS) * ms)
     }
+    expectGlide(seen, ([, , line]) => line ?? Number.NaN)
     // The lines sliding in from past the edge never make the editor scroll sideways.
     expect(Math.max(...seen.map((s) => s[3] ?? Number.NaN))).toBe(0)
   }

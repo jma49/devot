@@ -148,13 +148,12 @@ function removeWhenDone(el: HTMLElement): void {
 
 function leaveDialogCopy(dialog: HTMLDialogElement): void {
   const parent = document.body
-  const drawn = dialog.matches(DIMMING) ? drawnDim(dialog) : 0
-  if (drawn > 0) {
+  if (dialog.matches(DIMMING)) {
     const dim = document.createElement('div')
     dim.className = 'dialog-backdrop'
     dim.dataset['closing'] = 'backdrop'
     dim.setAttribute('aria-hidden', 'true')
-    dim.style.opacity = String(drawn)
+    dim.style.opacity = String(drawnDim(dialog))
     parent.append(dim)
     removeWhenDone(dim)
   }
