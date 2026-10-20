@@ -39,6 +39,7 @@ import {
 } from '../../core/workspace'
 import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
 import { BackupNotice } from './BackupNotice'
+import { Notices } from './Notices'
 import { SearchIndexNotice } from './SearchIndexNotice'
 import { REBUILD_SEARCH_INDEX, rebuildSearchIndex, type RebuildState } from './searchIndex'
 import { ChangeNotice } from './ChangeNotice'
@@ -3101,69 +3102,57 @@ export function App() {
         />
       ) : null}
       {backupsOpen ? <BackupsDialog onRestore={restore} onClose={closeBackups} /> : null}
-      {(backupNotice && !backupsOpen) ||
-      exportNotice ||
-      indexState ||
-      changeNotice ||
-      batchFailed ||
-      coreFailure ||
-      imageNotice ||
-      linkNotice ||
-      saveNoticeShown ||
-      updates.notice ||
-      mirror.notices.length > 0 ? (
-        <div className="notices">
-          {saveNoticeShown ? (
-            <SaveNotice
-              problems={saveProblems}
-              quitHeld={quitHeld}
-              onRetry={() => void (core && saveEdits(core))}
-              onDismiss={() => setSaveNoticeDismissed(true)}
-            />
-          ) : null}
-          {backupNotice && !backupsOpen ? (
-            <BackupNotice
-              code={backupNotice}
-              onShow={() => {
-                setBackupNotice(undefined)
-                showBackups()
-              }}
-              onDismiss={() => setBackupNotice(undefined)}
-            />
-          ) : null}
-          {exportNotice ? (
-            <ExportNotice
-              failure={exportNotice.failure}
-              code={exportNotice.code}
-              onDismiss={() => setExportNotice(undefined)}
-            />
-          ) : null}
-          {indexState ? (
-            <SearchIndexNotice
-              state={indexState}
-              locale={currentLocale()}
-              onDismiss={() => setIndexState(undefined)}
-            />
-          ) : null}
-          {mirror.notices}
-          {updates.notice}
-          {changeNotice ? (
-            <ChangeNotice code={changeNotice} onDismiss={() => setChangeNotice(undefined)} />
-          ) : null}
-          {batchFailed ? (
-            <BatchNotice failed={batchFailed} onDismiss={() => setBatchFailed(undefined)} />
-          ) : null}
-          {coreFailure ? (
-            <CoreNotice code={coreFailure} onDismiss={() => setCoreFailure(undefined)} />
-          ) : null}
-          {imageNotice ? (
-            <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />
-          ) : null}
-          {linkNotice ? (
-            <DeepLinkNotice problem={linkNotice} onDismiss={() => setLinkNotice(undefined)} />
-          ) : null}
-        </div>
-      ) : null}
+      <Notices>
+        {saveNoticeShown ? (
+          <SaveNotice
+            problems={saveProblems}
+            quitHeld={quitHeld}
+            onRetry={() => void (core && saveEdits(core))}
+            onDismiss={() => setSaveNoticeDismissed(true)}
+          />
+        ) : null}
+        {backupNotice && !backupsOpen ? (
+          <BackupNotice
+            code={backupNotice}
+            onShow={() => {
+              setBackupNotice(undefined)
+              showBackups()
+            }}
+            onDismiss={() => setBackupNotice(undefined)}
+          />
+        ) : null}
+        {exportNotice ? (
+          <ExportNotice
+            failure={exportNotice.failure}
+            code={exportNotice.code}
+            onDismiss={() => setExportNotice(undefined)}
+          />
+        ) : null}
+        {indexState ? (
+          <SearchIndexNotice
+            state={indexState}
+            locale={currentLocale()}
+            onDismiss={() => setIndexState(undefined)}
+          />
+        ) : null}
+        {mirror.notices}
+        {updates.notice}
+        {changeNotice ? (
+          <ChangeNotice code={changeNotice} onDismiss={() => setChangeNotice(undefined)} />
+        ) : null}
+        {batchFailed ? (
+          <BatchNotice failed={batchFailed} onDismiss={() => setBatchFailed(undefined)} />
+        ) : null}
+        {coreFailure ? (
+          <CoreNotice code={coreFailure} onDismiss={() => setCoreFailure(undefined)} />
+        ) : null}
+        {imageNotice ? (
+          <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />
+        ) : null}
+        {linkNotice ? (
+          <DeepLinkNotice problem={linkNotice} onDismiss={() => setLinkNotice(undefined)} />
+        ) : null}
+      </Notices>
       {mirror.dialog}
       {noteActions.dialog}
       {core && picking ? (

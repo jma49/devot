@@ -38,6 +38,7 @@ import { useStable } from './stable'
 import { useEditorSetting } from './editorSettings'
 import { NoteRow, type RowEvents } from './NoteRow'
 import { useRowMotion } from './rowMotion'
+import { scrollRowIntoView } from './listScroll'
 import { isImeKey } from './ime'
 
 interface Props {
@@ -288,6 +289,7 @@ export const NoteList = memo(function NoteList(props: Props) {
   const navigated = useRef<string>(undefined)
   const openedBySelection = useRef<string>(undefined)
   const follow = useRef<string>(undefined)
+  const repeating = useRef(false)
   // A selection the list asked for that no render has shown yet: a key or click before that render
   // builds on it, or quick Shift+Down presses would each extend the same old selection.
   const asked = useRef<{ selection: ListSelection | undefined }>(undefined)
@@ -311,8 +313,9 @@ export const NoteList = memo(function NoteList(props: Props) {
     const row = follow.current ? rows.current.get(follow.current) : undefined
     if (!row) return
     follow.current = undefined
-    row.scrollIntoView({ block: 'nearest' })
-    if (list.current?.contains(document.activeElement)) row.focus()
+    const behavior = scrollRowIntoView(row, repeating.current)
+    if (list.current?.contains(document.activeElement))
+      row.focus({ preventScroll: behavior === 'smooth' })
   })
 
   const navigate = (id: string) => {
@@ -479,6 +482,7 @@ export const NoteList = memo(function NoteList(props: Props) {
   }
 
   const move = (event: KeyboardEvent, index: number) => {
+    repeating.current = event.repeat
     if (heldKey(event)) return
     if (selectionKey(event)) return
     // Shortcuts act on the row that has the focus, never on an open note the
