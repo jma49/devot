@@ -5,7 +5,8 @@
 // copy that assistive tech does not see plays the motion where it was, as
 // closing pop-ups do (closing.ts). Reduce Motion closes them at once. A
 // dialog that opens again while its copy fades takes over from the copy and
-// from the dim.
+// from the dim. The dim fades in slowly: one closed before it is done fades
+// out from what it had reached.
 import {
   animationMs,
   enterFrom,
@@ -80,6 +81,64 @@ const openDialogsIn = (node: unknown): HTMLDialogElement[] => {
   )
 }
 
+/** A dialog's dim fading in, noted while it shows: once the dialog closes it cannot be read. */
+interface DimFade {
+  start: number | null
+  keyframes: ComputedKeyframe[]
+  duration: number
+}
+
+const dimFades = new WeakMap<HTMLDialogElement, DimFade>()
+
+function noteDimFade(dialog: HTMLDialogElement): void {
+  // WebKit names the backdrop's effect '' rather than '::backdrop'.
+  const animation = dialog.getAnimations({ subtree: true }).find((a) => {
+    const effect = a.effect
+    return (
+      effect instanceof KeyframeEffect &&
+      effect.target === dialog &&
+      effect.pseudoElement !== null &&
+      effect.getKeyframes().some((frame) => frame['opacity'] !== undefined)
+    )
+  })
+  if (!animation) return
+  const effect = animation.effect as KeyframeEffect
+  const fade: DimFade = {
+    start: animation.startTime === null ? null : Number(animation.startTime),
+    keyframes: effect.getKeyframes(),
+    duration: Number(effect.getTiming().duration),
+  }
+  dimFades.set(dialog, fade)
+  if (fade.start === null) {
+    animation.ready.then(
+      () => {
+        if (animation.startTime !== null) fade.start = Number(animation.startTime)
+      },
+      () => {},
+    )
+  }
+}
+
+/** How dark `dialog`'s dim was drawn last, on the document timeline's frame. */
+function drawnDim(dialog: HTMLDialogElement): number {
+  const fade = dimFades.get(dialog)
+  dimFades.delete(dialog)
+  if (!fade || fade.keyframes.length !== 2 || !Number.isFinite(fade.duration)) return 1
+  const [first, second] = fade.keyframes
+  const from = Number(first?.['opacity'])
+  const to = Number(second?.['opacity'])
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 1
+  if (fade.start === null) return from
+  const timing = new KeyframeEffect(null, null, {
+    duration: fade.duration,
+    easing: first?.easing ?? 'linear',
+    fill: 'both',
+  })
+  const probe = new Animation(timing, document.timeline)
+  probe.currentTime = Number(document.timeline.currentTime) - fade.start
+  return from + (to - from) * (timing.getComputedTiming().progress ?? 1)
+}
+
 function removeWhenDone(el: HTMLElement): void {
   const style = getComputedStyle(el)
   const ms = animationMs(style.animationDuration, style.animationDelay)
@@ -94,6 +153,7 @@ function leaveDialogCopy(dialog: HTMLDialogElement): void {
     dim.className = 'dialog-backdrop'
     dim.dataset['closing'] = 'backdrop'
     dim.setAttribute('aria-hidden', 'true')
+    dim.style.opacity = String(drawnDim(dialog))
     parent.append(dim)
     removeWhenDone(dim)
   }
@@ -169,8 +229,17 @@ export function watchDialogExits(root: Node = document.body): () => void {
       openDialogsIn,
       (dialog) => dialog.isConnected && dialog.open,
     )
-    for (const dialog of opened) takeOverDialogCopy(dialog)
+    for (const dialog of opened) {
+      takeOverDialogCopy(dialog)
+      if (dialog.matches(DIMMING)) noteDimFade(dialog)
+    }
   })
+  // A dim's fade that starts again (a takeover, or WebKit restarting it a frame later) is noted again.
+  const onStart = (event: Event) => {
+    const dialog = event.target
+    if (isMovingDialog(dialog) && dialog.open && dialog.matches(DIMMING)) noteDimFade(dialog)
+  }
+  root.addEventListener('animationstart', onStart, true)
   observer.observe(root, {
     subtree: true,
     childList: true,
@@ -180,6 +249,7 @@ export function watchDialogExits(root: Node = document.body): () => void {
   })
   return () => {
     observer.disconnect()
+    root.removeEventListener('animationstart', onStart, true)
     forgetScrolls()
   }
 }

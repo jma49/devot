@@ -370,6 +370,12 @@ impl PdfPartial {
             .copy_to(PDF_NAME, folder, name, Place::Replace)
             .map_err(|_| "E_EXPORT_WRITE_FAILED")
     }
+
+    pub fn read(&self) -> Result<std::fs::File, &'static str> {
+        self.dir
+            .read_file(PDF_NAME)
+            .map_err(|_| "E_EXPORT_WRITE_FAILED")
+    }
 }
 
 fn open_or_make(folder: &Folder, name: &str) -> Result<Folder, &'static str> {

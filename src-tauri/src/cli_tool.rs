@@ -104,12 +104,13 @@ fn needs_prompt(error: &std::io::Error) -> bool {
 }
 
 /// A link into a disk image or a translocated copy breaks once the image is ejected or the app
-/// is moved, so the tool installs only from a copy that stays put.
-fn temporary_location(script: &Path) -> bool {
-    script.starts_with("/Volumes")
-        || script
-            .components()
-            .any(|part| part.as_os_str() == "AppTranslocation")
+/// is moved, so the tool installs only from a copy that stays put. Both are read-only volumes; an
+/// app on a second disk (also under `/Volumes`) is not.
+fn temporary_location(script: &Path, read_only: impl FnOnce(&Path) -> bool) -> bool {
+    script
+        .components()
+        .any(|part| part.as_os_str() == "AppTranslocation")
+        || read_only(script)
 }
 
 /// Linked beside its place and renamed over it; `prompt` when the folder is not writable.
@@ -118,7 +119,21 @@ pub fn install_at(
     script: &Path,
     prompt: impl FnOnce(Command) -> Result<(), &'static str>,
 ) -> Result<(), &'static str> {
-    if temporary_location(script) {
+    install_from(
+        link,
+        script,
+        crate::atomic_file::on_read_only_volume,
+        prompt,
+    )
+}
+
+fn install_from(
+    link: &Path,
+    script: &Path,
+    read_only: impl FnOnce(&Path) -> bool,
+    prompt: impl FnOnce(Command) -> Result<(), &'static str>,
+) -> Result<(), &'static str> {
+    if temporary_location(script, read_only) {
         return Err("E_CLI_APP_NOT_IN_APPLICATIONS");
     }
     if state_of(link, Some(script)) == State::Installed {
@@ -236,25 +251,44 @@ mod tests {
     }
 
     #[test]
-    fn refuses_to_install_from_a_disk_image_or_a_translocated_copy() {
+    fn refuses_to_install_from_a_read_only_volume_or_a_translocated_copy() {
         let link = Path::new("/nonexistent/bin/devot");
-        for script in [
-            "/Volumes/Devot/Devot.app/Contents/Resources/bin/devot",
-            "/private/var/folders/ab/cd/T/AppTranslocation/0F1E/d/Devot.app/Contents/Resources/bin/devot",
-        ] {
+        let image = "/Volumes/Devot/Devot.app/Contents/Resources/bin/devot";
+        let translocated = "/private/var/folders/ab/cd/T/AppTranslocation/0F1E/d/Devot.app/Contents/Resources/bin/devot";
+        for (script, read_only) in [(image, true), (translocated, false)] {
             assert_eq!(
-                install_at(link, Path::new(script), no_prompt),
+                install_from(link, Path::new(script), |_| read_only, no_prompt),
                 Err("E_CLI_APP_NOT_IN_APPLICATIONS"),
                 "{script}"
             );
         }
         for script in [
             "/Applications/Devot.app/Contents/Resources/bin/devot",
-            "/Users/a/Applications/Volumes/Devot.app/Contents/Resources/bin/devot",
+            "/Volumes/Work/Applications/Devot.app/Contents/Resources/bin/devot",
             "/Users/a/AppTranslocationNotes/Devot.app/Contents/Resources/bin/devot",
         ] {
-            assert!(!temporary_location(Path::new(script)), "{script}");
+            assert!(
+                !temporary_location(Path::new(script), |_| false),
+                "{script}"
+            );
         }
+    }
+
+    #[test]
+    fn installs_from_any_writable_volume() {
+        use crate::atomic_file::on_read_only_volume;
+        let p = place();
+        assert!(!on_read_only_volume(&p.script));
+        install_from(&p.link, &p.script, on_read_only_volume, no_prompt).unwrap();
+        assert_eq!(state_of(&p.link, Some(&p.script)), State::Installed);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn reads_the_sealed_system_volume_as_read_only() {
+        use crate::atomic_file::on_read_only_volume;
+        assert!(on_read_only_volume(Path::new("/")));
+        assert!(!on_read_only_volume(Path::new("/nonexistent/devot")));
     }
 
     #[test]

@@ -1,0 +1,47 @@
+diff --git a/lib/index.js b/lib/index.js
+index 35e1e9a22f4ba634962e94a9a07c6e2d36c31e50..5377de90bb169a5475d1a4fd8fe5ca5093fbe5a0 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -103,7 +103,7 @@ export function findAndReplace(tree, list, options) {
+       if (
+         ignored(
+           parent,
+-          siblings ? siblings.indexOf(parent) : undefined,
++          siblings ? indexIn(siblings, parent) : undefined,
+           grandparent
+         )
+       ) {
+@@ -135,7 +135,7 @@ export function findAndReplace(tree, list, options) {
+     let start = 0
+     /** @type {Array<Nodes>} */
+     const siblings = parent.children
+-    const index = siblings.indexOf(node)
++    const index = indexIn(siblings, node)
+     let change = false
+     /** @type {Array<PhrasingContent>} */
+     let nodes = []
+@@ -218,6 +218,24 @@ export function findAndReplace(tree, list, options) {
+   }
+ }
+ 
++// Text is visited in order, so the search starts next to the last index found
++// in a list: `indexOf` alone made a pass quadratic in a parent's children.
++const lastIndexes = new WeakMap()
++
++function indexIn(children, node) {
++  const last = lastIndexes.get(children)
++  let index = -1
++  if (last !== undefined) {
++    if (children[last + 1] === node) index = last + 1
++    else if (children[last] === node) index = last
++    else if (children[last - 1] === node) index = last - 1
++  }
++  if (index === -1 && last !== undefined) index = children.indexOf(node, last + 1)
++  if (index === -1) index = children.indexOf(node)
++  lastIndexes.set(children, index)
++  return index
++}
++
+ /**
+  * Turn a tuple or a list of tuples into pairs.
+  *

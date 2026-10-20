@@ -1,0 +1,22 @@
+diff --git a/lib/index.js b/lib/index.js
+index d2c13c48991b657e27219762d9762df2e9c4a918..7991195ca9103689d0a1ae82e11ebf26a70987bf 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -85,9 +85,12 @@ export function location(file) {
+  * @param {number} from
+  */
+ function next(value, from) {
+-  const cr = value.indexOf('\r', from)
+-  const lf = value.indexOf('\n', from)
+-  if (lf === -1) return cr
+-  if (cr === -1 || cr + 1 === lf) return lf
+-  return cr < lf ? cr : lf
++  // Searched from the line's start only: looking for a carriage return
++  // alone read the rest of a file that has none for every line of it.
++  lineEnding.lastIndex = from || 0
++  const match = lineEnding.exec(value)
++  if (!match) return -1
++  return match[0] === '\r\n' ? match.index + 1 : match.index
+ }
++
++const lineEnding = /\r?\n|\r/g

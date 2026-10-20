@@ -12,6 +12,9 @@ const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const caption = (page: Page) =>
   page.getByRole('toolbar', { name: 'Toolbar' }).first().locator('.list-count')
+/** The count read aloud, which follows the caption 500 ms later and renders the list then. */
+const spoken = (page: Page) =>
+  page.getByRole('toolbar', { name: 'Toolbar' }).first().getByRole('status')
 
 const row = (page: Page, title: string) =>
   rows(page).filter({ has: page.locator('.row-title', { hasText: new RegExp(`^${title}$`) }) })
@@ -29,6 +32,7 @@ test('typing in a note renders neither the window nor the list nor the sidebar',
   await countRenders(page, WATCHED)
   await seedNotes(page, 50)
   await expect(caption(page)).toHaveText('50 notes')
+  await expect(spoken(page)).toHaveText('50 notes')
   await openNote(page, 'Note 3')
   await resetRenderCounts(page)
 
@@ -86,6 +90,7 @@ test('with 10,000 notes a keystroke stays within its budget and renders no row',
   await countRenders(page, WATCHED)
   await seedNotes(page, NOTES)
   await expect(caption(page)).toHaveText('10,000 notes', { timeout: 60_000 })
+  await expect(spoken(page)).toHaveText('10,000 notes')
   await openNote(page, 'Note 1')
   await page.evaluate(() => {
     const w = globalThis as unknown as {

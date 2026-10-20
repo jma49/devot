@@ -17,7 +17,6 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::page_setup::{Margins, PageSetup, Paper, valid_slot};
 
 pub const FILE: &str = "editor-settings.json";
-const DAMAGED_SUFFIX: &str = ".damaged";
 pub const CHANGED_EVENT: &str = "devot://editor-settings-changed";
 
 pub const FONT_SIZE_MIN: u64 = 10;
@@ -492,7 +491,11 @@ impl EditorSettingsStore {
                 Ok(Value::Object(map)) => Some(map),
                 _ => {
                     log::warn!("W_EDITOR_SETTINGS_UNREADABLE");
-                    self.keep_damaged(&bytes).then(Map::new)
+                    let kept = crate::atomic_file::keep_damaged(&self.path, &bytes).is_ok();
+                    if !kept {
+                        log::warn!("W_EDITOR_SETTINGS_COPY_FAILED");
+                    }
+                    kept.then(Map::new)
                 }
             },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(Map::new()),
@@ -525,17 +528,6 @@ impl EditorSettingsStore {
             },
             stored,
         }
-    }
-
-    /// The next change replaces a damaged file, so its bytes are kept beside it first.
-    fn keep_damaged(&self, bytes: &[u8]) -> bool {
-        let mut copy = self.path.clone().into_os_string();
-        copy.push(DAMAGED_SUFFIX);
-        let kept = crate::atomic_file::write_replacing(Path::new(&copy), bytes).is_ok();
-        if !kept {
-            log::warn!("W_EDITOR_SETTINGS_COPY_FAILED");
-        }
-        kept
     }
 
     /// Read at first use, and again on every use while the file cannot be read; once a read
@@ -664,6 +656,7 @@ pub async fn editor_settings_set(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::atomic_file::DAMAGED_SUFFIX;
     use serde_json::json;
 
     fn patch(value: Value) -> Map<String, Value> {

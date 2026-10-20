@@ -17,7 +17,7 @@
     "vitest/expect-expect": [
       "error",
       {
-        "assertFunctionNames": ["expect", "expectWithinBudget"]
+        "assertFunctionNames": ["expect", "expectWithinBudget", "expectLinearGrowth"]
       }
     ]
   },

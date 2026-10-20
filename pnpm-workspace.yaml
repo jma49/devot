@@ -10,3 +10,9 @@ allowBuilds:
 # Devot, which renders math with temml); keep it on a patched release.
 overrides:
   katex: ^0.18.2
+
+patchedDependencies:
+  hast-util-minify-whitespace@1.0.1: patches/hast-util-minify-whitespace@1.0.1.patch
+  mdast-util-find-and-replace@3.0.3: patches/mdast-util-find-and-replace@3.0.3.patch
+  unist-util-visit@5.1.0: patches/unist-util-visit@5.1.0.patch
+  vfile-location@5.0.3: patches/vfile-location@5.0.3.patch

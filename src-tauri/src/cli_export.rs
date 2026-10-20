@@ -3,15 +3,16 @@
 //! never shown; it opens no data folder, database or socket, so it can run
 //! beside an open Devot.
 
+use std::ffi::OsString;
 use std::io::Read;
 use std::path::PathBuf;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use serde::Serialize;
 use tauri::{AppHandle, State, WebviewUrl, WebviewWindowBuilder};
 
-use crate::atomic_file::{Folder, Place};
+use crate::atomic_file::{self, Folder, Place};
 use crate::cli::{self, Export, Format, Input, fill};
 use crate::{export, import, strings};
 
@@ -20,8 +21,75 @@ const PAGE: &str = "export.html";
 const TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_CODE_LEN: usize = 64;
 
-/// The running PDF job's private folder: exiting early skips its drop.
-static PDF_FOLDER: Mutex<Option<PathBuf>> = Mutex::new(None);
+/// What exiting early (a timeout, Ctrl-C) must clean up, since it skips every drop, and the status
+/// once the export has ended.
+#[derive(Default)]
+struct Ending {
+    status: Option<i32>,
+    abandoned: bool,
+    pdf_folder: Option<PathBuf>,
+    temp: Option<(Folder, OsString)>,
+}
+
+static ENDING: Mutex<Ending> = Mutex::new(Ending {
+    status: None,
+    abandoned: false,
+    pdf_folder: None,
+    temp: None,
+});
+
+fn lock(ending: &Mutex<Ending>) -> MutexGuard<'_, Ending> {
+    ending.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Writes the target through a temporary file beside it, which an early exit removes, and puts it
+/// in place unless the export was abandoned meanwhile: once there, the export has succeeded.
+fn write_target(
+    ending: &Mutex<Ending>,
+    folder: &Folder,
+    name: &str,
+    from: &mut dyn Read,
+) -> Result<(), String> {
+    // Made while held, so an early exit either comes first or finds the file to remove.
+    let made = {
+        let mut held = lock(ending);
+        if held.abandoned {
+            return Err("E_CLI_EXPORT_INTERRUPTED".into());
+        }
+        let name = atomic_file::temporary_name();
+        held.temp = Some((folder.clone(), name.clone()));
+        folder.temporary_file(name)
+    };
+    let written = made.and_then(|mut temp| {
+        temp.write_from(from)?;
+        Ok(temp)
+    });
+    let mut ending = lock(ending);
+    ending.temp = None;
+    if ending.abandoned {
+        return Err("E_CLI_EXPORT_INTERRUPTED".into());
+    }
+    written
+        .and_then(|temp| temp.place(folder, name, Place::Replace))
+        .map_err(|_| String::from("E_EXPORT_WRITE_FAILED"))?;
+    ending.status = Some(0);
+    Ok(())
+}
+
+/// Cleans up for an early exit: the status the export already ended with, else None (abandoned).
+fn wind_up(ending: &mut Ending) -> Option<i32> {
+    if let Some(folder) = ending.pdf_folder.take() {
+        let _ = std::fs::remove_dir_all(folder);
+    }
+    if ending.status.is_some() {
+        return ending.status;
+    }
+    ending.abandoned = true;
+    if let Some((folder, name)) = ending.temp.take() {
+        let _ = folder.remove_file(name);
+    }
+    None
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -167,21 +235,24 @@ pub(crate) fn run(request: Export) -> i32 {
     }
 }
 
+/// Exits now. It waits while the target is put in place, so the file is either there (the export
+/// succeeded) or never placed.
 fn abandon(code: &str) -> ! {
-    let folder = PDF_FOLDER
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .take();
-    if let Some(folder) = folder {
-        let _ = std::fs::remove_dir_all(folder);
-    }
-    std::process::exit(cli::failed(&fill(strings::CLI_EXPORT_FAILED, "code", code)))
+    let mut ending = lock(&ENDING);
+    let status = wind_up(&mut ending)
+        .unwrap_or_else(|| cli::failed(&fill(strings::CLI_EXPORT_FAILED, "code", code)));
+    std::process::exit(status)
 }
 
 fn end(app: &AppHandle, result: Result<(), String>) {
-    let status = match result {
-        Ok(()) => 0,
-        Err(code) => cli::failed(&fill(strings::CLI_EXPORT_FAILED, "code", &code)),
+    let status = {
+        let mut ending = lock(&ENDING);
+        let status = match result {
+            Ok(()) => 0,
+            Err(code) => cli::failed(&fill(strings::CLI_EXPORT_FAILED, "code", &code)),
+        };
+        ending.status = Some(status);
+        status
     };
     app.exit(status);
 }
@@ -207,13 +278,19 @@ async fn print_pdf(
         .app_cache_dir()
         .map_err(|_| String::from("E_EXPORT_PDF_FOLDER_FAILED"))?;
     let partial = export::PdfPartial::new_in(&caches.join(export::PDF_DIR))?;
-    *PDF_FOLDER.lock().unwrap_or_else(PoisonError::into_inner) = Some(partial.folder().to_owned());
+    lock(&ENDING).pdf_folder = Some(partial.folder().to_owned());
     let target = crate::native::macos::PrintTarget::Pdf(partial.file());
-    match export::print_page(app, LABEL, page, title, target).await {
-        Ok(true) => partial.persist(folder, name).map_err(String::from),
+    let printed = match export::print_page(app, LABEL, page, title, target).await {
+        Ok(true) => partial
+            .read()
+            .map_err(String::from)
+            .and_then(|mut pdf| write_target(&ENDING, folder, name, &mut pdf)),
         Ok(false) => Err("E_EXPORT_PDF_FAILED".into()),
         Err(code) => Err(code),
-    }
+    };
+    drop(partial);
+    lock(&ENDING).pdf_folder = None;
+    printed
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -246,8 +323,7 @@ async fn cli_export_finish(
         Err(String::from("E_EXPORT_TOO_LARGE"))
     } else {
         match job.format {
-            Format::Html => export::write_file(&folder, &name, html.as_bytes(), Place::Replace)
-                .map_err(String::from),
+            Format::Html => write_target(&ENDING, &folder, &name, &mut html.as_bytes()),
             Format::Pdf => {
                 let title = job.source.title.clone().unwrap_or_else(|| "Devot".into());
                 print_pdf(&app, html, title, &folder, &name).await
@@ -353,6 +429,94 @@ mod tests {
         assert!(writes_to(&dir.path().join("a.HTML"), Format::Html));
         assert!(!writes_to(&dir.path().join("none/a.pdf"), Format::Pdf));
         assert!(!writes_to(&dir.path().join(".a.html"), Format::Html));
+    }
+
+    fn names_in(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn writes_the_target_whole_and_an_interrupt_then_finds_the_export_done() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = Folder::open(dir.path()).unwrap();
+        let ending = Mutex::new(Ending::default());
+        write_target(&ending, &folder, "out.html", &mut &b"<p>hi</p>"[..]).unwrap();
+        assert_eq!(
+            std::fs::read(dir.path().join("out.html")).unwrap(),
+            b"<p>hi</p>"
+        );
+        assert_eq!(names_in(dir.path()), ["out.html"]);
+        assert_eq!(wind_up(&mut lock(&ending)), Some(0));
+        assert_eq!(names_in(dir.path()), ["out.html"]);
+    }
+
+    /// Gives one byte, then is interrupted: the process would exit right after `wind_up`.
+    struct Interrupted<'a> {
+        ending: &'a Mutex<Ending>,
+        dir: &'a Path,
+        before: Vec<String>,
+        after: Vec<String>,
+    }
+
+    impl Read for Interrupted<'_> {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.before.is_empty() {
+                self.before = names_in(self.dir);
+                buf[0] = b'x';
+                return Ok(1);
+            }
+            if self.after.is_empty() {
+                assert_eq!(wind_up(&mut lock(self.ending)), None);
+                self.after = names_in(self.dir);
+            }
+            Ok(0)
+        }
+    }
+
+    #[test]
+    fn an_interrupt_mid_write_leaves_the_old_file_and_no_temporary_one() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("out.html"), b"old").unwrap();
+        let folder = Folder::open(dir.path()).unwrap();
+        let ending = Mutex::new(Ending::default());
+        let mut reader = Interrupted {
+            ending: &ending,
+            dir: dir.path(),
+            before: Vec::new(),
+            after: Vec::new(),
+        };
+        assert_eq!(
+            write_target(&ending, &folder, "out.html", &mut reader),
+            Err("E_CLI_EXPORT_INTERRUPTED".into())
+        );
+        assert_eq!(reader.before.len(), 2, "{:?}", reader.before);
+        assert!(atomic_file::is_temporary(&reader.before[0]));
+        assert_eq!(reader.after, ["out.html"]);
+        assert_eq!(names_in(dir.path()), ["out.html"]);
+        assert_eq!(std::fs::read(dir.path().join("out.html")).unwrap(), b"old");
+        assert_eq!(wind_up(&mut lock(&ending)), None);
+    }
+
+    #[test]
+    fn an_early_exit_removes_the_pdf_job_folder_whether_or_not_the_export_ended() {
+        for status in [None, Some(0), Some(1)] {
+            let dir = tempfile::tempdir().unwrap();
+            let job = dir.path().join("job");
+            std::fs::create_dir(&job).unwrap();
+            std::fs::write(job.join("page.pdf"), b"%PDF").unwrap();
+            let mut ending = Ending {
+                status,
+                pdf_folder: Some(job.clone()),
+                ..Ending::default()
+            };
+            assert_eq!(wind_up(&mut ending), status);
+            assert!(!job.exists());
+        }
     }
 
     #[test]

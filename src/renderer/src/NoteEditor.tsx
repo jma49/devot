@@ -484,6 +484,9 @@ const frameStyles = (() => {
         .editor-frame { display: grid; min-height: 0; }
         .editor-frame { position: relative; }
         .editor-scroll { min-height: 0; }
+        /* The lines slide inside it with the panes (paneMotion.ts) without
+           ever making the box scroll sideways. */
+        .editor-root { overflow-x: clip; }
         /* CodeMirror's popup layer covers the editor: only the popups in it
            take the pointer. */
         .editor-frame { pointer-events: none; }
