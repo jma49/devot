@@ -70,9 +70,15 @@ impl SidebarMaterial {
             .get_webview_window(MAIN_WINDOW)
             .ok_or("E_SIDEBAR_MATERIAL_NO_WINDOW")
             .and_then(|window| {
-                window
+                #[cfg(desktop)]
+                return window
                     .set_effects(effects_for(material, self.configured.as_ref()))
-                    .map_err(|_| "E_SIDEBAR_MATERIAL_APPLY_FAILED")
+                    .map_err(|_| "E_SIDEBAR_MATERIAL_APPLY_FAILED");
+                #[cfg(mobile)]
+                {
+                    let _ = window;
+                    Ok(())
+                }
             });
         if let Err(code) = queued {
             // Still what it was: the next change (a newer revision) tries again.

@@ -219,10 +219,15 @@ pub async fn font_import(
     window: WebviewWindow,
 ) -> Result<Option<FontFile>, String> {
     let (reply, answer) = tokio::sync::oneshot::channel();
-    app.dialog()
+    let dialog = app
+        .dialog()
         .file()
-        .set_title(crate::strings::FONT_IMPORT_TITLE)
-        .set_parent(&window)
+        .set_title(crate::strings::FONT_IMPORT_TITLE);
+    #[cfg(desktop)]
+    let dialog = dialog.set_parent(&window);
+    #[cfg(mobile)]
+    drop(window);
+    dialog
         .add_filter(crate::strings::FONT_FILTER, &EXTENSIONS)
         .pick_file(move |path| {
             let _ = reply.send(path.map(|p| p.into_path()));

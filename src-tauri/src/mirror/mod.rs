@@ -17,6 +17,7 @@ mod folder;
 
 use crate::commands::notes::valid_note_id;
 use crate::storage::Db;
+#[cfg(desktop)]
 use crate::strings;
 use folder::{
     Manifest, OpResult, Root, create_manifest, disk_state, has_entries, parse_manifest,
@@ -28,6 +29,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
+#[cfg(desktop)]
 use tauri_plugin_dialog::DialogExt;
 
 pub use folder::Op;
@@ -628,23 +630,35 @@ pub async fn mirror_choose(
     window: WebviewWindow,
     mirror: State<'_, Arc<Mirror>>,
 ) -> Result<Choice, String> {
-    let (reply, answer) = tokio::sync::oneshot::channel();
-    app.dialog()
-        .file()
-        .set_title(strings::MIRROR_FOLDER_TITLE)
-        .set_parent(&window)
-        .set_can_create_directories(true)
-        .pick_folder(move |path| {
-            let _ = reply.send(path.map(|p| p.into_path()));
-        });
-    let picked = match answer.await {
-        Ok(None) => return Ok(Choice::Cancelled),
-        Ok(Some(Ok(path))) => path,
-        _ => return Err("E_MIRROR_FOLDER_INVALID".into()),
+    let Some(picked) = pick_folder(&app, &window).await? else {
+        return Ok(Choice::Cancelled);
     };
     let mirror = Arc::clone(&mirror);
     let notify = announcer(&app);
     blocking(move || mirror.choose(&picked, &notify)).await
+}
+
+#[cfg(desktop)]
+async fn pick_folder(app: &AppHandle, window: &WebviewWindow) -> Result<Option<PathBuf>, String> {
+    let (reply, answer) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title(strings::MIRROR_FOLDER_TITLE)
+        .set_parent(window)
+        .set_can_create_directories(true)
+        .pick_folder(move |path| {
+            let _ = reply.send(path.map(|p| p.into_path()));
+        });
+    match answer.await {
+        Ok(None) => Ok(None),
+        Ok(Some(Ok(path))) => Ok(Some(path)),
+        _ => Err("E_MIRROR_FOLDER_INVALID".into()),
+    }
+}
+
+#[cfg(mobile)]
+async fn pick_folder(_app: &AppHandle, _window: &WebviewWindow) -> Result<Option<PathBuf>, String> {
+    Err("E_MIRROR_FOLDER_UNSUPPORTED".into())
 }
 
 #[tauri::command]

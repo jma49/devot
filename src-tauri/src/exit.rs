@@ -71,7 +71,10 @@ fn decide(exit_code: Option<i32>, ready: bool, already_asked: bool) -> Decision 
 fn exit_now(app: &AppHandle) {
     let gate = app.state::<ExitGate>();
     // Restart to Update restarts into the update it installed (see `updates`).
+    #[cfg(desktop)]
     let restart = crate::updates::on_exit(app);
+    #[cfg(mobile)]
+    let restart = false;
     gate.restart.store(restart, Ordering::SeqCst);
     gate.ready.store(true, Ordering::SeqCst);
     app.exit(0);
@@ -158,6 +161,7 @@ pub fn app_exit_ready(app: AppHandle) {
 pub fn app_exit_cancel(app: AppHandle) {
     log::warn!("W_EXIT_CALLED_OFF");
     app.state::<ExitGate>().call_off();
+    #[cfg(desktop)]
     crate::updates::restart_called_off(&app);
 }
 

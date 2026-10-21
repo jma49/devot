@@ -49,6 +49,22 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 
 `pnpm bench` and `pnpm bench:app` measure speed and memory; method, machine and numbers are in `docs/benchmarks/README.md`. They are run locally before a release and are not CI jobs (the budgets CI enforces stay in the UI tests).
 
+## iOS
+
+The iPhone app is at an early stage: it builds and starts with the desktop interface; the phone layout comes later. The Xcode project is `src-tauri/gen/apple` (regenerate with `pnpm tauri ios init`), and `src-tauri/tauri.ios.conf.json` holds what differs from the Mac app.
+
+```sh
+brew install xcodegen cocoapods
+rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+xcodebuild -downloadPlatform iOS                 # the simulator, once
+pnpm tauri ios build --debug --target aarch64-sim  # src-tauri/gen/apple/build/arm64-sim/Devot.app
+pnpm tauri ios dev                               # run on a simulator or a connected iPhone
+```
+
+Menus, updates, the Settings window, folder pickers and the single-instance socket are desktop only (`cfg(desktop)`); their commands are not registered on a phone. Running on your own iPhone needs a signing team: add your Apple ID in Xcode > Settings > Accounts, then set `bundle.iOS.developmentTeam` or `APPLE_DEVELOPMENT_TEAM`. A free personal team works for your own device; its profile lasts seven days.
+
+`libc` is held at 0.2.189 in `Cargo.lock`: 0.2.190 limits the `_dyld_*` functions to macOS, and `backtrace` 0.3.76 (through Sentry) still calls them on iOS. Lift the hold once `backtrace` has a release that builds for iOS with the newer `libc`.
+
 ## Stacked pull requests
 
 Stack only changes that depend on each other: the same tokens, the same stylesheet, the same module. Independent work still branches from `main` and runs in parallel.

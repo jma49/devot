@@ -668,7 +668,9 @@ fn valid_clipboard_html(html: &str) -> bool {
 }
 
 fn dialog(app: &AppHandle, title: &str) -> tauri_plugin_dialog::FileDialogBuilder<tauri::Wry> {
+    #[cfg_attr(mobile, allow(unused_mut))]
     let mut dialog = app.dialog().file().set_title(title);
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window(crate::MAIN_WINDOW) {
         dialog = dialog.set_parent(&window);
     }
@@ -699,6 +701,13 @@ async fn ask_save(
 }
 
 /// None when the user cancelled.
+#[cfg(mobile)]
+async fn ask_folder(_app: &AppHandle, _title: &str) -> Result<Option<PathBuf>, String> {
+    Err("E_EXPORT_FOLDER_UNSUPPORTED".into())
+}
+
+/// None when the user cancelled.
+#[cfg(desktop)]
 async fn ask_folder(app: &AppHandle, title: &str) -> Result<Option<PathBuf>, String> {
     let (reply, answer) = tokio::sync::oneshot::channel();
     dialog(app, title)

@@ -722,6 +722,7 @@ export const en = {
   'import.reason.tooManyFiles': 'The folder has more than 10,000 Markdown files.',
   'import.reason.folderTooLarge': 'The folder holds too many files to import.',
   'import.reason.folderInvalid': 'This folder cannot be read.',
+  'import.reason.foldersUnsupported': 'Folders cannot be imported on this device.',
   'format.toolbar': 'Format',
   'format.heading': 'Heading',
   'format.headingTitle': 'Heading',

@@ -3,10 +3,11 @@
 use std::path::Path;
 use std::process::Command;
 
-use crate::{menu, strings};
+use crate::strings;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub const LABEL: &str = "settings";
+pub const SHOW_BACKUPS_EVENT: &str = "devot://show-backups";
 const PAGE: &str = "settings.html";
 
 const WIDTH: f64 = 820.0;
@@ -14,7 +15,10 @@ const HEIGHT: f64 = 640.0;
 
 pub fn open(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(LABEL) {
-        if window.unminimize().and(window.set_focus()).is_err() {
+        if crate::deep_link::unminimize(&window)
+            .and(window.set_focus())
+            .is_err()
+        {
             log::warn!("W_SETTINGS_FOCUS_FAILED");
         }
         return;
@@ -28,14 +32,14 @@ pub fn open(app: &AppHandle) {
     if let Some(store) = crate::data_folder::this_build_web_data_store() {
         builder = builder.data_store_identifier(store);
     }
-    let built = builder
+    let builder = builder
         .title(strings::SETTINGS_TITLE)
         .theme(theme)
         .inner_size(WIDTH, HEIGHT)
-        .resizable(false)
-        .minimizable(false)
-        .maximizable(false)
-        .build();
+        .resizable(false);
+    #[cfg(desktop)]
+    let builder = builder.minimizable(false).maximizable(false);
+    let built = builder.build();
     match built {
         // Links from other apps wait until it closes (`deep_link`).
         Ok(_) => crate::deep_link::settings_opened(app),
@@ -72,10 +76,13 @@ pub fn settings_show_backups(app: AppHandle) -> Result<(), String> {
     let main = app
         .get_webview_window(crate::MAIN_WINDOW)
         .ok_or_else(|| String::from("E_SETTINGS_NO_MAIN_WINDOW"))?;
-    if main.unminimize().and(main.set_focus()).is_err() {
+    if crate::deep_link::unminimize(&main)
+        .and(main.set_focus())
+        .is_err()
+    {
         log::warn!("W_SETTINGS_MAIN_FOCUS_FAILED");
     }
-    app.emit_to(crate::MAIN_WINDOW, menu::SHOW_BACKUPS_EVENT, ())
+    app.emit_to(crate::MAIN_WINDOW, SHOW_BACKUPS_EVENT, ())
         .map_err(|_| String::from("E_SETTINGS_BACKUPS_FAILED"))
 }
 
