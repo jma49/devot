@@ -1,5 +1,12 @@
-import { describe, expect, it, vi } from 'vitest'
-import { animationMs, timeReaching, tooltipMotion, whenClosed, type ClosingTarget } from './closing'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  animationMs,
+  enterFrom,
+  timeReaching,
+  tooltipMotion,
+  whenClosed,
+  type ClosingTarget,
+} from './closing'
 
 function fakeTarget() {
   const listeners = new Map<string, Set<(e: { target: unknown }) => void>>()
@@ -122,5 +129,110 @@ describe('timeReaching', () => {
 
   it('stays put when there is nothing to run', () => {
     expect(timeReaching(0.5, easeOut, 0)).toBe(0)
+  })
+})
+
+// A 200 ms CSS entrance on a clock the test moves: its opacity follows the
+// inline `animation-delay` as a browser's would, and `restart` starts it
+// again the way WebKit can a frame after a modal dialog opens.
+describe('enterFrom', () => {
+  const ENTRANCE_MS = 200
+  const clock = { now: 0 }
+  const grow = (ms: number) => 1 - (1 - Math.min(Math.max(ms, 0), ENTRANCE_MS) / ENTRANCE_MS) ** 2
+
+  function entrance() {
+    type Listener = (e: { target: unknown; pseudoElement: string }) => void
+    const listeners = new Set<Listener>()
+    const el = {
+      startedAt: clock.now,
+      style: {
+        animationDelay: '',
+        removeProperty(name: string) {
+          if (name === 'animation-delay') this.animationDelay = ''
+        },
+      },
+      addEventListener: (_type: string, fn: Listener) => listeners.add(fn),
+      removeEventListener: (_type: string, fn: Listener) => listeners.delete(fn),
+      opacity: () =>
+        grow(clock.now - el.startedAt - Number.parseFloat(el.style.animationDelay || '0')),
+      restart: () => {
+        el.startedAt = clock.now
+        for (const fn of [...listeners]) fn({ target: el, pseudoElement: '' })
+      },
+      computed: () => ({
+        opacity: String(el.opacity()),
+        animationDuration: `${ENTRANCE_MS}ms`,
+        animationDelay: el.style.animationDelay || '0s',
+        animationName: 'enter',
+      }),
+    }
+    return el
+  }
+
+  const fadingCopy = (opacity: number) => ({
+    remove: vi.fn<() => void>(),
+    computed: () => ({ opacity: String(opacity) }),
+  })
+
+  function takeOver(copyOpacity: number) {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    vi.spyOn(performance, 'now').mockImplementation(() => clock.now)
+    vi.stubGlobal('getComputedStyle', (node: { computed: () => object }) => node.computed())
+    clock.now = 5000
+    const el = entrance()
+    const copy = fadingCopy(copyOpacity)
+    enterFrom(el as unknown as HTMLElement, copy as unknown as Element)
+    expect(copy.remove).toHaveBeenCalledOnce()
+    return el
+  }
+
+  function shownOver(el: ReturnType<typeof entrance>, steps: number[]) {
+    const shown = [el.opacity()]
+    for (const step of steps) {
+      clock.now += step
+      shown.push(el.opacity())
+    }
+    return shown
+  }
+
+  const expectNeverFalls = (shown: number[]) =>
+    shown.forEach((v, i) => expect(v).toBeGreaterThanOrEqual(shown[i - 1] ?? 0))
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('a pop-up opened again starts where its fading copy was and only grows to full', () => {
+    const el = takeOver(0.6)
+    const shown = shownOver(el, Array<number>(15).fill(16))
+    expect(shown[0]).toBeGreaterThanOrEqual(0.6)
+    expect(shown[0]).toBeLessThan(0.61)
+    expectNeverFalls(shown)
+    expect(shown.at(-1)).toBe(1)
+  })
+
+  it('never dips however unevenly the frames come', () => {
+    const el = takeOver(0.3)
+    const shown = shownOver(el, [3, 150, 1, 30, 100])
+    expect(shown[0]).toBeGreaterThanOrEqual(0.3)
+    expectNeverFalls(shown)
+    expect(shown.at(-1)).toBe(1)
+  })
+
+  it('an entrance started again a frame later resumes where it had got to', () => {
+    const el = takeOver(0.5)
+    const before = shownOver(el, [16])
+    el.restart()
+    const after = shownOver(el, [0, 16, 16])
+    expectNeverFalls([...before, ...after])
+    expect(after[0]).toBeCloseTo(before.at(-1)!, 5)
+  })
+
+  it('a copy that had faded out lets the entrance start from the beginning', () => {
+    const el = takeOver(0)
+    expect(el.style.animationDelay).toBe('')
+    expect(el.opacity()).toBe(0)
   })
 })

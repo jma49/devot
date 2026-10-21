@@ -937,22 +937,38 @@ export function App() {
 
   useEffect(() => {
     if (!core) return
-    runSearch.current = latestOnly(
-      async (search: Search) => ({
-        found: await core.search(search.query, search.scope),
-        search,
-      }),
-      // Results that did not change keep their objects (and their rows their render).
-      (next) => {
-        // An answer that lands after the field was cleared is not kept: the
-        // next query would first show it.
-        if (!latestSearch.current.query.trim()) return
-        setResults((shown) =>
-          shown ? { ...next, found: keepUnchanged(shown.found, next.found) } : next,
-        )
-      },
-      () => console.warn('W_SEARCH_FAILED'),
-    )
+    let alive = true
+    const arm = () => {
+      if (!alive) return
+      runSearch.current = latestOnly(
+        async (search: Search) => ({
+          found: await core.search(search.query, search.scope),
+          search,
+        }),
+        // Results that did not change keep their objects (and their rows their render).
+        (next) => {
+          // An answer that lands after the field was cleared is not kept: the
+          // next query would first show it.
+          if (!latestSearch.current.query.trim()) return
+          setResults((shown) =>
+            shown ? { ...next, found: keepUnchanged(shown.found, next.found) } : next,
+          )
+        },
+        () => console.warn('W_SEARCH_FAILED'),
+      )
+      // A query typed before the core started had no search to run, and the
+      // lists may have loaded before this effect.
+      if (latestSearch.current.query.trim()) runSearch.current(latestSearch.current)
+    }
+    // A UI test holds this back to type a search after the lists load but before it runs.
+    const held = DEVOT_UI_TEST
+      ? (globalThis as { devotHoldSearch?: Promise<void> }).devotHoldSearch
+      : undefined
+    if (held) void held.then(arm)
+    else arm()
+    return () => {
+      alive = false
+    }
   }, [core])
   useEffect(() => {
     const search = { query, scope: searchScope }

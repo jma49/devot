@@ -1,6 +1,6 @@
 // Window shortcuts are pressed with Meta (the registry's Mod matches metaKey on every platform);
 // editor keys are platform-neutral, and the caret is placed by typing and clicking only.
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import {
   expect,
   pickMenuItem,
@@ -262,9 +262,30 @@ test('Return on a row edits the title, Cmd+Return the body', async ({ page }) =>
   await noteRow(page, 'Alpha one').click()
   await expect(titleField(page)).toHaveValue('Alpha one')
   await page.keyboard.press('Meta+Enter')
-  await expect(body(page)).toBeFocused()
+  await expectFocusedOrDescribe(page, body(page))
   await expect(modeButton(page, 'Edit')).toHaveAttribute('aria-pressed', 'true')
 })
+
+/** Asserts `target` has focus; when not, attaches what has it, for a flake seen only on CI. */
+async function expectFocusedOrDescribe(page: Page, target: Locator) {
+  try {
+    await expect(target).toBeFocused()
+  } catch (error) {
+    const focus = await page.evaluate(() => {
+      const el = document.activeElement
+      return {
+        tag: el?.tagName ?? null,
+        role: el?.getAttribute('role') ?? null,
+        label: el?.getAttribute('aria-label') ?? null,
+        editorLoaded: document.querySelector('.cm-content') !== null,
+      }
+    })
+    const state = JSON.stringify({ ...focus, editorShown: await target.isVisible() })
+    await test.info().attach('focus-at-failure', { body: state, contentType: 'application/json' })
+    console.log('focus-at-failure', state)
+    throw error
+  }
+}
 
 test.describe('Tab between the areas', () => {
   test('Tab and Shift+Tab move between the sidebar, the list and the editor', async ({ page }) => {

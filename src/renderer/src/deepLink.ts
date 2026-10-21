@@ -4,7 +4,7 @@
 // asks for, as a link (`src-tauri/src/deep_link.rs`); the window reads it
 // again here and takes nothing else. Links run one at a time, each once the
 // window has shown what the one before did, and wait while a sheet is up.
-import { useEffect, useRef } from 'react'
+import { useEffect, useInsertionEffect, useRef } from 'react'
 import type { ImportItem, ImportProblem, ImportScan } from '../../core'
 import { UUID_V7 } from '../../core/ids'
 import { sheetOpen } from './commands/dispatch'
@@ -218,8 +218,12 @@ export function useDeepLinks(ready: boolean, handle: (link: DeepLink) => void): 
   const queueRef = useRef<LinkQueue>(undefined)
   // Links that came while the window was not ready, oldest first.
   const early = useRef<DeepLink[]>([])
-  useEffect(() => {
+  // At commit, not after paint: a link landing in between would act on the
+  // state of the render before (a trashed note still listed, say).
+  useInsertionEffect(() => {
     latest.current = handle
+  })
+  useEffect(() => {
     queueRef.current?.settled()
   })
   useEffect(() => {

@@ -57,6 +57,25 @@ test('a note renamed during a search shows its new title in the results', async 
   await expect(rowTitles(page)).toHaveText(['Renamed plan'])
 })
 
+test('a search typed before the search can run shows its results once it can', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as { devotHoldSearch?: Promise<void>; devotReleaseSearch?: () => void }
+    w.devotHoldSearch = new Promise((resolve) => (w.devotReleaseSearch = resolve))
+  })
+  await seedNotes(page, 3)
+  await expect(filter(page, 'All Notes')).toHaveText(/3$/)
+  await search(page).fill('Note 2')
+  // Past the field's debounce, so only the release can start the search.
+  await page.waitForTimeout(400)
+  await expect(header(page)).toHaveText('All Notes')
+
+  await page.evaluate(() =>
+    (globalThis as { devotReleaseSearch?: () => void }).devotReleaseSearch?.(),
+  )
+  await expect(header(page)).toHaveText('Search')
+  await expect(rowTitles(page)).toHaveText(['Note 2'])
+})
+
 test('New Note in Pinned lists the new note in All Notes', async ({ page }) => {
   await seedNotes(page, 3)
   await openNote(page, 'Note 1')

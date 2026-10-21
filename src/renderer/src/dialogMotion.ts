@@ -82,10 +82,28 @@ const openDialogsIn = (node: unknown): HTMLDialogElement[] => {
 }
 
 /** A dialog's dim fading in, noted while it shows: once the dialog closes it cannot be read. */
-interface DimFade {
+export interface DimFade {
   start: number | null
-  keyframes: ComputedKeyframe[]
+  keyframes: readonly { opacity?: unknown; easing?: string }[]
   duration: number
+}
+
+/**
+ * How dark a dim fading by `fade` is drawn at timeline time `now`;
+ * `progress` eases the time into the fade (0 to 1).
+ */
+export function dimAt(
+  fade: DimFade | undefined,
+  now: number,
+  progress: (ms: number, fade: DimFade) => number,
+): number {
+  if (!fade || fade.keyframes.length !== 2 || !Number.isFinite(fade.duration)) return 1
+  const [first, second] = fade.keyframes
+  const from = Number(first?.opacity)
+  const to = Number(second?.opacity)
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 1
+  if (fade.start === null) return from
+  return from + (to - from) * progress(now - fade.start, fade)
 }
 
 const dimFades = new WeakMap<HTMLDialogElement, DimFade>()
@@ -119,24 +137,22 @@ function noteDimFade(dialog: HTMLDialogElement): void {
   }
 }
 
+function easedProgress(ms: number, fade: DimFade): number {
+  const timing = new KeyframeEffect(null, null, {
+    duration: fade.duration,
+    easing: fade.keyframes[0]?.easing ?? 'linear',
+    fill: 'both',
+  })
+  const probe = new Animation(timing, document.timeline)
+  probe.currentTime = ms
+  return timing.getComputedTiming().progress ?? 1
+}
+
 /** How dark `dialog`'s dim was drawn last, on the document timeline's frame. */
 function drawnDim(dialog: HTMLDialogElement): number {
   const fade = dimFades.get(dialog)
   dimFades.delete(dialog)
-  if (!fade || fade.keyframes.length !== 2 || !Number.isFinite(fade.duration)) return 1
-  const [first, second] = fade.keyframes
-  const from = Number(first?.['opacity'])
-  const to = Number(second?.['opacity'])
-  if (!Number.isFinite(from) || !Number.isFinite(to)) return 1
-  if (fade.start === null) return from
-  const timing = new KeyframeEffect(null, null, {
-    duration: fade.duration,
-    easing: first?.easing ?? 'linear',
-    fill: 'both',
-  })
-  const probe = new Animation(timing, document.timeline)
-  probe.currentTime = Number(document.timeline.currentTime) - fade.start
-  return from + (to - from) * (timing.getComputedTiming().progress ?? 1)
+  return dimAt(fade, Number(document.timeline.currentTime), easedProgress)
 }
 
 function removeWhenDone(el: HTMLElement): void {
