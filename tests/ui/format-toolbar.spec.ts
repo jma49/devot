@@ -17,39 +17,67 @@ type Box = { x: number; y: number; width: number; height: number }
 
 /** Double-clicks `word` on line `n` (from 1): a real mouse word selection, the same on every platform. */
 async function selectWord(page: Page, n: number, word: string) {
-  const at = await page
-    .locator('.cm-line')
-    .nth(n - 1)
-    .evaluate((line, target) => {
+  // A shown toolbar can cover the word. Escape again if the first came before
+  // the keyboard was back in the editor (a dialog just closed, say).
+  await expect(async () => {
+    if (await toolbar(page).isVisible()) await page.keyboard.press('Escape')
+    await expect(toolbar(page)).toBeHidden({ timeout: 500 })
+  }).toPass()
+  // The editor may scroll on the next frame (after Home, say): measure until
+  // the word sits still inside the scroller.
+  const at = await body(page).evaluate(
+    async (content, [index, target]) => {
       // This config has no DOM types: only the members used here.
-      const doc = (
-        globalThis as unknown as {
-          document: {
-            createTreeWalker(root: unknown, show: number): { nextNode(): { data: string } | null }
-            createRange(): {
-              setStart(node: unknown, offset: number): void
-              setEnd(node: unknown, offset: number): void
-              getBoundingClientRect(): Box
-            }
+      type Rect = Box & { bottom: number; right: number }
+      const w = globalThis as unknown as {
+        requestAnimationFrame(run: () => void): void
+        document: {
+          createTreeWalker(root: unknown, show: number): { nextNode(): { data: string } | null }
+          createRange(): {
+            setStart(node: unknown, offset: number): void
+            setEnd(node: unknown, offset: number): void
+            getBoundingClientRect(): Rect
           }
         }
-      ).document
-      const texts = doc.createTreeWalker(line, 4 /* NodeFilter.SHOW_TEXT */)
-      for (let node = texts.nextNode(); node; node = texts.nextNode()) {
-        const i = node.data.indexOf(target)
-        if (i < 0) continue
-        const range = doc.createRange()
-        range.setStart(node, i)
-        range.setEnd(node, i + target.length)
-        const r = range.getBoundingClientRect()
-        return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+      }
+      const doc = w.document
+      type Node = { closest(s: string): Node | null; getBoundingClientRect(): Rect }
+      const root = content as Node & { querySelectorAll(s: string): ArrayLike<Node> }
+      const scroller = root.closest('.cm-scroller')
+      const measure = () => {
+        // Lines are drawn again as the editor scrolls: look the line up each time.
+        const line = root.querySelectorAll('.cm-line')[index]
+        if (!line) return null
+        const texts = doc.createTreeWalker(line, 4 /* NodeFilter.SHOW_TEXT */)
+        for (let node = texts.nextNode(); node; node = texts.nextNode()) {
+          const i = node.data.indexOf(target)
+          if (i < 0) continue
+          const range = doc.createRange()
+          range.setStart(node, i)
+          range.setEnd(node, i + target.length)
+          const r = range.getBoundingClientRect()
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+        }
+        return null
+      }
+      const frame = () => new Promise<void>((resolve) => w.requestAnimationFrame(resolve))
+      const inside = (p: { x: number; y: number }) => {
+        const box = scroller?.getBoundingClientRect()
+        return !box || (p.x > box.x && p.x < box.right && p.y > box.y && p.y < box.bottom)
+      }
+      let last = measure()
+      for (let tries = 0; tries < 120; tries++) {
+        await frame()
+        const now = measure()
+        if (!now) return null
+        if (last && now.x === last.x && now.y === last.y && inside(now)) return now
+        last = now
       }
       return null
-    }, word)
+    },
+    [n - 1, word] as const,
+  )
   if (!at) throw new Error('E_TEST_NO_WORD')
-  // A shown toolbar can cover the word.
-  if (await toolbar(page).isVisible()) await page.keyboard.press('Escape')
-  await expect(toolbar(page)).toBeHidden()
   await page.mouse.dblclick(at.x, at.y)
   await expect(toolbar(page)).toBeVisible()
   const selected = page.locator('.cm-selectionBackground')

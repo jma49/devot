@@ -76,6 +76,7 @@ test('a link to a note in the Trash opens it in the Trash', async ({ page }) => 
   await noteRows(page).filter({ hasText: 'Gone' }).click()
   await pickNoteMore(page, 'Move to Trash')
   await expect(trashRow(page)).toHaveText(/1$/)
+  await expect(noteRows(page).filter({ hasText: 'Gone' })).toHaveCount(0)
   await sendLink(page, { kind: 'note', id: gone })
   await expect(headline(page)).toHaveText('Trash')
   await expect(
