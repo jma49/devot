@@ -1,3 +1,6 @@
+// Desktop-only commands leave their helpers unused on a phone.
+#![cfg_attr(mobile, allow(dead_code))]
+
 mod atomic_file;
 mod backups;
 #[cfg(test)]
@@ -19,11 +22,13 @@ mod exit;
 mod export;
 mod external;
 mod fonts;
+#[cfg(desktop)]
 mod format_menu;
 mod import;
 mod keyboard_shortcuts;
 mod link_info;
 mod logs;
+#[cfg(desktop)]
 mod menu;
 mod mirror;
 #[doc(hidden)]
@@ -38,6 +43,7 @@ mod storage;
 mod strings;
 #[cfg(test)]
 mod test_log;
+#[cfg(desktop)]
 mod updates;
 mod usage;
 mod watch;
@@ -64,8 +70,10 @@ pub fn run() {
     // Sentry first, so its panic hook sees every panic; off without a DSN.
     let _crash_reporting = crash::init();
     let context = data_folder::context();
-    tauri::Builder::default()
-        .plugin(single_instance::init())
+    let builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    let builder = builder.plugin(single_instance::init());
+    builder
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             native::symbol_png,
@@ -105,6 +113,7 @@ pub fn run() {
             external::open_external,
             link_info::link_title,
             link_info::github_snippet,
+            #[cfg(desktop)]
             format_menu::format_menu_set,
             logs::log_write,
             commands::search_index::search_index_rebuild,
@@ -138,7 +147,9 @@ pub fn run() {
             fonts::fonts_installed,
             fonts::font_read,
             sidebar_material::sidebar_material_sync,
+            #[cfg(desktop)]
             menu::sidebar_menu_set,
+            #[cfg(desktop)]
             menu::command_menu_set,
             keyboard_shortcuts::keyboard_shortcuts_get,
             keyboard_shortcuts::keyboard_shortcuts_set,
@@ -152,9 +163,13 @@ pub fn run() {
             mirror::mirror_bodies,
             mirror::mirror_files,
             mirror::mirror_hashes,
+            #[cfg(desktop)]
             updates::update_status,
+            #[cfg(desktop)]
             updates::update_check,
+            #[cfg(desktop)]
             updates::update_download,
+            #[cfg(desktop)]
             updates::update_restart,
             deep_link::deep_link_take,
         ])
@@ -171,6 +186,7 @@ pub fn run() {
         .on_window_event(|window, event| {
             exit::on_window_event(window, event);
             deep_link::on_window_event(window, event);
+            #[cfg(desktop)]
             updates::on_window_event(window, event);
         })
         .setup(|app| {
@@ -226,15 +242,8 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     }
     backups::start(app.handle());
     watch::start(app.handle());
-    // The updater, only with the public key the release workflow builds in.
-    let with_updater = updates::configured(app.config().plugins.0.get("updater"))
-        && app
-            .handle()
-            .plugin(tauri_plugin_updater::Builder::new().build())
-            .is_ok();
-    let version = app.package_info().version.to_string();
-    app.manage(updates::Updates::new(with_updater, version));
-    menu::install(app).map_err(|_| StartupError::new("E_MENU_FAILED"))?;
+    #[cfg(desktop)]
+    install_desktop(app)?;
     // Built here rather than from the config alone, to route pop-ups.
     let mut main = app
         .config()
@@ -271,6 +280,20 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         .build()
         .map_err(|_| StartupError::new("E_MAIN_WINDOW_FAILED"))?;
     native::configure_main_window(app);
+    #[cfg(desktop)]
     updates::start(app.handle());
     Ok(())
+}
+
+#[cfg(desktop)]
+fn install_desktop(app: &mut tauri::App) -> Result<(), StartupError> {
+    // The updater, only with the public key the release workflow builds in.
+    let with_updater = updates::configured(app.config().plugins.0.get("updater"))
+        && app
+            .handle()
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .is_ok();
+    let version = app.package_info().version.to_string();
+    app.manage(updates::Updates::new(with_updater, version));
+    menu::install(app).map_err(|_| StartupError::new("E_MENU_FAILED"))
 }

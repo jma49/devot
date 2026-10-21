@@ -209,6 +209,17 @@ pub(crate) fn deliver<R: Runtime>(app: &AppHandle<R>, link: Link) {
     }
 }
 
+/// A phone has no minimized windows.
+pub(crate) fn unminimize<R: Runtime>(window: &tauri::WebviewWindow<R>) -> tauri::Result<()> {
+    #[cfg(desktop)]
+    return window.unminimize();
+    #[cfg(mobile)]
+    {
+        let _ = window;
+        Ok(())
+    }
+}
+
 fn bring_forward<R: Runtime>(app: &AppHandle<R>) {
     let window = app
         .get_webview_window(settings::LABEL)
@@ -216,8 +227,7 @@ fn bring_forward<R: Runtime>(app: &AppHandle<R>) {
     let Some(window) = window else {
         return; // Still starting: the main window shows when it is built.
     };
-    if window
-        .unminimize()
+    if unminimize(&window)
         .and(window.show())
         .and(window.set_focus())
         .is_err()

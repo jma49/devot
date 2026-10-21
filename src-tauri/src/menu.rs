@@ -34,7 +34,6 @@ pub const IMPORT_HTML_FILES_ID: &str = "devot.import.htmlFiles";
 pub const EXPORT_ALL_MARKDOWN_ID: &str = "devot.export.allMarkdown";
 pub const EXPORT_ALL_HTML_ID: &str = "devot.export.allHtml";
 pub const EXPORT_ALL_EVENT: &str = "devot://export-all";
-pub const SHOW_BACKUPS_EVENT: &str = "devot://show-backups";
 pub const HISTORY_ID: &str = "devot.history";
 pub const SHOW_HISTORY_EVENT: &str = "devot://show-history";
 pub const PALETTE_ID: &str = "devot.palette";
@@ -428,7 +427,10 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     } else if event.id() == UPDATES_ID {
         updates::on_menu(app);
     } else if event.id() == BACKUPS_ID {
-        if app.emit_to("main", SHOW_BACKUPS_EVENT, ()).is_err() {
+        if app
+            .emit_to("main", crate::settings::SHOW_BACKUPS_EVENT, ())
+            .is_err()
+        {
             log::warn!("W_BACKUPS_MENU_EMIT_FAILED");
         }
     } else if event.id() == HISTORY_ID {

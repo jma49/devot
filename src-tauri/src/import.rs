@@ -796,12 +796,17 @@ pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>) {
         Pick::MarkdownFolders => strings::IMPORT_MARKDOWN_TITLE,
         Pick::HtmlFiles => strings::IMPORT_HTML_FILES_TITLE,
     };
+    #[cfg_attr(mobile, allow(unused_mut))]
     let mut dialog = app.dialog().file().set_title(title);
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         dialog = dialog.set_parent(&window);
     }
     let app = app.clone();
     match pick {
+        #[cfg(mobile)]
+        Pick::MarkdownFolders => fail(&app, None, "E_IMPORT_FOLDERS_UNSUPPORTED"),
+        #[cfg(desktop)]
         Pick::MarkdownFolders => dialog.pick_folders(move |folders| {
             let Some(folders) = folders else { return };
             let paths: Result<Vec<PathBuf>, _> =

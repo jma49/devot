@@ -623,6 +623,7 @@ pub fn announce(app: &AppHandle, next: &Snapshot) {
             log::warn!("W_WINDOW_THEME_FAILED");
         }
     }
+    #[cfg(desktop)]
     crate::menu::show_editor_settings(app, next);
 }
 
@@ -642,6 +643,7 @@ pub async fn editor_settings_set(
     patch: Map<String, Value>,
 ) -> Result<Snapshot, String> {
     if patch.contains_key("syncScroll") {
+        #[cfg(desktop)]
         crate::menu::sync_scroll_set_by_page(&app);
     }
     let store = Arc::clone(&store);

@@ -124,16 +124,17 @@ pub async fn image_save(
     let file = attachment(&db, id).await?;
     let extension = extension_for(&file.mime).ok_or("E_FILE_TYPE_REFUSED")?;
     let (reply, answer) = tokio::sync::oneshot::channel();
-    window
+    let dialog = window
         .dialog()
         .file()
         .set_title(strings::SAVE_IMAGE_TITLE)
         .set_file_name(save_name(&file.name, extension))
-        .add_filter(strings::SAVE_IMAGE_FILTER, &[extension])
-        .set_parent(&window)
-        .save_file(move |path| {
-            let _ = reply.send(path);
-        });
+        .add_filter(strings::SAVE_IMAGE_FILTER, &[extension]);
+    #[cfg(desktop)]
+    let dialog = dialog.set_parent(&window);
+    dialog.save_file(move |path| {
+        let _ = reply.send(path);
+    });
     let Some(path) = answer.await.map_err(|_| "E_IMAGE_SAVE_FAILED")? else {
         return Ok(false);
     };

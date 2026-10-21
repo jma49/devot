@@ -17,6 +17,7 @@ const REASONS: Record<string, MessageKey> = {
   E_IMPORT_TOO_MANY_FILES: 'import.reason.tooManyFiles',
   E_IMPORT_FOLDER_TOO_LARGE: 'import.reason.folderTooLarge',
   E_IMPORT_ROOT_INVALID: 'import.reason.folderInvalid',
+  E_IMPORT_FOLDERS_UNSUPPORTED: 'import.reason.foldersUnsupported',
   E_IMPORT_LINK_HIDDEN: 'import.reason.linkHidden',
   E_IMPORT_IMAGE_UNLOCATED: 'import.reason.unlocated',
   E_IMPORT_HTML_CONTENT_DROPPED: 'import.reason.htmlDropped',

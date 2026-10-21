@@ -192,11 +192,12 @@ pub(crate) fn run(request: Export) -> i32 {
             // No Dock icon or menu bar.
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(PAGE.into()))
+            let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(PAGE.into()))
                 .visible(false)
-                .focused(false)
-                .incognito(true)
-                .build()?;
+                .incognito(true);
+            #[cfg(desktop)]
+            let window = window.focused(false);
+            window.build()?;
             let watchdog = std::thread::Builder::new()
                 .name("devot-export-timeout".into())
                 .spawn(|| {
