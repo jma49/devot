@@ -621,6 +621,15 @@
           "hex": "#94a3b8"
         }
       },
+      "active-mark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3569, 0.6078, 1.0],
+          "hex": "#5b9bff"
+        },
+        "$description": "Status icons and dots: a mark, so 3:1 against the surfaces is enough and the colour stays vivid; status text keeps the darker colour."
+      },
       "hold": {
         "$type": "color",
         "$value": {
@@ -628,6 +637,15 @@
           "components": [0.9608, 0.6235, 0.0392],
           "hex": "#f59f0a"
         }
+      },
+      "hold-mark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9608, 0.6471, 0.1412],
+          "hex": "#f5a524"
+        },
+        "$description": "Status icons and dots: a mark, so 3:1 against the surfaces is enough and the colour stays vivid; status text keeps the darker colour."
       },
       "done": {
         "$type": "color",
@@ -637,6 +655,15 @@
           "hex": "#10b77f"
         }
       },
+      "done-mark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2039, 0.7529, 0.4157],
+          "hex": "#34c06a"
+        },
+        "$description": "Status icons and dots: a mark, so 3:1 against the surfaces is enough and the colour stays vivid; status text keeps the darker colour."
+      },
       "dropped": {
         "$type": "color",
         "$value": {
@@ -645,6 +672,15 @@
           "hex": "#fb7085"
         },
         "$description": "Spec hsl(351 95% 71%), lightened 1% so status text keeps 4.5:1."
+      },
+      "dropped-mark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.4196, 0.3882],
+          "hex": "#ff6b63"
+        },
+        "$description": "Status icons and dots: a mark, so 3:1 against the surfaces is enough and the colour stays vivid; status text keeps the darker colour."
       }
     },
     "alert": {

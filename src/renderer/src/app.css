@@ -529,26 +529,31 @@ button {
 
 .status-active {
   --status-color: var(--color-status-active);
+  --status-mark: var(--color-status-active-mark);
 }
 
 .status-on_hold {
   --status-color: var(--color-status-hold);
+  --status-mark: var(--color-status-hold-mark);
 }
 
 .status-completed {
   --status-color: var(--color-status-done);
+  --status-mark: var(--color-status-done-mark);
 }
 
 .status-dropped {
   --status-color: var(--color-status-dropped);
+  --status-mark: var(--color-status-dropped-mark);
 }
 
 .status-none {
   --status-color: var(--color-text-tertiary);
+  --status-mark: var(--color-text-tertiary);
 }
 
 .source.filter[class*='status-'] .icon {
-  background-color: var(--status-color);
+  background-color: var(--status-mark);
 }
 
 .tag-row .icon {
@@ -1261,7 +1266,7 @@ button {
 }
 
 .row-status .icon {
-  background-color: var(--status-color);
+  background-color: var(--status-mark);
 }
 
 .row-progress {
@@ -1573,7 +1578,7 @@ button {
   width: var(--space-4);
   height: var(--space-4);
   border-radius: var(--radius-capsule);
-  background: var(--status-color);
+  background: var(--status-mark);
 }
 
 .tag-editor {
@@ -4013,7 +4018,7 @@ button.popup:focus-visible {
 }
 
 .popup[class*='status-'] .icon:first-child {
-  background-color: var(--status-color);
+  background-color: var(--status-mark);
 }
 
 .picker-popover,
@@ -4129,7 +4134,7 @@ button.popup:focus-visible {
 }
 
 .picker-option .icon {
-  background-color: var(--status-color, var(--color-text-secondary));
+  background-color: var(--status-mark, var(--color-text-secondary));
 }
 
 .picker-icon-slot {

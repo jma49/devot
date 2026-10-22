@@ -567,6 +567,15 @@
         },
         "$description": "The active note status. Design value #5e5d59."
       },
+      "active-mark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2627, 0.549, 0.9255],
+          "hex": "#438cec"
+        },
+        "$description": "Status icons and dots: a mark, so 3:1 against the surfaces is enough and the colour stays vivid; status text keeps the darker colour."
+      },
       "hold": {
         "$type": "color",
         "$value": {
@@ -575,6 +584,15 @@
           "hex": "#5a4815"
         },
         "$description": "The on-hold note status. Design value #5a4815."
+      },
+      "hold-mark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7804, 0.4745, 0.0196],
+          "hex": "#c77905"
+        },
+        "$description": "Status icons and dots: a mark, so 3:1 against the surfaces is enough and the colour stays vivid; status text keeps the darker colour."
       },
       "done": {
         "$type": "color",
@@ -585,6 +603,15 @@
         },
         "$description": "The done note status. Design value #265b19."
       },
+      "done-mark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1451, 0.6235, 0.3451],
+          "hex": "#259f58"
+        },
+        "$description": "Status icons and dots: a mark, so 3:1 against the surfaces is enough and the colour stays vivid; status text keeps the darker colour."
+      },
       "dropped": {
         "$type": "color",
         "$value": {
@@ -593,6 +620,15 @@
           "hex": "#7f2c28"
         },
         "$description": "The dropped note status. Design value #7f2c28."
+      },
+      "dropped-mark": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9176, 0.3529, 0.3255],
+          "hex": "#ea5a53"
+        },
+        "$description": "Status icons and dots: a mark, so 3:1 against the surfaces is enough and the colour stays vivid; status text keeps the darker colour."
       }
     },
     "alert": {

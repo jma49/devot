@@ -222,7 +222,7 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     for (const id of ['active', 'hold', 'done', 'dropped']) {
       const extra = diff[id] ? editorAndList.map((s) => over(theme, diff[id]!, s)) : []
       text[id] = [solid(theme, `status.${id}`), [...textBackdrops, ...extra]]
-      marks[id] = [solid(theme, `status.${id}`), backdrops(theme)]
+      marks[id] = [solid(theme, `status.${id}-mark`), backdrops(theme)]
     }
     expect(under(4.5, text)).toEqual([])
     expect(under(3, marks)).toEqual([])

@@ -44,7 +44,7 @@ The Activity sheet shades each day from five theme colours, `color.activity.leve
 
 ## Contrast
 
-Text meets WCAG AA in both appearances: 4.5:1 for text, 3:1 for graphics such as status dots, the caret and focus rings. `src/renderer/src/theme/contrast.test.ts` computes the ratios from the token values for the pairs the UI draws, so a later edit cannot drop one below it. The palette starts from a set of design values; where one fails its pair it is moved toward black (light) or white (dark) only as far as AA needs, keeping its hue, and the token's `$description` records the design value and how far it moved. The values in effect:
+Text meets WCAG AA in both appearances: 4.5:1 for text, 3:1 for graphics such as status dots, the caret and focus rings. `src/renderer/src/theme/contrast.test.ts` computes the ratios from the token values for the pairs the UI draws, so a later edit cannot drop one below it. The palette starts from a set of design values; where one fails its pair it is moved toward black (light) or white (dark) only as far as AA needs, keeping its hue, and the token's `$description` records the design value and how far it moved. Status icons and dots use the `-mark` status colours, which need only 3:1 and so stay vivid; status text keeps the deeper ones. The values in effect:
 
 | Token                             | Light     | Dark      |
 | --------------------------------- | --------- | --------- |
@@ -58,6 +58,10 @@ Text meets WCAG AA in both appearances: 4.5:1 for text, 3:1 for graphics such as
 | `color.status.hold`               | `#7f5305` | `#f59f0a` |
 | `color.status.done`               | `#096848` | `#10b77f` |
 | `color.status.dropped`            | `#94414e` | `#fb7085` |
+| `color.status.active-mark`        | `#438cec` | `#5b9bff` |
+| `color.status.hold-mark`          | `#c77905` | `#f5a524` |
+| `color.status.done-mark`          | `#259f58` | `#34c06a` |
+| `color.status.dropped-mark`       | `#ea5a53` | `#ff6b63` |
 | `color.syntax.heading`            | `#ab205e` | `#f471b5` |
 | `color.syntax.link`               | `#09665f` | `#14b8a5` |
 | `color.syntax.comment`            | `#535b67` | `#9ca3b0` |
