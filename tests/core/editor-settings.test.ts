@@ -5,6 +5,7 @@ import {
   FONT_FAMILIES,
   FONT_WEIGHTS,
   FONT_SIZE_MAX,
+  GRADIENT_THEMES,
   FONT_SIZE_MIN,
   APPEARANCES,
   THEMES,
@@ -129,7 +130,7 @@ describe('editor settings', () => {
     expect(LINE_WRAPPING_MODES).toEqual(['off', 'all', 'prose', 'unwrapAtCursor'])
     expect(LIST_DATES_STYLES).toEqual(['relative', 'absolute'])
     expect(APPEARANCES).toEqual(['light', 'dark', 'system'])
-    expect(THEMES).toEqual(['default', 'ivory'])
+    expect(THEMES).toEqual(['default', 'ivory', 'dawn', 'tide', 'sage', 'ember'])
     expect(ANIMATIONS).toEqual(['always', 'system', 'off'])
     for (const animations of ANIMATIONS)
       expect(checkEditorSettingsPatch({ animations })).toEqual({ animations })
@@ -360,6 +361,7 @@ describe('editor settings', () => {
   it('lets only the default theme follow the system accent', () => {
     expect(themeFollowsSystemAccent('default')).toBe(true)
     expect(themeFollowsSystemAccent('ivory')).toBe(false)
+    for (const theme of GRADIENT_THEMES) expect(themeFollowsSystemAccent(theme)).toBe(true)
   })
 
   it('steps the font size within its range', () => {

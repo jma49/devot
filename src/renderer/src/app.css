@@ -418,6 +418,8 @@ button {
     from var(--color-surface-sidebar) srgb r g b /
       clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
   );
+  background-image: var(--backdrop, none);
+  background-attachment: fixed;
   border-right: 1px solid var(--color-line-hairline);
   font-size: var(--font-size-row);
 }
@@ -428,11 +430,11 @@ button {
 }
 
 :root[data-sidebar-material='off'] .sidebar {
-  background: var(--color-surface-sidebar-opaque);
+  background-color: var(--color-surface-sidebar-opaque);
 }
 
 :root[data-sidebar-material='off'] .list {
-  background: var(--color-surface-list);
+  background-color: var(--color-surface-list);
 }
 
 :root[data-sidebar-material='off'] .content {
@@ -1040,6 +1042,8 @@ button {
     from var(--color-surface-list-wash) srgb r g b /
       clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
   );
+  background-image: var(--backdrop, none);
+  background-attachment: fixed;
   border-right: 1px solid var(--color-line-hairline);
 }
 
@@ -3247,6 +3251,8 @@ button {
   overflow-y: auto;
   border-right: 1px solid var(--color-line-hairline);
   background: var(--color-surface-sidebar-opaque);
+  background-image: var(--backdrop, none);
+  background-attachment: fixed;
 }
 
 .settings-tab {
@@ -3336,6 +3342,12 @@ button {
   margin-bottom: var(--space-7);
 }
 
+.theme-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
 .theme-cards {
   display: flex;
   flex-wrap: wrap;
@@ -3365,13 +3377,16 @@ button {
   outline-offset: var(--size-focus-ring);
 }
 
+/* A card shows its own theme's gradient, or none, whatever the page's theme. */
 .theme-preview {
+  --backdrop: none;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   width: calc(var(--space-10) * 3);
   padding: var(--space-4);
   background: var(--color-surface-editor);
+  background-image: var(--backdrop);
   color: var(--color-text-editor);
   font: var(--font-size-caption) / 1.4 var(--font-family-mono);
   white-space: nowrap;

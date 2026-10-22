@@ -68,13 +68,24 @@ export function resolve(tokens: FlatToken[], base: FlatToken[]): FlatToken[] {
 
 const round = (n: number) => Math.round(n * 1000) / 1000
 
+function cssColor(c: ColorValue): string {
+  if (c.alpha === undefined || c.alpha === 1) return c.hex
+  const [r, g, b] = c.components.map((x) => Math.round(x * 255))
+  return `rgb(${r} ${g} ${b} / ${round(c.alpha)})`
+}
+
+/** The direction of every backdrop gradient: top to bottom, leaning right. */
+const BACKDROP_ANGLE = '160deg'
+
 export function cssValue(token: FlatToken): string {
   switch (token.type) {
-    case 'color': {
-      const c = token.value as ColorValue
-      if (c.alpha === undefined || c.alpha === 1) return c.hex
-      const [r, g, b] = c.components.map((x) => Math.round(x * 255))
-      return `rgb(${r} ${g} ${b} / ${round(c.alpha)})`
+    case 'color':
+      return cssColor(token.value as ColorValue)
+    case 'gradient': {
+      const stops = (token.value as { color: ColorValue; position: number }[]).map(
+        (s) => `${cssColor(s.color)} ${round(s.position * 100)}%`,
+      )
+      return `linear-gradient(${BACKDROP_ANGLE}, ${stops.join(', ')})`
     }
     case 'dimension': {
       const d = token.value as DimensionValue
@@ -146,10 +157,7 @@ export interface ThemeTokens {
 const THEME_ID = /^[a-z][a-z0-9]*$/
 
 /** The rules of a built-in theme, in the order that makes them win (see `compile`). */
-function themeRules(id: string, light: FlatToken[], dark: FlatToken[]): string[] {
-  // A theme is independent of the system accent: its accent tokens are its own values.
-  const lightDeclarations = light.map((t) => themeDeclaration(t, 'light', false))
-  const darkDeclarations = dark.map((t) => themeDeclaration(t, 'dark', false))
+function themeRules(id: string, lightDeclarations: string[], darkDeclarations: string[]): string[] {
   const root = `:root[data-theme='${id}']`
   // A theme's rules are one attribute heavier than the default theme's wherever both could apply,
   // and come after them, so the theme wins in every context. `data-theme-preview` shows the theme
@@ -181,14 +189,36 @@ function themeRules(id: string, light: FlatToken[], dark: FlatToken[]): string[]
 }
 
 /**
+ * The gradient themes in `backdrops`: `backdrop.<id>.light|dark`, each a gradient. Such a theme
+ * keeps the default theme's colours, accent included, and adds `--backdrop`.
+ */
+export function backdropThemes(
+  backdrops: TokenTree,
+): { id: string; light: string; dark: string }[] {
+  const flat = flatten(backdrops)
+  const ids = [...new Set(flat.map((t) => t.path.split('.')[1]!))]
+  return ids.map((id) => {
+    if (!THEME_ID.test(id)) throw new Error(`E_TOKEN_THEME_ID ${id}`)
+    const value = (appearance: 'light' | 'dark') => {
+      const token = flat.find((t) => t.path === `backdrop.${id}.${appearance}`)
+      if (token?.type !== 'gradient') throw new Error(`E_TOKEN_BACKDROP ${id} ${appearance}`)
+      return cssValue(token)
+    }
+    return { id, light: value('light'), dark: value('dark') }
+  })
+}
+
+/**
  * Only theme colours and non-colour base tokens are exported: components never use primitive
- * colours. `themes` follow the default `light`/`dark`, scoped by `data-theme`, with the same tokens.
+ * colours. `themes` follow the default `light`/`dark`, scoped by `data-theme`, with the same tokens;
+ * the gradient themes in `backdrops` come after them.
  */
 export function compile(
   base: TokenTree,
   light: TokenTree,
   dark: TokenTree,
   themes: readonly ThemeTokens[] = [],
+  backdrops: TokenTree = {},
 ): CompiledTokens {
   const baseFlat = flatten(base)
   const shared = baseFlat.filter((t) => t.type !== 'color')
@@ -243,7 +273,16 @@ export function compile(
     '',
     ...builtIn.flatMap((theme) => [
       `/* The ${theme.id} theme: data-theme='${theme.id}' on the root element. */`,
-      ...themeRules(theme.id, theme.light, theme.dark),
+      // A theme is independent of the system accent: its accent tokens are its own values.
+      ...themeRules(
+        theme.id,
+        theme.light.map((t) => themeDeclaration(t, 'light', false)),
+        theme.dark.map((t) => themeDeclaration(t, 'dark', false)),
+      ),
+    ]),
+    ...backdropThemes(backdrops).flatMap((theme) => [
+      `/* The ${theme.id} gradient theme: data-theme='${theme.id}' on the root element. */`,
+      ...themeRules(theme.id, [`  --backdrop: ${theme.light};`], [`  --backdrop: ${theme.dark};`]),
     ]),
   ].join('\n')
 

@@ -127,6 +127,10 @@ pub enum Appearance {
 pub enum Theme {
     Default,
     Ivory,
+    Dawn,
+    Tide,
+    Sage,
+    Ember,
 }
 
 impl Appearance {
@@ -1242,6 +1246,17 @@ mod tests {
             EditorSettings::from_stored(&json!({ "theme": "ivory", "fontSize": 99 })).theme,
             Theme::Ivory
         );
+        for (stored, theme) in [
+            ("dawn", Theme::Dawn),
+            ("tide", Theme::Tide),
+            ("sage", Theme::Sage),
+            ("ember", Theme::Ember),
+        ] {
+            assert_eq!(
+                EditorSettings::from_stored(&json!({ "theme": stored })).theme,
+                theme
+            );
+        }
         assert_eq!(
             EditorSettings::from_stored(&json!({ "theme": 7 })).theme,
             Theme::Default

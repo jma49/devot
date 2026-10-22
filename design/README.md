@@ -13,6 +13,7 @@ Everything in this folder is meant to be publishable as an open-source asset lib
 | `tokens/themes/system.dark.tokens.json`  | The default theme, dark appearance                                    |
 | `tokens/themes/ivory.light.tokens.json`  | The Ivory theme, light appearance                                     |
 | `tokens/themes/ivory.dark.tokens.json`   | The Ivory theme, dark appearance                                      |
+| `tokens/backdrops.tokens.json`           | The gradient themes: one gradient per theme and appearance            |
 | `icons/symbols.json`                     | Devot icon names mapped to SF Symbol names                            |
 | `icons/languages.json`                   | Language marks for code block headers (third party, see below)        |
 | `app-icon/dove.svg`                      | The Devot dove: the logo mark, one teal vector path                   |
@@ -139,7 +140,8 @@ Principles every motion follows, now and in new work:
 - **Default**: Devot's palette in the appearance chosen in Settings (the system's by default), optionally with the system accent.
 - **Other themes:** fully independent of the system accent. Each provides a light and a dark appearance and follows the system's light/dark switch, unless it declares a single appearance.
 - Themes are DTCG token files with the same structure as the System theme: every colour token of `system.*.tokens.json` and no other (a test fails on a missing or an extra one). Custom CSS for advanced themes comes in phase 2 (see `docs/architecture.md`).
-- **Choosing one:** Settings > Appearance > Theme offers Default and Ivory as cards that show each in both appearances. The choice is the `theme` editor setting; a chosen theme other than Default is `data-theme` on the root element, and each built-in theme's rules in `tokens.css` are scoped by it (`scripts/tokens/themes.ts` lists them). An element with `data-theme-preview="ivory"` and `data-appearance-preview="light|dark"` shows that theme's tokens inside it. The default theme's output does not change when a theme is added.
+- **Gradient themes:** Dawn, Tide, Sage and Ember keep the default theme's colours, the system accent included, and add a gradient (`backdrop.<id>.light|dark` in `tokens/backdrops.tokens.json`, compiled into `--backdrop`). It is painted over the sidebar, the note list and the Settings sidebar, never the editor. Every stop is translucent, so the window material still shows through; the stops keep primary and secondary sidebar text at 4.5:1 over the opaque sidebar (`tests/tokens/themes.test.ts`).
+- **Choosing one:** Settings > Appearance > Theme offers Default and Ivory, and the gradients in a row of their own, as cards that show each in both appearances. The choice is the `theme` editor setting; a chosen theme other than Default is `data-theme` on the root element, and each built-in theme's rules in `tokens.css` are scoped by it (`scripts/tokens/themes.ts` lists them). An element with `data-theme-preview="ivory"` and `data-appearance-preview="light|dark"` shows that theme's tokens inside it. The default theme's output does not change when a theme is added.
 
 ### Ivory
 
