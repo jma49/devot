@@ -17,6 +17,7 @@ const { css, ts } = compile(
     light: read(`design/tokens/themes/${id}.light.tokens.json`),
     dark: read(`design/tokens/themes/${id}.dark.tokens.json`),
   })),
+  read('design/tokens/backdrops.tokens.json'),
 )
 
 const outputs: [string, string][] = [

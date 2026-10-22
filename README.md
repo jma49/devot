@@ -63,7 +63,7 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 **Look**
 
 - Light and dark appearance, or match the system.
-- Two themes, Default and Ivory, and an option to use the system accent colour.
+- Themes: Default, Ivory and four gradients (Dawn, Tide, Sage, Ember), and an option to use the system accent colour.
 - App, note and code fonts chosen separately, from the built-in fonts, any installed font or a font file you import (TTF, OTF, WOFF or WOFF2).
 - A translucent window, or an opaque one.
 - macOS text services in the editor: Look Up and Speech.

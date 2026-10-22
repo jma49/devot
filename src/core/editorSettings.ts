@@ -15,7 +15,8 @@ export type FontWeightId = 'normal' | '300' | '400' | '500' | '600' | '700'
 export type PasteUrlStyle = 'plain' | 'autolink' | 'link' | 'choose'
 export type LineWrappingMode = 'off' | 'all' | 'prose' | 'unwrapAtCursor'
 export type AppearanceChoice = 'system' | 'light' | 'dark'
-export type ThemeChoice = 'default' | 'ivory'
+export type ThemeChoice = 'default' | 'ivory' | GradientTheme
+export type GradientTheme = 'dawn' | 'tide' | 'sage' | 'ember'
 
 export type ListDatesStyle = 'relative' | 'absolute'
 export type AnimationsChoice = 'always' | 'system' | 'off'
@@ -193,8 +194,10 @@ export const isPageSlot = (v: unknown): v is string =>
   typeof v === 'string' && [...v].length <= PAGE_SLOT_MAX_CHARS && !/\p{Cc}/u.test(v)
 export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 'link', 'choose']
 export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
-export const THEMES: readonly ThemeChoice[] = ['default', 'ivory']
-export const themeFollowsSystemAccent = (theme: ThemeChoice): boolean => theme === 'default'
+export const GRADIENT_THEMES: readonly GradientTheme[] = ['dawn', 'tide', 'sage', 'ember']
+export const THEMES: readonly ThemeChoice[] = ['default', 'ivory', ...GRADIENT_THEMES]
+/** The gradient themes keep the default palette, accent included. */
+export const themeFollowsSystemAccent = (theme: ThemeChoice): boolean => theme !== 'ivory'
 export const FONT_SIZE_MIN = 10
 export const FONT_SIZE_MAX = 32
 const LINE_HEIGHT_MIN = 1

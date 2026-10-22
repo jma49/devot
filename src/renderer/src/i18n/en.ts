@@ -483,6 +483,10 @@ export const en = {
   'appearanceSettings.theme': 'Theme',
   'appearanceSettings.themeDefault': 'Default',
   'appearanceSettings.themeIvory': 'Ivory',
+  'appearanceSettings.themeDawn': 'Dawn',
+  'appearanceSettings.themeTide': 'Tide',
+  'appearanceSettings.themeSage': 'Sage',
+  'appearanceSettings.themeEmber': 'Ember',
   'appearanceSettings.accent': 'Accent colour',
   'appearanceSettings.systemAccent': 'Use the system accent colour',
   'appearanceSettings.systemAccentHint':

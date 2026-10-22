@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { flatten, type TokenTree } from '../../scripts/tokens/compile'
 import { BUILT_IN_THEMES } from '../../scripts/tokens/themes'
-import { THEMES } from '../../src/core/editorSettings'
+import { GRADIENT_THEMES, THEMES } from '../../src/core/editorSettings'
 import {
   composite,
   contrastRatio,
@@ -28,7 +28,7 @@ describe('the built-in themes', () => {
   it('are the theme files on disk, the setting values and the generated ids, in one order', () => {
     const onDisk = [...new Set(readdirSync(FILES).map((name) => name.split('.')[0]!))]
     expect(onDisk.sort()).toEqual(['system', ...BUILT_IN_THEMES.map((t) => t.id)].sort())
-    expect(THEMES).toEqual(['default', ...BUILT_IN_THEMES.map((t) => t.id)])
+    expect(THEMES).toEqual(['default', ...BUILT_IN_THEMES.map((t) => t.id), ...GRADIENT_THEMES])
     for (const name of readdirSync(FILES))
       expect(name).toMatch(/^[a-z]+\.(light|dark)\.tokens\.json$/)
   })
@@ -279,6 +279,48 @@ describe('Ivory', () => {
     for (const appearance of APPEARANCES) {
       const colours = tags.map((id) => hex(appearance, `color.tag.${id}`))
       expect(new Set(colours).size).toBe(8)
+    }
+  })
+})
+
+describe('the gradient themes', () => {
+  const backdrops = flatten(
+    JSON.parse(readFileSync('design/tokens/backdrops.tokens.json', 'utf8')) as TokenTree,
+  )
+  const system = { light: light as Record<string, string>, dark: dark as Record<string, string> }
+
+  it('are the gradients on disk, in the order of the setting values', () => {
+    const ids = [...new Set(backdrops.map((t) => t.path.split('.')[1]))]
+    expect(ids).toEqual([...GRADIENT_THEMES])
+    expect(backdrops.map((t) => t.path)).toEqual(
+      GRADIENT_THEMES.flatMap((id) => [`backdrop.${id}.light`, `backdrop.${id}.dark`]),
+    )
+  })
+
+  it('let the window material show through every stop', () => {
+    for (const token of backdrops) {
+      const stops = token.value as { color: { alpha?: number } }[]
+      expect(stops.length).toBeGreaterThan(1)
+      for (const stop of stops) expect(stop.color.alpha).toBeLessThan(1)
+    }
+  })
+
+  it('keep sidebar text readable over every stop', () => {
+    // Over the opaque sidebar; over the material the desktop decides, as in the default theme.
+    for (const token of backdrops) {
+      const appearance = token.path.endsWith('.light') ? 'light' : 'dark'
+      const theme = system[appearance]
+      const sidebar = parseColor(theme['color.surface.sidebar-opaque']!).rgb
+      for (const stop of token.value as { color: { hex: string; alpha: number } }[]) {
+        const under = composite(
+          { rgb: parseColor(stop.color.hex).rgb, alpha: stop.color.alpha },
+          sidebar,
+        )
+        for (const text of ['color.text.primary', 'color.text.secondary']) {
+          const ratio = contrastRatio(parseColor(theme[text]!).rgb, under)
+          expect(ratio >= 4.5 ? '' : `${token.path} ${text} ${ratio.toFixed(2)}`).toBe('')
+        }
+      }
     }
   })
 })

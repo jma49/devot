@@ -155,6 +155,34 @@ test.describe('the Theme choice in Settings', () => {
     await changeEditorSettingsElsewhere(page, { theme: 'default' })
     await expect(accent).toBeEnabled()
   })
+
+  test('offers the gradients in a row of their own, keeping the default colours and accent', async ({
+    page,
+  }) => {
+    await openSettings(page, 'Appearance')
+    const cards = page.getByRole('radiogroup', { name: 'Theme' })
+    const rows = cards.locator('.theme-cards')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.nth(1).locator('.theme-card-name')).toHaveText([
+      'Dawn',
+      'Tide',
+      'Sage',
+      'Ember',
+    ])
+
+    await cards.getByText('Sage', { exact: true }).click()
+    await expect(cards.getByRole('radio', { name: 'Sage' })).toBeChecked()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'sage')
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => getComputedStyle(document.querySelector('.settings-nav')!).backgroundImage,
+        ),
+      )
+      .toContain('linear-gradient')
+    await expect(page.getByRole('switch', { name: 'Use the system accent colour' })).toBeEnabled()
+    await expect.poll(() => settingsCalls(page)).toEqual([{ theme: 'sage' }])
+  })
 })
 
 test('the Animations choice reduces motion always, as the system asks, or never', async ({

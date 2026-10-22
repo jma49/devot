@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  backdropThemes,
   compile,
   cssValue,
   cssVarName,
@@ -223,6 +224,49 @@ describe('token compiler', () => {
       expect(() => compile(base, light, dark, [{ ...ivory, id: "a'] {" }])).toThrow(
         'E_TOKEN_THEME_ID',
       )
+    })
+  })
+
+  describe('gradient themes', () => {
+    const stop = (hex: string, position: number) => ({ color: color(hex, 0.5), position })
+    const backdrops = {
+      backdrop: {
+        $type: 'gradient',
+        dawn: {
+          light: { $value: [stop('#ff0000', 0), stop('#00ff00', 1)] },
+          dark: { $value: [stop('#000080', 0), stop('#008000', 1)] },
+        },
+      },
+    }
+    const { css } = compile(base, light, dark, [ivory], backdrops)
+
+    it('writes a gradient from its stops', () => {
+      expect(backdropThemes(backdrops)).toEqual([
+        {
+          id: 'dawn',
+          light: 'linear-gradient(160deg, rgb(255 0 0 / 0.5) 0%, rgb(0 255 0 / 0.5) 100%)',
+          dark: 'linear-gradient(160deg, rgb(0 0 128 / 0.5) 0%, rgb(0 128 0 / 0.5) 100%)',
+        },
+      ])
+    })
+
+    it('adds only the backdrop, after the other themes, so the default colours and accent stay', () => {
+      const themed = css.slice(css.indexOf(":root[data-theme='dawn'] {"))
+      expect(css.indexOf(":root[data-theme='dawn'] {")).toBeGreaterThan(
+        css.indexOf(":root[data-theme='ivory'] {"),
+      )
+      expect(themed).not.toContain('--color-')
+      expect(themed).toContain("[data-theme-preview='dawn'][data-appearance-preview='dark']")
+      expect(themed).toContain('--backdrop: linear-gradient(160deg, rgb(0 0 128 / 0.5)')
+    })
+
+    it('refuses a gradient theme without both appearances, or with an id that is not a plain word', () => {
+      const lightOnly = {
+        backdrop: { $type: 'gradient', dawn: { light: backdrops.backdrop.dawn.light } },
+      }
+      expect(() => backdropThemes(lightOnly)).toThrow('E_TOKEN_BACKDROP dawn dark')
+      const odd = { backdrop: { $type: 'gradient', "a'b": backdrops.backdrop.dawn } }
+      expect(() => backdropThemes(odd)).toThrow('E_TOKEN_THEME_ID')
     })
   })
 })

@@ -1,0 +1,262 @@
+{
+  "$description": "The gradient themes: Devot's default palette with a gradient behind the sidebar and the note list. Each stop is translucent so the window material shows through (Settings > Appearance > Theme).",
+  "backdrop": {
+    "$type": "gradient",
+    "dawn": {
+      "light": {
+        "$value": [
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.9608, 0.8275, 0.902],
+              "hex": "#f5d3e6",
+              "alpha": 0.7
+            },
+            "position": 0
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.9765, 0.9137, 0.9333],
+              "hex": "#f9e9ee",
+              "alpha": 0.7
+            },
+            "position": 0.5
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.9804, 0.8863, 0.7765],
+              "hex": "#fae2c6",
+              "alpha": 0.7
+            },
+            "position": 1
+          }
+        ]
+      },
+      "dark": {
+        "$value": [
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.2706, 0.1608, 0.2314],
+              "hex": "#45293b",
+              "alpha": 0.6
+            },
+            "position": 0
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.1843, 0.1451, 0.1882],
+              "hex": "#2f2530",
+              "alpha": 0.6
+            },
+            "position": 0.5
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.2706, 0.1922, 0.1216],
+              "hex": "#45311f",
+              "alpha": 0.6
+            },
+            "position": 1
+          }
+        ]
+      }
+    },
+    "tide": {
+      "light": {
+        "$value": [
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.8039, 0.8745, 0.9765],
+              "hex": "#cddff9",
+              "alpha": 0.7
+            },
+            "position": 0
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.902, 0.9137, 0.9725],
+              "hex": "#e6e9f8",
+              "alpha": 0.7
+            },
+            "position": 0.5
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.8784, 0.8392, 0.9608],
+              "hex": "#e0d6f5",
+              "alpha": 0.7
+            },
+            "position": 1
+          }
+        ]
+      },
+      "dark": {
+        "$value": [
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.1333, 0.1922, 0.302],
+              "hex": "#22314d",
+              "alpha": 0.6
+            },
+            "position": 0
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.1412, 0.1569, 0.2314],
+              "hex": "#24283b",
+              "alpha": 0.6
+            },
+            "position": 0.5
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.1882, 0.1569, 0.2863],
+              "hex": "#302849",
+              "alpha": 0.6
+            },
+            "position": 1
+          }
+        ]
+      }
+    },
+    "sage": {
+      "light": {
+        "$value": [
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.8039, 0.9137, 0.8431],
+              "hex": "#cde9d7",
+              "alpha": 0.7
+            },
+            "position": 0
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.9098, 0.9451, 0.8941],
+              "hex": "#e8f1e4",
+              "alpha": 0.7
+            },
+            "position": 0.5
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.949, 0.9098, 0.7608],
+              "hex": "#f2e8c2",
+              "alpha": 0.7
+            },
+            "position": 1
+          }
+        ]
+      },
+      "dark": {
+        "$value": [
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.1294, 0.2235, 0.1686],
+              "hex": "#21392b",
+              "alpha": 0.6
+            },
+            "position": 0
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.1373, 0.1765, 0.149],
+              "hex": "#232d26",
+              "alpha": 0.6
+            },
+            "position": 0.5
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.2275, 0.2196, 0.1294],
+              "hex": "#3a3821",
+              "alpha": 0.6
+            },
+            "position": 1
+          }
+        ]
+      }
+    },
+    "ember": {
+      "light": {
+        "$value": [
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.8863, 0.8157, 0.9569],
+              "hex": "#e2d0f4",
+              "alpha": 0.7
+            },
+            "position": 0
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.9529, 0.8824, 0.9373],
+              "hex": "#f3e1ef",
+              "alpha": 0.7
+            },
+            "position": 0.5
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.9765, 0.8431, 0.7608],
+              "hex": "#f9d7c2",
+              "alpha": 0.7
+            },
+            "position": 1
+          }
+        ]
+      },
+      "dark": {
+        "$value": [
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.2078, 0.1451, 0.2824],
+              "hex": "#352548",
+              "alpha": 0.6
+            },
+            "position": 0
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.1804, 0.1373, 0.2],
+              "hex": "#2e2333",
+              "alpha": 0.6
+            },
+            "position": 0.5
+          },
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0.2902, 0.1647, 0.1255],
+              "hex": "#4a2a20",
+              "alpha": 0.6
+            },
+            "position": 1
+          }
+        ]
+      }
+    }
+  }
+}
