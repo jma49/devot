@@ -168,6 +168,13 @@ test('an empty line shows the slash hint, an empty note the template chip', asyn
   await newNote(page, '')
   const chip = page.getByRole('button', { name: /^Choose a template/ })
   await expect(chip).toBeVisible()
+  const font = await page.locator('.cm-scroller').evaluate((el) => getComputedStyle(el).fontFamily)
+  await expect(page.locator('.cm-empty-hint')).toHaveCSS('font-family', font)
+  const middle = async (selector: string) => {
+    const box = await page.locator(selector).first().boundingBox()
+    return box ? box.y + box.height / 2 : Number.NaN
+  }
+  expect(Math.abs((await middle('.cm-template-chip')) - (await middle('.cm-line')))).toBeLessThan(1)
   await page.keyboard.insertText('Intro\n')
   await expect(chip).toBeHidden()
   await expect(page.locator('.cm-line.cm-slash-hint')).toHaveAttribute(
