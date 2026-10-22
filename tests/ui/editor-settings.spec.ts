@@ -395,3 +395,11 @@ test('typing at the end of a long unwrapped line keeps the caret inside the colu
     })
     .toBe(true)
 })
+
+test('the line numbers sit on the pane itself unless lines do not wrap', async ({ page }) => {
+  await newNote(page, 'alpha')
+  await changed(page, { lineNumbers: true, lineWrapping: 'prose' })
+  await expect(page.locator('.cm-gutters')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await changed(page, { lineNumbers: true, lineWrapping: 'off' })
+  await expect(page.locator('.cm-gutters')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})

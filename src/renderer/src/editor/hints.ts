@@ -82,10 +82,14 @@ const emptyNote = ViewPlugin.fromClass(
       const chip = document.createElement('button')
       chip.type = 'button'
       chip.className = 'cm-template-chip'
+      chip.append(t('editor.chooseTemplate'))
       const key = commandKeys('note.newFromTemplate')[0]
-      chip.textContent = key
-        ? `${t('editor.chooseTemplate')} ${shortcutLabel(key)}`
-        : t('editor.chooseTemplate')
+      if (key) {
+        const cap = document.createElement('kbd')
+        cap.className = 'cm-template-key'
+        cap.textContent = shortcutLabel(key)
+        chip.append(cap)
+      }
       chip.addEventListener('mousedown', (event) => event.preventDefault())
       chip.addEventListener('click', (event) => {
         event.preventDefault()
@@ -106,14 +110,18 @@ const emptyNote = ViewPlugin.fromClass(
       if (!empty) return
       view.requestMeasure({
         read: () => {
+          const line = view.lineBlockAt(0)
           const at = view.coordsAtPos(0)
           const box = view.dom.getBoundingClientRect()
-          return at ? { top: at.top - box.top, left: at.left - box.left } : null
+          if (!at) return null
+          const top = view.documentTop + line.top - box.top
+          return { top, left: at.left - box.left, height: line.height }
         },
         write: (pos) => {
           if (!pos) return
           dom.style.top = `${pos.top}px`
           dom.style.left = `${pos.left}px`
+          dom.style.height = `${pos.height}px`
         },
       })
     }
@@ -138,29 +146,45 @@ const theme = EditorView.theme({
     color: 'var(--color-text-placeholder)',
     whiteSpace: 'nowrap',
   },
+  // Sits outside the scroller, so it takes the editor's font itself, centred on the first line.
   '.cm-empty-hint': {
     position: 'absolute',
     display: 'flex',
     alignItems: 'center',
     gap: 'var(--space-3)',
     color: 'var(--color-text-placeholder)',
+    fontSize: 'var(--editor-font-size, var(--font-size-body))',
+    fontFamily: 'var(--editor-font-family, var(--font-family-mono))',
     pointerEvents: 'none',
     whiteSpace: 'nowrap',
   },
   '.cm-empty-hint[hidden], .cm-template-chip[hidden]': { display: 'none' },
   '.cm-template-chip': {
     pointerEvents: 'auto',
-    padding: '0 var(--space-3)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 'var(--space-3)',
+    height: 'var(--size-segment-height)',
+    margin: '0',
+    padding: '0 var(--space-2) 0 var(--space-3)',
     border: '1px solid var(--color-line-control)',
     borderRadius: 'var(--radius-button)',
     background: 'var(--color-fill-button)',
-    color: 'var(--color-text-secondary)',
+    color: 'var(--color-text-primary)',
     fontFamily: 'var(--font-family-ui)',
     fontSize: 'var(--font-size-footnote)',
-    lineHeight: '1.5',
+    lineHeight: '1',
     cursor: 'default',
   },
-  '.cm-template-chip:hover': { color: 'var(--color-text-primary)' },
+  '.cm-template-key': {
+    padding: '0 var(--space-2)',
+    border: '1px solid var(--color-line-control)',
+    borderRadius: 'var(--radius-control)',
+    color: 'var(--color-text-secondary)',
+    font: 'inherit',
+    fontSize: 'var(--font-size-caption)',
+    lineHeight: '1.4',
+  },
 })
 
 export function editorHints(): Extension {

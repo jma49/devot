@@ -437,11 +437,15 @@ const theme = EditorView.theme({
   '.cm-placeholder': { color: 'var(--color-editor-placeholder)' },
   // CodeMirror's own colours are for a light page; these follow the tokens,
   // so the gutter, the active line and the selection read in both appearances.
-  // The gutter is sticky: it stays opaque so unwrapped text scrolled under it does not show through.
+  // The pane behind is a translucent wash, so the gutter stays clear to match it. Only with wrapping off
+  // does the whole page scroll sideways under the sticky gutter; then it is opaque so that text does not show through.
   '.cm-gutters': {
-    backgroundColor: 'var(--color-surface-editor)',
+    backgroundColor: 'transparent',
     color: 'var(--color-text-tertiary)',
     border: '0',
+  },
+  '.cm-scroller:has(> .cm-content:not(.cm-lineWrapping)) > .cm-gutters': {
+    backgroundColor: 'var(--color-surface-editor)',
   },
   '.cm-activeLine': { backgroundColor: 'var(--color-editor-active-line)' },
   '.cm-activeLineGutter': {
