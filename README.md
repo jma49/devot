@@ -25,11 +25,11 @@
 
 Devot keeps your notes in a SQLite database on your Mac. Every feature works without an account or a network connection, and nothing leaves the Mac unless you export it, mirror it or let an MCP client read it.
 
-**Status:** phase 1, the macOS MVP, is complete, and beta builds are available. Sync, AI edit proposals and the iOS app come in phases 2 and 3 ([milestones](https://github.com/jma49/devot/milestones), `docs/architecture.md`, Phases).
+**Status:** phase 1, the macOS MVP, is complete, and stable releases are available. Sync, AI edit proposals and the iOS app come in phases 2 and 3 ([milestones](https://github.com/jma49/devot/milestones), `docs/architecture.md`, Phases).
 
 ## Download
 
-1. Download the latest `Devot_<version>_aarch64.dmg` from [Releases](https://github.com/jma49/devot/releases) (the newest beta is at the top).
+1. Download the latest `Devot_<version>_aarch64.dmg` from [Releases](https://github.com/jma49/devot/releases) (the latest stable release is at the top).
 2. Open the dmg and drag Devot to Applications.
 3. The first time, right-click Devot in Applications and choose Open, then Open again. Builds are ad-hoc signed and not notarised, so macOS asks once. If it only offers Move to Trash, open System Settings > Privacy & Security and click Open Anyway.
 
