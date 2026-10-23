@@ -1,5 +1,14 @@
 import type { Page } from '@playwright/test'
-import { bookPicker, expect, pickMenuItem, test, type TestWindow } from './fixtures'
+import {
+  bookPicker,
+  changeEditorSettingsElsewhere,
+  expect,
+  paintedBackground,
+  paintedColour,
+  pickMenuItem,
+  test,
+  type TestWindow,
+} from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -170,4 +179,24 @@ test('only the symbols in view are rendered', async ({ page }) => {
   expect(asked.has(found.at(-1)!)).toBe(false)
   await results.last().scrollIntoViewIfNeeded()
   await expect.poll(async () => (await rendered(page)).includes(found.at(-1)!)).toBe(true)
+})
+
+test('under Lucide the default notebook icon is a line drawing in the accent colour, not a filled square', async ({
+  page,
+}) => {
+  await changeEditorSettingsElsewhere(page, { iconStyle: 'lucide' })
+  const icon = rowIcon(page, 'Work')
+  await expect(icon).toHaveClass(/icon-svg/)
+  expect(await paintedBackground(icon)).toBe('rgba(0, 0, 0, 0)')
+  const accent = await page.evaluate(() => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--color-accent-text)'
+    document.body.append(probe)
+    const colour = getComputedStyle(probe).color
+    probe.remove()
+    return colour
+  })
+  expect(paintedColour(await icon.evaluate((el) => getComputedStyle(el).color))).toBe(
+    paintedColour(accent),
+  )
 })

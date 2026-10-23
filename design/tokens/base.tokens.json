@@ -1532,10 +1532,6 @@
         "$description": "A tag colour dot's fill; its edge is the solid tag colour."
       }
     },
-    "count": {
-      "$value": 0.6,
-      "$description": "Sidebar row counts, on the row's own text colour."
-    },
     "filter-icon": {
       "$value": 0.3,
       "$description": "The Filter field's funnel at rest; it shows fully while the field has the keyboard."
