@@ -101,6 +101,12 @@ describe('the release workflow', () => {
     expect(builds.filter((line) => !line.startsWith('pnpm tauri build '))).toEqual([])
   })
 
+  it('checks the app carries the layered icon, which the bundler leaves out with only a log line', () => {
+    const verify = step('Verify and collect the files')
+    expect(verify).toContain('test -s "$app/Contents/Resources/Assets.car"')
+    expect(verify).toMatch(/plutil -extract CFBundleIconName raw "\$app\/Contents\/Info\.plist"/)
+  })
+
   it('releases only a commit on main', () => {
     const build = job('build')
     const check = build.indexOf('git merge-base --is-ancestor HEAD origin/main')
