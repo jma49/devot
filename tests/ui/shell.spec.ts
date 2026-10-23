@@ -60,9 +60,10 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   expect((await allNotes.boundingBox())?.height).toBe(30)
   await expect(allNotes).toHaveAttribute('aria-current', 'true')
   const count = allNotes.locator('.source-count')
-  expect(await css(count, 'font-size')).toBe('10px')
-  expect(await css(count, 'font-weight')).toBe('200')
-  expect(await css(count, 'opacity')).toBe('0.6')
+  expect(await css(count, 'font-size')).toBe('12px')
+  expect(await css(count, 'font-weight')).toBe('400')
+  expect(await css(count, 'opacity')).toBe('1')
+  expect(await css(count, 'color')).toBe(rgb(light['color.text.secondary']))
 
   const field = list.locator('.search-field')
   expect((await field.boundingBox())?.height).toBe(30)

@@ -505,10 +505,10 @@ button {
 
 .source-count {
   margin-inline: var(--space-2);
-  font-size: var(--font-size-caption2);
-  font-weight: var(--font-weight-extralight);
+  font-size: var(--font-size-footnote);
+  font-weight: var(--font-weight-regular);
   font-variant-numeric: tabular-nums;
-  opacity: var(--opacity-count);
+  color: var(--color-text-secondary);
 }
 
 /* Same accent wash as a selected note row; the keyboard bar is drawn inside the row so nothing shifts. */
@@ -833,8 +833,13 @@ button {
   opacity: var(--opacity-dragged);
 }
 
-.book-row .icon-md {
+/* `:where` keeps these below `.book-icon-colored`, so a notebook's own colour wins. */
+.book-row .icon-md:where(.icon) {
   background-color: var(--color-accent-text);
+}
+
+.book-row .icon-md:where(.icon-svg) {
+  color: var(--color-accent-text);
 }
 
 .book-ai {
