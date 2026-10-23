@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { tempDir } from '../support/temp-dirs'
 
@@ -33,6 +33,31 @@ it('runs actool through xcrun with every argument and an empty stdin', () => {
     'stdin: empty',
     '',
   ])
+})
+
+it('leaves itself off PATH, so an xcrun that falls back to PATH cannot run it again', () => {
+  const bin = tempDir('devot-actool-')
+  const tools = tempDir('devot-actool-tools-')
+  writeFileSync(
+    join(bin, 'xcrun'),
+    [
+      '#!/bin/sh',
+      'n=${HOPS:-0}',
+      '[ "$n" -gt 5 ] && exit 99',
+      'export HOPS=$((n + 1))',
+      'tool=$(command -v "$1") || exit 72',
+      'shift',
+      'exec "$tool" "$@"',
+    ].join('\n'),
+  )
+  writeFileSync(join(tools, 'actool'), '#!/bin/sh\nprintf "%s\\n" "$0"\n')
+  chmodSync(join(bin, 'xcrun'), 0o755)
+  chmodSync(join(tools, 'actool'), 0o755)
+  const out = execFileSync(SHIM, ['--version'], {
+    env: { ...process.env, PATH: `${bin}:${resolve(dirname(SHIM))}:${tools}:/usr/bin:/bin` },
+    encoding: 'utf8',
+  })
+  expect(out.trim()).toBe(join(tools, 'actool'))
 })
 
 it('comes first on PATH for every pnpm tauri command, so local and release builds use it', () => {
