@@ -34,6 +34,7 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 | `pnpm bench`                    | Renderer performance baseline into `docs/benchmarks/results.json` (WebKit, IPC mocked)    |
 | `pnpm bench:app`                | Launch time and memory of a built Devot.app (macOS, needs Accessibility)                  |
 | `pnpm tokens` / `tokens:check`  | Compile design tokens into CSS and TS / fail if the output is stale                       |
+| `pnpm app-icon`                 | Make the app icon images in `src-tauri/icons/` from `design/app-icon/` (macOS)            |
 | `pnpm smoke:quit`               | Real-app check that quitting right after typing saves (macOS, needs Accessibility)        |
 | `pnpm rust:check`               | cargo fmt, clippy, tests and cargo-deny                                                   |
 | `pnpm deps:audit`               | `pnpm audit` for known vulnerabilities in the npm dependencies (high and above)           |

@@ -36,6 +36,7 @@
     "tauri": "PATH=\"$(pwd)/scripts/shims:$PATH\" tauri",
     "smoke:quit": "bash scripts/smoke/quit-saves.sh",
     "tokens": "node scripts/tokens/build.ts",
+    "app-icon": "sh scripts/app-icon/build.sh",
     "grammars": "node scripts/preview/grammars.ts && oxfmt src/core/preview/grammars.ts",
     "tokens:check": "node scripts/tokens/build.ts --check",
     "bench": "node scripts/bench/run.ts",
