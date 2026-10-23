@@ -6,7 +6,7 @@ import { CJK, hasCjk } from '../support/policy-patterns'
 import { tempDir } from '../support/temp-dirs'
 
 // English-only codebase: UI text lives in locale catalogs, CJK test data uses \u escapes.
-const BINARY = /\.(png|icns|ico|sqlite|woff2?)$/
+const BINARY = /\.(png|webp|icns|ico|sqlite|woff2?)$/
 
 it('no tracked file contains CJK characters', () => {
   const files = listFiles('.').filter((f) => !BINARY.test(f))
