@@ -2,7 +2,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { flatten, resolve, type TokenTree } from '../../scripts/tokens/compile'
-import { alphaAt, decodePng, pngSize } from '../support/png'
+import { icnsArgb, icnsEntries } from '../support/icns'
+import { alphaAt, decodePng, pngSize, type Png } from '../support/png'
 
 // The app icon from its design sources (design/app-icon/) to what the bundles ship
 // (src-tauri/icons/ and the Xcode project's asset catalog). scripts/app-icon/build.sh makes the images.
@@ -35,7 +36,7 @@ const brandColours = (): Set<string> => {
 const longHex = (hex: string) =>
   (hex.length === 4 ? `#${[...hex.slice(1)].map((d) => d + d).join('')}` : hex).toLowerCase()
 
-/** `extended-srgb:r,g,b,a`, as Icon Composer writes a colour. */
+// `extended-srgb:r,g,b,a`, as Icon Composer writes a colour.
 const composerHex = (value: string) =>
   `#${value
     .slice('extended-srgb:'.length)
@@ -48,22 +49,33 @@ const composerHex = (value: string) =>
     )
     .join('')}`
 
-function icnsEntries(data: Buffer): Map<string, Buffer> {
-  if (data.toString('latin1', 0, 4) !== 'icns') throw new Error('E_TEST_NOT_ICNS')
-  const entries = new Map<string, Buffer>()
-  for (let at = 8; at < data.length;) {
-    const length = data.readUInt32BE(at + 4)
-    entries.set(data.toString('latin1', at, at + 4), data.subarray(at + 8, at + length))
-    at += length
-  }
-  return entries
-}
-
 const samePixels = (a: Buffer, b: Buffer) => {
   const [x, y] = [decodePng(a), decodePng(b)]
   return (
     x.width === y.width && x.channels === y.channels && Buffer.compare(x.pixels, y.pixels) === 0
   )
+}
+
+// An .icns ARGB entry leaves the colour of a clear pixel open, so only its alpha counts.
+const sameArgb = (entry: Png, png: Png) =>
+  entry.width === png.width &&
+  png.channels === 4 &&
+  entry.pixels.every((value, i) => {
+    const alpha = png.pixels[i - (i % 4) + 3]!
+    return value === png.pixels[i] || (alpha === 0 && i % 4 !== 3)
+  })
+
+// The dove's teal: opaque, green well above red, unlike the light tile.
+const tealShare = (png: Png) => {
+  let teal = 0
+  for (let y = 0; y < png.height; y++) {
+    for (let x = 0; x < png.width; x++) {
+      const at = (y * png.width + x) * png.channels
+      const [red, green] = [png.pixels[at]!, png.pixels[at + 1]!]
+      if (alphaAt(png, x, y) > 127 && green - red > 38) teal++
+    }
+  }
+  return teal / (png.width * png.height)
 }
 
 interface Layer {
@@ -117,9 +129,11 @@ describe('the macOS app icon', () => {
     expect(measured).toEqual(Object.entries(sizes).map(([name, size]) => [name, size, size, 0]))
   })
 
+  const entries = icnsEntries(readFileSync(join(ICONS, 'icon.icns')))
+  const png = (name: string) => readFileSync(join(ICONS, name))
+  const argb = (type: string, size: number) => icnsArgb(entries.get(type) ?? Buffer.alloc(0), size)
+
   it('holds every size from 16 to 1024 px in the .icns, the same images as the PNGs', () => {
-    const entries = icnsEntries(readFileSync(join(ICONS, 'icon.icns')))
-    const png = (name: string) => readFileSync(join(ICONS, name))
     const sized: Record<string, number> = {
       ic11: 32,
       ic12: 64,
@@ -135,9 +149,8 @@ describe('the macOS app icon', () => {
       return [type, entry ? pngSize(entry).width : 0, entry ? pngSize(entry).height : 0]
     })
     expect(measured).toEqual(Object.entries(sized).map(([type, size]) => [type, size, size]))
-    expect(['ic04', 'is32'].some((type) => entries.has(type))).toBe(true)
-    expect(['ic05', 'il32'].some((type) => entries.has(type))).toBe(true)
-    // 32x32.png is the small cut, so this also checks the .icns uses it.
+    expect(argb('ic04', 16).width).toBe(16)
+    expect(sameArgb(argb('ic05', 32), decodePng(png('32x32.png')))).toBe(true)
     const same: Record<string, string> = {
       ic11: '32x32.png',
       ic12: '64x64.png',
@@ -149,6 +162,19 @@ describe('the macOS app icon', () => {
       ([type, name]) => !samePixels(entries.get(type)!, png(name)),
     )
     expect(differ).toEqual([])
+  })
+
+  // The small cut's dove covers about 1.3 times the share of its tile that the master's does;
+  // the master scaled down to 16 or 32 px stays near 1.05.
+  it('draws the 16 and 32 px images from the small cut, its dove bigger in the tile', () => {
+    const master = tealShare(decodePng(png('64x64.png')))
+    const shares: Record<string, number> = {
+      '32x32.png': tealShare(decodePng(png('32x32.png'))),
+      'icon.icns ic04': tealShare(argb('ic04', 16)),
+      'icon.icns ic05': tealShare(argb('ic05', 32)),
+    }
+    const masterSized = Object.keys(shares).filter((name) => shares[name]! < 1.2 * master)
+    expect(masterSized).toEqual([])
   })
 })
 
