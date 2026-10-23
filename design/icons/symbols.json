@@ -73,6 +73,7 @@
     "settings.appearanceMode": "circle.lefthalf.filled",
     "settings.theme": "swatchpalette",
     "settings.accent": "paintbrush.pointed",
+    "settings.iconStyle": "square.grid.2x2",
     "settings.sidebar": "sidebar.left",
     "settings.motion": "figure.run",
     "settings.appFont": "textformat.characters",

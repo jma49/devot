@@ -206,3 +206,29 @@ test('the Animations choice reduces motion always, as the system asks, or never'
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await expect(root).toHaveAttribute('data-motion', 'reduced')
 })
+
+test.describe('the Icon style choice in Settings', () => {
+  test('starts with SF Symbols and draws Lucide SVGs once chosen, whatever the theme', async ({
+    page,
+  }) => {
+    await openSettings(page, 'Appearance')
+    const cards = page.getByRole('radiogroup', { name: 'Icon style' })
+    await expect(cards.getByRole('radio', { name: 'SF Symbols' })).toBeChecked()
+    await expect(cards.locator('svg')).toHaveCount(6)
+    await expect(cards.locator('[data-symbol]')).toHaveCount(6)
+    await expect(page.locator('.settings-tab [data-symbol]').first()).toBeVisible()
+    await expect(page.locator('.settings-tab svg')).toHaveCount(0)
+
+    await cards.getByText('Lucide', { exact: true }).click()
+    await expect(cards.getByRole('radio', { name: 'Lucide' })).toBeChecked()
+    await expect(page.locator('.settings-tab svg').first()).toBeVisible()
+    await expect(page.locator('.settings-tab [data-symbol]')).toHaveCount(0)
+    await expect.poll(() => settingsCalls(page)).toEqual([{ iconStyle: 'lucide' }])
+
+    await changeEditorSettingsElsewhere(page, { theme: 'ivory', iconStyle: 'lucide' })
+    await expect(page.locator('.settings-tab svg').first()).toBeVisible()
+    await changeEditorSettingsElsewhere(page, { iconStyle: 'sfSymbols' })
+    await expect(page.locator('.settings-tab svg')).toHaveCount(0)
+    await expect(page.locator('.settings-tab [data-symbol]').first()).toBeVisible()
+  })
+})

@@ -103,6 +103,8 @@ A pop-up button (the note's Notebook and Status pickers) grows to `size.popup-ma
 
 Icons are SF Symbols, rendered by macOS at runtime through AppKit (the `symbol_png` Tauri command), then cached per name, size and appearance. This repository stores symbol names only, never symbol artwork. SF Symbols may only be used in software for Apple platforms and never in logos or app icons, so Devot's own app icon and logo must be original artwork.
 
+The icon style is a setting (Settings > Appearance > Icon style), independent of the colour theme: SF Symbols (the default) or [Lucide](https://github.com/lucide-icons/lucide) (ISC licence, through `lucide-react`). `src/renderer/src/icons/lucide.ts` maps every Devot icon name to a Lucide icon, and a test fails when `symbols.json` and that map differ. Lucide is drawn as an SVG in the current colour at the size the SF Symbol would take. Lucide has no filled variants, so where SF fills a shape the icon is filled with the current colour (the pinned note, the tag dot) or washed with it (the status circles). A notebook's own icon is the user's choice and stays an SF Symbol; the default notebook icon follows the style. The glyphs drawn inside note content and exported HTML do not follow the setting.
+
 ## Language marks
 
 A code block in the preview with a language shows that language's mark in its header (`icons/languages.json`, read by `src/core/preview/code.ts`). The marks are third-party artwork from [simple-icons](https://github.com/simple-icons/simple-icons) 16.35.0, one 24 x 24 path each, drawn in the text colour so they follow light and dark. The package is CC0-1.0; each entry records its own licence, and only CC0-1.0 and MIT marks are kept (JavaScript and GNU Bash are MIT). The GitHub mark heads a code block whose `url=` points at github.com; it is not tied to a language. Marks under share-alike or non-commercial licences are left out, and their languages show a generic mark. Add a mark only with its licence recorded in its entry.
@@ -149,7 +151,7 @@ Principles every motion follows, now and in new work:
 
 ### Ivory
 
-A warm theme: ivory surfaces and warm near-black text (light), warm charcoal and ivory text (dark). Typography and icons are the default theme's. The accent is Devot's own blue, the System theme's accent tokens; Ivory does not follow the macOS accent colour, so "Use the system accent colour" is disabled, with a hint, while Ivory is chosen. Row selection follows the System theme's recipe (an accent wash on an unfocused list, the solid accent fill on a focused one, the same strengths), and the pop-up shadow uses the System theme's strengths cast from `#1f1e1d`.
+A warm theme: ivory surfaces and warm near-black text (light), warm charcoal and ivory text (dark). Typography is the default theme's. The accent is Devot's own blue, the System theme's accent tokens; Ivory does not follow the macOS accent colour, so "Use the system accent colour" is disabled, with a hint, while Ivory is chosen. Row selection follows the System theme's recipe (an accent wash on an unfocused list, the solid accent fill on a focused one, the same strengths), and the pop-up shadow uses the System theme's strengths cast from `#1f1e1d`.
 
 | Token                                                    | Light                          | Dark                                          |
 | -------------------------------------------------------- | ------------------------------ | --------------------------------------------- |

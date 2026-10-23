@@ -1,6 +1,10 @@
+import { renderToStaticMarkup } from 'react-dom/server'
 import { invoke } from '../ipc'
+import type { IconStyleChoice } from '../../../core/editorSettings'
+import { editorSettings, useEditorSetting } from '../editorSettings'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { shownAppearance, subscribeAppearance } from '../theme/appearance'
+import { LUCIDE_FILLS, LUCIDE_ICONS, lucideStroke } from './lucide'
 import {
   createSymbolCache,
   canvasPixels,
@@ -93,16 +97,62 @@ export function useAppearance(): Appearance {
   )
 }
 
-export function Icon({
+function LucideGlyph({
   name,
   size,
   weight,
+  className,
 }: {
   name: IconName
   size: IconSize
-  weight?: SymbolWeight
+  weight?: SymbolWeight | undefined
+  className?: string | undefined
 }) {
-  return <SymbolIcon symbol={symbolFor(name)} size={size} {...(weight ? { weight } : {})} />
+  const Glyph = LUCIDE_ICONS[name]
+  const fill = LUCIDE_FILLS[name]
+  return (
+    <Glyph
+      size={BOXES[size]}
+      strokeWidth={lucideStroke(weight)}
+      className={`icon-svg icon-${size}${fill ? ` icon-fill-${fill}` : ''}${className ? ` ${className}` : ''}`}
+    />
+  )
+}
+
+/** Drawn in `style`, whatever the icon-style setting is (the Appearance settings' samples). */
+export function StyledIcon({
+  style,
+  name,
+  size,
+  weight,
+  className,
+}: {
+  style: IconStyleChoice
+  name: IconName
+  size: IconSize
+  weight?: SymbolWeight
+  className?: string
+}) {
+  if (style === 'lucide')
+    return <LucideGlyph name={name} size={size} weight={weight} className={className} />
+  return (
+    <SymbolIcon
+      symbol={symbolFor(name)}
+      size={size}
+      {...(weight ? { weight } : {})}
+      {...(className ? { className } : {})}
+    />
+  )
+}
+
+/** Drawn in the chosen icon style (Settings > Appearance); `className` reaches the SF Symbol's span or the Lucide SVG. */
+export function Icon(props: {
+  name: IconName
+  size: IconSize
+  weight?: SymbolWeight
+  className?: string
+}) {
+  return <StyledIcon style={useEditorSetting('iconStyle')} {...props} />
 }
 
 export type IconSize = keyof typeof BOXES
@@ -176,6 +226,15 @@ export function SymbolIcon({
 
 export function iconElement(name: IconName, box: number): HTMLElement {
   const span = document.createElement('span')
+  if (editorSettings().iconStyle === 'lucide') {
+    const Glyph = LUCIDE_ICONS[name]
+    const fill = LUCIDE_FILLS[name]
+    span.className = 'icon-host'
+    span.innerHTML = renderToStaticMarkup(
+      <Glyph size={box} className={`icon-svg${fill ? ` icon-fill-${fill}` : ''}`} />,
+    )
+    return span
+  }
   const symbol = symbolFor(name)
   span.className = 'icon'
   span.dataset['symbol'] = symbol

@@ -487,6 +487,9 @@ export const en = {
   'appearanceSettings.themeTide': 'Tide',
   'appearanceSettings.themeSage': 'Sage',
   'appearanceSettings.themeEmber': 'Ember',
+  'appearanceSettings.iconStyle': 'Icon style',
+  'appearanceSettings.iconStyleSfSymbols': 'SF Symbols',
+  'appearanceSettings.iconStyleLucide': 'Lucide',
   'appearanceSettings.accent': 'Accent colour',
   'appearanceSettings.systemAccent': 'Use the system accent colour',
   'appearanceSettings.systemAccentHint':

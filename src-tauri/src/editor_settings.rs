@@ -120,6 +120,14 @@ pub enum Appearance {
     Dark,
 }
 
+/// The page draws its icons in this set; Rust validates and stores it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum IconStyle {
+    SfSymbols,
+    Lucide,
+}
+
 /// The page applies it (the tokens read `data-theme` on the root element); Rust validates and
 /// stores it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -178,6 +186,7 @@ pub struct EditorSettings {
     /// Ivory ignores the system accent.
     pub theme: Theme,
     pub system_accent: bool,
+    pub icon_style: IconStyle,
     pub toolbar: bool,
     pub scroll_past_end: bool,
     /// In pixels.
@@ -235,6 +244,7 @@ impl Default for EditorSettings {
             appearance: Appearance::System,
             theme: Theme::Default,
             system_accent: false,
+            icon_style: IconStyle::SfSymbols,
             toolbar: true,
             scroll_past_end: true,
             cursor_scroll_margin: 0,
@@ -361,6 +371,7 @@ impl EditorSettings {
             "appearance" => self.appearance = choice(value)?,
             "theme" => self.theme = choice(value)?,
             "systemAccent" => self.system_accent = flag(value)?,
+            "iconStyle" => self.icon_style = choice(value)?,
             "toolbar" => self.toolbar = flag(value)?,
             "scrollPastEnd" => self.scroll_past_end = flag(value)?,
             "cursorScrollMargin" => {
@@ -707,6 +718,7 @@ mod tests {
         assert_eq!(d.appearance, Appearance::System);
         assert_eq!(d.theme, Theme::Default);
         assert!(!d.system_accent);
+        assert_eq!(d.icon_style, IconStyle::SfSymbols);
     }
 
     #[test]
@@ -768,6 +780,7 @@ mod tests {
                 "appearance": "system",
                 "theme": "default",
                 "systemAccent": false,
+                "iconStyle": "sfSymbols",
                 "toolbar": true,
                 "scrollPastEnd": true,
                 "cursorScrollMargin": 0,
@@ -862,6 +875,7 @@ mod tests {
                 "appearance": "dark",
                 "theme": "ivory",
                 "systemAccent": true,
+                "iconStyle": "lucide",
                 "toolbar": false,
                 "scrollPastEnd": false,
                 "cursorScrollMargin": 200,
@@ -887,6 +901,7 @@ mod tests {
         assert_eq!(next.appearance, Appearance::Dark);
         assert_eq!(next.theme, Theme::Ivory);
         assert!(next.system_accent);
+        assert_eq!(next.icon_style, IconStyle::Lucide);
         for (appearance, theme) in [
             ("light", Some(tauri::Theme::Light)),
             ("dark", Some(tauri::Theme::Dark)),
@@ -1108,6 +1123,8 @@ mod tests {
             json!({ "theme": null }),
             json!({ "theme": 1 }),
             json!({ "systemAccent": "on" }),
+            json!({ "iconStyle": "SF" }),
+            json!({ "iconStyle": null }),
             json!({ "autoDownloadUpdates": "on" }),
             json!({ "autoDownloadUpdates": 1 }),
             json!({ "autoDownloadUpdates": null }),
@@ -1225,6 +1242,21 @@ mod tests {
             Err(INVALID)
         );
         assert_eq!(held.get().unwrap().settings.theme, Theme::Ivory);
+    }
+
+    #[test]
+    fn reads_an_unknown_stored_icon_style_as_sf_symbols() {
+        for (stored, style) in [
+            (json!("lucide"), IconStyle::Lucide),
+            (json!("sfSymbols"), IconStyle::SfSymbols),
+            (json!("other"), IconStyle::SfSymbols),
+            (json!(7), IconStyle::SfSymbols),
+        ] {
+            assert_eq!(
+                EditorSettings::from_stored(&json!({ "iconStyle": stored })).icon_style,
+                style
+            );
+        }
     }
 
     #[test]

@@ -127,7 +127,11 @@ export function useEditorSettings(): EditorSettings {
 }
 
 export function useEditorSetting<K extends keyof EditorSettings>(key: K): EditorSettings[K] {
-  return useSyncExternalStore(subscribeEditorSettings, () => store.current()[key])
+  return useSyncExternalStore(
+    subscribeEditorSettings,
+    () => store.current()[key],
+    () => DEFAULT_EDITOR_SETTINGS[key],
+  )
 }
 
 let started = false
