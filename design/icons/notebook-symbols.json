@@ -1,5 +1,5 @@
 {
-  "$description": "The SF Symbols a notebook can show as its icon, by category, with extra words the icon picker's search matches. Names only: the app renders them at runtime through AppKit (the symbol_png command). Every name exists on the oldest supported macOS, and none depicts an Apple product or service (docs/adr/0001-sf-symbols-rendered-at-runtime.md).",
+  "$description": "The SF Symbols a notebook can show as its icon, by category, with extra words the icon picker's search matches. Names only: the app renders them at runtime through AppKit on macOS and UIKit on iOS (the symbol_png command). Every name exists on the oldest supported macOS, and none depicts an Apple product or service (docs/adr/0001-sf-symbols-rendered-at-runtime.md).",
   "categories": [
     { "id": "people", "icon": "person" },
     { "id": "nature", "icon": "leaf" },

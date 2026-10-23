@@ -22,27 +22,10 @@ use objc2_app_kit::{
 use objc2_foundation::{NSData, NSDictionary, NSString};
 use tauri::Manager;
 
+use super::guarded;
+
 /// Paces page rendering updates near 60 fps by default, even on 120 Hz displays.
 const SIXTY_FPS_FEATURE: &str = "PreferPageRenderingUpdatesNear60FPSEnabled";
-
-/// An Objective-C exception (which `catch_unwind` cannot stop; it would end the app) and a Rust
-/// panic are both caught, logged as `code` and give `None`, the caller's fallback.
-fn guarded<R>(code: &'static str, call: impl FnOnce() -> Option<R>) -> Option<R> {
-    let caught = catch_unwind(AssertUnwindSafe(|| {
-        objc2::exception::catch(AssertUnwindSafe(call))
-    }));
-    match caught {
-        Ok(Ok(result)) => result,
-        Ok(Err(_exception)) => {
-            log::warn!("{code} E_NATIVE_OBJC_EXCEPTION");
-            None
-        }
-        Err(_panic) => {
-            log::warn!("{code} E_NATIVE_PANIC");
-            None
-        }
-    }
-}
 
 pub fn unlock_high_refresh_rate(app: &tauri::App) {
     let Some(window) = app.get_webview_window("main") else {
@@ -251,7 +234,7 @@ pub fn symbol_png(name: &str, point_size: f64, weight: &str) -> Option<Vec<u8>> 
                     None,
                 )?;
                 let configuration = NSImageSymbolConfiguration::configurationWithPointSize_weight(
-                    point_size * 2.0,
+                    point_size * super::SYMBOL_PIXELS_PER_POINT,
                     symbol_weight(weight),
                 );
                 let image = image.imageWithSymbolConfiguration(&configuration)?;
@@ -3167,15 +3150,6 @@ mod tests {
         let then = time_since_boot().expect("clock");
         assert!(first > std::time::Duration::ZERO);
         assert!(then >= first);
-    }
-
-    #[test]
-    fn a_guarded_call_that_panics_gives_the_fallback() {
-        let fell_back = guarded("W_NATIVE_TEST_PANIC", || -> Option<()> {
-            panic!("E_NATIVE_TEST_PANIC")
-        });
-        assert_eq!(fell_back, None);
-        assert_eq!(guarded("W_NATIVE_TEST", || Some(7)), Some(7));
     }
 
     #[test]

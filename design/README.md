@@ -101,7 +101,7 @@ A pop-up button (the note's Notebook and Status pickers) grows to `size.popup-ma
 
 ## Icons
 
-Icons are SF Symbols, rendered by macOS at runtime through AppKit (the `symbol_png` Tauri command), then cached per name, size and appearance. This repository stores symbol names only, never symbol artwork. SF Symbols may only be used in software for Apple platforms and never in logos or app icons, so Devot's own app icon and logo must be original artwork.
+Icons are SF Symbols, rendered by the system at runtime through AppKit on macOS and UIKit on iOS (the `symbol_png` Tauri command), then cached per name, size and appearance. This repository stores symbol names only, never symbol artwork. SF Symbols may only be used in software for Apple platforms and never in logos or app icons, so Devot's own app icon and logo must be original artwork.
 
 The icon style is a setting (Settings > Appearance > Icon style), independent of the colour theme: SF Symbols (the default) or [Lucide](https://github.com/lucide-icons/lucide) (ISC licence, through `lucide-react`). `src/renderer/src/icons/lucide.ts` maps every Devot icon name to a Lucide icon, and a test fails when `symbols.json` and that map differ. Lucide is drawn as an SVG in the current colour at the size the SF Symbol would take. Lucide has no filled variants, so where SF fills a shape the icon is filled with the current colour (the pinned note, the tag dot) or washed with it (the status circles). A notebook's own icon is the user's choice and stays an SF Symbol; the default notebook icon follows the style. The glyphs drawn inside note content and exported HTML do not follow the setting.
 

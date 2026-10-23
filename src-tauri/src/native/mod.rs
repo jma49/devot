@@ -1,12 +1,42 @@
-//! Platform-native capabilities. `native::macos` is the only place in the
-//! crate allowed to use `unsafe`.
+//! Platform-native capabilities. `native::macos` and `native::ios` are the
+//! only places in the crate allowed to use `unsafe`.
 
+#[cfg(target_os = "ios")]
+#[allow(unsafe_code)]
+#[doc(hidden)]
+pub mod ios;
 #[cfg(target_os = "macos")]
 #[allow(unsafe_code)]
 #[doc(hidden)]
 pub mod macos;
 
+#[cfg(target_os = "ios")]
+use ios::symbol_png as render_symbol;
+#[cfg(target_os = "macos")]
+use macos::symbol_png as render_symbol;
+
 pub const ACCENT_EVENT: &str = "devot://accent-changed";
+
+/// An Objective-C exception (which `catch_unwind` cannot stop; it would end the app) and a Rust
+/// panic are both caught, logged as `code` and give `None`, the caller's fallback.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+fn guarded<R>(code: &'static str, call: impl FnOnce() -> Option<R>) -> Option<R> {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    let caught = catch_unwind(AssertUnwindSafe(|| {
+        objc2::exception::catch(AssertUnwindSafe(call))
+    }));
+    match caught {
+        Ok(Ok(result)) => result,
+        Ok(Err(_exception)) => {
+            log::warn!("{code} E_NATIVE_OBJC_EXCEPTION");
+            None
+        }
+        Err(_panic) => {
+            log::warn!("{code} E_NATIVE_PANIC");
+            None
+        }
+    }
+}
 
 pub fn configure_main_window(app: &tauri::App) {
     #[cfg(target_os = "macos")]
@@ -126,6 +156,36 @@ const SYMBOL_WEIGHTS: [&str; 9] = [
     "black",
 ];
 
+/// A symbol is drawn at this many times the point size asked for, one pixel to a point
+/// (`PIXELS_PER_POINT` in `icons/symbols.ts`).
+#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
+const SYMBOL_PIXELS_PER_POINT: f64 = 2.0;
+
+/// In pixels; at the largest point size the widest symbol of Devot's catalogs is 576.
+const MAX_SYMBOL_CANVAS: f64 = 1024.0;
+
+/// UIKit's `UIImageSymbolWeight` for a weight of `SYMBOL_WEIGHTS`: 1 (ultralight) to 9 (black), in
+/// that order; regular (4) for any other.
+#[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+fn symbol_weight_rank(weight: &str) -> isize {
+    SYMBOL_WEIGHTS
+        .iter()
+        .position(|known| *known == weight)
+        .map_or(4, |index| index as isize + 1)
+}
+
+/// The bitmap, in whole pixels, that a symbol image of `width` by `height` points fills at one
+/// pixel to a point; none for a size no symbol has.
+#[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+fn symbol_canvas(width: f64, height: f64) -> Option<(f64, f64)> {
+    // UIKit's whole sizes can carry float noise (34.00000000000001).
+    let side = |points: f64| {
+        (points.is_finite() && points > 0.0 && points <= MAX_SYMBOL_CANVAS)
+            .then(|| (points - 1e-6).ceil().max(1.0))
+    };
+    Some((side(width)?, side(height)?))
+}
+
 fn validate_symbol_request(name: &str, point_size: f64, weight: &str) -> Result<(), &'static str> {
     let name_ok = !name.is_empty()
         && name.len() <= MAX_SYMBOL_NAME_LEN
@@ -146,13 +206,13 @@ fn validate_symbol_request(name: &str, point_size: f64, weight: &str) -> Result<
 
 /// AppKit lets an image be used on any thread, but by one thread at a time, and the symbol images
 /// it hands out may be shared.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
 static SYMBOL_RENDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Tauri runs a synchronous command on the main thread, which at launch also routes the page's
 /// first IPC: rendering the first paint's 22 icons there held it for about 115 ms (80 of them on
 /// the first, when AppKit loads the symbols). None when the render panicked.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
 async fn render_one_at_a_time<T: Send + 'static>(
     render: impl FnOnce() -> T + Send + 'static,
 ) -> Option<T> {
@@ -174,18 +234,18 @@ pub async fn symbol_png(
 ) -> Result<String, String> {
     let weight = weight.unwrap_or_else(|| String::from("regular"));
     validate_symbol_request(&name, point_size, &weight).map_err(String::from)?;
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
     {
         use base64::Engine as _;
         render_one_at_a_time(move || {
-            macos::symbol_png(&name, point_size, &weight)
+            render_symbol(&name, point_size, &weight)
                 .map(|png| base64::engine::general_purpose::STANDARD.encode(png))
         })
         .await
         .flatten()
         .ok_or_else(|| String::from("E_SYMBOL_UNAVAILABLE"))
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
     {
         Err(String::from("E_SYMBOL_UNSUPPORTED"))
     }
@@ -1076,6 +1136,47 @@ mod tests {
     }
 
     #[test]
+    fn ranks_weights_lightest_first_as_uikit_numbers_them() {
+        let ranks: Vec<isize> = SYMBOL_WEIGHTS
+            .iter()
+            .map(|w| symbol_weight_rank(w))
+            .collect();
+        assert_eq!(ranks, (1..=9).collect::<Vec<isize>>());
+        assert_eq!(symbol_weight_rank("regular"), 4);
+        assert_eq!(symbol_weight_rank("black"), 9);
+        assert_eq!(symbol_weight_rank("flimsy"), 4);
+    }
+
+    #[test]
+    fn a_symbol_canvas_holds_the_whole_image_on_whole_pixels() {
+        assert_eq!(symbol_canvas(33.0, 37.0), Some((33.0, 37.0)));
+        assert_eq!(symbol_canvas(32.333, 25.667), Some((33.0, 26.0)));
+        assert_eq!(symbol_canvas(0.5, 1e-9), Some((1.0, 1.0)));
+        // Float noise on a whole size adds no blank column.
+        assert_eq!(
+            symbol_canvas(34.000_000_000_000_01, 51.0),
+            Some((34.0, 51.0))
+        );
+        let most = MAX_SYMBOL_CANVAS;
+        assert_eq!(symbol_canvas(most, most), Some((most, most)));
+    }
+
+    #[test]
+    fn refuses_a_symbol_canvas_no_symbol_has() {
+        for (width, height) in [
+            (0.0, 10.0),
+            (10.0, 0.0),
+            (-1.0, 10.0),
+            (f64::NAN, 10.0),
+            (10.0, f64::INFINITY),
+            (MAX_SYMBOL_CANVAS + 1.0, 10.0),
+            (10.0, MAX_SYMBOL_CANVAS + 1.0),
+        ] {
+            assert_eq!(symbol_canvas(width, height), None, "{width} x {height}");
+        }
+    }
+
+    #[test]
     fn renders_off_the_asking_thread_one_at_a_time() {
         use std::sync::Arc;
         use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
@@ -1118,11 +1219,61 @@ mod tests {
         assert_eq!(ask("pin", 17.0, Some("flimsy")), "E_SYMBOL_WEIGHT_INVALID");
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    #[test]
+    fn a_guarded_call_that_panics_gives_the_fallback() {
+        let fell_back = guarded("W_NATIVE_TEST_PANIC", || -> Option<()> {
+            panic!("E_NATIVE_TEST_PANIC")
+        });
+        assert_eq!(fell_back, None);
+        assert_eq!(guarded("W_NATIVE_TEST", || Some(7)), Some(7));
+    }
+
+    /// As the command renders: on a blocking thread, one at a time, since tests run in parallel.
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    fn render(name: &'static str, points: f64, weight: &'static str) -> Option<Vec<u8>> {
+        tauri::async_runtime::block_on(render_one_at_a_time(move || {
+            render_symbol(name, points, weight)
+        }))
+        .flatten()
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    fn png_size(png: &[u8]) -> (u32, u32) {
+        let at = |i: usize| u32::from_be_bytes(png[i..i + 4].try_into().unwrap());
+        (at(16), at(20))
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    #[test]
+    fn draws_a_symbol_at_two_pixels_a_point() {
+        // A circle symbol is a little larger than its point size (AppKit and UIKit pad it).
+        for points in [14.0, 21.0, 64.0] {
+            let png = render("checkmark.circle.fill", points, "regular").unwrap();
+            let (width, height) = png_size(&png);
+            assert_eq!(width, height, "{points} pt");
+            let side = f64::from(width) / SYMBOL_PIXELS_PER_POINT;
+            assert!(
+                (points..=points * 1.25).contains(&side),
+                "{points} pt: {side}"
+            );
+        }
+        let heavy = render("trash", 21.0, "black").unwrap();
+        let light = render("trash", 21.0, "ultralight").unwrap();
+        assert!(png_size(&heavy).0 > png_size(&light).0);
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    #[test]
+    fn renders_nothing_for_a_symbol_the_system_lacks() {
+        assert_eq!(render("devot.no.such.symbol", 14.0, "regular"), None);
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
     #[test]
     fn renders_a_known_symbol_as_png() {
         use base64::Engine as _;
-        let png = macos::symbol_png("square.and.pencil", 17.0, "light").expect("symbol renders");
+        let png = render("square.and.pencil", 17.0, "light").expect("symbol renders");
         assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
         let answer = tauri::async_runtime::block_on(symbol_png(
             "square.and.pencil".into(),
