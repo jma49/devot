@@ -4,18 +4,22 @@ import {
   APPEARANCES,
   DEFAULT_EDITOR_SETTINGS,
   GRADIENT_THEMES,
+  ICON_STYLES,
   THEMES,
   WINDOW_TRANSPARENCY_MAX,
   WINDOW_TRANSPARENCY_STEP,
   themeFollowsSystemAccent,
   type AnimationsChoice,
   type AppearanceChoice,
+  type IconStyleChoice,
   type ThemeChoice,
 } from '../../../core/editorSettings'
 import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
 import { useDraggedNumber } from './draggedNumber'
+import { StyledIcon } from '../icons/Icon'
+import type { IconName } from '../icons/symbols'
 
 function transparencyText(value: number): string {
   const design = DEFAULT_EDITOR_SETTINGS.windowTransparency
@@ -47,6 +51,20 @@ const THEME_LABELS: Readonly<Record<ThemeChoice, MessageKey>> = {
   sage: 'appearanceSettings.themeSage',
   ember: 'appearanceSettings.themeEmber',
 }
+
+const ICON_STYLE_LABELS: Readonly<Record<IconStyleChoice, MessageKey>> = {
+  sfSymbols: 'appearanceSettings.iconStyleSfSymbols',
+  lucide: 'appearanceSettings.iconStyleLucide',
+}
+
+const ICON_SAMPLES: readonly IconName[] = [
+  'notes.all',
+  'notebook',
+  'note.pinned',
+  'status.completed',
+  'search',
+  'trash',
+]
 
 /** The themes in two rows: plain palettes, then the gradients. */
 const THEME_ROWS: readonly (readonly ThemeChoice[])[] = [
@@ -92,7 +110,8 @@ function Preview({
  * Settings > Appearance: Light, Dark or Match System (the default), as
  * cards with a small preview; the theme, Default or Ivory, or a gradient in a
  * row of its own, as cards that show each in both appearances (Ivory has its own accent, so the system accent
- * option is hidden while it is chosen); whether the accent follows the macOS accent
+ * option is hidden while it is chosen); the icon style, SF Symbols (the default) or Lucide,
+ * as cards of sample icons, whatever the theme; whether the accent follows the macOS accent
  * colour (off by default: Devot's palette); and whether the whole window shows
  * the material (on by default), and how see-through its regions are (a
  * slider from Opaque to Transparent that starts at the design washes and
@@ -107,6 +126,7 @@ export function AppearanceSection() {
   const appearance = useEditorSetting('appearance')
   const theme = useEditorSetting('theme')
   const systemAccent = useEditorSetting('systemAccent')
+  const iconStyle = useEditorSetting('iconStyle')
   const material = useEditorSetting('sidebarMaterial')
   const animations = useEditorSetting('animations')
   const [error, change] = useSettingsChange()
@@ -179,6 +199,32 @@ export function AppearanceSection() {
                 </label>
               ))}
             </div>
+          ))}
+        </div>
+      </SettingsSection>
+      <SettingsSection icon="settings.iconStyle" title="appearanceSettings.iconStyle">
+        <div
+          className="theme-cards"
+          role="radiogroup"
+          aria-label={t('appearanceSettings.iconStyle')}
+        >
+          {ICON_STYLES.map((choice) => (
+            <label key={choice} className="theme-card">
+              <input
+                type="radio"
+                className="visually-hidden"
+                name={`${id}-icon-style`}
+                value={choice}
+                checked={iconStyle === choice}
+                onChange={() => change({ iconStyle: choice })}
+              />
+              <span className="theme-card-previews icon-style-sample" aria-hidden="true">
+                {ICON_SAMPLES.map((name) => (
+                  <StyledIcon key={name} style={choice} name={name} size="lg" />
+                ))}
+              </span>
+              <span className="theme-card-name">{t(ICON_STYLE_LABELS[choice])}</span>
+            </label>
           ))}
         </div>
       </SettingsSection>

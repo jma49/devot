@@ -2,7 +2,13 @@ import { CompletionContext } from '@codemirror/autocomplete'
 import { ensureSyntaxTree, indentUnit } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { gutterLineClass } from '@codemirror/view'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const look = vi.hoisted(() => ({ iconStyle: 'sfSymbols' }))
+vi.mock('../editorSettings', async (original) => ({
+  ...(await original<typeof import('../editorSettings')>()),
+  editorSettings: () => ({ iconStyle: look.iconStyle }),
+}))
 import {
   blockAt,
   blockDecorations,
@@ -17,6 +23,7 @@ import {
 } from './codeBlocks'
 import { FORMAT_COMMANDS } from './formats'
 import { noteMarkdown } from './markdown'
+import { setToolbarFocus, toolbarStateExtension } from './toolbarState'
 
 // `^` marks the cursor.
 function state(marked: string) {
@@ -252,5 +259,31 @@ describe('Return and Tab in the prefix of a nested block line', () => {
     expect(show(s.update(codeReturn(s)!).state)).toBe('> ```\n> \n> ^foo\n> ```')
     const t = state('> ```\n> ^foo\n> ```')
     expect(show(t.update(codeTab(t)!).state)).toBe('> ```\n>   ^foo\n> ```')
+  })
+})
+
+describe('the copy button', () => {
+  const copyWidget = (marked: string) => {
+    const base = state(marked)
+    const focused = EditorState.create({
+      doc: base.doc,
+      selection: base.selection,
+      extensions: [noteMarkdown, toolbarStateExtension],
+    })
+    ensureSyntaxTree(focused, focused.doc.length, 5000)
+    const ready = focused.update({ effects: setToolbarFocus.of(true) }).state
+    const found = blockDecorations(ready, [{ from: 0, to: ready.doc.length }]).iter()
+    for (; found.value; found.next())
+      if (found.value.spec.widget) return found.value.spec.widget as { eq(other: unknown): boolean }
+    throw new Error('no copy button')
+  }
+
+  it('is drawn again when the icon style changes', () => {
+    look.iconStyle = 'sfSymbols'
+    const before = copyWidget('```js\n^x\n```')
+    expect(before.eq(copyWidget('```js\n^x\n```'))).toBe(true)
+    look.iconStyle = 'lucide'
+    expect(before.eq(copyWidget('```js\n^x\n```'))).toBe(false)
+    look.iconStyle = 'sfSymbols'
   })
 })

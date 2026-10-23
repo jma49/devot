@@ -16,6 +16,7 @@ export type PasteUrlStyle = 'plain' | 'autolink' | 'link' | 'choose'
 export type LineWrappingMode = 'off' | 'all' | 'prose' | 'unwrapAtCursor'
 export type AppearanceChoice = 'system' | 'light' | 'dark'
 export type ThemeChoice = 'default' | 'ivory' | GradientTheme
+export type IconStyleChoice = 'sfSymbols' | 'lucide'
 export type GradientTheme = 'dawn' | 'tide' | 'sage' | 'ember'
 
 export type ListDatesStyle = 'relative' | 'absolute'
@@ -54,6 +55,7 @@ export interface EditorSettings {
   appearance: AppearanceChoice
   theme: ThemeChoice
   systemAccent: boolean
+  iconStyle: IconStyleChoice
   toolbar: boolean
   scrollPastEnd: boolean
   cursorScrollMargin: number
@@ -113,6 +115,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   appearance: 'system',
   theme: 'default',
   systemAccent: false,
+  iconStyle: 'sfSymbols',
   toolbar: true,
   scrollPastEnd: true,
   cursorScrollMargin: 0,
@@ -196,6 +199,7 @@ export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 
 export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
 export const GRADIENT_THEMES: readonly GradientTheme[] = ['dawn', 'tide', 'sage', 'ember']
 export const THEMES: readonly ThemeChoice[] = ['default', 'ivory', ...GRADIENT_THEMES]
+export const ICON_STYLES: readonly IconStyleChoice[] = ['sfSymbols', 'lucide']
 /** The gradient themes keep the default palette, accent included. */
 export const themeFollowsSystemAccent = (theme: ThemeChoice): boolean => theme !== 'ivory'
 export const FONT_SIZE_MIN = 10
@@ -261,6 +265,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   appearance: oneOf(APPEARANCES),
   theme: oneOf(THEMES),
   systemAccent: isFlag,
+  iconStyle: oneOf(ICON_STYLES),
   toolbar: isFlag,
   scrollPastEnd: isFlag,
   cursorScrollMargin: wholeIn(0, CURSOR_SCROLL_MARGIN_MAX),

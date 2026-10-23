@@ -21,6 +21,7 @@ import type { SyntaxNode } from '@lezer/common'
 import { fuzzyRank } from '../../../core/fuzzy'
 import { writeClipboardText } from '../clipboard'
 import { t } from '../i18n'
+import { editorSettings, subscribeEditorSettings } from '../editorSettings'
 import { iconElement } from '../icons/Icon'
 import { blockUnit, codeStyle, nextLine } from './codeIndent'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
@@ -155,12 +156,15 @@ const infoMark = Decoration.mark({ class: 'cm-codeblock-info' })
 const COPIED_MS = 1000
 
 class CopyButton extends WidgetType {
-  constructor(readonly block: number) {
+  constructor(
+    readonly block: number,
+    readonly iconStyle: string,
+  ) {
     super()
   }
 
   override eq(other: CopyButton): boolean {
-    return other.block === this.block
+    return other.block === this.block && other.iconStyle === this.iconStyle
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -251,7 +255,10 @@ export function blockDecorations(
           builder.add(
             line.to,
             line.to,
-            Decoration.widget({ widget: new CopyButton(block.from), side: 1 }),
+            Decoration.widget({
+              widget: new CopyButton(block.from, editorSettings().iconStyle),
+              side: 1,
+            }),
           )
       }
     }
@@ -266,11 +273,23 @@ function decorations(view: EditorView): DecorationSet {
 const boxes = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet
+    iconStyle = editorSettings().iconStyle
+    stop: () => void
     constructor(view: EditorView) {
       this.decorations = decorations(view)
+      this.stop = subscribeEditorSettings(() => {
+        if (editorSettings().iconStyle !== this.iconStyle) view.dispatch({})
+      })
+    }
+    destroy() {
+      this.stop()
     }
     update(update: ViewUpdate) {
+      const iconStyle = editorSettings().iconStyle
+      const restyled = iconStyle !== this.iconStyle
+      this.iconStyle = iconStyle
       if (
+        restyled ||
         update.docChanged ||
         update.viewportChanged ||
         update.selectionSet ||
@@ -589,6 +608,7 @@ const theme = EditorView.theme({
     WebkitMaskRepeat: 'no-repeat',
     WebkitMaskPosition: 'center',
   },
+  '.cm-codeblock-copy .icon-svg': { display: 'block', flexShrink: '0' },
 })
 
 export function codeBlocks(): Extension {

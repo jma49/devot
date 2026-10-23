@@ -135,6 +135,7 @@ const theme = EditorView.theme({
     WebkitMaskRepeat: 'no-repeat',
     WebkitMaskPosition: 'center',
   },
+  '.cm-popup-icon .icon-svg': { display: 'block', flexShrink: '0', width: '100%', height: '100%' },
   '.cm-tooltip.cm-popup-language > ul': { fontFamily: 'var(--font-family-mono)' },
   '.cm-tooltip.cm-popup-language > ul > li': {
     minHeight: 'var(--space-7)',

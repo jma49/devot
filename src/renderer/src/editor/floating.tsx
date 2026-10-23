@@ -214,6 +214,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     flexShrink: '0',
     backgroundColor: 'currentColor',
   },
+  '.cm-float-button .icon-svg': { display: 'block', flexShrink: '0' },
   '.cm-float-tip': {
     position: 'absolute',
     zIndex: '1',
