@@ -168,6 +168,32 @@ objc2-pdf-kit = { version = "0.3", default-features = false, features = [
   "PDFDestination",
 ] }
 
+[target.'cfg(target_os = "ios")'.dependencies]
+# SF Symbols drawn through UIKit (`native::ios`); `exception` as on macOS.
+objc2 = { version = "0.6", features = ["exception"] }
+block2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSData",
+  "NSString",
+] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = [
+  "std",
+  "CFCGTypes",
+] }
+objc2-ui-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "block2",
+  "objc2-core-foundation",
+  "UIColor",
+  "UIGraphicsImageRenderer",
+  "UIGraphicsRenderer",
+  "UIImage",
+  "UIImageConfiguration",
+  "UIImageSymbolConfiguration",
+  "UITraitCollection",
+] }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 # tauri-plugin-deep-link 2.6.2 builds ini::ParseOption with a struct literal
 # that rust-ini 0.21.2 broke by adding fields. Drop the pin once it is fixed.

@@ -1,5 +1,5 @@
 {
-  "$description": "Devot icon names mapped to SF Symbols. The app renders them at runtime through AppKit (the symbol_png command). No symbol artwork is stored in this repository.",
+  "$description": "Devot icon names mapped to SF Symbols. The app renders them at runtime through AppKit on macOS and UIKit on iOS (the symbol_png command). No symbol artwork is stored in this repository.",
   "symbols": {
     "notes.all": "note.text",
     "notes.pinned": "pin",

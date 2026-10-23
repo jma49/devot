@@ -63,6 +63,8 @@ pnpm tauri ios dev                               # run on a simulator or a conne
 
 Menus, updates, the Settings window, folder pickers and the single-instance socket are desktop only (`cfg(desktop)`); their commands are not registered on a phone. Running on your own iPhone needs a signing team: add your Apple ID in Xcode > Settings > Accounts, then set `bundle.iOS.developmentTeam` or `APPLE_DEVELOPMENT_TEAM`. A free personal team works for your own device; its profile lasts seven days.
 
+SF Symbols are drawn through UIKit on a phone (`src-tauri/src/native/ios.rs`), so both icon styles work there. Its tests run inside a booted simulator, from `src-tauri`: `CARGO_TARGET_AARCH64_APPLE_IOS_SIM_RUNNER="xcrun simctl spawn booted" cargo test --target aarch64-apple-ios-sim --lib native::` (the filter leaves out desktop-only tests that start processes or open sockets, which fail in the simulator). CI has no iOS job, so run them by hand after changing `ios.rs`. The notebook icon catalog is checked against macOS 26 only: on iOS before 26 (the app runs from 15) a newer symbol name can be missing, and the notebook shows the default icon.
+
 `libc` is held at 0.2.189 in `Cargo.lock`: 0.2.190 limits the `_dyld_*` functions to macOS, and `backtrace` 0.3.76 (through Sentry) still calls them on iOS. Lift the hold once `backtrace` has a release that builds for iOS with the newer `libc`.
 
 ## Stacked pull requests

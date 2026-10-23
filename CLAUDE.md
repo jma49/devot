@@ -12,7 +12,7 @@ Rules here hold for every contributor; add shared rules here. Personal or machin
 - Never mock the database in tests: use better-sqlite3 (TypeScript) or rusqlite (Rust) on a temporary file.
 - Tests make temporary folders only through `tempDir` (`tests/support/temp-dirs.ts`, removed when the test file ends) or Rust's `tempfile` (removed on drop); a policy test refuses `mkdtempSync(join(tmpdir(), …))` and `env::temp_dir()` by hand. Nothing a test makes may outlive the run.
 - The core library (`src/core`) must not import `@tauri-apps/*`, `better-sqlite3` or `node:*`; the UI (`src/renderer`) must not import Node modules.
-- `unsafe` Rust is allowed only in `src-tauri/src/native/macos.rs`, with a `SAFETY` comment on every block. Guard every private API call with `respondsToSelector:` and fall back instead of crashing.
+- `unsafe` Rust is allowed only in `src-tauri/src/native/macos.rs` and `src-tauri/src/native/ios.rs`, with a `SAFETY` comment on every block. Guard every private API call with `respondsToSelector:` and fall back instead of crashing.
 - Every new Tauri command is declared in `src-tauri/build.rs` and granted in `src-tauri/capabilities/`; it validates its arguments in Rust.
 - Tests that touch WebKit must run on the main thread: put them in a `harness = false` test under `src-tauri/tests/`.
 - Error messages and logs carry codes and IDs, never note content.

@@ -66,20 +66,17 @@ impl SidebarMaterial {
         };
         // Tauri queues the change on the main thread (AppKit); this fails
         // only when the window is gone or the queue is closed.
-        let queued = app
+        let window = app
             .get_webview_window(MAIN_WINDOW)
-            .ok_or("E_SIDEBAR_MATERIAL_NO_WINDOW")
-            .and_then(|window| {
-                #[cfg(desktop)]
-                return window
-                    .set_effects(effects_for(material, self.configured.as_ref()))
-                    .map_err(|_| "E_SIDEBAR_MATERIAL_APPLY_FAILED");
-                #[cfg(mobile)]
-                {
-                    let _ = window;
-                    Ok(())
-                }
-            });
+            .ok_or("E_SIDEBAR_MATERIAL_NO_WINDOW");
+        #[cfg(desktop)]
+        let queued = window.and_then(|window| {
+            window
+                .set_effects(effects_for(material, self.configured.as_ref()))
+                .map_err(|_| "E_SIDEBAR_MATERIAL_APPLY_FAILED")
+        });
+        #[cfg(mobile)]
+        let queued = window.map(|_| ());
         if let Err(code) = queued {
             // Still what it was: the next change (a newer revision) tries again.
             shown.material = before.material;
