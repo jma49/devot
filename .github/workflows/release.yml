@@ -99,7 +99,11 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           bundle=src-tauri/target/release/bundle
-          codesign --verify --deep --strict "$bundle/macos/Devot.app"
+          app=$bundle/macos/Devot.app
+          codesign --verify --deep --strict "$app"
+          # The layered icon: without a working actool the bundler only logs and leaves it out.
+          test -s "$app/Contents/Resources/Assets.car"
+          plutil -extract CFBundleIconName raw "$app/Contents/Info.plist"
           dmg=$(ls "$bundle"/dmg/*.dmg)
           hdiutil verify "$dmg"
           mkdir out

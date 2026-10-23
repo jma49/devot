@@ -95,6 +95,18 @@ describe('the release workflow', () => {
     expect(step('Verify the signature')).toMatch(/release\.ts verify-signature .* "\$TAG"$/m)
   })
 
+  it('builds through the pnpm tauri script, which puts the actool shim on PATH', () => {
+    const builds = [...step('Build').matchAll(/^.*\btauri build\b.*$/gm)].map((m) => m[0].trim())
+    expect(builds.length).toBeGreaterThan(0)
+    expect(builds.filter((line) => !line.startsWith('pnpm tauri build '))).toEqual([])
+  })
+
+  it('checks the app carries the layered icon, which the bundler leaves out with only a log line', () => {
+    const verify = step('Verify and collect the files')
+    expect(verify).toContain('test -s "$app/Contents/Resources/Assets.car"')
+    expect(verify).toMatch(/plutil -extract CFBundleIconName raw "\$app\/Contents\/Info\.plist"/)
+  })
+
   it('releases only a commit on main', () => {
     const build = job('build')
     const check = build.indexOf('git merge-base --is-ancestor HEAD origin/main')

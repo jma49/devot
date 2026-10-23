@@ -4,7 +4,7 @@ How to build, run and test Devot from a checkout. The rules every change follows
 
 ## Requirements
 
-- macOS 26 or later (Apple Silicon or Intel) and the Xcode command line tools (`xcode-select --install`).
+- macOS 26 or later (Apple Silicon or Intel) and the Xcode command line tools (`xcode-select --install`), which are enough to run and test. A bundle with the layered app icon (`pnpm build`, `pnpm build:debug`) needs the full Xcode 26 or later: the command line tools have no `actool`, so the bundler only logs an error and leaves `Assets.car` out, and macOS 26 may then show the flat `icon.icns` in a box (`architecture.md`, Design system).
 - Node 24+ and pnpm 12 (`npm install -g pnpm@12`).
 - Rust through rustup (`brew install rustup` or [rustup.rs](https://rustup.rs), then `rustup default stable`). Make sure `cargo` is on your `PATH`; with Homebrew's rustup, add `$(brew --prefix rustup)/bin`.
 
@@ -34,6 +34,7 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 | `pnpm bench`                    | Renderer performance baseline into `docs/benchmarks/results.json` (WebKit, IPC mocked)    |
 | `pnpm bench:app`                | Launch time and memory of a built Devot.app (macOS, needs Accessibility)                  |
 | `pnpm tokens` / `tokens:check`  | Compile design tokens into CSS and TS / fail if the output is stale                       |
+| `pnpm app-icon`                 | Make the app icon images in `src-tauri/icons/` from `design/app-icon/` (macOS)            |
 | `pnpm smoke:quit`               | Real-app check that quitting right after typing saves (macOS, needs Accessibility)        |
 | `pnpm rust:check`               | cargo fmt, clippy, tests and cargo-deny                                                   |
 | `pnpm deps:audit`               | `pnpm audit` for known vulnerabilities in the npm dependencies (high and above)           |

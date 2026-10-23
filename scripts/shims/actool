@@ -1,0 +1,9 @@
+#!/bin/sh
+# Stands in for actool while `pnpm tauri` runs (package.json puts this folder first on PATH).
+# The Tauri bundler starts actool with the Node CLI's stdin, which is closed, and actool then
+# fails to compile the Icon Composer document (tauri-apps/tauri#15315). Remove this shim once
+# the bundler gives it an empty stdin itself (tauri-apps/tauri#15991).
+# Without full Xcode, xcrun looks for actool on PATH and would find this shim again.
+self=$(cd "$(dirname "$0")" && pwd)
+PATH=$(printf %s "$PATH" | tr ':' '\n' | grep -vxF "$self" | paste -sd: -)
+exec xcrun actool "$@" </dev/null

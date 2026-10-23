@@ -47,7 +47,7 @@ describe('the devot:// URL scheme', () => {
       JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> }
     ).scripts
     expect(scripts['build:debug']).toBe(
-      'tauri build --debug --config src-tauri/tauri.debug.conf.json',
+      'pnpm tauri build --debug --config src-tauri/tauri.debug.conf.json',
     )
   })
 })

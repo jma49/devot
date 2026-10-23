@@ -6,19 +6,26 @@ Everything in this folder is meant to be publishable as an open-source asset lib
 
 ## Contents
 
-| Path                                     | What it holds                                                         |
-| ---------------------------------------- | --------------------------------------------------------------------- |
-| `tokens/base.tokens.json`                | Primitives: palette, font families, type scale, spacing, radii, sizes |
-| `tokens/themes/system.light.tokens.json` | The default theme, light appearance                                   |
-| `tokens/themes/system.dark.tokens.json`  | The default theme, dark appearance                                    |
-| `tokens/themes/ivory.light.tokens.json`  | The Ivory theme, light appearance                                     |
-| `tokens/themes/ivory.dark.tokens.json`   | The Ivory theme, dark appearance                                      |
-| `tokens/backdrops.tokens.json`           | The gradient themes: one gradient per theme and appearance            |
-| `icons/symbols.json`                     | Devot icon names mapped to SF Symbol names                            |
-| `icons/languages.json`                   | Language marks for code block headers (third party, see below)        |
-| `app-icon/dove.svg`                      | The Devot dove: the logo mark, one teal vector path                   |
-| `app-icon/source.svg`                    | The app icon: the dove on a light rounded tile, 2048 px canvas        |
-| `app-icon/source.png`                    | `source.svg` rendered at 2048 px; `pnpm tauri icon` makes the sizes   |
+| Path                                     | What it holds                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| `tokens/base.tokens.json`                | Primitives: palette, brand colours, type, spacing, radii, sizes     |
+| `tokens/themes/system.light.tokens.json` | The default theme, light appearance                                 |
+| `tokens/themes/system.dark.tokens.json`  | The default theme, dark appearance                                  |
+| `tokens/themes/ivory.light.tokens.json`  | The Ivory theme, light appearance                                   |
+| `tokens/themes/ivory.dark.tokens.json`   | The Ivory theme, dark appearance                                    |
+| `tokens/backdrops.tokens.json`           | The gradient themes: one gradient per theme and appearance          |
+| `icons/symbols.json`                     | Devot icon names mapped to SF Symbol names                          |
+| `icons/languages.json`                   | Language marks for code block headers (third party, see below)      |
+| `app-icon/dove.svg`                      | The Devot dove: the logo mark, one vector path in the teal gradient |
+| `app-icon/source.svg`                    | The flat macOS app icon: the dove on a light tile, 1024 canvas      |
+| `app-icon/source.png`                    | `source.svg` rendered at 2048 px, for tools that take no SVG        |
+| `app-icon/source-dark.svg`               | The macOS app icon in the dark appearance                           |
+| `app-icon/source-small.svg`              | The small cut, for the 16 and 32 px images                          |
+| `app-icon/source-ios.svg`                | The iOS app icon: the same artwork, square and full bleed           |
+| `app-icon/AppIcon.icon/`                 | Icon Composer document: the layered icon macOS 26 shows             |
+| `app-icon/lockup.svg`                    | The dove and the wordmark, in the current colour                    |
+| `app-icon/lockup-color.svg`              | The lockup in colour, for light grounds                             |
+| `app-icon/lockup-dark.svg`               | The lockup in colour, for dark grounds                              |
 
 Tokens use the [W3C Design Tokens (DTCG)](https://www.designtokens.org/) format. `pnpm tokens` compiles them into `src/renderer/src/theme/tokens.css` (CSS custom properties) and `tokens.ts` (TypeScript constants); CI fails when those are stale. Components use theme tokens only, never the palette's colour primitives (`color.teal.*` and the like) and never colour literals (hex, rgb or named colours).
 
@@ -108,6 +115,17 @@ The icon style is a setting (Settings > Appearance > Icon style), independent of
 ## Language marks
 
 A code block in the preview with a language shows that language's mark in its header (`icons/languages.json`, read by `src/core/preview/code.ts`). The marks are third-party artwork from [simple-icons](https://github.com/simple-icons/simple-icons) 16.35.0, one 24 x 24 path each, drawn in the text colour so they follow light and dark. The package is CC0-1.0; each entry records its own licence, and only CC0-1.0 and MIT marks are kept (JavaScript and GNU Bash are MIT). The GitHub mark heads a code block whose `url=` points at github.com; it is not tied to a language. Marks under share-alike or non-commercial licences are left out, and their languages show a generic mark. Add a mark only with its licence recorded in its entry.
+
+## App icon
+
+The app icon is a teal dove on a warm light tile. Its outline is made of smooth curves and rounded corners, and the wing's feathers and the upper tail prong fall on one even step. The tile is 824 px on the 1024 canvas, the macOS icon grid, with continuous corners; the dove spans 66% of it, centred halfway between its bounding box and its area centroid, so neither the long wing nor the heavy body pulls it off centre.
+
+- **Colours** are `color.brand.*` in `tokens/base.tokens.json`: the tile runs from `tile-top` to `tile-bottom`, the dove from `dove-top` through `dove-middle` to `dove-bottom`, each with a `-dark` partner for the dark appearance. The glow, highlights and shadows are brand colours at an opacity the artwork sets. A test refuses any other colour in the artwork and holds the dove at 3:1 against its tile and the wordmark at 4.5:1.
+- **The layered icon** (`AppIcon.icon`, an Icon Composer document) is what macOS 26 shows: a gradient background and one dove layer, which the system draws in Liquid Glass, masks and shades itself, in the default, dark, clear and tinted appearances. In the tinted and clear ones the dove is white, so the system's tint colours it. The bundle compiles it into the app's `Assets.car`.
+- **The flat images** (`src-tauri/icons/`: the PNGs, and `icon.icns`, the fallback) imitate that light with a sheen, a top rim and soft shadows. At 16 and 32 px they use the small cut: one wing notch, a wider tail fork, a larger eye, no wing line, and the dove at 74% of the tile. The system scales the layered icon down by itself, so the small cut appears only in the flat images.
+- **iOS** uses the PNG set of the Xcode project (`src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset`, kept the same in `src-tauri/icons/ios`), made from `source-ios.svg`: square and opaque, since the device masks the corners.
+- **The lockup** sets the dove beside the wordmark in Figtree SemiBold (SIL Open Font License 1.1), converted to outlines, so the files need no font.
+- **Rebuilding:** edit the SVGs (plain paths that open in any vector editor) or `AppIcon.icon` (in Icon Composer, which comes with Xcode), then run `pnpm app-icon` (it needs ImageMagick: `brew install imagemagick`). It renders every image with `tauri icon`, puts the `.icns` together with `iconutil`, writes the iOS images without an alpha channel (App Store Connect refuses one) and copies `AppIcon.icon` to `src-tauri/icons/`. Tests check that every image is the size its name gives and that the shipped document is the design's.
 
 ## Preview blocks
 

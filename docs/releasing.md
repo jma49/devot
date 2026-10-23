@@ -34,7 +34,7 @@ The tag's message becomes the release notes and the update's notes in the app. A
 
 The workflow refuses a tag whose commit is not on `main`. Then it runs four jobs:
 
-1. **build** (macOS 26, Apple Silicon): sets the version from the tag (a tag of any other form fails the run) and builds `app` and `dmg` bundles, ad-hoc signed (`signingIdentity: "-"`; without it the bundle has no seal and downloaded copies are reported as damaged), with the updater's public key built in and `requireSignedVersion` on, so an install takes an update only when its signature records the version the feed announces. It verifies them (`codesign --verify --deep --strict`, `hdiutil verify`). This job runs the dependencies' code, so it gets a read-only token and no updater key: Tauri signs the updater bundle (`Devot.app.tar.gz`) with a throwaway key, which is discarded.
+1. **build** (macOS 26, Apple Silicon): sets the version from the tag (a tag of any other form fails the run) and builds `app` and `dmg` bundles, ad-hoc signed (`signingIdentity: "-"`; without it the bundle has no seal and downloaded copies are reported as damaged), with the updater's public key built in and `requireSignedVersion` on, so an install takes an update only when its signature records the version the feed announces. It verifies them (`codesign --verify --deep --strict`, `hdiutil verify`, and that the app has its layered icon: `Assets.car` and `CFBundleIconName`, see `architecture.md`, Design system). This job runs the dependencies' code, so it gets a read-only token and no updater key: Tauri signs the updater bundle (`Devot.app.tar.gz`) with a throwaway key, which is discarded.
 2. **sign**: signs the updater bundle with the updater key, recording the version (`scripts/release/release.ts sign`), and checks the signature against `TAURI_UPDATER_PUBKEY`: a private key that does not match the public key fails the run instead of shipping updates no install would accept. It runs only Node and `release.ts`, never `pnpm install`.
 3. **publish**: creates the release for the tag (a prerelease for a beta) with the dmg, the updater bundle and its signature.
 4. **feed**: writes the feeds the release goes in and uploads them to the fixed `updater` release, which it creates on first use: `beta.json` for a beta; `stable.json` and `beta.json` for a stable release (`scripts/release/release.ts feeds`). Each feed is replaced only by a release newer than the one it offers, and a stable release never takes `beta.json` back from a newer beta. A feed that cannot be read (other than one not there yet) fails the run rather than being replaced, and each feed is read back after uploading. Feed jobs run one at a time across runs (a concurrency group), so tags pushed close together leave the newest release in each feed. GitHub keeps only one job waiting in the group: when a third run arrives, the waiting feed job is cancelled; re-run it.
@@ -71,11 +71,14 @@ Optional secrets turn on crash reporting in release builds, as `.env.local` does
 
 ## Building locally
 
-A local build makes the same bundles without the updater:
+With Xcode 26 or later, a local build makes the same bundles without the updater (with the command line tools alone it leaves out the layered app icon); the last three lines are the release workflow's check that the icon is in:
 
 ```sh
 PATH="$(brew --prefix rustup)/bin:$PATH" CI=true pnpm tauri build --bundles app,dmg \
   --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+app=src-tauri/target/release/bundle/macos/Devot.app
+test -s "$app/Contents/Resources/Assets.car"
+plutil -extract CFBundleIconName raw "$app/Contents/Info.plist"
 ```
 
 `CI=true` makes the dmg step skip arranging the disk image window through Finder, which otherwise needs Automation access and can hang. Set a version with `node scripts/release/release.ts set-version <tag>` first if the build should carry one (a local change; do not commit it).

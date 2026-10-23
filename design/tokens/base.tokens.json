@@ -135,6 +135,91 @@
         }
       }
     },
+    "brand": {
+      "$type": "color",
+      "$description": "The app icon and the logo (design/app-icon/): artwork only, never the UI. A name ending in -dark is the dark appearance; the effects (the glow, highlights and shadows) are these colours at an opacity the artwork sets.",
+      "tile-top": {
+        "$value": "{color.paper.0}"
+      },
+      "tile-bottom": {
+        "$value": "{color.paper.2}"
+      },
+      "tile-top-dark": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1725, 0.1686, 0.1569],
+          "hex": "#2c2b28"
+        },
+        "$description": "The dark tile's top: color.night.0 lifted, so the tile reads as a raised surface."
+      },
+      "tile-bottom-dark": {
+        "$value": "{color.night.1}"
+      },
+      "edge": {
+        "$value": "{color.paper.ink-600}",
+        "$description": "The light tile's hairline edge."
+      },
+      "edge-dark": {
+        "$value": "{color.brand.shadow}",
+        "$description": "The dark tile's edge."
+      },
+      "glow": {
+        "$value": "{color.teal.300}",
+        "$description": "The faint glow behind the dove, in both appearances."
+      },
+      "dove-top": {
+        "$value": "{color.teal.500}"
+      },
+      "dove-middle": {
+        "$value": "{color.teal.600}",
+        "$description": "Also the dove in one colour: the favicon and the Icon Composer layer's own fill."
+      },
+      "dove-bottom": {
+        "$value": "{color.teal.700}",
+        "$description": "Also the soft shadow under the dove."
+      },
+      "dove-top-dark": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4549, 0.8314, 0.7804],
+          "hex": "#74d4c7"
+        },
+        "$description": "The dark dove's top: color.teal.300 lifted toward the light."
+      },
+      "dove-middle-dark": {
+        "$value": "{color.teal.300}"
+      },
+      "dove-bottom-dark": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2118, 0.6275, 0.5725],
+          "hex": "#36a092"
+        },
+        "$description": "The dark dove's bottom: between color.teal.300 and color.teal.500."
+      },
+      "wordmark": {
+        "$value": "{color.paper.ink-900}"
+      },
+      "wordmark-dark": {
+        "$value": "{color.night.mist-100}"
+      },
+      "highlight": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff"
+        },
+        "$description": "The tile's sheen and top rim, the dove's top edge, and the dove in the tinted and clear appearances, where the system colours it."
+      },
+      "shadow": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "hex": "#000000"
+        },
+        "$description": "Drop shadows: under the tile, and under the dove in the dark appearance."
+      }
+    },
     "status": {
       "active-light": {
         "$type": "color",
