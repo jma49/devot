@@ -71,11 +71,14 @@ Optional secrets turn on crash reporting in release builds, as `.env.local` does
 
 ## Building locally
 
-A local build makes the same bundles without the updater:
+With Xcode 26 or later, a local build makes the same bundles without the updater (with the command line tools alone it leaves out the layered app icon); the last three lines are the release workflow's check that the icon is in:
 
 ```sh
 PATH="$(brew --prefix rustup)/bin:$PATH" CI=true pnpm tauri build --bundles app,dmg \
   --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+app=src-tauri/target/release/bundle/macos/Devot.app
+test -s "$app/Contents/Resources/Assets.car"
+plutil -extract CFBundleIconName raw "$app/Contents/Info.plist"
 ```
 
 `CI=true` makes the dmg step skip arranging the disk image window through Finder, which otherwise needs Automation access and can hang. Set a version with `node scripts/release/release.ts set-version <tag>` first if the build should carry one (a local change; do not commit it).
