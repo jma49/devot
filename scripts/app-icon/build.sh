@@ -1,8 +1,12 @@
 #!/bin/sh
 # Makes every app icon image from the masters in design/app-icon/ (pnpm app-icon; macOS, for
-# iconutil). `tauri icon` renders each size from the SVG; 16 and 32 px come from the small cut,
-# which it cannot take beside the master, so the .icns is put together here.
+# iconutil, and ImageMagick). `tauri icon` renders each size from the SVG; 16 and 32 px come from
+# the small cut, which it cannot take beside the master, so the .icns is put together here.
 set -eu
+command -v magick > /dev/null || {
+  echo "E_APP_ICON_NO_MAGICK: ImageMagick is needed (brew install imagemagick)" >&2
+  exit 1
+}
 cd "$(dirname "$0")/../.."
 root=$(pwd)
 art=$root/design/app-icon
@@ -38,6 +42,10 @@ for size in 128 256 512; do
 done
 iconutil -c icns "$iconset" -o "$icons/icon.icns"
 
+# App Store Connect refuses an app icon with an alpha channel, even a fully opaque one.
+for f in "$out/ios/ios/"*.png; do
+  magick "$f" -strip -alpha off -define png:color-type=2 "$f"
+done
 for dir in "$icons/ios" "$root/src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset"; do
   cp "$out/ios/ios/"*.png "$dir/"
 done

@@ -174,11 +174,13 @@ describe('the iOS app icon', () => {
     expect(missized).toEqual([])
   })
 
-  it('fills every image edge to edge, since the device masks the corners itself', () => {
-    const clear = files(xcode)
-      .filter((name) => name.endsWith('.png'))
-      .filter((path) => alphaAt(decodePng(readFileSync(path)), 0, 0) !== 255)
-    expect(clear).toEqual([])
+  // The device masks the corners itself, and App Store Connect refuses an app icon with an
+  // alpha channel even when every pixel is opaque (ITMS-90717).
+  it('fills every image edge to edge, in RGB without an alpha channel', () => {
+    const withAlpha = IOS_SETS.flatMap(files)
+      .filter((path) => path.endsWith('.png'))
+      .filter((path) => decodePng(readFileSync(path)).channels !== 3)
+    expect(withAlpha).toEqual([])
   })
 
   it('keeps the copy in src-tauri/icons/ios the same as the Xcode set', () => {
