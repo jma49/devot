@@ -95,6 +95,12 @@ describe('the release workflow', () => {
     expect(step('Verify the signature')).toMatch(/release\.ts verify-signature .* "\$TAG"$/m)
   })
 
+  it('builds through the pnpm tauri script, which puts the actool shim on PATH', () => {
+    const builds = [...step('Build').matchAll(/^.*\btauri build\b.*$/gm)].map((m) => m[0].trim())
+    expect(builds.length).toBeGreaterThan(0)
+    expect(builds.filter((line) => !line.startsWith('pnpm tauri build '))).toEqual([])
+  })
+
   it('releases only a commit on main', () => {
     const build = job('build')
     const check = build.indexOf('git merge-base --is-ancestor HEAD origin/main')
