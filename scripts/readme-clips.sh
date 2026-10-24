@@ -2,12 +2,13 @@
 # Usage: readme-clips.sh <frames-dir> [<out-dir>]
 #
 # Builds the README's animated WebP clips in docs/images/ (or <out-dir>) from the website's
-# 2x frames: <frames-dir>/<slot>/<light|dark>/00000.png, 30 fps. Needs img2webp, ffprobe and an
-# ffmpeg that reads animated WebP.
+# 2x frames: <frames-dir>/<slot>/<light|dark>/00000.png, 30 fps. Needs img2webp, webpmux, ffprobe
+# and an ffmpeg that reads animated WebP.
 # Every clip gets rounded corners and a hairline edge (black at 12% on light, white at 10% on
 # dark) over a transparent outside, so it stands out on GitHub's light and dark pages.
 # Clips are only scaled uniformly: after writing a file the script measures every clip in it and
-# stops if one's aspect ratio is more than 0.5% off its source's.
+# stops if one's aspect ratio is more than 0.5% off its source's, if the file does not play for
+# as long as its source, or if a clip's last frame is not its source's last frame.
 set -euo pipefail
 
 [ $# -ge 1 ] || { echo "usage: $0 <frames-dir> [<out-dir>]" >&2; exit 2; }
@@ -101,6 +102,34 @@ check() {
   }'
 }
 
+# check_length <file> <frames>: stops unless <file> plays for <frames> ticks of DELAY ms.
+check_length() {
+  local name ms
+  name=$(basename "$1")
+  ms=$(webpmux -info "$1" | awk '$1 ~ /^[0-9]+:$/ { sum += $7 } END { print sum }')
+  [ "$ms" -eq $(($2 * DELAY)) ] || {
+    echo "E_CLIP_LENGTH $name: $ms ms, expected $(($2 * DELAY)) ms" >&2
+    exit 1
+  }
+}
+
+# check_end <png> <slot> <variant> <x> <width> <height>: stops unless the clip drawn at column <x>
+# of <png>, the last frame written, matches its source's last frame (PSNR of the inside, away from
+# the rounded edge, at least 30 dB), so the clip plays to its end at full speed.
+check_end() {
+  local png=$1 slot=$2 variant=$3 x=$4 width=$5 height=$6 last psnr
+  last=$(find "$frames/$slot/$variant" -name '*.png' | sort | tail -n 1)
+  psnr=$(ffmpeg -nostats -v info -threads 4 -i "$png" -i "$last" -filter_complex \
+    "[0:v]crop=$((width - 16)):$((height - 16)):$((x + 8)):8,format=rgb24[a];\
+[1:v]$(crop_filter "$slot")scale=$width:$height:flags=lanczos,crop=$((width - 16)):$((height - 16)):8:8,format=rgb24[b];\
+[a][b]psnr" -f null - 2>&1 | sed -n 's/.*average:\([0-9.inf]*\).*/\1/p' | tail -n 1)
+  echo "$(basename "$png") $slot: last frame PSNR $psnr dB"
+  awk -v p="$psnr" 'BEGIN { exit !(p == "inf" || p + 0 >= 30) }' || {
+    echo "E_CLIP_END $slot $variant: last frame PSNR ${psnr:-unknown} dB" >&2
+    exit 1
+  }
+}
+
 # single <slot> <width> <variant> <target>
 single() {
   local slot=$1 width=$2 variant=$3 target=$4 dir="$work/$1-$3" sw sh height
@@ -111,6 +140,8 @@ single() {
     -vf "fps=$FPS,$(crop_filter "$slot")scale=$width:$height:flags=lanczos,$(rounded_edge "$variant" "$width")" \
     -threads 4 "$dir/%04d.png"
   encode "$dir" "$target"
+  check_length "$target" "$(find "$dir" -name '*.png' | wc -l | tr -d ' ')"
+  check_end "$(find "$dir" -name '*.png' | sort | tail -n 1)" "$slot" "$variant" 0 "$width" "$height"
   rm -rf "$dir"
   check "$target" "$slot" "$variant" 0 "$width"
 }
@@ -134,12 +165,15 @@ row() {
   ffmpeg -v error -threads 4 -filter_complex_threads 4 \
     -framerate 30 -i "$frames/$left/$variant/%05d.png" \
     -framerate 30 -i "$frames/$right/$variant/%05d.png" \
-    -f lavfi -i "color=c=black@0:s=$((lw + GAP + rw))x$height,format=rgba" \
+    -f lavfi -i "color=c=black@0:s=$((lw + GAP + rw))x$height:r=$FPS,format=rgba" \
     -filter_complex "[0:v]fps=$FPS,$(crop_filter "$left")scale=$lw:$height:flags=lanczos,$(rounded_edge "$variant" "$ROW_WIDTH"),tpad=stop_mode=clone:stop=${total}[a];\
 [1:v]fps=$FPS,$(crop_filter "$right")scale=$rw:$height:flags=lanczos,$(rounded_edge "$variant" "$ROW_WIDTH"),tpad=stop_mode=clone:stop=${total}[b];\
 [2:v][a]overlay=0:0:format=auto[c];[c][b]overlay=$((lw + GAP)):0:format=auto,format=rgba[o]" \
     -map "[o]" -frames:v "$total" -threads 4 "$dir/%04d.png"
   encode "$dir" "$target"
+  check_length "$target" "$total"
+  check_end "$(find "$dir" -name '*.png' | sort | tail -n 1)" "$left" "$variant" 0 "$lw" "$height"
+  check_end "$(find "$dir" -name '*.png' | sort | tail -n 1)" "$right" "$variant" $((lw + GAP)) "$rw" "$height"
   rm -rf "$dir"
   check "$target" "$left" "$variant" 0 $((lw + GAP / 2))
   check "$target" "$right" "$variant" $((lw + GAP / 2)) $((rw + GAP - GAP / 2))
