@@ -44,6 +44,15 @@ mod single_instance;
 mod startup;
 mod storage;
 mod strings;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        unused_imports,
+        reason = "the sync client (#214) is its first caller"
+    )
+)]
+mod sync;
 #[cfg(test)]
 mod test_log;
 #[cfg(desktop)]

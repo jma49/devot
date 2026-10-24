@@ -53,6 +53,14 @@ tauri-plugin-updater = "2"
 # devot:// links from other apps (`deep_link`), and a second launch handing
 # its arguments to the running Devot instead of opening the data folder.
 tauri-plugin-deep-link = "2"
+# Sync's record encryption and key derivation (`sync`), RustCrypto's audited
+# AES-GCM and HKDF; nonces and keys come from the OS through getrandom, and
+# key bytes are wiped on drop (zeroize). getrandom and zeroize are already in
+# the tree.
+aes-gcm = { version = "0.11", default-features = false, features = ["aes", "alloc", "zeroize"] }
+hkdf = "0.12"
+getrandom = "0.3"
+zeroize = "1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # Quick capture's shortcut, registered from Rust alone while menu bar mode is
@@ -60,8 +68,12 @@ tauri-plugin-deep-link = "2"
 tauri-plugin-global-shortcut = "2"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-# Provider keys (src/ai/keychain.rs). Already in the tree through native-tls.
+# Provider keys (`ai::keychain`) and the sync vault key's keychain item
+# (`sync::keychain`, `native::ios`). All three are already in the tree
+# through native-tls.
 security-framework = "3"
+security-framework-sys = "2"
+core-foundation = "0.10"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Native crash reports (DSN builds only): the exception handler in the app,
