@@ -16,6 +16,7 @@ import { headline, listExcerpt, taskProgress } from './extract'
 import { receiveStored, type Clock } from './hlc'
 import { sha256Hex } from './sha256'
 import {
+  AI_EDIT,
   BASELINE,
   COMPACT_BATCH,
   COMPACT_EVERY_MS,
@@ -176,6 +177,15 @@ export interface NoteService {
   compareRevision(id: string, revisionId: string): Promise<DiffBlock[]>
   /** Returns the Yjs update the edit made, for the editor's replica to apply as one undoable step. */
   restoreRevision(id: string, revisionId: string): Promise<Uint8Array>
+  /**
+   * Puts an accepted AI edit proposal in place of the text it was asked for: `original` at `from`, or wherever it now is if edits since moved it and it
+   * is there once (else E_AI_PROPOSAL_STALE). Returns the Yjs update, for the editor's replica to apply as one undoable step. The text before is kept as
+   * a version and the result as a version marked AI_EDIT.
+   */
+  applyAiEdit(
+    id: string,
+    edit: { from: number; original: string; replacement: string },
+  ): Promise<Uint8Array>
   /** Pending edits are saved and unversioned typing becomes a version, so it counts. */
   activity(now: number, offsetAt?: OffsetAt): Promise<ActivityHeatmap>
   /**
@@ -434,7 +444,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       .catch((e: unknown) => console.warn('W_REVISION_COMPACT_FAILED', errorCode(e)))
   }
 
-  const takeVersion = (note: Live) => {
+  const takeVersion = (note: Live, value: string | null = null) => {
     if (!note.rev.pending) return
     stopTimers(note)
     const { id } = note.record
@@ -450,7 +460,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         at,
         ydoc,
         length: textLength(text),
-        value: null,
+        value,
       })
       note.rev.lastText = text
     })
@@ -1314,6 +1324,29 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         } finally {
           note.doc.off('update', collect)
         }
+        await revisionWork
+        return Y.mergeUpdates(updates)
+      }),
+
+    applyAiEdit: (id, { from, original, replacement }) =>
+      using(id, async (note) => {
+        const body = note.doc.getText(BODY).toString()
+        const moved = body.indexOf(original)
+        const at = body.startsWith(original, from) ? from : moved
+        if (at !== from && (moved < 0 || body.includes(original, moved + 1))) {
+          throw new Error('E_AI_PROPOSAL_STALE')
+        }
+        takeVersion(note)
+        const updates: Uint8Array[] = []
+        const collect = (update: Uint8Array) => updates.push(update)
+        note.doc.on('update', collect)
+        try {
+          const next = lineFeeds(replacement)
+          replaceBody(note, body.slice(0, at) + next + body.slice(at + original.length))
+        } finally {
+          note.doc.off('update', collect)
+        }
+        takeVersion(note, AI_EDIT)
         await revisionWork
         return Y.mergeUpdates(updates)
       }),

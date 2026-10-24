@@ -52,6 +52,7 @@ import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
 import { noteHighlighting } from './editor/highlighting'
 import { systemMenus, systemMenusAvailable } from './editor/systemMenu'
+import { aiEditStart, useAiMenu, type AiEditChoice, type StartAiEdit } from './editor/aiMenu'
 import { imageSizeBar } from './editor/ImageSizeBar'
 import { tableToolbar } from './editor/TableToolbar'
 import { linkTooltip } from './editor/linkTooltip'
@@ -605,6 +606,8 @@ interface Props {
   /** The selection changed or the editor scrolled. The top line is measured only on a scroll, never on a keystroke, and follows edits above it. */
   onPlace?: (noteId: string, place: EditorPlace) => void
   onNewFromSelection?: (() => void) | undefined
+  /** Edit with AI on the selection (the toolbar's AI button and the editor menu); left out where AI may not edit. */
+  onAiEdit?: StartAiEdit | undefined
   onNewFromLink?: (() => void) | undefined
   onImagesRefused?: (codes: string[]) => void
   onOpenFailed?: (noteId: string, code: string) => void
@@ -632,6 +635,7 @@ export function NoteEditor({
   initialPlace,
   onPlace,
   onNewFromSelection,
+  onAiEdit,
   onNewFromLink,
   onImagesRefused,
   onOpenFailed,
@@ -658,6 +662,13 @@ export function NoteEditor({
   const placeAsked = useRef(initialPlace)
   const placeReport = useRef(onPlace)
   const fromSelection = useRef(onNewFromSelection)
+  const aiEdit = useRef(onAiEdit)
+  const startAiEdit = useCallback((view: EditorView, choice: AiEditChoice) => {
+    const start = aiEditStart(view.state, choice)
+    if (start) aiEdit.current?.(start)
+  }, [])
+  const showAiMenu = useAiMenu(startAiEdit)
+  const aiMenu = useRef(showAiMenu)
   const fromLink = useRef(onNewFromLink)
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
@@ -704,8 +715,12 @@ export function NoteEditor({
       case 'stopSpeaking':
         void stopSpeaking()
         return
-      // The system's own items act on the web view; the submenu only holds items.
       default:
+        // The system's own items act on the web view; the submenus only hold items.
+        if (action.startsWith('ai.')) {
+          const start = aiEditStart(view.state, action.slice(3) as AiEditChoice)
+          if (start) aiEdit.current?.(start)
+        }
     }
   }, [])
   const menuWord = useRef<{ view: EditorView; word: WordRange } | null>(null)
@@ -725,12 +740,19 @@ export function NoteEditor({
   useLayoutEffect(() => {
     menuOpener.current = (view, at, pos) => {
       menuAt.current = at
-      const target = editorMenuTarget(view.state, pos, fromSelection.current !== undefined)
+      const target = editorMenuTarget(
+        view.state,
+        pos,
+        fromSelection.current !== undefined,
+        aiEdit.current !== undefined,
+      )
       const word = spellingWordAt(view.state, pos)
       menuWord.current = word ? { view, word } : null
       void showEditorMenu(target, at)
     }
     chooseTemplateRef.current = onChooseTemplate
+    aiEdit.current = onAiEdit
+    aiMenu.current = showAiMenu
     placeAsked.current = initialPlace
     placeReport.current = onPlace
     focusOnOpen.current = autoFocus
@@ -926,7 +948,10 @@ export function NoteEditor({
               chooseImageFiles: (target) => imageChooser(target),
               chooseTemplate: () => chooseTemplateRef.current?.(),
             }),
-            formatToolbar((...args) => alertMenu.current(...args)),
+            formatToolbar(
+              (...args) => alertMenu.current(...args),
+              (view, anchor) => (aiEdit.current ? aiMenu.current(view, anchor) : Promise.resolve()),
+            ),
             imageSizeBar,
             tableToolbar,
             linkTooltip,

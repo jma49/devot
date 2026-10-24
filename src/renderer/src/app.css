@@ -2962,6 +2962,31 @@ button {
   font-family: var(--font-family-ui);
 }
 
+.sheet.ai-edit {
+  width: calc(var(--size-list-width) * 2);
+  max-width: calc(100vw - var(--space-10) * 2);
+}
+
+.ai-edit-diff {
+  max-height: calc(var(--size-dialog-row) * 14);
+  overflow: auto;
+  margin: 0 0 var(--space-7);
+}
+
+.ai-edit-take {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0 var(--space-1);
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+}
+
+.ai-edit-diff .diff-line[data-rejected] {
+  opacity: var(--opacity-disabled);
+}
+
 .sheet.activity {
   width: min-content;
   min-width: calc(var(--size-list-width) * 2);

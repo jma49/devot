@@ -21,6 +21,7 @@ import {
   lookUpSelection,
   type LookUpFont,
 } from '../textServices'
+import { aiEditSelection, aiMenuEntries, type AiEditChoice } from './aiMenu'
 import { selectedText } from './extract'
 import { linkAt } from './lineCommands'
 import { registryKeys } from './registryKeys'
@@ -40,11 +41,14 @@ export type EditorAction =
   | 'speech'
   | 'startSpeaking'
   | 'stopSpeaking'
+  | 'ai'
+  | `ai.${AiEditChoice}`
 
 export interface EditorMenuTarget {
   link: string | null
   selection: string | null
   canMakeNote: boolean
+  canAiEdit: boolean
 }
 
 const hasLink = (target: EditorMenuTarget) => target.link !== null
@@ -54,6 +58,9 @@ const SPEECH: MenuEntry<EditorAction, EditorMenuTarget>[] = [
   { action: 'startSpeaking', label: 'editorMenu.startSpeaking' },
   { action: 'stopSpeaking', label: 'editorMenu.stopSpeaking' },
 ]
+
+// Submenus hold no separators: the presets follow each other.
+const AI_SUBMENU = aiMenuEntries<EditorAction, EditorMenuTarget>((choice) => `ai.${choice}`).flat()
 
 export const EDITOR_MENU: MenuGroups<EditorAction, EditorMenuTarget> = [
   [
@@ -72,6 +79,12 @@ export const EDITOR_MENU: MenuGroups<EditorAction, EditorMenuTarget> = [
     commandEntry('newNote', 'note.newFromSelection', {
       shown: (target) => target.canMakeNote,
     }),
+    {
+      action: 'ai',
+      label: 'aiEdit.menu',
+      shown: (target) => target.canAiEdit,
+      submenu: AI_SUBMENU,
+    },
   ],
   [
     { action: 'undo', label: 'editorMenu.undo', accelerator: 'CmdOrCtrl+Z' },
@@ -101,12 +114,14 @@ export function editorMenuTarget(
   state: EditorState,
   pos: number | null,
   canMakeNote: boolean,
+  canAiEdit = false,
 ): EditorMenuTarget {
   const selected = selectedText(state)
   return {
     link: pos === null ? null : (linkAt(state, pos)?.href ?? null),
     selection: lookUpSelection(state.sliceDoc(state.selection.main.from, state.selection.main.to)),
     canMakeNote: canMakeNote && selected !== null,
+    canAiEdit: canAiEdit && aiEditSelection(state) !== null,
   }
 }
 

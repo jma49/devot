@@ -278,6 +278,10 @@ pub const REVISION_KINDS: [&str; 5] = ["body", "title", "book", "status", "pinne
 /// does not count it (see `BASELINE` in src/core/revisions.ts).
 pub const BASELINE: &str = "baseline";
 
+/// The body version an accepted AI edit proposal wrote: like a baseline, kept by compaction and not
+/// counted by the heatmap (see `AI_EDIT` in src/core/revisions.ts).
+pub const AI_EDIT: &str = "ai";
+
 /// Local to this device. A body version holds the Yjs state and its text length; an event holds the
 /// new value of the field (see migrations/0009_revisions.sql).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

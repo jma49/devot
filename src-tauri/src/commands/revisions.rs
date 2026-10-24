@@ -3,7 +3,7 @@
 
 use super::notes::{MAX_TITLE_CHARS, MAX_YDOC_BYTES, valid_note_id};
 use crate::storage::{
-    BASELINE, CompactableVersion, Db, NOTE_STATUSES, REVISION_KINDS, RevisionRecord,
+    AI_EDIT, BASELINE, CompactableVersion, Db, NOTE_STATUSES, REVISION_KINDS, RevisionRecord,
     RevisionSummary,
 };
 use base64::Engine as _;
@@ -65,7 +65,10 @@ impl RevisionDto {
             return Err("E_REVISION_TIME_INVALID");
         }
         let ydoc = if self.kind == "body" {
-            let marker = self.value.as_deref().is_none_or(|v| v == BASELINE);
+            let marker = self
+                .value
+                .as_deref()
+                .is_none_or(|v| v == BASELINE || v == AI_EDIT);
             if !marker || !self.length.is_some_and(|n| n >= 0) {
                 return Err("E_REVISION_BODY_INVALID");
             }
@@ -258,6 +261,13 @@ mod tests {
         let record = baseline.clone().into_record().unwrap();
         assert_eq!(record.value.as_deref(), Some(BASELINE));
         assert_eq!(RevisionDto::from(record), baseline);
+        let ai = RevisionDto {
+            value: Some(AI_EDIT.into()),
+            ..body()
+        };
+        let record = ai.clone().into_record().unwrap();
+        assert_eq!(record.value.as_deref(), Some(AI_EDIT));
+        assert_eq!(RevisionDto::from(record), ai);
     }
 
     #[test]

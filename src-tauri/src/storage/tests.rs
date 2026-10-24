@@ -2479,6 +2479,10 @@ fn compaction_world() -> (tempfile::TempDir, Store) {
     let mut baseline = version("r9", "e", 100, &[1]);
     baseline.value = Some(BASELINE.into());
     store.put_revision(&baseline).unwrap();
+    // What an accepted AI edit wrote is kept like a baseline.
+    let mut ai = version("r11", "e", 120, &[1]);
+    ai.value = Some(AI_EDIT.into());
+    store.put_revision(&ai).unwrap();
     (dir, store)
 }
 
@@ -2526,11 +2530,11 @@ fn compaction_deletes_only_plain_versions_and_records_the_sweep() {
             .collect()
     };
     assert_eq!(store.last_compaction().unwrap(), None);
-    let named = ["r1", "r8", "r9", "zz"].map(String::from);
+    let named = ["r1", "r8", "r9", "r11", "zz"].map(String::from);
     store.compact_revisions(&named, None).unwrap();
     assert_eq!(ids(&store, "a"), ["r2"]);
     assert_eq!(ids(&store, "d"), ["r8", "r7"]);
-    assert_eq!(ids(&store, "e"), ["r10", "r9"]);
+    assert_eq!(ids(&store, "e"), ["r10", "r11", "r9"]);
     assert_eq!(store.last_compaction().unwrap(), None);
     store.compact_revisions(&[], Some(5000)).unwrap();
     assert_eq!(store.last_compaction().unwrap(), Some(5000));

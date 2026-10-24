@@ -26,7 +26,12 @@ const groupsFor = (target: EditorMenuTarget) =>
     ),
   )
 
-const plain: EditorMenuTarget = { link: null, selection: null, canMakeNote: false }
+const plain: EditorMenuTarget = {
+  link: null,
+  selection: null,
+  canMakeNote: false,
+  canAiEdit: false,
+}
 
 describe('the editor menu', () => {
   it('without a selection or a link has the edit items and Speech', () => {
@@ -45,21 +50,45 @@ describe('the editor menu', () => {
   })
 
   it('with a selection offers Look Up (the text cut short) and New Note from Selection', () => {
-    const target: EditorMenuTarget = { link: null, selection: 'word', canMakeNote: true }
+    const target: EditorMenuTarget = { ...plain, selection: 'word', canMakeNote: true }
     expect(groupsFor(target).slice(0, 2)).toEqual([['Look Up “word”'], ['New Note from Selection']])
     const long: EditorMenuTarget = { ...target, selection: `${'a'.repeat(40)}\n  b` }
     expect(groupsFor(long)[0]).toEqual([`Look Up “${'a'.repeat(24)}…”`])
   })
 
   it('leaves New Note from Selection out where a note cannot be made', () => {
-    const target: EditorMenuTarget = { link: null, selection: 'word', canMakeNote: false }
+    const target: EditorMenuTarget = { ...plain, selection: 'word', canMakeNote: false }
     expect(editorMenuShows('lookUp', target)).toBe(true)
     expect(editorMenuShows('newNote', target)).toBe(false)
   })
 
+  it('with a selection AI may edit offers Edit with AI, a submenu of the presets', () => {
+    const target: EditorMenuTarget = { ...plain, selection: 'word', canAiEdit: true }
+    expect(groupsFor(target)[1]).toEqual(['Edit with AI'])
+    expect(editorMenuShows('ai', { ...target, canAiEdit: false })).toBe(false)
+    const ai = EDITOR_MENU.flat().find((entry) => entry.action === 'ai')!
+    expect(ai.submenu!.map((entry) => t(entry.label as never))).toEqual([
+      'Improve Writing',
+      'Proofread',
+      'Reformat',
+      'Summarise',
+      'Make Bullet List',
+      'Make Task List',
+      'Make Table',
+      'Add Headings',
+      'Create Mermaid Diagram',
+      'Custom Instruction\u2026',
+    ])
+  })
+
   it('puts the groups in order: link, look up, note, undo, clipboard, speech', () => {
-    const all: EditorMenuTarget = { link: 'https://a.example', selection: 'x', canMakeNote: true }
-    expect(groupsFor(all).map((g) => g.length)).toEqual([2, 1, 1, 2, 5, 1])
+    const all: EditorMenuTarget = {
+      link: 'https://a.example',
+      selection: 'x',
+      canMakeNote: true,
+      canAiEdit: true,
+    }
+    expect(groupsFor(all).map((g) => g.length)).toEqual([2, 1, 2, 2, 5, 1])
   })
 })
 
@@ -71,7 +100,9 @@ describe('the menu target', () => {
       link: 'https://example.com/a',
       selection: '[link]',
       canMakeNote: true,
+      canAiEdit: false,
     })
+    expect(editorMenuTarget(state(doc, 4, 10), 8, true, true).canAiEdit).toBe(true)
   })
 
   it('has no link away from one, or without a point', () => {
@@ -81,9 +112,10 @@ describe('the menu target', () => {
   })
 
   it('has no selection for a caret or white space', () => {
-    expect(editorMenuTarget(state('a b', 2), 0, true)).toMatchObject({
+    expect(editorMenuTarget(state('a b', 2), 0, true, true)).toMatchObject({
       selection: null,
       canMakeNote: false,
+      canAiEdit: false,
     })
     expect(editorMenuTarget(state('a b', 1, 2), 0, true).selection).toBeNull()
   })

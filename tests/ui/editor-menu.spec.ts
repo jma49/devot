@@ -86,7 +86,7 @@ test('a right-click in plain text shows the edit items and Speech', async ({ pag
   expect(await menu(page)).toEqual(EDIT_ITEMS)
 })
 
-test('a selection adds Look Up and New Note from Selection', async ({ page }) => {
+test('a selection adds Look Up, New Note from Selection and Edit with AI', async ({ page }) => {
   await newNote(page, 'first line\nsecond line')
   await selectLine(page, 0)
   await rightClick(page, 'first')
@@ -94,6 +94,17 @@ test('a selection adds Look Up and New Note from Selection', async ({ page }) =>
     'Look Up “first line”',
     '---',
     'New Note from Selection',
+    'Edit with AI >',
+    '  Improve Writing',
+    '  Proofread',
+    '  Reformat',
+    '  Summarise',
+    '  Make Bullet List',
+    '  Make Task List',
+    '  Make Table',
+    '  Add Headings',
+    '  Create Mermaid Diagram',
+    '  Custom Instruction\u2026',
     '---',
     ...EDIT_ITEMS,
   ])
