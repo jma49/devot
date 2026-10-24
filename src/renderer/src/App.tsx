@@ -44,6 +44,7 @@ import { Notices } from './Notices'
 import { SearchIndexNotice } from './SearchIndexNotice'
 import { REBUILD_SEARCH_INDEX, rebuildSearchIndex, type RebuildState } from './searchIndex'
 import { ChangeNotice } from './ChangeNotice'
+import { AiSuggestNotice } from './AiSuggestNotice'
 import { ImageNotice } from './ImageNotice'
 import { MAX_LINK_NOTES } from './linkCompletion'
 import { useNarrowWindow } from './narrowWindow'
@@ -183,6 +184,8 @@ import { AiEditSheet } from './AiEditSheet'
 import { aiTransport } from './ai'
 import type { AiEditStart } from './editor/aiMenu'
 import { createAiGenerator } from '../../core/aiProvider'
+import { createSuggester } from '../../core/aiSuggest'
+import { loadAiSettings } from './settings/aiProviders'
 import { Activity, useActivityMenu } from './Activity'
 import { choicesFromTree, notebookForNewNote, publishNotebooks } from './notebookChoices'
 import {
@@ -289,6 +292,20 @@ export function App() {
       createAiGenerator({ storage: { listBooks: () => core.listBooks() }, transport: aiTransport }),
     [core],
   )
+  // Next edit suggestions go through the same rule, and the AI settings are read afresh at each request.
+  const suggester = useMemo(
+    () =>
+      core &&
+      aiGenerator &&
+      createSuggester({
+        generator: aiGenerator,
+        bookOf: async (id) => (await core.read(id)).bookId,
+        listBooks: () => core.listBooks(),
+        settings: loadAiSettings,
+      }),
+    [core, aiGenerator],
+  )
+  const [suggestNotice, setSuggestNotice] = useState<string>()
   const [startFailure, setStartFailure] = useState<string>()
   const [startAttempt, setStartAttempt] = useState(0)
   const [coreFailure, setCoreFailure] = useState<string>()
@@ -2507,6 +2524,7 @@ export function App() {
         }
       }
       handlers['edit.goToLine'] = { run: () => openPalette('line') }
+      if (!inTrash) handlers['ai.suggest'] = { run: () => editorRef.current?.suggest() }
       handlers['edit.pasteUrlAs'] = {
         run: () => editorRef.current?.pasteUrlAs(),
       }
@@ -3232,6 +3250,8 @@ export function App() {
                 onAiEdit={
                   inTrash ? undefined : (start) => setAiEditing({ noteId: selected, start })
                 }
+                suggester={inTrash ? undefined : suggester}
+                onSuggestFailed={setSuggestNotice}
                 onNewFromLink={inTrash ? undefined : () => void noteFromLink(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
@@ -3328,6 +3348,9 @@ export function App() {
         ) : null}
         {coreFailure ? (
           <CoreNotice code={coreFailure} onDismiss={() => setCoreFailure(undefined)} />
+        ) : null}
+        {suggestNotice ? (
+          <AiSuggestNotice code={suggestNotice} onDismiss={() => setSuggestNotice(undefined)} />
         ) : null}
         {imageNotice ? (
           <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />

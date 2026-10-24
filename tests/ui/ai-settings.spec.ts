@@ -19,6 +19,7 @@ async function fakeRust(page: Page, failing?: string, storedKey = 'unset') {
       })
       const state: Record<string, any> = {
         active: 'anthropic',
+        suggestOnIdle: false,
         anthropic: provider('https://api.anthropic.com', 'claude-sonnet-5-5', 'claude-sonnet-5-5'),
         openai: provider('https://api.openai.com/v1', '', ''),
       }
@@ -32,6 +33,7 @@ async function fakeRust(page: Page, failing?: string, storedKey = 'unset') {
             state[id].model = args.settings[id].model
           }
           state['active'] = args.settings['active']
+          state['suggestOnIdle'] = args.settings['suggestOnIdle']
           return copy()
         },
         ai_key_set: (args: { provider: string }) => {
@@ -91,6 +93,7 @@ test('picks the active provider and saves an endpoint and a model on leaving the
   expect((await calls(page, 'ai_settings_set')).at(-1)).toEqual({
     settings: {
       active: 'openai',
+      suggestOnIdle: false,
       anthropic: { endpoint: 'https://api.anthropic.com', model: 'claude-sonnet-5-5' },
       openai: { endpoint: 'http://localhost:11434/v1', model: 'llama3.2:3b' },
     },
@@ -154,4 +157,33 @@ test('a keychain that cannot be read still lets a key be replaced or removed', a
   await expect(claude.getByRole('button', { name: 'Save Key' })).toBeEnabled()
   await claude.getByRole('button', { name: 'Remove Key' }).click()
   await expect(claude).toContainText('No key is stored.')
+})
+
+test('suggestions on a pause are off until turned on, and say what they send', async ({ page }) => {
+  await fakeRust(page)
+  await openSettings(page, 'AI')
+  const panel = page.getByRole('tabpanel')
+  const toggle = panel.getByRole('switch', { name: 'Suggest When I Pause' })
+  await expect(toggle).not.toBeChecked()
+  await expect(toggle).toHaveAccessibleDescription(
+    /at most 2,000 characters before the caret and 500 after it/,
+  )
+  await toggle.check()
+  await expect
+    .poll(async () => (await calls(page, 'ai_settings_set')).at(-1))
+    .toMatchObject({
+      settings: { suggestOnIdle: true, active: 'anthropic' },
+    })
+  await expect(toggle).toBeChecked()
+  // Changing another field keeps it on.
+  const model = panel
+    .getByRole('region', { name: 'Claude (Anthropic)' })
+    .getByRole('textbox', { name: 'Model' })
+  await model.fill('claude-other')
+  await model.press('Enter')
+  await expect
+    .poll(async () => (await calls(page, 'ai_settings_set')).at(-1))
+    .toMatchObject({
+      settings: { suggestOnIdle: true },
+    })
 })

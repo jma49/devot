@@ -145,8 +145,17 @@ describe('the settings Rust reports', () => {
   })
 
   it('reads a snapshot and refuses anything else', () => {
-    const view = { active: 'openai', anthropic: provider('set'), openai: provider('unset') }
+    const view = {
+      active: 'openai',
+      suggestOnIdle: false,
+      anthropic: provider('set'),
+      openai: provider('unset'),
+    }
     expect(asAiSettingsView(view)).toEqual(view)
+    expect(asAiSettingsView({ ...view, suggestOnIdle: true })?.suggestOnIdle).toBe(true)
+    const { suggestOnIdle: _, ...older } = view
+    expect(asAiSettingsView(older)?.suggestOnIdle).toBe(false)
+    expect(asAiSettingsView({ ...view, suggestOnIdle: 'yes' })?.suggestOnIdle).toBe(false)
     expect(asAiSettingsView({ ...view, active: 'other' })).toBeUndefined()
     expect(asAiSettingsView({ ...view, openai: provider('unknown') })).toEqual({
       ...view,

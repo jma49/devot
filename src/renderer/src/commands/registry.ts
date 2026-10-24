@@ -1303,6 +1303,14 @@ export const COMMANDS = [
     scope: 'editor',
     keys: ['Mod+Shift+U'],
   },
+  // Asks the active AI provider for a continuation shown as ghost text (editor/ghostText.ts); it does nothing unless AI is set up and the note's notebook allows it.
+  {
+    id: 'ai.suggest',
+    label: 'command.aiSuggest',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Alt+\\'],
+  },
   {
     id: 'edit.goToBracket',
     label: 'command.goToBracket',

@@ -6,9 +6,10 @@ import {
   type AiSettingsView,
 } from '../../../core/aiProvider'
 import { errorCode } from '../backups'
-import { format, t, type MessageKey } from '../i18n'
+import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { loadAiSettings, removeAiKey, saveAiKey, saveAiSettings } from './aiProviders'
-import { Setting, SettingsSection } from './controls'
+import { SUGGEST_AFTER_CHARS, SUGGEST_BEFORE_CHARS } from '../../../core/aiSuggest'
+import { Setting, SettingToggle, SettingsSection } from './controls'
 
 const NAMES: Record<AiProviderId, MessageKey> = {
   anthropic: 'aiSettings.provider.anthropic',
@@ -94,7 +95,19 @@ export function AiSection() {
       AI_PROVIDERS.every(
         (p) => drafts[p].endpoint === view[p].endpoint && drafts[p].model === view[p].model,
       )
-    if (!unchanged) void save({ active, anthropic: drafts.anthropic, openai: drafts.openai })
+    if (!unchanged) {
+      void save({
+        active,
+        suggestOnIdle: view.suggestOnIdle,
+        anthropic: drafts.anthropic,
+        openai: drafts.openai,
+      })
+    }
+  }
+
+  const setSuggestOnIdle = (suggestOnIdle: boolean) => {
+    if (!view || !drafts) return
+    void save({ active: view.active, suggestOnIdle, ...drafts })
   }
 
   const editDraft = (provider: AiProviderId, field: 'endpoint' | 'model', value: string) =>
@@ -156,6 +169,18 @@ export function AiSection() {
                 ))}
               </select>
             </Setting>
+          </SettingsSection>
+          <SettingsSection icon="settings.ai" title="aiSettings.suggestTitle">
+            <SettingToggle
+              label="aiSettings.suggestOnIdle"
+              description="aiSettings.suggestOnIdleHint"
+              values={{
+                before: SUGGEST_BEFORE_CHARS.toLocaleString(currentLocale()),
+                after: SUGGEST_AFTER_CHARS.toLocaleString(currentLocale()),
+              }}
+              checked={view.suggestOnIdle}
+              onChange={setSuggestOnIdle}
+            />
           </SettingsSection>
           {AI_PROVIDERS.map((provider) => {
             const shown = view[provider]
