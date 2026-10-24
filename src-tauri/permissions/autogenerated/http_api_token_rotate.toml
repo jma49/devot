@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-http-api-token-rotate"
+description = "Enables the http_api_token_rotate command without any pre-configured scope."
+commands.allow = ["http_api_token_rotate"]
+
+[[permission]]
+identifier = "deny-http-api-token-rotate"
+description = "Denies the http_api_token_rotate command without any pre-configured scope."
+commands.deny = ["http_api_token_rotate"]

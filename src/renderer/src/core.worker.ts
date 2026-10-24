@@ -3,6 +3,7 @@ import * as Comlink from 'comlink'
 import {
   applyBatch,
   captureNote,
+  createAiService,
   createBookService,
   createClock,
   createIdGenerator,
@@ -18,12 +19,15 @@ import {
   preparerHere,
   renderPreview,
   renderPreviewPieces,
+  runHttpApiCall,
+  type AiService,
   type BatchChange,
   type MirrorHost,
   type MirrorRunner,
   type BookService,
   type ExportSink,
   type ExportTarget,
+  type HttpApiCall,
   type ImportScan,
   type ImportSource,
   type NoteService,
@@ -57,6 +61,7 @@ let importing: Promise<unknown> = Promise.resolve()
 let stopImport = false
 let mirror: MirrorRunner | undefined
 let mirrorStorage: StorageAdapter | undefined
+let httpApi: AiService | undefined
 
 const required = () => {
   if (!service) throw new Error('E_CORE_NOT_READY')
@@ -99,6 +104,9 @@ export const coreApi = {
     books = createBookService({ storage, clock, newId: ids })
     tags = createTagService({ storage, clock, newId: ids })
     templates = createTemplateService({ storage, notes: service, books, tags, clock, newId: ids })
+    // Its own note service, as devot-mcp's: its writes reach the notes held
+    // here as changes from outside (the page merges them, see httpApiHost).
+    httpApi = createAiService({ storage, clock, newId: ids })
     // Notebooks from before sort keys get theirs, in the order they show.
     // On failure they keep showing in that order and the next start retries.
     await books
@@ -114,6 +122,13 @@ export const coreApi = {
   /** A quick capture from the menu bar, saved before it resolves (see captureNote). */
   capture: (title: string, markdown: string, bookId: string | null) =>
     captureNote(required(), { title, markdown, bookId }),
+  /** A local HTTP API call (see httpApiHost), after pending edits are saved, so it reads and changes what the editor shows. */
+  httpApi: async (call: HttpApiCall) => {
+    const notes = required()
+    if (!httpApi) throw new Error('E_CORE_NOT_READY')
+    await notes.flush().catch(() => {})
+    return runHttpApiCall(httpApi, call)
+  },
   open: (id: string, known?: Uint8Array) => required().open(id, known),
   title: (id: string) => required().title(id),
   /** The editor shows the note: it stays in memory until `unhold` (see NoteService.hold). */

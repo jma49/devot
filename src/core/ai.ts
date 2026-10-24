@@ -20,6 +20,7 @@ import { MAX_BODY_BYTES, MAX_TITLE_CHARS } from './noteLimits'
 import { createNoteService } from './notes'
 import { escapeRegExp, highlightTerms, parseSearch, resolveSearch } from './search'
 import {
+  MAX_BODY_IDS,
   NOTE_STATUSES,
   type BookRecord,
   type NoteQuery,
@@ -50,8 +51,69 @@ export interface AiStorage {
   tagsInBooks(bookIds: readonly string[]): Promise<{ id: string; name: string; notes: number }[]>
 }
 
+/**
+ * AiStorage from the plain adapter's calls, for storage without its own
+ * (the app's, whose Rust store has no AI queries): the same answers, from
+ * the note list and a search narrowed to the notebooks.
+ */
+export function aiStorageOver(storage: StorageAdapter): AiStorage {
+  const liveTags = async () =>
+    new Map(
+      (await storage.listTags()).filter((t) => t.deletedAt === null).map((t) => [t.id, t.name]),
+    )
+  const inBooks = async (bookIds: readonly string[]) => {
+    const wanted = new Set(bookIds)
+    return (await storage.listNotes()).filter((n) => n.bookId !== null && wanted.has(n.bookId))
+  }
+  return {
+    async searchNotesInBooks(query, bookIds, limit) {
+      if (bookIds.length === 0) return []
+      const found = await storage.searchNotes(
+        { ...query, sets: [...query.sets, { kind: 'book', ids: [...bookIds], negate: false }] },
+        limit,
+      )
+      const bodies = new Map<string, string>()
+      for (let at = 0; at < found.length; at += MAX_BODY_IDS) {
+        const ids = found.slice(at, at + MAX_BODY_IDS).map((n) => n.id)
+        for (const body of await storage.getBodies(ids)) bodies.set(body.id, body.bodyMd)
+      }
+      return found.flatMap(({ excerpt: _excerpt, ...summary }) => {
+        const bodyMd = bodies.get(summary.id)
+        return bodyMd === undefined ? [] : [{ ...summary, bodyMd }]
+      })
+    },
+    async countNotesInBooks(bookIds) {
+      const counts = new Map<string, number>()
+      for (const note of await inBooks(bookIds)) {
+        counts.set(note.bookId!, (counts.get(note.bookId!) ?? 0) + 1)
+      }
+      return counts
+    },
+    async noteTags(noteId) {
+      const [notes, tags] = await Promise.all([storage.listNotes(), liveTags()])
+      const tagIds = notes.find((n) => n.id === noteId)?.tagIds ?? []
+      return tagIds.flatMap((id) => {
+        const name = tags.get(id)
+        return name === undefined ? [] : [{ id, name }]
+      })
+    },
+    async tagsInBooks(bookIds) {
+      const [notes, tags] = await Promise.all([inBooks(bookIds), liveTags()])
+      const counts = new Map<string, number>()
+      for (const note of notes) {
+        for (const id of note.tagIds) counts.set(id, (counts.get(id) ?? 0) + 1)
+      }
+      return [...counts].flatMap(([id, notes]) => {
+        const name = tags.get(id)
+        return name === undefined ? [] : [{ id, name, notes }]
+      })
+    },
+  }
+}
+
 export interface AiServiceOptions {
-  storage: StorageAdapter & AiStorage
+  /** Without AiStorage's calls of its own, they are made of the plain ones (aiStorageOver). */
+  storage: StorageAdapter & Partial<AiStorage>
   clock: Clock
   newId: () => string
   now?: () => number
@@ -199,6 +261,13 @@ function cleanTagNames(names: readonly string[]): string[] {
 
 export function createAiService(options: AiServiceOptions): AiService {
   const { storage, clock, newId } = options
+  const over = aiStorageOver(storage)
+  const aiStorage: AiStorage = {
+    searchNotesInBooks: storage.searchNotesInBooks?.bind(storage) ?? over.searchNotesInBooks,
+    countNotesInBooks: storage.countNotesInBooks?.bind(storage) ?? over.countNotesInBooks,
+    noteTags: storage.noteTags?.bind(storage) ?? over.noteTags,
+    tagsInBooks: storage.tagsInBooks?.bind(storage) ?? over.tagsInBooks,
+  }
   const now = options.now ?? Date.now
   const atomically = options.atomically ?? (<T>(work: () => Promise<T>) => work())
   // Notes are released after every write, so nothing is cached between
@@ -242,7 +311,7 @@ export function createAiService(options: AiServiceOptions): AiService {
 
   /** A name an existing tag has, in any case, puts that tag on the note (tag names are unique). */
   const setTags = async (noteId: string, wanted: readonly string[]) => {
-    const current = await storage.noteTags(noteId)
+    const current = await aiStorage.noteTags(noteId)
     for (const tag of current) {
       if (!wanted.some((name) => sameName(name, tag.name))) {
         await tagService.removeFromNote(noteId, tag.id)
@@ -262,7 +331,7 @@ export function createAiService(options: AiServiceOptions): AiService {
     async notebooks() {
       const live = await storage.listBooks()
       const books = await allowed(live)
-      const counts = await storage.countNotesInBooks([...books.keys()])
+      const counts = await aiStorage.countNotesInBooks([...books.keys()])
       return flattenBookTree(buildBookTree(live)).flatMap((node) => {
         const book = books.get(node.id)
         return book ? [{ ...ref(book), notes: counts.get(book.id) ?? 0 }] : []
@@ -280,7 +349,7 @@ export function createAiService(options: AiServiceOptions): AiService {
       if (!resolved) return []
       const terms = highlightTerms(clauses).body
       const count = Math.min(Math.max(1, Math.floor(limit) || 1), MAX_AI_SEARCH_LIMIT)
-      const found = await storage.searchNotesInBooks(resolved, [...books.keys()], count)
+      const found = await aiStorage.searchNotesInBooks(resolved, [...books.keys()], count)
       const hits: AiSearchHit[] = []
       for (const summary of found) {
         const book = summary.bookId === null ? undefined : books.get(summary.bookId)
@@ -298,7 +367,7 @@ export function createAiService(options: AiServiceOptions): AiService {
 
     async read(id) {
       const { record, book } = await visible(id)
-      const tags = (await storage.noteTags(id))
+      const tags = (await aiStorage.noteTags(id))
         .map((t) => t.name)
         .sort((a, b) => a.localeCompare(b))
       return {
@@ -386,7 +455,7 @@ export function createAiService(options: AiServiceOptions): AiService {
     async tags() {
       const books = await allowed()
       if (books.size === 0) return []
-      const found = await storage.tagsInBooks([...books.keys()])
+      const found = await aiStorage.tagsInBooks([...books.keys()])
       return found
         .map(({ name, notes: count }) => ({ name, notes: count }))
         .sort((a, b) => a.name.localeCompare(b.name))

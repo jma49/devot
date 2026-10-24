@@ -1,0 +1,91 @@
+[
+  {
+    "name": "list notebooks",
+    "method": "GET",
+    "target": "/v1/notebooks",
+    "status": 200,
+    "call": { "op": "notebooks.list", "note": null, "args": {} }
+  },
+  {
+    "name": "create a notebook",
+    "method": "POST",
+    "target": "/v1/notebooks",
+    "body": { "name": "Ideas", "parent": "Shared" },
+    "status": 201,
+    "call": {
+      "op": "notebooks.create",
+      "note": null,
+      "args": { "name": "Ideas", "parent": "Shared" }
+    }
+  },
+  {
+    "name": "list tags",
+    "method": "GET",
+    "target": "/v1/tags",
+    "status": 200,
+    "call": { "op": "tags.list", "note": null, "args": {} }
+  },
+  {
+    "name": "search notes",
+    "method": "GET",
+    "target": "/v1/notes?q=kiwi+%22pie%22&limit=5",
+    "status": 200,
+    "call": { "op": "notes.search", "note": null, "args": { "query": "kiwi \"pie\"", "limit": 5 } }
+  },
+  {
+    "name": "create a note",
+    "method": "POST",
+    "target": "/v1/notes",
+    "body": { "title": "Plan", "markdown": "# Plan\n\nBuy kiwi.\n", "notebook": "Shared" },
+    "status": 201,
+    "call": {
+      "op": "notes.create",
+      "note": null,
+      "args": { "title": "Plan", "markdown": "# Plan\n\nBuy kiwi.\n", "notebook": "Shared" }
+    }
+  },
+  {
+    "name": "read a note",
+    "method": "GET",
+    "target": "/v1/notes/{note}",
+    "status": 200,
+    "call": { "op": "notes.read", "note": "{note}", "args": {} }
+  },
+  {
+    "name": "update a note with patches",
+    "method": "PATCH",
+    "target": "/v1/notes/{note}",
+    "body": {
+      "title": "Kiwi pie, again",
+      "patches": [{ "find": "kiwi pie", "replace": "lime pie" }],
+      "tags": ["fruit", "baking"],
+      "status": "active"
+    },
+    "status": 200,
+    "call": {
+      "op": "notes.update",
+      "note": "{note}",
+      "args": {
+        "title": "Kiwi pie, again",
+        "patches": [{ "find": "kiwi pie", "replace": "lime pie" }],
+        "tags": ["fruit", "baking"],
+        "status": "active"
+      }
+    }
+  },
+  {
+    "name": "update a note's whole body",
+    "method": "PATCH",
+    "target": "/v1/notes/{note}",
+    "body": { "markdown": "A new body.\n" },
+    "status": 200,
+    "call": { "op": "notes.update", "note": "{note}", "args": { "markdown": "A new body.\n" } }
+  },
+  {
+    "name": "move a note to the Trash",
+    "method": "DELETE",
+    "target": "/v1/notes/{note}",
+    "status": 200,
+    "call": { "op": "notes.trash", "note": "{note}", "args": {} }
+  }
+]

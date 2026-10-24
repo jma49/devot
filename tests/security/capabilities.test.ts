@@ -79,6 +79,11 @@ describe('Tauri command permissions', () => {
       'allow-font-read',
       'allow-fonts-installed',
       'allow-fonts-list',
+      // Settings > Integrations turns the local HTTP API on and off and shows and replaces its token.
+      'allow-http-api-get',
+      'allow-http-api-set',
+      'allow-http-api-token-reveal',
+      'allow-http-api-token-rotate',
       'allow-keyboard-shortcuts-get',
       'allow-keyboard-shortcuts-set',
       'allow-mirror-choose',
@@ -115,6 +120,13 @@ describe('Tauri command permissions', () => {
       'core:event:allow-unlisten',
     ])
     expect(windowsWith('allow-quick-capture-done')).toEqual(['main'])
+  })
+
+  it('lets only Settings see or replace the HTTP API token, and only the main window answer its calls', () => {
+    for (const command of ['get', 'set', 'token-reveal', 'token-rotate']) {
+      expect(windowsWith(`allow-http-api-${command}`)).toEqual(['settings'])
+    }
+    expect(windowsWith('allow-http-api-done')).toEqual(['main'])
   })
 
   it('grants no window a global shortcut command: Rust alone registers the shortcut', () => {

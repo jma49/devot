@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-http-api-token-reveal"
+description = "Enables the http_api_token_reveal command without any pre-configured scope."
+commands.allow = ["http_api_token_reveal"]
+
+[[permission]]
+identifier = "deny-http-api-token-reveal"
+description = "Denies the http_api_token_reveal command without any pre-configured scope."
+commands.deny = ["http_api_token_reveal"]

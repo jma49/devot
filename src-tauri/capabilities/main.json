@@ -85,6 +85,7 @@
     "allow-update-download",
     "allow-update-restart",
     "allow-deep-link-take",
-    "allow-quick-capture-done"
+    "allow-quick-capture-done",
+    "allow-http-api-done"
   ]
 }
