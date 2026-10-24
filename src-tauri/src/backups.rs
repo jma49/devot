@@ -11,7 +11,7 @@ use crate::{logs, storage};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 use tokio::sync::Mutex;
 
 pub const DIR: &str = "backups";
@@ -393,7 +393,7 @@ impl Backups {
         }
         if let Some(code) = error {
             log::warn!("W_BACKUP_FAILED {code}");
-            if app.emit_to("main", FAILED_EVENT, code).is_err() {
+            if crate::main_windows::emit_all(app, FAILED_EVENT, code).is_err() {
                 log::warn!("W_BACKUP_EVENT_FAILED");
             }
         }

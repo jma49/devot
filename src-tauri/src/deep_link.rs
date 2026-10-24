@@ -8,12 +8,13 @@
 //! `devot://file/<id>` names attachments inside the window
 //! (`register_asynchronous_uri_scheme_protocol` in lib.rs); that protocol lives in the web view
 //! alone and this module refuses such a URL from another app.
-//! Links wait in an [`Inbox`] until the main window has asked for them (`deep_link_take`; again
-//! after a reload) and while the Settings window is open. A second launch does not open the data
+//! Links wait in an [`Inbox`] until a main window has asked for them (`deep_link_take`; again
+//! after a reload) and while the Settings window is open. They go to the frontmost main window that
+//! has asked (`main_windows`). A second launch does not open the data
 //! folder: the single-instance plugin hands its arguments to this process ([`on_second_instance`])
 //! and ends it. The `devot` command hands files over the same way (`cli`).
 
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::sync::Mutex;
 
 use serde::Serialize;
@@ -22,7 +23,8 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, Window, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 
 use crate::commands::notes::valid_note_id;
-use crate::{MAIN_WINDOW, settings};
+use crate::main_windows::{self, is_main};
+use crate::settings;
 
 pub(crate) const RELEASE_SCHEME: &str = "devot";
 pub(crate) const DEBUG_SCHEME: &str = "devot-dev";
@@ -99,9 +101,9 @@ pub(crate) fn parse(url: &str, scheme: &str) -> Result<Link, &'static str> {
 
 #[derive(Debug, Default)]
 pub(crate) struct Inbox {
-    /// The page has asked for the links (it listens from then on), and has
-    /// not reloaded since.
-    ready: bool,
+    /// The main windows that have asked for the links (they listen from then on) and have not
+    /// reloaded since.
+    ready: BTreeSet<String>,
     settings_open: bool,
     held: VecDeque<Link>,
 }
@@ -116,13 +118,17 @@ impl Inbox {
         self.release()
     }
 
-    fn take(&mut self) -> Vec<Link> {
-        self.ready = true;
+    fn take(&mut self, label: &str) -> Vec<Link> {
+        self.ready.insert(label.to_owned());
         self.release()
     }
 
-    fn page_started(&mut self) {
-        self.ready = false;
+    fn page_started(&mut self, label: &str) {
+        self.ready.remove(label);
+    }
+
+    fn gone(&mut self, label: &str) {
+        self.ready.remove(label);
     }
 
     fn settings(&mut self, open: bool) -> Vec<Link> {
@@ -131,10 +137,18 @@ impl Inbox {
     }
 
     fn release(&mut self) -> Vec<Link> {
-        if !self.ready || self.settings_open {
+        if self.ready.is_empty() || self.settings_open {
             return Vec::new();
         }
         self.held.drain(..).collect()
+    }
+
+    /// Where released links go: the frontmost main window when it has asked, else the first that has.
+    fn target(&self, front: Option<&str>) -> Option<String> {
+        front
+            .filter(|label| self.ready.contains(*label))
+            .map(str::to_owned)
+            .or_else(|| self.ready.iter().next().cloned())
     }
 }
 
@@ -154,8 +168,16 @@ impl DeepLinks {
     /// reach the page in the order they came, whatever thread they came on.
     fn update<R: Runtime>(&self, app: &AppHandle<R>, f: impl FnOnce(&mut Inbox) -> Vec<Link>) {
         self.with(|inbox| {
-            for link in f(inbox) {
-                if app.emit_to(MAIN_WINDOW, EVENT, &link).is_err() {
+            let links = f(inbox);
+            if links.is_empty() {
+                return;
+            }
+            let front = main_windows::front_label(app);
+            let Some(target) = inbox.target(front.as_deref()) else {
+                return;
+            };
+            for link in links {
+                if app.emit_to(&target, EVENT, &link).is_err() {
                     log::warn!("W_DEEP_LINK_EMIT_FAILED");
                 }
             }
@@ -223,28 +245,32 @@ pub(crate) fn unminimize<R: Runtime>(window: &tauri::WebviewWindow<R>) -> tauri:
 #[derive(Debug, PartialEq, Eq)]
 struct Forward {
     show_main: bool,
-    focus: Option<&'static str>,
+    focus: Option<String>,
 }
 
-/// Settings holds links until it closes (`Inbox::settings`), and they then land in the main
-/// window, so a main window hidden in menu bar mode shows behind it.
-fn forward(settings_open: bool, main_visible: Option<bool>) -> Forward {
+/// Settings holds links until it closes (`Inbox::settings`), and they then land in the frontmost main
+/// window, so a main window hidden in menu bar mode shows behind it. `front` is that window's label
+/// and whether it is visible.
+fn forward(settings_open: bool, front: Option<(&str, bool)>) -> Forward {
     let focus = if settings_open {
-        Some(settings::LABEL)
+        Some(settings::LABEL.to_owned())
     } else {
-        main_visible.map(|_| MAIN_WINDOW)
+        front.map(|(label, _)| label.to_owned())
     };
     Forward {
-        show_main: settings_open && main_visible == Some(false),
+        show_main: settings_open && matches!(front, Some((_, false))),
         focus,
     }
 }
 
 fn bring_forward<R: Runtime>(app: &AppHandle<R>) {
-    let main = app.get_webview_window(MAIN_WINDOW);
+    let main = main_windows::front_label(app).and_then(|label| app.get_webview_window(&label));
+    let visible = main.as_ref().map(|main| main.is_visible().unwrap_or(true));
     let plan = forward(
         app.get_webview_window(settings::LABEL).is_some(),
-        main.as_ref().map(|main| main.is_visible().unwrap_or(true)),
+        main.as_ref()
+            .zip(visible)
+            .map(|(main, visible)| (main.label(), visible)),
     );
     if plan.show_main
         && let Some(main) = &main
@@ -253,7 +279,7 @@ fn bring_forward<R: Runtime>(app: &AppHandle<R>) {
         log::warn!("W_DEEP_LINK_FOCUS_FAILED");
     }
     // Still starting when there is no window: the main window shows when it is built.
-    let Some(window) = plan.focus.and_then(|label| app.get_webview_window(label)) else {
+    let Some(window) = plan.focus.and_then(|label| app.get_webview_window(&label)) else {
         return;
     };
     if unminimize(&window)
@@ -272,27 +298,35 @@ pub(crate) fn settings_opened<R: Runtime>(app: &AppHandle<R>) {
 }
 
 pub(crate) fn on_window_event(window: &Window, event: &WindowEvent) {
-    if window.label() != settings::LABEL || !matches!(event, WindowEvent::Destroyed) {
+    if !matches!(event, WindowEvent::Destroyed) {
         return;
     }
     let app = window.app_handle();
-    if let Some(links) = app.try_state::<DeepLinks>() {
+    let Some(links) = app.try_state::<DeepLinks>() else {
+        return;
+    };
+    if window.label() == settings::LABEL {
         links.update(app, |inbox| inbox.settings(false));
+    } else if is_main(window.label()) {
+        links.with(|inbox| inbox.gone(window.label()));
     }
 }
 
 pub(crate) fn on_page_load<R: Runtime>(webview: &tauri::Webview<R>, payload: &PageLoadPayload<'_>) {
-    if webview.label() != MAIN_WINDOW || payload.event() != PageLoadEvent::Started {
+    if !is_main(webview.label()) || payload.event() != PageLoadEvent::Started {
         return;
     }
     if let Some(links) = webview.try_state::<DeepLinks>() {
-        links.with(Inbox::page_started);
+        links.with(|inbox| inbox.page_started(webview.label()));
     }
 }
 
 #[tauri::command]
-pub fn deep_link_take(links: tauri::State<'_, DeepLinks>) -> Vec<Link> {
-    links.with(Inbox::take)
+pub fn deep_link_take(
+    links: tauri::State<'_, DeepLinks>,
+    window: tauri::WebviewWindow,
+) -> Vec<Link> {
+    links.with(|inbox| inbox.take(window.label()))
 }
 
 #[cfg(test)]
@@ -312,32 +346,39 @@ mod tests {
     #[test]
     fn a_link_brings_the_settings_window_forward_and_shows_a_hidden_main_window_behind_it() {
         assert_eq!(
-            forward(true, Some(false)),
+            forward(true, Some(("main", false))),
             Forward {
                 show_main: true,
-                focus: Some(settings::LABEL)
+                focus: Some(settings::LABEL.into())
             }
         );
         assert_eq!(
-            forward(true, Some(true)),
+            forward(true, Some(("main", true))),
             Forward {
                 show_main: false,
-                focus: Some(settings::LABEL)
+                focus: Some(settings::LABEL.into())
             }
         );
     }
 
     #[test]
-    fn without_settings_a_link_brings_the_main_window_forward() {
+    fn without_settings_a_link_brings_the_frontmost_main_window_forward() {
         for visible in [true, false] {
             assert_eq!(
-                forward(false, Some(visible)),
+                forward(false, Some(("main", visible))),
                 Forward {
                     show_main: false,
-                    focus: Some(MAIN_WINDOW)
+                    focus: Some("main".into())
                 }
             );
         }
+        assert_eq!(
+            forward(false, Some(("main-3", true))),
+            Forward {
+                show_main: false,
+                focus: Some("main-3".into())
+            }
+        );
         assert_eq!(
             forward(false, None),
             Forward {
@@ -478,18 +519,18 @@ mod tests {
         let mut inbox = Inbox::default();
         assert!(inbox.arrive(note()).is_empty());
         assert!(inbox.arrive(command("view.trash")).is_empty());
-        assert_eq!(inbox.take(), vec![note(), command("view.trash")]);
+        assert_eq!(inbox.take("main"), vec![note(), command("view.trash")]);
         assert_eq!(
             inbox.arrive(command("view.edit")),
             vec![command("view.edit")]
         );
-        assert!(inbox.take().is_empty());
+        assert!(inbox.take("main").is_empty());
     }
 
     #[test]
     fn holds_links_while_settings_is_open() {
         let mut inbox = Inbox::default();
-        assert!(inbox.take().is_empty());
+        assert!(inbox.take("main").is_empty());
         assert!(inbox.settings(true).is_empty());
         assert!(inbox.arrive(note()).is_empty());
         assert!(inbox.arrive(command("view.focus")).is_empty());
@@ -502,7 +543,7 @@ mod tests {
         let mut inbox = Inbox::default();
         inbox.settings(true);
         inbox.arrive(note());
-        assert!(inbox.take().is_empty());
+        assert!(inbox.take("main").is_empty());
         assert_eq!(inbox.settings(false), vec![note()]);
     }
 
@@ -512,16 +553,16 @@ mod tests {
         inbox.settings(true);
         inbox.arrive(note());
         assert!(inbox.settings(false).is_empty());
-        assert_eq!(inbox.take(), vec![note()]);
+        assert_eq!(inbox.take("main"), vec![note()]);
     }
 
     #[test]
     fn a_reloading_page_gets_the_links_that_came_meanwhile_when_it_asks() {
         let mut inbox = Inbox::default();
-        assert!(inbox.take().is_empty());
-        inbox.page_started();
+        assert!(inbox.take("main").is_empty());
+        inbox.page_started("main");
         assert!(inbox.arrive(note()).is_empty());
-        assert_eq!(inbox.take(), vec![note()]);
+        assert_eq!(inbox.take("main"), vec![note()]);
     }
 
     #[test]
@@ -530,7 +571,7 @@ mod tests {
         for _ in 0..MAX_HELD + 5 {
             inbox.arrive(note());
         }
-        assert_eq!(inbox.take().len(), MAX_HELD);
+        assert_eq!(inbox.take("main").len(), MAX_HELD);
     }
 
     #[test]
@@ -543,5 +584,42 @@ mod tests {
             serde_json::to_value(command("view.split")).unwrap(),
             serde_json::json!({ "kind": "command", "id": "view.split" })
         );
+    }
+
+    #[test]
+    fn links_go_to_the_frontmost_main_window_that_has_asked() {
+        let mut inbox = Inbox::default();
+        assert_eq!(inbox.target(Some("main")), None);
+        inbox.take("main");
+        assert_eq!(inbox.target(Some("main-2")).as_deref(), Some("main"));
+        inbox.take("main-2");
+        assert_eq!(inbox.target(Some("main-2")).as_deref(), Some("main-2"));
+        assert_eq!(inbox.target(Some("main")).as_deref(), Some("main"));
+        assert_eq!(inbox.target(None).as_deref(), Some("main"));
+        assert_eq!(inbox.target(Some("settings")).as_deref(), Some("main"));
+    }
+
+    #[test]
+    fn a_second_window_asking_gets_what_waits_while_the_first_has_not() {
+        let mut inbox = Inbox::default();
+        assert!(inbox.arrive(note()).is_empty());
+        assert_eq!(inbox.take("main-2"), vec![note()]);
+        assert_eq!(
+            inbox.arrive(command("view.edit")),
+            vec![command("view.edit")]
+        );
+    }
+
+    #[test]
+    fn a_window_that_reloads_or_closes_no_longer_receives_links() {
+        let mut inbox = Inbox::default();
+        inbox.take("main");
+        inbox.take("main-2");
+        inbox.page_started("main-2");
+        assert_eq!(inbox.target(Some("main-2")).as_deref(), Some("main"));
+        inbox.gone("main");
+        assert_eq!(inbox.target(Some("main")), None);
+        assert!(inbox.arrive(note()).is_empty());
+        assert_eq!(inbox.take("main-2"), vec![note()]);
     }
 }

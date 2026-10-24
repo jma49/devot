@@ -12,7 +12,7 @@
 use crate::strings;
 use std::collections::HashMap;
 use tauri::menu::{MenuItem, MenuItemBuilder, Submenu, SubmenuBuilder};
-use tauri::{App, AppHandle, Emitter, State, Wry};
+use tauri::{App, AppHandle, State, Wry};
 
 pub const FORMAT_EVENT: &str = "devot://format";
 const ID_PREFIX: &str = "devot.";
@@ -128,7 +128,7 @@ pub fn on_menu_event(app: &AppHandle, menu_id: &str) -> bool {
     let Some(command) = command_for(menu_id) else {
         return false;
     };
-    if app.emit_to("main", FORMAT_EVENT, command).is_err() {
+    if crate::main_windows::emit_front(app, FORMAT_EVENT, command).is_err() {
         log::warn!("W_FORMAT_MENU_EMIT_FAILED");
     }
     true
@@ -212,6 +212,7 @@ pub(crate) const MENU_BAR_KEYS: &[&str] = &[
     "Ctrl+CmdOrCtrl+F",
     "CmdOrCtrl+M",
     "CmdOrCtrl+W",
+    "Shift+CmdOrCtrl+N",
 ];
 
 pub fn plan(

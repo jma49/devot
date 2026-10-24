@@ -59,7 +59,7 @@ it('keeps its own keys apart from the commands, and reserved', () => {
   const own = accelerators
     .filter((a) => !Object.hasOwn(NATIVE_MENU_COMMANDS, a.id))
     .map((a) => asShortcut(a.accelerator))
-  expect(own).toEqual(['Mod+Q', 'Mod+,'])
+  expect(own).toEqual(['Mod+Q', 'Mod+,', 'Mod+Shift+N'])
   for (const key of own) expect(RESERVED_KEYS).toContain(key)
   const used = COMMANDS.flatMap((c) => c.keys as readonly string[])
   expect(used.filter((key) => own.includes(key))).toEqual([])
@@ -227,4 +227,12 @@ it('reserves the same keys in Rust', () => {
     ),
   ].map((m) => m[1])
   expect(reserved).toEqual(RESERVED_KEYS)
+})
+
+// File > New Window is a menu item of Rust's own (it opens the window without asking a page), and
+// the palette's New Window runs the same.
+it('labels File > New Window as the app labels the command', () => {
+  expect(MENU).toMatch(/MenuItemBuilder::with_id\(NEW_WINDOW_ID, strings::NEW_WINDOW\)/)
+  expect(STRINGS.get('NEW_WINDOW')).toBe(en['command.newWindow'])
+  expect(command('app.newWindow').keys).toEqual([])
 })

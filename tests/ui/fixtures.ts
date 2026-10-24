@@ -33,6 +33,8 @@ export type EditorMenuEntry =
 export interface TestWindow {
   devotIpcCalls: IpcCall[]
   devotIpcMocks?: Record<string, unknown>
+  /** The label of the window this page stands for (`main-2` for a window File > New Window opened); `main` by default. */
+  devotWindowLabel?: string
   devotMenus: Record<number, MockMenu>
   devotEditorMenu?: { items: EditorMenuEntry[]; answer: (pick: unknown) => void } | undefined
   /** Only the settings that were set; the rest are defaults. */
@@ -375,6 +377,13 @@ export async function mockTauri(page: Page): Promise<void> {
         },
         transformCallback: () => 0,
         unregisterCallback: () => {},
+        metadata: {
+          currentWindow: {
+            get label() {
+              return w.devotWindowLabel ?? 'main'
+            },
+          },
+        },
       },
     })
   }, PNG)

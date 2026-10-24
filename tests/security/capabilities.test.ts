@@ -33,13 +33,28 @@ function grantedAppPermissions(): string[] {
   ]
 }
 
+// The main capability covers `main` and the windows File > New Window opens (`main-*`), which are
+// the same window kind; the lists below name it once, as `main`.
+const MAIN_WINDOWS = ['main', 'main-*']
+
 const windowsWith = (permission: string) =>
   capabilities()
     .filter((c) => permissionIds(c).includes(permission))
     .flatMap((c) => c.windows)
+    .filter((w) => w !== 'main-*')
     .sort()
 
 describe('Tauri command permissions', () => {
+  it('gives every main window the same permissions, in one capability', () => {
+    const mains = capabilities().filter((c) => c.windows.some((w) => MAIN_WINDOWS.includes(w)))
+    expect(mains.map((c) => c.windows)).toEqual([MAIN_WINDOWS])
+  })
+
+  it('lets only main windows open another one and tell the others the library changed', () => {
+    expect(windowsWith('allow-main-window-new')).toEqual(['main'])
+    expect(windowsWith('allow-main-windows-changed')).toEqual(['main'])
+  })
+
   it('declares at least one app command', () => {
     expect(declaredCommands().length).toBeGreaterThan(0)
   })
@@ -191,9 +206,25 @@ describe('Tauri command permissions', () => {
     ])
     expect(windowsWith('allow-note-relay-send')).toEqual(['main', 'note-*'])
     expect(windowsWith('allow-note-window-open')).toEqual(['main', 'note-*'])
-    for (const command of ['note', 'close-ready', 'close-cancel']) {
-      expect(windowsWith(`allow-note-window-${command}`)).toEqual(['note-*'])
+    expect(windowsWith('allow-note-window-note')).toEqual(['note-*'])
+    // A window File > New Window opens closes through the same handshake.
+    for (const command of ['close-ready', 'close-cancel']) {
+      expect(windowsWith(`allow-note-window-${command}`)).toEqual(['main', 'note-*'])
     }
+  })
+
+  it('grants the main windows every command the secondary-window close handler invokes', () => {
+    const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
+    const start = app.indexOf('if (primary) return\n    const closed')
+    expect(start).toBeGreaterThan(-1)
+    const handler = app.slice(start, app.indexOf('CLOSE_EVENT, closed)', start))
+    const commands = [...handler.matchAll(/invoke\('([a-z_]+)'/g)].map((m) => m[1] ?? '')
+    expect(commands).toContain('note_window_close_ready')
+    const granted = capabilities()
+      .filter((c) => c.windows.includes('main-*'))
+      .flatMap(permissionIds)
+    const missing = commands.filter((c) => !granted.includes(`allow-${c.replaceAll('_', '-')}`))
+    expect(missing).toEqual([])
   })
 
   it('grants a note window every command its page and its core can reach', () => {

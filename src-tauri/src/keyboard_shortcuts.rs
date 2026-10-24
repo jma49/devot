@@ -34,6 +34,7 @@ pub const RESERVED: &[&str] = &[
     "Mod+Alt+H",
     "Mod+M",
     "Mod+W",
+    "Mod+Shift+N",
     "Mod+,",
     "Mod+Tab",
     "Mod+Space",

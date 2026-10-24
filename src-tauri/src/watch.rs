@@ -2,7 +2,7 @@
 
 use crate::storage::Db;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 pub const CHANGED_EVENT: &str = "devot://db-changed";
 const EVERY: Duration = Duration::from_secs(1);
@@ -33,7 +33,8 @@ pub fn start(app: &AppHandle) {
                 match tauri::async_runtime::block_on(read) {
                     Ok(version) => {
                         failing = false;
-                        if watch.changed(version) && app.emit_to("main", CHANGED_EVENT, ()).is_err()
+                        if watch.changed(version)
+                            && crate::main_windows::emit_all(&app, CHANGED_EVENT, ()).is_err()
                         {
                             log::warn!("W_WATCH_EVENT_FAILED");
                         }

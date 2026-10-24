@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { isImeKey } from '../ime'
+import { listenHere } from '../windowEvents'
 import { rememberKey } from './keys'
 import { windowCommand, type CommandHandlers } from './registry'
 
@@ -103,11 +104,10 @@ export function useMenuEvent(
     let stopped = false
     let unlisten: (() => void) | undefined
     if (!DEVOT_UI_TEST) {
-      import('@tauri-apps/api/event')
-        .then(async ({ listen }) => {
-          const stop = await listen(tauriEvent, (event) =>
-            window.dispatchEvent(new CustomEvent(pageEvent, { detail: event.payload })),
-          )
+      listenHere(tauriEvent, (event) =>
+        window.dispatchEvent(new CustomEvent(pageEvent, { detail: event.payload })),
+      )
+        .then((stop) => {
           if (stopped) stop()
           else unlisten = stop
         })

@@ -17,8 +17,10 @@ describe('the note relay between windows', () => {
     expect(fromWireRelay(title, fromBase64)).toEqual(title)
   })
 
-  it('reaches the main window and the note’s own window, as Rust routes it', () => {
+  it('reaches every main window and the note’s own window, as Rust routes it', () => {
     expect(hears(MAIN_WINDOW, ID)).toBe(true)
+    expect(hears('main-2', ID)).toBe(true)
+    expect(hears('main-2x', ID)).toBe(false)
     expect(hears(noteWindowLabel(ID), ID)).toBe(true)
     expect(hears(noteWindowLabel(OTHER), ID)).toBe(false)
     expect(hears('settings', ID)).toBe(false)

@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest'
-import { focusStore, sidebarStore, typingElsewhere, windowLabel } from './focus'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  current,
+  focusStore,
+  isMainLabel,
+  isSecondaryLabel,
+  sidebarStore,
+  typingElsewhere,
+  windowLabel,
+} from './focus'
 
 function memoryStorage() {
   const items = new Map<string, string>()
@@ -98,5 +106,43 @@ describe('typingElsewhere', () => {
     expect(typingElsewhere(element('BUTTON'), host())).toBe(false)
     const own = element('DIV', true)
     expect(typingElsewhere(own, host(own))).toBe(false)
+  })
+})
+
+describe('main window labels', () => {
+  it('are main and main-<n>, as Rust names them', () => {
+    for (const label of ['main', 'main-2', 'main-10']) expect(isMainLabel(label)).toBe(true)
+    for (const label of ['main-', 'main-0', 'main-02', 'main-x', 'note-main-2', 'settings', ''])
+      expect(isMainLabel(label)).toBe(false)
+    expect(isSecondaryLabel('main')).toBe(false)
+    expect(isSecondaryLabel('main-2')).toBe(true)
+    expect(isSecondaryLabel('note-2')).toBe(false)
+  })
+})
+
+describe('current', () => {
+  const stub = (label: string) => {
+    const local = memoryStorage()
+    const session = memoryStorage()
+    vi.stubGlobal('localStorage', local)
+    vi.stubGlobal('sessionStorage', session)
+    vi.stubGlobal('__TAURI_INTERNALS__', { metadata: { currentWindow: { label } } })
+    return { local, session }
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('keeps the first window’s preferences in local storage, across launches', () => {
+    const { local, session } = stub('main')
+    current(focusStore).save(true)
+    expect([...local.items.keys()]).toEqual(['devot.focus.main'])
+    expect(session.items.size).toBe(0)
+  })
+
+  it('keeps a window File > New Window opened to the session, so the next one starts fresh', () => {
+    const { local, session } = stub('main-2')
+    current(focusStore).save(true)
+    expect(local.items.size).toBe(0)
+    expect([...session.items.keys()]).toEqual(['devot.focus.main-2'])
+    expect(current(focusStore).load()).toBe(true)
   })
 })

@@ -31,6 +31,7 @@ mod import;
 mod keyboard_shortcuts;
 mod link_info;
 mod logs;
+mod main_windows;
 #[cfg(desktop)]
 mod menu;
 #[cfg(desktop)]
@@ -58,7 +59,7 @@ mod watch;
 
 use startup::StartupError;
 use std::path::Path;
-use tauri::{Emitter, Manager, WebviewWindowBuilder};
+use tauri::{Emitter, Manager};
 
 pub(crate) const MAIN_WINDOW: &str = "main";
 
@@ -222,6 +223,9 @@ pub fn run() {
             deep_link::deep_link_take,
             note_relay::note_relay_send,
             #[cfg(desktop)]
+            main_windows::main_window_new,
+            main_windows::main_windows_changed,
+            #[cfg(desktop)]
             note_window::note_window_open,
             #[cfg(desktop)]
             note_window::note_window_note,
@@ -239,9 +243,11 @@ pub fn run() {
         .manage(import::Imports::default())
         .manage(export::Exports::default())
         .manage(deep_link::DeepLinks::default())
+        .manage(main_windows::MainWindows::default())
         .on_page_load(deep_link::on_page_load)
         .on_window_event(|window, event| {
             exit::on_window_event(window, event);
+            main_windows::on_window_event(window, event);
             #[cfg(desktop)]
             note_window::on_window_event(window, event);
             deep_link::on_window_event(window, event);
@@ -332,15 +338,6 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     watch::start(app.handle());
     #[cfg(desktop)]
     install_desktop(app)?;
-    // Built here rather than from the config alone, to route pop-ups.
-    let mut main = app
-        .config()
-        .app
-        .windows
-        .iter()
-        .find(|w| w.label == MAIN_WINDOW)
-        .ok_or_else(|| StartupError::new("E_MAIN_WINDOW_CONFIG_MISSING"))?
-        .clone();
     // The sidebar material as stored: an opaque sidebar starts without the window effect, and the page starts from the same settings, so its first paint matches the window.
     let stored = editor_settings
         .get()
@@ -348,25 +345,23 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
             revision: 0,
             settings: editor_settings::EditorSettings::default(),
         });
-    let configured = main.window_effects.take();
-    let material = stored.settings.sidebar_material;
-    main.window_effects = sidebar_material::effects_for(material, configured.as_ref());
-    main.theme = stored.settings.appearance.window_theme();
-    // A debug build keeps its web data apart from the release app's.
-    main.data_store_identifier = data_folder::this_build_web_data_store();
+    let configured = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == MAIN_WINDOW)
+        .ok_or_else(|| StartupError::new("E_MAIN_WINDOW_CONFIG_MISSING"))?
+        .window_effects
+        .clone();
     app.manage(sidebar_material::SidebarMaterial::new(
         configured,
         sidebar_material::Shown {
             revision: stored.revision,
-            material,
+            material: stored.settings.sidebar_material,
         },
     ));
-    WebviewWindowBuilder::from_config(app.handle(), &main)
-        .map_err(|_| StartupError::new("E_MAIN_WINDOW_FAILED"))?
-        .on_new_window(external::on_new_window)
-        .initialization_script(editor_settings::initial_script(&stored))
-        .build()
-        .map_err(|_| StartupError::new("E_MAIN_WINDOW_FAILED"))?;
+    main_windows::build(app.handle(), MAIN_WINDOW, None).map_err(StartupError::new)?;
     native::configure_main_window(app);
     #[cfg(desktop)]
     menu_bar::apply(app.handle(), stored.settings.menu_bar);

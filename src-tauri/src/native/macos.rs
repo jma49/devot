@@ -27,11 +27,8 @@ use super::guarded;
 /// Paces page rendering updates near 60 fps by default, even on 120 Hz displays.
 const SIXTY_FPS_FEATURE: &str = "PreferPageRenderingUpdatesNear60FPSEnabled";
 
-pub fn unlock_high_refresh_rate(app: &tauri::App) {
-    let Some(window) = app.get_webview_window("main") else {
-        log::warn!("E_NATIVE_MAIN_WINDOW_MISSING");
-        return;
-    };
+/// Per web view: every main window needs it.
+pub fn unlock_high_refresh_rate(window: &tauri::WebviewWindow) {
     let result = window.with_webview(|webview| {
         let unlocked = guarded("W_NATIVE_HIGH_REFRESH_RATE_FAILED", || {
             // SAFETY: `inner()` is the live WKWebView owned by this window;
@@ -573,30 +570,20 @@ use objc2_app_kit::{NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, N
 /// took Command-I in the editor without passing it on; a local event monitor runs before both. Only
 /// the Format menu is asked, so every other key goes its usual way, and that menu has keys only
 /// while the editor has the keyboard (`format_menu`). While an input method composes (marked text)
-/// no key is offered. Must run on the main thread after the main window exists; the monitor lives
-/// for the rest of the process.
-pub fn give_format_menu_keys_priority(app: &tauri::App, menu_title: &'static str) {
+/// no key is offered. The windows it serves are the main windows `super::track_main_window` lists
+/// (the Format menu acts on the frontmost one). Must run on the main thread; the monitor lives for
+/// the rest of the process.
+pub fn give_format_menu_keys_priority(menu_title: &'static str) {
     let Some(mtm) = MainThreadMarker::new() else {
         log::warn!("W_FORMAT_KEY_MONITOR_NOT_MAIN_THREAD");
         return;
     };
-    let main_window = app
-        .get_webview_window("main")
-        .and_then(|window| window.ns_window().ok())
-        .filter(|window| !window.is_null());
-    let Some(main_window) = main_window else {
-        log::warn!("W_FORMAT_KEY_MONITOR_NO_WINDOW");
-        return;
-    };
-    // SAFETY: `ns_window()` returns the live NSWindow of the main window
-    // (checked non-null above); the weak reference does not keep it alive.
-    let main_window: Weak<NSWindow> = Weak::new(unsafe { &*main_window.cast::<NSWindow>() });
     let block = RcBlock::new(move |event: NonNull<NSEvent>| -> *mut NSEvent {
         // SAFETY: AppKit hands the monitor a live NSEvent for the duration
         // of the call.
         let key = unsafe { event.as_ref() };
         let taken = catch_unwind(AssertUnwindSafe(|| {
-            offer_to_format_menu(mtm, &main_window, menu_title, key)
+            offer_to_format_menu(mtm, menu_title, key)
         }))
         .unwrap_or(false);
         if taken {
@@ -620,22 +607,17 @@ pub fn give_format_menu_keys_priority(app: &tauri::App, menu_title: &'static str
     std::mem::forget(block);
 }
 
-fn offer_to_format_menu(
-    mtm: MainThreadMarker,
-    main_window: &Weak<NSWindow>,
-    menu_title: &str,
-    event: &NSEvent,
-) -> bool {
+fn offer_to_format_menu(mtm: MainThreadMarker, menu_title: &str, event: &NSEvent) -> bool {
     let flags = event.modifierFlags();
-    let main_window = main_window.load();
-    let which = |window: Option<Retained<NSWindow>>| match (&window, &main_window) {
-        (None, _) => WindowIs::None,
-        (Some(window), Some(main)) if std::ptr::eq(&**window, &**main) => WindowIs::Main,
-        (Some(_), _) => WindowIs::Other,
+    let which = |window: &Option<Retained<NSWindow>>| match window {
+        None => WindowIs::None,
+        Some(window) if super::is_main_window(Retained::as_ptr(window).cast()) => WindowIs::Main,
+        Some(_) => WindowIs::Other,
     };
     let app = NSApplication::sharedApplication(mtm);
-    let event_window = which(event.window(mtm));
-    let key_window = which(app.keyWindow());
+    let key_ns_window = app.keyWindow();
+    let event_window = which(&event.window(mtm));
+    let key_window = which(&key_ns_window);
     let command = flags.contains(NSEventModifierFlags::Command);
     let control = flags.contains(NSEventModifierFlags::Control);
     let key = super::KeyDown {
@@ -644,7 +626,9 @@ fn offer_to_format_menu(
         in_main_window: event_window == WindowIs::Main,
         main_window_is_key: key_window == WindowIs::Main,
         // Asked only for keys with Command or Control, never while typing.
-        marked_text: (command || control) && main_window.as_deref().is_some_and(has_marked_text),
+        marked_text: (command || control)
+            && key_window == WindowIs::Main
+            && key_ns_window.as_deref().is_some_and(has_marked_text),
     };
     let log = |outcome: &str, menu: Option<&NSMenu>| {
         #[cfg(debug_assertions)]

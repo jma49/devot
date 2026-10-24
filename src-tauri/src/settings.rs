@@ -73,8 +73,8 @@ pub fn settings_open_data_folder(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn settings_show_backups(app: AppHandle) -> Result<(), String> {
-    let main = app
-        .get_webview_window(crate::MAIN_WINDOW)
+    let main = crate::main_windows::front_label(&app)
+        .and_then(|label| app.get_webview_window(&label))
         .ok_or_else(|| String::from("E_SETTINGS_NO_MAIN_WINDOW"))?;
     // Shown too: in menu bar mode the main window may be hidden.
     if main
@@ -85,7 +85,7 @@ pub fn settings_show_backups(app: AppHandle) -> Result<(), String> {
     {
         log::warn!("W_SETTINGS_MAIN_FOCUS_FAILED");
     }
-    app.emit_to(crate::MAIN_WINDOW, SHOW_BACKUPS_EVENT, ())
+    app.emit_to(main.label(), SHOW_BACKUPS_EVENT, ())
         .map_err(|_| String::from("E_SETTINGS_BACKUPS_FAILED"))
 }
 

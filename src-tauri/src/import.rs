@@ -764,15 +764,18 @@ pub enum Pick {
     HtmlFiles,
 }
 
-fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {
-    if app.emit_to("main", event, payload).is_err() {
+/// Sends `event` to the main window an import began in (`target`), or the frontmost one when that
+/// window is gone.
+fn emit<S: Serialize + Clone>(app: &AppHandle, target: &str, event: &str, payload: S) {
+    let label = crate::main_windows::live_or_front(app, target);
+    if app.emit_to(label, event, payload).is_err() {
         log::warn!("W_IMPORT_EVENT_FAILED");
     }
 }
 
-fn fail(app: &AppHandle, id: Option<u64>, code: &'static str) {
+fn fail(app: &AppHandle, target: &str, id: Option<u64>, code: &'static str) {
     log::warn!("W_IMPORT_FAILED {code}");
-    emit(app, FAILED_EVENT, Failed { id, code });
+    emit(app, target, FAILED_EVENT, Failed { id, code });
 }
 
 fn pick_destination(book_id: Option<String>) -> Result<Option<String>, &'static str> {
@@ -784,13 +787,22 @@ fn pick_destination(book_id: Option<String>) -> Result<Option<String>, &'static 
 
 /// A cancelled panel sends nothing, so no preset outlives it.
 #[tauri::command]
-pub fn import_pick(app: AppHandle, kind: Pick, book_id: Option<String>) -> Result<(), String> {
+pub fn import_pick(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    kind: Pick,
+    book_id: Option<String>,
+) -> Result<(), String> {
+    if !crate::main_windows::is_main(window.label()) {
+        return Err("E_MAIN_WINDOW_ONLY".into());
+    }
     let destination = pick_destination(book_id)?;
-    pick(&app, kind, destination);
+    pick(&app, kind, destination, window.label());
     Ok(())
 }
 
-pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>) {
+/// Asks for the files over the main window `target`, which hears the import's events.
+pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>, target: &str) {
     let title = match pick {
         Pick::MarkdownFiles => strings::IMPORT_MARKDOWN_FILES_TITLE,
         Pick::MarkdownFolders => strings::IMPORT_MARKDOWN_TITLE,
@@ -799,21 +811,24 @@ pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>) {
     #[cfg_attr(mobile, allow(unused_mut))]
     let mut dialog = app.dialog().file().set_title(title);
     #[cfg(desktop)]
-    if let Some(window) = app.get_webview_window("main") {
+    if let Some(window) = app.get_webview_window(target) {
         dialog = dialog.set_parent(&window);
     }
     let app = app.clone();
+    let target = target.to_owned();
     match pick {
         #[cfg(mobile)]
-        Pick::MarkdownFolders => fail(&app, None, "E_IMPORT_FOLDERS_UNSUPPORTED"),
+        Pick::MarkdownFolders => fail(&app, &target, None, "E_IMPORT_FOLDERS_UNSUPPORTED"),
         #[cfg(desktop)]
         Pick::MarkdownFolders => dialog.pick_folders(move |folders| {
             let Some(folders) = folders else { return };
             let paths: Result<Vec<PathBuf>, _> =
                 folders.into_iter().map(|f| f.into_path()).collect();
             match paths {
-                Ok(paths) if !paths.is_empty() => scan_in_background(app, paths, destination),
-                _ => fail(&app, None, "E_IMPORT_ROOT_INVALID"),
+                Ok(paths) if !paths.is_empty() => {
+                    scan_in_background(app, paths, destination, target)
+                }
+                _ => fail(&app, &target, None, "E_IMPORT_ROOT_INVALID"),
             }
         }),
         Pick::MarkdownFiles | Pick::HtmlFiles => {
@@ -824,7 +839,7 @@ pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>) {
                 let paths: Result<Vec<PathBuf>, _> =
                     files.into_iter().map(|f| f.into_path()).collect();
                 let Ok(paths) = paths else {
-                    fail(&app, None, "E_IMPORT_ROOT_INVALID");
+                    fail(&app, &target, None, "E_IMPORT_ROOT_INVALID");
                     return;
                 };
                 match pick_found(&paths, html) {
@@ -836,16 +851,21 @@ pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>) {
                             scan.files.len(),
                             scan.skipped.len()
                         );
-                        emit(&app, READY_EVENT, scan);
+                        emit(&app, &target, READY_EVENT, scan);
                     }
-                    Err(code) => fail(&app, None, code),
+                    Err(code) => fail(&app, &target, None, code),
                 }
             })
         }
     }
 }
 
-fn scan_in_background(app: AppHandle, paths: Vec<PathBuf>, destination: Option<String>) {
+fn scan_in_background(
+    app: AppHandle,
+    paths: Vec<PathBuf>,
+    destination: Option<String>,
+    target: String,
+) {
     let (id, cancelled) = app.state::<Imports>().begin();
     let name = paths
         .first()
@@ -859,6 +879,7 @@ fn scan_in_background(app: AppHandle, paths: Vec<PathBuf>, destination: Option<S
     };
     emit(
         &app,
+        &target,
         SCANNING_EVENT,
         Scanning {
             id,
@@ -867,13 +888,16 @@ fn scan_in_background(app: AppHandle, paths: Vec<PathBuf>, destination: Option<S
         },
     );
     let worker = app.clone();
+    let worker_target = target.clone();
     let spawned = std::thread::Builder::new()
         .name("devot-import-scan".into())
         .spawn(move || {
             let app = worker;
+            let target = worker_target;
             let progress = |p: Progress| {
                 emit(
                     &app,
+                    &target,
                     PROGRESS_EVENT,
                     ProgressEvent {
                         id,
@@ -897,7 +921,7 @@ fn scan_in_background(app: AppHandle, paths: Vec<PathBuf>, destination: Option<S
                             scan.images.len(),
                             scan.skipped.len()
                         );
-                        emit(&app, READY_EVENT, scan);
+                        emit(&app, &target, READY_EVENT, scan);
                     }
                     None => log::info!("I_IMPORT_SCAN_CANCELLED {id}"),
                 },
@@ -907,13 +931,13 @@ fn scan_in_background(app: AppHandle, paths: Vec<PathBuf>, destination: Option<S
                 }
                 Err(code) => {
                     imports.failed(id);
-                    fail(&app, Some(id), code);
+                    fail(&app, &target, Some(id), code);
                 }
             }
         });
     if spawned.is_err() {
         app.state::<Imports>().failed(id);
-        fail(&app, Some(id), "E_IMPORT_FAILED");
+        fail(&app, &target, Some(id), "E_IMPORT_FAILED");
     }
 }
 

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-main-windows-changed"
+description = "Enables the main_windows_changed command without any pre-configured scope."
+commands.allow = ["main_windows_changed"]
+
+[[permission]]
+identifier = "deny-main-windows-changed"
+description = "Denies the main_windows_changed command without any pre-configured scope."
+commands.deny = ["main_windows_changed"]

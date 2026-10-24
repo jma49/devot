@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, State, WebviewWindow};
+use tauri::{AppHandle, State, WebviewWindow};
 
 use routes::Call;
 use server::{Dispatch, Gate, Limits, Server};
@@ -133,7 +133,7 @@ struct WindowDispatch {
 impl Dispatch for WindowDispatch {
     fn dispatch(&self, call: &Call) -> Result<Value, String> {
         self.answers.ask(call, ANSWER_TIMEOUT, |request| {
-            self.app.emit_to(crate::MAIN_WINDOW, EVENT, request).is_ok()
+            crate::main_windows::emit_front(&self.app, EVENT, request).is_ok()
         })
     }
 }
@@ -379,7 +379,7 @@ pub fn http_api_done(
     result: Option<Value>,
     error: Option<String>,
 ) -> Result<(), String> {
-    if window.label() != crate::MAIN_WINDOW {
+    if !crate::main_windows::is_main(window.label()) {
         return Err("E_HTTP_API_WINDOW".into());
     }
     if api.answer(id, result, error) {

@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Permissions for the main window. Add a command here only when the UI needs it.",
-  "windows": ["main"],
+  "description": "Permissions for the main windows: `main` and the ones File > New Window opens (`main-<n>`), which are all the same. Add a command here only when the UI needs it.",
+  "windows": ["main", "main-*"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
@@ -102,6 +102,10 @@
     "allow-quick-capture-done",
     "allow-http-api-done",
     "allow-note-window-open",
+    "allow-note-window-close-ready",
+    "allow-note-window-close-cancel",
+    "allow-main-window-new",
+    "allow-main-windows-changed",
     "allow-note-relay-send"
   ]
 }
