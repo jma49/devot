@@ -143,7 +143,7 @@ test('a command reads and replaces the open note, as one step Undo takes back', 
   await expect(body(page)).toHaveText('HELLO WORLD')
   await expect.poll(async () => (await savedNotes(page))[0]?.bodyMd).toBe('HELLO WORLD')
   await body(page).click()
-  await page.keyboard.press('Meta+KeyZ')
+  await page.keyboard.press('ControlOrMeta+z')
   await expect(body(page)).toHaveText('hello world')
 })
 
