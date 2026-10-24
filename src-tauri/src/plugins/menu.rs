@@ -8,7 +8,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::menu::{MenuItem, Submenu};
-use tauri::{AppHandle, Emitter, Manager, Wry};
+use tauri::{AppHandle, Manager, Wry};
 
 pub const ACTION_EVENT: &str = "devot://plugin-action";
 pub const SETTINGS_ID: &str = "devot.plugins.settings";
