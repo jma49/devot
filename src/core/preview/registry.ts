@@ -6,6 +6,9 @@ import type { TaskProgress } from '../tasks'
 
 export const PREVIEW_API_VERSION = 1
 
+/** Properties carrying an offset into the note's Markdown. */
+export const PIECE_OFFSET_PROPERTIES = ['dataTaskAt', 'dataImageFrom', 'dataImageTo'] as const
+
 export interface PreviewLabels {
   alerts: Record<AlertKind, string>
   embedFrom: string
@@ -33,6 +36,8 @@ export interface PreviewOptions {
   loadedEmbeds: readonly string[]
   /** Without it (exported pages) note links stay plain links; a link to a note missing here is a broken link. */
   noteLinks?: Readonly<Record<string, NoteLinkTarget>>
+  /** Changes when plugins' renderers do, so pieces rendered before are rendered again. */
+  pluginRenderers?: number
 }
 
 export interface PreviewContext extends PreviewOptions {

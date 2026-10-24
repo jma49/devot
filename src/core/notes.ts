@@ -191,6 +191,12 @@ export interface NoteService {
     id: string,
     edit: { from: number; original: string; replacement: string },
   ): Promise<Uint8Array>
+  /**
+   * A plugin's edit of the note (ADR 0005): `markdown` replaces the body, applied as Yjs operations (see textEdits), when the body is still
+   * `base`, the text the plugin read (else E_PLUGIN_NOTE_CHANGED). The text before is kept as a version. Returns the Yjs update, for the
+   * editor's replica to apply as one undoable step.
+   */
+  applyPluginEdit(id: string, edit: { base: string; markdown: string }): Promise<Uint8Array>
   /** Pending edits are saved and unversioned typing becomes a version, so it counts. */
   activity(now: number, offsetAt?: OffsetAt): Promise<ActivityHeatmap>
   /**
@@ -1439,6 +1445,23 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           note.doc.off('update', collect)
         }
         takeVersion(note, AI_EDIT)
+        await revisionWork
+        return Y.mergeUpdates(updates)
+      }),
+
+    applyPluginEdit: (id, { base, markdown }) =>
+      using(id, async (note) => {
+        if (note.doc.getText(BODY).toString() !== base) throw new Error('E_PLUGIN_NOTE_CHANGED')
+        takeVersion(note)
+        const updates: Uint8Array[] = []
+        const collect = (update: Uint8Array) => updates.push(update)
+        note.doc.on('update', collect)
+        try {
+          replaceBody(note, lineFeeds(markdown))
+        } finally {
+          note.doc.off('update', collect)
+        }
+        takeVersion(note)
         await revisionWork
         return Y.mergeUpdates(updates)
       }),

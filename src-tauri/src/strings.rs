@@ -168,3 +168,13 @@ pub const CLI_EXPORT_FAILED: &str = "export failed ({code})";
 pub const CLI_INSTALL_PROMPT: &str = "Devot wants to install the devot command in /usr/local/bin.";
 pub const CLI_UNINSTALL_PROMPT: &str =
     "Devot wants to remove the devot command from /usr/local/bin.";
+
+pub const UNTITLED: &str = "Untitled";
+pub const MENU_PLUGINS: &str = "Plugins";
+pub const PLUGIN_SETTINGS: &str = "Plugin Settings…";
+pub const PLUGIN_INSTALL_TITLE: &str = "Install a Plugin";
+pub const PLUGIN_ARCHIVE_FILTER: &str = "Plugin Archives";
+pub const PLUGIN_IMPORT_TITLE: &str = "Import Files";
+pub const PLUGIN_EXPORT_TITLE: &str = "Export Note";
+/// File > Export's item for a plugin's format: the note, as the format's title.
+pub const PLUGIN_EXPORT_NOTE: &str = "Note as {title}…";

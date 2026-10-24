@@ -151,6 +151,14 @@ fn main() {
             "cli_export_source",
             "cli_export_finish",
             "cli_export_fail",
+            "plugins_list",
+            "plugin_install_pick",
+            "plugin_install_confirm",
+            "plugin_install_cancel",
+            "plugin_set_enabled",
+            "plugin_remove",
+            "plugin_import_pick",
+            "plugin_export_save",
         ]),
     ))
     .expect("E_TAURI_BUILD");

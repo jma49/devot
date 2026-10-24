@@ -89,6 +89,7 @@
     "settings.configFile": "doc.text",
     "settings.json": "curlybraces",
     "settings.usage": "chart.bar",
+    "settings.plugins": "puzzlepiece",
     "slash.heading": "textformat",
     "slash.rule": "minus",
     "slash.imageFile": "photo",

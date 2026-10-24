@@ -407,25 +407,36 @@ fn rename_exclusive(
 
 /// A new empty file claims the name first, made as a temporary file is, then the rename goes over
 /// that claim; when the rename fails the claim goes again. Only something put over the claim in the
-/// instant between could be replaced.
+/// instant between could be replaced. A folder claims it with an empty folder, since a folder can
+/// replace only that.
 fn claim_and_rename(
     from_dir: &Folder,
     from: &OsStr,
     to_dir: &Folder,
     to: &OsStr,
 ) -> io::Result<()> {
-    let claim = create_new(to_dir, to)?;
-    let claimed = rustix::fs::fstat(&claim)
-        .ok()
-        .map(|stat| Entry::of(&stat).id);
-    drop(claim);
+    let folder = from_dir.entry(from)?.kind == Kind::Folder;
+    let claimed = if folder {
+        to_dir.make_folder(to)?;
+        to_dir.entry(to).ok().map(|entry| entry.id)
+    } else {
+        let claim = create_new(to_dir, to)?;
+        rustix::fs::fstat(&claim)
+            .ok()
+            .map(|stat| Entry::of(&stat).id)
+    };
     rustix::fs::renameat(&*from_dir.fd, from, &*to_dir.fd, to)
         .map_err(io::Error::from)
         .inspect_err(|_| {
             // Only the claim itself: never what may have replaced it.
             let there = to_dir.entry(to).ok().map(|entry| entry.id);
             if claimed.is_some() && there == claimed {
-                let _ = to_dir.remove_file(to);
+                let _ = if folder {
+                    rustix::fs::unlinkat(&*to_dir.fd, to, AtFlags::REMOVEDIR)
+                        .map_err(io::Error::from)
+                } else {
+                    to_dir.remove_file(to)
+                };
             }
         })
 }
@@ -1367,6 +1378,33 @@ mod tests {
         );
         folder.remove_folder("Folder").unwrap();
         assert_eq!(names(dir.path()), ["File.md", "Hard.md", "Linked"]);
+    }
+
+    /// Off APFS (and off macOS) a folder takes a new name through a claim too: an empty folder, which
+    /// the rename replaces, so it is never refused for the claim's kind.
+    #[test]
+    fn claims_a_new_name_for_a_folder_with_a_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let here = Folder::open(dir.path()).unwrap();
+        fs::create_dir(dir.path().join("new")).unwrap();
+        fs::write(dir.path().join("new/a.js"), b"a").unwrap();
+        fs::create_dir(dir.path().join("taken")).unwrap();
+        fs::write(dir.path().join("file"), b"f").unwrap();
+        let claim =
+            |from: &str, to: &str| claim_and_rename(&here, OsStr::new(from), &here, OsStr::new(to));
+        for to in ["taken", "file"] {
+            assert_eq!(
+                kind_of(claim("new", to)),
+                Err(io::ErrorKind::AlreadyExists),
+                "{to}"
+            );
+        }
+        claim("new", "placed").unwrap();
+        assert_eq!(fs::read(dir.path().join("placed/a.js")).unwrap(), b"a");
+        assert!(fs::symlink_metadata(dir.path().join("new")).is_err());
+        assert_eq!(kind_of(claim("new", "again")), Err(io::ErrorKind::NotFound));
+        assert!(fs::symlink_metadata(dir.path().join("again")).is_err());
+        assert_eq!(names(dir.path()), ["file", "placed", "taken"]);
     }
 
     /// The move a new name gets on APFS: one step that fails on any name

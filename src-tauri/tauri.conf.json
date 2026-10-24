@@ -36,7 +36,7 @@
         "img-src": "'self' data: blob: devot: https:",
         "font-src": "'self'",
         "connect-src": "'self' ipc: http://ipc.localhost https://*.ingest.us.sentry.io",
-        "frame-src": "'self' https:",
+        "frame-src": "'self' https: devot-plugin:",
         "object-src": "'none'",
         "base-uri": "'none'",
         "form-action": "'none'"
@@ -48,7 +48,7 @@
         "img-src": "'self' data: blob: devot: https:",
         "font-src": "'self'",
         "connect-src": "'self' ipc: http://ipc.localhost http://localhost:5173 ws://localhost:5173",
-        "frame-src": "'self' https:",
+        "frame-src": "'self' https: devot-plugin:",
         "object-src": "'none'",
         "base-uri": "'none'",
         "form-action": "'none'"

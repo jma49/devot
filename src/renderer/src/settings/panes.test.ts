@@ -63,6 +63,7 @@ describe('navigation keys', () => {
       'sync',
       'ai',
       'integrations',
+      'plugins',
       'usage',
     ])
   })
