@@ -40,7 +40,7 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 | `pnpm deps:audit`               | `pnpm audit` for known vulnerabilities in the npm dependencies (high and above)           |
 | `pnpm lint`                     | oxlint, including the architecture boundary rules                                         |
 | `pnpm format`                   | oxfmt                                                                                     |
-| `pnpm typecheck`                | TypeScript for tooling, tests, the core and the UI                                        |
+| `pnpm typecheck`                | TypeScript for tooling, tests, the core, the UI and the sync relay                        |
 
 ### smoke:quit
 
@@ -85,6 +85,7 @@ Stack only changes that depend on each other: the same tokens, the same styleshe
 | `src/core`               | Core library: plain TypeScript, no Tauri, no Node built-ins   |
 | `src/mcp`                | devot-mcp (Node): the MCP tools and the better-sqlite3 store  |
 | `src-tauri`              | Rust app: commands, storage, native macOS code (`src/native`) |
+| `relay`                  | Sync relay, deployed on its own (`docs/sync-relay.md`)        |
 | `src-tauri/capabilities` | Which window may call which command                           |
 | `tests`                  | Security tests (Vitest) and UI tests (Playwright)             |
 | `design`                 | Design tokens, the icon map and the app icon source           |

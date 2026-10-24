@@ -4,11 +4,12 @@ name: CI
 # not run it again: every change reaches main through a PR that passed here.
 #
 # A pull request runs only the jobs its files need (scripts/ci/changed-code.sh):
-# documentation and the icon sources need no build, changes under src-tauri/
-# need the Rust job (tauri.conf.json, whose CSP the UI tests use, needs both),
-# anything else needs both. When the web jobs are not needed, the `policy` job
-# runs the formatting check and all of Vitest, whose tests also read the
-# documentation, the Rust sources, migrations and capabilities.
+# documentation, the icon sources and the sync relay (relay/) need no build,
+# changes under src-tauri/ need the Rust job (tauri.conf.json, whose CSP the UI
+# tests use, needs both), anything else needs both. When the web jobs are not
+# needed, the `policy` job runs the formatting check, lint, the type check and
+# all of Vitest, whose tests also read the documentation, the Rust sources,
+# migrations and capabilities, and run the relay on both of its hosts.
 #
 # Every job runs unless the change detection said `false` for it, so missing
 # outputs run everything rather than nothing.
@@ -52,8 +53,8 @@ jobs:
             printf 'web=true\nrust=true\n' >> "$GITHUB_OUTPUT"
           fi
 
-  # Pull requests without web changes: the checks that read the docs and the
-  # Rust side, which the web jobs would otherwise run.
+  # Pull requests without web changes: the checks that read the docs, the
+  # Rust side and the relay, which the web jobs would otherwise run.
   policy:
     needs: changes
     if: needs.changes.outputs.web != 'true'
@@ -68,6 +69,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
       - run: pnpm test
 
   # The quick web checks: dependencies, tokens, formatting, lint, types, Vitest.

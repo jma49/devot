@@ -1,0 +1,15 @@
+# Devot sync relay on the owner's own Cloudflare account (docs/sync-relay.md).
+# Rename the Worker if you like; keep the binding, the class and the migration.
+name = "devot-relay"
+main = "src/worker.ts"
+compatibility_date = "2026-07-30"
+workers_dev = true
+
+[[durable_objects.bindings]]
+name = "VAULTS"
+class_name = "VaultObject"
+
+# SQLite storage: the only Durable Object storage on the Workers Free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["VaultObject"]

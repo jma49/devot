@@ -1,7 +1,14 @@
+packages:
+  - relay
+
 allowBuilds:
   esbuild: true
   lefthook: true
   better-sqlite3: true
+  # workerd runs the relay's Durable Object in tests (Miniflare); its binary
+  # comes from the platform package, the install script only checks it.
+  workerd: false
+  sharp: false
   # Its binary comes from the platform package (@sentry/cli-darwin and the
   # like); the install script would only download it again.
   '@sentry/cli': false
@@ -10,10 +17,12 @@ allowBuilds:
 # Devot, which renders math with temml); keep it on a patched release.
 overrides:
   katex: ^0.18.2
-  # Patched releases of express and @sentry/cli dependencies, not yet picked up by
-  # @modelcontextprotocol/sdk and @sentry/cli.
+  # Patched releases of express, @sentry/cli and miniflare dependencies, not yet
+  # picked up by @modelcontextprotocol/sdk, @sentry/cli and miniflare.
   body-parser: ^2.4.0
-  undici: ^6.29.1
+  '@sentry/cli>undici': ^6.29.1
+  'miniflare>undici': ^7.30.1
+  'miniflare>sharp': ^0.35.5
 
 patchedDependencies:
   hast-util-minify-whitespace@1.0.1: patches/hast-util-minify-whitespace@1.0.1.patch

@@ -8,6 +8,7 @@
   "include": [
     "src/core",
     "src/mcp",
+    "relay/src/node",
     "tests",
     "scripts",
     "vite.config.ts",
