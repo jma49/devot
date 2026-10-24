@@ -116,6 +116,16 @@ describe('textEdits', () => {
     expect(edit).toEqual({ start: 2, end: 4, text: '\u{1F601}' })
   })
 
+  it("replaces the changed middle whole past the line diff's work limit", () => {
+    const lines = (tag: string) =>
+      Array.from({ length: 3000 }, (_, i) => `keep ${i}\n${tag} ${i}\n`).join('')
+    const from = `top\n${lines('old')}bottom\n`
+    const to = `top\n${lines('new')}bottom\n`
+    const edits = textEdits(from, to)
+    expect(edits).toHaveLength(1)
+    expect(replaceRanges(from, edits)).toBe(to)
+  })
+
   it('turns the first text into the second', () => {
     const text = fc
       .array(fc.constantFrom('a', 'b', '\n', '\u{1F600}', 'cd\n'), { maxLength: 30 })

@@ -367,6 +367,16 @@ describe('first-launch notes', () => {
     expect(await merged(a, b, id)).toBe(ends(typedElsewhere(BASE)))
   })
 
+  it('take later edits under a client of the device, not the seed', async () => {
+    const a = device('a1')
+    const b = device('b1')
+    const [first] = content.notes
+    for (const d of [a, b]) await d.notes.seed(first!.id, first!.title, null, BASE)
+    await a.notes.setBody(first!.id, ends(BASE))
+    await b.notes.setBody(first!.id, typedElsewhere(BASE))
+    expect(await merged(a, b, first!.id)).toBe(ends(typedElsewhere(BASE)))
+  })
+
   it('seeded from another text keep each text whole', async () => {
     const a = device('a1')
     const b = device('b1')
