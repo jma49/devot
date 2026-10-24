@@ -41,7 +41,7 @@ import {
 import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
 import { BackupNotice } from './BackupNotice'
 import { SyncNotice } from './SyncNotice'
-import { runSync, startSyncStatus, useSyncSnapshot } from './sync'
+import { runSync, runsSync, startSyncStatus, useSyncSnapshot } from './sync'
 import { Notices } from './Notices'
 import { SearchIndexNotice } from './SearchIndexNotice'
 import { REBUILD_SEARCH_INDEX, rebuildSearchIndex, type RebuildState } from './searchIndex'
@@ -483,8 +483,6 @@ export function App() {
   const [backupNotice, setBackupNotice] = useState<string>()
   const syncSnapshot = useSyncSnapshot()
   useEffect(() => startSyncStatus(), [])
-  // The engine needs Rust's storage and socket, which the UI tests' build does not have.
-  useEffect(() => (core && !DEVOT_UI_TEST ? runSync(core) : undefined), [core])
   const [indexState, setIndexState] = useState<RebuildState>()
   const indexRunning = useRef(false)
   const [changeNotice, setChangeNotice] = useState<string>()
@@ -533,6 +531,11 @@ export function App() {
   // `main` hosts what runs once (the mirror, compaction); a window File > New Window opened does not (mainWindows.ts).
   const [label] = useState(currentWindowLabel)
   const primary = !isSecondaryLabel(label)
+  // The engine needs Rust's storage and socket, which the UI tests' build does not have.
+  useEffect(
+    () => (core && runsSync(label) && !DEVOT_UI_TEST ? runSync(core) : undefined),
+    [core, label],
+  )
   // What this window's core says to the other windows, and hears from them (noteRelay.ts).
   const [relay] = useState(() => ({ link: relayLink(label), gate: relayGate(false) }))
   const [lists] = useState(() => {
