@@ -36,57 +36,6 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 
 ## Features
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-1-dark.webp">
-        <img src="docs/images/card-1.webp" alt="The Settings window over the main window, switching the theme from Tide to Dawn, Sage and back to Tide.">
-      </picture>
-      <br><sub>Themes</sub>
-    </td>
-    <td align="center" width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-2-dark.webp">
-        <img src="docs/images/card-2.webp" alt="Focus Mode hiding the note list so only the note is left, then bringing it back.">
-      </picture>
-      <br><sub>Focus Mode</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-3-dark.webp">
-        <img src="docs/images/card-3.webp" alt="A Markdown table growing a new row as Tab moves between its cells.">
-      </picture>
-      <br><sub>Tables you edit with Tab</sub>
-    </td>
-    <td align="center" width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-4-dark.webp">
-        <img src="docs/images/card-4.webp" alt="The command palette narrowing to Set Status to Completed and setting the note to Completed.">
-      </picture>
-      <br><sub>Command palette</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-5-dark.webp">
-        <img src="docs/images/card-5.webp" alt="Revision History comparing the earliest version with the note, restoring it, then undoing the restore.">
-      </picture>
-      <br><sub>Revision History</sub>
-    </td>
-    <td align="center" width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/images/card-6-dark.webp">
-        <img src="docs/images/card-6.webp" alt="A new note made from the Daily standup template, with the date and time filled in.">
-      </picture>
-      <br><sub>Notes from templates</sub>
-    </td>
-  </tr>
-</table>
-
 **Organise**
 
 <p align="center">
@@ -154,6 +103,30 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 **Work with AI, on your terms**
 
 - devot-mcp lets Claude and other MCP clients search, read, create, edit and trash notes, only in notebooks you allow (below).
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/cards-1-dark.webp">
+    <img src="docs/images/cards-1.webp" alt="Themes switching between Tide, Dawn and Sage, beside Focus Mode hiding the note list and bringing it back." width="100%">
+  </picture>
+  <br><sub>Themes · Focus Mode</sub>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/cards-2-dark.webp">
+    <img src="docs/images/cards-2.webp" alt="Tab moving between the cells of a Markdown table and adding a row, beside the command palette setting a note to Completed." width="100%">
+  </picture>
+  <br><sub>Tables you edit with Tab · Command palette</sub>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/cards-3-dark.webp">
+    <img src="docs/images/cards-3.webp" alt="Revision History restoring the earliest version of a note and undoing the restore, beside a new note made from the Daily standup template." width="100%">
+  </picture>
+  <br><sub>Revision History · Templates</sub>
+</p>
 
 ## Markdown mirror
 

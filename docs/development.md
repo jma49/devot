@@ -92,14 +92,26 @@ Stack only changes that depend on each other: the same tokens, the same styleshe
 
 ## README clips
 
-The animated WebP files in `docs/images/` are the website's recordings of the real app. The website repo's media pipeline ([jma49/devot-site](https://github.com/jma49/devot-site)) records them; the README versions are converted from its 2x frames at 15 frames per second, 1280 px wide for the hero and 800 px for the rest, then encoded as lossy, looping WebP:
+The animated WebP files in `docs/images/` are the website's recordings of the real app. The website repo's media pipeline ([jma49/devot-site](https://github.com/jma49/devot-site)) records them; the README versions are converted from its 2x frames at 15 frames per second (1280 px wide for the hero, 800 px for Write, Organise and Find) as lossy, looping WebP:
 
 ```sh
 ffmpeg -framerate 30 -i frames/%05d.png -vf "fps=15,scale=800:-2:flags=lanczos" tmp/%04d.png
 img2webp -loop 0 -lossy -q 90 -m 6 -d 67 tmp/*.png -o docs/images/write.webp
 ```
 
-Each file stays under 2.5 MB; `tests/policy/readme-images.test.ts` checks that every image the README references exists and fits.
+The three `cards-N` rows each pair two clips at the same height (656 px) on a transparent 1600 px canvas, 24 px apart, with 16 px rounded corners. The shorter clip holds its last frame (`tpad=stop_mode=clone`) until the longer one ends. Both are scaled, rounded with `geq` on the alpha channel, padded and overlaid in one filter graph:
+
+```sh
+ffmpeg -framerate 30 -i wide/%05d.png -framerate 30 -i narrow/%05d.png \
+  -f lavfi -i "color=c=black@0:s=1600x656,format=rgba" -filter_complex \
+  "[0:v]fps=15,scale=1050:656,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='255*clip(16.5-hypot(max(0,max(16-X,X-(W-17))),max(0,max(16-Y,Y-(H-17)))),0,1)',tpad=stop_mode=clone:stop=N[a];
+   [1:v]fps=15,scale=525:656,format=rgba,geq=...same...,tpad=stop_mode=clone:stop=N[b];
+   [2:v][a]overlay=0:0:format=auto[c];[c][b]overlay=1074:0:format=auto,format=rgba[o]" \
+  -map "[o]" -frames:v N tmp/%04d.png
+img2webp -loop 0 -lossy -q 90 -m 6 -d 67 tmp/*.png -o docs/images/cards-1.webp
+```
+
+`N` is the frame count of the longer clip at 15 fps. Each file stays under 2.5 MB; `tests/policy/readme-images.test.ts` checks that every image the README references exists and fits.
 
 ## Crash reporting in local builds
 
