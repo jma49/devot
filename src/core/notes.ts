@@ -10,10 +10,11 @@
 import * as Y from 'yjs'
 import { loadActivity, type ActivityHeatmap, type OffsetAt } from './activity'
 import { TEMPLATES_BOOK_ID } from './books'
-import { foldUnchanged, lineDiff, type DiffBlock } from './diff'
+import { foldUnchanged, lineDiff, textEdits, type DiffBlock } from './diff'
 import { errorCode } from './errors'
 import { headline, listExcerpt, taskProgress } from './extract'
 import { receiveStored, type Clock } from './hlc'
+import { sha256Hex } from './sha256'
 import {
   BASELINE,
   COMPACT_BATCH,
@@ -53,7 +54,7 @@ import { findBacklinks } from './links'
 import type { NoteLinkTarget } from './preview/registry'
 import { fileLinkSpans, newFileCopies, replaceFileLinks, type FileCopy } from './files'
 import { clipTitle, MAX_TITLE_CHARS } from './noteLimits'
-import { lineFeeds, textDiff } from './text'
+import { lineFeeds } from './text'
 
 const MAX_LINK_TARGETS = 500
 
@@ -98,6 +99,8 @@ export interface NoteServiceOptions {
 export interface NoteService {
   list(limit?: number): Promise<NoteSummary[]>
   create(title?: string, bookId?: string | null): Promise<string>
+  /** Makes note `id` holding `markdown` as a Yjs state every device builds byte for byte alike, so copies seeded on two devices merge as one (first-launch notes). */
+  seed(id: string, title: string, bookId: string | null, markdown: string): Promise<void>
   open(id: string, known?: Uint8Array): Promise<OpenedNote>
   /** Pending edits included; loads the note for an editor to open next. Throws E_NOTE_NOT_FOUND. */
   title(id: string): Promise<string>
@@ -125,7 +128,7 @@ export interface NoteService {
   insertAt(id: string, anchor: Uint8Array | null, markdown: string): Promise<void>
   /** Fills from a template on the live text so typing meanwhile stays: `title` only while none is set, `markdown` after the body. */
   fill(id: string, content: { title: string; markdown: string }): Promise<void>
-  /** Applies the text difference as Yjs operations, never by writing the snapshot. */
+  /** Applies the text difference as Yjs operations (see textEdits), never by writing the snapshot. */
   setBody(id: string, markdown: string): Promise<void>
   /** On a failed save the note is dropped anyway and the error thrown: the caller (import, devot-mcp) undoes or reports it. */
   release(id: string): Promise<void>
@@ -312,6 +315,10 @@ const byNote = (versions: readonly CompactableVersion[]) => {
 }
 
 const codeOf = (error: unknown) => errorCode(error, 'E_STORAGE_WRITE_FAILED')
+
+/** The same for the same note and text, so their states are equal; another text gets another client, so two seeds never give two changes one ID. */
+const seedClient = (id: string, markdown: string) =>
+  Number.parseInt(sha256Hex(`${id}\n${lineFeeds(markdown)}`).slice(0, 8), 16)
 
 const textOf = (state: Uint8Array) => {
   const doc = new Y.Doc()
@@ -763,12 +770,15 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
   const replaceBody = (note: Live, markdown: string) => {
     const text = note.doc.getText(BODY)
-    const diff = textDiff(text.toString(), markdown)
-    if (diff.remove === 0 && diff.insert === '') return
+    const edits = textEdits(text.toString(), markdown)
+    if (edits.length === 0) return
     editBody(note, () =>
       note.doc.transact(() => {
-        if (diff.remove > 0) text.delete(diff.index, diff.remove)
-        if (diff.insert) text.insert(diff.index, diff.insert)
+        // From the end, so the offsets still ahead stay right.
+        for (const edit of edits.reverse()) {
+          if (edit.end > edit.start) text.delete(edit.start, edit.end - edit.start)
+          if (edit.text) text.insert(edit.start, edit.text)
+        }
       }),
     )
     schedule(note)
@@ -840,10 +850,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     doc: Y.Doc,
     copies: readonly FileCopy[],
     status: NoteStatus = 'none',
+    id = newId(),
   ) => {
     const at = now()
     const record: NoteRecord = {
-      id: newId(),
+      id,
       title: clipTitle(title),
       titleHlc: clock.tick(),
       bodyMd: doc.getText(BODY).toString(),
@@ -860,7 +871,6 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       deletedAt: null,
       deletedHlc: null,
     }
-    const { id } = record
     await storage.putNote(record)
     live.set(id, liveNote(asWritten(record), doc, false))
     trim()
@@ -910,6 +920,16 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       live.set(record.id, liveNote(asWritten(record), doc, true))
       trim()
       return record.id
+    },
+
+    async seed(id, title, bookId, markdown) {
+      const seeded = new Y.Doc()
+      seeded.clientID = seedClient(id, markdown)
+      seeded.getText(BODY).insert(0, lineFeeds(markdown))
+      // Edits go on under a client of this device's own: two devices writing as the seed's client would give two changes one ID.
+      const doc = new Y.Doc()
+      Y.applyUpdate(doc, Y.encodeStateAsUpdate(seeded))
+      await insertNote(title, await liveBook(bookId), doc, [], 'none', id)
     },
 
     duplicate: (id, copy) =>
