@@ -110,6 +110,25 @@ function messageBytes(data: Outgoing): number {
   return data.length * 3 <= LIMITS.maxMessageBytes ? data.length : encoder.encode(data).length
 }
 
+function peekRid(data: Outgoing): number | undefined {
+  if (messageBytes(data) > LIMITS.maxMessageBytes) return undefined
+  try {
+    const rid = decodeFrame(data).message['rid']
+    return isCount(rid) ? rid : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function revokedClose(device: string): NonNullable<Outcome['close']> {
+  return {
+    device,
+    code: CLOSE.revoked,
+    reason: 'E_SYNC_REVOKED',
+    notice: encodeFrame({ type: 'error', code: 'E_SYNC_REVOKED' }),
+  }
+}
+
 interface Delta {
   rows?: number
   messages?: number
@@ -218,26 +237,35 @@ export class VaultRelay {
     return encodeFrame({ type: 'welcome', time: this.now(), epoch, seq: this.head(), device })
   }
 
+  /** Messages refused before dispatch (rate, revoked device, malformed) cost no write of their own. */
   receive(device: string, data: Outgoing): Outcome {
+    const wait = this.limiter.take(device, this.now())
     let rid: number | undefined
     try {
+      if (wait > 0) {
+        this.pending.messages++
+        return {
+          reply: encodeFrame({
+            type: 'error',
+            rid: peekRid(data),
+            code: 'E_SYNC_RATE',
+            retryAfter: wait,
+          }),
+        }
+      }
+      // The host's close of a revoked device's sockets is not immediate: refuse what still arrives.
+      if (this.sql.all('SELECT 1 AS x FROM devices WHERE id = ?', device).length === 0) {
+        this.pending.messages++
+        return { close: revokedClose(device) }
+      }
       if (messageBytes(data) > LIMITS.maxMessageBytes) throw new ProtocolError('E_SYNC_TOO_LARGE')
       const { message, payload } = decodeFrame(data)
       if (isCount(message['rid'])) rid = message['rid']
-      const wait = this.limiter.take(device, this.now())
-      if (wait > 0) {
-        this.pending.messages++
-        return { reply: encodeFrame({ type: 'error', rid, code: 'E_SYNC_RATE', retryAfter: wait }) }
-      }
       return this.dispatch(device, rid, message, payload)
     } catch (error) {
       const code = error instanceof ProtocolError ? error.code : 'E_SYNC_INTERNAL'
       if (code === 'E_SYNC_INTERNAL') this.log(`E_SYNC_INTERNAL vault=${this.vault}`)
-      try {
-        this.count({ messages: 1 })
-      } catch {
-        this.pending.messages++
-      }
+      this.pending.messages++
       return { reply: encodeFrame({ type: 'error', rid, code }) }
     }
   }
@@ -383,12 +411,7 @@ export class VaultRelay {
     if (rows === 0) return { reply: encodeFrame({ type: 'error', rid, code: 'E_SYNC_NO_DEVICE' }) }
     return {
       reply: encodeFrame({ type: 'revoked', rid, device: target }),
-      close: {
-        device: target,
-        code: CLOSE.revoked,
-        reason: 'E_SYNC_REVOKED',
-        notice: encodeFrame({ type: 'error', code: 'E_SYNC_REVOKED' }),
-      },
+      close: revokedClose(target),
     }
   }
 

@@ -408,6 +408,14 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
         // The notice comes before the close: a client stops on it. (workerd may end the closed
         // connection only once the object idles, so the suite does not wait for that here.)
         expect((await phoneSocket.socket.expect('error')).message['code']).toBe('E_SYNC_REVOKED')
+        // Whatever still reaches the relay on the revoked socket is refused.
+        phoneSocket.socket.send(
+          { type: 'push', id: 'late', base: 0, kind: 'record', chunks: [1] },
+          [bytes(1, 9)],
+        )
+        phoneSocket.socket.send({ type: 'revoke', device: vault.first.device })
+        mac.socket.send({ type: 'pull', since: 0 })
+        expect((await mac.socket.expect('records')).message['records']).toEqual([])
         const refused = await TestSocket.open(
           socketUrl(host, vault.vault),
           socketProtocols(phone.token),

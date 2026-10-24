@@ -109,7 +109,11 @@ export class VaultObject extends DurableObject<Env> {
     if (outcome.close) {
       for (const ws of this.ctx.getWebSockets(outcome.close.device)) {
         trySend(ws, outcome.close.notice)
-        ws.close(outcome.close.code, outcome.close.reason)
+        try {
+          ws.close(outcome.close.code, outcome.close.reason)
+        } catch {
+          // Closed already: a revoked device's socket that kept sending.
+        }
       }
     }
   }
