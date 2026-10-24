@@ -1,6 +1,7 @@
 // Desktop-only commands leave their helpers unused on a phone.
 #![cfg_attr(mobile, allow(dead_code))]
 
+mod ai;
 mod atomic_file;
 mod backups;
 #[cfg(test)]
@@ -117,6 +118,11 @@ pub fn run() {
             exit::app_exit_ready,
             exit::app_exit_cancel,
             external::open_external,
+            ai::ai_generate,
+            ai::ai_settings_get,
+            ai::ai_settings_set,
+            ai::ai_key_set,
+            ai::ai_key_clear,
             link_info::link_title,
             link_info::github_snippet,
             #[cfg(desktop)]
@@ -246,6 +252,10 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     let editor_settings = editor_settings.with_default_paper(native::macos::system_paper);
     let editor_settings = std::sync::Arc::new(editor_settings);
     app.manage(std::sync::Arc::clone(&editor_settings));
+    app.manage(std::sync::Arc::new(ai::Ai::new(
+        ai::settings::SettingsStore::new(&data_dir.join(ai::settings::FILE)),
+        std::sync::Arc::new(ai::keychain::Keychain::new(&app.config().identifier)),
+    )));
     app.manage(std::sync::Arc::new(fonts::Fonts::new(data_dir)));
     app.manage(std::sync::Arc::new(
         keyboard_shortcuts::KeyboardShortcutsStore::new(&data_dir.join(keyboard_shortcuts::FILE)),

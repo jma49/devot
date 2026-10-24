@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-key-clear"
+description = "Enables the ai_key_clear command without any pre-configured scope."
+commands.allow = ["ai_key_clear"]
+
+[[permission]]
+identifier = "deny-ai-key-clear"
+description = "Denies the ai_key_clear command without any pre-configured scope."
+commands.deny = ["ai_key_clear"]

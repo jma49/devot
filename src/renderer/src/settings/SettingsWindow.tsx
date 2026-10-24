@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Icon } from '../icons/Icon'
 import { t } from '../i18n'
+import { AiSection } from './AiSection'
 import { AppearanceSection } from './AppearanceSection'
 import { EditingSection } from './EditingSection'
 import { GeneralSection } from './GeneralSection'
@@ -18,6 +19,7 @@ const SECTIONS: Readonly<Record<PaneId, () => React.JSX.Element>> = {
   appearance: AppearanceSection,
   keyboard: KeyboardSection,
   mirror: MirrorSection,
+  ai: AiSection,
   integrations: IntegrationsSection,
   usage: UsageSection,
 }

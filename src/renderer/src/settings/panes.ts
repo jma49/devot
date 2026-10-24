@@ -12,6 +12,7 @@ export const PANES = [
   'appearance',
   'keyboard',
   'mirror',
+  'ai',
   'integrations',
   'usage',
 ] as const
@@ -24,6 +25,7 @@ export const PANE_TABS: Readonly<Record<PaneId, { label: MessageKey; icon: IconN
   appearance: { label: 'settings.pane.appearance', icon: 'settings.appearance' },
   keyboard: { label: 'settings.pane.keyboard', icon: 'settings.keyboard' },
   mirror: { label: 'settings.pane.mirror', icon: 'settings.mirror' },
+  ai: { label: 'settings.pane.ai', icon: 'settings.ai' },
   integrations: { label: 'settings.pane.integrations', icon: 'settings.integrations' },
   usage: { label: 'settings.pane.usage', icon: 'settings.usage' },
 }

@@ -59,6 +59,10 @@ tauri-plugin-deep-link = "2"
 # on (`menu_bar`); no window is granted the plugin's commands.
 tauri-plugin-global-shortcut = "2"
 
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+# Provider keys (src/ai/keychain.rs). Already in the tree through native-tls.
+security-framework = "3"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 # Native crash reports (DSN builds only): the exception handler in the app,
 # the Mach IPC that hands a crash to the reporter process, the minidump

@@ -180,6 +180,7 @@ export const LUCIDE_ICONS = {
   'settings.codeFont': CodeIcon,
   'settings.keyboard': KeyboardIcon,
   'settings.mirror': FolderIcon,
+  'settings.ai': SparklesIcon,
   'settings.integrations': PuzzleIcon,
   'settings.terminal': SquareTerminalIcon,
   'settings.configFile': FileTextIcon,

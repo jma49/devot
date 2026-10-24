@@ -3670,6 +3670,10 @@ button {
   opacity: var(--opacity-disabled);
 }
 
+.settings-text {
+  width: calc(var(--space-10) * 6);
+}
+
 .settings-hint {
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
