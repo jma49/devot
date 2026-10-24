@@ -91,7 +91,7 @@ fn apply_now(app: &AppHandle, on: bool) {
             log::warn!("W_MENU_BAR_ICON_REMOVE_FAILED");
         }
         // Nothing else would bring a hidden main window back but the Dock.
-        show_main(app);
+        reveal_main(app);
         return;
     }
     if show_icon(app).is_err() {
@@ -196,14 +196,26 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
+/// A window whose visibility cannot be read is taken as shown.
+fn is_hidden(visible: tauri::Result<bool>) -> bool {
+    !visible.unwrap_or(true)
+}
+
+/// Shows the main window when it is hidden; a shown one keeps its place, behind Settings say.
+pub fn reveal_main(app: &AppHandle) {
+    if app
+        .get_webview_window(MAIN_WINDOW)
+        .is_some_and(|main| is_hidden(main.is_visible()))
+    {
+        show_main(app);
+    }
+}
+
 /// A click on the Dock icon brings a hidden main window back.
 pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
     #[cfg(target_os = "macos")]
-    if let RunEvent::Reopen { .. } = event
-        && let Some(main) = app.get_webview_window(MAIN_WINDOW)
-        && !main.is_visible().unwrap_or(true)
-    {
-        show_main(app);
+    if let RunEvent::Reopen { .. } = event {
+        reveal_main(app);
     }
     #[cfg(not(target_os = "macos"))]
     let _ = (app, event);
@@ -402,6 +414,13 @@ mod tests {
             body: body.into(),
             book_id: book_id.map(String::from),
         }
+    }
+
+    #[test]
+    fn only_a_window_known_to_be_hidden_is_shown_again() {
+        assert!(is_hidden(Ok(false)));
+        assert!(!is_hidden(Ok(true)));
+        assert!(!is_hidden(Err(tauri::Error::WindowNotFound)));
     }
 
     #[test]

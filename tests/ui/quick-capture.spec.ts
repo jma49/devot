@@ -9,21 +9,35 @@ const NOTEBOOKS = [
   { id: 'b2', name: 'Inbox', depth: 1 },
 ]
 
-async function open(page: Page, options: { defaultNotebook?: string; save?: unknown } = {}) {
+type HeldSave = { devotAnswerSave?: () => void }
+
+async function open(
+  page: Page,
+  options: { defaultNotebook?: string; save?: unknown; holdSave?: boolean } = {},
+) {
   await page.addInitScript(
-    ({ notebooks, defaultNotebook, save }) => {
-      const w = globalThis as unknown as TestWindow & {
-        localStorage: { setItem(key: string, value: string): void }
-      }
+    ({ notebooks, defaultNotebook, save, holdSave }) => {
+      const w = globalThis as unknown as TestWindow &
+        HeldSave & { localStorage: { setItem(key: string, value: string): void } }
       // The main window publishes the notebooks (notebookChoices.ts).
       w.localStorage.setItem('devot.notebookChoices', JSON.stringify(notebooks))
       if (defaultNotebook) w.devotEditorSettings = { defaultNotebook }
       w.devotIpcMocks = {
-        quick_capture_save: save ?? null,
+        quick_capture_save: holdSave
+          ? () =>
+              new Promise<null>((answer) => {
+                w.devotAnswerSave = () => answer(null)
+              })
+          : (save ?? null),
         quick_capture_close: null,
       }
     },
-    { notebooks: NOTEBOOKS, defaultNotebook: options.defaultNotebook, save: options.save },
+    {
+      notebooks: NOTEBOOKS,
+      defaultNotebook: options.defaultNotebook,
+      save: options.save,
+      holdSave: options.holdSave ?? false,
+    },
   )
   await page.goto('/quick-capture.html')
 }
@@ -97,6 +111,27 @@ test('keeps a draft when the window closes before saving, and brings it back', a
   await expect(title(page)).toHaveValue('Call back')
   await expect(body(page)).toHaveValue('about the lease')
   await expect(notebook(page)).toHaveValue('b1')
+})
+
+test('while a save is on its way, nothing can be typed, cancelled or left as a draft', async ({
+  page,
+}) => {
+  await open(page, { holdSave: true })
+  await title(page).fill('Sent')
+  await body(page).fill('as typed')
+  await body(page).press('Meta+Enter')
+  await expect.poll(() => calls(page, 'quick_capture_save')).toHaveLength(1)
+  await expect(title(page)).not.toBeEditable()
+  await expect(body(page)).not.toBeEditable()
+  await expect(notebook(page)).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+  await body(page).press('Escape')
+  expect(await calls(page, 'quick_capture_close')).toEqual([])
+  await page.evaluate(() => (globalThis as unknown as HeldSave).devotAnswerSave?.())
+  await expect.poll(() => calls(page, 'quick_capture_close')).toHaveLength(1)
+  await page.reload()
+  await expect(title(page)).toHaveValue('')
+  await expect(body(page)).toHaveValue('')
 })
 
 test('Settings > General turns menu bar mode on and names the shortcut', async ({ page }) => {

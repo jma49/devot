@@ -192,7 +192,11 @@ pub fn app_exit_cancel(app: AppHandle) {
     log::warn!("W_EXIT_CALLED_OFF");
     app.state::<ExitGate>().call_off();
     #[cfg(desktop)]
-    crate::updates::restart_called_off(&app);
+    {
+        // The notice that says why lives in the main window, hidden in menu bar mode.
+        crate::menu_bar::reveal_main(&app);
+        crate::updates::restart_called_off(&app);
+    }
 }
 
 #[cfg(test)]

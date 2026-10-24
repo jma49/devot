@@ -82,7 +82,8 @@ export function QuickCapture() {
       void save()
     } else if (e.key === 'Escape' && plain(e)) {
       e.preventDefault()
-      void close()
+      // A note on its way may still be made after the window has gone, and its draft would stay.
+      if (!saving) void close()
     }
   }
 
@@ -99,6 +100,7 @@ export function QuickCapture() {
         aria-label={t('quickCapture.title')}
         placeholder={t('quickCapture.title')}
         value={title}
+        readOnly={saving}
         autoFocus
         onChange={(e) => setTitle(e.currentTarget.value)}
         onKeyDown={onTitleKeyDown}
@@ -109,6 +111,7 @@ export function QuickCapture() {
         aria-label={t('quickCapture.body')}
         placeholder={t('quickCapture.body')}
         value={body}
+        readOnly={saving}
         onChange={(e) => setBody(e.currentTarget.value)}
       />
       {error ? (
@@ -124,6 +127,7 @@ export function QuickCapture() {
           id={`${ids}-notebook`}
           className="quick-capture-notebook"
           value={bookId ?? ''}
+          disabled={saving}
           onChange={(e) => setPicked(e.currentTarget.value || null)}
         >
           <option value="">{t('quickCapture.noNotebook')}</option>
@@ -133,7 +137,7 @@ export function QuickCapture() {
             </option>
           ))}
         </select>
-        <button type="button" className="button" onClick={() => void close()}>
+        <button type="button" className="button" disabled={saving} onClick={() => void close()}>
           {t('quickCapture.cancel')}
         </button>
         <button
