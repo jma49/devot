@@ -155,6 +155,12 @@ const reported = (status: SyncStatus) => ({
 })
 
 /**
+ * Only `main` runs the engine: one engine per app on Rust's one socket, and `main` hides rather
+ * than closes while the app runs.
+ */
+export const runsSync = (label: string) => label === 'main'
+
+/**
  * The main window: runs the engine in the core worker while sync is on (Settings > Sync), again
  * from the start when the relay or the enrollment changes; tells it of the relay's events and of
  * writes other processes made, and reports its status to Rust. Returns the stop.
