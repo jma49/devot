@@ -80,7 +80,7 @@ test('New Window in the palette asks Rust for another main window', async ({ pag
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = { ...w.devotIpcMocks, main_window_new: null }
   })
-  await page.keyboard.press('ControlOrMeta+KeyK')
+  await page.keyboard.press('Meta+KeyK')
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   await palette.getByRole('combobox', { name: 'Command Palette' }).fill('new window')
   await palette.getByRole('option', { name: /New Window/ }).click()
