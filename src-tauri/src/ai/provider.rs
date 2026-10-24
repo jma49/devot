@@ -52,6 +52,9 @@ pub struct GenerateRequest {
     pub messages: Vec<Message>,
     #[serde(default)]
     pub max_tokens: Option<u32>,
+    /// A shorter limit than the default for a request whose answer is worth little late.
+    #[serde(default)]
+    pub timeout_secs: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -132,6 +135,9 @@ pub fn check_request(request: &GenerateRequest) -> Result<Prepared<'_>, &'static
     }
     let max_tokens = request.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS);
     if !(1..=MAX_MAX_TOKENS).contains(&max_tokens) {
+        return Err("E_AI_REQUEST_INVALID");
+    }
+    if request.timeout_secs == Some(0) {
         return Err("E_AI_REQUEST_INVALID");
     }
     Ok(Prepared {

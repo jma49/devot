@@ -52,7 +52,9 @@ import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
 import { noteHighlighting } from './editor/highlighting'
 import { systemMenus, systemMenusAvailable } from './editor/systemMenu'
+import type { Suggester } from '../../core/aiSuggest'
 import { aiEditStart, useAiMenu, type AiEditChoice, type StartAiEdit } from './editor/aiMenu'
+import { ghostText, suggestAt } from './editor/ghostText'
 import { imageSizeBar } from './editor/ImageSizeBar'
 import { tableToolbar } from './editor/TableToolbar'
 import { linkTooltip } from './editor/linkTooltip'
@@ -152,6 +154,7 @@ export interface EditorHandle {
     make: (text: string) => Promise<string | null>,
   ) => Promise<boolean>
   pastePlain: () => Promise<void>
+  suggest: () => void
   runLine: (id: CommandId) => void
   pasteUrlAs: () => Promise<void>
   imageAtCursor: () => ImageMenuTarget | null
@@ -608,6 +611,10 @@ interface Props {
   onNewFromSelection?: (() => void) | undefined
   /** Edit with AI on the selection (the toolbar's AI button and the editor menu); left out where AI may not edit. */
   onAiEdit?: StartAiEdit | undefined
+  /** Next edit suggestions (ghost text); left out where AI may not edit, and the suggestion keys then answer that it may not. */
+  suggester?: Suggester | undefined
+  /** The user asked for a suggestion and got none; the code says why. */
+  onSuggestFailed?: ((code: string) => void) | undefined
   onNewFromLink?: (() => void) | undefined
   onImagesRefused?: (codes: string[]) => void
   onOpenFailed?: (noteId: string, code: string) => void
@@ -636,6 +643,8 @@ export function NoteEditor({
   onPlace,
   onNewFromSelection,
   onAiEdit,
+  suggester,
+  onSuggestFailed,
   onNewFromLink,
   onImagesRefused,
   onOpenFailed,
@@ -663,6 +672,8 @@ export function NoteEditor({
   const placeReport = useRef(onPlace)
   const fromSelection = useRef(onNewFromSelection)
   const aiEdit = useRef(onAiEdit)
+  const suggestions = useRef(suggester)
+  const suggestFailed = useRef(onSuggestFailed)
   const startAiEdit = useCallback((view: EditorView, choice: AiEditChoice) => {
     const start = aiEditStart(view.state, choice)
     if (start) aiEdit.current?.(start)
@@ -752,6 +763,8 @@ export function NoteEditor({
     }
     chooseTemplateRef.current = onChooseTemplate
     aiEdit.current = onAiEdit
+    suggestions.current = suggester
+    suggestFailed.current = onSuggestFailed
     aiMenu.current = showAiMenu
     placeAsked.current = initialPlace
     placeReport.current = onPlace
@@ -948,6 +961,15 @@ export function NoteEditor({
               chooseImageFiles: (target) => imageChooser(target),
               chooseTemplate: () => chooseTemplateRef.current?.(),
             }),
+            ghostText({
+              suggest: (context, trigger) =>
+                suggestions.current?.suggest(noteId, context, trigger) ??
+                (trigger === 'key'
+                  ? Promise.reject(new Error('E_AI_ACCESS_DENIED'))
+                  : Promise.resolve(null)),
+              cancel: () => suggestions.current?.cancel(),
+              failed: (code) => suggestFailed.current?.(code),
+            }),
             formatToolbar(
               (...args) => alertMenu.current(...args),
               (view, anchor) => (aiEdit.current ? aiMenu.current(view, anchor) : Promise.resolve()),
@@ -1079,6 +1101,10 @@ export function NoteEditor({
           pastePlain: () => {
             ready.focus()
             return pastePlain(ready)
+          },
+          suggest: () => {
+            ready.focus()
+            suggestAt(ready)
           },
           runLine: (id) => {
             ready.focus()

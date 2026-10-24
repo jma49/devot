@@ -23,6 +23,9 @@ pub struct ProviderSettings {
 #[serde(deny_unknown_fields)]
 pub struct AiSettings {
     pub active: ProviderId,
+    /// Next edit suggestions on a pause in typing; off unless the user turns it on.
+    #[serde(default, rename = "suggestOnIdle")]
+    pub suggest_on_idle: bool,
     pub anthropic: ProviderSettings,
     pub openai: ProviderSettings,
 }
@@ -39,6 +42,7 @@ impl Default for AiSettings {
     fn default() -> Self {
         Self {
             active: ProviderId::Anthropic,
+            suggest_on_idle: false,
             anthropic: default_for(ProviderId::Anthropic),
             openai: default_for(ProviderId::Openai),
         }
@@ -83,6 +87,9 @@ impl AiSettings {
             .and_then(|v| serde_json::from_value(v.clone()).ok())
         {
             settings.active = active;
+        }
+        if let Some(on) = value.get("suggestOnIdle").and_then(Value::as_bool) {
+            settings.suggest_on_idle = on;
         }
         for id in ProviderId::ALL {
             let stored = value.get(id.as_str());
@@ -226,6 +233,20 @@ mod tests {
         assert_eq!(store.get(), stored);
         let text = std::fs::read_to_string(dir.path().join(FILE)).unwrap();
         assert!(text.contains("\"active\": \"openai\""), "{text}");
+    }
+
+    #[test]
+    fn suggestions_on_a_pause_are_off_until_turned_on() {
+        let (dir, store) = store();
+        assert!(!store.get().suggest_on_idle);
+        let mut settings = store.get();
+        settings.suggest_on_idle = true;
+        assert!(store.set(settings).unwrap().suggest_on_idle);
+        assert!(store.get().suggest_on_idle);
+        let text = std::fs::read_to_string(dir.path().join(FILE)).unwrap();
+        assert!(text.contains("\"suggestOnIdle\": true"), "{text}");
+        std::fs::write(dir.path().join(FILE), r#"{"suggestOnIdle":"yes"}"#).unwrap();
+        assert!(!store.get().suggest_on_idle);
     }
 
     #[test]

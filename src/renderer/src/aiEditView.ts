@@ -37,6 +37,17 @@ export function aiEditFailure(code: string): { message: string; retry: boolean }
   return { message: format(t('aiEdit.failed'), { reason, code }), retry: !SETTLED.has(code) }
 }
 
+const SUGGEST_REASONS: Record<string, MessageKey> = {
+  ...REASONS,
+  E_AI_CONTEXT_EMPTY: 'aiSuggest.reason.empty',
+  E_AI_SUGGESTION_NONE: 'aiSuggest.reason.none',
+}
+
+export function aiSuggestFailure(code: string): string {
+  const reason = t(SUGGEST_REASONS[code] ?? 'aiSuggest.reason.other')
+  return format(t('aiSuggest.failed'), { reason, code })
+}
+
 /** Unchanged lines shown around a change; longer runs fold to a count. */
 const CONTEXT = 2
 

@@ -230,9 +230,10 @@ describe('Tauri command permissions', () => {
     ).toEqual([])
   })
 
-  it('lets only the main window generate, and only the Settings window set providers and keys', () => {
+  it('lets only the main window generate, the main and Settings windows read the settings, and only the Settings window set providers and keys', () => {
     expect(windowsWith('allow-ai-generate')).toEqual(['main'])
-    for (const command of ['settings-get', 'settings-set', 'key-set', 'key-clear']) {
+    expect(windowsWith('allow-ai-settings-get')).toEqual(['main', 'settings'])
+    for (const command of ['settings-set', 'key-set', 'key-clear']) {
       expect(windowsWith(`allow-ai-${command}`)).toEqual(['settings'])
     }
   })

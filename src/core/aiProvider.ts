@@ -17,6 +17,8 @@ export interface AiGenerateInput {
   /** Starts with the user; Rust checks the limits. */
   messages: readonly AiMessage[]
   maxTokens?: number
+  /** Gives up sooner than Rust's own limit (never later). */
+  timeoutSecs?: number
 }
 
 export type AiStop = 'end' | 'maxTokens' | 'other'
@@ -74,18 +76,20 @@ export function asAiGenerated(value: unknown): AiGenerated | undefined {
   return { provider, model, text, stop: stop as AiStop, usage: counted }
 }
 
+/** The notebooks AI features may read: Allow AI Access on, Templates never (it may carry the switch from a Devot that showed it as a plain notebook). */
+export function allowedBookIds(books: readonly BookRecord[]): Set<string> {
+  return new Set(
+    books.filter((b) => b.aiAccess === true && b.id !== TEMPLATES_BOOK_ID).map((b) => b.id),
+  )
+}
+
 export function createAiGenerator(options: AiGeneratorOptions): AiGenerator {
   const { storage, transport } = options
   return {
     async generate(input, trigger) {
       if ((trigger as { by?: unknown }).by !== 'user') throw new Error('E_AI_NOT_TRIGGERED')
       if (trigger.books.length > 0) {
-        // Templates may carry the switch from a Devot that showed it as a plain notebook; it never counts.
-        const allowed = new Set(
-          (await storage.listBooks())
-            .filter((b) => b.aiAccess === true && b.id !== TEMPLATES_BOOK_ID)
-            .map((b) => b.id),
-        )
+        const allowed = allowedBookIds(await storage.listBooks())
         if (!trigger.books.every((id) => allowed.has(id))) throw new Error('E_AI_ACCESS_DENIED')
       }
       const generated = asAiGenerated(await transport.generate(input))
@@ -108,12 +112,14 @@ export interface AiProviderView {
 
 export interface AiSettingsView {
   active: AiProviderId
+  /** Next edit suggestions after a pause in typing, not only on their key. */
+  suggestOnIdle: boolean
   anthropic: AiProviderView
   openai: AiProviderView
 }
 
 /** What Settings changes: the key goes in through its own command. */
-export type AiSettingsChange = Pick<AiSettingsView, 'active'> &
+export type AiSettingsChange = Pick<AiSettingsView, 'active' | 'suggestOnIdle'> &
   Record<AiProviderId, Pick<AiProviderView, 'endpoint' | 'model'>>
 
 function asProviderView(value: unknown): AiProviderView | undefined {
@@ -133,9 +139,9 @@ function asProviderView(value: unknown): AiProviderView | undefined {
 
 export function asAiSettingsView(value: unknown): AiSettingsView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const { active, anthropic, openai } = value as Record<string, unknown>
+  const { active, suggestOnIdle, anthropic, openai } = value as Record<string, unknown>
   const a = asProviderView(anthropic)
   const o = asProviderView(openai)
   if (!isProvider(active) || !a || !o) return undefined
-  return { active, anthropic: a, openai: o }
+  return { active, suggestOnIdle: suggestOnIdle === true, anthropic: a, openai: o }
 }

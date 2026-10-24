@@ -1304,6 +1304,13 @@ export const COMMANDS = [
     keys: ['Mod+Shift+U'],
   },
   {
+    id: 'ai.suggest',
+    label: 'command.aiSuggest',
+    group: 'edit',
+    scope: 'editor',
+    keys: ['Alt+\\'],
+  },
+  {
     id: 'edit.goToBracket',
     label: 'command.goToBracket',
     group: 'edit',

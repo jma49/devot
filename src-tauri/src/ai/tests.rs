@@ -216,6 +216,7 @@ fn ask() -> GenerateRequest {
             message(Role::User, "Shorter."),
         ],
         max_tokens: Some(256),
+        timeout_secs: None,
     }
 }
 
@@ -441,6 +442,32 @@ fn an_unreachable_or_silent_server_is_a_code() {
         app.ai.timeout = Duration::from_millis(300);
         assert_eq!(app.ai.generate(&ask()).unwrap_err(), "E_AI_TIMEOUT");
     }
+}
+
+#[test]
+fn a_request_can_ask_for_a_shorter_time_limit_but_not_a_longer_one() {
+    let silent = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", silent.local_addr().unwrap());
+    let app = setup(ProviderId::Anthropic, &base);
+    app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+    let started = std::time::Instant::now();
+    let mut request = ask();
+    request.timeout_secs = Some(1);
+    assert_eq!(app.ai.generate(&request).unwrap_err(), "E_AI_TIMEOUT");
+    assert!(started.elapsed() < Duration::from_secs(30));
+    request.timeout_secs = Some(0);
+    assert_eq!(
+        app.ai.generate(&request).unwrap_err(),
+        "E_AI_REQUEST_INVALID"
+    );
+
+    let mut app = setup(ProviderId::Anthropic, &base);
+    app.keys.set(ProviderId::Anthropic, KEY).unwrap();
+    app.ai.timeout = Duration::from_millis(300);
+    request.timeout_secs = Some(3600);
+    let started = std::time::Instant::now();
+    assert_eq!(app.ai.generate(&request).unwrap_err(), "E_AI_TIMEOUT");
+    assert!(started.elapsed() < Duration::from_secs(30));
 }
 
 #[test]

@@ -41,6 +41,7 @@ pub struct ProviderView {
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub active: ProviderId,
+    pub suggest_on_idle: bool,
     pub anthropic: ProviderView,
     pub openai: ProviderView,
 }
@@ -80,6 +81,7 @@ impl Ai {
         };
         Snapshot {
             active: settings.active,
+            suggest_on_idle: settings.suggest_on_idle,
             anthropic: view(ProviderId::Anthropic),
             openai: view(ProviderId::Openai),
         }
@@ -113,7 +115,10 @@ impl Ai {
         };
         let key = self.keys.get(id)?.ok_or("E_AI_KEY_MISSING")?;
         let wire = implementation.build(&stored.endpoint, model, &key, &prepared);
-        let outcome = transport::post(&wire, self.timeout).and_then(|answer| {
+        let timeout = request.timeout_secs.map_or(self.timeout, |s| {
+            self.timeout.min(Duration::from_secs(s.into()))
+        });
+        let outcome = transport::post(&wire, timeout).and_then(|answer| {
             if (200..300).contains(&answer.status) {
                 implementation
                     .parse(&answer.body)
