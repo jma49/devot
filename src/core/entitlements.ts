@@ -9,7 +9,7 @@ export const OFFLINE_GRACE_MS = 14 * 24 * 60 * 60 * 1000
 
 export interface AccountEntitlements {
   readonly granted: readonly Feature[]
-  /** Epoch milliseconds of the last time the account service confirmed `granted`. */
+  /** Epoch milliseconds on this device's clock when the account service last confirmed `granted`; never the server's timestamp. */
   readonly confirmedAt: number
 }
 
@@ -43,7 +43,7 @@ export function createEntitlements(options: EntitlementOptions = {}): Entitlemen
       if (!account) return false
       const age = now() - account.confirmedAt
       // A clock set back counts as unconfirmed rather than extending the grace period.
-      if (age < 0 || age > graceMs) return false
+      if (!(age >= 0 && age <= graceMs)) return false
       return account.granted.includes(feature)
     },
   }

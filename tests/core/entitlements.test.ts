@@ -57,6 +57,13 @@ describe('signed in', () => {
     expect(e.has('localNotes')).toBe(true)
   })
 
+  it('withholds gated features when the confirmed time is not a number', () => {
+    expect(withAccount({ ...account, confirmedAt: Number.NaN }).has('sync')).toBe(false)
+    expect(withAccount({ ...account, confirmedAt: Number.POSITIVE_INFINITY }).has('sync')).toBe(
+      false,
+    )
+  })
+
   it('does not extend the grace period when the clock is set back', () => {
     expect(withAccount({ ...account, confirmedAt: NOW + DAY }).has('sync')).toBe(false)
   })
