@@ -17,6 +17,7 @@ const ITEM_BYTES: usize = 1 + ID_BYTES + KEY_BYTES;
 // HKDF labels: one per use, so the record key and the enrollment secret never coincide.
 const RECORD_KEY_INFO: &[u8] = b"devot/sync/record-key/v1";
 const ENROLLMENT_INFO: &[u8] = b"devot/sync/enrollment/v1";
+const VERIFIER_LABEL: &[u8] = b"devot-relay enrollment verifier v1";
 
 /// A vault's random ID, a UUIDv4. The relay knows it; it is not a secret.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -82,6 +83,13 @@ impl Vault {
         self.id
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the recovery key's sheet and pairing (#336) are its callers"
+        )
+    )]
     pub(super) fn key(&self) -> &[u8; KEY_BYTES] {
         &self.key
     }
@@ -97,6 +105,13 @@ impl Vault {
     }
 
     /// The vault ID and key as Crockford base32 with a checksum, in groups of five, for printing.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the recovery key's sheet and pairing (#336) are its callers"
+        )
+    )]
     pub(crate) fn recovery_key(&self) -> Zeroizing<String> {
         recovery::encode(&self.id, &self.key)
     }
@@ -108,6 +123,13 @@ impl Vault {
     }
 
     /// Keeps the vault a recovery key holds in `store`, which must hold none yet.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the recovery key's sheet and pairing (#336) are its callers"
+        )
+    )]
     pub(crate) fn restore(store: &dyn SecretStore, recovery_key: &str) -> Result<Self, SyncError> {
         let (id, key) = recovery::decode(recovery_key)?;
         Self::keep_new(store, Self::from_parts(id, key))
@@ -121,6 +143,13 @@ impl Vault {
     }
 
     /// Removes the vault from `store`; `false` when there was none.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the recovery key's sheet and pairing (#336) are its callers"
+        )
+    )]
     pub(crate) fn delete(store: &dyn SecretStore) -> Result<bool, SyncError> {
         store.remove(ITEM_ACCOUNT)
     }
@@ -155,10 +184,14 @@ impl Vault {
     }
 }
 
-/// The relay's check for an enrollment secret: SHA-256 of its 32 bytes. The secret is uniformly
-/// random, so a plain hash cannot be reversed by guessing.
+/// The relay's check for an enrollment secret (`enrollmentVerifier` in src/core/sync/protocol.ts):
+/// SHA-256 over a label and its 32 bytes. The secret is uniformly random, so the hash cannot be
+/// reversed by guessing.
 pub(crate) fn enrollment_verifier(secret: &[u8; KEY_BYTES]) -> [u8; 32] {
-    Sha256::digest(secret).into()
+    let mut hash = Sha256::new();
+    hash.update(VERIFIER_LABEL);
+    hash.update(secret);
+    hash.finalize().into()
 }
 
 pub(super) fn random(bytes: &mut [u8]) -> Result<(), SyncError> {

@@ -18,6 +18,7 @@ import {
   indexable,
   scanFolding,
 } from '../core/search'
+import type { SyncEntry, SyncLocal, SyncStore } from '../core/sync/store'
 import { isTagColor } from '../core/tags'
 import type {
   ActivityData,
@@ -25,6 +26,7 @@ import type {
   ActivityRevision,
   BookRecord,
   CompactableVersion,
+  NoteTagRecord,
   NoteQuery,
   NoteRecord,
   NoteStatus,
@@ -144,6 +146,34 @@ export const REVISION_SQL = {
      ON CONFLICT (id) DO UPDATE SET swept_at = excluded.swept_at`,
   /** When the last sweep ran. */
   lastCompaction: `SELECT swept_at AS sweptAt FROM compaction WHERE id = 1`,
+} as const
+
+/**
+ * What sync keeps beside the notes (schema v19), the same statements as the
+ * Rust store's (storage/sync.rs; a test compares them).
+ */
+export const SYNC_SQL = {
+  /** Records written since the engine last looked, by ID, from the partial index sync_pending. */
+  pending: `SELECT id FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit`,
+  entry: `SELECT id, kind, version, fingerprint, body_hlc AS bodyHlc, body_fp AS bodyFp, edits, synced
+     FROM sync_records WHERE id = @id`,
+  /** Keeps `edits`, which only storage's triggers move on. */
+  put: `INSERT INTO sync_records (id, kind, version, fingerprint, body_hlc, body_fp, synced)
+     VALUES (@id, @kind, @version, @fingerprint, @bodyHlc, @bodyFp, @synced)
+     ON CONFLICT (id) DO UPDATE SET kind = excluded.kind, version = excluded.version,
+       fingerprint = excluded.fingerprint, body_hlc = excluded.body_hlc,
+       body_fp = excluded.body_fp, synced = excluded.synced`,
+  state: `SELECT key, value FROM sync_state`,
+  setState: `INSERT INTO sync_state (key, value) VALUES (@key, @value)
+     ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+  /** A new vault epoch: nothing is on the relay, and every record is pending. */
+  reset: `UPDATE sync_records SET version = 0, fingerprint = '', synced = edits - 1`,
+  /** The note's row as stored, trashed or purged. */
+  note: `SELECT *, purged_at IS NOT NULL AS purged FROM notes WHERE id = @id`,
+  noteTags: `SELECT note_id AS noteId, tag_id AS tagId, present, hlc FROM note_tags
+     WHERE note_id = @id ORDER BY tag_id`,
+  book: `SELECT * FROM books WHERE id = @id`,
+  tag: `SELECT * FROM tags WHERE id = @id`,
 } as const
 
 /**
@@ -366,7 +396,59 @@ interface BookRow {
   icon_hlc: string
 }
 
-export interface SqliteAdapter extends StorageAdapter, AiStorage {
+const toNote = (row: Row): NoteRecord => ({
+  id: row.id,
+  title: row.title,
+  titleHlc: row.title_hlc,
+  bodyMd: row.body_md,
+  ydoc: new Uint8Array(row.ydoc),
+  bodyVersion: row.body_version,
+  bookId: row.book_id,
+  bookHlc: row.book_hlc,
+  status: row.status,
+  statusHlc: row.status_hlc,
+  pinned: row.pinned === 1,
+  pinnedHlc: row.pinned_hlc,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  deletedAt: row.deleted_at,
+  deletedHlc: row.deleted_hlc,
+  datesHlc: row.dates_hlc,
+})
+
+const toBook = (row: BookRow, raw = false): BookRecord => ({
+  id: row.id,
+  name: row.name,
+  nameHlc: row.name_hlc,
+  parentId: row.parent_id,
+  parentHlc: row.parent_hlc,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  deletedAt: row.deleted_at,
+  deletedHlc: row.deleted_hlc,
+  aiAccess: row.ai_access === 1,
+  aiAccessHlc: row.ai_access_hlc,
+  sortKey: row.sort_key,
+  sortKeyHlc: row.sort_key_hlc,
+  // A name or palette ID from a later version reads as unset, as in Rust; sync reads it as stored.
+  icon: raw || isNotebookSymbol(row.icon) ? row.icon : null,
+  iconColor: raw || isTagColor(row.icon_color) ? (row.icon_color as BookRecord['iconColor']) : null,
+  iconHlc: row.icon_hlc,
+})
+
+const toTag = (row: TagRow, raw = false): TagRecord => ({
+  id: row.id,
+  name: row.name,
+  nameHlc: row.name_hlc,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  deletedAt: row.deleted_at,
+  deletedHlc: row.deleted_hlc,
+  color: raw || isTagColor(row.color) ? (row.color as TagRecord['color']) : null,
+  colorHlc: row.color_hlc,
+})
+
+export interface SqliteAdapter extends StorageAdapter, AiStorage, SyncStore {
   close(): void
   db: Database.Database
   /** The schema version the database reports now. */
@@ -474,6 +556,21 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const dropFiles = db.prepare('DELETE FROM files WHERE note_id = ?')
   // Revision history: same statements as the Rust store (storage/mod.rs).
   const dropRevisions = db.prepare('DELETE FROM revisions WHERE note_id = ?')
+  const syncPending = db.prepare<[{ after: string; limit: number }], { id: string }>(
+    SYNC_SQL.pending,
+  )
+  const syncEntry = db.prepare<[{ id: string }], SyncEntry>(SYNC_SQL.entry)
+  const syncPut = db.prepare(SYNC_SQL.put)
+  const syncStates = db.prepare<[], { key: string; value: string }>(SYNC_SQL.state)
+  const syncSetState = db.prepare(SYNC_SQL.setState)
+  const syncReset = db.prepare(SYNC_SQL.reset)
+  const syncNote = db.prepare<[{ id: string }], Row & { purged: number }>(SYNC_SQL.note)
+  const syncNoteTags = db.prepare<
+    [{ id: string }],
+    Omit<NoteTagRecord, 'present'> & { present: number }
+  >(SYNC_SQL.noteTags)
+  const syncBook = db.prepare<[{ id: string }], BookRow>(SYNC_SQL.book)
+  const syncTag = db.prepare<[{ id: string }], TagRow>(SYNC_SQL.tag)
   const putRevision = db.prepare(
     `INSERT INTO revisions (id, note_id, kind, at, ydoc, length, value)
      SELECT @id, @noteId, @kind, @at, @ydoc, @length, @value
@@ -614,6 +711,19 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   // Bodies are read for the notes returned only, never for every match.
   const bodyOf = (id: string) => bodyMd.get(id)?.body_md ?? ''
 
+  const purgeWith = (id: string, at: number, hlc: string, revisions: boolean) =>
+    db
+      .transaction(() => {
+        purge.run({ id, at, hlc })
+        dropLinks.run(id)
+        // Attachments another note still shows pass to it; the rest go.
+        handOverFiles.run({ id })
+        dropFiles.run(id)
+        dropNoteLinks.run(id)
+        if (revisions) dropRevisions.run(id)
+      })
+      .immediate()
+
   // One atomic run at a time: a second BEGIN inside the first would fail.
   let queue: Promise<unknown> = Promise.resolve()
 
@@ -639,26 +749,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     listNotes: async () => list.all().map(toSummary),
     async getNote(id, options) {
       const row = options?.trashed ? getAny.get(id) : get.get(id)
-      if (!row) return null
-      return {
-        id: row.id,
-        title: row.title,
-        titleHlc: row.title_hlc,
-        bodyMd: row.body_md,
-        ydoc: new Uint8Array(row.ydoc),
-        bodyVersion: row.body_version,
-        bookId: row.book_id,
-        bookHlc: row.book_hlc,
-        status: row.status,
-        statusHlc: row.status_hlc,
-        pinned: row.pinned === 1,
-        pinnedHlc: row.pinned_hlc,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        deletedAt: row.deleted_at,
-        deletedHlc: row.deleted_hlc,
-        datesHlc: row.dates_hlc,
-      } satisfies NoteRecord
+      return row ? toNote(row) : null
     },
     getBodies: async (ids) =>
       ids.flatMap((id) => {
@@ -727,15 +818,50 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     },
     listTrash: async () => trash.all(),
     async purgeNote(id, at, hlc) {
-      db.transaction(() => {
-        purge.run({ id, at, hlc })
-        dropLinks.run(id)
-        // Attachments another note still shows pass to it; the rest go.
-        handOverFiles.run({ id })
-        dropFiles.run(id)
-        dropNoteLinks.run(id)
-        dropRevisions.run(id)
-      }).immediate()
+      purgeWith(id, at, hlc, true)
+    },
+    async syncPending(after, limit) {
+      return syncPending.all({ after, limit }).map((row) => row.id)
+    },
+    async syncRead(ids) {
+      return ids.map((id): SyncLocal => {
+        const note = syncNote.get({ id })
+        const book = note ? undefined : syncBook.get({ id })
+        const tag = note || book ? undefined : syncTag.get({ id })
+        return {
+          id,
+          entry: syncEntry.get({ id }) ?? null,
+          note: note
+            ? {
+                note: toNote(note),
+                purged: note.purged === 1,
+                tags: syncNoteTags.all({ id }).map((t) => ({
+                  noteId: t.noteId,
+                  tagId: t.tagId,
+                  present: t.present === 1,
+                  hlc: t.hlc,
+                })),
+              }
+            : null,
+          book: book ? toBook(book, true) : null,
+          tag: tag ? toTag(tag, true) : null,
+        }
+      })
+    },
+    async syncPut(entry) {
+      syncPut.run(entry)
+    },
+    async syncState() {
+      return Object.fromEntries(syncStates.all().map((row) => [row.key, row.value]))
+    },
+    async syncSetState(key, value) {
+      syncSetState.run({ key, value })
+    },
+    async syncReset() {
+      syncReset.run()
+    },
+    async syncPurge(id, at, hlc) {
+      purgeWith(id, at, hlc, false)
     },
     async putRevision(revision) {
       putRevision.run({
@@ -773,41 +899,11 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       notes: activityNotes.all({ since }),
       revisions: activityRevisions.all({ since }),
     }),
-    listBooks: async () =>
-      books.all().map((row): BookRecord => ({
-        id: row.id,
-        name: row.name,
-        nameHlc: row.name_hlc,
-        parentId: row.parent_id,
-        parentHlc: row.parent_hlc,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        deletedAt: row.deleted_at,
-        deletedHlc: row.deleted_hlc,
-        aiAccess: row.ai_access === 1,
-        aiAccessHlc: row.ai_access_hlc,
-        sortKey: row.sort_key,
-        sortKeyHlc: row.sort_key_hlc,
-        // A name or palette ID from a later version reads as unset, as in Rust.
-        icon: isNotebookSymbol(row.icon) ? row.icon : null,
-        iconColor: isTagColor(row.icon_color) ? row.icon_color : null,
-        iconHlc: row.icon_hlc,
-      })),
+    listBooks: async () => books.all().map((row) => toBook(row)),
     async putBook(book) {
       putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })
     },
-    listTags: async () =>
-      tags.all().map((row): TagRecord => ({
-        id: row.id,
-        name: row.name,
-        nameHlc: row.name_hlc,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        deletedAt: row.deleted_at,
-        deletedHlc: row.deleted_hlc,
-        color: isTagColor(row.color) ? row.color : null,
-        colorHlc: row.color_hlc,
-      })),
+    listTags: async () => tags.all().map((row) => toTag(row)),
     async putTag(tag) {
       putTag.run(tag)
     },

@@ -177,11 +177,12 @@ test('a navigation column of panes on the left, General first', async ({ page })
     'Appearance',
     'Keyboard',
     'Mirror',
+    'Sync',
     'AI',
     'Integrations',
     'Usage',
   ])
-  await expect(tabs(page).locator('[data-symbol]')).toHaveCount(9)
+  await expect(tabs(page).locator('[data-symbol]')).toHaveCount(10)
   await expect(tabs(page)).toHaveCSS('width', '155px')
   await expect(tabs(page)).toHaveAttribute('aria-orientation', 'vertical')
   await expect(tab(page, 'General')).toHaveAttribute('aria-selected', 'true')

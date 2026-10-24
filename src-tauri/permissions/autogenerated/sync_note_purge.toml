@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sync-note-purge"
+description = "Enables the sync_note_purge command without any pre-configured scope."
+commands.allow = ["sync_note_purge"]
+
+[[permission]]
+identifier = "deny-sync-note-purge"
+description = "Denies the sync_note_purge command without any pre-configured scope."
+commands.deny = ["sync_note_purge"]

@@ -40,6 +40,8 @@ import {
 } from '../../core/workspace'
 import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
 import { BackupNotice } from './BackupNotice'
+import { SyncNotice } from './SyncNotice'
+import { runSync, startSyncStatus, useSyncSnapshot } from './sync'
 import { Notices } from './Notices'
 import { SearchIndexNotice } from './SearchIndexNotice'
 import { REBUILD_SEARCH_INDEX, rebuildSearchIndex, type RebuildState } from './searchIndex'
@@ -465,6 +467,10 @@ export function App() {
   const tagInputRef = useRef<HTMLInputElement>(null)
   const [backupsOpen, setBackupsOpen] = useState(false)
   const [backupNotice, setBackupNotice] = useState<string>()
+  const syncSnapshot = useSyncSnapshot()
+  useEffect(() => startSyncStatus(), [])
+  // The engine needs Rust's storage and socket, which the UI tests' build does not have.
+  useEffect(() => (core && !DEVOT_UI_TEST ? runSync(core) : undefined), [core])
   const [indexState, setIndexState] = useState<RebuildState>()
   const indexRunning = useRef(false)
   const [changeNotice, setChangeNotice] = useState<string>()
@@ -3324,6 +3330,7 @@ export function App() {
             onDismiss={() => setBackupNotice(undefined)}
           />
         ) : null}
+        <SyncNotice snapshot={syncSnapshot} />
         {exportNotice ? (
           <ExportNotice
             failure={exportNotice.failure}

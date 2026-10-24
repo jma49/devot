@@ -4,6 +4,7 @@ import {
   compactionWindows,
   historyEntries,
   KEEP_NEWEST,
+  MERGE,
   revisionsToDrop,
   textLength,
 } from './revisions'
@@ -137,10 +138,19 @@ describe('historyEntries', () => {
     }
     const second = body(NOW - HOUR, 4)
     expect(historyEntries([second, first, event])).toEqual([
-      { id: second.id, kind: 'body', at: second.at, length: 4, change: -6 },
+      { id: second.id, kind: 'body', at: second.at, length: 4, change: -6, merge: false },
       { id: 'e', kind: 'pinned', at: event.at, value: '1' },
-      { id: first.id, kind: 'body', at: first.at, length: 10, change: null },
+      { id: first.id, kind: 'body', at: first.at, length: 10, change: null, merge: false },
     ])
+  })
+
+  it('labels the version kept before a sync merge', () => {
+    const kept = { ...body(NOW - HOUR, 4), value: MERGE }
+    expect(historyEntries([kept, body(NOW - 2 * HOUR, 3)])[0]).toMatchObject({
+      id: kept.id,
+      change: 1,
+      merge: true,
+    })
   })
 
   it('gives the oldest kept version no change, even after an event or with no text', () => {

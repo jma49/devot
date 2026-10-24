@@ -25,6 +25,11 @@ pub(crate) const MAX_RECORD_BYTES: usize = 80 * 1024 * 1024;
 const MAX_CHUNKS: usize = MAX_RECORD_BYTES.div_ceil(MAX_CHUNK_PLAINTEXT);
 
 const MAX_RECORD_ID_BYTES: usize = 64;
+
+/// How many chunks [`Vault::encrypt_record`] cuts a plaintext of `len` bytes into.
+pub(crate) fn chunk_count(len: usize) -> usize {
+    len.div_ceil(MAX_CHUNK_PLAINTEXT).max(1)
+}
 const AD_LABEL: &[u8] = b"devot/sync/record/v1";
 
 impl Vault {

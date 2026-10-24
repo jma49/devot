@@ -3,7 +3,7 @@
 
 use super::notes::{MAX_TITLE_CHARS, MAX_YDOC_BYTES, valid_note_id};
 use crate::storage::{
-    AI_EDIT, BASELINE, CompactableVersion, Db, NOTE_STATUSES, REVISION_KINDS, RevisionRecord,
+    AI_EDIT, BASELINE, CompactableVersion, Db, MERGE, NOTE_STATUSES, REVISION_KINDS, RevisionRecord,
     RevisionSummary,
 };
 use base64::Engine as _;
@@ -68,7 +68,7 @@ impl RevisionDto {
             let marker = self
                 .value
                 .as_deref()
-                .is_none_or(|v| v == BASELINE || v == AI_EDIT);
+                .is_none_or(|v| v == BASELINE || v == AI_EDIT || v == MERGE);
             if !marker || !self.length.is_some_and(|n| n >= 0) {
                 return Err("E_REVISION_BODY_INVALID");
             }

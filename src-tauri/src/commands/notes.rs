@@ -249,7 +249,7 @@ pub async fn notes_trash_list(db: State<'_, Db>) -> Result<Vec<TrashedNote>, Str
         .map_err(|e| e.to_string())
 }
 
-fn validate_purge(id: &str, at: i64, hlc: &str) -> Result<(), &'static str> {
+pub(crate) fn validate_purge(id: &str, at: i64, hlc: &str) -> Result<(), &'static str> {
     if !valid_note_id(id) {
         return Err("E_NOTE_ID_INVALID");
     }

@@ -34,6 +34,10 @@ RELAY_SECRET="$(openssl rand -base64 32)" RELAY_DATA=/var/lib/devot-relay PORT=8
 
 The relay speaks plain HTTP: put a TLS proxy in front, such as Caddy (`devot-relay.example.com { reverse_proxy 127.0.0.1:8787 }`, which passes WebSockets through), and keep it running with your service manager. The relay is not a source of truth: if its folder is lost, devices upload their records again to a new vault.
 
+## Connect Devot
+
+In Devot, open Settings > Sync, enter the relay's URL (https, or http to the same machine for a relay you run locally), then the relay's secret once, on the first device: Devot makes the vault key in the keychain, creates the vault on the relay and turns sync on. The secret goes into that one request and is not kept. Adding another device (pairing) is #336.
+
 ## Protocol
 
 Version 1. Every message is an envelope `{"v": 1, "type": …}`; a relay refuses another version with `E_SYNC_PROTOCOL`.

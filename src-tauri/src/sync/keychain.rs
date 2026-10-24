@@ -27,6 +27,7 @@ impl Keychain {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn service(&self) -> &str {
         &self.service
     }

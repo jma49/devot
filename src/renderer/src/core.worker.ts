@@ -42,9 +42,17 @@ import {
   seedWelcome,
 } from '../../core'
 import { errorCode } from '../../core/errors'
+import { createSyncEngine, type SyncEngine, type SyncStatus } from '../../core/sync/engine'
+import type { SyncEvent } from '../../core/sync/transport'
 import { preparerOffThread } from './importWorker'
 import { fromWireRelay, toWireRelay, type RelayOut, type WireRelay } from './noteRelayWire'
 import type { SaveProblemsMessage } from './saving'
+import {
+  fromWireSync,
+  fromWireTransport,
+  type WireSync,
+  type WireTransport,
+} from './storage/syncWire'
 import { fromBase64, fromWire, toBase64, type WireStorage } from './storage/wire'
 import { forwardWorkerLogs } from './workerLog'
 
@@ -63,6 +71,10 @@ let stopImport = false
 let mirror: MirrorRunner | undefined
 let mirrorStorage: StorageAdapter | undefined
 let httpApi: AiService | undefined
+let sync: SyncEngine | undefined
+let syncParts:
+  | { storage: StorageAdapter; clock: ReturnType<typeof createClock>; newId: () => string }
+  | undefined
 
 const required = () => {
   if (!service) throw new Error('E_CORE_NOT_READY')
@@ -93,8 +105,12 @@ export const coreApi = {
     const clock = createClock(node)
     const ids = createIdGenerator()
     newId = ids
-    const storage = observeWrites(fromWire(remote), () => mirror?.touch())
+    const storage = observeWrites(fromWire(remote), () => {
+      mirror?.touch()
+      sync?.touch()
+    })
     mirrorStorage = storage
+    syncParts = { storage, clock, newId: ids }
     welcome = (content) => seedWelcome({ storage, clock, newId: ids, content })
     service = createNoteService({
       storage,
@@ -286,6 +302,31 @@ export const coreApi = {
   mirrorTouch: () => mirror?.touch(),
   mirrorWake: () => mirror?.wake(),
   mirrorStop: () => mirror?.stop(),
+  /** Runs the sync engine on Rust's store and socket, which the page passes in. */
+  startSync(
+    store: WireSync,
+    transport: WireTransport,
+    onStatus: (status: SyncStatus) => void,
+    onApplied: () => void,
+  ) {
+    if (sync || !syncParts) return
+    sync = createSyncEngine({
+      ...syncParts,
+      sync: fromWireSync(store),
+      transport: fromWireTransport(transport),
+      onStatus: (status) => void Promise.resolve(onStatus(status)).catch(() => undefined),
+      // The page merges the changes into the notes in memory and reloads, as for another process's writes.
+      onApplied: () => void Promise.resolve(onApplied()).catch(() => undefined),
+    })
+    sync.start()
+  },
+  async stopSync() {
+    const engine = sync
+    sync = undefined
+    await engine?.stop()
+  },
+  syncReceived: (event: SyncEvent) => sync?.received(event),
+  syncTouch: () => sync?.touch(),
 }
 
 export type CoreApi = typeof coreApi

@@ -29,6 +29,9 @@ export const BASELINE = 'baseline'
 /** The body version an accepted AI edit proposal wrote (NoteService.applyAiEdit): its authorship. Like a baseline, the heatmap does not count it and compaction keeps it. */
 export const AI_EDIT = 'ai'
 
+/** The body version kept before a state from another device changed the note (sync, #216): Revision History labels it a merge, and either side of a merge can be restored from it. Compaction keeps it. */
+export const MERGE = 'merge'
+
 const localDay = (at: number): string => String(dayNumber(at, systemOffset))
 
 /**
@@ -79,6 +82,8 @@ export type HistoryEntry =
       change: number | null
       /** Written by an accepted AI edit (AI_EDIT). */
       ai?: true
+      /** The text this device had before a merge with another device's (MERGE). */
+      merge: boolean
     }
   | {
       id: string
@@ -101,6 +106,7 @@ export function historyEntries(revisions: readonly RevisionSummary[]): HistoryEn
         length,
         change: previous === null ? null : length - previous,
         ...(r.value === AI_EDIT ? { ai: true as const } : {}),
+        merge: r.value === MERGE,
       })
       previous = length
     } else {

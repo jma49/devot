@@ -294,7 +294,7 @@ fn the_enrollment_secret_matches_known_answers() {
     );
     assert_eq!(
         to_hex(&enrollment_verifier(&secret)),
-        "1a0d5e2e2be76b6590a26f223e6f525b737af439565c30a513c51145a57d13e6"
+        "7ed8b8c9ecb100f005b633fa39eef4bc9c065a8b89a9306901935d5695b1a99f"
     );
     assert_ne!(secret.as_ref(), vault.key());
     let other = Vault::generate().unwrap();

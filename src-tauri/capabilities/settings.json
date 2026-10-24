@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings",
-  "description": "Permissions for the Settings window: reading and changing the editor settings, the keyboard shortcuts and the Markdown mirror's setting (and hearing when another window changes them), reading and clearing the local usage events, the navigation column's symbols, the system accent colour, opening the app's data folder in Finder, showing the Backups dialog, the AI providers (endpoint, model and key, which only goes in and is never read back), where devot-mcp and the database are (the Integrations pane) and copying its configs to the clipboard, the local HTTP API (on or off, its port, and its token, which Settings shows on request and replaces), and installing or removing the devot command (General > Command Line Tool). Add a command here only when a settings section needs it.",
+  "description": "Permissions for the Settings window: reading and changing the editor settings, the keyboard shortcuts and the Markdown mirror's setting (and hearing when another window changes them), reading and clearing the local usage events, the navigation column's symbols, the system accent colour, opening the app's data folder in Finder, showing the Backups dialog, the AI providers (endpoint, model and key, which only goes in and is never read back), Sync (the relay's URL, on or off, creating the vault with the relay's secret, which only goes in, and the status), where devot-mcp and the database are (the Integrations pane) and copying its configs to the clipboard, the local HTTP API (on or off, its port, and its token, which Settings shows on request and replaces), and installing or removing the devot command (General > Command Line Tool). Add a command here only when a settings section needs it.",
   "windows": ["settings"],
   "permissions": [
     "core:event:allow-listen",
@@ -35,6 +35,9 @@
     "allow-http-api-set",
     "allow-http-api-token-rotate",
     "allow-http-api-token-reveal",
+    "allow-sync-get",
+    "allow-sync-set",
+    "allow-sync-vault-create",
     "allow-cli-tool-status",
     "allow-cli-tool-install",
     "allow-cli-tool-uninstall",

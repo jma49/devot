@@ -333,8 +333,8 @@ const byNote = (versions: readonly CompactableVersion[]) => {
 
 const codeOf = (error: unknown) => errorCode(error, 'E_STORAGE_WRITE_FAILED')
 
-/** The same for the same note and text, so their states are equal; another text gets another client, so two seeds never give two changes one ID. */
-const seedClient = (id: string, markdown: string) =>
+/** The Yjs client a seeded body is written as: the same for the same note and text, so their states are equal; another text gets another client, so two seeds never give two changes one ID. */
+export const seedClient = (id: string, markdown: string) =>
   Number.parseInt(sha256Hex(`${id}\n${lineFeeds(markdown)}`).slice(0, 8), 16)
 
 const textOf = (state: Uint8Array) => {

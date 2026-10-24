@@ -48,14 +48,6 @@ mod single_instance;
 mod startup;
 mod storage;
 mod strings;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        unused_imports,
-        reason = "the sync client (#214) is its first caller"
-    )
-)]
 mod sync;
 #[cfg(test)]
 mod test_log;
@@ -66,7 +58,7 @@ mod watch;
 
 use startup::StartupError;
 use std::path::Path;
-use tauri::{Manager, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewWindowBuilder};
 
 pub(crate) const MAIN_WINDOW: &str = "main";
 
@@ -134,6 +126,21 @@ pub fn run() {
             ai::ai_generate,
             ai::ai_settings_get,
             ai::ai_settings_set,
+            sync::commands::sync_get,
+            sync::commands::sync_set,
+            sync::commands::sync_vault_create,
+            sync::commands::sync_connect,
+            sync::commands::sync_pull,
+            sync::commands::sync_push,
+            sync::commands::sync_disconnect,
+            sync::commands::sync_status_report,
+            commands::sync::sync_pending,
+            commands::sync::sync_read,
+            commands::sync::sync_entry_put,
+            commands::sync::sync_state_get,
+            commands::sync::sync_state_put,
+            commands::sync::sync_reset,
+            commands::sync::sync_note_purge,
             ai::ai_key_set,
             ai::ai_key_clear,
             link_info::link_title,
@@ -266,6 +273,21 @@ pub fn run() {
         });
 }
 
+/// Socket events go to the main window, whose core worker runs the engine; the snapshot to every
+/// window, Settings among them.
+fn sync_emitter(app: tauri::AppHandle) -> sync::service::Emit {
+    std::sync::Arc::new(move |event, payload| {
+        let sent = if event == sync::service::SOCKET_EVENT {
+            app.emit_to(MAIN_WINDOW, event, payload)
+        } else {
+            app.emit(event, payload)
+        };
+        if sent.is_err() {
+            log::warn!("W_SYNC_EMIT_FAILED");
+        }
+    })
+}
+
 /// Any failure has a code: `startup::fail` explains it and exits.
 fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     // One Devot per data folder, for the life of the process.
@@ -289,6 +311,11 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     app.manage(std::sync::Arc::new(ai::Ai::new(
         ai::settings::SettingsStore::new(&data_dir.join(ai::settings::FILE)),
         std::sync::Arc::new(ai::keychain::Keychain::new(&app.config().identifier)),
+    )));
+    app.manage(std::sync::Arc::new(sync::service::SyncService::new(
+        sync::settings::SettingsStore::new(&data_dir.join(sync::settings::FILE)),
+        std::sync::Arc::new(sync::Keychain::for_app(&app.config().identifier)),
+        sync_emitter(app.handle().clone()),
     )));
     app.manage(std::sync::Arc::new(fonts::Fonts::new(data_dir)));
     app.manage(std::sync::Arc::new(

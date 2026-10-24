@@ -1,0 +1,181 @@
+// A sync transport for the core's tests, against the Node relay started in-process: what Rust does
+// in the app (src-tauri/src/sync/client.rs), with the record left unsealed and cut into chunks.
+import {
+  CLOSE,
+  decodeFrame,
+  encodeFrame,
+  LIMITS,
+  splitChunks,
+  SUBPROTOCOL,
+  TOKEN_SUBPROTOCOL_PREFIX,
+  type RecordHead,
+} from '../../src/core/sync/protocol'
+import type {
+  PullPage,
+  PushResult,
+  SyncEvent,
+  SyncTransport,
+  Welcome,
+} from '../../src/core/sync/transport'
+
+const TIMEOUT_MS = 10_000
+
+const CLOSE_CODES = new Map<number, string>([
+  [CLOSE.unauthorized, 'E_SYNC_UNAUTHORIZED'],
+  [CLOSE.revoked, 'E_SYNC_REVOKED'],
+  [CLOSE.noVault, 'E_SYNC_NO_VAULT'],
+])
+
+interface Answer {
+  message: Record<string, unknown>
+  payload: Uint8Array
+}
+
+export interface RelayTransportOptions {
+  /** Where the relay is; a function, so a test can move it (a relay started again on another port). */
+  url: () => string
+  vault: string
+  token: () => string
+  /** Smaller chunks reach the relay's chunk cap with a small record. */
+  chunkBytes?: number
+  /** Called with every push before it goes out: a test can hold one back. */
+  beforePush?: (id: string) => Promise<void>
+}
+
+export class RelayTransport implements SyncTransport {
+  onEvent: (event: SyncEvent) => void = () => {}
+  pushes = 0
+  pulls = 0
+  private ws: WebSocket | undefined
+  private rid = 0
+  private readonly waiting = new Map<number, (answer: Answer) => void>()
+  private readonly options: RelayTransportOptions
+
+  constructor(options: RelayTransportOptions) {
+    this.options = options
+  }
+
+  connect(): Promise<Welcome> {
+    const url = `${this.options.url().replace(/^http/, 'ws')}/v1/vaults/${this.options.vault}/socket`
+    const ws = new WebSocket(url, [SUBPROTOCOL, TOKEN_SUBPROTOCOL_PREFIX + this.options.token()])
+    ws.binaryType = 'arraybuffer'
+    this.ws = ws
+    return new Promise((resolve, reject) => {
+      let welcomed = false
+      ws.addEventListener('message', (event) => {
+        const { message, payload } = decodeFrame(event.data as string | ArrayBuffer)
+        if (message['type'] === 'welcome') {
+          welcomed = true
+          resolve(message as unknown as Welcome)
+          return
+        }
+        const rid = message['rid']
+        const waiter = typeof rid === 'number' ? this.waiting.get(rid) : undefined
+        if (waiter) {
+          this.waiting.delete(rid as number)
+          waiter({ message, payload })
+        } else if (message['type'] === 'changed') {
+          this.onEvent({ type: 'changed', seq: message['seq'] as number })
+        }
+      })
+      ws.addEventListener('close', (event) => {
+        const code = CLOSE_CODES.get(event.code) ?? 'E_SYNC_OFFLINE'
+        for (const waiter of this.waiting.values()) {
+          waiter({ message: { type: 'error', code }, payload: new Uint8Array(0) })
+        }
+        this.waiting.clear()
+        if (!welcomed) reject(new Error(code))
+        else if (this.ws === ws) this.onEvent({ type: 'closed', code })
+        if (this.ws === ws) this.ws = undefined
+      })
+      ws.addEventListener('error', () => {
+        if (!welcomed) reject(new Error('E_SYNC_OFFLINE'))
+      })
+    })
+  }
+
+  private async request(message: object, chunks: Uint8Array[] = []): Promise<Answer> {
+    for (;;) {
+      const ws = this.ws
+      if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error('E_SYNC_OFFLINE')
+      const rid = ++this.rid
+      const answer = await new Promise<Answer>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('E_SYNC_TIMEOUT')), TIMEOUT_MS)
+        this.waiting.set(rid, (a) => {
+          clearTimeout(timer)
+          resolve(a)
+        })
+        ws.send(encodeFrame({ ...message, rid }, chunks))
+      })
+      if (answer.message['type'] === 'error' && answer.message['code'] === 'E_SYNC_RATE') {
+        await new Promise((resolve) => setTimeout(resolve, Number(answer.message['retryAfter'])))
+        continue
+      }
+      if (answer.message['type'] === 'error') throw new Error(String(answer.message['code']))
+      return answer
+    }
+  }
+
+  async pull(since: number): Promise<PullPage> {
+    this.pulls += 1
+    const { message, payload } = await this.request({ type: 'pull', since })
+    const heads = message['records'] as RecordHead[]
+    const chunks = splitChunks(
+      payload,
+      heads.flatMap((h) => h.chunks),
+    )
+    let at = 0
+    return {
+      records: heads.map((head) => {
+        const own = chunks.slice(at, at + head.chunks.length)
+        at += head.chunks.length
+        const plaintext = new Uint8Array(own.reduce((n, c) => n + c.length, 0))
+        let offset = 0
+        for (const chunk of own) {
+          plaintext.set(chunk, offset)
+          offset += chunk.length
+        }
+        return { id: head.id, version: head.version, seq: head.seq, kind: head.kind, plaintext }
+      }),
+      next: message['next'] as number,
+      more: message['more'] as boolean,
+    }
+  }
+
+  async push(id: string, base: number, plaintext: Uint8Array): Promise<PushResult> {
+    await this.options.beforePush?.(id)
+    this.pushes += 1
+    const size = this.options.chunkBytes ?? LIMITS.maxChunkBytes
+    const chunks: Uint8Array[] = []
+    for (let at = 0; at < plaintext.length || chunks.length === 0; at += size) {
+      chunks.push(plaintext.subarray(at, at + size))
+    }
+    const { message } = await this.request(
+      { type: 'push', id, base, kind: 'record', chunks: chunks.map((c) => c.length) },
+      chunks,
+    )
+    if (message['type'] === 'pushed') {
+      return {
+        type: 'pushed',
+        version: message['version'] as number,
+        seq: message['seq'] as number,
+      }
+    }
+    return { type: 'rejected', version: message['version'] as number }
+  }
+
+  /** A message this transport does not send itself (`revoke`, `devices`). */
+  async send(message: object): Promise<Record<string, unknown>> {
+    return (await this.request(message)).message
+  }
+
+  async close(): Promise<void> {
+    const ws = this.ws
+    this.ws = undefined
+    if (!ws || ws.readyState === WebSocket.CLOSED) return
+    await new Promise<void>((resolve) => {
+      ws.addEventListener('close', () => resolve())
+      ws.close()
+    })
+  }
+}

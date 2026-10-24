@@ -223,3 +223,24 @@ test('a new note has no versions yet', async ({ page }) => {
   await expect(sheet(page)).toContainText('No versions yet')
   await expect(sheet(page).getByRole('button', { name: 'Restore' })).toBeDisabled()
 })
+
+test('labels a version sync kept before a merge with another device', async ({ page }) => {
+  await createNote(page, 'Merged', 'mine')
+  await reopen(page, 'Merged')
+  await appendText(page, ' and theirs')
+  await expect.poll(() => savedBody(page, 'Merged')).toBe('mine and theirs')
+  // What the sync engine writes before another device's state changes the note (#216).
+  await page.evaluate(() => {
+    const kept = JSON.parse(localStorage.getItem('devot.test.revisions') ?? '[]') as {
+      kind: string
+      value: string | null
+    }[]
+    for (const revision of kept) if (revision.kind === 'body') revision.value = 'merge'
+    localStorage.setItem('devot.test.revisions', JSON.stringify(kept))
+  })
+  await pickNoteMore(page, 'Revision History…')
+  await expect(entries(page)).toHaveCount(2)
+  await expect(entries(page).filter({ hasText: 'Before a merge with another device' })).toHaveCount(
+    1,
+  )
+})
