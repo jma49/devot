@@ -3,8 +3,8 @@
 
 use super::notes::{MAX_TITLE_CHARS, MAX_YDOC_BYTES, valid_note_id};
 use crate::storage::{
-    AI_EDIT, BASELINE, CompactableVersion, Db, MERGE, NOTE_STATUSES, REVISION_KINDS, RevisionRecord,
-    RevisionSummary,
+    AI_EDIT, BASELINE, CompactableVersion, Db, MERGE, NOTE_STATUSES, REVISION_KINDS,
+    RevisionRecord, RevisionSummary,
 };
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -254,20 +254,15 @@ mod tests {
         let record = body().into_record().unwrap();
         assert_eq!(record.ydoc, Some(vec![1, 2, 3]));
         assert_eq!(RevisionDto::from(record), body());
-        let baseline = RevisionDto {
-            value: Some(BASELINE.into()),
-            ..body()
-        };
-        let record = baseline.clone().into_record().unwrap();
-        assert_eq!(record.value.as_deref(), Some(BASELINE));
-        assert_eq!(RevisionDto::from(record), baseline);
-        let ai = RevisionDto {
-            value: Some(AI_EDIT.into()),
-            ..body()
-        };
-        let record = ai.clone().into_record().unwrap();
-        assert_eq!(record.value.as_deref(), Some(AI_EDIT));
-        assert_eq!(RevisionDto::from(record), ai);
+        for marker in [BASELINE, AI_EDIT, MERGE] {
+            let marked = RevisionDto {
+                value: Some(marker.into()),
+                ..body()
+            };
+            let record = marked.clone().into_record().unwrap();
+            assert_eq!(record.value.as_deref(), Some(marker));
+            assert_eq!(RevisionDto::from(record), marked);
+        }
     }
 
     #[test]

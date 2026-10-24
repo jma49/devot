@@ -18,6 +18,7 @@ import { createSyncEngine, type SyncStatus } from '../../src/core/sync/engine'
 import { startNodeRelay, type NodeRelay } from '../../relay/src/node/server'
 import { createVault, enrolled, type RelayHost, type TestVault } from '../relay/client'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
+import { windowsOn } from '../support/note-windows'
 import { RelayTransport, type RelayTransportOptions } from '../support/sync-relay'
 import { tempDir } from '../support/temp-dirs'
 
@@ -48,6 +49,8 @@ interface DeviceOptions {
   transport?: Partial<RelayTransportOptions>
   /** The storage the engine writes through, in place of the device's own. */
   engineStorage?: (storage: SqliteAdapter) => StorageAdapter
+  /** Notes in a main window, whose core syncs, and a note window, each with a core of its own. */
+  windows?: true
 }
 
 async function device(
@@ -63,7 +66,9 @@ async function device(
   cleanups.push(() => storage.close())
   const clock = createClock(name)
   const newId = createIdGenerator()
-  const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
+  const app = options.windows ? windowsOn(storage, ['main', 'note'], { saveDelayMs: 5 }) : undefined
+  const notes =
+    app?.windows[0]?.notes ?? createNoteService({ storage, clock, newId, saveDelayMs: 5 })
   const books = createBookService({ storage, clock, newId })
   const tags = createTagService({ storage, clock, newId })
   const credentials = { relay, token }
@@ -102,6 +107,7 @@ async function device(
     transport,
     statuses,
     credentials,
+    app,
     /** Saves, pulls and pushes, then lets the note service take in what came. */
     async sync() {
       await notes.flush()
@@ -488,6 +494,40 @@ describe('sync between two devices', () => {
     // Nobody wrote the welcome that gave way: there is no text of the user's to keep.
     const kept = await b.storage.listRevisions('00000000-0000-7000-8000-0000000000c1')
     expect(kept.filter((r) => r.value === MERGE)).toEqual([])
+  })
+})
+
+describe('sync with a note open in its own window', () => {
+  it('brings another device’s changes to the note window, whether or not the main window holds the note', async () => {
+    const { a, b } = await pair({ b: { windows: true } })
+    const app = b.app!
+    const [main, own] = app.windows as [(typeof app.windows)[0], (typeof app.windows)[0]]
+    const id = await a.notes.create('Plan')
+    await a.notes.setBody(id, 'Monday\n')
+    await settle(a, b)
+    await app.show(own, id)
+    await app.deliverAll()
+
+    await a.notes.setBody(id, 'Monday\n\nTuesday\n')
+    await a.notes.setTitle(id, 'Week')
+    await settle(a, b)
+    await app.deliverAll()
+    expect(app.editorText(own, id)).toBe('Monday\n\nTuesday\n')
+    expect(own.titles.get(id)).toBe('Week')
+    // Relayed once per write it has not had.
+    await settle(a, b)
+    expect(own.inbox).toEqual([])
+
+    await app.show(main, id)
+    await app.deliverAll()
+    await a.notes.setBody(id, 'Monday\n\nTuesday\n\nWednesday\n')
+    await a.notes.setTitle(id, 'Three days')
+    await settle(a, b)
+    await app.deliverAll()
+    expect(app.editorText(own, id)).toBe('Monday\n\nTuesday\n\nWednesday\n')
+    expect(app.editorText(main, id)).toBe('Monday\n\nTuesday\n\nWednesday\n')
+    expect(own.titles.get(id)).toBe('Three days')
+    await sameNote(a, b, id)
   })
 })
 
