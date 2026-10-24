@@ -25,6 +25,7 @@ pub fn clean_key(key: &str) -> Result<&str, &'static str> {
     Ok(key)
 }
 
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn account(provider: ProviderId) -> String {
     format!("ai-key-{}", provider.as_str())
 }
