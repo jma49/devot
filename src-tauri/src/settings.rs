@@ -76,7 +76,10 @@ pub fn settings_show_backups(app: AppHandle) -> Result<(), String> {
     let main = app
         .get_webview_window(crate::MAIN_WINDOW)
         .ok_or_else(|| String::from("E_SETTINGS_NO_MAIN_WINDOW"))?;
-    if crate::deep_link::unminimize(&main)
+    // Shown too: in menu bar mode the main window may be hidden.
+    if main
+        .show()
+        .and(crate::deep_link::unminimize(&main))
         .and(main.set_focus())
         .is_err()
     {

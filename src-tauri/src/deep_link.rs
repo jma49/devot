@@ -220,12 +220,41 @@ pub(crate) fn unminimize<R: Runtime>(window: &tauri::WebviewWindow<R>) -> tauri:
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct Forward {
+    show_main: bool,
+    focus: Option<&'static str>,
+}
+
+/// Settings holds links until it closes (`Inbox::settings`), and they then land in the main
+/// window, so a main window hidden in menu bar mode shows behind it.
+fn forward(settings_open: bool, main_visible: Option<bool>) -> Forward {
+    let focus = if settings_open {
+        Some(settings::LABEL)
+    } else {
+        main_visible.map(|_| MAIN_WINDOW)
+    };
+    Forward {
+        show_main: settings_open && main_visible == Some(false),
+        focus,
+    }
+}
+
 fn bring_forward<R: Runtime>(app: &AppHandle<R>) {
-    let window = app
-        .get_webview_window(settings::LABEL)
-        .or_else(|| app.get_webview_window(MAIN_WINDOW));
-    let Some(window) = window else {
-        return; // Still starting: the main window shows when it is built.
+    let main = app.get_webview_window(MAIN_WINDOW);
+    let plan = forward(
+        app.get_webview_window(settings::LABEL).is_some(),
+        main.as_ref().map(|main| main.is_visible().unwrap_or(true)),
+    );
+    if plan.show_main
+        && let Some(main) = &main
+        && main.show().is_err()
+    {
+        log::warn!("W_DEEP_LINK_FOCUS_FAILED");
+    }
+    // Still starting when there is no window: the main window shows when it is built.
+    let Some(window) = plan.focus.and_then(|label| app.get_webview_window(label)) else {
+        return;
     };
     if unminimize(&window)
         .and(window.show())
@@ -278,6 +307,44 @@ mod tests {
 
     fn command(id: &'static str) -> Link {
         Link::Command { id }
+    }
+
+    #[test]
+    fn a_link_brings_the_settings_window_forward_and_shows_a_hidden_main_window_behind_it() {
+        assert_eq!(
+            forward(true, Some(false)),
+            Forward {
+                show_main: true,
+                focus: Some(settings::LABEL)
+            }
+        );
+        assert_eq!(
+            forward(true, Some(true)),
+            Forward {
+                show_main: false,
+                focus: Some(settings::LABEL)
+            }
+        );
+    }
+
+    #[test]
+    fn without_settings_a_link_brings_the_main_window_forward() {
+        for visible in [true, false] {
+            assert_eq!(
+                forward(false, Some(visible)),
+                Forward {
+                    show_main: false,
+                    focus: Some(MAIN_WINDOW)
+                }
+            );
+        }
+        assert_eq!(
+            forward(false, None),
+            Forward {
+                show_main: false,
+                focus: None
+            }
+        );
     }
 
     #[test]

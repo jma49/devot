@@ -68,6 +68,7 @@ describe('editor settings', () => {
       defaultNotebook: null,
       listDates: 'relative',
       autoDownloadUpdates: true,
+      menuBar: false,
       animations: 'always',
       // A4 with page numbers at the foot of each page.
       pagePaper: 'a4',
@@ -197,6 +198,8 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ windowTransparency: 101 }).windowTransparency).toBe(0)
     expect(parseEditorSettings({ autoDownloadUpdates: false }).autoDownloadUpdates).toBe(false)
     expect(parseEditorSettings({ autoDownloadUpdates: 'no' }).autoDownloadUpdates).toBe(true)
+    expect(parseEditorSettings({ menuBar: true }).menuBar).toBe(true)
+    expect(parseEditorSettings({ menuBar: 'yes' }).menuBar).toBe(false)
   })
 
   it('reads line wrapping as a mode, and the old on/off as unwrap at cursor/off', () => {
@@ -228,7 +231,10 @@ describe('editor settings', () => {
     expect(checkEditorSettingsPatch({ autoDownloadUpdates: false })).toEqual({
       autoDownloadUpdates: false,
     })
+    expect(checkEditorSettingsPatch({ menuBar: true })).toEqual({ menuBar: true })
     for (const bad of [
+      { menuBar: 'on' },
+      { menuBar: null },
       { autoDownloadUpdates: 'on' },
       { autoDownloadUpdates: null },
       { fontSize: 9 },

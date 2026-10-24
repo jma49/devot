@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-quick-capture-done"
+description = "Enables the quick_capture_done command without any pre-configured scope."
+commands.allow = ["quick_capture_done"]
+
+[[permission]]
+identifier = "deny-quick-capture-done"
+description = "Denies the quick_capture_done command without any pre-configured scope."
+commands.deny = ["quick_capture_done"]

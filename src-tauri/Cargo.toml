@@ -16,7 +16,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
-tauri = { version = "2.12", features = ["macos-private-api"] }
+# `tray-icon`: the menu bar icon (`menu_bar`).
+tauri = { version = "2.12", features = ["macos-private-api", "tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
@@ -52,6 +53,11 @@ tauri-plugin-updater = "2"
 # devot:// links from other apps (`deep_link`), and a second launch handing
 # its arguments to the running Devot instead of opening the data folder.
 tauri-plugin-deep-link = "2"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+# Quick capture's shortcut, registered from Rust alone while menu bar mode is
+# on (`menu_bar`); no window is granted the plugin's commands.
+tauri-plugin-global-shortcut = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Native crash reports (DSN builds only): the exception handler in the app,

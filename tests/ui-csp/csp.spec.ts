@@ -462,6 +462,21 @@ test('the settings window lists usage events within the policy', async ({ page }
   expect(await violations(page)).toEqual([])
 })
 
+test('the quick capture window works under the policy', async ({ page }) => {
+  await page.addInitScript(() => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      quick_capture_save: null,
+      quick_capture_close: null,
+    }
+  })
+  await start(page, '/quick-capture.html')
+  await page.getByRole('textbox', { name: 'Title' }).fill('Groceries')
+  await page.getByRole('textbox', { name: 'Note' }).fill('- milk')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
+  expect(await violations(page)).toEqual([])
+})
+
 test('the editor settings work under the policy in both windows', async ({ page }) => {
   await start(page, '/settings.html')
   await settingsTab(page, 'Editing').click()

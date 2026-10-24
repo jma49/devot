@@ -66,6 +66,8 @@ export interface EditorSettings {
   defaultNotebook: string | null
   listDates: ListDatesStyle
   autoDownloadUpdates: boolean
+  /** Keep in Menu Bar: closing the main window hides it, and quick capture is a click or a shortcut away. */
+  menuBar: boolean
   animations: AnimationsChoice
   /** Until the user picks one, Rust starts it from the system's default paper. */
   pagePaper: PagePaper
@@ -126,6 +128,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   defaultNotebook: null,
   listDates: 'relative',
   autoDownloadUpdates: true,
+  menuBar: false,
   animations: 'always',
   pagePaper: 'a4',
   pageMargins: 'normal',
@@ -276,6 +279,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   defaultNotebook: isNotebookId,
   listDates: oneOf(LIST_DATES_STYLES),
   autoDownloadUpdates: isFlag,
+  menuBar: isFlag,
   animations: oneOf(ANIMATIONS),
   pagePaper: oneOf(PAGE_PAPERS),
   pageMargins: oneOf(PAGE_MARGINS),

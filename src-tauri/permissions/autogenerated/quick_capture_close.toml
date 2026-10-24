@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-quick-capture-close"
+description = "Enables the quick_capture_close command without any pre-configured scope."
+commands.allow = ["quick_capture_close"]
+
+[[permission]]
+identifier = "deny-quick-capture-close"
+description = "Denies the quick_capture_close command without any pre-configured scope."
+commands.deny = ["quick_capture_close"]

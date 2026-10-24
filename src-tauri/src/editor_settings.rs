@@ -199,6 +199,9 @@ pub struct EditorSettings {
     pub default_notebook: Option<String>,
     pub list_dates: ListDates,
     pub auto_download_updates: bool,
+    /// Keep in Menu Bar (`menu_bar`): the menu bar icon, quick capture's shortcut, and closing the
+    /// main window hides it rather than quitting.
+    pub menu_bar: bool,
     pub animations: Animations,
     /// Page setup for Print and Export as PDF (`page_setup`).
     pub page_paper: Paper,
@@ -255,6 +258,7 @@ impl Default for EditorSettings {
             default_notebook: None,
             list_dates: ListDates::Relative,
             auto_download_updates: true,
+            menu_bar: false,
             animations: Animations::Always,
             page_paper: Paper::A4,
             page_margins: Margins::Normal,
@@ -288,18 +292,18 @@ fn whole(value: &Value, min: u64, max: u64) -> Result<u64, &'static str> {
         .ok_or(INVALID)
 }
 
+pub(crate) fn is_notebook_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= NOTEBOOK_ID_MAX
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 fn notebook_id(value: &Value) -> Result<Option<String>, &'static str> {
     match value {
         Value::Null => Ok(None),
-        Value::String(id)
-            if !id.is_empty()
-                && id.len() <= NOTEBOOK_ID_MAX
-                && id
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') =>
-        {
-            Ok(Some(id.clone()))
-        }
+        Value::String(id) if is_notebook_id(id) => Ok(Some(id.clone())),
         _ => Err(INVALID),
     }
 }
@@ -386,6 +390,7 @@ impl EditorSettings {
             "defaultNotebook" => self.default_notebook = notebook_id(value)?,
             "listDates" => self.list_dates = choice(value)?,
             "autoDownloadUpdates" => self.auto_download_updates = flag(value)?,
+            "menuBar" => self.menu_bar = flag(value)?,
             "animations" => self.animations = choice(value)?,
             "pagePaper" => self.page_paper = choice(value)?,
             "pageMargins" => self.page_margins = choice(value)?,
@@ -640,6 +645,8 @@ pub fn announce(app: &AppHandle, next: &Snapshot) {
     }
     #[cfg(desktop)]
     crate::menu::show_editor_settings(app, next);
+    #[cfg(desktop)]
+    crate::menu_bar::apply(app, next.settings.menu_bar);
 }
 
 pub fn toggle_sync_scroll(settings: &EditorSettings) -> Map<String, Value> {
@@ -714,6 +721,7 @@ mod tests {
         assert_eq!(d.animations, Animations::Always);
         assert!(d.sync_scroll);
         assert!(d.auto_download_updates);
+        assert!(!d.menu_bar, "menu bar mode is opt-in");
         assert!(d.inline_images);
         assert_eq!(d.appearance, Appearance::System);
         assert_eq!(d.theme, Theme::Default);
@@ -791,6 +799,7 @@ mod tests {
                 "defaultNotebook": null,
                 "listDates": "relative",
                 "autoDownloadUpdates": true,
+                "menuBar": false,
                 "animations": "always",
             })
         );
@@ -886,6 +895,7 @@ mod tests {
                 "defaultNotebook": "0b0c-1d_2",
                 "listDates": "absolute",
                 "autoDownloadUpdates": false,
+                "menuBar": true,
                 "animations": "off",
             })))
             .unwrap();
@@ -898,6 +908,7 @@ mod tests {
             Animations::System
         );
         assert!(!next.auto_download_updates);
+        assert!(next.menu_bar);
         assert_eq!(next.appearance, Appearance::Dark);
         assert_eq!(next.theme, Theme::Ivory);
         assert!(next.system_accent);
@@ -1128,6 +1139,8 @@ mod tests {
             json!({ "autoDownloadUpdates": "on" }),
             json!({ "autoDownloadUpdates": 1 }),
             json!({ "autoDownloadUpdates": null }),
+            json!({ "menuBar": "on" }),
+            json!({ "menuBar": null }),
             // Line wrapping is a mode; the old on/off values are refused.
             json!({ "lineWrapping": true }),
             json!({ "lineWrapping": false }),

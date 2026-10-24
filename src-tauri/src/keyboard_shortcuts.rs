@@ -41,6 +41,8 @@ pub const RESERVED: &[&str] = &[
     "Mod+Ctrl+Space",
     "Mod+Ctrl+Q",
     "Mod+Ctrl+D",
+    // Quick capture's shortcut, the system's for Devot while menu bar mode is on (`menu_bar`).
+    "Mod+Ctrl+Alt+N",
 ];
 
 const MODIFIERS: [&str; 4] = ["Mod", "Ctrl", "Alt", "Shift"];

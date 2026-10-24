@@ -45,6 +45,10 @@ describe('checkUsageEvent', () => {
     expect(fails('__proto__', {})).toBe('E_USAGE_UNKNOWN_EVENT')
   })
 
+  it('counts notes made by quick capture', () => {
+    expect(fails('note.created', { from: 'quick_capture' })).toBe('ok')
+  })
+
   it('rejects strings that are not declared enum values', () => {
     // A note title, a name or an ID can never pass as an enum value.
     expect(fails('note.created', { from: 'Meeting notes' })).toBe('E_USAGE_BAD_VALUE')

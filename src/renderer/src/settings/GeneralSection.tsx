@@ -1,5 +1,7 @@
 import { useEffect, useId, useState, useSyncExternalStore } from 'react'
 import { errorCode } from '../backups'
+import { shortcutLabel } from '../commands/keys'
+import { QUICK_CAPTURE_KEY } from '../commands/registry'
 import type { ListDatesStyle } from '../../../core/editorSettings'
 import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
@@ -63,6 +65,7 @@ export function GeneralSection() {
   const stored = useEditorSetting('defaultNotebook')
   const listDates = useEditorSetting('listDates')
   const autoDownload = useEditorSetting('autoDownloadUpdates')
+  const menuBar = useEditorSetting('menuBar')
   useEffect(() => startUpdateStatus(), [])
   const update = useUpdateStatus()
   const busy = update.state === 'checking' || update.state === 'downloading'
@@ -191,6 +194,15 @@ export function GeneralSection() {
             )}
           </button>
         </Setting>
+      </SettingsSection>
+      <SettingsSection icon="settings.interface" title="generalSettings.menuBar">
+        <SettingToggle
+          label="generalSettings.keepInMenuBar"
+          description="generalSettings.keepInMenuBarHint"
+          values={{ shortcut: shortcutLabel(QUICK_CAPTURE_KEY) }}
+          checked={menuBar}
+          onChange={(on) => change({ menuBar: on })}
+        />
       </SettingsSection>
       <SettingsSection icon="settings.updates" title="generalSettings.updates">
         <SettingToggle

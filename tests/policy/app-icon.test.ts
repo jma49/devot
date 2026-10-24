@@ -246,6 +246,18 @@ describe('the icon artwork', () => {
     ).toEqual([])
   })
 
+  it('draws the menu bar icon as the dove alone, black, so it works as a template image', () => {
+    const path = (file: string) =>
+      / d="([^"]+)"/.exec(readFileSync(join(ART, file), 'utf8'))?.[1] ?? 'none'
+    const icon = readFileSync(join(ART, 'menu-bar.svg'), 'utf8')
+    expect(path('menu-bar.svg')).toBe(path('dove.svg'))
+    expect(icon.match(/<path\b/g)).toHaveLength(1)
+    expect(icon).not.toMatch(/fill="(?!none)|stroke=|gradient/i)
+    const png = decodePng(readFileSync(join(ICONS, 'menu-bar', 'template.png')))
+    expect([png.width, png.height]).toEqual([36, 36])
+    expect(alphaAt(png, 0, 0)).toBe(0)
+  })
+
   it('is listed in the design README', () => {
     const readme = readFileSync('design/README.md', 'utf8')
     const missing = readdirSync(ART).filter((name) => !readme.includes(`\`app-icon/${name}`))

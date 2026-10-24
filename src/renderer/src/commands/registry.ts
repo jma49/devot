@@ -1440,9 +1440,17 @@ export function commandMenuKeys(
 }
 
 /**
+ * Quick capture's shortcut (menu bar mode), held by the system for Devot in
+ * every app while the mode is on (`QUICK_CAPTURE_SHORTCUT` in
+ * src-tauri/src/menu_bar.rs), so it is reserved too.
+ */
+export const QUICK_CAPTURE_KEY = 'Mod+Ctrl+Alt+N'
+
+/**
  * Keys macOS or the app menu keep for themselves; no command may take them
  * (Quit, Hide, Hide Others, Minimize, Close, Settings, app switching,
- * Spotlight, full screen, the character viewer, Lock Screen, Look Up).
+ * Spotlight, full screen, the character viewer, Lock Screen, Look Up), and
+ * quick capture's shortcut.
  */
 export const RESERVED_KEYS: readonly string[] = [
   'Mod+Q',
@@ -1457,6 +1465,7 @@ export const RESERVED_KEYS: readonly string[] = [
   'Mod+Ctrl+Space',
   'Mod+Ctrl+Q',
   'Mod+Ctrl+D',
+  QUICK_CAPTURE_KEY,
 ]
 
 const BY_ID = new Map<string, CommandSpec>(COMMANDS.map((c) => [c.id, c]))
