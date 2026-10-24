@@ -35,9 +35,9 @@ Phase 2 sync is for one person with several devices. The relay holds one encrypt
   - Body: apply both Yjs states to one doc. A Yjs merge never conflicts.
   - Metadata: the higher HLC wins per field.
   - Retries are capped (5, with backoff and jitter). Past the cap, the record waits for the next `changed`.
-- **Local history before a merge:** before a remote state changes a local note, the client writes the current local state to `revisions` as a body revision. Any merge can then be undone from Revision History. Revisions stay local and are never synced.
+- **Local history before a merge:** before a remote state changes a local note's body, the client writes the current local state to `revisions` as a body revision. Any merge can then be undone from Revision History. When only the other device had changed the note, the client keeps such a revision at most every 10 minutes (as often as typing here takes one), because these revisions are never compacted. Revisions stay local and are never synced.
 - **Trash and purge:**
-  - Trash is the `status` field, so the higher HLC wins.
+  - Trash is a field of its own (`deleted`, with its HLC; the note's `status` is the user's status), so the higher HLC wins.
   - An edit made after the trash (by HLC) moves the note back out of the trash, so an edit never vanishes into the trash on another device.
   - Purge pushes a tombstone: `purged: true`, no body. Tombstones are kept forever because they are tiny, so a device that comes back after months still learns about the purge. Before the tombstone removes a note, the device saves its local copy as a revision.
 - **Prerequisite:** every body write must update the note's existing Yjs doc. Rebuilding the doc from text on a write breaks merging, because the same text would then appear twice after a merge. This applies to the editor, imports, the MCP server and the local HTTP API: a write that only has new text applies it as a diff to the existing doc.

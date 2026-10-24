@@ -26,7 +26,7 @@ describe('the last pane', () => {
   })
 
   it('falls back to General for a value that names no pane', () => {
-    expect(paneStore(memory({ 'devot.settings.pane': 'sync' })).read()).toBe('general')
+    expect(paneStore(memory({ 'devot.settings.pane': 'cloud' })).read()).toBe('general')
   })
 
   it('works on when storage throws', () => {
@@ -60,6 +60,7 @@ describe('navigation keys', () => {
       'appearance',
       'keyboard',
       'mirror',
+      'sync',
       'ai',
       'integrations',
       'usage',

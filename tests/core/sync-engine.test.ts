@@ -1,0 +1,547 @@
+// Two devices sync through the Node relay, started in-process: each runs the core's note, notebook
+// and tag services and the sync engine on its own better-sqlite3 database, as the app does with
+// Rust's storage and transport. Every test ends with both devices holding the same notes.
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  createBookService,
+  createClock,
+  createIdGenerator,
+  createNoteService,
+  createTagService,
+  MERGE,
+  seedWelcome,
+  type StorageAdapter,
+  type WelcomeContent,
+} from '../../src/core'
+import { createSyncEngine, type SyncStatus } from '../../src/core/sync/engine'
+import { startNodeRelay, type NodeRelay } from '../../relay/src/node/server'
+import { createVault, enrolled, type RelayHost, type TestVault } from '../relay/client'
+import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
+import { windowsOn } from '../support/note-windows'
+import { RelayTransport, type RelayTransportOptions } from '../support/sync-relay'
+import { tempDir } from '../support/temp-dirs'
+
+const SECRET = 'test-relay-secret-0123456789abcdef'
+
+const cleanups: (() => Promise<void> | void)[] = []
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
+})
+
+interface Relay {
+  host: RelayHost
+  node: NodeRelay
+  data: string
+}
+
+async function startRelay(data = tempDir('devot-sync-relay-')): Promise<Relay> {
+  const node = await startNodeRelay({ data, secret: SECRET })
+  const relay = { host: { ...node, secret: SECRET }, node, data }
+  cleanups.push(() => relay.node.close())
+  return relay
+}
+
+type Device = Awaited<ReturnType<typeof device>>
+
+interface DeviceOptions {
+  now?: () => number
+  transport?: Partial<RelayTransportOptions>
+  /** The storage the engine writes through, in place of the device's own. */
+  engineStorage?: (storage: SqliteAdapter) => StorageAdapter
+  /** Notes in a main window, whose core syncs, and a note window, each with a core of its own. */
+  windows?: true
+}
+
+async function device(
+  name: string,
+  relay: Relay,
+  vault: TestVault,
+  token: string,
+  options: DeviceOptions = {},
+) {
+  const storage: SqliteAdapter = openSqliteAdapter(
+    join(tempDir(`devot-sync-${name}-`), 'db.sqlite'),
+  )
+  cleanups.push(() => storage.close())
+  const clock = createClock(name)
+  const newId = createIdGenerator()
+  const app = options.windows ? windowsOn(storage, ['main', 'note'], { saveDelayMs: 5 }) : undefined
+  const notes =
+    app?.windows[0]?.notes ?? createNoteService({ storage, clock, newId, saveDelayMs: 5 })
+  const books = createBookService({ storage, clock, newId })
+  const tags = createTagService({ storage, clock, newId })
+  const credentials = { relay, token }
+  const transport = new RelayTransport({
+    url: () => credentials.relay.host.url,
+    vault: vault.vault,
+    token: () => credentials.token,
+    ...options.transport,
+  })
+  const statuses: SyncStatus[] = []
+  const engine = createSyncEngine({
+    storage: options.engineStorage?.(storage) ?? storage,
+    sync: storage,
+    transport,
+    clock,
+    newId,
+    retryBaseMs: 1,
+    idleMs: 10,
+    everyMs: 40,
+    random: () => 0.5,
+    ...(options.now ? { now: options.now } : {}),
+    onStatus: (status) => statuses.push(status),
+  })
+  transport.onEvent = (event) => engine.received(event)
+  engine.start()
+  cleanups.push(() => engine.stop())
+  await engine.idle()
+  return {
+    name,
+    storage,
+    notes,
+    books,
+    tags,
+    clock,
+    engine,
+    transport,
+    statuses,
+    credentials,
+    app,
+    /** Saves, pulls and pushes, then lets the note service take in what came. */
+    async sync() {
+      await notes.flush()
+      await engine.syncNow()
+      await notes.mergeStored()
+    },
+    note: (id: string) => storage.getNote(id, { trashed: true }),
+  }
+}
+
+async function pair(options: { a?: DeviceOptions; b?: DeviceOptions } = {}) {
+  const relay = await startRelay()
+  const vault = await createVault(relay.host, 'mac')
+  const phone = await enrolled(relay.host, vault, 'phone')
+  const a = await device('mac', relay, vault, vault.first.token, options.a)
+  const b = await device('phone', relay, vault, phone.token, options.b)
+  return { relay, vault, a, b }
+}
+
+/** Rounds of A then B, so each takes in what the other pushed. */
+async function settle(...devices: Device[]) {
+  for (let round = 0; round < 2; round += 1) {
+    for (const d of devices) await d.sync()
+  }
+}
+
+async function sameNote(a: Device, b: Device, id: string) {
+  const [x, y] = await Promise.all([a.note(id), b.note(id)])
+  const view = (n: Awaited<ReturnType<Device['note']>>) =>
+    n && {
+      title: n.title,
+      bodyMd: n.bodyMd,
+      bookId: n.bookId,
+      status: n.status,
+      pinned: n.pinned,
+      trashed: n.deletedAt !== null,
+    }
+  expect(view(x)).toEqual(view(y))
+  return x
+}
+
+describe('sync between two devices', () => {
+  it('brings a new note, then an edit, to the other device', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Groceries')
+    await a.notes.setBody(id, 'Milk and eggs.\n')
+    await settle(a, b)
+    expect((await b.note(id))?.bodyMd).toBe('Milk and eggs.\n')
+    await b.notes.setBody(id, 'Milk, eggs and bread.\n')
+    await settle(b, a)
+    expect((await a.note(id))?.bodyMd).toBe('Milk, eggs and bread.\n')
+    await sameNote(a, b, id)
+    expect(a.engine.status()).toMatchObject({ state: 'idle', code: null })
+    expect(a.engine.status().lastSync).toEqual(expect.any(Number))
+  })
+
+  it('pushes a record only when it changed', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Once')
+    await settle(a, b)
+    const pushes = a.transport.pushes + b.transport.pushes
+    await settle(a, b)
+    expect(a.transport.pushes + b.transport.pushes).toBe(pushes)
+    await sameNote(a, b, id)
+  })
+
+  it('merges edits both devices made offline, each once, and keeps the local text as a merge', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Plan')
+    await a.notes.setBody(id, 'Monday\n\nTuesday\n\nWednesday\n')
+    await settle(a, b)
+    await a.notes.setBody(id, 'Monday: gym\n\nTuesday\n\nWednesday\n')
+    await b.notes.setBody(id, 'Monday\n\nTuesday\n\nWednesday: dentist\n')
+    await settle(a, b)
+    const note = await sameNote(a, b, id)
+    expect(note?.bodyMd).toBe('Monday: gym\n\nTuesday\n\nWednesday: dentist\n')
+    const kept = (await b.storage.listRevisions(id)).filter((r) => r.value === MERGE)
+    expect(kept).toHaveLength(1)
+    const version = await b.storage.getRevision(kept[0]!.id)
+    expect(version?.length).toBe('Monday\n\nTuesday\n\nWednesday: dentist\n'.length)
+    // A took in B's paragraph: its text from before is kept too.
+    const before = (await a.storage.listRevisions(id)).filter((r) => r.value === MERGE)
+    expect(before.map((r) => r.length)).toEqual(['Monday: gym\n\nTuesday\n\nWednesday\n'.length])
+  })
+
+  it('keeps the text from before another device’s change, at most every ten minutes', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Trip')
+    await a.notes.setBody(id, 'Passport\n\nTickets\n\nCharger\n')
+    await settle(a, b)
+    const merges = async () =>
+      (await b.storage.listRevisions(id)).filter((r) => r.kind === 'body' && r.value === MERGE)
+    expect(await merges()).toEqual([])
+    await a.notes.setBody(id, 'Passport\n\nCharger\n')
+    await settle(a, b)
+    expect((await b.note(id))?.bodyMd).toBe('Passport\n\nCharger\n')
+    const [first] = await merges()
+    expect((await b.storage.getRevision(first!.id))?.length).toBe(
+      'Passport\n\nTickets\n\nCharger\n'.length,
+    )
+    await a.notes.setBody(id, 'Passport\n\nCharger\n\nBooks\n')
+    await settle(a, b)
+    expect(await merges()).toHaveLength(1)
+    // Ten minutes on, the next change from the other device keeps a version again.
+    const kept = (await b.storage.getRevision(first!.id))!
+    await b.storage.deleteRevisions(id, [first!.id])
+    await b.storage.putRevision({ ...kept, at: kept.at - 10 * 60_000 })
+    await a.notes.setBody(id, 'Passport\n\nBooks\n')
+    await settle(a, b)
+    const after = await merges()
+    expect(after).toHaveLength(2)
+    expect(after.map((r) => r.length)).toContain('Passport\n\nCharger\n\nBooks\n'.length)
+    await sameNote(a, b, id)
+  })
+
+  it('takes the newer value of each metadata field', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Draft')
+    await settle(a, b)
+    await a.notes.setTitle(id, 'Old title')
+    await a.notes.setStatus(id, 'active')
+    await a.notes.flush()
+    // Later by the wall clock, so later by HLC whatever the counters say.
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await b.notes.setTitle(id, 'New title')
+    await b.notes.setPinned(id, true)
+    await settle(a, b)
+    const note = await sameNote(a, b, id)
+    expect(note).toMatchObject({ title: 'New title', status: 'active', pinned: true })
+  })
+
+  it('brings a note edited after it went to the Trash back out, on both devices', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Ideas')
+    await a.notes.setBody(id, 'One\n')
+    await settle(a, b)
+    await a.notes.trash(id)
+    await a.sync()
+    await b.notes.setBody(id, 'One\nTwo\n')
+    await settle(b, a)
+    const note = await sameNote(a, b, id)
+    expect(note).toMatchObject({ deletedAt: null, bodyMd: 'One\nTwo\n' })
+  })
+
+  it('keeps a note in the Trash when the edit came before the move', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Old')
+    await settle(a, b)
+    await b.notes.setBody(id, 'Typed before\n')
+    await b.notes.flush()
+    await b.engine.syncNow()
+    await a.sync()
+    await a.notes.trash(id)
+    await settle(a, b)
+    const note = await sameNote(a, b, id)
+    expect(note?.deletedAt).not.toBeNull()
+    expect(note?.bodyMd).toBe('Typed before\n')
+  })
+
+  it('purges a note on the other device, keeping its local copy as a merge version', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Secret')
+    await a.notes.setBody(id, 'Shred me\n')
+    await settle(a, b)
+    await a.notes.trash(id)
+    await a.notes.purge(id)
+    await settle(a, b)
+    expect(await a.note(id)).toBeNull()
+    expect(await b.note(id)).toBeNull()
+    const [row] = await b.storage.syncRead([id])
+    expect(row?.note?.purged).toBe(true)
+    const kept = await b.storage.listRevisions(id)
+    expect(kept.map((r) => r.value)).toContain(MERGE)
+    // A purge is final: an edit B still had in memory does not bring the note back.
+    await settle(b, a)
+    expect(await a.note(id)).toBeNull()
+  })
+
+  it('syncs notebooks and tags with the notes in them', async () => {
+    const { a, b } = await pair()
+    const book = await a.books.create('Work', null)
+    const id = await a.notes.create('Standup', book)
+    const tag = await a.tags.addToNote(id, 'daily')
+    await settle(a, b)
+    expect((await b.books.list()).map((x) => x.name)).toContain('Work')
+    expect((await b.storage.getNoteTag(id, tag))?.present).toBe(true)
+    await b.tags.rename(tag, 'every day')
+    await b.books.rename(book, 'Office')
+    await settle(b, a)
+    expect((await a.tags.list()).find((t) => t.id === tag)?.name).toBe('every day')
+    expect((await a.books.list()).find((x) => x.id === book)?.name).toBe('Office')
+    await a.tags.remove(tag)
+    await settle(a, b)
+    expect((await b.tags.list()).find((t) => t.id === tag)).toBeUndefined()
+    await sameNote(a, b, id)
+  })
+
+  it('catches up after the relay was away', async () => {
+    const { relay, a, b } = await pair()
+    const id = await a.notes.create('Trip')
+    await settle(a, b)
+    await relay.node.close()
+    await a.notes.setBody(id, 'Packed on the train\n')
+    await a.sync()
+    expect(a.engine.status().state).toBe('offline')
+    const back = await startNodeRelay({ data: relay.data, secret: SECRET, port: 0 })
+    cleanups.push(() => back.close())
+    a.credentials.relay = { ...relay, node: back, host: { ...back, secret: SECRET } }
+    b.credentials.relay = a.credentials.relay
+    await settle(a, b)
+    expect((await b.note(id))?.bodyMd).toBe('Packed on the train\n')
+  })
+
+  it('uploads everything again to a relay with a new vault epoch', async () => {
+    const { vault, a, b } = await pair()
+    const id = await a.notes.create('Kept')
+    await settle(a, b)
+    // The relay lost its data: the vault is made again under the same ID, with a new epoch.
+    const fresh = await startRelay()
+    const again = await postCreate(fresh.host, vault)
+    const phone = await enrolled(fresh.host, vault, 'phone')
+    a.credentials.relay = fresh
+    a.credentials.token = again.token
+    b.credentials.relay = fresh
+    b.credentials.token = phone.token
+    await a.engine.stop()
+    await b.engine.stop()
+    a.engine.start()
+    b.engine.start()
+    await a.engine.idle()
+    await b.engine.idle()
+    await b.notes.setBody(id, 'Edited after the reset\n')
+    await settle(a, b)
+    expect((await a.note(id))?.bodyMd).toBe('Edited after the reset\n')
+    const c = await device('ipad', fresh, vault, (await enrolled(fresh.host, vault, 'ipad')).token)
+    await c.sync()
+    expect((await c.note(id))?.title).toBe('Kept')
+  })
+
+  it('refuses to sync while the clock is more than 5 minutes off the relay', async () => {
+    const { a, b } = await pair({ b: { now: () => Date.now() + 6 * 60_000 } })
+    const id = await b.notes.create('Wrong clock')
+    await b.sync()
+    expect(b.engine.status()).toMatchObject({ state: 'stopped', code: 'E_SYNC_CLOCK_SKEW' })
+    expect(b.transport.pushes).toBe(0)
+    await a.sync()
+    expect(await a.note(id)).toBeNull()
+  })
+
+  it('pulls, merges and pushes again when another device pushed first', async () => {
+    let race: Device | undefined
+    const { a, b } = await pair({
+      b: {
+        transport: {
+          beforePush: async () => {
+            const other = race
+            race = undefined
+            if (other) await other.sync()
+          },
+        },
+      },
+    })
+    const id = await a.notes.create('Shared')
+    await a.notes.setBody(id, 'Start\n')
+    await settle(a, b)
+    await a.notes.setBody(id, 'Start\nFrom the Mac\n')
+    await a.notes.flush()
+    await b.notes.setBody(id, 'From the phone\nStart\n')
+    race = a
+    const pushes = b.transport.pushes
+    await b.sync()
+    expect(b.transport.pushes - pushes).toBe(2)
+    await settle(a, b)
+    expect((await sameNote(a, b, id))?.bodyMd).toBe('From the phone\nStart\nFrom the Mac\n')
+  })
+
+  it('pulls a record again when local writes kept racing it, instead of skipping it', async () => {
+    const racing = { on: false }
+    const { a, b } = await pair({
+      b: {
+        engineStorage: (storage) =>
+          new Proxy(storage, {
+            get: (target, key, receiver) =>
+              key === 'putNote' && racing.on
+                ? () => Promise.reject(new Error('E_NOTE_BODY_STALE'))
+                : Reflect.get(target, key, receiver),
+          }),
+      },
+    })
+    const id = await a.notes.create('Shelf')
+    await a.notes.setBody(id, 'One\n')
+    await settle(a, b)
+    racing.on = true
+    await a.notes.setBody(id, 'One\n\nTwo\n')
+    await a.sync()
+    await b.sync()
+    await b.engine.idle()
+    expect((await b.note(id))?.bodyMd).toBe('One\n')
+    expect(b.engine.status().state).toBe('offline')
+    racing.on = false
+    await settle(b, a)
+    expect((await b.note(id))?.bodyMd).toBe('One\n\nTwo\n')
+    await sameNote(a, b, id)
+  })
+
+  it('stops pushing a record after 5 retries until the next change on the relay', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Contested')
+    await settle(a, b)
+    const push = a.transport.push.bind(a.transport)
+    let rejecting = true
+    a.transport.push = async (record, base, plaintext) =>
+      rejecting ? { type: 'rejected', version: base + 1 } : push(record, base, plaintext)
+    await a.notes.setTitle(id, 'Mine')
+    const before = a.transport.pulls
+    await a.sync()
+    expect(a.transport.pulls - before).toBe(1 + 5)
+    await a.sync()
+    expect(a.transport.pulls - before).toBe(1 + 5 + 1)
+    rejecting = false
+    await b.notes.setTitle(id, 'Theirs, later')
+    await b.sync()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await a.engine.idle()
+    await settle(a, b)
+    expect((await sameNote(a, b, id))?.title).toBe('Theirs, later')
+  })
+
+  it('stops and says so when the device is revoked', async () => {
+    const { a, b } = await pair()
+    const devices = (await b.transport.send({ type: 'devices' }))['devices'] as {
+      id: string
+      current: boolean
+    }[]
+    const phone = devices.find((d) => d.current)!.id
+    await a.transport.send({ type: 'revoke', device: phone })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await b.engine.idle()
+    expect(b.engine.status()).toMatchObject({ state: 'stopped', code: 'E_SYNC_REVOKED' })
+    const id = await b.notes.create('Not sent')
+    await b.sync()
+    expect(b.engine.status().code).toBe('E_SYNC_REVOKED')
+    await a.sync()
+    expect(await a.note(id)).toBeNull()
+  })
+
+  it('keeps a record past the relay’s size limit on this device, with a notice', async () => {
+    const { a, b } = await pair({ a: { transport: { chunkBytes: 64 } } })
+    const small = await a.notes.create('S')
+    const big = await a.notes.create('Long')
+    await a.notes.setBody(big, 'x'.repeat(2000))
+    await settle(a, b)
+    expect(a.engine.status().tooLarge).toEqual([big])
+    expect(await b.note(big)).toBeNull()
+    expect((await a.note(big))?.bodyMd).toBe('x'.repeat(2000))
+    expect(a.statuses.some((s) => s.tooLarge.includes(big))).toBe(true)
+    void small
+  })
+
+  it('takes the other device’s copy of a first-launch note nobody edited', async () => {
+    const welcome = (body: string): WelcomeContent => ({
+      bookName: 'Getting started',
+      notes: [{ id: '00000000-0000-7000-8000-0000000000c1', title: 'Welcome', body }],
+    })
+    const relay = await startRelay()
+    const vault = await createVault(relay.host)
+    const phone = await enrolled(relay.host, vault)
+    const a = await device('mac', relay, vault, vault.first.token)
+    const b = await device('phone', relay, vault, phone.token)
+    for (const [d, text] of [
+      [a, 'Press Cmd+N for a new note.\n'],
+      [b, 'Tap + for a new note.\n'],
+    ] as const) {
+      await seedWelcome({
+        storage: d.storage,
+        clock: d.clock,
+        newId: createIdGenerator(),
+        content: welcome(text),
+      })
+    }
+    await settle(a, b)
+    const note = await sameNote(a, b, '00000000-0000-7000-8000-0000000000c1')
+    expect(note?.bodyMd).toBe('Press Cmd+N for a new note.\n')
+    // Nobody wrote the welcome that gave way: there is no text of the user's to keep.
+    const kept = await b.storage.listRevisions('00000000-0000-7000-8000-0000000000c1')
+    expect(kept.filter((r) => r.value === MERGE)).toEqual([])
+  })
+})
+
+describe('sync with a note open in its own window', () => {
+  it('brings another device’s changes to the note window, whether or not the main window holds the note', async () => {
+    const { a, b } = await pair({ b: { windows: true } })
+    const app = b.app!
+    const [main, own] = app.windows as [(typeof app.windows)[0], (typeof app.windows)[0]]
+    const id = await a.notes.create('Plan')
+    await a.notes.setBody(id, 'Monday\n')
+    await settle(a, b)
+    await app.show(own, id)
+    await app.deliverAll()
+
+    await a.notes.setBody(id, 'Monday\n\nTuesday\n')
+    await a.notes.setTitle(id, 'Week')
+    await settle(a, b)
+    await app.deliverAll()
+    expect(app.editorText(own, id)).toBe('Monday\n\nTuesday\n')
+    expect(own.titles.get(id)).toBe('Week')
+    // Relayed once per write it has not had.
+    await settle(a, b)
+    expect(own.inbox).toEqual([])
+
+    await app.show(main, id)
+    await app.deliverAll()
+    await a.notes.setBody(id, 'Monday\n\nTuesday\n\nWednesday\n')
+    await a.notes.setTitle(id, 'Three days')
+    await settle(a, b)
+    await app.deliverAll()
+    expect(app.editorText(own, id)).toBe('Monday\n\nTuesday\n\nWednesday\n')
+    expect(app.editorText(main, id)).toBe('Monday\n\nTuesday\n\nWednesday\n')
+    expect(own.titles.get(id)).toBe('Three days')
+    await sameNote(a, b, id)
+  })
+})
+
+async function postCreate(host: RelayHost, vault: TestVault) {
+  const { enrollmentVerifier, toBase64Url } = await import('../../src/core/sync/protocol')
+  const res = await fetch(`${host.url}/v1/vaults/${vault.vault}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${host.secret}` },
+    body: JSON.stringify({
+      v: 1,
+      type: 'create',
+      verifier: toBase64Url(await enrollmentVerifier(vault.enrollmentSecret)),
+      label: 'mac',
+    }),
+  })
+  return (await res.json()) as { token: string; epoch: string }
+}

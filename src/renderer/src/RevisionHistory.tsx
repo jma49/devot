@@ -30,6 +30,11 @@ function describeChange(entry: Extract<HistoryEntry, { kind: 'body' }>, locale: 
 }
 
 function describe(entry: HistoryEntry, books: BookRecord[], locale: string): string {
+  if (entry.kind === 'body' && entry.merge) {
+    return format(t('history.beforeMerge'), {
+      change: describe({ ...entry, merge: false }, books, locale),
+    })
+  }
   switch (entry.kind) {
     case 'body': {
       const change = describeChange(entry, locale)

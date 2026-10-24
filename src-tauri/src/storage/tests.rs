@@ -1635,26 +1635,30 @@ fn a_write_rewrites_the_search_index_only_when_title_or_markdown_changes() {
     pinned.pinned = true;
     pinned.pinned_hlc = "0000000000002-0000-test".into();
     pinned.updated_at = 2;
-    assert_eq!(cost(&mut store, &pinned), 1, "a pin writes the row alone");
+    assert_eq!(
+        cost(&mut store, &pinned),
+        2,
+        "a pin writes the row and moves its sync entry on, nothing more"
+    );
     let mut trashed = based_on(2, pinned.clone());
     trashed.deleted_at = Some(3);
     trashed.deleted_hlc = Some("0000000000003-0000-test".into());
-    assert_eq!(cost(&mut store, &trashed), 1, "so does the Trash");
+    assert_eq!(cost(&mut store, &trashed), 2, "so does the Trash");
     let mut restored = based_on(3, trashed.clone());
     restored.deleted_at = None;
     restored.deleted_hlc = Some("0000000000004-0000-test".into());
-    assert_eq!(cost(&mut store, &restored), 1, "and a restore");
+    assert_eq!(cost(&mut store, &restored), 2, "and a restore");
     let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 10).unwrap().len();
     assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
 
     let mut renamed = based_on(4, restored.clone());
     renamed.title = "Launch day".into();
     renamed.title_hlc = "0000000000005-0000-test".into();
-    assert!(cost(&mut store, &renamed) > 1, "a new title is indexed");
+    assert!(cost(&mut store, &renamed) > 2, "a new title is indexed");
     assert_eq!((found(&store, "plan"), found(&store, "day")), (0, 1));
     let mut edited = based_on(5, renamed.clone());
     edited.body_md = "Snapshot first.".into();
-    assert!(cost(&mut store, &edited) > 1, "a new body is indexed");
+    assert!(cost(&mut store, &edited) > 2, "a new body is indexed");
     assert_eq!((found(&store, "relay"), found(&store, "snapshot")), (0, 1));
     store
         .conn

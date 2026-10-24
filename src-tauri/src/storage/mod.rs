@@ -3,6 +3,9 @@
 
 mod db;
 mod readable;
+mod sync;
+
+pub use sync::{SYNC_KINDS, SyncEntry, SyncLocal};
 
 pub use db::Db;
 
@@ -34,6 +37,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0016_body_versions.sql"),
     include_str!("../../migrations/0017_note_dates.sql"),
     include_str!("../../migrations/0018_book_icons.sql"),
+    include_str!("../../migrations/0019_sync.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -281,6 +285,9 @@ pub const BASELINE: &str = "baseline";
 /// The body version an accepted AI edit proposal wrote: like a baseline, kept by compaction and not
 /// counted by the heatmap (see `AI_EDIT` in src/core/revisions.ts).
 pub const AI_EDIT: &str = "ai";
+/// The body version kept before a state from another device changed the note (`MERGE` in
+/// src/core/revisions.ts); compaction keeps it.
+pub const MERGE: &str = "merge";
 
 /// Local to this device. A body version holds the Yjs state and its text length; an event holds the
 /// new value of the field (see migrations/0009_revisions.sql).
@@ -1388,6 +1395,10 @@ impl Store {
     /// purged: final, `put_note` never changes a purged row. Its attachments go too, except those
     /// another note that is not purged still shows: they pass to that note (`HAND_OVER_FILES_SQL`).
     pub fn purge_note(&mut self, id: &str, at: i64, hlc: &str) -> Result<()> {
+        self.purge(id, at, hlc, true)
+    }
+
+    fn purge(&mut self, id: &str, at: i64, hlc: &str, revisions: bool) -> Result<()> {
         let tx = self.conn.transaction()?;
         tx.execute(
             "UPDATE notes SET title = '', title_hlc = MAX(title_hlc, ?3), body_md = '', ydoc = x'',
@@ -1400,7 +1411,9 @@ impl Store {
         tx.execute(HAND_OVER_FILES_SQL, rusqlite::named_params! { "@id": id })?;
         tx.execute("DELETE FROM files WHERE note_id = ?1", [id])?;
         tx.execute("DELETE FROM links WHERE source_id = ?1", [id])?;
-        tx.execute("DELETE FROM revisions WHERE note_id = ?1", [id])?;
+        if revisions {
+            tx.execute("DELETE FROM revisions WHERE note_id = ?1", [id])?;
+        }
         tx.commit()?;
         Ok(())
     }

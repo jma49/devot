@@ -135,6 +135,15 @@ export async function mockTauri(page: Page): Promise<void> {
               problem: null,
               token: 'unset',
             }
+          // Sync is off unless a test fakes it (sync-settings.spec.ts).
+          if (cmd === 'sync_get')
+            return {
+              relayUrl: '',
+              enabled: false,
+              vault: false,
+              enrolled: false,
+              status: { state: 'off', lastSync: null, code: null, tooLarge: 0 },
+            }
           if (
             cmd === 'clipboard_write_text' ||
             cmd === 'usage_record' ||

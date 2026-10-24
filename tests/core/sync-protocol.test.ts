@@ -91,3 +91,12 @@ it('the enrollment verifier is SHA-256 over its label and the secret', async () 
   expect(await enrollmentVerifier(secret)).toEqual(expected)
   expect(await enrollmentVerifier(new Uint8Array(32).fill(8))).not.toEqual(expected)
 })
+
+it('the enrollment verifier is the one Rust sends when it creates a vault', async () => {
+  // src-tauri/src/sync/tests.rs, the_enrollment_secret_matches_known_answers.
+  const hex = (text: string) => Uint8Array.from(text.match(/../g)!, (b) => parseInt(b, 16))
+  const secret = hex('89a0b71f4097d394c4618e45d1747e030c4f606b586995e6ecfdac1d7a313642')
+  expect(await enrollmentVerifier(secret)).toEqual(
+    hex('7ed8b8c9ecb100f005b633fa39eef4bc9c065a8b89a9306901935d5695b1a99f'),
+  )
+})

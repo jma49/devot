@@ -99,6 +99,10 @@ describe('Tauri command permissions', () => {
       'allow-settings-open-data-folder',
       'allow-settings-show-backups',
       'allow-symbol-png',
+      // Settings > Sync sets the relay and turns sync on or off; the relay's secret goes in, once.
+      'allow-sync-get',
+      'allow-sync-set',
+      'allow-sync-vault-create',
       'allow-system-accent',
       'allow-update-check',
       'allow-update-status',
@@ -107,6 +111,28 @@ describe('Tauri command permissions', () => {
       'core:event:allow-listen',
       'core:event:allow-unlisten',
     ])
+  })
+
+  it('lets only the main window run sync, and only the Settings window set it up', () => {
+    for (const run of [
+      'allow-sync-connect',
+      'allow-sync-pull',
+      'allow-sync-push',
+      'allow-sync-disconnect',
+      'allow-sync-status-report',
+      'allow-sync-pending',
+      'allow-sync-read',
+      'allow-sync-entry-put',
+      'allow-sync-state-get',
+      'allow-sync-state-put',
+      'allow-sync-reset',
+      'allow-sync-note-purge',
+    ]) {
+      expect(windowsWith(run)).toEqual(['main'])
+    }
+    expect(windowsWith('allow-sync-get')).toEqual(['main', 'settings'])
+    expect(windowsWith('allow-sync-set')).toEqual(['settings'])
+    expect(windowsWith('allow-sync-vault-create')).toEqual(['settings'])
   })
 
   it('lets every window read the system accent colour', () => {

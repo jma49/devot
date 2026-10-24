@@ -195,7 +195,7 @@ export interface NoteService {
   activity(now: number, offsetAt?: OffsetAt): Promise<ActivityHeatmap>
   /**
    * Takes in what another process wrote (devot-mcp, or a writer on another connection; see `devot://db-changed`), so the next write keeps the other's changes.
-   * Every note in memory merges the stored state. Returns the notes whose title the other process changed.
+   * Every note in memory merges the stored state, and another window that may hold a note this core does not is relayed its stored state. Returns the notes whose title the other process changed.
    */
   /** A note deleted for good meanwhile is let go; the others stay in memory (letting one go could lose an edit that has just loaded it). A note that cannot be read is left as it was. */
   mergeStored(): Promise<{ id: string; title: string }[]>
@@ -333,8 +333,8 @@ const byNote = (versions: readonly CompactableVersion[]) => {
 
 const codeOf = (error: unknown) => errorCode(error, 'E_STORAGE_WRITE_FAILED')
 
-/** The same for the same note and text, so their states are equal; another text gets another client, so two seeds never give two changes one ID. */
-const seedClient = (id: string, markdown: string) =>
+/** The Yjs client a seeded body is written as: the same for the same note and text, so their states are equal; another text gets another client, so two seeds never give two changes one ID. */
+export const seedClient = (id: string, markdown: string) =>
   Number.parseInt(sha256Hex(`${id}\n${lineFeeds(markdown)}`).slice(0, 8), 16)
 
 const textOf = (state: Uint8Array) => {
@@ -360,6 +360,8 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
   const live = new Map<string, Live>()
   const loading = new Map<string, { note: Promise<Live>; users: number }>()
   const holds = new Map<string, number>()
+  // Notes another window spoke of, so it may hold them: the stored write last relayed to it (see mergeStored).
+  const heard = new Map<string, string | undefined>()
   const coldWrites = new Map<string, Promise<void>>()
   const failing = new Map<string, string>()
   const report = () => {
@@ -849,7 +851,27 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     note.saved = { ...withNewer(note.saved, stored), bodyVersion: stored.bodyVersion }
     takeOutside(note, stored.ydoc)
     if (note.record.title !== title) {
-      tell({ kind: 'title', noteId: note.record.id, title: note.record.title })
+      const { id, title: taken, titleHlc } = note.record
+      tell({ kind: 'title', noteId: id, title: taken })
+      relay({ kind: 'title', noteId: id, title: taken, hlc: titleHlc })
+    }
+  }
+
+  /** The stored state of the notes another window may hold and this core does not, when a write moved it since it was last relayed: the core holding the note is the one that takes it in. */
+  const relayStored = async () => {
+    for (const [id, last] of heard) {
+      if (live.has(id)) continue
+      const stored = await getStored(id, { trashed: true }).catch((e: unknown) => {
+        console.warn('W_NOTE_MERGE_FAILED', errorCode(e))
+        return undefined
+      })
+      if (stored === null) heard.delete(id)
+      if (!stored) continue
+      const seen = `${stored.bodyVersion} ${stored.titleHlc}`
+      if (seen === last) continue
+      heard.set(id, seen)
+      relay({ kind: 'update', noteId: id, data: stored.ydoc })
+      relay({ kind: 'title', noteId: id, title: clipTitle(stored.title), hlc: stored.titleHlc })
     }
   }
 
@@ -1458,12 +1480,14 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           console.warn('W_NOTE_MERGE_FAILED', errorCode(result.reason))
         }
       }
+      await relayStored()
       return retitled
     },
 
     async receive(message) {
-      if (message.kind === 'saved') return
       const { noteId: id } = message
+      if (!heard.has(id)) heard.set(id, undefined)
+      if (message.kind === 'saved') return
       const note = await inMemory(id)
       if (!note) return
       try {

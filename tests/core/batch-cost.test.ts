@@ -203,8 +203,9 @@ describe('the search index', () => {
         await sqlite.searchNotes(resolveSearch(parseSearch(query), { books: [], tags: [] })!, 10)
       ).map((n) => n.id)
     await sqlite.putNote(record({}))
-    // Each write changes the note's row; a text change also takes the old text out of the index
-    // and puts the new in (index tables), each based on the body version the one before left.
+    // Each write changes the note's row and moves its sync entry on (schema v19); a text change
+    // also takes the old text out of the index and puts the new in (index tables), each based on
+    // the body version the one before left.
     let bodyVersion = 1
     const cost = async (fields: Partial<NoteRecord>) => {
       const before = changes(sqlite)
@@ -212,19 +213,19 @@ describe('the search index', () => {
       bodyVersion += 1
       return changes(sqlite) - before
     }
-    expect(await cost({ status: 'active', statusHlc: hlc(2), updatedAt: 2 })).toBe(1)
-    expect(await cost({ pinned: true, pinnedHlc: hlc(3), updatedAt: 3 })).toBe(1)
-    expect(await cost({ deletedAt: 4, deletedHlc: hlc(4) })).toBe(1)
-    expect(await cost({ deletedAt: null, deletedHlc: hlc(5) })).toBe(1)
+    expect(await cost({ status: 'active', statusHlc: hlc(2), updatedAt: 2 })).toBe(2)
+    expect(await cost({ pinned: true, pinnedHlc: hlc(3), updatedAt: 3 })).toBe(2)
+    expect(await cost({ deletedAt: 4, deletedHlc: hlc(4) })).toBe(2)
+    expect(await cost({ deletedAt: null, deletedHlc: hlc(5) })).toBe(2)
     expect(await found('relay')).toEqual(['note'])
     expect(await found('launch')).toEqual(['note'])
 
-    expect(await cost({ title: 'Launch day', titleHlc: hlc(6), updatedAt: 6 })).toBeGreaterThan(1)
+    expect(await cost({ title: 'Launch day', titleHlc: hlc(6), updatedAt: 6 })).toBeGreaterThan(2)
     expect(await found('plan')).toEqual([])
     expect(await found('title:"launch day"')).toEqual(['note'])
     expect(
       await cost({ title: 'Launch day', titleHlc: hlc(6), bodyMd: 'Snapshot first.' }),
-    ).toBeGreaterThan(1)
+    ).toBeGreaterThan(2)
     expect(await found('relay')).toEqual([])
     expect(await found('snapshot')).toEqual(['note'])
     sqlite.db.exec(`INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)`)
