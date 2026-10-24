@@ -10,6 +10,10 @@ allowBuilds:
 # Devot, which renders math with temml); keep it on a patched release.
 overrides:
   katex: ^0.18.2
+  # Patched releases of express and @sentry/cli dependencies, not yet picked up by
+  # @modelcontextprotocol/sdk and @sentry/cli.
+  body-parser: ^2.4.0
+  undici: ^6.29.1
 
 patchedDependencies:
   hast-util-minify-whitespace@1.0.1: patches/hast-util-minify-whitespace@1.0.1.patch
