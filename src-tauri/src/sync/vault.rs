@@ -126,10 +126,9 @@ impl Vault {
     }
 
     fn keep_new(store: &dyn SecretStore, vault: Self) -> Result<Self, SyncError> {
-        if store.read(ITEM_ACCOUNT)?.is_some() {
+        if !store.add(ITEM_ACCOUNT, &vault.item())? {
             return Err(SyncError::VaultExists);
         }
-        store.add(ITEM_ACCOUNT, &vault.item())?;
         Ok(vault)
     }
 

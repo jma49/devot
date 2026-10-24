@@ -12,7 +12,7 @@ Phase 2 sync is for one person with several devices. The relay holds one encrypt
 - Notebook and tag records hold metadata fields with HLCs only.
 - The client encrypts the whole record with AES-256-GCM in Rust. The ciphertext is cut into chunks of at most 1.9 MB, so each chunk fits in one Durable Object SQLite row.
   - Every chunk has its own nonce.
-  - The additional data is the vault ID, record ID, record version and chunk index. A relay that swaps, replays or reorders chunks makes decryption fail.
+  - The additional data is a label, the vault ID, record ID, record version, chunk index and chunk count (see Records under Sync and encryption in `docs/architecture.md`). A relay that swaps, replays, reorders, truncates or extends chunks makes decryption fail.
 
 ## Relay
 

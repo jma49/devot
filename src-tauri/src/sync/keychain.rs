@@ -5,7 +5,9 @@ use super::SyncError;
 /// Where sync keeps its secrets, by account name. The app's store is the [`Keychain`].
 pub(crate) trait SecretStore {
     fn read(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, SyncError>;
-    fn add(&self, account: &str, secret: &[u8]) -> Result<(), SyncError>;
+    /// Adds a new item; `false` when the account already holds one, which stays as it is. The check
+    /// and the add are one step, so concurrent callers (also in other processes) cannot both add.
+    fn add(&self, account: &str, secret: &[u8]) -> Result<bool, SyncError>;
     /// `false` when there was nothing to remove.
     fn remove(&self, account: &str) -> Result<bool, SyncError>;
 }
@@ -34,17 +36,38 @@ impl Keychain {
 mod apple {
     use security_framework::passwords::{
         PasswordOptions, delete_generic_password_options, generic_password,
-        set_generic_password_options,
     };
     use zeroize::Zeroizing;
 
     use super::{Keychain, SecretStore, SyncError};
 
-    // errSecItemNotFound
+    // errSecItemNotFound, errSecDuplicateItem
     const NOT_FOUND: i32 = -25300;
+    const DUPLICATE: i32 = -25299;
 
     fn options(keychain: &Keychain, account: &str) -> PasswordOptions {
         PasswordOptions::new_generic_password(&keychain.service, account)
+    }
+
+    // The password API's setter updates an existing item, so the add calls `SecItemAdd` itself. An
+    // access control on macOS would move the item to the data protection keychain, which unsigned
+    // builds cannot use, so it keeps the default keychain's access.
+    #[cfg(target_os = "macos")]
+    fn add_item(keychain: &Keychain, account: &str, secret: &[u8]) -> Result<(), i32> {
+        use security_framework::item::{ItemAddOptions, ItemAddValue, ItemClass};
+        ItemAddOptions::new(ItemAddValue::Data {
+            class: ItemClass::generic_password(),
+            data: core_foundation::data::CFData::from_buffer(secret),
+        })
+        .set_service(&keychain.service)
+        .set_account_name(account)
+        .add()
+        .map_err(|error| error.code())
+    }
+
+    #[cfg(target_os = "ios")]
+    fn add_item(keychain: &Keychain, account: &str, secret: &[u8]) -> Result<(), i32> {
+        crate::native::ios::add_device_only_password(&keychain.service, account, secret)
     }
 
     impl SecretStore for Keychain {
@@ -56,23 +79,12 @@ mod apple {
             }
         }
 
-        fn add(&self, account: &str, secret: &[u8]) -> Result<(), SyncError> {
-            #[allow(unused_mut)]
-            let mut options = options(self, account);
-            // The data protection class needs no entitlement on iOS; on macOS an access control
-            // would move the item to the data protection keychain, which unsigned builds cannot use.
-            #[cfg(target_os = "ios")]
-            {
-                use security_framework::access_control::{ProtectionMode, SecAccessControl};
-                let access = SecAccessControl::create_with_protection(
-                    Some(ProtectionMode::AccessibleAfterFirstUnlockThisDeviceOnly),
-                    0,
-                )
-                .map_err(|error| SyncError::Keychain(error.code()))?;
-                options.set_access_control(access);
+        fn add(&self, account: &str, secret: &[u8]) -> Result<bool, SyncError> {
+            match add_item(self, account, secret) {
+                Ok(()) => Ok(true),
+                Err(DUPLICATE) => Ok(false),
+                Err(status) => Err(SyncError::Keychain(status)),
             }
-            set_generic_password_options(secret, options)
-                .map_err(|error| SyncError::Keychain(error.code()))
         }
 
         fn remove(&self, account: &str) -> Result<bool, SyncError> {
@@ -91,7 +103,7 @@ impl SecretStore for Keychain {
         Err(SyncError::KeychainUnavailable)
     }
 
-    fn add(&self, _: &str, _: &[u8]) -> Result<(), SyncError> {
+    fn add(&self, _: &str, _: &[u8]) -> Result<bool, SyncError> {
         Err(SyncError::KeychainUnavailable)
     }
 

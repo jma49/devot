@@ -19,9 +19,13 @@ impl SecretStore for MemoryStore {
         Ok(self.0.borrow().get(account).cloned().map(Zeroizing::new))
     }
 
-    fn add(&self, account: &str, secret: &[u8]) -> Result<(), SyncError> {
-        self.0.borrow_mut().insert(account.into(), secret.to_vec());
-        Ok(())
+    fn add(&self, account: &str, secret: &[u8]) -> Result<bool, SyncError> {
+        let mut items = self.0.borrow_mut();
+        if items.contains_key(account) {
+            return Ok(false);
+        }
+        items.insert(account.into(), secret.to_vec());
+        Ok(true)
     }
 
     fn remove(&self, account: &str) -> Result<bool, SyncError> {
@@ -36,7 +40,7 @@ impl SecretStore for FailingStore {
         Err(SyncError::Keychain(-25293))
     }
 
-    fn add(&self, _: &str, _: &[u8]) -> Result<(), SyncError> {
+    fn add(&self, _: &str, _: &[u8]) -> Result<bool, SyncError> {
         Err(SyncError::Keychain(-25293))
     }
 
@@ -444,6 +448,40 @@ fn a_vault_is_created_loaded_and_deleted_in_its_store() {
     assert!(!Vault::delete(&store).unwrap());
 }
 
+/// Another thread or process adds its vault between this one's read and add.
+struct RacedStore;
+
+impl SecretStore for RacedStore {
+    fn read(&self, _: &str) -> Result<Option<Zeroizing<Vec<u8>>>, SyncError> {
+        Ok(None)
+    }
+
+    fn add(&self, _: &str, _: &[u8]) -> Result<bool, SyncError> {
+        Ok(false)
+    }
+
+    fn remove(&self, _: &str) -> Result<bool, SyncError> {
+        Ok(false)
+    }
+}
+
+#[test]
+fn a_vault_added_meanwhile_by_another_caller_is_never_replaced() {
+    assert_eq!(
+        Vault::create(&RacedStore).map(|_| ()),
+        Err(SyncError::VaultExists)
+    );
+    assert_eq!(
+        Vault::restore(&RacedStore, &fixed_vault().recovery_key()).map(|_| ()),
+        Err(SyncError::VaultExists)
+    );
+
+    let store = MemoryStore::default();
+    assert!(store.add("vault", b"first").unwrap());
+    assert!(!store.add("vault", b"second").unwrap());
+    assert_eq!(store.read("vault").unwrap().unwrap().as_slice(), b"first");
+}
+
 #[test]
 fn a_generated_vault_id_is_a_uuid_v4() {
     let id = Vault::generate().unwrap().id().to_string();
@@ -465,14 +503,14 @@ fn a_damaged_keychain_item_is_refused() {
         [&item[..], &[0]].concat(),
     ] {
         let store = MemoryStore::default();
-        store.add("vault", &damaged).unwrap();
+        assert!(store.add("vault", &damaged).unwrap());
         assert_eq!(
             Vault::load(&store).map(|_| ()),
             Err(SyncError::VaultCorrupt)
         );
     }
     let store = MemoryStore::default();
-    store.add("vault", &item).unwrap();
+    assert!(store.add("vault", &item).unwrap());
     assert_eq!(Vault::load(&store).unwrap().unwrap().key(), vault.key());
 }
 
@@ -572,6 +610,7 @@ fn the_keychain_keeps_and_removes_a_vault() {
         Vault::create(&keychain).map(|_| ()),
         Err(SyncError::VaultExists)
     );
+    assert!(!keychain.add("vault", b"another").unwrap());
     let loaded = Vault::load(&keychain).unwrap().unwrap();
     assert_eq!((loaded.id(), loaded.key()), (vault.id(), vault.key()));
     assert!(Vault::delete(&keychain).unwrap());
