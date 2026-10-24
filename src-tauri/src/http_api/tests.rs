@@ -292,18 +292,31 @@ fn refuses_any_request_a_browser_sends() {
             assert_no_cors(&response);
         }
     }
-    let fetched = request(
+    for fetch in ["Sec-Fetch-Site: same-origin", "Sec-Fetch-Dest: empty"] {
+        let fetched = request(&api, "GET", "/v1/notebooks", &[&auth, fetch], None);
+        assert_eq!(
+            (fetched.status, fetched.code()),
+            (403, "E_HTTP_BROWSER_REFUSED"),
+            "{fetch}"
+        );
+    }
+    assert_eq!(api.core.reached(), 0);
+}
+
+#[test]
+fn takes_a_request_from_a_script_runtime_that_sends_a_fetch_mode() {
+    let api = start(Scope::Read);
+    let auth = bearer(&api);
+    // Node's built-in fetch sends this, with no Origin and no Sec-Fetch-Site.
+    let response = request(
         &api,
         "GET",
         "/v1/notebooks",
-        &[&auth, "Sec-Fetch-Site: same-origin"],
+        &[&auth, "Sec-Fetch-Mode: cors"],
         None,
     );
-    assert_eq!(
-        (fetched.status, fetched.code()),
-        (403, "E_HTTP_BROWSER_REFUSED")
-    );
-    assert_eq!(api.core.reached(), 0);
+    assert_eq!(response.status, 200);
+    assert_eq!(api.core.reached(), 1);
 }
 
 #[test]
@@ -983,4 +996,59 @@ fn a_port_in_use_is_reported_and_tried_again_on_the_next_change() {
     drop(taken);
     let view = api.set(true, port).unwrap();
     assert_eq!((view.listening, view.problem), (Some(port), None));
+}
+
+#[test]
+fn a_connection_whose_thread_cannot_start_is_not_counted() {
+    let active = Arc::new(std::sync::atomic::AtomicUsize::new(1));
+    let impossible = std::thread::Builder::new().stack_size(1 << 62);
+    let spawned = server::spawn_counted(impossible, Arc::clone(&active), || {});
+    assert!(spawned.is_err());
+    assert_eq!(active.load(std::sync::atomic::Ordering::SeqCst), 0);
+}
+
+/// Makes a folder read only until dropped, so tempdir can still remove it after a failed test.
+struct ReadOnly<'a>(&'a std::path::Path);
+
+impl<'a> ReadOnly<'a> {
+    fn new(path: &'a std::path::Path) -> Self {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o555)).unwrap();
+        Self(path)
+    }
+}
+
+impl Drop for ReadOnly<'_> {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(self.0, std::fs::Permissions::from_mode(0o755));
+    }
+}
+
+#[test]
+fn a_new_token_works_at_once_even_when_its_scope_cannot_be_saved() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, tokens, core) = api(&dir);
+    let port = free_port();
+    api.set(true, port).unwrap();
+    let old = tokens.get().unwrap().unwrap().as_str().to_string();
+    let locked = ReadOnly::new(dir.path());
+    assert_eq!(
+        api.rotate(Scope::ReadWrite),
+        Err("E_HTTP_API_SETTINGS_WRITE_FAILED")
+    );
+    let new = api.reveal().unwrap().as_str().to_string();
+    assert_ne!(old, new);
+    let send = |token: &str, method: &str| {
+        let raw = format!(
+            "{method} /v1/notes/{NOTE} HTTP/1.1\r\nHost: localhost:{port}\r\nAuthorization: Bearer {token}\r\n\r\n"
+        );
+        send_raw(port, raw.as_bytes()).status
+    };
+    assert_eq!(send(&old, "GET"), 401);
+    assert_eq!(send(&new, "GET"), 200);
+    assert_eq!(send(&new, "DELETE"), 403);
+    assert_eq!(api.view().scope, Scope::Read);
+    assert_eq!(core.reached(), 1);
+    drop(locked);
 }

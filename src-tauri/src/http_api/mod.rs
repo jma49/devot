@@ -73,7 +73,9 @@ impl Answers {
         }
     }
 
-    /// Hands `call` on with `emit` and waits for its answer; `emit` is false when no window took it.
+    /// Hands `call` on with `emit` and waits for its answer; `emit` is false when the event could not
+    /// be sent. Tauri sends an event no window listens for without an error, so a window that is
+    /// not listening yet shows as a timeout.
     fn ask(&self, call: &Call, timeout: Duration, emit: impl FnOnce(Request) -> bool) -> Answer {
         let (id, answer) = self.wait().ok_or("E_HTTP_API_FAILED")?;
         let request = Request {
@@ -299,15 +301,17 @@ impl HttpApi {
         Ok(self.view())
     }
 
-    /// A new token with `scope`: the old one stops working at once.
+    /// A new token with `scope`: the old one stops working at once. The listener takes the new
+    /// token even when the scope cannot be saved, so it always admits the token Settings shows,
+    /// with the scope Settings shows.
     pub fn rotate(&self, scope: Scope) -> Result<View, &'static str> {
         let token = token::generate()?;
         self.tokens.set(&token)?;
-        let stored = self.settings.get();
-        self.settings.set(HttpApiSettings { scope, ..stored })?;
         log::info!("I_HTTP_API_TOKEN_CREATED");
+        let stored = self.settings.get();
+        let saved = self.settings.set(HttpApiSettings { scope, ..stored });
         self.apply();
-        Ok(self.view())
+        saved.map(|_| self.view())
     }
 
     pub fn reveal(&self) -> Result<token::Token, &'static str> {

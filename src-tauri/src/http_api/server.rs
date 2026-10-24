@@ -212,12 +212,28 @@ impl Drop for Server {
     }
 }
 
-struct Active<'a>(&'a AtomicUsize);
+struct Active(Arc<AtomicUsize>);
 
-impl Drop for Active<'_> {
+impl Drop for Active {
     fn drop(&mut self) {
         self.0.fetch_sub(1, Ordering::SeqCst);
     }
+}
+
+/// Runs `work` on a new thread, holding one of `active`'s counted connections until it ends; a
+/// thread that cannot start gives it back at once (its closure, guard and all, is dropped).
+pub fn spawn_counted(
+    builder: std::thread::Builder,
+    active: Arc<AtomicUsize>,
+    work: impl FnOnce() + Send + 'static,
+) -> std::io::Result<()> {
+    let active = Active(active);
+    builder
+        .spawn(move || {
+            let _active = active;
+            work();
+        })
+        .map(drop)
 }
 
 fn accept(
@@ -244,14 +260,12 @@ fn accept(
             let _ = stream.write_all(&busy.bytes());
             continue;
         }
-        let (gate, dispatch, active) =
-            (Arc::clone(gate), Arc::clone(dispatch), Arc::clone(&active));
-        let spawned = std::thread::Builder::new()
-            .name("http-api-request".into())
-            .spawn(move || {
-                let _active = Active(&active);
-                serve(stream, port, &gate, dispatch.as_ref());
-            });
+        let (gate, dispatch) = (Arc::clone(gate), Arc::clone(dispatch));
+        let spawned = spawn_counted(
+            std::thread::Builder::new().name("http-api-request".into()),
+            Arc::clone(&active),
+            move || serve(stream, port, &gate, dispatch.as_ref()),
+        );
         if spawned.is_err() {
             log::warn!("W_HTTP_API_THREAD_FAILED");
         }
@@ -577,11 +591,9 @@ fn handle(
     if head.has("origin") {
         return Err(Refusal::new(403, "E_HTTP_ORIGIN_REFUSED"));
     }
-    if head
-        .headers
-        .iter()
-        .any(|(n, _)| n.starts_with("sec-fetch-"))
-    {
+    // Browsers always send these and no page script can set them; Node's fetch sends only
+    // Sec-Fetch-Mode, so that one alone is no sign of a browser.
+    if head.has("sec-fetch-site") || head.has("sec-fetch-dest") {
         return Err(Refusal::new(403, "E_HTTP_BROWSER_REFUSED"));
     }
     let scope = gate.admit(head.one("authorization")?)?;
