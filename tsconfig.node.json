@@ -8,6 +8,7 @@
   "include": [
     "src/core",
     "src/mcp",
+    "src/renderer/src/build.d.ts",
     "relay/src/node",
     "tests",
     "scripts",

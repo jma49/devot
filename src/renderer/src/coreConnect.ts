@@ -2,10 +2,11 @@
 // of everything that goes wrong with the worker, so a failure is seen and
 // logged instead of leaving a window that looks empty.
 import * as Comlink from 'comlink'
-import type { SaveProblem } from '../../core'
+import type { SaveProblem, TakenIn } from '../../core'
 import { errorCode } from '../../core/errors'
 import type { CoreApi } from './core.worker'
 import type { LogEntry } from './log'
+import { relayOutIn, takenInIn, type WireRelay } from './noteRelayWire'
 import { saveProblemsIn } from './saving'
 import { workerLogIn } from './workerLog'
 
@@ -25,6 +26,10 @@ export interface CoreConnection {
   onSaveProblems: (problems: SaveProblem[]) => void
   onLog: (entry: LogEntry) => void
   onFailure: (code: string) => void
+  /** What the core says to the other windows (noteRelay.ts). */
+  onRelay?: (message: WireRelay) => void
+  /** A change to a note in memory this window did not make, for its editor and title field. */
+  onTakenIn?: (change: TakenIn) => void
   timeoutMs?: number
   wrap?: (worker: CoreWorker) => Core
 }
@@ -57,6 +62,10 @@ export function connectCore(worker: CoreWorker, connection: CoreConnection): Pro
       if (problems) connection.onSaveProblems(problems)
       const entry = workerLogIn(data)
       if (entry) connection.onLog(entry)
+      const relayed = relayOutIn(data)
+      if (relayed) connection.onRelay?.(relayed)
+      const taken = takenInIn(data)
+      if (taken) connection.onTakenIn?.(taken)
     })
     // An error event carries the message of the failure, which may quote
     // content: only the fact of it is kept.

@@ -58,7 +58,12 @@ describe('Tauri command permissions', () => {
   })
 
   it('lets the windows read the editor settings, the main and Settings windows change them, and the Settings window nothing more', () => {
-    expect(windowsWith('allow-editor-settings-get')).toEqual(['main', 'quick-capture', 'settings'])
+    expect(windowsWith('allow-editor-settings-get')).toEqual([
+      'main',
+      'note-*',
+      'quick-capture',
+      'settings',
+    ])
     expect(windowsWith('allow-editor-settings-set')).toEqual(['main', 'settings'])
     const settings = capabilities().filter((c) => c.windows.includes('settings'))
     // It hears changes made in the main window (Cmd+= and Cmd+-) as events.
@@ -105,7 +110,95 @@ describe('Tauri command permissions', () => {
   })
 
   it('lets every window read the system accent colour', () => {
-    expect(windowsWith('allow-system-accent')).toEqual(['main', 'quick-capture', 'settings'])
+    expect(windowsWith('allow-system-accent')).toEqual([
+      'main',
+      'note-*',
+      'quick-capture',
+      'settings',
+    ])
+  })
+
+  it('lets a note window edit its note, relay its changes and save before it closes, and nothing more', () => {
+    const noteWindow = capabilities().filter((c) => c.windows.includes('note-*'))
+    // No notebook or tag changes, imports, exports, backups, mirror or settings changes: those
+    // stay in the main window. It reads the notebooks only to make a linked note in one.
+    expect(noteWindow.flatMap(permissionIds).sort()).toEqual([
+      'allow-app-exit-cancel',
+      'allow-app-exit-ready',
+      'allow-books-list',
+      'allow-clipboard-read-text',
+      'allow-clipboard-write-text',
+      'allow-editor-menu-popup',
+      'allow-editor-settings-get',
+      'allow-file-put',
+      'allow-font-read',
+      'allow-github-snippet',
+      'allow-image-copy',
+      'allow-image-save',
+      'allow-keyboard-shortcuts-get',
+      'allow-link-title',
+      'allow-log-write',
+      'allow-note-get',
+      'allow-note-purge',
+      'allow-note-put',
+      'allow-note-relay-send',
+      'allow-note-window-close-cancel',
+      'allow-note-window-close-ready',
+      'allow-note-window-note',
+      'allow-note-window-open',
+      'allow-notes-bodies',
+      'allow-notes-list',
+      'allow-notes-search',
+      'allow-open-external',
+      'allow-revision-get',
+      'allow-revision-put',
+      'allow-revisions-delete',
+      'allow-revisions-list',
+      'allow-symbol-png',
+      'allow-system-accent',
+      'allow-tags-list',
+      'allow-text-look-up',
+      'allow-text-speak',
+      'core:event:allow-listen',
+      'core:event:allow-unlisten',
+      'core:window:allow-set-title',
+    ])
+    expect(windowsWith('allow-note-relay-send')).toEqual(['main', 'note-*'])
+    expect(windowsWith('allow-note-window-open')).toEqual(['main', 'note-*'])
+    for (const command of ['note', 'close-ready', 'close-cancel']) {
+      expect(windowsWith(`allow-note-window-${command}`)).toEqual(['note-*'])
+    }
+  })
+
+  it('grants a note window every command its page and its core can reach', () => {
+    const invoked = (file: string) =>
+      [...readFileSync(file, 'utf8').matchAll(/invoke(?:<[^>]*>)?\('([a-z_]+)'/g)].map(
+        (m) => m[1] ?? '',
+      )
+    // Its core never changes notebooks or tags, applies a template, lists the Trash, compacts the
+    // history or shows activity: those start in the main window.
+    const mainOnly = [
+      'activity_list',
+      'book_put',
+      'files_copy',
+      'note_tag_get',
+      'note_tag_put',
+      'notes_trash_list',
+      'revisions_compact',
+      'revisions_compactable',
+      'revisions_last_compaction',
+      'tag_put',
+    ]
+    const reached = [
+      ...invoked('src/renderer/src/storage/tauri.ts').filter((c) => !mainOnly.includes(c)),
+      ...invoked('src/renderer/src/noteWindow/NoteWindow.tsx'),
+      ...invoked('src/renderer/src/noteRelay.ts'),
+    ]
+    const granted = capabilities()
+      .filter((c) => c.windows.includes('note-*'))
+      .flatMap(permissionIds)
+    const missing = reached.filter((c) => !granted.includes(`allow-${c.replaceAll('_', '-')}`))
+    expect(missing).toEqual([])
   })
 
   it('lets the quick capture window hand over its note and close, and nothing more', () => {
@@ -144,11 +237,11 @@ describe('Tauri command permissions', () => {
     }
   })
 
-  it('lets only the Settings window import and list fonts, and both windows load one', () => {
+  it('lets only the Settings window import and list fonts, and the main, Settings and note windows load one', () => {
     for (const command of ['font-import', 'fonts-list', 'fonts-installed']) {
       expect(windowsWith(`allow-${command}`)).toEqual(['settings'])
     }
-    expect(windowsWith('allow-font-read')).toEqual(['main', 'settings'])
+    expect(windowsWith('allow-font-read')).toEqual(['main', 'note-*', 'settings'])
   })
 
   it('lets both windows check for updates, and only the main window download and restart', () => {
@@ -178,7 +271,7 @@ describe('Tauri command permissions', () => {
   })
 
   it('lets only the Settings window change the keyboard shortcuts, and only the main window set the menu keys', () => {
-    expect(windowsWith('allow-keyboard-shortcuts-get')).toEqual(['main', 'settings'])
+    expect(windowsWith('allow-keyboard-shortcuts-get')).toEqual(['main', 'note-*', 'settings'])
     expect(windowsWith('allow-keyboard-shortcuts-set')).toEqual(['settings'])
     expect(windowsWith('allow-command-menu-set')).toEqual(['main'])
   })

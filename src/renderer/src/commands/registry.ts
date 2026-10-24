@@ -127,6 +127,13 @@ export const COMMANDS = [
     palette: false,
   },
   {
+    id: 'note.openInWindow',
+    label: 'noteMenu.openInWindow',
+    group: 'note',
+    scope: 'noteList',
+    keys: ['Shift+Enter'],
+  },
+  {
     id: 'note.newFromTemplate',
     label: 'command.newFromTemplate',
     group: 'note',

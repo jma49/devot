@@ -89,6 +89,7 @@ export const en = {
   'note.pin': 'Pin to Top',
   'note.unpin': 'Unpin',
   'noteMenu.move': 'Move to Notebook\u2026',
+  'noteMenu.openInWindow': 'Open in New Window',
   'noteMenu.duplicate': 'Duplicate',
   'noteMenu.copyLink': 'Copy Note Link',
   'noteMenu.copyUri': 'Copy Note URI',
@@ -701,6 +702,11 @@ export const en = {
     'Devot did not quit: changes to {count} note could not be saved ({code}). It keeps trying; quit again to quit without them.',
   'save.quitHeldOther':
     'Devot did not quit: changes to {count} notes could not be saved ({code}). It keeps trying; quit again to quit without them.',
+  'save.closeHeldOne':
+    'The window did not close: changes to {count} note could not be saved ({code}). Devot keeps trying; close it again to close it without them.',
+  'save.closeHeldOther':
+    'The window did not close: changes to {count} notes could not be saved ({code}). Devot keeps trying; close it again to close it without them.',
+  'noteWindow.unavailable': 'This note cannot be opened ({code}). It may have been deleted.',
   'save.retry': 'Try Again',
   'start.failed': 'Devot could not load your notes.',
   'start.detail':

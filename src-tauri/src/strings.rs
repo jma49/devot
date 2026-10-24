@@ -72,6 +72,8 @@ pub const UPDATES_DOWNLOADING: &str = "Downloading Update…";
 pub const UPDATES_RESTART: &str = "Restart to Update";
 pub const SETTINGS_TITLE: &str = "Settings";
 pub const QUICK_CAPTURE_TITLE: &str = "Quick Note";
+/// Until the page names the window after its note.
+pub const NOTE_WINDOW_TITLE: &str = "Note";
 pub const MENU_BAR_NEW_QUICK_NOTE: &str = "New Quick Note";
 pub const MENU_BAR_OPEN: &str = "Open Devot";
 pub const MIRROR_FOLDER_TITLE: &str = "Choose a Folder for the Markdown Mirror";

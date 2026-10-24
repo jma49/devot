@@ -22,6 +22,7 @@ import { invoke } from './ipc'
 import { STATUS_COMMANDS } from './statusKeys'
 
 export type NoteAction =
+  | 'openWindow'
   | 'move'
   | 'history'
   | 'duplicate'
@@ -52,6 +53,7 @@ export const EXPORT_ACTIONS: readonly ExportAction[] = [
 ]
 
 export const NOTE_COMMANDS: Readonly<Record<NoteAction, CommandId>> = {
+  openWindow: 'note.openInWindow',
   move: 'note.move',
   history: 'note.history',
   duplicate: 'note.duplicate',
@@ -94,6 +96,7 @@ const severalNotes = (target: NoteMenuTarget) => !one(target) && !target.templat
 const severalTagged = (target: NoteMenuTarget) => severalNotes(target) && target.tagged
 
 export const NOTE_MENU: MenuGroups<NoteMenuAction, NoteMenuTarget> = [
+  [entry('openWindow', { shown: (n) => one(n) && !n.templates })],
   [
     entry('move', { label: (n) => (one(n) ? 'noteMenu.move' : 'batch.move') }),
     entry('history', { shown: one }),
