@@ -3,6 +3,7 @@
 //
 // "Once" needs no flag in the database: the notebook and notes have fixed IDs. A library is empty only before the first run (a deleted note is in the Trash, where it
 // still counts; a purged one keeps its ID and is never written again), and a device that syncs in later writes the same IDs, so the copies merge field by field.
+// Each body is seeded as the same Yjs state on every device (`NoteService.seed`), so the bodies merge as one; a device whose build seeded another text keeps both.
 
 import { TEMPLATES_BOOK_ID } from './books'
 import { createNoteService } from './notes'
@@ -72,17 +73,10 @@ export async function seedWelcome(options: WelcomeOptions): Promise<string | nul
     sortKeyHlc: '',
   })
 
-  const fixed: string[] = []
-  const notes = createNoteService({
-    storage,
-    clock,
-    newId: () => fixed.shift() ?? options.newId(),
-    compact: false,
-  })
+  const notes = createNoteService({ storage, clock, newId: options.newId, compact: false })
   for (const note of content.notes) {
-    fixed.push(note.id)
-    const id = await notes.create(note.title, WELCOME_BOOK_ID)
-    await notes.setBody(id, note.body)
+    const { id } = note
+    await notes.seed(id, note.title, WELCOME_BOOK_ID, note.body)
     for (const file of note.files ?? []) {
       await storage.putFile({ id: file.id, noteId: id, name: file.name }, file.data)
     }

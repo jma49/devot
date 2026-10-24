@@ -1,6 +1,7 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { foldUnchanged, lineDiff, type DiffLine } from './diff'
+import { foldUnchanged, lineDiff, textEdits, type DiffLine } from './diff'
+import { replaceRanges } from './text'
 
 const side = (lines: DiffLine[], drop: DiffLine['kind']) =>
   lines.filter((l) => l.kind !== drop).map((l) => l.text)
@@ -86,5 +87,58 @@ describe('foldUnchanged', () => {
   it('folds everything when nothing changed', () => {
     expect(foldUnchanged(same(5), 3)).toEqual([{ kind: 'skipped', count: 5 }])
     expect(foldUnchanged([], 3)).toEqual([])
+  })
+})
+
+describe('textEdits', () => {
+  it('replaces only the characters that differ, line run by line run', () => {
+    const from = 'Groceries\n\nMilk.\n\nCall the bank.\n\nWater the plants.\n'
+    const to = 'Shopping\n\nMilk.\n\nCall the bank.\n\nWater the ferns.\n'
+    expect(textEdits(from, to)).toEqual([
+      { start: 0, end: 9, text: 'Shopping' },
+      { start: 44, end: 49, text: 'fern' },
+    ])
+  })
+
+  it('makes no edit between equal texts', () => {
+    expect(textEdits('', '')).toEqual([])
+    expect(textEdits('a\nb', 'a\nb')).toEqual([])
+  })
+
+  it('handles a last line without a line feed', () => {
+    expect(replaceRanges('a\nb', textEdits('a\nb', 'a\nb\nc'))).toBe('a\nb\nc')
+    expect(replaceRanges('a\nb\n', textEdits('a\nb\n', 'x\na\nb'))).toBe('x\na\nb')
+    expect(textEdits('a\nb', 'a\nb\n')).toEqual([{ start: 3, end: 3, text: '\n' }])
+  })
+
+  it('never splits a surrogate pair', () => {
+    const [edit] = textEdits('x\n\u{1F600}\n', 'x\n\u{1F601}\n')
+    expect(edit).toEqual({ start: 2, end: 4, text: '\u{1F601}' })
+  })
+
+  it("replaces the changed middle whole past the line diff's work limit", () => {
+    const lines = (tag: string) =>
+      Array.from({ length: 3000 }, (_, i) => `keep ${i}\n${tag} ${i}\n`).join('')
+    const from = `top\n${lines('old')}bottom\n`
+    const to = `top\n${lines('new')}bottom\n`
+    const edits = textEdits(from, to)
+    expect(edits).toHaveLength(1)
+    expect(replaceRanges(from, edits)).toBe(to)
+  })
+
+  it('turns the first text into the second', () => {
+    const text = fc
+      .array(fc.constantFrom('a', 'b', '\n', '\u{1F600}', 'cd\n'), { maxLength: 30 })
+      .map((parts) => parts.join(''))
+    fc.assert(
+      fc.property(text, text, (from, to) => {
+        const edits = textEdits(from, to)
+        expect(replaceRanges(from, edits)).toBe(to)
+        const ordered = edits.every(
+          (edit, i) => edit.start <= edit.end && (i === 0 || edit.start > edits[i - 1]!.end),
+        )
+        expect(ordered).toBe(true)
+      }),
+    )
   })
 })

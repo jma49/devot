@@ -1,4 +1,6 @@
-// Line diffs for showing how two versions of a note differ (Myers' O(ND) algorithm). Display only: edits to a note are applied with `textDiff`.
+// Line diffs (Myers' O(ND) algorithm): how two versions of a note differ (`lineDiff`), and the edits a body write applies to its Yjs text (`textEdits`).
+
+import { textDiff, type TextEdit } from './text'
 
 export interface DiffLine {
   kind: 'same' | 'added' | 'removed'
@@ -21,8 +23,50 @@ const lines = (text: string) => (text === '' ? [] : text.split('\n'))
 
 /** The lines kept are a longest common subsequence unless the texts differ in more than MAX_EDITS lines. */
 export function lineDiff(from: string, to: string): DiffLine[] {
-  const a = lines(from)
-  const b = lines(to)
+  return tokenDiff(lines(from), lines(to))
+}
+
+/** Lines with their line feeds, so equal pieces are equal text wherever they stand. */
+const pieces = (text: string) => text.match(/[^\n]*\n|[^\n]+$/g) ?? []
+
+/**
+ * The edits that turn `from` into `to`, in `from`'s offsets, first to last: a replacement for each run of changed lines, trimmed to the characters
+ * that differ (`textDiff`). Lines that stay are never rewritten, so a write keeps an edit another replica made to them; past the work bound (see
+ * myers) the changed middle is one replacement.
+ */
+export function textEdits(from: string, to: string): TextEdit[] {
+  const edits: TextEdit[] = []
+  let at = 0
+  let start = 0
+  let removed = ''
+  let added = ''
+  const close = () => {
+    if (removed === '' && added === '') return
+    const diff = textDiff(removed, added)
+    if (diff.remove > 0 || diff.insert !== '') {
+      const begin = start + diff.index
+      edits.push({ start: begin, end: begin + diff.remove, text: diff.insert })
+    }
+    removed = ''
+    added = ''
+  }
+  for (const piece of tokenDiff(pieces(from), pieces(to))) {
+    if (piece.kind === 'same') {
+      close()
+      at += piece.text.length
+      start = at
+    } else if (piece.kind === 'removed') {
+      removed += piece.text
+      at += piece.text.length
+    } else {
+      added += piece.text
+    }
+  }
+  close()
+  return edits
+}
+
+function tokenDiff(a: string[], b: string[]): DiffLine[] {
   let start = 0
   while (start < a.length && start < b.length && a[start] === b[start]) start += 1
   let endA = a.length
@@ -32,9 +76,11 @@ export function lineDiff(from: string, to: string): DiffLine[] {
     endB -= 1
   }
   const same = (text: string): DiffLine => ({ kind: 'same', text })
-  const middle = myers(a.slice(start, endA), b.slice(start, endB)) ?? [
-    ...a.slice(start, endA).map((text): DiffLine => ({ kind: 'removed', text })),
-    ...b.slice(start, endB).map((text): DiffLine => ({ kind: 'added', text })),
+  const removed = a.slice(start, endA)
+  const added = b.slice(start, endB)
+  const middle = (removed.length > 0 && added.length > 0 && myers(removed, added)) || [
+    ...removed.map((text): DiffLine => ({ kind: 'removed', text })),
+    ...added.map((text): DiffLine => ({ kind: 'added', text })),
   ]
   return [...a.slice(0, start).map(same), ...middle, ...a.slice(endA).map(same)]
 }
