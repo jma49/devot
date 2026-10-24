@@ -4,7 +4,7 @@ import type { IconName } from '../icons/symbols'
 import type { EditorSettings } from '../../../core/editorSettings'
 import { errorCode } from '../backups'
 import { changeEditorSettings } from '../editorSettings'
-import { t, type MessageKey } from '../i18n'
+import { format, t, type MessageKey } from '../i18n'
 
 /**
  * Stores a change to the settings (see editorSettings.ts); returns the error
@@ -84,6 +84,7 @@ export function SettingToggle({
   onChange,
   disabled = false,
   note,
+  values,
 }: {
   label: MessageKey
   description: MessageKey
@@ -91,6 +92,8 @@ export function SettingToggle({
   onChange: (checked: boolean) => void
   disabled?: boolean
   note?: MessageKey | undefined
+  /** Placeholders the description is filled with. */
+  values?: Readonly<Record<string, string>>
 }) {
   const id = useId()
   return (
@@ -100,7 +103,7 @@ export function SettingToggle({
           {t(label)}
         </label>
         <span id={`${id}-description`} className="setting-description">
-          {t(note ?? description)}
+          {values ? format(t(note ?? description), values) : t(note ?? description)}
         </span>
       </div>
       <div className="setting-control">

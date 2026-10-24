@@ -5,6 +5,7 @@ import { EDIT_MENU_KEYS } from '../../src/renderer/src/commands/keymap'
 import {
   COMMANDS,
   NATIVE_MENU_COMMANDS,
+  QUICK_CAPTURE_KEY,
   RESERVED_KEYS,
   command,
   commandMenuKeys,
@@ -62,6 +63,19 @@ it('keeps its own keys apart from the commands, and reserved', () => {
   for (const key of own) expect(RESERVED_KEYS).toContain(key)
   const used = COMMANDS.flatMap((c) => c.keys as readonly string[])
   expect(used.filter((key) => own.includes(key))).toEqual([])
+})
+
+// Quick capture's global shortcut (menu bar mode) is registered in Rust; while it is on, the system
+// gives that key to Devot in every app, Devot's own windows included, so no command may have it.
+it('keeps the quick capture shortcut in line with Rust and clear of every command', () => {
+  const rust = /pub const QUICK_CAPTURE_SHORTCUT: &str = "([^"]+)";/.exec(
+    readFileSync('src-tauri/src/menu_bar.rs', 'utf8'),
+  )?.[1]
+  expect(rust).toBe(shortcutAccelerator(QUICK_CAPTURE_KEY))
+  expect(RESERVED_KEYS).toContain(QUICK_CAPTURE_KEY)
+  const used = COMMANDS.flatMap((c) => c.keys as readonly string[])
+  expect(used).not.toContain(QUICK_CAPTURE_KEY)
+  expect(accelerators.map((a) => asShortcut(a.accelerator))).not.toContain(QUICK_CAPTURE_KEY)
 })
 
 // The Format menu holds no keys itself: the UI sets them from the registry (`formatMenuKeys`) while the editor has the keyboard.

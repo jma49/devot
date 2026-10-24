@@ -2,6 +2,7 @@
 import * as Comlink from 'comlink'
 import {
   applyBatch,
+  captureNote,
   createBookService,
   createClock,
   createIdGenerator,
@@ -110,6 +111,9 @@ export const coreApi = {
   },
   list: (limit?: number) => required().list(limit),
   create: (title?: string, bookId?: string | null) => required().create(title, bookId),
+  /** A quick capture from the menu bar, saved before it resolves (see captureNote). */
+  capture: (title: string, markdown: string, bookId: string | null) =>
+    captureNote(required(), { title, markdown, bookId }),
   open: (id: string, known?: Uint8Array) => required().open(id, known),
   title: (id: string) => required().title(id),
   /** The editor shows the note: it stays in memory until `unhold` (see NoteService.hold). */

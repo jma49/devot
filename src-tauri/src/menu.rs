@@ -11,7 +11,7 @@
 //! line with it however it changes.
 
 use crate::editor_settings::{self, EditorSettings, EditorSettingsStore, Snapshot};
-use crate::{diagnostics, exit, format_menu, import, settings, strings, updates};
+use crate::{diagnostics, exit, format_menu, import, menu_bar, settings, strings, updates};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -478,7 +478,7 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
             Ok(_) => log::info!("I_DIAGNOSTICS_EXPORTED"),
             Err(code) => log::warn!("W_DIAGNOSTICS_EXPORT_FAILED {code}"),
         }
-    } else {
+    } else if !menu_bar::on_menu_event(app, event.id().as_ref()) {
         format_menu::on_menu_event(app, event.id().as_ref());
     }
 }

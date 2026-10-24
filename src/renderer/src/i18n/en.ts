@@ -363,6 +363,22 @@ export const en = {
   'generalSettings.commandLineNotInApplications':
     'Move Devot to the Applications folder and open it from there, then install the command line tool.',
   'generalSettings.updates': 'Updates',
+  'generalSettings.menuBar': 'Menu Bar',
+  'generalSettings.keepInMenuBar': 'Keep in Menu Bar',
+  'generalSettings.keepInMenuBarHint':
+    'Closing the window keeps Devot running in the menu bar. Click its icon, or press {shortcut} in any app, to write a quick note.',
+  'quickCapture.windowTitle': 'Quick Note',
+  'quickCapture.label': 'Quick note',
+  'quickCapture.title': 'Title',
+  'quickCapture.body': 'Note',
+  'quickCapture.notebook': 'Notebook',
+  'quickCapture.noNotebook': 'No Notebook',
+  'quickCapture.save': 'Save',
+  'quickCapture.cancel': 'Cancel',
+  'quickCapture.saveFailed': 'The note could not be saved ({code}). Your text is kept here.',
+  'quickCapture.notebookGone': 'That notebook no longer exists ({code}). Choose another one.',
+  'quickCapture.noAnswer':
+    'Devot did not save the note in time ({code}). Your text is kept here; open Devot and try again.',
   'generalSettings.autoDownloadUpdates': 'Automatically Download Updates',
   'generalSettings.autoDownloadUpdatesHint':
     'Download new versions in the background, then offer to restart. Off, Devot asks before downloading.',

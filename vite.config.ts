@@ -45,6 +45,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('src/renderer/index.html', import.meta.url)),
         settings: fileURLToPath(new URL('src/renderer/settings.html', import.meta.url)),
+        quickCapture: fileURLToPath(new URL('src/renderer/quick-capture.html', import.meta.url)),
         mermaid: fileURLToPath(new URL('src/renderer/mermaid.html', import.meta.url)),
         export: fileURLToPath(new URL('src/renderer/export.html', import.meta.url)),
       },

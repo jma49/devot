@@ -23,6 +23,7 @@ Everything in this folder is meant to be publishable as an open-source asset lib
 | `app-icon/source-small.svg`              | The small cut, for the 16 and 32 px images                          |
 | `app-icon/source-ios.svg`                | The iOS app icon: the same artwork, square and full bleed           |
 | `app-icon/AppIcon.icon/`                 | Icon Composer document: the layered icon macOS 26 shows             |
+| `app-icon/menu-bar.svg`                  | The menu bar icon: the dove alone in black, drawn as a template     |
 | `app-icon/lockup.svg`                    | The dove and the wordmark, in the current colour                    |
 | `app-icon/lockup-color.svg`              | The lockup in colour, for light grounds                             |
 | `app-icon/lockup-dark.svg`               | The lockup in colour, for dark grounds                              |

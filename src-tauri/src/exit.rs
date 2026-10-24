@@ -4,7 +4,8 @@
 //! the app menu has its own Quit item (`menu::QUIT_ID`) that starts this handshake. Quitting from
 //! the Dock or at logout still bypasses it; autosave bounds what that can lose.
 //! When a note could not be saved the UI may call the quit off (`app_exit_cancel`); a later quit
-//! asks again.
+//! asks again. In menu bar mode closing the main window hides it instead (`menu_bar`), so the app
+//! and its unsaved edits stay; a quit from the menu bar icon runs this handshake too.
 
 use crate::MAIN_WINDOW;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -118,14 +119,43 @@ pub fn request_quit(app: &AppHandle) {
     });
 }
 
-fn close_quits(label: &str) -> bool {
-    label == MAIN_WINDOW
+#[derive(Debug, PartialEq, Eq)]
+enum OnClose {
+    Close,
+    Hide,
+    Quit,
+}
+
+fn on_close(label: &str, keep_running: bool) -> OnClose {
+    match (label == MAIN_WINDOW, keep_running) {
+        (false, _) => OnClose::Close,
+        (true, true) => OnClose::Hide,
+        (true, false) => OnClose::Quit,
+    }
 }
 
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
-    if let WindowEvent::CloseRequested { api, .. } = event {
-        let app = window.app_handle();
-        if close_quits(window.label()) && !app.state::<ExitGate>().ready.load(Ordering::SeqCst) {
+    let WindowEvent::CloseRequested { api, .. } = event else {
+        return;
+    };
+    let app = window.app_handle();
+    if app.state::<ExitGate>().ready.load(Ordering::SeqCst) {
+        return;
+    }
+    #[cfg(desktop)]
+    let keep_running = crate::menu_bar::keeps_running(app);
+    #[cfg(mobile)]
+    let keep_running = false;
+    match on_close(window.label(), keep_running) {
+        OnClose::Close => {}
+        OnClose::Hide => {
+            api.prevent_close();
+            #[cfg(desktop)]
+            if !crate::menu_bar::hide_main(window) {
+                request_quit(app);
+            }
+        }
+        OnClose::Quit => {
             api.prevent_close();
             request_quit(app);
         }
@@ -187,8 +217,16 @@ mod tests {
 
     #[test]
     fn only_closing_the_main_window_quits() {
-        assert!(close_quits("main"));
-        assert!(!close_quits("settings"));
+        assert_eq!(on_close("main", false), OnClose::Quit);
+        assert_eq!(on_close("settings", false), OnClose::Close);
+        assert_eq!(on_close("quick-capture", false), OnClose::Close);
+    }
+
+    #[test]
+    fn in_menu_bar_mode_closing_the_main_window_hides_it_and_quits_nothing() {
+        assert_eq!(on_close("main", true), OnClose::Hide);
+        assert_eq!(on_close("settings", true), OnClose::Close);
+        assert_eq!(on_close("quick-capture", true), OnClose::Close);
     }
 
     #[test]

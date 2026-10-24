@@ -50,5 +50,11 @@ for dir in "$icons/ios" "$root/src-tauri/gen/apple/Assets.xcassets/AppIcon.appic
   cp "$out/ios/ios/"*.png "$dir/"
 done
 
+# The menu bar icon is a template image: macOS reads its alpha alone and tints it. 36 px is 18 pt,
+# the height the status item draws it at, on a 2x screen.
+mkdir -p "$icons/menu-bar"
+magick -background none -density 384 "$art/menu-bar.svg" -resize 36x36 -strip \
+  -define png:color-type=6 "$icons/menu-bar/template.png"
+
 rm -rf "$icons/AppIcon.icon"
 cp -R "$art/AppIcon.icon" "$icons/AppIcon.icon"

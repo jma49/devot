@@ -57,8 +57,8 @@ describe('Tauri command permissions', () => {
     expect(windowsWith('allow-usage-record')).toEqual(['main'])
   })
 
-  it('lets both windows read and change the editor settings, and the Settings window nothing more', () => {
-    expect(windowsWith('allow-editor-settings-get')).toEqual(['main', 'settings'])
+  it('lets the windows read the editor settings, the main and Settings windows change them, and the Settings window nothing more', () => {
+    expect(windowsWith('allow-editor-settings-get')).toEqual(['main', 'quick-capture', 'settings'])
     expect(windowsWith('allow-editor-settings-set')).toEqual(['main', 'settings'])
     const settings = capabilities().filter((c) => c.windows.includes('settings'))
     // It hears changes made in the main window (Cmd+= and Cmd+-) as events.
@@ -94,8 +94,30 @@ describe('Tauri command permissions', () => {
     ])
   })
 
-  it('lets both windows read the system accent colour', () => {
-    expect(windowsWith('allow-system-accent')).toEqual(['main', 'settings'])
+  it('lets every window read the system accent colour', () => {
+    expect(windowsWith('allow-system-accent')).toEqual(['main', 'quick-capture', 'settings'])
+  })
+
+  it('lets the quick capture window hand over its note and close, and nothing more', () => {
+    const quickCapture = capabilities().filter((c) => c.windows.includes('quick-capture'))
+    // No notes, no files: the main window's core saves the note.
+    expect(quickCapture.flatMap(permissionIds).sort()).toEqual([
+      'allow-editor-settings-get',
+      'allow-quick-capture-close',
+      'allow-quick-capture-save',
+      'allow-system-accent',
+      'core:event:allow-listen',
+      'core:event:allow-unlisten',
+    ])
+    expect(windowsWith('allow-quick-capture-done')).toEqual(['main'])
+  })
+
+  it('grants no window a global shortcut command: Rust alone registers the shortcut', () => {
+    expect(
+      capabilities()
+        .flatMap(permissionIds)
+        .filter((p) => p.startsWith('global-shortcut:')),
+    ).toEqual([])
   })
 
   it('lets only the Settings window import and list fonts, and both windows load one', () => {

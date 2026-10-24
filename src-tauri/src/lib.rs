@@ -30,6 +30,8 @@ mod link_info;
 mod logs;
 #[cfg(desktop)]
 mod menu;
+#[cfg(desktop)]
+mod menu_bar;
 mod mirror;
 #[doc(hidden)]
 pub mod native;
@@ -72,7 +74,11 @@ pub fn run() {
     let context = data_folder::context();
     let builder = tauri::Builder::default();
     #[cfg(desktop)]
-    let builder = builder.plugin(single_instance::init());
+    let builder = builder
+        .plugin(single_instance::init())
+        .plugin(menu_bar::global_shortcut_plugin())
+        .manage(menu_bar::MenuBar::default())
+        .manage(menu_bar::Captures::default());
     builder
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
@@ -151,6 +157,12 @@ pub fn run() {
             menu::sidebar_menu_set,
             #[cfg(desktop)]
             menu::command_menu_set,
+            #[cfg(desktop)]
+            menu_bar::quick_capture_save,
+            #[cfg(desktop)]
+            menu_bar::quick_capture_done,
+            #[cfg(desktop)]
+            menu_bar::quick_capture_close,
             keyboard_shortcuts::keyboard_shortcuts_get,
             keyboard_shortcuts::keyboard_shortcuts_set,
             mirror::mirror_get,
@@ -207,7 +219,11 @@ pub fn run() {
         })
         .build(context)
         .expect("E_TAURI_BUILD")
-        .run(|app, event| exit::on_run_event(app, &event));
+        .run(|app, event| {
+            exit::on_run_event(app, &event);
+            #[cfg(desktop)]
+            menu_bar::on_run_event(app, &event);
+        });
 }
 
 /// Any failure has a code: `startup::fail` explains it and exits.
@@ -280,6 +296,8 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         .build()
         .map_err(|_| StartupError::new("E_MAIN_WINDOW_FAILED"))?;
     native::configure_main_window(app);
+    #[cfg(desktop)]
+    menu_bar::apply(app.handle(), stored.settings.menu_bar);
     #[cfg(desktop)]
     updates::start(app.handle());
     Ok(())

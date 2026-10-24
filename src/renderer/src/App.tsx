@@ -193,6 +193,7 @@ import { textStore } from './textStore'
 import { restartNow, useUpdates } from './UpdateNotice'
 import { checkForUpdates } from './updates'
 import { track } from './usage'
+import { QUICK_CAPTURE_EVENT, answerCapture, readCaptureRequest } from './quickCaptureHost'
 
 const EXPORT_ALL = 'devot:export-all'
 
@@ -1254,6 +1255,37 @@ export function App() {
     }
     window.location.reload()
   }
+
+  // Quick capture (menu bar mode): this window's core makes the note the
+  // capture window sent, and the list shows it.
+  useEffect(() => {
+    if (!core || DEVOT_UI_TEST) return
+    let stopped = false
+    let unlisten: (() => void) | undefined
+    void import('@tauri-apps/api/event').then(async ({ listen }) => {
+      const stop = await listen(QUICK_CAPTURE_EVENT, (e) => {
+        const request = readCaptureRequest(e.payload)
+        if (!request) return
+        void answerCapture(
+          request,
+          async (r) => {
+            await core.capture(r.title, r.body, r.bookId)
+          },
+          (id, error) => invoke('quick_capture_done', { id, error }),
+        ).then((saved) => {
+          if (!saved) return
+          track('note.created', { from: 'quick_capture' })
+          void refresh(core)
+        })
+      })
+      if (stopped) stop()
+      else unlisten = stop
+    })
+    return () => {
+      stopped = true
+      unlisten?.()
+    }
+  }, [core, refresh])
 
   useEffect(() => {
     if (!core) return
