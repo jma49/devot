@@ -90,7 +90,9 @@ export interface Merged<T extends SyncRecord> {
 }
 
 export interface MergedNote extends Merged<NoteState> {
-  /** Both bodies held changes the other lacked: the local text is kept as a version first (#216). */
+  /** The merge changes the local body, which held text of this device's (not a welcome nobody edited). */
+  bodyChanged: boolean
+  /** Both bodies held changes the other lacked. */
   bothEdited: boolean
 }
 
@@ -385,6 +387,7 @@ export function mergeNote(local: NoteState, remote: NoteState): MergedNote {
       record: tombstone(kept.id, kept.deletedAt ?? remote.deletedAt ?? 0, deletedHlc),
       localNews: local.purged && !remote.purged,
       remoteNews: remote.purged && !local.purged,
+      bodyChanged: false,
       bothEdited: false,
     }
   }
@@ -397,7 +400,8 @@ export function mergeNote(local: NoteState, remote: NoteState): MergedNote {
   const remoteSeed = untouchedSeed(remote.id, remoteDoc)
   const seenBy = (other: Y.Doc, client: number) =>
     Y.decodeStateVector(Y.encodeStateVector(other)).has(client)
-  if (localSeed !== null && !seenBy(remoteDoc, localSeed)) dropClient(doc, localSeed)
+  const localGivesWay = localSeed !== null && !seenBy(remoteDoc, localSeed)
+  if (localGivesWay) dropClient(doc, localSeed)
   else if (remoteSeed !== null && !seenBy(localDoc, remoteSeed)) dropClient(doc, remoteSeed)
   const merged = printOf(doc)
   const bodyLocalNews = merged !== printOf(remoteDoc)
@@ -457,7 +461,8 @@ export function mergeNote(local: NoteState, remote: NoteState): MergedNote {
     record,
     localNews: bodyLocalNews || hlcsAhead(record, remote),
     remoteNews: bodyRemoteNews || hlcsAhead(record, local),
-    bothEdited: bodyLocalNews && bodyRemoteNews,
+    bodyChanged: bodyRemoteNews && !localGivesWay,
+    bothEdited: bodyLocalNews && bodyRemoteNews && !localGivesWay,
   }
 }
 

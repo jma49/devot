@@ -261,12 +261,23 @@ impl SyncService {
             .ok_or("E_SYNC_NOT_ENROLLED")
     }
 
-    fn revoked(secrets: &dyn SecretStore) {
-        if let Ok(Some(mut credentials)) = DeviceCredentials::load(secrets) {
-            credentials.token = REVOKED.to_string();
-            if credentials.save(secrets).is_err() {
-                log::warn!("W_SYNC_REVOKE_KEEP_FAILED");
+    /// What the relay's refusal means for the kept token. A revoked device keeps a marked token and
+    /// never enrolls on its own; a relay without the vault (it lost its data) makes the token
+    /// useless, so it goes and Settings asks for the relay's secret to create the vault again.
+    fn refused(secrets: &dyn SecretStore, code: &str) {
+        match code {
+            "E_SYNC_REVOKED" | "E_SYNC_UNAUTHORIZED" => {
+                if let Ok(Some(mut credentials)) = DeviceCredentials::load(secrets) {
+                    credentials.token = REVOKED.to_string();
+                    if credentials.save(secrets).is_err() {
+                        log::warn!("W_SYNC_REVOKE_KEEP_FAILED");
+                    }
+                }
             }
+            "E_SYNC_NO_VAULT" if DeviceCredentials::forget(secrets).is_err() => {
+                log::warn!("W_SYNC_TOKEN_FORGET_FAILED");
+            }
+            _ => {}
         }
     }
 
@@ -291,19 +302,16 @@ impl SyncService {
                 _ => self.enroll_here(&relay, &vault)?,
             };
         self.disconnect();
-        let opened = self.open(&relay, &vault_id, &credentials.token);
-        let (connection, welcome) = match opened {
+        let opened = match self.open(&relay, &vault_id, &credentials.token) {
             // The relay's own secret changed, which makes every token invalid: enroll again.
-            Err("E_SYNC_TOKEN_REFUSED") => {
-                let again = self.enroll_here(&relay, &vault)?;
-                self.open(&relay, &vault_id, &again.token)?
-            }
-            Err(code @ ("E_SYNC_UNAUTHORIZED" | "E_SYNC_REVOKED")) => {
-                Self::revoked(self.secrets.as_ref());
-                return Err(code);
-            }
-            other => other?,
+            Err("E_SYNC_TOKEN_REFUSED") => self
+                .enroll_here(&relay, &vault)
+                .and_then(|again| self.open(&relay, &vault_id, &again.token)),
+            other => other,
         };
+        let (connection, welcome) = opened.inspect_err(|code| {
+            Self::refused(self.secrets.as_ref(), code);
+        })?;
         log::info!(
             "I_SYNC_CONNECTED vault={vault_id} device={}",
             welcome.device
@@ -330,9 +338,7 @@ impl SyncService {
             Box::new(move |event| match event {
                 Event::Changed(seq) => emit(SOCKET_EVENT, json!({ "type": "changed", "seq": seq })),
                 Event::Closed(code) => {
-                    if matches!(code, "E_SYNC_REVOKED" | "E_SYNC_UNAUTHORIZED") {
-                        Self::revoked(secrets.as_ref());
-                    }
+                    Self::refused(secrets.as_ref(), code);
                     log::info!("I_SYNC_CLOSED {code}");
                     emit(SOCKET_EVENT, json!({ "type": "closed", "code": code }));
                 }

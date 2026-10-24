@@ -834,3 +834,82 @@ pub(crate) fn push(
 pub(crate) fn send_raw(connection: &Connection, message: Value) -> Result<Answer, &'static str> {
     connection.request(&object(message), &[])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn takes_https_or_http_to_this_machine_only() {
+        for (text, clean) in [
+            ("https://relay.example.com", "https://relay.example.com"),
+            (
+                "  https://relay.example.com/  ",
+                "https://relay.example.com",
+            ),
+            (
+                "https://relay.example.com/base/",
+                "https://relay.example.com/base",
+            ),
+            (
+                "https://relay.example.com:8443",
+                "https://relay.example.com:8443",
+            ),
+            ("http://localhost:8787", "http://localhost:8787"),
+            ("http://LOCALHOST", "http://localhost"),
+            ("http://127.0.0.1:8787/", "http://127.0.0.1:8787"),
+            ("http://[::1]:8787", "http://[::1]:8787"),
+        ] {
+            assert_eq!(
+                RelayUrl::parse(text).map(|url| url.as_str().to_string()),
+                Ok(clean.to_string()),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn refuses_clear_text_to_another_machine_and_anything_beyond_an_address() {
+        let long = format!("https://relay.example.com/{}", "a".repeat(MAX_URL_LEN));
+        for text in [
+            "",
+            "   ",
+            "relay.example.com",
+            "http://relay.example.com",
+            "http://localhost.evil.com",
+            "http://127.0.0.1.evil.com",
+            "http://evil.localhost",
+            "http://0.0.0.0:8787",
+            "http://10.0.0.2",
+            "http://[::]:8787",
+            "http://[::ffff:8.8.8.8]",
+            "ws://localhost:8787",
+            "wss://relay.example.com",
+            "ftp://relay.example.com",
+            "file:///tmp/relay",
+            "https://user:pw@relay.example.com",
+            "https://user@relay.example.com",
+            "https://relay.example.com/?vault=1",
+            "https://relay.example.com/#here",
+            "https://",
+            long.as_str(),
+        ] {
+            assert_eq!(
+                RelayUrl::parse(text),
+                Err("E_SYNC_RELAY_URL_INVALID"),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn talks_to_the_socket_over_the_same_security() {
+        let tls = RelayUrl::parse("https://relay.example.com").unwrap();
+        assert_eq!(
+            tls.socket("v"),
+            "wss://relay.example.com/v1/vaults/v/socket"
+        );
+        let local = RelayUrl::parse("http://127.0.0.1:8787").unwrap();
+        assert_eq!(local.socket("v"), "ws://127.0.0.1:8787/v1/vaults/v/socket");
+    }
+}

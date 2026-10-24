@@ -105,6 +105,27 @@ test('creates the vault with the relay’s secret, asked once and never kept', a
   expect(others).toBe(0)
 })
 
+test('asks for the relay’s secret again when the relay lost the vault', async ({ page }) => {
+  await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  await expect(panel.getByRole('switch', { name: 'Sync This Device' })).toBeChecked()
+  await expect(panel.getByLabel('Relay Secret')).toHaveCount(0)
+  // Rust drops the token when the relay answers E_SYNC_NO_VAULT; the key stays.
+  await sendSnapshot(page, {
+    relayUrl: RELAY,
+    enabled: true,
+    vault: true,
+    enrolled: false,
+    status: { state: 'stopped', lastSync: 1, code: 'E_SYNC_NO_VAULT', tooLarge: 0 },
+  })
+  await expect(panel).toContainText('This device holds a vault the relay does not know.')
+  await panel.getByLabel('Relay Secret').fill(SECRET)
+  await panel.getByRole('button', { name: 'Connect' }).click()
+  await expect(panel.getByLabel('Relay Secret')).toHaveCount(0)
+  expect(await calls(page, 'sync_vault_create')).toEqual([{ relaySecret: SECRET }])
+})
+
 test('says why the relay address or the vault was refused', async ({ page }) => {
   await fakeRust(page, { refuse: 'E_SYNC_RELAY_SECRET' })
   await openSettings(page, 'Sync')

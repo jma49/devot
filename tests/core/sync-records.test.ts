@@ -137,12 +137,22 @@ describe('merging a note', () => {
     )
     expect(textOf(merged.record.ydoc)).toBe('Mine. Hello there\n')
     expect(merged.record).toMatchObject({ title: 'Mine', pinned: true, status: 'active' })
-    expect(merged).toMatchObject({ localNews: true, remoteNews: true, bothEdited: true })
+    expect(merged).toMatchObject({
+      localNews: true,
+      remoteNews: true,
+      bodyChanged: true,
+      bothEdited: true,
+    })
   })
 
   it('has nothing to write or push for the same copy', () => {
     const merged = mergeNote(note(), note())
-    expect(merged).toMatchObject({ localNews: false, remoteNews: false, bothEdited: false })
+    expect(merged).toMatchObject({
+      localNews: false,
+      remoteNews: false,
+      bodyChanged: false,
+      bothEdited: false,
+    })
   })
 
   it('brings a note out of the Trash for a later edit, the same way on both sides', () => {

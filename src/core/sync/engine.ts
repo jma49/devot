@@ -15,7 +15,7 @@ import { errorCode } from '../errors'
 import { receiveStored, type Clock } from '../hlc'
 import { clipTitle } from '../noteLimits'
 import { isNotebookSymbol } from '../notebookIcons'
-import { MERGE, textLength } from '../revisions'
+import { MERGE, REVISION_EVERY_MS, textLength } from '../revisions'
 import type { BookRecord, NoteRecord, StorageAdapter, TagRecord } from '../storage'
 import { isTagColor } from '../tags'
 import {
@@ -322,13 +322,16 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     for (;;) {
       const page = await transport.pull(since)
       const applied: string[] = []
-      for (const record of page.records) {
-        if (await applyPulled(record)) applied.push(record.id)
+      try {
+        for (const record of page.records) {
+          if (await applyPulled(record)) applied.push(record.id)
+        }
+      } finally {
+        if (applied.length > 0) options.onApplied?.(applied)
       }
       const advanced = page.next > since
       since = Math.max(since, page.next)
       await sync.syncSetState('since', String(since))
-      if (applied.length > 0) options.onApplied?.(applied)
       if (!page.more || !advanced) return
     }
   }
@@ -366,7 +369,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       } catch (error) {
         const code = errorCode(error)
         if (code === 'E_NOTE_BODY_STALE' && tries < WRITE_TRIES) continue
-        if (storageFailure(code)) throw error
+        // Still racing local writes: stop before `since` passes the record, so it is pulled again.
+        if (code === 'E_NOTE_BODY_STALE' || storageFailure(code)) throw error
         console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, code)
         return false
       }
@@ -403,6 +407,14 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     return merged.remoteNews
   }
 
+  /** A body version taken in the last REVISION_EVERY_MS: changes that only came from other devices are kept no more often than typing here is (#216). */
+  async function keptLately(noteId: string) {
+    const at = now()
+    return (await storage.listRevisions(noteId)).some(
+      (r) => r.kind === 'body' && r.at <= at && at - r.at < REVISION_EVERY_MS,
+    )
+  }
+
   /** Keeps the local body as a version labelled a merge, so Revision History can restore it. */
   async function keepVersion(note: NoteRecord) {
     if (note.bodyMd === '' && note.ydoc.length === 0) return
@@ -426,7 +438,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       await keepVersion(row.note)
       return sync.syncPurge(record.id, now(), record.deletedHlc || clock.tick())
     }
-    if (row && merged.bothEdited) await keepVersion(row.note)
+    if (row && merged.bodyChanged && (merged.bothEdited || !(await keptLately(row.note.id)))) {
+      await keepVersion(row.note)
+    }
     await storage.putNote(noteRecordOf(record, row?.note.bodyVersion ?? 0))
     const had = new Map((row?.tags ?? []).map((t) => [t.tagId, t.hlc]))
     for (const tag of record.tags) {

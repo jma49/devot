@@ -11,6 +11,7 @@ import {
   createTagService,
   MERGE,
   seedWelcome,
+  type StorageAdapter,
   type WelcomeContent,
 } from '../../src/core'
 import { createSyncEngine, type SyncStatus } from '../../src/core/sync/engine'
@@ -45,6 +46,8 @@ type Device = Awaited<ReturnType<typeof device>>
 interface DeviceOptions {
   now?: () => number
   transport?: Partial<RelayTransportOptions>
+  /** The storage the engine writes through, in place of the device's own. */
+  engineStorage?: (storage: SqliteAdapter) => StorageAdapter
 }
 
 async function device(
@@ -72,7 +75,7 @@ async function device(
   })
   const statuses: SyncStatus[] = []
   const engine = createSyncEngine({
-    storage,
+    storage: options.engineStorage?.(storage) ?? storage,
     sync: storage,
     transport,
     clock,
@@ -179,8 +182,39 @@ describe('sync between two devices', () => {
     expect(kept).toHaveLength(1)
     const version = await b.storage.getRevision(kept[0]!.id)
     expect(version?.length).toBe('Monday\n\nTuesday\n\nWednesday: dentist\n'.length)
-    // A one-sided update (A had nothing B lacked) keeps no merge version.
-    expect((await a.storage.listRevisions(id)).filter((r) => r.value === MERGE)).toEqual([])
+    // A took in B's paragraph: its text from before is kept too.
+    const before = (await a.storage.listRevisions(id)).filter((r) => r.value === MERGE)
+    expect(before.map((r) => r.length)).toEqual(['Monday: gym\n\nTuesday\n\nWednesday\n'.length])
+  })
+
+  it('keeps the text from before another device’s change, at most every ten minutes', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Trip')
+    await a.notes.setBody(id, 'Passport\n\nTickets\n\nCharger\n')
+    await settle(a, b)
+    const merges = async () =>
+      (await b.storage.listRevisions(id)).filter((r) => r.kind === 'body' && r.value === MERGE)
+    expect(await merges()).toEqual([])
+    await a.notes.setBody(id, 'Passport\n\nCharger\n')
+    await settle(a, b)
+    expect((await b.note(id))?.bodyMd).toBe('Passport\n\nCharger\n')
+    const [first] = await merges()
+    expect((await b.storage.getRevision(first!.id))?.length).toBe(
+      'Passport\n\nTickets\n\nCharger\n'.length,
+    )
+    await a.notes.setBody(id, 'Passport\n\nCharger\n\nBooks\n')
+    await settle(a, b)
+    expect(await merges()).toHaveLength(1)
+    // Ten minutes on, the next change from the other device keeps a version again.
+    const kept = (await b.storage.getRevision(first!.id))!
+    await b.storage.deleteRevisions(id, [first!.id])
+    await b.storage.putRevision({ ...kept, at: kept.at - 10 * 60_000 })
+    await a.notes.setBody(id, 'Passport\n\nBooks\n')
+    await settle(a, b)
+    const after = await merges()
+    expect(after).toHaveLength(2)
+    expect(after.map((r) => r.length)).toContain('Passport\n\nCharger\n\nBooks\n'.length)
+    await sameNote(a, b, id)
   })
 
   it('takes the newer value of each metadata field', async () => {
@@ -344,6 +378,35 @@ describe('sync between two devices', () => {
     expect((await sameNote(a, b, id))?.bodyMd).toBe('From the phone\nStart\nFrom the Mac\n')
   })
 
+  it('pulls a record again when local writes kept racing it, instead of skipping it', async () => {
+    const racing = { on: false }
+    const { a, b } = await pair({
+      b: {
+        engineStorage: (storage) =>
+          new Proxy(storage, {
+            get: (target, key, receiver) =>
+              key === 'putNote' && racing.on
+                ? () => Promise.reject(new Error('E_NOTE_BODY_STALE'))
+                : Reflect.get(target, key, receiver),
+          }),
+      },
+    })
+    const id = await a.notes.create('Shelf')
+    await a.notes.setBody(id, 'One\n')
+    await settle(a, b)
+    racing.on = true
+    await a.notes.setBody(id, 'One\n\nTwo\n')
+    await a.sync()
+    await b.sync()
+    await b.engine.idle()
+    expect((await b.note(id))?.bodyMd).toBe('One\n')
+    expect(b.engine.status().state).toBe('offline')
+    racing.on = false
+    await settle(b, a)
+    expect((await b.note(id))?.bodyMd).toBe('One\n\nTwo\n')
+    await sameNote(a, b, id)
+  })
+
   it('stops pushing a record after 5 retries until the next change on the relay', async () => {
     const { a, b } = await pair()
     const id = await a.notes.create('Contested')
@@ -422,6 +485,9 @@ describe('sync between two devices', () => {
     await settle(a, b)
     const note = await sameNote(a, b, '00000000-0000-7000-8000-0000000000c1')
     expect(note?.bodyMd).toBe('Press Cmd+N for a new note.\n')
+    // Nobody wrote the welcome that gave way: there is no text of the user's to keep.
+    const kept = await b.storage.listRevisions('00000000-0000-7000-8000-0000000000c1')
+    expect(kept.filter((r) => r.value === MERGE)).toEqual([])
   })
 })
 

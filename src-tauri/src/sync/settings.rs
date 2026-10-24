@@ -109,6 +109,10 @@ impl DeviceCredentials {
         }
     }
 
+    pub(crate) fn forget(store: &dyn SecretStore) -> Result<(), SyncError> {
+        store.remove(DEVICE_ACCOUNT).map(|_| ())
+    }
+
     pub(crate) fn fits(&self, relay: &str, vault: &str) -> bool {
         self.relay == relay && self.vault == vault
     }
