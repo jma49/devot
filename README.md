@@ -11,15 +11,14 @@
 [![Platform: macOS 26+, Apple Silicon](https://img.shields.io/badge/platform-macOS%2026%2B%20%C2%B7%20Apple%20Silicon-lightgrey)](#download)
 [![CI](https://github.com/jma49/devot/actions/workflows/ci.yml/badge.svg)](https://github.com/jma49/devot/actions/workflows/ci.yml)
 
-[Download](#download) · [Features](#features) · [devot-mcp](#claude-and-other-mcp-clients-devot-mcp) · [Development](docs/development.md)
+[Website](https://devot.online) · [Download](#download) · [Features](#features) · [devot-mcp](#claude-and-other-mcp-clients-devot-mcp) · [Development](docs/development.md)
 
 </div>
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/devot-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="docs/images/devot-light.png">
-    <img src="docs/images/devot-light.png" alt="Devot: the sidebar, the note list and a note in the preview">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.webp">
+    <img src="docs/images/hero.webp" alt="Devot in motion: a note opens, a task is typed in the split editor and preview, its status is set to Completed, and a search narrows the notes.">
   </picture>
 </p>
 
@@ -39,12 +38,26 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 
 **Organise**
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/organise-dark.webp">
+    <img src="docs/images/organise.webp" alt="Filing a note into a notebook from its header, changing its status and adding a tag.">
+  </picture>
+</p>
+
 - Nestable notebooks with icons, tags with colours, note statuses (none, active, on hold, completed, dropped), pinning and a Trash.
 - Open a notebook as a workspace to see only its notes and sub-notebooks.
 - Templates with front matter for the title, notebook, tags and status, and placeholders such as `{{date}}`.
 - Sort and filter the note list; select several notes to move, tag, export or trash them together.
 
 **Write**
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/write-dark.webp">
+    <img src="docs/images/write.webp" alt="Typing a sentence with inline maths in the Markdown editor while the preview beside it renders the formula.">
+  </picture>
+</p>
 
 - A Markdown editor with editor-only, split and preview modes, synced scrolling and a Focus Mode.
 - A safe live preview with GitHub-flavoured Markdown, syntax-highlighted code blocks, math, Mermaid diagrams, emoji, alerts, task lists and YouTube and Vimeo embeds that load only when you ask.
@@ -54,6 +67,13 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 - Revision History: Devot keeps a version when you pause typing, and you can restore any of them.
 
 **Find and connect**
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/find-dark.webp">
+    <img src="docs/images/find.webp" alt="Linking a note by typing two square brackets, then searching and opening the linked note, whose preview lists the note that links to it.">
+  </picture>
+</p>
 
 - Full-text search with a query syntax (notebook, tag, status, pinned, title or body, and exclusions).
 - `[[` note links with a link index; each note lists the notes that link to it.
@@ -85,7 +105,27 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 - devot-mcp lets Claude and other MCP clients search, read, create, edit and trash notes, only in notebooks you allow (below).
 
 <p align="center">
-  <img src="docs/images/devot-split.png" alt="Devot in split view: the Markdown editor beside its live preview">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/cards-1-dark.webp">
+    <img src="docs/images/cards-1.webp" alt="Themes switching between Tide, Dawn and Sage, beside Focus Mode hiding the note list and bringing it back." width="100%">
+  </picture>
+  <br><sub>Themes · Focus Mode</sub>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/cards-2-dark.webp">
+    <img src="docs/images/cards-2.webp" alt="Tab moving between the cells of a Markdown table and adding a row, beside the command palette setting a note to Completed." width="100%">
+  </picture>
+  <br><sub>Tables you edit with Tab · Command palette</sub>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/cards-3-dark.webp">
+    <img src="docs/images/cards-3.webp" alt="Revision History restoring the earliest version of a note and undoing the restore, beside a new note made from the Daily standup template." width="100%">
+  </picture>
+  <br><sub>Revision History · Templates</sub>
 </p>
 
 ## Markdown mirror

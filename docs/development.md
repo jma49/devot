@@ -90,6 +90,16 @@ Stack only changes that depend on each other: the same tokens, the same styleshe
 | `design`                 | Design tokens, the icon map and the app icon source           |
 | `docs`                   | Architecture, decisions and the release process               |
 
+## README clips
+
+The animated WebP files in `docs/images/` are the website's recordings of the real app. The website repo's media pipeline ([jma49/devot-site](https://github.com/jma49/devot-site)) records them and keeps the original 2x frames (`<slot>/<light|dark>/00000.png`, 30 fps). `scripts/readme-clips.sh` converts those frames to looping, lossy WebP at 15 frames per second (needs `ffmpeg` and `img2webp`):
+
+```sh
+scripts/readme-clips.sh /path/to/devot-site/.cache/media/frames
+```
+
+It writes light and dark files to `docs/images/`: the hero at 1280 px wide, Write, Organise and Find at 800 px, and three `cards-N` rows that each pair two clips at the same height on a transparent 1600 px canvas. The shorter clip of a pair holds its last frame until the longer one ends. Every clip has rounded corners and a hairline edge (black at 12% on light, white at 10% on dark) so it stands out on GitHub's page. Each file stays under 2.5 MB; `tests/policy/readme-images.test.ts` checks that every image the README references exists and fits.
+
 ## Crash reporting in local builds
 
 Builds report crashes to Sentry only when they are made with a DSN. Copy `.env.example` to `.env.local` (git-ignored) and set:
