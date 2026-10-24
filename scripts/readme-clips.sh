@@ -2,9 +2,12 @@
 # Usage: readme-clips.sh <frames-dir> [<out-dir>]
 #
 # Builds the README's animated WebP clips in docs/images/ (or <out-dir>) from the website's
-# 2x frames: <frames-dir>/<slot>/<light|dark>/00000.png, 30 fps. Needs ffmpeg and img2webp.
+# 2x frames: <frames-dir>/<slot>/<light|dark>/00000.png, 30 fps. Needs img2webp, ffprobe and an
+# ffmpeg that reads animated WebP.
 # Every clip gets rounded corners and a hairline edge (black at 12% on light, white at 10% on
 # dark) over a transparent outside, so it stands out on GitHub's light and dark pages.
+# Clips are only scaled uniformly: after writing a file the script measures every clip in it and
+# stops if one's aspect ratio is more than 0.5% off its source's.
 set -euo pipefail
 
 [ $# -ge 1 ] || { echo "usage: $0 <frames-dir> [<out-dir>]" >&2; exit 2; }
@@ -18,8 +21,8 @@ FPS=15
 DELAY=67
 QUALITY=90
 ROW_WIDTH=1600
-ROW_HEIGHT=656
 GAP=24
+TOLERANCE=0.005
 
 # rounded_edge <variant> <width>: radius 16 px and edge 2 px at the 1600 px row size, scaled to <width>.
 rounded_edge() {
@@ -39,6 +42,33 @@ rounded_edge() {
   echo "format=rgba,geq=$rgb:a='255*clip($depth+0.5,0,1)'"
 }
 
+# Wide card frames reach below the card for the website's phone cut. The website shows their top
+# 1312x820 from the frame's origin (frameRect and CUTS.wide.clip in jma49/devot-site
+# scripts/media/scenes.ts, inFrame in scripts/media/capture.ts); so does the README.
+crop_of() {
+  case $1 in
+    card-1 | card-4 | card-5) echo 1312:820:0:0 ;;
+  esac
+}
+
+crop_filter() {
+  local crop
+  crop=$(crop_of "$1")
+  [ -z "$crop" ] || echo "crop=$crop,"
+}
+
+# source_size <slot> <variant>: "<width> <height>" of what the clip shows, after any crop.
+source_size() {
+  local crop
+  crop=$(crop_of "$1")
+  if [ -n "$crop" ]; then
+    echo "$crop" | awk -F: '{ print $1, $2 }'
+  else
+    ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x \
+      "$frames/$1/$2/00000.png" | tr x ' '
+  fi
+}
+
 count() { find "$frames/$1/$2" -name '*.png' | wc -l | tr -d ' '; }
 
 encode() {
@@ -46,35 +76,73 @@ encode() {
   img2webp -loop 0 -lossy -q "$QUALITY" -m 6 -d "$DELAY" "$dir"/*.png -o "$target" > /dev/null
 }
 
-# single <slot> <width> <variant> <target>
-single() {
-  local slot=$1 width=$2 variant=$3 target=$4 dir="$work/$1-$3"
-  mkdir -p "$dir"
-  ffmpeg -v error -threads 4 -framerate 30 -i "$frames/$slot/$variant/%05d.png" \
-    -vf "fps=$FPS,scale=$width:-2:flags=lanczos,$(rounded_edge "$variant" "$width")" "$dir/%04d.png"
-  encode "$dir" "$target"
-  rm -rf "$dir"
+# measure <file> <x> <width>: "<width> <height>" of the opaque part of the first frame of <file>
+# within the <width> columns from <x>. It crops the alpha plane: cropping the decoded yuva420p frame
+# would round odd sizes down to even ones.
+measure() {
+  ffmpeg -nostats -v info -threads 4 -i "$1" -frames:v 1 -filter_threads 4 \
+    -vf "alphaextract,crop=$3:ih:$2:0,bbox=min_val=127" -f null - 2>&1 |
+    sed -n 's/.* w:\([0-9]*\) h:\([0-9]*\) .*/\1 \2/p' | head -n 1
 }
 
-# row <name> <left-slot> <left-width> <right-slot> <right-width> <variant> <target>
-# Both clips start together; the shorter one holds its last frame until the longer one ends.
+# check <file> <slot> <variant> <x> <width>: stops unless the clip of <slot> drawn in those columns
+# of <file> keeps the aspect ratio of its source.
+check() {
+  local file=$1 slot=$2 variant=$3 got name
+  name=$(basename "$file")
+  got=$(measure "$file" "$4" "$5")
+  [ -n "$got" ] || { echo "E_CLIP_MEASURE $name $slot" >&2; exit 1; }
+  awk -v got="$got" -v src="$(source_size "$slot" "$variant")" -v tol="$TOLERANCE" \
+    -v name="$name" -v slot="$slot" 'BEGIN {
+    split(got, g, " "); split(src, s, " ")
+    off = (g[1] / g[2]) / (s[1] / s[2]) - 1
+    printf "%s %s: %dx%d, source %dx%d, ratio %+.2f%%\n", name, slot, g[1], g[2], s[1], s[2], off * 100
+    if (off > tol || off < -tol) { print "E_CLIP_RATIO " name " " slot > "/dev/stderr"; exit 1 }
+  }'
+}
+
+# single <slot> <width> <variant> <target>
+single() {
+  local slot=$1 width=$2 variant=$3 target=$4 dir="$work/$1-$3" sw sh height
+  read -r sw sh <<< "$(source_size "$slot" "$variant")"
+  height=$(awk "BEGIN { printf \"%d\", $width * $sh / $sw + 0.5 }")
+  mkdir -p "$dir"
+  ffmpeg -v error -threads 4 -framerate 30 -i "$frames/$slot/$variant/%05d.png" -filter_threads 4 \
+    -vf "fps=$FPS,$(crop_filter "$slot")scale=$width:$height:flags=lanczos,$(rounded_edge "$variant" "$width")" \
+    -threads 4 "$dir/%04d.png"
+  encode "$dir" "$target"
+  rm -rf "$dir"
+  check "$target" "$slot" "$variant" 0 "$width"
+}
+
+# row <name> <left-slot> <right-slot> <variant> <target>
+# Both clips get the largest height at which they and the gap fit in ROW_WIDTH, each scaled
+# uniformly. Both start together; the shorter one holds its last frame until the longer one ends.
 row() {
-  local left=$2 lw=$3 right=$4 rw=$5 variant=$6 target=$7 dir="$work/$1-$6"
-  local nl nr total
+  local left=$2 right=$3 variant=$4 target=$5 dir="$work/$1-$4"
+  local lsw lsh rsw rsh height lw rw nl nr total
+  read -r lsw lsh <<< "$(source_size "$left" "$variant")"
+  read -r rsw rsh <<< "$(source_size "$right" "$variant")"
+  read -r height lw rw <<< "$(awk "BEGIN {
+    l = $lsw / $lsh; r = $rsw / $rsh; h = int(($ROW_WIDTH - $GAP) / (l + r))
+    printf \"%d %d %d\", h, h * l + 0.5, h * r + 0.5
+  }")"
   nl=$(( ($(count "$left" "$variant") + 1) / 2 ))
   nr=$(( ($(count "$right" "$variant") + 1) / 2 ))
   total=$(( nl > nr ? nl : nr ))
   mkdir -p "$dir"
-  ffmpeg -v error -threads 4 \
+  ffmpeg -v error -threads 4 -filter_complex_threads 4 \
     -framerate 30 -i "$frames/$left/$variant/%05d.png" \
     -framerate 30 -i "$frames/$right/$variant/%05d.png" \
-    -f lavfi -i "color=c=black@0:s=${ROW_WIDTH}x${ROW_HEIGHT},format=rgba" \
-    -filter_complex "[0:v]fps=$FPS,scale=$lw:$ROW_HEIGHT:flags=lanczos,$(rounded_edge "$variant" "$ROW_WIDTH"),tpad=stop_mode=clone:stop=$total[a];\
-[1:v]fps=$FPS,scale=$rw:$ROW_HEIGHT:flags=lanczos,$(rounded_edge "$variant" "$ROW_WIDTH"),tpad=stop_mode=clone:stop=$total[b];\
+    -f lavfi -i "color=c=black@0:s=$((lw + GAP + rw))x$height,format=rgba" \
+    -filter_complex "[0:v]fps=$FPS,$(crop_filter "$left")scale=$lw:$height:flags=lanczos,$(rounded_edge "$variant" "$ROW_WIDTH"),tpad=stop_mode=clone:stop=${total}[a];\
+[1:v]fps=$FPS,$(crop_filter "$right")scale=$rw:$height:flags=lanczos,$(rounded_edge "$variant" "$ROW_WIDTH"),tpad=stop_mode=clone:stop=${total}[b];\
 [2:v][a]overlay=0:0:format=auto[c];[c][b]overlay=$((lw + GAP)):0:format=auto,format=rgba[o]" \
-    -map "[o]" -frames:v "$total" "$dir/%04d.png"
+    -map "[o]" -frames:v "$total" -threads 4 "$dir/%04d.png"
   encode "$dir" "$target"
   rm -rf "$dir"
+  check "$target" "$left" "$variant" 0 $((lw + GAP / 2))
+  check "$target" "$right" "$variant" $((lw + GAP / 2)) $((rw + GAP - GAP / 2))
 }
 
 for variant in light dark; do
@@ -84,7 +152,7 @@ for variant in light dark; do
   for slot in write organise find; do
     single "$slot" 800 "$variant" "$out/$slot$suffix.webp"
   done
-  row cards-1 card-1 1050 card-2 525 "$variant" "$out/cards-1$suffix.webp"
-  row cards-2 card-3 525 card-4 1050 "$variant" "$out/cards-2$suffix.webp"
-  row cards-3 card-5 1050 card-6 525 "$variant" "$out/cards-3$suffix.webp"
+  row cards-1 card-1 card-2 "$variant" "$out/cards-1$suffix.webp"
+  row cards-2 card-3 card-4 "$variant" "$out/cards-2$suffix.webp"
+  row cards-3 card-5 card-6 "$variant" "$out/cards-3$suffix.webp"
 done
