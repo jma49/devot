@@ -1,0 +1,26 @@
+{
+  "name": "@devot/relay",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Devot's sync relay: a Cloudflare Worker with a Durable Object per vault, or a Node server on SQLite.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "start": "node src/node/main.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.3",
+    "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261019.1",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "^24.19.1",
+    "@types/ws": "8.18.2",
+    "wrangler": "4.152.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

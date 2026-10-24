@@ -22,6 +22,11 @@ pnpm-debug.log*
 .env.*
 !.env.example
 
+# Sync relay: Wrangler's local state and secrets, the Node host's vaults
+relay/.wrangler/
+relay/.dev.vars
+relay/relay-data/
+
 # Personal agent rules (see CLAUDE.md)
 CLAUDE.local.md
 

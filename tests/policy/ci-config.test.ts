@@ -175,6 +175,19 @@ it('changed-code.sh needs no build for documentation and the icon sources', () =
   )
 })
 
+it('changed-code.sh sends relay changes to the policy job, which checks and tests the relay', () => {
+  expect(changedCode(['relay/src/vault.ts', 'relay/wrangler.toml'])).toBe('web=false rust=false')
+  expect(changedCode(['relay/src/vault.ts', 'src/core/sync/protocol.ts'])).toBe(
+    'web=true rust=true',
+  )
+  expect(commands(job('policy'))).toEqual(
+    expect.arrayContaining(['pnpm lint', 'pnpm typecheck', 'pnpm test']),
+  )
+  expect(scripts['typecheck']).toContain('relay/tsconfig.json')
+  const include = /const include = \[(.*)\]/.exec(read('vitest.config.ts'))?.[1] ?? ''
+  expect(include).toContain("'tests/**/*.test.{ts,tsx}'")
+})
+
 it('changed-code.sh needs only the Rust job for changes under src-tauri', () => {
   expect(changedCode(['src-tauri/src/lib.rs', 'src-tauri/Cargo.toml'])).toBe('web=false rust=true')
   expect(
