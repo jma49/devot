@@ -93,7 +93,7 @@ import {
   type SetImageSize,
 } from './imageMenu'
 import { ImageViewer, type ViewedImage } from './ImageViewer'
-import { useExternalChanges } from './externalChanges'
+import { DB_CHANGED, useExternalChanges } from './externalChanges'
 import { useMarkdownMirror } from './MarkdownMirror'
 import { latestOnly } from './preview/latest'
 import { SearchField } from './SearchField'
@@ -193,6 +193,7 @@ import { textStore } from './textStore'
 import { restartNow, useUpdates } from './UpdateNotice'
 import { checkForUpdates } from './updates'
 import { track } from './usage'
+import { HTTP_API_EVENT, httpApiHost } from './httpApiHost'
 import { QUICK_CAPTURE_EVENT, answerCapture, readCaptureRequest } from './quickCaptureHost'
 
 const EXPORT_ALL = 'devot:export-all'
@@ -1286,6 +1287,27 @@ export function App() {
       unlisten?.()
     }
   }, [core, refresh])
+
+  // The local HTTP API: this window's core answers each call Rust checked.
+  useEffect(() => {
+    if (!core || DEVOT_UI_TEST) return
+    let stopped = false
+    let unlisten: (() => void) | undefined
+    const take = httpApiHost({
+      run: (call) => core.httpApi(call),
+      reply: (id, result, error) => invoke('http_api_done', { id, result, error }),
+      wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
+    })
+    void import('@tauri-apps/api/event').then(async ({ listen }) => {
+      const stop = await listen(HTTP_API_EVENT, (e) => void take(e.payload))
+      if (stopped) stop()
+      else unlisten = stop
+    })
+    return () => {
+      stopped = true
+      unlisten?.()
+    }
+  }, [core])
 
   useEffect(() => {
     if (!core) return

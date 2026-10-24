@@ -126,6 +126,15 @@ export async function mockTauri(page: Page): Promise<void> {
           // No link from another app waits at launch (deep-links.spec.ts).
           if (cmd === 'deep_link_take') return []
           if (cmd === 'cli_tool_status') return { state: 'absent', path: '/usr/local/bin/devot' }
+          if (cmd === 'http_api_get')
+            return {
+              enabled: false,
+              port: 27484,
+              scope: 'read',
+              listening: null,
+              problem: null,
+              token: 'unset',
+            }
           if (
             cmd === 'clipboard_write_text' ||
             cmd === 'usage_record' ||

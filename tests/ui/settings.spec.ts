@@ -279,7 +279,7 @@ test('Integrations offers devot-mcp configs to copy for each client', async ({ p
   await expect(page.getByRole('tabpanel')).toContainText('from the Devot checkout')
 
   await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
-  await expect(page.getByRole('tabpanel').getByRole('status')).toHaveText(
+  await expect(page.getByRole('tabpanel').getByRole('status').first()).toHaveText(
     'The Claude Code configuration was copied.',
   )
   expect(await calls(page, 'clipboard_write_text')).toEqual([
@@ -319,7 +319,9 @@ test('Integrations still offers configs, with a path to replace, when Rust canno
   const claude = page.getByRole('region', { name: 'Claude Code' })
   await expect(claude.locator('code')).toContainText('/path/to/devot/dist-mcp/devot-mcp.mjs')
   await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
-  await expect(pane.getByRole('status')).toHaveText('The Claude Code configuration was copied.')
+  await expect(pane.getByRole('status').first()).toHaveText(
+    'The Claude Code configuration was copied.',
+  )
   await expect(pane.getByRole('alert')).toContainText('E_DATA_FOLDER_UNAVAILABLE')
 })
 

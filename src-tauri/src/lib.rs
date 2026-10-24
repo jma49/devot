@@ -25,6 +25,8 @@ mod external;
 mod fonts;
 #[cfg(desktop)]
 mod format_menu;
+#[cfg(desktop)]
+mod http_api;
 mod import;
 mod keyboard_shortcuts;
 mod link_info;
@@ -178,6 +180,16 @@ pub fn run() {
             menu_bar::quick_capture_done,
             #[cfg(desktop)]
             menu_bar::quick_capture_close,
+            #[cfg(desktop)]
+            http_api::http_api_get,
+            #[cfg(desktop)]
+            http_api::http_api_set,
+            #[cfg(desktop)]
+            http_api::http_api_token_rotate,
+            #[cfg(desktop)]
+            http_api::http_api_token_reveal,
+            #[cfg(desktop)]
+            http_api::http_api_done,
             keyboard_shortcuts::keyboard_shortcuts_get,
             keyboard_shortcuts::keyboard_shortcuts_set,
             mirror::mirror_get,
@@ -318,8 +330,28 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     #[cfg(desktop)]
     menu_bar::apply(app.handle(), stored.settings.menu_bar);
     #[cfg(desktop)]
+    start_http_api(app, data_dir);
+    #[cfg(desktop)]
     updates::start(app.handle());
     Ok(())
+}
+
+/// Listens when Settings turned it on; off the launch's thread, since it reads the keychain.
+#[cfg(desktop)]
+fn start_http_api(app: &mut tauri::App, data_dir: &Path) {
+    let api = std::sync::Arc::new(http_api::HttpApi::for_app(
+        app.handle(),
+        data_dir,
+        &app.config().identifier,
+    ));
+    app.manage(std::sync::Arc::clone(&api));
+    if std::thread::Builder::new()
+        .name("http-api-start".into())
+        .spawn(move || api.apply())
+        .is_err()
+    {
+        log::warn!("W_HTTP_API_START_FAILED E_HTTP_API_THREAD_FAILED");
+    }
 }
 
 #[cfg(desktop)]

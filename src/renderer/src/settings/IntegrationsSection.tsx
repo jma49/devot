@@ -4,6 +4,7 @@ import { writeClipboardText } from '../clipboard'
 import type { IconName } from '../icons/symbols'
 import { format, t, type MessageKey } from '../i18n'
 import { SettingsSection } from './controls'
+import { HttpApiSection } from './HttpApiSection'
 import { claudeCodeCommand, codexConfig, mcpServersJson, type McpSetup } from './mcpConfigs'
 import { mcpSetup } from './window'
 
@@ -122,6 +123,7 @@ export function IntegrationsSection() {
           </SettingsSection>
         )
       })}
+      <HttpApiSection />
     </section>
   )
 }

@@ -16,6 +16,7 @@ import {
   createTemplateService,
   duplicateNote,
   importMarkdown,
+  runHttpApiCall,
   seedWelcome,
   textLength,
   type ImportKind,
@@ -193,6 +194,36 @@ describe('a note written on two devices merges with each change once', () => {
     await share(a, b, id)
     await type(b, id, ELSEWHERE)
     await type(a, id, ENDS)
+    expect(await merged(a, b, id)).toBe(ends(typedElsewhere(BASE)))
+  })
+
+  it('the local HTTP API (notes.update through the app core, its editor typing meanwhile)', async () => {
+    const { a, b, id } = await sharedNote()
+    const bookId = await a.books.create('Shared', null, { aiAccess: true })
+    await a.notes.setBook(id, bookId)
+    await a.notes.flush()
+    const {
+      searchNotesInBooks: _search,
+      countNotesInBooks: _count,
+      noteTags: _noteTags,
+      tagsInBooks: _tags,
+      ...appStorage
+    } = a.storage
+    const api = createAiService({ storage: appStorage, clock: a.clock, newId: a.newId })
+    const replica = new Y.Doc()
+    Y.applyUpdate(replica, (await a.notes.open(id)).state)
+    const updates: Uint8Array[] = []
+    replica.on('update', (update: Uint8Array) => updates.push(update))
+    const text = replica.getText(BODY)
+    text.delete(0, 'Groceries'.length)
+    text.insert(0, 'Shopping')
+    for (const update of updates) await a.notes.applyUpdate(id, update)
+    await runHttpApiCall(api, {
+      op: 'notes.update',
+      note: id,
+      args: { patches: [{ find: 'Water the plants.', replace: 'Water the ferns.' }] },
+    })
+    await a.notes.mergeStored()
     expect(await merged(a, b, id)).toBe(ends(typedElsewhere(BASE)))
   })
 
