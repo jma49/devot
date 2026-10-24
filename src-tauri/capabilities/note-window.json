@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "note-window",
-  "description": "Permissions for a note window (one note, in a window of its own): reading and writing notes and their versions and attachments through its own core, relaying its changes to the other windows, naming itself after the note, and saving before it closes or the app quits. No notebooks, tags, imports, exports, backups or settings changes: those stay in the main window.",
+  "description": "Permissions for a note window (one note, in a window of its own): reading, searching and writing notes and their versions and attachments through its own core (and making or discarding a note a link names, in a notebook it can read), relaying its changes to the other windows, naming itself after the note, and saving before it closes or the app quits. No notebook or tag changes, imports, exports, backups or settings changes: those stay in the main window.",
   "windows": ["note-*"],
   "permissions": [
     "core:event:allow-listen",
@@ -17,7 +17,10 @@
     "allow-notes-list",
     "allow-note-get",
     "allow-notes-bodies",
+    "allow-notes-search",
+    "allow-books-list",
     "allow-note-put",
+    "allow-note-purge",
     "allow-tags-list",
     "allow-revision-put",
     "allow-revisions-list",

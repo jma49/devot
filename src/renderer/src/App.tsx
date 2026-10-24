@@ -1917,7 +1917,7 @@ export function App() {
   // A note window's changes: its core takes them in, and the lists show its saves and titles.
   useEffect(() => {
     if (!core) return
-    return relay.link.listen((message) => {
+    const listening = relay.link.listen((message) => {
       relay.gate.heard(message.noteId)
       void core.relayIn(message).catch((e: unknown) => {
         console.warn('W_NOTE_RELAY_IN_FAILED', message.noteId, errorCode(e))
@@ -1932,6 +1932,7 @@ export function App() {
         retitleListed(message.noteId, message.title)
       }
     })
+    return () => void listening.then((stop) => stop())
   }, [core, relay, showWrites, retitleListed, refresh])
   useEffect(() => () => clearTimeout(typedTitleTimer.current), [])
   const rename = (next: string) => {

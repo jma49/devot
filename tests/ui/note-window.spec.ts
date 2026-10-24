@@ -6,6 +6,7 @@ import { expect, mockTauri, openApp, pickMenuItem, test, type TestWindow } from 
 // in-memory storage (localStorage) and the relay (a BroadcastChannel in the UI tests' build).
 
 const CLOSE_EVENT = 'devot:note-window-close'
+const FLUSH_EVENT = 'devot:flush-before-exit'
 
 const storedNotes = () =>
   JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
@@ -144,4 +145,21 @@ test('closing a note window saves its edits first', async ({ page, context }) =>
   await expect.poll(() => calls(win, 'note_window_close_ready')).toHaveLength(1)
   const stored = await win.evaluate(storedNotes)
   expect(stored.find((n) => n.id === id)?.bodyMd).toBe('Start. Typed just before closing.')
+})
+
+test('a note window that cannot open its note still answers a close and a quit at once', async ({
+  context,
+}) => {
+  const win = await openNoteWindow(context, '0192a6f0-0000-7000-8000-00000000dead')
+  await expect(win.getByRole('alert')).toBeVisible()
+  await win.evaluate(
+    (names) => {
+      const w = globalThis as unknown as { dispatchEvent(e: unknown): void }
+      const make = globalThis as unknown as { CustomEvent: new (t: string) => unknown }
+      for (const name of names) w.dispatchEvent(new make.CustomEvent(name))
+    },
+    [CLOSE_EVENT, FLUSH_EVENT],
+  )
+  await expect.poll(() => calls(win, 'note_window_close_ready')).toHaveLength(1)
+  await expect.poll(() => calls(win, 'app_exit_ready')).toHaveLength(1)
 })

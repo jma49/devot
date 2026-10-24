@@ -34,7 +34,8 @@ export function relayGate(always: boolean) {
 
 export interface RelayLink {
   send(message: WireRelay): void
-  listen(handler: (message: WireRelay) => void): () => void
+  /** Resolves, with the way to stop, once the page hears the relay; it never rejects. */
+  listen(handler: (message: WireRelay) => void): Promise<() => void>
 }
 
 export function relayLink(self: string): RelayLink {
@@ -48,7 +49,7 @@ export function relayLink(self: string): RelayLink {
           if (from !== self && hears(self, message.noteId)) handler(message)
         }
         channel.addEventListener('message', take)
-        return () => channel.removeEventListener('message', take)
+        return Promise.resolve(() => channel.removeEventListener('message', take))
       },
     }
   }
@@ -58,22 +59,14 @@ export function relayLink(self: string): RelayLink {
         console.warn('W_NOTE_RELAY_SEND_FAILED', message.noteId, errorCode(e)),
       )
     },
-    listen(handler) {
-      let stopped = false
-      let unlisten: (() => void) | undefined
-      void import('@tauri-apps/api/webviewWindow')
-        .then(async ({ getCurrentWebviewWindow }) => {
-          const stop = await getCurrentWebviewWindow().listen<WireRelay>(EVENT, (e) =>
-            handler(e.payload),
-          )
-          if (stopped) stop()
-          else unlisten = stop
-        })
-        .catch(() => console.warn('W_NOTE_RELAY_LISTEN_FAILED'))
-      return () => {
-        stopped = true
-        unlisten?.()
-      }
-    },
+    listen: (handler) =>
+      import('@tauri-apps/api/webviewWindow')
+        .then(({ getCurrentWebviewWindow }) =>
+          getCurrentWebviewWindow().listen<WireRelay>(EVENT, (e) => handler(e.payload)),
+        )
+        .catch(() => {
+          console.warn('W_NOTE_RELAY_LISTEN_FAILED')
+          return () => {}
+        }),
   }
 }

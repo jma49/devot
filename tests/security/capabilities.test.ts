@@ -120,11 +120,12 @@ describe('Tauri command permissions', () => {
 
   it('lets a note window edit its note, relay its changes and save before it closes, and nothing more', () => {
     const noteWindow = capabilities().filter((c) => c.windows.includes('note-*'))
-    // No notebooks, tag changes, imports, exports, backups, mirror or settings changes: those
-    // stay in the main window. Its core neither compacts the history nor orders the notebooks.
+    // No notebook or tag changes, imports, exports, backups, mirror or settings changes: those
+    // stay in the main window. It reads the notebooks only to make a linked note in one.
     expect(noteWindow.flatMap(permissionIds).sort()).toEqual([
       'allow-app-exit-cancel',
       'allow-app-exit-ready',
+      'allow-books-list',
       'allow-clipboard-read-text',
       'allow-clipboard-write-text',
       'allow-editor-menu-popup',
@@ -138,6 +139,7 @@ describe('Tauri command permissions', () => {
       'allow-link-title',
       'allow-log-write',
       'allow-note-get',
+      'allow-note-purge',
       'allow-note-put',
       'allow-note-relay-send',
       'allow-note-window-close-cancel',
@@ -146,6 +148,7 @@ describe('Tauri command permissions', () => {
       'allow-note-window-open',
       'allow-notes-bodies',
       'allow-notes-list',
+      'allow-notes-search',
       'allow-open-external',
       'allow-revision-get',
       'allow-revision-put',
@@ -165,6 +168,37 @@ describe('Tauri command permissions', () => {
     for (const command of ['note', 'close-ready', 'close-cancel']) {
       expect(windowsWith(`allow-note-window-${command}`)).toEqual(['note-*'])
     }
+  })
+
+  it('grants a note window every command its page and its core can reach', () => {
+    const invoked = (file: string) =>
+      [...readFileSync(file, 'utf8').matchAll(/invoke(?:<[^>]*>)?\('([a-z_]+)'/g)].map(
+        (m) => m[1] ?? '',
+      )
+    // Its core never changes notebooks or tags, applies a template, lists the Trash, compacts the
+    // history or shows activity: those start in the main window.
+    const mainOnly = [
+      'activity_list',
+      'book_put',
+      'files_copy',
+      'note_tag_get',
+      'note_tag_put',
+      'notes_trash_list',
+      'revisions_compact',
+      'revisions_compactable',
+      'revisions_last_compaction',
+      'tag_put',
+    ]
+    const reached = [
+      ...invoked('src/renderer/src/storage/tauri.ts').filter((c) => !mainOnly.includes(c)),
+      ...invoked('src/renderer/src/noteWindow/NoteWindow.tsx'),
+      ...invoked('src/renderer/src/noteRelay.ts'),
+    ]
+    const granted = capabilities()
+      .filter((c) => c.windows.includes('note-*'))
+      .flatMap(permissionIds)
+    const missing = reached.filter((c) => !granted.includes(`allow-${c.replaceAll('_', '-')}`))
+    expect(missing).toEqual([])
   })
 
   it('lets the quick capture window hand over its note and close, and nothing more', () => {

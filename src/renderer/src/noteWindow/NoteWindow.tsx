@@ -64,6 +64,7 @@ function nameWindow(title: string) {
 
 export function NoteWindow() {
   const [core, setCore] = useState<Core>()
+  const coreRef = useRef<Core | undefined>(undefined)
   const [noteId, setNoteId] = useState<string>()
   const [failure, setFailure] = useState<string>()
   const [title, setTitle] = useState('')
@@ -117,15 +118,19 @@ export function NoteWindow() {
       })
       const c = started
       if (!alive) return stopCore(c)
-      stopListening = link.listen((message) => {
+      const listening = link.listen((message) => {
         void c.relayIn(message).catch((e: unknown) => {
           console.warn('W_NOTE_RELAY_IN_FAILED', message.noteId, errorCode(e))
         })
       })
+      stopListening = () => void listening.then((stop) => stop())
+      // Reading the note asks the other windows for what this one lacks (`want`): hear the answer.
+      await listening
       const name = await c.title(id)
       if (!alive) return
       setTitle(name)
       setNoteId(id)
+      coreRef.current = c
       setCore(() => c)
     })().catch((e: unknown) => {
       if (!alive) return
@@ -146,10 +151,24 @@ export function NoteWindow() {
     const flush = () => void saveEdits(core)
     window.addEventListener('pagehide', flush)
     document.addEventListener('visibilitychange', flush)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', flush)
+    }
+  }, [core])
+
+  // Heard from the start: Rust waits for an answer to every close and quit, and a window still
+  // opening, or one that could not open its note, has nothing of its own to save.
+  useEffect(() => {
     // As the main window does: the first close or quit whose save fails is called off, and the
     // notice says so; the next goes on without the changes.
-    const saved = (guard: typeof quitGuard) => guard.answer(core.flush({ versions: true }))
-    const stop = listenAsked(
+    const saved = (guard: typeof quitGuard) => {
+      const ready = coreRef.current
+      return ready
+        ? guard.answer(ready.flush({ versions: true }))
+        : Promise.resolve('exit' as const)
+    }
+    return listenAsked(
       () =>
         void saved(closeGuard).then(async (answer) => {
           if (answer === 'exit') return invoke('note_window_close_ready')
@@ -165,12 +184,7 @@ export function NoteWindow() {
           return invoke('app_exit_cancel')
         }),
     )
-    return () => {
-      window.removeEventListener('pagehide', flush)
-      document.removeEventListener('visibilitychange', flush)
-      stop()
-    }
-  }, [core, quitGuard, closeGuard])
+  }, [quitGuard, closeGuard])
 
   // Another process (devot-mcp) wrote: the note takes it in, and the editor what changed (takeIn).
   useExternalChanges(
