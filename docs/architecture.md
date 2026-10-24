@@ -349,6 +349,7 @@ Notes are not only written by the user: imports, sync and AI also write them. So
 - The relay only sees ciphertext. It stores the latest encrypted state of each record, and clients merge on a rejected push (docs/adr/0002-sync-latest-state-per-record.md).
 - **First deployment:** a dedicated Cloudflare account on the Workers Free plan. When a free limit is exceeded, requests fail instead of being billed; the worst case is that sync pauses until the daily reset, while local data is unaffected.
 - **Cost guards (required on any host):** the WebSocket Hibernation API only; client reconnects with exponential backoff, jitter and a rate cap; a changed record pushed after 3 s without edits, and at most every 10 s while typing; server-side per-device rate and message-size limits; a client circuit breaker that stops sync when it detects abnormal send rates; a self-imposed cap at 80% of every free limit.
+- **Attachments:** one encrypted record per attachment on the same relay, downloaded by every device, within a 3 GB share of the relay's storage (docs/adr/0003-sync-attachments-as-records.md).
 - **Encryption:** AES-256-GCM, done in Rust. Keys come from device pairing: the first device generates the key, new devices pair by QR code, and keys live in each device's keychain. A recovery key is generated for printing or safe storage.
 
 ## Local HTTP API (phase 2)

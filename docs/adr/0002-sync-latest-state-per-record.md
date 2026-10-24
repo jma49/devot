@@ -1,6 +1,6 @@
 # Sync stores the latest encrypted state of each record, not an update log
 
-Phase 2 sync is for one person with several devices. The relay holds one encrypted, current copy of every record. When two devices write the same record, the clients merge it themselves. Nothing ever appends to an update log, so nothing needs compacting. This replaces the "clients compact" line in `docs/architecture.md` (Sync and encryption). Attachments are out of scope and get their own ADR (#13, part 2).
+Phase 2 sync is for one person with several devices. The relay holds one encrypted, current copy of every record. When two devices write the same record, the clients merge it themselves. Nothing ever appends to an update log, so nothing needs compacting. This replaces the "clients compact" line in `docs/architecture.md` (Sync and encryption). Attachments sync as records of their own (docs/adr/0003-sync-attachments-as-records.md).
 
 ## Records
 
@@ -81,7 +81,7 @@ Assumption: the relay runs on a dedicated Cloudflare account on the Workers Free
 9. **Key loss.** Without the key, the relay's copy cannot be read. Devices that still hold the key are unaffected. The printed recovery key is the only way back.
 10. **What the relay can see.** The relay sees how many records there are, their sizes, when they are written, and which device wrote them. It never sees titles, bodies or notebook names.
 11. **Cloudflare changes the free plan.** The self-imposed cap is the line of defence. Read the limits again before each phase 2 release.
-12. **Attachments are not covered.** Attachment sync gets its own ADR (#13, part 2). It needs to fit the same quota.
+12. **Attachments.** They sync as records within a 3 GB share of the relay's storage (docs/adr/0003-sync-attachments-as-records.md).
 
 ## Consequences
 
