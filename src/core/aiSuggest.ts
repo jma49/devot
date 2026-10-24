@@ -70,7 +70,9 @@ export function suggestInput(context: SuggestContext): AiGenerateInput {
   }
 }
 
-/** The reply as text to insert, or null when there is none. A reply cut off at the token cap loses its last, unfinished word. */
+const UNSPACED_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/u
+
+/** The reply as text to insert, or null when there is none. A reply cut off at the token cap loses its last, unfinished word, unless that word is in a script written without spaces. */
 export function cleanSuggestion(
   reply: string,
   context: SuggestContext,
@@ -79,8 +81,11 @@ export function cleanSuggestion(
   let text = lineFeeds(reply)
   if (cutOff) {
     const end = text.search(/\s\S*$/)
-    if (end < 0) return null
-    text = text.slice(0, end)
+    const tail = end < 0 ? text : text.slice(end)
+    if (!UNSPACED_SCRIPT.test(tail)) {
+      if (end < 0) return null
+      text = text.slice(0, end)
+    }
   }
   text = text.replace(/\s+$/, '')
   const last = context.before.at(-1)

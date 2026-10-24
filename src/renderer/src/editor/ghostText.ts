@@ -31,7 +31,6 @@ export interface GhostSource {
     context: { before: string; after: string },
     trigger: SuggestTrigger,
   ): Promise<string | null>
-  /** Makes a request in flight stale. */
   cancel(): void
   /** The user asked (the key) and got no suggestion. */
   failed(code: string): void

@@ -154,7 +154,6 @@ export interface EditorHandle {
     make: (text: string) => Promise<string | null>,
   ) => Promise<boolean>
   pastePlain: () => Promise<void>
-  /** Suggest Next Edit at the caret, as the key does. */
   suggest: () => void
   runLine: (id: CommandId) => void
   pasteUrlAs: () => Promise<void>

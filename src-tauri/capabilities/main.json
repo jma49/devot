@@ -22,6 +22,7 @@
     "allow-app-exit-cancel",
     "allow-open-external",
     "allow-ai-generate",
+    "allow-ai-settings-get",
     "allow-link-title",
     "allow-github-snippet",
     "allow-format-menu-set",

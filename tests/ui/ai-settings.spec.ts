@@ -175,7 +175,6 @@ test('suggestions on a pause are off until turned on, and say what they send', a
       settings: { suggestOnIdle: true, active: 'anthropic' },
     })
   await expect(toggle).toBeChecked()
-  // Changing another field keeps it on.
   const model = panel
     .getByRole('region', { name: 'Claude (Anthropic)' })
     .getByRole('textbox', { name: 'Model' })

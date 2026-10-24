@@ -95,6 +95,13 @@ describe('the reply', () => {
     expect(cleanSuggestion('unfinished', ctx('x'), true)).toBeNull()
   })
 
+  it('keeps a cut-off reply in a script written without spaces', () => {
+    const han = '\u8fd9\u662f\u4e00\u4e2a\u6d4b\u8bd5'
+    expect(cleanSuggestion(han, ctx('x'), true)).toBe(han)
+    expect(cleanSuggestion(` ${han}`, ctx('x'), true)).toBe(` ${han}`)
+    expect(cleanSuggestion(`${han} and mor`, ctx('x'), true)).toBe(`${han} and`)
+  })
+
   it('is capped in length', () => {
     expect(cleanSuggestion('x'.repeat(SUGGEST_MAX_CHARS + 10), ctx('a'), false)).toHaveLength(
       SUGGEST_MAX_CHARS,
