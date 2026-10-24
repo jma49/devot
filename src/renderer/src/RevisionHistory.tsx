@@ -19,16 +19,22 @@ export function useHistoryMenu(open: () => void) {
 const when = (at: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at)
 
+function describeChange(entry: Extract<HistoryEntry, { kind: 'body' }>, locale: string): string {
+  // The oldest kept version: nothing before it to count a change from.
+  if (entry.change === null)
+    return countOf(entry.length, locale, 'history.earliestOne', 'history.earliestOther')
+  if (entry.change === 0) return t('history.sameLength')
+  return entry.change > 0
+    ? countOf(entry.change, locale, 'history.addedOne', 'history.addedOther')
+    : countOf(-entry.change, locale, 'history.removedOne', 'history.removedOther')
+}
+
 function describe(entry: HistoryEntry, books: BookRecord[], locale: string): string {
   switch (entry.kind) {
-    case 'body':
-      // The oldest kept version: nothing before it to count a change from.
-      if (entry.change === null)
-        return countOf(entry.length, locale, 'history.earliestOne', 'history.earliestOther')
-      if (entry.change === 0) return t('history.sameLength')
-      return entry.change > 0
-        ? countOf(entry.change, locale, 'history.addedOne', 'history.addedOther')
-        : countOf(-entry.change, locale, 'history.removedOne', 'history.removedOther')
+    case 'body': {
+      const change = describeChange(entry, locale)
+      return entry.ai ? format(t('history.aiEdit'), { change }) : change
+    }
     case 'title':
       return format(t('history.renamed'), { title: entry.value || t('note.untitled') })
     case 'book': {

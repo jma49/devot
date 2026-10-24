@@ -137,7 +137,7 @@ test.beforeEach(async ({ page }) => {
   await page.reload()
 })
 
-test('the toolbar shows for a selection, with named SF Symbol buttons in three groups', async ({
+test('the toolbar shows for a selection, with named SF Symbol buttons in four groups', async ({
   page,
 }) => {
   await newNote(page, 'alpha beta gamma')
@@ -157,6 +157,7 @@ test('the toolbar shows for a selection, with named SF Symbol buttons in three g
     ['Task List', 'checkmark.square'],
     ['Quote', 'text.quote'],
     ['Alert', 'megaphone'],
+    ['Edit with AI', 'sparkles'],
   ]
   await expect(toolbar(page).getByRole('button')).toHaveCount(names.length)
   for (const [name, symbol] of names) {
@@ -179,7 +180,9 @@ test('the toolbar shows for a selection, with named SF Symbol buttons in three g
     'separator',
     ...names.slice(6, 8).map((n) => n[0]),
     'separator',
-    ...names.slice(8).map((n) => n[0]),
+    ...names.slice(8, 13).map((n) => n[0]),
+    'separator',
+    names[13]![0],
   ])
   const calls = await page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls)
   expect(symbolRequests(calls)).toContain('bold@14')

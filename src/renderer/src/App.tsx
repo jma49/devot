@@ -177,6 +177,10 @@ import { applyOrder, orderChip, orderLabel, sortLocales, sortView, useListOrder 
 import { LivePreview } from './preview/Preview'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
+import { AiEditSheet } from './AiEditSheet'
+import { aiTransport } from './ai'
+import type { AiEditStart } from './editor/aiMenu'
+import { createAiGenerator } from '../../core/aiProvider'
 import { Activity, useActivityMenu } from './Activity'
 import { choicesFromTree, notebookForNewNote, publishNotebooks } from './notebookChoices'
 import {
@@ -275,6 +279,13 @@ export function App() {
   // Tooltips name the keys in effect; they follow the user's changes.
   useKeymap()
   const [core, setCore] = useState<Core>()
+  // Every AI request goes through the access rule, with the notebooks as the core has them.
+  const aiGenerator = useMemo(
+    () =>
+      core &&
+      createAiGenerator({ storage: { listBooks: () => core.listBooks() }, transport: aiTransport }),
+    [core],
+  )
   const [startFailure, setStartFailure] = useState<string>()
   const [startAttempt, setStartAttempt] = useState(0)
   const [coreFailure, setCoreFailure] = useState<string>()
@@ -470,6 +481,7 @@ export function App() {
   // The open note's Markdown mirrored for the preview; not App state, so typing renders only the preview.
   const [openText] = useState(() => textStore())
   const [historyFor, setHistoryFor] = useState<string>()
+  const [aiEditing, setAiEditing] = useState<{ noteId: string; start: AiEditStart }>()
   const [activityOpen, setActivityOpen] = useState(false)
   useActivityMenu(() => setActivityOpen(true))
   const restoreRef = useRef<ApplyRestore | null>(null)
@@ -3141,6 +3153,9 @@ export function App() {
                 initialPlace={takeEditorPlace(selected)}
                 onPlace={editorPlaced}
                 onNewFromSelection={inTrash ? undefined : () => void noteFromSelection(selected)}
+                onAiEdit={
+                  inTrash ? undefined : (start) => setAiEditing({ noteId: selected, start })
+                }
                 onNewFromLink={inTrash ? undefined : () => void noteFromLink(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
@@ -3291,6 +3306,16 @@ export function App() {
             setHistoryFor(undefined)
           }}
           onClose={() => setHistoryFor(undefined)}
+        />
+      ) : null}
+      {core && aiGenerator && aiEditing && aiEditing.noteId === selected && !inTrash ? (
+        <AiEditSheet
+          core={core}
+          generator={aiGenerator}
+          noteId={aiEditing.noteId}
+          start={aiEditing.start}
+          onApply={(update) => restoreRef.current?.(update)}
+          onClose={() => setAiEditing(undefined)}
         />
       ) : null}
       {viewing ? <ImageViewer image={viewing} onClose={() => setViewing(null)} /> : null}

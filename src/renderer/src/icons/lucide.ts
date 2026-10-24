@@ -151,6 +151,7 @@ export const LUCIDE_ICONS = {
   'format.taskList': SquareCheckIcon,
   'format.quote': TextQuoteIcon,
   'format.alert': MegaphoneIcon,
+  'format.ai': SparklesIcon,
   'code.copy': CopyIcon,
   'code.copied': CheckIcon,
   'code.copyFailed': TriangleAlertIcon,

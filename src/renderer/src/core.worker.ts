@@ -167,6 +167,8 @@ export const coreApi = {
   history: (id: string) => required().history(id),
   compareRevision: (id: string, revisionId: string) => required().compareRevision(id, revisionId),
   restoreRevision: (id: string, revisionId: string) => required().restoreRevision(id, revisionId),
+  applyAiEdit: (id: string, edit: { from: number; original: string; replacement: string }) =>
+    required().applyAiEdit(id, edit),
   activity: (now: number) => required().activity(now),
   mergeStored: () => required().mergeStored(),
   listWithTemplates: () => requiredTemplates().listWithNotes(),

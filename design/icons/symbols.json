@@ -52,6 +52,7 @@
     "format.taskList": "checkmark.square",
     "format.quote": "text.quote",
     "format.alert": "megaphone",
+    "format.ai": "sparkles",
     "code.copy": "doc.on.doc",
     "code.copied": "checkmark",
     "code.copyFailed": "exclamationmark.triangle",

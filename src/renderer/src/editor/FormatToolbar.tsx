@@ -1,6 +1,6 @@
 // The selection toolbar: a CodeMirror tooltip above the selection's start (below the selection only where the editor has no room above) whose
 // buttons run the format commands, in three groups: inline formats and the
-// link, code, then block formats. CodeMirror positions it through the CSSOM
+// link, code, then block formats; the AI button (Edit with AI) ends it. CodeMirror positions it through the CSSOM
 // and styles it with constructed sheets, so it works under the production
 // CSP; React renders the buttons into the tooltip.
 import { syntaxTree } from '@codemirror/language'
@@ -23,6 +23,7 @@ import { formatKeyRan } from '../commands/formatMenu'
 import { editorFormatKeys } from '../commands/registry'
 import { registryKeys } from './registryKeys'
 import type { ShowAlertMenu } from './alertMenu'
+import type { ShowAiMenu } from './aiMenu'
 import {
   BAR_GAP,
   barContent,
@@ -50,6 +51,7 @@ interface ToolbarProps {
   view: EditorView
   state: EditorState
   showAlertMenu: ShowAlertMenu
+  showAiMenu: ShowAiMenu | undefined
 }
 
 function headingFromToolbar(view: EditorView) {
@@ -61,15 +63,20 @@ function headingFromToolbar(view: EditorView) {
   })
 }
 
+type ShowMenu = (view: EditorView, anchor: Element) => Promise<void>
+
+/** Focus goes back to the editor after the menu, unless it is elsewhere now (the user may have gone to another field). */
+function popUp(view: EditorView, button: HTMLElement, show: ShowMenu) {
+  const bar = button.closest('.cm-float-bar')
+  void show(view, button).finally(() => {
+    if (view.dom.isConnected && barFocusIsFree(bar ?? button)) view.focus()
+  })
+}
+
 function press(view: EditorView, id: ToolbarFormat, button: HTMLElement, props: ToolbarProps) {
   // Focus goes back to the editor: a screen reader's press focused the button.
-  if (id === 'alert') {
-    const bar = button.closest('.cm-float-bar')
-    void props.showAlertMenu(view, button).finally(() => {
-      // Only if focus is not elsewhere now (the user may have gone to another field).
-      if (view.dom.isConnected && barFocusIsFree(bar ?? button)) view.focus()
-    })
-  } else if (id === 'heading') headingFromToolbar(view)
+  if (id === 'alert') popUp(view, button, props.showAlertMenu)
+  else if (id === 'heading') headingFromToolbar(view)
   // A link already selected is removed; otherwise the dialog asks for its address
   // (and gives focus back to the editor when it closes).
   else if (id === 'link' && !selectionHasLink(view.state)) return openLinkDialog(view)
@@ -110,6 +117,23 @@ function FormatToolbar(props: ToolbarProps) {
             ))}
           </Fragment>
         ))}
+        {props.showAiMenu ? (
+          <>
+            <FloatSeparator />
+            <FloatButton
+              label={t('aiEdit.button')}
+              icon="format.ai"
+              tip={{ title: t('aiEdit.button') }}
+              popup
+              onShowTip={tip.show}
+              onHideTip={tip.hide}
+              onPress={(el) => {
+                tip.hide()
+                if (props.showAiMenu) popUp(view, el, props.showAiMenu)
+              }}
+            />
+          </>
+        ) : null}
       </div>
       {tip.bubble}
     </>
@@ -125,12 +149,23 @@ function visibleArea(view: EditorView): Rect {
   return (root instanceof ShadowRoot ? root.host : view.dom).getBoundingClientRect()
 }
 
-function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipView {
+function createToolbar(
+  view: EditorView,
+  showAlertMenu: ShowAlertMenu,
+  showAiMenu: ShowAiMenu | undefined,
+): TooltipView {
   const dom = document.createElement('div')
   dom.className = 'cm-float-bar cm-format-toolbar'
   const root = createRoot(barContent(dom))
   const render = (state: EditorState) =>
-    root.render(<FormatToolbar view={view} state={state} showAlertMenu={showAlertMenu} />)
+    root.render(
+      <FormatToolbar
+        view={view}
+        state={state}
+        showAlertMenu={showAlertMenu}
+        showAiMenu={showAiMenu}
+      />,
+    )
   // Through the CSSOM (the production CSP allows no style attributes).
   const fit = (width: number) => {
     const max = `${Math.max(0, Math.floor(width))}px`
@@ -188,8 +223,8 @@ function createToolbar(view: EditorView, showAlertMenu: ShowAlertMenu): TooltipV
   }
 }
 
-const toolbarTooltip = (showAlertMenu: ShowAlertMenu) => {
-  const create = (view: EditorView) => createToolbar(view, showAlertMenu)
+const toolbarTooltip = (showAlertMenu: ShowAlertMenu, showAiMenu: ShowAiMenu | undefined) => {
+  const create = (view: EditorView) => createToolbar(view, showAlertMenu, showAiMenu)
   return showTooltip.compute(
     [toolbarState, toolbarOff, 'selection', 'doc'],
     (state): Tooltip | null =>
@@ -241,7 +276,13 @@ const theme = EditorView.theme({
   },
 })
 
-/** The selection toolbar and the format shortcuts; `showAlertMenu` opens the Alert button's pop-up. */
-export function formatToolbar(showAlertMenu: ShowAlertMenu): Extension {
-  return [toolbarStateExtension, toolbarTooltip(showAlertMenu), formatKeys(), floatTheme, theme]
+/** The selection toolbar and the format shortcuts; `showAlertMenu` opens the Alert button's pop-up, `showAiMenu` (the AI button, left out without it) the AI presets. */
+export function formatToolbar(showAlertMenu: ShowAlertMenu, showAiMenu?: ShowAiMenu): Extension {
+  return [
+    toolbarStateExtension,
+    toolbarTooltip(showAlertMenu, showAiMenu),
+    formatKeys(),
+    floatTheme,
+    theme,
+  ]
 }

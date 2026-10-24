@@ -76,7 +76,7 @@ for (const width of [760, 800, 900]) {
 
     const buttons = format(page).getByRole('button')
     const count = await buttons.count()
-    expect(count).toBe(13)
+    expect(count).toBe(14)
     const editor = await box(page.locator('[data-devot-part=editor-body]'))
     // CodeMirror places it in the next frames: wait until it is inside the pane.
     await expect
