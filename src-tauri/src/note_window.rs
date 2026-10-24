@@ -204,6 +204,12 @@ impl NoteWindows {
         Some(round)
     }
 
+    /// Whether `label` is saving before it closes.
+    pub(crate) fn is_closing(&self, label: &str) -> bool {
+        let closing = self.closing.lock().unwrap_or_else(|e| e.into_inner());
+        closing.contains_key(label)
+    }
+
     /// The ask is answered or called off; whether one was under way.
     fn end_close(&self, label: &str) -> bool {
         let mut closing = self.closing.lock().unwrap_or_else(|e| e.into_inner());

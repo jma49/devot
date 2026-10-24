@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createClock, createIdGenerator, createNoteService } from '../../src/core'
@@ -5,6 +6,17 @@ import { coalesced, listsLink, reportingWrites } from '../../src/renderer/src/ma
 import { fromWire, toWire } from '../../src/renderer/src/storage/wire'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
+
+const own = vi.hoisted(() => ({
+  listen: vi.fn<(event: string, handler: () => void) => Promise<() => void>>(() =>
+    Promise.resolve(() => {}),
+  ),
+}))
+const tauri = vi.hoisted(() => ({
+  invoke: vi.fn<(cmd: string) => Promise<void>>(() => Promise.resolve()),
+}))
+vi.mock('@tauri-apps/api/webviewWindow', () => ({ getCurrentWebviewWindow: () => own }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: tauri.invoke }))
 
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
@@ -103,5 +115,28 @@ describe('listsLink in the tests’ build', () => {
     expect(heardFirst).not.toHaveBeenCalled()
     stopFirst()
     stopSecond()
+  })
+})
+
+describe('listsLink in the app build', () => {
+  beforeEach(() => vi.stubGlobal('DEVOT_UI_TEST', false))
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('tells Rust once through main_windows_changed', () => {
+    listsLink('main').send()
+    expect(tauri.invoke).toHaveBeenCalledWith('main_windows_changed', undefined, undefined)
+  })
+
+  it('hears the others on its own window, under the event name Rust sends', async () => {
+    const stop = vi.fn<() => void>()
+    own.listen.mockResolvedValueOnce(stop)
+    const handler = vi.fn<() => void>()
+    const unlisten = await listsLink('main').listen(handler)
+    const rust = readFileSync('src-tauri/src/main_windows.rs', 'utf8')
+    const sent = /LISTS_EVENT: &str = "([^"]+)"/.exec(rust)?.[1]
+    expect(sent).toBe('devot://lists-changed')
+    expect(own.listen).toHaveBeenCalledWith(sent, handler)
+    unlisten()
+    expect(stop).toHaveBeenCalledOnce()
   })
 })

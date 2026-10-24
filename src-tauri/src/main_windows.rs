@@ -141,11 +141,20 @@ pub fn live_or_front<R: Runtime>(app: &AppHandle<R>, label: &str) -> String {
     front_label(app).unwrap_or_else(|| MAIN_WINDOW.to_owned())
 }
 
-/// Whether a main window other than `label` is on screen (shown or minimized).
+/// Whether a main window other than `label` is on screen (shown or minimized) and not on its way
+/// out: one that is saving before it closes does not keep the app running.
 pub fn another_is_shown<R: Runtime>(app: &AppHandle<R>, label: &str) -> bool {
-    shown_windows(app)
+    let closing = |other: &str| {
+        app.try_state::<crate::note_window::NoteWindows>()
+            .is_some_and(|windows| windows.is_closing(other))
+    };
+    other_shown(&shown_windows(app), label, closing)
+}
+
+fn other_shown(windows: &[(String, bool)], label: &str, closing: impl Fn(&str) -> bool) -> bool {
+    windows
         .iter()
-        .any(|(other, shown)| *shown && other != label)
+        .any(|(other, shown)| *shown && other != label && !closing(other))
 }
 
 /// Sends `event` to the frontmost main window.
@@ -429,6 +438,19 @@ mod tests {
             Some("main-2".into())
         );
         assert_eq!(mains.recent.lock().unwrap().as_slice(), ["main-2"]);
+    }
+
+    #[test]
+    fn a_window_saving_before_it_closes_is_not_another_one_shown() {
+        let all = windows(&[("main", true), ("main-2", true)]);
+        assert!(other_shown(&all, "main", |_| false));
+        assert!(!other_shown(&all, "main", |label| label == "main-2"));
+        assert!(other_shown(&all, "main-2", |_| false));
+        assert!(!other_shown(
+            &windows(&[("main", false), ("main-2", true)]),
+            "main-2",
+            |_| false
+        ));
     }
 
     #[test]

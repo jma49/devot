@@ -1447,8 +1447,9 @@ export function App() {
     if (primary) return
     const closed = () => {
       const ready = coreRef.current
+      saveNow.current?.()
       const saved = ready
-        ? closeGuard.answer(ready.flush({ versions: true }))
+        ? closeGuard.answer(ready.stopImport().then(() => ready.flush({ versions: true })))
         : Promise.resolve('exit' as const)
       void saved.then((answer) => {
         if (answer === 'exit') return invoke('note_window_close_ready')

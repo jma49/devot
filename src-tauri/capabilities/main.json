@@ -102,6 +102,8 @@
     "allow-quick-capture-done",
     "allow-http-api-done",
     "allow-note-window-open",
+    "allow-note-window-close-ready",
+    "allow-note-window-close-cancel",
     "allow-main-window-new",
     "allow-main-windows-changed",
     "allow-note-relay-send"

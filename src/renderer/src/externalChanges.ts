@@ -4,6 +4,7 @@
 // the UI tests can send too, merges the changes into the notes the core holds
 // and reloads its lists (see App).
 import { useEffect, useRef } from 'react'
+import { listenHere } from './windowEvents'
 
 export const DB_CHANGED = 'devot:db-changed'
 
@@ -46,11 +47,9 @@ export function useExternalChanges(onChange: (() => Promise<void>) | undefined) 
     let stopped = false
     let unlisten: (() => void) | undefined
     if (!DEVOT_UI_TEST) {
-      void import('@tauri-apps/api/event')
-        .then(async ({ listen }) => {
-          const stop = await listen('devot://db-changed', () =>
-            window.dispatchEvent(new CustomEvent(DB_CHANGED)),
-          )
+      // Rust sends the event to each main window in turn; the event module's `listen` would hear all of them.
+      void listenHere('devot://db-changed', () => window.dispatchEvent(new CustomEvent(DB_CHANGED)))
+        .then((stop) => {
           if (stopped) stop()
           else unlisten = stop
         })
