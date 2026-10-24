@@ -1031,6 +1031,7 @@ export const en = {
   'command.heading5': 'Heading 5',
   'command.heading6': 'Heading 6',
   'command.backups': 'Backups\u2026',
+  'command.newWindow': 'New Window',
   'command.checkForUpdates': 'Check for Updates\u2026',
   'command.restartToUpdate': 'Restart to Update',
   'command.exportAllMarkdown': 'Export All Notes as Markdown\u2026',

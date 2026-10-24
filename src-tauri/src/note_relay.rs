@@ -1,11 +1,11 @@
 //! Carries what one window's core tells the others about a note (`src/core/noteRelay.ts`): a Yjs update,
 //! a state vector asking for what the others hold, a title, or a stored write. Every window that edits
-//! notes (`may_relay`) hears what the others send about a note it may show: a main window about every
-//! note, a note window about its own. The message is checked here and passed on as it came; Yjs data
+//! notes (`may_relay`) hears what the others send about a note it may show: every main window about
+//! every note, a note window about its own. The message is checked here and passed on as it came; Yjs data
 //! stays the base64 the page sent and is never decoded.
 
-use crate::MAIN_WINDOW;
 use crate::commands::notes::{MAX_TITLE_CHARS, MAX_YDOC_BYTES, valid_hlc, valid_note_id};
+use crate::main_windows::is_main;
 use crate::note_window;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, EventTarget, Manager, WebviewWindow};
@@ -86,14 +86,14 @@ impl NoteRelayMessage {
 
 /// The windows whose core edits notes and saves them.
 pub fn may_relay(label: &str) -> bool {
-    label == MAIN_WINDOW || note_window::note_of(label).is_some()
+    is_main(label) || note_window::note_of(label).is_some()
 }
 
 /// Every other window that may show the note.
 fn targets<'a>(sender: &str, note_id: &str, labels: impl Iterator<Item = &'a str>) -> Vec<&'a str> {
     labels
         .filter(|label| *label != sender)
-        .filter(|label| *label == MAIN_WINDOW || note_window::note_of(label) == Some(note_id))
+        .filter(|label| is_main(label) || note_window::note_of(label) == Some(note_id))
         .collect()
 }
 
@@ -221,27 +221,40 @@ mod tests {
     }
 
     #[test]
-    fn reaches_the_main_window_and_the_note_s_own_window_only() {
+    fn reaches_every_main_window_and_the_note_s_own_window_only() {
         let own = note_window::label_for(ID);
         let other = note_window::label_for(OTHER);
         let labels = [
-            MAIN_WINDOW,
+            "main",
+            "main-2",
             own.as_str(),
             other.as_str(),
             "settings",
             "quick-capture",
         ];
-        assert_eq!(targets(MAIN_WINDOW, ID, labels.into_iter()), [own.as_str()]);
-        assert_eq!(targets(&own, ID, labels.into_iter()), [MAIN_WINDOW]);
-        assert_eq!(targets(&other, OTHER, labels.into_iter()), [MAIN_WINDOW]);
+        assert_eq!(
+            targets("main", ID, labels.into_iter()),
+            ["main-2", own.as_str()]
+        );
+        assert_eq!(
+            targets("main-2", ID, labels.into_iter()),
+            ["main", own.as_str()]
+        );
+        assert_eq!(targets(&own, ID, labels.into_iter()), ["main", "main-2"]);
+        assert_eq!(
+            targets(&other, OTHER, labels.into_iter()),
+            ["main", "main-2"]
+        );
     }
 
     #[test]
     fn only_windows_that_edit_notes_may_relay() {
-        assert!(may_relay(MAIN_WINDOW));
+        assert!(may_relay("main"));
+        assert!(may_relay("main-2"));
         assert!(may_relay(&note_window::label_for(ID)));
         assert!(!may_relay("settings"));
         assert!(!may_relay("quick-capture"));
         assert!(!may_relay("note-anything"));
+        assert!(!may_relay("main-x"));
     }
 }

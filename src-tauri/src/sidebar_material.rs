@@ -1,11 +1,10 @@
-//! The window material (Settings > Appearance > Translucent window). The main window is transparent
+//! The window material (Settings > Appearance > Translucent window). Each main window is transparent
 //! and draws the system under-window material behind the whole web view (`windowEffects` in
 //! `tauri.conf.json`); the regions show it through their own washes. Turned off, the window drops
 //! the effect and the page paints every region opaque.
 //! The setting lives with the editor settings (`sidebarMaterial`). After a change the page calls
 //! `sidebar_material_sync`, which removes or restores the effect without a restart.
 
-use crate::MAIN_WINDOW;
 use crate::editor_settings::{EditorSettingsStore, Snapshot};
 use std::sync::{Arc, Mutex};
 use tauri::utils::config::WindowEffectsConfig;
@@ -46,6 +45,16 @@ pub struct SidebarMaterial {
 }
 
 impl SidebarMaterial {
+    /// The effect a main window opens with: as the setting is now.
+    pub fn effects(&self) -> Option<WindowEffectsConfig> {
+        let material = self
+            .shown
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .material;
+        effects_for(material, self.configured.as_ref())
+    }
+
     pub fn new(configured: Option<WindowEffectsConfig>, start: Shown) -> Self {
         Self {
             configured,
@@ -65,18 +74,27 @@ impl SidebarMaterial {
             return Ok(shown.material);
         };
         // Tauri queues the change on the main thread (AppKit); this fails
-        // only when the window is gone or the queue is closed.
-        let window = app
-            .get_webview_window(MAIN_WINDOW)
-            .ok_or("E_SIDEBAR_MATERIAL_NO_WINDOW");
-        #[cfg(desktop)]
-        let queued = window.and_then(|window| {
-            window
-                .set_effects(effects_for(material, self.configured.as_ref()))
-                .map_err(|_| "E_SIDEBAR_MATERIAL_APPLY_FAILED")
-        });
-        #[cfg(mobile)]
-        let queued = window.map(|_| ());
+        // only when a window is gone or the queue is closed.
+        let windows: Vec<_> = app
+            .webview_windows()
+            .into_iter()
+            .filter(|(label, _)| crate::main_windows::is_main(label))
+            .map(|(_, window)| window)
+            .collect();
+        let queued = if windows.is_empty() {
+            Err("E_SIDEBAR_MATERIAL_NO_WINDOW")
+        } else {
+            #[cfg(desktop)]
+            {
+                windows.iter().try_for_each(|window| {
+                    window
+                        .set_effects(effects_for(material, self.configured.as_ref()))
+                        .map_err(|_| "E_SIDEBAR_MATERIAL_APPLY_FAILED")
+                })
+            }
+            #[cfg(mobile)]
+            Ok(())
+        };
         if let Err(code) = queued {
             // Still what it was: the next change (a newer revision) tries again.
             shown.material = before.material;
@@ -86,7 +104,7 @@ impl SidebarMaterial {
     }
 }
 
-/// Brings the main window's effect in line with the stored setting. The page calls it when the
+/// Brings every main window's effect in line with the stored setting. The page calls it when the
 /// material goes off once its regions are painted opaque, and when it comes back before they turn
 /// translucent, so the window never shows the desktop through a bare wash.
 #[tauri::command]
@@ -126,7 +144,7 @@ mod tests {
             .app
             .windows
             .into_iter()
-            .find(|w| w.label == MAIN_WINDOW)
+            .find(|w| w.label == crate::MAIN_WINDOW)
             .and_then(|w| w.window_effects)
             .expect("the main window has an effect")
     }

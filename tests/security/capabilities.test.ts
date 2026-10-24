@@ -33,13 +33,28 @@ function grantedAppPermissions(): string[] {
   ]
 }
 
+// The main capability covers `main` and the windows File > New Window opens (`main-*`), which are
+// the same window kind; the lists below name it once, as `main`.
+const MAIN_WINDOWS = ['main', 'main-*']
+
 const windowsWith = (permission: string) =>
   capabilities()
     .filter((c) => permissionIds(c).includes(permission))
     .flatMap((c) => c.windows)
+    .filter((w) => w !== 'main-*')
     .sort()
 
 describe('Tauri command permissions', () => {
+  it('gives every main window the same permissions, in one capability', () => {
+    const mains = capabilities().filter((c) => c.windows.some((w) => MAIN_WINDOWS.includes(w)))
+    expect(mains.map((c) => c.windows)).toEqual([MAIN_WINDOWS])
+  })
+
+  it('lets only main windows open another one and tell the others the library changed', () => {
+    expect(windowsWith('allow-main-window-new')).toEqual(['main'])
+    expect(windowsWith('allow-main-windows-changed')).toEqual(['main'])
+  })
+
   it('declares at least one app command', () => {
     expect(declaredCommands().length).toBeGreaterThan(0)
   })

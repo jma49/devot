@@ -671,7 +671,9 @@ fn dialog(app: &AppHandle, title: &str) -> tauri_plugin_dialog::FileDialogBuilde
     #[cfg_attr(mobile, allow(unused_mut))]
     let mut dialog = app.dialog().file().set_title(title);
     #[cfg(desktop)]
-    if let Some(window) = app.get_webview_window(crate::MAIN_WINDOW) {
+    if let Some(window) =
+        crate::main_windows::front_label(app).and_then(|label| app.get_webview_window(&label))
+    {
         dialog = dialog.set_parent(&window);
     }
     dialog
@@ -897,15 +899,10 @@ async fn print_note_page(
     work: PathBuf,
 ) -> Result<bool, String> {
     let handle = app.clone();
+    let front = crate::main_windows::front_label(app).unwrap_or_else(|| crate::MAIN_WINDOW.into());
     on_main_thread(app, move |done| {
         crate::native::macos::print_note_in_window(
-            &handle,
-            crate::MAIN_WINDOW,
-            &page,
-            layout,
-            target,
-            &work,
-            done,
+            &handle, &front, &page, layout, target, &work, done,
         )
     })
     .await

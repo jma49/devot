@@ -135,7 +135,15 @@ import { startCore, stopCore, type Core } from './core-client'
 import { warmUp } from './warmUp'
 import { startEarlyKeys } from './editor/earlyKeys'
 import { welcomeContent } from './welcome/content'
-import { currentFocusStore, currentSidebarStore, keyboardIsFree } from './focus'
+import {
+  currentFocusStore,
+  currentSidebarStore,
+  currentWindowLabel,
+  isSecondaryLabel,
+  keyboardIsFree,
+} from './focus'
+import { coalesced, listsLink, openMainWindow } from './mainWindows'
+import { listenHere } from './windowEvents'
 import { useFocusRescue } from './focusRescue'
 import { currentLastStateStore, restorePlan, type LastState, type NoteState } from './lastState'
 import type { FindTarget } from './find/target'
@@ -155,7 +163,7 @@ import {
   useEditorSetting,
 } from './editorSettings'
 import { ModeControl, type Mode } from './ModeControl'
-import { MAIN_WINDOW, relayGate, relayLink } from './noteRelay'
+import { relayGate, relayLink } from './noteRelay'
 import { NoteList } from './NoteList'
 import {
   homeOf,
@@ -241,6 +249,10 @@ export const TOGGLE_SIDEBAR = 'devot:toggle-sidebar'
 const MENU_ECHO_MS = 500
 
 const LAST_STATE_SAVE_MS = 400
+// Other main windows hear of this window's writes this long after the first of a burst, and load their lists this long after hearing (mainWindows.ts).
+const LISTS_WROTE_MS = 250
+const LISTS_RELOAD_MS = 400
+const CLOSE_EVENT = 'devot:note-window-close'
 
 /** Flushes pending edits; a failed save stays in the core (which retries and reports it), so the caller goes on. */
 const saveEdits = (core: Core) => core.flush().catch(() => {})
@@ -492,6 +504,8 @@ export function App() {
   const [quitHeld, setQuitHeld] = useState(false)
   const saveProblemsRef = useRef<SaveProblem[]>([])
   const quitGuard = useMemo(() => createQuitGuard(), [])
+  const closeGuard = useMemo(() => createQuitGuard(), [])
+  const [closeHeld, setCloseHeld] = useState(false)
   const saveNoticeShown = saveProblems.length > 0 && !saveNoticeDismissed
   const importJobs = useRef<ImportJob[]>([])
   const [importJob, setImportJob] = useState<ImportJob>()
@@ -514,8 +528,15 @@ export function App() {
   const [editorFind, setEditorFind] = useState<FindTarget | null>(null)
   const [previewFind, setPreviewFind] = useState<FindTarget | null>(null)
   const editorRef = useRef<EditorHandle | null>(null)
-  // What this window's core says to the note windows, and hears from them (noteRelay.ts).
-  const [relay] = useState(() => ({ link: relayLink(MAIN_WINDOW), gate: relayGate(false) }))
+  // `main` hosts what runs once (the mirror, compaction); a window File > New Window opened does not (mainWindows.ts).
+  const [label] = useState(currentWindowLabel)
+  const primary = !isSecondaryLabel(label)
+  // What this window's core says to the other windows, and hears from them (noteRelay.ts).
+  const [relay] = useState(() => ({ link: relayLink(label), gate: relayGate(false) }))
+  const [lists] = useState(() => {
+    const link = listsLink(label)
+    return { link, wrote: coalesced(() => link.send(), LISTS_WROTE_MS) }
+  })
   const shownNote = useRef<string | undefined>(undefined)
   shownNote.current = selected
   const sidebarMenus = useRef<SidebarMenus | null>(null)
@@ -590,14 +611,18 @@ export function App() {
       for (const problem of fresh) console.warn('W_NOTE_SAVE_FAILED', problem.id, problem.code)
       if (fresh.length > 0) setSaveNoticeDismissed(false)
       quitGuard.update(next)
-      if (next.length === 0) setQuitHeld(false)
+      closeGuard.update(next)
+      if (next.length === 0) {
+        setQuitHeld(false)
+        setCloseHeld(false)
+      }
       setSaveProblems(next)
       const c = coreRef.current
       if (c && previous.some((p) => !next.some((n) => n.id === p.id))) {
         void refresh(c).catch(() => {})
       }
     },
-    [quitGuard, refresh],
+    [quitGuard, closeGuard, refresh],
   )
 
   // Callbacks that outlive a render (finished import, New Notebook) change view through the latest rules (`showLibrary`).
@@ -954,6 +979,8 @@ export function App() {
     let alive = true
     let started: Core | undefined
     void startCore(onSaveProblems, showWrites, onCoreFailure, {
+      lean: !primary,
+      onWrote: lists.wrote,
       onRelay: (message) => {
         if (relay.gate.allows(message)) relay.link.send(message)
       },
@@ -966,7 +993,10 @@ export function App() {
         coreRef.current = c
         // A library that has never held anything starts with a few notes. The
         // UI tests' libraries start empty, unless a test asks for the notes.
-        if (!DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome) {
+        if (
+          primary &&
+          (!DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome)
+        ) {
           await c.seedWelcome(welcomeContent()).catch((e: unknown) => {
             console.warn('W_WELCOME_FAILED', errorCode(e))
           })
@@ -988,7 +1018,18 @@ export function App() {
     return () => {
       alive = false
     }
-  }, [refresh, nextSheet, onSaveProblems, showWrites, onCoreFailure, takeIn, relay, startAttempt])
+  }, [
+    refresh,
+    nextSheet,
+    onSaveProblems,
+    showWrites,
+    onCoreFailure,
+    takeIn,
+    relay,
+    lists,
+    primary,
+    startAttempt,
+  ])
   const retryStart = () => {
     setStartFailure(undefined)
     setStartAttempt((n) => n + 1)
@@ -1114,10 +1155,9 @@ export function App() {
     let stopped = false
     let unlisten: (() => void) | undefined
     if (!DEVOT_UI_TEST) {
-      void import('@tauri-apps/api/event').then(async ({ listen }) => {
-        const stop = await listen('devot://rebuild-search-index', () =>
-          window.dispatchEvent(new CustomEvent(REBUILD_SEARCH_INDEX)),
-        )
+      void listenHere('devot://rebuild-search-index', () =>
+        window.dispatchEvent(new CustomEvent(REBUILD_SEARCH_INDEX)),
+      ).then((stop) => {
         if (stopped) stop()
         else unlisten = stop
       })
@@ -1149,13 +1189,15 @@ export function App() {
     )
     let unlisten: (() => void)[] = []
     if (!DEVOT_UI_TEST) {
-      void import('@tauri-apps/api/event').then(async ({ listen }) => {
-        unlisten = await Promise.all([
-          listen('devot://show-backups', () => window.dispatchEvent(new CustomEvent(SHOW_BACKUPS))),
-          listen<string>('devot://backup-failed', (e) =>
-            window.dispatchEvent(new CustomEvent(BACKUP_FAILED, { detail: e.payload })),
-          ),
-        ])
+      void Promise.all([
+        listenHere('devot://show-backups', () =>
+          window.dispatchEvent(new CustomEvent(SHOW_BACKUPS)),
+        ),
+        listenHere<string>('devot://backup-failed', (e) =>
+          window.dispatchEvent(new CustomEvent(BACKUP_FAILED, { detail: e.payload })),
+        ),
+      ]).then((stops) => {
+        unlisten = stops
       })
     }
     return () => {
@@ -1234,17 +1276,16 @@ export function App() {
     let stopped = false
     const unlisten: (() => void)[] = []
     if (!DEVOT_UI_TEST) {
-      void import('@tauri-apps/api/event').then(async ({ listen }) => {
-        const resend = (from: string, to: string) =>
-          listen<unknown>(from, (e) =>
-            window.dispatchEvent(new CustomEvent(to, { detail: e.payload })),
-          )
-        const stops = await Promise.all([
-          resend('devot://import-scanning', IMPORT_SCANNING),
-          resend('devot://import-progress', IMPORT_PROGRESS),
-          resend('devot://import-ready', IMPORT_READY),
-          resend('devot://import-failed', IMPORT_FAILED),
-        ])
+      const resend = (from: string, to: string) =>
+        listenHere<unknown>(from, (e) =>
+          window.dispatchEvent(new CustomEvent(to, { detail: e.payload })),
+        )
+      void Promise.all([
+        resend('devot://import-scanning', IMPORT_SCANNING),
+        resend('devot://import-progress', IMPORT_PROGRESS),
+        resend('devot://import-ready', IMPORT_READY),
+        resend('devot://import-failed', IMPORT_FAILED),
+      ]).then((stops) => {
         // Cleaned up before the listeners were ready: stop them now.
         if (stopped) for (const stop of stops) stop()
         else unlisten.push(...stops)
@@ -1320,22 +1361,21 @@ export function App() {
     if (!core || DEVOT_UI_TEST) return
     let stopped = false
     let unlisten: (() => void) | undefined
-    void import('@tauri-apps/api/event').then(async ({ listen }) => {
-      const stop = await listen(QUICK_CAPTURE_EVENT, (e) => {
-        const request = readCaptureRequest(e.payload)
-        if (!request) return
-        void answerCapture(
-          request,
-          async (r) => {
-            await core.capture(r.title, r.body, r.bookId)
-          },
-          (id, error) => invoke('quick_capture_done', { id, error }),
-        ).then((saved) => {
-          if (!saved) return
-          track('note.created', { from: 'quick_capture' })
-          void refresh(core)
-        })
+    void listenHere<unknown>(QUICK_CAPTURE_EVENT, (e) => {
+      const request = readCaptureRequest(e.payload)
+      if (!request) return
+      void answerCapture(
+        request,
+        async (r) => {
+          await core.capture(r.title, r.body, r.bookId)
+        },
+        (id, error) => invoke('quick_capture_done', { id, error }),
+      ).then((saved) => {
+        if (!saved) return
+        track('note.created', { from: 'quick_capture' })
+        void refresh(core)
       })
+    }).then((stop) => {
       if (stopped) stop()
       else unlisten = stop
     })
@@ -1355,8 +1395,7 @@ export function App() {
       reply: (id, result, error) => invoke('http_api_done', { id, result, error }),
       wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
     })
-    void import('@tauri-apps/api/event').then(async ({ listen }) => {
-      const stop = await listen(HTTP_API_EVENT, (e) => void take(e.payload))
+    void listenHere<unknown>(HTTP_API_EVENT, (e) => void take(e.payload)).then((stop) => {
       if (stopped) stop()
       else unlisten = stop
     })
@@ -1402,6 +1441,48 @@ export function App() {
       unlisten?.()
     }
   }, [core, quitGuard])
+
+  // A window File > New Window opened closes after saving, as a note window does (main_windows.rs): Rust holds the close and asks. As for a quit, the first close whose save fails is called off, and the notice says so.
+  useEffect(() => {
+    if (primary) return
+    const closed = () => {
+      const ready = coreRef.current
+      const saved = ready
+        ? closeGuard.answer(ready.flush({ versions: true }))
+        : Promise.resolve('exit' as const)
+      void saved.then((answer) => {
+        if (answer === 'exit') return invoke('note_window_close_ready')
+        setCloseHeld(true)
+        setSaveNoticeDismissed(false)
+        return invoke('note_window_close_cancel')
+      })
+    }
+    window.addEventListener(CLOSE_EVENT, closed)
+    let stopped = false
+    let unlisten: (() => void) | undefined
+    if (!DEVOT_UI_TEST) {
+      void import('@tauri-apps/api/webviewWindow').then(async ({ getCurrentWebviewWindow }) => {
+        const stop = await getCurrentWebviewWindow().listen('devot://note-window-close', closed)
+        if (stopped) stop()
+        else unlisten = stop
+      })
+    }
+    return () => {
+      stopped = true
+      window.removeEventListener(CLOSE_EVENT, closed)
+      unlisten?.()
+    }
+  }, [primary, closeGuard])
+
+  // The other main windows wrote to the library: this one loads its lists and the notes it holds again, as for a change from another process.
+  useEffect(() => {
+    const reload = coalesced(
+      () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
+      LISTS_RELOAD_MS,
+    )
+    const listening = lists.link.listen(reload)
+    return () => void listening.then((stop) => stop())
+  }, [lists])
 
   /**
    * Opens a note; whether it opened. Its editor takes the keyboard only when
@@ -1494,7 +1575,7 @@ export function App() {
     warmed.current = true
     warmUp(core)
   }, [core, restored])
-  const mirror = useMarkdownMirror(core, restored)
+  const mirror = useMarkdownMirror(core, restored && primary)
   const noteState = useRef<NoteState>(undefined)
   // The state outside the Trash, which is kept while the Trash shows.
   const libraryState = useRef<LastState>(undefined)
@@ -2231,10 +2312,15 @@ export function App() {
     sidebarKeyEcho.current = -Infinity
     if (!echo) toggleSidebar()
   })
+  // The menu item is shared by the main windows, so the one in front says what it shows.
   useEffect(() => {
-    invoke('sidebar_menu_set', { shown: sidebarShown }).catch(() =>
-      console.warn('W_SIDEBAR_MENU_SET_FAILED'),
-    )
+    const say = () =>
+      void invoke('sidebar_menu_set', { shown: sidebarShown }).catch(() =>
+        console.warn('W_SIDEBAR_MENU_SET_FAILED'),
+      )
+    say()
+    window.addEventListener('focus', say)
+    return () => window.removeEventListener('focus', say)
   }, [sidebarShown])
 
   // A requested keyboard move, once the window has rendered what it needs: an area, or a note's title/body once that note is open (a loading editor takes it itself, `editNote`).
@@ -2391,6 +2477,7 @@ export function App() {
     'view.templates': { run: () => showLibrary({ kind: 'templates' }) },
     'view.trash': { run: () => showLibrary({ kind: 'trash' }) },
     'app.backups': { run: showBackups },
+    'app.newWindow': { run: () => void openMainWindow() },
     'app.checkForUpdates': { run: checkForUpdates },
     'app.exportAllMarkdown': { run: () => exportAll('exportMarkdown') },
     'app.exportAllHtml': { run: () => exportAll('exportHtml') },
@@ -3316,6 +3403,7 @@ export function App() {
           <SaveNotice
             problems={saveProblems}
             quitHeld={quitHeld}
+            closeHeld={closeHeld}
             onRetry={() => void (core && saveEdits(core))}
             onDismiss={() => setSaveNoticeDismissed(true)}
           />

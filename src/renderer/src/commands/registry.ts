@@ -1360,6 +1360,8 @@ export const COMMANDS = [
     keys: [],
   },
   { id: 'app.backups', label: 'command.backups', group: 'app', scope: 'window', keys: [] },
+  // File > New Window has its own key in the menu (`Shift+Cmd+N`, reserved below), so the command has none here.
+  { id: 'app.newWindow', label: 'command.newWindow', group: 'app', scope: 'window', keys: [] },
   {
     id: 'app.checkForUpdates',
     label: 'command.checkForUpdates',
@@ -1462,7 +1464,7 @@ export const QUICK_CAPTURE_KEY = 'Mod+Ctrl+Alt+N'
 
 /**
  * Keys macOS or the app menu keep for themselves; no command may take them
- * (Quit, Hide, Hide Others, Minimize, Close, Settings, app switching,
+ * (Quit, Hide, Hide Others, Minimize, Close, New Window, Settings, app switching,
  * Spotlight, full screen, the character viewer, Lock Screen, Look Up), and
  * quick capture's shortcut.
  */
@@ -1472,6 +1474,7 @@ export const RESERVED_KEYS: readonly string[] = [
   'Mod+Alt+H',
   'Mod+M',
   'Mod+W',
+  'Mod+Shift+N',
   'Mod+,',
   'Mod+Tab',
   'Mod+Space',

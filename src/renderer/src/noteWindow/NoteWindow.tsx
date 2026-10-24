@@ -112,7 +112,7 @@ export function NoteWindow() {
       const id = await invoke<string>('note_window_note')
       const link = relayLink(noteWindowLabel(id))
       started = await startCore(onSaveProblems, undefined, (code) => console.error(code), {
-        noteWindow: true,
+        lean: true,
         onRelay: (message) => link.send(message),
         onTakenIn: takeIn,
       })

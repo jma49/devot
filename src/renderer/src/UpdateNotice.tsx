@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { currentWindowLabel } from './focus'
 import { t } from './i18n'
 import {
   downloadUpdate,
@@ -9,14 +10,12 @@ import {
   type UpdateStatus,
 } from './updates'
 
-const MAIN_WINDOW = 'main'
-
 const warn = (code: string) => () => console.warn(code)
 
 export const restartNow = () => restartToUpdate().catch(warn('W_UPDATE_RESTART_FAILED'))
 
 /**
- * The main window's update status and its notice: an update to download
+ * The main window's (each main window's) update status and its notice: an update to download
  * (auto download off) or to restart into, and the progress and outcome of a
  * check asked for from the menu or the palette. Later or Dismiss hides it
  * until there is something new to say.
@@ -25,7 +24,7 @@ export function useUpdates(): { status: UpdateStatus; notice: ReactNode } {
   useEffect(() => startUpdateStatus(), [])
   const status = useUpdateStatus()
   const [dismissed, setDismissed] = useState<string>()
-  const model = updateNotice(status, MAIN_WINDOW)
+  const model = updateNotice(status, currentWindowLabel())
   if (!model || model.key === dismissed) return { status, notice: null }
   const dismiss = () => setDismissed(model.key)
   const notice = (

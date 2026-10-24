@@ -99,9 +99,9 @@ const requiredTemplates = () => {
 export const coreApi = {
   /**
    * Starts the core on `remote`, the page's storage: Yjs states are coded here, off the UI thread (wire.ts), and a wrapper tells the Markdown mirror of every write. Unsaved notes are sent to the page as a SaveProblemsMessage each time that list changes, and what the core relays to the other windows and takes in from them as a RelayOut.
-   * A note window's core leaves compaction and the notebooks' order to the main window's.
+   * A lean core (a note window's, or a main window other than `main`) leaves compaction and the notebooks' order to the first main window's.
    */
-  async init(remote: WireStorage, node: string, options: { noteWindow?: boolean } = {}) {
+  async init(remote: WireStorage, node: string, options: { lean?: boolean } = {}) {
     const clock = createClock(node)
     const ids = createIdGenerator()
     newId = ids
@@ -123,7 +123,7 @@ export const coreApi = {
       relay: (message) =>
         self.postMessage({ noteRelay: toWireRelay(message, toBase64) } satisfies RelayOut),
       onTakenIn: (takenIn) => self.postMessage({ takenIn } satisfies RelayOut),
-      compact: !options.noteWindow,
+      compact: !options.lean,
     })
     books = createBookService({ storage, clock, newId: ids })
     tags = createTagService({ storage, clock, newId: ids })
@@ -131,7 +131,7 @@ export const coreApi = {
     // Its own note service, as devot-mcp's: its writes reach the notes held
     // here as changes from outside (the page merges them, see httpApiHost).
     httpApi = createAiService({ storage, clock, newId: ids })
-    if (options.noteWindow) return
+    if (options.lean) return
     // Notebooks from before sort keys get theirs, in the order they show.
     // On failure they keep showing in that order and the next start retries.
     await books

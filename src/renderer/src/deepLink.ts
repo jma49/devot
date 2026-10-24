@@ -10,6 +10,7 @@ import { UUID_V7 } from '../../core/ids'
 import { sheetOpen } from './commands/dispatch'
 import type { CommandId } from './commands/registry'
 import { invoke } from './ipc'
+import { listenHere } from './windowEvents'
 
 /**
  * The commands a URL may run: each one only shows something; none makes,
@@ -241,10 +242,9 @@ export function useDeepLinks(ready: boolean, handle: (link: DeepLink) => void): 
     // Listening first, then asking for what waits: no link is lost between.
     const listening = DEVOT_UI_TEST
       ? Promise.resolve()
-      : import('@tauri-apps/api/event').then(async ({ listen }) => {
-          const stop = await listen<unknown>(TAURI_EVENT, (event) =>
-            window.dispatchEvent(new CustomEvent(OPEN_URL, { detail: event.payload })),
-          )
+      : listenHere<unknown>(TAURI_EVENT, (event) =>
+          window.dispatchEvent(new CustomEvent(OPEN_URL, { detail: event.payload })),
+        ).then((stop) => {
           if (stopped) stop()
           else unlisten = stop
         })

@@ -4,7 +4,8 @@
 //! are kept in `note-windows.json`, a local preference like the editor settings. Closing it saves
 //! first, as the main window does: Rust holds the close, asks the page to save, and closes on its
 //! answer, or after a timeout so a stuck page never keeps it open. Quitting saves it too (`exit`).
-//! Desktop only: a phone has one window.
+//! A main window other than `main` closes the same way (`main_windows`). Desktop only: a phone has one
+//! window.
 
 use crate::commands::notes::valid_note_id;
 use serde::{Deserialize, Serialize};
@@ -49,6 +50,11 @@ pub fn note_of(label: &str) -> Option<&str> {
     label.strip_prefix(PREFIX).filter(|id| valid_note_id(id))
 }
 
+/// The windows that save before they close: a note window, and a main window other than `main`.
+pub fn closes_after_saving(label: &str) -> bool {
+    note_of(label).is_some() || crate::main_windows::is_secondary(label)
+}
+
 /// In logical points: the outer position and the inner size.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -69,7 +75,7 @@ impl Frame {
     }
 
     /// Whether enough of its top edge lies on one of `screens` to grab it.
-    fn on_any(&self, screens: &[Frame]) -> bool {
+    pub(crate) fn on_any(&self, screens: &[Frame]) -> bool {
         screens.iter().any(|s| {
             let across = (self.x + self.width).min(s.x + s.width) - self.x.max(s.x);
             let top_inside = self.y >= s.y && self.y < s.y + s.height - ON_SCREEN / 2.0;
@@ -216,7 +222,7 @@ impl NoteWindows {
 }
 
 #[cfg(desktop)]
-fn screens(app: &AppHandle) -> Vec<Frame> {
+pub(crate) fn screens(app: &AppHandle) -> Vec<Frame> {
     app.available_monitors()
         .unwrap_or_default()
         .iter()
@@ -235,7 +241,7 @@ fn screens(app: &AppHandle) -> Vec<Frame> {
 }
 
 #[cfg(desktop)]
-fn frame_of(window: &Window) -> Option<Frame> {
+pub(crate) fn frame_of(window: &Window) -> Option<Frame> {
     if window.is_minimized().unwrap_or(true) || window.is_fullscreen().unwrap_or(true) {
         return None;
     }
@@ -250,10 +256,11 @@ fn frame_of(window: &Window) -> Option<Frame> {
     })
 }
 
-/// Next to the main window when there is no frame of the note's own to open in.
+/// Next to the frontmost main window when there is no frame of the note's own to open in.
 #[cfg(desktop)]
 fn beside_main(app: &AppHandle) -> Option<(f64, f64)> {
-    let main = app.get_webview_window(crate::MAIN_WINDOW)?;
+    let main =
+        crate::main_windows::front_label(app).and_then(|label| app.get_webview_window(&label))?;
     if !main.is_visible().unwrap_or(false) {
         return None;
     }
@@ -321,7 +328,7 @@ pub fn open(app: &AppHandle, id: &str) -> Result<(), &'static str> {
 
 /// Asks the page to save, and closes the window once it has, or after SAVE_TIMEOUT.
 #[cfg(desktop)]
-fn close_after_saving(window: &Window) {
+pub(crate) fn close_after_saving(window: &Window) {
     let app = window.app_handle();
     let Some(windows) = app.try_state::<NoteWindows>() else {
         return;
@@ -410,7 +417,9 @@ pub fn note_window_note(window: WebviewWindow) -> Result<String, String> {
 #[cfg(desktop)]
 #[tauri::command]
 pub fn note_window_close_ready(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    note_of(window.label()).ok_or("E_NOTE_WINDOW_ONLY")?;
+    if !closes_after_saving(window.label()) {
+        return Err("E_NOTE_WINDOW_ONLY".into());
+    }
     if let Some(windows) = app.try_state::<NoteWindows>() {
         windows.end_close(window.label());
     }
@@ -423,7 +432,9 @@ pub fn note_window_close_ready(app: AppHandle, window: WebviewWindow) -> Result<
 #[cfg(desktop)]
 #[tauri::command]
 pub fn note_window_close_cancel(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    note_of(window.label()).ok_or("E_NOTE_WINDOW_ONLY")?;
+    if !closes_after_saving(window.label()) {
+        return Err("E_NOTE_WINDOW_ONLY".into());
+    }
     log::warn!("W_NOTE_WINDOW_CLOSE_CALLED_OFF");
     if let Some(windows) = app.try_state::<NoteWindows>() {
         windows.end_close(window.label());

@@ -7,6 +7,7 @@ import { sheetOpen } from './commands/dispatch'
 import type { Core } from './core-client'
 import { countOf } from './format'
 import { currentLocale, format, t } from './i18n'
+import { listenHere } from './windowEvents'
 
 export const SHOW_ACTIVITY = 'devot:show-activity'
 
@@ -23,11 +24,10 @@ export function useActivityMenu(open: () => void) {
     let stopped = false
     let unlisten: (() => void) | undefined
     if (!DEVOT_UI_TEST) {
-      import('@tauri-apps/api/event')
-        .then(async ({ listen }) => {
-          const stop = await listen('devot://show-activity', () =>
-            window.dispatchEvent(new CustomEvent(SHOW_ACTIVITY)),
-          )
+      listenHere('devot://show-activity', () =>
+        window.dispatchEvent(new CustomEvent(SHOW_ACTIVITY)),
+      )
+        .then((stop) => {
           if (stopped) stop()
           else unlisten = stop
         })

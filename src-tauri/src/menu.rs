@@ -19,9 +19,10 @@ use tauri::menu::{
     CheckMenuItem, CheckMenuItemBuilder, MenuBuilder, MenuEvent, MenuItem, MenuItemBuilder,
     SubmenuBuilder,
 };
-use tauri::{App, AppHandle, Emitter, Manager, State, Window, Wry};
+use tauri::{App, AppHandle, Manager, State, Window, Wry};
 
 pub const QUIT_ID: &str = "devot.quit";
+pub const NEW_WINDOW_ID: &str = "devot.newWindow";
 pub const SETTINGS_ID: &str = "devot.settings";
 pub const DIAGNOSTICS_ID: &str = "devot.diagnostics";
 pub const REBUILD_INDEX_ID: &str = "devot.search.rebuild";
@@ -155,7 +156,7 @@ pub async fn command_menu_set(
     menu: State<'_, CommandMenu>,
     keys: HashMap<String, Option<String>>,
 ) -> Result<(), String> {
-    if window.label() != crate::MAIN_WINDOW {
+    if !crate::main_windows::is_main(window.label()) {
         return Err(String::from("E_COMMAND_MENU_WINDOW"));
     }
     let plan = plan_command_keys(&keys).map_err(String::from)?;
@@ -218,7 +219,7 @@ pub fn sidebar_menu_set(
     item: State<'_, SidebarMenuItem>,
     shown: bool,
 ) -> Result<(), String> {
-    if window.label() != crate::MAIN_WINDOW {
+    if !crate::main_windows::is_main(window.label()) {
         return Err(String::from("E_SIDEBAR_MENU_WINDOW"));
     }
     item.0.set_text(sidebar_label(shown)).map_err(|_| {
@@ -271,6 +272,9 @@ pub fn install(app: &App) -> tauri::Result<()> {
     let settings = MenuItemBuilder::with_id(SETTINGS_ID, strings::SETTINGS)
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
+    let new_window = MenuItemBuilder::with_id(NEW_WINDOW_ID, strings::NEW_WINDOW)
+        .accelerator("Shift+CmdOrCtrl+N")
+        .build(app)?;
     let backups = MenuItemBuilder::with_id(BACKUPS_ID, strings::BACKUPS).build(app)?;
     let (title, enabled) = updates::menu_item(&app.state::<updates::Updates>().status().state);
     let check_updates = MenuItemBuilder::with_id(UPDATES_ID, title)
@@ -314,6 +318,8 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .item(&export_html)
         .build()?;
     let file = SubmenuBuilder::new(app, strings::MENU_FILE)
+        .item(&new_window)
+        .separator()
         .item(&import)
         .item(&export)
         .build()?;
@@ -422,55 +428,54 @@ fn export_all_format(id: &str) -> Option<&'static str> {
 fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     if event.id() == QUIT_ID {
         exit::request_quit(app);
+    } else if event.id() == NEW_WINDOW_ID {
+        new_window(app);
     } else if event.id() == SETTINGS_ID {
         settings::open(app);
     } else if event.id() == UPDATES_ID {
         updates::on_menu(app);
     } else if event.id() == BACKUPS_ID {
-        if app
-            .emit_to("main", crate::settings::SHOW_BACKUPS_EVENT, ())
-            .is_err()
-        {
+        if crate::main_windows::emit_front(app, crate::settings::SHOW_BACKUPS_EVENT, ()).is_err() {
             log::warn!("W_BACKUPS_MENU_EMIT_FAILED");
         }
     } else if event.id() == HISTORY_ID {
-        if app.emit_to("main", SHOW_HISTORY_EVENT, ()).is_err() {
+        if crate::main_windows::emit_front(app, SHOW_HISTORY_EVENT, ()).is_err() {
             log::warn!("W_HISTORY_MENU_EMIT_FAILED");
         }
     } else if event.id() == PALETTE_ID {
-        if app.emit_to("main", SHOW_PALETTE_EVENT, ()).is_err() {
+        if crate::main_windows::emit_front(app, SHOW_PALETTE_EVENT, ()).is_err() {
             log::warn!("W_PALETTE_MENU_EMIT_FAILED");
         }
     } else if event.id() == ACTIVITY_ID {
-        if app.emit_to("main", SHOW_ACTIVITY_EVENT, ()).is_err() {
+        if crate::main_windows::emit_front(app, SHOW_ACTIVITY_EVENT, ()).is_err() {
             log::warn!("W_ACTIVITY_MENU_EMIT_FAILED");
         }
     } else if event.id() == SIDEBAR_ID {
-        if app.emit_to("main", TOGGLE_SIDEBAR_EVENT, ()).is_err() {
+        if crate::main_windows::emit_front(app, TOGGLE_SIDEBAR_EVENT, ()).is_err() {
             log::warn!("W_SIDEBAR_MENU_EMIT_FAILED");
         }
     } else if event.id() == TOGGLE_PREVIEW_ID {
-        if app.emit_to("main", TOGGLE_PREVIEW_EVENT, ()).is_err() {
+        if crate::main_windows::emit_front(app, TOGGLE_PREVIEW_EVENT, ()).is_err() {
             log::warn!("W_TOGGLE_PREVIEW_MENU_EMIT_FAILED");
         }
     } else if event.id() == SPLIT_ID {
-        if app.emit_to("main", SHOW_SPLIT_EVENT, ()).is_err() {
+        if crate::main_windows::emit_front(app, SHOW_SPLIT_EVENT, ()).is_err() {
             log::warn!("W_SPLIT_MENU_EMIT_FAILED");
         }
     } else if event.id() == SYNC_SCROLL_ID {
         toggle_sync_scroll(app);
     } else if event.id() == IMPORT_MARKDOWN_ID {
-        import::pick(app, import::Pick::MarkdownFolders, None);
+        import::pick(app, import::Pick::MarkdownFolders, None, &front_label(app));
     } else if event.id() == IMPORT_MARKDOWN_FILES_ID {
-        import::pick(app, import::Pick::MarkdownFiles, None);
+        import::pick(app, import::Pick::MarkdownFiles, None, &front_label(app));
     } else if event.id() == IMPORT_HTML_FILES_ID {
-        import::pick(app, import::Pick::HtmlFiles, None);
+        import::pick(app, import::Pick::HtmlFiles, None, &front_label(app));
     } else if let Some(format) = export_all_format(event.id().as_ref()) {
-        if app.emit_to("main", EXPORT_ALL_EVENT, format).is_err() {
+        if crate::main_windows::emit_front(app, EXPORT_ALL_EVENT, format).is_err() {
             log::warn!("W_EXPORT_MENU_EMIT_FAILED");
         }
     } else if event.id() == REBUILD_INDEX_ID {
-        if app.emit_to("main", REBUILD_INDEX_EVENT, ()).is_err() {
+        if crate::main_windows::emit_front(app, REBUILD_INDEX_EVENT, ()).is_err() {
             log::warn!("W_REBUILD_INDEX_MENU_EMIT_FAILED");
         }
     } else if event.id() == DIAGNOSTICS_ID {
@@ -481,6 +486,19 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     } else if !menu_bar::on_menu_event(app, event.id().as_ref()) {
         format_menu::on_menu_event(app, event.id().as_ref());
     }
+}
+
+fn front_label(app: &AppHandle) -> String {
+    crate::main_windows::front_label(app).unwrap_or_else(|| crate::MAIN_WINDOW.to_owned())
+}
+
+fn new_window(app: &AppHandle) {
+    #[cfg(desktop)]
+    if let Err(code) = crate::main_windows::open(app) {
+        log::warn!("W_NEW_WINDOW_FAILED {code}");
+    }
+    #[cfg(mobile)]
+    let _ = app;
 }
 
 /// AppKit has toggled the check mark already; `show_editor_settings` sets it to what was stored. An

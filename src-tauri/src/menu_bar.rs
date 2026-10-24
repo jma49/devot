@@ -1,15 +1,15 @@
 //! Menu bar mode (Settings > General > Keep in Menu Bar). While it is on, Devot shows an icon in
 //! the menu bar (`icons/menu-bar/template.png`, the dove drawn as a template image), closing the
 //! main window hides it rather than quitting (`exit`), and quick capture opens from the icon or from
-//! its shortcut in any app. The main window is hidden, never closed, so its core keeps every unsaved
-//! edit and a quit still runs the save handshake.
+//! its shortcut in any app. The last main window is hidden, never closed, so its core keeps every
+//! unsaved edit and a quit still runs the save handshake.
 //! Quick capture is a small window of its own (`quick-capture.html`) that writes nothing itself: Rust
-//! hands its note to the main window's core and waits for the answer (`quick_capture_save`,
+//! hands its note to the frontmost main window's core and waits for the answer (`quick_capture_save`,
 //! `quick_capture_done`), so one core writes the library and the main window's lists stay current.
 
 use crate::commands::notes::{MAX_BODY_BYTES, MAX_TITLE_CHARS};
 use crate::editor_settings::{EditorSettingsStore, is_notebook_id};
-use crate::{MAIN_WINDOW, exit, strings};
+use crate::{exit, strings};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -19,8 +19,7 @@ use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{
-    AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-    Window,
+    AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 use tokio::sync::oneshot;
@@ -182,8 +181,11 @@ pub fn hide_main(window: &Window) -> bool {
     hidden
 }
 
+/// Brings the frontmost main window forward, shown if it was hidden.
 pub fn show_main(app: &AppHandle) {
-    let Some(main) = app.get_webview_window(MAIN_WINDOW) else {
+    let Some(main) =
+        crate::main_windows::front_label(app).and_then(|label| app.get_webview_window(&label))
+    else {
         return;
     };
     if main
@@ -201,13 +203,24 @@ fn is_hidden(visible: tauri::Result<bool>) -> bool {
     !visible.unwrap_or(true)
 }
 
-/// Shows the main window when it is hidden; a shown one keeps its place, behind Settings say.
+/// Shows the frontmost main window when it is hidden (the frontmost is a shown one when any is); a
+/// shown one keeps its place, behind Settings say.
 pub fn reveal_main(app: &AppHandle) {
-    if app
-        .get_webview_window(MAIN_WINDOW)
+    if crate::main_windows::front_label(app)
+        .and_then(|label| app.get_webview_window(&label))
         .is_some_and(|main| is_hidden(main.is_visible()))
     {
         show_main(app);
+    }
+}
+
+/// Shows `label`'s window when it is hidden: the quit it held is called off, and its notice says why.
+pub fn reveal_window(app: &AppHandle, label: &str) {
+    let Some(window) = app.get_webview_window(label) else {
+        return;
+    };
+    if is_hidden(window.is_visible()) && window.show().and(window.set_focus()).is_err() {
+        log::warn!("W_MAIN_WINDOW_SHOW_FAILED");
     }
 }
 
@@ -359,7 +372,7 @@ pub async fn quick_capture_save(
         body: capture.body,
         book_id: capture.book_id,
     };
-    if app.emit_to(MAIN_WINDOW, CAPTURE_EVENT, request).is_err() {
+    if crate::main_windows::emit_front(&app, CAPTURE_EVENT, request).is_err() {
         captures.forget(id);
         return Err("E_QUICK_CAPTURE_NO_WINDOW".into());
     }
@@ -381,7 +394,7 @@ pub fn quick_capture_done(
     id: u64,
     error: Option<String>,
 ) -> Result<(), String> {
-    if window.label() != MAIN_WINDOW {
+    if !crate::main_windows::is_main(window.label()) {
         return Err("E_QUICK_CAPTURE_WINDOW".into());
     }
     if captures.answer(id, answer_from(error)) {

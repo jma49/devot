@@ -167,7 +167,7 @@ fn due_now(app: &AppHandle) -> bool {
 pub fn on_window_event(window: &Window, event: &tauri::WindowEvent) {
     let app = window.app_handle();
     if !matches!(event, tauri::WindowEvent::Focused(true))
-        || window.label() != crate::MAIN_WINDOW
+        || !crate::main_windows::is_main(window.label())
         || cfg!(debug_assertions)
         || !app.state::<Updates>().enabled
         || !due_now(app)
@@ -529,12 +529,16 @@ pub fn on_menu(app: &AppHandle) {
     if ready {
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
-            if let Err(code) = restart_in_background(app, crate::MAIN_WINDOW.into()).await {
+            let asker =
+                crate::main_windows::front_label(&app).unwrap_or_else(|| crate::MAIN_WINDOW.into());
+            if let Err(code) = restart_in_background(app, asker).await {
                 log::warn!("W_UPDATE_RESTART_FAILED {code}");
             }
         });
     } else {
-        tauri::async_runtime::spawn(check(app.clone(), Some(crate::MAIN_WINDOW.into())));
+        let asker =
+            crate::main_windows::front_label(app).unwrap_or_else(|| crate::MAIN_WINDOW.into());
+        tauri::async_runtime::spawn(check(app.clone(), Some(asker)));
     }
 }
 
@@ -571,7 +575,7 @@ pub fn update_check(app: AppHandle, window: Window) {
 
 #[tauri::command]
 pub fn update_download(app: AppHandle, window: Window) -> Result<(), String> {
-    if window.label() != crate::MAIN_WINDOW {
+    if !crate::main_windows::is_main(window.label()) {
         return Err(String::from("E_UPDATE_WINDOW"));
     }
     tauri::async_runtime::spawn(download(app, Some(window.label().to_owned())));
@@ -580,7 +584,7 @@ pub fn update_download(app: AppHandle, window: Window) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn update_restart(app: AppHandle, window: Window) -> Result<(), String> {
-    if window.label() != crate::MAIN_WINDOW {
+    if !crate::main_windows::is_main(window.label()) {
         return Err(String::from("E_UPDATE_WINDOW"));
     }
     restart_in_background(app, window.label().to_owned())

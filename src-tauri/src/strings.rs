@@ -3,6 +3,7 @@
 
 pub const APP_NAME: &str = "Devot";
 pub const MENU_FILE: &str = "File";
+pub const NEW_WINDOW: &str = "New Window";
 pub const MENU_IMPORT: &str = "Import";
 pub const MENU_EXPORT: &str = "Export";
 pub const EXPORT_ALL_MARKDOWN: &str = "All Notes as Markdown…";

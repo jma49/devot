@@ -123,6 +123,8 @@ fn main() {
             "note_window_note",
             "note_window_close_ready",
             "note_window_close_cancel",
+            "main_window_new",
+            "main_windows_changed",
             "keyboard_shortcuts_get",
             "keyboard_shortcuts_set",
             "mirror_get",

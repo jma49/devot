@@ -5,6 +5,7 @@ import { connectCore, type Core } from './coreConnect'
 import { reportCode } from './crash'
 import { invoke } from './ipc'
 import type { LogEntry } from './log'
+import { reportingWrites } from './mainWindows'
 import { reportingNoteWrites } from './noteWrites'
 import type { WireRelay } from './noteRelayWire'
 import { memoryStorage } from './storage/memory'
@@ -40,14 +41,17 @@ function logFromWorker(entry: LogEntry) {
  * Rejects with a code when the worker does not load or the core does not
  * start (see connectCore); `onFailure` hears of a worker that fails later.
  * `windowed` carries what the core says to the other windows and takes in
- * from them (noteRelay.ts); a note window's core does less (see init).
+ * from them (noteRelay.ts); a lean core, a note window's or a second main
+ * window's, does less (see init). `onWrote` hears of each write to the library,
+ * for the other main windows' lists (mainWindows.ts).
  */
 export async function startCore(
   onSaveProblems: (problems: SaveProblem[]) => void,
   onNoteWrites: (writes: ReadonlyMap<string, number>) => void = () => {},
   onFailure: (code: string) => void = () => {},
   windowed: {
-    noteWindow?: boolean
+    lean?: boolean
+    onWrote?: () => void
     onRelay?: (message: WireRelay) => void
     onTakenIn?: (change: TakenIn) => void
   } = {},
@@ -57,10 +61,11 @@ export async function startCore(
     // A node ID of this start's own, never kept in the web view's storage:
     // another build of the app shares that, and two processes must never
     // stamp a write alike.
-    start: (c) =>
-      c.init(Comlink.proxy(reportingNoteWrites(wire, onNoteWrites)), newNodeId(), {
-        noteWindow: windowed.noteWindow ?? false,
-      }),
+    start: (c) => {
+      const noted = reportingNoteWrites(wire, onNoteWrites)
+      const served = windowed.onWrote ? reportingWrites(noted, windowed.onWrote) : noted
+      return c.init(Comlink.proxy(served), newNodeId(), { lean: windowed.lean ?? false })
+    },
     onSaveProblems,
     ...(windowed.onRelay ? { onRelay: windowed.onRelay } : {}),
     ...(windowed.onTakenIn ? { onTakenIn: windowed.onTakenIn } : {}),

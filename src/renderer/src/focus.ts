@@ -13,6 +13,12 @@ export function windowLabel(internals: TauriInternals | undefined): string {
   return internals?.metadata?.currentWindow?.label ?? 'main'
 }
 
+/** `main` and the windows File > New Window opens (`main-<n>`; src-tauri/src/main_windows.rs). */
+export const isMainLabel = (label: string) => label === 'main' || /^main-[1-9]\d{0,8}$/.test(label)
+
+/** A main window other than the first; it hosts nothing that runs once (the mirror, compaction). */
+export const isSecondaryLabel = (label: string) => label !== 'main' && isMainLabel(label)
+
 export function focusStore(storage: KeyValue | undefined, label: string) {
   return windowFlag(storage, `devot.focus.${label}`, 'W_FOCUS_SAVE_FAILED')
 }
@@ -40,15 +46,27 @@ function windowFlag(storage: KeyValue | undefined, key: string, saveFailed: stri
   }
 }
 
+/** The label of the window this page runs in. */
+export function currentWindowLabel(): string {
+  const w = globalThis as Record<string, unknown>
+  return windowLabel(w['__TAURI_INTERNALS__'] as TauriInternals | undefined)
+}
+
+/**
+ * The view preferences of this window: kept in the webview's local storage under the window's
+ * label. A window File > New Window opened keeps them for as long as it lives (session storage), so
+ * a later window with the same label starts fresh.
+ */
 export function current<T>(store: (storage: KeyValue | undefined, label: string) => T): T {
-  const w = globalThis as { localStorage?: KeyValue } & Record<string, unknown>
+  const w = globalThis as { localStorage?: KeyValue; sessionStorage?: KeyValue }
+  const label = currentWindowLabel()
   let storage: KeyValue | undefined
   try {
-    storage = w.localStorage
+    storage = isSecondaryLabel(label) ? w.sessionStorage : w.localStorage
   } catch {
     storage = undefined
   }
-  return store(storage, windowLabel(w['__TAURI_INTERNALS__'] as TauriInternals | undefined))
+  return store(storage, label)
 }
 
 export const currentFocusStore = () => current(focusStore)

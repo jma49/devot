@@ -38,12 +38,54 @@ fn guarded<R>(code: &'static str, call: impl FnOnce() -> Option<R>) -> Option<R>
     }
 }
 
+/// The NSWindows of the main windows by label, as addresses (only compared, never used as pointers)
+/// so the Format menu's key monitor can tell them from the others.
+#[cfg(target_os = "macos")]
+static MAIN_WINDOWS: std::sync::Mutex<Vec<(String, usize)>> = std::sync::Mutex::new(Vec::new());
+
+#[cfg(target_os = "macos")]
+fn is_main_window(ns_window: *const std::ffi::c_void) -> bool {
+    MAIN_WINDOWS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .iter()
+        .any(|(_, address)| *address == ns_window as usize)
+}
+
+/// A main window exists now: its web view gets the 120 Hz unlock and its keys the Format menu's
+/// priority. Every main window, `main` included, comes through here.
+pub fn main_window_built(window: &tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        macos::unlock_high_refresh_rate(window);
+        match window.ns_window() {
+            Ok(address) if !address.is_null() => MAIN_WINDOWS
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push((window.label().to_owned(), address as usize)),
+            _ => log::warn!("W_FORMAT_KEY_MONITOR_NO_WINDOW"),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = window;
+}
+
+/// A main window is gone: its NSWindow is no longer one to serve.
+pub fn main_window_gone(label: &str) {
+    #[cfg(target_os = "macos")]
+    MAIN_WINDOWS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .retain(|(kept, _)| kept != label);
+    #[cfg(not(target_os = "macos"))]
+    let _ = label;
+}
+
 pub fn configure_main_window(app: &tauri::App) {
     #[cfg(target_os = "macos")]
     {
         use tauri::Emitter;
-        macos::unlock_high_refresh_rate(app);
-        macos::give_format_menu_keys_priority(app, crate::strings::MENU_FORMAT);
+        macos::give_format_menu_keys_priority(crate::strings::MENU_FORMAT);
         let handle = app.handle().clone();
         macos::observe_accent_changes(move || {
             if handle.emit(ACCENT_EVENT, macos::system_accent()).is_err() {
@@ -540,6 +582,7 @@ fn validate_speech(action: &str, text: Option<String>) -> Result<SpeechRequest, 
 #[tauri::command]
 pub async fn text_look_up(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     text: String,
     x: f64,
     y: f64,
@@ -549,9 +592,6 @@ pub async fn text_look_up(
     #[cfg(target_os = "macos")]
     {
         use tauri::Manager;
-        let window = app
-            .get_webview_window(crate::MAIN_WINDOW)
-            .ok_or_else(|| String::from("E_NATIVE_MAIN_WINDOW_MISSING"))?;
         // An imported font's file is read here, off the main thread.
         let fonts = std::sync::Arc::clone(&app.state::<std::sync::Arc<crate::fonts::Fonts>>());
         let style = tauri::async_runtime::spawn_blocking(move || {
@@ -572,24 +612,20 @@ pub async fn text_look_up(
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (app, font);
+        let _ = (app, window, font);
         Err(String::from("E_LOOK_UP_UNSUPPORTED"))
     }
 }
 
 #[tauri::command]
 pub async fn text_speak(
-    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     action: String,
     text: Option<String>,
 ) -> Result<(), String> {
     let request = validate_speech(&action, text).map_err(String::from)?;
     #[cfg(target_os = "macos")]
     {
-        use tauri::Manager;
-        let window = app
-            .get_webview_window(crate::MAIN_WINDOW)
-            .ok_or_else(|| String::from("E_NATIVE_MAIN_WINDOW_MISSING"))?;
         let (reply, answer) = tokio::sync::oneshot::channel();
         window
             .with_webview(move |webview| {
@@ -607,7 +643,7 @@ pub async fn text_speak(
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (app, request);
+        let _ = (window, request);
         Err(String::from("E_SPEECH_UNSUPPORTED"))
     }
 }
@@ -789,7 +825,7 @@ fn key_equivalent(accelerator: &str) -> Option<KeyEquivalent> {
 
 #[tauri::command]
 pub async fn editor_menu_popup(
-    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     items: Vec<EditorMenuEntry>,
     x: f64,
     y: f64,
@@ -798,10 +834,6 @@ pub async fn editor_menu_popup(
     validate_editor_menu(&items, x, y, word.as_deref()).map_err(String::from)?;
     #[cfg(target_os = "macos")]
     {
-        use tauri::Manager;
-        let window = app
-            .get_webview_window(crate::MAIN_WINDOW)
-            .ok_or_else(|| String::from("E_NATIVE_MAIN_WINDOW_MISSING"))?;
         let (reply, answer) = tokio::sync::oneshot::channel();
         window
             .with_webview(move |webview| {
@@ -815,7 +847,7 @@ pub async fn editor_menu_popup(
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (app, items, word);
+        let _ = (window, items, word);
         Err(String::from("E_EDITOR_MENU_UNSUPPORTED"))
     }
 }

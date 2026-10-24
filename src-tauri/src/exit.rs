@@ -6,8 +6,11 @@
 //! When a note could not be saved the UI may call the quit off (`app_exit_cancel`); a later quit
 //! asks again. In menu bar mode closing the main window hides it instead (`menu_bar`), so the app
 //! and its unsaved edits stay; a quit from the menu bar icon runs this handshake too.
-//! Every window with a core of its own (the main window, each note window: `note_relay::may_relay`) saves,
-//! and the app exits once all of them have reported back.
+//! Every window with a core of its own (each main window, each note window: `note_relay::may_relay`)
+//! saves, and the app exits once all of them have reported back.
+//! Closing a main window quits only when it is the last one shown (`on_close`): another main window
+//! shown keeps the app running, and then `main`, which hosts the mirror, hides rather than closes
+//! while any other main window closes after saving (`main_windows`).
 
 use crate::MAIN_WINDOW;
 use std::collections::HashSet;
@@ -132,12 +135,16 @@ fn restart(app: &AppHandle) -> ! {
     tauri::process::restart(&restart_env(app.env()))
 }
 
-pub fn request_quit(app: &AppHandle) {
-    let savers: HashSet<String> = app
-        .webview_windows()
-        .into_keys()
+/// The windows a quit waits for: every one with a core of its own, each main window (hidden ones
+/// too, they hold unsaved edits) and each note window.
+fn savers_among(labels: impl Iterator<Item = String>) -> HashSet<String> {
+    labels
         .filter(|label| crate::note_relay::may_relay(label))
-        .collect();
+        .collect()
+}
+
+pub fn request_quit(app: &AppHandle) {
+    let savers = savers_among(app.webview_windows().into_keys());
     let none = savers.is_empty();
     let Some(round) = app.state::<ExitGate>().begin(savers) else {
         return;
@@ -159,15 +166,23 @@ pub fn request_quit(app: &AppHandle) {
 #[derive(Debug, PartialEq, Eq)]
 enum OnClose {
     Close,
+    /// A main window other than `main`: it saves, then closes.
+    CloseAfterSaving,
     Hide,
     Quit,
 }
 
-fn on_close(label: &str, keep_running: bool) -> OnClose {
-    match (label == MAIN_WINDOW, keep_running) {
-        (false, _) => OnClose::Close,
+/// What closing `label` does, given whether another main window is shown and whether the app keeps
+/// running with no window (menu bar mode).
+fn on_close(label: &str, other_main_shown: bool, keep_running: bool) -> OnClose {
+    if !crate::main_windows::is_main(label) {
+        return OnClose::Close;
+    }
+    let stays = other_main_shown || keep_running;
+    match (label == MAIN_WINDOW, stays) {
         (true, true) => OnClose::Hide,
-        (true, false) => OnClose::Quit,
+        (false, true) => OnClose::CloseAfterSaving,
+        (_, false) => OnClose::Quit,
     }
 }
 
@@ -190,8 +205,14 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
     let keep_running = crate::menu_bar::keeps_running(app);
     #[cfg(mobile)]
     let keep_running = false;
-    match on_close(window.label(), keep_running) {
+    let other_main_shown = crate::main_windows::another_is_shown(app, window.label());
+    match on_close(window.label(), other_main_shown, keep_running) {
         OnClose::Close => {}
+        OnClose::CloseAfterSaving => {
+            api.prevent_close();
+            #[cfg(desktop)]
+            crate::note_window::close_after_saving(window);
+        }
         OnClose::Hide => {
             api.prevent_close();
             #[cfg(desktop)]
@@ -241,15 +262,17 @@ pub fn app_exit_ready(app: AppHandle, window: tauri::WebviewWindow) {
 }
 
 #[tauri::command]
-pub fn app_exit_cancel(app: AppHandle) {
+pub fn app_exit_cancel(app: AppHandle, window: tauri::WebviewWindow) {
     log::warn!("W_EXIT_CALLED_OFF");
     app.state::<ExitGate>().call_off();
     #[cfg(desktop)]
     {
-        // The notice that says why lives in the main window, hidden in menu bar mode.
-        crate::menu_bar::reveal_main(&app);
+        // The notice that says why lives in the window that could not save, hidden in menu bar mode.
+        crate::menu_bar::reveal_window(&app, window.label());
         crate::updates::restart_called_off(&app);
     }
+    #[cfg(mobile)]
+    let _ = window;
 }
 
 #[cfg(test)]
@@ -302,17 +325,54 @@ mod tests {
     }
 
     #[test]
-    fn only_closing_the_main_window_quits() {
-        assert_eq!(on_close("main", false), OnClose::Quit);
-        assert_eq!(on_close("settings", false), OnClose::Close);
-        assert_eq!(on_close("quick-capture", false), OnClose::Close);
+    fn a_quit_waits_for_every_main_window_and_note_window_and_nothing_else() {
+        let note = crate::note_window::label_for("0192a6f0-0000-7000-8000-000000000001");
+        let waits: HashSet<String> = savers_among(
+            [
+                "main",
+                "main-2",
+                "main-3",
+                note.as_str(),
+                "settings",
+                "quick-capture",
+            ]
+            .into_iter()
+            .map(String::from),
+        );
+        assert_eq!(waits, savers(&["main", "main-2", "main-3", &note]));
     }
 
     #[test]
-    fn in_menu_bar_mode_closing_the_main_window_hides_it_and_quits_nothing() {
-        assert_eq!(on_close("main", true), OnClose::Hide);
-        assert_eq!(on_close("settings", true), OnClose::Close);
-        assert_eq!(on_close("quick-capture", true), OnClose::Close);
+    fn only_closing_the_last_main_window_shown_quits() {
+        assert_eq!(on_close("main", false, false), OnClose::Quit);
+        assert_eq!(on_close("main-2", false, false), OnClose::Quit);
+        assert_eq!(on_close("settings", false, false), OnClose::Close);
+        assert_eq!(on_close("quick-capture", false, false), OnClose::Close);
+        assert_eq!(on_close("note-x", false, false), OnClose::Close);
+    }
+
+    #[test]
+    fn in_menu_bar_mode_closing_the_last_main_window_hides_it_and_quits_nothing() {
+        assert_eq!(on_close("main", false, true), OnClose::Hide);
+        assert_eq!(on_close("settings", false, true), OnClose::Close);
+        assert_eq!(on_close("quick-capture", false, true), OnClose::Close);
+    }
+
+    #[test]
+    fn with_another_main_window_shown_main_hides_and_the_others_close_after_saving() {
+        for keep_running in [false, true] {
+            assert_eq!(on_close("main", true, keep_running), OnClose::Hide);
+            assert_eq!(
+                on_close("main-2", true, keep_running),
+                OnClose::CloseAfterSaving
+            );
+            assert_eq!(on_close("settings", true, keep_running), OnClose::Close);
+        }
+    }
+
+    #[test]
+    fn in_menu_bar_mode_a_closed_extra_window_saves_and_goes_but_the_app_stays() {
+        assert_eq!(on_close("main-3", false, true), OnClose::CloseAfterSaving);
     }
 
     #[test]
