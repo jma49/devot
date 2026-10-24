@@ -1,5 +1,4 @@
-//! Rust holds keys, endpoints and models and makes the request, so the web view never sees a key.
-//! Whether content may be sent is decided by the caller (src/core/aiProvider.ts). Errors and logs carry codes, never content.
+//! Rust holds the keys and makes the request, so the web view never sees a key; the caller decides whether content may be sent (src/core/aiProvider.ts).
 
 mod anthropic;
 pub mod keychain;

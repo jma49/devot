@@ -1,4 +1,4 @@
-//! A provider maps the provider-agnostic request to its own HTTP request and back; it never sends anything itself.
+//! A provider only maps requests and answers; it never sends anything itself.
 
 use serde::{Deserialize, Serialize};
 
@@ -69,7 +69,6 @@ pub struct Usage {
     pub output_tokens: u64,
 }
 
-/// What a provider's response says, apart from who it came from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Completion {
     pub text: String,
@@ -94,7 +93,6 @@ pub struct WireRequest {
     pub body: Vec<u8>,
 }
 
-/// A request that passed `check_request`.
 pub struct Prepared<'a> {
     pub system: Option<&'a str>,
     pub messages: &'a [Message],

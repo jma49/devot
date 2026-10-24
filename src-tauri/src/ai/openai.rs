@@ -1,4 +1,4 @@
-//! OpenAI-compatible chat completions (`POST /chat/completions`): OpenAI itself and any server that speaks the same API (a gateway, or a model running on this Mac).
+//! Any server that speaks OpenAI's chat completions API: OpenAI, a gateway or a local model.
 
 use serde::Deserialize;
 use serde_json::json;

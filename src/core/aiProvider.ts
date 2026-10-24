@@ -34,7 +34,6 @@ export interface AiTransport {
   generate(input: AiGenerateInput): Promise<unknown>
 }
 
-/** Why a request is made. */
 export interface AiTrigger {
   /** The user started it (a command, a button); never a timer, a sync or a note's own content. */
   by: 'user'
