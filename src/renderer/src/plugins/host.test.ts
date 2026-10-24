@@ -8,6 +8,7 @@ type Message = Record<string, unknown>
 function fakePlugin(answer: (method: string, params: Message) => unknown = () => null) {
   const channel = new MessageChannel()
   const results: Message[] = []
+  const events: unknown[] = []
   let seq = 0
   const waiting = new Map<number, (m: Message) => void>()
   channel.port2.onmessage = (event: MessageEvent<Message>) => {
@@ -30,6 +31,8 @@ function fakePlugin(answer: (method: string, params: Message) => unknown = () =>
     } else if (m['kind'] === 'result') {
       results.push(m)
       waiting.get(m['seq'] as number)?.(m)
+    } else if (m['kind'] === 'event') {
+      events.push(m['name'])
     }
   }
   return {
@@ -45,6 +48,7 @@ function fakePlugin(answer: (method: string, params: Message) => unknown = () =>
       })
     },
     results,
+    events,
     end: () => channel.port2.close(),
   }
 }
@@ -253,5 +257,32 @@ describe('the plugin host', () => {
     host.load([plugin('com.gone', ['commands'])])
     await expect(host.run('com.gone', 'go')).rejects.toThrow('E_PLUGIN_LOAD_TIMEOUT')
     expect(warnings[0]).toEqual(['E_PLUGIN_LOAD_TIMEOUT', 'com.gone'])
+  })
+
+  it('starts a plugin whose frame failed to connect again on the next request', async () => {
+    const answers: Record<string, ReturnType<typeof fakePlugin>> = {}
+    const { host } = setup(answers)
+    host.load([plugin('com.late', ['commands'])])
+    await expect(host.run('com.late', 'go')).rejects.toThrow('E_PLUGIN_LOAD_TIMEOUT')
+    answers['com.late'] = fakePlugin()
+    await expect(host.run('com.late', 'go')).resolves.toBeUndefined()
+  })
+
+  it('leaves a plugin inactive once another plugin shows its panel in its place', async () => {
+    const answer = (fake: () => ReturnType<typeof fakePlugin>) => async (method: string) => {
+      if (method === 'command.run') await fake().call('ui.show', { height: 100 })
+      return null
+    }
+    let a!: ReturnType<typeof fakePlugin>
+    let b!: ReturnType<typeof fakePlugin>
+    a = fakePlugin(answer(() => a))
+    b = fakePlugin(answer(() => b))
+    const { host } = setup({ 'com.a': a, 'com.b': b })
+    host.load([plugin('com.a', ['note.read', 'commands']), plugin('com.b', ['commands'])])
+    await host.run('com.a', 'go')
+    expect(await a.call('note.read')).toMatchObject({ ok: true })
+    await host.run('com.b', 'go')
+    expect(await a.call('note.read')).toMatchObject({ ok: false, code: 'E_PLUGIN_NOT_ACTIVE' })
+    expect(a.events).toEqual(['ui.hidden'])
   })
 })

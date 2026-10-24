@@ -215,7 +215,11 @@ test('cannot reach the network, by any request or by navigating', async ({ page 
     form.submit()
     const frameOf = document.createElement('iframe')
     frameOf.src = 'https://example.com/frame'
-    document.body.append(frameOf)
+    try {
+      document.body.append(frameOf)
+    } catch {
+      // Refused by the runtime; the policy would stop it anyway.
+    }
     location.href = 'https://example.com/?leak=1'
     return out
   })
@@ -232,6 +236,85 @@ test('cannot reach the network, by any request or by navigating', async ({ page 
   expect(network).toEqual([])
   // The plugin's page is still where it was: the navigation never left.
   expect(page.frames().some((f) => f.url().startsWith('https://example.com'))).toBe(false)
+})
+
+test('cannot make a frame of its own, whose fresh global would bring WebRTC back', async ({
+  page,
+}) => {
+  const frame = await pluginFrame(page, 'com.example.probe')
+  const outcomes = await frame.evaluate(async () => {
+    const out: Record<string, string> = {}
+    const attempt = (name: string, run: () => unknown) => {
+      try {
+        run()
+        out[name] = 'made'
+      } catch (e) {
+        out[name] = e instanceof DOMException ? e.message : 'failed'
+      }
+    }
+    attempt('append', () => document.body.append(document.createElement('iframe')))
+    attempt('appendChild', () => document.body.appendChild(document.createElement('iframe')))
+    attempt('innerHTML', () => {
+      document.body.innerHTML = '<div><iframe></iframe></div>'
+    })
+    attempt('insertAdjacentHTML', () =>
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<svg><foreignObject><iframe></iframe></foreignObject></svg>',
+      ),
+    )
+    attempt('fragment', () => {
+      const t = document.createElement('template')
+      t.innerHTML = '<iframe srcdoc="x"></iframe>'
+      document.body.append(t.content)
+    })
+    attempt('range', () =>
+      document.body.append(document.createRange().createContextualFragment('<object></object>')),
+    )
+    attempt('frameset', () => {
+      const set = document.createElement('frameset')
+      set.innerHTML = '<frame>'
+      document.body.append(set)
+    })
+    attempt('write', () => document.write('<iframe></iframe>'))
+    attempt('shadow', () => document.body.attachShadow({ mode: 'closed' }))
+    attempt('hint', () => {
+      const link = document.createElement('link')
+      link.rel = 'dns-prefetch'
+      link.href = 'https://leak.example.com'
+      document.head.append(link)
+    })
+    const late = document.createElement('link')
+    late.href = 'https://leak.example.com'
+    document.head.append(late)
+    late.rel = 'preconnect'
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    out['late hint'] = late.isConnected ? 'kept' : 'removed'
+    out['frames'] = String(
+      window.length + document.querySelectorAll('iframe, frame, object').length,
+    )
+    const loose = document.createElement('iframe')
+    out['contentWindow'] = String(loose.contentWindow)
+    return out
+  })
+  const refused = 'E_PLUGIN_FRAME_BLOCKED'
+  expect(outcomes).toEqual({
+    append: refused,
+    appendChild: refused,
+    innerHTML: refused,
+    insertAdjacentHTML: refused,
+    fragment: refused,
+    range: refused,
+    frameset: refused,
+    write: refused,
+    shadow: refused,
+    hint: refused,
+    'late hint': 'removed',
+    frames: '0',
+    contentWindow: 'null',
+  })
+  await page.waitForTimeout(300)
+  expect(network).toEqual([])
 })
 
 test('cannot reach another plugin, its files or its port', async ({ page }) => {

@@ -40,10 +40,42 @@ describe('plugin preview renderers', () => {
     const out = await html(
       '```chart\nx\n```',
       async () =>
-        '<script>alert(1)</script><img src="https://e.x/a.png" onerror="alert(2)"><a href="javascript:alert(3)">l</a><iframe srcdoc="<script>"></iframe>',
+        '<script>alert(1)</script><img src="devot://file/00000000-0000-4000-8000-000000000001" onerror="alert(2)"><a href="javascript:alert(3)">l</a><iframe srcdoc="<script>"></iframe>',
     )
     expect(out).not.toMatch(/<script|onerror|javascript:|srcdoc/)
-    expect(out).toContain('<img src="https://e.x/a.png">')
+    expect(out).toContain('<img src="devot://file/00000000-0000-4000-8000-000000000001">')
+  })
+
+  it('loads nothing remote from an answer: no remote images, links, frames or video embeds', async () => {
+    const out = await html(
+      '```chart\nx\n```',
+      async () =>
+        '![p](https://e.x/p?d=1) ![q](http://e.x/q)\n\n<iframe src="https://e.x/f"></iframe>\n\n[l](https://e.x/l)\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\n\n![ok](data:image/png;base64,AAAA)',
+    )
+    expect(out).not.toMatch(/(?:src|href)="https?:|<iframe|data-embed-src/)
+    expect(out).toContain('<img src="data:image/png;base64,AAAA"')
+  })
+
+  it('leaves the answer no offsets into the note: its task boxes are disabled and its images carry no range', async () => {
+    const tree = await renderPreview(
+      '- [ ] real task\n\n```chart\nx\n```\n\n![a](devot://file/00000000-0000-4000-8000-000000000001)\n',
+      { labels, loadedEmbeds: [] },
+      createPreviewRegistry({
+        builtins: true,
+        plugins: {
+          specs,
+          render: async () =>
+            '- [ ] inner task\n\n![b](devot://file/00000000-0000-4000-8000-000000000002) ![c](data:image/png;base64,AAAA)',
+        },
+      }),
+    )
+    const out = toHtml(tree)
+    const block = out.slice(out.indexOf('plugin-block'), out.lastIndexOf('</div>'))
+    expect(block).toContain('inner task')
+    expect(block).not.toMatch(/data-task-at|data-image-from|data-image-to/)
+    expect(block).toMatch(/<input type="checkbox" disabled>/)
+    expect(out.match(/data-task-at/g)).toHaveLength(1)
+    expect(out.match(/data-image-from/g)).toHaveLength(1)
   })
 
   it('leaves other languages, and blocks without an answer or whose plugin failed, as code', async () => {

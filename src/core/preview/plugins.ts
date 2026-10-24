@@ -1,7 +1,12 @@
 // Plugins' preview renderers (ADR 0005): a fenced code block in a plugin's language goes to the plugin, which answers Markdown.
-// The answer is rendered and sanitized like note text, so a plugin adds only what a note could; a block without an answer stays code.
+// The answer is rendered and sanitized like note text, minus anything remote, so a plugin adds only what a note could; a block without an answer stays code.
 import type { Element, ElementContent, Root, RootContent } from 'hast'
-import { PREVIEW_API_VERSION, type PreviewContext, type PreviewRenderer } from './registry'
+import {
+  PIECE_OFFSET_PROPERTIES,
+  PREVIEW_API_VERSION,
+  type PreviewContext,
+  type PreviewRenderer,
+} from './registry'
 
 export interface PluginRendererSpec {
   /** Names the renderer to the host (`<plugin id>/<renderer id>`). */
@@ -26,9 +31,14 @@ function languageOf(pre: Element): { code: Element; language: string } | undefin
   return typeof name === 'string' ? { code, language: name.slice('language-'.length) } : undefined
 }
 
-function stripPositions(node: RootContent): void {
+/** The answer's offsets count from the answer, not the note, so nothing in it may change the note. */
+function makeInert(node: RootContent): void {
   delete node.position
-  if ('children' in node) node.children.forEach(stripPositions)
+  if (node.type === 'element') {
+    for (const name of PIECE_OFFSET_PROPERTIES) delete node.properties[name]
+    if (node.tagName === 'input') node.properties['disabled'] = true
+  }
+  if ('children' in node) node.children.forEach(makeInert)
 }
 
 export function createPluginRenderer(
@@ -60,7 +70,7 @@ export function createPluginRenderer(
           const children = (await toNodes(markdown, context)).filter(
             (node): node is ElementContent => node.type !== 'doctype',
           )
-          children.forEach(stripPositions)
+          children.forEach(makeInert)
           const block: Element = {
             type: 'element',
             tagName: 'div',

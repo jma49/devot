@@ -6,6 +6,9 @@ import type { TaskProgress } from '../tasks'
 
 export const PREVIEW_API_VERSION = 1
 
+/** Properties carrying an offset into the note's Markdown. */
+export const PIECE_OFFSET_PROPERTIES = ['dataTaskAt', 'dataImageFrom', 'dataImageTo'] as const
+
 export interface PreviewLabels {
   alerts: Record<AlertKind, string>
   embedFrom: string

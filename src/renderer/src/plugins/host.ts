@@ -82,6 +82,18 @@ const sessionKey = (p: InstalledPlugin) =>
 
 export function createPluginHost(deps: PluginHostDeps): PluginHost {
   const sessions = new Map<string, Session>()
+  let wanted = new Map<string, InstalledPlugin>()
+
+  const markHidden = (s: Session) => {
+    if (!s.shown) return
+    s.shown = false
+    s.ready
+      .then((port) => {
+        if (!s.stopped)
+          port.postMessage({ devot: PLUGIN_PROTOCOL_VERSION, kind: 'event', name: 'ui.hidden' })
+      })
+      .catch(() => {})
+  }
 
   const reply = (
     port: PortLike,
@@ -100,6 +112,8 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
         await deps.replaceNote({ base: call.base, markdown: call.markdown })
         return null
       case 'ui.show':
+        // One panel shows at a time: the plugin whose panel it replaces is no longer active.
+        for (const other of sessions.values()) if (other !== s) markHidden(other)
         s.shown = true
         deps.showUi(s.id, call.height)
         return null
@@ -162,6 +176,9 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
       (error: unknown) => {
         const code = errorCode(error, 'E_PLUGIN_UNAVAILABLE')
         deps.warn(code, plugin.manifest.id)
+        // Forgotten, so the next request starts the plugin again rather than failing on this load for good.
+        const failed = s()
+        if (sessions.get(failed.id) === failed) sessions.delete(failed.id)
         throw new Error(code)
       },
     )
@@ -195,8 +212,12 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
   }
 
   const session = (id: string) => {
-    const s = sessions.get(id)
-    if (!s) throw new Error('E_PLUGIN_NOT_FOUND')
+    const known = sessions.get(id)
+    if (known) return known
+    const plugin = wanted.get(id)
+    if (!plugin) throw new Error('E_PLUGIN_NOT_FOUND')
+    const s = start(plugin)
+    sessions.set(id, s)
     return s
   }
 
@@ -223,7 +244,7 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
 
   return {
     load(plugins) {
-      const wanted = new Map(plugins.filter((p) => p.enabled).map((p) => [p.manifest.id, p]))
+      wanted = new Map(plugins.filter((p) => p.enabled).map((p) => [p.manifest.id, p]))
       for (const [id, s] of sessions) {
         const next = wanted.get(id)
         if (!next || sessionKey(next) !== s.key) {
@@ -271,19 +292,13 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
 
     hidden(plugin) {
       const s = sessions.get(plugin)
-      if (!s || !s.shown) return
-      s.shown = false
-      s.ready
-        .then((port) => {
-          if (!s.stopped)
-            port.postMessage({ devot: PLUGIN_PROTOCOL_VERSION, kind: 'event', name: 'ui.hidden' })
-        })
-        .catch(() => {})
+      if (s) markHidden(s)
     },
 
     stop() {
       for (const s of sessions.values()) end(s)
       sessions.clear()
+      wanted = new Map()
     },
   }
 }

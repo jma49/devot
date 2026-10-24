@@ -3,19 +3,144 @@
 'use strict'
 ;(() => {
   // No content security policy governs WebRTC.
-  for (const name of [
-    'RTCPeerConnection',
-    'webkitRTCPeerConnection',
-    'RTCDataChannel',
-    'RTCSessionDescription',
-    'RTCIceCandidate',
-  ]) {
+  const rtc = Object.getOwnPropertyNames(globalThis).filter((name) => /^(?:webkit)?RTC/.test(name))
+  for (const name of new Set([...rtc, 'RTCPeerConnection', 'webkitRTCPeerConnection'])) {
     try {
       delete globalThis[name]
     } catch {
       globalThis[name] = undefined
     }
   }
+
+  // A frame of the plugin's own (src-less frames skip the policy) would bring a fresh global with WebRTC back, and a resource hint
+  // reaches the network outside the policy. So no frame or hint ever enters the document, by any insertion or HTML-parsing API.
+  const FRAMES = 'iframe, frame, frameset, object, embed, portal, fencedframe'
+  const HINT = /(?:^|\s)(?:dns-prefetch|preconnect|prefetch|prerender)(?:\s|$)/i
+  const blocked = () => new DOMException('E_PLUGIN_FRAME_BLOCKED', 'NotSupportedError')
+  const refused = (el) =>
+    el.matches(FRAMES) || (el.localName === 'link' && HINT.test(el.getAttribute('rel') ?? ''))
+  const refusedIn = (node) =>
+    node instanceof Node &&
+    ((node.nodeType === Node.ELEMENT_NODE && refused(node)) ||
+      (typeof node.querySelectorAll === 'function' &&
+        Array.from(node.querySelectorAll(`${FRAMES}, link`)).some(refused)))
+  const guard = (proto, name, check) => {
+    const original = proto && Object.getOwnPropertyDescriptor(proto, name)
+    if (!original || typeof original.value !== 'function') return
+    Object.defineProperty(proto, name, {
+      ...original,
+      value: function (...args) {
+        if (check(args)) throw blocked()
+        return original.value.apply(this, args)
+      },
+    })
+  }
+  const anyNode = (args) => args.some(refusedIn)
+  for (const name of ['appendChild', 'insertBefore', 'replaceChild']) {
+    guard(Node.prototype, name, anyNode)
+  }
+  for (const proto of [Element.prototype, Document.prototype, DocumentFragment.prototype]) {
+    for (const name of ['append', 'prepend', 'replaceChildren', 'moveBefore']) {
+      guard(proto, name, anyNode)
+    }
+  }
+  for (const proto of [Element.prototype, CharacterData.prototype, DocumentType.prototype]) {
+    for (const name of ['before', 'after', 'replaceWith']) guard(proto, name, anyNode)
+  }
+  guard(Element.prototype, 'insertAdjacentElement', anyNode)
+  guard(Range.prototype, 'insertNode', anyNode)
+  guard(Range.prototype, 'surroundContents', anyNode)
+
+  const template = document.createElement('template')
+  const innerHTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML')
+  const parsesRefused = (html) => {
+    innerHTML.set.call(template, String(html))
+    const found = refusedIn(template.content)
+    innerHTML.set.call(template, '')
+    return found
+  }
+  // Parsing in place can differ from parsing in a template, so the result is checked too, before any script can see it.
+  const checkedHtml = (proto, name, scope) => {
+    const original = Object.getOwnPropertyDescriptor(proto, name)
+    if (!original) return
+    const run = function (call, html) {
+      if (parsesRefused(html)) throw blocked()
+      const area = scope(this)
+      const result = call()
+      if (area && refusedIn(area)) {
+        for (const el of area.querySelectorAll(`${FRAMES}, link`)) if (refused(el)) el.remove()
+        throw blocked()
+      }
+      return result
+    }
+    if (original.set) {
+      Object.defineProperty(proto, name, {
+        ...original,
+        set(html) {
+          run.call(this, () => original.set.call(this, html), html)
+        },
+      })
+    } else if (typeof original.value === 'function') {
+      Object.defineProperty(proto, name, {
+        ...original,
+        value: function (...args) {
+          return run.call(this, () => original.value.apply(this, args), args[args.length - 1])
+        },
+      })
+    }
+  }
+  checkedHtml(Element.prototype, 'innerHTML', (el) => el)
+  checkedHtml(Element.prototype, 'outerHTML', (el) => el.parentNode)
+  checkedHtml(Element.prototype, 'insertAdjacentHTML', (el) => el.parentNode ?? el)
+
+  const refuse = (proto, name) => {
+    if (proto && Object.hasOwn(proto, name)) {
+      Object.defineProperty(proto, name, {
+        configurable: false,
+        writable: false,
+        value: () => {
+          throw blocked()
+        },
+      })
+    }
+  }
+  for (const name of ['write', 'writeln', 'open', 'execCommand']) refuse(Document.prototype, name)
+  for (const name of ['setHTML', 'setHTMLUnsafe', 'attachShadow']) refuse(Element.prototype, name)
+  for (const name of ['parseHTML', 'parseHTMLUnsafe']) refuse(Document, name)
+  if (typeof ShadowRoot === 'function') {
+    for (const name of ['setHTML', 'setHTMLUnsafe']) refuse(ShadowRoot.prototype, name)
+  }
+  for (const kind of [
+    'HTMLIFrameElement',
+    'HTMLFrameElement',
+    'HTMLObjectElement',
+    'HTMLEmbedElement',
+  ]) {
+    const proto = globalThis[kind]?.prototype
+    if (!proto) continue
+    for (const name of ['contentWindow', 'contentDocument']) {
+      if (Object.hasOwn(proto, name)) {
+        Object.defineProperty(proto, name, { configurable: false, get: () => null })
+      }
+    }
+    refuse(proto, 'getSVGDocument')
+  }
+  // A change no guard sees (a link's `rel` set later, a paste): removed before the next task, when a hint or frame would start.
+  new MutationObserver((records) => {
+    for (const record of records) {
+      const nodes = record.type === 'attributes' ? [record.target] : record.addedNodes
+      for (const node of nodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue
+        if (refused(node)) node.remove()
+        else for (const el of node.querySelectorAll(`${FRAMES}, link`)) if (refused(el)) el.remove()
+      }
+    }
+  }).observe(document, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['rel'],
+  })
 
   const VERSION = 1
   const queued = []

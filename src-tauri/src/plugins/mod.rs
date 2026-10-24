@@ -430,6 +430,20 @@ fn read_text(path: &Path) -> Result<PickedFile, &'static str> {
     Ok(PickedFile { name, text })
 }
 
+fn read_picked(paths: &[PathBuf]) -> Result<Vec<PickedFile>, &'static str> {
+    if paths.len() > IMPORT_FILES_MAX {
+        return Err("E_PLUGIN_IMPORT_TOO_MANY");
+    }
+    paths.iter().map(|p| read_text(p)).collect()
+}
+
+fn check_export(title: &str, text: &str) -> Result<(), &'static str> {
+    if text.len() > EXPORT_CHARS_MAX || title.chars().count() > TITLE_CHARS_MAX {
+        return Err("E_PLUGIN_EXPORT_TOO_LARGE");
+    }
+    Ok(())
+}
+
 fn changed(app: &AppHandle) {
     if app.emit(CHANGED_EVENT, ()).is_err() {
         log::warn!("W_PLUGINS_CHANGED_EMIT_FAILED");
@@ -572,22 +586,12 @@ pub async fn plugin_import_pick(
     let Some(files) = answer.await.map_err(|_| "E_PLUGIN_IMPORT_UNREADABLE")? else {
         return Ok(None);
     };
-    if files.len() > IMPORT_FILES_MAX {
-        return Err("E_PLUGIN_IMPORT_TOO_MANY".into());
-    }
     let paths = files
         .into_iter()
         .map(|f| f.into_path())
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| "E_PLUGIN_IMPORT_UNREADABLE")?;
-    blocking(move || {
-        paths
-            .iter()
-            .map(|p| read_text(p))
-            .collect::<Result<_, _>>()
-            .map(Some)
-    })
-    .await
+    blocking(move || read_picked(&paths).map(Some)).await
 }
 
 /// True once saved; false when the user cancelled the panel.
@@ -608,9 +612,7 @@ pub async fn plugin_export_save(
         .iter()
         .find(|f| f.id == format)
         .ok_or(FORMAT_UNKNOWN)?;
-    if text.len() > EXPORT_CHARS_MAX || title.chars().count() > TITLE_CHARS_MAX {
-        return Err("E_PLUGIN_EXPORT_TOO_LARGE".into());
-    }
+    check_export(&title, &text)?;
     let (reply, answer) = tokio::sync::oneshot::channel();
     let dialog = window
         .dialog()
@@ -639,6 +641,74 @@ pub async fn plugin_export_save(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_a_picked_text_file_up_to_its_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let fine = dir.path().join("a.org");
+        std::fs::write(&fine, "* heading\n").unwrap();
+        let read = read_text(&fine).unwrap();
+        assert_eq!(
+            (read.name.as_str(), read.text.as_str()),
+            ("a.org", "* heading\n")
+        );
+
+        let exact = dir.path().join("exact.org");
+        std::fs::write(&exact, vec![b'a'; IMPORT_FILE_BYTES as usize]).unwrap();
+        assert_eq!(
+            read_text(&exact).unwrap().text.len() as u64,
+            IMPORT_FILE_BYTES
+        );
+
+        let large = dir.path().join("large.org");
+        std::fs::write(&large, vec![b'a'; IMPORT_FILE_BYTES as usize + 1]).unwrap();
+        assert_eq!(read_text(&large).err(), Some("E_PLUGIN_IMPORT_TOO_LARGE"));
+
+        let binary = dir.path().join("binary.org");
+        std::fs::write(&binary, [0x66, 0xff, 0xfe]).unwrap();
+        assert_eq!(read_text(&binary).err(), Some("E_PLUGIN_IMPORT_NOT_TEXT"));
+
+        assert_eq!(
+            read_text(&dir.path().join("gone.org")).err(),
+            Some("E_PLUGIN_IMPORT_UNREADABLE")
+        );
+    }
+
+    #[test]
+    fn refuses_more_picked_files_than_the_limit_and_fails_on_any_bad_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths: Vec<PathBuf> = (0..=IMPORT_FILES_MAX)
+            .map(|i| {
+                let path = dir.path().join(format!("{i}.org"));
+                std::fs::write(&path, "x").unwrap();
+                path
+            })
+            .collect();
+        assert_eq!(read_picked(&paths).err(), Some("E_PLUGIN_IMPORT_TOO_MANY"));
+        assert_eq!(
+            read_picked(&paths[..IMPORT_FILES_MAX]).unwrap().len(),
+            IMPORT_FILES_MAX
+        );
+
+        let binary = dir.path().join("binary.org");
+        std::fs::write(&binary, [0xff]).unwrap();
+        let mixed = [paths[0].clone(), binary];
+        assert_eq!(read_picked(&mixed).err(), Some("E_PLUGIN_IMPORT_NOT_TEXT"));
+    }
+
+    #[test]
+    fn refuses_an_export_past_its_size_or_title_limit() {
+        let text = "a".repeat(EXPORT_CHARS_MAX);
+        assert_eq!(check_export("Plan", &text), Ok(()));
+        let longer = "a".repeat(EXPORT_CHARS_MAX + 1);
+        assert_eq!(
+            check_export("Plan", &longer),
+            Err("E_PLUGIN_EXPORT_TOO_LARGE")
+        );
+        let title = "t".repeat(TITLE_CHARS_MAX + 1);
+        assert_eq!(check_export(&title, "x"), Err("E_PLUGIN_EXPORT_TOO_LARGE"));
+        assert_eq!(check_export(&"t".repeat(TITLE_CHARS_MAX), "x"), Ok(()));
+    }
 
     const MANIFEST: &str = r#"{"id":"com.example.hello","name":"Hello","version":"1.0.0","apiVersion":1,"main":"main.js","permissions":["commands","import"],"contributes":{"commands":[{"id":"hi","title":"Say Hi"}],"importFormats":[{"id":"org","title":"Org","extensions":["org"]}]}}"#;
 

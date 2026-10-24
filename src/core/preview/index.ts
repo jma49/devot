@@ -52,7 +52,14 @@ const schema: Schema = {
   },
 }
 
-const remark = () =>
+/** A plugin has no network permission, so its answer loads nothing remote: images only from data:, blob: and devot:, links only to notes, no frames. */
+const pluginSchema: Schema = {
+  ...schema,
+  tagNames: (schema.tagNames ?? []).filter((name) => name !== 'iframe'),
+  protocols: { ...schema.protocols, href: ['devot'], src: ['data', 'blob', 'devot'] },
+}
+
+const remark = (sanitize: Schema = schema) =>
   unified()
     .use(remarkParse)
     .use(remarkGfm)
@@ -60,11 +67,12 @@ const remark = () =>
     // Front matter is shown by the `devot.frontmatter` renderer, not as text.
     .use(remarkRehype, { allowDangerousHtml: true, handlers: { yaml: () => undefined } })
     .use(rehypeRaw)
-    .use(rehypeSanitize, schema)
+    .use(rehypeSanitize, sanitize)
 
 const processor = remark().use(remarkFrontmatter, ['yaml']).freeze()
 /** For the pieces after a note's first: front matter only opens a note. */
 const bodyProcessor = remark().freeze()
+const pluginProcessor = remark(pluginSchema).freeze()
 
 export function createPreviewRegistry(
   options: {
@@ -78,7 +86,7 @@ export function createPreviewRegistry(
   // A plugin's answer is rendered like note text, by the built-in renderers alone; its headings are named with the note's.
   const inner = builtins.filter((r) => r !== headingIds)
   const toNodes: MarkdownNodes = async (markdown, context) =>
-    (await transformed(bodyProcessor, markdown, context, inner)).children
+    (await transformed(pluginProcessor, markdown, context, inner)).children
   return createRegistry([createPluginRenderer(plugins.specs, plugins.render, toNodes), ...builtins])
 }
 
@@ -172,7 +180,6 @@ interface Rendered {
 
 /** Elements carrying a source line, and those carrying an offset into the note. */
 export const PIECE_LINE_PROPERTY = 'dataSourceLine'
-export const PIECE_OFFSET_PROPERTIES = ['dataTaskAt', 'dataImageFrom', 'dataImageTo'] as const
 
 function textOf(node: RootContent): string {
   if (node.type === 'text') return node.value
