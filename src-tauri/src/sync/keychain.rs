@@ -17,6 +17,10 @@ pub(crate) trait SecretStore {
 /// vault. Items never sync through iCloud; on iOS they open after the first unlock and stay on the
 /// device (never in a backup). Elsewhere the keychain is unavailable.
 pub(crate) struct Keychain {
+    #[cfg_attr(
+        all(not(test), not(any(target_os = "macos", target_os = "ios"))),
+        expect(dead_code, reason = "only the Security framework reads it")
+    )]
     service: String,
 }
 

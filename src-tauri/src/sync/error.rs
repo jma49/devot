@@ -11,6 +11,10 @@ pub(crate) enum SyncError {
     ChunkAuth,
     Random,
     /// The Security framework's `OSStatus`.
+    #[cfg_attr(
+        all(not(test), not(any(target_os = "macos", target_os = "ios"))),
+        expect(dead_code, reason = "only the Security framework reports a status")
+    )]
     Keychain(i32),
     #[cfg(not(any(target_os = "macos", target_os = "ios")))]
     KeychainUnavailable,
