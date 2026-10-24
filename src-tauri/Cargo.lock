@@ -752,6 +752,7 @@ dependencies = [
  "rusqlite",
  "rust-ini",
  "rustix",
+ "security-framework",
  "sentry",
  "serde",
  "serde_json",

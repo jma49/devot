@@ -4,6 +4,7 @@
 export * from './activity'
 export * from './batch'
 export * from './ai'
+export * from './aiProvider'
 export * from './books'
 export * from './capture'
 export * from './codeMeta'

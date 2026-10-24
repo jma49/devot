@@ -81,6 +81,7 @@
     "settings.codeFont": "chevron.left.forwardslash.chevron.right",
     "settings.keyboard": "keyboard",
     "settings.mirror": "folder",
+    "settings.ai": "sparkles",
     "settings.integrations": "puzzlepiece.extension",
     "settings.terminal": "terminal",
     "settings.configFile": "doc.text",
