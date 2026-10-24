@@ -1,0 +1,15 @@
+/* An opaque window: the editor's wash lies over the window surface, as in the main window with
+   Translucent Window off. */
+.note-window {
+  background: var(--color-surface-window);
+}
+
+.note-window .content {
+  min-width: 0;
+}
+
+.note-window-failure {
+  margin: var(--space-9);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+}

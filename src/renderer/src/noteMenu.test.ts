@@ -15,7 +15,7 @@ const ID = '0192a6f0-0000-7000-8000-00000000000a'
 type Keys = Parameters<typeof noteShortcut>[0]
 const key = (code: string, mods: Partial<Keys> = {}): Keys => ({
   code,
-  key: code === 'Backspace' ? 'Backspace' : code.replace('Key', '').toLowerCase(),
+  key: code === 'Backspace' || code === 'Enter' ? code : code.replace('Key', '').toLowerCase(),
   metaKey: false,
   ctrlKey: false,
   altKey: false,
@@ -35,6 +35,7 @@ describe('noteShortcut', () => {
       [key('Backspace', { metaKey: true }), 'trash'],
       [key('KeyY', { metaKey: true, altKey: true }), 'history'],
       [key('KeyP', { metaKey: true, shiftKey: true }), 'print'],
+      [key('Enter', { shiftKey: true }), 'openWindow'],
     ]
     for (const [event, action] of cases) expect(noteShortcut(event)).toBe(action)
   })
@@ -68,7 +69,8 @@ describe('noteShortcut', () => {
     )
     for (const [action, accelerator] of shown) {
       const parts = accelerator.split('+')
-      const code = parts.at(-1) === 'Backspace' ? 'Backspace' : `Key${parts.at(-1)}`
+      const last = parts.at(-1)
+      const code = last === 'Backspace' || last === 'Enter' ? last : `Key${last}`
       const event = key(code, {
         metaKey: parts.includes('CmdOrCtrl'),
         shiftKey: parts.includes('Shift'),
@@ -98,6 +100,7 @@ describe('NOTE_MENU', () => {
   it('groups the items for one note; of the export items only Print has a shortcut', () => {
     const one = target([ID])
     expect(shown(one)).toEqual([
+      ['openWindow'],
       ['move', 'history'],
       ['duplicate', 'pin'],
       ['copyLink', 'copyUri', 'copyId'],
@@ -110,6 +113,9 @@ describe('NOTE_MENU', () => {
         .filter((item) => !item.accelerator)
         .map((item) => item.action),
     ).toEqual(['copyId', 'exportHtml', 'copyHtml', 'copySimpleHtml', 'exportMarkdown', 'exportPdf'])
+    expect(NOTE_MENU.flat().find((item) => item.action === 'openWindow')?.accelerator).toBe(
+      'Shift+Enter',
+    )
     expect(NOTE_MENU.flat().find((item) => item.action === 'print')?.accelerator).toBe(
       'Shift+CmdOrCtrl+P',
     )
@@ -167,6 +173,12 @@ describe('NOTE_MENU', () => {
 
   it('offers Remove Tag only when one of the notes has a tag', () => {
     expect(shown(target([ID, 'b'], { tagged: false }))[2]).toEqual(['status', 'addTag'])
+  })
+
+  it('opens one note in a window of its own, never a template', () => {
+    expect(shown(target([ID])).flat()).toContain('openWindow')
+    expect(shown(target([ID], { templates: true })).flat()).not.toContain('openWindow')
+    expect(shown(target([ID, 'b'])).flat()).not.toContain('openWindow')
   })
 
   it('offers no status or tags for several templates', () => {

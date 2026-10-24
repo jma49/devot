@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-note-window-close-cancel"
+description = "Enables the note_window_close_cancel command without any pre-configured scope."
+commands.allow = ["note_window_close_cancel"]
+
+[[permission]]
+identifier = "deny-note-window-close-cancel"
+description = "Denies the note_window_close_cancel command without any pre-configured scope."
+commands.deny = ["note_window_close_cancel"]

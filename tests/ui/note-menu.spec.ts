@@ -86,6 +86,8 @@ test('right-click shows the native note menu, grouped, with its shortcuts', asyn
   await createNote(page, 'Plan')
   await openMenu(page, 'Plan')
   expect(await shownMenu(page)).toEqual([
+    'Open in New Window Shift+Enter',
+    '---',
     'Move to Notebook… M',
     'Revision History… Alt+CmdOrCtrl+Y',
     '---',

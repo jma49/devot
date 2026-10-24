@@ -6,8 +6,12 @@
 //! When a note could not be saved the UI may call the quit off (`app_exit_cancel`); a later quit
 //! asks again. In menu bar mode closing the main window hides it instead (`menu_bar`), so the app
 //! and its unsaved edits stay; a quit from the menu bar icon runs this handshake too.
+//! Every window with a core of its own (the main window, each note window: `note_relay::may_relay`) saves,
+//! and the app exits once all of them have reported back.
 
 use crate::MAIN_WINDOW;
+use std::collections::HashSet;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Env, Manager, RunEvent, Window, WindowEvent};
@@ -22,19 +26,34 @@ pub struct ExitGate {
     /// The round of the quit held while the UI saves (rounds count from 1), or 0 when none is.
     held: AtomicU64,
     rounds: AtomicU64,
+    /// The windows the held quit waits for.
+    waiting: Mutex<HashSet<String>>,
 }
 
 impl ExitGate {
-    /// Holds a quit while the UI saves: its round, or None when one is held already or the app is exiting.
-    fn begin(&self) -> Option<u64> {
+    /// Holds a quit while the windows in `savers` save: its round, or None when one is held already or the app is exiting.
+    fn begin(&self, savers: HashSet<String>) -> Option<u64> {
         if self.ready.load(Ordering::SeqCst) {
             return None;
         }
         let round = self.rounds.fetch_add(1, Ordering::SeqCst) + 1;
-        self.held
+        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        let begun = self
+            .held
             .compare_exchange(0, round, Ordering::SeqCst, Ordering::SeqCst)
-            .ok()
-            .map(|_| round)
+            .is_ok();
+        if !begun {
+            return None;
+        }
+        *waiting = savers;
+        Some(round)
+    }
+
+    /// `label` has saved (or is gone): whether the held quit waits for no window now.
+    fn saved(&self, label: &str) -> bool {
+        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        waiting.remove(label);
+        self.asked() && waiting.is_empty()
     }
 
     fn asked(&self) -> bool {
@@ -46,6 +65,8 @@ impl ExitGate {
     }
 
     fn call_off(&self) {
+        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        waiting.clear();
         self.held.store(0, Ordering::SeqCst);
     }
 
@@ -70,6 +91,10 @@ fn decide(exit_code: Option<i32>, ready: bool, already_asked: bool) -> Decision 
 }
 
 fn exit_now(app: &AppHandle) {
+    #[cfg(desktop)]
+    if let Some(windows) = app.try_state::<crate::note_window::NoteWindows>() {
+        windows.persist();
+    }
     let gate = app.state::<ExitGate>();
     // Restart to Update restarts into the update it installed (see `updates`).
     #[cfg(desktop)]
@@ -88,6 +113,12 @@ pub fn quitting(app: &AppHandle) -> bool {
         .is_some_and(|gate| gate.quitting())
 }
 
+/// Once the windows have saved and the app is on its way out.
+pub fn exiting(app: &AppHandle) -> bool {
+    app.try_state::<ExitGate>()
+        .is_some_and(|gate| gate.ready.load(Ordering::SeqCst))
+}
+
 /// Tauri's own restart passes on every argument this process was launched with, and a launch
 /// from the `devot` command carries the files it handed over (`cli::handoff_args`): they would be
 /// imported again after each update (#274).
@@ -102,10 +133,16 @@ fn restart(app: &AppHandle) -> ! {
 }
 
 pub fn request_quit(app: &AppHandle) {
-    let Some(round) = app.state::<ExitGate>().begin() else {
+    let savers: HashSet<String> = app
+        .webview_windows()
+        .into_keys()
+        .filter(|label| crate::note_relay::may_relay(label))
+        .collect();
+    let none = savers.is_empty();
+    let Some(round) = app.state::<ExitGate>().begin(savers) else {
         return;
     };
-    if app.emit(FLUSH_EVENT, ()).is_err() {
+    if none || app.emit(FLUSH_EVENT, ()).is_err() {
         exit_now(app);
         return;
     }
@@ -135,13 +172,20 @@ fn on_close(label: &str, keep_running: bool) -> OnClose {
 }
 
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
-    let WindowEvent::CloseRequested { api, .. } = event else {
-        return;
-    };
     let app = window.app_handle();
     if app.state::<ExitGate>().ready.load(Ordering::SeqCst) {
         return;
     }
+    if matches!(event, WindowEvent::Destroyed) {
+        // A window that closed while the quit waited has nothing left to save.
+        if app.state::<ExitGate>().saved(window.label()) {
+            exit_now(app);
+        }
+        return;
+    }
+    let WindowEvent::CloseRequested { api, .. } = event else {
+        return;
+    };
     #[cfg(desktop)]
     let keep_running = crate::menu_bar::keeps_running(app);
     #[cfg(mobile)]
@@ -182,9 +226,18 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
     }
 }
 
+/// A window saved for the quit; the app exits once every window has.
 #[tauri::command]
-pub fn app_exit_ready(app: AppHandle) {
-    exit_now(&app);
+pub fn app_exit_ready(app: AppHandle, window: tauri::WebviewWindow) {
+    let gate = app.state::<ExitGate>();
+    if !gate.asked() {
+        // Late, for a quit called off since.
+        log::warn!("W_EXIT_READY_UNASKED");
+        return;
+    }
+    if gate.saved(window.label()) {
+        exit_now(&app);
+    }
 }
 
 #[tauri::command]
@@ -208,6 +261,35 @@ mod tests {
     use std::task::{Context, Waker};
     use std::time::Instant;
     use tauri::async_runtime::block_on;
+
+    fn savers(labels: &[&str]) -> HashSet<String> {
+        labels.iter().map(|l| (*l).to_owned()).collect()
+    }
+
+    #[test]
+    fn exits_once_every_window_that_saves_has_saved_or_closed() {
+        let gate = ExitGate::default();
+        let note = crate::note_window::label_for("0192a6f0-0000-7000-8000-000000000001");
+        gate.begin(savers(&["main", &note])).unwrap();
+        assert!(!gate.saved("main"), "the note window has not saved yet");
+        assert!(!gate.saved("main"), "saving twice counts once");
+        assert!(gate.saved(&note));
+        let gate = ExitGate::default();
+        gate.begin(savers(&["main", &note])).unwrap();
+        assert!(!gate.saved(&note));
+        assert!(gate.saved("main"));
+    }
+
+    #[test]
+    fn a_window_saving_for_a_called_off_quit_exits_nothing() {
+        let gate = ExitGate::default();
+        gate.begin(savers(&["main", "note-x"])).unwrap();
+        gate.call_off();
+        assert!(!gate.saved("note-x"));
+        assert!(!gate.saved("main"));
+        gate.begin(savers(&["main"])).unwrap();
+        assert!(gate.saved("main"));
+    }
 
     #[test]
     fn holds_the_first_user_quit_and_asks_the_ui_to_save() {
@@ -243,9 +325,11 @@ mod tests {
     #[test]
     fn a_called_off_quit_keeps_the_app_running_and_a_later_quit_asks_again() {
         let gate = ExitGate::default();
-        let first = gate.begin().expect("the first quit asks the UI");
+        let first = gate
+            .begin(savers(&["main"]))
+            .expect("the first quit asks the UI");
         assert!(gate.asked());
-        assert_eq!(gate.begin(), None, "one quit at a time");
+        assert_eq!(gate.begin(savers(&["main"])), None, "one quit at a time");
         assert!(gate.timed_out(first));
         gate.call_off();
         assert!(!gate.asked());
@@ -253,7 +337,9 @@ mod tests {
             !gate.timed_out(first),
             "the timeout of a called-off quit does nothing"
         );
-        let second = gate.begin().expect("a later quit asks again");
+        let second = gate
+            .begin(savers(&["main"]))
+            .expect("a later quit asks again");
         assert!(!gate.timed_out(first));
         assert!(gate.timed_out(second));
     }
@@ -261,10 +347,10 @@ mod tests {
     #[test]
     fn nothing_asks_or_times_out_once_the_ui_has_saved() {
         let gate = ExitGate::default();
-        let round = gate.begin().unwrap();
+        let round = gate.begin(savers(&["main"])).unwrap();
         gate.ready.store(true, Ordering::SeqCst);
         assert!(!gate.timed_out(round));
-        assert_eq!(gate.begin(), None);
+        assert_eq!(gate.begin(savers(&["main"])), None);
     }
 
     #[test]
@@ -293,7 +379,7 @@ mod tests {
     fn quitting_lasts_from_a_quit_request_until_it_is_called_off_or_the_app_exits() {
         let gate = ExitGate::default();
         assert!(!gate.quitting());
-        gate.begin().unwrap();
+        gate.begin(savers(&["main"])).unwrap();
         assert!(gate.quitting());
         gate.call_off();
         assert!(!gate.quitting());
@@ -365,7 +451,7 @@ mod tests {
         );
 
         let asked = Instant::now();
-        gate.begin().expect("a quit request");
+        gate.begin(savers(&["main"])).expect("a quit request");
         block_on(save).unwrap();
         assert!(
             asked.elapsed() < FLUSH_TIMEOUT,

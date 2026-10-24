@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-note-relay-send"
+description = "Enables the note_relay_send command without any pre-configured scope."
+commands.allow = ["note_relay_send"]
+
+[[permission]]
+identifier = "deny-note-relay-send"
+description = "Denies the note_relay_send command without any pre-configured scope."
+commands.deny = ["note_relay_send"]

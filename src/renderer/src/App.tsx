@@ -8,6 +8,7 @@ import type {
   SaveProblem,
   TagColor,
   TagRecord,
+  TakenIn,
   TrashedNote,
 } from '../../core'
 // Imported directly, not via the core index, to keep the preview pipeline out of the main bundle.
@@ -151,6 +152,7 @@ import {
   useEditorSetting,
 } from './editorSettings'
 import { ModeControl, type Mode } from './ModeControl'
+import { MAIN_WINDOW, relayGate, relayLink } from './noteRelay'
 import { NoteList } from './NoteList'
 import {
   homeOf,
@@ -489,6 +491,10 @@ export function App() {
   const [editorFind, setEditorFind] = useState<FindTarget | null>(null)
   const [previewFind, setPreviewFind] = useState<FindTarget | null>(null)
   const editorRef = useRef<EditorHandle | null>(null)
+  // What this window's core says to the note windows, and hears from them (noteRelay.ts).
+  const [relay] = useState(() => ({ link: relayLink(MAIN_WINDOW), gate: relayGate(false) }))
+  const shownNote = useRef<string | undefined>(undefined)
+  shownNote.current = selected
   const sidebarMenus = useRef<SidebarMenus | null>(null)
   // Split mode keeps editor and preview at the same line unless synced scrolling is off (an editor setting).
   const syncScroll = useEditorSetting('syncScroll')
@@ -901,6 +907,8 @@ export function App() {
     () => new Map([...notes, ...templates, ...trashRows].map((n) => [n.id, n])),
     [notes, templates, trashRows],
   )
+  const knownNotes = useRef(noteById)
+  knownNotes.current = noteById
   const selectedNotes = useMemo(
     () => multiIds?.flatMap((id) => noteById.get(id) ?? []) ?? [],
     [multiIds, noteById],
@@ -910,10 +918,24 @@ export function App() {
     console.error(code)
     setCoreFailure(code)
   }, [])
+  // Another window's change, or one the core merged in on saving: the editor and title field take it.
+  const takeIn = useCallback((change: TakenIn) => {
+    if (change.kind === 'title') {
+      if (shownNote.current === change.noteId) setTitle(change.title)
+      return
+    }
+    const editor = editorRef.current
+    if (editor?.noteId === change.noteId) editor.takeState(change.update)
+  }, [])
   useEffect(() => {
     let alive = true
     let started: Core | undefined
-    void startCore(onSaveProblems, showWrites, onCoreFailure)
+    void startCore(onSaveProblems, showWrites, onCoreFailure, {
+      onRelay: (message) => {
+        if (relay.gate.allows(message)) relay.link.send(message)
+      },
+      onTakenIn: takeIn,
+    })
       .then(async (c) => {
         started = c
         if (!alive) return
@@ -943,7 +965,7 @@ export function App() {
     return () => {
       alive = false
     }
-  }, [refresh, nextSheet, onSaveProblems, showWrites, onCoreFailure, startAttempt])
+  }, [refresh, nextSheet, onSaveProblems, showWrites, onCoreFailure, takeIn, relay, startAttempt])
   const retryStart = () => {
     setStartFailure(undefined)
     setStartAttempt((n) => n + 1)
@@ -1842,6 +1864,14 @@ export function App() {
     await refresh(core)
   }
 
+  /** Saves first, so the note window reads what this window shows. */
+  const openNoteWindow = async (id: string) => {
+    if (core) await saveEdits(core)
+    await invoke('note_window_open', { id }).catch((e: unknown) => {
+      console.warn('W_NOTE_WINDOW_OPEN_FAILED', id, errorCode(e))
+    })
+  }
+
   const closeNote = async () => {
     if (core) await saveEdits(core)
     setMulti(undefined)
@@ -1870,18 +1900,39 @@ export function App() {
 
   const typedTitle = useRef<{ id: string; title: string }>(undefined)
   const typedTitleTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const retitleListed = useCallback((id: string, named: string) => {
+    setNotes((list) => retitled(list, id, named))
+    setTemplates((list) => retitled(list, id, named))
+    setResults((shown) => {
+      const found = shown && retitled(shown.found, id, named)
+      return shown && found !== shown.found ? { ...shown, found: found! } : shown
+    })
+  }, [])
   const listTypedTitle = useCallback(() => {
     clearTimeout(typedTitleTimer.current)
     const typed = typedTitle.current
     typedTitle.current = undefined
-    if (!typed) return
-    setNotes((list) => retitled(list, typed.id, typed.title))
-    setTemplates((list) => retitled(list, typed.id, typed.title))
-    setResults((shown) => {
-      const found = shown && retitled(shown.found, typed.id, typed.title)
-      return shown && found !== shown.found ? { ...shown, found: found! } : shown
+    if (typed) retitleListed(typed.id, typed.title)
+  }, [retitleListed])
+  // A note window's changes: its core takes them in, and the lists show its saves and titles.
+  useEffect(() => {
+    if (!core) return
+    return relay.link.listen((message) => {
+      relay.gate.heard(message.noteId)
+      void core.relayIn(message).catch((e: unknown) => {
+        console.warn('W_NOTE_RELAY_IN_FAILED', message.noteId, errorCode(e))
+      })
+      if (message.kind === 'saved') {
+        // A note made there (a `[[` link to a new note) is not listed yet.
+        if (knownNotes.current.has(message.noteId)) {
+          showWrites(new Map([[message.noteId, message.updatedAt]]))
+        } else void refresh(core).catch(() => {})
+        void core.mirrorTouch()
+      } else if (message.kind === 'title') {
+        retitleListed(message.noteId, message.title)
+      }
     })
-  }, [])
+  }, [core, relay, showWrites, retitleListed, refresh])
   useEffect(() => () => clearTimeout(typedTitleTimer.current), [])
   const rename = (next: string) => {
     if (!core || !selected) return
@@ -2041,6 +2092,7 @@ export function App() {
     selection: inTrash ? undefined : multiIds,
     duplicate,
     history: showHistory,
+    openWindow: openNoteWindow,
     exportNote,
     exportNotes,
     copyFailed: (failure, code) => setExportNotice({ failure, code }),
@@ -2403,6 +2455,7 @@ export function App() {
     const id = openNote.id
     for (const [action, commandId] of Object.entries(NOTE_COMMANDS)) {
       if (SELECTION_ONLY.has(action as NoteAction)) continue
+      if (action === 'openWindow' && selectedIsTemplate) continue
       handlers[commandId] = {
         run: () => noteActions.run(action as NoteAction, id),
       }

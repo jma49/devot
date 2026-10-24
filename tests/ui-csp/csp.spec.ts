@@ -477,6 +477,25 @@ test('the quick capture window works under the policy', async ({ page }) => {
   expect(await violations(page)).toEqual([])
 })
 
+test('a note window edits and previews its note under the policy', async ({ page }) => {
+  await start(page)
+  await newNote(page, '# Plan\n\nText with $x^2$.')
+  const id = await page.evaluate(
+    () => (JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as { id: string }[])[0]?.id,
+  )
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('devot.test.notes')))
+    .toContain('x^2')
+  await page.addInitScript((noteId) => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = { note_window_note: noteId }
+  }, id)
+  await start(page, '/note.html')
+  await expect(page.getByRole('textbox', { name: 'Note body' })).toContainText('Text with')
+  await page.getByRole('button', { name: 'Split', exact: true }).click()
+  await expect(page.getByRole('article', { name: 'Preview' }).locator('math')).toHaveCount(1)
+  expect(await violations(page)).toEqual([])
+})
+
 test('the editor settings work under the policy in both windows', async ({ page }) => {
   await start(page, '/settings.html')
   await settingsTab(page, 'Editing').click()

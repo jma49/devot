@@ -13,7 +13,7 @@ import { TEMPLATES_BOOK_ID } from './books'
 import { foldUnchanged, lineDiff, textEdits, type DiffBlock } from './diff'
 import { errorCode } from './errors'
 import { headline, listExcerpt, taskProgress } from './extract'
-import { receiveStored, type Clock } from './hlc'
+import { formatHlc, parseHlc, receiveStored, type Clock } from './hlc'
 import { sha256Hex } from './sha256'
 import {
   AI_EDIT,
@@ -55,6 +55,7 @@ import { findBacklinks } from './links'
 import type { NoteLinkTarget } from './preview/registry'
 import { fileLinkSpans, newFileCopies, replaceFileLinks, type FileCopy } from './files'
 import { clipTitle, MAX_TITLE_CHARS } from './noteLimits'
+import type { NoteRelayMessage, TakenIn } from './noteRelay'
 import { lineFeeds } from './text'
 
 const MAX_LINK_TARGETS = 500
@@ -95,6 +96,10 @@ export interface NoteServiceOptions {
   onSaveProblems?: (problems: SaveProblem[]) => void
   /** On by default. devot-mcp turns it off: its writes hold the database write lock and its time zone may differ from the app's. */
   compact?: boolean
+  /** Tells the cores of the app's other windows of every change to a note in memory, every write, and every note read in (see noteRelay.ts and receive). */
+  relay?: (message: NoteRelayMessage) => void
+  /** A note in memory took in a change it did not make: another window's (relayed), or one stored meanwhile (merged), for the editor and title field showing it. */
+  onTakenIn?: (change: TakenIn) => void
 }
 
 export interface NoteService {
@@ -194,6 +199,11 @@ export interface NoteService {
    */
   /** A note deleted for good meanwhile is let go; the others stay in memory (letting one go could lose an edit that has just loaded it). A note that cannot be read is left as it was. */
   mergeStored(): Promise<{ id: string; title: string }[]>
+  /**
+   * Takes in what another window's core relayed. A note not in memory ignores it: it is read from storage when used, and asks then for what
+   * the others hold beyond that. A change taken in is saved by the window that made it, which also keeps the versions of its own typing.
+   */
+  receive(message: NoteRelayMessage): Promise<void>
 }
 
 /** The end of the body when there is no position or it names another text. */
@@ -243,6 +253,9 @@ const MAX_RETRY_MS = 30_000
 const WRITE_TRIES = 5
 
 const isStale = (error: unknown) => errorCode(error) === 'E_NOTE_BODY_STALE'
+
+/** The origin of a change another window's core relayed, which is not relayed again. */
+const RELAYED = Symbol('relayed')
 
 const asWritten = (record: NoteRecord): NoteRecord => ({
   ...record,
@@ -296,12 +309,6 @@ const withNewer = (to: NoteRecord, from: NoteRecord): NoteRecord => ({
     ? { createdAt: from.createdAt, updatedAt: from.updatedAt, datesHlc: from.datesHlc ?? '' }
     : { updatedAt: Math.max(to.updatedAt, from.updatedAt) }),
 })
-
-const takeIn = (note: Live, stored: NoteRecord) => {
-  note.record = { ...withNewer(note.record, stored), bodyVersion: stored.bodyVersion }
-  note.saved = { ...withNewer(note.saved, stored), bodyVersion: stored.bodyVersion }
-  Y.applyUpdate(note.doc, stored.ydoc)
-}
 
 const holdsMore = (doc: Y.Doc, stored: NoteRecord) => {
   if (doc.getText(BODY).toString() !== stored.bodyMd) return true
@@ -376,28 +383,54 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     })
   }
 
-  const liveNote = (record: NoteRecord, doc: Y.Doc, fresh: boolean): Live => ({
-    record,
-    saved: record,
-    doc,
-    timer: undefined,
-    edits: 0,
-    savedEdits: 0,
-    queue: Promise.resolve(),
-    writes: 0,
-    users: 0,
-    retitled: false,
-    failures: 0,
-    retry: undefined,
-    rev: {
-      checked: fresh,
-      lastText: fresh ? '' : undefined,
-      pending: false,
-      pause: undefined,
-      every: undefined,
-      title: undefined,
-    },
-  })
+  const relay = (message: NoteRelayMessage) => {
+    try {
+      options.relay?.(message)
+    } catch {
+      console.warn('W_NOTE_RELAY_FAILED', message.noteId)
+    }
+  }
+
+  const relayChanges = (id: string, doc: Y.Doc) => {
+    if (!options.relay) return
+    doc.on('update', (update: Uint8Array, origin: unknown) => {
+      if (origin !== RELAYED) relay({ kind: 'update', noteId: id, data: update })
+    })
+  }
+
+  const tell = (change: TakenIn) => {
+    try {
+      options.onTakenIn?.(change)
+    } catch {
+      console.warn('W_NOTE_RELAY_FAILED', change.noteId)
+    }
+  }
+
+  const liveNote = (record: NoteRecord, doc: Y.Doc, fresh: boolean): Live => {
+    relayChanges(record.id, doc)
+    return {
+      record,
+      saved: record,
+      doc,
+      timer: undefined,
+      edits: 0,
+      savedEdits: 0,
+      queue: Promise.resolve(),
+      writes: 0,
+      users: 0,
+      retitled: false,
+      failures: 0,
+      retry: undefined,
+      rev: {
+        checked: fresh,
+        lastText: fresh ? '' : undefined,
+        pending: false,
+        pause: undefined,
+        every: undefined,
+        title: undefined,
+      },
+    }
+  }
 
   const stopTimers = (note: Live) => {
     clearTimeout(note.rev.pause)
@@ -641,6 +674,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       return note.record
     })
     if (!record) return
+    relay({ kind: 'saved', noteId: record.id, updatedAt: record.updatedAt })
     const written = asWritten(record)
     note.record = { ...note.record, bodyVersion: written.bodyVersion }
     const before = note.saved
@@ -733,6 +767,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           const note = liveNote(record, doc, false)
           note.users = pending.users
           live.set(id, note)
+          if (options.relay) relay({ kind: 'want', noteId: id, data: Y.encodeStateVector(doc) })
           return note
         } finally {
           loading.delete(id)
@@ -775,6 +810,46 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       takeVersion(note)
       drop(note)
       over -= 1
+    }
+  }
+
+  const retitle = (note: Live, title: string) => {
+    note.record = { ...note.record, title: clipTitle(title), titleHlc: clock.tick() }
+    schedule(note)
+    const { id, title: clipped, titleHlc } = note.record
+    relay({ kind: 'title', noteId: id, title: clipped, hlc: titleHlc })
+  }
+
+  /** A note in memory, or one being read in once it is; undefined when neither. */
+  const inMemory = async (id: string) => {
+    const note = live.get(id) ?? (await loading.get(id)?.note.catch(() => undefined))
+    return note && live.get(id) === note ? note : undefined
+  }
+
+  /** Applies a change this core did not make and tells the window what it changed; whether it changed anything. */
+  const takeOutside = (note: Live, update: Uint8Array, origin?: typeof RELAYED): boolean => {
+    const taken: Uint8Array[] = []
+    const collect = (change: Uint8Array) => taken.push(change)
+    note.doc.on('update', collect)
+    try {
+      Y.applyUpdate(note.doc, update, origin)
+    } finally {
+      note.doc.off('update', collect)
+    }
+    if (taken.length === 0) return false
+    const noteId = note.record.id
+    tell({ kind: 'update', noteId, update: taken.length === 1 ? taken[0]! : Y.mergeUpdates(taken) })
+    return true
+  }
+
+  /** Merges the stored copy in: a Yjs merge, and the newer HLC of each metadata field. */
+  const takeIn = (note: Live, stored: NoteRecord) => {
+    const title = note.record.title
+    note.record = { ...withNewer(note.record, stored), bodyVersion: stored.bodyVersion }
+    note.saved = { ...withNewer(note.saved, stored), bodyVersion: stored.bodyVersion }
+    takeOutside(note, stored.ydoc)
+    if (note.record.title !== title) {
+      tell({ kind: 'title', noteId: note.record.id, title: note.record.title })
     }
   }
 
@@ -882,6 +957,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       deletedHlc: null,
     }
     await storage.putNote(record)
+    relay({ kind: 'saved', noteId: id, updatedAt: at })
     live.set(id, liveNote(asWritten(record), doc, false))
     trim()
     if (copies.length === 0) return id
@@ -927,6 +1003,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         deletedHlc: null,
       }
       await storage.putNote(record)
+      relay({ kind: 'saved', noteId: record.id, updatedAt: at })
       live.set(record.id, liveNote(asWritten(record), doc, true))
       trim()
       return record.id
@@ -1045,10 +1122,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
     fill: (id, { title, markdown }) =>
       using(id, (note) => {
-        if (note.record.title === '' && title !== '') {
-          note.record = { ...note.record, title: clipTitle(title), titleHlc: clock.tick() }
-          schedule(note)
-        }
+        if (note.record.title === '' && title !== '') retitle(note, title)
         const text = note.doc.getText(BODY)
         const own = text.toString()
         if (own.trim() === '') return replaceBody(note, markdown)
@@ -1084,11 +1158,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       await revisionWork
     },
 
-    setTitle: (id, title) =>
-      using(id, (note) => {
-        note.record = { ...note.record, title: clipTitle(title), titleHlc: clock.tick() }
-        schedule(note)
-      }),
+    setTitle: (id, title) => using(id, (note) => retitle(note, title)),
 
     async setBook(id, bookId) {
       await requireBook(bookId)
@@ -1389,6 +1459,30 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         }
       }
       return retitled
+    },
+
+    async receive(message) {
+      if (message.kind === 'saved') return
+      const { noteId: id } = message
+      const note = await inMemory(id)
+      if (!note) return
+      try {
+        if (message.kind === 'want') {
+          relay({ kind: 'update', noteId: id, data: Y.encodeStateAsUpdate(note.doc, message.data) })
+        } else if (message.kind === 'update') {
+          // The window that made the change keeps the text from before it (see keepBaseline).
+          if (takeOutside(note, message.data, RELAYED)) note.rev.checked = true
+        } else if (formatHlc(parseHlc(message.hlc)) > note.record.titleHlc) {
+          receiveStored(clock, [message.hlc])
+          const title = clipTitle(message.title)
+          const titled = { title, titleHlc: message.hlc }
+          note.record = { ...note.record, ...titled }
+          note.saved = { ...note.saved, ...titled }
+          tell({ kind: 'title', noteId: id, title })
+        }
+      } catch {
+        console.warn('W_NOTE_RELAY_INVALID', id)
+      }
     },
   }
   return service

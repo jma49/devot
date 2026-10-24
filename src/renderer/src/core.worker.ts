@@ -43,8 +43,9 @@ import {
 } from '../../core'
 import { errorCode } from '../../core/errors'
 import { preparerOffThread } from './importWorker'
+import { fromWireRelay, toWireRelay, type RelayOut, type WireRelay } from './noteRelayWire'
 import type { SaveProblemsMessage } from './saving'
-import { fromWire, type WireStorage } from './storage/wire'
+import { fromBase64, fromWire, toBase64, type WireStorage } from './storage/wire'
 import { forwardWorkerLogs } from './workerLog'
 
 // The worker's own warnings, errors and uncaught failures go to the page,
@@ -84,8 +85,11 @@ const requiredTemplates = () => {
 }
 
 export const coreApi = {
-  /** Starts the core on `remote`, the page's storage: Yjs states are coded here, off the UI thread (wire.ts), and a wrapper tells the Markdown mirror of every write. Unsaved notes are sent to the page as a SaveProblemsMessage each time that list changes. */
-  async init(remote: WireStorage, node: string) {
+  /**
+   * Starts the core on `remote`, the page's storage: Yjs states are coded here, off the UI thread (wire.ts), and a wrapper tells the Markdown mirror of every write. Unsaved notes are sent to the page as a SaveProblemsMessage each time that list changes, and what the core relays to the other windows and takes in from them as a RelayOut.
+   * A note window's core leaves compaction and the notebooks' order to the main window's.
+   */
+  async init(remote: WireStorage, node: string, options: { noteWindow?: boolean } = {}) {
     const clock = createClock(node)
     const ids = createIdGenerator()
     newId = ids
@@ -100,6 +104,10 @@ export const coreApi = {
       // failed (see SaveProblemsMessage).
       onSaveProblems: (saveProblems) =>
         self.postMessage({ saveProblems } satisfies SaveProblemsMessage),
+      relay: (message) =>
+        self.postMessage({ noteRelay: toWireRelay(message, toBase64) } satisfies RelayOut),
+      onTakenIn: (takenIn) => self.postMessage({ takenIn } satisfies RelayOut),
+      compact: !options.noteWindow,
     })
     books = createBookService({ storage, clock, newId: ids })
     tags = createTagService({ storage, clock, newId: ids })
@@ -107,6 +115,7 @@ export const coreApi = {
     // Its own note service, as devot-mcp's: its writes reach the notes held
     // here as changes from outside (the page merges them, see httpApiHost).
     httpApi = createAiService({ storage, clock, newId: ids })
+    if (options.noteWindow) return
     // Notebooks from before sort keys get theirs, in the order they show.
     // On failure they keep showing in that order and the next start retries.
     await books
@@ -186,6 +195,8 @@ export const coreApi = {
     required().applyAiEdit(id, edit),
   activity: (now: number) => required().activity(now),
   mergeStored: () => required().mergeStored(),
+  /** What another window's core relayed (see NoteService.receive). */
+  relayIn: (message: WireRelay) => required().receive(fromWireRelay(message, fromBase64)),
   listWithTemplates: () => requiredTemplates().listWithNotes(),
   createTemplate: () => requiredTemplates().create(),
   /**

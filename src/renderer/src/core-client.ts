@@ -1,11 +1,12 @@
 import * as Comlink from 'comlink'
-import type { SaveProblem, StorageAdapter } from '../../core'
+import type { SaveProblem, StorageAdapter, TakenIn } from '../../core'
 import { newNodeId } from '../../core/hlc'
 import { connectCore, type Core } from './coreConnect'
 import { reportCode } from './crash'
 import { invoke } from './ipc'
 import type { LogEntry } from './log'
 import { reportingNoteWrites } from './noteWrites'
+import type { WireRelay } from './noteRelayWire'
 import { memoryStorage } from './storage/memory'
 import { tauriStorage, tauriWire } from './storage/tauri'
 import { toWire, type WireStorage } from './storage/wire'
@@ -38,19 +39,31 @@ function logFromWorker(entry: LogEntry) {
  * the note writes storage completes (see reportingNoteWrites), saves included.
  * Rejects with a code when the worker does not load or the core does not
  * start (see connectCore); `onFailure` hears of a worker that fails later.
+ * `windowed` carries what the core says to the other windows and takes in
+ * from them (noteRelay.ts); a note window's core does less (see init).
  */
 export async function startCore(
   onSaveProblems: (problems: SaveProblem[]) => void,
   onNoteWrites: (writes: ReadonlyMap<string, number>) => void = () => {},
   onFailure: (code: string) => void = () => {},
+  windowed: {
+    noteWindow?: boolean
+    onRelay?: (message: WireRelay) => void
+    onTakenIn?: (change: TakenIn) => void
+  } = {},
 ): Promise<Core> {
   const worker = new Worker(new URL('./core.worker.ts', import.meta.url), { type: 'module' })
   const core = await connectCore(worker, {
     // A node ID of this start's own, never kept in the web view's storage:
     // another build of the app shares that, and two processes must never
     // stamp a write alike.
-    start: (c) => c.init(Comlink.proxy(reportingNoteWrites(wire, onNoteWrites)), newNodeId()),
+    start: (c) =>
+      c.init(Comlink.proxy(reportingNoteWrites(wire, onNoteWrites)), newNodeId(), {
+        noteWindow: windowed.noteWindow ?? false,
+      }),
     onSaveProblems,
+    ...(windowed.onRelay ? { onRelay: windowed.onRelay } : {}),
+    ...(windowed.onTakenIn ? { onTakenIn: windowed.onTakenIn } : {}),
     onLog: logFromWorker,
     onFailure,
   })

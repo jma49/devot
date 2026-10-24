@@ -22,6 +22,7 @@ import {
   type ImportKind,
   type WelcomeContent,
 } from '../../src/core'
+import { windowsOn } from '../support/note-windows'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -151,6 +152,25 @@ describe('a note written on two devices merges with each change once', () => {
   it('editor typing on both', async () => {
     const { a, b, id } = await sharedNote()
     await type(a, id, ENDS)
+    expect(await merged(a, b, id)).toBe(ends(typedElsewhere(BASE)))
+  })
+
+  it('typing in two windows of the device, each with a core of its own', async () => {
+    const { a, b, id } = await sharedNote()
+    const app = windowsOn(a.storage, ['a2', 'a3'])
+    const [main, note] = app.windows
+    const editors = [await app.show(main!, id), await app.show(note!, id)]
+    await app.deliverAll()
+    ENDS.forEach(([from, to], i) => {
+      const text = editors[i]!.getText(BODY)
+      const at = text.toString().indexOf(from)
+      editors[i]!.transact(() => {
+        text.delete(at, from.length)
+        text.insert(at, to)
+      })
+    })
+    await app.settle()
+    await Promise.all([main!.notes.flush(), note!.notes.flush()])
     expect(await merged(a, b, id)).toBe(ends(typedElsewhere(BASE)))
   })
 

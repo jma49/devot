@@ -36,6 +36,7 @@ export function useNoteActions(deps: {
   selection: readonly string[] | undefined
   duplicate: (id: string) => Promise<void>
   history: (id: string) => Promise<void>
+  openWindow: (id: string) => Promise<void>
   move: (ids: readonly string[], bookId: string | null) => Promise<void>
   setPinned: (ids: readonly string[], pinned: boolean) => Promise<void>
   setStatus: (ids: readonly string[], status: NoteStatus) => Promise<void>
@@ -82,6 +83,8 @@ export function useNoteActions(deps: {
       return deps.setStatus(noteIds, action.slice('status:'.length) as NoteStatus)
     }
     switch (action as Exclude<NoteMenuAction, `status:${string}`>) {
+      case 'openWindow':
+        return many || first.bookId === TEMPLATES_BOOK_ID ? undefined : deps.openWindow(first.id)
       case 'move':
         return setMoving(noteIds)
       case 'duplicate':

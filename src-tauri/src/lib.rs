@@ -39,6 +39,8 @@ mod mirror;
 #[doc(hidden)]
 pub mod native;
 mod net;
+mod note_relay;
+mod note_window;
 pub mod page_setup;
 mod settings;
 mod sidebar_material;
@@ -211,6 +213,15 @@ pub fn run() {
             #[cfg(desktop)]
             updates::update_restart,
             deep_link::deep_link_take,
+            note_relay::note_relay_send,
+            #[cfg(desktop)]
+            note_window::note_window_open,
+            #[cfg(desktop)]
+            note_window::note_window_note,
+            #[cfg(desktop)]
+            note_window::note_window_close_ready,
+            #[cfg(desktop)]
+            note_window::note_window_close_cancel,
         ])
         .register_asynchronous_uri_scheme_protocol("devot", |ctx, request, responder| {
             commands::files::serve(ctx.app_handle(), request, responder)
@@ -224,6 +235,8 @@ pub fn run() {
         .on_page_load(deep_link::on_page_load)
         .on_window_event(|window, event| {
             exit::on_window_event(window, event);
+            #[cfg(desktop)]
+            note_window::on_window_event(window, event);
             deep_link::on_window_event(window, event);
             #[cfg(desktop)]
             updates::on_window_event(window, event);
@@ -282,6 +295,7 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         keyboard_shortcuts::KeyboardShortcutsStore::new(&data_dir.join(keyboard_shortcuts::FILE)),
     ));
     mirror::manage(app, data_dir);
+    app.manage(note_window::NoteWindows::new(data_dir));
     let now = std::time::SystemTime::now();
     export::sweep_pdf_folders(&data_dir.join(export::PDF_DIR), now);
     if let Ok(caches) = app.path().app_cache_dir() {

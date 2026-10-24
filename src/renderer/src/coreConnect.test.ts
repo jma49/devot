@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SaveProblem } from '../../core'
+import type { SaveProblem, TakenIn } from '../../core'
 import { connectCore, type CoreWorker } from './coreConnect'
 import type { LogEntry } from './log'
+import type { WireRelay } from './noteRelayWire'
 
 class FakeWorker extends EventTarget implements CoreWorker {
   terminated = false
@@ -95,5 +96,25 @@ describe('connectCore', () => {
     worker.send('message', { data: 'something else' })
     expect(onLog.mock.calls).toEqual([[entry]])
     expect(onSaveProblems.mock.calls).toEqual([[[{ id: NOTE_ID, code: 'E_STORAGE_FULL' }]]])
+  })
+
+  it('hands on what the core relays to the other windows and takes in from them', async () => {
+    const worker = new FakeWorker()
+    const onRelay = vi.fn<(message: WireRelay) => void>()
+    const onTakenIn = vi.fn<(change: TakenIn) => void>()
+    const core = connectCore(worker, {
+      wrap: () => ({}) as never,
+      start: async () => undefined,
+      ...handlers(),
+      onRelay,
+      onTakenIn,
+    })
+    await core
+    const relayed = { kind: 'want', noteId: NOTE_ID, data: 'AAA=' }
+    const taken = { kind: 'title', noteId: NOTE_ID, title: 'Plan' }
+    worker.send('message', { data: { noteRelay: relayed } })
+    worker.send('message', { data: { takenIn: taken } })
+    expect(onRelay.mock.calls).toEqual([[relayed]])
+    expect(onTakenIn.mock.calls).toEqual([[taken]])
   })
 })
