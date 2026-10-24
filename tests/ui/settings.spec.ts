@@ -180,6 +180,7 @@ test('a navigation column of panes on the left, General first', async ({ page })
     'Sync',
     'AI',
     'Integrations',
+    'Plugins',
     'Usage',
   ])
   await expect(tabs(page).locator('[data-symbol]')).toHaveCount(10)

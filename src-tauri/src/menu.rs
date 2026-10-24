@@ -395,6 +395,18 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .separator()
         .fullscreen()
         .build()?;
+    let plugin_settings =
+        MenuItemBuilder::with_id(crate::plugins::menu::SETTINGS_ID, strings::PLUGIN_SETTINGS)
+            .build(app)?;
+    let plugins = SubmenuBuilder::new(app, strings::MENU_PLUGINS)
+        .separator()
+        .item(&plugin_settings)
+        .build()?;
+    app.manage(crate::plugins::menu::PluginMenus::new(
+        plugins.clone(),
+        import.clone(),
+        export.clone(),
+    ));
     let window = SubmenuBuilder::new(app, strings::MENU_WINDOW)
         .minimize()
         .maximize()
@@ -410,10 +422,13 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .item(&diagnostics)
         .build()?;
     let menu = MenuBuilder::new(app)
-        .items(&[&app_menu, &file, &edit, &format, &view, &window, &help])
+        .items(&[
+            &app_menu, &file, &edit, &format, &view, &plugins, &window, &help,
+        ])
         .build()?;
     app.set_menu(menu)?;
     app.on_menu_event(on_menu_event);
+    crate::plugins::menu::refresh(app.handle());
     Ok(())
 }
 
@@ -483,7 +498,9 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
             Ok(_) => log::info!("I_DIAGNOSTICS_EXPORTED"),
             Err(code) => log::warn!("W_DIAGNOSTICS_EXPORT_FAILED {code}"),
         }
-    } else if !menu_bar::on_menu_event(app, event.id().as_ref()) {
+    } else if !crate::plugins::menu::on_menu_event(app, event.id().as_ref())
+        && !menu_bar::on_menu_event(app, event.id().as_ref())
+    {
         format_menu::on_menu_event(app, event.id().as_ref());
     }
 }

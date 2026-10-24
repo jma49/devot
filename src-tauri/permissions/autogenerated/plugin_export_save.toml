@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-plugin-export-save"
+description = "Enables the plugin_export_save command without any pre-configured scope."
+commands.allow = ["plugin_export_save"]
+
+[[permission]]
+identifier = "deny-plugin-export-save"
+description = "Denies the plugin_export_save command without any pre-configured scope."
+commands.deny = ["plugin_export_save"]

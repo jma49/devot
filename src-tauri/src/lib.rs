@@ -43,6 +43,7 @@ mod net;
 mod note_relay;
 mod note_window;
 pub mod page_setup;
+mod plugins;
 mod settings;
 mod sidebar_material;
 mod single_instance;
@@ -233,10 +234,22 @@ pub fn run() {
             note_window::note_window_close_ready,
             #[cfg(desktop)]
             note_window::note_window_close_cancel,
+            plugins::plugins_list,
+            plugins::plugin_install_pick,
+            plugins::plugin_install_confirm,
+            plugins::plugin_install_cancel,
+            plugins::plugin_set_enabled,
+            plugins::plugin_remove,
+            plugins::plugin_import_pick,
+            plugins::plugin_export_save,
         ])
         .register_asynchronous_uri_scheme_protocol("devot", |ctx, request, responder| {
             commands::files::serve(ctx.app_handle(), request, responder)
         })
+        .register_asynchronous_uri_scheme_protocol(
+            plugins::serve::SCHEME,
+            |ctx, request, responder| plugins::serve::serve(ctx.app_handle(), request, responder),
+        )
         // The folder panel for import; no window is granted its commands.
         .plugin(tauri_plugin_dialog::init())
         .manage(exit::ExitGate::default())
@@ -324,6 +337,9 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         sync_emitter(app.handle().clone()),
     )));
     app.manage(std::sync::Arc::new(fonts::Fonts::new(data_dir)));
+    let plugins = std::sync::Arc::new(plugins::Plugins::new(data_dir));
+    plugins.sweep();
+    app.manage(plugins);
     app.manage(std::sync::Arc::new(
         keyboard_shortcuts::KeyboardShortcutsStore::new(&data_dir.join(keyboard_shortcuts::FILE)),
     ));

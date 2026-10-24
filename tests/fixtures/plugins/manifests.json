@@ -1,0 +1,256 @@
+{
+  "about": "Plugin manifest cases run by src/core/plugins/manifest.test.ts and src-tauri/src/plugins/manifest.rs. Each case is the base with its patch's keys set on top (null removes a key).",
+  "base": {
+    "id": "com.example.word-count",
+    "name": "Word Count",
+    "version": "1.2.0",
+    "apiVersion": 1,
+    "description": "Counts words.",
+    "author": "Example",
+    "main": "main.js",
+    "permissions": ["note.read", "commands", "menus", "keymaps"],
+    "contributes": {
+      "commands": [{ "id": "count", "title": "Count Words" }],
+      "menus": [{ "command": "count" }],
+      "keymaps": [{ "command": "count", "key": "Mod+Shift+U" }]
+    }
+  },
+  "valid": [
+    { "name": "the base", "patch": {} },
+    {
+      "name": "no optional fields",
+      "patch": { "description": null, "author": null, "permissions": null, "contributes": null }
+    },
+    { "name": "a main script in a folder", "patch": { "main": "dist/plugin.min.js" } },
+    { "name": "a one-part id", "patch": { "id": "wordcount" } },
+    { "name": "unknown keys are left out", "patch": { "homepage": "https://example.com" } },
+    {
+      "name": "every contribution",
+      "patch": {
+        "permissions": [
+          "note.read",
+          "note.edit",
+          "commands",
+          "menus",
+          "keymaps",
+          "preview",
+          "import",
+          "export"
+        ],
+        "contributes": {
+          "commands": [
+            { "id": "count", "title": "Count Words" },
+            { "id": "upper-case", "title": "Upper Case" }
+          ],
+          "menus": [{ "command": "upper-case" }],
+          "keymaps": [{ "command": "count", "key": "Mod+Alt+ArrowUp" }],
+          "previewRenderers": [
+            { "id": "chart", "language": "chart" },
+            { "id": "csv", "language": "c++.csv" }
+          ],
+          "importFormats": [{ "id": "org", "title": "Org Files", "extensions": ["org", "txt"] }],
+          "exportFormats": [{ "id": "org", "title": "Org", "extension": "org" }]
+        }
+      }
+    }
+  ],
+  "invalid": [
+    { "name": "no id", "patch": { "id": null }, "code": "E_PLUGIN_ID_INVALID" },
+    {
+      "name": "an id with capitals",
+      "patch": { "id": "com.Example.x" },
+      "code": "E_PLUGIN_ID_INVALID"
+    },
+    {
+      "name": "an id with a slash",
+      "patch": { "id": "com/example" },
+      "code": "E_PLUGIN_ID_INVALID"
+    },
+    {
+      "name": "an id ending in a dot",
+      "patch": { "id": "com.example." },
+      "code": "E_PLUGIN_ID_INVALID"
+    },
+    { "name": "a reserved id", "patch": { "id": "devot.notes" }, "code": "E_PLUGIN_ID_INVALID" },
+    { "name": "the reserved id itself", "patch": { "id": "devot" }, "code": "E_PLUGIN_ID_INVALID" },
+    {
+      "name": "an id too long",
+      "patch": { "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+      "code": "E_PLUGIN_ID_INVALID"
+    },
+    { "name": "another API version", "patch": { "apiVersion": 2 }, "code": "E_PLUGIN_API_VERSION" },
+    {
+      "name": "an API version as text",
+      "patch": { "apiVersion": "1" },
+      "code": "E_PLUGIN_API_VERSION"
+    },
+    {
+      "name": "a version with a tag",
+      "patch": { "version": "1.0.0-beta" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "a version with a leading zero",
+      "patch": { "version": "01.0.0" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    { "name": "no main script", "patch": { "main": null }, "code": "E_PLUGIN_MANIFEST_INVALID" },
+    {
+      "name": "a main script outside the package",
+      "patch": { "main": "../main.js" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "an absolute main script",
+      "patch": { "main": "/main.js" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "a hidden main script",
+      "patch": { "main": ".main.js" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "a main script in the reserved folder",
+      "patch": { "main": "__devot/runtime.js" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "a main script that is not JavaScript",
+      "patch": { "main": "main.html" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "an unknown permission",
+      "patch": { "permissions": ["commands", "network"] },
+      "code": "E_PLUGIN_PERMISSION_UNKNOWN"
+    },
+    {
+      "name": "a permission twice",
+      "patch": { "permissions": ["commands", "commands"], "contributes": null },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    { "name": "no name", "patch": { "name": null }, "code": "E_PLUGIN_MANIFEST_INVALID" },
+    { "name": "a blank name", "patch": { "name": "  " }, "code": "E_PLUGIN_MANIFEST_INVALID" },
+    {
+      "name": "a name on two lines",
+      "patch": { "name": "Word\nCount" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "a name too long",
+      "patch": { "name": "Word Count Word Count Word Count Word Count Word Count Word Cou" },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "a description that is not text",
+      "patch": { "description": 3 },
+      "code": "E_PLUGIN_MANIFEST_INVALID"
+    },
+    {
+      "name": "commands without their permission",
+      "patch": { "permissions": ["menus", "keymaps"] },
+      "code": "E_PLUGIN_PERMISSION_MISSING"
+    },
+    {
+      "name": "menus without their permission",
+      "patch": { "permissions": ["commands", "keymaps"] },
+      "code": "E_PLUGIN_PERMISSION_MISSING"
+    },
+    {
+      "name": "a menu item for an unknown command",
+      "patch": {
+        "contributes": {
+          "commands": [{ "id": "count", "title": "Count" }],
+          "menus": [{ "command": "other" }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a command id twice",
+      "patch": {
+        "contributes": {
+          "commands": [
+            { "id": "count", "title": "A" },
+            { "id": "count", "title": "B" }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a command id with a dot",
+      "patch": { "contributes": { "commands": [{ "id": "count.words", "title": "Count" }] } },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a key without a modifier",
+      "patch": {
+        "contributes": {
+          "commands": [{ "id": "count", "title": "Count" }],
+          "keymaps": [{ "command": "count", "key": "U" }]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a renderer for a built-in language",
+      "patch": {
+        "permissions": ["preview"],
+        "contributes": { "previewRenderers": [{ "id": "maths", "language": "math" }] }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "two renderers for one language",
+      "patch": {
+        "permissions": ["preview"],
+        "contributes": {
+          "previewRenderers": [
+            { "id": "a", "language": "chart" },
+            { "id": "b", "language": "chart" }
+          ]
+        }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "a renderer without its permission",
+      "patch": {
+        "permissions": [],
+        "contributes": { "previewRenderers": [{ "id": "a", "language": "chart" }] }
+      },
+      "code": "E_PLUGIN_PERMISSION_MISSING"
+    },
+    {
+      "name": "an import format without extensions",
+      "patch": {
+        "permissions": ["import"],
+        "contributes": { "importFormats": [{ "id": "org", "title": "Org", "extensions": [] }] }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "an extension with a dot",
+      "patch": {
+        "permissions": ["export"],
+        "contributes": { "exportFormats": [{ "id": "org", "title": "Org", "extension": ".org" }] }
+      },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    },
+    {
+      "name": "an export format without its permission",
+      "patch": {
+        "permissions": ["import"],
+        "contributes": { "exportFormats": [{ "id": "org", "title": "Org", "extension": "org" }] }
+      },
+      "code": "E_PLUGIN_PERMISSION_MISSING"
+    },
+    {
+      "name": "contributions that are a list",
+      "patch": { "contributes": [] },
+      "code": "E_PLUGIN_CONTRIBUTION_INVALID"
+    }
+  ]
+}

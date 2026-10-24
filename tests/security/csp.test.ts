@@ -47,9 +47,10 @@ describe('production CSP (tauri.conf.json)', () => {
     expect(sources('connect-src')).toEqual(["'self'", ...TAURI_IPC, SENTRY_INGEST])
   })
 
-  it('allows https iframes and app pages only, and no plugins, base or form targets', () => {
-    // 'self' is for the app's own diagram frame; notes can only embed https.
-    expect(sources('frame-src')).toEqual(["'self'", 'https:'])
+  it('allows https iframes, app pages and plugin frames only, and no objects, base or form targets', () => {
+    // 'self' is for the app's own diagram frame, devot-plugin: for plugins' sandboxed frames (ADR 0005); notes can only embed https.
+    expect(sources('frame-src')).toEqual(["'self'", 'https:', 'devot-plugin:'])
+    expect(config.app.security.devCsp['frame-src']).toBe(csp['frame-src'])
     expect(sources('object-src')).toEqual(["'none'"])
     expect(sources('base-uri')).toEqual(["'none'"])
     expect(sources('form-action')).toEqual(["'none'"])

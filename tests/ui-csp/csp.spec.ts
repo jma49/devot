@@ -14,6 +14,7 @@ import {
   parseColor,
   type Rgb,
 } from '../../src/renderer/src/theme/contrast'
+import { pluginFrame, servePlugins, testPlugin } from '../ui/plugins'
 
 // Runs the built UI under the production CSP (scripts/serve-csp.ts); `pnpm dev` relaxes it.
 
@@ -837,3 +838,21 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(await violations(page)).toEqual([])
   })
 }
+
+test('a plugin runs in its sandboxed frames and draws in the preview under the policy', async ({
+  page,
+}) => {
+  await servePlugins(page, [
+    testPlugin(
+      'com.example.csp',
+      ['preview'],
+      { previewRenderers: [{ id: 'r', language: 'shout' }] },
+      "devot.preview.handle('r', (source) => '**' + source.toUpperCase() + '**')",
+    ),
+  ])
+  await start(page)
+  await pluginFrame(page, 'com.example.csp')
+  await newNote(page, '```shout\nhi\n```')
+  await expect(page.locator('.plugin-block strong')).toHaveText('HI')
+  expect(await violations(page)).toEqual([])
+})

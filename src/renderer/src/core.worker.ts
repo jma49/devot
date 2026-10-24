@@ -9,6 +9,8 @@ import {
   createIdGenerator,
   createMirrorRunner,
   createNoteService,
+  createPieceRenderer,
+  createPreviewRegistry,
   createTagService,
   createTemplateService,
   duplicateNote,
@@ -18,7 +20,6 @@ import {
   planExport,
   preparerHere,
   renderPreview,
-  renderPreviewPieces,
   runHttpApiCall,
   type AiService,
   type BatchChange,
@@ -34,7 +35,9 @@ import {
   type NoteStatus,
   type TagService,
   type TemplateService,
+  type PluginRendererSpec,
   type PreviewOptions,
+  type RenderPluginBlock,
   type SearchScope,
   type StorageAdapter,
   type TagColor,
@@ -75,6 +78,17 @@ let sync: SyncEngine | undefined
 let syncParts:
   | { storage: StorageAdapter; clock: ReturnType<typeof createClock>; newId: () => string }
   | undefined
+// One piece renderer for the window's life, so piece keys never repeat; the plugins' renderers change under it.
+let previewRegistry = createPreviewRegistry({ builtins: true })
+let pluginRevision = 0
+let pluginRender: RenderPluginBlock | undefined
+const pieces = createPieceRenderer({
+  registry: {
+    register: (renderer) => previewRegistry.register(renderer),
+    ids: () => previewRegistry.ids(),
+    renderers: () => previewRegistry.renderers(),
+  },
+})
 
 const required = () => {
   if (!service) throw new Error('E_CORE_NOT_READY')
@@ -209,6 +223,8 @@ export const coreApi = {
   restoreRevision: (id: string, revisionId: string) => required().restoreRevision(id, revisionId),
   applyAiEdit: (id: string, edit: { from: number; original: string; replacement: string }) =>
     required().applyAiEdit(id, edit),
+  applyPluginEdit: (id: string, edit: { base: string; markdown: string }) =>
+    required().applyPluginEdit(id, edit),
   activity: (now: number) => required().activity(now),
   mergeStored: () => required().mergeStored(),
   /** What another window's core relayed (see NoteService.receive). */
@@ -290,7 +306,15 @@ export const coreApi = {
   renderPreview: (markdown: string, options: PreviewOptions) => renderPreview(markdown, options),
   /** The open note's preview in pieces; `known` are the keys of the pieces the page shows. */
   renderPreviewPieces: (markdown: string, options: PreviewOptions, known: string[]) =>
-    renderPreviewPieces(markdown, options, known),
+    pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
+  /** Plugins' preview renderers (ADR 0005); `render` asks the page, which asks the plugin. Pieces rendered before render again. */
+  setPluginRenderers: (specs: PluginRendererSpec[], render: RenderPluginBlock) => {
+    // The page sends `render` as a proxy; the one before is let go so its port closes.
+    ;(pluginRender as Comlink.Remote<RenderPluginBlock> | undefined)?.[Comlink.releaseProxy]()
+    pluginRender = render
+    previewRegistry = createPreviewRegistry({ builtins: true, plugins: { specs, render } })
+    pluginRevision += 1
+  },
   /** Prepares the mirror (once); nothing runs until `mirrorReconcile`. */
   startMirror: (host: MirrorHost, untitled: string, logFailure: (code: string) => void) => {
     if (mirror || !mirrorStorage) return

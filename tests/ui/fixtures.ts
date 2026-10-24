@@ -107,9 +107,10 @@ const REBUNDLED = /new dependencies optimized|optimized dependencies changed/
 
 export async function mockTauri(page: Page): Promise<void> {
   await page.addInitScript((png) => {
-    // As in the app: Tauri freezes Object.prototype in the main frame before page scripts run.
-    if ((globalThis as unknown as { top: unknown }).top === globalThis)
-      Object.freeze(Object.prototype)
+    // As in the app: Tauri puts its IPC in the main frame only (plugins' frames never get it) and freezes Object.prototype there
+    // before page scripts run.
+    if ((globalThis as unknown as { top: unknown }).top !== globalThis) return
+    Object.freeze(Object.prototype)
     const w = globalThis as unknown as TestWindow
     w.devotIpcCalls = []
     w.devotMenus = {}
@@ -125,8 +126,8 @@ export async function mockTauri(page: Page): Promise<void> {
             if (typeof mock === 'object' && mock !== null && 'error' in mock) throw mock.error
             return typeof mock === 'function' ? (mock as (a: unknown) => unknown)(args) : mock
           }
-          // No link from another app waits at launch (deep-links.spec.ts).
-          if (cmd === 'deep_link_take') return []
+          // No link from another app waits at launch (deep-links.spec.ts), and no plugin is installed (plugins.ts).
+          if (cmd === 'deep_link_take' || cmd === 'plugins_list') return []
           if (cmd === 'cli_tool_status') return { state: 'absent', path: '/usr/local/bin/devot' }
           if (cmd === 'http_api_get')
             return {

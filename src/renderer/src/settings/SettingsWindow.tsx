@@ -9,6 +9,7 @@ import { IntegrationsSection } from './IntegrationsSection'
 import { KeyboardSection } from './KeyboardSection'
 import { MirrorSection } from './MirrorSection'
 import { currentPaneStore, PANES, PANE_TABS, paneAfterKey, type PaneId } from './panes'
+import { PluginsSection } from './PluginsSection'
 import { PreviewSection } from './PreviewSection'
 import { SyncSection } from './SyncSection'
 import { UsageSection } from './UsageSection'
@@ -23,6 +24,7 @@ const SECTIONS: Readonly<Record<PaneId, () => React.JSX.Element>> = {
   sync: SyncSection,
   ai: AiSection,
   integrations: IntegrationsSection,
+  plugins: PluginsSection,
   usage: UsageSection,
 }
 

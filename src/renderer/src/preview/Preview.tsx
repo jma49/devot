@@ -7,6 +7,7 @@ import { fragmentId } from '../../../core/preview/headingIds'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
 import { useContextMenu, type MenuPoint } from '../contextMenu'
 import { copyText } from '../noteMenu'
+import { onPluginRenderersChanged } from '../plugins/rendererRevision'
 import { lookUp, startSpeaking, stopSpeaking } from '../textServices'
 import {
   PREVIEW_MENU,
@@ -282,6 +283,11 @@ export function Preview({
   useEffect(() => () => mounter.dispose(), [mounter])
 
   useEffect(() => render.current?.({ markdown, loadedEmbeds }), [markdown, loadedEmbeds])
+  const input = useRef({ markdown, loadedEmbeds })
+  useEffect(() => {
+    input.current = { markdown, loadedEmbeds }
+  })
+  useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
 
   const tasks = useMemo(() => taskProgress(markdown), [markdown])
 

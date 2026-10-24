@@ -33,6 +33,8 @@ export interface PreviewOptions {
   loadedEmbeds: readonly string[]
   /** Without it (exported pages) note links stay plain links; a link to a note missing here is a broken link. */
   noteLinks?: Readonly<Record<string, NoteLinkTarget>>
+  /** Changes when plugins' renderers do, so pieces rendered before are rendered again. */
+  pluginRenderers?: number
 }
 
 export interface PreviewContext extends PreviewOptions {

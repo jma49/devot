@@ -15,6 +15,7 @@ export const PANES = [
   'sync',
   'ai',
   'integrations',
+  'plugins',
   'usage',
 ] as const
 export type PaneId = (typeof PANES)[number]
@@ -29,6 +30,7 @@ export const PANE_TABS: Readonly<Record<PaneId, { label: MessageKey; icon: IconN
   sync: { label: 'settings.pane.sync', icon: 'settings.sync' },
   ai: { label: 'settings.pane.ai', icon: 'settings.ai' },
   integrations: { label: 'settings.pane.integrations', icon: 'settings.integrations' },
+  plugins: { label: 'settings.pane.plugins', icon: 'settings.plugins' },
   usage: { label: 'settings.pane.usage', icon: 'settings.usage' },
 }
 

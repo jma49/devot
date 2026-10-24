@@ -14,6 +14,12 @@ import { BUILTIN_RENDERERS } from './builtins'
 import { splitBlocks } from './blocks'
 import { createSlugger, headingIds, ID_PREFIX } from './headingIds'
 import {
+  createPluginRenderer,
+  type MarkdownNodes,
+  type PluginRendererSpec,
+  type RenderPluginBlock,
+} from './plugins'
+import {
   createRegistry,
   PREVIEW_API_VERSION,
   type PreviewOptions,
@@ -32,6 +38,7 @@ export {
 } from './code'
 export { createEmojiRenderer, type EmojiTable } from './emoji'
 export { createMathRenderer, type MathEngine } from './math'
+export type { PluginRendererSpec, RenderPluginBlock } from './plugins'
 
 /** GitHub's schema plus `mark`, https iframes and devot:// URLs. Math arrives as `code.language-math` and is rendered after sanitizing. */
 const schema: Schema = {
@@ -59,8 +66,20 @@ const processor = remark().use(remarkFrontmatter, ['yaml']).freeze()
 /** For the pieces after a note's first: front matter only opens a note. */
 const bodyProcessor = remark().freeze()
 
-export function createPreviewRegistry(options: { builtins?: boolean } = {}): PreviewRegistry {
-  return createRegistry(options.builtins ? BUILTIN_RENDERERS : [])
+export function createPreviewRegistry(
+  options: {
+    builtins?: boolean
+    plugins?: { specs: readonly PluginRendererSpec[]; render: RenderPluginBlock }
+  } = {},
+): PreviewRegistry {
+  const builtins = options.builtins ? BUILTIN_RENDERERS : []
+  const plugins = options.plugins
+  if (!plugins || plugins.specs.length === 0) return createRegistry(builtins)
+  // A plugin's answer is rendered like note text, by the built-in renderers alone; its headings are named with the note's.
+  const inner = builtins.filter((r) => r !== headingIds)
+  const toNodes: MarkdownNodes = async (markdown, context) =>
+    (await transformed(bodyProcessor, markdown, context, inner)).children
+  return createRegistry([createPluginRenderer(plugins.specs, plugins.render, toNodes), ...builtins])
 }
 
 const defaultRegistry = createPreviewRegistry({ builtins: true })

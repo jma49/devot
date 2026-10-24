@@ -72,6 +72,21 @@ describe('Tauri command permissions', () => {
     expect(windowsWith('allow-usage-record')).toEqual(['main'])
   })
 
+  it('lets only the Settings window install, turn on and off and remove plugins, and only the main window run their formats', () => {
+    for (const command of [
+      'allow-plugin-install-pick',
+      'allow-plugin-install-confirm',
+      'allow-plugin-install-cancel',
+      'allow-plugin-set-enabled',
+      'allow-plugin-remove',
+    ]) {
+      expect(windowsWith(command)).toEqual(['settings'])
+    }
+    expect(windowsWith('allow-plugins-list')).toEqual(['main', 'settings'])
+    expect(windowsWith('allow-plugin-import-pick')).toEqual(['main'])
+    expect(windowsWith('allow-plugin-export-save')).toEqual(['main'])
+  })
+
   it('lets the windows read the editor settings, the main and Settings windows change them, and the Settings window nothing more', () => {
     expect(windowsWith('allow-editor-settings-get')).toEqual([
       'main',
@@ -110,6 +125,13 @@ describe('Tauri command permissions', () => {
       'allow-mirror-confirm',
       'allow-mirror-get',
       'allow-mirror-set',
+      // Settings > Plugins installs plugins after the user approves their permissions, turns them on and off and removes them.
+      'allow-plugin-install-cancel',
+      'allow-plugin-install-confirm',
+      'allow-plugin-install-pick',
+      'allow-plugin-remove',
+      'allow-plugin-set-enabled',
+      'allow-plugins-list',
       'allow-settings-mcp-setup',
       'allow-settings-open-data-folder',
       'allow-settings-show-backups',

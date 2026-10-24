@@ -84,6 +84,8 @@ import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoreNotice } from './CoreNotice'
 import { DeepLinkNotice, type DeepLinkProblem } from './DeepLinkNotice'
+import { actionOfEntry } from './plugins/contributions'
+import { usePlugins } from './plugins/usePlugins'
 import { firstImported, openDestination } from './cliOpen'
 import { noteTarget, useDeepLinks, type DeepLink } from './deepLink'
 import { StartFailure } from './StartFailure'
@@ -2438,6 +2440,14 @@ export function App() {
   useMenuEvent('devot://show-split', SHOW_SPLIT, () => setMode('split'))
 
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
+  const plugins = usePlugins(core, {
+    openNote: () => openNote,
+    applyUpdate: (update) => restoreRef.current?.(update),
+    importBook: () => libraryBook?.id ?? null,
+    imported: () => {
+      if (core) void refresh(core)
+    },
+  })
   const handlers: CommandHandlers = {
     'palette.open': { run: () => openPalette() },
     'search.view': { run: () => startSearch('view') },
@@ -2675,6 +2685,10 @@ export function App() {
           primary: { label: t('palette.openSource'), run: () => undefined },
         }
       case 'command': {
+        const pluginAction = actionOfEntry(entry.id)
+        if (pluginAction) {
+          return { primary: { label: t('palette.run'), run: () => plugins.act(pluginAction) } }
+        }
         const handler = handlers[entry.id as keyof CommandHandlers]
         return {
           primary: { label: t('palette.run'), run: () => handler?.run() },
@@ -3454,8 +3468,10 @@ export function App() {
         {linkNotice ? (
           <DeepLinkNotice problem={linkNotice} onDismiss={() => setLinkNotice(undefined)} />
         ) : null}
+        {plugins.notice}
       </Notices>
       {mirror.dialog}
+      {plugins.sheet}
       {noteActions.dialog}
       {core && picking ? (
         <TemplatePicker
@@ -3478,7 +3494,7 @@ export function App() {
       {paletteOpen ? (
         <CommandPalette
           entries={{
-            command: commandEntries(handlers, t),
+            command: [...commandEntries(handlers, t), ...plugins.entries(openNote !== undefined)],
             source: sourceEntries(t),
             outline: outlineEntries(paletteText),
             line: [],
