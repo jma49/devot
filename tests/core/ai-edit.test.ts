@@ -180,6 +180,32 @@ describe('accepting a proposal', () => {
     expect((await bodies(storage, id)).map((b) => b.text)).toEqual(['kept text', 'stored text'])
   })
 
+  it('stays out of the activity heatmap, and typing after it counts from it', async () => {
+    const { notes } = service()
+    const id = await notes.create()
+    const editor = await editorFor(notes, id)
+    const today = Math.floor(time / DAY)
+    const charsToday = async () =>
+      (await notes.activity(time, () => 0)).days.find((d) => d.day === today)?.chars
+    await editor.type('short')
+    await notes.flush({ versions: true })
+    expect(await charsToday()).toBe(5)
+
+    const rewritten = 'a much longer text by AI'
+    Y.applyUpdate(
+      editor.doc,
+      await notes.applyAiEdit(id, { from: 0, original: 'short', replacement: rewritten }),
+      'restore',
+    )
+    await notes.flush({ versions: true })
+    expect(await charsToday()).toBe(5)
+
+    await advance(REVISION_PAUSE_MS)
+    await editor.type(`${rewritten}!!`)
+    await notes.flush({ versions: true })
+    expect(await charsToday()).toBe(7)
+  })
+
   it('is never thinned by compaction', () => {
     const at = Date.UTC(2026, 0, 1)
     // One day's versions, older than a week: all but the last of the day would go.

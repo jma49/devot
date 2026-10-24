@@ -84,7 +84,7 @@ export function aiEditInput(ask: AiEditAsk, selection: string): AiGenerateInput 
 
 const WHOLE_FENCE = /^(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n([\s\S]*?)\n?\1[ \t]*$/
 
-/** The reply as text for the note: a fence around the whole reply comes off (a Mermaid diagram keeps its own), and the selection's own blank lines at either end stay. */
+/** The reply as text for the note: a fence around the whole reply comes off (a Mermaid diagram keeps its own), and the selection's own white space at either end stays. */
 export function cleanAiReply(reply: string, original: string, ask: AiEditAsk): string {
   let text = lineFeeds(reply).trim()
   const mermaid = 'preset' in ask && ask.preset === 'mermaid'
@@ -97,9 +97,10 @@ export function cleanAiReply(reply: string, original: string, ask: AiEditAsk): s
     if (!WHOLE_FENCE.test(original.trim())) text = (fenced[3] ?? '').trim()
   }
   if (text === '') return ''
-  const lead = /^\n*/.exec(original)?.[0] ?? ''
-  const trail = /\n*$/.exec(original)?.[0] ?? ''
-  if (aiEditAdds(ask)) return `${original.replace(/\n+$/, '')}\n\n${text}${trail}`
+  const lead = /^\s*/.exec(original)?.[0] ?? ''
+  const trail = /\s*$/.exec(original)?.[0] ?? ''
+  if (aiEditAdds(ask))
+    return `${original.slice(0, original.length - trail.length)}\n\n${text}${trail}`
   return `${lead}${text}${trail}`
 }
 

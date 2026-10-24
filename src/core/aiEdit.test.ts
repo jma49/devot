@@ -76,6 +76,16 @@ describe('the reply', () => {
     )
   })
 
+  it('keeps the spaces and indentation the selection had at either end', () => {
+    expect(cleanAiReply('foo bar', 'foo bar ', preset('proofread'))).toBe('foo bar ')
+    expect(
+      cleanAiReply('- fixed one\n  - fixed two', '  - one\n  - two\n', preset('proofread')),
+    ).toBe('  - fixed one\n  - fixed two\n')
+    expect(cleanAiReply('In short.', ' Long text. ', preset('summarize'))).toBe(
+      ' Long text.\n\nIn short. ',
+    )
+  })
+
   it('puts a summary after the selection', () => {
     expect(cleanAiReply('In short: yes.', 'Long text.\n', preset('summarize'))).toBe(
       'Long text.\n\nIn short: yes.\n',
