@@ -136,7 +136,6 @@ export const STRIP_STEPS = [100, 500, 2000] as const
 
 export interface StripDay {
   day: number
-  /** Body versions and title changes. */
   edits: number
   chars: number
   level: number

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
 
@@ -17,6 +17,13 @@ const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const bar = (page: Page) => page.getByRole('group', { name: 'History' })
 const slider = (page: Page) => bar(page).getByRole('slider', { name: 'Version shown' })
 const overlay = (page: Page) => page.getByRole('region', { name: /^The note as it was on / })
+const editorPane = (page: Page) => page.locator('.panes > .editor')
+const previewPane = (page: Page) => page.locator('.panes > .preview')
+const mode = (page: Page, name: 'Edit' | 'Split' | 'Preview') =>
+  page.getByRole('group', { name: 'View mode' }).getByRole('button', { name })
+const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palette' })
+const paletteField = (page: Page) =>
+  palette(page).getByRole('combobox', { name: 'Command Palette' })
 
 const storedNotes = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as StoredNote[])
@@ -51,6 +58,12 @@ async function showOldest(page: Page) {
   await expect(slider(page)).not.toHaveAttribute('aria-valuemax', '0')
   await slider(page).focus()
   await page.keyboard.press('Home')
+}
+
+async function boxOf(locator: Locator) {
+  const found = await locator.boundingBox()
+  if (!found) throw new Error('not shown')
+  return found
 }
 
 async function selectStruck(page: Page) {
@@ -180,4 +193,96 @@ test('each row shows its last 14 days, hidden in Settings', async ({ page }) => 
   await expect(strip.locator('.activity-strip-day').last()).toHaveClass(/activity-level-[1-4]/)
   await changeEditorSettingsElsewhere(page, { activityStrip: false })
   await expect(strip).toHaveCount(0)
+})
+
+test('the version shown lies exactly over the editor, and over both panes in split view', async ({
+  page,
+}) => {
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  const editorBefore = await boxOf(editorPane(page))
+  await showOldest(page)
+  await expect(overlay(page)).toBeVisible()
+  expect(await boxOf(overlay(page))).toEqual(await boxOf(editorPane(page)))
+  expect(await boxOf(editorPane(page))).toEqual(editorBefore)
+  await expect(editorPane(page)).toHaveAttribute('inert')
+
+  await page.keyboard.press('Escape')
+  await mode(page, 'Split').click()
+  await showOldest(page)
+  const shown = await boxOf(overlay(page))
+  const editor = await boxOf(editorPane(page))
+  const preview = await boxOf(previewPane(page))
+  expect(shown.y).toBe(editor.y)
+  expect(preview.y).toBe(editor.y)
+  expect(shown.x).toBe(editor.x)
+  expect(shown.x + shown.width).toBe(preview.x + preview.width)
+  expect(shown.height).toBe(editor.height)
+  await expect(previewPane(page)).toHaveAttribute('inert')
+  await page.keyboard.press('Escape')
+  await expect(editorPane(page)).not.toHaveAttribute('inert')
+})
+
+test('Escape in the palette closes the palette and leaves the version shown', async ({ page }) => {
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  await page.keyboard.press('Meta+KeyK')
+  await expect(paletteField(page)).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toHaveCount(0)
+  await expect(overlay(page)).toBeVisible()
+})
+
+test('a struck passage can be restored from the keyboard alone', async ({ page }) => {
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  await page.keyboard.press('Shift+Tab')
+  await expect(overlay(page).locator('del')).toBeFocused()
+  const restorePassage = bar(page).getByRole('button', { name: 'Restore This Passage' })
+  await expect(restorePassage).toBeVisible()
+  await page.keyboard.press('Shift+Tab')
+  await expect(overlay(page)).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(overlay(page).locator('del')).toBeFocused()
+  await expect(restorePassage).toBeVisible()
+  await page.keyboard.press('Tab')
+  await expect(slider(page)).toBeFocused()
+  // macOS tabs to buttons with Option (or with Full Keyboard Access).
+  await page.keyboard.press('Alt+Tab')
+  await expect(restorePassage).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep oldnew end')
+})
+
+test('the date on the handle stays inside the bar at either end', async ({ page }) => {
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  const date = slider(page).locator('.history-handle-date')
+  const barBox = await boxOf(bar(page))
+  const oldest = await boxOf(date)
+  expect(oldest.x).toBeGreaterThanOrEqual(barBox.x)
+  expect(oldest.x + oldest.width).toBeLessThanOrEqual(barBox.x + barBox.width)
+  await page.keyboard.press('End')
+  await page.keyboard.press('ArrowLeft')
+  const newest = await boxOf(date)
+  expect(newest.x + newest.width).toBeLessThanOrEqual(barBox.x + barBox.width)
+})
+
+test('the palette shows and hides the bar, named for what it will do', async ({ page }) => {
+  await createNote(page, 'Plan', 'text')
+  await page.keyboard.press('Meta+KeyK')
+  await paletteField(page).fill('history bar')
+  await palette(page)
+    .getByRole('option', { name: /Show History Bar/ })
+    .click()
+  await expect(bar(page)).toBeVisible()
+  await page.keyboard.press('Meta+KeyK')
+  await paletteField(page).fill('history bar')
+  await palette(page)
+    .getByRole('option', { name: /Hide History Bar/ })
+    .click()
+  await expect(bar(page)).toHaveCount(0)
 })

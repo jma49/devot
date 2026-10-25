@@ -1,7 +1,6 @@
 import type { HistoryEntry } from '../../core'
 import type { TextSegment } from '../../core/diff'
 
-/** A body version on the history bar. */
 export interface HistoryStep {
   id: string
   at: number

@@ -1,11 +1,14 @@
 import {
   useEffect,
+  type CSSProperties,
+  type FocusEvent,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
+  type RefObject,
 } from 'react'
 import { inlineDiff, type TextSegment } from '../../core/diff'
 import { errorCode } from '../../core/errors'
@@ -22,6 +25,7 @@ import {
   type HistoryStep,
 } from './historySteps'
 import { currentLocale, format, t } from './i18n'
+import { isImeKey } from './ime'
 import { describeChange } from './RevisionHistory'
 import { useText, type TextStore } from './textStore'
 
@@ -48,7 +52,6 @@ interface Shown {
   mode: Mode
 }
 
-/** The version shown in place. */
 interface Past {
   id: string
   at: number
@@ -79,26 +82,41 @@ function pointIn(
   return pastOffset(segments, index, within)
 }
 
+// Tab moves through the struck runs and takes each in whole, so Restore This Passage can be reached without a pointer.
+function selectFromKeyboard(e: FocusEvent<HTMLElement>) {
+  if (e.currentTarget.matches(':focus-visible')) {
+    document.getSelection()?.selectAllChildren(e.currentTarget)
+  }
+}
+
 function HistoryOverlay(props: {
   past: Past
   text: TextStore
   locale: string
   onPassage: (range: { from: number; to: number } | undefined) => void
+  onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => void
+  /** Focus moving here (Tab to Restore This Passage) leaves the passage chosen. */
+  bar: RefObject<HTMLDivElement | null>
 }) {
   const current = useText(props.text)
   const segments = useMemo(() => inlineDiff(props.past.text, current), [props.past.text, current])
   const root = useRef<HTMLDivElement>(null)
-  const { onPassage } = props
+  const box = useRef<HTMLDivElement>(null)
+  const { onPassage, bar } = props
   const length = props.past.text.length
 
   useEffect(() => {
     const read = () => {
       const el = root.current
       const selection = document.getSelection()
-      if (!el || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
-        return onPassage(undefined)
+      const range =
+        selection && selection.rangeCount > 0 && !selection.isCollapsed
+          ? selection.getRangeAt(0)
+          : undefined
+      if (!el || !range || !el.contains(range.commonAncestorContainer)) {
+        if (!bar.current?.contains(document.activeElement)) onPassage(undefined)
+        return
       }
-      const range = selection.getRangeAt(0)
       const a = pointIn(el, range.startContainer, range.startOffset, segments, length)
       const b = pointIn(el, range.endContainer, range.endOffset, segments, length)
       if (a === undefined || b === undefined) return onPassage(undefined)
@@ -109,23 +127,36 @@ function HistoryOverlay(props: {
     read()
     document.addEventListener('selectionchange', read)
     return () => document.removeEventListener('selectionchange', read)
-  }, [segments, length, onPassage])
+  }, [segments, length, onPassage, bar])
 
   useEffect(() => {
     root.current?.querySelector('del, ins')?.scrollIntoView({ block: 'nearest' })
   }, [props.past.id])
 
+  // The panes under the overlay take no keys or clicks, so typing cannot reach a note the reader cannot see. Run after every
+  // render: the preview beside it comes and goes with the view mode.
+  useEffect(() => {
+    const own = box.current
+    const covered = [...(own?.parentElement?.children ?? [])].filter((el) => el !== own)
+    for (const el of covered) el.toggleAttribute('inert', true)
+    return () => {
+      for (const el of covered) el.toggleAttribute('inert', false)
+    }
+  })
+
   return (
     <div
+      ref={box}
       className="history-overlay"
       role="region"
       aria-label={format(t('historyBar.overlay'), { date: when(props.past.at, props.locale) })}
-      tabIndex={-1}
+      tabIndex={0}
+      onKeyDown={props.onKeyDown}
     >
       <div ref={root} className="history-overlay-text">
         {segments.map((s, i) =>
           s.kind === 'removed' ? (
-            <del key={i} data-segment={i}>
+            <del key={i} data-segment={i} tabIndex={0} onFocus={selectFromKeyboard}>
               {s.text}
             </del>
           ) : s.kind === 'added' ? (
@@ -172,6 +203,7 @@ export function useHistoryBar(props: {
   const [now, setNow] = useState(() => Date.now())
   const handle = useRef<HTMLDivElement>(null)
   const track = useRef<HTMLDivElement>(null)
+  const barRef = useRef<HTMLDivElement>(null)
   const press = useRef<{ x: number; moved: boolean } | undefined>(undefined)
 
   useEffect(() => {
@@ -228,18 +260,13 @@ export function useHistoryBar(props: {
     setPassage(undefined)
   }
 
-  useEffect(() => {
-    if (!showing) return
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
-      e.preventDefault()
-      e.stopPropagation()
-      back()
-      handle.current?.focus()
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  })
+  // Only Escape pressed in the bar or the overlay: elsewhere (the palette, a sheet) it is theirs.
+  const onEscape = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Escape' || !showing || e.defaultPrevented || isImeKey(e.nativeEvent)) return
+    e.preventDefault()
+    back()
+    handle.current?.focus()
+  }
 
   const loaded = showing ? texts.get(step.id) : undefined
   // While the next version is read, the one before stays on screen rather than the overlay blinking off.
@@ -325,7 +352,13 @@ export function useHistoryBar(props: {
   const handleAt = step ? axisAt(step.at, start, end) : 1
 
   const bar = (
-    <div className="history-bar" role="group" aria-label={t('historyBar.label')}>
+    <div
+      ref={barRef}
+      className="history-bar"
+      role="group"
+      aria-label={t('historyBar.label')}
+      onKeyDown={onEscape}
+    >
       <div
         ref={track}
         className="history-track"
@@ -360,7 +393,7 @@ export function useHistoryBar(props: {
           aria-valuenow={value}
           aria-valuetext={stepText(showing ? step : undefined, locale)}
           aria-disabled={list.length === 0 || undefined}
-          style={{ left: `${handleAt * 100}%` }}
+          style={{ left: `${handleAt * 100}%`, '--history-at': handleAt } as CSSProperties}
           onKeyDown={onKeyDown}
         >
           {showing ? <span className="history-handle-date">{when(step.at, locale)}</span> : null}
@@ -397,7 +430,14 @@ export function useHistoryBar(props: {
   )
   const overlay =
     past !== undefined ? (
-      <HistoryOverlay past={past} text={props.text} locale={locale} onPassage={setPassage} />
+      <HistoryOverlay
+        past={past}
+        text={props.text}
+        locale={locale}
+        onPassage={setPassage}
+        onKeyDown={onEscape}
+        bar={barRef}
+      />
     ) : null
   return { bar, overlay }
 }
