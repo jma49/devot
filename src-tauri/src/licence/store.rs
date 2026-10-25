@@ -44,7 +44,14 @@ impl KeyStore for Keychain {
                 .map(Some)
                 .map_err(|_| "E_LICENCE_KEYCHAIN"),
             Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(None),
-            Err(_) => Err("E_LICENCE_KEYCHAIN"),
+            Err(e) => {
+                log::warn!(
+                    "W_LICENCE_KEYCHAIN_READ_FAILED account={} status={}",
+                    self.account,
+                    e.code()
+                );
+                Err("E_LICENCE_KEYCHAIN")
+            }
         }
     }
 
