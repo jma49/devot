@@ -369,6 +369,93 @@ fn the_keychain_is_read_once() {
 }
 
 #[test]
+fn an_unreadable_keychain_item_can_still_be_replaced_or_removed() {
+    let s = setup(true, None);
+    s.store.unreadable.store(true, Ordering::SeqCst);
+    let unread = s.licence.snapshot();
+    assert_eq!(
+        (unread.state, unread.code),
+        (LicenceState::None, Some("E_LICENCE_KEYCHAIN"))
+    );
+    let good = key(ID, "2027-10-24");
+    assert_eq!(
+        s.licence.set(&good).expect("set").state,
+        LicenceState::Valid
+    );
+    assert_eq!(s.licence.require(), Ok(()));
+    assert_eq!(
+        s.store.key.lock().expect("key").as_deref(),
+        Some(good.as_str())
+    );
+
+    let other = setup(true, None);
+    other.store.unreadable.store(true, Ordering::SeqCst);
+    let removed = other.licence.remove().expect("remove");
+    assert_eq!((removed.state, removed.code), (LicenceState::None, None));
+}
+
+/// A keychain read that waits on a prompt.
+struct Prompting {
+    entered: std::sync::mpsc::SyncSender<()>,
+    answer: Mutex<std::sync::mpsc::Receiver<()>>,
+}
+
+impl KeyStore for Prompting {
+    fn get(&self) -> Result<Option<String>, &'static str> {
+        self.entered.send(()).map_err(|_| "E_TEST")?;
+        self.answer
+            .lock()
+            .map_err(|_| "E_TEST")?
+            .recv()
+            .map_err(|_| "E_TEST")?;
+        Ok(None)
+    }
+
+    fn set(&self, _: &str) -> Result<(), &'static str> {
+        Ok(())
+    }
+
+    fn clear(&self) -> Result<(), &'static str> {
+        Ok(())
+    }
+}
+
+#[test]
+fn an_offer_does_not_wait_on_a_keychain_prompt() {
+    let dir = tempfile::tempdir().expect("dir");
+    let (entered, in_prompt) = std::sync::mpsc::sync_channel(1);
+    let (answer, answered) = std::sync::mpsc::channel();
+    let licence = Arc::new(Licence::new(
+        test_keys(true),
+        None,
+        Arc::new(Prompting {
+            entered,
+            answer: Mutex::new(answered),
+        }),
+        dir.path(),
+        Arc::new(|_: &Snapshot| {}),
+    ));
+    let reader = {
+        let licence = Arc::clone(&licence);
+        std::thread::spawn(move || licence.snapshot())
+    };
+    in_prompt.recv().expect("reading");
+
+    let (offered, offer) = std::sync::mpsc::channel();
+    let link = {
+        let licence = Arc::clone(&licence);
+        std::thread::spawn(move || {
+            let _ = offered.send(licence.offer(&key(ID, "2027-10-24")).map(|o| o.state));
+        })
+    };
+    let state = offer.recv_timeout(std::time::Duration::from_secs(10));
+    answer.send(()).expect("answer");
+    reader.join().expect("reader");
+    link.join().expect("link");
+    assert_eq!(state, Ok(Ok(LicenceState::Valid)));
+}
+
+#[test]
 fn a_key_that_does_not_verify_is_refused_and_the_licence_stays() {
     let s = setup(true, None);
     let good = key(ID, "2027-10-24");

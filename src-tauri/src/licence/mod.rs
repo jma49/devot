@@ -17,7 +17,7 @@ mod tests;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde::Serialize;
 use tauri::State as Tauri;
@@ -87,8 +87,10 @@ impl fmt::Debug for Offer {
     }
 }
 
+type Kept = Option<(String, Result<Payload, VerifyError>)>;
+
 struct Held {
-    key: Option<(String, Result<Payload, VerifyError>)>,
+    key: Kept,
     revocations: Option<Revocations>,
 }
 
@@ -99,6 +101,9 @@ pub(crate) struct Licence {
     release: Option<String>,
     store: Arc<dyn KeyStore>,
     revocations_path: PathBuf,
+    /// Taken around every keychain use, which may wait on a prompt; `held` is never held across one,
+    /// so a link's offer does not wait.
+    keychain: Mutex<()>,
     /// Read from the keychain and the list's file once, on first use.
     held: Mutex<Option<Held>>,
     emit: Emit,
@@ -125,6 +130,7 @@ impl Licence {
             release: release.map(str::to_owned),
             store,
             revocations_path: data_dir.join(REVOCATIONS_FILE),
+            keychain: Mutex::new(()),
             held: Mutex::new(None),
             emit,
         }
@@ -156,22 +162,48 @@ impl Licence {
         }
     }
 
+    fn held(&self) -> Result<MutexGuard<'_, Option<Held>>, &'static str> {
+        self.held.lock().map_err(|_| "E_LICENCE_INTERNAL")
+    }
+
+    fn keychain(&self) -> Result<MutexGuard<'_, ()>, &'static str> {
+        self.keychain.lock().map_err(|_| "E_LICENCE_INTERNAL")
+    }
+
+    /// Replaces the key held, reading the list's file if nothing was held yet. The caller holds
+    /// `keychain`, so nothing else fills `held` meanwhile.
+    fn put(&self, key: Kept) -> Result<(), &'static str> {
+        let revocations = if self.held()?.is_some() {
+            None
+        } else {
+            self.read_revocations()
+        };
+        let mut held = self.held()?;
+        match held.as_mut() {
+            Some(held) => held.key = key,
+            None => *held = Some(Held { key, revocations }),
+        }
+        Ok(())
+    }
+
     fn with_held<T>(&self, f: impl FnOnce(&mut Held) -> T) -> Result<T, &'static str> {
-        let mut held = self.held.lock().map_err(|_| "E_LICENCE_INTERNAL")?;
-        if held.is_none() {
-            let key = self.store.get()?;
-            *held = Some(Held {
-                key: key.map(|key| {
+        if let Some(held) = self.held()?.as_mut() {
+            return Ok(f(held));
+        }
+        {
+            let _keychain = self.keychain()?;
+            if self.held()?.is_none() {
+                let key = self.store.get()?.map(|key| {
                     let verified = verify_licence(&key, &self.keys);
                     if let Err(e) = &verified {
                         log::warn!("W_LICENCE_STORED_INVALID {}", e.code());
                     }
                     (key, verified)
-                }),
-                revocations: self.read_revocations(),
-            });
+                });
+                self.put(key)?;
+            }
         }
-        Ok(f(held.as_mut().ok_or("E_LICENCE_INTERNAL")?))
+        Ok(f(self.held()?.as_mut().ok_or("E_LICENCE_INTERNAL")?))
     }
 
     fn state_of(&self, payload: &Payload, revocations: Option<&Revocations>) -> LicenceState {
@@ -245,12 +277,7 @@ impl Licence {
     pub(crate) fn offer(&self, input: &str) -> Result<Offer, &'static str> {
         let key = cleaned(input)?;
         let payload = verify_licence(&key, &self.keys).map_err(VerifyError::code)?;
-        let loaded = self
-            .held
-            .lock()
-            .map_err(|_| "E_LICENCE_INTERNAL")?
-            .as_ref()
-            .map(|held| held.revocations.clone());
+        let loaded = self.held()?.as_ref().map(|held| held.revocations.clone());
         let revocations = loaded.unwrap_or_else(|| self.read_revocations());
         let state = self.state_of(&payload, revocations.as_ref());
         Ok(Offer {
@@ -270,21 +297,23 @@ impl Licence {
             e.code()
         })?;
         let id = payload.id.clone();
-        self.with_held(|held| -> Result<(), &'static str> {
+        {
+            let _keychain = self.keychain()?;
             self.store.set(&key)?;
-            held.key = Some((key, Ok(payload)));
-            Ok(())
-        })??;
+            self.put(Some((key, Ok(payload))))?;
+        }
         log::info!("I_LICENCE_SET licence={id}");
         Ok(self.changed())
     }
 
+    /// Writing or removing the item never reads it, so a key the keychain cannot give back is
+    /// still replaced or removed.
     pub(crate) fn remove(&self) -> Result<Snapshot, &'static str> {
-        self.with_held(|held| -> Result<(), &'static str> {
+        {
+            let _keychain = self.keychain()?;
             self.store.clear()?;
-            held.key = None;
-            Ok(())
-        })??;
+            self.put(None)?;
+        }
         log::info!("I_LICENCE_REMOVED");
         Ok(self.changed())
     }

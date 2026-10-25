@@ -276,7 +276,12 @@ pub(crate) fn on_second_instance<R: Runtime>(app: &AppHandle<R>, args: Vec<Strin
 
 fn receive<R: Runtime>(app: &AppHandle<R>, url: &str) {
     let link = match parse(url, SCHEME) {
-        Ok(Link::Licence { key: Some(key), .. }) => checked(app, key),
+        Ok(Link::Licence { key: Some(key), .. }) => checked(
+            key,
+            app.try_state::<std::sync::Arc<crate::licence::Licence>>()
+                .as_deref()
+                .map(AsRef::as_ref),
+        ),
         Ok(link) => link,
         Err(code) => {
             log::warn!("W_DEEP_LINK_REFUSED {code}");
@@ -287,9 +292,8 @@ fn receive<R: Runtime>(app: &AppHandle<R>, url: &str) {
 }
 
 /// A key that does not verify reaches the window as its code, so it can say why.
-fn checked<R: Runtime>(app: &AppHandle<R>, key: LicenceKey) -> Link {
-    let offer = app
-        .try_state::<std::sync::Arc<crate::licence::Licence>>()
+fn checked(key: LicenceKey, licence: Option<&crate::licence::Licence>) -> Link {
+    let offer = licence
         .ok_or("E_LICENCE_INTERNAL")
         .and_then(|licence| licence.offer(&key.0));
     match offer {
@@ -502,6 +506,42 @@ mod tests {
             key: Some(LicenceKey(key.to_owned())),
             offer: None,
             code: None,
+        }
+    }
+
+    #[test]
+    fn a_licence_link_reaches_the_window_as_its_offer_or_as_its_code_alone() {
+        use crate::licence::testing::{ID, LICENSEE, key};
+        let dir = tempfile::tempdir().expect("dir");
+        let service = crate::licence::testing::licence(dir.path(), true);
+        let good = key(ID, "2027-10-24");
+
+        let Link::Licence {
+            key: kept,
+            offer,
+            code,
+        } = checked(LicenceKey(good.clone()), Some(&service))
+        else {
+            panic!("not a licence link");
+        };
+        assert_eq!(kept, Some(LicenceKey(good)));
+        let offer = offer.expect("offer");
+        assert_eq!((offer.id.as_str(), offer.licensee.as_str()), (ID, LICENSEE));
+        assert_eq!(code, None);
+
+        let malformed = format!("{}.x", key(ID, "2027-10-24"));
+        for (licence, want) in [
+            (Some(&*service), "E_LICENCE_MALFORMED"),
+            (None, "E_LICENCE_INTERNAL"),
+        ] {
+            assert_eq!(
+                checked(LicenceKey(malformed.clone()), licence),
+                Link::Licence {
+                    key: None,
+                    offer: None,
+                    code: Some(want),
+                }
+            );
         }
     }
 

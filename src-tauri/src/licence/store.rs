@@ -90,12 +90,17 @@ impl KeyStore for Keychain {
 pub(crate) struct MemoryKey {
     pub key: std::sync::Mutex<Option<String>>,
     pub reads: std::sync::atomic::AtomicUsize,
+    /// Reads fail as a non-UTF-8 or denied item does; writes still succeed.
+    pub unreadable: std::sync::atomic::AtomicBool,
 }
 
 #[cfg(test)]
 impl KeyStore for MemoryKey {
     fn get(&self) -> Result<Option<String>, &'static str> {
         self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if self.unreadable.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err("E_LICENCE_KEYCHAIN");
+        }
         Ok(self.key.lock().map_err(|_| "E_LICENCE_KEYCHAIN")?.clone())
     }
 
