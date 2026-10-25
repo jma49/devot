@@ -16,6 +16,7 @@ export interface Env {
   STRIPE_PRICE_RENEWAL?: string
   MANAGED_PAYMENTS?: string
   MAIL_FROM?: string
+  REPLY_TO?: string
   RESEND_API_KEY?: string
   CANCEL_URL?: string
 }
@@ -43,7 +44,7 @@ export default {
     const app = createApp({
       store: d1Store(env.DB as unknown as SqlDatabase),
       stripe: stripeClient(env.STRIPE_SECRET_KEY ?? ''),
-      mailer: resendMailer(env.RESEND_API_KEY ?? '', env.MAIL_FROM ?? ''),
+      mailer: resendMailer(env.RESEND_API_KEY ?? '', env.MAIL_FROM ?? '', undefined, env.REPLY_TO),
       signer: await signerFromSeed(env.LICENCE_KID ?? '', seed),
       config: {
         managedPayments: env.MANAGED_PAYMENTS === 'true',

@@ -33,6 +33,7 @@ export function resendMailer(
   apiKey: string,
   from: string,
   fetcher: Fetch = (input, init) => fetch(input, init),
+  replyTo?: string,
 ): Mailer {
   return {
     async send(mail) {
@@ -52,6 +53,7 @@ export function resendMailer(
             subject: mail.subject,
             text: mail.text,
             html: mail.html,
+            ...(replyTo ? { reply_to: replyTo } : {}),
           }),
         })
       } catch {
