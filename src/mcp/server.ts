@@ -16,6 +16,7 @@ import {
   type AiNoteUpdate,
   type AiService,
 } from '../core/ai'
+import { newWriter, type Writer } from '../core/authorship'
 import { MAX_BOOK_NAME_CHARS } from '../core/books'
 import { MAX_NOTE_LINKS } from '../core/links'
 import { MAX_BODY_BYTES, MAX_TITLE_CHARS } from '../core/noteLimits'
@@ -122,6 +123,18 @@ function toUpdate(args: UpdateArgs): AiNoteUpdate {
     ...(args.tags === undefined ? {} : { tags: args.tags }),
     ...(args.status === undefined ? {} : { status: args.status }),
   }
+}
+
+/**
+ * Who this connection's writes are recorded as (ADR 0007): one session for the connection, named
+ * as the client introduced itself in `initialize`. The name is only shown, never trusted.
+ */
+export function clientWriter(server: McpServer, process: string): () => Writer {
+  const session = newWriter('mcp', '', process).session
+  return () => ({
+    ...newWriter('mcp', server.server.getClientVersion()?.name ?? '', process),
+    session,
+  })
 }
 
 export function createServer({ service, log }: ServerOptions): McpServer {

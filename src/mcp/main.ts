@@ -11,7 +11,8 @@ import { join } from 'node:path'
 import { createAiService, type AiService } from '../core/ai'
 import { createClock } from '../core/hlc'
 import { createIdGenerator } from '../core/ids'
-import { createServer, errorCode, SERVER_VERSION, type Log } from './server'
+import type { Writer } from '../core/authorship'
+import { clientWriter, createServer, errorCode, SERVER_VERSION, type Log } from './server'
 import { openSqliteAdapter, SCHEMA_VERSION, type SqliteAdapter } from './sqlite'
 
 /** Where Devot keeps its database on macOS. */
@@ -51,8 +52,10 @@ function parseArgs(argv: readonly string[]): { db: string } | { exit: string; co
   return { db }
 }
 
-/** A random HLC node ID for this process, apart from every app install's. */
-const nodeId = () => `mcp${randomBytes(6).toString('hex')}`
+/** A random HLC node ID for this run, apart from every app install's; its writers' `process` too. */
+const NODE = `mcp${randomBytes(6).toString('hex')}`
+// One clock for the run, kept when the database is opened again, so no two stamps are alike.
+const clock = createClock(NODE)
 
 /**
  * The AI service on the database, opened on first use, so devot-mcp starts
@@ -60,7 +63,7 @@ const nodeId = () => `mcp${randomBytes(6).toString('hex')}`
  * is checked again: if Devot was upgraded meanwhile, the connection is
  * dropped and the next open reports why it cannot continue.
  */
-function connector(path: string) {
+function connector(path: string, writer: () => Writer) {
   let open: { adapter: SqliteAdapter; ai: AiService } | undefined
   const connect = (): AiService => {
     if (open && open.adapter.schemaVersion() !== SCHEMA_VERSION) {
@@ -71,9 +74,11 @@ function connector(path: string) {
       const adapter = openSqliteAdapter(path, { migrate: false })
       const ai = createAiService({
         storage: adapter,
-        clock: createClock(nodeId()),
+        clock,
         newId: createIdGenerator(),
         atomically: adapter.atomically,
+        writer,
+        log,
       })
       open = { adapter, ai }
       log('I_MCP_DB_OPENED', `v${SCHEMA_VERSION}`)
@@ -94,8 +99,8 @@ async function main() {
     process.exitCode = args.code
     return
   }
-  const db = connector(args.db)
-  const server = createServer({ service: db.connect, log })
+  const server = createServer({ service: () => db.connect(), log })
+  const db = connector(args.db, clientWriter(server, NODE))
   const transport = new StdioServerTransport()
   transport.onclose = () => db.close()
   await server.connect(transport)

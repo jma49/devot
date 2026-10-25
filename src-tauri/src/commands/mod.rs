@@ -2,6 +2,7 @@
 //! file, and validates its arguments before touching storage.
 
 pub mod activity;
+pub mod authorship;
 pub mod books;
 pub mod files;
 pub mod images;

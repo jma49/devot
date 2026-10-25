@@ -2757,3 +2757,96 @@ fn a_stopped_rebuild_rolls_back_and_leaves_the_index_as_it_was() {
     assert_eq!(store.rebuild_search_index(|| false).unwrap(), 201);
     assert_eq!(found(&store, "relay"), 200);
 }
+
+fn agent_write(write_id: &str, kind: &str, at: i64) -> AgentWriteRow {
+    AgentWriteRow {
+        write_id: write_id.into(),
+        kind: kind.into(),
+        name: if kind == "aiEdit" { "" } else { "Claude Code" }.into(),
+        at,
+        created: false,
+    }
+}
+
+fn listed_writes(store: &Store) -> Vec<(String, String, bool)> {
+    store
+        .list_agent_writes(100)
+        .unwrap()
+        .into_iter()
+        .map(|w| (w.note_id, w.write_id, w.seen))
+        .collect()
+}
+
+#[test]
+fn replaces_a_notes_agent_writes_with_each_write_that_carries_them_keeping_seen() {
+    let (_dir, mut store) = temp_store();
+    let first = [agent_write("AAAAAAAAAAA", "mcp", 5)];
+    store
+        .put_note_with_writes(&note("a", "A", 10), &[], Some(&first))
+        .unwrap();
+    store
+        .mark_agent_writes_seen("a", &["AAAAAAAAAAA".into(), "unknown0000".into()])
+        .unwrap();
+    // A write without rows leaves them alone.
+    store
+        .put_note(&based_on(1, note("a", "A", 11)), &[])
+        .unwrap();
+    let next = [
+        agent_write("BBBBBBBBBBB", "aiEdit", 7),
+        agent_write("AAAAAAAAAAA", "mcp", 5),
+        agent_write("CCCCCCCCCCC", "http", 6),
+    ];
+    store
+        .put_note_with_writes(&based_on(2, note("a", "A", 12)), &[], Some(&next))
+        .unwrap();
+    assert_eq!(
+        listed_writes(&store),
+        [
+            ("a".into(), "BBBBBBBBBBB".into(), true),
+            ("a".into(), "CCCCCCCCCCC".into(), false),
+            ("a".into(), "AAAAAAAAAAA".into(), true),
+        ]
+    );
+    let [newest, ..] = &store.list_agent_writes(1).unwrap()[..] else {
+        panic!("no rows");
+    };
+    assert_eq!((newest.kind.as_str(), newest.name.as_str()), ("aiEdit", ""));
+    // A stale write changes no rows either.
+    let refused = store.put_note_with_writes(&based_on(0, note("a", "A", 13)), &[], Some(&[]));
+    assert!(matches!(refused, Err(StorageError::BodyStale)));
+    assert_eq!(listed_writes(&store).len(), 3);
+    store
+        .put_note_with_writes(&based_on(3, note("a", "A", 14)), &[], Some(&[]))
+        .unwrap();
+    assert_eq!(listed_writes(&store), []);
+}
+
+#[test]
+fn lists_agent_writes_of_live_notes_and_purging_deletes_them() {
+    let (_dir, mut store) = temp_store();
+    let rows = [agent_write("AAAAAAAAAAA", "mcp", 5)];
+    store
+        .put_note_with_writes(&note("a", "A", 10), &[], Some(&rows))
+        .unwrap();
+    store
+        .put_note_with_writes(&note("b", "B", 10), &[], Some(&rows))
+        .unwrap();
+    store
+        .put_note(&in_trash(based_on(1, note("b", "B", 11)), 11), &[])
+        .unwrap();
+    assert_eq!(
+        listed_writes(&store),
+        [("a".into(), "AAAAAAAAAAA".into(), false)]
+    );
+    store
+        .purge_note("b", 20, "0000000000020-0000-test")
+        .unwrap();
+    store
+        .purge_note("a", 20, "0000000000020-0000-test")
+        .unwrap();
+    let left: i64 = store
+        .conn
+        .query_row("SELECT count(*) FROM agent_writes", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(left, 0);
+}

@@ -52,6 +52,8 @@
     "allow-note-purge",
     "allow-revision-put",
     "allow-revisions-list",
+    "allow-agent-writes-list",
+    "allow-agent-writes-seen",
     "allow-revision-get",
     "allow-revisions-delete",
     "allow-revisions-compactable",

@@ -24,6 +24,7 @@ import type {
   ActivityData,
   ActivityNote,
   ActivityRevision,
+  AgentWriteSummary,
   BookRecord,
   CompactableVersion,
   NoteTagRecord,
@@ -121,6 +122,28 @@ export const ACTIVITY_SQL = {
      FROM revisions r INDEXED BY revisions_history
      WHERE r.note_id IN (SELECT value FROM json_each(@ids)) AND r.at >= @since
        AND r.kind IN ('body', 'title') AND (r.kind = 'title' OR r.value IS NULL)`,
+} as const
+
+/**
+ * The agent_writes index (docs/adr/0007-authorship-by-yjs-item-ids.md), the
+ * same statements as the Rust store's (storage/mod.rs; a test compares them).
+ * A note's rows are replaced with each write that carries them, keeping
+ * `seen` of the rows it still has.
+ */
+export const AGENT_WRITES_SQL = {
+  keep: `DELETE FROM agent_writes
+     WHERE note_id = @noteId AND write_id NOT IN (SELECT value FROM json_each(@ids))`,
+  put: `INSERT INTO agent_writes (note_id, write_id, kind, name, at, created, seen)
+     VALUES (@noteId, @writeId, @kind, @name, @at, @created, @kind = 'aiEdit')
+     ON CONFLICT (note_id, write_id) DO UPDATE SET
+       kind = excluded.kind, name = excluded.name, at = excluded.at, created = excluded.created`,
+  list: `SELECT w.note_id AS noteId, w.write_id AS writeId, w.kind, w.name, w.at, w.created, w.seen
+     FROM agent_writes w JOIN notes n ON n.id = w.note_id
+     WHERE n.deleted_at IS NULL AND n.purged_at IS NULL
+     ORDER BY w.at DESC, w.note_id, w.write_id LIMIT @limit`,
+  seen: `UPDATE agent_writes SET seen = 1
+     WHERE note_id = @noteId AND seen = 0 AND write_id IN (SELECT value FROM json_each(@ids))`,
+  purge: `DELETE FROM agent_writes WHERE note_id = @noteId`,
 } as const
 
 /**
@@ -567,6 +590,14 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const dropFiles = db.prepare('DELETE FROM files WHERE note_id = ?')
   // Revision history: same statements as the Rust store (storage/mod.rs).
   const dropRevisions = db.prepare('DELETE FROM revisions WHERE note_id = ?')
+  const keepAgentWrites = db.prepare(AGENT_WRITES_SQL.keep)
+  const putAgentWrite = db.prepare(AGENT_WRITES_SQL.put)
+  const listAgentWrites = db.prepare<
+    [{ limit: number }],
+    Omit<AgentWriteSummary, 'created' | 'seen'> & { created: number; seen: number }
+  >(AGENT_WRITES_SQL.list)
+  const seenAgentWrites = db.prepare(AGENT_WRITES_SQL.seen)
+  const dropAgentWrites = db.prepare(AGENT_WRITES_SQL.purge)
   const syncPending = db.prepare<[{ after: string; limit: number }], { id: string }>(
     SYNC_SQL.pending,
   )
@@ -734,6 +765,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         handOverFiles.run({ id })
         dropFiles.run(id)
         dropNoteLinks.run(id)
+        dropAgentWrites.run({ noteId: id })
         if (revisions) dropRevisions.run(id)
       })
       .immediate()
@@ -774,12 +806,13 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       // What the app's note_put refuses, this refuses too.
       const links = noteLinks(note.bodyMd)
       checkNote(note, links)
+      const { agentWrites, ...record } = note
       db.transaction(() => {
         const written = put.run({
-          ...note,
-          ydoc: Buffer.from(note.ydoc),
-          pinned: note.pinned ? 1 : 0,
-          datesHlc: note.datesHlc ?? '',
+          ...record,
+          ydoc: Buffer.from(record.ydoc),
+          pinned: record.pinned ? 1 : 0,
+          datesHlc: record.datesHlc ?? '',
         }).changes
         if (written === 0) {
           // A purged note is left alone; any other has a body that moved on
@@ -789,6 +822,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         }
         dropNoteLinks.run(note.id)
         for (const target of links) addNoteLink.run(note.id, target)
+        if (!agentWrites) return
+        const noteId = note.id
+        keepAgentWrites.run({ noteId, ids: JSON.stringify(agentWrites.map((w) => w.writeId)) })
+        for (const row of agentWrites) {
+          putAgentWrite.run({ noteId, ...row, created: row.created ? 1 : 0 })
+        }
       }).immediate()
     },
     async searchNotes(query, limit) {
@@ -914,6 +953,15 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       revisions: activityRevisions.all({ since }),
     }),
     listNoteActivity: async (ids, since) => noteActivity.all({ ids: JSON.stringify(ids), since }),
+    listAgentWrites: async (limit) =>
+      listAgentWrites.all({ limit }).map((row) => ({
+        ...row,
+        created: row.created === 1,
+        seen: row.seen === 1,
+      })),
+    async markAgentWritesSeen(noteId, writeIds) {
+      seenAgentWrites.run({ noteId, ids: JSON.stringify(writeIds) })
+    },
     listBooks: async () => books.all().map((row) => toBook(row)),
     async putBook(book) {
       putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })

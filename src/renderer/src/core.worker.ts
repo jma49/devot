@@ -4,6 +4,7 @@ import {
   applyBatch,
   captureNote,
   createAiService,
+  newWriter,
   createBookService,
   createClock,
   createIdGenerator,
@@ -144,7 +145,9 @@ export const coreApi = {
     templates = createTemplateService({ storage, notes: service, books, tags, clock, newId: ids })
     // Its own note service, as devot-mcp's: its writes reach the notes held
     // here as changes from outside (the page merges them, see httpApiHost).
-    httpApi = createAiService({ storage, clock, newId: ids })
+    // One writer for each start of the core, which answers the HTTP API for as long as the app runs.
+    const httpWriter = newWriter('http', '', node)
+    httpApi = createAiService({ storage, clock, newId: ids, writer: () => httpWriter })
     if (options.lean) return
     // Notebooks from before sort keys get theirs, in the order they show.
     // On failure they keep showing in that order and the next start retries.

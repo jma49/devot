@@ -3,13 +3,18 @@
 // Rust's storage and transport. Every test ends with both devices holding the same notes.
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import * as Y from 'yjs'
 import {
+  attribute,
+  BODY,
   createBookService,
   createClock,
   createIdGenerator,
   createNoteService,
   createTagService,
   MERGE,
+  newWriter,
+  readWrites,
   seedWelcome,
   type StorageAdapter,
   type WelcomeContent,
@@ -545,3 +550,38 @@ async function postCreate(host: RelayHost, vault: TestVault) {
   })
   return (await res.json()) as { token: string; epoch: string }
 }
+
+describe('authorship through sync', () => {
+  const claude = newWriter('mcp', 'Claude Code', 'mcp0123456789ab')
+  const docOf = async (d: Device, id: string) => {
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await d.note(id))!.ydoc)
+    return doc
+  }
+  const agentText = (doc: Y.Doc) => {
+    const body = doc.getText(BODY).toString()
+    return attribute(doc).map((run) => body.slice(run.from, run.to))
+  }
+
+  it('brings the records to the other device, which can undo them, and keeps seen per device', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Plan')
+    await a.notes.setBody(id, 'Intro.\n')
+    await a.notes.agentWrite(id, { writer: claude, markdown: 'Intro.\nThe agent wrote this.\n' })
+    await settle(a, b)
+    expect(agentText(await docOf(b, id))).toEqual(agentText(await docOf(a, id)))
+    expect(agentText(await docOf(b, id))).toEqual(['The agent wrote this.\n'])
+    const [row] = await a.storage.listAgentWrites(10)
+    await a.storage.markAgentWritesSeen(id, [row!.writeId])
+    expect((await b.storage.listAgentWrites(10)).map((r) => [r.writeId, r.seen])).toEqual([
+      [row!.writeId, false],
+    ])
+    await b.notes.setBody(id, 'Intro.\nThe agent wrote this.\nB typed this.\n')
+    await b.notes.undoAgentWrites(id, { kind: 'mcp', name: 'Claude Code' })
+    await settle(b, a)
+    const note = await sameNote(a, b, id)
+    expect(note?.bodyMd).toBe('Intro.\nB typed this.\n')
+    expect(readWrites(await docOf(a, id))).toEqual([])
+    expect(await a.storage.listAgentWrites(10)).toEqual([])
+  })
+})

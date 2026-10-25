@@ -47,6 +47,8 @@ fn main() {
             "revisions_last_compaction",
             "activity_list",
             "activity_notes_list",
+            "agent_writes_list",
+            "agent_writes_seen",
             "books_list",
             "book_put",
             "file_put",

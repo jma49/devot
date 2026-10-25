@@ -12,6 +12,7 @@ import {
   createNoteService,
   createTagService,
   createTemplateService,
+  newWriter,
   TEMPLATES_BOOK_ID,
   UUID_V7,
   type BookRecord,
@@ -233,6 +234,7 @@ describe('AI tools (devot-mcp) never see templates', () => {
       clock: createClock('mcptest'),
       newId: createIdGenerator(),
       atomically: mcp.atomically,
+      writer: () => newWriter('mcp', 'Test', 'mcptest'),
     })
     expect((await ai.notebooks()).map((b) => b.id)).toEqual([shared])
     expect((await ai.search('kiwi')).map((h) => h.id)).toEqual([visible])

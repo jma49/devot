@@ -32,6 +32,8 @@ export function newNodeId(): string {
 }
 
 export interface Clock {
+  /** The node ID its stamps end with. */
+  readonly node: string
   tick(): string
   receive(remote: string): string
 }
@@ -66,6 +68,7 @@ export function createClock(node: string, now: () => number = Date.now): Clock {
   }
 
   return {
+    node,
     tick: () => advance(-1, 0),
     receive: (remote) => {
       const r = parseHlc(remote)

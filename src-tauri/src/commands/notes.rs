@@ -1,5 +1,7 @@
+use super::authorship::validate_agent_writes;
 use crate::storage::{
-    Db, NOTE_STATUSES, NoteBody, NoteQuery, NoteRecord, NoteSummary, SetKind, TrashedNote, Write,
+    AgentWriteRow, Db, NOTE_STATUSES, NoteBody, NoteQuery, NoteRecord, NoteSummary, SetKind,
+    TrashedNote, Write,
 };
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -187,13 +189,24 @@ pub async fn notes_bodies(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<Not
 }
 
 #[tauri::command]
-/// `links`: the note IDs the body links to, for the link index.
-pub async fn note_put(db: State<'_, Db>, note: NoteDto, links: Vec<String>) -> Result<(), String> {
+/// `links`: the note IDs the body links to, for the link index. `writes`: the note's rows of the
+/// agent_writes index, derived from its Yjs state; `None` leaves the stored rows alone.
+pub async fn note_put(
+    db: State<'_, Db>,
+    note: NoteDto,
+    links: Vec<String>,
+    writes: Option<Vec<AgentWriteRow>>,
+) -> Result<(), String> {
     let record = note.into_record().map_err(String::from)?;
     validate_links(&links).map_err(String::from)?;
-    db.write(Write::Body, move |store| store.put_note(&record, &links))
-        .await
-        .map_err(|e| e.to_string())
+    if let Some(rows) = &writes {
+        validate_agent_writes(rows).map_err(String::from)?;
+    }
+    db.write(Write::Body, move |store| {
+        store.put_note_with_writes(&record, &links, writes.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 fn validate_links(links: &[String]) -> Result<(), &'static str> {

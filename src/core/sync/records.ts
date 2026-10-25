@@ -9,6 +9,7 @@
 // is not synced: each device decides what devot-mcp may read.
 
 import * as Y from 'yjs'
+import { agentWriteRows } from '../authorship'
 import { UUID_V7 } from '../ids'
 import { BODY, seedClient } from '../notes'
 import { sha256Hex } from '../sha256'
@@ -286,6 +287,12 @@ export function fingerprint(record: SyncRecord): string {
 }
 
 export const textOf = (state: Uint8Array): string => docOf(state).getText(BODY).toString()
+
+/** What storage derives from a note's state: its text and its agent_writes rows (ADR 0007). */
+export function bodyFacts(id: string, state: Uint8Array) {
+  const doc = docOf(state)
+  return { bodyMd: doc.getText(BODY).toString(), agentWrites: agentWriteRows(doc, id) }
+}
 
 /** The seed's client when the body is a first-launch note nobody edited (written by NoteService.seed alone). */
 function untouchedSeed(id: string, doc: Y.Doc): number | null {

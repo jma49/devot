@@ -1,11 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import {
+  MAX_AGENT_WRITE_ROWS,
+  MAX_AGENT_WRITES_LISTED,
   MAX_BODY_BYTES,
   MAX_BODY_IDS,
   MAX_BODY_VERSION,
   MAX_NOTE_LINKS,
   MAX_TITLE_CHARS,
+  MAX_WRITER_NAME_CHARS,
   MAX_YDOC_BYTES,
 } from '../../src/core'
 
@@ -13,8 +16,10 @@ import {
 // agree, or a note the core keeps could never be saved.
 const NOTES = readFileSync('src-tauri/src/commands/notes.rs', 'utf8')
 
-function rustConst(name: string): number {
-  const stated = new RegExp(`const ${name}: (?:usize|i64) = ([^;]+);`).exec(NOTES)?.[1]
+const AUTHORSHIP = readFileSync('src-tauri/src/commands/authorship.rs', 'utf8')
+
+function rustConst(name: string, source = NOTES): number {
+  const stated = new RegExp(`const ${name}: (?:usize|i64|u32) = ([^;]+);`).exec(source)?.[1]
   if (!stated) throw new Error(`E_TEST_NO_CONST ${name}`)
   return stated
     .split('*')
@@ -34,4 +39,10 @@ it('uses the limits note_put checks', () => {
 
 it('batches body reads within what notes_bodies takes', () => {
   expect(rustConst('MAX_BODY_IDS')).toBe(MAX_BODY_IDS)
+})
+
+it('derives the agent_writes rows within what note_put and agent_writes_list take', () => {
+  expect(rustConst('MAX_AGENT_WRITE_ROWS', AUTHORSHIP)).toBe(MAX_AGENT_WRITE_ROWS)
+  expect(rustConst('MAX_WRITER_NAME_CHARS', AUTHORSHIP)).toBe(MAX_WRITER_NAME_CHARS)
+  expect(rustConst('MAX_AGENT_WRITES_LISTED', AUTHORSHIP)).toBe(MAX_AGENT_WRITES_LISTED)
 })

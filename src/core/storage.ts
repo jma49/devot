@@ -3,6 +3,7 @@
 // Metadata fields carry the HLC of their last write; storage keeps the newer value per field (last-writer-wins). The body is a Yjs document written whole, only
 // while it is still at the version the writer last saw (see putNote), so a body written meanwhile is merged, never overwritten.
 
+import type { AgentWriteRow } from './authorship'
 import type { FileCopy, FileMeta } from './files'
 
 export interface NoteRecord {
@@ -28,7 +29,18 @@ export interface NoteRecord {
   datesHlc?: string
   deletedAt: number | null
   deletedHlc: string | null
+  /** The note's rows of the agent_writes index, derived from `ydoc` (agentWriteRows) and written with it. Undefined leaves the stored rows as they are. */
+  agentWrites?: readonly AgentWriteRow[]
 }
+
+/** A row of the agent_writes index (ADR 0007): derived, never synced; `seen` is this device's. */
+export interface AgentWriteSummary extends AgentWriteRow {
+  noteId: string
+  seen: boolean
+}
+
+/** The most rows one `listAgentWrites` call returns (the Tauri command refuses more). */
+export const MAX_AGENT_WRITES_LISTED = 1000
 
 export interface TrashedNote {
   id: string
@@ -229,4 +241,8 @@ export interface StorageAdapter {
   listActivity(since: number): Promise<ActivityData>
   /** What listActivity reads of the body versions and title changes, for `ids` only (at most MAX_BODY_IDS; unknown and purged IDs have none): the list's activity strips. */
   listNoteActivity(ids: readonly string[], since: number): Promise<ActivityRevision[]>
+  /** Rows of notes not in the Trash, newest first, at most `limit` (up to MAX_AGENT_WRITES_LISTED). A row starts unseen, an `aiEdit` row seen. */
+  listAgentWrites(limit: number): Promise<AgentWriteSummary[]>
+  /** IDs the note has no row for are skipped. */
+  markAgentWritesSeen(noteId: string, writeIds: readonly string[]): Promise<void>
 }

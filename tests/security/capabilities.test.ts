@@ -206,6 +206,7 @@ describe('Tauri command permissions', () => {
     // No notebook or tag changes, imports, exports, backups, mirror or settings changes: those
     // stay in the main window. It reads the notebooks only to make a linked note in one.
     expect(noteWindow.flatMap(permissionIds).sort()).toEqual([
+      'allow-agent-writes-seen',
       'allow-app-exit-cancel',
       'allow-app-exit-ready',
       'allow-books-list',
@@ -277,10 +278,11 @@ describe('Tauri command permissions', () => {
         (m) => m[1] ?? '',
       )
     // Its core never changes notebooks or tags, applies a template, lists the Trash, compacts the
-    // history or shows activity: those start in the main window.
+    // history, shows activity or lists agent writes: those start in the main window.
     const mainOnly = [
       'activity_list',
       'activity_notes_list',
+      'agent_writes_list',
       'book_put',
       'files_copy',
       'note_tag_get',

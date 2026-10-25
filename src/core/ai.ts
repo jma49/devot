@@ -10,8 +10,10 @@
 // to the Yjs document as operations (the text difference), never written as
 // a snapshot, so an edit merges with what the app holds of the note. Before
 // AI changes an existing note, the body as it was is kept as a version (see
-// keepBaseline in notes.ts), so History can bring it back.
+// keepBaseline in notes.ts), so History can bring it back. Each write is
+// recorded with its writer in the note's document (authorship.ts, ADR 0007).
 
+import type { Log, WriteField, Writer } from './authorship'
 import { buildBookTree, createBookService, flattenBookTree, TEMPLATES_BOOK_ID } from './books'
 import type { Clock } from './hlc'
 import { UUID_V7 } from './ids'
@@ -118,6 +120,10 @@ export interface AiServiceOptions {
   newId: () => string
   now?: () => number
   atomically?: <T>(work: () => Promise<T>) => Promise<T>
+  /** Who the writes are recorded as (ADR 0007), asked at each write: devot-mcp's client names itself only once it has connected. */
+  writer: () => Writer
+  /** Info lines, codes and IDs only (see NoteServiceOptions.log). */
+  log?: Log
 }
 
 export interface AiNotebookRef {
@@ -275,7 +281,14 @@ export function createAiService(options: AiServiceOptions): AiService {
   // compact: a sweep here would run inside the write transaction, holding
   // the database from the app, bucket days in this process's time zone and
   // thin notes AI may not see.
-  const notes = createNoteService({ storage, clock, newId, now, compact: false })
+  const notes = createNoteService({
+    storage,
+    clock,
+    newId,
+    now,
+    compact: false,
+    ...(options.log ? { log: options.log } : {}),
+  })
   const tagService = createTagService({ storage, clock, newId, now })
   const bookService = createBookService({ storage, clock, newId, now })
 
@@ -307,6 +320,15 @@ export function createAiService(options: AiServiceOptions): AiService {
     const book = record?.bookId ? (await allowed()).get(record.bookId) : undefined
     if (!record || !book) throw notFound()
     return { record, book }
+  }
+
+  /** Whether setTags would change the note's tags. */
+  const tagsChange = async (noteId: string, wanted: readonly string[]) => {
+    const current = await aiStorage.noteTags(noteId)
+    return (
+      current.some((tag) => !wanted.some((name) => sameName(name, tag.name))) ||
+      wanted.some((name) => !current.some((tag) => sameName(tag.name, name)))
+    )
   }
 
   /** A name an existing tag has, in any case, puts that tag on the note (tag names are unique). */
@@ -391,7 +413,7 @@ export function createAiService(options: AiServiceOptions): AiService {
         const book = await resolveBook(notebook)
         const id = await notes.create(clean, book.id)
         try {
-          await notes.setBody(id, body)
+          await notes.agentWrite(id, { writer: options.writer(), markdown: body, created: true })
         } finally {
           await notes.release(id)
         }
@@ -429,13 +451,25 @@ export function createAiService(options: AiServiceOptions): AiService {
             checkBody(markdown, MAX_BODY_BYTES)
           }
         }
+        const retitled = newTitle !== undefined && newTitle !== record.title
+        const moved = target.id !== record.bookId
+        const restatused = status !== undefined && status !== record.status
+        const retagged = wantedTags !== undefined && (await tagsChange(id, wantedTags))
+        const fields: WriteField[] = [
+          ...(retitled ? (['title'] as const) : []),
+          ...(moved ? (['notebook'] as const) : []),
+          ...(retagged ? (['tags'] as const) : []),
+          ...(restatused ? (['status'] as const) : []),
+        ]
         try {
-          if (markdown !== undefined) await notes.setBody(id, markdown)
-          if (newTitle !== undefined && newTitle !== record.title) {
-            await notes.setTitle(id, newTitle)
-          }
-          if (target.id !== record.bookId) await notes.setBook(id, target.id)
-          if (status !== undefined && status !== record.status) await notes.setStatus(id, status)
+          await notes.agentWrite(id, {
+            writer: options.writer(),
+            ...(markdown === undefined ? {} : { markdown }),
+            fields,
+          })
+          if (retitled) await notes.setTitle(id, newTitle)
+          if (moved) await notes.setBook(id, target.id)
+          if (restatused) await notes.setStatus(id, status)
         } finally {
           await notes.release(id)
         }
@@ -447,6 +481,7 @@ export function createAiService(options: AiServiceOptions): AiService {
     async trash(id) {
       return atomically(async () => {
         const { record } = await visible(id)
+        await notes.agentWrite(id, { writer: options.writer(), fields: ['trash'] })
         await notes.trash(id)
         return { id, title: record.title }
       })
