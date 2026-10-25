@@ -13,6 +13,8 @@ import {
   type Ref,
 } from 'react'
 import type { NoteSummary, RowDetail, TagRecord } from '../../core'
+import type { StripDay } from '../../core/activity'
+import { withStrips, type RowInfo } from './ActivityStrip'
 import { currentLocale, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { MenuPoint } from './contextMenu'
@@ -83,6 +85,8 @@ interface Props {
   headlines?: HeadlineLoader | undefined
   /** Looks up the body excerpt (search results bring their own) and task progress a row shows under its title, in one read. */
   details?: HeadlineLoader<RowDetail> | undefined
+  /** Looks up each row's activity strip; without it rows show none (Settings can hide them). */
+  activity?: HeadlineLoader<StripDay[]> | undefined
   empty?: ListEmptyKind | undefined
 }
 
@@ -213,7 +217,11 @@ export const NoteList = memo(function NoteList(props: Props) {
     [runs, entries],
   )
   const headlines = useHeadlines(props.headlines, rendered)
-  const details = useHeadlines(props.details, rendered, true)
+  const rowInfo = useMemo(
+    () => withStrips(props.details, props.activity),
+    [props.details, props.activity],
+  )
+  const details = useHeadlines<RowInfo>(rowInfo, rendered, true)
   // Measures its entries and the list itself (gaps, padding, height) as they change, and renders again when that moves anything.
   const [sizes] = useState(
     () =>
@@ -609,6 +617,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         headline={headlines.get(n.id)}
         preview={details.get(n.id)?.excerpt || undefined}
         progress={details.get(n.id)?.progress || undefined}
+        strip={details.get(n.id)?.strip}
         now={now}
         locale={locale}
         dates={dates}

@@ -68,6 +68,8 @@ describe('editor settings', () => {
       defaultNotebook: null,
       listDates: 'relative',
       boardDropped: true,
+      activityStrip: true,
+      historyBar: false,
       autoDownloadUpdates: true,
       menuBar: false,
       animations: 'always',
@@ -206,6 +208,10 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ windowTransparency: -40 }).windowTransparency).toBe(-40)
     expect(parseEditorSettings({ windowTransparency: 101 }).windowTransparency).toBe(0)
     expect(parseEditorSettings({ autoDownloadUpdates: false }).autoDownloadUpdates).toBe(false)
+    expect(parseEditorSettings({ historyBar: true }).historyBar).toBe(true)
+    expect(parseEditorSettings({ historyBar: 'yes' }).historyBar).toBe(false)
+    expect(parseEditorSettings({ activityStrip: false }).activityStrip).toBe(false)
+    expect(parseEditorSettings({ activityStrip: 0 }).activityStrip).toBe(true)
     expect(parseEditorSettings({ autoDownloadUpdates: 'no' }).autoDownloadUpdates).toBe(true)
     expect(parseEditorSettings({ menuBar: true }).menuBar).toBe(true)
     expect(parseEditorSettings({ menuBar: 'yes' }).menuBar).toBe(false)

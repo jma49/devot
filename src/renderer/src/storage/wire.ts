@@ -121,6 +121,7 @@ export function fromWire(wire: WireStorage): StorageAdapter {
     compactRevisions: (ids, sweptAt) => wire.compactRevisions(ids, sweptAt),
     lastCompaction: () => wire.lastCompaction(),
     listActivity: (since) => wire.listActivity(since),
+    listNoteActivity: (ids, since) => wire.listNoteActivity(ids, since),
   }
 }
 

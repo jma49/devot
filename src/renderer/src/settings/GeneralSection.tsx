@@ -65,6 +65,7 @@ export function GeneralSection() {
   const stored = useEditorSetting('defaultNotebook')
   const listDates = useEditorSetting('listDates')
   const boardDropped = useEditorSetting('boardDropped')
+  const activityStrip = useEditorSetting('activityStrip')
   const autoDownload = useEditorSetting('autoDownloadUpdates')
   const menuBar = useEditorSetting('menuBar')
   useEffect(() => startUpdateStatus(), [])
@@ -147,6 +148,12 @@ export function GeneralSection() {
           description="generalSettings.boardDroppedHint"
           checked={boardDropped}
           onChange={(on) => change({ boardDropped: on })}
+        />
+        <SettingToggle
+          label="generalSettings.activityStrip"
+          description="generalSettings.activityStripHint"
+          checked={activityStrip}
+          onChange={(on) => change({ activityStrip: on })}
         />
       </SettingsSection>
       <SettingsSection icon="settings.data" title="generalSettings.data">

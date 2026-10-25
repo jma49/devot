@@ -46,6 +46,7 @@ fn main() {
             "revisions_compact",
             "revisions_last_compaction",
             "activity_list",
+            "activity_notes_list",
             "books_list",
             "book_put",
             "file_put",

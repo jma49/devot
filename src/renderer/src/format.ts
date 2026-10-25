@@ -132,3 +132,11 @@ export function fileSize(bytes: number, locale: string): string {
     maximumFractionDigits: unit === 'kilobyte' ? 0 : 1,
   }).format(bytes <= 0 ? 0 : Math.max(value, unit === 'kilobyte' ? 1 : 0))
 }
+
+/** A day number (core/activity.ts counts UTC days of local dates) as a medium date. */
+export function dayDate(day: number, locale: string): string {
+  return kept(
+    `dayDate|${locale}`,
+    () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }),
+  ).format(day * 86_400_000)
+}

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   bookDeleteDetail,
+  dayDate,
   fileSize,
   listCaption,
   noteCount,
@@ -98,6 +99,14 @@ describe('noteCount', () => {
     expect(noteCount(0, 'en')).toBe('0 notes')
     expect(noteCount(1, 'en')).toBe('1 note')
     expect(noteCount(1234, 'en')).toBe('1,234 notes')
+  })
+})
+
+describe('dayDate', () => {
+  it('names a day number as its date, the same in every time zone', () => {
+    const day = Date.UTC(2026, 9, 25) / 86_400_000
+    expect(dayDate(day, 'en')).toBe('Oct 25, 2026')
+    expect(dayDate(day + 1, 'en')).toBe('Oct 26, 2026')
   })
 })
 

@@ -90,6 +90,27 @@ export function mergeHeadlines<V>(
   return next
 }
 
+/** What a loader was asked for and has not answered, so a render in between asks no more; another loader starts with nothing asked. */
+export class PendingReads<L> {
+  private of: L | undefined
+  private keys = new Set<string>()
+
+  take(load: L, keys: readonly string[]): string[] {
+    if (load !== this.of) {
+      this.of = load
+      this.keys = new Set()
+    }
+    const fresh = keys.filter((key) => !this.keys.has(key))
+    for (const key of fresh) this.keys.add(key)
+    return fresh
+  }
+
+  done(load: L, keys: readonly string[]): void {
+    if (load !== this.of) return
+    for (const key of keys) this.keys.delete(key)
+  }
+}
+
 /**
  * The headline of each untitled note of `notes` (the rows that show), by ID.
  * One that is not known yet is looked up, and the rows render again when it
@@ -101,18 +122,27 @@ export function useHeadlines<V = string>(
   all = false,
 ): ReadonlyMap<string, V> {
   const [cache, setCache] = useState<ReadonlyMap<string, CachedHeadline<V>>>(() => new Map())
-  // What was asked for and has not come back, so a render in between asks no more.
-  const asked = useRef(new Set<string>())
+  // Another loader reads something else (the list's strips turned on or off): what the last one read is dropped.
+  const [cacheOf, setCacheOf] = useState(() => load)
+  if (cacheOf !== load) {
+    setCacheOf(() => load)
+    setCache(new Map())
+  }
+  const pending = useRef(new PendingReads<HeadlineLoader<V>>())
+  const latest = useRef(load)
   useEffect(() => {
+    latest.current = load
     if (!load) return
     const keyOf = (n: NoteSummary) => `${n.id}@${n.updatedAt}`
-    const ask = staleHeadlines(notes, cache, all).filter((n) => !asked.current.has(keyOf(n)))
-    if (ask.length === 0) return
-    const keys = ask.map(keyOf)
+    const stale = staleHeadlines(notes, cache, all)
+    const keys = pending.current.take(load, stale.map(keyOf))
+    if (keys.length === 0) return
+    const fresh = new Set(keys)
+    const ask = stale.filter((n) => fresh.has(keyOf(n)))
     const at = new Map(ask.map((n) => [n.id, n.updatedAt]))
-    for (const key of keys) asked.current.add(key)
     void load([...at.keys()])
       .then((found) => {
+        if (latest.current !== load) return
         setCache((before) => {
           const next = mergeHeadlines(before, found, at)
           keepRecent(next, KEPT)
@@ -120,9 +150,7 @@ export function useHeadlines<V = string>(
         })
       })
       .catch((e: unknown) => console.warn('W_HEADLINES_FAILED', errorCode(e)))
-      .finally(() => {
-        for (const key of keys) asked.current.delete(key)
-      })
+      .finally(() => pending.current.done(load, keys))
   }, [load, notes, cache, all])
   return useMemo(() => {
     const shown = new Map<string, V>()

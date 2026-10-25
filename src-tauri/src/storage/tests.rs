@@ -2655,6 +2655,53 @@ fn lists_activity_since_a_time() {
 }
 
 #[test]
+fn lists_the_activity_of_the_notes_asked_for() {
+    let (_dir, mut store) = temp_store();
+    for id in ["a", "b"] {
+        store.put_note(&note(id, id, 500), &[]).unwrap();
+    }
+    store
+        .put_revision(&version("r1", "a", 50, &[1, 2]))
+        .unwrap();
+    store
+        .put_revision(&version("r2", "a", 200, &[1, 2, 3, 4, 5]))
+        .unwrap();
+    store
+        .put_revision(&event("r3", "a", "title", 300, Some("A")))
+        .unwrap();
+    store
+        .put_revision(&event("r4", "a", "pinned", 300, Some("1")))
+        .unwrap();
+    store
+        .put_revision(&RevisionRecord {
+            value: Some(BASELINE.into()),
+            ..version("r5", "a", 310, &[1])
+        })
+        .unwrap();
+    store.put_revision(&version("r6", "b", 250, &[1])).unwrap();
+    let revision = |note_id: &str, kind: &str, at, length, previous| ActivityRevision {
+        note_id: note_id.into(),
+        kind: kind.into(),
+        at,
+        length,
+        previous,
+    };
+    let mut found = store
+        .list_note_activity(&["a".into(), "zz".into()], 100)
+        .unwrap();
+    found.sort_by_key(|r| r.at);
+    assert_eq!(
+        found,
+        [
+            revision("a", "body", 200, Some(5), Some(2)),
+            revision("a", "title", 300, None, None),
+        ]
+    );
+    assert!(store.list_note_activity(&[], 0).unwrap().is_empty());
+    assert_eq!(store.list_note_activity(&["b".into()], 0).unwrap().len(), 1);
+}
+
+#[test]
 fn rebuilding_the_search_index_restores_search() {
     let (_dir, mut store) = temp_store();
     store.put_note(&note("a", "Relay plan", 10), &[]).unwrap();

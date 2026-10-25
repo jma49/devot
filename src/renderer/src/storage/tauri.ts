@@ -4,6 +4,7 @@
 import { invoke } from '../ipc'
 import type {
   ActivityData,
+  ActivityRevision,
   BookRecord,
   CompactableVersion,
   NoteBody,
@@ -52,6 +53,8 @@ export const tauriWire: WireStorage = {
   compactRevisions: (ids, sweptAt) => invoke('revisions_compact', { ids, sweptAt }),
   lastCompaction: () => invoke<number | null>('revisions_last_compaction'),
   listActivity: (since) => invoke<ActivityData>('activity_list', { since }),
+  listNoteActivity: (ids, since) =>
+    invoke<ActivityRevision[]>('activity_notes_list', { ids, since }),
 }
 
 export const tauriStorage: StorageAdapter = fromWire(tauriWire)

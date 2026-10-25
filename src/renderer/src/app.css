@@ -1326,6 +1326,19 @@ button {
   color: var(--color-accent-text);
 }
 
+/* After the chips, at the row's end; it wraps to a line of its own in a narrow list. */
+.activity-strip {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+.activity-strip-day {
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--space-1);
+}
+
 .row-status {
   display: inline-flex;
 }
@@ -2122,6 +2135,16 @@ button {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* Placed, not auto-placed, so the history overlay can lie over the same cells (HistoryBar.tsx). */
+.panes > .editor {
+  grid-area: 1 / 1;
+}
+
+.panes > .preview {
+  grid-area: 1 / -2 / 2 / -1;
 }
 
 /* A note slow to load: the one being left fades back while it waits. The next note
@@ -4761,4 +4784,135 @@ button.popup:focus-visible {
 
 .plugin-review .confirm-detail p {
   margin: 0 0 var(--space-4);
+}
+
+/* View > Show History Bar (HistoryBar.tsx): the open note's versions along the editor's bottom edge. Above the
+   overlay, so the date on the handle shows over it. */
+.history-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 var(--space-10) var(--space-4);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+}
+
+.history-track {
+  position: relative;
+  height: var(--space-9);
+  border-radius: var(--radius-control);
+  background: var(--color-fill-track);
+  touch-action: none;
+  cursor: pointer;
+}
+
+.history-tick {
+  position: absolute;
+  bottom: 0;
+  width: var(--space-1);
+  translate: -50% 0;
+  border-radius: var(--space-1) var(--space-1) 0 0;
+  background: var(--color-text-tertiary);
+  pointer-events: none;
+}
+
+.history-tick[data-shown] {
+  background: var(--color-accent-fill);
+}
+
+.history-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--space-1);
+  translate: -50% 0;
+  background: var(--color-accent-fill);
+}
+
+.history-handle:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: var(--size-focus-ring);
+}
+
+/* Slides from the handle's right at the oldest version to its left at the current text, so it never leaves the bar. */
+.history-handle-date {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 50%;
+  translate: calc(var(--history-at, 0.5) * -100%) 0;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-popover);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.history-bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--size-segment-height);
+}
+
+.history-bar-note {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.history-bar-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* Over the editor (and the preview beside it) in the same grid cells; the note under it stays live. */
+.history-overlay {
+  grid-area: 1 / 1 / 2 / -1;
+  outline: none;
+  z-index: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4) var(--space-9);
+  background: var(--color-surface-editor);
+}
+
+.history-overlay-text {
+  max-width: var(--editor-reading-width, none);
+  margin: 0 auto;
+  font-family: var(--editor-font-family, var(--font-family-mono));
+  font-size: var(--editor-font-size, var(--font-size-body));
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+}
+
+.history-overlay:focus-visible {
+  box-shadow: inset 0 0 0 var(--size-focus-ring) var(--color-focus-ring);
+}
+
+.history-same {
+  color: var(--color-text-secondary);
+}
+
+.history-overlay-text del {
+  background: var(--color-diff-removed);
+  text-decoration: line-through;
+}
+
+.history-overlay-text del:focus {
+  outline: none;
+}
+
+.history-overlay-text del:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+}
+
+.history-overlay-text ins {
+  background: var(--color-diff-added);
+  text-decoration: none;
 }

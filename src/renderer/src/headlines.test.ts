@@ -6,6 +6,7 @@ import {
   keepRecent,
   mergeHeadlines,
   newestUntitled,
+  PendingReads,
   staleHeadlines,
 } from './headlines'
 
@@ -90,6 +91,28 @@ describe('row details cache', () => {
     )
     expect(next.get('b')?.text.progress).toBe('2/2')
     expect(next.get('a')?.text.excerpt).toBe('one')
+  })
+})
+
+describe('PendingReads', () => {
+  it('asks once for a key until its read is done', () => {
+    const load = () => undefined
+    const pending = new PendingReads<typeof load>()
+    expect(pending.take(load, ['a@1', 'b@1'])).toEqual(['a@1', 'b@1'])
+    expect(pending.take(load, ['a@1', 'c@1'])).toEqual(['c@1'])
+    pending.done(load, ['a@1'])
+    expect(pending.take(load, ['a@1'])).toEqual(['a@1'])
+  })
+
+  it('asks another loader again for what the last one has not answered', () => {
+    const before = () => undefined
+    const after = () => undefined
+    const pending = new PendingReads<typeof before>()
+    expect(pending.take(before, ['a@1'])).toEqual(['a@1'])
+    expect(pending.take(after, ['a@1'])).toEqual(['a@1'])
+    // The old read finishing must not let the new one be asked twice.
+    pending.done(before, ['a@1'])
+    expect(pending.take(after, ['a@1'])).toEqual([])
   })
 })
 

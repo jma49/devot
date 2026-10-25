@@ -10,6 +10,8 @@ import type { NoteSummary, TagRecord } from '../../core'
 import type { NoteStatus } from '../../core/storage'
 import { matchSegments } from '../../core/search'
 import type { ListDatesStyle } from '../../core/editorSettings'
+import type { StripDay } from '../../core/activity'
+import { ActivityStrip } from './ActivityStrip'
 import { fullDate, rowDate } from './format'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
@@ -85,6 +87,8 @@ export interface RowProps {
   headline: string | undefined
   preview: string | undefined
   progress: string | undefined
+  /** The note's activity strip; none while it is hidden or not read yet. */
+  strip?: readonly StripDay[] | undefined
   now: number
   locale: string
   dates: ListDatesStyle
@@ -160,6 +164,9 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
             {c.name}
           </span>
         ))}
+        {props.strip ? (
+          <ActivityStrip days={props.strip} now={props.now} locale={props.locale} />
+        ) : null}
       </span>
       {n.title ? (
         excerpt ? (

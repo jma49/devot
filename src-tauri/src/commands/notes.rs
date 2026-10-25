@@ -167,7 +167,7 @@ pub async fn note_get(
 /// MAX_BODY_IDS in src/core/storage.ts (a policy test checks they match).
 const MAX_BODY_IDS: usize = 500;
 
-fn validate_body_ids(ids: &[String]) -> Result<(), &'static str> {
+pub(crate) fn validate_body_ids(ids: &[String]) -> Result<(), &'static str> {
     if ids.len() > MAX_BODY_IDS {
         return Err("E_NOTE_IDS_TOO_MANY");
     }

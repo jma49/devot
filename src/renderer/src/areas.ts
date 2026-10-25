@@ -1,5 +1,6 @@
-// The keyboard moves between the window's three areas: the sidebar, the
-// note list and the editor (with the open note's title and toolbar). Tab and
+// The keyboard moves between the window's areas: the sidebar, the note list,
+// the editor (with the open note's title and toolbar) and, when it shows, the
+// history bar under the editor (HistoryBar.tsx). Tab and
 // Shift+Tab do it on a sidebar row or in the list (`view.*AreaInPane`);
 // Control+Tab and Control+Shift+Tab anywhere (`view.*Area`), since in the
 // editor Tab indents and moves between table cells. Escape then Tab (or
@@ -10,9 +11,9 @@ import { sheetOpen } from './commands/dispatch'
 import { commandMatches } from './commands/registry'
 import { isImeKey } from './ime'
 
-export type Area = 'sidebar' | 'list' | 'editor'
+export type Area = 'sidebar' | 'list' | 'editor' | 'history'
 
-const ORDER: readonly Area[] = ['sidebar', 'list', 'editor']
+const ORDER: readonly Area[] = ['sidebar', 'list', 'editor', 'history']
 
 /**
  * The area after (`1`) or before (`-1`) `from`, round the window, skipping
@@ -34,6 +35,7 @@ export function nextArea(
 }
 
 export function areaOf(element: Element | null): Area | undefined {
+  if (element?.closest('.history-bar')) return 'history'
   const part = element?.closest('[data-devot-part="sidebar"], [data-devot-part="list"], main')
   if (!part) return undefined
   if (part.matches('[data-devot-part="sidebar"]')) return 'sidebar'
@@ -48,8 +50,8 @@ export const visible = (el: HTMLElement | null): el is HTMLElement =>
  * stop; the list's (its open note's or first row, else the list itself); in
  * the editor area the note's text (once the editor has loaded, `editor`),
  * else the rendered note (Preview mode, the Trash), which scrolls with the
- * keys, else the title, else the first button of the note. Undefined for an
- * area with none shown.
+ * keys, else the title, else the first button of the note; the history bar's
+ * slider. Undefined for an area with none shown.
  */
 export function areaTargets(
   editor: { focus: () => void } | null,
@@ -69,6 +71,7 @@ export function areaTargets(
       one('main [data-devot-part="preview"]') ??
       one('main input.title') ??
       one('main > :not([data-devot-part="toolbar"]) button:not(:disabled)'),
+    history: one('.history-bar [role="slider"]'),
   }
 }
 

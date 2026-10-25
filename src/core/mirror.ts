@@ -1171,5 +1171,6 @@ export function observeWrites(storage: StorageAdapter, changed: () => void): Sto
     compactRevisions: (ids, sweptAt) => storage.compactRevisions(ids, sweptAt),
     lastCompaction: () => storage.lastCompaction(),
     listActivity: (since) => storage.listActivity(since),
+    listNoteActivity: (ids, since) => storage.listNoteActivity(ids, since),
   }
 }

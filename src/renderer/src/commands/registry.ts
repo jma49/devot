@@ -592,6 +592,13 @@ export const COMMANDS = [
     keys: [],
   },
   {
+    id: 'view.historyBar',
+    label: 'command.showHistoryBar',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
+  {
     id: 'view.toggleListDates',
     label: 'command.showAbsoluteDates',
     group: 'view',

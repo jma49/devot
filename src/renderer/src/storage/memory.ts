@@ -150,6 +150,30 @@ function mergeBook(current: BookRecord | undefined, next: BookRecord): BookRecor
   }
 }
 
+function activityRevisions(since: number): ActivityRevision[] {
+  const inOrder = read<StoredRevision>(REVISIONS)
+    .filter((r) => r.kind === 'body' || r.kind === 'title')
+    .sort((a, b) => a.at - b.at || (a.length ?? 0) - (b.length ?? 0) || (a.id < b.id ? -1 : 1))
+  const last = new Map<string, number>()
+  const revisions: ActivityRevision[] = []
+  for (const r of inOrder) {
+    const body = r.kind === 'body'
+    const previous = body ? (last.get(r.noteId) ?? null) : null
+    if (body && r.length !== null) last.set(r.noteId, r.length)
+    // A baseline is only the version before the next one (BASELINE).
+    if (r.at >= since && !(body && r.value !== null)) {
+      revisions.push({
+        noteId: r.noteId,
+        kind: body ? 'body' : 'title',
+        at: r.at,
+        length: r.length,
+        previous,
+      })
+    }
+  }
+  return revisions
+}
+
 export const memoryStorage: StorageAdapter = {
   async listNotes() {
     failWith(FAIL_LIST)
@@ -338,30 +362,14 @@ export const memoryStorage: StorageAdapter = {
     return at === null ? null : Number(at)
   },
   async listActivity(since) {
-    const inOrder = read<StoredRevision>(REVISIONS)
-      .filter((r) => r.kind === 'body' || r.kind === 'title')
-      .sort((a, b) => a.at - b.at || (a.length ?? 0) - (b.length ?? 0) || (a.id < b.id ? -1 : 1))
-    const last = new Map<string, number>()
-    const revisions: ActivityRevision[] = []
-    for (const r of inOrder) {
-      const body = r.kind === 'body'
-      const previous = body ? (last.get(r.noteId) ?? null) : null
-      if (body && r.length !== null) last.set(r.noteId, r.length)
-      // A baseline is only the version before the next one (BASELINE).
-      if (r.at >= since && !(body && r.value !== null)) {
-        revisions.push({
-          noteId: r.noteId,
-          kind: body ? 'body' : 'title',
-          at: r.at,
-          length: r.length,
-          previous,
-        })
-      }
-    }
     const notes = read<Stored>(NOTES)
       .filter((n) => n.purgedAt === undefined && n.createdAt >= since)
       .map((n) => ({ id: n.id, createdAt: n.createdAt }))
-    return { notes, revisions }
+    return { notes, revisions: activityRevisions(since) }
+  },
+  async listNoteActivity(ids, since) {
+    const wanted = new Set(ids)
+    return activityRevisions(since).filter((r) => wanted.has(r.noteId))
   },
   async putNote(note) {
     await slowWrite(DELAY_NOTE_WRITES)

@@ -58,6 +58,7 @@
     "allow-revisions-compact",
     "allow-revisions-last-compaction",
     "allow-activity-list",
+    "allow-activity-notes-list",
     "allow-notes-search",
     "allow-file-put",
     "allow-files-copy",

@@ -8,7 +8,8 @@
 //! compared by a test) until the main window sets the keys in effect (`command_menu_set`). Hide
 //! Sidebar is relabelled Show Sidebar while the sidebar is hidden (`sidebar_menu_set`). Synced
 //! Scrolling is a check item for the `syncScroll` editor setting, stored here in Rust and kept in
-//! line with it however it changes.
+//! line with it however it changes; Show History Bar toggles the `historyBar` setting the same way,
+//! relabelled Hide History Bar while it is on.
 
 use crate::editor_settings::{self, EditorSettings, EditorSettingsStore, Snapshot};
 use crate::{diagnostics, exit, format_menu, import, menu_bar, settings, strings, updates};
@@ -228,6 +229,20 @@ pub fn sidebar_menu_set(
     })
 }
 pub const SYNC_SCROLL_ID: &str = "devot.syncScroll";
+pub const HISTORY_BAR_ID: &str = "devot.historyBar";
+
+struct HistoryBarItem {
+    item: MenuItem<Wry>,
+    shown: Mutex<u64>,
+}
+
+fn history_bar_label(on: bool) -> &'static str {
+    if on {
+        strings::HIDE_HISTORY_BAR
+    } else {
+        strings::SHOW_HISTORY_BAR
+    }
+}
 
 struct SyncScrollItem {
     item: CheckMenuItem<Wry>,
@@ -366,6 +381,15 @@ pub fn install(app: &App) -> tauri::Result<()> {
         shown: Mutex::new(stored.revision),
         set_by_page: Mutex::new(None),
     });
+    let history_bar = MenuItemBuilder::with_id(
+        HISTORY_BAR_ID,
+        history_bar_label(stored.settings.history_bar),
+    )
+    .build(app)?;
+    app.manage(HistoryBarItem {
+        item: history_bar.clone(),
+        shown: Mutex::new(stored.revision),
+    });
     // In `COMMAND_ITEMS` order (a test checks that order).
     app.manage(CommandMenu(
         COMMAND_ITEMS
@@ -391,6 +415,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .item(&sync_scroll)
         .separator()
         .item(&history)
+        .item(&history_bar)
         .item(&activity)
         .separator()
         .fullscreen()
@@ -479,6 +504,8 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         }
     } else if event.id() == SYNC_SCROLL_ID {
         toggle_sync_scroll(app);
+    } else if event.id() == HISTORY_BAR_ID {
+        toggle_history_bar(app);
     } else if event.id() == IMPORT_MARKDOWN_ID {
         import::pick(app, import::Pick::MarkdownFolders, None, &front_label(app));
     } else if event.id() == IMPORT_MARKDOWN_FILES_ID {
@@ -544,7 +571,39 @@ fn toggle_sync_scroll(app: &AppHandle) {
     });
 }
 
+fn toggle_history_bar(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = Arc::clone(&app.state::<Arc<EditorSettingsStore>>());
+        match store.update_from(editor_settings::toggle_history_bar) {
+            Ok(next) => editor_settings::announce(&app, &next),
+            Err(code) => log::warn!("W_HISTORY_BAR_TOGGLE_FAILED {code}"),
+        }
+    });
+}
+
+fn show_history_bar(app: &AppHandle, snapshot: &Snapshot) {
+    let Some(state) = app.try_state::<HistoryBarItem>() else {
+        return;
+    };
+    let Ok(mut shown) = state.shown.lock() else {
+        return;
+    };
+    if !is_newer(snapshot.revision, *shown) {
+        return;
+    }
+    *shown = snapshot.revision;
+    if state
+        .item
+        .set_text(history_bar_label(snapshot.settings.history_bar))
+        .is_err()
+    {
+        log::warn!("W_HISTORY_BAR_MENU_FAILED");
+    }
+}
+
 pub fn show_editor_settings(app: &AppHandle, snapshot: &Snapshot) {
+    show_history_bar(app, snapshot);
     let Some(state) = app.try_state::<SyncScrollItem>() else {
         return;
     };
@@ -572,6 +631,12 @@ fn is_newer(revision: u64, shown: u64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn labels_the_history_bar_item_by_what_it_does() {
+        assert_eq!(history_bar_label(false), "Show History Bar");
+        assert_eq!(history_bar_label(true), "Hide History Bar");
+    }
 
     #[test]
     fn lists_the_items_that_run_a_command() {
