@@ -847,3 +847,67 @@ fn the_latest_time_seen_is_written_every_ten_minutes_and_the_end_is_announced_on
         Some(trial::TrialState::Ended)
     );
 }
+
+// The first Developer ID build reads items an ad-hoc build made, which macOS may only give after
+// asking (docs/releasing.md, Signing the app); a denied read must lose nothing.
+#[test]
+fn a_denied_trial_read_neither_begins_a_new_trial_nor_locks_out_a_licence() {
+    let begun = trial::Record::first(START - 2 * HOUR).text();
+    let s = setup_with(
+        tempfile::tempdir().expect("dir"),
+        true,
+        Arc::new(MemoryKey::holding(&begun)),
+    );
+    *s.store.key.lock().expect("key") = Some(key(ID));
+    s.trial.unreadable.store(true, Ordering::SeqCst);
+    assert_eq!(s.trial_view().code, Some("E_LICENCE_KEYCHAIN"));
+    assert_eq!(s.licence.snapshot().state, LicenceState::Valid);
+    assert_eq!(s.licence.require(), Ok(()));
+    for what in [Write::Body, Write::Content] {
+        assert_eq!(s.licence.require_write(what), Ok(()));
+    }
+    for minutes in [1, 11, 21] {
+        s.at(START + minutes * 60_000);
+        s.licence.tick();
+    }
+    assert_eq!(
+        s.trial.key.lock().expect("trial").as_deref(),
+        Some(begun.as_str())
+    );
+
+    s.trial.unreadable.store(false, Ordering::SeqCst);
+    s.licence.tick();
+    assert_eq!(s.trial_view().ends_at, Some(START - 2 * HOUR + 72 * HOUR));
+}
+
+#[test]
+fn a_denied_licence_read_keeps_the_key_and_is_asked_again_at_the_next_tick_not_at_every_write() {
+    let s = setup(true);
+    *s.store.key.lock().expect("key") = Some(key(ID));
+    s.store.unreadable.store(true, Ordering::SeqCst);
+    let denied = s.licence.snapshot();
+    assert_eq!(
+        (denied.state, denied.code),
+        (LicenceState::None, Some("E_LICENCE_KEYCHAIN"))
+    );
+    for _ in 0..5 {
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    }
+    s.licence.snapshot();
+    assert_eq!(s.store.reads.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        s.store.key.lock().expect("key").as_deref(),
+        Some(key(ID).as_str())
+    );
+
+    s.store.unreadable.store(false, Ordering::SeqCst);
+    s.licence.tick();
+    assert_eq!(s.store.reads.load(Ordering::SeqCst), 2);
+    assert_eq!(s.licence.snapshot().state, LicenceState::Valid);
+    assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+    let emitted = s.emitted.lock().expect("emitted");
+    assert_eq!(
+        emitted.last().map(|snapshot| snapshot.state),
+        Some(LicenceState::Valid)
+    );
+}

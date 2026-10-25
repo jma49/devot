@@ -2,8 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-// Guards what went wrong on the first signed release (v0.8.0-beta.1), and keeps the updater key
-// and the write token away from the dependencies' code.
+// Guards what went wrong on the first signed release (v0.8.0-beta.1), and keeps the Apple
+// credentials, the updater key and the write token away from the dependencies' code.
 const workflow = readFileSync('.github/workflows/release.yml', 'utf8')
 const workflows = readdirSync('.github/workflows')
   .filter((name) => /\.ya?ml$/.test(name))
@@ -83,11 +83,63 @@ describe('the release workflow', () => {
     )
     expect(sign).toContain('release.ts sign "$TAG"')
     expect(sign).toMatch(/^    environment: release$/m)
-    expect(jobNames().filter((name) => /^    environment:/m.test(job(name)))).toEqual(['sign'])
-    // The build signs with a throwaway key only: Tauri will not make the updater bundle without one.
-    const build = job('build')
-    expect(build).toContain('tauri signer generate')
-    expect(build).not.toMatch(/GITHUB_TOKEN|TAURI_SIGNING_PRIVATE_KEY: \$\{\{/)
+    expect(jobNames().filter((name) => /^    environment:/m.test(job(name)))).toEqual([
+      'notarize',
+      'sign',
+    ])
+    expect(job('build')).not.toMatch(/GITHUB_TOKEN|TAURI_SIGNING_PRIVATE_KEY/)
+  })
+
+  it('gives the Apple credentials only to the notarize job, never to the build', () => {
+    const uses = (name: string) =>
+      [...job(name).matchAll(/\$\{\{ (secrets|vars)\.(APPLE_\w+) \}\}/g)].map(
+        (m) => `${m[1]}.${m[2]}`,
+      )
+    expect(uses('notarize').sort()).toEqual([
+      'secrets.APPLE_API_KEY_P8',
+      'secrets.APPLE_CERTIFICATE',
+      'secrets.APPLE_CERTIFICATE_PASSWORD',
+      'vars.APPLE_API_ISSUER_ID',
+      'vars.APPLE_API_KEY_ID',
+      'vars.APPLE_SIGNING_IDENTITY',
+    ])
+    for (const name of jobNames().filter((other) => other !== 'notarize'))
+      expect({ name, apple: job(name).match(/APPLE_/g) }).toEqual({ name, apple: null })
+  })
+
+  it("notarizes in the release environment, running only Apple's tools and committed scripts", () => {
+    const notarize = job('notarize')
+    expect(notarize).toMatch(/^    environment: release$/m)
+    expect(notarize).toMatch(/^    runs-on: macos-/m)
+    expect(notarize).not.toMatch(
+      /\bpnpm\b|\bnpx\b|\bnpm\b|\bnode\b|\bcargo\b|\btauri\b|cache:|GITHUB_TOKEN|setup-node|action-setup/,
+    )
+    const actions = [...notarize.matchAll(/uses: ([\w-]+\/[\w-]+)@/g)].map((m) => m[1])
+    expect(new Set(actions)).toEqual(
+      new Set(['actions/checkout', 'actions/download-artifact', 'actions/upload-artifact']),
+    )
+    expect(step('Sign, notarize and staple the app and the dmg')).toContain(
+      'scripts/release/macos-sign.sh --search-list ',
+    )
+  })
+
+  it('ships only what the notarize job signed: the build hands over the ad-hoc app alone', () => {
+    const uploads = (name: string) =>
+      [...job(name).matchAll(/uses: actions\/upload-artifact@.*\n\s+with:\n\s+name: (\S+)/g)].map(
+        (m) => m[1],
+      )
+    expect(uploads('build')).toEqual(['app'])
+    expect(uploads('notarize')).toEqual(['bundles'])
+    expect(jobNames().filter((name) => uploads(name).includes('bundles'))).toEqual(['notarize'])
+    expect(job('sign')).toMatch(/^    needs: \[build, notarize\]$/m)
+    // Symlinks and extended attributes survive ditto, not an artifact of the bare folder.
+    expect(step('Verify and hand over the app')).toContain(
+      'ditto -c -k --keepParent "$app" handover/Devot.app.zip',
+    )
+    const build = step('Build')
+    expect(build).toContain('--bundles app --config')
+    expect(build).toContain('signingIdentity: "-"')
+    expect(build).not.toContain('createUpdaterArtifacts')
   })
 
   it('binds the signature to the version the feed announces', () => {
@@ -102,7 +154,7 @@ describe('the release workflow', () => {
   })
 
   it('checks the app carries the layered icon, which the bundler leaves out with only a log line', () => {
-    const verify = step('Verify and collect the files')
+    const verify = step('Verify and hand over the app')
     expect(verify).toContain('test -s "$app/Contents/Resources/Assets.car"')
     expect(verify).toMatch(/plutil -extract CFBundleIconName raw "\$app\/Contents\/Info\.plist"/)
   })

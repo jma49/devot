@@ -131,6 +131,9 @@ pub(crate) struct Licence {
     keychain: Mutex<()>,
     /// Read from the keychain and the list's file once, on first use.
     held: Mutex<Option<Held>>,
+    /// Why the key could not be read (a denied keychain prompt, say): it is asked for again at the
+    /// next tick rather than at every write, each of which would prompt again.
+    unread: Mutex<Option<&'static str>>,
     trial_store: Arc<dyn KeyStore>,
     /// Read from the keychain on first use (begun there on the first launch); one that could not be
     /// read is read again at the next tick. Never held across a keychain use either.
@@ -163,6 +166,7 @@ impl Licence {
             revocations_path: data_dir.join(REVOCATIONS_FILE),
             keychain: Mutex::new(()),
             held: Mutex::new(None),
+            unread: Mutex::new(None),
             trial_store,
             trial: Mutex::new(None),
             ticked: Mutex::new(None),
@@ -210,6 +214,10 @@ impl Licence {
         self.keychain.lock().map_err(|_| "E_LICENCE_INTERNAL")
     }
 
+    fn unread(&self) -> Result<MutexGuard<'_, Option<&'static str>>, &'static str> {
+        self.unread.lock().map_err(|_| "E_LICENCE_INTERNAL")
+    }
+
     /// Replaces the key held, reading the list's file if nothing was held yet. The caller holds
     /// `keychain`, so nothing else fills `held` meanwhile.
     fn put(&self, key: Kept) -> Result<(), &'static str> {
@@ -223,6 +231,7 @@ impl Licence {
             Some(held) => held.key = key,
             None => *held = Some(Held { key, revocations }),
         }
+        *self.unread()? = None;
         Ok(())
     }
 
@@ -233,7 +242,18 @@ impl Licence {
         {
             let _keychain = self.keychain()?;
             if self.held()?.is_none() {
-                let key = self.store.get()?.map(|key| {
+                if let Some(code) = *self.unread()? {
+                    return Err(code);
+                }
+                let stored = match self.store.get() {
+                    Ok(stored) => stored,
+                    Err(code) => {
+                        log::warn!("W_LICENCE_UNREADABLE {code}");
+                        *self.unread()? = Some(code);
+                        return Err(code);
+                    }
+                };
+                let key = stored.map(|key| {
                     let verified = verify_licence(&key, &self.keys);
                     if let Err(e) = &verified {
                         log::warn!("W_LICENCE_STORED_INVALID {}", e.code());
@@ -407,13 +427,16 @@ impl Licence {
         }
     }
 
-    /// Writes the latest time seen every `SEEN_EVERY_MS`, reads again a trial that could not be read,
-    /// and tells the windows when what they show changed (the trial ended).
+    /// Writes the latest time seen every `SEEN_EVERY_MS`, reads again a key or a trial that could not
+    /// be read, and tells the windows when what they show changed (the trial ended).
     pub(crate) fn tick(&self) {
         if !self.keys.gated() {
             return;
         }
         let now = (self.clock)();
+        if let Ok(mut unread) = self.unread() {
+            *unread = None;
+        }
         if let Ok(mut trial) = self.trial_lock()
             && trial.as_ref().is_some_and(|trial| trial.record.is_err())
         {

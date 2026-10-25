@@ -1,17 +1,21 @@
 name: Release
 
 # Pushing a release tag (vMAJOR.MINOR.PATCH-betaN, see docs/releasing.md) of a
-# commit on main builds Devot for Apple Silicon, ad-hoc signed; signs the
-# updater bundle with the updater key; publishes a new release for the tag (a
+# commit on main builds Devot for Apple Silicon, ad-hoc signed; signs it with
+# the Developer ID certificate and the hardened runtime, notarizes and staples
+# it, and makes the dmg and the updater bundle from it; signs the updater
+# bundle with the updater key; publishes a new release for the tag (a
 # prerelease for a beta) with the dmg and the updater bundle; then points the
 # update feeds at it (in the fixed `updater` release: beta.json for a beta,
 # stable.json and beta.json for a stable release).
 #
-# The jobs keep the updater key and the write token away from the
-# dependencies' code: `build` runs it (pnpm install, build scripts, build.rs)
-# with a read-only token and no updater key; `sign` holds the key and runs
-# only Node and scripts/release/release.ts (node: modules only); `publish` and
-# `feed` hold the write token and run no dependency code either.
+# The jobs keep the Apple credentials, the updater key and the write token
+# away from the dependencies' code: `build` runs it (pnpm install, build
+# scripts, build.rs) with a read-only token and no secret but Sentry's;
+# `notarize` holds the Developer ID certificate and the notary key and runs
+# only Apple's tools and scripts/release/macos-*.sh; `sign` holds the updater
+# key and runs only Node and scripts/release/release.ts (node: modules only);
+# `publish` and `feed` hold the write token and run no dependency code either.
 #
 # The release notes are the tag's message (`git tag -a <tag> -F notes.md`);
 # a tag without one gets GitHub's generated notes.
@@ -19,8 +23,13 @@ name: Release
 # Needs, in the `release` environment (deployments limited to v* tags):
 #   secrets.TAURI_SIGNING_PRIVATE_KEY           the updater's private key
 #   secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
+#   secrets.APPLE_CERTIFICATE                   base64 of the Developer ID Application .p12
+#   secrets.APPLE_CERTIFICATE_PASSWORD          its password
+#   secrets.APPLE_API_KEY_P8                    the App Store Connect API key (AuthKey_<id>.p8)
 # and in the repository settings:
 #   vars.TAURI_UPDATER_PUBKEY                   the matching public key, built into the app
+#   vars.APPLE_SIGNING_IDENTITY                 "Developer ID Application: <name> (<team ID>)"
+#   vars.APPLE_API_KEY_ID, vars.APPLE_API_ISSUER_ID  the API key's ID and issuer
 # Optional (crash reporting, as in a local build's .env.local):
 #   secrets.DEVOT_SENTRY_DSN, secrets.SENTRY_AUTH_TOKEN, vars.SENTRY_ORG, vars.SENTRY_PROJECT
 on:
@@ -81,34 +90,65 @@ jobs:
             echo "::error::The updater key is not set up (see docs/releasing.md)."
             exit 1
           fi
-          # Tauri refuses to make the updater bundle without a secret key, so
-          # it signs with a throwaway one; the sign job signs the bundle again.
-          pnpm tauri signer generate --ci -p '' -w "$RUNNER_TEMP/throwaway.key" > /dev/null
-          export TAURI_SIGNING_PRIVATE_KEY="$RUNNER_TEMP/throwaway.key" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=''
-          # The "-" identity signs ad hoc: without a seal, downloaded copies
-          # are reported as damaged. The public key turns the updater on;
-          # requireSignedVersion makes it refuse a bundle signed for another
-          # version than the feed announces.
+          # Only the app: the notarize job signs it with the Developer ID and
+          # makes the dmg and the updater bundle from it. The "-" identity
+          # signs ad hoc, which that job replaces. The public key turns the
+          # updater on; requireSignedVersion makes it refuse a bundle signed
+          # for another version than the feed announces.
           config=$(jq -nc --arg key "$PUBKEY" '{
-            bundle: { createUpdaterArtifacts: true, macOS: { signingIdentity: "-" } },
+            bundle: { macOS: { signingIdentity: "-" } },
             plugins: { updater: { pubkey: $key, requireSignedVersion: true } }
           }')
-          pnpm tauri build --bundles app,dmg --config "$config"
-      - name: Verify and collect the files
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
+          pnpm tauri build --bundles app --config "$config"
+      - name: Verify and hand over the app
         run: |
-          bundle=src-tauri/target/release/bundle
-          app=$bundle/macos/Devot.app
+          app=src-tauri/target/release/bundle/macos/Devot.app
           codesign --verify --deep --strict "$app"
           # The layered icon: without a working actool the bundler only logs and leaves it out.
           test -s "$app/Contents/Resources/Assets.car"
           plutil -extract CFBundleIconName raw "$app/Contents/Info.plist"
-          dmg=$(ls "$bundle"/dmg/*.dmg)
-          hdiutil verify "$dmg"
+          # ditto keeps the bundle's symlinks and extended attributes, which an
+          # artifact of the bare folder would lose.
+          mkdir handover
+          ditto -c -k --keepParent "$app" handover/Devot.app.zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: app
+          path: handover/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Holds the Developer ID certificate and the notary key; runs only Apple's
+  # tools and the committed scripts, no dependency code (no pnpm install).
+  notarize:
+    needs: build
+    environment: release
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: app
+          path: handover
+      - name: Sign, notarize and staple the app and the dmg
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_ID: ${{ vars.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ vars.APPLE_API_ISSUER_ID }}
+        run: |
+          ditto -x -k handover/Devot.app.zip "$RUNNER_TEMP/adhoc"
+          scripts/release/macos-sign.sh --search-list "$RUNNER_TEMP/adhoc/Devot.app" signed
           mkdir out
-          cp "$dmg" "out/Devot_${VERSION}_aarch64.dmg"
-          cp "$bundle/macos/Devot.app.tar.gz" "out/Devot_${VERSION}_aarch64.app.tar.gz"
+          mv signed/Devot.dmg "out/Devot_${VERSION}_aarch64.dmg"
+          mv signed/Devot.app.tar.gz "out/Devot_${VERSION}_aarch64.app.tar.gz"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bundles
@@ -116,9 +156,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # Holds the updater key; runs no dependency code (no pnpm install).
+  # Holds the updater key; runs no dependency code (no pnpm install). It signs
+  # the notarize job's updater bundle, made from the stapled app.
   sign:
-    needs: build
+    needs: [build, notarize]
     environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -162,7 +203,7 @@ jobs:
           retention-days: 7
 
   publish:
-    needs: [build, sign]
+    needs: [build, notarize, sign]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
