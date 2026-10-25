@@ -88,6 +88,8 @@ interface Props {
   /** Looks up each row's activity strip; without it rows show none (Settings can hide them). */
   activity?: HeadlineLoader<StripDay[]> | undefined
   empty?: ListEmptyKind | undefined
+  /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
+  changedBy?: ReadonlyMap<string, string> | undefined
 }
 
 const MINUTE = 60_000
@@ -614,6 +616,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         tabbable={n.id === tabStop || (!tabStop && entry.index === 0)}
         tags={tags}
         highlight={props.highlight}
+        changedBy={props.changedBy?.get(n.id)}
         headline={headlines.get(n.id)}
         preview={details.get(n.id)?.excerpt || undefined}
         progress={details.get(n.id)?.progress || undefined}

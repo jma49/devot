@@ -126,6 +126,18 @@ fn is_id(text: &str) -> bool {
     is_code(text) || crate::commands::notes::valid_note_id(text)
 }
 
+/// Authorship lines also carry write IDs (64 random bits in base64url), writer kinds and counts
+/// (ADR 0007). Only they may: under another code, a word that looks like one could be note text.
+fn is_authorship_arg(code: &str, text: &str) -> bool {
+    let authorship = code.starts_with("I_AUTHORSHIP_") || code.starts_with("W_AUTHORSHIP_");
+    let write_id = text.len() == 11
+        && text
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+    let count = !text.is_empty() && text.len() <= 9 && text.bytes().all(|b| b.is_ascii_digit());
+    authorship && (write_id || count || matches!(text, "mcp" | "http" | "aiEdit"))
+}
+
 pub fn utc_iso(ms: i64) -> String {
     let (secs, millis) = (ms.div_euclid(1000), ms.rem_euclid(1000));
     let (days, day_secs) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
@@ -260,7 +272,10 @@ fn ui_entry(level: &str, code: &str, ids: &[String]) -> Result<(log::Level, Stri
     if ids.len() > MAX_UI_IDS {
         return Err("E_LOG_TOO_MANY_IDS");
     }
-    if !ids.iter().all(|id| is_id(id)) {
+    if !ids
+        .iter()
+        .all(|id| is_id(id) || is_authorship_arg(code, id))
+    {
         return Err("E_LOG_ID_INVALID");
     }
     let mut text = code.to_owned();
@@ -414,6 +429,43 @@ mod tests {
         assert_eq!(
             ui_entry("warn", "W_X", &vec![NOTE_ID.to_owned(); 5]),
             Err("E_LOG_TOO_MANY_IDS")
+        );
+    }
+
+    #[test]
+    fn authorship_entries_take_write_ids_kinds_and_counts_only() {
+        let write = ui_entry(
+            "info",
+            "I_AUTHORSHIP_WRITE",
+            &[NOTE_ID.into(), "AbC-12_xyz9".into(), "mcp".into()],
+        )
+        .unwrap();
+        assert_eq!(
+            write,
+            (
+                log::Level::Info,
+                format!("I_AUTHORSHIP_WRITE {NOTE_ID} AbC-12_xyz9 mcp")
+            )
+        );
+        assert!(
+            ui_entry(
+                "info",
+                "I_AUTHORSHIP_UNDONE",
+                &[NOTE_ID.into(), "12".into()]
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            ui_entry("info", "I_AUTHORSHIP_WRITE", &["Claude Code".into()]),
+            Err("E_LOG_ID_INVALID")
+        );
+        assert_eq!(
+            ui_entry("warn", "W_X", &["Hello_World".into()]),
+            Err("E_LOG_ID_INVALID")
+        );
+        assert_eq!(
+            ui_entry("warn", "W_X", &["mcp".into()]),
+            Err("E_LOG_ID_INVALID")
         );
     }
 }

@@ -3,7 +3,7 @@
 // also the keys of the Trash's list. On a row that is part of a multiple
 // selection the menu acts on every selected note: its labels say so, and the
 // items for one note only (Revision History, Duplicate, Copy Note URI and
-// ID, PDF, print and copy as HTML) are hidden, while the status and tag
+// ID, PDF, print and copy as HTML, Clear Authorship) are hidden, while the status and tag
 // items show, and Export as Markdown and HTML export the selected notes.
 import { useCallback } from 'react'
 import { noteLink, noteUri } from '../../core/links'
@@ -34,6 +34,7 @@ export type NoteAction =
   | 'trash'
   | 'addTag'
   | 'removeTag'
+  | 'clearAuthorship'
 
 export type ExportAction =
   | 'exportHtml'
@@ -70,6 +71,7 @@ export const NOTE_COMMANDS: Readonly<Record<NoteAction, CommandId>> = {
   trash: 'note.trash',
   addTag: 'note.addTag',
   removeTag: 'note.removeTag',
+  clearAuthorship: 'note.clearAuthorship',
 }
 
 /** Whether `action` changes the notes it acts on (it waits for a licence once the trial is over). */
@@ -150,7 +152,10 @@ export const NOTE_MENU: MenuGroups<NoteMenuAction, NoteMenuTarget> = [
       ? entry(action, { label: (n) => (one(n) ? labels[0] : labels[1]) })
       : entry(action, { shown: one })
   }),
-  [entry('trash', { label: (n) => (one(n) ? 'note.moveToTrash' : 'batch.trash') })],
+  [
+    entry('clearAuthorship', { shown: (n) => one(n) && n.authored === true }),
+    entry('trash', { label: (n) => (one(n) ? 'note.moveToTrash' : 'batch.trash') }),
+  ],
 ]
 
 /** The note action a key press on a list row asks for: the note commands' keys in the registry (Revision History's works window-wide too). Tag actions act only on several notes (`SELECTION_ONLY`). */
@@ -200,6 +205,8 @@ export interface NoteMenuTarget {
   tagged: boolean
   /** On a board, whose cards move to the next or previous status. */
   board?: boolean
+  /** The note has authorship records (ADR 0007), which Clear Authorship drops. */
+  authored?: boolean
 }
 
 /** Returns `show(target)`, which pops the menu up at the pointer; a picked item calls `onPick` with that target. */

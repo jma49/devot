@@ -180,6 +180,13 @@ export const COMMANDS = [
     keys: ['Mod+Shift+C'],
   },
   { id: 'note.copyId', label: 'noteMenu.copyId', group: 'note', scope: 'noteList', keys: [] },
+  {
+    id: 'note.clearAuthorship',
+    label: 'noteMenu.clearAuthorship',
+    group: 'note',
+    scope: 'noteList',
+    keys: [],
+  },
   // Export and print the open note (exporter.ts). Print has the window-wide
   // Shift+Cmd+P: Cmd+P is the command palette.
   {
@@ -594,6 +601,13 @@ export const COMMANDS = [
   {
     id: 'view.historyBar',
     label: 'command.showHistoryBar',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
+  {
+    id: 'view.authorship',
+    label: 'command.showAuthorship',
     group: 'view',
     scope: 'window',
     keys: [],
@@ -1449,6 +1463,7 @@ const CHANGES_NOTES: ReadonlySet<CommandId> = new Set<CommandId>([
   'note.trash',
   'note.addTag',
   'note.removeTag',
+  'note.clearAuthorship',
   'note.newFromSelection',
   'note.newFromLink',
   'trash.restore',

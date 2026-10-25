@@ -1351,6 +1351,28 @@ button {
   color: var(--status-mark);
 }
 
+/* A note agents changed since the owner last looked (ADR 0007, agentWrites.ts). */
+.row-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-text-secondary);
+}
+
+.row-agent-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-agent-mark {
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--radius-capsule);
+  background: var(--color-editor-authorship);
+}
+
 .row-progress {
   display: inline-flex;
   align-items: center;
@@ -4915,4 +4937,43 @@ button.popup:focus-visible {
 .history-overlay-text ins {
   background: var(--color-diff-added);
   text-decoration: none;
+}
+
+/* The review notice above the editor (AuthorshipNotice.tsx), between the note's header and the panes,
+   so the history bar's overlay, which lies over the panes, never covers it. */
+.authorship-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin: 0 var(--space-10) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+  font-size: var(--font-size-body);
+  animation: bar-in var(--motion-duration-popover) var(--motion-easing-move);
+}
+
+.authorship-notice::before {
+  content: '';
+  align-self: stretch;
+  width: var(--space-1);
+  border-radius: var(--radius-capsule);
+  background: var(--color-editor-authorship);
+}
+
+.authorship-notice-text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.authorship-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+:root[data-motion='reduced'] .authorship-notice {
+  animation: none;
 }

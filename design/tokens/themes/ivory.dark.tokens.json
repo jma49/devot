@@ -557,6 +557,15 @@
           "hex": "#e7b008"
         },
         "$description": "Under highlighted (`<mark>`) text."
+      },
+      "authorship": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3882, 0.8039, 0.749],
+          "hex": "#63cdbf"
+        },
+        "$description": "The authorship gutter's mark beside text an agent wrote (ADR 0007): Devot teal, the activity heatmap's strongest level, not the system accent. A graphic: 3:1 on the editor."
       }
     },
     "status": {

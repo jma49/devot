@@ -52,7 +52,7 @@ Every agent write (devot-mcp, the local HTTP API, an accepted Edit with AI propo
 - **Sync:** the maps are part of the record's Yjs state, so there is no new field and no format change. The fingerprint (`bodyPrint`) already covers the whole document, so a new record makes a push. Older builds keep root types they do not know and pass them on.
 - **Restart:** the maps are stored with the body.
 - **Revisions and compaction:** a body version holds the whole state, maps included. Compaction never reads a state (`listCompactable` works from indexes), so it does no extra work, but each kept version weighs what the maps weigh (Cost).
-- **Copies:** Duplicate copies its source's state, so the copy keeps the authorship. New Note from Selection and import start a new lineage without any. Restore and templates are the owner's edits.
+- **Copies:** Duplicate copies its source's state, so the copy keeps the authorship. Its `agent_writes` rows start seen: the owner made the copy, so its marks stay but the copy shows no notice and no list mark. New Note from Selection and import start a new lineage without any. Restore and templates are the owner's edits.
 
 ## Undo All and Review Changes
 

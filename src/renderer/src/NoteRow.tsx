@@ -65,6 +65,17 @@ export function TaskProgress({ done, total }: { done: number; total: number }) {
   )
 }
 
+/** A note agents changed since the owner last looked: a mark, and who changed it last. */
+export function ChangedBy({ writer, compact }: { writer: string; compact?: boolean }) {
+  const text = format(t('authorship.changedBy'), { writer })
+  return (
+    <span className="row-agent" title={compact ? text : undefined}>
+      <span className="row-agent-mark" aria-hidden="true" />
+      <span className={compact ? 'visually-hidden' : 'row-agent-text'}>{text}</span>
+    </span>
+  )
+}
+
 export interface RowEvents {
   setRow: (id: string, el: HTMLLIElement | null) => void
   mouseDown: (event: MouseEvent<HTMLLIElement>) => void
@@ -89,6 +100,8 @@ export interface RowProps {
   progress: string | undefined
   /** The note's activity strip; none while it is hidden or not read yet. */
   strip?: readonly StripDay[] | undefined
+  /** The newest writer of the note's unseen agent writes (ADR 0007), as the UI names it. */
+  changedBy?: string | undefined
   now: number
   locale: string
   dates: ListDatesStyle
@@ -164,6 +177,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
             {c.name}
           </span>
         ))}
+        {props.changedBy ? <ChangedBy writer={props.changedBy} /> : null}
         {props.strip ? (
           <ActivityStrip days={props.strip} now={props.now} locale={props.locale} />
         ) : null}

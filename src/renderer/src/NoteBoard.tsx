@@ -40,7 +40,7 @@ import {
 import { noteShortcut, type NoteAction } from './noteMenu'
 import { spacerHeight } from './listWindow'
 import { useNow } from './NoteList'
-import { STATUS_ICONS } from './NoteRow'
+import { ChangedBy, STATUS_ICONS } from './NoteRow'
 import { usePaneResize } from './paneResize'
 import { BOARD_PANE } from './paneWidth'
 import { useStable } from './stable'
@@ -61,6 +61,8 @@ interface Props {
   notes: readonly NoteSummary[]
   statuses: readonly NoteStatus[]
   tags: ReadonlyMap<string, TagRecord>
+  /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
+  changedBy?: ReadonlyMap<string, string> | undefined
   selected: string | undefined
   opening?: string | undefined
   onSelect: (id: string) => void
@@ -517,6 +519,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       position={windows ? index + 1 : undefined}
       setSize={windows ? count : undefined}
       tags={props.tags}
+      changedBy={props.changedBy?.get(note.id)}
       headline={headlines.get(note.id)}
       now={now}
       locale={locale}
@@ -645,6 +648,7 @@ interface CardProps {
   position: number | undefined
   setSize: number | undefined
   tags: ReadonlyMap<string, TagRecord>
+  changedBy: string | undefined
   headline: string | undefined
   now: number
   locale: string
@@ -696,6 +700,7 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
         >
           {rowDate(n.updatedAt, props.now, props.locale, props.dates)}
         </time>
+        {props.changedBy ? <ChangedBy writer={props.changedBy} compact /> : null}
         {tags.length > 0 ? (
           <span className="card-tags">
             {tags.map((tag) => (

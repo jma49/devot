@@ -14,6 +14,7 @@ import {
   packRanges,
   readWrites,
   reverseWrites,
+  reviewSteps,
   unpackRanges,
   validWriterName,
   WRITERS,
@@ -303,5 +304,44 @@ describe('Clear Authorship', () => {
     edit(b, claude, 'Text. One. Two. Three.\n')
     sync(b, a)
     expect(agentText(a)).toBe(' Two.| Three.')
+  })
+})
+
+describe('Review Changes steps', () => {
+  /** Each step as the text it covers, with a mark where the write deleted text. */
+  const shown = (doc: Y.Doc, only?: ReadonlySet<string>) =>
+    reviewSteps(doc, only).map(
+      (step) => `${body(doc).slice(step.from, step.to)}${step.deleted ? '^' : ''}`,
+    )
+
+  it('gives each write’s inserted runs, deletion points and replacements in document order', () => {
+    const doc = docWith('One two three four.\n')
+    const replaced = edit(doc, claude, 'One 2 three four.\n')
+    const cut = edit(doc, codex, 'One 2 three.\n', 2000)
+    const added = edit(doc, claude, 'Zero. One 2 three.\n', 3000)
+    expect(shown(doc)).toEqual(['Zero. ', '2^', '^'])
+    const steps = reviewSteps(doc)
+    expect(steps.map((s) => s.writeId)).toEqual([added, replaced, cut])
+    expect(steps[2]).toEqual({ writeId: cut, from: 17, to: 17, deleted: true })
+  })
+
+  it('splits a run the owner typed inside, and follows the text as it is now', () => {
+    const doc = docWith('Intro.\n', 1)
+    const agent = loaded(doc, 2)
+    edit(agent, claude, 'Intro.\nAgent paragraph.\n')
+    sync(agent, doc)
+    const text = doc.getText('body')
+    text.insert(0, 'Owner. ')
+    text.insert(body(doc).indexOf('paragraph'), 'long ')
+    expect(shown(doc)).toEqual(['Agent ', 'paragraph.\n'])
+  })
+
+  it('keeps to the writes asked for, and skips one whose writer is unknown', () => {
+    const doc = docWith('A.\n')
+    const first = edit(doc, claude, 'A. B.\n')!
+    edit(doc, codex, 'A. B. C.\n', 2000)
+    expect(shown(doc, new Set([first]))).toEqual([' B.'])
+    doc.getMap(WRITERS).delete(codex.session)
+    expect(shown(doc)).toEqual([' B.'])
   })
 })

@@ -34,6 +34,7 @@ export function sortView(options: {
   if (filter?.kind === 'pinned') return 'filter:pinned'
   if (filter?.kind === 'status') return `filter:status:${filter.status}`
   if (filter?.kind === 'tag') return `filter:tag:${filter.tagId}`
+  if (filter?.kind === 'agent') return `filter:agent:${filter.writer}`
   return options.bookId === null ? 'all' : `book:${options.bookId}`
 }
 

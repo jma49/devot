@@ -62,6 +62,7 @@ pub const SHOW_SPLIT: &str = "Show Editor and Preview";
 pub const SYNC_SCROLL: &str = "Synced Scrolling";
 pub const SHOW_HISTORY_BAR: &str = "Show History Bar";
 pub const HIDE_HISTORY_BAR: &str = "Hide History Bar";
+pub const SHOW_AUTHORSHIP: &str = "Show Authorship";
 pub const MENU_WINDOW: &str = "Window";
 pub const MENU_HELP: &str = "Help";
 pub const REBUILD_SEARCH_INDEX: &str = "Rebuild Search Index";

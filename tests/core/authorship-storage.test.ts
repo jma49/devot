@@ -360,6 +360,44 @@ describe('the agent_writes index', () => {
   })
 })
 
+describe('seen on this device', () => {
+  it('marks the writes the owner saw, and a later write starts unseen', async () => {
+    const s = await setup()
+    const { id } = await s.claude.ai.create({
+      title: 'Plan',
+      markdown: 'Draft.\n',
+      notebook: s.shared,
+    })
+    s.notes.hold(id)
+    await s.notes.open(id)
+    await s.claude.ai.update({ id, body: { markdown: 'Draft, longer.\n' } })
+    await s.notes.mergeStored()
+    const shown = readWrites(docOf((await s.notes.open(id)).state)).map((w) => w.id)
+    await s.notes.markWritesSeen(id, shown)
+    expect(rows(s.storage, id).map((r) => r.seen)).toEqual([1, 1])
+    const listed = await s.notes.agentWrites(10)
+    expect(listed.map((w) => [w.noteId, w.name, w.seen])).toEqual([
+      [id, 'Claude Code', true],
+      [id, 'Claude Code', true],
+    ])
+    await s.claude.ai.update({ id, body: { markdown: 'Draft, longer still.\n' } })
+    expect((await s.notes.agentWrites(10)).map((w) => w.seen)).toEqual([false, true, true])
+  })
+
+  it('starts a duplicate’s rows seen: the owner made the copy, which keeps the authorship', async () => {
+    const s = await setup()
+    const { id } = await s.claude.ai.create({
+      title: 'Plan',
+      markdown: 'Draft.\n',
+      notebook: s.shared,
+    })
+    const copy = await s.notes.duplicate(id)
+    expect(agentText(await stored(s.storage, copy))).toEqual(['Draft.\n'])
+    expect(rows(s.storage, copy).map((r) => [r.name, r.seen])).toEqual([['Claude Code', 1]])
+    expect(rows(s.storage, id).map((r) => r.seen)).toEqual([0])
+  })
+})
+
 describe('Clear Authorship', () => {
   it('drops every record and row, and the stored state shrinks', async () => {
     const s = await setup()
