@@ -1,6 +1,6 @@
 // Where the window was when it closed: the library view and its filter, the
-// workspace, the open note with its selection and scroll positions, and the
-// view mode, so a restart opens where the user left off. Like focus mode and
+// workspace, the open note with its selection and scroll positions, the view
+// mode and the library views shown as a board, so a restart opens where the user left off. Like focus mode and
 // the hidden sidebar it is a view preference of one window: it lives in the
 // webview's local storage under the window's label, never in the note
 // database, and never syncs. Everything read back is checked; a part that does not check
@@ -45,6 +45,8 @@ export interface LastState {
   mode: Mode
   note?: NoteState
   workspace?: string
+  /** The library views shown as a board (list view keys, see `isBoardView`), the one switched last at the end. */
+  boards?: readonly string[]
 }
 
 /** The stored format; another one (a later Devot) is not read. */
@@ -96,6 +98,48 @@ function readNote(value: unknown): NoteState | undefined {
   return note
 }
 
+export type ListLayout = 'list' | 'board'
+
+const BOARD_FILTERS = /^(all|filter:pinned|filter:tag:(?<tag>[^|]*))$/
+const BOARDS_KEPT = 100
+
+/**
+ * Whether `view` is the key of a library view that can show a board: All
+ * Notes, a notebook (a workspace too), Pinned or a tag, each as the window
+ * keys its list (`<filter>|<notebook ID or nothing>`). A status filter is
+ * one column already; search results, Templates and the Trash have no board.
+ */
+export function isBoardView(view: string): boolean {
+  const parts = view.split('|')
+  if (parts.length !== 2) return false
+  const [filter, book] = parts as [string, string]
+  const match = BOARD_FILTERS.exec(filter)
+  if (!match) return false
+  const tag = match.groups?.['tag']
+  return (tag === undefined || isId(tag)) && (book === '' || isId(book))
+}
+
+export function layoutOf(boards: readonly string[] | undefined, view: string): ListLayout {
+  return boards?.includes(view) ? 'board' : 'list'
+}
+
+/** `boards` with `view` shown as `layout`; only the views switched last are kept. */
+export function withLayout(
+  boards: readonly string[] | undefined,
+  view: string,
+  layout: ListLayout,
+): readonly string[] {
+  if (!isBoardView(view)) return boards ?? []
+  const others = (boards ?? []).filter((v) => v !== view)
+  return layout === 'board' ? [...others, view].slice(-BOARDS_KEPT) : others
+}
+
+function readBoards(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const views = value.filter((v): v is string => typeof v === 'string' && isBoardView(v))
+  return [...new Set(views)].slice(-BOARDS_KEPT)
+}
+
 export function parseLastState(raw: string | null): LastState | undefined {
   if (!raw) return undefined
   let value: unknown
@@ -114,6 +158,8 @@ export function parseLastState(raw: string | null): LastState | undefined {
   const note = readNote(value['note'])
   if (note) state.note = note
   if (isId(value['workspace'])) state.workspace = value['workspace']
+  const boards = readBoards(value['boards'])
+  if (boards) state.boards = boards
   return state
 }
 

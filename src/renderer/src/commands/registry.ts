@@ -322,6 +322,21 @@ export const COMMANDS = [
     scope: 'window',
     keys: ['Mod+Ctrl+5'],
   },
+  // On a board: the selected cards go to the column after or before the focused card's.
+  {
+    id: 'status.next',
+    label: 'command.statusNext',
+    group: 'note',
+    scope: 'noteList',
+    keys: ['Mod+Ctrl+ArrowRight'],
+  },
+  {
+    id: 'status.previous',
+    label: 'command.statusPrevious',
+    group: 'note',
+    scope: 'noteList',
+    keys: ['Mod+Ctrl+ArrowLeft'],
+  },
   { id: 'notebook.new', label: 'book.new', group: 'notebook', scope: 'window', keys: [] },
   {
     id: 'note.showNotebook',
@@ -565,6 +580,13 @@ export const COMMANDS = [
   {
     id: 'view.syncScroll',
     label: 'command.syncScrollOn',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
+  {
+    id: 'view.toggleBoard',
+    label: 'command.showBoard',
     group: 'view',
     scope: 'window',
     keys: [],
@@ -1430,6 +1452,8 @@ const CHANGES_NOTES: ReadonlySet<CommandId> = new Set<CommandId>([
   'status.onHold',
   'status.completed',
   'status.dropped',
+  'status.next',
+  'status.previous',
   'notebook.new',
   'notebook.newInside',
   'notebook.move',

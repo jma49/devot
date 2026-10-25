@@ -74,9 +74,7 @@ export const NOTE_COMMANDS: Readonly<Record<NoteAction, CommandId>> = {
 
 /** Whether `action` changes the notes it acts on (it waits for a licence once the trial is over). */
 export const actionChangesNotes = (action: NoteMenuAction): boolean =>
-  action === 'status' ||
-  action.startsWith('status:') ||
-  changesNotes(NOTE_COMMANDS[action as NoteAction])
+  action.startsWith('status') || changesNotes(NOTE_COMMANDS[action as NoteAction])
 
 /** Export actions that also act on several notes (side by side), with labels for one note and for several. */
 const SELECTION_EXPORT_LABELS: Partial<Record<ExportAction, readonly [MessageKey, MessageKey]>> = {
@@ -90,7 +88,12 @@ export const SELECTION_EXPORTS: ReadonlySet<ExportAction> = new Set(
 
 export const SELECTION_ONLY: ReadonlySet<NoteAction> = new Set(['addTag', 'removeTag'])
 
-export type NoteMenuAction = NoteAction | 'status' | `status:${NoteStatus}`
+export type NoteMenuAction =
+  | NoteAction
+  | 'status'
+  | `status:${NoteStatus}`
+  | 'statusNext'
+  | 'statusPrevious'
 
 const entry = (
   action: NoteAction,
@@ -127,6 +130,12 @@ export const NOTE_MENU: MenuGroups<NoteMenuAction, NoteMenuTarget> = [
         }),
       ),
     },
+    commandEntry<NoteMenuAction, NoteMenuTarget>('statusNext', 'status.next', {
+      shown: (n) => n.board === true,
+    }),
+    commandEntry<NoteMenuAction, NoteMenuTarget>('statusPrevious', 'status.previous', {
+      shown: (n) => n.board === true,
+    }),
     entry('addTag', { shown: severalNotes }),
     entry('removeTag', { shown: severalTagged }),
   ],
@@ -189,6 +198,8 @@ export interface NoteMenuTarget {
   status: NoteStatus | null
   templates: boolean
   tagged: boolean
+  /** On a board, whose cards move to the next or previous status. */
+  board?: boolean
 }
 
 /** Returns `show(target)`, which pops the menu up at the pointer; a picked item calls `onPick` with that target. */

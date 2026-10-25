@@ -157,7 +157,16 @@ import {
 import { coalesced, listsLink, openMainWindow } from './mainWindows'
 import { listenHere } from './windowEvents'
 import { useFocusRescue } from './focusRescue'
-import { currentLastStateStore, restorePlan, type LastState, type NoteState } from './lastState'
+import {
+  currentLastStateStore,
+  isBoardView,
+  layoutOf,
+  restorePlan,
+  withLayout,
+  type LastState,
+  type ListLayout,
+  type NoteState,
+} from './lastState'
 import type { FindTarget } from './find/target'
 import { useFind } from './find/useFind'
 import { headline } from '../../core/extract'
@@ -177,6 +186,20 @@ import {
 import { ModeControl, type Mode } from './ModeControl'
 import { relayGate, relayLink } from './noteRelay'
 import { NoteList } from './NoteList'
+import { NoteBoard } from './NoteBoard'
+import { LayoutControl } from './LayoutControl'
+import {
+  boardColumns,
+  boardOrder,
+  boardStatuses,
+  changesByStatus,
+  createMoveHistory,
+  moveChanges,
+  redoChanges,
+  stepChanges,
+  undoChanges,
+  type BoardMove,
+} from './board'
 import {
   homeOf,
   keepUnchanged,
@@ -396,6 +419,8 @@ export function App() {
   // Note whose editor takes the keyboard on open: one just created, or opened by a palette action from the editor (opening from the list leaves it there).
   const [takesKeyboard, setTakesKeyboard] = useState<string>()
   const [mode, setMode] = useState<Mode>(() => lastState?.mode ?? 'edit')
+  // The library views shown as a board (lastState.ts).
+  const [boards, setBoards] = useState<readonly string[]>(() => lastState?.boards ?? [])
   const focusStore = useMemo(() => currentFocusStore(), [])
   const [focus, setFocus] = useState(() => focusStore.load())
   const toggleFocus = useCallback(() => {
@@ -787,6 +812,10 @@ export function App() {
       : inTemplates
         ? 'templates'
         : `${sortView({ search: false, bookId: null, filter: activeFilter })}|${libraryBook?.id ?? ''}`
+  const canBoard = !searching && !inTrash && !inTemplates && isBoardView(listView)
+  const boardShown = canBoard && layoutOf(boards, listView) === 'board'
+  const boardDropped = useEditorSetting('boardDropped')
+  const boardStatusList = useMemo(() => boardStatuses(boardDropped), [boardDropped])
   const showAlertMenu = useAlertMenu()
   const setImageSize = useCallback<SetImageSize>((source, size) => {
     editorRef.current?.setImageSize(source, size)
@@ -817,6 +846,17 @@ export function App() {
       ),
     [notes, books, libraryBook, activeFilter, order, locales],
   )
+  // A card moved shows in its new column at once, until the lists have the change.
+  const [movedTo, setMovedTo] = useState<ReadonlyMap<string, NoteStatus>>(() => new Map())
+  const boardNotes = useMemo(() => {
+    const listed =
+      activeFilter?.kind === 'pinned' ? groups.pinned : [...groups.pinned, ...groups.others]
+    if (movedTo.size === 0) return listed
+    return listed.map((n) => {
+      const status = movedTo.get(n.id)
+      return status === undefined || status === n.status ? n : { ...n, status }
+    })
+  }, [groups, activeFilter, movedTo])
   const templateRows = useMemo(
     () => noteGroups(applyOrder(templates, order, locales)),
     [templates, order, locales],
@@ -957,11 +997,25 @@ export function App() {
           ? trash
           : inTemplates
             ? [...templateRows.pinned, ...templateRows.others]
-            : activeFilter?.kind === 'pinned'
-              ? groups.pinned
-              : [...groups.pinned, ...groups.others]
+            : boardShown
+              ? boardOrder(boardColumns(boardNotes, boardStatusList)).map((id) => ({ id }))
+              : activeFilter?.kind === 'pinned'
+                ? groups.pinned
+                : [...groups.pinned, ...groups.others]
       ).map((n) => n.id),
-    [searching, shownResults, inTrash, trash, inTemplates, templateRows, activeFilter, groups],
+    [
+      searching,
+      shownResults,
+      inTrash,
+      trash,
+      inTemplates,
+      templateRows,
+      activeFilter,
+      groups,
+      boardShown,
+      boardNotes,
+      boardStatusList,
+    ],
   )
   // Multi selection is kept to the listed notes: fewer than two is none.
   const setMulti = (selection: ListSelection | undefined) =>
@@ -1624,9 +1678,9 @@ export function App() {
     if (inTrash) {
       const before = libraryState.current
       if (before?.note && known?.id === before.note.id) {
-        return { ...before, note: { ...known, keyboard: false } }
+        return { ...before, note: { ...known, keyboard: false }, boards }
       }
-      return before
+      return before && { ...before, boards }
     }
     let note: NoteState | undefined
     if (selected !== undefined) {
@@ -1645,6 +1699,7 @@ export function App() {
       mode,
       ...(note ? { note } : {}),
       ...(workspaceNode ? { workspace: workspaceNode.id } : {}),
+      ...(boards.length > 0 ? { boards } : {}),
     }
     libraryState.current = state
     return state
@@ -1660,7 +1715,10 @@ export function App() {
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => saveNow.current?.(), LAST_STATE_SAVE_MS)
   }, [])
-  useEffect(() => saveNow.current?.(), [restored, library, filter, selected, mode, workspace])
+  useEffect(
+    () => saveNow.current?.(),
+    [restored, library, filter, selected, mode, workspace, boards],
+  )
   // So is the state when the page goes away or out of sight, and the
   // keyboard moving in or out of the editor soon after.
   useEffect(() => {
@@ -2151,6 +2209,54 @@ export function App() {
     runBatch(ids, { kind: 'status', status })
   const setNotesPinned = (ids: readonly string[], pinned: boolean) =>
     runBatch(ids, { kind: 'pinned', pinned })
+
+  // Board moves (drops, Control+Command+Right and Left) are kept per board, so Undo and Redo there take one back or make it again.
+  const boardMoves = useRef({ view: '', history: createMoveHistory() })
+  const boardHistory = () => {
+    if (boardMoves.current.view !== listView) {
+      boardMoves.current = { view: listView, history: createMoveHistory() }
+    }
+    return boardMoves.current.history
+  }
+  const applyMove = async (changes: BoardMove) => {
+    if (changes.length === 0) return
+    setMovedTo((shown) => new Map([...shown, ...changes.map((c) => [c.id, c.to] as const)]))
+    try {
+      for (const [status, ids] of changesByStatus(changes)) {
+        await runBatch(ids, { kind: 'status', status })
+      }
+    } finally {
+      setMovedTo((shown) => {
+        const left = new Map(shown)
+        for (const c of changes) if (left.get(c.id) === c.to) left.delete(c.id)
+        return left
+      })
+    }
+  }
+  const recordMove = (changes: BoardMove) => {
+    if (!editing) return
+    boardHistory().record(changes)
+    void applyMove(changes)
+  }
+  const moveCards = useStable((ids: readonly string[], status: NoteStatus) =>
+    recordMove(moveChanges(boardNotes, ids, status)),
+  )
+  const stepCards = useStable((ids: readonly string[], by: 1 | -1) =>
+    recordMove(stepChanges(boardNotes, ids, boardStatusList, by)),
+  )
+  const undoMove = useStable(() => {
+    if (!editing) return
+    const move = boardHistory().undo()
+    if (move) void applyMove(undoChanges(move, boardNotes))
+  })
+  const redoMove = useStable(() => {
+    if (!editing) return
+    const move = boardHistory().redo()
+    if (move) void applyMove(redoChanges(move, boardNotes))
+  })
+  const changeLayout = useStable((layout: ListLayout) =>
+    setBoards((shown) => withLayout(shown, listView, layout)),
+  )
   // A name typed is found or made; a tag picked from a list goes on by ID,
   // so it is the one picked even when two tags share its name.
   const addTagToNotes = (ids: readonly string[], name: string) =>
@@ -2241,6 +2347,7 @@ export function App() {
     move: moveNotes,
     setPinned: setNotesPinned,
     setStatus: setNotesStatus,
+    stepStatus: boardShown && editing ? stepCards : undefined,
     addTag: addTagToNotes,
     putTag: putTagOnNotes,
     removeTag: removeTagFromNotes,
@@ -2589,6 +2696,18 @@ export function App() {
       run: () => changeSelection(selectAll(shownSelection, selected, listedIds)),
     }
   }
+  if (canBoard) {
+    handlers['view.toggleBoard'] = {
+      run: () => changeLayout(boardShown ? 'list' : 'board'),
+      label: boardShown ? 'command.showList' : 'command.showBoard',
+    }
+  }
+  const boardTargets =
+    multiIds ?? (selected !== undefined && listedSet.has(selected) ? [selected] : undefined)
+  if (boardShown && boardTargets) {
+    handlers['status.next'] = { run: () => stepCards(boardTargets, 1) }
+    handlers['status.previous'] = { run: () => stepCards(boardTargets, -1) }
+  }
   if (core) {
     handlers['note.new'] = {
       run: () => {
@@ -2814,6 +2933,13 @@ export function App() {
       />
     ),
     [query, inView, changeQueryStable, clearSearchStable],
+  )
+  const layoutControl = useMemo(
+    () =>
+      canBoard ? (
+        <LayoutControl layout={boardShown ? 'board' : 'list'} onChange={changeLayout} />
+      ) : undefined,
+    [canBoard, boardShown, changeLayout],
   )
   const openFromList = useStable((id: string) => void select(id))
   const createFromList = useStable(() => void create())
@@ -3203,6 +3329,37 @@ export function App() {
           drag={editing ? 'templates' : false}
           after={<BuiltInTemplates selected={shownBuiltIn} onSelect={showBuiltIn} />}
         />
+      ) : boardShown ? (
+        <NoteBoard
+          view={listView}
+          title={filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes')}
+          icon={listIcon}
+          onTitleMenu={listTitleMenu}
+          filter={filterField}
+          scope={filterLabel !== undefined ? libraryBook?.name : undefined}
+          notes={boardNotes}
+          statuses={boardStatusList}
+          tags={tagsById}
+          selected={selected}
+          opening={switching ? openingId : undefined}
+          onSelect={openFromList}
+          onCreate={core && editing ? createFromList : undefined}
+          onAction={runNoteAction}
+          onMenu={showNoteMenu}
+          sort={sortButton}
+          sortButtonRef={sortButtonRef}
+          layout={layoutControl}
+          onFind={findInView}
+          onEdit={editFromList}
+          leading={sidebarToggle}
+          selection={shownSelection}
+          onSelection={changeListSelection}
+          headlines={loadHeadlines}
+          onMove={editing ? moveCards : undefined}
+          onStep={editing ? stepCards : undefined}
+          onUndo={undoMove}
+          onRedo={redoMove}
+        />
       ) : (
         <NoteList
           view={listView}
@@ -3223,6 +3380,7 @@ export function App() {
           onMenu={showNoteMenu}
           sort={sortButton}
           sortButtonRef={sortButtonRef}
+          layout={layoutControl}
           onFind={findInView}
           onEdit={editFromList}
           leading={sidebarToggle}

@@ -121,6 +121,8 @@
     "table.deleteRow": "rectangle.badge.minus",
     "table.deleteColumn": "minus.rectangle",
     "terminal": "terminal",
-    "outline": "list.bullet.indent"
+    "outline": "list.bullet.indent",
+    "layout.list": "list.bullet",
+    "layout.board": "rectangle.split.3x1"
   }
 }

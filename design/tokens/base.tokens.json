@@ -982,6 +982,38 @@
       },
       "$description": "The widest the note list is dragged to."
     },
+    "board-min-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 240,
+        "unit": "px"
+      },
+      "$description": "The narrowest the note list is dragged or shrinks to while it shows a board."
+    },
+    "board-default-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 760,
+        "unit": "px"
+      },
+      "$description": "The board's width until the user drags its right edge."
+    },
+    "board-max-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1600,
+        "unit": "px"
+      },
+      "$description": "The widest the board is dragged to; the editor keeps its minimum."
+    },
+    "board-column-min-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 184,
+        "unit": "px"
+      },
+      "$description": "The narrowest a board column gets; narrower boards scroll sideways."
+    },
     "pane-resize-handle": {
       "$type": "dimension",
       "$value": {

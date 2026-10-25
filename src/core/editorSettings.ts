@@ -65,6 +65,8 @@ export interface EditorSettings {
   previewFontSize: number
   defaultNotebook: string | null
   listDates: ListDatesStyle
+  /** Boards show a Dropped column; off, dropped notes are left off them. */
+  boardDropped: boolean
   autoDownloadUpdates: boolean
   /** Keep in Menu Bar: closing the main window hides it, and quick capture is a click or a shortcut away. */
   menuBar: boolean
@@ -127,6 +129,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   previewFontSize: 15,
   defaultNotebook: null,
   listDates: 'relative',
+  boardDropped: true,
   autoDownloadUpdates: true,
   menuBar: false,
   animations: 'always',
@@ -278,6 +281,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   previewFontSize: wholeIn(FONT_SIZE_MIN, FONT_SIZE_MAX),
   defaultNotebook: isNotebookId,
   listDates: oneOf(LIST_DATES_STYLES),
+  boardDropped: isFlag,
   autoDownloadUpdates: isFlag,
   menuBar: isFlag,
   animations: oneOf(ANIMATIONS),

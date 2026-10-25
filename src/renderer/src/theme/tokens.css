@@ -66,6 +66,10 @@
   --size-list-min-width: 220px;
   --size-list-default-width: 300px;
   --size-list-max-width: 500px;
+  --size-board-min-width: 240px;
+  --size-board-default-width: 760px;
+  --size-board-max-width: 1600px;
+  --size-board-column-min-width: 184px;
   --size-pane-resize-handle: 4px;
   --size-list-focus-bar: 5px;
   --size-list-row-inset: 15px;

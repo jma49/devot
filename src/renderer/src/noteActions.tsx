@@ -42,6 +42,8 @@ export function useNoteActions(deps: {
   move: (ids: readonly string[], bookId: string | null) => Promise<void>
   setPinned: (ids: readonly string[], pinned: boolean) => Promise<void>
   setStatus: (ids: readonly string[], status: NoteStatus) => Promise<void>
+  /** On a board: moves each note one column on; undefined while the list shows no board. */
+  stepStatus?: ((ids: readonly string[], by: 1 | -1) => void) | undefined
   addTag: (ids: readonly string[], name: string) => Promise<void>
   putTag: (ids: readonly string[], tagId: string) => Promise<void>
   removeTag: (ids: readonly string[], tagId: string) => Promise<void>
@@ -86,6 +88,10 @@ export function useNoteActions(deps: {
       return deps.setStatus(noteIds, action.slice('status:'.length) as NoteStatus)
     }
     switch (action as Exclude<NoteMenuAction, `status:${string}`>) {
+      case 'statusNext':
+        return deps.stepStatus?.(noteIds, 1)
+      case 'statusPrevious':
+        return deps.stepStatus?.(noteIds, -1)
       case 'openWindow':
         return many || first.bookId === TEMPLATES_BOOK_ID ? undefined : deps.openWindow(first.id)
       case 'move':
@@ -146,6 +152,7 @@ export function useNoteActions(deps: {
       status: notes.every((n) => n.status === status) ? status : null,
       templates: notes.some((n) => n.bookId === TEMPLATES_BOOK_ID),
       tagged: notes.some((n) => n.tagIds.length > 0),
+      board: deps.stepStatus !== undefined,
     }
   }
 

@@ -37,6 +37,7 @@ const PRESS: KeyPress = {
 const SOURCES = import.meta.glob<string>(
   [
     '../NoteList.tsx',
+    '../NoteBoard.tsx',
     '../areas.ts',
     '../NoteEditor.tsx',
     '../editor/find.ts',
@@ -59,6 +60,8 @@ const BOUND_IN: Partial<Record<CommandId, [file: string, call: string]>> = {
   'list.clearSelection': ['../NoteList.tsx', 'commandMatches'],
   'list.extendUp': ['../NoteList.tsx', 'commandMatches'],
   'list.extendDown': ['../NoteList.tsx', 'commandMatches'],
+  'status.next': ['../NoteBoard.tsx', 'commandMatches'],
+  'status.previous': ['../NoteBoard.tsx', 'commandMatches'],
   'view.nextAreaInPane': ['../areas.ts', 'commandMatches'],
   'view.previousAreaInPane': ['../areas.ts', 'commandMatches'],
   'find.nextInEditor': ['../editor/find.ts', '...commandKeys'],

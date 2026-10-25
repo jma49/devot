@@ -66,8 +66,11 @@ describe('noteShortcut', () => {
   })
 
   it('agrees with the accelerators the menu shows', () => {
+    // The board's status moves are the board's own keys (NoteBoard.tsx).
     const shown = NOTE_MENU.flat().flatMap((item) =>
-      item.accelerator ? [[item.action, item.accelerator] as const] : [],
+      item.accelerator && !item.action.startsWith('status')
+        ? [[item.action, item.accelerator] as const]
+        : [],
     )
     for (const [action, accelerator] of shown) {
       const parts = accelerator.split('+')
@@ -121,6 +124,23 @@ describe('NOTE_MENU', () => {
     expect(NOTE_MENU.flat().find((item) => item.action === 'print')?.accelerator).toBe(
       'Shift+CmdOrCtrl+P',
     )
+  })
+
+  it('moves the notes to the next or previous status on a board, with its keys', () => {
+    expect(shown(target([ID], { board: true }))[3]).toEqual(['statusNext', 'statusPrevious'])
+    expect(shown(target([ID, 'b'], { board: true }))[2]).toEqual([
+      'status',
+      'statusNext',
+      'statusPrevious',
+      'addTag',
+      'removeTag',
+    ])
+    const accelerators = Object.fromEntries(
+      NOTE_MENU.flat().map((item) => [item.action, item.accelerator]),
+    )
+    expect(accelerators['statusNext']).toBe('Ctrl+CmdOrCtrl+ArrowRight')
+    expect(accelerators['statusPrevious']).toBe('Ctrl+CmdOrCtrl+ArrowLeft')
+    expect(actionChangesNotes('statusNext')).toBe(true)
   })
 
   it('acts on several notes with plural labels, a Status submenu and the tag items', () => {
