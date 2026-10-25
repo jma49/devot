@@ -108,6 +108,9 @@ const ARROWS: Readonly<Record<string, 'up' | 'down' | 'left' | 'right'>> = {
   ArrowRight: 'right',
 }
 
+// Only the Dropped column can be left off, so a view with notes and no cards holds dropped notes only.
+const DROPPED_HIDDEN = { message: 'board.droppedHidden', tip: 'board.droppedHiddenTip' } as const
+
 const takesNotes = (event: DragEvent) => event.dataTransfer.types.includes(DRAG_NOTE)
 
 /**
@@ -542,7 +545,12 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
     }
     return out
   }
-  const emptyText = props.empty && notes.length === 0 ? listEmpty(props.empty) : undefined
+  const emptyText =
+    props.empty && notes.length === 0
+      ? listEmpty(props.empty)
+      : notes.length > 0 && order.length === 0
+        ? DROPPED_HIDDEN
+        : undefined
 
   return (
     <section

@@ -1009,10 +1009,10 @@
     "board-column-min-width": {
       "$type": "dimension",
       "$value": {
-        "value": 160,
+        "value": 150,
         "unit": "px"
       },
-      "$description": "The narrowest a board column gets; narrower boards scroll sideways."
+      "$description": "The narrowest a board column gets; narrower boards scroll sideways. Five fit the board's default width."
     },
     "pane-resize-handle": {
       "$type": "dimension",

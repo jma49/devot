@@ -1656,6 +1656,11 @@ button {
   min-width: 0;
 }
 
+/* Beside a board the editor gives way to a single pane's width, so the five columns fit a laptop window. */
+.window[data-board] .content {
+  min-width: var(--size-pane-min-width);
+}
+
 .title {
   margin: 0 var(--space-9) var(--space-3);
   padding: 0;

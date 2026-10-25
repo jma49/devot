@@ -2179,8 +2179,16 @@ export function App() {
 
   const moveNote = (noteId: string, bookId: string | null) =>
     changeBooks((c) => c.setBook(noteId, bookId))
-  const setStatus = (noteId: string, status: NoteStatus) =>
-    changeBooks((c) => c.setStatus(noteId, status))
+  // Status changes on a board view, however made (drops, keys, menus, the editor), are kept per view, in memory, so Undo and Redo on a board take back or make again the last one.
+  const boardMoves = useRef<ReturnType<typeof createBoardHistories>>(undefined)
+  const boardHistory = () => (boardMoves.current ??= createBoardHistories()).forView(listView)
+  const recordStatus = (ids: readonly string[], status: NoteStatus) => {
+    if (canBoard && editing) boardHistory().record(moveChanges(boardNotes, ids, status))
+  }
+  const setStatus = (noteId: string, status: NoteStatus) => {
+    recordStatus([noteId], status)
+    return changeBooks((c) => c.setStatus(noteId, status))
+  }
 
   /** One change to several notes, note by note (each its own write); failures are logged by code and counted in a notice, the rest keep their change. Resolves to the notes whose write failed. */
   const batchFailures = async (ids: readonly string[], change: BatchChange): Promise<string[]> => {
@@ -2211,14 +2219,13 @@ export function App() {
   // Every named note gets the write even if it seems to have the value: the lists may lag a change just made (a quick second P unpins again).
   const moveNotes = (ids: readonly string[], bookId: string | null) =>
     runBatch(ids, { kind: 'book', bookId })
-  const setNotesStatus = (ids: readonly string[], status: NoteStatus) =>
-    runBatch(ids, { kind: 'status', status })
+  const setNotesStatus = (ids: readonly string[], status: NoteStatus) => {
+    recordStatus(ids, status)
+    return runBatch(ids, { kind: 'status', status })
+  }
   const setNotesPinned = (ids: readonly string[], pinned: boolean) =>
     runBatch(ids, { kind: 'pinned', pinned })
 
-  // Board moves (drops, Control+Command+Right and Left) are kept per board view, in memory, so Undo and Redo on a board take one back or make it again.
-  const boardMoves = useRef<ReturnType<typeof createBoardHistories>>(undefined)
-  const boardHistory = () => (boardMoves.current ??= createBoardHistories()).forView(listView)
   /** Makes `changes`, resolving to those that were written. */
   const applyMove = async (changes: BoardMove): Promise<BoardMove> => {
     if (changes.length === 0) return changes
@@ -2267,6 +2274,16 @@ export function App() {
   const changeLayout = useStable((layout: ListLayout) =>
     setBoards((shown) => withLayout(shown, listView, layout)),
   )
+  const layoutKeyboard = useRef(false)
+  const changeLayoutFromControl = useStable((layout: ListLayout, keyboard: boolean) => {
+    layoutKeyboard.current = keyboard && layout !== (boardShown ? 'board' : 'list')
+    changeLayout(layout)
+  })
+  const layoutTakesKeyboard = useCallback(() => {
+    const takes = layoutKeyboard.current
+    layoutKeyboard.current = false
+    return takes
+  }, [])
   // A name typed is found or made; a tag picked from a list goes on by ID,
   // so it is the one picked even when two tags share its name.
   const addTagToNotes = (ids: readonly string[], name: string) =>
@@ -2947,9 +2964,13 @@ export function App() {
   const layoutControl = useMemo(
     () =>
       canBoard ? (
-        <LayoutControl layout={boardShown ? 'board' : 'list'} onChange={changeLayout} />
+        <LayoutControl
+          layout={boardShown ? 'board' : 'list'}
+          onChange={changeLayoutFromControl}
+          takesKeyboard={layoutTakesKeyboard}
+        />
       ) : undefined,
-    [canBoard, boardShown, changeLayout],
+    [canBoard, boardShown, changeLayoutFromControl, layoutTakesKeyboard],
   )
   const openFromList = useStable((id: string) => void select(id))
   const createFromList = useStable(() => void create())
@@ -3212,6 +3233,7 @@ export function App() {
       data-ready={restored || undefined}
       data-sidebar-hidden={sidebarOff || undefined}
       data-narrow={narrow || undefined}
+      data-board={boardShown || undefined}
     >
       <ToolTips />
       <Sidebar

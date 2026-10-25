@@ -266,6 +266,8 @@ export const en = {
   'noteList.resize': 'Resize Note List',
   'board.resize': 'Resize Board',
   'board.cardTags': 'Tags: {tags}',
+  'board.droppedHidden': 'Dropped Notes Are Hidden',
+  'board.droppedHiddenTip': 'Turn on Dropped Column on Boards in General settings to show them.',
   'layout.label': 'Layout',
   'layout.list': 'List',
   'layout.board': 'Board',

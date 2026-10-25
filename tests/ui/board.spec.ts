@@ -191,7 +191,7 @@ test('in a narrow window the columns keep their width and scroll sideways', asyn
     columns: [...el.querySelectorAll('.board-column')].map((c) => c.getBoundingClientRect().width),
   }))
   expect(sizes.scroll).toBeGreaterThan(sizes.client)
-  for (const width of sizes.columns) expect(width).toBeGreaterThanOrEqual(160)
+  for (const width of sizes.columns) expect(width).toBeGreaterThanOrEqual(150)
   // The keyboard brings a column out of sight into view.
   await card(page, 'Echo').click()
   await page.keyboard.press('ArrowRight')
@@ -305,4 +305,65 @@ test.describe('a long board', () => {
     await expect(longCard(page, 61)).toBeFocused()
     await expect(longCard(page, 61)).toBeInViewport()
   })
+})
+
+test('Undo on a card takes back the last status change made by any means, not an older move', async ({
+  page,
+}) => {
+  await layout(page, 'Board').click()
+  await card(page, 'Alpha').dragTo(column(page, 'On Hold'))
+  await expect.poll(async () => (await storedStatus(page))['Alpha']).toBe('on_hold')
+  await card(page, 'Bravo').click()
+  await page.keyboard.press('Meta+Control+2')
+  await expect.poll(async () => (await storedStatus(page))['Bravo']).toBe('active')
+  await card(page, 'Bravo').focus()
+  await page.keyboard.press('Meta+z')
+  await expect.poll(async () => (await storedStatus(page))['Bravo']).toBe('none')
+  expect((await storedStatus(page))['Alpha']).toBe('on_hold')
+  await page.keyboard.press('Meta+z')
+  await expect.poll(async () => (await storedStatus(page))['Alpha']).toBe('none')
+})
+
+test('in a laptop-sized window all five columns fit beside the editor', async ({ page }) => {
+  for (const width of [1280, 1440]) {
+    await page.setViewportSize({ width, height: 800 })
+    await layout(page, 'Board').click()
+    const sizes = await board(page)
+      .locator('.board-columns')
+      .evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }))
+    expect(sizes.scroll).toBeLessThanOrEqual(sizes.client)
+  }
+})
+
+test('switching the layout from the keyboard keeps the keyboard on the Layout control', async ({
+  page,
+}) => {
+  await layout(page, 'Board').focus()
+  await page.keyboard.press('Enter')
+  await expect(board(page)).toBeVisible()
+  await expect(layout(page, 'Board')).toBeFocused()
+  await layout(page, 'List').focus()
+  await page.keyboard.press('Space')
+  await expect(board(page)).toHaveCount(0)
+  await expect(layout(page, 'List')).toBeFocused()
+})
+
+test('a board whose notes are all in the hidden Dropped column says so', async ({ page }) => {
+  await page.evaluate(() => {
+    const all = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
+      status: string
+    }[]
+    localStorage.setItem(
+      'devot.test.notes',
+      JSON.stringify(all.map((n) => ({ ...n, status: 'dropped' }))),
+    )
+  })
+  await reloadApp(page)
+  await layout(page, 'Board').click()
+  await changeEditorSettingsElsewhere(page, { boardDropped: false })
+  await expect(column(page, 'Dropped')).toHaveCount(0)
+  await expect(board(page).getByText('0 notes').first()).toBeVisible()
+  await expect(board(page).getByText('Dropped Notes Are Hidden')).toBeVisible()
+  await changeEditorSettingsElsewhere(page, { boardDropped: true })
+  await expect(card(page, 'Alpha')).toBeVisible()
 })
