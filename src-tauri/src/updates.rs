@@ -6,15 +6,25 @@
 //! (the default); otherwise the main window offers a Download button. A downloaded update waits:
 //! Restart to Update installs it and restarts once the window has saved (the quit handshake, see
 //! `exit`). A plain quit installs nothing.
+//! A licence covers the updates released up to its `updatesUntil` (docs/adr/0006). When the licence
+//! is valid for the running build and the update was released after that date (the feed's
+//! `pub_date`, UTC), the update is not downloaded: the status says so (`notCovered`) and the main
+//! window offers Renew, Download Anyway and Skip This Version. The skip is remembered for that
+//! version only; a later version, or a manual check, offers the update again. Everyone else (no
+//! licence, a build that gates nothing, a covered update) gets the behaviour above unchanged.
+//! The same schedule fetches the licence's revocation list once a day, also in a build without the
+//! updater's key (`licence::revoked`).
 //! Rust holds the status and sends it (`devot://update-status`, with a revision so an older one
 //! never overrides a newer one) to every window after each change. A build without the updater's
 //! public key (any local or dev build: the release workflow passes the key at build time) has no
 //! updater: it never checks on its own, and a manual check says updates are unavailable.
 
 use crate::exit;
+use crate::licence::{self, Licence, LicenceState};
 use serde::Serialize;
 use serde_json::Value;
 use std::future::Future;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, SystemTime};
@@ -76,6 +86,11 @@ pub enum State {
     Available {
         version: String,
     },
+    /// The licence does not cover this update: nothing downloads until the user chooses to.
+    NotCovered {
+        version: String,
+        updates_until: String,
+    },
     Downloading {
         version: String,
         percent: Option<u8>,
@@ -106,6 +121,91 @@ fn may_check(state: &State) -> bool {
         state,
         State::Checking | State::Downloading { .. } | State::Ready { .. }
     )
+}
+
+/// The version the user may download, and whether only by choosing Download Anyway.
+fn downloadable(state: &State, anyway: bool) -> Option<&str> {
+    match state {
+        State::Available { version } => Some(version),
+        State::NotCovered { version, .. } if anyway => Some(version),
+        _ => None,
+    }
+}
+
+/// The date (YYYY-MM-DD, UTC) of a Unix time, by the civil-from-days algorithm.
+fn utc_date(unix_seconds: i64) -> String {
+    let days = unix_seconds.div_euclid(86_400) + 719_468;
+    let era = days.div_euclid(146_097);
+    let day_of_era = days.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let shifted_month = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * shifted_month + 2) / 5 + 1;
+    let month = if shifted_month < 10 {
+        shifted_month + 3
+    } else {
+        shifted_month - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
+/// The last release date the licence covers, when it does not cover an update released on
+/// `released`: only a licence that is valid for the running build and gated sync and AI make the
+/// update one the user is told about. An update without a date is treated as covered.
+fn uncovered_until(snapshot: &licence::Snapshot, released: Option<&str>) -> Option<String> {
+    let until = snapshot.updates_until.as_deref()?;
+    let released = released?;
+    (snapshot.gated
+        && snapshot.state == LicenceState::Valid
+        && !licence::covers(until, Some(released)))
+    .then(|| until.to_owned())
+}
+
+/// The version the user chose to skip, kept in the app data folder: it holds back the prompt for
+/// that version only.
+struct Skipped {
+    path: PathBuf,
+}
+
+const SKIPPED_FILE: &str = "update-skipped-version.txt";
+
+impl Skipped {
+    fn new(data_dir: &Path) -> Self {
+        Self {
+            path: data_dir.join(SKIPPED_FILE),
+        }
+    }
+
+    fn read(&self) -> Option<String> {
+        let text = std::fs::read_to_string(&self.path).ok()?;
+        let version = text.trim();
+        (!version.is_empty()
+            && version.len() <= 64
+            && version
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+')))
+        .then(|| version.to_owned())
+    }
+
+    /// Whether `version` is the one skipped. Any other version forgets the skip, so a later
+    /// version is offered whatever came before.
+    fn holds_back(&self, version: &str) -> bool {
+        match self.read() {
+            Some(skipped) if skipped == version => true,
+            Some(_) => {
+                let _ = std::fs::remove_file(&self.path);
+                false
+            }
+            None => false,
+        }
+    }
+
+    fn remember(&self, version: &str) -> Result<(), &'static str> {
+        crate::atomic_file::write_replacing(&self.path, version.as_bytes())
+            .map_err(|_| "E_UPDATE_SKIP_FAILED")
+    }
 }
 
 fn nothing_found(manual: bool) -> State {
@@ -205,14 +305,16 @@ struct Inner {
 pub struct Updates {
     enabled: bool,
     current: String,
+    skipped: Skipped,
     inner: Mutex<Inner>,
 }
 
 impl Updates {
-    pub fn new(enabled: bool, current: String) -> Self {
+    pub fn new(enabled: bool, current: String, data_dir: &Path) -> Self {
         Self {
             enabled,
             current,
+            skipped: Skipped::new(data_dir),
             inner: Mutex::new(Inner {
                 revision: 0,
                 state: State::Idle,
@@ -340,6 +442,30 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
         Ok(Some(update)) => {
             let version = update.version.clone();
             log::info!("I_UPDATE_FOUND {version}");
+            let released = update.date.map(|date| utc_date(date.unix_timestamp()));
+            let until = uncovered_until_for(&app, released).await;
+            let skipped = updates.skipped.holds_back(&version);
+            if let Some(updates_until) = until {
+                if skipped && !manual {
+                    log::info!("I_UPDATE_SKIPPED {version}");
+                    change(&app, nothing_found(false));
+                    return;
+                }
+                log::info!("I_UPDATE_NOT_COVERED {version}");
+                let status = {
+                    let mut inner = updates.lock();
+                    inner.found = Some(Arc::new(update));
+                    updates.set(
+                        &mut inner,
+                        State::NotCovered {
+                            version,
+                            updates_until,
+                        },
+                    )
+                };
+                publish(&app, &status);
+                return;
+            }
             // With auto download on, the update goes straight to downloading
             // (no window offers a Download button for it meanwhile).
             let auto = auto_download(&app);
@@ -349,7 +475,7 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
                 updates.set(&mut inner, State::Available { version })
             };
             if auto {
-                download(app.clone(), asked_by).await;
+                download(app.clone(), asked_by, false).await;
             } else {
                 publish(&app, &status);
             }
@@ -361,15 +487,31 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
     }
 }
 
-async fn download(app: AppHandle, asked_by: Option<String>) {
+/// Whether the licence in the app does not cover an update released on `released`, and until
+/// when it does. The licence may read the keychain, so it runs off the async threads.
+async fn uncovered_until_for(app: &AppHandle, released: Option<String>) -> Option<String> {
+    let licence = app.try_state::<Arc<Licence>>()?;
+    let licence = Arc::clone(&licence);
+    tauri::async_runtime::spawn_blocking(move || {
+        uncovered_until(&licence.snapshot(), released.as_deref())
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+/// `anyway`: the user chose Download Anyway for an update the licence does not cover. A
+/// background download never does.
+async fn download(app: AppHandle, asked_by: Option<String>, anyway: bool) {
     let manual = asked_by.is_some();
     let updates = app.state::<Updates>();
     let (update, status) = {
         let mut inner = updates.lock();
-        let (State::Available { version }, Some(update)) = (&inner.state, &inner.found) else {
+        let (Some(version), Some(update)) = (downloadable(&inner.state, anyway), &inner.found)
+        else {
             return;
         };
-        let (version, update) = (version.clone(), Arc::clone(update));
+        let (version, update) = (version.to_owned(), Arc::clone(update));
         if manual {
             inner.asked_by.clone_from(&asked_by);
         }
@@ -443,6 +585,20 @@ fn download_failure(error: &tauri_plugin_updater::Error) -> (&'static str, bool)
         | Error::MissingSignedVersion => ("E_UPDATE_SIGNATURE_INVALID", true),
         _ => ("E_UPDATE_DOWNLOAD_FAILED", false),
     }
+}
+
+/// Skip This Version: remembers the version of an update the licence does not cover, so the
+/// automatic checks stop offering it, and drops the offer.
+fn skip(updates: &Updates) -> Result<Status, &'static str> {
+    let mut inner = updates.lock();
+    let State::NotCovered { version, .. } = &inner.state else {
+        return Err("E_UPDATE_NOT_OFFERED");
+    };
+    let version = version.clone();
+    updates.skipped.remember(&version)?;
+    inner.found = None;
+    log::info!("I_UPDATE_SKIP {version}");
+    Ok(updates.set(&mut inner, State::Idle))
 }
 
 /// Installs the downloaded update and starts the quit; exiting then restarts
@@ -542,8 +698,15 @@ pub fn on_menu(app: &AppHandle) {
     }
 }
 
+/// The scheduler: the revocation list and the update check, each when due. A build without the
+/// updater's key still fetches revocations, as long as it gates sync and AI.
 pub fn start(app: &AppHandle) {
-    if cfg!(debug_assertions) || !app.state::<Updates>().enabled {
+    let updater = app.state::<Updates>().enabled;
+    let licence = app
+        .try_state::<Arc<Licence>>()
+        .map(|l| Arc::clone(&l))
+        .filter(|l| l.gated());
+    if cfg!(debug_assertions) || !(updater || licence.is_some()) {
         return;
     }
     let app = app.clone();
@@ -551,8 +714,16 @@ pub fn start(app: &AppHandle) {
         .name("devot-updates".into())
         .spawn(move || {
             std::thread::sleep(FIRST_CHECK);
+            let mut last_revocations = None;
             loop {
-                if due_now(&app) {
+                if let Some(licence) = &licence
+                    && due(last_revocations, SystemTime::now(), CHECK_EVERY)
+                    && licence.wants_revocations()
+                {
+                    last_revocations = Some(SystemTime::now());
+                    licence::refresh_revocations(licence);
+                }
+                if updater && due_now(&app) {
                     tauri::async_runtime::block_on(check(app.clone(), None));
                 }
                 std::thread::sleep(WAKE_EVERY);
@@ -578,7 +749,17 @@ pub fn update_download(app: AppHandle, window: Window) -> Result<(), String> {
     if !crate::main_windows::is_main(window.label()) {
         return Err(String::from("E_UPDATE_WINDOW"));
     }
-    tauri::async_runtime::spawn(download(app, Some(window.label().to_owned())));
+    tauri::async_runtime::spawn(download(app, Some(window.label().to_owned()), true));
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_skip(app: AppHandle, window: Window) -> Result<(), String> {
+    if !crate::main_windows::is_main(window.label()) {
+        return Err(String::from("E_UPDATE_WINDOW"));
+    }
+    let status = skip(&app.state::<Updates>())?;
+    publish(&app, &status);
     Ok(())
 }
 
@@ -650,6 +831,7 @@ mod tests {
         assert!(may_check(&State::Available {
             version: "1.0.0".into()
         }));
+        assert!(may_check(&notcovered("1.0.0")));
         assert!(!may_check(&State::Checking));
         assert!(!may_check(&State::Downloading {
             version: "1.0.0".into(),
@@ -761,7 +943,7 @@ mod tests {
 
     #[test]
     fn sends_the_status_with_the_names_the_ui_reads() {
-        let updates = Updates::new(true, "0.3.0-beta.1".into());
+        let updates = Updates::new(true, "0.3.0-beta.1".into(), Path::new(""));
         let status = {
             let mut inner = updates.lock();
             inner.asked_by = Some("main".into());
@@ -789,7 +971,9 @@ mod tests {
             serde_json::to_value(updates.status()).unwrap()["revision"],
             json!(1)
         );
-        let idle = serde_json::to_value(Updates::new(false, "0.0.0".into()).status()).unwrap();
+        let idle =
+            serde_json::to_value(Updates::new(false, "0.0.0".into(), Path::new("")).status())
+                .unwrap();
         assert_eq!(idle["state"], json!("idle"));
         assert_eq!(idle["enabled"], json!(false));
         assert_eq!(idle["askedBy"], json!(null));
@@ -797,7 +981,7 @@ mod tests {
 
     #[test]
     fn restart_refuses_until_an_update_is_ready() {
-        let updates = Updates::new(true, "0.3.0-beta.1".into());
+        let updates = Updates::new(true, "0.3.0-beta.1".into(), Path::new(""));
         let mut inner = updates.lock();
         assert_eq!(take_install(&mut inner).err(), Some("E_UPDATE_NOT_READY"));
         // Ready without a download (cannot happen, but never restarts).
@@ -824,6 +1008,171 @@ mod tests {
         assert_eq!(
             download_failure(&Error::EmptyEndpoints),
             ("E_UPDATE_DOWNLOAD_FAILED", false)
+        );
+    }
+
+    fn notcovered(version: &str) -> State {
+        State::NotCovered {
+            version: version.into(),
+            updates_until: "2027-10-24".into(),
+        }
+    }
+
+    fn snapshot(state: LicenceState, gated: bool, until: Option<&str>) -> licence::Snapshot {
+        licence::Snapshot {
+            gated,
+            state,
+            code: None,
+            id: until.map(|_| "5vEvzHainWD0cA2Ht_ljHg".into()),
+            licensee: None,
+            updates_until: until.map(str::to_owned),
+            plan: None,
+        }
+    }
+
+    #[test]
+    fn dates_a_unix_time_in_utc() {
+        assert_eq!(utc_date(0), "1970-01-01");
+        assert_eq!(utc_date(-1), "1969-12-31");
+        assert_eq!(utc_date(1_760_745_600), "2025-10-18");
+        assert_eq!(utc_date(1_709_251_199), "2024-02-29");
+        assert_eq!(utc_date(1_709_251_200), "2024-03-01");
+        assert_eq!(utc_date(951_868_800), "2000-03-01");
+        assert_eq!(utc_date(4_107_542_400), "2100-03-01");
+        assert_eq!(utc_date(1_798_761_599), "2026-12-31");
+        assert_eq!(utc_date(1_798_761_600), "2027-01-01");
+    }
+
+    #[test]
+    fn only_a_valid_licence_that_ends_before_the_update_is_told() {
+        let valid = |until| snapshot(LicenceState::Valid, true, Some(until));
+        // The last covered day still covers; the day after does not.
+        assert_eq!(
+            uncovered_until(&valid("2027-10-24"), Some("2027-10-24")),
+            None
+        );
+        assert_eq!(
+            uncovered_until(&valid("2027-10-24"), Some("2026-01-01")),
+            None
+        );
+        assert_eq!(
+            uncovered_until(&valid("2027-10-24"), Some("2027-10-25")).as_deref(),
+            Some("2027-10-24")
+        );
+        // An update with no date is covered.
+        assert_eq!(uncovered_until(&valid("2027-10-24"), None), None);
+        // Everyone else sees what they saw before.
+        for state in [
+            LicenceState::None,
+            LicenceState::UpdatesEnded,
+            LicenceState::Revoked,
+            LicenceState::Invalid,
+        ] {
+            let until = (state != LicenceState::None && state != LicenceState::Invalid)
+                .then_some("2027-10-24");
+            assert_eq!(
+                uncovered_until(&snapshot(state, true, until), Some("2030-01-01")),
+                None,
+                "{state:?}"
+            );
+        }
+        let ungated = snapshot(LicenceState::Valid, false, Some("2027-10-24"));
+        assert_eq!(uncovered_until(&ungated, Some("2030-01-01")), None);
+    }
+
+    #[test]
+    fn download_anyway_is_the_only_way_to_an_update_the_licence_does_not_cover() {
+        let available = State::Available {
+            version: "1.1.0".into(),
+        };
+        assert_eq!(downloadable(&available, false), Some("1.1.0"));
+        assert_eq!(downloadable(&available, true), Some("1.1.0"));
+        assert_eq!(downloadable(&notcovered("1.2.0"), false), None);
+        assert_eq!(downloadable(&notcovered("1.2.0"), true), Some("1.2.0"));
+        for state in [State::Idle, State::Checking, State::UpToDate] {
+            assert_eq!(downloadable(&state, true), None);
+        }
+    }
+
+    #[test]
+    fn a_skipped_version_is_remembered_for_that_version_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let skipped = Skipped::new(dir.path());
+        assert!(!skipped.holds_back("1.2.0"));
+        skipped.remember("1.2.0").unwrap();
+        assert!(skipped.holds_back("1.2.0"));
+        // Kept across launches: a new reader finds it.
+        assert!(Skipped::new(dir.path()).holds_back("1.2.0"));
+        // A later version is offered, and the skip is gone for good.
+        assert!(!skipped.holds_back("1.3.0"));
+        assert!(!skipped.holds_back("1.2.0"));
+        assert!(!dir.path().join(SKIPPED_FILE).exists());
+    }
+
+    #[test]
+    fn a_skip_file_that_is_not_a_version_holds_nothing_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let skipped = Skipped::new(dir.path());
+        for text in [
+            "",
+            "  \n",
+            "1.2.0\n../../x",
+            "<b>1.2.0</b>",
+            &"1".repeat(65),
+        ] {
+            std::fs::write(dir.path().join(SKIPPED_FILE), text).unwrap();
+            assert_eq!(skipped.read(), None, "{text:?}");
+            assert!(!skipped.holds_back("1.2.0"), "{text:?}");
+        }
+        std::fs::write(dir.path().join(SKIPPED_FILE), "1.2.0-beta1\n").unwrap();
+        assert!(skipped.holds_back("1.2.0-beta1"));
+    }
+
+    #[test]
+    fn skipping_drops_the_offer_and_remembers_the_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let updates = Updates::new(true, "1.0.0".into(), dir.path());
+        assert_eq!(skip(&updates).err(), Some("E_UPDATE_NOT_OFFERED"));
+        {
+            let mut inner = updates.lock();
+            updates.set(&mut inner, notcovered("1.2.0"));
+        }
+        let status = skip(&updates).unwrap();
+        assert_eq!(status.state, State::Idle);
+        assert_eq!(updates.status().state, State::Idle);
+        assert!(updates.skipped.holds_back("1.2.0"));
+        // Nothing is offered now, so a second skip has nothing to skip.
+        assert_eq!(skip(&updates).err(), Some("E_UPDATE_NOT_OFFERED"));
+    }
+
+    #[test]
+    fn a_skip_that_cannot_be_kept_leaves_the_offer() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("not-a-folder");
+        std::fs::write(&missing, "").unwrap();
+        let updates = Updates::new(true, "1.0.0".into(), &missing);
+        {
+            let mut inner = updates.lock();
+            updates.set(&mut inner, notcovered("1.2.0"));
+        }
+        assert_eq!(skip(&updates).err(), Some("E_UPDATE_SKIP_FAILED"));
+        assert_eq!(updates.status().state, notcovered("1.2.0"));
+    }
+
+    #[test]
+    fn sends_an_update_the_licence_does_not_cover_with_the_names_the_ui_reads() {
+        let status = Updates::new(true, "1.0.0".into(), Path::new(""));
+        let status = {
+            let mut inner = status.lock();
+            status.set(&mut inner, notcovered("1.2.0"))
+        };
+        let sent = serde_json::to_value(&status).unwrap();
+        assert_eq!(sent["state"], json!("notCovered"));
+        assert_eq!(sent["version"], json!("1.2.0"));
+        assert_eq!(sent["updatesUntil"], json!("2027-10-24"));
+        assert_eq!(
+            menu_item(&status.state),
+            ("Check for Updates\u{2026}", true)
         );
     }
 }

@@ -71,6 +71,7 @@ export const sizes = {
   "size.list-row-inset": "15px",
   "size.drag-card-min-width": "60px",
   "size.drag-card-max-width": "300px",
+  "size.notice-max-width": "480px",
   "size.pane-min-width": "240px",
   "size.sidebar-collapse-width": "1000px",
   "size.window-controls-inset": "84px",
