@@ -1,16 +1,26 @@
 /** Every buyer-facing string of the Worker's pages and emails, in one place. */
 export const MESSAGES = {
   product: 'Devot',
+  site: 'devot.online',
+  siteUrl: 'https://devot.online',
+  home: 'Devot website',
   open: 'Open in Devot',
-  paste: 'Or paste the key in Devot, in Settings > Licence.',
-  doneTitle: 'Thank you for buying Devot',
-  doneKey: 'Your licence key:',
+  copy: 'Copy key',
+  copied: 'Copied',
+  copyFailed: 'Could not copy. Select the key and copy it.',
+  keyLabel: 'Your licence key',
   covers: 'It unlocks sync and AI in every version of Devot, with nothing to renew.',
-  doneMailed: 'We have emailed the key to you too. If it gets lost, you can ask for it again:',
+  manualTitle: 'Or add it by hand',
+  manual: 'In Devot, choose Devot > Settings > Licence and paste the key.',
+  doneTitle: 'Thank you for buying Devot',
+  doneLead: 'Your licence is ready. Open it in Devot, or copy the key.',
+  doneMailed: 'We have emailed the key to you too.',
+  doneLater: 'If you lose it, you can ask for it again:',
   resendLink: 'send my licence again',
   pendingTitle: 'Your payment is being processed',
   pendingBody:
     'Your licence is issued as soon as the payment goes through, and we email it to you then.',
+  pendingReload: 'This page checks again by itself. You can also close it: the key comes by email.',
   resendTitle: 'Send my licence again',
   resendBody:
     'Enter the email address you bought Devot with, and we send every licence bought with it there.',
@@ -20,6 +30,7 @@ export const MESSAGES = {
   resentBody:
     'If that address bought a licence, its key is on its way. It may take a few minutes; you can ask again in an hour.',
   errorTitle: 'Something went wrong',
+  errorCode: 'Error code',
   errors: {
     E_LICENCE_BAD_REQUEST: 'That request is not one this page understands.',
     E_LICENCE_CONFIG: 'The licence service is not set up yet. Please try again later.',
@@ -41,5 +52,7 @@ export const MESSAGES = {
     issuedIntro: 'Thank you for buying Devot. Here is your licence key.',
     resendIntro: 'You asked for the licences bought with this address. Here they are.',
     keep: 'Keep this email: a licence key never expires.',
+    refund: 'If Devot is not for you, reply within 30 days of buying for a full refund.',
+    support: 'Questions or trouble? Reply to this email.',
   },
 } as const

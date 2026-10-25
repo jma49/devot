@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { LicenceError } from '../../licence/src/errors'
+import { DOVE } from '../../licence/src/brand'
 import { licenceMail, resendMailer, type Mail } from '../../licence/src/mail'
+import { MESSAGES } from '../../licence/src/messages'
 
 const mail: Mail = {
   to: 'buyer@example.test',
@@ -137,5 +139,54 @@ describe('licenceMail', () => {
     expect(licenceMail('buyer@example.test', 'issued', ['devot1.a.b']).subject).toBe(
       'Your Devot licence',
     )
+  })
+})
+
+describe('the licence email', () => {
+  const KEY = 'devot1.eyJpZCI6IkFBQSJ9.c2lnbmF0dXJl'
+
+  it('says the same in its HTML and text parts', () => {
+    const sent = licenceMail('buyer@example.test', 'issued', [KEY])
+    const html = sent.html.replaceAll('&gt;', '>')
+    for (const body of [sent.text, html]) {
+      for (const text of [
+        MESSAGES.mail.issuedIntro,
+        KEY,
+        `devot://licence?key=${encodeURIComponent(KEY)}`,
+        MESSAGES.open,
+        MESSAGES.covers,
+        MESSAGES.manual,
+        MESSAGES.mail.refund,
+        MESSAGES.mail.support,
+        MESSAGES.mail.keep,
+      ]) {
+        expect(body).toContain(text)
+      }
+    }
+    expect(sent.text).not.toMatch(/<[a-z]/)
+    expect(MESSAGES.mail.refund).toMatch(/30 days/)
+    expect(MESSAGES.mail.support).toMatch(/[Rr]eply/)
+  })
+
+  it('is a self-contained page in light and dark with the dove and no script or remote content', () => {
+    const { html } = licenceMail('buyer@example.test', 'issued', [KEY])
+    expect(html).toMatch(/^<!doctype html><html lang="en">/)
+    expect(html).toContain('<meta name="color-scheme" content="light dark">')
+    expect(html).toContain('@media (prefers-color-scheme:dark)')
+    expect(html).toContain(`d="${DOVE.path}"`)
+    expect(html).not.toMatch(/<script|<img|<link|url\(http|@import/)
+    const external = [...html.matchAll(/href="(https?:[^"]+)"/g)].map((m) => m[1])
+    expect(new Set(external)).toEqual(new Set([MESSAGES.siteUrl]))
+  })
+
+  it('escapes keys and URL-encodes them in the deep link', () => {
+    const hostile = `devot1.<b>"x"</b>&'+/=?#.sig`
+    const { html, text } = licenceMail('buyer@example.test', 'resend', [hostile])
+    expect(html).not.toContain('<b>')
+    expect(html).toContain('devot1.&lt;b&gt;&quot;x&quot;&lt;/b&gt;&amp;&#39;+/=?#.sig')
+    expect(html).toContain(
+      `href="${`devot://licence?key=${encodeURIComponent(hostile)}`.replace(/'/g, '&#39;')}"`,
+    )
+    expect(text).toContain(`devot://licence?key=${encodeURIComponent(hostile)}`)
   })
 })

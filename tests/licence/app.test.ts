@@ -435,8 +435,18 @@ describe('/resend', () => {
   it('refuses something that is not an address, and shows its form', async () => {
     expect((await resend('not an address')).status).toBe(400)
     const form = await get('/resend')
-    expect(await form.text()).toContain('<form method="post" action="/resend">')
+    expect(await form.text()).toContain('<form method="post" action="/resend" class="form">')
   })
+})
+
+it("serves the pages' stylesheet and copy script from fixed routes", async () => {
+  const css = await get('/assets/licence.css')
+  expect(css.status).toBe(200)
+  expect(css.headers.get('Content-Type')).toBe('text/css; charset=utf-8')
+  expect((await get('/assets/copy.js')).headers.get('Content-Type')).toBe(
+    'text/javascript; charset=utf-8',
+  )
+  expect((await get('/assets/nothing.css')).status).toBe(404)
 })
 
 it('answers unknown paths and methods with their codes', async () => {

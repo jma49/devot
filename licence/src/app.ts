@@ -1,3 +1,4 @@
+import { assetResponse } from './assets.ts'
 import { type CheckoutConfig, checkoutParams, LICENCE_KIND } from './checkout.ts'
 import { type LicenceCode, LicenceError } from './errors.ts'
 import { instant, newLicenceId, type Signer, signLicence, signRevocations } from './format.ts'
@@ -280,6 +281,8 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
 
   return async (request) => {
     const url = new URL(request.url)
+    const asset = assetResponse(url.pathname, request.method)
+    if (asset) return asset
     const route = Object.hasOwn(ROUTES, url.pathname) ? ROUTES[url.pathname] : undefined
     if (!route) return errorPage('E_LICENCE_NOT_FOUND', 404)
     if (!route.includes(request.method)) return errorPage('E_LICENCE_METHOD', 405)
