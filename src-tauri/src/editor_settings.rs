@@ -198,6 +198,8 @@ pub struct EditorSettings {
     pub preview_font_size: u64,
     pub default_notebook: Option<String>,
     pub list_dates: ListDates,
+    /// Boards show a Dropped column; off, dropped notes are left off them.
+    pub board_dropped: bool,
     pub auto_download_updates: bool,
     /// Keep in Menu Bar (`menu_bar`): the menu bar icon, quick capture's shortcut, and closing the
     /// main window hides it rather than quitting.
@@ -257,6 +259,7 @@ impl Default for EditorSettings {
             preview_font_size: 15,
             default_notebook: None,
             list_dates: ListDates::Relative,
+            board_dropped: true,
             auto_download_updates: true,
             menu_bar: false,
             animations: Animations::Always,
@@ -389,6 +392,7 @@ impl EditorSettings {
             }
             "defaultNotebook" => self.default_notebook = notebook_id(value)?,
             "listDates" => self.list_dates = choice(value)?,
+            "boardDropped" => self.board_dropped = flag(value)?,
             "autoDownloadUpdates" => self.auto_download_updates = flag(value)?,
             "menuBar" => self.menu_bar = flag(value)?,
             "animations" => self.animations = choice(value)?,
@@ -798,6 +802,7 @@ mod tests {
                 "previewFontSize": 15,
                 "defaultNotebook": null,
                 "listDates": "relative",
+                "boardDropped": true,
                 "autoDownloadUpdates": true,
                 "menuBar": false,
                 "animations": "always",
@@ -894,6 +899,7 @@ mod tests {
                 "previewFontSize": 32,
                 "defaultNotebook": "0b0c-1d_2",
                 "listDates": "absolute",
+                "boardDropped": false,
                 "autoDownloadUpdates": false,
                 "menuBar": true,
                 "animations": "off",
@@ -931,6 +937,7 @@ mod tests {
         assert_eq!(next.preview_font_size, 32);
         assert_eq!(next.default_notebook.as_deref(), Some("0b0c-1d_2"));
         assert_eq!(next.list_dates, ListDates::Absolute);
+        assert!(!next.board_dropped);
         let plus = EditorSettings::default()
             .with(&patch(
                 json!({ "listMarker": "+", "defaultNotebook": null }),
@@ -1105,6 +1112,7 @@ mod tests {
             json!({ "listDates": "Absolute" }),
             json!({ "listDates": "never" }),
             json!({ "listDates": true }),
+            json!({ "boardDropped": "no" }),
             json!({ "animations": "never" }),
             json!({ "animations": "System" }),
             json!({ "animations": false }),

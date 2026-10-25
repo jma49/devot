@@ -33,6 +33,7 @@ import {
   CircleXIcon,
   ClipboardCopyIcon,
   ClipboardListIcon,
+  Columns3Icon,
   ClockIcon,
   CodeIcon,
   Columns2Icon,
@@ -224,6 +225,8 @@ export const LUCIDE_ICONS = {
   'table.deleteColumn': TableColumnsSplitIcon,
   terminal: SquareTerminalIcon,
   outline: ListTreeIcon,
+  'layout.list': ListIcon,
+  'layout.board': Columns3Icon,
 } as const satisfies Record<IconName, LucideIcon>
 
 /**

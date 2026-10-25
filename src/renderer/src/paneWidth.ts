@@ -1,4 +1,4 @@
-// The width of a resizable pane (the sidebar, the note list), which the user
+// The width of a resizable pane (the sidebar, the note list, the board), which the user
 // sets by dragging its right edge. It is a view preference of the window: it
 // lives in the webview's local storage, never in the settings files, and is
 // saved when a drag ends.
@@ -18,6 +18,14 @@ export const LIST_PANE: PaneSpec = {
   min: px(sizes['size.list-min-width']),
   default: px(sizes['size.list-default-width']),
   max: px(sizes['size.list-max-width']),
+}
+
+/** The note list while it shows a board: wider, with a width of its own. */
+export const BOARD_PANE: PaneSpec = {
+  key: 'devot.board.width',
+  min: px(sizes['size.board-min-width']),
+  default: px(sizes['size.board-default-width']),
+  max: px(sizes['size.board-max-width']),
 }
 
 export const SIDEBAR_PANE: PaneSpec = {

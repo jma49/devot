@@ -67,6 +67,7 @@ describe('editor settings', () => {
       previewFontSize: 15,
       defaultNotebook: null,
       listDates: 'relative',
+      boardDropped: true,
       autoDownloadUpdates: true,
       menuBar: false,
       animations: 'always',
@@ -82,6 +83,14 @@ describe('editor settings', () => {
       pageSkipFirst: false,
       pageRules: false,
     })
+  })
+
+  it('shows or hides the Dropped column of boards', () => {
+    expect(checkEditorSettingsPatch({ boardDropped: false })).toEqual({ boardDropped: false })
+    expect(() => checkEditorSettingsPatch({ boardDropped: 'no' })).toThrow(
+      'E_EDITOR_SETTINGS_INVALID',
+    )
+    expect(parseEditorSettings({ boardDropped: 0 }).boardDropped).toBe(true)
   })
 
   it('takes a page setup the Rust side accepts', () => {

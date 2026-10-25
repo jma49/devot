@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   composite,
   contrastRatio,
+  mixSrgb,
   parseColor,
   readableOn,
   toHex,
@@ -9,7 +10,7 @@ import {
   type Rgba,
 } from './contrast'
 import { dark, ivoryDark, ivoryLight, light } from './tokens'
-import { applyAccent, SELECTION_CONTRAST, type StyleTarget } from './accent'
+import { applyAccent, cardBackdrops, SELECTION_CONTRAST, type StyleTarget } from './accent'
 
 // WCAG AA, from the token values: text needs 4.5:1, graphics 3:1. The pairs
 // below are the ones the UI draws (see app.css, preview/content.css and the
@@ -125,6 +126,14 @@ describe('colour maths', () => {
     expect(toHex([14, 107, 98], 0.5)).toBe('#0e6b6280')
   })
 
+  it('mixes as CSS color-mix does, weighing a translucent colour by its alpha', () => {
+    const half = mixSrgb({ rgb: [0, 0, 0], alpha: 1 }, 0.5, { rgb: WHITE, alpha: 1 })
+    expect(half).toEqual({ rgb: [127.5, 127.5, 127.5], alpha: 1 })
+    const faint = mixSrgb({ rgb: [0, 0, 255], alpha: 1 }, 0.2, { rgb: [255, 0, 0], alpha: 0.2 })
+    expect(faint.alpha).toBeCloseTo(0.36, 5)
+    expect(faint.rgb[2]).toBeCloseTo((255 * 0.2) / 0.36, 5)
+  })
+
   it('moves a colour no further than the target needs', () => {
     const yellow: Rgb = [255, 198, 0]
     const darker = readableOn(yellow, [WHITE], 'darker', 4.5)
@@ -201,6 +210,17 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
   it('draws accent text and links at 4.5:1', () => {
     const fills = ['fill.track', 'fill.row-selected-unemphasized']
     expect(worst(solid(theme, 'accent.text'), backdrops(theme, fills))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('draws card text at 4.5:1 on a board card, selected or not', () => {
+    const cards = cardBackdrops(theme, solid(theme, 'accent.fill'))
+    expect(
+      under(4.5, {
+        title: [solid(theme, 'text.primary'), cards],
+        headline: [solid(theme, 'text.secondary'), cards],
+        date: [solid(theme, 'accent.text'), cards],
+      }),
+    ).toEqual([])
   })
 
   it('puts the on-fill colour on the accent fill at 4.5:1 and keeps the fill visible', () => {
@@ -346,6 +366,8 @@ describe('the system accent', () => {
       const fills = ['fill.track', 'fill.row-selected-unemphasized']
       const text = read(`--system-accent-text-${appearance}`)
       expect(worst(text, backdrops(theme, fills))).toBeGreaterThanOrEqual(4.5)
+      const cards = cardBackdrops(theme, read(`--system-accent-fill-${appearance}`))
+      expect(worst(text, cards)).toBeGreaterThanOrEqual(4.5)
     })
   })
 

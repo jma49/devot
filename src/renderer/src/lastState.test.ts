@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   clampSelection,
   clampTop,
+  isBoardView,
   lastStateStore,
+  layoutOf,
+  withLayout,
   parseLastState,
   restorePlan,
   serializeLastState,
@@ -245,5 +248,62 @@ describe('clampTop', () => {
     expect(clampTop({ pos: 4, offset: 12 }, 10)).toEqual({ pos: 4, offset: 12 })
     expect(clampTop({ pos: 500, offset: 7 }, 10)).toEqual({ pos: 10, offset: 7 })
     expect(clampTop({ pos: 3, offset: 0 }, 0)).toEqual({ pos: 0, offset: 0 })
+  })
+})
+
+describe('list layouts', () => {
+  const views = ['all|', `all|${BOOK}`, 'filter:pinned|', `filter:tag:${TAG}|${BOOK}`]
+
+  it('reads back the views shown as a board', () => {
+    const state: LastState = { ...full, boards: views }
+    expect(parseLastState(serializeLastState(state))).toEqual(state)
+  })
+
+  it('takes only library views that can show a board', () => {
+    for (const view of views) expect(isBoardView(view)).toBe(true)
+    for (const view of [
+      'all',
+      'trash',
+      'templates',
+      'search|{}',
+      'filter:status:active|',
+      `book:${BOOK}|`,
+      'all|nope',
+      `filter:tag:nope|${BOOK}`,
+      `all|${BOOK}|${BOOK}`,
+    ]) {
+      expect(isBoardView(view)).toBe(false)
+    }
+  })
+
+  it('drops what is not a list of such views, and the views that are not', () => {
+    const raw = JSON.parse(serializeLastState(full)) as Record<string, unknown>
+    for (const boards of ['all|', 42, null, { 'all|': 'board' }]) {
+      expect(parseLastState(JSON.stringify({ ...raw, boards }))).toEqual(full)
+    }
+    const mixed = JSON.stringify({ ...raw, boards: ['all|', 7, 'trash', 'all|', 'filter:pinned|'] })
+    expect(parseLastState(mixed)?.boards).toEqual(['all|', 'filter:pinned|'])
+  })
+
+  it('is a list unless the view was switched to a board', () => {
+    expect(layoutOf(undefined, 'all|')).toBe('list')
+    const boards = withLayout(undefined, 'all|', 'board')
+    expect(layoutOf(boards, 'all|')).toBe('board')
+    expect(layoutOf(boards, `all|${BOOK}`)).toBe('list')
+    expect(layoutOf(withLayout(boards, 'all|', 'list'), 'all|')).toBe('list')
+  })
+
+  it('remembers the views switched last, as many as it keeps', () => {
+    let boards: readonly string[] = []
+    for (let i = 0; i < 120; i += 1) {
+      const id = `019a0000-0000-7000-8000-${String(i).padStart(12, '0')}`
+      boards = withLayout(boards, `all|${id}`, 'board')
+    }
+    expect(boards).toHaveLength(100)
+    expect(boards[0]).toBe('all|019a0000-0000-7000-8000-000000000020')
+    // Switching a view again makes it the newest.
+    boards = withLayout(boards, boards[0]!, 'board')
+    expect(boards.at(-1)).toBe('all|019a0000-0000-7000-8000-000000000020')
+    expect(withLayout(boards, 'trash', 'board')).toBe(boards)
   })
 })

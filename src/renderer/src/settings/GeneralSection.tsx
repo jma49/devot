@@ -64,6 +64,7 @@ export function GeneralSection() {
   }
   const stored = useEditorSetting('defaultNotebook')
   const listDates = useEditorSetting('listDates')
+  const boardDropped = useEditorSetting('boardDropped')
   const autoDownload = useEditorSetting('autoDownloadUpdates')
   const menuBar = useEditorSetting('menuBar')
   useEffect(() => startUpdateStatus(), [])
@@ -141,6 +142,12 @@ export function GeneralSection() {
             <option value="absolute">{t('generalSettings.listDates.absolute')}</option>
           </select>
         </Setting>
+        <SettingToggle
+          label="generalSettings.boardDropped"
+          description="generalSettings.boardDroppedHint"
+          checked={boardDropped}
+          onChange={(on) => change({ boardDropped: on })}
+        />
       </SettingsSection>
       <SettingsSection icon="settings.data" title="generalSettings.data">
         <Setting

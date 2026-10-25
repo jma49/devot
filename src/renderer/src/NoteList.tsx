@@ -13,7 +13,6 @@ import {
   type Ref,
 } from 'react'
 import type { NoteSummary, RowDetail, TagRecord } from '../../core'
-import { listCaption } from './format'
 import { currentLocale, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { MenuPoint } from './contextMenu'
@@ -39,7 +38,7 @@ import { useEditorSetting } from './editorSettings'
 import { NoteRow, type RowEvents } from './NoteRow'
 import { useRowMotion } from './rowMotion'
 import { scrollRowIntoView } from './listScroll'
-import { isImeKey } from './ime'
+import { ListHeader } from './ListHeader'
 
 interface Props {
   /**
@@ -66,6 +65,8 @@ interface Props {
   onMenu?: (id: string) => void
   sort?: { label: string; chip: string; onOpen: (anchor: HTMLElement) => void }
   sortButtonRef?: Ref<HTMLButtonElement>
+  /** The List / Board control, for the views that can show a board. */
+  layout?: ReactNode
   onFind?: () => void
   onEdit?: (part: 'title' | 'body', id: string) => void
   icon?: ReactNode
@@ -97,7 +98,7 @@ type Entry =
   | { kind: 'row'; key: string; note: NoteSummary; index: number }
 
 /** The current time, refreshed every minute so relative times stay right. */
-function useNow(): number {
+export function useNow(): number {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), MINUTE)
@@ -111,8 +112,6 @@ function spacer(key: string, height: number) {
 }
 
 /** Renders again only when its props change (its owner keeps them the same while nothing it shows changes), and then only the rows that changed. */
-const STATUS_DELAY_MS = 500
-
 export const NoteList = memo(function NoteList(props: Props) {
   const { title, scope, pinned, selected, onSelect, onCreate, tags, sortButtonRef } = props
   const notes = useMemo(() => [...pinned, ...props.notes], [pinned, props.notes])
@@ -621,13 +620,6 @@ export const NoteList = memo(function NoteList(props: Props) {
     )
   }
 
-  const caption = listCaption(notes.length, scope, currentLocale())
-  const [spoken, setSpoken] = useState(caption)
-  useEffect(() => {
-    const timer = setTimeout(() => setSpoken(caption), STATUS_DELAY_MS)
-    return () => clearTimeout(timer)
-  }, [caption])
-
   return (
     <section
       className="list"
@@ -635,92 +627,25 @@ export const NoteList = memo(function NoteList(props: Props) {
       aria-label={t('noteList.label')}
       style={{ '--list-width': `${width}px` } as CSSProperties}
     >
-      <div
-        className="toolbar list-header"
-        data-devot-part="toolbar"
-        role="toolbar"
-        aria-label={t('toolbar.label')}
-        data-tauri-drag-region
-      >
-        <div className="list-header-side" data-tauri-drag-region>
-          {props.leading}
-        </div>
-        {/* The view's name on one line, centred between the toggle and New Note.
-            All of it drags the window (a double-click zooms it); the count is
-            only spoken. */}
-        <div
-          className="toolbar-title"
-          data-tauri-drag-region="deep"
-          onContextMenu={
-            props.onTitleMenu
-              ? (e) => {
-                  e.preventDefault()
-                  props.onTitleMenu?.({ x: e.clientX, y: e.clientY })
-                }
-              : undefined
-          }
-        >
-          {props.icon ? (
-            <span className="headline-icon" aria-hidden="true">
-              {props.icon}
-            </span>
-          ) : null}
-          <span className="headline" title={title}>
-            {title}
-          </span>
-          <span role="status" className="visually-hidden">
-            {spoken}
-          </span>
-          {/* The count as it is now (the spoken one waits for it to settle);
-              never shown. */}
-          <span className="list-count" hidden>
-            {caption}
-          </span>
-        </div>
-        <div className="list-header-side list-header-end" data-tauri-drag-region>
-          {props.headerAction ?? (
-            <button
-              type="button"
-              className="tool"
-              data-tauri-drag-region="false"
-              aria-label={props.createLabel ?? t('noteList.newNote')}
-              title={props.createLabel ?? t('noteList.newNote')}
-              onClick={onCreate}
-              disabled={!onCreate}
-            >
-              <Icon name="note.new" size="lg" />
-            </button>
-          )}
-        </div>
-      </div>
-      {props.filter || props.sort ? (
-        <div
-          className="list-filter"
-          onKeyDown={(e) => {
-            // Return in the Filter field hands the keyboard to the list (not
-            // the Return that picks a candidate of an input method).
-            if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return
-            if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || isImeKey(e.nativeEvent)) return
-            e.preventDefault()
-            if (tabStop !== undefined) focusRow(tabStop)
-            else list.current?.focus()
-          }}
-        >
-          {props.filter}
-          {props.sort ? (
-            <button
-              ref={sortButtonRef}
-              type="button"
-              className="sort-chip"
-              aria-label={t('sort.button')}
-              title={props.sort.label}
-              onClick={(e) => props.sort?.onOpen(e.currentTarget)}
-            >
-              {props.sort.chip}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      <ListHeader
+        title={title}
+        scope={scope}
+        count={notes.length}
+        icon={props.icon}
+        onTitleMenu={props.onTitleMenu}
+        leading={props.leading}
+        headerAction={props.headerAction}
+        onCreate={onCreate}
+        createLabel={props.createLabel}
+        filter={props.filter}
+        sort={props.sort}
+        sortButtonRef={sortButtonRef}
+        layout={props.layout}
+        onFilterDone={() => {
+          if (tabStop !== undefined) focusRow(tabStop)
+          else list.current?.focus()
+        }}
+      />
       <ul
         ref={list}
         className="rows"
