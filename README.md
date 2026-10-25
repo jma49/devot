@@ -7,7 +7,7 @@
 **Local-first Markdown notes for macOS. Your notes stay on your Mac, in your hands.**
 
 [![Latest release](https://img.shields.io/github/v/release/jma49/devot?label=release)](https://github.com/jma49/devot/releases)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License: FSL-1.1-MIT](https://img.shields.io/badge/license-FSL--1.1--MIT-blue)](LICENSE)
 [![Platform: macOS 26+, Apple Silicon](https://img.shields.io/badge/platform-macOS%2026%2B%20%C2%B7%20Apple%20Silicon-lightgrey)](#download)
 [![CI](https://github.com/jma49/devot/actions/workflows/ci.yml/badge.svg)](https://github.com/jma49/devot/actions/workflows/ci.yml)
 
@@ -225,4 +225,4 @@ Report security problems privately, as [`SECURITY.md`](SECURITY.md) describes.
 
 ## License
 
-[MIT](LICENSE)
+[FSL-1.1-MIT](LICENSE): use, change and share Devot for anything but a competing commercial product. Each release becomes MIT two years after it is published. Versions up to v1.0.4 were published under MIT and stay MIT.

@@ -2,7 +2,7 @@
 
 Devot looks and behaves like a native macOS app: a translucent sidebar, a unified toolbar, the macOS type scale, native menus and the system's SF Symbols. Its colours are cool neutrals with a blue accent, a violet caret and selection, and distinct Markdown colours in the editor.
 
-Everything in this folder is meant to be publishable as an open-source asset library. Only add assets whose licence allows that.
+Everything in this folder is published with the repository (`LICENSE`) and may one day be published on its own. Only add assets whose licence allows that.
 
 ## Contents
 
