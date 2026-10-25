@@ -9,7 +9,8 @@ export const MESSAGES = {
   copied: 'Copied',
   copyFailed: 'Could not copy. Select the key and copy it.',
   keyLabel: 'Your licence key',
-  covers: 'It unlocks sync and AI in every version of Devot, with nothing to renew.',
+  covers:
+    'A licence unlocks all of Devot, editing, sync and AI, in every version of Devot, with nothing to renew. Without one, Devot is read-only once its three-day trial ends.',
   manualTitle: 'Or add it by hand',
   manual: 'In Devot, choose Devot > Settings > Licence and paste the key.',
   doneTitle: 'Thank you for buying Devot',

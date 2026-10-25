@@ -165,7 +165,9 @@ describe('buying', () => {
       issuedAt: '2026-10-24T09:30:00Z',
     })
     expect(mail?.subject).toBe('Your Devot licence')
-    expect(mail?.text).toContain('It unlocks sync and AI in every version of Devot')
+    expect(mail?.text).toContain(
+      'A licence unlocks all of Devot, editing, sync and AI, in every version of Devot',
+    )
     expect(mail?.text).toContain(`devot://licence?key=${encodeURIComponent(key ?? '')}`)
     expect(mail?.html).toContain(`href="devot://licence?key=${encodeURIComponent(key ?? '')}"`)
   })
@@ -234,7 +236,9 @@ describe('/done', () => {
     expect((await payload(key ?? '')).licensee).toBe('buyer@example.com')
     expect(html).toContain(`href="devot://licence?key=${encodeURIComponent(key ?? '')}"`)
     expect(html).toContain('Open in Devot')
-    expect(html).toContain('It unlocks sync and AI in every version of Devot')
+    expect(html).toContain(
+      'A licence unlocks all of Devot, editing, sync and AI, in every version of Devot',
+    )
     await settle()
     expect(mailer.sent).toHaveLength(1)
     await webhook('checkout.session.completed', rawSession(session))
