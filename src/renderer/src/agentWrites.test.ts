@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentWriteSummary } from '../../core/storage'
-import { agentWritesView, MAX_AGENTS_LISTED, unseenOf } from './agentWrites'
+import { agentWritesView, MAX_AGENTS_LISTED, sameSummaries, unseenOf } from './agentWrites'
 
 const row = (
   noteId: string,
@@ -50,5 +50,20 @@ describe('agentWritesView', () => {
       row('n', 100 - i, 'mcp', `Client ${i}`),
     )
     expect(agentWritesView(many).agents).toHaveLength(MAX_AGENTS_LISTED)
+  })
+})
+
+describe('sameSummaries', () => {
+  it('finds a read that changed nothing, so a save does not render the window again', () => {
+    const rows = [row('a', 2, 'mcp', 'Claude Code'), row('b', 1, 'http', '')]
+    expect(
+      sameSummaries(
+        rows,
+        rows.map((r) => ({ ...r })),
+      ),
+    ).toBe(true)
+    expect(sameSummaries(rows, [rows[0]!, { ...rows[1]!, seen: true }])).toBe(false)
+    expect(sameSummaries(rows, rows.slice(1))).toBe(false)
+    expect(sameSummaries(rows, [rows[1]!, rows[0]!])).toBe(false)
   })
 })

@@ -66,19 +66,41 @@ export const unseenOf = (view: AgentWritesView, noteId: string | undefined) =>
 
 const EMPTY = agentWritesView([])
 
+export const sameSummaries = (
+  a: readonly AgentWriteSummary[],
+  b: readonly AgentWriteSummary[],
+): boolean =>
+  a.length === b.length &&
+  a.every((row, i) => {
+    const other = b[i]!
+    return (
+      row.noteId === other.noteId &&
+      row.writeId === other.writeId &&
+      row.kind === other.kind &&
+      row.name === other.name &&
+      row.at === other.at &&
+      row.created === other.created &&
+      row.seen === other.seen
+    )
+  })
+
 /**
  * This device's rows, read again whenever `when` changes (the note list after a write) and after
- * `reload`. A read that loses a race to a later one is dropped.
+ * `reload`. A read that loses a race to a later one, or finds the rows unchanged, is dropped.
  */
 export function useAgentWrites(core: Core | undefined, when: unknown) {
   const [view, setView] = useState<AgentWritesView>(EMPTY)
   const asked = useRef(0)
+  const shown = useRef<readonly AgentWriteSummary[]>([])
   const reload = useCallback(() => {
     if (!core) return
     const ask = (asked.current += 1)
     core.agentWrites(MAX_AGENT_WRITES_LISTED).then(
       (rows) => {
-        if (ask === asked.current) setView(agentWritesView(rows))
+        // Each save reads again; the same rows keep the same view, so typing renders neither the window nor the sidebar.
+        if (ask !== asked.current || sameSummaries(shown.current, rows)) return
+        shown.current = rows
+        setView(agentWritesView(rows))
       },
       (e: unknown) => console.warn('W_AGENT_WRITES_LIST_FAILED', e),
     )
