@@ -13,6 +13,7 @@ import {
 import { inlineDiff, type TextSegment } from '../../core/diff'
 import { errorCode } from '../../core/errors'
 import type { Core } from './core-client'
+import { countOf } from './format'
 import {
   axisAt,
   compactionLimited,
@@ -37,9 +38,12 @@ const when = (at: number, locale: string) =>
 
 function stepText(step: HistoryStep | undefined, locale: string): string {
   if (!step) return t('historyBar.now')
+  const rewrite = step.chars !== null && step.change !== null && step.chars > Math.abs(step.change)
   return format(t('activity.day'), {
     date: when(step.at, locale),
-    totals: describeChange({ ...step, kind: 'body', merge: false }, locale),
+    totals: rewrite
+      ? countOf(step.chars ?? 0, locale, 'historyBar.changedOne', 'historyBar.changedOther')
+      : describeChange({ ...step, kind: 'body', merge: false }, locale),
   })
 }
 
@@ -189,6 +193,8 @@ export function useHistoryBar(props: {
   enabled: boolean
   readOnly: boolean
   onApply: (update: Uint8Array) => void
+  /** After a restore, once the overlay is gone, so the next undo takes the restore back. */
+  onRestored: () => void
 }): { bar: ReactNode; overlay: ReactNode } {
   const { core, noteId, enabled } = props
   const locale = currentLocale()
@@ -201,6 +207,7 @@ export function useHistoryBar(props: {
   const [past, setPast] = useState<Past>()
   const [reload, setReload] = useState(0)
   const [now, setNow] = useState(() => Date.now())
+  const restored = useRef(false)
   const handle = useRef<HTMLDivElement>(null)
   const track = useRef<HTMLDivElement>(null)
   const barRef = useRef<HTMLDivElement>(null)
@@ -209,10 +216,10 @@ export function useHistoryBar(props: {
   useEffect(() => {
     if (!core || !noteId || !enabled) return
     let current = true
-    core.history(noteId).then(
-      (entries) => {
+    Promise.all([core.history(noteId), core.versionChanges(noteId)]).then(
+      ([entries, changes]) => {
         if (!current) return
-        setSteps({ noteId, steps: historySteps(entries) })
+        setSteps({ noteId, steps: historySteps(entries, changes) })
         setNow(Date.now())
         setError(undefined)
       },
@@ -242,11 +249,13 @@ export function useHistoryBar(props: {
     }
   }, [core, noteId, showing, step, texts])
 
+  // A version kept shown is put away when another note opens, so the note opens on its text when it comes back.
   const [textsFor, setTextsFor] = useState(noteId)
   if (textsFor !== noteId) {
     setTextsFor(noteId)
     setTexts(new Map())
     setPassage(undefined)
+    setShown(undefined)
   }
 
   const show = (i: number, mode: Mode) => {
@@ -268,6 +277,13 @@ export function useHistoryBar(props: {
     handle.current?.focus()
   }
 
+  const { onRestored } = props
+  useEffect(() => {
+    if (!restored.current || past !== undefined) return
+    restored.current = false
+    onRestored()
+  })
+
   const loaded = showing ? texts.get(step.id) : undefined
   // While the next version is read, the one before stays on screen rather than the overlay blinking off.
   if (!showing && past !== undefined) setPast(undefined)
@@ -279,7 +295,7 @@ export function useHistoryBar(props: {
 
   const start = list[0]?.at ?? now
   const end = Math.max(now, list.at(-1)?.at ?? now)
-  const most = Math.max(0, ...list.map((s) => s.chars))
+  const most = Math.max(0, ...list.map((s) => s.chars ?? 0))
   const at = (x: number) => {
     const box = track.current?.getBoundingClientRect()
     if (!box || box.width === 0) return 1
@@ -321,6 +337,7 @@ export function useHistoryBar(props: {
     try {
       props.onApply(await core.restorePassage(noteId, step.id, passage))
       back()
+      restored.current = true
       setReload((n) => n + 1)
     } catch (e) {
       setError(errorCode(e))
@@ -334,6 +351,7 @@ export function useHistoryBar(props: {
     try {
       props.onApply(await core.restoreRevision(noteId, step.id))
       back()
+      restored.current = true
       setReload((n) => n + 1)
     } catch (e) {
       setError(errorCode(e))
@@ -346,9 +364,11 @@ export function useHistoryBar(props: {
     ? format(t('historyBar.failed'), { code: error })
     : list.length === 0
       ? t('history.empty')
-      : compactionLimited(list, now)
-        ? t('historyBar.compacted')
-        : t('historyBar.hint')
+      : showing
+        ? t('historyBar.shownHint')
+        : compactionLimited(list, now)
+          ? t('historyBar.compacted')
+          : t('historyBar.hint')
   const handleAt = step ? axisAt(step.at, start, end) : 1
 
   const bar = (

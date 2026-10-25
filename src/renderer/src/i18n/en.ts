@@ -999,6 +999,9 @@ export const en = {
   'historyBar.now': 'Current text',
   'historyBar.overlay': 'The note as it was on {date}, with the changes since',
   'historyBar.hint': 'Drag the handle to see the note as it was. Click a version to keep it shown.',
+  'historyBar.shownHint': 'Press Escape or End to return to the current text.',
+  'historyBar.changedOne': '{count} character changed',
+  'historyBar.changedOther': '{count} characters changed',
   'historyBar.compacted':
     'Versions over a day old are kept one per hour, and over a week old one per day.',
   'historyBar.restorePassage': 'Restore This Passage',

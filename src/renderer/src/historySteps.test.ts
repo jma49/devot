@@ -31,9 +31,16 @@ describe('the history bar', () => {
       body('a', 1000, 40, null),
     ])
     expect(steps.map((s) => [s.id, s.chars])).toEqual([
-      ['a', 40],
+      ['a', null],
       ['b', 10],
     ])
+  })
+
+  it('sizes a version by the characters it changed, so a rewrite of the same length shows', () => {
+    const steps = historySteps([body('b', 2000, 40, 0), body('a', 1000, 40, null)], { b: 25 })
+    expect(steps.map((s) => s.chars)).toEqual([null, 25])
+    expect(tickHeight(null, 25)).toBe(tickHeight(0, 25))
+    expect(tickHeight(25, 25)).toBe(1)
   })
 
   it('places a version on a time axis from the oldest to now', () => {

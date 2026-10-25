@@ -107,7 +107,11 @@ export function useFocusRescue(editor: () => { focus: () => void } | null): void
       }
       const targets = areaTargets(latest.current())
       const order: Area[] =
-        from.area === 'sidebar' ? ['sidebar', 'list', 'editor'] : ['list', 'editor', 'sidebar']
+        from.area === 'sidebar'
+          ? ['sidebar', 'list', 'editor']
+          : from.area === 'history'
+            ? ['editor', 'list', 'sidebar']
+            : ['list', 'editor', 'sidebar']
       order.map((area) => targets[area]).find((target) => target !== undefined)?.()
     }
 

@@ -221,6 +221,7 @@ export const coreApi = {
   history: (id: string) => required().history(id),
   compareRevision: (id: string, revisionId: string) => required().compareRevision(id, revisionId),
   restoreRevision: (id: string, revisionId: string) => required().restoreRevision(id, revisionId),
+  versionChanges: (id: string) => required().versionChanges(id),
   revisionText: (id: string, revisionId: string) => required().revisionText(id, revisionId),
   restorePassage: (id: string, revisionId: string, range: { from: number; to: number }) =>
     required().restorePassage(id, revisionId, range),

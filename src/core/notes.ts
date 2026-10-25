@@ -19,7 +19,14 @@ import {
   type StripDay,
 } from './activity'
 import { TEMPLATES_BOOK_ID } from './books'
-import { foldUnchanged, lineDiff, passageInserts, textEdits, type DiffBlock } from './diff'
+import {
+  charsChanged,
+  foldUnchanged,
+  lineDiff,
+  passageInserts,
+  textEdits,
+  type DiffBlock,
+} from './diff'
 import { errorCode } from './errors'
 import { headline, listExcerpt, taskProgress } from './extract'
 import { formatHlc, parseHlc, receiveStored, type Clock } from './hlc'
@@ -68,6 +75,7 @@ import type { NoteRelayMessage, TakenIn } from './noteRelay'
 import { lineFeeds } from './text'
 
 const MAX_LINK_TARGETS = 500
+const MAX_CHANGES_KEPT = 10_000
 
 export const BODY = 'body'
 
@@ -191,6 +199,8 @@ export interface NoteService {
   compareRevision(id: string, revisionId: string): Promise<DiffBlock[]>
   /** Returns the Yjs update the edit made, for the editor's replica to apply as one undoable step. */
   restoreRevision(id: string, revisionId: string): Promise<Uint8Array>
+  /** By body version ID, the characters it changed from the version kept before it (see charsChanged); the oldest kept has none. */
+  versionChanges(id: string): Promise<Record<string, number>>
   /** The text of a body version of this note. Throws E_REVISION_NOT_FOUND for anything else. */
   revisionText(id: string, revisionId: string): Promise<string>
   /**
@@ -924,6 +934,9 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     schedule(note)
   }
 
+  // Versions never change, so what one changed from the one before is worked out once (versionChanges).
+  const changesKept = new Map<string, number>()
+
   const bodyVersion = async (id: string, revisionId: string) => {
     const revision = await storage.getRevision(revisionId)
     if (!revision || revision.noteId !== id || revision.kind !== 'body' || !revision.ydoc) {
@@ -1452,6 +1465,36 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         await revisionWork
         return Y.mergeUpdates(updates)
       }),
+
+    async versionChanges(id) {
+      await saveAll()
+      await revisionWork
+      const versions = (await storage.listRevisions(id))
+        .filter((r) => r.kind === 'body')
+        .sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1))
+      const out: Record<string, number> = {}
+      let before: { id: string; text?: string } | undefined
+      for (const version of versions) {
+        if (before) {
+          const key = `${before.id}>${version.id}`
+          let chars = changesKept.get(key)
+          if (chars === undefined) {
+            before.text ??= await bodyVersion(id, before.id)
+            const text = await bodyVersion(id, version.id)
+            chars = charsChanged(before.text, text)
+            if (changesKept.size >= MAX_CHANGES_KEPT) changesKept.clear()
+            changesKept.set(key, chars)
+            before = { id: version.id, text }
+          } else {
+            before = { id: version.id }
+          }
+          out[version.id] = chars
+        } else {
+          before = { id: version.id }
+        }
+      }
+      return out
+    },
 
     revisionText: (id, revisionId) => bodyVersion(id, revisionId),
 

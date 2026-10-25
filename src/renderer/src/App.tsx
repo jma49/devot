@@ -2329,6 +2329,7 @@ export function App() {
     enabled: historyBarShown && !inTrash && multiIds === undefined,
     readOnly: !editing,
     onApply: (update) => restoreRef.current?.(update),
+    onRestored: () => editorRef.current?.focus(),
   })
   const find = useFind({
     mode,

@@ -29,6 +29,14 @@ describe('nextArea', () => {
     expect(nextArea('list', 1, shown('sidebar', 'list'))).toBe('sidebar')
   })
 
+  it('goes on from the editor to the history bar when it shows', () => {
+    const all = shown('sidebar', 'list', 'editor', 'history')
+    expect(nextArea('editor', 1, all)).toBe('history')
+    expect(nextArea('history', 1, all)).toBe('sidebar')
+    expect(nextArea('sidebar', -1, all)).toBe('history')
+    expect(nextArea('history', -1, all)).toBe('editor')
+  })
+
   it('has nowhere to go when only the current area shows', () => {
     expect(nextArea('editor', 1, shown('editor'))).toBeUndefined()
     expect(nextArea(undefined, 1, shown())).toBeUndefined()

@@ -7,15 +7,18 @@ export interface HistoryStep {
   length: number
   /** Null for the oldest kept version (see HistoryEntry). */
   change: number | null
-  /** Characters changed from the version before; the oldest kept counts all of its text. */
-  chars: number
+  /** Characters changed from the version before (see versionChanges), else the change in length; null for the oldest kept. */
+  chars: number | null
 }
 
 const DAY = 86_400_000
 const PAGE = 10
 const LOWEST_TICK = 0.2
 
-export function historySteps(entries: readonly HistoryEntry[]): HistoryStep[] {
+export function historySteps(
+  entries: readonly HistoryEntry[],
+  changes: Readonly<Record<string, number>> = {},
+): HistoryStep[] {
   const steps: HistoryStep[] = []
   for (const e of entries) {
     if (e.kind !== 'body') continue
@@ -24,7 +27,7 @@ export function historySteps(entries: readonly HistoryEntry[]): HistoryStep[] {
       at: e.at,
       length: e.length,
       change: e.change,
-      chars: e.change === null ? e.length : Math.abs(e.change),
+      chars: e.change === null ? null : (changes[e.id] ?? Math.abs(e.change)),
     })
   }
   return steps.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1))
@@ -54,9 +57,9 @@ export function stepNearest(
   return best
 }
 
-/** A tick's height as a share of the bar's: by the square root, so a small edit still shows beside a large one. */
-export function tickHeight(chars: number, most: number): number {
-  if (most <= 0) return LOWEST_TICK
+/** A tick's height as a share of the bar's: by the square root, so a small edit still shows beside a large one. The oldest kept is lowest. */
+export function tickHeight(chars: number | null, most: number): number {
+  if (chars === null || most <= 0) return LOWEST_TICK
   return LOWEST_TICK + (1 - LOWEST_TICK) * Math.sqrt(Math.min(chars, most) / most)
 }
 

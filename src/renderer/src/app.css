@@ -4786,8 +4786,11 @@ button.popup:focus-visible {
   margin: 0 0 var(--space-4);
 }
 
-/* View > Show History Bar (HistoryBar.tsx): the open note's versions along the editor's bottom edge. */
+/* View > Show History Bar (HistoryBar.tsx): the open note's versions along the editor's bottom edge. Above the
+   overlay, so the date on the handle shows over it. */
 .history-bar {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);

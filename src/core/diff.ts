@@ -210,10 +210,22 @@ export function inlineDiff(from: string, to: string): TextSegment[] {
   return out
 }
 
+/** Characters (code points) `to` removed from `from` and added to it, counted by changed word (see wordEdits). */
+export function charsChanged(from: string, to: string): number {
+  const count = (text: string) => [...text].length
+  return wordEdits(from, to).reduce(
+    (sum, edit) => sum + count(from.slice(edit.start, edit.end)) + count(edit.text),
+    0,
+  )
+}
+
+const space = /\s/
+
 /**
  * What puts back the text of `from` between `start` and `end` that `to` no longer has: an insertion in `to`'s offsets for each removed run it
- * overlaps (see inlineDiff), where that run stood (before any text that replaced it), first to last. Text `to` still has is left alone, so none is
- * doubled.
+ * overlaps (see inlineDiff), where that run stood (before any text that replaced it), first to last. A range that ends inside a word takes the whole
+ * word, so a selection made by dragging never puts back a fragment; a word put back before the word that replaced it gets the space it had. Text `to`
+ * still has is left alone, so none is doubled.
  */
 export function passageInserts(
   from: string,
@@ -224,9 +236,24 @@ export function passageInserts(
   const out: { at: number; text: string }[] = []
   let shift = 0
   for (const edit of wordEdits(from, to)) {
-    const a = Math.max(edit.start, start)
-    const b = Math.min(edit.end, end)
-    if (a < b) out.push({ at: edit.start + shift, text: from.slice(a, b) })
+    let a = Math.max(edit.start, start)
+    let b = Math.min(edit.end, end)
+    if (a < b) {
+      while (a > edit.start && !space.test(from[a - 1]!) && !space.test(from[a]!)) a -= 1
+      while (b < edit.end && !space.test(from[b - 1]!) && !space.test(from[b]!)) b += 1
+      let text = from.slice(a, b)
+      const spaced = space.test(from[edit.start - 1] ?? '') || space.test(from[edit.end] ?? '')
+      if (
+        b === edit.end &&
+        edit.text !== '' &&
+        spaced &&
+        !space.test(text.at(-1)!) &&
+        !space.test(edit.text[0]!)
+      ) {
+        text += ' '
+      }
+      out.push({ at: edit.start + shift, text })
+    }
     shift += edit.text.length - (edit.end - edit.start)
   }
   return out

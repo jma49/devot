@@ -5,6 +5,7 @@ import {
   BODY,
   createClock,
   createIdGenerator,
+  charsChanged,
   createNoteService,
   inlineDiff,
   passageInserts,
@@ -119,7 +120,7 @@ describe('passageInserts', () => {
   it('leaves out text the note still has, and puts a removal before its replacement', () => {
     const from = 'a old b'
     const to = 'a new b and more'
-    expect(passageInserts(from, to, 0, from.length)).toEqual([{ at: 2, text: 'old' }])
+    expect(passageInserts(from, to, 0, from.length)).toEqual([{ at: 2, text: 'old ' }])
   })
 
   it('takes each removed run a range overlaps, in the offsets of the current text', () => {
@@ -130,7 +131,38 @@ describe('passageInserts', () => {
       { at: 14, text: 'four\n' },
     ])
     expect(passageInserts(from, to, 0, 4)).toEqual([])
-    expect(passageInserts(from, to, 5, 6)).toEqual([{ at: 8, text: 'w' }])
+    expect(passageInserts(from, to, 5, 6)).toEqual([{ at: 8, text: 'two' }])
+  })
+
+  it('takes the whole of each word a dragged range ends inside', () => {
+    const from = 'Day 1: walk Alfama, eat pasteis'
+    const to = 'Day 1: walk Ribeira, eat francesinha.'
+    const start = from.indexOf('teis')
+    expect(passageInserts(from, to, start, start + 4)).toEqual([
+      { at: to.indexOf('francesinha'), text: 'pasteis ' },
+    ])
+    const middle = from.indexOf('fama')
+    expect(passageInserts(from, to, middle, middle + 2)).toEqual([
+      { at: to.indexOf('Ribeira'), text: 'Alfama, ' },
+    ])
+  })
+
+  it('gives a word put back before its replacement the space it stood with', () => {
+    const wine = 'bring \u{1F377}.'
+    expect(passageInserts(wine, 'bring cake.', 6, 8)).toEqual([{ at: 6, text: '\u{1F377} ' }])
+    const cat = '\u6211\u559c\u6b22\u732b'
+    expect(passageInserts(cat, '\u6211\u559c\u6b22\u72d7', 3, 4)).toEqual([
+      { at: 3, text: '\u732b' },
+    ])
+  })
+})
+
+describe('charsChanged', () => {
+  it('counts the characters each changed word removed and added, not the change in length', () => {
+    expect(charsChanged('walk Lisbon now', 'walk Porto! now')).toBe(12)
+    expect(charsChanged('same', 'same')).toBe(0)
+    expect(charsChanged('', 'abc')).toBe(3)
+    expect(charsChanged('a \u{1F377}', 'a ')).toBe(1)
   })
 })
 
@@ -193,6 +225,18 @@ describe('restoring a passage', () => {
     expect(textOf(await storage.getRevision(versions[1]!.id))).toBe(
       'intro\noutro\ntyped just now\n',
     )
+  })
+
+  it('counts what each version changed from the one before, the oldest none', async () => {
+    const { storage, notes, id, editor } = await twoVersions()
+    const versions = (await storage.listRevisions(id)).filter((r) => r.kind === 'body')
+    const changes = await notes.versionChanges(id)
+    expect(changes[versions[0]!.id]).toBe('the part I cut\n'.length + 'new ending\n'.length)
+    expect(changes[versions.at(-1)!.id]).toBeUndefined()
+    await editor.type('intro\noutro\nnew ending!\n')
+    await advance(REVISION_PAUSE_MS + 1000)
+    const newest = (await storage.listRevisions(id)).find((r) => r.kind === 'body')!
+    expect((await notes.versionChanges(id))[newest.id]).toBe(1)
   })
 
   it('refuses a range the note still has, and a version of another note', async () => {

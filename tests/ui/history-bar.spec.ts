@@ -58,6 +58,7 @@ async function showOldest(page: Page) {
   await expect(slider(page)).not.toHaveAttribute('aria-valuemax', '0')
   await slider(page).focus()
   await page.keyboard.press('Home')
+  await expect(overlay(page)).toBeVisible()
 }
 
 async function boxOf(locator: Locator) {
@@ -65,6 +66,17 @@ async function boxOf(locator: Locator) {
   if (!found) throw new Error('not shown')
   return found
 }
+
+/** Nothing paints over the middle of `locator`. */
+const uncovered = (locator: Locator) =>
+  locator.evaluate((el: HTMLElement) => {
+    // The label takes no pointer events, which hit testing would skip.
+    el.style.pointerEvents = 'auto'
+    const box = el.getBoundingClientRect()
+    const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+    el.style.pointerEvents = ''
+    return top !== null && el.contains(top)
+  })
 
 async function selectStruck(page: Page) {
   await overlay(page)
@@ -106,6 +118,10 @@ test('shows a version in place without changing the note, and Escape returns', a
   await expect(overlay(page).locator('del')).toHaveText(['old'])
   await expect(overlay(page).locator('ins')).toHaveText(['new'])
   await expect(slider(page).locator('.history-handle-date')).toBeVisible()
+  expect(await uncovered(slider(page).locator('.history-handle-date'))).toBe(true)
+  await expect(bar(page).locator('.history-bar-note')).toHaveText(
+    'Press Escape or End to return to the current text.',
+  )
   expect(await savedBody(page, 'Plan')).toBe('keep new end')
 
   await page.keyboard.press('Escape')
@@ -168,10 +184,10 @@ test('Restore This Passage puts struck text back as one undo step', async ({ pag
   await selectStruck(page)
   await restorePassage.click()
   await expect(overlay(page)).toHaveCount(0)
-  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep oldnew end')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep old new end')
   await expect(slider(page)).toHaveAttribute('aria-valuemax', /^[2-9]/)
 
-  await body(page).click()
+  await expect(page.locator('.cm-content')).toBeFocused()
   await page.keyboard.press('ControlOrMeta+z')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end')
 })
@@ -183,6 +199,63 @@ test('Restore Whole Version makes the note that version again', async ({ page })
   await bar(page).getByRole('button', { name: 'Restore Whole Version' }).click()
   await expect(overlay(page)).toHaveCount(0)
   await expect.poll(() => savedBody(page, 'Plan')).toBe('keep old end')
+  await expect(page.locator('.cm-content')).toBeFocused()
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end')
+})
+
+test('a version kept shown is put away when another note opens', async ({ page }) => {
+  await createNote(page, 'Other', 'other text')
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  await expect(overlay(page)).toBeVisible()
+  await noteRow(page, 'Other').click()
+  await expect(titleField(page)).toHaveValue('Other')
+  await noteRow(page, 'Plan').click()
+  await expect(titleField(page)).toHaveValue('Plan')
+  await expect(overlay(page)).toHaveCount(0)
+  await expect(slider(page)).toHaveAttribute('aria-valuetext', 'Current text')
+  await expect(editorPane(page)).not.toHaveAttribute('inert')
+  await body(page).click()
+  await page.keyboard.press('End')
+  await page.keyboard.insertText('!')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end!')
+})
+
+test('Control+Tab moves on from the editor to the slider, and on to the sidebar', async ({
+  page,
+}) => {
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await body(page).click()
+  await page.keyboard.press('Control+Tab')
+  await expect(slider(page)).toBeFocused()
+  await page.keyboard.press('Control+Tab')
+  await expect(
+    page.locator('[data-devot-part="sidebar"] [data-sidebar-row][tabindex="0"]'),
+  ).toBeFocused()
+  await page.keyboard.press('Control+Shift+Tab')
+  await expect(slider(page)).toBeFocused()
+  await page.keyboard.press('Control+Shift+Tab')
+  await expect(page.locator('.cm-content')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Tab')
+  await expect(slider(page)).toBeFocused()
+})
+
+test('a version that rewrote words says how many characters it changed', async ({ page }) => {
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await page.reload()
+  await noteRow(page, 'Plan').click()
+  await body(page).click()
+  await page.keyboard.press('End')
+  await page.keyboard.insertText('.')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end.')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  await page.keyboard.press('ArrowRight')
+  await expect(slider(page)).toHaveAttribute('aria-valuetext', /6 characters changed$/)
 })
 
 test('each row shows its last 14 days, hidden in Settings', async ({ page }) => {
@@ -253,7 +326,7 @@ test('a struck passage can be restored from the keyboard alone', async ({ page }
   await page.keyboard.press('Alt+Tab')
   await expect(restorePassage).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep oldnew end')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep old new end')
 })
 
 test('the date on the handle stays inside the bar at either end', async ({ page }) => {
