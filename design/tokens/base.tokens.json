@@ -1006,6 +1006,14 @@
       },
       "$description": "The widest the board is dragged to; the editor keeps its minimum."
     },
+    "board-editor-min-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 380,
+        "unit": "px"
+      },
+      "$description": "The narrowest the editor gets beside a board: its toolbar, title and metadata row fit without clipping. The board scrolls sideways before the editor goes below it."
+    },
     "board-column-min-width": {
       "$type": "dimension",
       "$value": {

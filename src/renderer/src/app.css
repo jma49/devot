@@ -1656,9 +1656,9 @@ button {
   min-width: 0;
 }
 
-/* Beside a board the editor gives way to a single pane's width, so the five columns fit a laptop window. */
+/* Beside a board the editor gives way only to the width its toolbar and header need; the board's columns scroll sideways instead. */
 .window[data-board] .content {
-  min-width: var(--size-pane-min-width);
+  min-width: var(--size-board-editor-min-width);
 }
 
 .title {
