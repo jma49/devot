@@ -27,6 +27,10 @@ relay/.wrangler/
 relay/.dev.vars
 relay/relay-data/
 
+# Licence Worker: Wrangler's local state and secrets
+licence/.wrangler/
+licence/.dev.vars
+
 # Personal agent rules (see CLAUDE.md)
 CLAUDE.local.md
 

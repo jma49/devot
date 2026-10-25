@@ -1,0 +1,96 @@
+{
+  "note": "Test-only keys from fixed seeds (docs/licensing.md, Formats). Never trust these keys in a release.",
+  "keys": [
+    {
+      "kid": "test",
+      "seed": "f3dmyFPtCJPedpLOz8vMoXZ3GWgVOGcNytUglOoUR4w",
+      "publicKey": "PTmNJOA_L5AmygfZpMDMXVj1zAjUq6SfCpKwYt_taa0"
+    }
+  ],
+  "licences": [
+    {
+      "name": "bought",
+      "key": "devot1.eyJpZCI6IjV2RXZ6SGFpbldEMGNBMkh0X2xqSGciLCJraWQiOiJ0ZXN0IiwicGxhbiI6InBybyIsImxpY2Vuc2VlIjoiYnV5ZXJAZXhhbXBsZS5jb20iLCJpc3N1ZWRBdCI6IjIwMjYtMTAtMjRUMDk6MzA6MDBaIiwidXBkYXRlc1VudGlsIjoiMjAyNy0xMC0yNCJ9.V-5VqHT6xUp4J8Hy_mMXPxEFDtV0RHPqbIcS54SXZFuiGHemNQaL7hUNFLrq193hqPzl1qhNO7zJk0Idv4bqCQ",
+      "payload": {
+        "id": "5vEvzHainWD0cA2Ht_ljHg",
+        "kid": "test",
+        "plan": "pro",
+        "licensee": "buyer@example.com",
+        "issuedAt": "2026-10-24T09:30:00Z",
+        "updatesUntil": "2027-10-24"
+      }
+    },
+    {
+      "name": "renewed",
+      "key": "devot1.eyJpZCI6IjV2RXZ6SGFpbldEMGNBMkh0X2xqSGciLCJraWQiOiJ0ZXN0IiwicGxhbiI6InBybyIsImxpY2Vuc2VlIjoiYnV5ZXJAZXhhbXBsZS5jb20iLCJpc3N1ZWRBdCI6IjIwMjYtMTAtMjRUMDk6MzA6MDBaIiwidXBkYXRlc1VudGlsIjoiMjAyOC0xMC0yNCJ9.mfDan-djiZky4-wKIJLliCmBeEaZ5YX55Ef6qYw5BqJ7JCofdJATjicjDP3GWrDjEm75Nn1rNL5jfBqU2yTVDg",
+      "payload": {
+        "id": "5vEvzHainWD0cA2Ht_ljHg",
+        "kid": "test",
+        "plan": "pro",
+        "licensee": "buyer@example.com",
+        "issuedAt": "2026-10-24T09:30:00Z",
+        "updatesUntil": "2028-10-24"
+      }
+    },
+    {
+      "name": "non-ASCII licensee",
+      "key": "devot1.eyJpZCI6IjNmNGxIV2hGV25VUGVEdDd5SWEzcnciLCJraWQiOiJ0ZXN0IiwicGxhbiI6InBybyIsImxpY2Vuc2VlIjoiasO2cmcubcO8bGxlckBleGFtcGxlLmNvbSIsImlzc3VlZEF0IjoiMjAyNi0wMi0yOFQyMzo1OTo1OVoiLCJ1cGRhdGVzVW50aWwiOiIyMDI3LTAyLTI4In0.OHmpNBSzrqoYsSIWzm7A5Pt_CTx4BQL6L90i5VfktRxWT-GXwiLODtrTuVr4lgQfiryQ68U9Kq3Gr03Cr5MVBQ",
+      "payload": {
+        "id": "3f4lHWhFWnUPeDt7yIa3rw",
+        "kid": "test",
+        "plan": "pro",
+        "licensee": "jörg.müller@example.com",
+        "issuedAt": "2026-02-28T23:59:59Z",
+        "updatesUntil": "2027-02-28"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "tampered payload",
+      "key": "devot1.eyJpZCI6IjV2RXZ6SGFpbldEMGNBMkh0X2xqSGciLCJraWQiOiJ0ZXN0IiwicGxhbiI6InBybyIsImxpY2Vuc2VlIjoiYnV5ZXJAZXhhbXBsZS5jb20iLCJpc3N1ZWRBdCI6IjIwMjYtMTAtMjRUMDk6MzA6MDBaIiwidXBkYXRlc1VudGlsIjoiMjA5OS0xMi0zMSJ9.V-5VqHT6xUp4J8Hy_mMXPxEFDtV0RHPqbIcS54SXZFuiGHemNQaL7hUNFLrq193hqPzl1qhNO7zJk0Idv4bqCQ",
+      "code": "E_LICENCE_SIGNATURE"
+    },
+    {
+      "name": "signed by another key",
+      "key": "devot1.eyJpZCI6IjV2RXZ6SGFpbldEMGNBMkh0X2xqSGciLCJraWQiOiJ0ZXN0IiwicGxhbiI6InBybyIsImxpY2Vuc2VlIjoiYnV5ZXJAZXhhbXBsZS5jb20iLCJpc3N1ZWRBdCI6IjIwMjYtMTAtMjRUMDk6MzA6MDBaIiwidXBkYXRlc1VudGlsIjoiMjAyNy0xMC0yNCJ9.0KwJJL2TGP8RlVlHuQRopYFalxLdkFFdj9wtECmSktZMV1BwIDb-9sVemuu0yKam8Kk124F--8BPWnyNjJgfDg",
+      "code": "E_LICENCE_SIGNATURE"
+    },
+    {
+      "name": "unknown kid",
+      "key": "devot1.eyJpZCI6IjV2RXZ6SGFpbldEMGNBMkh0X2xqSGciLCJraWQiOiJyZXRpcmVkIiwicGxhbiI6InBybyIsImxpY2Vuc2VlIjoiYnV5ZXJAZXhhbXBsZS5jb20iLCJpc3N1ZWRBdCI6IjIwMjYtMTAtMjRUMDk6MzA6MDBaIiwidXBkYXRlc1VudGlsIjoiMjAyNy0xMC0yNCJ9.gwWGl2OjeLSvzENqFk5ssUkqcI1vka7awTE7IHoTV45agd6SQQasKjmAvmLD2K2cSfk8nRKEdk-vZRlZZXobDg",
+      "code": "E_LICENCE_UNKNOWN_KID"
+    },
+    {
+      "name": "wrong prefix",
+      "key": "devot2.eyJpZCI6IjV2RXZ6SGFpbldEMGNBMkh0X2xqSGciLCJraWQiOiJ0ZXN0IiwicGxhbiI6InBybyIsImxpY2Vuc2VlIjoiYnV5ZXJAZXhhbXBsZS5jb20iLCJpc3N1ZWRBdCI6IjIwMjYtMTAtMjRUMDk6MzA6MDBaIiwidXBkYXRlc1VudGlsIjoiMjAyNy0xMC0yNCJ9.V-5VqHT6xUp4J8Hy_mMXPxEFDtV0RHPqbIcS54SXZFuiGHemNQaL7hUNFLrq193hqPzl1qhNO7zJk0Idv4bqCQ",
+      "code": "E_LICENCE_MALFORMED"
+    },
+    {
+      "name": "missing signature",
+      "key": "devot1.eyJpZCI6IjV2RXZ6SGFpbldEMGNBMkh0X2xqSGciLCJraWQiOiJ0ZXN0IiwicGxhbiI6InBybyIsImxpY2Vuc2VlIjoiYnV5ZXJAZXhhbXBsZS5jb20iLCJpc3N1ZWRBdCI6IjIwMjYtMTAtMjRUMDk6MzA6MDBaIiwidXBkYXRlc1VudGlsIjoiMjAyNy0xMC0yNCJ9",
+      "code": "E_LICENCE_MALFORMED"
+    },
+    {
+      "name": "revocation list as a key",
+      "key": "devot1rev.eyJraWQiOiJ0ZXN0IiwiaXNzdWVkQXQiOiIyMDI2LTExLTAxVDAwOjAwOjAwWiIsImlkcyI6WyIzZjRsSFdoRlduVVBlRHQ3eUlhM3J3Il19.thgi7jreL1BRkKMmv41jJgJQxbvX8KRD5te0a0wLeJXKwxCJ7L3LKDtm5PhXBrBxNEitDw5az-pDn_nvdGGaCQ",
+      "code": "E_LICENCE_MALFORMED"
+    }
+  ],
+  "revocations": {
+    "list": "devot1rev.eyJraWQiOiJ0ZXN0IiwiaXNzdWVkQXQiOiIyMDI2LTExLTAxVDAwOjAwOjAwWiIsImlkcyI6WyIzZjRsSFdoRlduVVBlRHQ3eUlhM3J3Il19.thgi7jreL1BRkKMmv41jJgJQxbvX8KRD5te0a0wLeJXKwxCJ7L3LKDtm5PhXBrBxNEitDw5az-pDn_nvdGGaCQ",
+    "payload": {
+      "kid": "test",
+      "issuedAt": "2026-11-01T00:00:00Z",
+      "ids": ["3f4lHWhFWnUPeDt7yIa3rw"]
+    },
+    "tampered": {
+      "list": "devot1rev.eyJraWQiOiJ0ZXN0IiwiaXNzdWVkQXQiOiIyMDI2LTExLTAxVDAwOjAwOjAwWiIsImlkcyI6W119.thgi7jreL1BRkKMmv41jJgJQxbvX8KRD5te0a0wLeJXKwxCJ7L3LKDtm5PhXBrBxNEitDw5az-pDn_nvdGGaCQ",
+      "code": "E_LICENCE_SIGNATURE"
+    },
+    "licenceAsList": {
+      "list": "devot1rev.eyJpZCI6IjV2RXZ6SGFpbldEMGNBMkh0X2xqSGciLCJraWQiOiJ0ZXN0IiwicGxhbiI6InBybyIsImxpY2Vuc2VlIjoiYnV5ZXJAZXhhbXBsZS5jb20iLCJpc3N1ZWRBdCI6IjIwMjYtMTAtMjRUMDk6MzA6MDBaIiwidXBkYXRlc1VudGlsIjoiMjAyNy0xMC0yNCJ9.V-5VqHT6xUp4J8Hy_mMXPxEFDtV0RHPqbIcS54SXZFuiGHemNQaL7hUNFLrq193hqPzl1qhNO7zJk0Idv4bqCQ",
+      "code": "E_LICENCE_MALFORMED"
+    }
+  }
+}

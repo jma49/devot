@@ -1,0 +1,21 @@
+{
+  "name": "@devot/licence",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Devot's licence Worker: Stripe Checkout, signed licence keys, resend and revocations.",
+  "license": "FSL-1.1-MIT",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "keygen": "node scripts/keygen.ts",
+    "test-vectors": "node scripts/test-vectors.ts && pnpm -w exec oxfmt licence/test-vectors.json"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261019.1",
+    "@types/node": "^24.19.1",
+    "wrangler": "4.152.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

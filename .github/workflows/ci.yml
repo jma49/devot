@@ -4,12 +4,14 @@ name: CI
 # not run it again: every change reaches main through a PR that passed here.
 #
 # A pull request runs only the jobs its files need (scripts/ci/changed-code.sh):
-# documentation, the icon sources and the sync relay (relay/) need no build,
-# changes under src-tauri/ need the Rust job (tauri.conf.json, whose CSP the UI
-# tests use, needs both), anything else needs both. When the web jobs are not
+# documentation, the icon sources, the sync relay (relay/) and the licence
+# Worker (licence/) need no build, changes under src-tauri/ need the Rust job
+# (tauri.conf.json, whose CSP the UI tests use, needs both), anything else
+# needs both. When the web jobs are not
 # needed, the `policy` job runs the formatting check, lint, the type check and
 # all of Vitest, whose tests also read the documentation, the Rust sources,
-# migrations and capabilities, and run the relay on both of its hosts.
+# migrations and capabilities, run the relay on both of its hosts and the
+# licence Worker in workerd.
 #
 # Every job runs unless the change detection said `false` for it, so missing
 # outputs run everything rather than nothing.
@@ -54,7 +56,8 @@ jobs:
           fi
 
   # Pull requests without web changes: the checks that read the docs, the
-  # Rust side and the relay, which the web jobs would otherwise run.
+  # Rust side, the relay and the licence Worker, which the web jobs would
+  # otherwise run.
   policy:
     needs: changes
     if: needs.changes.outputs.web != 'true'

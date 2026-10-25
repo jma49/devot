@@ -33,7 +33,7 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
   - `licensee`: the buyer's email address;
   - `issuedAt`;
   - `updatesUntil`: one year after the purchase, a UTC date.
-- **Size:** the key is about 250 characters, short enough for an email, a deep link and a paste.
+- **Size:** the key is about 270 characters for a short address, short enough for an email, a deep link and a paste.
 - **Signature:** Ed25519. The app holds the public key of each `kid`, so a new signing key ships in a release before anything is signed with it.
 - **Checking:** Rust verifies the key (`src-tauri/src/licence/`), keeps it in the keychain beside the vault key and the AI keys, and reports its state:
   - none;
@@ -47,12 +47,12 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
 
 ## Buying
 
-- **The Worker:** `licence/` is a Cloudflare Worker deployed to the owner's account, with a D1 database. The database holds one row per licence: ID, Stripe Checkout Session ID, Stripe customer ID, issued at, updates until and revoked at. It stores no email (Stripe holds it) and no notes.
+- **The Worker:** `licence/` is a Cloudflare Worker deployed to the owner's account, with a D1 database. The database holds one row per licence: ID, Stripe Checkout Session ID, Stripe customer ID, issued at, updates until and revoked at. Beside it, one row per paid session (the first purchase and each renewal) keeps the session, customer and PaymentIntent IDs, so a session fulfils once and a refund finds its licence; a refunded or lost PaymentIntent is kept too, so a refund that arrives before its purchase is recorded still revokes the licence; and `/resend` keeps its rate-limit counters under keyed hashes. It stores no email (Stripe holds it), no key (it signs one again from the row) and no notes.
 - **Routes:**
   - `GET /buy` creates a Checkout Session for the licence's Price and redirects to it.
   - `GET /renew?licence=<id>` does the same for the renewal Price, with the licence ID in the session's metadata.
-  - `POST /stripe/webhook` checks `Stripe-Signature`. On `checkout.session.completed` with `payment_status: paid`, it issues the licence and emails it. A session issues at most one licence, so Stripe's retries are harmless.
-  - `GET /done?session_id=<id>` shows the key with an Open in Devot button (the deep link), so a lost email loses nothing.
+  - `POST /stripe/webhook` checks `Stripe-Signature`. On `checkout.session.completed` with `payment_status: paid` (or `checkout.session.async_payment_succeeded` for a payment that settles later), it issues the licence and emails it. A session issues at most one licence, so Stripe's retries are harmless.
+  - `GET /done?session_id=<id>` shows the key with an Open in Devot button (the deep link), so a lost email loses nothing. When the buyer arrives before the webhook, it retrieves the paid session and issues the licence itself.
   - `POST /resend` takes an email address and mails every licence of that address's Stripe customers. It always answers the same way, so it never tells whether an address bought anything, and it is rate-limited per address and per IP.
   - `GET /revoked` returns the signed list of revoked licence IDs.
 - **Tax and disputes:** Checkout uses Stripe Managed Payments, which makes Stripe the merchant of record: it handles sales tax and VAT, fraud and disputes. An account Stripe has not admitted to Managed Payments uses Stripe Tax instead, and the owner registers for tax wherever it is required before selling there. One Worker variable chooses between the two.
@@ -70,7 +70,7 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
 ## Revocation
 
 - A refund or a lost dispute revokes the licence (Stripe's `charge.refunded` and `charge.dispute.closed` events).
-- The app downloads `/revoked` whole with each update check (at most once a day), so the Worker never learns which licence a device holds. The list is signed with the licence key and grows by 16 bytes per revoked licence.
+- The app downloads `/revoked` whole with each update check (at most once a day), so the Worker never learns which licence a device holds. The list is signed with the licence key and grows by about 33 characters per revoked licence (docs/licensing.md, Formats).
 - A device that never comes online keeps a revoked licence working. That is accepted.
 
 ## Risks

@@ -10,6 +10,7 @@
     "src/mcp",
     "src/renderer/src/build.d.ts",
     "relay/src/node",
+    "licence/scripts",
     "tests",
     "scripts",
     "vite.config.ts",
