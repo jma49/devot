@@ -7,7 +7,8 @@ use super::format::{KeyRing, from_base64url};
 /// `kid` and the raw 32-byte Ed25519 public key, base64url without padding, as
 /// `pnpm --filter @devot/licence keygen` prints it. A new key ships here in a release before the
 /// Worker signs anything with it. While this is empty nothing is gated.
-pub(crate) const PRODUCTION: &[(&str, &str)] = &[];
+pub(crate) const PRODUCTION: &[(&str, &str)] =
+    &[("2026-10", "42sdmCprN4kN4z-YHZR9nqey9U4QMSO1ieGTFbeiBS8")];
 
 /// licence/test-vectors.json's key: never trusted by a release build.
 #[cfg(any(test, debug_assertions))]
