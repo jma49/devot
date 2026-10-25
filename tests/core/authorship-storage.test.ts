@@ -29,7 +29,7 @@ const CODEX = newWriter('mcp', 'Codex', 'mcp33dd44ee55ff')
 
 let lastTime = 0
 // Writes sort by time, then by random ID; a clock that never repeats keeps them in order.
-const now = () => (lastTime = Math.max(lastTime + 1, Date.now()))
+const strictNow = () => (lastTime = Math.max(lastTime + 1, Date.now()))
 
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
@@ -49,7 +49,7 @@ function app(path: string) {
     storage,
     clock,
     newId,
-    now,
+    now: strictNow,
     saveDelayMs: 5,
     log: (...parts) => logs.push(parts.join(' ')),
   })
@@ -67,7 +67,7 @@ function mcp(
     storage,
     clock: createClock(writer.process),
     newId: createIdGenerator(),
-    now,
+    now: strictNow,
     atomically: storage.atomically,
     writer: () => writer,
     log: (...parts) => logs.push(parts.join(' ')),
