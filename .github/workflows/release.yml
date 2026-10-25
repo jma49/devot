@@ -40,6 +40,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       channel: ${{ steps.version.outputs.channel }}
+      released_at: ${{ steps.released.outputs.released_at }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -63,6 +64,11 @@ jobs:
       - name: Set the version from the tag
         id: version
         run: node scripts/release/release.ts set-version "$TAG" >> "$GITHUB_OUTPUT"
+      # One moment: its date is baked into the build (what a licence covers), the whole
+      # moment is the feed's pub_date, so the two cannot disagree.
+      - name: Set the release date
+        id: released
+        run: node scripts/release/release.ts release-date >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: 1.99.0
@@ -72,6 +78,7 @@ jobs:
       - name: Build
         env:
           PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          DEVOT_RELEASE_DATE: ${{ steps.released.outputs.release_date }}
           DEVOT_SENTRY_DSN: ${{ secrets.DEVOT_SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
@@ -252,10 +259,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           UPDATER: Devot_${{ needs.build.outputs.version }}_aarch64.app.tar.gz
+          RELEASED_AT: ${{ needs.build.outputs.released_at }}
         run: |
           url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$UPDATER"
           mkdir feed
-          node scripts/release/release.ts feed "$TAG" "$url" "out/$UPDATER.sig" out/notes.md feed/release.json
+          node scripts/release/release.ts feed "$TAG" "$url" "out/$UPDATER.sig" out/notes.md feed/release.json "$RELEASED_AT"
           # A beta goes in beta.json; a stable release in stable.json and in
           # beta.json too, so a beta install is offered the newest build.
           feeds=$(node scripts/release/release.ts feeds "$TAG")

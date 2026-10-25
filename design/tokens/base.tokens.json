@@ -1022,6 +1022,14 @@
       },
       "$description": "The widest the card under the pointer is while notes are dragged."
     },
+    "notice-max-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 480,
+        "unit": "px"
+      },
+      "$description": "The widest a notice is, so one with several actions wraps instead of crossing the window."
+    },
     "pane-min-width": {
       "$type": "dimension",
       "$value": {

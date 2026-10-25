@@ -169,14 +169,15 @@ Release that build before the Worker signs anything with the key. While `PRODUCT
 
 ### Updates a licence covers
 
-The release workflow sets `DEVOT_RELEASE_DATE` (`YYYY-MM-DD`, UTC) when it builds; a value of another shape fails the build. A licence whose `updatesUntil` is before that date shows "updates ended" and unlocks nothing in that build; a build without the variable (local and dev builds) counts as covered. The device's clock plays no part.
+The release workflow sets `DEVOT_RELEASE_DATE` (`YYYY-MM-DD`, UTC) when it builds, from the same moment it writes as the update feed's `pub_date`; a value of another shape fails the build. A licence whose `updatesUntil` is before that date shows "updates ended" and unlocks nothing in that build; a build without the variable (local and dev builds) counts as covered. The device's clock plays no part.
 
 ### Revocations
 
-The app keeps the last revocation list that verified in `<app data>/licence-revocations.txt` (the list as signed; it is public) and verifies it again whenever it reads it. A list older than the one kept (`issuedAt`) is ignored. Fetching `/revoked` comes with the updater's work (#350).
+The app keeps the last revocation list that verified in `<app data>/licence-revocations.txt` (the list as signed; it is public) and verifies it again whenever it reads it. A list older than the one kept (`issuedAt`) is ignored. The updater's schedule fetches `/revoked` once a day (also in a build without the updater key, while the build gates sync and AI and a licence is held): the list whole, over https, with no query or identifying header, then `apply_revocations`. A failure is logged by its code and changes nothing. docs/architecture.md (Updates) has the details.
 
 ### What users see
 
+- **Updating:** when the licence is valid for this build but an update was released after its `updatesUntil`, the main window says so before downloading (sync and AI stay locked after updating until a renewal) and offers Renew, Download Anyway and Skip This Version; automatic downloads never fetch it. Skipping is remembered for that version only.
 - **Settings > Licence:** whether sync and AI are unlocked, in a sentence for each state; who the licence is for, its ID and the last release it covers; a field to paste a key (Add Licence, or Replace Licence once one is there); Remove Licence…, which asks first; Buy a Licence (`https://licence.devot.online/buy`), or Renew (`/renew?licence=<id>`) for a licence whose updates ended. A key that fails says why, with its code, and changes nothing. A build without a production key says it checks no licence.
 - **Sync and AI:** Settings > Sync and Settings > AI say a licence is needed, with Buy (or Renew). Edit with AI opens saying so and sends nothing; Suggest Next Edit says so when asked by key, and a pause asks nothing. A device that syncs stops at its next connect, and the main window's notice says why, with Buy.
 - **`devot://licence?key=<key>`** (from `/done` or the email): Devot comes forward and adds the licence to a device that holds none. On a device that holds one, it asks first, and says when the key is the same licence renewed. A key that fails says why.

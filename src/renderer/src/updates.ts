@@ -6,8 +6,10 @@
 // window after each change, which the page re-sends as `devot:update-status`
 // (the UI tests send that one). An older revision never replaces a newer one.
 import { useSyncExternalStore } from 'react'
-import { format, t, type MessageKey } from './i18n'
+import { currentLocale, format, t, type MessageKey } from './i18n'
 import { invoke } from './ipc'
+import { isLicenceDate } from './licence'
+import { licenceDate } from './licenceView'
 
 export const UPDATE_STATUS = 'devot:update-status'
 const TAURI_EVENT = 'devot://update-status'
@@ -17,6 +19,8 @@ export type UpdateState =
   | { state: 'checking' }
   | { state: 'upToDate' }
   | { state: 'available'; version: string }
+  /** The licence ends before this update's release: Renew, Download Anyway or Skip This Version. */
+  | { state: 'notCovered'; version: string; updatesUntil: string }
   | { state: 'downloading'; version: string; percent: number | null }
   | { state: 'ready'; version: string }
   | { state: 'failed'; code: string }
@@ -63,6 +67,15 @@ export function readUpdateStatus(value: unknown): UpdateStatus | undefined {
       return version(v['version'])
         ? { ...base, state: v['state'], version: v['version'] }
         : undefined
+    case 'notCovered':
+      return version(v['version']) && isLicenceDate(v['updatesUntil'])
+        ? {
+            ...base,
+            state: 'notCovered',
+            version: v['version'],
+            updatesUntil: v['updatesUntil'],
+          }
+        : undefined
     case 'downloading': {
       if (!version(v['version'])) return undefined
       const p = v['percent']
@@ -82,13 +95,22 @@ export interface UpdateNoticeModel {
   /** Changes with what the notice is about, so a dismissed one stays dismissed. */
   key: string
   text: string
-  action: 'download' | 'restart' | null
+  action: 'download' | 'restart' | 'notCovered' | null
 }
 
 const downloadingText = (version: string, percent: number | null) =>
   percent === null
     ? format(t('updates.downloading'), { version })
-    : format(t('updates.downloadingPercent'), { version, percent: String(percent) })
+    : format(t('updates.downloadingPercent'), {
+        version,
+        percent: String(percent),
+      })
+
+const notCoveredText = (version: string, updatesUntil: string) =>
+  format(t('updates.notCovered'), {
+    version,
+    date: licenceDate(updatesUntil, currentLocale()),
+  })
 
 const failureText = (code: string) =>
   code === 'E_UPDATE_UNAVAILABLE' ? t('updates.unavailable') : format(t('updates.failed'), { code })
@@ -106,6 +128,12 @@ export function updateNotice(status: UpdateStatus, window: string): UpdateNotice
         key: `available:${status.version}`,
         text: format(t('updates.available'), { version: status.version }),
         action: 'download',
+      }
+    case 'notCovered':
+      return {
+        key: `notCovered:${status.version}`,
+        text: notCoveredText(status.version, status.updatesUntil),
+        action: 'notCovered',
       }
     case 'downloading':
       return mine
@@ -131,7 +159,11 @@ export function updateNotice(status: UpdateStatus, window: string): UpdateNotice
         : null
     case 'failed':
       return mine
-        ? { key: `failed:${status.revision}`, text: failureText(status.code), action: null }
+        ? {
+            key: `failed:${status.revision}`,
+            text: failureText(status.code),
+            action: null,
+          }
         : null
     default:
       return null
@@ -139,7 +171,9 @@ export function updateNotice(status: UpdateStatus, window: string): UpdateNotice
 }
 
 export function updateStatusText(status: UpdateStatus): string {
-  const version = format(t('generalSettings.version'), { version: status.current })
+  const version = format(t('generalSettings.version'), {
+    version: status.current,
+  })
   const line = (key: MessageKey, values: Record<string, string> = {}) => format(t(key), values)
   switch (status.state) {
     case 'checking':
@@ -148,6 +182,8 @@ export function updateStatusText(status: UpdateStatus): string {
       return line('updates.upToDate', { version: status.current })
     case 'available':
       return line('updates.available', { version: status.version })
+    case 'notCovered':
+      return notCoveredText(status.version, status.updatesUntil)
     case 'downloading':
       return downloadingText(status.version, status.percent)
     case 'ready':
@@ -206,5 +242,7 @@ export const checkForUpdates = (): Promise<void> =>
   invoke<void>('update_check').catch(() => console.warn('W_UPDATE_CHECK_FAILED'))
 
 export const downloadUpdate = (): Promise<void> => invoke('update_download')
+
+export const skipUpdate = (): Promise<void> => invoke('update_skip')
 
 export const restartToUpdate = (): Promise<void> => invoke('update_restart')

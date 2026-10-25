@@ -18,7 +18,7 @@ pub struct Get<'a> {
 }
 
 /// Any status: the caller decides what a 404 means.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Fetched {
     pub status: u16,
     pub content_type: Option<String>,
@@ -114,10 +114,20 @@ fn redirect_target(
 }
 
 pub fn get(get: &Get) -> Result<Fetched, &'static str> {
+    fetch(get, true)
+}
+
+/// Tests reach a server on this machine, over plain http.
+#[cfg(test)]
+pub fn get_local(get: &Get) -> Result<Fetched, &'static str> {
+    fetch(get, false)
+}
+
+fn fetch(get: &Get, strict: bool) -> Result<Fetched, &'static str> {
     let deadline = Instant::now() + get.timeout;
     let mut url = get.url.clone();
     for _ in 0..=MAX_REDIRECTS {
-        if !public_host(&url) {
+        if strict && !public_host(&url) {
             return Err("E_NET_HOST_REFUSED");
         }
         let left = deadline
@@ -130,7 +140,7 @@ pub fn get(get: &Get) -> Result<Fetched, &'static str> {
                     .provider(ureq::tls::TlsProvider::NativeTls)
                     .build(),
             )
-            .https_only(true)
+            .https_only(strict)
             .max_redirects(0)
             .timeout_global(Some(left))
             .http_status_as_error(false)

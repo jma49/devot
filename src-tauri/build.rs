@@ -20,6 +20,7 @@ fn sentry_dsn() {
 
 fn main() {
     sentry_dsn();
+    println!("cargo:rerun-if-env-changed={}", build_env::RELEASE_DATE_KEY);
     // Declaring the app's commands makes each one need an explicit
     // permission in a capability file, so no window gets a command by default.
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
@@ -145,6 +146,7 @@ fn main() {
             "update_status",
             "update_check",
             "update_download",
+            "update_skip",
             "update_restart",
             "deep_link_take",
             "settings_mcp_setup",

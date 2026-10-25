@@ -3347,7 +3347,10 @@ button {
 
 .notice {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
+  max-width: var(--size-notice-max-width);
   gap: var(--space-4);
   padding: var(--space-4) var(--space-6);
   border-radius: var(--radius-card);
@@ -3363,6 +3366,11 @@ button {
 
 .notice-text {
   margin-right: var(--space-4);
+}
+
+.notice[data-devot-update='notCovered'] .notice-text {
+  flex-basis: 100%;
+  margin-right: 0;
 }
 
 .settings {

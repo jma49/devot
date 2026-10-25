@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { readUpdateStatus, updateNotice, updateStatusText, type UpdateStatus } from './updates'
 
-const base = { revision: 3, current: '0.3.0-beta.1', enabled: true, askedBy: null }
+const base = {
+  revision: 3,
+  current: '0.3.0-beta.1',
+  enabled: true,
+  askedBy: null,
+}
 const status = (extra: Record<string, unknown>) => readUpdateStatus({ ...base, ...extra })!
 
 describe('update status', () => {
@@ -21,8 +26,28 @@ describe('update status', () => {
     expect(status({ state: 'downloading', version: '1.0.0', percent: null })).toMatchObject({
       percent: null,
     })
-    expect(status({ state: 'ready', version: '1.0.0' })).toMatchObject({ version: '1.0.0' })
-    expect(status({ state: 'failed', code: 'E_UPDATE_CHECK_FAILED', askedBy: 'main' })).toEqual({
+    expect(status({ state: 'ready', version: '1.0.0' })).toMatchObject({
+      version: '1.0.0',
+    })
+    expect(
+      status({
+        state: 'notCovered',
+        version: '1.2.0',
+        updatesUntil: '2027-10-24',
+      }),
+    ).toEqual({
+      ...base,
+      state: 'notCovered',
+      version: '1.2.0',
+      updatesUntil: '2027-10-24',
+    })
+    expect(
+      status({
+        state: 'failed',
+        code: 'E_UPDATE_CHECK_FAILED',
+        askedBy: 'main',
+      }),
+    ).toEqual({
       ...base,
       askedBy: 'main',
       state: 'failed',
@@ -42,6 +67,19 @@ describe('update status', () => {
       { ...base, state: 'ready', version: '<b>1.0</b>' },
       { ...base, state: 'available', version: 'v1.0.0' },
       { ...base, state: 'failed', code: 'could not connect' },
+      { ...base, state: 'notCovered', version: '1.2.0' },
+      {
+        ...base,
+        state: 'notCovered',
+        version: '1.2.0',
+        updatesUntil: 'next year',
+      },
+      {
+        ...base,
+        state: 'notCovered',
+        version: '<b>',
+        updatesUntil: '2027-10-24',
+      },
     ])
       expect(readUpdateStatus(bad)).toBeUndefined()
     expect(status({ state: 'downloading', version: '1.0.0', percent: 140 }).state).toBe(
@@ -71,6 +109,21 @@ describe('update notice', () => {
     })
   })
 
+  it('says before downloading that the licence ends before the update, in every window', () => {
+    const notCovered = status({
+      state: 'notCovered',
+      version: '1.2.0',
+      updatesUntil: '2027-10-24',
+    })
+    expect(notice(notCovered)).toEqual({
+      key: 'notCovered:1.2.0',
+      text: 'Devot 1.2.0 came out after October 24, 2027, the last day your licence covers. After updating, sync and AI stay locked until you renew.',
+      action: 'notCovered',
+    })
+    expect(notice(notCovered, 'settings')?.action).toBe('notCovered')
+    expect(updateStatusText(notCovered)).toBe(notice(notCovered)?.text)
+  })
+
   it('reports a check only to the window that asked for it', () => {
     const upToDate = status({ state: 'upToDate', askedBy: 'main' })
     expect(notice(upToDate)).toMatchObject({
@@ -79,16 +132,30 @@ describe('update notice', () => {
     })
     expect(notice(upToDate, 'settings')).toBeNull()
     expect(notice(status({ state: 'upToDate' }))).toBeNull()
-    const failed = status({ state: 'failed', code: 'E_UPDATE_CHECK_FAILED', askedBy: 'main' })
+    const failed = status({
+      state: 'failed',
+      code: 'E_UPDATE_CHECK_FAILED',
+      askedBy: 'main',
+    })
     expect(notice(failed)?.text).toBe(
       'Devot could not check for or install updates (E_UPDATE_CHECK_FAILED).',
     )
     expect(notice(failed, 'settings')).toBeNull()
     expect(
-      notice(status({ state: 'failed', code: 'E_UPDATE_UNAVAILABLE', askedBy: 'main' }))?.text,
+      notice(
+        status({
+          state: 'failed',
+          code: 'E_UPDATE_UNAVAILABLE',
+          askedBy: 'main',
+        }),
+      )?.text,
     ).toBe('This build of Devot does not update itself.')
     // A background download shows nothing until it is ready.
-    const downloading = { state: 'downloading', version: '0.3.0-beta.2', percent: 25 }
+    const downloading = {
+      state: 'downloading',
+      version: '0.3.0-beta.2',
+      percent: 25,
+    }
     expect(notice(status(downloading))).toBeNull()
     expect(notice(status({ ...downloading, askedBy: 'main' }))).toEqual({
       key: 'downloading:0.3.0-beta.2',
@@ -101,8 +168,15 @@ describe('update notice', () => {
 
   it('keeps a dismissed notice dismissed while it says the same thing', () => {
     const at = (revision: number, percent: number) =>
-      notice(status({ state: 'downloading', version: '1.0.0', percent, revision, askedBy: 'main' }))
-        ?.key
+      notice(
+        status({
+          state: 'downloading',
+          version: '1.0.0',
+          percent,
+          revision,
+          askedBy: 'main',
+        }),
+      )?.key
     expect(at(4, 10)).toBe(at(9, 80))
     const ready = (revision: number) =>
       notice(status({ state: 'ready', version: '1.0.0', revision }))?.key

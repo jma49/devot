@@ -9,6 +9,7 @@
 
 mod format;
 mod keys;
+mod revoked;
 mod store;
 #[cfg(test)]
 pub(crate) mod testing;
@@ -24,7 +25,8 @@ use tauri::State as Tauri;
 
 pub(crate) use format::MAX_LENGTH;
 use format::{Payload, Revocations, VerifyError, verify_licence, verify_revocations};
-pub(crate) use keys::{PublicKeys, RELEASE_DATE};
+pub(crate) use keys::{PublicKeys, RELEASE_DATE, covers};
+pub(crate) use revoked::refresh_from_site as refresh_revocations;
 pub(crate) use store::{KeyStore, Keychain, REVOCATIONS_FILE};
 
 pub(crate) const CHANGED_EVENT: &str = "devot://licence-changed";
@@ -318,12 +320,18 @@ impl Licence {
         Ok(self.changed())
     }
 
+    pub(crate) fn gated(&self) -> bool {
+        self.keys.gated()
+    }
+
+    /// Whether a revocation list could change anything: the build gates sync and AI, and a key
+    /// that verifies is held.
+    pub(crate) fn wants_revocations(&self) -> bool {
+        self.keys.gated() && self.snapshot().id.is_some()
+    }
+
     /// Keeps a revocation list that verifies and is not older than the one kept; `false` when it
-    /// was older and so changed nothing. #350 fetches the list.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "fetching the list (#350) is its caller")
-    )]
+    /// was older and so changed nothing.
     pub(crate) fn apply_revocations(&self, list: &str) -> Result<bool, &'static str> {
         let verified = verify_revocations(list, &self.keys).map_err(|e| {
             log::warn!("W_LICENCE_REVOCATIONS_REFUSED {}", e.code());

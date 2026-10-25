@@ -15,7 +15,14 @@
 //     a beta, `stable` and `beta` for a stable release, so a beta install is
 //     offered the newest build of either kind.
 //
-//   node scripts/release/release.ts feed <tag> <url> <signature file> <notes file> <out file>
+//   node scripts/release/release.ts release-date
+//     Prints the release's moment once, as `released_at=…` (UTC, to the second) and
+//     `release_date=…` (YYYY-MM-DD, its date). The build bakes the date in
+//     (DEVOT_RELEASE_DATE, which decides what a licence covers) and the feed
+//     announces the moment as `pub_date`; both come from this one value, so
+//     they cannot disagree.
+//
+//   node scripts/release/release.ts feed <tag> <url> <signature file> <notes file> <out file> <released at>
 //     Writes the update feed for the release: what the app's updater reads
 //     from a channel file in the `updater` release (beta.json until 1.0).
 //
@@ -121,6 +128,29 @@ export interface FeedInput {
   signature: string
 }
 
+const RELEASED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/
+
+/** The release's moment to the second, and the UTC date a licence is compared with. */
+export function releaseMoment(now: Date): {
+  releasedAt: string
+  releaseDate: string
+} {
+  const releasedAt = `${now.toISOString().slice(0, 19)}Z`
+  return { releasedAt, releaseDate: releasedAt.slice(0, 10) }
+}
+
+export function parseReleasedAt(text: string): Date {
+  const date = new Date(text)
+  if (
+    !RELEASED_AT.test(text) ||
+    Number.isNaN(date.getTime()) ||
+    releaseMoment(date).releasedAt !== text
+  ) {
+    throw new Error(`E_RELEASE_DATE_INVALID: ${JSON.stringify(text)}`)
+  }
+  return date
+}
+
 /** Apple Silicon is the only platform Devot ships for. */
 export function updateFeed(input: FeedInput) {
   if (!/^https:\/\//.test(input.url)) throw new Error('E_RELEASE_FEED_URL_INVALID')
@@ -156,7 +186,11 @@ export function verifySignature(file: Uint8Array, signature: string, publicKey: 
   if (!sig.subarray(2, 10).equals(key.subarray(2, 10)))
     throw new Error('E_RELEASE_SIGNATURE_KEY_MISMATCH')
   const ed25519 = createPublicKey({
-    key: { kty: 'OKP', crv: 'Ed25519', x: key.subarray(10).toString('base64url') },
+    key: {
+      kty: 'OKP',
+      crv: 'Ed25519',
+      x: key.subarray(10).toString('base64url'),
+    },
     format: 'jwk',
   })
   // "ED" signs the file's BLAKE2b-512 hash (what Tauri writes), "Ed" the file.
@@ -284,12 +318,23 @@ function main(args: string[]) {
     console.log(`replace=${replacesFeed(versionFromTag(tag), feed)}`)
     return
   }
-  if (command === 'feed' && tag && rest.length === 4) {
-    const [url, signatureFile, notesFile, out] = rest as [string, string, string, string]
+  if (command === 'release-date' && tag === undefined) {
+    const { releasedAt, releaseDate } = releaseMoment(new Date())
+    console.log(`released_at=${releasedAt}\nrelease_date=${releaseDate}`)
+    return
+  }
+  if (command === 'feed' && tag && rest.length === 5) {
+    const [url, signatureFile, notesFile, out, releasedAt] = rest as [
+      string,
+      string,
+      string,
+      string,
+      string,
+    ]
     const feed = updateFeed({
       version: versionFromTag(tag),
       notes: readFileSync(notesFile, 'utf8'),
-      date: new Date(),
+      date: parseReleasedAt(releasedAt),
       url,
       signature: readFileSync(signatureFile, 'utf8'),
     })
@@ -319,7 +364,7 @@ function main(args: string[]) {
     return
   }
   throw new Error(
-    'E_RELEASE_USAGE: set-version <tag> | feeds <tag> | replaces-feed <tag> <feed> | feed <tag> <url> <sig> <notes> <out> | sign <tag> <file> <out> | verify-signature <file> <sig> <pubkey> [<tag>]',
+    'E_RELEASE_USAGE: set-version <tag> | release-date | feeds <tag> | replaces-feed <tag> <feed> | feed <tag> <url> <sig> <notes> <out> <released-at> | sign <tag> <file> <out> | verify-signature <file> <sig> <pubkey> [<tag>]',
   )
 }
 

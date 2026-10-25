@@ -796,7 +796,12 @@ export const en = {
   'updates.checking': 'Checking for updates\u2026',
   'updates.upToDate': 'Devot {version} is the latest version.',
   'updates.available': 'Devot {version} is available.',
+  'updates.notCovered':
+    'Devot {version} came out after {date}, the last day your licence covers. After updating, sync and AI stay locked until you renew.',
   'updates.download': 'Download',
+  'updates.renew': 'Renew',
+  'updates.downloadAnyway': 'Download Anyway',
+  'updates.skipVersion': 'Skip This Version',
   'updates.downloading': 'Downloading Devot {version}\u2026',
   'updates.downloadingPercent': 'Downloading Devot {version} ({percent}%)\u2026',
   'updates.ready': 'Devot {version} is ready to install.',

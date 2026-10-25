@@ -337,11 +337,11 @@ describe('Tauri command permissions', () => {
     expect(windowsWith('allow-font-read')).toEqual(['main', 'note-*', 'settings'])
   })
 
-  it('lets both windows check for updates, and only the main window download and restart', () => {
+  it('lets both windows check for updates, and only the main window download, skip and restart', () => {
     for (const command of ['status', 'check']) {
       expect(windowsWith(`allow-update-${command}`)).toEqual(['main', 'settings'])
     }
-    for (const command of ['download', 'restart']) {
+    for (const command of ['download', 'skip', 'restart']) {
       expect(windowsWith(`allow-update-${command}`)).toEqual(['main'])
     }
   })
