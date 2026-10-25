@@ -2,7 +2,7 @@
 name = "devot"
 version = "0.0.0"
 description = "A local-first Markdown note-taking app"
-license = "MIT"
+license = "FSL-1.1-MIT"
 repository = "https://github.com/jma49/devot"
 edition = "2024"
 publish = false

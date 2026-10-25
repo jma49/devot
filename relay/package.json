@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Devot's sync relay: a Cloudflare Worker with a Durable Object per vault, or a Node server on SQLite.",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",

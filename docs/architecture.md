@@ -4,7 +4,7 @@ Status: **v2, agreed 2026-10-09** (moved the shell from Electron to Tauri). Item
 
 ## Product
 
-- A local-first Markdown note-taking app for daily personal use, open source under the MIT licence.
+- A local-first Markdown note-taking app for daily personal use, source-available under FSL-1.1-MIT (`LICENSE`): each release becomes MIT two years after it is published. Free but for sync and AI, which a licence bought once unlocks (docs/adr/0006-source-available-and-sold-once.md).
 - No account is needed for anything: sync's identity is device pairing, and each owner runs their own relay (docs/adr/0004-sync-without-accounts.md). Accounts and Share on Web wait until a hosted service is decided.
 - Billing: features check entitlements through one interface; no payment provider is wired in until pricing is decided. `createEntitlements().has(feature)` (`src/core/entitlements.ts`) takes a typed `Feature`; `PLAN_GATED_FEATURES` is empty, so every feature is available today, signed in or not. Once a feature is gated, it needs the signed-in account's cached entitlements (`EntitlementSource`, filled once accounts exist) confirmed within an offline grace period (14 days; a clock set back counts as unconfirmed). Signed out, or after the grace period, only ungated (local) features stay.
 - Usage data: the app records usage events through one local interface (event name, time, a few anonymous properties; never note content, titles or names). Nothing leaves the device until an opt-in upload ships with accounts (see Usage events).
@@ -646,8 +646,7 @@ Coverage is reported, not gated: a percentage is easy to game. Every PR must tes
 
 1. Whether `design/` becomes its own repository.
 2. In-app AI assistant interaction design.
-3. Paid users: accounts, auth and billing.
-4. Measure idle GPU power with the transparent window; if it is high, drop to an opaque window with a tinted sidebar.
+3. Measure idle GPU power with the transparent window; if it is high, drop to an opaque window with a tinted sidebar.
 
 ## First-launch notes
 

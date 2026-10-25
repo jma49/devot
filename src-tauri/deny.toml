@@ -13,7 +13,7 @@ all-features = false
 ignore = []
 
 [licenses]
-# Licences compatible with shipping Devot as open source.
+# Licences compatible with Devot's own (FSL-1.1-MIT, MIT two years after each release).
 allow = [
   "MIT",
   "MIT-0",
@@ -37,7 +37,7 @@ confidence-threshold = 0.9
 unused-allowed-license = "allow"
 
 [licenses.private]
-# Devot itself is MIT-licensed; publish = false keeps it out of the check.
+# Devot's own licence is not on the list; publish = false keeps it out of the check.
 ignore = true
 
 [bans]
