@@ -265,6 +265,7 @@ export const en = {
   'noteList.empty.templatesTip': 'Create one with the New Template button.',
   'noteList.resize': 'Resize Note List',
   'board.resize': 'Resize Board',
+  'board.cardTags': 'Tags: {tags}',
   'layout.label': 'Layout',
   'layout.list': 'List',
   'layout.board': 'Board',

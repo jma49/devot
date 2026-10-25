@@ -3,6 +3,7 @@
 // the status of every note named through the note service; the board keeps
 // its moves so each one undoes as one step.
 import { NOTE_STATUSES, type NoteStatus } from '../../core/storage'
+import { entryOffsets, windowRuns } from './listWindow'
 
 interface Card {
   id: string
@@ -132,35 +133,100 @@ export function changesByStatus(changes: BoardMove): [NoteStatus, string[]][] {
   return [...out]
 }
 
+/** `changes` without the notes whose write failed. */
+export function appliedChanges(changes: BoardMove, failed: readonly string[]): BoardMove {
+  const missed = new Set(failed)
+  return changes.filter((change) => !missed.has(change.id))
+}
+
 const MOVES_KEPT = 50
 
-/** The moves made on a board, for Undo and Redo; a new move drops the ones undone. */
+/**
+ * The moves made on a board, for Undo and Redo; a new move drops the ones
+ * undone. Undo and Redo take what a move changes now (`changesNow`) and pass
+ * over a move that changes nothing any more, so a key press is never spent on one.
+ */
 export function createMoveHistory(limit = MOVES_KEPT) {
   let done: BoardMove[] = []
   let undone: BoardMove[] = []
+  const take = (from: BoardMove[], to: BoardMove[], changesNow: (move: BoardMove) => BoardMove) => {
+    for (let move = from.pop(); move; move = from.pop()) {
+      const changes = changesNow(move)
+      if (changes.length === 0) continue
+      to.push(move)
+      return changes
+    }
+    return undefined
+  }
   return {
     record(move: BoardMove) {
       if (move.length === 0) return
       done = [...done, move].slice(-limit)
       undone = []
     },
-    /** The move to take back, now counted as undone. */
-    undo(): BoardMove | undefined {
-      const move = done.pop()
-      if (move) undone.push(move)
-      return move
+    /** Puts what `move`'s write made (`applied`) in its place; a move that made nothing is dropped. */
+    settle(move: BoardMove, applied: BoardMove) {
+      const swap = (moves: BoardMove[]) =>
+        moves.flatMap((m) => (m !== move ? [m] : applied.length > 0 ? [applied] : []))
+      done = swap(done)
+      undone = swap(undone)
     },
-    /** The move to make again, now counted as done. */
-    redo(): BoardMove | undefined {
-      const move = undone.pop()
-      if (move) done.push(move)
-      return move
-    },
-    clear() {
-      done = []
-      undone = []
-    },
+    undo: (changesNow: (move: BoardMove) => BoardMove) => take(done, undone, changesNow),
+    redo: (changesNow: (move: BoardMove) => BoardMove) => take(undone, done, changesNow),
   }
 }
 
 export type MoveHistory = ReturnType<typeof createMoveHistory>
+
+const BOARDS_KEPT = 20
+
+/** A move history per board (by view key), in memory; the boards used longest ago are forgotten past `limit`. */
+export function createBoardHistories(limit = BOARDS_KEPT) {
+  const byView = new Map<string, MoveHistory>()
+  return {
+    forView(view: string): MoveHistory {
+      const history = byView.get(view) ?? createMoveHistory()
+      byView.delete(view)
+      byView.set(view, history)
+      for (const old of byView.keys()) {
+        if (byView.size <= limit) break
+        byView.delete(old)
+      }
+      return history
+    },
+  }
+}
+
+const OVERSCAN_PX = 600
+const FIRST_CARDS = 30
+
+export interface ColumnWindow {
+  /** The cards to render, as sorted runs [start, end) of the column's cards. */
+  runs: [number, number][]
+  offsets: Float64Array
+}
+
+/**
+ * The cards a column of a long board renders: those near the part that shows
+ * (`view`, from the top of the first card; the first cards while the column
+ * has not been measured) and each card of `kept` with its neighbours, so the
+ * keyboard never loses its card.
+ */
+export function columnWindow(
+  ids: readonly string[],
+  heightOf: (id: string) => number,
+  gap: number,
+  view: { top: number; height: number } | undefined,
+  kept: ReadonlySet<string>,
+): ColumnWindow {
+  const offsets = entryOffsets(ids.map(heightOf), gap)
+  const keep: number[] = []
+  ids.forEach((id, i) => {
+    if (kept.has(id)) keep.push(i - 2, i - 1, i, i + 1, i + 2)
+  })
+  if (!view || view.height === 0) {
+    for (let i = 0; i < Math.min(ids.length, FIRST_CARDS); i += 1) keep.push(i)
+    return { runs: windowRuns(offsets, gap, null, 0, keep), offsets }
+  }
+  return { runs: windowRuns(offsets, gap, view, OVERSCAN_PX, keep), offsets }
+}

@@ -189,11 +189,12 @@ import { NoteList } from './NoteList'
 import { NoteBoard } from './NoteBoard'
 import { LayoutControl } from './LayoutControl'
 import {
+  appliedChanges,
   boardColumns,
   boardOrder,
   boardStatuses,
   changesByStatus,
-  createMoveHistory,
+  createBoardHistories,
   moveChanges,
   redoChanges,
   stepChanges,
@@ -2181,9 +2182,10 @@ export function App() {
   const setStatus = (noteId: string, status: NoteStatus) =>
     changeBooks((c) => c.setStatus(noteId, status))
 
-  /** One change to several notes, note by note (each its own write); failures are logged by code and counted in a notice, the rest keep their change. */
-  const runBatch = async (ids: readonly string[], change: BatchChange) => {
-    if (!core || ids.length === 0) return
+  /** One change to several notes, note by note (each its own write); failures are logged by code and counted in a notice, the rest keep their change. Resolves to the notes whose write failed. */
+  const batchFailures = async (ids: readonly string[], change: BatchChange): Promise<string[]> => {
+    if (!core) return [...ids]
+    if (ids.length === 0) return []
     setBatchFailed(undefined)
     reloadsPending.current += 1
     try {
@@ -2198,9 +2200,13 @@ export function App() {
       }
       await saveEdits(core)
       await refresh(core)
+      return result.failed.map((f) => f.id)
     } finally {
       reloadsPending.current -= 1
     }
+  }
+  const runBatch = async (ids: readonly string[], change: BatchChange) => {
+    await batchFailures(ids, change)
   }
   // Every named note gets the write even if it seems to have the value: the lists may lag a change just made (a quick second P unpins again).
   const moveNotes = (ids: readonly string[], bookId: string | null) =>
@@ -2210,21 +2216,22 @@ export function App() {
   const setNotesPinned = (ids: readonly string[], pinned: boolean) =>
     runBatch(ids, { kind: 'pinned', pinned })
 
-  // Board moves (drops, Control+Command+Right and Left) are kept per board, so Undo and Redo there take one back or make it again.
-  const boardMoves = useRef({ view: '', history: createMoveHistory() })
-  const boardHistory = () => {
-    if (boardMoves.current.view !== listView) {
-      boardMoves.current = { view: listView, history: createMoveHistory() }
-    }
-    return boardMoves.current.history
-  }
-  const applyMove = async (changes: BoardMove) => {
-    if (changes.length === 0) return
+  // Board moves (drops, Control+Command+Right and Left) are kept per board view, in memory, so Undo and Redo on a board take one back or make it again.
+  const boardMoves = useRef<ReturnType<typeof createBoardHistories>>(undefined)
+  const boardHistory = () => (boardMoves.current ??= createBoardHistories()).forView(listView)
+  /** Makes `changes`, resolving to those that were written. */
+  const applyMove = async (changes: BoardMove): Promise<BoardMove> => {
+    if (changes.length === 0) return changes
     setMovedTo((shown) => new Map([...shown, ...changes.map((c) => [c.id, c.to] as const)]))
+    const failed: string[] = []
     try {
       for (const [status, ids] of changesByStatus(changes)) {
-        await runBatch(ids, { kind: 'status', status })
+        failed.push(...(await batchFailures(ids, { kind: 'status', status })))
       }
+      return appliedChanges(changes, failed)
+    } catch (e) {
+      console.warn('W_BOARD_MOVE_FAILED', errorCode(e))
+      return []
     } finally {
       setMovedTo((shown) => {
         const left = new Map(shown)
@@ -2234,9 +2241,12 @@ export function App() {
     }
   }
   const recordMove = (changes: BoardMove) => {
-    if (!editing) return
-    boardHistory().record(changes)
-    void applyMove(changes)
+    if (!editing || changes.length === 0) return
+    const history = boardHistory()
+    history.record(changes)
+    void applyMove(changes).then((applied) => {
+      if (applied.length < changes.length) history.settle(changes, applied)
+    })
   }
   const moveCards = useStable((ids: readonly string[], status: NoteStatus) =>
     recordMove(moveChanges(boardNotes, ids, status)),
@@ -2246,13 +2256,13 @@ export function App() {
   )
   const undoMove = useStable(() => {
     if (!editing) return
-    const move = boardHistory().undo()
-    if (move) void applyMove(undoChanges(move, boardNotes))
+    const changes = boardHistory().undo((move) => undoChanges(move, boardNotes))
+    if (changes) void applyMove(changes)
   })
   const redoMove = useStable(() => {
     if (!editing) return
-    const move = boardHistory().redo()
-    if (move) void applyMove(redoChanges(move, boardNotes))
+    const changes = boardHistory().redo((move) => redoChanges(move, boardNotes))
+    if (changes) void applyMove(changes)
   })
   const changeLayout = useStable((layout: ListLayout) =>
     setBoards((shown) => withLayout(shown, listView, layout)),
@@ -3335,6 +3345,7 @@ export function App() {
           title={filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes')}
           icon={listIcon}
           onTitleMenu={listTitleMenu}
+          empty={activeFilter ? 'filter' : libraryBook ? 'notebook' : 'all'}
           filter={filterField}
           scope={filterLabel !== undefined ? libraryBook?.name : undefined}
           notes={boardNotes}

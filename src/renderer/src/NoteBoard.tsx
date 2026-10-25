@@ -17,7 +17,7 @@ import {
 import type { NoteSummary, TagRecord } from '../../core'
 import type { NoteStatus } from '../../core/storage'
 import type { ListDatesStyle } from '../../core/editorSettings'
-import { boardColumns, boardOrder, cardStep } from './board'
+import { boardColumns, boardOrder, cardStep, columnWindow, type BoardColumn } from './board'
 import { keyMatches } from './commands/keys'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
@@ -25,9 +25,10 @@ import { DRAG_NOTE, setNoteDragData } from './dragData'
 import { useEditorSetting } from './editorSettings'
 import { fullDate, rowDate } from './format'
 import { useHeadlines, type HeadlineLoader } from './headlines'
-import { currentLocale, t } from './i18n'
+import { currentLocale, format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { dragCardLines, setDragCard } from './listDrag'
+import { listEmpty, type ListEmptyKind } from './listEmpty'
 import { ListHeader } from './ListHeader'
 import {
   selectAll,
@@ -37,6 +38,7 @@ import {
   type ListSelection,
 } from './listSelection'
 import { noteShortcut, type NoteAction } from './noteMenu'
+import { spacerHeight } from './listWindow'
 import { useNow } from './NoteList'
 import { STATUS_ICONS } from './NoteRow'
 import { usePaneResize } from './paneResize'
@@ -75,6 +77,28 @@ interface Props {
   onStep?: ((ids: readonly string[], by: 1 | -1) => void) | undefined
   onUndo?: (() => void) | undefined
   onRedo?: (() => void) | undefined
+  /** What the board says when the view has no notes. */
+  empty?: ListEmptyKind | undefined
+}
+
+/** Boards with more cards than this render only the cards near the part of each column that shows (`columnWindow`), like a long list. */
+const WINDOW_FROM = 200
+
+type ColumnView = { top: number; height: number }
+
+function withView(
+  views: ReadonlyMap<NoteStatus, ColumnView>,
+  status: NoteStatus,
+  top: number,
+  height: number,
+): ReadonlyMap<NoteStatus, ColumnView> {
+  const was = views.get(status)
+  if (was?.top === top && was.height === height) return views
+  return new Map(views).set(status, { top, height })
+}
+
+function spacer(key: string, height: number) {
+  return <li key={key} className="rows-spacer" role="presentation" style={{ height }} />
 }
 
 const ARROWS: Readonly<Record<string, 'up' | 'down' | 'left' | 'right'>> = {
@@ -98,6 +122,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
   const order = useMemo(() => boardOrder(columns), [columns])
   const byId = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes])
   const onBoard = useMemo(() => new Set(order), [order])
+  const windowed = order.length > WINDOW_FROM
   const chosen = useMemo(() => (selection ? new Set(selection.ids) : undefined), [selection])
   const tabStop =
     selection && onBoard.has(selection.lead)
@@ -105,8 +130,42 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       : selected !== undefined && onBoard.has(selected)
         ? selected
         : order[0]
-  const shownNotes = useMemo(() => order.flatMap((id) => byId.get(id) ?? []), [order, byId])
-  const headlines = useHeadlines(props.headlines, shownNotes)
+  const [focusedCard, setFocusedCard] = useState<string>()
+  const [revealed, setRevealed] = useState<string>()
+  const toFocus = useRef<string>(undefined)
+  const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map())
+  const [metrics, setMetrics] = useState({ gap: 0, padding: 0 })
+  const [views, setViews] = useState<ReadonlyMap<NoteStatus, ColumnView>>(() => new Map())
+  const windows = useMemo(() => {
+    if (!windowed) return undefined
+    let sum = 0
+    for (const h of heights.values()) sum += h
+    const estimate = heights.size > 0 ? sum / heights.size : 0
+    const heightOf = (id: string) => heights.get(id) ?? estimate
+    const kept = new Set<string>()
+    for (const id of [selected, tabStop, focusedCard, revealed]) if (id !== undefined) kept.add(id)
+    return new Map(
+      columns.map((column) => {
+        const seen = views.get(column.status)
+        const view =
+          seen && heights.size > 0
+            ? { top: seen.top - metrics.padding, height: seen.height }
+            : undefined
+        const ids = column.notes.map((n) => n.id)
+        return [column.status, columnWindow(ids, heightOf, metrics.gap, view, kept)] as const
+      }),
+    )
+  }, [windowed, heights, columns, views, metrics, selected, tabStop, focusedCard, revealed])
+  const rendered = useMemo(
+    () =>
+      columns.flatMap((column) => {
+        const runs = windows?.get(column.status)?.runs
+        if (!runs) return column.notes
+        return runs.flatMap(([start, end]) => column.notes.slice(start, end))
+      }),
+    [columns, windows],
+  )
+  const headlines = useHeadlines(props.headlines, rendered)
   const now = useNow()
   const locale = currentLocale()
   const dates = useEditorSetting('listDates')
@@ -115,12 +174,70 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
   const idBase = useId()
   const board = useRef<HTMLElement>(null)
   const cards = useRef(new Map<string, HTMLLIElement>())
-  const firstColumn = useRef<HTMLUListElement>(null)
+  const focusFirstColumn = () => board.current?.querySelector<HTMLElement>('.board-cards')?.focus()
+  /** Gives `id`'s card the keyboard and scrolls it into view; a card a long board has not rendered renders first. */
   const focusCard = (id: string) => {
     const card = cards.current.get(id)
-    card?.focus({ preventScroll: true })
-    card?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    if (!card) {
+      toFocus.current = id
+      setRevealed(id)
+      return
+    }
+    card.focus({ preventScroll: true })
+    card.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }
+  useEffect(() => {
+    const id = toFocus.current
+    const card = id === undefined ? undefined : cards.current.get(id)
+    if (!card) return
+    toFocus.current = undefined
+    card.focus({ preventScroll: true })
+    card.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  })
+
+  // On a long board, measures the cards and each column (gap, padding, height) as they change.
+  const [sizes] = useState(
+    () =>
+      new ResizeObserver((changes) => {
+        const measured = new Map<string, number>()
+        for (const change of changes) {
+          const el = change.target as HTMLElement
+          if (!el.isConnected) continue
+          if (el instanceof HTMLUListElement) {
+            const style = getComputedStyle(el)
+            const gap = parseFloat(style.rowGap) || 0
+            const padding = parseFloat(style.paddingTop) || 0
+            setMetrics((m) => (m.gap === gap && m.padding === padding ? m : { gap, padding }))
+            const status = el.dataset['status'] as NoteStatus | undefined
+            if (status) setViews((v) => withView(v, status, el.scrollTop, el.clientHeight))
+            continue
+          }
+          const id = el.dataset['noteId']
+          if (id !== undefined) measured.set(id, el.getBoundingClientRect().height)
+        }
+        if (measured.size === 0) return
+        setHeights((known) => {
+          let next: Map<string, number> | undefined
+          for (const [id, height] of measured) {
+            if (known.get(id) === height) continue
+            next ??= new Map(known)
+            next.set(id, height)
+          }
+          return next ?? known
+        })
+      }),
+  )
+  useEffect(() => {
+    const el = board.current
+    if (!windowed || !el) return
+    for (const part of el.querySelectorAll<HTMLElement>('.board-cards, .card')) sizes.observe(part)
+    return () => sizes.disconnect()
+  }, [windowed, sizes])
+  const observeColumn = useStable((el: HTMLUListElement | null) => {
+    if (!el || !windowed) return
+    sizes.observe(el)
+    return () => sizes.unobserve(el)
+  })
 
   // The card that has the keyboard. A move puts its card in another column,
   // a new element: it takes the keyboard again in the commit that moved it.
@@ -134,6 +251,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
     const onFocusIn = (e: FocusEvent) => {
       const id = e.target instanceof HTMLElement ? e.target.dataset['noteId'] : undefined
       keyboard.current = id
+      if (id !== undefined) setFocusedCard(id)
     }
     const onFocusOut = (e: FocusEvent) => {
       const from = e.target
@@ -172,16 +290,23 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
     const next =
       before.order.slice(at + 1).find((id) => onBoard.has(id)) ??
       before.order.slice(0, Math.max(at, 0)).findLast((id) => onBoard.has(id))
-    if (next === undefined) return firstColumn.current?.focus()
+    if (next === undefined) return focusFirstColumn()
     focusCard(next)
     if (selected === undefined || selected === held) onSelect(next)
   })
 
   // A note opened from elsewhere shows; while the board has the keyboard its card takes it.
+  // `navigated` is the card the board opened itself, already focused: an older
+  // selection that lands after it must not pull the keyboard back (quick arrow keys).
   const shownOpen = useRef(selected)
+  const navigated = useRef<string>(undefined)
   useEffect(() => {
     if (shownOpen.current === selected) return
     shownOpen.current = selected
+    if (navigated.current !== undefined) {
+      if (navigated.current === selected) navigated.current = undefined
+      return
+    }
     const card = selected === undefined ? undefined : cards.current.get(selected)
     if (!card) return
     card.scrollIntoView({ block: 'nearest', inline: 'nearest' })
@@ -192,6 +317,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
   }, [selected, chosen])
 
   const open = (id: string) => {
+    if (id !== selected || navigated.current !== undefined) navigated.current = id
     focusCard(id)
     onSelect(id)
   }
@@ -365,14 +491,58 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
     event.preventDefault()
     props.onMenu?.(id)
   })
-  const setCard = useStable((id: string, el: HTMLLIElement | null) => {
-    if (el) cards.current.set(id, el)
-    else if (cards.current.get(id)?.isConnected === false) cards.current.delete(id)
+  const setCard = useStable((id: string, el: HTMLLIElement) => {
+    cards.current.set(id, el)
+    if (windowed) sizes.observe(el)
+    return () => {
+      sizes.unobserve(el)
+      if (cards.current.get(id) === el) cards.current.delete(id)
+    }
   })
   const events = useMemo<CardEvents>(
     () => ({ setCard, click, dragStart, keyDown: cardKey, contextMenu }),
     [setCard, click, dragStart, cardKey, contextMenu],
   )
+
+  const renderCard = (note: NoteSummary, index: number, count: number) => (
+    <BoardCard
+      key={note.id}
+      note={note}
+      selected={chosen ? chosen.has(note.id) : note.id === (props.opening ?? selected)}
+      open={note.id === selected}
+      tabbable={note.id === tabStop}
+      position={windows ? index + 1 : undefined}
+      setSize={windows ? count : undefined}
+      tags={props.tags}
+      headline={headlines.get(note.id)}
+      now={now}
+      locale={locale}
+      dates={dates}
+      draggable={props.onMove !== undefined}
+      dragging={dragged?.has(note.id) ?? false}
+      menu={props.onMenu !== undefined}
+      events={events}
+    />
+  )
+  const cardsOf = (column: BoardColumn<NoteSummary>): ReactNode[] => {
+    const cardsHere = column.notes
+    const shownWindow = windows?.get(column.status)
+    if (!shownWindow) return cardsHere.map((n, i) => renderCard(n, i, cardsHere.length))
+    const { runs, offsets } = shownWindow
+    const gap = metrics.gap
+    const out: ReactNode[] = []
+    let from = 0
+    for (const [start, end] of runs) {
+      if (start > from) out.push(spacer(`spacer:${from}`, spacerHeight(offsets, from, start, gap)))
+      for (let i = start; i < end; i += 1) out.push(renderCard(cardsHere[i]!, i, cardsHere.length))
+      from = end
+    }
+    if (cardsHere.length > from) {
+      out.push(spacer(`spacer:${from}`, spacerHeight(offsets, from, cardsHere.length, gap)))
+    }
+    return out
+  }
+  const emptyText = props.empty && notes.length === 0 ? listEmpty(props.empty) : undefined
 
   return (
     <section
@@ -396,66 +566,63 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
         layout={props.layout}
         onFilterDone={() => {
           if (tabStop !== undefined) focusCard(tabStop)
-          else firstColumn.current?.focus()
+          else focusFirstColumn()
         }}
       />
-      <div className="board-columns">
-        {columns.map((column, i) => {
-          const headingId = `${idBase}-${column.status}`
-          return (
-            <div
-              key={column.status}
-              className={`board-column status-${column.status}`}
-              data-status={column.status}
-              data-drop={dropOn === column.status || undefined}
-              {...dropTarget(column.status)}
-            >
-              <div className="board-column-header" id={headingId}>
-                <Icon name={STATUS_ICONS[column.status]} size="sm" />
-                <span className="board-column-name">{t(`status.${column.status}`)}</span>
-                <span className="board-count">{column.notes.length}</span>
-              </div>
-              <ul
-                ref={i === 0 ? firstColumn : undefined}
-                className="board-cards"
-                role="listbox"
-                aria-labelledby={headingId}
-                aria-multiselectable
-                tabIndex={-1}
-                onKeyDown={columnKey}
+      {emptyText ? (
+        <div className="list-empty">
+          <span className="list-empty-message">{t(emptyText.message)}</span>
+          {emptyText.tip ? <span className="list-empty-tip">{t(emptyText.tip)}</span> : null}
+        </div>
+      ) : (
+        <div className="board-columns">
+          {columns.map((column) => {
+            const headingId = `${idBase}-${column.status}`
+            return (
+              <div
+                key={column.status}
+                className={`board-column status-${column.status}`}
+                data-status={column.status}
+                data-drop={dropOn === column.status || undefined}
+                {...dropTarget(column.status)}
               >
-                {column.notes.map((note) => (
-                  <BoardCard
-                    key={note.id}
-                    note={note}
-                    selected={
-                      chosen ? chosen.has(note.id) : note.id === (props.opening ?? selected)
-                    }
-                    open={note.id === selected}
-                    tabbable={note.id === tabStop}
-                    tags={props.tags}
-                    headline={headlines.get(note.id)}
-                    now={now}
-                    locale={locale}
-                    dates={dates}
-                    draggable={props.onMove !== undefined}
-                    dragging={dragged?.has(note.id) ?? false}
-                    menu={props.onMenu !== undefined}
-                    events={events}
-                  />
-                ))}
-              </ul>
-            </div>
-          )
-        })}
-      </div>
+                <div className="board-column-header" id={headingId}>
+                  <Icon name={STATUS_ICONS[column.status]} size="sm" />
+                  <span className="board-column-name">{t(`status.${column.status}`)}</span>
+                  <span className="board-count">{column.notes.length}</span>
+                </div>
+                <ul
+                  ref={observeColumn}
+                  className="board-cards"
+                  data-status={column.status}
+                  role="listbox"
+                  aria-labelledby={headingId}
+                  aria-multiselectable
+                  tabIndex={-1}
+                  onKeyDown={columnKey}
+                  onScroll={
+                    windowed
+                      ? (e) => {
+                          const el = e.currentTarget
+                          setViews((v) => withView(v, column.status, el.scrollTop, el.clientHeight))
+                        }
+                      : undefined
+                  }
+                >
+                  {cardsOf(column)}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
+      )}
       <div className="list-resize" aria-label={t('board.resize')} {...edge} />
     </section>
   )
 })
 
 interface CardEvents {
-  setCard: (id: string, el: HTMLLIElement | null) => void
+  setCard: (id: string, el: HTMLLIElement) => () => void
   click: (id: string, event: MouseEvent<HTMLLIElement>) => void
   dragStart: (id: string, event: DragEvent<HTMLLIElement>) => void
   keyDown: (id: string, event: KeyboardEvent<HTMLLIElement>) => void
@@ -467,6 +634,8 @@ interface CardProps {
   selected: boolean
   open: boolean
   tabbable: boolean
+  position: number | undefined
+  setSize: number | undefined
   tags: ReadonlyMap<string, TagRecord>
   headline: string | undefined
   now: number
@@ -482,7 +651,7 @@ interface CardProps {
 const BoardCard = memo(function BoardCard(props: CardProps) {
   const { note: n, events } = props
   const id = n.id
-  const ref = useCallback((el: HTMLLIElement | null) => events.setCard(id, el), [events, id])
+  const ref = useCallback((el: HTMLLIElement) => events.setCard(id, el), [events, id])
   const tags = n.tagIds.flatMap((tagId) => {
     const tag = props.tags.get(tagId)
     return tag ? [tag] : []
@@ -494,6 +663,8 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
       data-note-id={id}
       role="option"
       aria-selected={props.selected}
+      aria-posinset={props.position}
+      aria-setsize={props.setSize}
       data-open={props.open || undefined}
       tabIndex={props.tabbable ? 0 : -1}
       onMouseDown={(e) => {
@@ -523,11 +694,13 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
               <span
                 key={tag.id}
                 className={tag.color ? `tag-dot tag-color-${tag.color}` : 'tag-dot card-tag-plain'}
-                role="img"
-                aria-label={tag.name}
+                aria-hidden
                 title={tag.name}
               />
             ))}
+            <span className="visually-hidden">
+              {format(t('board.cardTags'), { tags: tags.map((tag) => tag.name).join(', ') })}
+            </span>
           </span>
         ) : null}
       </span>

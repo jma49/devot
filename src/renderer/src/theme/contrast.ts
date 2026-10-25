@@ -38,6 +38,14 @@ export function composite(fg: Rgba, background: Rgb): Rgb {
   return mixed as Rgb
 }
 
+/** CSS `color-mix(in srgb, a p, b)`: premultiplied, so a translucent side weighs by its alpha. */
+export function mixSrgb(a: Rgba, p: number, b: Rgba): Rgba {
+  const alpha = a.alpha * p + b.alpha * (1 - p)
+  if (alpha === 0) return { rgb: [0, 0, 0], alpha }
+  const rgb = a.rgb.map((c, i) => (c * a.alpha * p + b.rgb[i]! * b.alpha * (1 - p)) / alpha)
+  return { rgb: rgb as Rgb, alpha }
+}
+
 const channel = (value: number) => {
   const c = value / 255
   return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4

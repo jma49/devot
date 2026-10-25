@@ -12,8 +12,16 @@
 // The editor selection is a solid tint of that fill (`selectionTint`).
 
 import { invoke } from '../ipc'
-import { composite, contrastRatio, parseColor, readableOn, toHex, type Rgb } from './contrast'
-import { dark, light } from './tokens'
+import {
+  composite,
+  contrastRatio,
+  mixSrgb,
+  parseColor,
+  readableOn,
+  toHex,
+  type Rgb,
+} from './contrast'
+import { dark, light, sizes } from './tokens'
 
 export interface AccentInfo {
   multicolor: boolean
@@ -98,7 +106,16 @@ export function selectionTints(fill: Rgb, appearance: Appearance): { focused: Rg
 export const selectionTint = (fill: Rgb, appearance: Appearance): Rgb =>
   selectionTints(fill, appearance).focused
 
-function textBackdrops(appearance: Appearance, selection: Rgb): Rgb[] {
+/** What a board card's text sits on (app.css `.card`): the card fill on a column's track over the list, and a selected card's accent wash. */
+export function cardBackdrops(theme: Readonly<Record<string, string>>, fill: Rgb): Rgb[] {
+  const color = (path: string) => parseColor(theme[`color.${path}`] ?? '')
+  const column = composite(color('fill.track'), color('surface.list').rgb)
+  const card = color('fill.card')
+  const wash = Number(sizes['opacity.card-selected'])
+  return [composite(card, column), composite(mixSrgb({ rgb: fill, alpha: 1 }, wash, card), column)]
+}
+
+function textBackdrops(appearance: Appearance, selection: Rgb, fill: Rgb): Rgb[] {
   const theme = THEMES[appearance]
   const surfaces = (['list', 'editor', 'sidebar-opaque'] as const).map(
     (name) => parseColor(theme[`color.surface.${name}`]).rgb,
@@ -110,6 +127,7 @@ function textBackdrops(appearance: Appearance, selection: Rgb): Rgb[] {
     ...surfaces.flatMap((s) => fills.map((f) => composite(f, s))),
     selection,
     composite(parseColor(theme['color.editor.active-line']), selection),
+    ...cardBackdrops(theme, fill),
   ]
 }
 
@@ -139,7 +157,7 @@ export function readableAccent(
     text: toHex(
       readableOn(
         accent,
-        textBackdrops(appearance, selection),
+        textBackdrops(appearance, selection, fillRgb),
         appearance === 'light' ? 'darker' : 'lighter',
         TARGET,
       ),

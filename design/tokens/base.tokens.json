@@ -993,10 +993,10 @@
     "board-default-width": {
       "$type": "dimension",
       "$value": {
-        "value": 760,
+        "value": 860,
         "unit": "px"
       },
-      "$description": "The board's width until the user drags its right edge."
+      "$description": "The board's width until the user drags its right edge: room for its five columns at their narrowest."
     },
     "board-max-width": {
       "$type": "dimension",
@@ -1009,7 +1009,7 @@
     "board-column-min-width": {
       "$type": "dimension",
       "$value": {
-        "value": 184,
+        "value": 160,
         "unit": "px"
       },
       "$description": "The narrowest a board column gets; narrower boards scroll sideways."
@@ -1626,6 +1626,10 @@
     "list-selected": {
       "$value": 0.2,
       "$description": "A selected note row's background: the accent fill at this strength."
+    },
+    "card-selected": {
+      "$value": 0.1,
+      "$description": "A selected board card's background: the accent fill at this strength over the card fill. Lighter than a row's, as the card already sits on a column's track and its text must keep 4.5:1."
     },
     "tag": {
       "fill": {

@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, reloadApp, test } from './fixtures'
+import { seedNotes } from './renders'
 
 const SEEDED: { title: string; status: string; pinned?: boolean }[] = [
   { title: 'Alpha', status: 'none' },
@@ -190,10 +191,118 @@ test('in a narrow window the columns keep their width and scroll sideways', asyn
     columns: [...el.querySelectorAll('.board-column')].map((c) => c.getBoundingClientRect().width),
   }))
   expect(sizes.scroll).toBeGreaterThan(sizes.client)
-  for (const width of sizes.columns) expect(width).toBeGreaterThanOrEqual(184)
+  for (const width of sizes.columns) expect(width).toBeGreaterThanOrEqual(160)
   // The keyboard brings a column out of sight into view.
   await card(page, 'Echo').click()
   await page.keyboard.press('ArrowRight')
   await expect(card(page, 'Foxtrot')).toBeFocused()
   await expect(card(page, 'Foxtrot')).toBeInViewport()
+})
+
+test('a write that fails leaves no undo step behind', async ({ page }) => {
+  await layout(page, 'Board').click()
+  await card(page, 'Alpha').dragTo(column(page, 'On Hold'))
+  await expect.poll(async () => (await storedStatus(page))['Alpha']).toBe('on_hold')
+
+  await page.evaluate(() => localStorage.setItem('devot.test.failNoteWrites', 'E_TEST'))
+  await card(page, 'Bravo').dragTo(column(page, 'Active'))
+  await expect(page.getByText('Could not change 1 note.')).toBeVisible()
+  await expect.poll(async () => await cardsIn(page, 'No Status')).toEqual(['Bravo'])
+  await page.evaluate(() => localStorage.removeItem('devot.test.failNoteWrites'))
+
+  // The first Undo takes back the move that was made, not the one that failed.
+  await card(page, 'Bravo').focus()
+  await page.keyboard.press('Meta+z')
+  await expect.poll(async () => (await storedStatus(page))['Alpha']).toBe('none')
+  expect((await storedStatus(page))['Bravo']).toBe('none')
+})
+
+test('an undo history is kept per board, across a visit to another view', async ({ page }) => {
+  await layout(page, 'Board').click()
+  await card(page, 'Alpha').dragTo(column(page, 'On Hold'))
+  await expect.poll(async () => (await storedStatus(page))['Alpha']).toBe('on_hold')
+  await sourceRow(page, 'Pinned').click()
+  await expect(board(page)).toHaveCount(0)
+  await page.getByRole('button', { name: /^All Notes \d+$/ }).click()
+  await card(page, 'Alpha').focus()
+  await page.keyboard.press('Meta+z')
+  await expect.poll(async () => (await storedStatus(page))['Alpha']).toBe('none')
+})
+
+test('a card names its tags to assistive tech', async ({ page }) => {
+  const tagId = '0192a6f0-0000-7000-8000-0000000000a1'
+  const alpha = '0192a6f0-0000-7000-8000-000000000001'
+  await page.evaluate(
+    ([tag, note]) => {
+      const record = (id: string, name: string, color: string | null) => ({
+        id,
+        name,
+        nameHlc: '0000000000000001-0000-test',
+        createdAt: 1,
+        updatedAt: 1,
+        deletedAt: null,
+        deletedHlc: null,
+        color,
+        colorHlc: '',
+      })
+      localStorage.setItem('devot.test.tags', JSON.stringify([record(tag, 'errands', 'green')]))
+      localStorage.setItem(
+        'devot.test.noteTags',
+        JSON.stringify([
+          { noteId: note, tagId: tag, present: true, hlc: '0000000000000001-0000-test' },
+        ]),
+      )
+    },
+    [tagId, alpha] as const,
+  )
+  await reloadApp(page)
+  await layout(page, 'Board').click()
+  await expect(card(page, 'Alpha').locator('.tag-dot')).toHaveCount(1)
+  await expect(card(page, 'Alpha')).toHaveAccessibleName(/Alpha.*Tags: errands/)
+})
+
+test('a board with no notes says so, with the tip to make one', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('devot.test.notes', '[]'))
+  await reloadApp(page)
+  await layout(page, 'Board').click()
+  await expect(board(page).getByText('No Notes Yet')).toBeVisible()
+  await expect(board(page).getByText('Create a note with the New Note button.')).toBeVisible()
+  await expect(board(page).locator('.board-column')).toHaveCount(0)
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(board(page).locator('.board-column')).toHaveCount(5)
+  await expect(board(page).getByText('No Notes Yet')).toHaveCount(0)
+})
+
+test.describe('a long board', () => {
+  const NOTES = 1000
+  const longCard = (page: Page, n: number) =>
+    board(page)
+      .getByRole('option')
+      .filter({ has: page.locator('.card-title', { hasText: new RegExp(`^Note ${n}$`) }) })
+
+  test.beforeEach(async ({ page }) => {
+    await seedNotes(page, NOTES)
+    await layout(page, 'Board').click()
+    await expect(longCard(page, 1)).toBeVisible()
+  })
+
+  test('renders the cards that show, and the rest as a column scrolls', async ({ page }) => {
+    const options = board(page).getByRole('option')
+    expect(await options.count()).toBeLessThan(200)
+    await expect(longCard(page, 1)).toHaveAttribute('aria-setsize', String(NOTES))
+    await column(page, 'No Status').evaluate((el) => {
+      el.scrollTop = el.scrollHeight
+    })
+    await expect(longCard(page, NOTES)).toBeVisible()
+    await expect(longCard(page, 50)).toHaveCount(0)
+    expect(await options.count()).toBeLessThan(200)
+  })
+
+  test('the arrow keys walk past the cards first rendered', async ({ page }) => {
+    await longCard(page, 1).click()
+    for (let i = 0; i < 60; i += 1) await page.keyboard.press('ArrowDown')
+    await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Note 61')
+    await expect(longCard(page, 61)).toBeFocused()
+    await expect(longCard(page, 61)).toBeInViewport()
+  })
 })

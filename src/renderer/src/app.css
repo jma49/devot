@@ -1534,6 +1534,7 @@ button {
 }
 
 .card {
+  position: relative;
   display: flex;
   flex: none;
   flex-direction: column;
@@ -1548,7 +1549,7 @@ button {
 .card[aria-selected='true'] {
   background: color-mix(
     in srgb,
-    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    var(--color-accent-fill) calc(var(--opacity-card-selected) * 100%),
     var(--color-fill-card)
   );
 }
