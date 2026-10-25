@@ -290,8 +290,8 @@ test('Undo All takes out one writer’s text, keeps the owner’s and the other 
     )
   await expect.poll(storedNames).toContain('Claude Code')
 
-  // Redo takes it out again, record and all.
-  await page.keyboard.press('ControlOrMeta+Shift+z')
+  // Redo takes it out again, record and all. Shift+Cmd+Z on macOS; CodeMirror binds Ctrl+Y elsewhere.
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y')
   await expect(body(page)).not.toContainText('Claude adds')
   await expect(notice(page)).toContainText('1 change by Codex (MCP)')
   await expect(marks(page)).toHaveCount(1)
