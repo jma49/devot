@@ -1,4 +1,5 @@
 import { createApp } from './app.ts'
+import { assetResponse } from './assets.ts'
 import { LicenceError } from './errors.ts'
 import { fromBase64Url, signerFromSeed } from './format.ts'
 import { resendMailer } from './mail.ts'
@@ -32,6 +33,9 @@ const REQUIRED = [
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // The error pages' stylesheet loads even before the secrets are set.
+    const asset = assetResponse(new URL(request.url).pathname, request.method)
+    if (asset) return asset
     const missing = REQUIRED.filter((name) => !env[name])
     const seed = fromBase64Url(env.LICENCE_SIGNING_KEY ?? '')
     if (missing.length > 0 || seed?.length !== 32) {

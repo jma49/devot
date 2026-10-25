@@ -1,3 +1,4 @@
+import { assetResponse } from './assets.ts'
 import { type CheckoutConfig, checkoutParams, LICENCE_KIND } from './checkout.ts'
 import { type LicenceCode, LicenceError } from './errors.ts'
 import { instant, newLicenceId, type Signer, signLicence, signRevocations } from './format.ts'
@@ -35,6 +36,11 @@ export const LIMITS = {
 }
 
 const SESSION_ID = /^cs_[A-Za-z0-9_]{1,250}$/
+
+function pendingCheck(url: URL): number {
+  const check = url.searchParams.get('check') ?? ''
+  return /^\d+$/.test(check) ? Number(check) : 0
+}
 const EMAIL = /^[^\s@<>"]{1,64}@[^\s@<>"]+\.[^\s@<>"]+$/
 
 const STATUS: Partial<Record<LicenceCode, number>> = {
@@ -189,7 +195,7 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       if (!fetched || fetched.mode !== 'payment' || !ours(fetched)) {
         return errorPage('E_LICENCE_SESSION_UNKNOWN', 404)
       }
-      if (fetched.paymentStatus !== 'paid') return pendingPage()
+      if (fetched.paymentStatus !== 'paid') return pendingPage(sessionId, pendingCheck(url))
       session = fetched
       const fulfilled = await fulfil(fetched)
       deps.defer(mailOnce(fulfilled, fetched).catch((error: unknown) => fail(error, sessionId)))
@@ -280,6 +286,8 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
 
   return async (request) => {
     const url = new URL(request.url)
+    const asset = assetResponse(url.pathname, request.method)
+    if (asset) return asset
     const route = Object.hasOwn(ROUTES, url.pathname) ? ROUTES[url.pathname] : undefined
     if (!route) return errorPage('E_LICENCE_NOT_FOUND', 404)
     if (!route.includes(request.method)) return errorPage('E_LICENCE_METHOD', 405)

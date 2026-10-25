@@ -155,6 +155,10 @@ it('answers E_LICENCE_CONFIG until the secrets are set', async () => {
     const response = await fetch(`${bareUrl}/revoked`)
     expect(response.status).toBe(503)
     expect(await response.text()).toContain('E_LICENCE_CONFIG')
+    const css = await fetch(`${bareUrl}/assets/licence.css`)
+    expect(css.status).toBe(200)
+    expect(css.headers.get('Content-Type')).toBe('text/css; charset=utf-8')
+    await css.text()
   } finally {
     await bare.dispose()
   }

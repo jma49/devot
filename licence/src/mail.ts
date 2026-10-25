@@ -1,3 +1,4 @@
+import { COLORS, DOVE, doveSvg } from './brand.ts'
 import { LicenceError } from './errors.ts'
 import { MESSAGES } from './messages.ts'
 
@@ -86,23 +87,57 @@ export function licenceMail(
   const m = MESSAGES.mail
   const subject = kind === 'issued' ? m.issuedSubject : m.resendSubject
   const intro = kind === 'issued' ? m.issuedIntro : m.resendIntro
+  const after = [MESSAGES.covers, MESSAGES.manual, m.refund, m.support, m.keep]
   const text = [
     intro,
-    ...keys.flatMap((key) => [key, `${MESSAGES.open}: ${deepLink(key)}`]),
-    MESSAGES.covers,
-    MESSAGES.paste,
-    m.keep,
+    ...keys.flatMap((key) => [
+      `${MESSAGES.keyLabel}:\n${key}`,
+      `${MESSAGES.open}: ${deepLink(key)}`,
+    ]),
+    ...after,
+    MESSAGES.siteUrl,
   ].join('\n\n')
-  const html = [
-    `<p>${escapeHtml(intro)}</p>`,
-    ...keys.map(
-      (key) =>
-        `<p><code style="word-break:break-all">${escapeHtml(key)}</code></p>` +
-        `<p><a href="${escapeHtml(deepLink(key))}">${escapeHtml(MESSAGES.open)}</a></p>`,
-    ),
-    `<p>${escapeHtml(MESSAGES.covers)}</p>`,
-    `<p>${escapeHtml(MESSAGES.paste)}</p>`,
-    `<p>${escapeHtml(m.keep)}</p>`,
-  ].join('\n')
-  return { to, subject, text, html, idempotencyKey }
+  return { to, subject, text, html: mailHtml(subject, intro, keys, after), idempotencyKey }
+}
+
+const light = COLORS.light
+const dark = COLORS.dark
+const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif"
+const MONO = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'
+
+// Mail clients drop linked stylesheets and many drop <style>, so every rule is inline and the
+// <style> block only darkens what clients that honour prefers-color-scheme can darken.
+const MAIL_DARK =
+  `@media (prefers-color-scheme:dark){` +
+  `.page{background:${dark['surface-editor']}!important;color:${dark['text-primary']}!important}` +
+  `.muted{color:${dark['text-secondary']}!important}` +
+  `.key{background:${dark['fill-card']}!important;border-color:${dark['line-separator']}!important;color:${dark['text-primary']}!important}` +
+  `.link{color:${dark['accent-text']}!important}` +
+  DOVE.ink.dark.map((color, i) => `.ink-${i}{stop-color:${color}!important}`).join('') +
+  `}`
+
+function mailHtml(subject: string, intro: string, keys: string[], after: string[]): string {
+  const para = (text: string, muted = false) =>
+    `<p class="${muted ? 'muted' : ''}" style="margin:0 0 16px;color:${muted ? light['text-secondary'] : light['text-primary']}">${escapeHtml(text)}</p>`
+  const keyBlocks = keys.map(
+    (key) =>
+      `<p class="muted" style="margin:24px 0 8px;color:${light['text-secondary']};font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase">${escapeHtml(MESSAGES.keyLabel)}</p>` +
+      `<div class="key" style="padding:14px 16px;border:1px solid ${light['line-separator']};border-radius:12px;background:${light['fill-card']};color:${light['text-primary']};font:15px/1.5 ${MONO};word-break:break-all;overflow-wrap:anywhere">${escapeHtml(key)}</div>` +
+      `<p style="margin:16px 0 8px"><a href="${escapeHtml(deepLink(key))}" style="display:inline-block;padding:12px 22px;border-radius:999px;background:${light['activity-level-4']};color:${light['accent-on-fill']};font-weight:600;text-decoration:none">${escapeHtml(MESSAGES.open)}</a></p>`,
+  )
+  return (
+    `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width,initial-scale=1">` +
+    `<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">` +
+    `<title>${escapeHtml(subject)}</title><style>${MAIL_DARK}</style></head>` +
+    `<body class="page" style="margin:0;padding:0;background:${light['surface-editor']};color:${light['text-primary']}">` +
+    `<div class="page" style="max-width:560px;margin:0 auto;padding:32px 24px;background:${light['surface-editor']};color:${light['text-primary']};font:16px/1.55 ${FONT}">` +
+    `<p style="margin:0 0 28px;font-size:18px;font-weight:600">${doveSvg(28, 'devot-ink', 'vertical-align:-6px')} ${escapeHtml(MESSAGES.product)}</p>` +
+    para(intro) +
+    keyBlocks.join('') +
+    `<div style="margin-top:24px">${after.map((text, i) => para(text, i > 0)).join('')}</div>` +
+    `<p class="muted" style="margin:32px 0 0;padding-top:16px;border-top:1px solid ${light['line-separator']};color:${light['text-secondary']};font-size:14px">` +
+    `<a class="link" href="${MESSAGES.siteUrl}" style="color:${light['accent-text']}">${escapeHtml(MESSAGES.site)}</a></p>` +
+    `</div></body></html>`
+  )
 }
