@@ -98,7 +98,7 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
      - Settings > Licence.
   4. The updater: fetching revocations.
   5. The website's Buy page (devot-site).
-- The sync work already planned is unchanged; the device-pairing ADR becomes 0007.
+- The sync work already planned is unchanged; the device-pairing ADR takes the next free number.
 
 ## Amended
 
