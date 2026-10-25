@@ -16,6 +16,7 @@ use super::client::{self, Connection, Event, Pushed, RelayUrl};
 use super::service::{SettingsPatch, SyncService};
 use super::settings::{DeviceCredentials, SettingsStore};
 use super::{SecretStore, SyncError, Vault};
+use crate::licence::Gate;
 
 const SECRET: &str = "test-relay-secret-0123456789abcdef";
 const RECORD: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789ab";
@@ -247,6 +248,7 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
         SettingsStore::new(&dir.path().join(super::settings::FILE)),
         secrets.clone(),
         Arc::new(move |event, _| sent.lock().unwrap().push(event)),
+        Gate::open(),
     );
     assert_eq!(service.connect().err(), Some("E_SYNC_OFF"));
     service
@@ -292,10 +294,20 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
 }
 
 fn service_on(relay: &NodeRelay, dir: &Path, secrets: Arc<Secrets>) -> SyncService {
+    service_with(relay, dir, secrets, Gate::open())
+}
+
+fn service_with(
+    relay: &NodeRelay,
+    dir: &Path,
+    secrets: Arc<Secrets>,
+    licence: Gate,
+) -> SyncService {
     let service = SyncService::new(
         SettingsStore::new(&dir.join(super::settings::FILE)),
         secrets,
         Arc::new(|_, _| ()),
+        licence,
     );
     service
         .set(SettingsPatch {
@@ -304,6 +316,30 @@ fn service_on(relay: &NodeRelay, dir: &Path, secrets: Arc<Secrets>) -> SyncServi
         })
         .unwrap();
     service
+}
+
+#[test]
+fn a_gated_build_creates_no_vault_and_connects_no_device_without_a_licence() {
+    use crate::licence::testing;
+    let relay = NodeRelay::start();
+    let dir = tempfile::tempdir().unwrap();
+    let licence = testing::licence(dir.path(), true);
+    let secrets: Arc<Secrets> = Arc::default();
+    let service = service_with(&relay, dir.path(), secrets.clone(), Gate::of(&licence));
+    assert_eq!(
+        service.create_vault(SECRET).err(),
+        Some("E_LICENCE_REQUIRED")
+    );
+    assert!(secrets.0.lock().unwrap().is_empty());
+    licence
+        .set(&testing::key(testing::ID, "2099-01-01"))
+        .unwrap();
+    assert!(service.create_vault(SECRET).unwrap().enrolled);
+    assert!(service.connect().is_ok());
+    // A device that already syncs stops at its next connect.
+    licence.remove().unwrap();
+    assert_eq!(service.connect().err(), Some("E_LICENCE_REQUIRED"));
+    service.disconnect();
 }
 
 fn device_count(socket: &Connection) -> usize {

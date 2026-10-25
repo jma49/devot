@@ -8,6 +8,7 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "keygen": "node scripts/keygen.ts",
+    "issue": "node scripts/issue.ts",
     "test-vectors": "node scripts/test-vectors.ts && pnpm -w exec oxfmt licence/test-vectors.json"
   },
   "devDependencies": {

@@ -1,6 +1,7 @@
-// Links other apps open: `devot://note/<id>` opens a note and
-// `devot://command/<id>` runs one of `URL_COMMANDS` (`devot-dev://` in a
-// debug build). Rust checks every URL and sends the main window only what it
+// Links other apps open: `devot://note/<id>` opens a note,
+// `devot://command/<id>` runs one of `URL_COMMANDS` and
+// `devot://licence?key=<key>` offers a licence (`devot-dev://` in a debug
+// build). Rust checks every URL and sends the main window only what it
 // asks for, as a link (`src-tauri/src/deep_link.rs`); the window reads it
 // again here and takes nothing else. Links run one at a time, each once the
 // window has shown what the one before did, and wait while a sheet is up.
@@ -10,6 +11,8 @@ import { UUID_V7 } from '../../core/ids'
 import { sheetOpen } from './commands/dispatch'
 import type { CommandId } from './commands/registry'
 import { invoke } from './ipc'
+import { isLicenceDate, isLicenceId, isLicenceState } from './licence'
+import type { LicenceOffer } from './licenceView'
 import { listenHere } from './windowEvents'
 
 /**
@@ -41,6 +44,16 @@ export type DeepLink =
       readonly notebook: string | null
       readonly first: string | null
     }
+  /** Rust checked the key: one that verified comes with what it is, one that did not with its code alone. */
+  | {
+      readonly kind: 'licence'
+      readonly key: string | null
+      readonly offer: LicenceOffer | null
+      readonly code: string | null
+    }
+
+/** As Rust caps it (src-tauri/src/licence/format.rs). */
+const MAX_LICENCE_KEY = 1024
 
 const isUrlCommand = (id: unknown): id is UrlCommand =>
   typeof id === 'string' && (URL_COMMANDS as readonly string[]).includes(id)
@@ -70,11 +83,34 @@ function readScan(value: unknown): ImportScan | undefined {
 const isNameOrNull = (value: unknown): value is string | null =>
   value === null || typeof value === 'string'
 
+const LICENCE_KEY = /^devot1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+const CODE = /^E_[A-Z0-9_]+$/
+
+function readOffer(value: unknown): LicenceOffer | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { id, licensee, updatesUntil, state } = value as Record<string, unknown>
+  if (!isLicenceId(id) || !isLicenceDate(updatesUntil) || !isLicenceState(state)) return undefined
+  if (typeof licensee !== 'string' || licensee === '') return undefined
+  return { id, licensee, updatesUntil, state }
+}
+
+function readLicenceLink(value: Record<string, unknown>): DeepLink | undefined {
+  const { key, offer, code } = value
+  if (typeof code === 'string' && CODE.test(code) && key === null && offer === null)
+    return { kind: 'licence', key: null, offer: null, code }
+  const read = readOffer(offer)
+  if (code !== null || !read) return undefined
+  if (typeof key !== 'string' || key.length > MAX_LICENCE_KEY || !LICENCE_KEY.test(key))
+    return undefined
+  return { kind: 'licence', key, offer: read, code: null }
+}
+
 export function readDeepLink(value: unknown): DeepLink | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { kind, id } = value as { kind?: unknown; id?: unknown }
   if (kind === 'note' && typeof id === 'string' && UUID_V7.test(id)) return { kind, id }
   if (kind === 'command' && isUrlCommand(id)) return { kind, id }
+  if (kind === 'licence') return readLicenceLink(value as Record<string, unknown>)
   if (kind === 'import') {
     const { scan, notebook, first } = value as Record<string, unknown>
     const read = readScan(scan)
@@ -85,7 +121,11 @@ export function readDeepLink(value: unknown): DeepLink | undefined {
 }
 
 const linkKey = (link: DeepLink) =>
-  link.kind === 'import' ? `import:${link.scan.id}` : `${link.kind}:${link.id}`
+  link.kind === 'import'
+    ? `import:${link.scan.id}`
+    : link.kind === 'licence'
+      ? `licence:${link.key ?? link.code ?? ''}`
+      : `${link.kind}:${link.id}`
 
 export type NoteTarget =
   | { readonly kind: 'listed' }

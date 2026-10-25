@@ -7,6 +7,9 @@ import {
 } from '../../../core/aiProvider'
 import { errorCode } from '../backups'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { licenceEntitlements, startLicence, useLicence } from '../licence'
+import { LicenceButton } from '../LicenceLocked'
+import { lockedText } from '../licenceView'
 import { loadAiSettings, removeAiKey, saveAiKey, saveAiSettings } from './aiProviders'
 import { SUGGEST_AFTER_CHARS, SUGGEST_BEFORE_CHARS } from '../../../core/aiSuggest'
 import { Setting, SettingToggle, SettingsSection } from './controls'
@@ -40,7 +43,9 @@ export function AiSection() {
   const [saveError, setSaveError] = useState<string>()
   const [keyError, setKeyError] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
+  const licence = useLicence()
 
+  useEffect(() => startLicence(), [])
   useEffect(() => {
     let live = true
     loadAiSettings().then(
@@ -147,6 +152,18 @@ export function AiSection() {
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
+      {licenceEntitlements.has('aiProviders') ? null : (
+        <SettingsSection icon="settings.licence" title="licenceSettings.title">
+          <Setting
+            label="licenceSettings.title"
+            description={lockedText('ai', licence, currentLocale())}
+          >
+            <div className="settings-buttons">
+              <LicenceButton licence={licence} />
+            </div>
+          </Setting>
+        </SettingsSection>
+      )}
       {view && drafts ? (
         <>
           <SettingsSection icon="settings.ai" title="aiSettings.activeTitle">

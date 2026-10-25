@@ -42,6 +42,8 @@ import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } fr
 import { BackupNotice } from './BackupNotice'
 import { SyncNotice } from './SyncNotice'
 import { runSync, runsSync, startSyncStatus, useSyncSnapshot } from './sync'
+import { licenceEntitlements, startLicence, useLicence } from './licence'
+import { useLicenceLink } from './LicenceLink'
 import { Notices } from './Notices'
 import { SearchIndexNotice } from './SearchIndexNotice'
 import { REBUILD_SEARCH_INDEX, rebuildSearchIndex, type RebuildState } from './searchIndex'
@@ -305,7 +307,11 @@ export function App() {
   const aiGenerator = useMemo(
     () =>
       core &&
-      createAiGenerator({ storage: { listBooks: () => core.listBooks() }, transport: aiTransport }),
+      createAiGenerator({
+        storage: { listBooks: () => core.listBooks() },
+        transport: aiTransport,
+        entitlements: licenceEntitlements,
+      }),
     [core],
   )
   // Next edit suggestions go through the same rule, and the AI settings are read afresh at each request.
@@ -318,6 +324,7 @@ export function App() {
         bookOf: async (id) => (await core.read(id)).bookId,
         listBooks: () => core.listBooks(),
         settings: loadAiSettings,
+        entitlements: licenceEntitlements,
       }),
     [core, aiGenerator],
   )
@@ -483,6 +490,10 @@ export function App() {
   const [backupNotice, setBackupNotice] = useState<string>()
   const syncSnapshot = useSyncSnapshot()
   useEffect(() => startSyncStatus(), [])
+  // Re-renders when the licence changes, so what is locked follows it.
+  useLicence()
+  useEffect(() => startLicence(), [])
+  const licenceLink = useLicenceLink()
   const [indexState, setIndexState] = useState<RebuildState>()
   const indexRunning = useRef(false)
   const [changeNotice, setChangeNotice] = useState<string>()
@@ -2820,6 +2831,10 @@ export function App() {
   // Links other apps open (devot://note/<id>, devot://command/<id>), once the window has restored its view; sheets hold them back.
   useDeepLinks(restored && core !== undefined, (link) => {
     setLinkNotice(undefined)
+    if (link.kind === 'licence') {
+      licenceLink.handle(link)
+      return
+    }
     if (link.kind === 'import') {
       void importHandedOver(link)
       return
@@ -3471,9 +3486,11 @@ export function App() {
         {linkNotice ? (
           <DeepLinkNotice problem={linkNotice} onDismiss={() => setLinkNotice(undefined)} />
         ) : null}
+        {licenceLink.notice}
         {plugins.notice}
       </Notices>
       {mirror.dialog}
+      {licenceLink.dialog}
       {plugins.sheet}
       {noteActions.dialog}
       {core && picking ? (
@@ -3530,6 +3547,7 @@ export function App() {
           start={aiEditing.start}
           onApply={(update) => restoreRef.current?.(update)}
           onClose={() => setAiEditing(undefined)}
+          locked={!licenceEntitlements.has('aiProviders')}
         />
       ) : null}
       {viewing ? <ImageViewer image={viewing} onClose={() => setViewing(null)} /> : null}

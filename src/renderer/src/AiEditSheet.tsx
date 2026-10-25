@@ -14,6 +14,8 @@ import { aiChoiceLabel, type AiEditStart } from './editor/aiMenu'
 import { countOf } from './format'
 import { currentLocale, format, t } from './i18n'
 import { isImeKey } from './ime'
+import { LICENCE_REQUIRED, useLicence } from './licence'
+import { LicenceButton } from './LicenceLocked'
 
 type Phase =
   | { kind: 'prompt' }
@@ -32,12 +34,19 @@ export function AiEditSheet(props: {
   start: AiEditStart
   onApply: (update: Uint8Array) => void
   onClose: () => void
+  /** AI is not in the licence: the sheet says so and asks nothing. */
+  locked?: boolean
 }) {
-  const { core, generator, noteId, start } = props
+  const { core, generator, noteId, start, locked = false } = props
   const dialog = useRef<HTMLDialogElement>(null)
   const [phase, setPhase] = useState<Phase>(
-    start.choice === 'prompt' ? { kind: 'prompt' } : { kind: 'asking' },
+    locked
+      ? { kind: 'failed', code: LICENCE_REQUIRED }
+      : start.choice === 'prompt'
+        ? { kind: 'prompt' }
+        : { kind: 'asking' },
   )
+  const licence = useLicence()
   const [prompt, setPrompt] = useState('')
   const [rejected, setRejected] = useState<ReadonlySet<number>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -73,10 +82,10 @@ export function AiEditSheet(props: {
   // The pick in the menu was the user's request; asked once (React runs effects twice in development).
   const started = useRef(false)
   useEffect(() => {
-    if (started.current || start.choice === 'prompt') return
+    if (started.current || start.choice === 'prompt' || locked) return
     started.current = true
     ask({ preset: start.choice })
-  }, [ask, start.choice])
+  }, [ask, start.choice, locked])
 
   const close = () => {
     attempt.current += 1
@@ -233,7 +242,9 @@ export function AiEditSheet(props: {
           </button>
         ) : (
           <>
-            {proposal || failure?.retry ? (
+            {phase.kind === 'failed' && phase.code === LICENCE_REQUIRED ? (
+              <LicenceButton licence={licence} />
+            ) : proposal || failure?.retry ? (
               <button type="button" className="button" disabled={busy} onClick={again}>
                 {t('aiEdit.retry')}
               </button>

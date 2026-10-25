@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Permissions for the main windows: `main` and the ones File > New Window opens (`main-<n>`), which are all the same and run plugins (listing them, and the panels for their import and export formats). Add a command here only when the UI needs it.",
+  "description": "Permissions for the main windows: `main` and the ones File > New Window opens (`main-<n>`), which are all the same and run plugins (listing them, and the panels for their import and export formats), and add the licence a devot://licence link brings once the user agrees. Add a command here only when the UI needs it.",
   "windows": ["main", "main-*"],
   "permissions": [
     "core:default",
@@ -23,6 +23,8 @@
     "allow-open-external",
     "allow-ai-generate",
     "allow-ai-settings-get",
+    "allow-licence-get",
+    "allow-licence-set",
     "allow-sync-get",
     "allow-sync-connect",
     "allow-sync-pull",

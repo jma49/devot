@@ -2,6 +2,9 @@ import { useEffect, useId, useState } from 'react'
 import { errorCode } from '../backups'
 import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { licenceEntitlements, startLicence, useLicence } from '../licence'
+import { LicenceButton } from '../LicenceLocked'
+import { lockedText } from '../licenceView'
 import {
   changeSync,
   createSyncVault,
@@ -55,6 +58,9 @@ export function SyncSection() {
   const locale = currentLocale()
 
   useEffect(() => startSyncStatus(), [])
+  useEffect(() => startLicence(), [])
+  const licence = useLicence()
+  const locked = !licenceEntitlements.has('sync')
 
   const shownUrl = url ?? snapshot.relayUrl
   const failed = (message: MessageKey) => (e: unknown) => setError({ message, code: errorCode(e) })
@@ -71,7 +77,7 @@ export function SyncSection() {
   }
 
   const create = () => {
-    if (secret.trim() === '' || creating) return
+    if (secret.trim() === '' || creating || locked) return
     setCreating(true)
     const sent = secret
     void createSyncVault(sent)
@@ -100,6 +106,13 @@ export function SyncSection() {
       </p>
       <SettingsSection icon="settings.sync" title="syncSettings.title">
         <SettingsNote>{t('syncSettings.detail')}</SettingsNote>
+        {locked ? (
+          <Setting label="licenceSettings.title" description={lockedText('sync', licence, locale)}>
+            <div className="settings-buttons">
+              <LicenceButton licence={licence} />
+            </div>
+          </Setting>
+        ) : null}
         <Setting
           label="syncSettings.relay"
           description={t('syncSettings.relayHint')}
@@ -148,7 +161,7 @@ export function SyncSection() {
               <button
                 type="button"
                 className="button"
-                disabled={secret.trim() === '' || creating}
+                disabled={secret.trim() === '' || creating || locked}
                 onClick={create}
               >
                 {t(snapshot.vault ? 'syncSettings.connect' : 'syncSettings.createVault')}

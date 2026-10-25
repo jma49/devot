@@ -13,6 +13,7 @@ use std::time::Duration;
 use serde::Serialize;
 use tauri::State;
 
+use crate::licence::Gate;
 use keychain::KeyStore;
 use provider::{GenerateRequest, Generated, ProviderId, check_request, provider, status_error};
 use settings::{AiSettings, SettingsStore};
@@ -49,14 +50,16 @@ pub struct Snapshot {
 pub struct Ai {
     settings: SettingsStore,
     keys: Arc<dyn KeyStore>,
+    licence: Gate,
     timeout: Duration,
 }
 
 impl Ai {
-    pub fn new(settings: SettingsStore, keys: Arc<dyn KeyStore>) -> Self {
+    pub(crate) fn new(settings: SettingsStore, keys: Arc<dyn KeyStore>, licence: Gate) -> Self {
         Self {
             settings,
             keys,
+            licence,
             timeout: transport::TIMEOUT,
         }
     }
@@ -102,7 +105,9 @@ impl Ai {
         Ok(self.snapshot())
     }
 
+    /// Every AI request, from any feature and to any provider, is sent here and nowhere else.
     pub fn generate(&self, request: &GenerateRequest) -> Result<Generated, &'static str> {
+        self.licence.require()?;
         let prepared = check_request(request)?;
         let settings = self.settings.get();
         let id = request.provider.unwrap_or(settings.active);

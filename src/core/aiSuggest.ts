@@ -7,6 +7,7 @@ import {
   type AiGenerator,
   type AiSettingsView,
 } from './aiProvider'
+import type { Entitlements } from './entitlements'
 import type { BookRecord } from './storage'
 import { lineFeeds } from './text'
 
@@ -111,13 +112,15 @@ export interface SuggesterDeps {
   listBooks(): Promise<readonly BookRecord[]>
   /** Read fresh at every request, so a setting turned off stops the next one. */
   settings(): Promise<AiSettingsView>
+  /** Without AI in the licence a pause asks nothing, and a key press says a licence is needed. */
+  entitlements?: Entitlements
 }
 
 export interface Suggester {
   /**
    * Resolves with the text to show, or null when there is none, when the request was left unsent or when a later
    * `suggest` or `cancel` made it stale. Rejects with a code when the user asked (`key`) and AI is not available:
-   * E_AI_ACCESS_DENIED, E_AI_KEY_MISSING, E_AI_MODEL_MISSING, E_AI_CONTEXT_EMPTY or the provider's. An `idle` request
+   * E_LICENCE_REQUIRED, E_AI_ACCESS_DENIED, E_AI_KEY_MISSING, E_AI_MODEL_MISSING, E_AI_CONTEXT_EMPTY or the provider's. An `idle` request
    * that is not allowed resolves with null, silently.
    */
   suggest(noteId: string, context: SuggestContext, trigger: SuggestTrigger): Promise<string | null>
@@ -142,6 +145,9 @@ export function createSuggester(deps: SuggesterDeps): Suggester {
       }
       await previous
       if (stale()) return null
+      if (deps.entitlements && !deps.entitlements.has('aiProviders')) {
+        return refuse('E_LICENCE_REQUIRED')
+      }
       const bookId = await deps.bookOf(noteId)
       if (stale()) return null
       if (bookId === null || !allowedBookIds(await deps.listBooks()).has(bookId)) {

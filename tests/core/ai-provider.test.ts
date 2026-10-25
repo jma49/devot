@@ -14,6 +14,7 @@ import {
   type AiGenerateInput,
   type AiTransport,
   type AiTrigger,
+  type Entitlements,
 } from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
@@ -31,7 +32,7 @@ const GENERATED = {
 
 const INPUT: AiGenerateInput = { messages: [{ role: 'user', content: 'Summarise this.' }] }
 
-function setup(answer: unknown = GENERATED) {
+function setup(answer: unknown = GENERATED, entitlements?: Entitlements) {
   const storage = openSqliteAdapter(join(tempDir('devot-ai-provider-'), 'devot.sqlite'))
   open.push(storage)
   const books = createBookService({
@@ -46,10 +47,26 @@ function setup(answer: unknown = GENERATED) {
       return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer)
     },
   }
-  return { books, sent, ai: createAiGenerator({ storage, transport }) }
+  return {
+    books,
+    sent,
+    ai: createAiGenerator({ storage, transport, ...(entitlements ? { entitlements } : {}) }),
+  }
 }
 
 const user = (...books: string[]): AiTrigger => ({ by: 'user', books })
+
+describe('the licence', () => {
+  it('sends nothing while the licence does not include AI', async () => {
+    let licensed = false
+    const { ai, sent } = setup(GENERATED, { has: (f) => f !== 'aiProviders' || licensed })
+    await expect(ai.generate(INPUT, user())).rejects.toThrow('E_LICENCE_REQUIRED')
+    expect(sent).toEqual([])
+    licensed = true
+    await ai.generate(INPUT, user())
+    expect(sent).toHaveLength(1)
+  })
+})
 
 describe('the access rule', () => {
   it('sends a request the user started, with text of their own', async () => {

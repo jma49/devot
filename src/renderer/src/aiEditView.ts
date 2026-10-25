@@ -3,6 +3,7 @@ import { MAX_AI_EDIT_CHARS, type ProposalPart } from '../../core/aiEdit'
 import { currentLocale, format, t, type MessageKey } from './i18n'
 
 const REASONS: Record<string, MessageKey> = {
+  E_LICENCE_REQUIRED: 'aiEdit.reason.licence',
   E_AI_ACCESS_DENIED: 'aiEdit.reason.access',
   E_AI_KEY_MISSING: 'aiEdit.reason.noKey',
   E_AI_KEYCHAIN_UNAVAILABLE: 'aiEdit.reason.noKey',
@@ -21,6 +22,7 @@ const REASONS: Record<string, MessageKey> = {
 
 /** Asking again cannot help until the user changes something elsewhere (a notebook switch, a key, the selection). */
 const SETTLED: ReadonlySet<string> = new Set([
+  'E_LICENCE_REQUIRED',
   'E_AI_ACCESS_DENIED',
   'E_AI_KEY_MISSING',
   'E_AI_KEYCHAIN_UNAVAILABLE',

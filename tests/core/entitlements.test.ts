@@ -1,78 +1,70 @@
 import { describe, expect, it } from 'vitest'
 import {
   FEATURES,
-  OFFLINE_GRACE_MS,
+  LICENCE_STATES,
+  PLAN_GATED_FEATURES,
   createEntitlements,
-  type AccountEntitlements,
-  type Feature,
+  type LicenceEntitlements,
 } from '../../src/core/entitlements'
 
-const DAY = 24 * 60 * 60 * 1000
-const NOW = 1_800_000_000_000
-const gated: readonly Feature[] = ['sync', 'aiProviders']
+const valid: LicenceEntitlements = { enforced: true, state: 'valid', plan: 'pro' }
 
-const withAccount = (account: AccountEntitlements | null, at = NOW) =>
-  createEntitlements({ source: { read: () => account }, now: () => at, gated })
+const withLicence = (licence: LicenceEntitlements | null) =>
+  createEntitlements({ source: { read: () => licence } })
 
-describe('entitlements today', () => {
-  it('makes every feature available with no account source', () => {
-    const e = createEntitlements()
+describe('what a licence unlocks', () => {
+  it('gates sync, AI and semantic search, and nothing else', () => {
+    expect([...PLAN_GATED_FEATURES].sort()).toEqual(['aiProviders', 'semanticSearch', 'sync'])
+  })
+
+  it('grants every gated feature with a valid pro licence', () => {
+    const e = withLicence(valid)
     for (const f of FEATURES) expect(e.has(f)).toBe(true)
   })
 })
 
-describe('signed out', () => {
-  it('keeps ungated features and withholds gated ones', () => {
-    const e = withAccount(null)
-    expect(e.has('localNotes')).toBe(true)
-    expect(e.has('sync')).toBe(false)
+describe('without a valid licence', () => {
+  it('keeps the free features and withholds the gated ones', () => {
+    for (const state of LICENCE_STATES.filter((s) => s !== 'valid')) {
+      const e = withLicence({ enforced: true, state, plan: state === 'none' ? null : 'pro' })
+      expect(e.has('localNotes')).toBe(true)
+      expect(e.has('sharing')).toBe(true)
+      for (const f of PLAN_GATED_FEATURES) expect(e.has(f)).toBe(false)
+    }
   })
 
-  it('behaves the same with no source', () => {
-    const e = createEntitlements({ gated })
-    expect(e.has('localNotes')).toBe(true)
-    expect(e.has('aiProviders')).toBe(false)
+  it('withholds gated features when the licence is not known or there is no source', () => {
+    expect(withLicence(null).has('sync')).toBe(false)
+    expect(createEntitlements().has('aiProviders')).toBe(false)
+    expect(createEntitlements().has('localNotes')).toBe(true)
+  })
+
+  it('withholds them from a valid state without a plan', () => {
+    expect(withLicence({ ...valid, plan: null }).has('sync')).toBe(false)
   })
 })
 
-describe('signed in', () => {
-  const account = { granted: ['sync'] as Feature[], confirmedAt: NOW - DAY }
+describe('a build that gates nothing', () => {
+  it('grants every feature without a licence', () => {
+    const e = withLicence({ enforced: false, state: 'none', plan: null })
+    for (const f of FEATURES) expect(e.has(f)).toBe(true)
+  })
+})
 
-  it('grants what the account lists', () => {
-    const e = withAccount(account)
+describe('the source', () => {
+  it('is read on every call, so adding or removing a licence takes effect at once', () => {
+    let current: LicenceEntitlements | null = valid
+    const e = createEntitlements({ source: { read: () => current } })
     expect(e.has('sync')).toBe(true)
-    expect(e.has('aiProviders')).toBe(false)
-    expect(e.has('localNotes')).toBe(true)
-  })
-
-  it('keeps the grant offline up to the grace period', () => {
-    const edge = { ...account, confirmedAt: NOW - OFFLINE_GRACE_MS }
-    expect(withAccount(edge).has('sync')).toBe(true)
-  })
-
-  it('drops gated features after the grace period but keeps local ones', () => {
-    const stale = { ...account, confirmedAt: NOW - OFFLINE_GRACE_MS - 1 }
-    const e = withAccount(stale)
+    current = { enforced: true, state: 'none', plan: null }
     expect(e.has('sync')).toBe(false)
-    expect(e.has('localNotes')).toBe(true)
+    current = { enforced: true, state: 'updatesEnded', plan: 'pro' }
+    expect(e.has('sync')).toBe(false)
   })
 
-  it('withholds gated features when the confirmed time is not a number', () => {
-    expect(withAccount({ ...account, confirmedAt: Number.NaN }).has('sync')).toBe(false)
-    expect(withAccount({ ...account, confirmedAt: Number.POSITIVE_INFINITY }).has('sync')).toBe(
-      false,
-    )
-  })
-
-  it('does not extend the grace period when the clock is set back', () => {
-    expect(withAccount({ ...account, confirmedAt: NOW + DAY }).has('sync')).toBe(false)
-  })
-
-  it('reads the source on every call, so sign-out takes effect at once', () => {
-    let current: AccountEntitlements | null = account
-    const e = createEntitlements({ source: { read: () => current }, now: () => NOW, gated })
-    expect(e.has('sync')).toBe(true)
-    current = null
+  it('follows a gated list it is given', () => {
+    const e = createEntitlements({ source: { read: () => null }, gated: ['sync'] })
+    expect(e.has('aiProviders')).toBe(true)
     expect(e.has('sync')).toBe(false)
   })
 })

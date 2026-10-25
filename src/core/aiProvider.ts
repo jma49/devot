@@ -1,6 +1,7 @@
 // Refuses a request before it reaches Rust unless the user asked for it and every source notebook allows AI access.
 
 import { TEMPLATES_BOOK_ID } from './books'
+import type { Entitlements } from './entitlements'
 import type { BookRecord } from './storage'
 
 export const AI_PROVIDERS = ['anthropic', 'openai'] as const
@@ -44,13 +45,15 @@ export interface AiTrigger {
 }
 
 export interface AiGenerator {
-  /** E_AI_NOT_TRIGGERED, E_AI_ACCESS_DENIED, a code from Rust, or E_AI_RESPONSE_INVALID. */
+  /** E_AI_NOT_TRIGGERED, E_LICENCE_REQUIRED, E_AI_ACCESS_DENIED, a code from Rust, or E_AI_RESPONSE_INVALID. */
   generate(input: AiGenerateInput, trigger: AiTrigger): Promise<AiGenerated>
 }
 
 export interface AiGeneratorOptions {
   storage: { listBooks(): Promise<readonly BookRecord[]> }
   transport: AiTransport
+  /** Rust refuses without a licence too; this only spares the request. */
+  entitlements?: Entitlements
 }
 
 const STOPS: readonly unknown[] = ['end', 'maxTokens', 'other']
@@ -84,10 +87,11 @@ export function allowedBookIds(books: readonly BookRecord[]): Set<string> {
 }
 
 export function createAiGenerator(options: AiGeneratorOptions): AiGenerator {
-  const { storage, transport } = options
+  const { storage, transport, entitlements } = options
   return {
     async generate(input, trigger) {
       if ((trigger as { by?: unknown }).by !== 'user') throw new Error('E_AI_NOT_TRIGGERED')
+      if (entitlements && !entitlements.has('aiProviders')) throw new Error('E_LICENCE_REQUIRED')
       if (trigger.books.length > 0) {
         const allowed = allowedBookIds(await storage.listBooks())
         if (!trigger.books.every((id) => allowed.has(id))) throw new Error('E_AI_ACCESS_DENIED')

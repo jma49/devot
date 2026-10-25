@@ -65,6 +65,9 @@ aes-gcm = { version = "0.11", default-features = false, features = ["aes", "allo
 hkdf = "0.12"
 getrandom = "0.3"
 zeroize = "1"
+# Licence keys and the revocation list (`licence`): Ed25519 verification only, against the
+# public keys the build holds (docs/licensing.md, Formats).
+ed25519-dalek = { version = "3", default-features = false, features = ["fast"] }
 # The sync relay's socket (`sync::client`), blocking on a thread of its own, over the system TLS
 # stack as ureq is.
 tungstenite = { version = "0.30", default-features = false, features = ["handshake", "native-tls"] }

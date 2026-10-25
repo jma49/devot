@@ -62,6 +62,7 @@ describe('navigation keys', () => {
       'mirror',
       'sync',
       'ai',
+      'licence',
       'integrations',
       'plugins',
       'usage',

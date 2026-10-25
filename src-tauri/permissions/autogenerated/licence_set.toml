@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-licence-set"
+description = "Enables the licence_set command without any pre-configured scope."
+commands.allow = ["licence_set"]
+
+[[permission]]
+identifier = "deny-licence-set"
+description = "Denies the licence_set command without any pre-configured scope."
+commands.deny = ["licence_set"]

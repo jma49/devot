@@ -1,6 +1,7 @@
 //! The app's URL scheme, registered with macOS through the bundle's Info.plist (`plugins.deep-link`
-//! in tauri.conf.json): `devot://note/<id>` opens the note and `devot://command/<id>` runs one of
-//! [`URL_COMMANDS`]. Debug builds answer to `devot-dev://` instead ([`SCHEME`]), so a development
+//! in tauri.conf.json): `devot://note/<id>` opens the note, `devot://command/<id>` runs one of
+//! [`URL_COMMANDS`] and `devot://licence?key=<key>` offers a licence key, checked here first; the
+//! window asks before it replaces a licence the device holds. Debug builds answer to `devot-dev://` instead ([`SCHEME`]), so a development
 //! bundle never takes the links meant for an installed Devot.
 //! Every URL is checked here, whole, before the page sees anything of it: the page gets a [`Link`],
 //! never the URL. A refused URL is logged by its code alone (`W_DEEP_LINK_REFUSED`), never its
@@ -52,8 +53,10 @@ pub(crate) const URL_COMMANDS: &[&str] = &[
     "app.checkForUpdates",
 ];
 
-/// Longer than any URL accepted (`devot-dev://note/` and an ID is 53).
+/// Longer than any URL accepted (`devot-dev://note/` and an ID is 53) but a licence link.
 const MAX_URL_LEN: usize = 96;
+/// A licence key, every character of it percent-encoded, after `devot-dev://licence?key=`.
+const MAX_LICENCE_URL_LEN: usize = 32 + 3 * crate::licence::MAX_LENGTH;
 const MAX_PER_EVENT: usize = 4;
 const MAX_HELD: usize = 16;
 pub(crate) const EVENT: &str = "devot://open-url";
@@ -73,17 +76,75 @@ pub enum Link {
         notebook: Option<String>,
         first: Option<String>,
     },
+    /// A key that verified comes with what it is (`offer`); one that did not, with its code alone.
+    Licence {
+        key: Option<LicenceKey>,
+        offer: Option<crate::licence::Offer>,
+        code: Option<&'static str>,
+    },
 }
 
-/// Exact: no query, fragment, escapes, trailing slash or other case. Returns the code of the refusal otherwise.
+/// `Debug` never shows the key: it holds the licensee's address.
+#[derive(Clone, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct LicenceKey(String);
+
+impl std::fmt::Debug for LicenceKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("LicenceKey(..)")
+    }
+}
+
+fn key_char(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
+}
+
+/// `key=<key>` and nothing else; a character of the key may be percent-encoded.
+fn licence_link(query: &str) -> Result<Link, &'static str> {
+    let value = query.strip_prefix("key=").ok_or("E_URL_LICENCE")?;
+    let bytes = value.as_bytes();
+    let mut key = String::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        let byte = if bytes[at] == b'%' {
+            let hex = value.get(at + 1..at + 3).ok_or("E_URL_LICENCE")?;
+            at += 3;
+            u8::from_str_radix(hex, 16).map_err(|_| "E_URL_LICENCE")?
+        } else {
+            at += 1;
+            bytes[at - 1]
+        };
+        if !key_char(byte) {
+            return Err("E_URL_LICENCE");
+        }
+        key.push(char::from(byte));
+    }
+    if key.is_empty() || key.len() > crate::licence::MAX_LENGTH {
+        return Err("E_URL_LICENCE");
+    }
+    Ok(Link::Licence {
+        key: Some(LicenceKey(key)),
+        offer: None,
+        code: None,
+    })
+}
+
+/// Exact: no query (but a licence link's one `key`), fragment, escapes (but in that key), trailing
+/// slash or other case. Returns the code of the refusal otherwise.
 pub(crate) fn parse(url: &str, scheme: &str) -> Result<Link, &'static str> {
+    let rest = url
+        .strip_prefix(scheme)
+        .and_then(|rest| rest.strip_prefix("://"));
+    if let Some(query) = rest.and_then(|rest| rest.strip_prefix("licence?")) {
+        if url.len() > MAX_LICENCE_URL_LEN {
+            return Err("E_URL_TOO_LONG");
+        }
+        return licence_link(query);
+    }
     if url.len() > MAX_URL_LEN {
         return Err("E_URL_TOO_LONG");
     }
-    let rest = url
-        .strip_prefix(scheme)
-        .and_then(|rest| rest.strip_prefix("://"))
-        .ok_or("E_URL_SCHEME")?;
+    let rest = rest.ok_or("E_URL_SCHEME")?;
     let (host, id) = rest.split_once('/').ok_or("E_URL_PATH")?;
     match host {
         // Canonical lowercase UUIDv7 only: nothing else fits, a `/`, `?`
@@ -215,6 +276,7 @@ pub(crate) fn on_second_instance<R: Runtime>(app: &AppHandle<R>, args: Vec<Strin
 
 fn receive<R: Runtime>(app: &AppHandle<R>, url: &str) {
     let link = match parse(url, SCHEME) {
+        Ok(Link::Licence { key: Some(key), .. }) => checked(app, key),
         Ok(link) => link,
         Err(code) => {
             log::warn!("W_DEEP_LINK_REFUSED {code}");
@@ -222,6 +284,29 @@ fn receive<R: Runtime>(app: &AppHandle<R>, url: &str) {
         }
     };
     deliver(app, link);
+}
+
+/// A key that does not verify reaches the window as its code, so it can say why.
+fn checked<R: Runtime>(app: &AppHandle<R>, key: LicenceKey) -> Link {
+    let offer = app
+        .try_state::<std::sync::Arc<crate::licence::Licence>>()
+        .ok_or("E_LICENCE_INTERNAL")
+        .and_then(|licence| licence.offer(&key.0));
+    match offer {
+        Ok(offer) => Link::Licence {
+            key: Some(key),
+            offer: Some(offer),
+            code: None,
+        },
+        Err(code) => {
+            log::warn!("W_DEEP_LINK_LICENCE_REFUSED {code}");
+            Link::Licence {
+                key: None,
+                offer: None,
+                code: Some(code),
+            }
+        }
+    }
 }
 
 pub(crate) fn deliver<R: Runtime>(app: &AppHandle<R>, link: Link) {
@@ -410,6 +495,85 @@ mod tests {
                 Ok(command(id))
             );
         }
+    }
+
+    fn licence(key: &str) -> Link {
+        Link::Licence {
+            key: Some(LicenceKey(key.to_owned())),
+            offer: None,
+            code: None,
+        }
+    }
+
+    #[test]
+    fn reads_a_licence_link_whole_or_percent_encoded() {
+        let key = crate::licence::testing::key(crate::licence::testing::ID, "2027-10-24");
+        assert_eq!(
+            parse(&format!("devot://licence?key={key}"), "devot"),
+            Ok(licence(&key))
+        );
+        assert_eq!(
+            parse(&format!("devot-dev://licence?key={key}"), "devot-dev"),
+            Ok(licence(&key))
+        );
+        let encoded: String = key.bytes().map(|b| format!("%{b:02X}")).collect();
+        assert_eq!(
+            parse(&format!("devot://licence?key={encoded}"), "devot"),
+            Ok(licence(&key))
+        );
+        let mixed = key.replacen('.', "%2e", 2);
+        assert_eq!(
+            parse(&format!("devot://licence?key={mixed}"), "devot"),
+            Ok(licence(&key))
+        );
+    }
+
+    #[test]
+    fn refuses_a_licence_link_with_anything_else_in_it() {
+        let key = crate::licence::testing::key(crate::licence::testing::ID, "2027-10-24");
+        for url in [
+            format!("devot://licence?key={key}&x=1"),
+            format!("devot://licence?key={key}#x"),
+            format!("devot://licence?x=1&key={key}"),
+            format!("devot://licence?key={key}%"),
+            format!("devot://licence?key={key}%2"),
+            format!("devot://licence?key={key}%zz"),
+            format!("devot://licence?key={key}%20"),
+            format!("devot://licence?key={key}+"),
+            format!("devot://licence?key={key}="),
+            format!("devot://licence?key= {key}"),
+            "devot://licence?key=".to_owned(),
+            "devot://licence?".to_owned(),
+            format!(
+                "devot://licence?key={}",
+                "a".repeat(crate::licence::MAX_LENGTH + 1)
+            ),
+        ] {
+            assert_eq!(parse(&url, "devot"), Err("E_URL_LICENCE"), "{url}");
+        }
+        let long = format!(
+            "devot://licence?key={}",
+            "%41".repeat(crate::licence::MAX_LENGTH + 10)
+        );
+        assert_eq!(parse(&long, "devot"), Err("E_URL_TOO_LONG"));
+        assert_eq!(
+            parse(&format!("devot://licence/?key={key}"), "devot"),
+            Err("E_URL_TOO_LONG")
+        );
+        assert_eq!(
+            parse(&format!("devot-dev://licence?key={key}"), "devot"),
+            Err("E_URL_TOO_LONG")
+        );
+    }
+
+    #[test]
+    fn a_licence_link_never_shows_its_key_when_debugged() {
+        let key = crate::licence::testing::key(crate::licence::testing::ID, "2027-10-24");
+        let shown = format!("{:?}", licence(&key));
+        assert!(!shown.contains(&key[7..40]), "{shown}");
+        let sent = serde_json::to_value(licence(&key)).unwrap();
+        assert_eq!(sent["kind"], "licence");
+        assert_eq!(sent["key"], key.as_str());
     }
 
     #[test]

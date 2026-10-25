@@ -328,6 +328,7 @@ export const en = {
   'settings.pane.keyboard': 'Keyboard',
   'settings.pane.mirror': 'Mirror',
   'settings.pane.sync': 'Sync',
+  'settings.pane.licence': 'Licence',
   'settings.pane.ai': 'AI',
   'settings.pane.integrations': 'Integrations',
   'settings.pane.usage': 'Usage',
@@ -606,8 +607,68 @@ export const en = {
   'sync.notice.clock':
     'Sync is paused: this device’s clock is more than 5 minutes off. Set the date and time automatically to sync again.',
   'sync.notice.stopped': 'Sync has stopped ({code}). Open Settings > Sync to set it up again.',
+  'sync.notice.licence':
+    'Sync has stopped: it needs a Devot licence. Your notes stay on this device. Add a licence in Settings > Licence.',
   'sync.notice.tooLargeOne': '{count} note is too large to sync and stays on this device only.',
   'sync.notice.tooLargeOther': '{count} notes are too large to sync and stay on this device only.',
+  'licenceSettings.title': 'Licence',
+  'licenceSettings.detail':
+    'Sync and AI need a Devot licence; everything else is free. A licence is bought once, checked on this device without going online, and unlocks every version released in the year after you buy it, for as long as you use them.',
+  'licenceSettings.ungated':
+    'This build of Devot does not check licences, so sync and AI work without one.',
+  'licenceSettings.status': 'Status',
+  'licenceSettings.state.none': 'No licence is added. Sync and AI stay locked until you add one.',
+  'licenceSettings.state.valid': 'Sync and AI are unlocked on this device.',
+  'licenceSettings.state.updatesEnded':
+    'This licence covers versions released until {date}. This version came out later, so sync and AI are locked. Renew the licence to unlock them.',
+  'licenceSettings.state.revoked':
+    'This licence was revoked after a refund or a lost dispute, so sync and AI are locked.',
+  'licenceSettings.state.invalid':
+    'The licence on this device could not be verified ({code}), so sync and AI are locked. Add the key from your purchase email again.',
+  'licenceSettings.state.unreadable': 'The licence could not be read from the keychain ({code}).',
+  'licenceSettings.licensee': 'Licensed To',
+  'licenceSettings.id': 'Licence ID',
+  'licenceSettings.updatesUntil': 'Updates Until',
+  'licenceSettings.updatesUntilHint':
+    'The last release date this licence covers. Versions released by then keep working with it.',
+  'licenceSettings.key': 'Licence Key',
+  'licenceSettings.keyHint': 'Paste the key from your purchase email. It starts with devot1.',
+  'licenceSettings.replaceHint':
+    'Paste another key, such as a renewal, to replace the licence on this device.',
+  'licenceSettings.add': 'Add Licence',
+  'licenceSettings.replace': 'Replace Licence',
+  'licenceSettings.removeAsk': 'Remove Licence…',
+  'licenceSettings.remove': 'Remove Licence',
+  'licenceSettings.removeConfirm': 'Remove the licence from this device?',
+  'licenceSettings.removeDetail':
+    'Sync and AI stop on this device until you add a licence again. You can add the same key again at any time.',
+  'licenceSettings.buy': 'Buy a Licence',
+  'licenceSettings.renew': 'Renew',
+  'licenceSettings.added': 'The licence was added.',
+  'licenceSettings.removed': 'The licence was removed.',
+  'licenceSettings.addFailed': 'The key could not be added. {problem}',
+  'licenceSettings.removeFailed': 'The licence could not be removed ({code}).',
+  'licence.problem': '{reason} ({code})',
+  'licence.reason.malformed': 'This is not a complete Devot licence key.',
+  'licence.reason.unknownKid':
+    'It was signed by a key this version of Devot does not know. Update Devot and try again.',
+  'licence.reason.signature':
+    'Its signature does not match, so it was changed after it was issued.',
+  'licence.reason.keychain': 'The keychain could not be used.',
+  'licence.reason.other': 'Something went wrong.',
+  'licence.locked.sync': 'Sync needs a Devot licence. Add one in Settings > Licence.',
+  'licence.locked.ai': 'AI needs a Devot licence. Add one in Settings > Licence.',
+  'licence.locked.updatesEnded':
+    'Your licence covers versions released until {date}. This version came out later, so sync and AI are locked until you renew it.',
+  'licence.replace.message': 'Replace the licence on this device?',
+  'licence.replace.detail':
+    'This device holds the licence for {current}, with updates until {currentUntil}. The key in the link is for {licensee}, with updates until {until}.',
+  'licence.replace.detailInvalid':
+    'The licence on this device could not be verified. The key in the link is for {licensee}, with updates until {until}.',
+  'licence.renewed.message': 'Add the renewed licence?',
+  'licence.renewed.detail':
+    'The key in the link is the licence this device holds ({id}), renewed: updates until {until} instead of {currentUntil}.',
+  'licence.replace.confirm': 'Replace',
   'aiSettings.title': 'AI Providers',
   'aiSettings.detail':
     'Devot sends text to an AI provider only when you start an AI action, and only text from notebooks with Allow AI Access on. Requests go from this Mac straight to the provider you choose, with your own key. Keys are kept in the macOS Keychain, never in Devot\u2019s settings files.',
@@ -776,6 +837,12 @@ export const en = {
   'deepLink.noteNotFound': 'The linked note could not be found.',
   'deepLink.commandUnavailable': 'That command can\u2019t run right now.',
   'deepLink.importFailed': 'The Markdown files from the command line could not be imported.',
+  'deepLink.licenceInvalid': 'The licence in the link could not be added. {problem}',
+  'deepLink.licenceFailed': 'The licence in the link could not be added ({code}).',
+  'deepLink.licenceAdded': 'The licence for {licensee} was added. Sync and AI are unlocked.',
+  'deepLink.licenceAddedLocked':
+    'The licence for {licensee} was added, but sync and AI stay locked. Settings > Licence says why.',
+  'deepLink.licenceSame': 'This licence is already on this device.',
   'change.tagNameTaken': 'Another tag already has that name.',
   'change.tagNameInvalid': 'A tag name is one line of at most {max} characters.',
   'change.bookNameInvalid': 'A notebook name is one line of at most {max} characters.',
@@ -1156,6 +1223,7 @@ export const en = {
   'aiEdit.failed': '{reason} ({code})',
   'aiEdit.reason.access':
     'AI can only use notes in a notebook with Allow AI Access on. Turn it on in the notebook\u2019s menu.',
+  'aiEdit.reason.licence': 'AI needs a Devot licence. Add one in Settings > Licence.',
   'aiEdit.reason.noKey': 'No AI provider is set up. Add a key in Settings > AI.',
   'aiEdit.reason.noModel': 'The AI provider has no model set. Choose one in Settings > AI.',
   'aiEdit.reason.auth': 'The AI provider refused the key. Check it in Settings > AI.',

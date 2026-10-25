@@ -32,7 +32,7 @@ const provider = (key: AiProviderView['key'] = 'set', model = 'claude-sonnet-5-5
   key,
 })
 
-function setup(view: Partial<AiSettingsView> = {}) {
+function setup(view: Partial<AiSettingsView> = {}, licensed = () => true) {
   const storage = openSqliteAdapter(join(tempDir('devot-ai-suggest-'), 'devot.sqlite'))
   open.push(storage)
   const clock = createClock('mac1')
@@ -64,6 +64,7 @@ function setup(view: Partial<AiSettingsView> = {}) {
     bookOf: async (id) => (await notes.read(id)).bookId,
     listBooks: () => storage.listBooks(),
     settings: () => Promise.resolve(settings),
+    entitlements: { has: (feature) => feature !== 'aiProviders' || licensed() },
   })
   return {
     books,
@@ -112,6 +113,20 @@ describe('next edit suggestions', () => {
     change({ suggestOnIdle: false })
     expect(await suggester.suggest(note, CONTEXT, 'idle')).toBeNull()
     expect(sent).toHaveLength(1)
+  })
+
+  it('send nothing without AI in the licence: a pause stays quiet, a key press says why', async () => {
+    let licensed = false
+    const { books, notes, suggester, sent, change } = setup({}, () => licensed)
+    const shared = await books.create('Shared', null)
+    await books.setAiAccess(shared, true)
+    const note = await notes.create('Plan', shared)
+    change({ suggestOnIdle: true })
+    expect(await suggester.suggest(note, CONTEXT, 'idle')).toBeNull()
+    await expect(suggester.suggest(note, CONTEXT, 'key')).rejects.toThrow('E_LICENCE_REQUIRED')
+    expect(sent).toEqual([])
+    licensed = true
+    expect(await suggester.suggest(note, CONTEXT, 'key')).toBe(' and then ship it.')
   })
 
   it('send nothing without a provider set up', async () => {

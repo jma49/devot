@@ -84,6 +84,7 @@
     "settings.mirror": "folder",
     "settings.sync": "arrow.triangle.2.circlepath",
     "settings.ai": "sparkles",
+    "settings.licence": "key",
     "settings.integrations": "puzzlepiece.extension",
     "settings.terminal": "terminal",
     "settings.configFile": "doc.text",
