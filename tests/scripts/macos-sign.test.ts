@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tempDir } from '../support/temp-dirs'
@@ -18,6 +18,10 @@ const CREDENTIALS = {
 
 function run(env: Record<string, string>, ...args: string[]) {
   const dir = tempDir('devot-macos-sign-')
+  return runIn(dir, env, ...args)
+}
+
+function runIn(dir: string, env: Record<string, string>, ...args: string[]) {
   mkdirSync(join(dir, 'Devot.app', 'Contents'), { recursive: true })
   const result = spawnSync(SCRIPT, [...args, join(dir, 'Devot.app'), join(dir, 'out')], {
     env: { PATH: process.env['PATH'] ?? '', RUNNER_TEMP: dir, ...env },
@@ -69,6 +73,30 @@ describe('the signing script', () => {
       for (const secret of ['p12-password-value', 'Y2VydGlmaWNhdGU=', 'api-key-text'])
         expect(output).not.toContain(secret)
     }
+  })
+
+  it('leaves the keychain search list alone when it stops before adding its keychain', () => {
+    const dir = tempDir('devot-macos-sign-')
+    const bin = join(dir, 'bin')
+    const calls = join(dir, 'security-calls')
+    mkdirSync(bin)
+    writeFileSync(
+      join(bin, 'security'),
+      `#!/bin/bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(calls)}\n[ "$1" != import ]\n`,
+    )
+    writeFileSync(join(bin, 'uuidgen'), '#!/bin/bash\necho throwaway-keychain-password\n')
+    chmodSync(join(bin, 'security'), 0o755)
+    chmodSync(join(bin, 'uuidgen'), 0o755)
+    const { status, output } = runIn(
+      dir,
+      { ...CREDENTIALS, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+      '--search-list',
+    )
+    expect(status).toBe(1)
+    expect(output).toMatch(/::error::E_SIGN_CERTIFICATE_(IMPORT|UNREADABLE)/)
+    const made = readFileSync(calls, 'utf8').split('\n')
+    expect(made.some((call) => call.startsWith('delete-keychain '))).toBe(true)
+    expect(made.filter((call) => call.startsWith('list-keychains'))).toEqual([])
   })
 
   // Gatekeeper's checks need a notarized build, so the local test cannot run them.

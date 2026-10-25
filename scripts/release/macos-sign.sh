@@ -62,10 +62,11 @@ name=$(basename "$input")
 work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/devot-sign.XXXXXX")
 keychain=$work/signing.keychain-db
 made_keychain=0
+listed=0
 searched=()
 cleanup() {
   if [ $made_keychain -eq 1 ]; then
-    if [ $search_list -eq 1 ]; then
+    if [ $listed -eq 1 ]; then
       security list-keychains -d user -s ${searched[@]+"${searched[@]}"} || true
     fi
     security delete-keychain "$keychain" || true
@@ -95,6 +96,7 @@ if [ $search_list -eq 1 ]; then
     searched+=("${line%\"*}")
   done < <(security list-keychains -d user)
   security list-keychains -d user -s "$keychain" ${searched[@]+"${searched[@]}"}
+  listed=1
 fi
 
 sign() {

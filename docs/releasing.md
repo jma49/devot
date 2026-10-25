@@ -123,7 +123,7 @@ The notes of the first signed release carry this line:
 
 ### The first signed release
 
-Once the credentials are in place, release a beta first and, before the stable release, check on a Mac that has an ad-hoc build installed: the downloaded dmg opens without Gatekeeper's warning (`spctl -a -vv /Applications/Devot.app` says `Notarized Developer ID`); the update from the ad-hoc build installs; the keychain prompts appear once and Always Allow keeps the licence, the trial and sync working; a native crash is still reported (`devot --crash-reporter`). Then update the install steps in `README.md`, which still describe the ad-hoc build's first launch.
+Once the credentials are in place, release a beta first and, before the stable release, check on a Mac that has an ad-hoc build installed: the downloaded dmg opens without Gatekeeper's warning (`spctl -a -vv /Applications/Devot.app` says `Notarized Developer ID`); the update from the ad-hoc build installs; the keychain prompts appear once and Always Allow keeps the licence, the trial and sync working; a native crash is still reported (`devot --crash-reporter`). Then update the install steps in `README.md` and the Release signing section of `SECURITY.md`, which still describe the ad-hoc build and its first launch.
 
 ## Updater key
 
