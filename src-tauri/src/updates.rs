@@ -116,14 +116,16 @@ pub struct Status {
     pub state: State,
 }
 
-fn may_check(state: &State) -> bool {
-    !matches!(
-        state,
-        State::Checking | State::Downloading { .. } | State::Ready { .. }
-    )
+/// A background check leaves an offer the licence does not cover alone, so Download Anyway never
+/// meets a check in progress; the user's own check does replace it.
+fn may_check(state: &State, manual: bool) -> bool {
+    match state {
+        State::Checking | State::Downloading { .. } | State::Ready { .. } => false,
+        State::NotCovered { .. } => manual,
+        _ => true,
+    }
 }
 
-/// The version the user may download, and whether only by choosing Download Anyway.
 fn downloadable(state: &State, anyway: bool) -> Option<&str> {
     match state {
         State::Available { version } => Some(version),
@@ -161,6 +163,36 @@ fn uncovered_until(snapshot: &licence::Snapshot, released: Option<&str>) -> Opti
         && snapshot.state == LicenceState::Valid
         && !licence::covers(until, Some(released)))
     .then(|| until.to_owned())
+}
+
+#[derive(Debug, PartialEq)]
+enum Offer {
+    Nothing,
+    NotCovered(String),
+    Available,
+    AutoDownload,
+}
+
+/// What to do with an update found. `skipped` holds back only a background check, and only an
+/// update the licence does not cover; nothing the licence does not cover ever downloads on its own.
+fn decide(uncovered: Option<String>, skipped: bool, manual: bool, auto: bool) -> Offer {
+    match uncovered {
+        Some(_) if skipped && !manual => Offer::Nothing,
+        Some(updates_until) => Offer::NotCovered(updates_until),
+        None if auto => Offer::AutoDownload,
+        None => Offer::Available,
+    }
+}
+
+fn offered_state(version: String, offer: &Offer) -> Option<State> {
+    match offer {
+        Offer::Nothing => None,
+        Offer::NotCovered(updates_until) => Some(State::NotCovered {
+            version,
+            updates_until: updates_until.clone(),
+        }),
+        Offer::Available | Offer::AutoDownload => Some(State::Available { version }),
+    }
 }
 
 /// The version the user chose to skip, kept in the app data folder: it holds back the prompt for
@@ -402,7 +434,7 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
                     code: "E_UPDATE_UNAVAILABLE".into(),
                 },
             )
-        } else if !may_check(&inner.state) {
+        } else if !may_check(&inner.state, manual) {
             if !manual {
                 return;
             }
@@ -445,36 +477,22 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
             let released = update.date.map(|date| utc_date(date.unix_timestamp()));
             let until = uncovered_until_for(&app, released).await;
             let skipped = updates.skipped.holds_back(&version);
-            if let Some(updates_until) = until {
-                if skipped && !manual {
-                    log::info!("I_UPDATE_SKIPPED {version}");
-                    change(&app, nothing_found(false));
-                    return;
-                }
-                log::info!("I_UPDATE_NOT_COVERED {version}");
-                let status = {
-                    let mut inner = updates.lock();
-                    inner.found = Some(Arc::new(update));
-                    updates.set(
-                        &mut inner,
-                        State::NotCovered {
-                            version,
-                            updates_until,
-                        },
-                    )
-                };
-                publish(&app, &status);
+            let offer = decide(until, skipped, manual, auto_download(&app));
+            let Some(state) = offered_state(version.clone(), &offer) else {
+                log::info!("I_UPDATE_SKIPPED {version}");
+                change(&app, nothing_found(false));
                 return;
+            };
+            if matches!(offer, Offer::NotCovered(_)) {
+                log::info!("I_UPDATE_NOT_COVERED {version}");
             }
-            // With auto download on, the update goes straight to downloading
-            // (no window offers a Download button for it meanwhile).
-            let auto = auto_download(&app);
             let status = {
                 let mut inner = updates.lock();
                 inner.found = Some(Arc::new(update));
-                updates.set(&mut inner, State::Available { version })
+                updates.set(&mut inner, state)
             };
-            if auto {
+            // With auto download on, no window offers a Download button meanwhile.
+            if offer == Offer::AutoDownload {
                 download(app.clone(), asked_by, false).await;
             } else {
                 publish(&app, &status);
@@ -498,6 +516,47 @@ async fn uncovered_until_for(app: &AppHandle, released: Option<String>) -> Optio
     .await
     .ok()
     .flatten()
+}
+
+/// A new licence may cover an update that was held back, or end at another date: the offer is
+/// decided again with what was found.
+pub fn licence_changed(app: &AppHandle) {
+    if app.try_state::<Updates>().is_some() {
+        tauri::async_runtime::spawn(reoffer(app.clone()));
+    }
+}
+
+async fn reoffer(app: AppHandle) {
+    let updates = app.state::<Updates>();
+    let (version, update) = {
+        let inner = updates.lock();
+        match (&inner.state, &inner.found) {
+            (State::NotCovered { version, .. }, Some(update)) => {
+                (version.clone(), Arc::clone(update))
+            }
+            _ => return,
+        }
+    };
+    let released = update.date.map(|date| utc_date(date.unix_timestamp()));
+    let until = uncovered_until_for(&app, released).await;
+    let offer = decide(until, false, true, auto_download(&app));
+    let Some(state) = offered_state(version.clone(), &offer) else {
+        return;
+    };
+    let status = {
+        let mut inner = updates.lock();
+        let still_offered =
+            matches!(&inner.state, State::NotCovered { version: v, .. } if *v == version);
+        if !still_offered || inner.state == state {
+            return;
+        }
+        updates.set(&mut inner, state)
+    };
+    if offer == Offer::AutoDownload {
+        download(app, None, false).await;
+    } else {
+        publish(&app, &status);
+    }
 }
 
 /// `anyway`: the user chose Download Anyway for an update the licence does not cover. A
@@ -719,9 +778,9 @@ pub fn start(app: &AppHandle) {
                 if let Some(licence) = &licence
                     && due(last_revocations, SystemTime::now(), CHECK_EVERY)
                     && licence.wants_revocations()
+                    && licence::refresh_revocations(licence)
                 {
                     last_revocations = Some(SystemTime::now());
-                    licence::refresh_revocations(licence);
                 }
                 if updater && due_now(&app) {
                     tauri::async_runtime::block_on(check(app.clone(), None));
@@ -825,21 +884,37 @@ mod tests {
 
     #[test]
     fn no_check_starts_while_one_runs_downloads_or_waits_for_a_restart() {
-        assert!(may_check(&State::Idle));
-        assert!(may_check(&State::UpToDate));
-        assert!(may_check(&State::Failed { code: "E_X".into() }));
-        assert!(may_check(&State::Available {
-            version: "1.0.0".into()
-        }));
-        assert!(may_check(&notcovered("1.0.0")));
-        assert!(!may_check(&State::Checking));
-        assert!(!may_check(&State::Downloading {
-            version: "1.0.0".into(),
-            percent: None
-        }));
-        assert!(!may_check(&State::Ready {
-            version: "1.0.0".into()
-        }));
+        for manual in [false, true] {
+            assert!(may_check(&State::Idle, manual));
+            assert!(may_check(&State::UpToDate, manual));
+            assert!(may_check(&State::Failed { code: "E_X".into() }, manual));
+            assert!(may_check(
+                &State::Available {
+                    version: "1.0.0".into()
+                },
+                manual
+            ));
+            assert!(!may_check(&State::Checking, manual));
+            assert!(!may_check(
+                &State::Downloading {
+                    version: "1.0.0".into(),
+                    percent: None
+                },
+                manual
+            ));
+            assert!(!may_check(
+                &State::Ready {
+                    version: "1.0.0".into()
+                },
+                manual
+            ));
+        }
+    }
+
+    #[test]
+    fn only_the_users_own_check_replaces_an_offer_the_licence_does_not_cover() {
+        assert!(!may_check(&notcovered("1.0.0"), false));
+        assert!(may_check(&notcovered("1.0.0"), true));
     }
 
     #[test]
@@ -852,8 +927,8 @@ mod tests {
             limit,
         ));
         assert_eq!(hung, None);
-        assert!(may_check(&failed(true, "E_UPDATE_CHECK_FAILED")));
-        assert!(may_check(&failed(false, "E_UPDATE_CHECK_FAILED")));
+        assert!(may_check(&failed(true, "E_UPDATE_CHECK_FAILED"), false));
+        assert!(may_check(&failed(false, "E_UPDATE_CHECK_FAILED"), false));
     }
 
     #[test]
@@ -1059,9 +1134,7 @@ mod tests {
             uncovered_until(&valid("2027-10-24"), Some("2027-10-25")).as_deref(),
             Some("2027-10-24")
         );
-        // An update with no date is covered.
         assert_eq!(uncovered_until(&valid("2027-10-24"), None), None);
-        // Everyone else sees what they saw before.
         for state in [
             LicenceState::None,
             LicenceState::UpdatesEnded,
@@ -1078,6 +1151,47 @@ mod tests {
         }
         let ungated = snapshot(LicenceState::Valid, false, Some("2027-10-24"));
         assert_eq!(uncovered_until(&ungated, Some("2030-01-01")), None);
+    }
+
+    #[test]
+    fn a_background_check_never_downloads_what_the_licence_does_not_cover() {
+        let until = || Some("2027-10-24".to_owned());
+        let not_covered = Offer::NotCovered("2027-10-24".into());
+        for auto in [false, true] {
+            for manual in [false, true] {
+                assert_eq!(decide(until(), false, manual, auto), not_covered);
+            }
+        }
+        assert_eq!(decide(None, false, false, true), Offer::AutoDownload);
+        assert_eq!(decide(None, false, false, false), Offer::Available);
+    }
+
+    #[test]
+    fn a_skipped_version_stays_quiet_until_the_user_checks_or_the_licence_covers_it() {
+        let until = || Some("2027-10-24".to_owned());
+        assert_eq!(decide(until(), true, false, true), Offer::Nothing);
+        assert_eq!(decide(until(), true, false, false), Offer::Nothing);
+        assert_eq!(
+            decide(until(), true, true, true),
+            Offer::NotCovered("2027-10-24".into())
+        );
+        assert_eq!(decide(None, true, false, true), Offer::AutoDownload);
+        assert_eq!(decide(None, true, false, false), Offer::Available);
+    }
+
+    #[test]
+    fn an_offer_becomes_the_state_the_window_shows() {
+        let covered = |offer| offered_state("1.2.0".into(), &offer);
+        assert_eq!(covered(Offer::Nothing), None);
+        assert_eq!(
+            covered(Offer::NotCovered("2027-10-24".into())),
+            Some(notcovered("1.2.0"))
+        );
+        let available = Some(State::Available {
+            version: "1.2.0".into(),
+        });
+        assert_eq!(covered(Offer::Available), available);
+        assert_eq!(covered(Offer::AutoDownload), available);
     }
 
     #[test]
@@ -1101,9 +1215,7 @@ mod tests {
         assert!(!skipped.holds_back("1.2.0"));
         skipped.remember("1.2.0").unwrap();
         assert!(skipped.holds_back("1.2.0"));
-        // Kept across launches: a new reader finds it.
         assert!(Skipped::new(dir.path()).holds_back("1.2.0"));
-        // A later version is offered, and the skip is gone for good.
         assert!(!skipped.holds_back("1.3.0"));
         assert!(!skipped.holds_back("1.2.0"));
         assert!(!dir.path().join(SKIPPED_FILE).exists());
@@ -1141,7 +1253,6 @@ mod tests {
         assert_eq!(status.state, State::Idle);
         assert_eq!(updates.status().state, State::Idle);
         assert!(updates.skipped.holds_back("1.2.0"));
-        // Nothing is offered now, so a second skip has nothing to skip.
         assert_eq!(skip(&updates).err(), Some("E_UPDATE_NOT_OFFERED"));
     }
 

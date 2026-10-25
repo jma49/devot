@@ -55,11 +55,19 @@ pub(crate) fn refresh(
 }
 
 /// What the daily schedule runs: the list from the licence pages, over the system TLS stack and
-/// the proxy settings the web client reads from the environment.
-pub(crate) fn refresh_from_site(licence: &Licence) {
-    match refresh(licence, SITE, &net::get) {
-        Ok(_) => {}
-        Err(code) => log::warn!("W_LICENCE_REVOCATIONS_FETCH_FAILED {code}"),
+/// the proxy settings the web client reads from the environment. `false` when the fetch failed,
+/// so the schedule tries again soon instead of waiting a day.
+pub(crate) fn refresh_from_site(licence: &Licence) -> bool {
+    succeeded(refresh(licence, SITE, &net::get))
+}
+
+fn succeeded(result: Result<bool, &'static str>) -> bool {
+    match result {
+        Ok(_) => true,
+        Err(code) => {
+            log::warn!("W_LICENCE_REVOCATIONS_FETCH_FAILED {code}");
+            false
+        }
     }
 }
 
@@ -74,6 +82,13 @@ mod tests {
 
     use super::super::testing::{ID, key, licence, sign};
     use super::*;
+
+    #[test]
+    fn only_a_failed_fetch_is_tried_again_before_the_day_is_out() {
+        assert!(succeeded(Ok(true)));
+        assert!(succeeded(Ok(false)));
+        assert!(!succeeded(Err("E_LICENCE_REVOCATIONS_STATUS")));
+    }
 
     fn list(issued_at: &str, ids: &[&str]) -> String {
         sign(

@@ -319,6 +319,7 @@ fn licence_emitter(app: tauri::AppHandle) -> licence::Emit {
         if app.emit(licence::CHANGED_EVENT, snapshot).is_err() {
             log::warn!("W_LICENCE_EMIT_FAILED");
         }
+        updates::licence_changed(&app);
     })
 }
 
