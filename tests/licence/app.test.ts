@@ -60,7 +60,6 @@ async function build() {
     config: {
       managedPayments,
       priceLicence: 'price_licence',
-      priceRenewal: 'price_renewal',
       cancelUrl: undefined,
       webhookSecret: WEBHOOK_SECRET,
     },
@@ -102,9 +101,9 @@ const resend = (email: string, ip = '203.0.113.1') =>
     }),
   )
 
-/** /buy (or /renew), then the buyer pays: the session as Stripe has it afterwards. */
-async function buy(email: string, path = '/buy') {
-  const response = await get(path)
+/** /buy, then the buyer pays: the session as Stripe has it afterwards. */
+async function buy(email: string) {
+  const response = await get('/buy')
   expect(response.status).toBe(303)
   const sessionId = response.headers.get('Location')?.split('/').pop() ?? ''
   return stripe.pay(sessionId, email)
@@ -156,13 +155,16 @@ describe('buying', () => {
     expect(mail?.to).toBe('buyer@example.com')
     expect(mail?.idempotencyKey).toBe(`issued/${session.id}`)
     const [key] = keysIn(mail?.text ?? '')
-    expect(await payload(key ?? '')).toMatchObject({
+    const licence = await payload(key ?? '')
+    expect(Object.keys(licence)).toEqual(['id', 'kid', 'plan', 'licensee', 'issuedAt'])
+    expect(licence).toMatchObject({
       kid: 'test',
       plan: 'pro',
       licensee: 'buyer@example.com',
       issuedAt: '2026-10-24T09:30:00Z',
-      updatesUntil: '2027-10-24',
     })
+    expect(mail?.subject).toBe('Your Devot licence')
+    expect(mail?.text).toContain('It unlocks sync and AI in every version of Devot')
     expect(mail?.text).toContain(`devot://licence?key=${encodeURIComponent(key ?? '')}`)
     expect(mail?.html).toContain(`href="devot://licence?key=${encodeURIComponent(key ?? '')}"`)
   })
@@ -177,11 +179,13 @@ describe('buying', () => {
   })
 
   it('leaves alone a session this Worker did not create', async () => {
-    const session = await buy('buyer@example.com')
-    const foreign = { ...session, metadata: {} }
-    stripe.sessions.set(session.id, foreign)
-    expect((await webhook('checkout.session.completed', rawSession(foreign))).status).toBe(200)
-    expect((await get(`/done?session_id=${session.id}`)).status).toBe(404)
+    for (const metadata of [{}, { kind: 'renewal', licence: 'AAAAAAAAAAAAAAAAAAAAAA' }]) {
+      const session = await buy('buyer@example.com')
+      const foreign = { ...session, metadata }
+      stripe.sessions.set(session.id, foreign)
+      expect((await webhook('checkout.session.completed', rawSession(foreign))).status).toBe(200)
+      expect((await get(`/done?session_id=${session.id}`)).status).toBe(404)
+    }
     expect(await licenceCount()).toBe(0)
     expect(mailer.sent).toEqual([])
   })
@@ -229,6 +233,7 @@ describe('/done', () => {
     expect((await payload(key ?? '')).licensee).toBe('buyer@example.com')
     expect(html).toContain(`href="devot://licence?key=${encodeURIComponent(key ?? '')}"`)
     expect(html).toContain('Open in Devot')
+    expect(html).toContain('It unlocks sync and AI in every version of Devot')
     await settle()
     expect(mailer.sent).toHaveLength(1)
     await webhook('checkout.session.completed', rawSession(session))
@@ -301,101 +306,6 @@ describe('/done', () => {
   })
 })
 
-describe('renewing', () => {
-  async function bought(email = 'buyer@example.com') {
-    await webhook('checkout.session.completed', rawSession(await buy(email)))
-    const key = keysIn(mailer.sent.at(-1)?.text ?? '')[0] ?? ''
-    return payload(key)
-  }
-
-  it('/renew refuses an unknown, malformed or revoked licence', async () => {
-    expect((await get('/renew?licence=AAAAAAAAAAAAAAAAAAAAAA')).status).toBe(404)
-    expect((await get('/renew?licence=nope')).status).toBe(404)
-    expect((await get('/renew')).status).toBe(404)
-    const session = await buy('buyer@example.com')
-    await webhook('checkout.session.completed', rawSession(session))
-    const { id } = await payload(keysIn(mailer.sent[0]?.text ?? '')[0] ?? '')
-    await webhook('charge.refunded', {
-      object: 'charge',
-      refunded: true,
-      payment_intent: session.paymentIntent,
-    })
-    const response = await get(`/renew?licence=${id}`)
-    expect(response.status).toBe(410)
-    expect(await response.text()).toContain('E_LICENCE_REVOKED')
-    expect(stripe.created).toHaveLength(1)
-  })
-
-  it('extends updates by a year, keeps the ID and mails the new key', async () => {
-    const first = await bought()
-    clock = new Date('2027-06-01T12:00:00Z')
-    const renewal = await buy('buyer@example.com', `/renew?licence=${first.id}`)
-    expect(stripe.created.at(-1)).toMatchObject({
-      'line_items[0][price]': 'price_renewal',
-      'metadata[kind]': 'renewal',
-      'metadata[licence]': first.id,
-    })
-    await webhook('checkout.session.completed', rawSession(renewal))
-    await webhook('checkout.session.completed', rawSession(renewal))
-    expect(mailer.sent).toHaveLength(2)
-    expect(mailer.sent[1]?.subject).toBe('Your renewed Devot licence')
-    expect(mailer.sent[1]?.idempotencyKey).toBe(`renewed/${renewal.id}`)
-    const renewed = await payload(keysIn(mailer.sent[1]?.text ?? '')[0] ?? '')
-    expect(renewed).toEqual({ ...first, updatesUntil: '2028-10-24' })
-    const html = await (await get(`/done?session_id=${renewal.id}`)).text()
-    expect(html).toContain('Your Devot licence is renewed')
-    expect(keysIn(html)[0]).toBe(keysIn(mailer.sent[1]?.text ?? '')[0])
-  })
-
-  it('records but does not extend or mail a renewal paid after the licence was revoked', async () => {
-    const session = await buy('buyer@example.com')
-    await webhook('checkout.session.completed', rawSession(session))
-    const first = await payload(keysIn(mailer.sent[0]?.text ?? '')[0] ?? '')
-    const renewal = await buy('buyer@example.com', `/renew?licence=${first.id}`)
-    await webhook('charge.refunded', {
-      object: 'charge',
-      refunded: true,
-      payment_intent: session.paymentIntent,
-    })
-    expect((await webhook('checkout.session.completed', rawSession(renewal))).status).toBe(200)
-    expect(mailer.sent).toHaveLength(1)
-    expect(logs).toContain(`E_LICENCE_REVOKED ${first.id} ${renewal.id}`)
-    expect((await get(`/done?session_id=${renewal.id}`)).status).toBe(410)
-  })
-
-  it("renews for the renewal's address when the first customer was deleted", async () => {
-    const session = await buy('buyer@example.com')
-    await webhook('checkout.session.completed', rawSession(session))
-    const first = await payload(keysIn(mailer.sent[0]?.text ?? '')[0] ?? '')
-    stripe.customers.delete(session.customer ?? '')
-    const renewal = await buy('new@example.com', `/renew?licence=${first.id}`)
-    expect((await webhook('checkout.session.completed', rawSession(renewal))).status).toBe(200)
-    const renewed = await payload(keysIn(mailer.sent[1]?.text ?? '')[0] ?? '')
-    expect(renewed).toMatchObject({ id: first.id, licensee: 'new@example.com' })
-    expect(mailer.sent[1]?.to).toBe('new@example.com')
-    expect((await get(`/done?session_id=${renewal.id}`)).status).toBe(200)
-    mailer.sent.length = 0
-    await resend('new@example.com')
-    await settle()
-    expect((await payload(keysIn(mailer.sent[0]?.text ?? '')[0] ?? '')).licensee).toBe(
-      'new@example.com',
-    )
-  })
-
-  it('counts a late renewal from the day it is paid', async () => {
-    const first = await bought()
-    clock = new Date('2029-01-15T08:00:00Z')
-    await webhook(
-      'checkout.session.completed',
-      rawSession(await buy('x@example.com', `/renew?licence=${first.id}`)),
-    )
-    const renewed = await payload(keysIn(mailer.sent[1]?.text ?? '')[0] ?? '')
-    expect(renewed.updatesUntil).toBe('2030-01-15')
-    expect(renewed.licensee).toBe('buyer@example.com')
-    expect(mailer.sent[1]?.to).toBe('x@example.com')
-  })
-})
-
 describe('revocation', () => {
   async function issued(email = 'buyer@example.com') {
     const session = await buy(email)
@@ -439,18 +349,6 @@ describe('revocation', () => {
       payment_intent: b.session.paymentIntent,
     })
     expect(await revokedIds()).toEqual([b.licence.id])
-  })
-
-  it('a refunded renewal leaves the licence alone', async () => {
-    const { licence } = await issued()
-    const renewal = await buy('buyer@example.com', `/renew?licence=${licence.id}`)
-    await webhook('checkout.session.completed', rawSession(renewal))
-    await webhook('charge.refunded', {
-      object: 'charge',
-      refunded: true,
-      payment_intent: { id: renewal.paymentIntent, object: 'payment_intent' },
-    })
-    expect(await revokedIds()).toEqual([])
   })
 
   it('a refund that arrives before the purchase is recorded issues the licence revoked', async () => {
@@ -544,6 +442,9 @@ describe('/resend', () => {
 it('answers unknown paths and methods with their codes', async () => {
   expect((await get('/nothing')).status).toBe(404)
   expect((await get('/__proto__')).status).toBe(404)
+  const renew = await get('/renew?licence=AAAAAAAAAAAAAAAAAAAAAA')
+  expect(renew.status).toBe(404)
+  expect(await renew.text()).toContain('E_LICENCE_NOT_FOUND')
   expect((await get('/stripe/webhook')).status).toBe(405)
   const post = await app(new Request(`${ORIGIN}/buy`, { method: 'POST' }))
   expect(post.status).toBe(405)

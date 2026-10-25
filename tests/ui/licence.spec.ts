@@ -19,17 +19,15 @@ const none = (gated = true): Licence => ({
   code: null,
   id: null,
   licensee: null,
-  updatesUntil: null,
   plan: null,
 })
 
-const held = (state: string, id = ID, updatesUntil = '2027-10-24'): Licence => ({
+const held = (state: string, id = ID): Licence => ({
   gated: true,
   state,
   code: null,
   id,
   licensee: 'buyer@example.com',
-  updatesUntil,
   plan: 'pro',
 })
 
@@ -48,7 +46,7 @@ async function fakeRust(page: Page, initial: Licence, added: Licence = held('val
           return licence
         },
         licence_remove: () => {
-          licence = { ...licence, state: 'none', id: null, licensee: null, updatesUntil: null }
+          licence = { ...licence, state: 'none', id: null, licensee: null }
           return licence
         },
         open_external: () => null,
@@ -88,9 +86,9 @@ test.describe('Settings > Licence', () => {
     await expect(panel).toContainText('Sync and AI are unlocked on this device.')
     await expect(panel).toContainText('buyer@example.com')
     await expect(panel).toContainText(ID)
-    await expect(panel).toContainText('October 24, 2027')
+    await expect(panel).not.toContainText('Updates Until')
     await expect(panel.getByRole('button', { name: 'Replace Licence' })).toBeVisible()
-    await expect(panel.getByRole('button', { name: /^(Buy a Licence|Renew)$/ })).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: 'Buy a Licence' })).toHaveCount(0)
 
     await remove.click()
     const dialog = page.getByRole('dialog', { name: 'Remove the licence from this device?' })
@@ -116,9 +114,7 @@ test.describe('Settings > Licence', () => {
     await expect(panel.getByRole('textbox', { name: 'Licence Key' })).toHaveValue(BAD_KEY)
   })
 
-  test('opens the Buy page, and Renew for a licence that ended before this version', async ({
-    page,
-  }) => {
+  test('opens the Buy page, also for a revoked licence', async ({ page }) => {
     await fakeRust(page, none())
     await openSettings(page, 'Licence')
     const panel = page.getByRole('tabpanel')
@@ -127,15 +123,14 @@ test.describe('Settings > Licence', () => {
       { url: 'https://licence.devot.online/buy' },
     ])
 
-    await fakeRust(page, held('updatesEnded', ID, '2026-01-31'))
+    await fakeRust(page, held('revoked'))
     await page.reload()
     await page.getByRole('tab', { name: 'Licence', exact: true }).click()
-    await expect(panel).toContainText(
-      'This licence covers versions released until January 31, 2026. This version came out later',
-    )
-    await panel.getByRole('button', { name: 'Renew' }).click()
+    await expect(panel).toContainText('This licence was revoked after a refund or a lost dispute')
+    await expect(panel.getByRole('button', { name: 'Renew' })).toHaveCount(0)
+    await panel.getByRole('button', { name: 'Buy a Licence' }).click()
     expect(await calls(page, 'open_external')).toEqual([
-      { url: `https://licence.devot.online/renew?licence=${ID}` },
+      { url: 'https://licence.devot.online/buy' },
     ])
   })
 
@@ -251,12 +246,7 @@ test.describe('locked sync and AI', () => {
 })
 
 test.describe('devot://licence links', () => {
-  const offer = (id = ID, updatesUntil = '2027-10-24', licensee = 'buyer@example.com') => ({
-    id,
-    licensee,
-    updatesUntil,
-    state: 'valid',
-  })
+  const offer = (id = ID, licensee = 'buyer@example.com') => ({ id, licensee, state: 'valid' })
 
   async function open(page: Page) {
     await openApp(page)
@@ -294,17 +284,17 @@ test.describe('devot://licence links', () => {
   })
 
   test('asks before it replaces another licence, and Cancel keeps it', async ({ page }) => {
-    await fakeRust(page, held('valid', OTHER_ID, '2027-01-01'))
+    await fakeRust(page, held('valid', OTHER_ID))
     await open(page)
     await sendLink(page, {
       kind: 'licence',
       key: OTHER_KEY,
-      offer: offer(ID, '2027-10-24', 'someone@example.com'),
+      offer: offer(ID, 'someone@example.com'),
       code: null,
     })
     const dialog = page.getByRole('dialog', { name: 'Replace the licence on this device?' })
     await expect(dialog).toContainText(
-      'This device holds the licence for buyer@example.com, with updates until January 1, 2027. The key in the link is for someone@example.com, with updates until October 24, 2027.',
+      `This device holds the licence for buyer@example.com (${OTHER_ID}). The key in the link is for someone@example.com (${ID}).`,
     )
     await dialog.getByRole('button', { name: 'Cancel' }).click()
     await expect(dialog).toBeHidden()
@@ -314,23 +304,11 @@ test.describe('devot://licence links', () => {
     await sendLink(page, {
       kind: 'licence',
       key: `${OTHER_KEY}2`,
-      offer: offer(ID, '2027-10-24', 'someone@example.com'),
+      offer: offer(ID, 'someone@example.com'),
       code: null,
     })
     await dialog.getByRole('button', { name: 'Replace' }).click()
     expect(await calls(page, 'licence_set')).toEqual([{ key: `${OTHER_KEY}2` }])
-  })
-
-  test('says when the key is the same licence renewed', async ({ page }) => {
-    await fakeRust(page, held('updatesEnded', ID, '2026-01-31'))
-    await open(page)
-    await sendLink(page, { kind: 'licence', key: KEY, offer: offer(ID, '2027-01-31'), code: null })
-    const dialog = page.getByRole('dialog', { name: 'Add the renewed licence?' })
-    await expect(dialog).toContainText(
-      `The key in the link is the licence this device holds (${ID}), renewed: updates until January 31, 2027 instead of January 31, 2026.`,
-    )
-    await dialog.getByRole('button', { name: 'Replace' }).click()
-    expect(await calls(page, 'licence_set')).toEqual([{ key: KEY }])
   })
 
   test('changes nothing for the licence the device holds already', async ({ page }) => {

@@ -129,7 +129,7 @@ describe('Tauri command permissions', () => {
       'allow-mirror-confirm',
       'allow-mirror-get',
       'allow-mirror-set',
-      // Settings > Licence opens the Buy and Renew pages in the browser.
+      // Settings > Licence opens the Buy page in the browser.
       'allow-open-external',
       // Settings > Plugins installs plugins after the user approves their permissions, turns them on and off and removes them.
       'allow-plugin-install-cancel',
@@ -337,11 +337,11 @@ describe('Tauri command permissions', () => {
     expect(windowsWith('allow-font-read')).toEqual(['main', 'note-*', 'settings'])
   })
 
-  it('lets both windows check for updates, and only the main window download, skip and restart', () => {
+  it('lets both windows check for updates, and only the main window download and restart', () => {
     for (const command of ['status', 'check']) {
       expect(windowsWith(`allow-update-${command}`)).toEqual(['main', 'settings'])
     }
-    for (const command of ['download', 'skip', 'restart']) {
+    for (const command of ['download', 'restart']) {
       expect(windowsWith(`allow-update-${command}`)).toEqual(['main'])
     }
   })

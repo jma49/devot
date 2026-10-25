@@ -110,7 +110,7 @@ mod tests {
     fn held() -> (tempfile::TempDir, std::sync::Arc<Licence>) {
         let dir = tempfile::tempdir().expect("temp dir");
         let licence = licence(dir.path(), true);
-        licence.set(&key(ID, "2027-10-24")).expect("set");
+        licence.set(&key(ID)).expect("set");
         (dir, licence)
     }
 
@@ -219,10 +219,7 @@ mod tests {
             (http("404 Not Found", ""), "E_LICENCE_REVOCATIONS_STATUS"),
             (http("200 OK", &tampered), "E_LICENCE_SIGNATURE"),
             (http("200 OK", "not a list"), "E_LICENCE_MALFORMED"),
-            (
-                http("200 OK", &key(ID, "2027-10-24")),
-                "E_LICENCE_MALFORMED",
-            ),
+            (http("200 OK", &key(ID)), "E_LICENCE_MALFORMED"),
         ];
         for (answer, code) in cases {
             let (site, _) = serve(vec![answer]);
@@ -271,7 +268,7 @@ mod tests {
 
         let dir = tempfile::tempdir().expect("temp dir");
         let ungated = licence(dir.path(), false);
-        ungated.set(&key(ID, "2027-10-24")).expect("set");
+        ungated.set(&key(ID)).expect("set");
         assert_eq!(refresh(&ungated, SITE, &get), Ok(false));
 
         let dir = tempfile::tempdir().expect("temp dir");

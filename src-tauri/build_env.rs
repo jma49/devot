@@ -21,9 +21,6 @@ pub fn sentry_dsn(text: &str) -> Option<String> {
         .filter(|value| value.starts_with("https://") && !value.contains(char::is_whitespace))
 }
 
-/// The release workflow sets it (YYYY-MM-DD, UTC); `licence::keys` reads it with `option_env!`.
-pub const RELEASE_DATE_KEY: &str = "DEVOT_RELEASE_DATE";
-
 /// What the build script tells Cargo to watch for the DSN: the environment
 /// variable, and `.env.local` while it exists. A missing file is never
 /// listed, and neither is the folder it would be created in: Cargo treats a
@@ -42,7 +39,7 @@ pub fn watch_lines(env_file: &str, exists: bool) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{RELEASE_DATE_KEY, sentry_dsn, watch_lines};
+    use super::{sentry_dsn, watch_lines};
 
     const DSN: &str = "https://key@o1.ingest.us.sentry.io/2";
 
@@ -65,13 +62,6 @@ mod tests {
         assert_eq!(sentry_dsn("DEVOT_SENTRY_DSN="), None);
         assert_eq!(sentry_dsn("DEVOT_SENTRY_DSN=http://key@host/1"), None);
         assert_eq!(sentry_dsn(""), None);
-    }
-
-    #[test]
-    fn the_release_date_is_read_from_the_variable_the_workflow_sets() {
-        assert_eq!(RELEASE_DATE_KEY, "DEVOT_RELEASE_DATE");
-        let workflow = include_str!("../.github/workflows/release.yml");
-        assert!(workflow.contains(&format!("{RELEASE_DATE_KEY}: ")));
     }
 
     #[test]

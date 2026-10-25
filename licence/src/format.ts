@@ -13,7 +13,6 @@ export interface LicencePayload {
   plan: typeof PLAN
   licensee: string
   issuedAt: string
-  updatesUntil: string
 }
 
 export interface RevocationsPayload {
@@ -32,7 +31,6 @@ export interface Signer {
 }
 
 export const LICENCE_ID = /^[A-Za-z0-9_-]{22}$/
-const DATE = /^\d{4}-\d{2}-\d{2}$/
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/
 const BASE64URL = /^[A-Za-z0-9_-]+$/
 const MAX_LENGTH = 1024
@@ -97,7 +95,6 @@ export function signLicence(
     plan: PLAN,
     licensee: fields.licensee,
     issuedAt: fields.issuedAt,
-    updatesUntil: fields.updatesUntil,
   }
   return signEnvelope(LICENCE_PREFIX, signer, payload)
 }
@@ -120,7 +117,10 @@ async function signEnvelope(prefix: string, signer: Signer, payload: object): Pr
   return `${signed}.${toBase64Url(signature)}`
 }
 
-/** Checks a key against the public keys by `kid`; the reference for the app's own check. */
+/**
+ * Checks a key against the public keys by `kid`; the reference for the app's own check. Fields it
+ * does not know are kept in the payload and otherwise ignored.
+ */
 export function verifyLicence(
   key: string,
   publicKeys: Readonly<Record<string, Uint8Array>>,
@@ -178,9 +178,7 @@ function isLicencePayload(value: unknown): value is LicencePayload {
     typeof value['licensee'] === 'string' &&
     value['licensee'].length > 0 &&
     typeof value['issuedAt'] === 'string' &&
-    INSTANT.test(value['issuedAt']) &&
-    typeof value['updatesUntil'] === 'string' &&
-    DATE.test(value['updatesUntil'])
+    INSTANT.test(value['issuedAt'])
   )
 }
 

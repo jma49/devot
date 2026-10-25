@@ -331,9 +331,7 @@ fn a_gated_build_creates_no_vault_and_connects_no_device_without_a_licence() {
         Some("E_LICENCE_REQUIRED")
     );
     assert!(secrets.0.lock().unwrap().is_empty());
-    licence
-        .set(&testing::key(testing::ID, "2099-01-01"))
-        .unwrap();
+    licence.set(&testing::key(testing::ID)).unwrap();
     assert!(service.create_vault(SECRET).unwrap().enrolled);
     assert!(service.connect().is_ok());
     // A device that already syncs stops at its next connect.

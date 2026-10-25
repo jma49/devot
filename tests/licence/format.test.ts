@@ -73,7 +73,8 @@ describe('the shared test vectors', () => {
       ok: false,
       code: revocations.licenceAsList.code,
     })
-    expect(revocations.payload.ids).toContain(vectors.licences[2]?.payload.id)
+    const unicode = vectors.licences.find((l) => l.name === 'non-ASCII licensee')
+    expect(revocations.payload.ids).toContain(unicode?.payload.id)
   })
 })
 
@@ -84,7 +85,6 @@ describe('licence keys', () => {
       id: newLicenceId(),
       licensee: 'someone.with.a.longer.name@example.com',
       issuedAt: instant(new Date('2026-10-24T10:00:00.123Z')),
-      updatesUntil: '2027-10-24',
     })
     expect(key.length).toBeLessThan(360)
     expect(key).toMatch(/^devot1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{86}$/)
@@ -109,7 +109,6 @@ describe('licence keys', () => {
       id: 'short',
       licensee: 'a@example.com',
       issuedAt: '2026-10-24T09:30:00Z',
-      updatesUntil: '2027-10-24',
     })
     expect(await verifyLicence(signed, publicKeys)).toEqual({
       ok: false,
@@ -140,7 +139,6 @@ it('keygen prints a pair whose seed signs what its public key verifies', async (
     id: newLicenceId(),
     licensee: 'a@example.com',
     issuedAt: '2026-10-24T09:30:00Z',
-    updatesUntil: '2027-10-24',
   })
   const result = await verifyLicence(key, { new: fromBase64Url(pair.publicKey)! })
   expect(result.ok).toBe(true)

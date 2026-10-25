@@ -24,14 +24,15 @@ function decode(part: string): object {
   return JSON.parse(new TextDecoder().decode(fromBase64Url(part) ?? new Uint8Array()))
 }
 
-function asPayload(fields: {
-  id: string
-  licensee: string
-  issuedAt: string
-  updatesUntil: string
-}) {
-  const { id, licensee, issuedAt, updatesUntil } = fields
-  return { id, kid: 'test', plan: 'pro', licensee, issuedAt, updatesUntil }
+function asPayload(fields: { id: string; licensee: string; issuedAt: string }) {
+  const { id, licensee, issuedAt } = fields
+  return { id, kid: 'test', plan: 'pro', licensee, issuedAt }
+}
+
+/** Signs a payload as given, so a vector can carry fields `signLicence` never writes. */
+async function signPayload(signer: Signer, payload: object): Promise<string> {
+  const signed = `${LICENCE_PREFIX}.${toBase64Url(new TextEncoder().encode(JSON.stringify(payload)))}`
+  return `${signed}.${toBase64Url(await signer.sign(new TextEncoder().encode(signed)))}`
 }
 
 async function licenceId(label: string): Promise<string> {
@@ -50,20 +51,18 @@ export async function buildTestVectors() {
     id: first,
     licensee: 'buyer@example.com',
     issuedAt: '2026-10-24T09:30:00Z',
-    updatesUntil: '2027-10-24',
   }
-  const renewed = { ...bought, updatesUntil: '2028-10-24' }
   const unicode = {
     id: second,
     licensee: 'jörg.müller@example.com',
     issuedAt: '2026-02-28T23:59:59Z',
-    updatesUntil: '2027-02-28',
   }
+  const later = { ...asPayload(bought), seats: 3 }
   const valid = await signLicence(signer, bought)
   const [, payload, signature] = valid.split('.')
   const tamperedPayload = toBase64Url(
     new TextEncoder().encode(
-      JSON.stringify({ ...decode(payload ?? ''), updatesUntil: '2099-12-31' }),
+      JSON.stringify({ ...decode(payload ?? ''), licensee: 'someone.else@example.com' }),
     ),
   )
   const revocations = { issuedAt: '2026-11-01T00:00:00Z', ids: [second] }
@@ -82,14 +81,14 @@ export async function buildTestVectors() {
     licences: [
       { name: 'bought', key: valid, payload: asPayload(bought) },
       {
-        name: 'renewed',
-        key: await signLicence(signer, renewed),
-        payload: asPayload(renewed),
-      },
-      {
         name: 'non-ASCII licensee',
         key: await signLicence(signer, unicode),
         payload: asPayload(unicode),
+      },
+      {
+        name: 'a field this version does not know',
+        key: await signPayload(signer, later),
+        payload: later,
       },
     ],
     invalid: [

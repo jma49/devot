@@ -11,7 +11,7 @@ import { UUID_V7 } from '../../core/ids'
 import { sheetOpen } from './commands/dispatch'
 import type { CommandId } from './commands/registry'
 import { invoke } from './ipc'
-import { isLicenceDate, isLicenceId, isLicenceState } from './licence'
+import { isLicenceId, isLicenceState } from './licence'
 import type { LicenceOffer } from './licenceView'
 import { listenHere } from './windowEvents'
 
@@ -88,10 +88,10 @@ const CODE = /^E_[A-Z0-9_]+$/
 
 function readOffer(value: unknown): LicenceOffer | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const { id, licensee, updatesUntil, state } = value as Record<string, unknown>
-  if (!isLicenceId(id) || !isLicenceDate(updatesUntil) || !isLicenceState(state)) return undefined
+  const { id, licensee, state } = value as Record<string, unknown>
+  if (!isLicenceId(id) || !isLicenceState(state)) return undefined
   if (typeof licensee !== 'string' || licensee === '') return undefined
-  return { id, licensee, updatesUntil, state }
+  return { id, licensee, state }
 }
 
 function readLicenceLink(value: Record<string, unknown>): DeepLink | undefined {

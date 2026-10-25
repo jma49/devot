@@ -7,8 +7,6 @@ import {
   channelOf,
   compareVersions,
   feedChannels,
-  parseReleasedAt,
-  releaseMoment,
   replacesFeed,
   scryptParams,
   signedVersion,
@@ -160,10 +158,7 @@ describe('update feed', () => {
       notes: '- #166 Automatic updates',
       pub_date: '2026-10-18T09:00:00.000Z',
       platforms: {
-        'darwin-aarch64': {
-          signature: 'dW50cnVzdGVkIGNvbW1lbnQ6',
-          url: input.url,
-        },
+        'darwin-aarch64': { signature: 'dW50cnVzdGVkIGNvbW1lbnQ6', url: input.url },
       },
     })
   })
@@ -194,7 +189,6 @@ describe('update feed', () => {
         sig,
         notes,
         out,
-        '2026-10-18T23:59:58Z',
       ],
       { encoding: 'utf8' },
     )
@@ -202,73 +196,14 @@ describe('update feed', () => {
     expect(run.status).toBe(0)
     const feed = JSON.parse(readFileSync(out, 'utf8')) as ReturnType<typeof updateFeed>
     expect(feed.version).toBe('0.9.1-beta2')
-    expect(feed.pub_date).toBe('2026-10-18T23:59:58.000Z')
     expect(feed.platforms['darwin-aarch64'].url).toBe(input.url)
     const bad = spawnSync(
       process.execPath,
-      [
-        join(root, 'scripts/release/release.ts'),
-        'feed',
-        'v0.3',
-        input.url,
-        sig,
-        notes,
-        out,
-        '2026-10-18T23:59:58Z',
-      ],
+      [join(root, 'scripts/release/release.ts'), 'feed', 'v0.3', input.url, sig, notes, out],
       { encoding: 'utf8' },
     )
     expect(bad.status).toBe(1)
     expect(bad.stderr).toContain('E_RELEASE_TAG_INVALID')
-  })
-
-  it('takes the feed date from the release moment, and refuses any other shape', () => {
-    expect(parseReleasedAt('2026-10-18T09:00:00Z').toISOString()).toBe('2026-10-18T09:00:00.000Z')
-    for (const text of [
-      '',
-      '2026-10-18',
-      '2026-10-18T09:00:00.000Z',
-      '2026-10-18T09:00:00+02:00',
-      '2026-13-18T09:00:00Z',
-      '2026-02-30T09:00:00Z',
-      ' 2026-10-18T09:00:00Z',
-    ]) {
-      expect(() => parseReleasedAt(text)).toThrow('E_RELEASE_DATE_INVALID')
-    }
-  })
-})
-
-describe('the release moment', () => {
-  it('gives the UTC date and the moment from one instant', () => {
-    expect(releaseMoment(new Date('2026-10-18T23:59:58.999Z'))).toEqual({
-      releasedAt: '2026-10-18T23:59:58Z',
-      releaseDate: '2026-10-18',
-    })
-    expect(releaseMoment(new Date('2026-12-31T23:30:00-05:00'))).toEqual({
-      releasedAt: '2027-01-01T04:30:00Z',
-      releaseDate: '2027-01-01',
-    })
-  })
-
-  it("prints both lines for $GITHUB_OUTPUT, with the date being the moment's date", () => {
-    const run = spawnSync(
-      process.execPath,
-      [join(root, 'scripts/release/release.ts'), 'release-date'],
-      {
-        encoding: 'utf8',
-      },
-    )
-    expect(run.status).toBe(0)
-    const lines = Object.fromEntries(
-      run.stdout
-        .trim()
-        .split('\n')
-        .map((line) => line.split('=') as [string, string]),
-    )
-    expect(Object.keys(lines)).toEqual(['released_at', 'release_date'])
-    expect(parseReleasedAt(lines['released_at']!).toISOString().slice(0, 10)).toBe(
-      lines['release_date'],
-    )
   })
 })
 

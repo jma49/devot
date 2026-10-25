@@ -1,13 +1,6 @@
-import { type CheckoutConfig, checkoutParams, type Purchase } from './checkout.ts'
+import { type CheckoutConfig, checkoutParams, LICENCE_KIND } from './checkout.ts'
 import { type LicenceCode, LicenceError } from './errors.ts'
-import {
-  instant,
-  LICENCE_ID,
-  newLicenceId,
-  type Signer,
-  signLicence,
-  signRevocations,
-} from './format.ts'
+import { instant, newLicenceId, type Signer, signLicence, signRevocations } from './format.ts'
 import { licenceMail, type Mailer } from './mail.ts'
 import { donePage, errorPage, pendingPage, resendPage, resentPage } from './pages.ts'
 import type { Fulfilled, Licence, Store } from './store.ts'
@@ -55,7 +48,6 @@ const STATUS: Partial<Record<LicenceCode, number>> = {
   E_LICENCE_SESSION_UNKNOWN: 404,
   E_LICENCE_STRIPE: 502,
   E_LICENCE_TOO_LARGE: 413,
-  E_LICENCE_UNKNOWN: 404,
   E_LICENCE_WEBHOOK_SIGNATURE: 400,
 }
 
@@ -71,49 +63,21 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     return code
   }
 
-  async function checkout(origin: string, purchase: Purchase): Promise<Response> {
-    const session = await stripe.createCheckoutSession(checkoutParams(config, origin, purchase))
+  async function checkout(origin: string): Promise<Response> {
+    const session = await stripe.createCheckoutSession(checkoutParams(config, origin))
     return new Response(null, { status: 303, headers: { Location: session.url } })
   }
 
-  async function renew(url: URL): Promise<Response> {
-    const id = url.searchParams.get('licence') ?? ''
-    const licence = LICENCE_ID.test(id) ? await store.licence(id) : null
-    if (!licence) return errorPage('E_LICENCE_UNKNOWN', 404)
-    if (licence.revokedAt) return errorPage('E_LICENCE_REVOKED', 410)
-    return checkout(url.origin, { kind: 'renewal', licenceId: licence.id })
-  }
-
-  /**
-   * Records a paid session's licence or renewal, once; null for a renewal of an unknown licence
-   * and for a session this Worker did not create (the account may sell other things).
-   */
-  async function fulfil(session: CheckoutSession): Promise<Fulfilled | null> {
-    if (!ours(session)) return null
+  /** Records a paid session's licence, once. */
+  async function fulfil(session: CheckoutSession): Promise<Fulfilled> {
     if (!session.customer) throw new LicenceError('E_LICENCE_NO_CUSTOMER', session.id)
-    const at = instant(now())
-    const base = {
+    const issued = await store.issue({
       sessionId: session.id,
+      licenceId: newLicenceId(),
       customerId: session.customer,
       paymentIntent: session.paymentIntent,
-      at,
-      today: at.slice(0, 10),
-    }
-    if (session.metadata['kind'] === 'renewal') {
-      const licenceId = session.metadata['licence'] ?? ''
-      const renewed = LICENCE_ID.test(licenceId) ? await store.renew({ ...base, licenceId }) : null
-      if (!renewed) {
-        log(`E_LICENCE_UNKNOWN ${session.id}`)
-        return null
-      }
-      if (renewed.created && renewed.licence.revokedAt) {
-        log(`E_LICENCE_REVOKED ${renewed.licence.id} ${session.id}`)
-      } else if (renewed.created) {
-        log(`I_LICENCE_RENEWED ${renewed.licence.id} ${session.id}`)
-      }
-      return renewed
-    }
-    const issued = await store.issue({ ...base, licenceId: newLicenceId() })
+      at: instant(now()),
+    })
     if (issued.created && issued.licence.revokedAt) {
       log(`E_LICENCE_REVOKED ${issued.licence.id} ${session.id}`)
     } else if (issued.created) {
@@ -123,7 +87,7 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
   }
 
   /**
-   * The licensee is the email of the Stripe customer who first bought the licence; once that
+   * The licensee is the email of the Stripe customer who bought the licence; once that
    * customer is deleted or has no address, the one `fallback` gives (the paying session's).
    */
   async function licensee(
@@ -138,12 +102,7 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
   }
 
   function keyFor(licence: Licence, email: string): Promise<string> {
-    return signLicence(signer, {
-      id: licence.id,
-      licensee: email,
-      issuedAt: licence.issuedAt,
-      updatesUntil: licence.updatesUntil,
-    })
+    return signLicence(signer, { id: licence.id, licensee: email, issuedAt: licence.issuedAt })
   }
 
   async function mailOnce(fulfilled: Fulfilled, session: CheckoutSession): Promise<void> {
@@ -151,12 +110,11 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     if (purchase.mailedAt || licence.revokedAt) return
     const owner = await licensee(licence, session)
     const key = await keyFor(licence, owner)
-    const kind = purchase.kind === 'renewal' ? 'renewed' : 'issued'
     const mail = licenceMail(
       session.email ?? owner,
-      kind,
-      [{ key, updatesUntil: licence.updatesUntil }],
-      `${kind}/${purchase.sessionId}`,
+      'issued',
+      [key],
+      `issued/${purchase.sessionId}`,
     )
     // /done and the webhook, or two deliveries of one event, can get here together: one sends.
     if (!(await store.claimMail(purchase.sessionId, instant(now())))) return
@@ -190,8 +148,9 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
         case 'checkout.session.async_payment_succeeded': {
           const session = toSession(object)
           if (session?.mode !== 'payment' || session.paymentStatus !== 'paid') break
-          const fulfilled = await fulfil(session)
-          if (fulfilled) await mailOnce(fulfilled, session)
+          // The account may sell other things: only this Worker's sessions issue a licence.
+          if (!ours(session)) break
+          await mailOnce(await fulfil(session), session)
           break
         }
         case 'charge.refunded':
@@ -233,17 +192,16 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       if (fetched.paymentStatus !== 'paid') return pendingPage()
       session = fetched
       const fulfilled = await fulfil(fetched)
-      if (!fulfilled) return errorPage('E_LICENCE_UNKNOWN', 404)
       deps.defer(mailOnce(fulfilled, fetched).catch((error: unknown) => fail(error, sessionId)))
       purchase = fulfilled.purchase
     }
     const licence = await store.licence(purchase.licenceId)
-    if (!licence) return errorPage('E_LICENCE_UNKNOWN', 404)
+    if (!licence) throw new LicenceError('E_LICENCE_INTERNAL', sessionId)
     if (licence.revokedAt) return errorPage('E_LICENCE_REVOKED', 410)
     const paid = async () =>
       (session ?? (await stripe.retrieveCheckoutSession(sessionId)))?.email ?? null
     const key = await keyFor(licence, await licensee(licence, session, paid))
-    return donePage(key, licence.updatesUntil, purchase.kind === 'renewal')
+    return donePage(key)
   }
 
   async function rateKey(kind: string, value: string): Promise<string> {
@@ -301,7 +259,7 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       const owner =
         emails.get(licence.customerId) ||
         (await licensee(licence, undefined, async () => customers[0]?.email ?? null))
-      keys.push({ key: await keyFor(licence, owner), updatesUntil: licence.updatesUntil })
+      keys.push(await keyFor(licence, owner))
     }
     await mailer.send(licenceMail(email, 'resend', keys, `resend/${attempt}`))
     log(`I_LICENCE_RESENT ${licences.map((l) => l.id).join(' ')}`)
@@ -328,9 +286,7 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     try {
       switch (url.pathname) {
         case '/buy':
-          return await checkout(url.origin, { kind: 'licence' })
-        case '/renew':
-          return await renew(url)
+          return await checkout(url.origin)
         case '/stripe/webhook':
           return await webhook(request)
         case '/done':
@@ -350,7 +306,6 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
 
 const ROUTES: Record<string, string[]> = {
   '/buy': ['GET'],
-  '/renew': ['GET'],
   '/stripe/webhook': ['POST'],
   '/done': ['GET'],
   '/resend': ['GET', 'POST'],
@@ -358,8 +313,7 @@ const ROUTES: Record<string, string[]> = {
 }
 
 function ours(session: CheckoutSession): boolean {
-  const kind = session.metadata['kind']
-  return kind === 'licence' || kind === 'renewal'
+  return session.metadata['kind'] === LICENCE_KIND
 }
 
 function expandedId(value: unknown): string | undefined {

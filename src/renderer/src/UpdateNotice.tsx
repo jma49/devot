@@ -1,11 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { currentWindowLabel } from './focus'
 import { t } from './i18n'
-import { openRenew, useLicence } from './licence'
 import {
   downloadUpdate,
   restartToUpdate,
-  skipUpdate,
   startUpdateStatus,
   updateNotice,
   useUpdateStatus,
@@ -25,7 +23,6 @@ export const restartNow = () => restartToUpdate().catch(warn('W_UPDATE_RESTART_F
 export function useUpdates(): { status: UpdateStatus; notice: ReactNode } {
   useEffect(() => startUpdateStatus(), [])
   const status = useUpdateStatus()
-  const licence = useLicence()
   const [dismissed, setDismissed] = useState<string>()
   const model = updateNotice(status, currentWindowLabel())
   if (!model || model.key === dismissed) return { status, notice: null }
@@ -46,29 +43,6 @@ export function useUpdates(): { status: UpdateStatus; notice: ReactNode } {
         >
           {t('updates.download')}
         </button>
-      ) : null}
-      {model.action === 'notCovered' ? (
-        <>
-          {licence.id ? (
-            <button type="button" className="button" onClick={() => openRenew(licence.id!)}>
-              {t('updates.renew')}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="button"
-            onClick={() => void downloadUpdate().catch(warn('W_UPDATE_DOWNLOAD_FAILED'))}
-          >
-            {t('updates.downloadAnyway')}
-          </button>
-          <button
-            type="button"
-            className="button"
-            onClick={() => void skipUpdate().catch(warn('W_UPDATE_SKIP_FAILED'))}
-          >
-            {t('updates.skipVersion')}
-          </button>
-        </>
       ) : null}
       {model.action === 'restart' ? (
         <button type="button" className="button" onClick={() => void restartNow()}>

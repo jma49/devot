@@ -77,46 +77,30 @@ export function escapeHtml(text: string): string {
     .replace(/'/g, '&#39;')
 }
 
-export interface MailedKey {
-  key: string
-  updatesUntil: string
-}
-
 export function licenceMail(
   to: string,
-  kind: 'issued' | 'renewed' | 'resend',
-  keys: MailedKey[],
+  kind: 'issued' | 'resend',
+  keys: string[],
   idempotencyKey?: string,
 ): Mail {
   const m = MESSAGES.mail
-  const subject = {
-    issued: m.issuedSubject,
-    renewed: m.renewedSubject,
-    resend: m.resendSubject,
-  }[kind]
-  const intro = {
-    issued: m.issuedIntro,
-    renewed: m.renewedIntro,
-    resend: m.resendIntro,
-  }[kind]
+  const subject = kind === 'issued' ? m.issuedSubject : m.resendSubject
+  const intro = kind === 'issued' ? m.issuedIntro : m.resendIntro
   const text = [
     intro,
-    ...keys.flatMap(({ key, updatesUntil }) => [
-      key,
-      MESSAGES.covers(updatesUntil),
-      `${MESSAGES.open}: ${deepLink(key)}`,
-    ]),
+    ...keys.flatMap((key) => [key, `${MESSAGES.open}: ${deepLink(key)}`]),
+    MESSAGES.covers,
     MESSAGES.paste,
     m.keep,
   ].join('\n\n')
   const html = [
     `<p>${escapeHtml(intro)}</p>`,
     ...keys.map(
-      ({ key, updatesUntil }) =>
+      (key) =>
         `<p><code style="word-break:break-all">${escapeHtml(key)}</code></p>` +
-        `<p>${escapeHtml(MESSAGES.covers(updatesUntil))}</p>` +
         `<p><a href="${escapeHtml(deepLink(key))}">${escapeHtml(MESSAGES.open)}</a></p>`,
     ),
+    `<p>${escapeHtml(MESSAGES.covers)}</p>`,
     `<p>${escapeHtml(MESSAGES.paste)}</p>`,
     `<p>${escapeHtml(m.keep)}</p>`,
   ].join('\n')

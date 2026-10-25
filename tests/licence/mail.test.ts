@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LicenceError } from '../../licence/src/errors'
-import { resendMailer, type Mail } from '../../licence/src/mail'
+import { licenceMail, resendMailer, type Mail } from '../../licence/src/mail'
 
 const mail: Mail = {
   to: 'buyer@example.test',
@@ -120,5 +120,22 @@ describe('resendMailer', () => {
     )
     expect(error.message).toBe('E_LICENCE_MAIL validation_error')
     expect(error.message).not.toMatch(/buyer|re_secret|SECRETKEY/)
+  })
+})
+
+describe('licenceMail', () => {
+  it('gives each key its link and says once that a licence unlocks every version', () => {
+    const sent = licenceMail('buyer@example.test', 'resend', ['devot1.a.b', 'devot1.c.d'], 'r/1')
+    expect(sent.subject).toBe('Your Devot licences')
+    expect(sent.idempotencyKey).toBe('r/1')
+    for (const body of [sent.text, sent.html]) {
+      expect(body).toContain('devot://licence?key=devot1.a.b')
+      expect(body).toContain('devot://licence?key=devot1.c.d')
+      expect(body.match(/every version of Devot/g)).toHaveLength(1)
+      expect(body).not.toMatch(/until/i)
+    }
+    expect(licenceMail('buyer@example.test', 'issued', ['devot1.a.b']).subject).toBe(
+      'Your Devot licence',
+    )
   })
 })

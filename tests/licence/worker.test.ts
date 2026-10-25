@@ -23,7 +23,6 @@ const secrets = {
   STRIPE_SECRET_KEY: 'rk_test_fake',
   STRIPE_WEBHOOK_SECRET: 'whsec_test_fake',
   STRIPE_PRICE_LICENCE: 'price_licence',
-  STRIPE_PRICE_RENEWAL: 'price_renewal',
   MANAGED_PAYMENTS: 'true',
   MAIL_FROM: 'licence@devot.test',
   RESEND_API_KEY: 're_test_fake',
@@ -86,16 +85,10 @@ it('wrangler.toml binds D1 with its migrations and no email binding, as the test
     /\[\[d1_databases\]\]\nbinding = "DB"\ndatabase_name = "devot-licence"\nmigrations_dir = "migrations"/,
   )
   expect(wrangler).not.toMatch(/send_email/)
-  const owners = [
-    'LICENCE_KID',
-    'STRIPE_PRICE_LICENCE',
-    'STRIPE_PRICE_RENEWAL',
-    'MAIL_FROM',
-    'REPLY_TO',
-  ]
+  const owners = ['LICENCE_KID', 'STRIPE_PRICE_LICENCE', 'MAIL_FROM', 'REPLY_TO']
   expect(owners.map((name) => [name, setting(name)])).toEqual(owners.map((name) => [name, '']))
   expect(setting('MANAGED_PAYMENTS')).toBe('true')
-  expect(wrangler).not.toMatch(/SIGNING_KEY = |SECRET_KEY = |WEBHOOK_SECRET = /)
+  expect(wrangler).not.toMatch(/SIGNING_KEY = |SECRET_KEY = |WEBHOOK_SECRET = |RENEWAL/)
 })
 
 it('serves the signed revocation list from D1', async () => {
@@ -103,9 +96,9 @@ it('serves the signed revocation list from D1', async () => {
   await db.batch([
     db
       .prepare(
-        `INSERT INTO licences (id, session_id, customer_id, issued_at, updates_until, revoked_at)
-         VALUES ('AAAAAAAAAAAAAAAAAAAAAA', 'cs_1', 'cus_1', '2026-10-24T00:00:00Z', '2027-10-24', '2026-11-01T00:00:00Z'),
-                ('BBBBBBBBBBBBBBBBBBBBBB', 'cs_2', 'cus_2', '2026-10-24T00:00:00Z', '2027-10-24', NULL)`,
+        `INSERT INTO licences (id, session_id, customer_id, issued_at, revoked_at)
+         VALUES ('AAAAAAAAAAAAAAAAAAAAAA', 'cs_1', 'cus_1', '2026-10-24T00:00:00Z', '2026-11-01T00:00:00Z'),
+                ('BBBBBBBBBBBBBBBBBBBBBB', 'cs_2', 'cus_2', '2026-10-24T00:00:00Z', NULL)`,
       )
       .bind(),
   ])
@@ -128,7 +121,7 @@ it('creates a Checkout Session through the Stripe client and redirects to it', a
   expect(form.get('success_url')).toBe(`${url}/done?session_id={CHECKOUT_SESSION_ID}`)
 })
 
-it('refuses an unsigned webhook and an unknown renewal', async () => {
+it('refuses an unsigned webhook, and has no renewal page', async () => {
   const webhook = await fetch(`${url}/stripe/webhook`, {
     method: 'POST',
     body: '{}',
@@ -137,7 +130,7 @@ it('refuses an unsigned webhook and an unknown renewal', async () => {
   expect(await webhook.json()).toEqual({ code: 'E_LICENCE_WEBHOOK_SIGNATURE' })
   const renew = await fetch(`${url}/renew?licence=CCCCCCCCCCCCCCCCCCCCCC`)
   expect(renew.status).toBe(404)
-  expect(await renew.text()).toContain('E_LICENCE_UNKNOWN')
+  expect(await renew.text()).toContain('E_LICENCE_NOT_FOUND')
 })
 
 it('answers E_LICENCE_CONFIG when RESEND_API_KEY is missing', async () => {

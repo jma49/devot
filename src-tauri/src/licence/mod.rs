@@ -1,7 +1,7 @@
 //! The licence that unlocks sync and AI (docs/adr/0006-source-available-and-sold-once.md, The
 //! licence): a signed key checked offline against the public keys the build holds, kept in the
-//! keychain. Its state is none, valid, updates ended (the build was released after the licence's
-//! `updatesUntil`), revoked (in the last verified revocation list) or invalid (with its code).
+//! keychain. Its state is none, valid, revoked (in the last verified revocation list) or invalid
+//! (with its code). A valid licence unlocks every version.
 //! While the build holds no production key nothing is gated, so a release made before the owner's
 //! keys exist changes nothing.
 //! The key and the licensee's address never reach a log, an error or a crash report: logs carry
@@ -25,7 +25,7 @@ use tauri::State as Tauri;
 
 pub(crate) use format::MAX_LENGTH;
 use format::{Payload, Revocations, VerifyError, verify_licence, verify_revocations};
-pub(crate) use keys::{PublicKeys, RELEASE_DATE, covers};
+pub(crate) use keys::PublicKeys;
 pub(crate) use revoked::refresh_from_site as refresh_revocations;
 pub(crate) use store::{KeyStore, Keychain, REVOCATIONS_FILE};
 
@@ -39,7 +39,6 @@ const MAX_INPUT: usize = 4 * MAX_LENGTH;
 pub(crate) enum LicenceState {
     None,
     Valid,
-    UpdatesEnded,
     Revoked,
     Invalid,
 }
@@ -55,7 +54,6 @@ pub(crate) struct Snapshot {
     pub code: Option<&'static str>,
     pub id: Option<String>,
     pub licensee: Option<String>,
-    pub updates_until: Option<String>,
     pub plan: Option<&'static str>,
 }
 
@@ -76,7 +74,6 @@ impl fmt::Debug for Snapshot {
 pub(crate) struct Offer {
     pub id: String,
     pub licensee: String,
-    pub updates_until: String,
     pub state: LicenceState,
 }
 
@@ -100,7 +97,6 @@ pub(crate) type Emit = Arc<dyn Fn(&Snapshot) + Send + Sync>;
 
 pub(crate) struct Licence {
     keys: PublicKeys,
-    release: Option<String>,
     store: Arc<dyn KeyStore>,
     revocations_path: PathBuf,
     /// Taken around every keychain use, which may wait on a prompt; `held` is never held across one,
@@ -122,14 +118,12 @@ fn cleaned(input: &str) -> Result<String, &'static str> {
 impl Licence {
     pub(crate) fn new(
         keys: PublicKeys,
-        release: Option<&str>,
         store: Arc<dyn KeyStore>,
         data_dir: &Path,
         emit: Emit,
     ) -> Self {
         Self {
             keys,
-            release: release.map(str::to_owned),
             store,
             revocations_path: data_dir.join(REVOCATIONS_FILE),
             keychain: Mutex::new(()),
@@ -211,8 +205,6 @@ impl Licence {
     fn state_of(&self, payload: &Payload, revocations: Option<&Revocations>) -> LicenceState {
         if revocations.is_some_and(|list| list.ids.contains(&payload.id)) {
             LicenceState::Revoked
-        } else if !keys::covers(&payload.updates_until, self.release.as_deref()) {
-            LicenceState::UpdatesEnded
         } else {
             LicenceState::Valid
         }
@@ -225,7 +217,6 @@ impl Licence {
             code: None,
             id: None,
             licensee: None,
-            updates_until: None,
             plan: None,
         };
         match &held.key {
@@ -239,7 +230,6 @@ impl Licence {
                 state: self.state_of(payload, held.revocations.as_ref()),
                 id: Some(payload.id.clone()),
                 licensee: Some(payload.licensee.clone()),
-                updates_until: Some(payload.updates_until.clone()),
                 plan: Some(format::PLAN),
                 ..empty
             },
@@ -254,7 +244,6 @@ impl Licence {
                 code: Some(code),
                 id: None,
                 licensee: None,
-                updates_until: None,
                 plan: None,
             })
     }
@@ -285,7 +274,6 @@ impl Licence {
         Ok(Offer {
             id: payload.id,
             licensee: payload.licensee,
-            updates_until: payload.updates_until,
             state,
         })
     }

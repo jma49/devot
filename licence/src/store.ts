@@ -18,14 +18,12 @@ export interface Licence {
   sessionId: string
   customerId: string
   issuedAt: string
-  updatesUntil: string
   revokedAt: string | null
 }
 
 export interface PurchaseRecord {
   sessionId: string
   licenceId: string
-  kind: 'licence' | 'renewal'
   paymentIntent: string | null
   customerId: string
   createdAt: string
@@ -39,8 +37,6 @@ export interface Fulfilment {
   paymentIntent: string | null
   /** RFC 3339, when the purchase is recorded. */
   at: string
-  /** The UTC date `updatesUntil` counts a year from. */
-  today: string
 }
 
 export interface Fulfilled {
@@ -55,17 +51,12 @@ export interface Store {
   purchase(sessionId: string): Promise<PurchaseRecord | null>
   /** Issues a new licence for a session, once; a second call returns the first. */
   issue(fulfilment: Fulfilment): Promise<Fulfilled>
-  /**
-   * Extends a licence by a year from the later of `today` and its `updatesUntil`, once per session;
-   * a revoked licence is recorded but not extended. Null for an unknown licence.
-   */
-  renew(fulfilment: Fulfilment): Promise<Fulfilled | null>
   /** Marks a purchase mailed unless it already is: true when this call claimed the mail. */
   claimMail(sessionId: string, at: string): Promise<boolean>
   /** Undoes a claim whose mail failed, so a retry can send it. */
   releaseMail(sessionId: string): Promise<void>
   /**
-   * Revokes the licence a first purchase paid for; null when none or already revoked. Remembers the
+   * Revokes the licence a purchase paid for; null when none or already revoked. Remembers the
    * PaymentIntent either way, so a licence its purchase issues later is issued revoked.
    */
   revokeByPayment(paymentIntent: string, at: string): Promise<string | null>
@@ -80,14 +71,12 @@ interface LicenceRow {
   session_id: string
   customer_id: string
   issued_at: string
-  updates_until: string
   revoked_at: string | null
 }
 
 interface PurchaseRow {
   session_id: string
   licence_id: string
-  kind: 'licence' | 'renewal'
   payment_intent: string | null
   customer_id: string
   created_at: string
@@ -99,14 +88,12 @@ const toLicence = (row: LicenceRow): Licence => ({
   sessionId: row.session_id,
   customerId: row.customer_id,
   issuedAt: row.issued_at,
-  updatesUntil: row.updates_until,
   revokedAt: row.revoked_at,
 })
 
 const toPurchase = (row: PurchaseRow): PurchaseRecord => ({
   sessionId: row.session_id,
   licenceId: row.licence_id,
-  kind: row.kind,
   paymentIntent: row.payment_intent,
   customerId: row.customer_id,
   createdAt: row.created_at,
@@ -136,40 +123,23 @@ export function d1Store(db: SqlDatabase): Store {
       const results = await db.batch([
         db
           .prepare(
-            `INSERT INTO licences (id, session_id, customer_id, issued_at, updates_until, revoked_at)
-             SELECT ?1, ?2, ?3, ?4, date(?5, '+1 year'),
-               (SELECT revoked_at FROM revoked_payments WHERE payment_intent = ?6)
+            `INSERT INTO licences (id, session_id, customer_id, issued_at, revoked_at)
+             SELECT ?1, ?2, ?3, ?4,
+               (SELECT revoked_at FROM revoked_payments WHERE payment_intent = ?5)
              WHERE NOT EXISTS (SELECT 1 FROM purchases WHERE session_id = ?2)`,
           )
-          .bind(f.licenceId, f.sessionId, f.customerId, f.at, f.today, f.paymentIntent),
+          .bind(f.licenceId, f.sessionId, f.customerId, f.at, f.paymentIntent),
         db
           .prepare(
-            `INSERT INTO purchases (session_id, licence_id, kind, payment_intent, customer_id, created_at)
-             VALUES (?1, ?2, 'licence', ?3, ?4, ?5) ON CONFLICT (session_id) DO NOTHING`,
+            `INSERT INTO purchases (session_id, licence_id, payment_intent, customer_id, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (session_id) DO NOTHING`,
           )
           .bind(f.sessionId, f.licenceId, f.paymentIntent, f.customerId, f.at),
       ])
-      return fulfilled(f.sessionId, results[1])
-    },
-
-    async renew(f) {
-      if (!(await store.licence(f.licenceId))) return null
-      const results = await db.batch([
-        db
-          .prepare(
-            `UPDATE licences SET updates_until = date(max(?1, updates_until), '+1 year')
-             WHERE id = ?2 AND revoked_at IS NULL
-               AND NOT EXISTS (SELECT 1 FROM purchases WHERE session_id = ?3)`,
-          )
-          .bind(f.today, f.licenceId, f.sessionId),
-        db
-          .prepare(
-            `INSERT INTO purchases (session_id, licence_id, kind, payment_intent, customer_id, created_at)
-             VALUES (?1, ?2, 'renewal', ?3, ?4, ?5) ON CONFLICT (session_id) DO NOTHING`,
-          )
-          .bind(f.sessionId, f.licenceId, f.paymentIntent, f.customerId, f.at),
-      ])
-      return fulfilled(f.sessionId, results[1])
+      const purchase = await store.purchase(f.sessionId)
+      const licence = purchase && (await store.licence(purchase.licenceId))
+      if (!purchase || !licence) throw new LicenceError('E_LICENCE_INTERNAL', 'fulfil')
+      return { purchase, licence, created: changes(results[1]) > 0 }
     },
 
     async claimMail(sessionId, at) {
@@ -199,7 +169,7 @@ export function d1Store(db: SqlDatabase): Store {
           .prepare(
             `UPDATE licences SET revoked_at = ?1
              WHERE revoked_at IS NULL AND id IN (
-               SELECT licence_id FROM purchases WHERE payment_intent = ?2 AND kind = 'licence')
+               SELECT licence_id FROM purchases WHERE payment_intent = ?2)
              RETURNING id`,
           )
           .bind(at, paymentIntent),
@@ -245,13 +215,6 @@ export function d1Store(db: SqlDatabase): Store {
       const rows = (counted as { results?: { count: number }[] } | undefined)?.results
       return rows?.[0]?.count ?? 1
     },
-  }
-
-  async function fulfilled(sessionId: string, purchaseInsert: unknown): Promise<Fulfilled> {
-    const purchase = await store.purchase(sessionId)
-    const licence = purchase && (await store.licence(purchase.licenceId))
-    if (!purchase || !licence) throw new LicenceError('E_LICENCE_INTERNAL', 'fulfil')
-    return { purchase, licence, created: changes(purchaseInsert) > 0 }
   }
 
   return store

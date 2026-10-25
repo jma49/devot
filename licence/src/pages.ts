@@ -22,13 +22,13 @@ function page(title: string, body: string, status = 200): Response {
 
 const p = (text: string) => `<p>${escapeHtml(text)}</p>`
 
-export function donePage(key: string, updatesUntil: string, renewed: boolean): Response {
+export function donePage(key: string): Response {
   return page(
-    renewed ? MESSAGES.renewedTitle : MESSAGES.doneTitle,
+    MESSAGES.doneTitle,
     [
       p(MESSAGES.doneKey),
       `<p><textarea readonly rows="5">${escapeHtml(key)}</textarea></p>`,
-      p(MESSAGES.covers(updatesUntil)),
+      p(MESSAGES.covers),
       `<p><a href="${escapeHtml(deepLink(key))}">${escapeHtml(MESSAGES.open)}</a></p>`,
       p(MESSAGES.paste),
       `<p>${escapeHtml(MESSAGES.doneMailed)} <a href="/resend">${escapeHtml(MESSAGES.resendLink)}</a></p>`,

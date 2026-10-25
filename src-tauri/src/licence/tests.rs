@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::{Value, json};
 
 use super::format::{verify_licence, verify_revocations};
-use super::keys::{PRODUCTION, TEST, covers, decode_key};
+use super::keys::{PRODUCTION, TEST, decode_key};
 use super::store::MemoryKey;
 use super::testing::{ID, LICENSEE, key, licence_json, sign, sign_raw, test_keys, vectors};
 use super::*;
@@ -37,7 +37,6 @@ fn every_valid_vector_verifies_to_its_payload() {
         assert_eq!(payload.kid, str_of(expected, "kid"));
         assert_eq!(payload.licensee, str_of(expected, "licensee"));
         assert_eq!(payload.issued_at, str_of(expected, "issuedAt"));
-        assert_eq!(payload.updates_until, str_of(expected, "updatesUntil"));
         assert_eq!(str_of(expected, "plan"), "pro");
     }
 }
@@ -93,7 +92,7 @@ fn the_vectors_key_is_the_test_key_the_build_holds() {
     assert_eq!(str_of(&v["keys"][0], "kid"), TEST.0);
     assert_eq!(str_of(&v["keys"][0], "publicKey"), TEST.1);
     // The test key signs the keys these tests make.
-    assert!(verify_licence(&key(ID, "2027-10-24"), &test_keys(false)).is_ok());
+    assert!(verify_licence(&key(ID), &test_keys(false)).is_ok());
     assert!(decode_key(TEST.1).is_some());
 }
 
@@ -116,17 +115,17 @@ fn the_built_in_keys_gate_only_once_a_production_key_ships() {
     let keys = PublicKeys::built_in();
     assert_eq!(keys.gated(), !PRODUCTION.is_empty());
     // Test and debug builds hold the test key too.
-    assert!(verify_licence(&key(ID, "2027-10-24"), &keys).is_ok());
+    assert!(verify_licence(&key(ID), &keys).is_ok());
 }
 
 #[test]
 fn a_kid_the_build_does_not_hold_is_unknown() {
     let none = PublicKeys::new(&[], false);
     assert_eq!(
-        verify_licence(&key(ID, "2027-10-24"), &none).map(|_| ()),
+        verify_licence(&key(ID), &none).map(|_| ()),
         Err(VerifyError::UnknownKid)
     );
-    let mut other = licence_json(ID, "2027-10-24");
+    let mut other = licence_json(ID);
     other["kid"] = json!("__proto__");
     assert_eq!(
         verify_licence(&sign("devot1", &other), &test_keys(false)).map(|_| ()),
@@ -137,21 +136,21 @@ fn a_kid_the_build_does_not_hold_is_unknown() {
 #[test]
 fn malformed_keys_are_malformed() {
     let keys = test_keys(false);
-    let good = key(ID, "2027-10-24");
+    let good = key(ID);
     let (signed, signature) = good.rsplit_once('.').expect("three parts");
     let payload = signed.split_once('.').expect("prefix").1;
     let with = |field: &str, value: Value| {
-        let mut payload = licence_json(ID, "2027-10-24");
+        let mut payload = licence_json(ID);
         payload[field] = value;
         sign("devot1", &payload)
     };
     let without = |field: &str| {
-        let mut payload = licence_json(ID, "2027-10-24");
+        let mut payload = licence_json(ID);
         payload.as_object_mut().expect("object").remove(field);
         sign("devot1", &payload)
     };
     let mut bom = vec![0xEF, 0xBB, 0xBF];
-    bom.extend(licence_json(ID, "2027-10-24").to_string().as_bytes());
+    bom.extend(licence_json(ID).to_string().as_bytes());
     let cases = [
         format!("{good}{}", "A".repeat(MAX_LENGTH)),
         format!("{good}.x"),
@@ -183,14 +182,11 @@ fn malformed_keys_are_malformed() {
         with("kid", json!(1)),
         with("issuedAt", json!("2026-10-24T09:30:00.000Z")),
         with("issuedAt", json!("2026-10-24")),
-        with("updatesUntil", json!("2027-10-24T00:00:00Z")),
-        with("updatesUntil", json!("27-10-24")),
         without("id"),
         without("kid"),
         without("plan"),
         without("licensee"),
         without("issuedAt"),
-        without("updatesUntil"),
     ];
     for case in &cases {
         assert_eq!(
@@ -204,18 +200,18 @@ fn malformed_keys_are_malformed() {
 #[test]
 fn fields_added_later_are_ignored_and_the_signature_covers_the_bytes_as_sent() {
     let keys = test_keys(false);
-    let mut payload = licence_json(ID, "2027-10-24");
+    let mut payload = licence_json(ID);
     payload["seats"] = json!(3);
     assert!(verify_licence(&sign("devot1", &payload), &keys).is_ok());
     // The same JSON with other spacing is other bytes: its own signature verifies, a borrowed one not.
     let spaced = sign_raw(
         "devot1",
-        serde_json::to_string_pretty(&licence_json(ID, "2027-10-24"))
+        serde_json::to_string_pretty(&licence_json(ID))
             .expect("json")
             .as_bytes(),
     );
     assert!(verify_licence(&spaced, &keys).is_ok());
-    let compact = key(ID, "2027-10-24");
+    let compact = key(ID);
     let borrowed = format!(
         "{}.{}",
         spaced.rsplit_once('.').expect("parts").0,
@@ -258,14 +254,6 @@ fn a_revocation_list_needs_its_own_shape() {
     assert!(verify_revocations(&list("2026-11-01T00:00:00Z", &[]), &keys).is_ok());
 }
 
-#[test]
-fn a_build_without_a_release_date_is_covered_and_one_after_updates_until_is_not() {
-    assert!(covers("2027-10-24", None));
-    assert!(covers("2027-10-24", Some("2027-10-24")));
-    assert!(covers("2027-10-24", Some("2026-01-01")));
-    assert!(!covers("2027-10-24", Some("2027-10-25")));
-}
-
 struct Setup {
     licence: Licence,
     store: Arc<MemoryKey>,
@@ -273,13 +261,12 @@ struct Setup {
     _dir: tempfile::TempDir,
 }
 
-fn setup_in(dir: tempfile::TempDir, gated: bool, release: Option<&str>) -> Setup {
+fn setup_in(dir: tempfile::TempDir, gated: bool) -> Setup {
     let store = Arc::new(MemoryKey::default());
     let emitted = Arc::new(Mutex::new(Vec::new()));
     let seen = Arc::clone(&emitted);
     let licence = Licence::new(
         test_keys(gated),
-        release,
         Arc::clone(&store) as Arc<dyn KeyStore>,
         dir.path(),
         Arc::new(move |s: &Snapshot| seen.lock().expect("emitted").push(s.clone())),
@@ -292,29 +279,44 @@ fn setup_in(dir: tempfile::TempDir, gated: bool, release: Option<&str>) -> Setup
     }
 }
 
-fn setup(gated: bool, release: Option<&str>) -> Setup {
-    setup_in(tempfile::tempdir().expect("temp dir"), gated, release)
+fn setup(gated: bool) -> Setup {
+    setup_in(tempfile::tempdir().expect("temp dir"), gated)
+}
+
+#[test]
+fn a_licence_unlocks_every_version_whatever_dates_it_carries() {
+    let s = setup(true);
+    let mut payload = licence_json(ID);
+    payload["updatesUntil"] = json!("2000-01-01");
+    let snapshot = s.licence.set(&sign("devot1", &payload)).expect("set");
+    assert_eq!(snapshot.state, LicenceState::Valid);
+    assert_eq!(s.licence.require(), Ok(()));
+    let sent = serde_json::to_value(&snapshot).expect("json");
+    assert_eq!(
+        sent.as_object()
+            .map(|o| o.keys().cloned().collect::<Vec<_>>()),
+        Some(
+            ["code", "gated", "id", "licensee", "plan", "state"]
+                .map(String::from)
+                .to_vec()
+        )
+    );
 }
 
 #[test]
 fn reports_each_state() {
-    let s = setup(true, Some("2027-06-01"));
+    let s = setup(true);
     let none = s.licence.snapshot();
     assert_eq!(none.state, LicenceState::None);
     assert!(none.gated);
     assert_eq!((none.id, none.licensee, none.code), (None, None, None));
 
-    let snapshot = s.licence.set(&key(ID, "2027-10-24")).expect("set");
+    let snapshot = s.licence.set(&key(ID)).expect("set");
     assert_eq!(snapshot.state, LicenceState::Valid);
     assert_eq!(snapshot.id.as_deref(), Some(ID));
     assert_eq!(snapshot.licensee.as_deref(), Some(LICENSEE));
-    assert_eq!(snapshot.updates_until.as_deref(), Some("2027-10-24"));
     assert_eq!(snapshot.plan, Some("pro"));
 
-    let ended = s.licence.set(&key(ID, "2027-05-31")).expect("set");
-    assert_eq!(ended.state, LicenceState::UpdatesEnded);
-
-    s.licence.set(&key(ID, "2027-10-24")).expect("set");
     assert_eq!(
         s.licence
             .apply_revocations(&list("2026-11-01T00:00:00Z", &[ID])),
@@ -323,7 +325,7 @@ fn reports_each_state() {
     assert_eq!(s.licence.snapshot().state, LicenceState::Revoked);
 
     // A key the keychain holds that no longer verifies (its kid was dropped, say).
-    let fresh = setup(true, None);
+    let fresh = setup(true);
     *fresh.store.key.lock().expect("key") =
         Some(str_of(&vectors()["invalid"][0], "key").to_owned());
     let invalid = fresh.licence.snapshot();
@@ -334,13 +336,10 @@ fn reports_each_state() {
 
 #[test]
 fn gated_sync_and_ai_need_a_valid_licence() {
-    let s = setup(true, Some("2027-06-01"));
+    let s = setup(true);
     assert_eq!(s.licence.require(), Err(REQUIRED));
-    s.licence.set(&key(ID, "2027-10-24")).expect("set");
+    s.licence.set(&key(ID)).expect("set");
     assert_eq!(s.licence.require(), Ok(()));
-    s.licence.set(&key(ID, "2027-05-31")).expect("set");
-    assert_eq!(s.licence.require(), Err(REQUIRED));
-    s.licence.set(&key(ID, "2027-10-24")).expect("set");
     s.licence
         .apply_revocations(&list("2026-11-01T00:00:00Z", &[ID]))
         .expect("list");
@@ -351,7 +350,7 @@ fn gated_sync_and_ai_need_a_valid_licence() {
 
 #[test]
 fn ungated_builds_need_no_licence_and_do_not_read_the_keychain_to_say_so() {
-    let s = setup(false, Some("2030-01-01"));
+    let s = setup(false);
     assert_eq!(s.licence.require(), Ok(()));
     assert_eq!(s.store.reads.load(Ordering::SeqCst), 0);
     *s.store.key.lock().expect("key") = Some("devot1.garbage".into());
@@ -361,7 +360,7 @@ fn ungated_builds_need_no_licence_and_do_not_read_the_keychain_to_say_so() {
 
 #[test]
 fn the_keychain_is_read_once() {
-    let s = setup(true, None);
+    let s = setup(true);
     s.licence.snapshot();
     s.licence.require().expect_err("no licence");
     s.licence.snapshot();
@@ -370,14 +369,14 @@ fn the_keychain_is_read_once() {
 
 #[test]
 fn an_unreadable_keychain_item_can_still_be_replaced_or_removed() {
-    let s = setup(true, None);
+    let s = setup(true);
     s.store.unreadable.store(true, Ordering::SeqCst);
     let unread = s.licence.snapshot();
     assert_eq!(
         (unread.state, unread.code),
         (LicenceState::None, Some("E_LICENCE_KEYCHAIN"))
     );
-    let good = key(ID, "2027-10-24");
+    let good = key(ID);
     assert_eq!(
         s.licence.set(&good).expect("set").state,
         LicenceState::Valid
@@ -388,7 +387,7 @@ fn an_unreadable_keychain_item_can_still_be_replaced_or_removed() {
         Some(good.as_str())
     );
 
-    let other = setup(true, None);
+    let other = setup(true);
     other.store.unreadable.store(true, Ordering::SeqCst);
     let removed = other.licence.remove().expect("remove");
     assert_eq!((removed.state, removed.code), (LicenceState::None, None));
@@ -427,7 +426,6 @@ fn an_offer_does_not_wait_on_a_keychain_prompt() {
     let (answer, answered) = std::sync::mpsc::channel();
     let licence = Arc::new(Licence::new(
         test_keys(true),
-        None,
         Arc::new(Prompting {
             entered,
             answer: Mutex::new(answered),
@@ -445,7 +443,7 @@ fn an_offer_does_not_wait_on_a_keychain_prompt() {
     let link = {
         let licence = Arc::clone(&licence);
         std::thread::spawn(move || {
-            let _ = offered.send(licence.offer(&key(ID, "2027-10-24")).map(|o| o.state));
+            let _ = offered.send(licence.offer(&key(ID)).map(|o| o.state));
         })
     };
     let state = offer.recv_timeout(std::time::Duration::from_secs(10));
@@ -457,8 +455,8 @@ fn an_offer_does_not_wait_on_a_keychain_prompt() {
 
 #[test]
 fn a_key_that_does_not_verify_is_refused_and_the_licence_stays() {
-    let s = setup(true, None);
-    let good = key(ID, "2027-10-24");
+    let s = setup(true);
+    let good = key(ID);
     s.licence.set(&good).expect("set");
     let v = vectors();
     for entry in v["invalid"].as_array().expect("invalid") {
@@ -480,8 +478,8 @@ fn a_key_that_does_not_verify_is_refused_and_the_licence_stays() {
 
 #[test]
 fn a_pasted_key_loses_the_spaces_and_line_breaks_a_mail_wrapped_it_in() {
-    let s = setup(true, None);
-    let good = key(ID, "2027-10-24");
+    let s = setup(true);
+    let good = key(ID);
     let wrapped = format!("  {}\r\n{}\n ", &good[..100], &good[100..]);
     assert_eq!(
         s.licence.set(&wrapped).expect("set").state,
@@ -495,8 +493,8 @@ fn a_pasted_key_loses_the_spaces_and_line_breaks_a_mail_wrapped_it_in() {
 
 #[test]
 fn removing_forgets_the_key_and_each_change_is_announced() {
-    let s = setup(true, None);
-    s.licence.set(&key(ID, "2027-10-24")).expect("set");
+    let s = setup(true);
+    s.licence.set(&key(ID)).expect("set");
     s.licence.remove().expect("remove");
     s.licence.remove().expect("again");
     assert_eq!(*s.store.key.lock().expect("key"), None);
@@ -516,24 +514,17 @@ fn removing_forgets_the_key_and_each_change_is_announced() {
 
 #[test]
 fn an_offer_checks_a_key_without_keeping_it() {
-    let s = setup(true, Some("2027-06-01"));
+    let s = setup(true);
     s.licence
         .apply_revocations(&list("2026-11-01T00:00:00Z", &[OTHER_ID]))
         .expect("list");
-    let offer = s.licence.offer(&key(ID, "2027-10-24")).expect("offer");
+    let offer = s.licence.offer(&key(ID)).expect("offer");
     assert_eq!(offer.id, ID);
     assert_eq!(offer.licensee, LICENSEE);
-    assert_eq!(offer.updates_until, "2027-10-24");
     assert_eq!(offer.state, LicenceState::Valid);
     assert_eq!(
-        s.licence
-            .offer(&key(OTHER_ID, "2027-10-24"))
-            .map(|o| o.state),
+        s.licence.offer(&key(OTHER_ID)).map(|o| o.state),
         Ok(LicenceState::Revoked)
-    );
-    assert_eq!(
-        s.licence.offer(&key(ID, "2027-01-01")).map(|o| o.state),
-        Ok(LicenceState::UpdatesEnded)
     );
     assert_eq!(
         s.licence.offer("devot1.x.y").map(|_| ()),
@@ -546,21 +537,20 @@ fn an_offer_checks_a_key_without_keeping_it() {
 fn an_offer_reads_the_kept_list_but_not_the_keychain() {
     let dir = tempfile::tempdir().expect("dir");
     let path = dir.path().to_owned();
-    let first = setup_in(dir, true, None);
+    let first = setup_in(dir, true);
     first
         .licence
         .apply_revocations(&list("2026-11-01T00:00:00Z", &[ID]))
         .expect("list");
-    let fresh = setup_in(tempfile::tempdir().expect("dir"), true, None);
+    let fresh = setup_in(tempfile::tempdir().expect("dir"), true);
     let again = Licence::new(
         test_keys(true),
-        None,
         Arc::clone(&fresh.store) as Arc<dyn KeyStore>,
         &path,
         Arc::new(|_: &Snapshot| {}),
     );
     assert_eq!(
-        again.offer(&key(ID, "2027-10-24")).map(|o| o.state),
+        again.offer(&key(ID)).map(|o| o.state),
         Ok(LicenceState::Revoked)
     );
     assert_eq!(fresh.store.reads.load(Ordering::SeqCst), 0);
@@ -570,7 +560,7 @@ fn an_offer_reads_the_kept_list_but_not_the_keychain() {
 fn the_last_verified_revocation_list_is_kept_in_app_data_and_read_again() {
     let dir = tempfile::tempdir().expect("dir");
     let path = dir.path().to_owned();
-    let s = setup_in(dir, true, None);
+    let s = setup_in(dir, true);
     let v = vectors();
     let r = &v["revocations"];
     assert_eq!(
@@ -593,7 +583,6 @@ fn the_last_verified_revocation_list_is_kept_in_app_data_and_read_again() {
 
     let again = Licence::new(
         test_keys(true),
-        None,
         Arc::new(MemoryKey::default()),
         &path,
         Arc::new(|_: &Snapshot| {}),
@@ -604,7 +593,6 @@ fn the_last_verified_revocation_list_is_kept_in_app_data_and_read_again() {
     std::fs::write(path.join(REVOCATIONS_FILE), str_of(&r["tampered"], "list")).expect("write");
     let tampered = Licence::new(
         test_keys(true),
-        None,
         Arc::new(MemoryKey::default()),
         &path,
         Arc::new(|_: &Snapshot| {}),
@@ -615,8 +603,8 @@ fn the_last_verified_revocation_list_is_kept_in_app_data_and_read_again() {
 #[test]
 fn neither_the_key_nor_the_licensee_reaches_a_log_or_a_debug_line() {
     crate::test_log::capture();
-    let s = setup(true, None);
-    let good = key(ID, "2027-10-24");
+    let s = setup(true);
+    let good = key(ID);
     s.licence.set(&good).expect("set");
     let _ = s.licence.set(&format!("{good}x"));
     let _ = s.licence.set("devot1.bm90IGpzb24.AAAA");

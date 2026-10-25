@@ -368,9 +368,7 @@ fn nothing_is_sent_to_any_provider_without_a_licence_once_the_build_gates_ai() {
         app.keys.set(c.id, KEY).unwrap();
         assert_eq!(app.ai.generate(&ask()).unwrap_err(), "E_LICENCE_REQUIRED");
         assert_eq!(mock.hits(), 0);
-        licence
-            .set(&testing::key(testing::ID, "2099-01-01"))
-            .unwrap();
+        licence.set(&testing::key(testing::ID)).unwrap();
         assert!(app.ai.generate(&ask()).is_ok());
         assert_eq!(mock.hits(), 1);
         licence.remove().unwrap();

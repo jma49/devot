@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fromBase64Url, LICENCE_ID, verifyLicence } from '../../licence/src/format'
-import { issue, main, yearAfter } from '../../licence/scripts/issue'
+import { issue, main } from '../../licence/scripts/issue'
 import { vectors } from './support'
 
 // `issue` signs a complimentary licence locally from the seed in the environment; the test key
@@ -12,7 +12,7 @@ const env = { LICENCE_SIGNING_KEY: testKey!.seed, LICENCE_KID: testKey!.kid }
 const NOW = new Date('2026-10-24T09:30:12.345Z')
 
 describe('issue', () => {
-  it('signs a licence the app verifies, for a year from today', async () => {
+  it('signs a licence the app verifies', async () => {
     const issued = await issue({
       seed: env.LICENCE_SIGNING_KEY,
       kid: 'test',
@@ -20,7 +20,6 @@ describe('issue', () => {
       now: NOW,
     })
     expect(issued.id).toMatch(LICENCE_ID)
-    expect(issued.updatesUntil).toBe('2027-10-24')
     expect(await verifyLicence(issued.key, publicKeys)).toEqual({
       ok: true,
       payload: {
@@ -29,14 +28,8 @@ describe('issue', () => {
         plan: 'pro',
         licensee: 'friend@example.com',
         issuedAt: '2026-10-24T09:30:12Z',
-        updatesUntil: '2027-10-24',
       },
     })
-  })
-
-  it('counts a year as the Worker does', () => {
-    expect(yearAfter(new Date('2028-02-29T12:00:00Z'))).toBe('2029-03-01')
-    expect(yearAfter(new Date('2026-12-31T23:59:59Z'))).toBe('2027-12-31')
   })
 
   it('prints the key, its ID and the link, and never the seed', async () => {
@@ -54,7 +47,7 @@ describe('issue', () => {
     const key = out.match(/^Key: (devot1\.\S+)$/m)?.[1] ?? ''
     expect((await verifyLicence(key, publicKeys)).ok).toBe(true)
     expect(out).toMatch(/^Licence ID: [A-Za-z0-9_-]{22}$/m)
-    expect(out).toContain('Updates until: 2027-10-24')
+    expect(out).not.toMatch(/until/i)
     expect(out).toContain(`devot://licence?key=${encodeURIComponent(key)}`)
     expect(out).not.toContain(env.LICENCE_SIGNING_KEY)
   })
