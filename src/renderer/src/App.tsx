@@ -226,6 +226,7 @@ import { applyOrder, orderChip, orderLabel, sortLocales, sortView, useListOrder 
 import { LivePreview } from './preview/Preview'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
+import { useHistoryBar } from './HistoryBar'
 import { AiEditSheet } from './AiEditSheet'
 import { aiTransport } from './ai'
 import type { AiEditStart } from './editor/aiMenu'
@@ -371,6 +372,12 @@ export function App() {
   const loadDetails = useMemo(
     () => (core ? (ids: string[]) => core.rowDetails(ids) : undefined),
     [core],
+  )
+  const activityStrip = useEditorSetting('activityStrip')
+  const loadStrips = useMemo(
+    () =>
+      core && activityStrip ? (ids: string[]) => core.noteActivity(ids, Date.now()) : undefined,
+    [core, activityStrip],
   )
   const [listsLoaded, setListsLoaded] = useState(false)
   const [notes, setNotes] = useState<NoteSummary[]>([])
@@ -2313,6 +2320,16 @@ export function App() {
   if (historyFor !== undefined && (historyFor !== selected || inTrash)) {
     setHistoryFor(undefined)
   }
+  const historyBarShown = useEditorSetting('historyBar')
+  const historyBar = useHistoryBar({
+    core,
+    noteId: selected,
+    updatedAt: selectedNote?.updatedAt,
+    text: openText,
+    enabled: historyBarShown && !inTrash && multiIds === undefined,
+    readOnly: !editing,
+    onApply: (update) => restoreRef.current?.(update),
+  })
   const find = useFind({
     mode,
     noteOpen: !!core && selected !== undefined && !inTrash && !multiIds,
@@ -2644,6 +2661,13 @@ export function App() {
           syncScroll: !editorSettings().syncScroll,
         }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
       label: syncScroll ? 'command.syncScrollOff' : 'command.syncScrollOn',
+    },
+    'view.historyBar': {
+      run: () =>
+        changeEditorSettings({
+          historyBar: !editorSettings().historyBar,
+        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
+      label: historyBarShown ? 'command.hideHistoryBar' : 'command.showHistoryBar',
     },
     'view.toggleListDates': {
       run: () =>
@@ -3306,6 +3330,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           details={loadDetails}
+          activity={loadStrips}
           drag={editing ? 'notes' : false}
         />
       ) : inTrash ? (
@@ -3421,6 +3446,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           details={loadDetails}
+          activity={loadStrips}
           drag={editing ? 'notes' : false}
         />
       )}
@@ -3635,7 +3661,9 @@ export function App() {
                   onScroll={previewScrolled}
                 />
               )}
+              {historyBar.overlay}
             </div>
+            {historyBar.bar}
           </>
         ) : shownBuiltIn ? (
           <BuiltInTemplate

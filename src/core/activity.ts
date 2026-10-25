@@ -5,7 +5,7 @@
 // Typing not kept as a version yet is kept first (NoteService.activity), as on quit. Compaction keeps one version per day for older history, so older days count
 // the net change of each note over the day, never more than was typed.
 
-import type { ActivityData, StorageAdapter } from './storage'
+import type { ActivityData, ActivityRevision, StorageAdapter } from './storage'
 
 export const DAY_MS = 86_400_000
 export const HEATMAP_WEEKS = 52
@@ -124,4 +124,66 @@ export async function loadActivity(
 ): Promise<ActivityHeatmap> {
   const since = activitySince(heatmapStart(localDay(now, offsetAt)))
   return buildHeatmap(await storage.listActivity(since), now, offsetAt)
+}
+
+/** A note's activity strip in the note list: its last STRIP_DAYS local days, today last. */
+export const STRIP_DAYS = 14
+/**
+ * Fixed steps of characters changed in a day, not percentiles as on the heatmap: a strip shows a few days of one note, and the same day must keep its
+ * shade as rows scroll in and out, so rows compare at a glance.
+ */
+export const STRIP_STEPS = [100, 500, 2000] as const
+
+export interface StripDay {
+  day: number
+  /** Body versions and title changes. */
+  edits: number
+  chars: number
+  level: number
+}
+
+export function stripStart(now: number, offsetAt: OffsetAt = systemOffset): number {
+  return localDay(now, offsetAt) - (STRIP_DAYS - 1)
+}
+
+export function stripLevel(edits: number, chars: number): number {
+  if (edits === 0) return 0
+  return 1 + STRIP_STEPS.filter((step) => chars >= step).length
+}
+
+/**
+ * Each of `ids`' strips (STRIP_DAYS days, oldest first), counted as the heatmap counts a day (see buildHeatmap), from `revisions` and from `pending`:
+ * typing not kept as a version yet, by note, counted today.
+ */
+export function buildStrips(
+  ids: readonly string[],
+  revisions: readonly ActivityRevision[],
+  now: number,
+  offsetAt: OffsetAt = systemOffset,
+  pending: ReadonlyMap<string, number> = new Map(),
+): Record<string, StripDay[]> {
+  const first = stripStart(now, offsetAt)
+  const strips: Record<string, StripDay[]> = {}
+  for (const id of ids) {
+    strips[id] = Array.from({ length: STRIP_DAYS }, (_, i) => ({
+      day: first + i,
+      edits: 0,
+      chars: 0,
+      level: 0,
+    }))
+  }
+  const count = (noteId: string, at: number, chars: number) => {
+    const day = strips[noteId]?.[localDay(at, offsetAt) - first]
+    if (!day) return
+    day.edits += 1
+    day.chars += chars
+  }
+  for (const r of revisions) {
+    count(r.noteId, r.at, r.kind === 'body' ? Math.abs((r.length ?? 0) - (r.previous ?? 0)) : 0)
+  }
+  for (const [noteId, chars] of pending) count(noteId, now, chars)
+  for (const strip of Object.values(strips)) {
+    for (const day of strip) day.level = stripLevel(day.edits, day.chars)
+  }
+  return strips
 }

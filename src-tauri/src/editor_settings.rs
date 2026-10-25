@@ -200,6 +200,10 @@ pub struct EditorSettings {
     pub list_dates: ListDates,
     /// Boards show a Dropped column; off, dropped notes are left off them.
     pub board_dropped: bool,
+    /// Each note list row shows its last 14 days of writing (src/core/activity.ts).
+    pub activity_strip: bool,
+    /// View > Show History Bar: the open note's versions along the editor's bottom edge.
+    pub history_bar: bool,
     pub auto_download_updates: bool,
     /// Keep in Menu Bar (`menu_bar`): the menu bar icon, quick capture's shortcut, and closing the
     /// main window hides it rather than quitting.
@@ -260,6 +264,8 @@ impl Default for EditorSettings {
             default_notebook: None,
             list_dates: ListDates::Relative,
             board_dropped: true,
+            activity_strip: true,
+            history_bar: false,
             auto_download_updates: true,
             menu_bar: false,
             animations: Animations::Always,
@@ -393,6 +399,8 @@ impl EditorSettings {
             "defaultNotebook" => self.default_notebook = notebook_id(value)?,
             "listDates" => self.list_dates = choice(value)?,
             "boardDropped" => self.board_dropped = flag(value)?,
+            "activityStrip" => self.activity_strip = flag(value)?,
+            "historyBar" => self.history_bar = flag(value)?,
             "autoDownloadUpdates" => self.auto_download_updates = flag(value)?,
             "menuBar" => self.menu_bar = flag(value)?,
             "animations" => self.animations = choice(value)?,
@@ -653,6 +661,12 @@ pub fn announce(app: &AppHandle, next: &Snapshot) {
     crate::menu_bar::apply(app, next.settings.menu_bar);
 }
 
+pub fn toggle_history_bar(settings: &EditorSettings) -> Map<String, Value> {
+    let mut patch = Map::new();
+    patch.insert("historyBar".into(), Value::Bool(!settings.history_bar));
+    patch
+}
+
 pub fn toggle_sync_scroll(settings: &EditorSettings) -> Map<String, Value> {
     let mut patch = Map::new();
     patch.insert("syncScroll".into(), Value::Bool(!settings.sync_scroll));
@@ -722,6 +736,8 @@ mod tests {
         assert_eq!(d.preview_font_size, 15);
         assert_eq!(d.default_notebook, None);
         assert_eq!(d.list_dates, ListDates::Relative);
+        assert!(d.activity_strip);
+        assert!(!d.history_bar, "the history bar is opt-in");
         assert_eq!(d.animations, Animations::Always);
         assert!(d.sync_scroll);
         assert!(d.auto_download_updates);
@@ -761,6 +777,14 @@ mod tests {
                 "pageSkipFirst": false,
                 "pageRules": false,
             })
+        );
+        let history: Map<String, Value> = ["activityStrip", "historyBar"]
+            .into_iter()
+            .filter_map(|k| map.remove(k).map(|v| (k.to_string(), v)))
+            .collect();
+        assert_eq!(
+            Value::Object(history),
+            json!({ "activityStrip": true, "historyBar": false })
         );
         assert_eq!(
             value,
@@ -1113,6 +1137,9 @@ mod tests {
             json!({ "listDates": "never" }),
             json!({ "listDates": true }),
             json!({ "boardDropped": "no" }),
+            json!({ "activityStrip": "off" }),
+            json!({ "historyBar": 1 }),
+            json!({ "historyBar": null }),
             json!({ "animations": "never" }),
             json!({ "animations": "System" }),
             json!({ "animations": false }),
@@ -1471,6 +1498,19 @@ mod tests {
         let on = s.update_from(toggle_sync_scroll).unwrap();
         assert!(on.settings.sync_scroll);
         assert_eq!(on.revision, 2);
+    }
+
+    #[test]
+    fn toggles_the_history_bar_from_the_stored_value() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = store(&dir);
+        let on = s.update_from(toggle_history_bar).unwrap();
+        assert!(on.settings.history_bar);
+        assert!(store(&dir).get().unwrap().settings.history_bar);
+        let off = s.update_from(toggle_history_bar).unwrap();
+        assert!(!off.settings.history_bar);
+        let hidden = s.update(&patch(json!({ "activityStrip": false }))).unwrap();
+        assert!(!hidden.settings.activity_strip);
     }
 
     #[test]

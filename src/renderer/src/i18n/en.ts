@@ -355,6 +355,9 @@ export const en = {
   'generalSettings.boardDropped': 'Dropped Column on Boards',
   'generalSettings.boardDroppedHint':
     'Boards show a column for dropped notes. Turn it off to leave dropped notes off boards.',
+  'generalSettings.activityStrip': 'Show Activity in the Note List',
+  'generalSettings.activityStripHint':
+    'Each note shows its last 14 days as small squares, darker on days with more writing.',
   'generalSettings.dataFolder': 'Data Folder',
   'generalSettings.openDataFolder': 'Open Data Folder',
   'generalSettings.dataFolderHint':
@@ -991,6 +994,16 @@ export const en = {
   'history.done': 'Done',
   'history.failed': 'The history could not be loaded ({code}).',
   'history.restoreFailed': 'The version could not be restored ({code}).',
+  'historyBar.label': 'History',
+  'historyBar.slider': 'Version shown',
+  'historyBar.now': 'Current text',
+  'historyBar.overlay': 'The note as it was on {date}, with the changes since',
+  'historyBar.hint': 'Drag the handle to see the note as it was. Click a version to keep it shown.',
+  'historyBar.compacted':
+    'Versions over a day old are kept one per hour, and over a week old one per day.',
+  'historyBar.restorePassage': 'Restore This Passage',
+  'historyBar.restoreWhole': 'Restore Whole Version',
+  'historyBar.failed': 'The history could not be loaded ({code}).',
   'activity.title': 'Activity',
   'activity.detail':
     'How much you wrote each day over the last 52 weeks, from the notes on this device.',
@@ -1011,6 +1024,8 @@ export const en = {
     'Counted from the revision history. Text a note had before its history began (an import, a copy) is not counted. For days more than a week ago, a note may count only its net change over the day.',
   'activity.done': 'Done',
   'activity.failed': 'The activity could not be counted ({code}).',
+  'activityStrip.label': 'Last 14 days: {days}',
+  'activityStrip.edited': 'Edited',
   'find.label': 'Find in Note',
   'find.field': 'Find',
   'find.replaceField': 'Replace',
@@ -1114,6 +1129,8 @@ export const en = {
   'command.showAbsoluteDates': 'Show Absolute Dates',
   'command.showRelativeDates': 'Show Relative Dates',
   'command.syncScrollOn': 'Turn On Synced Scrolling',
+  'command.showHistoryBar': 'Show History Bar',
+  'command.hideHistoryBar': 'Hide History Bar',
   'command.syncScrollOff': 'Turn Off Synced Scrolling',
   'command.heading1': 'Heading 1',
   'command.heading2': 'Heading 2',

@@ -67,6 +67,10 @@ export interface EditorSettings {
   listDates: ListDatesStyle
   /** Boards show a Dropped column; off, dropped notes are left off them. */
   boardDropped: boolean
+  /** Each note list row shows the note's last 14 days of writing (buildStrips in activity.ts). */
+  activityStrip: boolean
+  /** View > Show History Bar: the open note's versions along the editor's bottom edge. */
+  historyBar: boolean
   autoDownloadUpdates: boolean
   /** Keep in Menu Bar: closing the main window hides it, and quick capture is a click or a shortcut away. */
   menuBar: boolean
@@ -130,6 +134,8 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   defaultNotebook: null,
   listDates: 'relative',
   boardDropped: true,
+  activityStrip: true,
+  historyBar: false,
   autoDownloadUpdates: true,
   menuBar: false,
   animations: 'always',
@@ -282,6 +288,8 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   defaultNotebook: isNotebookId,
   listDates: oneOf(LIST_DATES_STYLES),
   boardDropped: isFlag,
+  activityStrip: isFlag,
+  historyBar: isFlag,
   autoDownloadUpdates: isFlag,
   menuBar: isFlag,
   animations: oneOf(ANIMATIONS),

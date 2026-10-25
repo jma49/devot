@@ -101,9 +101,17 @@ export function useHeadlines<V = string>(
   all = false,
 ): ReadonlyMap<string, V> {
   const [cache, setCache] = useState<ReadonlyMap<string, CachedHeadline<V>>>(() => new Map())
+  // Another loader reads something else (the list's strips turned on or off): what the last one read is dropped.
+  const [cacheOf, setCacheOf] = useState(() => load)
+  if (cacheOf !== load) {
+    setCacheOf(() => load)
+    setCache(new Map())
+  }
   // What was asked for and has not come back, so a render in between asks no more.
   const asked = useRef(new Set<string>())
+  const latest = useRef(load)
   useEffect(() => {
+    latest.current = load
     if (!load) return
     const keyOf = (n: NoteSummary) => `${n.id}@${n.updatedAt}`
     const ask = staleHeadlines(notes, cache, all).filter((n) => !asked.current.has(keyOf(n)))
@@ -113,6 +121,7 @@ export function useHeadlines<V = string>(
     for (const key of keys) asked.current.add(key)
     void load([...at.keys()])
       .then((found) => {
+        if (latest.current !== load) return
         setCache((before) => {
           const next = mergeHeadlines(before, found, at)
           keepRecent(next, KEPT)

@@ -160,3 +160,74 @@ export function foldUnchanged(diff: readonly DiffLine[], context = 3): DiffBlock
   }
   return out
 }
+
+export interface TextSegment {
+  kind: 'same' | 'added' | 'removed'
+  text: string
+}
+
+const words = (text: string) => text.match(/\s+|[^\s]+/g) ?? []
+
+/** textEdits with each replacement split further by words, so a changed word shows (and comes back) on its own, not with the rest of its line. */
+export function wordEdits(from: string, to: string): TextEdit[] {
+  const out: TextEdit[] = []
+  for (const edit of textEdits(from, to)) {
+    let at = edit.start
+    let current: TextEdit | undefined
+    const close = () => {
+      if (current) out.push(current)
+      current = undefined
+    }
+    for (const piece of tokenDiff(words(from.slice(edit.start, edit.end)), words(edit.text))) {
+      if (piece.kind === 'same') {
+        close()
+        at += piece.text.length
+      } else if (piece.kind === 'removed') {
+        current ??= { start: at, end: at, text: '' }
+        current.end += piece.text.length
+        at += piece.text.length
+      } else {
+        current ??= { start: at, end: at, text: '' }
+        current.text += piece.text
+      }
+    }
+    close()
+  }
+  return out
+}
+
+/** `to` as `from` changed into it: the runs kept, removed and added, in reading order, a removal before the text that replaced it (see wordEdits). */
+export function inlineDiff(from: string, to: string): TextSegment[] {
+  const out: TextSegment[] = []
+  let at = 0
+  for (const edit of wordEdits(from, to)) {
+    if (edit.start > at) out.push({ kind: 'same', text: from.slice(at, edit.start) })
+    if (edit.end > edit.start) out.push({ kind: 'removed', text: from.slice(edit.start, edit.end) })
+    if (edit.text) out.push({ kind: 'added', text: edit.text })
+    at = edit.end
+  }
+  if (at < from.length) out.push({ kind: 'same', text: from.slice(at) })
+  return out
+}
+
+/**
+ * What puts back the text of `from` between `start` and `end` that `to` no longer has: an insertion in `to`'s offsets for each removed run it
+ * overlaps (see inlineDiff), where that run stood (before any text that replaced it), first to last. Text `to` still has is left alone, so none is
+ * doubled.
+ */
+export function passageInserts(
+  from: string,
+  to: string,
+  start: number,
+  end: number,
+): { at: number; text: string }[] {
+  const out: { at: number; text: string }[] = []
+  let shift = 0
+  for (const edit of wordEdits(from, to)) {
+    const a = Math.max(edit.start, start)
+    const b = Math.min(edit.end, end)
+    if (a < b) out.push({ at: edit.start + shift, text: from.slice(a, b) })
+    shift += edit.text.length - (edit.end - edit.start)
+  }
+  return out
+}

@@ -19,7 +19,10 @@ export function useHistoryMenu(open: () => void) {
 const when = (at: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at)
 
-function describeChange(entry: Extract<HistoryEntry, { kind: 'body' }>, locale: string): string {
+export function describeChange(
+  entry: Extract<HistoryEntry, { kind: 'body' }>,
+  locale: string,
+): string {
   // The oldest kept version: nothing before it to count a change from.
   if (entry.change === null)
     return countOf(entry.length, locale, 'history.earliestOne', 'history.earliestOther')

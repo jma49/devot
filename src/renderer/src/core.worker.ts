@@ -221,11 +221,15 @@ export const coreApi = {
   history: (id: string) => required().history(id),
   compareRevision: (id: string, revisionId: string) => required().compareRevision(id, revisionId),
   restoreRevision: (id: string, revisionId: string) => required().restoreRevision(id, revisionId),
+  revisionText: (id: string, revisionId: string) => required().revisionText(id, revisionId),
+  restorePassage: (id: string, revisionId: string, range: { from: number; to: number }) =>
+    required().restorePassage(id, revisionId, range),
   applyAiEdit: (id: string, edit: { from: number; original: string; replacement: string }) =>
     required().applyAiEdit(id, edit),
   applyPluginEdit: (id: string, edit: { base: string; markdown: string }) =>
     required().applyPluginEdit(id, edit),
   activity: (now: number) => required().activity(now),
+  noteActivity: (ids: string[], now: number) => required().noteActivity(ids, now),
   mergeStored: () => required().mergeStored(),
   /** What another window's core relayed (see NoteService.receive). */
   relayIn: (message: WireRelay) => required().receive(fromWireRelay(message, fromBase64)),

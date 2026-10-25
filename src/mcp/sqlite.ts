@@ -110,6 +110,17 @@ export const ACTIVITY_SQL = {
      FROM revisions r INDEXED BY revisions_by_time
      WHERE r.at >= @since AND r.kind IN ('body', 'title')
        AND (r.kind = 'title' OR r.value IS NULL)`,
+  /** The same, for the notes in `@ids` (a JSON array) only: each note's versions from `@since` on, from migration 0013's revisions_history. */
+  noteRevisions: `SELECT r.note_id AS noteId, r.kind, r.at, r.length,
+            CASE WHEN r.kind = 'body' THEN
+              (SELECT p.length FROM revisions p INDEXED BY revisions_activity
+                WHERE p.note_id = r.note_id AND p.kind = 'body'
+                  AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
+                ORDER BY p.at DESC, p.length DESC, p.rowid DESC LIMIT 1)
+            END AS previous
+     FROM revisions r INDEXED BY revisions_history
+     WHERE r.note_id IN (SELECT value FROM json_each(@ids)) AND r.at >= @since
+       AND r.kind IN ('body', 'title') AND (r.kind = 'title' OR r.value IS NULL)`,
 } as const
 
 /**
@@ -595,6 +606,9 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const activityRevisions = db.prepare<[{ since: number }], ActivityRevision>(
     ACTIVITY_SQL.revisions,
   )
+  const noteActivity = db.prepare<[{ ids: string; since: number }], ActivityRevision>(
+    ACTIVITY_SQL.noteRevisions,
+  )
   const liveNote = db.prepare<[string], { live: number }>(
     'SELECT EXISTS (SELECT 1 FROM notes WHERE id = ? AND deleted_at IS NULL) AS live',
   )
@@ -899,6 +913,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       notes: activityNotes.all({ since }),
       revisions: activityRevisions.all({ since }),
     }),
+    listNoteActivity: async (ids, since) => noteActivity.all({ ids: JSON.stringify(ids), since }),
     listBooks: async () => books.all().map((row) => toBook(row)),
     async putBook(book) {
       putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })

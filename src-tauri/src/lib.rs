@@ -113,6 +113,7 @@ pub fn run() {
             commands::revisions::revisions_compact,
             commands::revisions::revisions_last_compaction,
             commands::activity::activity_list,
+            commands::activity::activity_notes_list,
             commands::files::file_put,
             commands::files::files_copy,
             commands::images::image_copy,

@@ -8,9 +8,18 @@
 // Revision history lives in revisions.ts; compaction sweeps run on their own queue so no user action waits for them (see sweep).
 
 import * as Y from 'yjs'
-import { loadActivity, type ActivityHeatmap, type OffsetAt } from './activity'
+import {
+  activitySince,
+  buildStrips,
+  loadActivity,
+  stripStart,
+  systemOffset,
+  type ActivityHeatmap,
+  type OffsetAt,
+  type StripDay,
+} from './activity'
 import { TEMPLATES_BOOK_ID } from './books'
-import { foldUnchanged, lineDiff, textEdits, type DiffBlock } from './diff'
+import { foldUnchanged, lineDiff, passageInserts, textEdits, type DiffBlock } from './diff'
 import { errorCode } from './errors'
 import { headline, listExcerpt, taskProgress } from './extract'
 import { formatHlc, parseHlc, receiveStored, type Clock } from './hlc'
@@ -182,6 +191,18 @@ export interface NoteService {
   compareRevision(id: string, revisionId: string): Promise<DiffBlock[]>
   /** Returns the Yjs update the edit made, for the editor's replica to apply as one undoable step. */
   restoreRevision(id: string, revisionId: string): Promise<Uint8Array>
+  /** The text of a body version of this note. Throws E_REVISION_NOT_FOUND for anything else. */
+  revisionText(id: string, revisionId: string): Promise<string>
+  /**
+   * Puts back what the note no longer has of version `revisionId`'s text between `from` and `to` (offsets in that text), where it stood (see
+   * passageInserts), as one edit; the text before and after it are kept as versions. Throws E_PASSAGE_NOT_REMOVED when the note still has all of it.
+   * Returns the Yjs update, for the editor's replica to apply as one undoable step.
+   */
+  restorePassage(
+    id: string,
+    revisionId: string,
+    range: { from: number; to: number },
+  ): Promise<Uint8Array>
   /**
    * Puts an accepted AI edit proposal in place of the text it was asked for: `original` at `from`, or wherever it now is if edits since moved it and it
    * is there once (else E_AI_PROPOSAL_STALE). Returns the Yjs update, for the editor's replica to apply as one undoable step. The text before is kept as
@@ -199,6 +220,12 @@ export interface NoteService {
   applyPluginEdit(id: string, edit: { base: string; markdown: string }): Promise<Uint8Array>
   /** Pending edits are saved and unversioned typing becomes a version, so it counts. */
   activity(now: number, offsetAt?: OffsetAt): Promise<ActivityHeatmap>
+  /** The list's activity strips of `ids` (at most MAX_BODY_IDS; see buildStrips), typing not kept as a version yet counted today. Reads only: nothing is saved. */
+  noteActivity(
+    ids: readonly string[],
+    now: number,
+    offsetAt?: OffsetAt,
+  ): Promise<Record<string, StripDay[]>>
   /**
    * Takes in what another process wrote (devot-mcp, or a writer on another connection; see `devot://db-changed`), so the next write keeps the other's changes.
    * Every note in memory merges the stored state, and another window that may hold a note this core does not is relayed its stored state. Returns the notes whose title the other process changed.
@@ -1426,6 +1453,32 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         return Y.mergeUpdates(updates)
       }),
 
+    revisionText: (id, revisionId) => bodyVersion(id, revisionId),
+
+    restorePassage: (id, revisionId, { from, to }) =>
+      using(id, async (note) => {
+        const old = await bodyVersion(id, revisionId)
+        const text = note.doc.getText(BODY)
+        const inserts = passageInserts(old, text.toString(), from, to)
+        if (inserts.length === 0) throw new Error('E_PASSAGE_NOT_REMOVED')
+        takeVersion(note)
+        const updates: Uint8Array[] = []
+        const collect = (update: Uint8Array) => updates.push(update)
+        note.doc.on('update', collect)
+        try {
+          editBody(note, () =>
+            note.doc.transact(() => {
+              for (const insert of inserts.reverse()) text.insert(insert.at, insert.text)
+            }),
+          )
+        } finally {
+          note.doc.off('update', collect)
+        }
+        takeVersion(note)
+        await revisionWork
+        return Y.mergeUpdates(updates)
+      }),
+
     applyAiEdit: (id, { from, original, replacement }) =>
       using(id, async (note) => {
         const body = note.doc.getText(BODY).toString()
@@ -1471,6 +1524,18 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       for (const note of live.values()) takeVersion(note)
       await revisionWork
       return loadActivity(storage, day, offsetAt)
+    },
+
+    async noteActivity(ids, at, offsetAt = systemOffset) {
+      const revisions = await storage.listNoteActivity(ids, activitySince(stripStart(at, offsetAt)))
+      const pending = new Map<string, number>()
+      for (const id of ids) {
+        const note = live.get(id)
+        if (!note?.rev.pending || note.rev.lastText === undefined) continue
+        const length = textLength(note.doc.getText(BODY).toString())
+        pending.set(id, Math.abs(length - textLength(note.rev.lastText)))
+      }
+      return buildStrips(ids, revisions, at, offsetAt, pending)
     },
 
     async mergeStored() {

@@ -280,6 +280,7 @@ describe('Tauri command permissions', () => {
     // history or shows activity: those start in the main window.
     const mainOnly = [
       'activity_list',
+      'activity_notes_list',
       'book_put',
       'files_copy',
       'note_tag_get',

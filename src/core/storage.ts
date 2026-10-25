@@ -227,4 +227,6 @@ export interface StorageAdapter {
   lastCompaction(): Promise<number | null>
   /** Purged notes and their revisions are gone. */
   listActivity(since: number): Promise<ActivityData>
+  /** What listActivity reads of the body versions and title changes, for `ids` only (at most MAX_BODY_IDS; unknown and purged IDs have none): the list's activity strips. */
+  listNoteActivity(ids: readonly string[], since: number): Promise<ActivityRevision[]>
 }
