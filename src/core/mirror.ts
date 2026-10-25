@@ -1172,5 +1172,7 @@ export function observeWrites(storage: StorageAdapter, changed: () => void): Sto
     lastCompaction: () => storage.lastCompaction(),
     listActivity: (since) => storage.listActivity(since),
     listNoteActivity: (ids, since) => storage.listNoteActivity(ids, since),
+    listAgentWrites: (limit) => storage.listAgentWrites(limit),
+    markAgentWritesSeen: (noteId, writeIds) => storage.markAgentWritesSeen(noteId, writeIds),
   }
 }

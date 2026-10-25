@@ -16,6 +16,7 @@
 import { isNotebookSymbol } from '../../../core/notebookIcons'
 import type {
   ActivityRevision,
+  AgentWriteSummary,
   BookRecord,
   NoteRecord,
   NoteSummary,
@@ -36,6 +37,7 @@ const NOTE_TAGS = 'devot.test.noteTags'
 const FILES = 'devot.test.files'
 const REVISIONS = 'devot.test.revisions'
 const COMPACTION = 'devot.test.compaction'
+const AGENT_WRITES = 'devot.test.agentWrites'
 const FAIL_NOTE_WRITES = 'devot.test.failNoteWrites'
 const DELAY_NOTE_WRITES = 'devot.test.delayNoteWrites'
 const DELAY_FILE_WRITES = 'devot.test.delayFileWrites'
@@ -277,6 +279,8 @@ export const memoryStorage: StorageAdapter = {
     localStorage.setItem(NOTES, JSON.stringify(next))
     const links = read<NoteTagRecord>(NOTE_TAGS).filter((l) => l.noteId !== id)
     localStorage.setItem(NOTE_TAGS, JSON.stringify(links))
+    const writes = read<AgentWriteSummary>(AGENT_WRITES).filter((w) => w.noteId !== id)
+    localStorage.setItem(AGENT_WRITES, JSON.stringify(writes))
     // Attachments another note still shows pass to it (a live one first,
     // then the smallest ID), as in the SQLite stores (HAND_OVER_FILES_SQL);
     // the rest go.
@@ -371,10 +375,10 @@ export const memoryStorage: StorageAdapter = {
     const wanted = new Set(ids)
     return activityRevisions(since).filter((r) => wanted.has(r.noteId))
   },
-  async putNote(note) {
+  async putNote({ agentWrites, ...note }) {
     await slowWrite(DELAY_NOTE_WRITES)
     failWith(FAIL_NOTE_WRITES)
-    checkNote(note)
+    checkNote({ ...note, ...(agentWrites ? { agentWrites } : {}) })
     const all = read<Stored>(NOTES)
     const current = all.find((n) => n.id === note.id)
     if (current?.purgedAt !== undefined) return
@@ -388,6 +392,36 @@ export const memoryStorage: StorageAdapter = {
       bodyVersion: note.bodyVersion + 1,
     })
     localStorage.setItem(NOTES, JSON.stringify([...all.filter((n) => n.id !== note.id), next]))
+    if (!agentWrites) return
+    // As in SQL: the note's rows are replaced, each keeping whether it was seen.
+    const rows = read<AgentWriteSummary>(AGENT_WRITES)
+    const seen = new Set(rows.filter((w) => w.noteId === note.id && w.seen).map((w) => w.writeId))
+    const others = rows.filter((w) => w.noteId !== note.id)
+    const own = agentWrites.map((row) => ({
+      ...row,
+      noteId: note.id,
+      seen: seen.has(row.writeId) || row.kind === 'aiEdit',
+    }))
+    localStorage.setItem(AGENT_WRITES, JSON.stringify([...others, ...own]))
+  },
+  async listAgentWrites(limit) {
+    const live = new Set(
+      read<Stored>(NOTES)
+        .filter((n) => n.deletedAt === null && n.purgedAt === undefined)
+        .map((n) => n.id),
+    )
+    const key = (w: AgentWriteSummary) => `${w.noteId} ${w.writeId}`
+    return read<AgentWriteSummary>(AGENT_WRITES)
+      .filter((w) => live.has(w.noteId))
+      .sort((a, b) => b.at - a.at || (key(a) < key(b) ? -1 : 1))
+      .slice(0, limit)
+  },
+  async markAgentWritesSeen(noteId, writeIds) {
+    const ids = new Set(writeIds)
+    const rows = read<AgentWriteSummary>(AGENT_WRITES).map((w) =>
+      w.noteId === noteId && ids.has(w.writeId) ? { ...w, seen: true } : w,
+    )
+    localStorage.setItem(AGENT_WRITES, JSON.stringify(rows))
   },
   async listBooks() {
     return (

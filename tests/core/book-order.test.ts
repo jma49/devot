@@ -10,6 +10,7 @@ import {
   createIdGenerator,
   flattenBookTree,
   formatHlc,
+  newWriter,
   sequentialKeys,
   type BookNode,
   type BookRecord,
@@ -237,7 +238,12 @@ describe('manual notebook order', () => {
 
   it('devot-mcp lists notebooks in the sidebar order', async () => {
     const { storage, books, clock, newId } = setup()
-    const ai = createAiService({ storage, clock, newId })
+    const ai = createAiService({
+      storage,
+      clock,
+      newId,
+      writer: () => newWriter('mcp', 'Test', 'mcptest'),
+    })
     const zed = await books.create('Zed', null)
     const inner = await books.create('Inner', zed)
     const alpha = await books.create('Alpha', null)

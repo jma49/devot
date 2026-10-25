@@ -14,13 +14,17 @@ import {
   createTagService,
   HTTP_API_OPS,
   HTTP_API_WRITES,
+  newWriter,
   readHttpApiRequest,
   runHttpApiCall,
   type HttpApiCall,
   type StorageAdapter,
 } from '../../src/core'
+
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
+
+const HTTP_WRITER = newWriter('http', '', 'mac1api')
 
 interface ContractCase {
   name: string
@@ -72,6 +76,7 @@ async function world() {
     storage: plain(adapter),
     clock: createClock('mac1api'),
     newId: createIdGenerator(),
+    writer: () => HTTP_WRITER,
   })
   const run = (call: HttpApiCall) => runHttpApiCall(api, call)
   return { adapter, notes, shared, priv, note, hidden, run }
@@ -154,6 +159,10 @@ describe('every routed call answers its JSON', () => {
       args: { title: 'Plan', markdown: '# Plan\n', notebook: 'Shared' },
     })) as { id: string }
     expect((await w.adapter.getNote(made.id))?.bodyMd).toBe('# Plan\n')
+    const rows = await w.adapter.listAgentWrites(10)
+    expect(rows.map((r) => [r.noteId, r.kind, r.name, r.created])).toEqual([
+      [made.id, 'http', '', true],
+    ])
     await w.run({ op: 'notes.trash', note: w.note, args: {} })
     expect(await w.adapter.getNote(w.note)).toBeNull()
     expect(await w.adapter.getNote(w.note, { trashed: true })).not.toBeNull()

@@ -16,6 +16,7 @@ import {
   createTemplateService,
   duplicateNote,
   importMarkdown,
+  newWriter,
   runHttpApiCall,
   seedWelcome,
   textLength,
@@ -145,6 +146,7 @@ async function aiOn(d: Device, id: string) {
     clock: createClock(`${d.node}mcp`),
     newId: createIdGenerator(),
     atomically: d.storage.atomically,
+    writer: () => newWriter('mcp', 'Test', `${d.node}mcp`),
   })
 }
 
@@ -204,6 +206,7 @@ describe('a note written on two devices merges with each change once', () => {
       clock: createClock('a1mcp'),
       newId: createIdGenerator(),
       atomically: a.storage.atomically,
+      writer: () => newWriter('mcp', 'Test', 'a1mcp'),
     })
     await a.books.create('Shared', null, { aiAccess: true })
     const { id } = await ai.create({
@@ -229,7 +232,12 @@ describe('a note written on two devices merges with each change once', () => {
       tagsInBooks: _tags,
       ...appStorage
     } = a.storage
-    const api = createAiService({ storage: appStorage, clock: a.clock, newId: a.newId })
+    const api = createAiService({
+      storage: appStorage,
+      clock: a.clock,
+      newId: a.newId,
+      writer: () => newWriter('http', '', a.clock.node),
+    })
     const replica = new Y.Doc()
     Y.applyUpdate(replica, (await a.notes.open(id)).state)
     const updates: Uint8Array[] = []

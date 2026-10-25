@@ -1,6 +1,13 @@
 // The limits the app's note_put checks (src-tauri/src/commands/notes.rs; a policy test checks they match). The core cuts titles to fit before storage (clipTitle),
 // so a long title never stops a note from saving; every storage adapter refuses a record outside the limits with note_put's codes (checkNote).
 
+import {
+  AUTHORSHIP_ID,
+  MAX_AGENT_WRITE_ROWS,
+  validWriterName,
+  WRITER_KINDS,
+  type AgentWriteRow,
+} from './authorship'
 import { MAX_NOTE_LINKS, noteLinks } from './links'
 import type { NoteRecord } from './storage'
 
@@ -36,9 +43,28 @@ function overBytes(text: string, max: number): boolean {
   return new TextEncoder().encode(text).length > max
 }
 
+const validRow = (row: AgentWriteRow) =>
+  AUTHORSHIP_ID.test(row.writeId) &&
+  (WRITER_KINDS as readonly string[]).includes(row.kind) &&
+  validWriterName(row.name) &&
+  Number.isSafeInteger(row.at) &&
+  row.at >= 0 &&
+  typeof row.created === 'boolean'
+
+/** E_NOTE_WRITES_INVALID unless note_put takes the rows (validate_agent_writes in Rust). */
+export function checkAgentWrites(rows: readonly AgentWriteRow[]): void {
+  if (rows.length > MAX_AGENT_WRITE_ROWS || !rows.every(validRow)) {
+    throw new Error('E_NOTE_WRITES_INVALID')
+  }
+  if (new Set(rows.map((r) => r.writeId)).size !== rows.length) {
+    throw new Error('E_NOTE_WRITES_INVALID')
+  }
+}
+
 /** Throws the code note_put refuses `note` with. */
 export function checkNote(note: NoteRecord, links?: readonly string[]): void {
   const { title, bodyMd, bodyVersion, ydoc } = note
+  if (note.agentWrites) checkAgentWrites(note.agentWrites)
   if (/[\r\n]/.test(title) || cutAt(title, MAX_TITLE_CHARS) < title.length) {
     throw new Error('E_NOTE_TITLE_INVALID')
   }

@@ -114,6 +114,8 @@ pub fn run() {
             commands::revisions::revisions_last_compaction,
             commands::activity::activity_list,
             commands::activity::activity_notes_list,
+            commands::authorship::agent_writes_list,
+            commands::authorship::agent_writes_seen,
             commands::files::file_put,
             commands::files::files_copy,
             commands::images::image_copy,

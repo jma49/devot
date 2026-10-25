@@ -12,8 +12,10 @@ import {
   createClock,
   createIdGenerator,
   createNoteService,
+  readWrites,
+  WRITERS,
 } from '../../src/core'
-import { createServer, errorCode } from '../../src/mcp/server'
+import { clientWriter, createServer, errorCode } from '../../src/mcp/server'
 import { openSqliteAdapter } from '../../src/mcp/sqlite'
 import { HIDDEN, makeWorld } from './support'
 import { tempDir } from '../support/temp-dirs'
@@ -26,17 +28,18 @@ afterEach(async () => {
   for (const done of cleanup.splice(0).reverse()) await done()
 })
 
-async function connect(path: string) {
+async function connect(path: string, clientName = 'test') {
   const storage = openSqliteAdapter(path, { migrate: false })
+  const logs: string[] = []
+  const server = createServer({ service: () => ai, log: (...parts) => logs.push(parts.join(' ')) })
   const ai = createAiService({
     storage,
     clock: createClock('mcptest'),
     newId: createIdGenerator(),
     atomically: storage.atomically,
+    writer: clientWriter(server, 'mcptest'),
   })
-  const logs: string[] = []
-  const server = createServer({ service: () => ai, log: (...parts) => logs.push(parts.join(' ')) })
-  const client = new Client({ name: 'test', version: '1' })
+  const client = new Client({ name: clientName, version: '1' })
   const [a, b] = InMemoryTransport.createLinkedPair()
   await server.connect(a)
   await client.connect(b)
@@ -320,6 +323,35 @@ describe('editing tools', () => {
     const taken = await call(client, 'create_notebook', { name: 'Shared' })
     expect(taken.error).toMatch(/^E_BOOK_NAME_TAKEN: /)
     expect(logs[0]).toBe(`I_MCP_NOTEBOOK_CREATED ${id}`)
+  })
+})
+
+describe('authorship', () => {
+  it('records each write as the client named itself, one session for the connection', async () => {
+    const world = await makeWorld()
+    const { client, storage } = await connect(world.path, ' Claude\nCode ')
+    const made = await call(client, 'create_note', {
+      title: 'Plan',
+      markdown: 'Step one.\n',
+      notebook: 'Shared',
+    })
+    const id = made.value?.['id'] as string
+    await call(client, 'update_note', { id, patches: [{ find: 'one', replace: 'two' }] })
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await storage.getNote(id))!.ydoc)
+    const writes = readWrites(doc)
+    expect(writes).toHaveLength(2)
+    expect(new Set(writes.map((w) => w.session)).size).toBe(1)
+    expect(doc.getMap(WRITERS).get(writes[0]!.session)).toEqual({
+      v: 1,
+      kind: 'mcp',
+      name: 'Claude Code',
+      process: 'mcptest',
+    })
+    expect((await storage.listAgentWrites(10)).map((w) => [w.kind, w.name, w.created])).toEqual([
+      ['mcp', 'Claude Code', false],
+      ['mcp', 'Claude Code', true],
+    ])
   })
 })
 

@@ -19,11 +19,11 @@ Every agent write (devot-mcp, the local HTTP API, an accepted Edit with AI propo
   - `kind`: `mcp`, `http` or `aiEdit`. Devot sets it; the client never does.
   - `name`: the MCP `clientInfo.name` as the client gave it, made one line without control characters, at most 100 code points. It is '' for the HTTP API and Edit with AI, which show their kind instead. A name is only shown; it never grants access.
   - `process`: the HLC node ID of the process that wrote. devot-mcp makes a new one for each run; the app uses the device's.
-  - The key is the session. There is one session for each MCP `initialize` (over stdio, one per process), one for each start of the HTTP API, and one for each Edit with AI sheet.
+  - The key is the session. There is one session for each MCP `initialize` (over stdio, one per process), one for each start of the core that answers the HTTP API (the main window's, which does not hear Rust start or stop the listener), and one for each Edit with AI sheet.
 - **A write** is one tool call, request or accepted proposal:
   - `writer`: the session key;
   - `at`: the wall-clock time in ms;
-  - `ids`: varuint-packed `(client, clock, length)` ranges, first those it inserted into `body`, then those it deleted;
+  - `ids`: varuints: the clients its ranges name, the count of inserted ranges, then each `(client's place in that list, clock, length)` range, first those it inserted into `body`, then those it deleted. A client ID takes five bytes and a write's ranges name few clients, so each is written once;
   - `removed`: the text it deleted, in the order of its deleted ranges, so Undo can put it back after garbage collection has dropped it. The write helper reads the text before it deletes it;
   - `fields`: the metadata it changed (`title`, `notebook`, `tags`, `status`, `trash`), for the notice and the list;
   - `created`: the write made the note.
@@ -82,6 +82,7 @@ Every agent write (devot-mcp, the local HTTP API, an accepted Edit with AI propo
 - **Clear Authorship** (note context menu and More menu) deletes every entry of both maps in one transaction.
   - Garbage collection drops the records and their `removed` text straight away; only tombstones remain (about 35 bytes a write).
   - The clear merges to the other devices like any change. A write made elsewhere that the clear had not seen stays.
+  - A write sets its writer's entry only when the note lacks it or it changed, so a write the clear had not seen, from a session whose entry the clear deleted, has no writer and counts as cleared. The session's next write sets the entry again and brings it back. Writing the entry with every write would avoid this but costs about 15 bytes a write more.
 - **Local copies:** versions in Revision History taken before the clear keep their copy of the maps. They are local, never synced, and they already hold that text as body text.
 - **Logs** carry codes, note IDs, write IDs and kinds. They never carry a client name (text another program chose), body text or `removed` text:
   - `I_AUTHORSHIP_WRITE <noteId> <writeId> <kind>`;
@@ -122,13 +123,14 @@ Measured with a script on yjs 13.6.33 (Node 26, M1 Pro):
   | Attributing the whole note (the gutter's walk) | 0.06 ms            | 0.23 ms            |
   | Undo All for one writer                        | 0.8 ms             | 4.6 ms             |
 
+- **Measured again on the implementation** (`tests/core/authorship.bench.test.ts`, random 32-bit Yjs clients and millisecond times, as the app writes them): the same kind of note is 48.5 KB with 50 writes and no authorship; the records add 7.3 KB (+15%), 2.6 KB of it deleted text, about 95 bytes a write besides; Clear Authorship leaves 1.6 KB. The test keeps the share under the 18% above.
 - **Undo All checked:** after a merge with another device's edit, Undo All for one writer left none of its characters. It kept all 50 owner edits, the other writer's 2,734 characters and the other device's text. The merged copy attributed the same 5,665 characters as the original.
 
 ## Risks
 
 1. **Cut and paste.** Moving agent text by cut and paste makes it the owner's: the pasted text gets new items. A restore that brings back agent text makes it the owner's too. Both are the owner's own actions.
 2. **Owner text inside agent text.** Undo All keeps what the owner typed inside text it removes, so a word or two can be left on its own. Review Changes shows these places first.
-3. **Growth.** A write costs about 80 bytes plus the text it deleted. `removed` text is capped at 1 MiB per note, dropped oldest first. Undo of a write whose `removed` text was dropped takes out only what it inserted, and the notice says so. Clear Authorship gives most of the space back.
+3. **Growth.** A write costs about 80 to 95 bytes plus the text it deleted. `removed` text is capped at 1 MiB per note, dropped oldest first. Undo of a write whose `removed` text was dropped takes out only what it inserted, and the notice says so. Clear Authorship gives most of the space back.
 4. **Spoofed names.** A client can call itself anything. Devot sets the kind, and the UI always shows it with the name ("Claude Code, MCP"), so a client can never look like Edit with AI or the owner.
 5. **Yjs internals.** Attribution and reversal walk a text's items (`_start`), as the welcome note merge does already (`dropClient`). yjs is pinned, and the tests cover the walk on each upgrade.
 6. **Revisions weigh more.** A kept version holds the maps. Clearing does not shrink versions already taken.

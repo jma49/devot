@@ -5,6 +5,7 @@ import { invoke } from '../ipc'
 import type {
   ActivityData,
   ActivityRevision,
+  AgentWriteSummary,
   BookRecord,
   CompactableVersion,
   NoteBody,
@@ -22,8 +23,12 @@ export const tauriWire: WireStorage = {
   getNote: (id, options) =>
     invoke<WireNote | null>('note_get', { id, trashed: options?.trashed ?? false }),
   getBodies: (ids) => invoke<NoteBody[]>('notes_bodies', { ids }),
-  // The worker found the links and checked the note (what note_put refuses).
-  putNote: (note, links) => invoke('note_put', { note, links }),
+  // The worker found the links and checked the note and its agent_writes rows (what note_put refuses).
+  putNote: (note, links) => {
+    if (note.agentWrites === undefined) return invoke('note_put', { note, links, writes: null })
+    const { agentWrites, ...record } = note
+    return invoke('note_put', { note: record, links, writes: agentWrites })
+  },
   // The Rust command applies its own result limit.
   searchNotes: (query) => invoke<NoteSummary[]>('notes_search', { query }),
   listTrash: () => invoke<TrashedNote[]>('notes_trash_list'),
@@ -55,6 +60,8 @@ export const tauriWire: WireStorage = {
   listActivity: (since) => invoke<ActivityData>('activity_list', { since }),
   listNoteActivity: (ids, since) =>
     invoke<ActivityRevision[]>('activity_notes_list', { ids, since }),
+  listAgentWrites: (limit) => invoke<AgentWriteSummary[]>('agent_writes_list', { limit }),
+  markAgentWritesSeen: (noteId, writeIds) => invoke('agent_writes_seen', { noteId, writeIds }),
 }
 
 export const tauriStorage: StorageAdapter = fromWire(tauriWire)

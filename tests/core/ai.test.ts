@@ -16,17 +16,21 @@ import {
   createNoteService,
   createTagService,
   KEEP_NEWEST,
-  parseHlc,
-  snippet,
   MAX_AI_BODY_BYTES,
   MAX_AI_PATCHES,
   MAX_AI_TAGS,
   MAX_NOTE_LINKS,
+  newWriter,
   noteLink,
+  parseHlc,
+  snippet,
 } from '../../src/core'
+
 import { expectWithinBudget } from '../support/budget'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
+
+const WRITER = newWriter('mcp', 'Claude Code', 'mcptest')
 
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
@@ -46,6 +50,7 @@ function setup() {
     clock: createClock('mcptest'),
     newId: createIdGenerator(),
     atomically: storage.atomically,
+    writer: () => WRITER,
   })
   return { storage, books, notes, tags, ai, path }
 }
@@ -734,6 +739,7 @@ describe('creating notes beside a long history', () => {
       storage: mcp,
       clock: createClock('mcptest'),
       newId: createIdGenerator(),
+      writer: () => WRITER,
       atomically: (work) =>
         mcp.atomically(async () => {
           const start = performance.now()

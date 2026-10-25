@@ -38,6 +38,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0017_note_dates.sql"),
     include_str!("../../migrations/0018_book_icons.sql"),
     include_str!("../../migrations/0019_sync.sql"),
+    include_str!("../../migrations/0020_agent_writes.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -375,6 +376,49 @@ pub struct ActivityData {
     pub notes: Vec<ActivityNote>,
     pub revisions: Vec<ActivityRevision>,
 }
+
+/// A note's row of the agent_writes index (docs/adr/0007-authorship-by-yjs-item-ids.md), as the
+/// core derives it from the authorship records in the note's Yjs state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentWriteRow {
+    pub write_id: String,
+    pub kind: String,
+    pub name: String,
+    pub at: i64,
+    pub created: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentWriteSummary {
+    pub note_id: String,
+    pub write_id: String,
+    pub kind: String,
+    pub name: String,
+    pub at: i64,
+    pub created: bool,
+    pub seen: bool,
+}
+
+/// The same statements as the TypeScript adapter's (src/mcp/sqlite.ts, AGENT_WRITES_SQL; a test
+/// compares them). A note's rows are replaced with each write that carries them, keeping `seen` of
+/// the rows it still has.
+const AGENT_WRITES_KEEP_SQL: &str = "DELETE FROM agent_writes
+     WHERE note_id = @noteId AND write_id NOT IN (SELECT value FROM json_each(@ids))";
+const AGENT_WRITES_PUT_SQL: &str =
+    "INSERT INTO agent_writes (note_id, write_id, kind, name, at, created, seen)
+     VALUES (@noteId, @writeId, @kind, @name, @at, @created, @kind = 'aiEdit')
+     ON CONFLICT (note_id, write_id) DO UPDATE SET
+       kind = excluded.kind, name = excluded.name, at = excluded.at, created = excluded.created";
+const AGENT_WRITES_LIST_SQL: &str =
+    "SELECT w.note_id AS noteId, w.write_id AS writeId, w.kind, w.name, w.at, w.created, w.seen
+     FROM agent_writes w JOIN notes n ON n.id = w.note_id
+     WHERE n.deleted_at IS NULL AND n.purged_at IS NULL
+     ORDER BY w.at DESC, w.note_id, w.write_id LIMIT @limit";
+const AGENT_WRITES_SEEN_SQL: &str = "UPDATE agent_writes SET seen = 1
+     WHERE note_id = @noteId AND seen = 0 AND write_id IN (SELECT value FROM json_each(@ids))";
+const AGENT_WRITES_PURGE_SQL: &str = "DELETE FROM agent_writes WHERE note_id = @noteId";
 
 /// The same statements as the TypeScript adapter's (src/mcp/sqlite.ts, ACTIVITY_SQL; a test
 /// compares them). Each reads a covering index of migration 0012, never a table row (rows hold Yjs
@@ -1152,7 +1196,14 @@ impl Store {
     /// A write based on another version, which would go over a body another process wrote since, is
     /// refused with `StorageError::BodyStale` and changes nothing; its writer takes the stored body
     /// in and writes again. A purged note is left alone, whatever the version.
-    pub fn put_note(&mut self, note: &NoteRecord, links: &[String]) -> Result<()> {
+    /// With `writes`, the note's agent_writes rows are replaced in the same transaction, each
+    /// keeping whether it was seen; `None` leaves them as they are.
+    pub fn put_note_with_writes(
+        &mut self,
+        note: &NoteRecord,
+        links: &[String],
+        writes: Option<&[AgentWriteRow]>,
+    ) -> Result<()> {
         let tx = self.conn.transaction()?;
         let written = tx.execute(
             "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, book_id, book_hlc,
@@ -1219,6 +1270,27 @@ impl Store {
                 tx.prepare("INSERT OR IGNORE INTO links (source_id, target_id) VALUES (?1, ?2)")?;
             for target in links {
                 insert.execute(params![note.id, target])?;
+            }
+            if let Some(rows) = writes {
+                let ids = serde_json::to_string(
+                    &rows.iter().map(|row| &row.write_id).collect::<Vec<_>>(),
+                )
+                .map_err(|_| StorageError::Refused("E_NOTE_WRITES_INVALID"))?;
+                tx.execute(
+                    AGENT_WRITES_KEEP_SQL,
+                    rusqlite::named_params! { "@noteId": note.id, "@ids": ids },
+                )?;
+                let mut put = tx.prepare_cached(AGENT_WRITES_PUT_SQL)?;
+                for row in rows {
+                    put.execute(rusqlite::named_params! {
+                        "@noteId": note.id,
+                        "@writeId": row.write_id,
+                        "@kind": row.kind,
+                        "@name": row.name,
+                        "@at": row.at,
+                        "@created": row.created,
+                    })?;
+                }
             }
         }
         tx.commit()?;
@@ -1427,6 +1499,10 @@ impl Store {
         tx.execute(HAND_OVER_FILES_SQL, rusqlite::named_params! { "@id": id })?;
         tx.execute("DELETE FROM files WHERE note_id = ?1", [id])?;
         tx.execute("DELETE FROM links WHERE source_id = ?1", [id])?;
+        tx.execute(
+            AGENT_WRITES_PURGE_SQL,
+            rusqlite::named_params! { "@noteId": id },
+        )?;
         if revisions {
             tx.execute("DELETE FROM revisions WHERE note_id = ?1", [id])?;
         }
@@ -1550,6 +1626,40 @@ impl Store {
             .conn
             .query_row(LAST_COMPACTION_SQL, [], |row| row.get(0))
             .optional()?)
+    }
+
+    /// `put_note_with_writes` leaving the agent_writes rows alone.
+    #[cfg(test)]
+    pub fn put_note(&mut self, note: &NoteRecord, links: &[String]) -> Result<()> {
+        self.put_note_with_writes(note, links, None)
+    }
+
+    /// Rows of notes not in the Trash, newest first.
+    pub fn list_agent_writes(&self, limit: u32) -> Result<Vec<AgentWriteSummary>> {
+        let mut statement = self.conn.prepare_cached(AGENT_WRITES_LIST_SQL)?;
+        let rows = statement.query_map(rusqlite::named_params! { "@limit": limit }, |row| {
+            Ok(AgentWriteSummary {
+                note_id: row.get(0)?,
+                write_id: row.get(1)?,
+                kind: row.get(2)?,
+                name: row.get(3)?,
+                at: row.get(4)?,
+                created: row.get(5)?,
+                seen: row.get(6)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// IDs the note has no row for are skipped.
+    pub fn mark_agent_writes_seen(&mut self, note_id: &str, write_ids: &[String]) -> Result<()> {
+        let ids = serde_json::to_string(write_ids)
+            .map_err(|_| StorageError::Refused("E_AGENT_WRITES_INVALID"))?;
+        self.conn.execute(
+            AGENT_WRITES_SEEN_SQL,
+            rusqlite::named_params! { "@noteId": note_id, "@ids": ids },
+        )?;
+        Ok(())
     }
 
     pub fn list_activity(&self, since: i64) -> Result<ActivityData> {

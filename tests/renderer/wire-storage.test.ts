@@ -182,9 +182,19 @@ describe('the page’s side', () => {
   it('hands states to the commands as they came, without reading them', async () => {
     const record: WireNote = { ...note(), ydoc: toBase64(bytes(MIB)) }
     await tauriWire.putNote(record, ['x'])
-    expect(invoke).toHaveBeenCalledWith('note_put', { note: record, links: ['x'] })
+    expect(invoke).toHaveBeenCalledWith('note_put', { note: record, links: ['x'], writes: null })
     const sent = vi.mocked(invoke).mock.calls[0]?.[1] as { note: WireNote }
     expect(sent.note).toBe(record)
+    // The agent_writes rows go beside the note, as note_put takes them.
+    const row = {
+      writeId: 'AAAAAAAAAAA',
+      kind: 'mcp' as const,
+      name: 'Codex',
+      at: 1,
+      created: false,
+    }
+    await tauriWire.putNote({ ...record, agentWrites: [row] }, [])
+    expect(invoke).toHaveBeenLastCalledWith('note_put', { note: record, links: [], writes: [row] })
 
     vi.mocked(invoke).mockResolvedValueOnce(record)
     expect(await tauriWire.getNote(record.id)).toBe(record)

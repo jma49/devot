@@ -18,6 +18,19 @@ import {
   type OffsetAt,
   type StripDay,
 } from './activity'
+import {
+  agentWriteRows,
+  applyAgentEdit,
+  clearAuthorship,
+  newWriter,
+  reverseWrites,
+  sameRows,
+  type AgentEdit,
+  type AgentWriteRow,
+  type Log,
+  type Reversal,
+  type WriterKind,
+} from './authorship'
 import { TEMPLATES_BOOK_ID } from './books'
 import {
   charsChanged,
@@ -117,7 +130,12 @@ export interface NoteServiceOptions {
   relay?: (message: NoteRelayMessage) => void
   /** A note in memory took in a change it did not make: another window's (relayed), or one stored meanwhile (merged), for the editor and title field showing it. */
   onTakenIn?: (change: TakenIn) => void
+  /** Info lines (I_AUTHORSHIP_*): codes and IDs only. Never the console in devot-mcp, whose stdout carries MCP. */
+  log?: Log
 }
+
+/** An agent's write (ADR 0007), timed by the service. */
+export type AgentNoteWrite = Omit<AgentEdit, 'at' | 'maxRemovedBytes'>
 
 export interface NoteService {
   list(limit?: number): Promise<NoteSummary[]>
@@ -228,6 +246,15 @@ export interface NoteService {
    * editor's replica to apply as one undoable step.
    */
   applyPluginEdit(id: string, edit: { base: string; markdown: string }): Promise<Uint8Array>
+  /** Records an agent's write (ADR 0007): its body edit, applied as Yjs operations (see textEdits), and its record go in as one Yjs transaction. Resolves to the write's ID, or null when it changed nothing. */
+  agentWrite(id: string, write: AgentNoteWrite): Promise<string | null>
+  /** Undo All for one writer (kind and name) as an owner edit; the text before is kept as a version. `update` is for the editor's replica to apply as one undoable step. */
+  undoAgentWrites(
+    id: string,
+    writer: { kind: WriterKind; name: string },
+  ): Promise<Reversal & { update: Uint8Array }>
+  /** Clear Authorship: drops every authorship record of the note. Returns the Yjs update, for the editor's replica. */
+  clearAuthorship(id: string): Promise<Uint8Array>
   /** Pending edits are saved and unversioned typing becomes a version, so it counts. */
   activity(now: number, offsetAt?: OffsetAt): Promise<ActivityHeatmap>
   /** The list's activity strips of `ids` (at most MAX_BODY_IDS; see buildStrips), typing not kept as a version yet counted today. Reads only: nothing is saved. */
@@ -278,6 +305,8 @@ interface Live {
   users: number
   /** Set when a retried write took in a title another process gave the note; mergeStored reports it. */
   retitled: boolean
+  /** The agent_writes rows storage holds of the note, as last written; undefined until the note's first write here, which derives them again. */
+  rows: readonly AgentWriteRow[] | undefined
   failures: number
   retry: Timer | undefined
   rev: {
@@ -464,6 +493,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       writes: 0,
       users: 0,
       retitled: false,
+      rows: undefined,
       failures: 0,
       retry: undefined,
       rev: {
@@ -697,6 +727,12 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       return record
     })
 
+  /** The rows to write with the note: undefined (left as stored) when they are what storage holds. */
+  const rowsOf = (note: Live) => {
+    const rows = agentWriteRows(note.doc, note.record.id)
+    return { rows, changed: sameRows(note.rows, rows) ? undefined : rows }
+  }
+
   const write = async (note: Live) => {
     if (!dirty(note) || live.get(note.record.id) !== note) return
     // A title, notebook, status or pin change before any body edit moves
@@ -707,18 +743,22 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       keepBaseline(note.record.id, body, note.rev)
     }
     let edits = note.edits
+    let rows: readonly AgentWriteRow[] | undefined
     const record = await put(note, () => {
       edits = note.edits
       const datesSet = (note.record.datesHlc ?? '') > (note.saved.datesHlc ?? '')
+      const derived = rowsOf(note)
+      rows = derived.rows
       note.record = {
         ...note.record,
         bodyMd: note.doc.getText(BODY).toString(),
         ydoc: Y.encodeStateAsUpdate(note.doc),
         updatedAt: datesSet ? note.record.updatedAt : Math.max(now(), note.record.createdAt),
       }
-      return note.record
+      return derived.changed ? { ...note.record, agentWrites: derived.changed } : note.record
     })
     if (!record) return
+    note.rows = rows
     relay({ kind: 'saved', noteId: record.id, updatedAt: record.updatedAt })
     const written = asWritten(record)
     note.record = { ...note.record, bodyVersion: written.bodyVersion }
@@ -936,6 +976,30 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
   // Versions never change, so what one changed from the one before is worked out once (versionChanges).
   const changesKept = new Map<string, number>()
+  /** Runs `change` on the note's document and returns the Yjs update it made, for the editor's replica. */
+  const collected = (note: Live, change: () => void): Uint8Array => {
+    const updates: Uint8Array[] = []
+    const collect = (update: Uint8Array) => updates.push(update)
+    note.doc.on('update', collect)
+    try {
+      change()
+    } finally {
+      note.doc.off('update', collect)
+    }
+    return Y.mergeUpdates(updates)
+  }
+
+  /** An agent's write and its record, as one transaction (applyAgentEdit). */
+  const authoredEdit = (note: Live, edit: AgentNoteWrite): string | null => {
+    let writeId: string | null = null
+    editBody(note, () => {
+      writeId = applyAgentEdit(note.doc, { ...edit, at: now() })
+    })
+    if (writeId === null) return null
+    schedule(note)
+    options.log?.('I_AUTHORSHIP_WRITE', note.record.id, writeId, edit.writer.kind)
+    return writeId
+  }
 
   const bodyVersion = async (id: string, revisionId: string) => {
     const revision = await storage.getRevision(revisionId)
@@ -1024,9 +1088,12 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       deletedAt: null,
       deletedHlc: null,
     }
-    await storage.putNote(record)
+    const rows = agentWriteRows(doc, id)
+    await storage.putNote({ ...record, agentWrites: rows })
     relay({ kind: 'saved', noteId: id, updatedAt: at })
-    live.set(id, liveNote(asWritten(record), doc, false))
+    const note = liveNote(asWritten(record), doc, false)
+    note.rows = rows
+    live.set(id, note)
     trim()
     if (copies.length === 0) return id
     try {
@@ -1354,13 +1421,17 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           // Written apart: when it fails, the note stays as it was. With the
           // body as the document holds it, which may have taken in what
           // another process wrote since the last write (see mergeStored).
-          await put(note, () => ({
-            ...note.record,
-            bodyMd: note.doc.getText(BODY).toString(),
-            ydoc: Y.encodeStateAsUpdate(note.doc),
-            deletedAt: now(),
-            deletedHlc: clock.tick(),
-          }))
+          await put(note, () => {
+            const { changed } = rowsOf(note)
+            return {
+              ...note.record,
+              bodyMd: note.doc.getText(BODY).toString(),
+              ydoc: Y.encodeStateAsUpdate(note.doc),
+              deletedAt: now(),
+              deletedHlc: clock.tick(),
+              ...(changed ? { agentWrites: changed } : {}),
+            }
+          })
           drop(note)
         })
       })
@@ -1454,16 +1525,9 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       using(id, async (note) => {
         const old = await bodyVersion(id, revisionId)
         takeVersion(note)
-        const updates: Uint8Array[] = []
-        const collect = (update: Uint8Array) => updates.push(update)
-        note.doc.on('update', collect)
-        try {
-          replaceBody(note, old)
-        } finally {
-          note.doc.off('update', collect)
-        }
+        const update = collected(note, () => replaceBody(note, old))
         await revisionWork
-        return Y.mergeUpdates(updates)
+        return update
       }),
 
     async versionChanges(id) {
@@ -1505,21 +1569,16 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         const inserts = passageInserts(old, text.toString(), from, to)
         if (inserts.length === 0) throw new Error('E_PASSAGE_NOT_REMOVED')
         takeVersion(note)
-        const updates: Uint8Array[] = []
-        const collect = (update: Uint8Array) => updates.push(update)
-        note.doc.on('update', collect)
-        try {
+        const update = collected(note, () =>
           editBody(note, () =>
             note.doc.transact(() => {
               for (const insert of inserts.reverse()) text.insert(insert.at, insert.text)
             }),
-          )
-        } finally {
-          note.doc.off('update', collect)
-        }
+          ),
+        )
         takeVersion(note)
         await revisionWork
-        return Y.mergeUpdates(updates)
+        return update
       }),
 
     applyAiEdit: (id, { from, original, replacement }) =>
@@ -1531,35 +1590,62 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           throw new Error('E_AI_PROPOSAL_STALE')
         }
         takeVersion(note)
-        const updates: Uint8Array[] = []
-        const collect = (update: Uint8Array) => updates.push(update)
-        note.doc.on('update', collect)
-        try {
-          const next = lineFeeds(replacement)
-          replaceBody(note, body.slice(0, at) + next + body.slice(at + original.length))
-        } finally {
-          note.doc.off('update', collect)
-        }
+        const next = lineFeeds(replacement)
+        const markdown = body.slice(0, at) + next + body.slice(at + original.length)
+        // Each Edit with AI sheet is a session of its own, and it accepts once.
+        const writer = newWriter('aiEdit', '', clock.node)
+        const update = collected(note, () => authoredEdit(note, { writer, markdown }))
         takeVersion(note, AI_EDIT)
         await revisionWork
-        return Y.mergeUpdates(updates)
+        return update
+      }),
+
+    agentWrite: (id, edit) =>
+      using(id, (note) =>
+        authoredEdit(note, {
+          ...edit,
+          ...(edit.markdown === undefined ? {} : { markdown: lineFeeds(edit.markdown) }),
+        }),
+      ),
+
+    undoAgentWrites: (id, writer) =>
+      using(id, async (note) => {
+        takeVersion(note)
+        let result: Reversal = { writes: 0, dropped: 0 }
+        const update = collected(note, () =>
+          editBody(note, () => {
+            result = reverseWrites(note.doc, writer, id)
+          }),
+        )
+        if (result.writes > 0) {
+          schedule(note)
+          options.log?.('I_AUTHORSHIP_UNDONE', id, String(result.writes))
+        }
+        await revisionWork
+        return { ...result, update }
+      }),
+
+    clearAuthorship: (id) =>
+      using(id, (note) => {
+        let cleared = false
+        const update = collected(note, () => {
+          cleared = editBody(note, () => clearAuthorship(note.doc))
+        })
+        if (cleared) {
+          schedule(note)
+          options.log?.('I_AUTHORSHIP_CLEARED', id)
+        }
+        return update
       }),
 
     applyPluginEdit: (id, { base, markdown }) =>
       using(id, async (note) => {
         if (note.doc.getText(BODY).toString() !== base) throw new Error('E_PLUGIN_NOTE_CHANGED')
         takeVersion(note)
-        const updates: Uint8Array[] = []
-        const collect = (update: Uint8Array) => updates.push(update)
-        note.doc.on('update', collect)
-        try {
-          replaceBody(note, lineFeeds(markdown))
-        } finally {
-          note.doc.off('update', collect)
-        }
+        const update = collected(note, () => replaceBody(note, lineFeeds(markdown)))
         takeVersion(note)
         await revisionWork
-        return Y.mergeUpdates(updates)
+        return update
       }),
 
     async activity(day, offsetAt) {
