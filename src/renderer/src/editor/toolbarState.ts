@@ -46,7 +46,7 @@ export const toolbarOff = Facet.define<boolean, boolean>({
 })
 
 export function toolbarVisible(state: EditorState): boolean {
-  if (state.facet(toolbarOff)) return false
+  if (state.facet(toolbarOff) || state.readOnly) return false
   const value = state.field(toolbarState, false)
   return !!value && value.focused && !value.hidden && !state.selection.main.empty
 }

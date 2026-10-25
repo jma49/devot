@@ -1,6 +1,7 @@
 //! Where the licence lives: the key in the keychain beside the AI keys (a generic password under the
-//! app's identifier, account `licence`), never in a file, the web view or a log; the last verified
-//! revocation list in `<app data>/licence-revocations.txt`, since it is public.
+//! app's identifier, account `licence`), never in a file, the web view or a log; the trial's start
+//! and latest time seen beside it (account `trial`); the last verified revocation list in
+//! `<app data>/licence-revocations.txt`, since it is public.
 
 pub(crate) const REVOCATIONS_FILE: &str = "licence-revocations.txt";
 
@@ -11,8 +12,8 @@ pub(crate) trait KeyStore: Send + Sync {
     fn clear(&self) -> Result<(), &'static str>;
 }
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-const ACCOUNT: &str = "licence";
+pub(crate) const LICENCE_ACCOUNT: &str = "licence";
+pub(crate) const TRIAL_ACCOUNT: &str = "trial";
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
@@ -20,14 +21,16 @@ const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) struct Keychain {
     service: String,
+    account: &'static str,
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 impl Keychain {
     /// `service` is the app's identifier, so a debug build keeps its own item.
-    pub(crate) fn new(service: &str) -> Self {
+    pub(crate) fn new(service: &str, account: &'static str) -> Self {
         Self {
             service: service.to_owned(),
+            account,
         }
     }
 }
@@ -36,7 +39,7 @@ impl Keychain {
 impl KeyStore for Keychain {
     fn get(&self) -> Result<Option<String>, &'static str> {
         use security_framework::passwords::get_generic_password;
-        match get_generic_password(&self.service, ACCOUNT) {
+        match get_generic_password(&self.service, self.account) {
             Ok(bytes) => String::from_utf8(bytes)
                 .map(Some)
                 .map_err(|_| "E_LICENCE_KEYCHAIN"),
@@ -46,12 +49,16 @@ impl KeyStore for Keychain {
     }
 
     fn set(&self, key: &str) -> Result<(), &'static str> {
-        security_framework::passwords::set_generic_password(&self.service, ACCOUNT, key.as_bytes())
-            .map_err(|_| "E_LICENCE_KEYCHAIN")
+        security_framework::passwords::set_generic_password(
+            &self.service,
+            self.account,
+            key.as_bytes(),
+        )
+        .map_err(|_| "E_LICENCE_KEYCHAIN")
     }
 
     fn clear(&self) -> Result<(), &'static str> {
-        match security_framework::passwords::delete_generic_password(&self.service, ACCOUNT) {
+        match security_framework::passwords::delete_generic_password(&self.service, self.account) {
             Ok(()) => Ok(()),
             Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(()),
             Err(_) => Err("E_LICENCE_KEYCHAIN"),
@@ -65,7 +72,7 @@ pub(crate) struct Keychain;
 
 #[cfg(not(any(target_os = "macos", target_os = "ios")))]
 impl Keychain {
-    pub(crate) fn new(_service: &str) -> Self {
+    pub(crate) fn new(_service: &str, _account: &'static str) -> Self {
         Self
     }
 }
@@ -92,6 +99,16 @@ pub(crate) struct MemoryKey {
     pub reads: std::sync::atomic::AtomicUsize,
     /// Reads fail as a non-UTF-8 or denied item does; writes still succeed.
     pub unreadable: std::sync::atomic::AtomicBool,
+}
+
+#[cfg(test)]
+impl MemoryKey {
+    pub(crate) fn holding(text: &str) -> Self {
+        Self {
+            key: std::sync::Mutex::new(Some(text.to_owned())),
+            ..Self::default()
+        }
+    }
 }
 
 #[cfg(test)]

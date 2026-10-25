@@ -350,6 +350,7 @@ fn reason(status: u16) -> &'static str {
 /// The HTTP status of a code the core or the window answered with.
 pub fn status_of(code: &str) -> u16 {
     match code {
+        "E_LICENCE_REQUIRED" => 403,
         "E_NOTE_NOT_FOUND" | "E_BOOK_NOT_FOUND" => 404,
         "E_BOOK_AMBIGUOUS"
         | "E_BOOK_NAME_TAKEN"

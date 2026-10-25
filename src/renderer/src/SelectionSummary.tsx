@@ -29,8 +29,10 @@ export function SelectionSummary(props: {
   onTrash: () => void
   onRestore: () => void
   onDelete: () => void
+  /** Only Copy Links works: the trial is over without a licence. */
+  readOnly?: boolean
 }) {
-  const { notes, view } = props
+  const { notes, view, readOnly } = props
   const locale = currentLocale()
   const pinned = notes.every((n) => n.pinned)
   const status = notes[0]?.status ?? 'none'
@@ -57,31 +59,41 @@ export function SelectionSummary(props: {
       ) : null}
       {view === 'trash' ? (
         <div className="selection-actions">
-          <button type="button" className="button" onClick={props.onRestore}>
+          <button type="button" className="button" disabled={readOnly} onClick={props.onRestore}>
             {t('trash.restore')}
           </button>
-          <button type="button" className="button button-destructive" onClick={props.onDelete}>
+          <button
+            type="button"
+            className="button button-destructive"
+            disabled={readOnly}
+            onClick={props.onDelete}
+          >
             {t('trash.deleteForever')}
           </button>
         </div>
       ) : (
         <>
           <div className="selection-actions">
-            <button type="button" className="button" onClick={props.onMove}>
+            <button type="button" className="button" disabled={readOnly} onClick={props.onMove}>
               {t('noteMenu.move')}
             </button>
-            <button type="button" className="button" onClick={() => props.onPin(!pinned)}>
+            <button
+              type="button"
+              className="button"
+              disabled={readOnly}
+              onClick={() => props.onPin(!pinned)}
+            >
               {t(pinned ? 'note.unpin' : 'note.pin')}
             </button>
             <button type="button" className="button" onClick={props.onCopyLinks}>
               {t('batch.copyLinks')}
             </button>
-            <button type="button" className="button" onClick={props.onTrash}>
+            <button type="button" className="button" disabled={readOnly} onClick={props.onTrash}>
               {t('note.moveToTrash')}
             </button>
           </div>
           {view === 'notes' ? (
-            <div className="note-meta selection-meta">
+            <div className="note-meta selection-meta" inert={readOnly}>
               <StatusPicker value={status} mixed={mixed} onChange={props.onStatus} />
               <span className="meta-divider" aria-hidden="true" />
               <TagEditor

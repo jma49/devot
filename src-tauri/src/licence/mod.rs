@@ -1,9 +1,12 @@
-//! The licence that unlocks sync and AI (docs/adr/0006-source-available-and-sold-once.md, The
-//! licence): a signed key checked offline against the public keys the build holds, kept in the
+//! The licence that unlocks editing, sync and AI (docs/adr/0006-source-available-and-sold-once.md,
+//! The licence): a signed key checked offline against the public keys the build holds, kept in the
 //! keychain. Its state is none, valid, revoked (in the last verified revocation list) or invalid
 //! (with its code). A valid licence unlocks every version.
-//! While the build holds no production key nothing is gated, so a release made before the owner's
-//! keys exist changes nothing.
+//! Without one, a three-day trial (`trial`) unlocks the same; once it is over, notes are read-only
+//! and every write of user content is refused (`require_write`, which the database's write gate
+//! asks).
+//! While the build holds no production key nothing is gated and the trial never starts, so a
+//! release made before the owner's keys exist changes nothing.
 //! The key and the licensee's address never reach a log, an error or a crash report: logs carry
 //! codes and the licence ID.
 
@@ -15,6 +18,7 @@ mod store;
 pub(crate) mod testing;
 #[cfg(test)]
 mod tests;
+mod trial;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -27,12 +31,18 @@ pub(crate) use format::MAX_LENGTH;
 use format::{Payload, Revocations, VerifyError, verify_licence, verify_revocations};
 pub(crate) use keys::PublicKeys;
 pub(crate) use revoked::refresh_from_site as refresh_revocations;
-pub(crate) use store::{KeyStore, Keychain, REVOCATIONS_FILE};
+pub(crate) use store::{KeyStore, Keychain, LICENCE_ACCOUNT, REVOCATIONS_FILE, TRIAL_ACCOUNT};
+use trial::Record;
+pub(crate) use trial::TrialView;
+
+use crate::storage::Write;
 
 pub(crate) const CHANGED_EVENT: &str = "devot://licence-changed";
 pub(crate) const REQUIRED: &str = "E_LICENCE_REQUIRED";
 /// A pasted key may carry line breaks from an email; anything longer than this is not a key.
 const MAX_INPUT: usize = 4 * MAX_LENGTH;
+/// How often the trial is looked at while Devot runs: its end reaches the windows within this.
+const TICK: std::time::Duration = std::time::Duration::from_secs(60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,7 +57,7 @@ pub(crate) enum LicenceState {
 #[derive(Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Snapshot {
-    /// Whether sync and AI need a licence in this build.
+    /// Whether editing, sync and AI need a licence or the trial in this build.
     pub gated: bool,
     pub state: LicenceState,
     /// Why the key is invalid, or why it could not be read.
@@ -55,6 +65,8 @@ pub(crate) struct Snapshot {
     pub id: Option<String>,
     pub licensee: Option<String>,
     pub plan: Option<&'static str>,
+    /// None while the build gates nothing.
+    pub trial: Option<TrialView>,
 }
 
 impl fmt::Debug for Snapshot {
@@ -64,6 +76,7 @@ impl fmt::Debug for Snapshot {
             .field("state", &self.state)
             .field("code", &self.code)
             .field("id", &self.id)
+            .field("trial", &self.trial)
             .finish_non_exhaustive()
     }
 }
@@ -94,6 +107,20 @@ struct Held {
 }
 
 pub(crate) type Emit = Arc<dyn Fn(&Snapshot) + Send + Sync>;
+/// Milliseconds since the epoch.
+pub(crate) type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
+
+struct Trial {
+    record: Result<Record, &'static str>,
+    /// The latest time seen as the keychain holds it.
+    written: i64,
+}
+
+fn system_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+}
 
 pub(crate) struct Licence {
     keys: PublicKeys,
@@ -104,6 +131,13 @@ pub(crate) struct Licence {
     keychain: Mutex<()>,
     /// Read from the keychain and the list's file once, on first use.
     held: Mutex<Option<Held>>,
+    trial_store: Arc<dyn KeyStore>,
+    /// Read from the keychain on first use (begun there on the first launch); one that could not be
+    /// read is read again at the next tick. Never held across a keychain use either.
+    trial: Mutex<Option<Trial>>,
+    /// What the last tick saw, so a change (the trial's end) reaches the windows once.
+    ticked: Mutex<Option<Snapshot>>,
+    clock: Clock,
     emit: Emit,
 }
 
@@ -119,6 +153,7 @@ impl Licence {
     pub(crate) fn new(
         keys: PublicKeys,
         store: Arc<dyn KeyStore>,
+        trial_store: Arc<dyn KeyStore>,
         data_dir: &Path,
         emit: Emit,
     ) -> Self {
@@ -128,8 +163,17 @@ impl Licence {
             revocations_path: data_dir.join(REVOCATIONS_FILE),
             keychain: Mutex::new(()),
             held: Mutex::new(None),
+            trial_store,
+            trial: Mutex::new(None),
+            ticked: Mutex::new(None),
+            clock: Arc::new(system_now),
             emit,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_clock(self, clock: Clock) -> Self {
+        Self { clock, ..self }
     }
 
     fn read_revocations(&self) -> Option<Revocations> {
@@ -218,6 +262,7 @@ impl Licence {
             id: None,
             licensee: None,
             plan: None,
+            trial: None,
         };
         match &held.key {
             None => empty,
@@ -236,7 +281,7 @@ impl Licence {
         }
     }
 
-    pub(crate) fn snapshot(&self) -> Snapshot {
+    fn key_snapshot(&self) -> Snapshot {
         self.with_held(|held| self.snapshot_of(held))
             .unwrap_or_else(|code| Snapshot {
                 gated: self.keys.gated(),
@@ -245,15 +290,151 @@ impl Licence {
                 id: None,
                 licensee: None,
                 plan: None,
+                trial: None,
             })
+    }
+
+    pub(crate) fn snapshot(&self) -> Snapshot {
+        let snapshot = self.key_snapshot();
+        let trial = self.keys.gated().then(|| {
+            let now = (self.clock)();
+            TrialView::of(self.trial_at(now).as_ref().map_err(|code| *code), now)
+        });
+        Snapshot { trial, ..snapshot }
+    }
+
+    fn trial_lock(&self) -> Result<MutexGuard<'_, Option<Trial>>, &'static str> {
+        self.trial.lock().map_err(|_| "E_LICENCE_INTERNAL")
+    }
+
+    /// The trial as of `now`. The first read begins it when the keychain holds none, and records
+    /// `now` as the latest time seen; later reads move that on in memory only (`tick` writes it).
+    /// A trial that cannot be read or begun counts as ended.
+    fn trial_at(&self, now: i64) -> Result<Record, &'static str> {
+        let known = self.trial_lock()?.as_ref().map(|trial| trial.record);
+        let record = match known {
+            Some(record) => record?,
+            None => self.load_trial(now)?,
+        };
+        let next = record.seen_at(now);
+        if next.ended && !record.ended {
+            log::warn!("W_TRIAL_CLOCK_SET_BACK");
+            self.write_trial(&next);
+        }
+        if let Some(trial) = self.trial_lock()?.as_mut()
+            && let Ok(kept) = trial.record.as_mut()
+        {
+            kept.seen = kept.seen.max(next.seen);
+            kept.ended |= next.ended;
+        }
+        Ok(next)
+    }
+
+    fn load_trial(&self, now: i64) -> Result<Record, &'static str> {
+        let _keychain = self.keychain()?;
+        if let Some(trial) = self.trial_lock()?.as_ref() {
+            return trial.record;
+        }
+        let record = match self.trial_store.get() {
+            Ok(Some(text)) => Record::read(&text).map(|record| {
+                let seen = record.seen_at(now);
+                if self.trial_store.set(&seen.text()).is_err() {
+                    log::warn!("W_TRIAL_SEEN_WRITE_FAILED");
+                }
+                seen
+            }),
+            Ok(None) => {
+                let record = Record::first(now);
+                self.trial_store.set(&record.text()).map(|()| {
+                    log::info!("I_TRIAL_STARTED");
+                    record
+                })
+            }
+            Err(code) => Err(code),
+        };
+        if let Err(code) = record {
+            log::warn!("W_TRIAL_UNREADABLE {code}");
+        }
+        *self.trial_lock()? = Some(Trial {
+            record,
+            written: now,
+        });
+        record
+    }
+
+    fn write_trial(&self, record: &Record) {
+        let written = self
+            .keychain()
+            .and_then(|_keychain| self.trial_store.set(&record.text()));
+        match written {
+            Ok(()) => {
+                if let Ok(Some(trial)) = self.trial_lock().as_deref_mut() {
+                    trial.written = record.seen;
+                }
+            }
+            Err(code) => log::warn!("W_TRIAL_SEEN_WRITE_FAILED {code}"),
+        }
+    }
+
+    /// Whether `what` may be written, sync connect or AI send now: always in a build that gates
+    /// nothing, else with a valid licence or while the trial runs. A note's text and history are
+    /// still written for a short grace after the trial ran out, so a save in flight lands.
+    fn unlocked(&self, what: Write) -> bool {
+        if !self.keys.gated() || self.key_snapshot().state == LicenceState::Valid {
+            return true;
+        }
+        let now = (self.clock)();
+        self.trial_at(now)
+            .is_ok_and(|trial| trial.running(now) || (what == Write::Body && trial.in_grace(now)))
     }
 
     /// Sync and AI call this before they connect or send.
     pub(crate) fn require(&self) -> Result<(), &'static str> {
-        if !self.keys.gated() || self.snapshot().state == LicenceState::Valid {
+        if self.unlocked(Write::Content) {
             Ok(())
         } else {
             Err(REQUIRED)
+        }
+    }
+
+    /// The database's write gate: user content is refused once the trial is over without a valid
+    /// licence; sync's bookkeeping and the search index never are.
+    pub(crate) fn require_write(&self, what: Write) -> Result<(), &'static str> {
+        if what == Write::Bookkeeping || self.unlocked(what) {
+            Ok(())
+        } else {
+            Err(REQUIRED)
+        }
+    }
+
+    /// Writes the latest time seen every `SEEN_EVERY_MS`, reads again a trial that could not be read,
+    /// and tells the windows when what they show changed (the trial ended).
+    pub(crate) fn tick(&self) {
+        if !self.keys.gated() {
+            return;
+        }
+        let now = (self.clock)();
+        if let Ok(mut trial) = self.trial_lock()
+            && trial.as_ref().is_some_and(|trial| trial.record.is_err())
+        {
+            *trial = None;
+        }
+        let written = self
+            .trial_lock()
+            .ok()
+            .and_then(|trial| trial.as_ref().map(|trial| trial.written));
+        if let (Ok(record), Some(written)) = (self.trial_at(now), written)
+            && now.saturating_sub(written) >= trial::SEEN_EVERY_MS
+        {
+            self.write_trial(&record);
+        }
+        let snapshot = self.snapshot();
+        let Ok(mut ticked) = self.ticked.lock() else {
+            return;
+        };
+        if ticked.as_ref() != Some(&snapshot) {
+            (self.emit)(&snapshot);
+            *ticked = Some(snapshot);
         }
     }
 
@@ -312,10 +493,10 @@ impl Licence {
         self.keys.gated()
     }
 
-    /// Whether a revocation list could change anything: the build gates sync and AI, and a key
-    /// that verifies is held.
+    /// Whether a revocation list could change anything: the build gates, and a key that verifies
+    /// is held.
     pub(crate) fn wants_revocations(&self) -> bool {
-        self.keys.gated() && self.snapshot().id.is_some()
+        self.keys.gated() && self.key_snapshot().id.is_some()
     }
 
     /// Keeps a revocation list that verifies and is not older than the one kept; `false` when it
@@ -361,7 +542,7 @@ impl Licence {
     }
 }
 
-/// What sync and AI hold to ask whether they may run.
+/// What sync, AI and the database's writes hold to ask whether they may run.
 #[derive(Clone)]
 pub(crate) struct Gate(Option<Arc<Licence>>);
 
@@ -378,6 +559,31 @@ impl Gate {
 
     pub(crate) fn require(&self) -> Result<(), &'static str> {
         self.0.as_ref().map_or(Ok(()), |licence| licence.require())
+    }
+
+    pub(crate) fn require_write(&self, what: Write) -> Result<(), &'static str> {
+        self.0
+            .as_ref()
+            .map_or(Ok(()), |licence| licence.require_write(what))
+    }
+}
+
+/// Looks at the trial every `TICK` for the life of the process, in a build that gates.
+pub(crate) fn watch_trial(licence: &Arc<Licence>) {
+    if !licence.gated() {
+        return;
+    }
+    let licence = Arc::clone(licence);
+    let started = std::thread::Builder::new()
+        .name("licence-trial".into())
+        .spawn(move || {
+            loop {
+                licence.tick();
+                std::thread::sleep(TICK);
+            }
+        });
+    if started.is_err() {
+        log::warn!("W_TRIAL_WATCH_FAILED");
     }
 }
 

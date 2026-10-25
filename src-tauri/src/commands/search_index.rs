@@ -4,7 +4,7 @@
 //! (its transaction rolls back), so the saves queued behind it run before the
 //! app exits.
 
-use crate::storage::Db;
+use crate::storage::{Db, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 use tauri::{AppHandle, State};
@@ -41,7 +41,9 @@ pub(crate) async fn rebuild(
 ) -> Result<u32, String> {
     let started = Instant::now();
     let notes = db
-        .call(move |store| store.rebuild_search_index(stop))
+        .write(Write::Bookkeeping, move |store| {
+            store.rebuild_search_index(stop)
+        })
         .await
         .map_err(|e| e.to_string())?;
     log::info!(

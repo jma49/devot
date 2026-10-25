@@ -8,7 +8,9 @@ use serde::Serialize;
 use tauri::State;
 
 use super::notes::{NoteDto, valid_hlc, valid_note_id, validate_purge};
-use crate::storage::{BookRecord, Db, NoteTagRecord, SYNC_KINDS, SyncEntry, SyncLocal, TagRecord};
+use crate::storage::{
+    BookRecord, Db, NoteTagRecord, SYNC_KINDS, SyncEntry, SyncLocal, TagRecord, Write,
+};
 
 /// MAX_SYNC_IDS in src/core/sync/store.ts.
 const MAX_SYNC_IDS: usize = 100;
@@ -122,7 +124,7 @@ pub async fn sync_read(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<SyncLo
 #[tauri::command]
 pub async fn sync_entry_put(db: State<'_, Db>, entry: SyncEntry) -> Result<(), String> {
     validate_entry(&entry).map_err(String::from)?;
-    db.call(move |store| store.sync_put(&entry))
+    db.write(Write::Content, move |store| store.sync_put(&entry))
         .await
         .map_err(|e| e.to_string())
 }
@@ -138,14 +140,16 @@ pub async fn sync_state_get(db: State<'_, Db>) -> Result<BTreeMap<String, String
 #[tauri::command]
 pub async fn sync_state_put(db: State<'_, Db>, key: String, value: String) -> Result<(), String> {
     validate_state(&key, &value).map_err(String::from)?;
-    db.call(move |store| store.sync_set_state(&key, &value))
-        .await
-        .map_err(|e| e.to_string())
+    db.write(Write::Bookkeeping, move |store| {
+        store.sync_set_state(&key, &value)
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn sync_reset(db: State<'_, Db>) -> Result<(), String> {
-    db.call(|store| store.sync_reset())
+    db.write(Write::Bookkeeping, |store| store.sync_reset())
         .await
         .map_err(|e| e.to_string())
 }
@@ -158,7 +162,7 @@ pub async fn sync_note_purge(
     hlc: String,
 ) -> Result<(), String> {
     validate_purge(&id, at, &hlc).map_err(String::from)?;
-    db.call(move |store| store.sync_purge(&id, at, &hlc))
+    db.write(Write::Content, move |store| store.sync_purge(&id, at, &hlc))
         .await
         .map_err(|e| e.to_string())
 }

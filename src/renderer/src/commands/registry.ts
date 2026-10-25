@@ -1409,6 +1409,86 @@ export const COMMANDS = [
 
 export type CommandId = (typeof COMMANDS)[number]['id']
 
+/** The commands that change notes, notebooks or tags: none runs once the trial is over without a licence. */
+const CHANGES_NOTES: ReadonlySet<CommandId> = new Set<CommandId>([
+  'note.new',
+  'note.newFromTemplate',
+  'note.move',
+  'note.moveAnywhere',
+  'note.duplicate',
+  'note.pin',
+  'note.trash',
+  'note.addTag',
+  'note.removeTag',
+  'note.newFromSelection',
+  'note.newFromLink',
+  'trash.restore',
+  'trash.deleteForever',
+  'trash.empty',
+  'status.none',
+  'status.active',
+  'status.onHold',
+  'status.completed',
+  'status.dropped',
+  'notebook.new',
+  'notebook.newInside',
+  'notebook.move',
+  'notebook.rename',
+  'notebook.changeIcon',
+  'notebook.moveUp',
+  'notebook.moveDown',
+  'notebook.moveToTop',
+  'notebook.aiAccess',
+  'notebook.importMarkdownFiles',
+  'notebook.importMarkdownFolder',
+  'notebook.importHtmlFiles',
+  'notebook.delete',
+  'tag.rename',
+  'tag.settings',
+  'tag.delete',
+  'edit.pastePlain',
+  'edit.pasteUrlAs',
+  'edit.plainNewline',
+  'edit.lineBelow',
+  'edit.lineAbove',
+  'edit.deleteLine',
+  'edit.moveLineUp',
+  'edit.moveLineDown',
+  'edit.copyLineUp',
+  'edit.copyLineDown',
+  'edit.outdent',
+  'edit.indent',
+  'edit.sortLines',
+  'edit.sortLinesReverse',
+  'edit.sortLinesCase',
+  'edit.sortLinesCaseReverse',
+  'edit.joinLines',
+  'edit.upperCase',
+  'edit.lowerCase',
+  'edit.toggleTask',
+  'edit.toggleOverwrite',
+  'ai.suggest',
+  'find.replace',
+  'image.sizeAuto',
+  'image.sizeSmall',
+  'image.sizeHalf',
+  'image.sizeFull',
+])
+
+/** Formats, inserts and table edits change the note's text, every one of them. */
+const CHANGING_GROUPS: ReadonlySet<CommandGroup> = new Set<CommandGroup>(['format', 'table'])
+
+export function changesNotes(id: CommandId): boolean {
+  return CHANGES_NOTES.has(id) || CHANGING_GROUPS.has(command(id).group) || id.startsWith('insert.')
+}
+
+/** `handlers` without the commands that change notes, while editing is not allowed. */
+export function withoutChanges(handlers: CommandHandlers): CommandHandlers {
+  return Object.fromEntries(
+    Object.entries(handlers).filter(([id]) => !changesNotes(id as CommandId)),
+  ) as CommandHandlers
+}
+
 /**
  * What the window runs for a command; `label` replaces the registry's for now
  * (Pin or Unpin). `run` may return a promise that settles once it is done.

@@ -57,11 +57,17 @@ pub(crate) fn test_keys(gated: bool) -> PublicKeys {
     PublicKeys::new(&[TEST], gated)
 }
 
-/// A licence that trusts the test key, in `dir`, with nothing in its keychain.
+/// A trial that began at the epoch, so it is long over.
+pub(crate) fn trial_over() -> Arc<MemoryKey> {
+    Arc::new(MemoryKey::holding("{\"start\":0,\"seen\":0}"))
+}
+
+/// A licence that trusts the test key, in `dir`, with no key in its keychain and its trial over.
 pub(crate) fn licence(dir: &Path, gated: bool) -> Arc<Licence> {
     Arc::new(Licence::new(
         test_keys(gated),
         Arc::new(MemoryKey::default()),
+        trial_over(),
         dir,
         Arc::new(|_: &Snapshot| {}),
     ))

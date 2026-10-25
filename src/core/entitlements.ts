@@ -1,8 +1,24 @@
-export const FEATURES = ['localNotes', 'sync', 'sharing', 'aiProviders', 'semanticSearch'] as const
+export const FEATURES = [
+  'localNotes',
+  'editing',
+  'sync',
+  'sharing',
+  'aiProviders',
+  'semanticSearch',
+] as const
 export type Feature = (typeof FEATURES)[number]
 
-/** What a licence unlocks (docs/adr/0006-source-available-and-sold-once.md); everything else is free. */
-export const PLAN_GATED_FEATURES: readonly Feature[] = ['sync', 'aiProviders', 'semanticSearch']
+/**
+ * What a licence or a running trial unlocks (docs/adr/0006-source-available-and-sold-once.md):
+ * reading, searching, copying and exporting notes (`localNotes`) stay free; changing them
+ * (`editing`) does not.
+ */
+export const PLAN_GATED_FEATURES: readonly Feature[] = [
+  'editing',
+  'sync',
+  'aiProviders',
+  'semanticSearch',
+]
 
 export type Plan = 'pro'
 
@@ -14,11 +30,16 @@ export const PLAN_FEATURES: Readonly<Record<Plan, readonly Feature[]>> = {
 export const LICENCE_STATES = ['none', 'valid', 'revoked', 'invalid'] as const
 export type LicenceState = (typeof LICENCE_STATES)[number]
 
+export const TRIAL_STATES = ['running', 'ended'] as const
+export type TrialState = (typeof TRIAL_STATES)[number]
+
 export interface LicenceEntitlements {
   /** False while the build holds no production key: then nothing is gated. */
   readonly enforced: boolean
   readonly state: LicenceState
   readonly plan: Plan | null
+  /** The three-day trial; unknown counts as ended. */
+  readonly trial?: TrialState | null
 }
 
 /** The licence as Rust checked it (src-tauri/src/licence), or null when it is not known. */
@@ -35,7 +56,7 @@ export interface EntitlementOptions {
   gated?: readonly Feature[]
 }
 
-/** Checked offline only: nothing here expires with time, since a licence never does. */
+/** Checked offline only: a licence never expires, and the source says whether the trial runs. */
 export function createEntitlements(options: EntitlementOptions = {}): Entitlements {
   const { source, gated = PLAN_GATED_FEATURES } = options
   return {
@@ -44,8 +65,9 @@ export function createEntitlements(options: EntitlementOptions = {}): Entitlemen
       const licence = source?.read()
       if (!licence) return false
       if (!licence.enforced) return true
-      if (licence.state !== 'valid' || licence.plan === null) return false
-      return PLAN_FEATURES[licence.plan]?.includes(feature) ?? false
+      if (licence.state === 'valid' && licence.plan !== null)
+        return PLAN_FEATURES[licence.plan]?.includes(feature) ?? false
+      return licence.trial === 'running'
     },
   }
 }

@@ -174,6 +174,7 @@ pub fn run() {
             usage::usage_clear,
             settings::settings_open_data_folder,
             settings::settings_show_backups,
+            settings::settings_open_licence,
             settings::settings_mcp_setup,
             cli_tool::cli_tool_status,
             cli_tool::cli_tool_install,
@@ -340,13 +341,20 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     let editor_settings = editor_settings.with_default_paper(native::macos::system_paper);
     let editor_settings = std::sync::Arc::new(editor_settings);
     app.manage(std::sync::Arc::clone(&editor_settings));
+    let identifier = &app.config().identifier;
     let licence = std::sync::Arc::new(licence::Licence::new(
         licence::PublicKeys::built_in(),
-        std::sync::Arc::new(licence::Keychain::new(&app.config().identifier)),
+        std::sync::Arc::new(licence::Keychain::new(identifier, licence::LICENCE_ACCOUNT)),
+        std::sync::Arc::new(licence::Keychain::new(identifier, licence::TRIAL_ACCOUNT)),
         data_dir,
         licence_emitter(app.handle().clone()),
     ));
     app.manage(std::sync::Arc::clone(&licence));
+    // Every write of user content asks the licence first (docs/licensing.md, The app).
+    let gate = licence::Gate::of(&licence);
+    app.state::<storage::Db>()
+        .guard(std::sync::Arc::new(move |what| gate.require_write(what)));
+    licence::watch_trial(&licence);
     app.manage(std::sync::Arc::new(ai::Ai::new(
         ai::settings::SettingsStore::new(&data_dir.join(ai::settings::FILE)),
         std::sync::Arc::new(ai::keychain::Keychain::new(&app.config().identifier)),
@@ -413,10 +421,12 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
 /// Listens when Settings turned it on; off the launch's thread, since it reads the keychain.
 #[cfg(desktop)]
 fn start_http_api(app: &mut tauri::App, data_dir: &Path) {
+    let licence = app.state::<std::sync::Arc<licence::Licence>>();
     let api = std::sync::Arc::new(http_api::HttpApi::for_app(
         app.handle(),
         data_dir,
         &app.config().identifier,
+        licence::Gate::of(&licence),
     ));
     app.manage(std::sync::Arc::clone(&api));
     if std::thread::Builder::new()

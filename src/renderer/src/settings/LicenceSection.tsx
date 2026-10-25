@@ -1,16 +1,28 @@
 import { useEffect, useId, useState } from 'react'
 import { errorCode } from '../backups'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { format, t } from '../i18n'
+import { currentLocale, format, t } from '../i18n'
 import { addLicence, removeLicence, startLicence, useLicence } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
-import { licenceProblem, stateSentence } from '../licenceView'
+import { licenceProblem, stateSentence, trialSentence } from '../licenceView'
 import { Setting, SettingsNote, SettingsSection } from './controls'
 
+const MINUTE_MS = 60_000
+
+/** The time now, again every minute, for the trial's time left. */
+function useMinutes(): number {
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), MINUTE_MS)
+    return () => clearInterval(timer)
+  }, [])
+  return now
+}
+
 /**
- * Settings > Licence: the licence on this device (who it is for and its ID), a field to add or
- * replace a key, Remove, and Buy in the browser. The key goes to Rust, which checks it, and never
- * comes back.
+ * Settings > Licence: the licence on this device (who it is for and its ID), the trial's time left
+ * or that it ended, a field to add or replace a key, Remove, and Buy in the browser. The key goes
+ * to Rust, which checks it, and never comes back.
  */
 export function LicenceSection() {
   const ids = useId()
@@ -21,6 +33,8 @@ export function LicenceSection() {
   const [error, setError] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
   const [confirming, setConfirming] = useState(false)
+  const now = useMinutes()
+  const trial = trialSentence(licence, now, currentLocale())
 
   useEffect(() => startLicence(), [])
 
@@ -84,6 +98,11 @@ export function LicenceSection() {
             </div>
           )}
         </Setting>
+        {trial === null ? null : (
+          <Setting label="licenceSettings.trial" description={trial}>
+            {null}
+          </Setting>
+        )}
         {licence.licensee ? (
           <Setting label="licenceSettings.licensee" description={licence.licensee}>
             {null}

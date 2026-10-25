@@ -130,6 +130,24 @@ struct WindowDispatch {
     answers: Arc<Answers>,
 }
 
+/// Refuses a write once the trial is over without a licence, before the window is asked; the
+/// database would refuse it too, but the core could keep a refused edit pending.
+struct Licensed<D> {
+    licence: crate::licence::Gate,
+    inner: D,
+}
+
+impl<D: Dispatch> Dispatch for Licensed<D> {
+    fn dispatch(&self, call: &Call) -> Result<Value, String> {
+        if call.op.writes() {
+            self.licence
+                .require_write(crate::storage::Write::Content)
+                .map_err(String::from)?;
+        }
+        self.inner.dispatch(call)
+    }
+}
+
 impl Dispatch for WindowDispatch {
     fn dispatch(&self, call: &Call) -> Result<Value, String> {
         self.answers.ask(call, ANSWER_TIMEOUT, |request| {
@@ -196,12 +214,20 @@ impl HttpApi {
         }
     }
 
-    /// The app's: calls go to the main window.
-    pub fn for_app(app: &AppHandle, data_dir: &std::path::Path, identifier: &str) -> Self {
+    /// The app's: calls go to the main window, writes only while the licence allows them.
+    pub fn for_app(
+        app: &AppHandle,
+        data_dir: &std::path::Path,
+        identifier: &str,
+        licence: crate::licence::Gate,
+    ) -> Self {
         let answers = Arc::new(Answers::default());
-        let dispatch = Arc::new(WindowDispatch {
-            app: app.clone(),
-            answers: Arc::clone(&answers),
+        let dispatch = Arc::new(Licensed {
+            licence,
+            inner: WindowDispatch {
+                app: app.clone(),
+                answers: Arc::clone(&answers),
+            },
         });
         Self::new(
             SettingsStore::new(&data_dir.join(settings::FILE)),

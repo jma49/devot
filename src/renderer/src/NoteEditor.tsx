@@ -10,7 +10,7 @@ import {
 import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
-import { yCollab } from 'y-codemirror.next'
+import { yCollab, ySyncAnnotation } from 'y-codemirror.next'
 import * as Y from 'yjs'
 import type { ImageSize } from '../../core/images'
 import { BODY } from '../../core/notes'
@@ -114,6 +114,25 @@ const PAUSED = [
   EditorState.readOnly.of(true),
   // Not offered as the body to type into until the next note is.
   EditorView.contentAttributes.of({ 'aria-hidden': 'true' }),
+]
+// Notes are read-only once the trial is over without a licence: the text can be read, selected and
+// copied, and only what another replica sends (Yjs) still changes it.
+const lockedSlot = new Compartment()
+const LOCKED = [
+  EditorState.readOnly.of(true),
+  EditorState.changeFilter.of((tr) => tr.annotation(ySyncAnnotation) !== undefined),
+  Prec.highest(
+    EditorView.domEventHandlers({
+      paste: (event) => {
+        event.preventDefault()
+        return true
+      },
+      drop: (event) => {
+        event.preventDefault()
+        return true
+      },
+    }),
+  ),
 ]
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
 const RESTORE = 'restore'
@@ -620,6 +639,8 @@ interface Props {
   onOpenFailed?: (noteId: string, code: string) => void
   onChooseTemplate?: () => void
   onOpenNote?: (noteId: string) => void
+  /** Shown but not changed: the trial is over without a licence. */
+  readOnly?: boolean
 }
 
 export function NoteEditor({
@@ -650,8 +671,10 @@ export function NoteEditor({
   onOpenFailed,
   onChooseTemplate,
   onOpenNote,
+  readOnly = false,
 }: Props) {
   const host = useRef<HTMLDivElement>(null)
+  const locked = useRef(readOnly)
   // Read once, when the note has loaded.
   const focusOnOpen = useRef(autoFocus)
   const focusOnlyIfFree = useRef(autoFocusIfFree)
@@ -794,6 +817,12 @@ export function NoteEditor({
 
   // An imported font face that has loaded changes the text's size: measure again.
   useEffect(() => subscribeFontsLoaded(() => editor.current?.view.requestMeasure()), [])
+
+  useEffect(() => {
+    if (locked.current === readOnly) return
+    locked.current = readOnly
+    editor.current?.view.dispatch({ effects: lockedSlot.reconfigure(readOnly ? LOCKED : []) })
+  }, [readOnly])
 
   useEffect(() => {
     const now = editor.current
@@ -990,6 +1019,7 @@ export function NoteEditor({
             }),
             popupSpace(frame),
             pausedSlot.of([]),
+            lockedSlot.of(locked.current ? LOCKED : []),
             // Undo is CodeMirror's history alone: no Yjs undo manager.
             yCollab(text, null, { undoManager: false }),
             yjsHistory(() => restoring),

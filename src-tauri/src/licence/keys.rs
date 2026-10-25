@@ -32,7 +32,7 @@ impl PublicKeys {
         Self::new(&entries, !PRODUCTION.is_empty())
     }
 
-    /// `gated`: whether sync and AI need a licence at all.
+    /// `gated`: whether editing, sync and AI need a licence or the trial at all.
     pub(crate) fn new(entries: &[(&str, &str)], gated: bool) -> Self {
         let keys = entries
             .iter()

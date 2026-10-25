@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { countOf } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
-import { LICENCE_REQUIRED } from './licence'
+import { LICENCE_REQUIRED, licenceSnapshot, trialOver } from './licence'
 import { LicenceButton } from './LicenceLocked'
 import type { SyncSnapshot } from './sync'
 
@@ -16,6 +16,8 @@ function message(snapshot: SyncSnapshot): string | undefined {
   const { state, code, tooLarge } = snapshot.status
   if (!snapshot.enabled) return undefined
   if (state === 'stopped' && code) {
+    if (code === LICENCE_REQUIRED && trialOver(licenceSnapshot(), Date.now()))
+      return t('sync.notice.licenceTrialEnded')
     return format(t(STOPPED[code] ?? 'sync.notice.stopped'), { code })
   }
   if (tooLarge > 0) {

@@ -4,7 +4,7 @@
 use super::notes::{MAX_TITLE_CHARS, MAX_YDOC_BYTES, valid_note_id};
 use crate::storage::{
     AI_EDIT, BASELINE, CompactableVersion, Db, MERGE, NOTE_STATUSES, REVISION_KINDS,
-    RevisionRecord, RevisionSummary,
+    RevisionRecord, RevisionSummary, Write,
 };
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -145,7 +145,7 @@ fn validate_delete(note_id: &str, ids: &[String]) -> Result<(), &'static str> {
 #[tauri::command]
 pub async fn revision_put(db: State<'_, Db>, revision: RevisionDto) -> Result<(), String> {
     let record = revision.into_record().map_err(String::from)?;
-    db.call(move |store| store.put_revision(&record))
+    db.write(Write::Body, move |store| store.put_revision(&record))
         .await
         .map_err(|e| e.to_string())
 }
@@ -181,9 +181,11 @@ pub async fn revisions_delete(
     ids: Vec<String>,
 ) -> Result<(), String> {
     validate_delete(&note_id, &ids).map_err(String::from)?;
-    db.call(move |store| store.delete_revisions(&note_id, &ids))
-        .await
-        .map_err(|e| e.to_string())
+    db.write(Write::Content, move |store| {
+        store.delete_revisions(&note_id, &ids)
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -208,9 +210,11 @@ pub async fn revisions_compact(
     swept_at: Option<i64>,
 ) -> Result<(), String> {
     validate_compact(&ids, swept_at).map_err(String::from)?;
-    db.call(move |store| store.compact_revisions(&ids, swept_at))
-        .await
-        .map_err(|e| e.to_string())
+    db.write(Write::Content, move |store| {
+        store.compact_revisions(&ids, swept_at)
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

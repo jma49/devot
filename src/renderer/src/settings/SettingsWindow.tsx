@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Icon } from '../icons/Icon'
 import { t } from '../i18n'
 import { AiSection } from './AiSection'
@@ -9,11 +9,24 @@ import { IntegrationsSection } from './IntegrationsSection'
 import { KeyboardSection } from './KeyboardSection'
 import { LicenceSection } from './LicenceSection'
 import { MirrorSection } from './MirrorSection'
-import { currentPaneStore, PANES, PANE_TABS, paneAfterKey, type PaneId } from './panes'
+import { listenHere } from '../windowEvents'
+import {
+  currentPaneStore,
+  isPane,
+  PANES,
+  PANE_TABS,
+  paneAfterKey,
+  paneFromQuery,
+  type PaneId,
+} from './panes'
 import { PluginsSection } from './PluginsSection'
 import { PreviewSection } from './PreviewSection'
 import { SyncSection } from './SyncSection'
 import { UsageSection } from './UsageSection'
+
+/** Rust asks an open Settings window for a pane (Add Licence); re-sent in the page for the UI tests. */
+const PANE_EVENT = 'devot://settings-pane'
+export const SHOW_PANE = 'devot:settings-pane'
 
 const SECTIONS: Readonly<Record<PaneId, () => React.JSX.Element>> = {
   general: GeneralSection,
@@ -42,7 +55,7 @@ const PANEL_ID = 'settings-pane'
  */
 export function SettingsWindow() {
   const [store] = useState(currentPaneStore)
-  const [pane, setPane] = useState<PaneId>(() => store.read())
+  const [pane, setPane] = useState<PaneId>(() => paneFromQuery(location.search) ?? store.read())
   const body = useRef<HTMLDivElement>(null)
   const tabs = useRef(new Map<PaneId, HTMLButtonElement>())
 
@@ -58,6 +71,35 @@ export function SettingsWindow() {
   useLayoutEffect(() => {
     body.current?.scrollTo({ top: scrolls.current.get(pane) ?? 0 })
   }, [pane])
+
+  const latestSelect = useRef(select)
+  useEffect(() => {
+    latestSelect.current = select
+  })
+  useEffect(() => {
+    const show = (e: Event) => {
+      const asked = (e as CustomEvent).detail
+      if (isPane(asked)) latestSelect.current(asked)
+    }
+    window.addEventListener(SHOW_PANE, show)
+    let stopped = false
+    let unlisten: (() => void) | undefined
+    if (!DEVOT_UI_TEST) {
+      listenHere<unknown>(PANE_EVENT, (e) =>
+        window.dispatchEvent(new CustomEvent(SHOW_PANE, { detail: e.payload })),
+      )
+        .then((stop) => {
+          if (stopped) stop()
+          else unlisten = stop
+        })
+        .catch(() => console.warn('W_SETTINGS_LISTEN_FAILED'))
+    }
+    return () => {
+      stopped = true
+      window.removeEventListener(SHOW_PANE, show)
+      unlisten?.()
+    }
+  }, [])
 
   const onNavKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return

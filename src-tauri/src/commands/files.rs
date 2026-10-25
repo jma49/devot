@@ -4,7 +4,7 @@
 //! scripts), and so is anything that is not a known raster image.
 
 use super::notes::valid_note_id;
-use crate::storage::{Db, FileCopy, FileRecord};
+use crate::storage::{Db, FileCopy, FileRecord, Write};
 use tauri::http::{Response, StatusCode, header};
 use tauri::ipc::{InvokeBody, Request};
 use tauri::{AppHandle, Manager, State};
@@ -110,7 +110,7 @@ pub async fn store_upload(db: &Db, upload: Upload, data: Vec<u8>) -> Result<(), 
         created_at: now_ms(),
     };
     let stored = db
-        .call(move |store| store.put_file(&file))
+        .write(Write::Content, move |store| store.put_file(&file))
         .await
         .map_err(|e| e.to_string())?;
     if stored {
@@ -146,7 +146,9 @@ pub async fn files_copy(
     validate_copies(&note_id, &copies).map_err(String::from)?;
     let at = now_ms();
     let copied = db
-        .call(move |store| store.copy_files(&note_id, &copies, at))
+        .write(Write::Content, move |store| {
+            store.copy_files(&note_id, &copies, at)
+        })
         .await
         .map_err(|e| e.to_string())?;
     if copied {

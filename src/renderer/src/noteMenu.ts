@@ -9,7 +9,7 @@ import { useCallback } from 'react'
 import { noteLink, noteUri } from '../../core/links'
 import { NOTE_STATUSES, type NoteStatus } from '../../core/storage'
 import type { KeyPress } from './commands/keys'
-import { commandMatches, type CommandId } from './commands/registry'
+import { changesNotes, commandMatches, type CommandId } from './commands/registry'
 import {
   commandEntry,
   useContextMenu,
@@ -72,6 +72,12 @@ export const NOTE_COMMANDS: Readonly<Record<NoteAction, CommandId>> = {
   removeTag: 'note.removeTag',
 }
 
+/** Whether `action` changes the notes it acts on (it waits for a licence once the trial is over). */
+export const actionChangesNotes = (action: NoteMenuAction): boolean =>
+  action === 'status' ||
+  action.startsWith('status:') ||
+  changesNotes(NOTE_COMMANDS[action as NoteAction])
+
 /** Export actions that also act on several notes (side by side), with labels for one note and for several. */
 const SELECTION_EXPORT_LABELS: Partial<Record<ExportAction, readonly [MessageKey, MessageKey]>> = {
   exportMarkdown: ['noteMenu.exportMarkdown', 'noteMenu.exportSelectionMarkdown'],
@@ -112,6 +118,7 @@ export const NOTE_MENU: MenuGroups<NoteMenuAction, NoteMenuTarget> = [
     {
       action: 'status',
       label: 'note.statusLabel',
+      edits: true,
       shown: severalNotes,
       submenu: NOTE_STATUSES.map((status) =>
         commandEntry<NoteMenuAction, NoteMenuTarget>(`status:${status}`, STATUS_COMMANDS[status], {

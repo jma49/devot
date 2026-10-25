@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PANES, paneAfterKey, paneStore } from './panes'
+import { PANES, paneAfterKey, paneFromQuery, paneStore } from './panes'
 
 function memory(initial: Record<string, string> = {}) {
   const items = new Map(Object.entries(initial))
@@ -73,5 +73,13 @@ describe('navigation keys', () => {
     expect(paneAfterKey('keyboard', 'Home')).toBe(PANES[0])
     expect(paneAfterKey('keyboard', 'End')).toBe('usage')
     expect(paneAfterKey('keyboard', 'Enter')).toBeUndefined()
+  })
+})
+
+describe('the pane Settings opens on when asked', () => {
+  it('is the pane the page address names, and only a pane', () => {
+    expect(paneFromQuery('?pane=licence')).toBe('licence')
+    expect(paneFromQuery('?pane=nothing')).toBeUndefined()
+    expect(paneFromQuery('')).toBeUndefined()
   })
 })

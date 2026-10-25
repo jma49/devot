@@ -5,9 +5,10 @@
 import type { CheckMenuItem, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu'
 import { useCallback, useEffect, useRef } from 'react'
 import { shortcutAccelerator } from './commands/keys'
-import { command, commandKeys, type CommandId } from './commands/registry'
+import { changesNotes, command, commandKeys, type CommandId } from './commands/registry'
 import { currentKeymap } from './commands/shortcutSettings'
 import { t, type MessageKey } from './i18n'
+import { editingAllowed } from './licence'
 
 export interface MenuEntry<A extends string, T> {
   action: A
@@ -15,6 +16,8 @@ export interface MenuEntry<A extends string, T> {
   /** Shown in the menu; the menu's owner handles the key itself. */
   accelerator?: string
   shown?: (target: T) => boolean
+  /** Changes notes, notebooks or tags: hidden while editing is not allowed (the trial is over). */
+  edits?: boolean
   checked?: (target: T) => boolean
   /** Makes the item a submenu of these entries (its `action` only names it); submenu entries always show. */
   submenu?: readonly MenuEntry<A, T>[]
@@ -41,7 +44,12 @@ export function commandEntry<A extends string, T>(
   id: CommandId,
   more: CommandEntryOptions<A, T> = {},
 ): MenuEntry<A, T> {
-  const entry: MenuEntry<A, T> = { action, label: command(id).label, ...more }
+  const entry: MenuEntry<A, T> = {
+    action,
+    label: command(id).label,
+    ...(changesNotes(id) ? { edits: true } : {}),
+    ...more,
+  }
   return Object.defineProperty(entry, 'accelerator', {
     enumerable: true,
     get: () => {
@@ -53,12 +61,15 @@ export function commandEntry<A extends string, T>(
 
 export type MenuGroups<A extends string, T> = readonly (readonly MenuEntry<A, T>[])[]
 
+const isShown = <A extends string, T>(entry: MenuEntry<A, T>, target: T): boolean =>
+  !(entry.edits && !editingAllowed()) && (entry.shown?.(target) ?? true)
+
 export function shownGroups<A extends string, T>(
   groups: MenuGroups<A, T>,
   target: T,
 ): MenuEntry<A, T>[][] {
   return groups
-    .map((group) => group.filter((entry) => entry.shown?.(target) ?? true))
+    .map((group) => group.filter((entry) => isShown(entry, target)))
     .filter((group) => group.length > 0)
 }
 
@@ -152,7 +163,7 @@ export async function createContextMenu<A extends string, T>(
   const layout = (target: T): NativeItem[] => {
     const out: NativeItem[] = []
     slots.forEach((group, i) => {
-      const shown = group.filter((slot) => slot.entry.shown?.(target) ?? true)
+      const shown = group.filter((slot) => isShown(slot.entry, target))
       if (shown.length === 0) return
       const separator = separators[i - 1]
       if (out.length > 0 && separator) out.push(separator)

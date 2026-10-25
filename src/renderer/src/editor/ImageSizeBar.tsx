@@ -77,7 +77,7 @@ function createBar(view: EditorView): TooltipView {
 const barTooltip = showTooltip.compute(
   [toolbarState, 'selection', 'doc'],
   (state): Tooltip | null => {
-    if (!barsMayShow(state)) return null
+    if (!barsMayShow(state) || state.readOnly) return null
     const image = imageAtCaret(state)
     return image ? { pos: image.from, above: false, create: createBar } : null
   },

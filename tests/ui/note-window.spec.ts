@@ -163,3 +163,40 @@ test('a note window that cannot open its note still answers a close and a quit a
   await expect.poll(() => calls(win, 'note_window_close_ready')).toHaveLength(1)
   await expect.poll(() => calls(win, 'app_exit_ready')).toHaveLength(1)
 })
+
+test('a note window turns read-only once the trial is over, with the bar to add a licence', async ({
+  page,
+  context,
+}) => {
+  const id = await noteInMain(page, 'Plan', 'Steps')
+  const win = await openNoteWindow(context, id)
+  await expect(body(win)).toContainText('Steps')
+  await win.evaluate(() => {
+    const w = globalThis as unknown as TestWindow & {
+      dispatchEvent(e: unknown): void
+      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
+    }
+    w.devotIpcMocks = { ...w.devotIpcMocks, settings_open_licence: null }
+    w.dispatchEvent(
+      new w.CustomEvent('devot:licence-changed', {
+        detail: {
+          gated: true,
+          state: 'none',
+          code: null,
+          id: null,
+          licensee: null,
+          plan: null,
+          trial: { state: 'ended', endsAt: Date.now() - 1, code: null },
+        },
+      }),
+    )
+  })
+  const bar = win.locator('[data-devot-trial-ended]')
+  await expect(bar).toContainText('Your Devot trial has ended')
+  await expect(title(win)).toHaveAttribute('readonly', '')
+  await body(win).click()
+  await win.keyboard.type(' more')
+  await expect(body(win)).toHaveText('Steps')
+  await bar.getByRole('button', { name: 'Add Licence' }).click()
+  expect(await calls(win, 'settings_open_licence')).toHaveLength(1)
+})

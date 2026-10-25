@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { shownGroups } from './contextMenu'
 import {
+  actionChangesNotes,
   EXPORT_ACTIONS,
   NOTE_MENU,
   noteClipboardText,
   noteLinks,
   noteShortcut,
   type NoteAction,
+  type NoteMenuAction,
   type NoteMenuTarget,
 } from './noteMenu'
 
@@ -215,5 +217,29 @@ describe('noteClipboardText', () => {
     expect(noteClipboardText('copyLink', { id: ID, title: '' })).toBe(
       `[Untitled](devot://note/${ID})`,
     )
+  })
+})
+
+describe('the note actions that change notes', () => {
+  it('are moving, pinning, tagging, the status, duplicating and trashing; reading and exporting are not', () => {
+    const changing: NoteMenuAction[] = [
+      'move',
+      'pin',
+      'addTag',
+      'removeTag',
+      'duplicate',
+      'trash',
+      'status',
+      'status:active',
+    ]
+    expect(changing.filter((action) => !actionChangesNotes(action))).toEqual([])
+    const reading: NoteMenuAction[] = [
+      'openWindow',
+      'history',
+      'copyLink',
+      'copyId',
+      ...EXPORT_ACTIONS,
+    ]
+    expect(reading.filter(actionChangesNotes)).toEqual([])
   })
 })

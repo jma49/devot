@@ -10,6 +10,7 @@ export function TrashView(props: {
   noteId: string
   onRestore: () => void
   onDelete: (title: string) => void
+  readOnly?: boolean
 }) {
   const { core, noteId } = props
   const [note, setNote] = useState<{
@@ -34,12 +35,18 @@ export function TrashView(props: {
     <>
       <div className="trash-banner" role="status">
         <span>{t('trash.banner')}</span>
-        <button type="button" className="button" onClick={props.onRestore}>
+        <button
+          type="button"
+          className="button"
+          disabled={props.readOnly}
+          onClick={props.onRestore}
+        >
           {t('trash.restore')}
         </button>
         <button
           type="button"
           className="button button-destructive"
+          disabled={props.readOnly}
           onClick={() => props.onDelete(name)}
         >
           {t('trash.deleteForever')}

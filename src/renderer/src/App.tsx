@@ -41,8 +41,9 @@ import {
 import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
 import { BackupNotice } from './BackupNotice'
 import { SyncNotice } from './SyncNotice'
+import { TrialEndedBar, TrialReminder } from './TrialNotices'
 import { runSync, runsSync, startSyncStatus, useSyncSnapshot } from './sync'
-import { licenceEntitlements, startLicence, useLicence } from './licence'
+import { licenceEntitlements, startLicence, useEditing } from './licence'
 import { useLicenceLink } from './LicenceLink'
 import { Notices } from './Notices'
 import { SearchIndexNotice } from './SearchIndexNotice'
@@ -113,7 +114,14 @@ import { useKeymap } from './commands/shortcutSettings'
 import { invoke } from './ipc'
 import { titleWithKey } from './commands/titles'
 import { ToolTips } from './ToolTips'
-import { COMMANDS, formatOf, insertOf, tableOf, type CommandHandlers } from './commands/registry'
+import {
+  COMMANDS,
+  formatOf,
+  insertOf,
+  tableOf,
+  withoutChanges,
+  type CommandHandlers,
+} from './commands/registry'
 import { CommandPalette, type PaletteActions } from './palette/CommandPalette'
 import {
   commandEntries,
@@ -491,7 +499,7 @@ export function App() {
   const syncSnapshot = useSyncSnapshot()
   useEffect(() => startSyncStatus(), [])
   // Re-renders when the licence changes, so what is locked follows it.
-  useLicence()
+  const editing = useEditing()
   useEffect(() => startLicence(), [])
   const licenceLink = useLicenceLink()
   const [indexState, setIndexState] = useState<RebuildState>()
@@ -1458,6 +1466,17 @@ export function App() {
     }
   }, [core, quitGuard])
 
+  // The trial ended with notes open: what was typed is saved (Rust still takes a note's text for a
+  // few minutes) as the window turns read-only.
+  const wasEditing = useRef(editing)
+  useEffect(() => {
+    if (wasEditing.current && !editing && core) {
+      saveNow.current?.()
+      void core.flush({ versions: true }).catch(() => console.warn('W_TRIAL_END_SAVE_FAILED'))
+    }
+    wasEditing.current = editing
+  }, [editing, core])
+
   // A window File > New Window opened closes after saving, as a note window does (main_windows.rs): Rust holds the close and asks. As for a quit, the first close whose save fails is called off, and the notice says so.
   useEffect(() => {
     if (primary) return
@@ -1749,6 +1768,7 @@ export function App() {
     setConfirm({ kind: 'one', id, title: named.get(id) ?? '' })
   }
   const trashAction = (action: TrashAction, id: string) => {
+    if (!editing) return
     const many = multiIds?.includes(id) ? multiIds : undefined
     if (many) return action === 'restore' ? restoreNotes(many) : confirmDeleteMany(many)
     return action === 'restore' ? restoreTrashed(id) : confirmDelete(id)
@@ -2674,8 +2694,9 @@ export function App() {
   // Find works while a note is open; its keys run ahead of the editor's (useFind).
   Object.assign(handlers, find.commands)
   if (handlers['note.move']) handlers['note.moveAnywhere'] = handlers['note.move']
-  useWindowCommands(handlers)
-  useFormatMenu(handlers)
+  const commands = editing ? handlers : withoutChanges(handlers)
+  useWindowCommands(commands)
+  useFormatMenu(commands)
   useCommandMenu()
 
   // What the palette lists. Notebooks, tags and notes are only gathered
@@ -2703,7 +2724,7 @@ export function App() {
         if (pluginAction) {
           return { primary: { label: t('palette.run'), run: () => plugins.act(pluginAction) } }
         }
-        const handler = handlers[entry.id as keyof CommandHandlers]
+        const handler = commands[entry.id as keyof CommandHandlers]
         return {
           primary: { label: t('palette.run'), run: () => handler?.run() },
         }
@@ -2719,7 +2740,7 @@ export function App() {
             run: () => stableOpenWorkspace(entry.id),
           },
           shift:
-            openNote && openNote.bookId !== entry.id
+            editing && openNote && openNote.bookId !== entry.id
               ? {
                   label: t('palette.moveNoteHere'),
                   run: () => moveNote(openNote.id, entry.id),
@@ -2737,7 +2758,7 @@ export function App() {
             run: () => changeQuery(withTagClause(query, entry.label)),
           },
           shift:
-            openNote && !selectedIsTemplate && !openNote.tagIds.includes(entry.id)
+            editing && openNote && !selectedIsTemplate && !openNote.tagIds.includes(entry.id)
               ? {
                   label: t('palette.addTagToNote'),
                   run: () => putTagOnNotes([openNote.id], entry.id),
@@ -2836,11 +2857,12 @@ export function App() {
       return
     }
     if (link.kind === 'import') {
-      void importHandedOver(link)
+      if (editing) void importHandedOver(link)
+      else setLinkNotice('commandUnavailable')
       return
     }
     if (link.kind === 'command') {
-      const handler = handlers[link.id]
+      const handler = commands[link.id]
       if (handler) void handler.run()
       else setLinkNotice('commandUnavailable')
       return
@@ -3065,7 +3087,7 @@ export function App() {
         }
         renaming={renamingBook}
         onSelect={sidebarSelect}
-        onCreateBook={core ? sidebarCreateBook : undefined}
+        onCreateBook={core && editing ? sidebarCreateBook : undefined}
         onRenameBook={sidebarRenameBook}
         onRenameDone={sidebarRenameDone}
         onMoveBook={sidebarMoveBook}
@@ -3093,7 +3115,8 @@ export function App() {
         onSearchBooks={sidebarSearchBooks}
         onSearchTags={sidebarSearchTags}
         onEmptyTrash={askEmptyTrash}
-        onNewNote={core ? sidebarNewNote : undefined}
+        onNewNote={core && editing ? sidebarNewNote : undefined}
+        readOnly={!editing}
         workspace={sidebarWorkspace}
         onOpenWorkspace={stableOpenWorkspace}
         onWorkspaceUp={sidebarWorkspaceUp}
@@ -3114,7 +3137,7 @@ export function App() {
           selected={selected}
           opening={switching ? openingId : undefined}
           onSelect={openFromList}
-          onCreate={core ? createFromList : undefined}
+          onCreate={core && editing ? createFromList : undefined}
           onAction={runNoteAction}
           onMenu={showNoteMenu}
           sort={sortButton}
@@ -3125,6 +3148,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           details={loadDetails}
+          drag={editing ? 'notes' : false}
         />
       ) : inTrash ? (
         <NoteList
@@ -3163,7 +3187,7 @@ export function App() {
           selected={selected}
           opening={switching ? openingId : undefined}
           onSelect={openFromList}
-          onCreate={core ? createFromList : undefined}
+          onCreate={core && editing ? createFromList : undefined}
           createLabel={t('templates.new')}
           onAction={runNoteAction}
           onMenu={showNoteMenu}
@@ -3176,7 +3200,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           details={loadDetails}
-          drag="templates"
+          drag={editing ? 'templates' : false}
           after={<BuiltInTemplates selected={shownBuiltIn} onSelect={showBuiltIn} />}
         />
       ) : (
@@ -3194,7 +3218,7 @@ export function App() {
           selected={selected}
           opening={switching ? openingId : undefined}
           onSelect={openFromList}
-          onCreate={core ? createFromList : undefined}
+          onCreate={core && editing ? createFromList : undefined}
           onAction={runNoteAction}
           onMenu={showNoteMenu}
           sort={sortButton}
@@ -3206,6 +3230,7 @@ export function App() {
           onSelection={changeListSelection}
           headlines={loadHeadlines}
           details={loadDetails}
+          drag={editing ? 'notes' : false}
         />
       )}
       <main className="content" data-devot-part="editor">
@@ -3276,6 +3301,7 @@ export function App() {
             onTrash={() => void trashNotes(multiIds)}
             onRestore={() => void restoreNotes(multiIds)}
             onDelete={() => confirmDeleteMany(multiIds)}
+            readOnly={!editing}
           />
         ) : null}
         {core && selected && inTrash && !multiIds ? (
@@ -3285,6 +3311,7 @@ export function App() {
             noteId={selected}
             onRestore={() => void restoreTrashed(selected)}
             onDelete={(name) => setConfirm({ kind: 'one', id: selected, title: name })}
+            readOnly={!editing}
           />
         ) : null}
         {core && selected && !inTrash && !multiIds ? (
@@ -3295,7 +3322,7 @@ export function App() {
               aria-label={t('note.titleLabel')}
               placeholder={t('note.untitled')}
               value={title}
-              readOnly={switching}
+              readOnly={switching || !editing}
               onChange={(e) => rename(e.target.value)}
               onKeyDown={(e) => {
                 // Return finishes the title and goes on to the tags (the body,
@@ -3317,7 +3344,7 @@ export function App() {
             {selectedIsTemplate ? (
               <p className="note-meta template-hint">{t('templates.editorHint')}</p>
             ) : (
-              <div className="note-meta">
+              <div className="note-meta" inert={!editing}>
                 <BookPicker
                   tree={tree}
                   value={selectedNote?.bookId ?? null}
@@ -3372,19 +3399,24 @@ export function App() {
                 showImageMenu={showImageMenu}
                 initialPlace={takeEditorPlace(selected)}
                 onPlace={editorPlaced}
-                onNewFromSelection={inTrash ? undefined : () => void noteFromSelection(selected)}
+                onNewFromSelection={
+                  inTrash || !editing ? undefined : () => void noteFromSelection(selected)
+                }
                 onAiEdit={
-                  inTrash ? undefined : (start) => setAiEditing({ noteId: selected, start })
+                  inTrash || !editing
+                    ? undefined
+                    : (start) => setAiEditing({ noteId: selected, start })
                 }
                 suggester={inTrash ? undefined : suggester}
                 onSuggestFailed={setSuggestNotice}
-                onNewFromLink={inTrash ? undefined : () => void noteFromLink(selected)}
+                onNewFromLink={inTrash || !editing ? undefined : () => void noteFromLink(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
                 onChooseTemplate={() =>
                   setPicking({ recent: recentTemplates.load(), into: selected })
                 }
                 onOpenNote={(id) => void select(id)}
+                readOnly={!editing}
               />
               {mode === 'edit' ? null : (
                 <LivePreview
@@ -3399,13 +3431,15 @@ export function App() {
                         }
                       : undefined
                   }
-                  onSetDates={inTrash || !core ? undefined : setNoteDates}
+                  onSetDates={inTrash || !core || !editing ? undefined : setNoteDates}
                   onOpenNote={(id) => void select(id)}
                   onFind={setPreviewFind}
                   onScrollPane={setPreviewPane}
                   onOpenImage={setViewing}
                   onImageMenu={showImageMenu}
-                  onToggleTask={(at) => void editorRef.current?.toggleTask(at)}
+                  onToggleTask={
+                    editing ? (at) => void editorRef.current?.toggleTask(at) : undefined
+                  }
                   initialScroll={takePreviewScroll}
                   onScroll={previewScrolled}
                 />
@@ -3430,8 +3464,12 @@ export function App() {
           onClose={closeImport}
         />
       ) : null}
-      {backupsOpen ? <BackupsDialog onRestore={restore} onClose={closeBackups} /> : null}
+      {backupsOpen ? (
+        <BackupsDialog onRestore={restore} onClose={closeBackups} readOnly={!editing} />
+      ) : null}
       <Notices>
+        <TrialEndedBar />
+        <TrialReminder />
         {saveNoticeShown ? (
           <SaveNotice
             problems={saveProblems}
@@ -3514,7 +3552,7 @@ export function App() {
       {paletteOpen ? (
         <CommandPalette
           entries={{
-            command: [...commandEntries(handlers, t), ...plugins.entries(openNote !== undefined)],
+            command: [...commandEntries(commands, t), ...plugins.entries(openNote !== undefined)],
             source: sourceEntries(t),
             outline: outlineEntries(paletteText),
             line: [],
@@ -3522,7 +3560,7 @@ export function App() {
           }}
           actions={paletteActions}
           initialScope={paletteScope}
-          lineCount={handlers['edit.goToLine'] ? paletteLines : 0}
+          lineCount={commands['edit.goToLine'] ? paletteLines : 0}
           onClose={closePalette}
         />
       ) : null}
@@ -3537,6 +3575,7 @@ export function App() {
             setHistoryFor(undefined)
           }}
           onClose={() => setHistoryFor(undefined)}
+          readOnly={!editing}
         />
       ) : null}
       {core && aiGenerator && aiEditing && aiEditing.noteId === selected && !inTrash ? (
