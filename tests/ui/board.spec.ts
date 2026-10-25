@@ -324,14 +324,24 @@ test('Undo on a card takes back the last status change made by any means, not an
   await expect.poll(async () => (await storedStatus(page))['Alpha']).toBe('none')
 })
 
-test('in a laptop-sized window all five columns fit beside the editor', async ({ page }) => {
+test('in a laptop-sized window the editor stays whole and every column can be reached', async ({
+  page,
+}) => {
   for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: 800 })
     await layout(page, 'Board').click()
-    const sizes = await board(page)
-      .locator('.board-columns')
-      .evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }))
-    expect(sizes.scroll).toBeLessThanOrEqual(sizes.client)
+    await card(page, 'Alpha').click()
+    const pane = await page.locator('.editor-root').first().boundingBox()
+    const template = await page.getByRole('button', { name: /^Choose a template/ }).boundingBox()
+    expect(template).not.toBeNull()
+    expect(template!.x).toBeGreaterThanOrEqual(pane!.x)
+    expect(template!.x + template!.width).toBeLessThanOrEqual(pane!.x + pane!.width)
+    const header = await page.locator('.content').evaluate((el) => el.scrollWidth - el.clientWidth)
+    expect(header).toBeLessThanOrEqual(0)
+    for (const name of ['No Status', 'Active', 'On Hold', 'Completed', 'Dropped']) {
+      await column(page, name).scrollIntoViewIfNeeded()
+      await expect(column(page, name)).toBeInViewport({ ratio: 0.99 })
+    }
   }
 })
 
