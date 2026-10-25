@@ -53,7 +53,7 @@ export function resendMailer(
             subject: mail.subject,
             text: mail.text,
             html: mail.html,
-            ...(replyTo ? { reply_to: replyTo } : {}),
+            ...(replyTo?.trim() ? { reply_to: replyTo.trim() } : {}),
           }),
         })
       } catch {
@@ -89,10 +89,16 @@ export function licenceMail(
   idempotencyKey?: string,
 ): Mail {
   const m = MESSAGES.mail
-  const subject = { issued: m.issuedSubject, renewed: m.renewedSubject, resend: m.resendSubject }[
-    kind
-  ]
-  const intro = { issued: m.issuedIntro, renewed: m.renewedIntro, resend: m.resendIntro }[kind]
+  const subject = {
+    issued: m.issuedSubject,
+    renewed: m.renewedSubject,
+    resend: m.resendSubject,
+  }[kind]
+  const intro = {
+    issued: m.issuedIntro,
+    renewed: m.renewedIntro,
+    resend: m.resendIntro,
+  }[kind]
   const text = [
     intro,
     ...keys.flatMap(({ key, updatesUntil }) => [

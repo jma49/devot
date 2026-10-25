@@ -63,7 +63,7 @@ describe('resendMailer', () => {
   })
 
   it('omits reply_to when no Reply-To address is set or it is empty', async () => {
-    for (const replyTo of [undefined, '']) {
+    for (const replyTo of [undefined, '', '   ']) {
       const { calls, mailer } = recording(() => json({ id: 'em_1' }, 200), replyTo)
       await mailer.send(mail)
       expect(JSON.parse(String(calls[0]?.init.body))).not.toHaveProperty('reply_to')

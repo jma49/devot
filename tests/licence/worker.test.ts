@@ -14,7 +14,9 @@ import { migrate, vectors } from './support'
 const wrangler = readFileSync('licence/wrangler.toml', 'utf8')
 const setting = (key: string) => new RegExp(`^${key} = "([^"]*)"$`, 'm').exec(wrangler)?.[1]
 const testKey = vectors.keys[0]
-const publicKeys = { test: fromBase64Url(testKey?.publicKey ?? '') ?? new Uint8Array() }
+const publicKeys = {
+  test: fromBase64Url(testKey?.publicKey ?? '') ?? new Uint8Array(),
+}
 const secrets = {
   LICENCE_KID: 'test',
   LICENCE_SIGNING_KEY: testKey?.seed ?? '',
@@ -27,7 +29,11 @@ const secrets = {
   RESEND_API_KEY: 're_test_fake',
 }
 
-const stripeCalls: { url: string; headers: Record<string, string>; body: string }[] = []
+const stripeCalls: {
+  url: string
+  headers: Record<string, string>
+  body: string
+}[] = []
 let script = ''
 let mf: Miniflare
 let url = ''
@@ -80,7 +86,13 @@ it('wrangler.toml binds D1 with its migrations and no email binding, as the test
     /\[\[d1_databases\]\]\nbinding = "DB"\ndatabase_name = "devot-licence"\nmigrations_dir = "migrations"/,
   )
   expect(wrangler).not.toMatch(/send_email/)
-  const owners = ['LICENCE_KID', 'STRIPE_PRICE_LICENCE', 'STRIPE_PRICE_RENEWAL', 'MAIL_FROM']
+  const owners = [
+    'LICENCE_KID',
+    'STRIPE_PRICE_LICENCE',
+    'STRIPE_PRICE_RENEWAL',
+    'MAIL_FROM',
+    'REPLY_TO',
+  ]
   expect(owners.map((name) => [name, setting(name)])).toEqual(owners.map((name) => [name, '']))
   expect(setting('MANAGED_PAYMENTS')).toBe('true')
   expect(wrangler).not.toMatch(/SIGNING_KEY = |SECRET_KEY = |WEBHOOK_SECRET = /)
@@ -117,7 +129,10 @@ it('creates a Checkout Session through the Stripe client and redirects to it', a
 })
 
 it('refuses an unsigned webhook and an unknown renewal', async () => {
-  const webhook = await fetch(`${url}/stripe/webhook`, { method: 'POST', body: '{}' })
+  const webhook = await fetch(`${url}/stripe/webhook`, {
+    method: 'POST',
+    body: '{}',
+  })
   expect(webhook.status).toBe(400)
   expect(await webhook.json()).toEqual({ code: 'E_LICENCE_WEBHOOK_SIGNATURE' })
   const renew = await fetch(`${url}/renew?licence=CCCCCCCCCCCCCCCCCCCCCC`)
@@ -137,7 +152,11 @@ it('answers E_LICENCE_CONFIG when RESEND_API_KEY is missing', async () => {
 })
 
 it('answers E_LICENCE_CONFIG until the secrets are set', async () => {
-  const bare = worker({ ...secrets, LICENCE_SIGNING_KEY: '', STRIPE_SECRET_KEY: '' })
+  const bare = worker({
+    ...secrets,
+    LICENCE_SIGNING_KEY: '',
+    STRIPE_SECRET_KEY: '',
+  })
   try {
     const bareUrl = (await bare.ready).toString().replace(/\/$/, '')
     const response = await fetch(`${bareUrl}/revoked`)
