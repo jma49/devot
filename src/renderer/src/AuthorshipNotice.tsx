@@ -57,6 +57,9 @@ export function AuthorshipNotice(props: {
   onDismiss: () => void
 }) {
   const [step, setStep] = useState<{ index: number; steps: ReviewStep[] }>()
+  // Review keeps the notice's height, so the note's text does not jump when it starts or ends.
+  const [reviewHeight, setReviewHeight] = useState<number>()
+  const section = useRef<HTMLElement>(null)
   const [busy, setBusy] = useState(false)
   const nextButton = useRef<HTMLButtonElement>(null)
   const locale = currentLocale()
@@ -66,6 +69,7 @@ export function AuthorshipNotice(props: {
   // The control with the keyboard goes away with the review, or with the notice: the editor takes it.
   const endReview = () => {
     setStep(undefined)
+    setReviewHeight(undefined)
     props.editor.current?.focus()
   }
 
@@ -84,6 +88,8 @@ export function AuthorshipNotice(props: {
     if (!step || event.metaKey || event.ctrlKey || event.altKey) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowRight') move(1)
     else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') move(-1)
+    else if (event.key === 'Home') show(0)
+    else if (event.key === 'End') show(step.steps.length - 1)
     else if (event.key === 'Escape') endReview()
     else return
     event.preventDefault()
@@ -103,7 +109,9 @@ export function AuthorshipNotice(props: {
 
   return (
     <section
+      ref={section}
       className="authorship-notice"
+      style={reviewHeight === undefined ? undefined : { minHeight: reviewHeight }}
       aria-label={t('authorship.notice')}
       data-devot-part="authorship-notice"
       onKeyDown={onKeyDown}
@@ -157,6 +165,7 @@ export function AuthorshipNotice(props: {
                 type="button"
                 className="button"
                 onClick={() => {
+                  setReviewHeight(section.current?.getBoundingClientRect().height)
                   show(0)
                   queueMicrotask(() => nextButton.current?.focus())
                 }}

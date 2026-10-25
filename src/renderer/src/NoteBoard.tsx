@@ -40,6 +40,7 @@ import {
 import { noteShortcut, type NoteAction } from './noteMenu'
 import { spacerHeight } from './listWindow'
 import { useNow } from './NoteList'
+import type { WriterRef } from './authorshipLabels'
 import { ChangedBy, STATUS_ICONS } from './NoteRow'
 import { usePaneResize } from './paneResize'
 import { BOARD_PANE } from './paneWidth'
@@ -62,7 +63,7 @@ interface Props {
   statuses: readonly NoteStatus[]
   tags: ReadonlyMap<string, TagRecord>
   /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
-  changedBy?: ReadonlyMap<string, string> | undefined
+  changedBy?: ReadonlyMap<string, WriterRef> | undefined
   selected: string | undefined
   opening?: string | undefined
   onSelect: (id: string) => void
@@ -648,7 +649,7 @@ interface CardProps {
   position: number | undefined
   setSize: number | undefined
   tags: ReadonlyMap<string, TagRecord>
-  changedBy: string | undefined
+  changedBy: WriterRef | undefined
   headline: string | undefined
   now: number
   locale: string

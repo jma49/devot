@@ -18,7 +18,7 @@ import type { NoteStatus, TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS, type NoteFilter } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
 import type { AgentSummary } from './agentWrites'
-import { writerLabel } from './authorshipLabels'
+import { WriterLabel } from './WriterLabel'
 import { countOf } from './format'
 import {
   BOOK_COMMANDS,
@@ -444,7 +444,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const filterRow = (
     filter: NoteFilter,
     icon: IconName,
-    label: string,
+    label: ReactNode,
     count: number,
     extra?: string,
     tag?: { color: TagColor | null; onMenu: () => void },
@@ -1364,7 +1364,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                     {filterRow(
                       agentFilter(agent),
                       'notebook.ai',
-                      writerLabel(agent),
+                      <WriterLabel writer={agent} />,
                       agent.unseen,
                       'agent-row',
                       undefined,

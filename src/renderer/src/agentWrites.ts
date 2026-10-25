@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { WriterKind } from '../../core/authorship'
 import { MAX_AGENT_WRITES_LISTED, type AgentWriteSummary } from '../../core/storage'
-import { writerKey, writerLabel } from './authorshipLabels'
+import { writerKey, type WriterRef } from './authorshipLabels'
 import type { Core } from './core-client'
 
 export interface AgentSummary {
@@ -22,7 +22,7 @@ export interface AgentWritesView {
   /** Each note's rows, newest first. */
   byNote: ReadonlyMap<string, readonly AgentWriteSummary[]>
   /** For each note with an unseen write, the writer of the newest one, as the UI names it. */
-  changedBy: ReadonlyMap<string, string>
+  changedBy: ReadonlyMap<string, WriterRef>
   /** The MCP clients and the HTTP API, newest first; Edit with AI is the owner's own. */
   agents: readonly AgentSummary[]
 }
@@ -33,13 +33,14 @@ export const MAX_AGENTS_LISTED = 8
 /** `rows` as listAgentWrites gives them: newest first. */
 export function agentWritesView(rows: readonly AgentWriteSummary[]): AgentWritesView {
   const byNote = new Map<string, AgentWriteSummary[]>()
-  const changedBy = new Map<string, string>()
+  const changedBy = new Map<string, WriterRef>()
   const agents = new Map<string, AgentSummary & { noteIds: Set<string> }>()
   for (const row of rows) {
     const own = byNote.get(row.noteId)
     if (own) own.push(row)
     else byNote.set(row.noteId, [row])
-    if (!row.seen && !changedBy.has(row.noteId)) changedBy.set(row.noteId, writerLabel(row))
+    if (!row.seen && !changedBy.has(row.noteId))
+      changedBy.set(row.noteId, { kind: row.kind, name: row.name })
     if (row.kind === 'aiEdit') continue
     const key = writerKey(row)
     const agent = agents.get(key)

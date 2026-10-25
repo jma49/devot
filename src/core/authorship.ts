@@ -427,6 +427,32 @@ export function applyAgentEdit(doc: Y.Doc, edit: AgentEdit): string | null {
   return id
 }
 
+/**
+ * Records what `tr`, a local transaction that has just ended, did to the body as write `id` of
+ * a known session: undoing Undo All puts the writes' text back with new item IDs. Call it from
+ * `afterTransaction`, before garbage collection drops the deleted text. Returns whether it recorded.
+ */
+export function recordTransaction(
+  doc: Y.Doc,
+  tr: Y.Transaction,
+  write: { id: string; session: string; at: number },
+): boolean {
+  if (!readWriters(doc).has(write.session)) return false
+  const { inserted, deleted, removed } = captureWrite(doc.getText(BODY), tr)
+  if (inserted.length === 0 && deleted.length === 0) return false
+  doc.transact(() => {
+    doc.getMap(WRITES).set(write.id, {
+      v: RECORD_VERSION,
+      writer: write.session,
+      at: write.at,
+      ids: packRanges(inserted, deleted),
+      ...(removed ? { removed } : {}),
+    })
+    capRemoved(doc, MAX_REMOVED_BYTES)
+  })
+  return true
+}
+
 export interface AuthoredRun {
   /** UTF-16 offsets in the body as it is now. */
   from: number

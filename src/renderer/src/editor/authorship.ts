@@ -341,8 +341,14 @@ export function authorshipMarks(ydoc: Y.Doc, noteId: string): Extension {
         const { scrollLeft, clientWidth } = this.view.scrollDOM
         const room = scrollLeft + clientWidth - Number.parseFloat(mark.style.left)
         this.tip.style.maxWidth = `calc(${room}px - var(--space-2) - var(--space-4))`
-        this.tip.style.top = mark.style.top
         this.tip.hidden = false
+        // Above the marked lines, or below them at the top of the note: never over the text it names.
+        const top = Number.parseFloat(mark.style.top)
+        const above = top - this.tip.offsetHeight
+        this.tip.style.top =
+          above >= this.view.scrollDOM.scrollTop
+            ? `calc(${above}px - var(--space-1))`
+            : `calc(${top + Number.parseFloat(mark.style.height)}px + var(--space-1))`
       }
 
       hideTip() {

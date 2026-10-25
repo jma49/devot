@@ -13,6 +13,7 @@ import {
   newWriter,
   packRanges,
   readWrites,
+  recordTransaction,
   reverseWrites,
   reviewSteps,
   unpackRanges,
@@ -254,6 +255,53 @@ describe('Undo All', () => {
       dropped: 1,
     })
     expect(body(agent)).toBe('Keep this. .\n')
+  })
+
+  it('records the text an undo of Undo All puts back as the same session’s write', () => {
+    const doc = docWith('Owner.\n')
+    edit(doc, claude, 'Owner.\nClaude line.\n')
+    edit(doc, codex, 'Owner.\nClaude line.\nCodex line.\n', 2000)
+    const [undone] = readWrites(doc)
+    reverseWrites(doc, { kind: 'mcp', name: 'Claude Code' })
+    expect(body(doc)).toBe('Owner.\nCodex line.\n')
+    let recorded = false
+    const put = (tr: Y.Transaction) => {
+      doc.off('afterTransaction', put)
+      recorded = recordTransaction(doc, tr, {
+        id: newAuthorshipId(),
+        session: undone!.session,
+        at: 5000,
+      })
+    }
+    doc.on('afterTransaction', put)
+    doc.getText('body').insert('Owner.\n'.length, 'Claude line.\n')
+    expect(recorded).toBe(true)
+    expect(agentText(doc)).toBe('Claude line.\n|Codex line.\n')
+    expect(agentWriteRows(doc).map((row) => [row.name, row.at])).toEqual([
+      ['Claude Code', 5000],
+      ['Codex', 2000],
+    ])
+    // Undo All takes it out again.
+    reverseWrites(doc, { kind: 'mcp', name: 'Claude Code' })
+    expect(body(doc)).toBe('Owner.\nCodex line.\n')
+  })
+
+  it('records nothing for an unknown session or a transaction that left the body alone', () => {
+    const doc = docWith('Owner.\n')
+    const results: boolean[] = []
+    const put = (session: string) => (tr: Y.Transaction) =>
+      results.push(recordTransaction(doc, tr, { id: newAuthorshipId(), session, at: 1 }))
+    const unknown = put(newAuthorshipId())
+    doc.on('afterTransaction', unknown)
+    doc.getText('body').insert(0, 'x')
+    doc.off('afterTransaction', unknown)
+    edit(doc, claude, 'Owner.\nClaude.\n')
+    const known = put(claude.session)
+    doc.on('afterTransaction', known)
+    doc.getMap('other').set('k', 1)
+    doc.off('afterTransaction', known)
+    expect(results).toEqual([false, false])
+    expect(readWrites(doc)).toHaveLength(1)
   })
 
   it('caps the deleted text a note keeps, dropping the oldest first', () => {

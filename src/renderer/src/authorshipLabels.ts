@@ -22,3 +22,31 @@ export function writersLabel(writers: readonly WriterRef[]): string {
   const labels = [...new Set(writers.map(writerLabel))]
   return new Intl.ListFormat(currentLocale(), { type: 'conjunction' }).format(labels)
 }
+
+export interface LabelParts {
+  before: string
+  /** The client's name: the one part a narrow row may cut short. */
+  name: string
+  after: string
+  full: string
+}
+
+const around = (text: string, slot: string): [string, string] => {
+  const at = text.indexOf(slot)
+  return at < 0 ? [text, ''] : [text.slice(0, at), text.slice(at + slot.length)]
+}
+
+/** `template` with the writer's label for `{writer}`, split around the name so the kind stays shown. */
+export function writerLabelParts(writer: WriterRef, template = '{writer}'): LabelParts {
+  const [outerBefore, outerAfter] = around(template, '{writer}')
+  const kind = t(`authorship.kind.${writer.kind}`)
+  const [innerBefore, innerAfter] = writer.name
+    ? around(t('authorship.writerNamed'), '{name}').map((part) => format(part, { kind }))
+    : [kind, '']
+  return {
+    before: `${outerBefore}${innerBefore}`,
+    name: writer.name,
+    after: `${innerAfter}${outerAfter}`,
+    full: format(template, { writer: writerLabel(writer) }),
+  }
+}

@@ -37,6 +37,7 @@ import { noteShortcut, trashShortcut, type NoteAction, type TrashAction } from '
 import { DRAG_TEMPLATE, setNoteDragData } from './dragData'
 import { useStable } from './stable'
 import { useEditorSetting } from './editorSettings'
+import type { WriterRef } from './authorshipLabels'
 import { NoteRow, type RowEvents } from './NoteRow'
 import { useRowMotion } from './rowMotion'
 import { scrollRowIntoView } from './listScroll'
@@ -89,7 +90,7 @@ interface Props {
   activity?: HeadlineLoader<StripDay[]> | undefined
   empty?: ListEmptyKind | undefined
   /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
-  changedBy?: ReadonlyMap<string, string> | undefined
+  changedBy?: ReadonlyMap<string, WriterRef> | undefined
 }
 
 const MINUTE = 60_000

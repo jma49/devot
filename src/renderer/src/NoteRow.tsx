@@ -12,11 +12,13 @@ import { matchSegments } from '../../core/search'
 import type { ListDatesStyle } from '../../core/editorSettings'
 import type { StripDay } from '../../core/activity'
 import { ActivityStrip } from './ActivityStrip'
+import { writerLabelParts, type WriterRef } from './authorshipLabels'
 import { fullDate, rowDate } from './format'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
 import { chipClass, TagDot } from './TagEditor'
+import { WriterLabel } from './WriterLabel'
 
 export const STATUS_ICONS: Readonly<Record<NoteStatus, IconName>> = {
   none: 'status.none',
@@ -66,12 +68,19 @@ export function TaskProgress({ done, total }: { done: number; total: number }) {
 }
 
 /** A note agents changed since the owner last looked: a mark, and who changed it last. */
-export function ChangedBy({ writer, compact }: { writer: string; compact?: boolean }) {
-  const text = format(t('authorship.changedBy'), { writer })
+export function ChangedBy({ writer, compact }: { writer: WriterRef; compact?: boolean }) {
+  const template = t('authorship.changedBy')
   return (
-    <span className="row-agent" title={compact ? text : undefined}>
+    <span
+      className="row-agent"
+      title={compact ? writerLabelParts(writer, template).full : undefined}
+    >
       <span className="row-agent-mark" aria-hidden="true" />
-      <span className={compact ? 'visually-hidden' : 'row-agent-text'}>{text}</span>
+      {compact ? (
+        <span className="visually-hidden">{writerLabelParts(writer, template).full}</span>
+      ) : (
+        <WriterLabel writer={writer} template={template} />
+      )}
     </span>
   )
 }
@@ -101,7 +110,7 @@ export interface RowProps {
   /** The note's activity strip; none while it is hidden or not read yet. */
   strip?: readonly StripDay[] | undefined
   /** The newest writer of the note's unseen agent writes (ADR 0007), as the UI names it. */
-  changedBy?: string | undefined
+  changedBy?: WriterRef | undefined
   now: number
   locale: string
   dates: ListDatesStyle

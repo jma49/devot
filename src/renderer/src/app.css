@@ -1360,7 +1360,27 @@ button {
   color: var(--color-text-secondary);
 }
 
-.row-agent-text {
+/* In a list row it takes the line's room and cuts the name short before it wraps to a line of its own. */
+.row-meta > .row-agent {
+  flex: 1 1 0;
+  min-width: 10em;
+}
+
+/* A writer's name gives way first: the kind beside it stays shown (WriterLabel.tsx). */
+.writer-label {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.writer-label-fixed {
+  flex: none;
+  white-space: pre;
+}
+
+.writer-label-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -4943,6 +4963,7 @@ button.popup:focus-visible {
    so the history bar's overlay, which lies over the panes, never covers it. */
 .authorship-notice {
   position: relative;
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -4977,6 +4998,11 @@ button.popup:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+/* The history bar shows a past version: the notice stays, but does not respond until it is gone. */
+.authorship-notice-slot[inert] .authorship-notice-actions {
+  opacity: var(--opacity-disabled);
 }
 
 :root[data-motion='reduced'] .authorship-notice {

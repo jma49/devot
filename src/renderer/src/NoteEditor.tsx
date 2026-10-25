@@ -13,9 +13,10 @@ import { flushSync } from 'react-dom'
 import { yCollab, ySyncAnnotation } from 'y-codemirror.next'
 import * as Y from 'yjs'
 import type { ImageSize } from '../../core/images'
-import { reviewSteps, type ReviewStep } from '../../core/authorship'
+import { readWrites, reviewSteps, type AgentWrite, type ReviewStep } from '../../core/authorship'
 import { BODY } from '../../core/notes'
 import { authorshipMarks } from './editor/authorship'
+import { authorshipUndo, undoneWrites } from './editor/authorshipUndo'
 import { imageFiles, storeImages } from './attachments'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
@@ -930,12 +931,15 @@ export function NoteEditor({
       // True while a restored version is applied: an undo step of its own,
       // where every other change from the Yjs document is none (editor/undo.ts).
       let restoring = false
+      let writesBefore: readonly AgentWrite[] = []
       const applyStep: ApplyRestore = (update) => {
         restoring = true
+        writesBefore = readWrites(doc, noteId)
         try {
           Y.applyUpdate(doc, update, RESTORE)
         } finally {
           restoring = false
+          writesBefore = []
         }
       }
       const setupFor = latestSettings.current
@@ -1042,8 +1046,12 @@ export function NoteEditor({
             lockedSlot.of(locked.current ? LOCKED : []),
             authorshipSlot.of(marksFor(setupFor.authorship, doc, noteId)),
             // Undo is CodeMirror's history alone: no Yjs undo manager.
+            authorshipUndo(doc),
             yCollab(text, null, { undoManager: false }),
-            yjsHistory(() => restoring),
+            yjsHistory(
+              () => restoring,
+              () => undoneWrites(writesBefore, doc),
+            ),
             EditorView.contentAttributes.of({
               'aria-label': t('note.bodyLabel'),
             }),

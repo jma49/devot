@@ -23,9 +23,9 @@ describe('agentWritesView', () => {
   it('names the newest unseen writer of each note for the list', () => {
     const { changedBy } = agentWritesView(rows)
     expect([...changedBy]).toEqual([
-      ['b', 'HTTP API'],
-      ['a', 'Claude Code (MCP)'],
-      ['c', 'Claude Code (MCP)'],
+      ['b', { kind: 'http', name: '' }],
+      ['a', { kind: 'mcp', name: 'Claude Code' }],
+      ['c', { kind: 'mcp', name: 'Claude Code' }],
     ])
   })
 

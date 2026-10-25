@@ -14,6 +14,7 @@ import {
   ChangeSet,
   EditorState,
   Transaction,
+  type StateEffect,
   type ChangeSpec,
   type EditorStateConfig,
   type Extension,
@@ -27,14 +28,16 @@ export const UNDO_NOTES = 10
 /**
  * Keeps changes that come from the Yjs document out of the undo history;
  * while `restoring()` is true, the change is a restored version, which is an
- * undo step of its own instead.
+ * undo step of its own instead, with the effects `restored()` gives.
  */
-export function yjsHistory(restoring: () => boolean): Extension {
+export function yjsHistory(
+  restoring: () => boolean,
+  restored: () => readonly StateEffect<unknown>[] = () => [],
+): Extension {
   return EditorState.transactionExtender.of((tr) => {
     if (tr.annotation(ySyncAnnotation) === undefined) return null
-    return {
-      annotations: restoring() ? isolateHistory.of('full') : Transaction.addToHistory.of(false),
-    }
+    if (!restoring()) return { annotations: Transaction.addToHistory.of(false) }
+    return { annotations: isolateHistory.of('full'), effects: restored() }
   })
 }
 
