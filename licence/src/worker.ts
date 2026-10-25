@@ -13,7 +13,6 @@ export interface Env {
   STRIPE_SECRET_KEY?: string
   STRIPE_WEBHOOK_SECRET?: string
   STRIPE_PRICE_LICENCE?: string
-  STRIPE_PRICE_RENEWAL?: string
   MANAGED_PAYMENTS?: string
   MAIL_FROM?: string
   REPLY_TO?: string
@@ -27,7 +26,6 @@ const REQUIRED = [
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'STRIPE_PRICE_LICENCE',
-  'STRIPE_PRICE_RENEWAL',
   'MAIL_FROM',
   'RESEND_API_KEY',
 ] as const
@@ -49,7 +47,6 @@ export default {
       config: {
         managedPayments: env.MANAGED_PAYMENTS === 'true',
         priceLicence: env.STRIPE_PRICE_LICENCE ?? '',
-        priceRenewal: env.STRIPE_PRICE_RENEWAL ?? '',
         cancelUrl: env.CANCEL_URL || undefined,
         webhookSecret: env.STRIPE_WEBHOOK_SECRET ?? '',
       },

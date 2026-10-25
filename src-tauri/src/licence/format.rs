@@ -39,7 +39,6 @@ pub(crate) struct Payload {
     pub kid: String,
     pub licensee: String,
     pub issued_at: String,
-    pub updates_until: String,
 }
 
 impl fmt::Debug for Payload {
@@ -144,10 +143,6 @@ fn shaped(text: &str, shape: &[u8]) -> bool {
         })
 }
 
-pub(crate) fn is_date(text: &str) -> bool {
-    shaped(text, b"9999-99-99")
-}
-
 fn is_instant(text: &str) -> bool {
     shaped(text, b"9999-99-99T99:99:99Z")
 }
@@ -162,14 +157,12 @@ fn licence_payload(object: &Map<String, Value>) -> Option<(Payload, String)> {
     text(object, "plan").filter(|plan| *plan == PLAN)?;
     let licensee = text(object, "licensee").filter(|l| !l.is_empty())?;
     let issued_at = text(object, "issuedAt").filter(|t| is_instant(t))?;
-    let updates_until = text(object, "updatesUntil").filter(|d| is_date(d))?;
     Some((
         Payload {
             id: id.to_owned(),
             kid: kid.to_owned(),
             licensee: licensee.to_owned(),
             issued_at: issued_at.to_owned(),
-            updates_until: updates_until.to_owned(),
         },
         kid.to_owned(),
     ))

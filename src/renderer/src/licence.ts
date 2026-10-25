@@ -19,7 +19,6 @@ const CHANGED_EVENT = 'devot://licence-changed'
 /** The one place the licence pages' address is kept. */
 export const LICENCE_SITE = 'https://licence.devot.online'
 export const BUY_URL = `${LICENCE_SITE}/buy`
-export const renewUrl = (id: string) => `${LICENCE_SITE}/renew?licence=${encodeURIComponent(id)}`
 
 export interface LicenceSnapshot {
   /** Whether this build needs a licence for sync and AI at all. */
@@ -28,7 +27,6 @@ export interface LicenceSnapshot {
   code: string | null
   id: string | null
   licensee: string | null
-  updatesUntil: string | null
   plan: 'pro' | null
 }
 
@@ -39,18 +37,14 @@ export const LICENCE_UNKNOWN: LicenceSnapshot = {
   code: null,
   id: null,
   licensee: null,
-  updatesUntil: null,
   plan: null,
 }
 
 const CODE = /^[EWI]_[A-Z0-9_]+$/
 const LICENCE_ID = /^[A-Za-z0-9_-]{22}$/
-const DATE = /^\d{4}-\d{2}-\d{2}$/
 
 export const isLicenceId = (value: unknown): value is string =>
   typeof value === 'string' && LICENCE_ID.test(value)
-export const isLicenceDate = (value: unknown): value is string =>
-  typeof value === 'string' && DATE.test(value)
 export const isLicenceState = (value: unknown): value is LicenceState =>
   typeof value === 'string' && (LICENCE_STATES as readonly string[]).includes(value)
 
@@ -64,7 +58,6 @@ export function readLicence(value: unknown): LicenceSnapshot | undefined {
     code: typeof v['code'] === 'string' && CODE.test(v['code']) ? v['code'] : null,
     id: isLicenceId(v['id']) ? v['id'] : null,
     licensee: typeof v['licensee'] === 'string' && v['licensee'] !== '' ? v['licensee'] : null,
-    updatesUntil: isLicenceDate(v['updatesUntil']) ? v['updatesUntil'] : null,
     plan: v['plan'] === 'pro' ? 'pro' : null,
   }
 }
@@ -141,4 +134,3 @@ const open = (url: string) =>
   void invoke('open_external', { url }).catch(() => console.warn('W_OPEN_EXTERNAL_FAILED'))
 
 export const openBuy = () => open(BUY_URL)
-export const openRenew = (id: string) => open(renewUrl(id))

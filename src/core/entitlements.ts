@@ -11,7 +11,7 @@ export const PLAN_FEATURES: Readonly<Record<Plan, readonly Feature[]>> = {
   pro: PLAN_GATED_FEATURES,
 }
 
-export const LICENCE_STATES = ['none', 'valid', 'updatesEnded', 'revoked', 'invalid'] as const
+export const LICENCE_STATES = ['none', 'valid', 'revoked', 'invalid'] as const
 export type LicenceState = (typeof LICENCE_STATES)[number]
 
 export interface LicenceEntitlements {

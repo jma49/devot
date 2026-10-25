@@ -66,7 +66,6 @@ describe('readDeepLink, licences', () => {
   const offer = {
     id: '5vEvzHainWD0cA2Ht_ljHg',
     licensee: 'buyer@example.com',
-    updatesUntil: '2027-10-24',
     state: 'valid',
   }
 
@@ -87,7 +86,6 @@ describe('readDeepLink, licences', () => {
       { kind: 'licence', key: `devot1.${'a'.repeat(1024)}.b`, offer, code: null },
       { kind: 'licence', key, offer: { ...offer, id: 'short' }, code: null },
       { kind: 'licence', key, offer: { ...offer, licensee: '' }, code: null },
-      { kind: 'licence', key, offer: { ...offer, updatesUntil: '2027' }, code: null },
       { kind: 'licence', key, offer: { ...offer, state: 'great' }, code: null },
       { kind: 'licence', key: null, offer: null, code: 'not a code' },
       { kind: 'licence', key: null, offer: null, code: null },

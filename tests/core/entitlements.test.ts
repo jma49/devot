@@ -58,7 +58,7 @@ describe('the source', () => {
     expect(e.has('sync')).toBe(true)
     current = { enforced: true, state: 'none', plan: null }
     expect(e.has('sync')).toBe(false)
-    current = { enforced: true, state: 'updatesEnded', plan: 'pro' }
+    current = { enforced: true, state: 'revoked', plan: 'pro' }
     expect(e.has('sync')).toBe(false)
   })
 

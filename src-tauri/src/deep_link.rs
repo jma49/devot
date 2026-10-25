@@ -514,7 +514,7 @@ mod tests {
         use crate::licence::testing::{ID, LICENSEE, key};
         let dir = tempfile::tempdir().expect("dir");
         let service = crate::licence::testing::licence(dir.path(), true);
-        let good = key(ID, "2027-10-24");
+        let good = key(ID);
 
         let Link::Licence {
             key: kept,
@@ -529,7 +529,7 @@ mod tests {
         assert_eq!((offer.id.as_str(), offer.licensee.as_str()), (ID, LICENSEE));
         assert_eq!(code, None);
 
-        let malformed = format!("{}.x", key(ID, "2027-10-24"));
+        let malformed = format!("{}.x", key(ID));
         for (licence, want) in [
             (Some(&*service), "E_LICENCE_MALFORMED"),
             (None, "E_LICENCE_INTERNAL"),
@@ -547,7 +547,7 @@ mod tests {
 
     #[test]
     fn reads_a_licence_link_whole_or_percent_encoded() {
-        let key = crate::licence::testing::key(crate::licence::testing::ID, "2027-10-24");
+        let key = crate::licence::testing::key(crate::licence::testing::ID);
         assert_eq!(
             parse(&format!("devot://licence?key={key}"), "devot"),
             Ok(licence(&key))
@@ -570,7 +570,7 @@ mod tests {
 
     #[test]
     fn refuses_a_licence_link_with_anything_else_in_it() {
-        let key = crate::licence::testing::key(crate::licence::testing::ID, "2027-10-24");
+        let key = crate::licence::testing::key(crate::licence::testing::ID);
         for url in [
             format!("devot://licence?key={key}&x=1"),
             format!("devot://licence?key={key}#x"),
@@ -608,7 +608,7 @@ mod tests {
 
     #[test]
     fn a_licence_link_never_shows_its_key_when_debugged() {
-        let key = crate::licence::testing::key(crate::licence::testing::ID, "2027-10-24");
+        let key = crate::licence::testing::key(crate::licence::testing::ID);
         let shown = format!("{:?}", licence(&key));
         assert!(!shown.contains(&key[7..40]), "{shown}");
         let sent = serde_json::to_value(licence(&key)).unwrap();

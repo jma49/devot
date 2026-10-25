@@ -146,7 +146,6 @@ export async function mockTauri(page: Page): Promise<void> {
               code: null,
               id: null,
               licensee: null,
-              updatesUntil: null,
               plan: null,
             }
           // Sync is off unless a test fakes it (sync-settings.spec.ts).

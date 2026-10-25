@@ -64,7 +64,7 @@ describe('the Stripe client', () => {
         customer: { object: 'customer', id: 'cus_1' },
         payment_intent: 'pi_1',
         customer_details: { email: 'buyer@example.com' },
-        metadata: { kind: 'renewal', licence: 'abc', ignored: 3 },
+        metadata: { kind: 'licence', note: 'abc', ignored: 3 },
       }),
     )
     const session = await stripeClient('rk', fetcher).retrieveCheckoutSession('cs_test_2')
@@ -79,7 +79,7 @@ describe('the Stripe client', () => {
       customer: 'cus_1',
       paymentIntent: 'pi_1',
       email: 'buyer@example.com',
-      metadata: { kind: 'renewal', licence: 'abc' },
+      metadata: { kind: 'licence', note: 'abc' },
     })
   })
 
@@ -120,12 +120,11 @@ describe('Checkout Session parameters', () => {
   const config = {
     managedPayments: true,
     priceLicence: 'price_licence',
-    priceRenewal: 'price_renewal',
     cancelUrl: undefined,
   }
 
   it('sell the licence in payment mode with Managed Payments and a new Customer', () => {
-    expect(checkoutParams(config, 'https://licence.example', { kind: 'licence' })).toEqual({
+    expect(checkoutParams(config, 'https://licence.example')).toEqual({
       mode: 'payment',
       'line_items[0][price]': 'price_licence',
       'line_items[0][quantity]': '1',
@@ -137,24 +136,16 @@ describe('Checkout Session parameters', () => {
   })
 
   it('use Stripe Tax instead when Managed Payments is off', () => {
-    const params = checkoutParams({ ...config, managedPayments: false }, 'https://l.example', {
-      kind: 'licence',
-    })
+    const params = checkoutParams({ ...config, managedPayments: false }, 'https://l.example')
     expect(params['automatic_tax[enabled]']).toBe('true')
     expect(params['managed_payments[enabled]']).toBeUndefined()
   })
 
-  it('sell a renewal with the licence ID in the metadata', () => {
+  it('send a buyer who cancels to the page given', () => {
     const params = checkoutParams(
       { ...config, cancelUrl: 'https://devot.example/buy' },
       'https://l.example',
-      { kind: 'renewal', licenceId: 'AAAAAAAAAAAAAAAAAAAAAA' },
     )
-    expect(params).toMatchObject({
-      'line_items[0][price]': 'price_renewal',
-      'metadata[kind]': 'renewal',
-      'metadata[licence]': 'AAAAAAAAAAAAAAAAAAAAAA',
-      cancel_url: 'https://devot.example/buy',
-    })
+    expect(params['cancel_url']).toBe('https://devot.example/buy')
   })
 })

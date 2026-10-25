@@ -1,4 +1,4 @@
-//! The public keys this build trusts and the date it was released (docs/licensing.md, The app).
+//! The public keys this build trusts (docs/licensing.md, The app).
 
 use ed25519_dalek::VerifyingKey;
 
@@ -12,35 +12,6 @@ pub(crate) const PRODUCTION: &[(&str, &str)] = &[];
 /// licence/test-vectors.json's key: never trusted by a release build.
 #[cfg(any(test, debug_assertions))]
 pub(crate) const TEST: (&str, &str) = ("test", "PTmNJOA_L5AmygfZpMDMXVj1zAjUq6SfCpKwYt_taa0");
-
-/// The release workflow sets it (YYYY-MM-DD, UTC); local and dev builds have none.
-pub(crate) const RELEASE_DATE: Option<&str> = option_env!("DEVOT_RELEASE_DATE");
-
-const fn is_date_bytes(text: &[u8]) -> bool {
-    if text.len() != 10 {
-        return false;
-    }
-    let mut i = 0;
-    while i < 10 {
-        let ok = if i == 4 || i == 7 {
-            text[i] == b'-'
-        } else {
-            text[i].is_ascii_digit()
-        };
-        if !ok {
-            return false;
-        }
-        i += 1;
-    }
-    true
-}
-
-const _: () = if let Some(date) = RELEASE_DATE {
-    assert!(
-        is_date_bytes(date.as_bytes()),
-        "DEVOT_RELEASE_DATE must be YYYY-MM-DD"
-    );
-};
 
 pub(crate) struct PublicKeys {
     keys: Vec<(String, VerifyingKey)>,
@@ -85,9 +56,4 @@ impl KeyRing for PublicKeys {
     fn key(&self, kid: &str) -> Option<&VerifyingKey> {
         self.keys.iter().find(|(k, _)| k == kid).map(|(_, key)| key)
     }
-}
-
-/// Whether a licence covers a build released on `release`; a build without a date is covered.
-pub(crate) fn covers(updates_until: &str, release: Option<&str>) -> bool {
-    release.is_none_or(|release| release <= updates_until)
 }

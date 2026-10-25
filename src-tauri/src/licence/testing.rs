@@ -39,19 +39,18 @@ pub(crate) fn sign(prefix: &str, payload: &Value) -> String {
     sign_raw(prefix, payload.to_string().as_bytes())
 }
 
-pub(crate) fn licence_json(id: &str, updates_until: &str) -> Value {
+pub(crate) fn licence_json(id: &str) -> Value {
     json!({
         "id": id,
         "kid": "test",
         "plan": "pro",
         "licensee": LICENSEE,
         "issuedAt": "2026-10-24T09:30:00Z",
-        "updatesUntil": updates_until,
     })
 }
 
-pub(crate) fn key(id: &str, updates_until: &str) -> String {
-    sign("devot1", &licence_json(id, updates_until))
+pub(crate) fn key(id: &str) -> String {
+    sign("devot1", &licence_json(id))
 }
 
 pub(crate) fn test_keys(gated: bool) -> PublicKeys {
@@ -62,7 +61,6 @@ pub(crate) fn test_keys(gated: bool) -> PublicKeys {
 pub(crate) fn licence(dir: &Path, gated: bool) -> Arc<Licence> {
     Arc::new(Licence::new(
         test_keys(gated),
-        None,
         Arc::new(MemoryKey::default()),
         dir,
         Arc::new(|_: &Snapshot| {}),

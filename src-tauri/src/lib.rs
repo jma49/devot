@@ -224,8 +224,6 @@ pub fn run() {
             #[cfg(desktop)]
             updates::update_download,
             #[cfg(desktop)]
-            updates::update_skip,
-            #[cfg(desktop)]
             updates::update_restart,
             deep_link::deep_link_take,
             note_relay::note_relay_send,
@@ -319,7 +317,6 @@ fn licence_emitter(app: tauri::AppHandle) -> licence::Emit {
         if app.emit(licence::CHANGED_EVENT, snapshot).is_err() {
             log::warn!("W_LICENCE_EMIT_FAILED");
         }
-        updates::licence_changed(&app);
     })
 }
 
@@ -345,7 +342,6 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     app.manage(std::sync::Arc::clone(&editor_settings));
     let licence = std::sync::Arc::new(licence::Licence::new(
         licence::PublicKeys::built_in(),
-        licence::RELEASE_DATE,
         std::sync::Arc::new(licence::Keychain::new(&app.config().identifier)),
         data_dir,
         licence_emitter(app.handle().clone()),
@@ -379,7 +375,7 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     backups::start(app.handle());
     watch::start(app.handle());
     #[cfg(desktop)]
-    install_desktop(app, data_dir)?;
+    install_desktop(app)?;
     // The sidebar material as stored: an opaque sidebar starts without the window effect, and the page starts from the same settings, so its first paint matches the window.
     let stored = editor_settings
         .get()
@@ -433,7 +429,7 @@ fn start_http_api(app: &mut tauri::App, data_dir: &Path) {
 }
 
 #[cfg(desktop)]
-fn install_desktop(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
+fn install_desktop(app: &mut tauri::App) -> Result<(), StartupError> {
     // The updater, only with the public key the release workflow builds in.
     let with_updater = updates::configured(app.config().plugins.0.get("updater"))
         && app
@@ -441,6 +437,6 @@ fn install_desktop(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupE
             .plugin(tauri_plugin_updater::Builder::new().build())
             .is_ok();
     let version = app.package_info().version.to_string();
-    app.manage(updates::Updates::new(with_updater, version, data_dir));
+    app.manage(updates::Updates::new(with_updater, version));
     menu::install(app).map_err(|_| StartupError::new("E_MENU_FAILED"))
 }

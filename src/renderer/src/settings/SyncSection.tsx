@@ -4,7 +4,6 @@ import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
-import { lockedText } from '../licenceView'
 import {
   changeSync,
   createSyncVault,
@@ -59,7 +58,8 @@ export function SyncSection() {
 
   useEffect(() => startSyncStatus(), [])
   useEffect(() => startLicence(), [])
-  const licence = useLicence()
+  // Re-renders when the licence changes, which licenceEntitlements reads.
+  useLicence()
   const locked = !licenceEntitlements.has('sync')
 
   const shownUrl = url ?? snapshot.relayUrl
@@ -107,9 +107,9 @@ export function SyncSection() {
       <SettingsSection icon="settings.sync" title="syncSettings.title">
         <SettingsNote>{t('syncSettings.detail')}</SettingsNote>
         {locked ? (
-          <Setting label="licenceSettings.title" description={lockedText('sync', licence, locale)}>
+          <Setting label="licenceSettings.title" description={t('licence.locked.sync')}>
             <div className="settings-buttons">
-              <LicenceButton licence={licence} />
+              <LicenceButton />
             </div>
           </Setting>
         ) : null}

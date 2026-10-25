@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { errorCode } from './backups'
 import { ConfirmDialog } from './ConfirmDialog'
 import type { DeepLink } from './deepLink'
-import { currentLocale, format, t } from './i18n'
+import { format, t } from './i18n'
 import { addLicence, readCurrentLicence } from './licence'
 import { licenceProblem, planLicenceLink, type LicenceOffer } from './licenceView'
 
@@ -11,7 +11,7 @@ type LicenceLink = Extract<DeepLink, { kind: 'licence' }>
 /**
  * A devot://licence link in the main window: a key that failed Rust's check says why, a device
  * without a licence takes it, the same licence again changes nothing, and anything else asks
- * first (saying when the key is the licence held here, renewed).
+ * first.
  */
 export function useLicenceLink(): {
   handle: (link: LicenceLink) => void
@@ -55,7 +55,7 @@ export function useLicenceLink(): {
     }
     void readCurrentLicence().then(
       (current) => {
-        const plan = planLicenceLink(current, offer, currentLocale())
+        const plan = planLicenceLink(current, offer)
         if (plan.kind === 'add') add(key, offer)
         else if (plan.kind === 'same') setNotice(t('deepLink.licenceSame'))
         else setAsking({ key, offer, message: plan.message, detail: plan.detail })

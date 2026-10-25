@@ -14,7 +14,7 @@ import { aiChoiceLabel, type AiEditStart } from './editor/aiMenu'
 import { countOf } from './format'
 import { currentLocale, format, t } from './i18n'
 import { isImeKey } from './ime'
-import { LICENCE_REQUIRED, useLicence } from './licence'
+import { LICENCE_REQUIRED } from './licence'
 import { LicenceButton } from './LicenceLocked'
 
 type Phase =
@@ -46,7 +46,6 @@ export function AiEditSheet(props: {
         ? { kind: 'prompt' }
         : { kind: 'asking' },
   )
-  const licence = useLicence()
   const [prompt, setPrompt] = useState('')
   const [rejected, setRejected] = useState<ReadonlySet<number>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -243,7 +242,7 @@ export function AiEditSheet(props: {
         ) : (
           <>
             {phase.kind === 'failed' && phase.code === LICENCE_REQUIRED ? (
-              <LicenceButton licence={licence} />
+              <LicenceButton />
             ) : proposal || failure?.retry ? (
               <button type="button" className="button" disabled={busy} onClick={again}>
                 {t('aiEdit.retry')}

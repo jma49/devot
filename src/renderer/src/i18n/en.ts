@@ -613,14 +613,12 @@ export const en = {
   'sync.notice.tooLargeOther': '{count} notes are too large to sync and stay on this device only.',
   'licenceSettings.title': 'Licence',
   'licenceSettings.detail':
-    'Sync and AI need a Devot licence; everything else is free. A licence is bought once, checked on this device without going online, and unlocks every version released in the year after you buy it, for as long as you use them.',
+    'Sync and AI need a Devot licence; everything else is free. A licence is bought once, checked on this device without going online, and unlocks sync and AI in every version of Devot, with nothing to renew.',
   'licenceSettings.ungated':
     'This build of Devot does not check licences, so sync and AI work without one.',
   'licenceSettings.status': 'Status',
   'licenceSettings.state.none': 'No licence is added. Sync and AI stay locked until you add one.',
   'licenceSettings.state.valid': 'Sync and AI are unlocked on this device.',
-  'licenceSettings.state.updatesEnded':
-    'This licence covers versions released until {date}. This version came out later, so sync and AI are locked. Renew the licence to unlock them.',
   'licenceSettings.state.revoked':
     'This licence was revoked after a refund or a lost dispute, so sync and AI are locked.',
   'licenceSettings.state.invalid':
@@ -628,13 +626,9 @@ export const en = {
   'licenceSettings.state.unreadable': 'The licence could not be read from the keychain ({code}).',
   'licenceSettings.licensee': 'Licensed To',
   'licenceSettings.id': 'Licence ID',
-  'licenceSettings.updatesUntil': 'Updates Until',
-  'licenceSettings.updatesUntilHint':
-    'The last release date this licence covers. Versions released by then keep working with it.',
   'licenceSettings.key': 'Licence Key',
   'licenceSettings.keyHint': 'Paste the key from your purchase email. It starts with devot1.',
-  'licenceSettings.replaceHint':
-    'Paste another key, such as a renewal, to replace the licence on this device.',
+  'licenceSettings.replaceHint': 'Paste another key to replace the licence on this device.',
   'licenceSettings.add': 'Add Licence',
   'licenceSettings.replace': 'Replace Licence',
   'licenceSettings.removeAsk': 'Remove Licence…',
@@ -643,7 +637,6 @@ export const en = {
   'licenceSettings.removeDetail':
     'Sync and AI stop on this device until you add a licence again. You can add the same key again at any time.',
   'licenceSettings.buy': 'Buy a Licence',
-  'licenceSettings.renew': 'Renew',
   'licenceSettings.added': 'The licence was added.',
   'licenceSettings.removed': 'The licence was removed.',
   'licenceSettings.addFailed': 'The key could not be added. {problem}',
@@ -658,16 +651,11 @@ export const en = {
   'licence.reason.other': 'Something went wrong.',
   'licence.locked.sync': 'Sync needs a Devot licence. Add one in Settings > Licence.',
   'licence.locked.ai': 'AI needs a Devot licence. Add one in Settings > Licence.',
-  'licence.locked.updatesEnded':
-    'Your licence covers versions released until {date}. This version came out later, so sync and AI are locked until you renew it.',
   'licence.replace.message': 'Replace the licence on this device?',
   'licence.replace.detail':
-    'This device holds the licence for {current}, with updates until {currentUntil}. The key in the link is for {licensee}, with updates until {until}.',
+    'This device holds the licence for {current} ({currentId}). The key in the link is for {licensee} ({id}).',
   'licence.replace.detailInvalid':
-    'The licence on this device could not be verified. The key in the link is for {licensee}, with updates until {until}.',
-  'licence.renewed.message': 'Add the renewed licence?',
-  'licence.renewed.detail':
-    'The key in the link is the licence this device holds ({id}), renewed: updates until {until} instead of {currentUntil}.',
+    'The licence on this device could not be verified. The key in the link is for {licensee} ({id}).',
   'licence.replace.confirm': 'Replace',
   'aiSettings.title': 'AI Providers',
   'aiSettings.detail':
@@ -796,12 +784,7 @@ export const en = {
   'updates.checking': 'Checking for updates\u2026',
   'updates.upToDate': 'Devot {version} is the latest version.',
   'updates.available': 'Devot {version} is available.',
-  'updates.notCovered':
-    'Devot {version} came out after {date}, the last day your licence covers. After updating, sync and AI stay locked until you renew.',
   'updates.download': 'Download',
-  'updates.renew': 'Renew',
-  'updates.downloadAnyway': 'Download Anyway',
-  'updates.skipVersion': 'Skip This Version',
   'updates.downloading': 'Downloading Devot {version}\u2026',
   'updates.downloadingPercent': 'Downloading Devot {version} ({percent}%)\u2026',
   'updates.ready': 'Devot {version} is ready to install.',

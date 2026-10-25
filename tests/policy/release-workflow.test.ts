@@ -95,21 +95,6 @@ describe('the release workflow', () => {
     expect(step('Verify the signature')).toMatch(/release\.ts verify-signature .* "\$TAG"$/m)
   })
 
-  it("takes the build's release date and the feed's pub_date from one moment", () => {
-    const made = workflow.match(/release\.ts release-date/g)
-    expect(made?.length).toBe(1)
-    expect(job('build')).toContain('release.ts release-date')
-    expect(step('Build')).toContain(
-      'DEVOT_RELEASE_DATE: ${{ steps.released.outputs.release_date }}',
-    )
-    expect(job('build')).toContain('released_at: ${{ steps.released.outputs.released_at }}')
-    const feed = step('Update the feeds')
-    expect(feed).toContain('RELEASED_AT: ${{ needs.build.outputs.released_at }}')
-    expect(feed).toMatch(/release\.ts feed "\$TAG" "\$url" .* "\$RELEASED_AT"$/m)
-    // Neither the date nor the moment is read from a clock anywhere else.
-    expect(workflow).not.toMatch(/\bdate (-u|\+)/)
-  })
-
   it('builds through the pnpm tauri script, which puts the actool shim on PATH', () => {
     const builds = [...step('Build').matchAll(/^.*\btauri build\b.*$/gm)].map((m) => m[0].trim())
     expect(builds.length).toBeGreaterThan(0)

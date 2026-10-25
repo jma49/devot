@@ -8,13 +8,6 @@ import { fromBase64Url, instant, newLicenceId, signerFromSeed, signLicence } fro
 export interface Issued {
   id: string
   key: string
-  updatesUntil: string
-}
-
-/** One year after the day of `now`, in UTC; 29 February counts to 1 March, as the Worker does. */
-export function yearAfter(now: Date): string {
-  const next = new Date(Date.UTC(now.getUTCFullYear() + 1, now.getUTCMonth(), now.getUTCDate()))
-  return next.toISOString().slice(0, 10)
 }
 
 export async function issue(options: {
@@ -27,14 +20,12 @@ export async function issue(options: {
   if (seed?.length !== 32) throw new Error('E_LICENCE_CONFIG')
   const signer = await signerFromSeed(options.kid, seed)
   const id = newLicenceId()
-  const updatesUntil = yearAfter(options.now)
   const key = await signLicence(signer, {
     id,
     licensee: options.licensee,
     issuedAt: instant(options.now),
-    updatesUntil,
   })
-  return { id, key, updatesUntil }
+  return { id, key }
 }
 
 const USAGE =
@@ -64,7 +55,6 @@ export async function main(
     out(
       [
         `Licence ID: ${issued.id}`,
-        `Updates until: ${issued.updatesUntil}`,
         `Key: ${issued.key}`,
         `Open in Devot: devot://licence?key=${encodeURIComponent(issued.key)}`,
         '',

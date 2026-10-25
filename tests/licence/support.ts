@@ -17,7 +17,6 @@ export interface Vectors {
       plan: string
       licensee: string
       issuedAt: string
-      updatesUntil: string
     }
   }[]
   invalid: { name: string; key: string; code: string }[]
@@ -31,20 +30,28 @@ export interface Vectors {
 
 export const vectors: Vectors = JSON.parse(readFileSync('licence/test-vectors.json', 'utf8'))
 
-/** A D1 database in workerd through Miniflare, with the Worker's migrations applied; in memory. */
-export async function d1Database(): Promise<{ db: SqlDatabase; close: () => Promise<void> }> {
+/**
+ * A D1 database in workerd through Miniflare, with the Worker's migrations applied (those up to
+ * `through`, a file name, when given); in memory.
+ */
+export async function d1Database(
+  through?: string,
+): Promise<{ db: SqlDatabase; close: () => Promise<void> }> {
   const mf = new Miniflare({
     modules: true,
     script: 'export default { fetch: () => new Response(null) }',
     d1Databases: { DB: 'licence-test' },
   })
   const db = (await mf.getD1Database('DB')) as unknown as SqlDatabase
-  await migrate(db)
+  await migrate(db, (file) => through === undefined || file <= through)
   return { db, close: () => mf.dispose() }
 }
 
-export async function migrate(db: SqlDatabase): Promise<void> {
-  for (const file of readdirSync('licence/migrations').sort()) {
+export async function migrate(
+  db: SqlDatabase,
+  include: (file: string) => boolean = () => true,
+): Promise<void> {
+  for (const file of readdirSync('licence/migrations').sort().filter(include)) {
     const sql = readFileSync(join('licence/migrations', file), 'utf8')
       .split('\n')
       .filter((line) => !line.trimStart().startsWith('--'))

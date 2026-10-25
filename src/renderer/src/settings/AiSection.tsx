@@ -9,7 +9,6 @@ import { errorCode } from '../backups'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
-import { lockedText } from '../licenceView'
 import { loadAiSettings, removeAiKey, saveAiKey, saveAiSettings } from './aiProviders'
 import { SUGGEST_AFTER_CHARS, SUGGEST_BEFORE_CHARS } from '../../../core/aiSuggest'
 import { Setting, SettingToggle, SettingsSection } from './controls'
@@ -43,7 +42,8 @@ export function AiSection() {
   const [saveError, setSaveError] = useState<string>()
   const [keyError, setKeyError] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
-  const licence = useLicence()
+  // Re-renders when the licence changes, which licenceEntitlements reads.
+  useLicence()
 
   useEffect(() => startLicence(), [])
   useEffect(() => {
@@ -154,12 +154,9 @@ export function AiSection() {
       </p>
       {licenceEntitlements.has('aiProviders') ? null : (
         <SettingsSection icon="settings.licence" title="licenceSettings.title">
-          <Setting
-            label="licenceSettings.title"
-            description={lockedText('ai', licence, currentLocale())}
-          >
+          <Setting label="licenceSettings.title" description={t('licence.locked.ai')}>
             <div className="settings-buttons">
-              <LicenceButton licence={licence} />
+              <LicenceButton />
             </div>
           </Setting>
         </SettingsSection>

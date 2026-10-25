@@ -1,16 +1,16 @@
 import { useEffect, useId, useState } from 'react'
 import { errorCode } from '../backups'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { currentLocale, format, t } from '../i18n'
+import { format, t } from '../i18n'
 import { addLicence, removeLicence, startLicence, useLicence } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
-import { licenceDate, licenceProblem, stateSentence } from '../licenceView'
+import { licenceProblem, stateSentence } from '../licenceView'
 import { Setting, SettingsNote, SettingsSection } from './controls'
 
 /**
- * Settings > Licence: the licence on this device (who it is for, its ID, the last release it
- * covers and what that means here), a field to add or replace a key, Remove, and Buy or Renew in
- * the browser. The key goes to Rust, which checks it, and never comes back.
+ * Settings > Licence: the licence on this device (who it is for and its ID), a field to add or
+ * replace a key, Remove, and Buy in the browser. The key goes to Rust, which checks it, and never
+ * comes back.
  */
 export function LicenceSection() {
   const ids = useId()
@@ -21,7 +21,6 @@ export function LicenceSection() {
   const [error, setError] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
   const [confirming, setConfirming] = useState(false)
-  const locale = currentLocale()
 
   useEffect(() => startLicence(), [])
 
@@ -78,10 +77,10 @@ export function LicenceSection() {
         {licence.gated || licence.state === 'none' ? null : (
           <SettingsNote>{t('licenceSettings.ungated')}</SettingsNote>
         )}
-        <Setting label="licenceSettings.status" description={stateSentence(licence, locale)}>
+        <Setting label="licenceSettings.status" description={stateSentence(licence)}>
           {licence.state === 'valid' ? null : (
             <div className="settings-buttons">
-              <LicenceButton licence={licence} />
+              <LicenceButton />
             </div>
           )}
         </Setting>
@@ -92,14 +91,6 @@ export function LicenceSection() {
         ) : null}
         {licence.id ? (
           <Setting label="licenceSettings.id" description={licence.id}>
-            {null}
-          </Setting>
-        ) : null}
-        {licence.updatesUntil ? (
-          <Setting
-            label="licenceSettings.updatesUntil"
-            description={`${licenceDate(licence.updatesUntil, locale)}. ${t('licenceSettings.updatesUntilHint')}`}
-          >
             {null}
           </Setting>
         ) : null}

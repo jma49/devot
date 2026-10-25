@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest'
 import { d1Store, type Fulfilment, type SqlDatabase, type Store } from '../../licence/src/store'
-import { d1Database } from './support'
+import { d1Database, migrate } from './support'
 
 // The store on a real D1 database (SQLite in workerd through Miniflare).
 
@@ -30,7 +30,6 @@ const purchase = (over: Partial<Fulfilment> = {}): Fulfilment => ({
   customerId: 'cus_1',
   paymentIntent: `pi_${++n}`,
   at: '2026-10-24T09:30:00Z',
-  today: '2026-10-24',
   ...over,
 })
 
@@ -45,7 +44,7 @@ it('keeps no email address or key', async () => {
   ).toEqual([])
 })
 
-it('issues a licence once per session, with updates for a year', async () => {
+it('issues a licence once per session', async () => {
   const first = purchase()
   const issued = await store.issue(first)
   expect(issued.created).toBe(true)
@@ -54,10 +53,16 @@ it('issues a licence once per session, with updates for a year', async () => {
     sessionId: first.sessionId,
     customerId: 'cus_1',
     issuedAt: '2026-10-24T09:30:00Z',
-    updatesUntil: '2027-10-24',
     revokedAt: null,
   })
-  expect(issued.purchase).toMatchObject({ kind: 'licence', paymentIntent: first.paymentIntent })
+  expect(issued.purchase).toEqual({
+    sessionId: first.sessionId,
+    licenceId: first.licenceId,
+    paymentIntent: first.paymentIntent,
+    customerId: 'cus_1',
+    createdAt: '2026-10-24T09:30:00Z',
+    mailedAt: null,
+  })
   const again = await store.issue({ ...first, licenceId: id(), at: '2026-10-24T10:00:00Z' })
   expect(again.created).toBe(false)
   expect(again.licence).toEqual(issued.licence)
@@ -65,46 +70,10 @@ it('issues a licence once per session, with updates for a year', async () => {
   expect(results).toHaveLength(1)
 })
 
-it('counts a year from 29 February as 1 March', async () => {
-  const issued = await store.issue(purchase({ today: '2028-02-29' }))
-  expect(issued.licence.updatesUntil).toBe('2029-03-01')
-})
-
-it('renews from the later of today and the old date, keeping the ID, once per session', async () => {
-  const { licence } = await store.issue(purchase())
-  const early = purchase({ licenceId: licence.id, customerId: 'cus_2', today: '2027-03-01' })
-  const renewed = await store.renew(early)
-  expect(renewed?.created).toBe(true)
-  expect(renewed?.licence).toMatchObject({ id: licence.id, updatesUntil: '2028-10-24' })
-  expect(renewed?.purchase).toMatchObject({ kind: 'renewal', customerId: 'cus_2' })
-  expect((await store.renew(early))?.created).toBe(false)
-  expect((await store.licence(licence.id))?.updatesUntil).toBe('2028-10-24')
-  const late = await store.renew(purchase({ licenceId: licence.id, today: '2030-01-15' }))
-  expect(late?.licence.updatesUntil).toBe('2031-01-15')
-  expect(late?.licence.issuedAt).toBe(licence.issuedAt)
-})
-
-it('records but does not extend a renewal of a revoked licence, and refuses an unknown one', async () => {
+it('revokes the licence its purchase paid for, once', async () => {
   const bought = purchase()
   const { licence } = await store.issue(bought)
-  await store.revokeByPayment(bought.paymentIntent ?? '', '2026-11-01T00:00:00Z')
-  const renewed = await store.renew(purchase({ licenceId: licence.id }))
-  expect(renewed?.created).toBe(true)
-  expect(renewed?.licence).toMatchObject({
-    updatesUntil: '2027-10-24',
-    revokedAt: '2026-11-01T00:00:00Z',
-  })
-  expect(await store.renew(purchase({ licenceId: id() }))).toBeNull()
-})
-
-it('revokes through the first purchase, not through a renewal', async () => {
-  const bought = purchase()
-  const { licence } = await store.issue(bought)
-  const renewal = purchase({ licenceId: licence.id })
-  await store.renew(renewal)
-  expect(
-    await store.revokeByPayment(renewal.paymentIntent ?? '', '2026-11-01T00:00:00Z'),
-  ).toBeNull()
+  await store.issue(purchase())
   expect(await store.revokeByPayment('pi_unknown', '2026-11-01T00:00:00Z')).toBeNull()
   expect(await store.revokedIds()).toEqual([])
   expect(await store.revokeByPayment(bought.paymentIntent ?? '', '2026-11-01T00:00:00Z')).toBe(
@@ -115,14 +84,13 @@ it('revokes through the first purchase, not through a renewal', async () => {
   expect((await store.licence(licence.id))?.revokedAt).toBe('2026-11-01T00:00:00Z')
 })
 
-it('finds licences through any of their purchases customers', async () => {
-  const a = (await store.issue(purchase({ customerId: 'cus_a', at: '2026-01-01T00:00:00Z' })))
-    .licence
+it('finds the licences of the customers asked for, oldest first', async () => {
   const b = (await store.issue(purchase({ customerId: 'cus_b', at: '2026-02-01T00:00:00Z' })))
     .licence
-  await store.renew(purchase({ licenceId: a.id, customerId: 'cus_b' }))
+  const a = (await store.issue(purchase({ customerId: 'cus_a', at: '2026-01-01T00:00:00Z' })))
+    .licence
   await store.issue(purchase({ customerId: 'cus_c' }))
-  const found = await store.licencesOfCustomers(['cus_b'])
+  const found = await store.licencesOfCustomers(['cus_b', 'cus_a'])
   expect(found.map((l) => l.id)).toEqual([a.id, b.id])
   expect(await store.licencesOfCustomers([])).toEqual([])
 })
@@ -151,6 +119,57 @@ it('issues a licence revoked when its payment was refunded before the purchase w
   expect(other.licence.revokedAt).toBeNull()
   const unpaid = await store.issue(purchase({ paymentIntent: null }))
   expect(unpaid.licence.revokedAt).toBeNull()
+})
+
+const columns = async (database: SqlDatabase, table: string) =>
+  (
+    await database.prepare(`SELECT name FROM pragma_table_info('${table}')`).all<{ name: string }>()
+  ).results.map((r) => r.name)
+
+it('has the columns the store reads and writes, and none for an update window', async () => {
+  expect(await columns(db, 'licences')).toEqual([
+    'id',
+    'session_id',
+    'customer_id',
+    'issued_at',
+    'revoked_at',
+  ])
+  expect(await columns(db, 'purchases')).toEqual([
+    'session_id',
+    'licence_id',
+    'payment_intent',
+    'customer_id',
+    'created_at',
+    'mailed_at',
+  ])
+})
+
+it('migrates a database made by the first migration, keeping its rows', async () => {
+  const first = await d1Database('0001_licences.sql')
+  try {
+    await first.db.batch([
+      first.db.prepare(
+        `INSERT INTO licences (id, session_id, customer_id, issued_at, updates_until, revoked_at)
+         VALUES ('AAAAAAAAAAAAAAAAAAAAAA', 'cs_old', 'cus_old', '2026-10-24T09:30:00Z', '2027-10-24', NULL)`,
+      ),
+      first.db.prepare(
+        `INSERT INTO purchases (session_id, licence_id, kind, payment_intent, customer_id, created_at)
+         VALUES ('cs_old', 'AAAAAAAAAAAAAAAAAAAAAA', 'licence', 'pi_old', 'cus_old', '2026-10-24T09:30:00Z')`,
+      ),
+    ])
+    await migrate(first.db, (file) => file > '0001_licences.sql')
+    const migrated = d1Store(first.db)
+    expect(await migrated.licence('AAAAAAAAAAAAAAAAAAAAAA')).toMatchObject({
+      customerId: 'cus_old',
+    })
+    expect(await migrated.revokeByPayment('pi_old', '2026-11-01T00:00:00Z')).toBe(
+      'AAAAAAAAAAAAAAAAAAAAAA',
+    )
+    expect(await columns(first.db, 'licences')).toEqual(await columns(db, 'licences'))
+    expect(await columns(first.db, 'purchases')).toEqual(await columns(db, 'purchases'))
+  } finally {
+    await first.close()
+  }
 })
 
 it('counts hits per key and window and forgets old windows', async () => {
