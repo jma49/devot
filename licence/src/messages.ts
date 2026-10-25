@@ -1,0 +1,50 @@
+/** Every buyer-facing string of the Worker's pages and emails, in one place. */
+export const MESSAGES = {
+  product: 'Devot',
+  open: 'Open in Devot',
+  paste: 'Or paste the key in Devot, in Settings > Licence.',
+  doneTitle: 'Thank you for buying Devot',
+  renewedTitle: 'Your Devot licence is renewed',
+  doneKey: 'Your licence key:',
+  covers: (date: string) => `It covers every version of Devot released until ${date}, forever.`,
+  doneMailed: 'We have emailed the key to you too. If it gets lost, you can ask for it again:',
+  resendLink: 'send my licence again',
+  pendingTitle: 'Your payment is being processed',
+  pendingBody:
+    'Your licence is issued as soon as the payment goes through, and we email it to you then.',
+  resendTitle: 'Send my licence again',
+  resendBody:
+    'Enter the email address you bought Devot with, and we send every licence bought with it there.',
+  resendField: 'Email address',
+  resendButton: 'Send',
+  resentTitle: 'Check your email',
+  resentBody:
+    'If that address bought a licence, its key is on its way. It may take a few minutes; you can ask again in an hour.',
+  errorTitle: 'Something went wrong',
+  errors: {
+    E_LICENCE_BAD_REQUEST: 'That request is not one this page understands.',
+    E_LICENCE_CONFIG: 'The licence service is not set up yet. Please try again later.',
+    E_LICENCE_INTERNAL: 'The licence service failed. Please try again later.',
+    E_LICENCE_MAIL: 'The email could not be sent. Please try again later.',
+    E_LICENCE_METHOD: 'That request is not one this page understands.',
+    E_LICENCE_NO_CUSTOMER: 'This purchase has no customer. Please contact us.',
+    E_LICENCE_NOT_FOUND: 'There is no such page.',
+    E_LICENCE_REVOKED: 'This licence was revoked after a refund or a dispute.',
+    E_LICENCE_SESSION_UNKNOWN: 'There is no purchase with that link.',
+    E_LICENCE_STRIPE: 'The payment service did not answer. Please try again in a moment.',
+    E_LICENCE_TOO_LARGE: 'That request is too large.',
+    E_LICENCE_UNKNOWN: 'There is no licence with that ID. Check the link in your licence email.',
+    E_LICENCE_UNPAID: 'This purchase is not paid yet.',
+    E_LICENCE_WEBHOOK_SIGNATURE: 'That request is not signed.',
+  },
+  mail: {
+    issuedSubject: 'Your Devot licence',
+    renewedSubject: 'Your renewed Devot licence',
+    resendSubject: 'Your Devot licences',
+    issuedIntro: 'Thank you for buying Devot. Here is your licence key.',
+    renewedIntro:
+      'Thank you for renewing Devot. Here is your new licence key; it replaces the old one.',
+    resendIntro: 'You asked for the licences bought with this address. Here they are.',
+    keep: 'Keep this email: each key keeps working for the versions it covers.',
+  },
+} as const

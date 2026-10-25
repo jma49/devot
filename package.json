@@ -22,7 +22,7 @@
     "ui:release": "node scripts/sentry/ui.ts",
     "sentry:debug-files": "node scripts/sentry/debug-files.ts",
     "mcp:build": "vite build --config vite.mcp.config.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc -p relay/tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc -p relay/tsconfig.json && tsc -p licence/tsconfig.json",
     "lint": "oxlint",
     "format": "oxfmt",
     "format:check": "oxfmt --check",

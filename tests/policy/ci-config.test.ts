@@ -188,6 +188,15 @@ it('changed-code.sh sends relay changes to the policy job, which checks and test
   expect(include).toContain("'tests/**/*.test.{ts,tsx}'")
 })
 
+it('changed-code.sh sends licence Worker changes to the policy job, which checks and tests it', () => {
+  expect(changedCode(['licence/src/app.ts', 'licence/wrangler.toml'])).toBe('web=false rust=false')
+  expect(changedCode(['licence/migrations/0001_licences.sql', 'package.json'])).toBe(
+    'web=true rust=true',
+  )
+  expect(scripts['typecheck']).toContain('licence/tsconfig.json')
+  expect(read('pnpm-workspace.yaml')).toMatch(/^ {2}- licence$/m)
+})
+
 it('changed-code.sh needs only the Rust job for changes under src-tauri', () => {
   expect(changedCode(['src-tauri/src/lib.rs', 'src-tauri/Cargo.toml'])).toBe('web=false rust=true')
   expect(
