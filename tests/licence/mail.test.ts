@@ -48,7 +48,7 @@ describe('resendMailer', () => {
       'Idempotency-Key': 'issued/cs_test_1',
     })
     expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
-      from: 'licence@devot.test',
+      from: 'Devot <licence@devot.test>',
       to: ['buyer@example.test'],
       subject: mail.subject,
       text: mail.text,

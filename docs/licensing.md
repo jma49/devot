@@ -93,14 +93,14 @@ To update, pull the repository, apply any new migration (`pnpm exec wrangler d1 
 
 **Variables** (`[vars]` in `licence/wrangler.toml`):
 
-| Variable               | Value                                                                                  |
-| ---------------------- | -------------------------------------------------------------------------------------- |
-| `LICENCE_KID`          | the signing key's ID, as the app knows it                                              |
-| `STRIPE_PRICE_LICENCE` | the licence's one-time Price ID (`price_…`)                                            |
-| `STRIPE_PRICE_RENEWAL` | the renewal's one-time Price ID                                                        |
-| `MANAGED_PAYMENTS`     | `true` for Managed Payments (the default), anything else for Stripe Tax                |
-| `MAIL_FROM`            | the sender address, on the verified Resend domain (for example `licence@devot.online`) |
-| `CANCEL_URL`           | optional: where Checkout's back link goes, such as the website's Buy page              |
+| Variable               | Value                                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `LICENCE_KID`          | the signing key's ID, as the app knows it                                                                           |
+| `STRIPE_PRICE_LICENCE` | the licence's one-time Price ID (`price_…`)                                                                         |
+| `STRIPE_PRICE_RENEWAL` | the renewal's one-time Price ID                                                                                     |
+| `MANAGED_PAYMENTS`     | `true` for Managed Payments (the default), anything else for Stripe Tax                                             |
+| `MAIL_FROM`            | the sender address (shown as `Devot <address>`), on the verified Resend domain (for example `licence@devot.online`) |
+| `CANCEL_URL`           | optional: where Checkout's back link goes, such as the website's Buy page                                           |
 
 ## Resend
 

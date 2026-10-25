@@ -47,7 +47,7 @@ export function resendMailer(
           method: 'POST',
           headers,
           body: JSON.stringify({
-            from,
+            from: `${MESSAGES.product} <${from}>`,
             to: [mail.to],
             subject: mail.subject,
             text: mail.text,
