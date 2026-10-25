@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { countOf } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
+import { LICENCE_REQUIRED, useLicence } from './licence'
+import { LicenceButton } from './LicenceLocked'
 import type { SyncSnapshot } from './sync'
 
 const STOPPED: Readonly<Record<string, MessageKey>> = {
   E_SYNC_REVOKED: 'sync.notice.revoked',
   E_SYNC_UNAUTHORIZED: 'sync.notice.revoked',
   E_SYNC_CLOCK_SKEW: 'sync.notice.clock',
+  E_LICENCE_REQUIRED: 'sync.notice.licence',
 }
 
 function message(snapshot: SyncSnapshot): string | undefined {
@@ -30,10 +33,15 @@ function message(snapshot: SyncSnapshot): string | undefined {
 export function SyncNotice(props: { snapshot: SyncSnapshot }) {
   const text = message(props.snapshot)
   const [dismissed, setDismissed] = useState<string>()
+  const licence = useLicence()
   if (!text || text === dismissed) return null
+  const { state, code } = props.snapshot.status
   return (
     <div role="alert" className="notice" data-devot-part="notice">
       <span className="notice-text">{text}</span>
+      {state === 'stopped' && code === LICENCE_REQUIRED ? (
+        <LicenceButton licence={licence} />
+      ) : null}
       <button type="button" className="button" onClick={() => setDismissed(text)}>
         {t('notice.dismiss')}
       </button>

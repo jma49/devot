@@ -17,6 +17,7 @@ use zeroize::Zeroizing;
 use super::client::{self, Connection, Event, RelayUrl, Welcome};
 use super::settings::{DeviceCredentials, SettingsStore};
 use super::{MAX_RECORD_BYTES, SecretStore, Vault};
+use crate::licence::Gate;
 
 pub(crate) const CHANGED_EVENT: &str = "devot://sync-changed";
 pub(crate) const SOCKET_EVENT: &str = "devot://sync-event";
@@ -131,18 +132,25 @@ pub(crate) struct SyncService {
     live: Mutex<Option<Live>>,
     status: Mutex<StatusView>,
     emit: Emit,
+    licence: Gate,
 }
 
 const MAX_SAFE: u64 = 9_007_199_254_740_991;
 
 impl SyncService {
-    pub(crate) fn new(settings: SettingsStore, secrets: Secrets, emit: Emit) -> Self {
+    pub(crate) fn new(
+        settings: SettingsStore,
+        secrets: Secrets,
+        emit: Emit,
+        licence: Gate,
+    ) -> Self {
         Self {
             settings,
             secrets,
             live: Mutex::new(None),
             status: Mutex::new(StatusView::default()),
             emit,
+            licence,
         }
     }
 
@@ -203,6 +211,7 @@ impl SyncService {
     /// the vault on the relay, which asks for its own secret. The secret goes into that one request
     /// and is dropped. A relay that already holds this vault enrolls the device instead.
     pub(crate) fn create_vault(&self, relay_secret: &str) -> Result<Snapshot, &'static str> {
+        self.licence.require()?;
         let relay_secret = Zeroizing::new(relay_secret.trim().to_string());
         if relay_secret.is_empty()
             || relay_secret.len() > MAX_RELAY_SECRET
@@ -286,6 +295,8 @@ impl SyncService {
         if !settings.enabled {
             return Err("E_SYNC_OFF");
         }
+        // A device that already syncs stops here, at its next connect.
+        self.licence.require()?;
         let relay = self.relay()?;
         let vault = Vault::load(self.secrets.as_ref())
             .map_err(|e| e.code())?

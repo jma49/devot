@@ -12,6 +12,7 @@ use super::keychain::{KeyStore, MemoryKeys};
 use super::provider::{GenerateRequest, Message, ProviderId, Role, Stop};
 use super::settings::{FILE, SettingsStore};
 use super::{Ai, KeyState};
+use crate::licence::Gate;
 
 const KEY: &str = "test-key-0123456789";
 const PROMPT_CANARY: &str = "PROMPT-CANARY-7731";
@@ -184,6 +185,10 @@ struct Setup {
 
 /// An app whose `id` provider talks to `base` with model `model-x`.
 fn setup(id: ProviderId, base: &str) -> Setup {
+    setup_with(id, base, Gate::open())
+}
+
+fn setup_with(id: ProviderId, base: &str, licence: Gate) -> Setup {
     let dir = tempfile::tempdir().unwrap();
     let store = SettingsStore::new(&dir.path().join(FILE));
     let mut settings = store.get();
@@ -194,7 +199,7 @@ fn setup(id: ProviderId, base: &str) -> Setup {
     }
     store.set(settings).unwrap();
     let keys = Arc::new(MemoryKeys::default());
-    let ai = Ai::new(store, Arc::clone(&keys) as Arc<dyn KeyStore>);
+    let ai = Ai::new(store, Arc::clone(&keys) as Arc<dyn KeyStore>, licence);
     Setup {
         _dir: dir,
         ai,
@@ -350,6 +355,39 @@ fn nothing_is_sent_without_a_key() {
         assert_eq!(app.ai.generate(&ask()).unwrap_err(), "E_AI_KEY_MISSING");
         assert_eq!(mock.hits(), 0);
     }
+}
+
+#[test]
+fn nothing_is_sent_to_any_provider_without_a_licence_once_the_build_gates_ai() {
+    use crate::licence::testing;
+    for c in contracts() {
+        let mock = Mock::replying(200, (c.ok)("Hi").to_string());
+        let dir = tempfile::tempdir().unwrap();
+        let licence = testing::licence(dir.path(), true);
+        let app = setup_with(c.id, &mock.base, Gate::of(&licence));
+        app.keys.set(c.id, KEY).unwrap();
+        assert_eq!(app.ai.generate(&ask()).unwrap_err(), "E_LICENCE_REQUIRED");
+        assert_eq!(mock.hits(), 0);
+        licence
+            .set(&testing::key(testing::ID, "2099-01-01"))
+            .unwrap();
+        assert!(app.ai.generate(&ask()).is_ok());
+        assert_eq!(mock.hits(), 1);
+        licence.remove().unwrap();
+        assert_eq!(app.ai.generate(&ask()).unwrap_err(), "E_LICENCE_REQUIRED");
+        assert_eq!(mock.hits(), 1);
+    }
+}
+
+#[test]
+fn ai_needs_no_licence_while_the_build_gates_nothing() {
+    let c = &contracts()[0];
+    let mock = Mock::replying(200, (c.ok)("Hi").to_string());
+    let dir = tempfile::tempdir().unwrap();
+    let licence = crate::licence::testing::licence(dir.path(), false);
+    let app = setup_with(c.id, &mock.base, Gate::of(&licence));
+    app.keys.set(c.id, KEY).unwrap();
+    assert!(app.ai.generate(&ask()).is_ok());
 }
 
 #[test]
@@ -545,6 +583,7 @@ fn settings_check_a_key_exists_without_reading_it() {
     let ai = Ai::new(
         SettingsStore::new(&dir.path().join(FILE)),
         Arc::clone(&keys) as Arc<dyn KeyStore>,
+        Gate::open(),
     );
     let view = ai.snapshot();
     assert_eq!(
@@ -568,6 +607,7 @@ fn only_a_missing_keychain_disables_the_key_field() {
                 has,
                 reads: Mutex::new(0),
             }),
+            Gate::open(),
         );
         assert_eq!(ai.snapshot().openai.key, expected, "{has:?}");
     }

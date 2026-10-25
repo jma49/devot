@@ -61,6 +61,42 @@ describe('readDeepLink', () => {
   })
 })
 
+describe('readDeepLink, licences', () => {
+  const key = 'devot1.eyJpZCI6IngifQ.c2lnbmF0dXJl'
+  const offer = {
+    id: '5vEvzHainWD0cA2Ht_ljHg',
+    licensee: 'buyer@example.com',
+    updatesUntil: '2027-10-24',
+    state: 'valid',
+  }
+
+  it('takes a checked key with what it is, or the code of one that failed', () => {
+    const link = { kind: 'licence', key, offer, code: null }
+    expect(readDeepLink(link)).toEqual(link)
+    const refused = { kind: 'licence', key: null, offer: null, code: 'E_LICENCE_SIGNATURE' }
+    expect(readDeepLink(refused)).toEqual(refused)
+  })
+
+  it('takes nothing that mixes the two or is not shaped as Rust sends it', () => {
+    for (const value of [
+      { kind: 'licence', key, offer, code: 'E_LICENCE_SIGNATURE' },
+      { kind: 'licence', key: null, offer, code: null },
+      { kind: 'licence', key, offer: null, code: null },
+      { kind: 'licence', key: 'devot1rev.a.b', offer, code: null },
+      { kind: 'licence', key: `${key}.x`, offer, code: null },
+      { kind: 'licence', key: `devot1.${'a'.repeat(1024)}.b`, offer, code: null },
+      { kind: 'licence', key, offer: { ...offer, id: 'short' }, code: null },
+      { kind: 'licence', key, offer: { ...offer, licensee: '' }, code: null },
+      { kind: 'licence', key, offer: { ...offer, updatesUntil: '2027' }, code: null },
+      { kind: 'licence', key, offer: { ...offer, state: 'great' }, code: null },
+      { kind: 'licence', key: null, offer: null, code: 'not a code' },
+      { kind: 'licence', key: null, offer: null, code: null },
+    ]) {
+      expect(readDeepLink(value)).toBeUndefined()
+    }
+  })
+})
+
 describe('noteTarget', () => {
   const known = {
     listed: new Set([ID]),

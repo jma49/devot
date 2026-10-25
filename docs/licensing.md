@@ -1,6 +1,6 @@
 # Licence Worker
 
-The licence Worker sells Devot's licence through Stripe Checkout, signs licence keys, mails them, sends them again on request and publishes the list of revoked licences (docs/adr/0006-source-available-and-sold-once.md). It is the one hosted service Devot runs, on the owner's Cloudflare account with a D1 database. It never sees notes and stores no email address: Stripe holds the buyer's address, and the Worker signs a key again from its row whenever it shows or mails one. The code is in `licence/`; the app checks keys offline (#349) against the formats below.
+The licence Worker sells Devot's licence through Stripe Checkout, signs licence keys, mails them, sends them again on request and publishes the list of revoked licences (docs/adr/0006-source-available-and-sold-once.md). It is the one hosted service Devot runs, on the owner's Cloudflare account with a D1 database. It never sees notes and stores no email address: Stripe holds the buyer's address, and the Worker signs a key again from its row whenever it shows or mails one. The code is in `licence/`; the app checks keys offline against the formats below (The app).
 
 ## What it does
 
@@ -62,6 +62,7 @@ To check a key:
 - The private key is the 32-byte Ed25519 seed, base64url without padding, in the Wrangler secret `LICENCE_SIGNING_KEY`. Its ID is the variable `LICENCE_KID`.
 - The public key is the raw 32-byte Ed25519 public key, base64url without padding. The app holds one per `kid`, so a new key ships in a release before the Worker signs anything with it.
 - `pnpm --filter @devot/licence keygen` prints a new pair and writes nothing to disk.
+- `pnpm --filter @devot/licence issue <email>` signs a complimentary licence with the seed in `LICENCE_SIGNING_KEY` and the kid in `LICENCE_KID`, prints it and writes nothing (Complimentary licences).
 
 ### Test vectors
 
@@ -74,7 +75,7 @@ You need a Cloudflare account on the **Workers Paid** plan (Email Service sends 
 1. From a checkout of this repository: `pnpm install --filter @devot/licence`, then in `licence/` sign in: `pnpm exec wrangler login`.
 2. Create the database: `pnpm exec wrangler d1 create devot-licence`, and add the `database_id` it prints to the `[[d1_databases]]` block of `licence/wrangler.toml`. Then create its tables: `pnpm exec wrangler d1 migrations apply devot-licence --remote`.
 3. Onboard the sending domain for Email Service (`pnpm exec wrangler email sending enable <your domain>`, or in the dashboard under Email Service), which adds its SPF and DKIM records. Until it is onboarded, mail fails with `E_LICENCE_MAIL E_SENDER_NOT_VERIFIED`. See [Email Service](https://developers.cloudflare.com/email-service/) for its limits (50 recipients and 5 MiB a message; new accounts start with a small daily quota).
-4. Make the signing key: `pnpm keygen`. Store the seed in your password manager and offline, then `pnpm exec wrangler secret put LICENCE_SIGNING_KEY` and paste it. Choose its kid (for example `2026-10`). Give the public key and kid to the app (#349) and release it before you sell.
+4. Make the signing key: `pnpm keygen`. Store the seed in your password manager and offline, then `pnpm exec wrangler secret put LICENCE_SIGNING_KEY` and paste it. Choose its kid (for example `2026-10`). Add the public key and kid to the app (The app, Adding a signing key) and release it before you sell.
 5. Set up Stripe (below) and set its two secrets: `pnpm exec wrangler secret put STRIPE_SECRET_KEY` and `pnpm exec wrangler secret put STRIPE_WEBHOOK_SECRET`.
 6. Fill in `[vars]` in `licence/wrangler.toml` (none is secret; see the table) and deploy: `pnpm exec wrangler deploy`. It prints the Worker's URL, `https://devot-licence.<your subdomain>.workers.dev`; you may route it to your own domain instead.
 7. Check it: `curl https://<the Worker>/revoked` answers a `devot1rev.` list. Until every secret and variable is set, every route answers `E_LICENCE_CONFIG`.
@@ -130,12 +131,62 @@ pnpm exec wrangler d1 execute devot-licence --remote \
 
 Setting `revoked_at` back to `NULL` restores a licence. Devices drop a revoked licence the next time they fetch `/revoked`. Taking back a year changes only the keys the Worker signs from then on: a device that holds the longer key keeps it, since nothing checks a key online.
 
+## Complimentary licences
+
+To give someone a licence without a purchase, sign one on your own machine. In `licence/`:
+
+```sh
+# Paste the seed when asked; it stays out of your shell history and every file.
+read -rs LICENCE_SIGNING_KEY && export LICENCE_SIGNING_KEY
+LICENCE_KID=2026-10 pnpm --filter @devot/licence issue friend@example.com
+unset LICENCE_SIGNING_KEY
+```
+
+It prints the licence ID, the last release date it covers (one year after today, UTC, as a purchase), the key and its `devot://licence` link. It writes nothing to disk and records nothing in D1, so the Worker never knows it: `/resend` does not find it, `/renew` answers `E_LICENCE_UNKNOWN` (issue another one instead), and only you hold a copy. Keep the licence ID if you may need to revoke it. A wrong or missing seed or kid answers `E_LICENCE_CONFIG`, a missing address `E_LICENCE_BAD_REQUEST`; neither prints the seed.
+
+To revoke a complimentary licence, add a revoked row for its ID, so `/revoked` lists it:
+
+```sh
+pnpm exec wrangler d1 execute devot-licence --remote \
+  --command "INSERT INTO licences (id, session_id, customer_id, issued_at, updates_until, revoked_at) VALUES ('<licence ID>', 'complimentary-<licence ID>', 'complimentary', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), date('now'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"
+```
+
+The row has no purchase, so nothing mails, renews or shows it; deleting it restores the licence.
+
+## The app
+
+`src-tauri/src/licence/` checks keys exactly as Formats says (`ed25519-dalek`, strict verification), keeps the key in the keychain beside the AI keys and reports one state: none, valid, updates ended, revoked or invalid (with its code). With a production key in the build, sync refuses to create a vault or connect, and AI refuses to send, unless the state is valid (`E_LICENCE_REQUIRED`). docs/architecture.md (Licences) has the details.
+
+### Adding a signing key
+
+The app trusts the public keys in `PRODUCTION` in `src-tauri/src/licence/keys.rs`, by kid. After `pnpm keygen`, add the pair it printed:
+
+```rust
+pub(crate) const PRODUCTION: &[(&str, &str)] = &[("2026-10", "<the public key keygen printed>")];
+```
+
+Release that build before the Worker signs anything with the key. While `PRODUCTION` is empty nothing is gated: a release made before your keys exist works as before, with sync and AI open to everyone. The first release with a key gates sync and AI. The test key (kid `test`, from `licence/test-vectors.json`) is trusted only by test and debug builds, never by a release, and a test fails if a production entry reuses it or does not decode to an Ed25519 key. To drop a leaked key, remove its entry and release.
+
+### Updates a licence covers
+
+The release workflow sets `DEVOT_RELEASE_DATE` (`YYYY-MM-DD`, UTC) when it builds; a value of another shape fails the build. A licence whose `updatesUntil` is before that date shows "updates ended" and unlocks nothing in that build; a build without the variable (local and dev builds) counts as covered. The device's clock plays no part.
+
+### Revocations
+
+The app keeps the last revocation list that verified in `<app data>/licence-revocations.txt` (the list as signed; it is public) and verifies it again whenever it reads it. A list older than the one kept (`issuedAt`) is ignored. Fetching `/revoked` comes with the updater's work (#350).
+
+### What users see
+
+- **Settings > Licence:** whether sync and AI are unlocked, in a sentence for each state; who the licence is for, its ID and the last release it covers; a field to paste a key (Add Licence, or Replace Licence once one is there); Remove Licence…, which asks first; Buy a Licence (`https://licence.devot.online/buy`), or Renew (`/renew?licence=<id>`) for a licence whose updates ended. A key that fails says why, with its code, and changes nothing. A build without a production key says it checks no licence.
+- **Sync and AI:** Settings > Sync and Settings > AI say a licence is needed, with Buy (or Renew). Edit with AI opens saying so and sends nothing; Suggest Next Edit says so when asked by key, and a pause asks nothing. A device that syncs stops at its next connect, and the main window's notice says why, with Buy.
+- **`devot://licence?key=<key>`** (from `/done` or the email): Devot comes forward and adds the licence to a device that holds none. On a device that holds one, it asks first, and says when the key is the same licence renewed. A key that fails says why.
+
 ## Rotating the signing key
 
-1. Make a new pair with `pnpm keygen` and ship its public key under a new kid in a release.
+1. Make a new pair with `pnpm keygen` and ship its public key under a new kid in a release (The app, Adding a signing key).
 2. Once that release is out, `wrangler secret put LICENCE_SIGNING_KEY` with the new seed, set `LICENCE_KID` to the new kid and deploy. New keys, renewals, `/resend` and `/revoked` use it from then on; existing keys keep verifying under the old kid.
 3. If the old key leaked, a release drops the old kid, and buyers get keys under the new one through `/resend`.
 
 ## Tests
 
-`tests/licence/` runs in `pnpm test`, with nothing deployed and no network: `format.test.ts` checks the formats and the test vectors, `webhook.test.ts` the signature scheme against Node's own HMAC, `stripe.test.ts` the Stripe client against a fake `fetch`, `store.test.ts` the SQL on a real D1 database in workerd through Miniflare, `app.test.ts` every route on that database with a fake Stripe and a recording mailer, and `worker.test.ts` the bundled Worker in workerd, built from the same entry and settings as `licence/wrangler.toml`, with Stripe answered by the test.
+`tests/licence/` runs in `pnpm test`, with nothing deployed and no network: `format.test.ts` checks the formats and the test vectors, `webhook.test.ts` the signature scheme against Node's own HMAC, `stripe.test.ts` the Stripe client against a fake `fetch`, `store.test.ts` the SQL on a real D1 database in workerd through Miniflare, `app.test.ts` every route on that database with a fake Stripe and a recording mailer, `issue.test.ts` the complimentary licences `issue` signs, and `worker.test.ts` the bundled Worker in workerd, built from the same entry and settings as `licence/wrangler.toml`, with Stripe answered by the test.

@@ -1,21 +1,29 @@
 export const FEATURES = ['localNotes', 'sync', 'sharing', 'aiProviders', 'semanticSearch'] as const
 export type Feature = (typeof FEATURES)[number]
 
-/** Features that need a paid plan. Empty until pricing is decided: every feature is available today. */
-export const PLAN_GATED_FEATURES: readonly Feature[] = []
+/** What a licence unlocks (docs/adr/0006-source-available-and-sold-once.md); everything else is free. */
+export const PLAN_GATED_FEATURES: readonly Feature[] = ['sync', 'aiProviders', 'semanticSearch']
 
-/** How long a plan stays valid after the account last confirmed it, so working offline never locks a paying user out. */
-export const OFFLINE_GRACE_MS = 14 * 24 * 60 * 60 * 1000
+export type Plan = 'pro'
 
-export interface AccountEntitlements {
-  readonly granted: readonly Feature[]
-  /** Epoch milliseconds on this device's clock when the account service last confirmed `granted`; never the server's timestamp. */
-  readonly confirmedAt: number
+/** A licence names a plan, not features, so a paid feature added later reaches every licence. */
+export const PLAN_FEATURES: Readonly<Record<Plan, readonly Feature[]>> = {
+  pro: PLAN_GATED_FEATURES,
 }
 
-/** Filled by accounts (#4): the cached entitlements of the signed-in account, or null when signed out. */
+export const LICENCE_STATES = ['none', 'valid', 'updatesEnded', 'revoked', 'invalid'] as const
+export type LicenceState = (typeof LICENCE_STATES)[number]
+
+export interface LicenceEntitlements {
+  /** False while the build holds no production key: then nothing is gated. */
+  readonly enforced: boolean
+  readonly state: LicenceState
+  readonly plan: Plan | null
+}
+
+/** The licence as Rust checked it (src-tauri/src/licence), or null when it is not known. */
 export interface EntitlementSource {
-  read(): AccountEntitlements | null
+  read(): LicenceEntitlements | null
 }
 
 export interface Entitlements {
@@ -24,27 +32,20 @@ export interface Entitlements {
 
 export interface EntitlementOptions {
   source?: EntitlementSource
-  now?: () => number
-  graceMs?: number
   gated?: readonly Feature[]
 }
 
+/** Checked offline only: nothing here expires with time, since a licence never does. */
 export function createEntitlements(options: EntitlementOptions = {}): Entitlements {
-  const {
-    source,
-    now = Date.now,
-    graceMs = OFFLINE_GRACE_MS,
-    gated = PLAN_GATED_FEATURES,
-  } = options
+  const { source, gated = PLAN_GATED_FEATURES } = options
   return {
     has(feature) {
       if (!gated.includes(feature)) return true
-      const account = source?.read()
-      if (!account) return false
-      const age = now() - account.confirmedAt
-      // A clock set back counts as unconfirmed rather than extending the grace period.
-      if (!(age >= 0 && age <= graceMs)) return false
-      return account.granted.includes(feature)
+      const licence = source?.read()
+      if (!licence) return false
+      if (!licence.enforced) return true
+      if (licence.state !== 'valid' || licence.plan === null) return false
+      return PLAN_FEATURES[licence.plan]?.includes(feature) ?? false
     },
   }
 }

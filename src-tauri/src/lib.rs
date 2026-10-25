@@ -29,6 +29,7 @@ mod format_menu;
 mod http_api;
 mod import;
 mod keyboard_shortcuts;
+mod licence;
 mod link_info;
 mod logs;
 mod main_windows;
@@ -145,6 +146,9 @@ pub fn run() {
             commands::sync::sync_note_purge,
             ai::ai_key_set,
             ai::ai_key_clear,
+            licence::licence_get,
+            licence::licence_set,
+            licence::licence_remove,
             link_info::link_title,
             link_info::github_snippet,
             #[cfg(desktop)]
@@ -307,6 +311,15 @@ fn sync_emitter(app: tauri::AppHandle) -> sync::service::Emit {
     })
 }
 
+/// The licence's state goes to every window; the main window's sync and AI follow it.
+fn licence_emitter(app: tauri::AppHandle) -> licence::Emit {
+    std::sync::Arc::new(move |snapshot| {
+        if app.emit(licence::CHANGED_EVENT, snapshot).is_err() {
+            log::warn!("W_LICENCE_EMIT_FAILED");
+        }
+    })
+}
+
 /// Any failure has a code: `startup::fail` explains it and exits.
 fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     // One Devot per data folder, for the life of the process.
@@ -327,14 +340,24 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     let editor_settings = editor_settings.with_default_paper(native::macos::system_paper);
     let editor_settings = std::sync::Arc::new(editor_settings);
     app.manage(std::sync::Arc::clone(&editor_settings));
+    let licence = std::sync::Arc::new(licence::Licence::new(
+        licence::PublicKeys::built_in(),
+        licence::RELEASE_DATE,
+        std::sync::Arc::new(licence::Keychain::new(&app.config().identifier)),
+        data_dir,
+        licence_emitter(app.handle().clone()),
+    ));
+    app.manage(std::sync::Arc::clone(&licence));
     app.manage(std::sync::Arc::new(ai::Ai::new(
         ai::settings::SettingsStore::new(&data_dir.join(ai::settings::FILE)),
         std::sync::Arc::new(ai::keychain::Keychain::new(&app.config().identifier)),
+        licence::Gate::of(&licence),
     )));
     app.manage(std::sync::Arc::new(sync::service::SyncService::new(
         sync::settings::SettingsStore::new(&data_dir.join(sync::settings::FILE)),
         std::sync::Arc::new(sync::Keychain::for_app(&app.config().identifier)),
         sync_emitter(app.handle().clone()),
+        licence::Gate::of(&licence),
     )));
     app.manage(std::sync::Arc::new(fonts::Fonts::new(data_dir)));
     let plugins = std::sync::Arc::new(plugins::Plugins::new(data_dir));

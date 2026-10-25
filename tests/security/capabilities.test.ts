@@ -121,10 +121,16 @@ describe('Tauri command permissions', () => {
       'allow-http-api-token-rotate',
       'allow-keyboard-shortcuts-get',
       'allow-keyboard-shortcuts-set',
+      // Settings > Licence adds a key (which never comes back out), shows its state and removes it.
+      'allow-licence-get',
+      'allow-licence-remove',
+      'allow-licence-set',
       'allow-mirror-choose',
       'allow-mirror-confirm',
       'allow-mirror-get',
       'allow-mirror-set',
+      // Settings > Licence opens the Buy and Renew pages in the browser.
+      'allow-open-external',
       // Settings > Plugins installs plugins after the user approves their permissions, turns them on and off and removes them.
       'allow-plugin-install-cancel',
       'allow-plugin-install-confirm',
@@ -148,6 +154,13 @@ describe('Tauri command permissions', () => {
       'core:event:allow-listen',
       'core:event:allow-unlisten',
     ])
+  })
+
+  it('lets the main and Settings windows read and add a licence, and only Settings remove it', () => {
+    expect(windowsWith('allow-licence-get')).toEqual(['main', 'settings'])
+    // The main window adds the key a devot://licence link brings, once the user agrees.
+    expect(windowsWith('allow-licence-set')).toEqual(['main', 'settings'])
+    expect(windowsWith('allow-licence-remove')).toEqual(['settings'])
   })
 
   it('lets only the main window run sync, and only the Settings window set it up', () => {

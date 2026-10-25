@@ -138,6 +138,17 @@ export async function mockTauri(page: Page): Promise<void> {
               problem: null,
               token: 'unset',
             }
+          // This build gates nothing unless a test fakes a licence (licence.spec.ts).
+          if (cmd === 'licence_get')
+            return {
+              gated: false,
+              state: 'none',
+              code: null,
+              id: null,
+              licensee: null,
+              updatesUntil: null,
+              plan: null,
+            }
           // Sync is off unless a test fakes it (sync-settings.spec.ts).
           if (cmd === 'sync_get')
             return {

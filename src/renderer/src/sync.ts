@@ -9,6 +9,7 @@ import type { SyncEvent, Welcome, PushResult } from '../../core/sync/transport'
 import type { Core } from './coreConnect'
 import { DB_CHANGED } from './externalChanges'
 import { invoke } from './ipc'
+import { licenceEntitlements, startLicence, subscribeLicence } from './licence'
 import type { WirePulled, WireSync, WireSyncLocal, WireTransport } from './storage/syncWire'
 
 export const SYNC_CHANGED = 'devot:sync-changed'
@@ -174,7 +175,10 @@ export function runSync(core: Core): () => void {
       console.warn('W_SYNC_STATUS_REPORT_FAILED'),
     )
   const follow = (next: SyncSnapshot) => {
-    const wanted = !stopped && next.enabled ? `${next.relayUrl}|${next.enrolled}` : ''
+    // A licence added or removed starts the engine again: it connects, or stops as Rust refuses.
+    const licensed = licenceEntitlements.has('sync')
+    const wanted =
+      !stopped && next.enabled ? `${next.relayUrl}|${next.enrolled}|${String(licensed)}` : ''
     if (wanted === running) return
     const was = running
     running = wanted
@@ -194,6 +198,8 @@ export function runSync(core: Core): () => void {
   }
   const listener = () => follow(snapshot)
   listeners.add(listener)
+  const unsubscribeLicence = subscribeLicence(listener)
+  startLicence()
   startSyncStatus()
   follow(snapshot)
   const touched = () => void core.syncTouch().catch(() => undefined)
@@ -211,6 +217,7 @@ export function runSync(core: Core): () => void {
   return () => {
     stopped = true
     listeners.delete(listener)
+    unsubscribeLicence()
     window.removeEventListener(DB_CHANGED, touched)
     unlisten?.()
     follow(snapshot)

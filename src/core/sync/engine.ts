@@ -73,6 +73,8 @@ const STOPPING = new Set([
   'E_SYNC_PROTOCOL',
   'E_SYNC_CLOCK_SKEW',
   'E_SYNC_CIRCUIT_OPEN',
+  // The build gates sync and no valid licence is on this device (src-tauri/src/licence).
+  'E_LICENCE_REQUIRED',
 ])
 
 export interface SyncEngineOptions {
