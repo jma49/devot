@@ -27,6 +27,10 @@ import { tempDir } from '../support/temp-dirs'
 const CLAUDE = newWriter('mcp', 'Claude Code', 'mcp00aa11bb22cc')
 const CODEX = newWriter('mcp', 'Codex', 'mcp33dd44ee55ff')
 
+let lastTime = 0
+// Writes sort by time, then by random ID; a clock that never repeats keeps them in order.
+const now = () => (lastTime = Math.max(lastTime + 1, Date.now()))
+
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
@@ -45,6 +49,7 @@ function app(path: string) {
     storage,
     clock,
     newId,
+    now,
     saveDelayMs: 5,
     log: (...parts) => logs.push(parts.join(' ')),
   })
@@ -62,6 +67,7 @@ function mcp(
     storage,
     clock: createClock(writer.process),
     newId: createIdGenerator(),
+    now,
     atomically: storage.atomically,
     writer: () => writer,
     log: (...parts) => logs.push(parts.join(' ')),
@@ -317,8 +323,9 @@ describe('the agent_writes index', () => {
       ['mcp', 'Claude Code', true],
     ])
     expect(await s.storage.listAgentWrites(1)).toHaveLength(1)
-    const [aiEdit] = readWrites(await stored(s.storage, id)).slice(-1)
-    const writers = (await stored(s.storage, id)).getMap(WRITERS).toJSON()
+    const doc = await stored(s.storage, id)
+    const aiEdit = readWrites(doc).find((w) => w.id === listed[0]!.writeId)
+    const writers = doc.getMap(WRITERS).toJSON()
     expect(writers[aiEdit!.session]).toEqual({ v: 1, kind: 'aiEdit', name: '', process: 'mac1' })
   })
 
