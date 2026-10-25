@@ -9,7 +9,7 @@
 //! Sidebar is relabelled Show Sidebar while the sidebar is hidden (`sidebar_menu_set`). Synced
 //! Scrolling is a check item for the `syncScroll` editor setting, stored here in Rust and kept in
 //! line with it however it changes; Show History Bar toggles the `historyBar` setting the same way,
-//! relabelled Hide History Bar while it is on.
+//! relabelled Hide History Bar while it is on, and Show Authorship is a check item for `authorship`.
 
 use crate::editor_settings::{self, EditorSettings, EditorSettingsStore, Snapshot};
 use crate::{diagnostics, exit, format_menu, import, menu_bar, settings, strings, updates};
@@ -230,6 +230,12 @@ pub fn sidebar_menu_set(
 }
 pub const SYNC_SCROLL_ID: &str = "devot.syncScroll";
 pub const HISTORY_BAR_ID: &str = "devot.historyBar";
+pub const AUTHORSHIP_ID: &str = "devot.authorship";
+
+struct AuthorshipItem {
+    item: CheckMenuItem<Wry>,
+    shown: Mutex<u64>,
+}
 
 struct HistoryBarItem {
     item: MenuItem<Wry>,
@@ -390,6 +396,13 @@ pub fn install(app: &App) -> tauri::Result<()> {
         item: history_bar.clone(),
         shown: Mutex::new(stored.revision),
     });
+    let authorship = CheckMenuItemBuilder::with_id(AUTHORSHIP_ID, strings::SHOW_AUTHORSHIP)
+        .checked(stored.settings.authorship)
+        .build(app)?;
+    app.manage(AuthorshipItem {
+        item: authorship.clone(),
+        shown: Mutex::new(stored.revision),
+    });
     // In `COMMAND_ITEMS` order (a test checks that order).
     app.manage(CommandMenu(
         COMMAND_ITEMS
@@ -416,6 +429,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .separator()
         .item(&history)
         .item(&history_bar)
+        .item(&authorship)
         .item(&activity)
         .separator()
         .fullscreen()
@@ -506,6 +520,8 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         toggle_sync_scroll(app);
     } else if event.id() == HISTORY_BAR_ID {
         toggle_history_bar(app);
+    } else if event.id() == AUTHORSHIP_ID {
+        toggle_authorship(app);
     } else if event.id() == IMPORT_MARKDOWN_ID {
         import::pick(app, import::Pick::MarkdownFolders, None, &front_label(app));
     } else if event.id() == IMPORT_MARKDOWN_FILES_ID {
@@ -582,6 +598,43 @@ fn toggle_history_bar(app: &AppHandle) {
     });
 }
 
+/// AppKit has toggled the check mark already; `show_authorship` sets it to what was stored.
+fn toggle_authorship(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = Arc::clone(&app.state::<Arc<EditorSettingsStore>>());
+        match store.update_from(editor_settings::toggle_authorship) {
+            Ok(next) => editor_settings::announce(&app, &next),
+            Err(code) => {
+                log::warn!("W_AUTHORSHIP_TOGGLE_FAILED {code}");
+                if let Ok(now) = store.get() {
+                    show_authorship(&app, &now);
+                }
+            }
+        }
+    });
+}
+
+fn show_authorship(app: &AppHandle, snapshot: &Snapshot) {
+    let Some(state) = app.try_state::<AuthorshipItem>() else {
+        return;
+    };
+    let Ok(mut shown) = state.shown.lock() else {
+        return;
+    };
+    if !is_newer(snapshot.revision, *shown) {
+        return;
+    }
+    *shown = snapshot.revision;
+    if state
+        .item
+        .set_checked(snapshot.settings.authorship)
+        .is_err()
+    {
+        log::warn!("W_AUTHORSHIP_MENU_FAILED");
+    }
+}
+
 fn show_history_bar(app: &AppHandle, snapshot: &Snapshot) {
     let Some(state) = app.try_state::<HistoryBarItem>() else {
         return;
@@ -604,6 +657,7 @@ fn show_history_bar(app: &AppHandle, snapshot: &Snapshot) {
 
 pub fn show_editor_settings(app: &AppHandle, snapshot: &Snapshot) {
     show_history_bar(app, snapshot);
+    show_authorship(app, snapshot);
     let Some(state) = app.try_state::<SyncScrollItem>() else {
         return;
     };

@@ -23,6 +23,7 @@ import {
   renderPreview,
   runHttpApiCall,
   type AiService,
+  type WriterKind,
   type BatchChange,
   type MirrorHost,
   type MirrorRunner,
@@ -58,11 +59,15 @@ import {
   type WireTransport,
 } from './storage/syncWire'
 import { fromBase64, fromWire, toBase64, type WireStorage } from './storage/wire'
-import { forwardWorkerLogs } from './workerLog'
+import { forwardWorkerLogs, type WorkerLogMessage } from './workerLog'
 
 // The worker's own warnings, errors and uncaught failures go to the page,
 // which writes them to the local log (see workerLog.ts).
 forwardWorkerLogs(self, (message) => self.postMessage(message))
+
+/** The core's info lines (I_AUTHORSHIP_*), which the console does not forward: codes and IDs only. */
+const logInfo = (code: string, ...ids: string[]) =>
+  self.postMessage({ workerLog: { level: 'info', code, ids } } satisfies WorkerLogMessage)
 
 let service: NoteService | undefined
 let books: BookService | undefined
@@ -139,6 +144,7 @@ export const coreApi = {
         self.postMessage({ noteRelay: toWireRelay(message, toBase64) } satisfies RelayOut),
       onTakenIn: (takenIn) => self.postMessage({ takenIn } satisfies RelayOut),
       compact: !options.lean,
+      log: logInfo,
     })
     books = createBookService({ storage, clock, newId: ids })
     tags = createTagService({ storage, clock, newId: ids })
@@ -147,7 +153,13 @@ export const coreApi = {
     // here as changes from outside (the page merges them, see httpApiHost).
     // One writer for each start of the core, which answers the HTTP API for as long as the app runs.
     const httpWriter = newWriter('http', '', node)
-    httpApi = createAiService({ storage, clock, newId: ids, writer: () => httpWriter })
+    httpApi = createAiService({
+      storage,
+      clock,
+      newId: ids,
+      writer: () => httpWriter,
+      log: logInfo,
+    })
     if (options.lean) return
     // Notebooks from before sort keys get theirs, in the order they show.
     // On failure they keep showing in that order and the next start retries.
@@ -232,6 +244,11 @@ export const coreApi = {
     required().applyAiEdit(id, edit),
   applyPluginEdit: (id: string, edit: { base: string; markdown: string }) =>
     required().applyPluginEdit(id, edit),
+  undoAgentWrites: (id: string, writer: { kind: WriterKind; name: string }) =>
+    required().undoAgentWrites(id, writer),
+  clearAuthorship: (id: string) => required().clearAuthorship(id),
+  agentWrites: (limit: number) => required().agentWrites(limit),
+  markWritesSeen: (id: string, writeIds: string[]) => required().markWritesSeen(id, writeIds),
   activity: (now: number) => required().activity(now),
   noteActivity: (ids: string[], now: number) => required().noteActivity(ids, now),
   mergeStored: () => required().mergeStored(),

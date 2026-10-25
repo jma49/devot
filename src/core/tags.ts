@@ -146,6 +146,8 @@ export type NoteFilter =
   | { kind: 'status'; status: NoteStatus }
   | { kind: 'tag'; tagId: string }
   | { kind: 'pinned' }
+  /** The notes one agent changed (ADR 0007): `writer` is its kind and name, `noteIds` this device's agent_writes rows of it. */
+  | { kind: 'agent'; writer: string; noteIds: ReadonlySet<string> }
 
 export function filterNotes<T extends NoteSummary>(
   notes: readonly T[],
@@ -160,7 +162,9 @@ export function filterNotes<T extends NoteSummary>(
       ? n.status === by.status
       : by.kind === 'tag'
         ? n.tagIds.includes(by.tagId)
-        : n.pinned,
+        : by.kind === 'agent'
+          ? by.noteIds.has(n.id)
+          : n.pinned,
   )
 }
 

@@ -70,6 +70,7 @@ import {
 import {
   MAX_BODY_IDS,
   NOTE_STATUSES,
+  type AgentWriteSummary,
   type CompactableVersion,
   type NoteBody,
   type NoteRecord,
@@ -255,6 +256,10 @@ export interface NoteService {
   ): Promise<Reversal & { update: Uint8Array }>
   /** Clear Authorship: drops every authorship record of the note. Returns the Yjs update, for the editor's replica. */
   clearAuthorship(id: string): Promise<Uint8Array>
+  /** The agent_writes rows of notes not in the Trash, newest first (StorageAdapter.listAgentWrites). */
+  agentWrites(limit: number): Promise<AgentWriteSummary[]>
+  /** Marks writes of the note seen on this device, once its pending edits are saved, so a write it holds has its row. */
+  markWritesSeen(id: string, writeIds: readonly string[]): Promise<void>
   /** Pending edits are saved and unversioned typing becomes a version, so it counts. */
   activity(now: number, offsetAt?: OffsetAt): Promise<ActivityHeatmap>
   /** The list's activity strips of `ids` (at most MAX_BODY_IDS; see buildStrips), typing not kept as a version yet counted today. Reads only: nothing is saved. */
@@ -1068,6 +1073,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     copies: readonly FileCopy[],
     status: NoteStatus = 'none',
     id = newId(),
+    rowsSeen = false,
   ) => {
     const at = now()
     const record: NoteRecord = {
@@ -1090,6 +1096,12 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     }
     const rows = agentWriteRows(doc, id)
     await storage.putNote({ ...record, agentWrites: rows })
+    if (rowsSeen && rows.length > 0) {
+      await storage.markAgentWritesSeen(
+        id,
+        rows.map((row) => row.writeId),
+      )
+    }
     relay({ kind: 'saved', noteId: id, updatedAt: at })
     const note = liveNote(asWritten(record), doc, false)
     note.rows = rows
@@ -1181,6 +1193,9 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           doc,
           copies,
           source.record.status,
+          newId(),
+          // The copy keeps the authorship; the owner made it, so its writes start seen (ADR 0007).
+          true,
         )
       }),
 
@@ -1637,6 +1652,19 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         }
         return update
       }),
+
+    agentWrites: (limit) => storage.listAgentWrites(limit),
+
+    async markWritesSeen(id, writeIds) {
+      if (writeIds.length === 0) return
+      const note = live.get(id)
+      if (note) {
+        await save(note).catch((e: unknown) =>
+          console.warn('W_AGENT_WRITES_SEEN_SAVE_FAILED', id, errorCode(e)),
+        )
+      }
+      await storage.markAgentWritesSeen(id, writeIds)
+    },
 
     applyPluginEdit: (id, { base, markdown }) =>
       using(id, async (note) => {

@@ -100,6 +100,7 @@ function readNote(value: unknown): NoteState | undefined {
 
 export type ListLayout = 'list' | 'board'
 
+// A status view is one column already, and an agent's view is not kept (App.tsx), so neither has a board.
 const BOARD_FILTERS = /^(all|filter:pinned|filter:tag:(?<tag>[^|]*))$/
 const BOARDS_KEPT = 100
 

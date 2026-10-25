@@ -15,8 +15,14 @@ const CODE = /^[EWI]_[A-Z0-9_]{1,62}$/
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const MAX_IDS = 4
 
-function asId(arg: unknown): string | undefined {
+// Authorship lines also carry write IDs (64 random bits in base64url), writer kinds and counts (ADR 0007). Only they
+// may: under another code, a word that looks like one could be note content.
+const AUTHORSHIP_CODE = /^[IW]_AUTHORSHIP_/
+const AUTHORSHIP_ARG = /^(?:[A-Za-z0-9_-]{11}|mcp|http|aiEdit|\d{1,9})$/
+
+function asId(arg: unknown, code: string): string | undefined {
   if (typeof arg === 'string' && ID.test(arg)) return arg
+  if (typeof arg === 'string' && AUTHORSHIP_CODE.test(code) && AUTHORSHIP_ARG.test(arg)) return arg
   return errorCode(arg, '') || undefined
 }
 
@@ -33,7 +39,7 @@ export function sanitizeEntry(value: unknown): LogEntry | undefined {
   if (!LEVELS.includes(level as LogLevel)) return undefined
   if (typeof code !== 'string' || !CODE.test(code)) return undefined
   const kept = Array.isArray(ids)
-    ? ids.map(asId).filter((id): id is string => id !== undefined)
+    ? ids.map((id) => asId(id, code)).filter((id): id is string => id !== undefined)
     : []
   return { level: level as LogLevel, code, ids: kept.slice(0, MAX_IDS) }
 }
@@ -41,7 +47,7 @@ export function sanitizeEntry(value: unknown): LogEntry | undefined {
 export function logEntry(level: LogLevel, args: unknown[]): LogEntry | undefined {
   const [code, ...rest] = args
   if (typeof code !== 'string' || !CODE.test(code)) return undefined
-  const ids = rest.map(asId).filter((id): id is string => id !== undefined)
+  const ids = rest.map((id) => asId(id, code)).filter((id): id is string => id !== undefined)
   return { level, code, ids: ids.slice(0, MAX_IDS) }
 }
 
@@ -81,7 +87,7 @@ export function forwardUncaught(
   codes: UncaughtCodes = UI_CODES,
 ) {
   const report = (code: string, reason: unknown) => {
-    const id = asId(reason)
+    const id = asId(reason, code)
     send({ level: 'error', code, ids: id ? [id] : [] }).catch(() => {})
   }
   target.addEventListener('error', (e) => report(codes.uncaught, e.error))

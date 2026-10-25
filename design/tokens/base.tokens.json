@@ -1324,6 +1324,14 @@
       },
       "$description": "The narrowest a dropdown list is."
     },
+    "notice-text-min-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 220,
+        "unit": "px"
+      },
+      "$description": "The narrowest the text of a notice above the editor gets; past it, the notice's buttons wrap below the text."
+    },
     "picker-min-height": {
       "$type": "dimension",
       "$value": {

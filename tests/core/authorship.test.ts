@@ -13,7 +13,9 @@ import {
   newWriter,
   packRanges,
   readWrites,
+  recordTransaction,
   reverseWrites,
+  reviewSteps,
   unpackRanges,
   validWriterName,
   WRITERS,
@@ -255,6 +257,53 @@ describe('Undo All', () => {
     expect(body(agent)).toBe('Keep this. .\n')
   })
 
+  it('records the text an undo of Undo All puts back as the same session’s write', () => {
+    const doc = docWith('Owner.\n')
+    edit(doc, claude, 'Owner.\nClaude line.\n')
+    edit(doc, codex, 'Owner.\nClaude line.\nCodex line.\n', 2000)
+    const [undone] = readWrites(doc)
+    reverseWrites(doc, { kind: 'mcp', name: 'Claude Code' })
+    expect(body(doc)).toBe('Owner.\nCodex line.\n')
+    let recorded = false
+    const put = (tr: Y.Transaction) => {
+      doc.off('afterTransaction', put)
+      recorded = recordTransaction(doc, tr, {
+        id: newAuthorshipId(),
+        session: undone!.session,
+        at: 5000,
+      })
+    }
+    doc.on('afterTransaction', put)
+    doc.getText('body').insert('Owner.\n'.length, 'Claude line.\n')
+    expect(recorded).toBe(true)
+    expect(agentText(doc)).toBe('Claude line.\n|Codex line.\n')
+    expect(agentWriteRows(doc).map((row) => [row.name, row.at])).toEqual([
+      ['Claude Code', 5000],
+      ['Codex', 2000],
+    ])
+    // Undo All takes it out again.
+    reverseWrites(doc, { kind: 'mcp', name: 'Claude Code' })
+    expect(body(doc)).toBe('Owner.\nCodex line.\n')
+  })
+
+  it('records nothing for an unknown session or a transaction that left the body alone', () => {
+    const doc = docWith('Owner.\n')
+    const results: boolean[] = []
+    const put = (session: string) => (tr: Y.Transaction) =>
+      results.push(recordTransaction(doc, tr, { id: newAuthorshipId(), session, at: 1 }))
+    const unknown = put(newAuthorshipId())
+    doc.on('afterTransaction', unknown)
+    doc.getText('body').insert(0, 'x')
+    doc.off('afterTransaction', unknown)
+    edit(doc, claude, 'Owner.\nClaude.\n')
+    const known = put(claude.session)
+    doc.on('afterTransaction', known)
+    doc.getMap('other').set('k', 1)
+    doc.off('afterTransaction', known)
+    expect(results).toEqual([false, false])
+    expect(readWrites(doc)).toHaveLength(1)
+  })
+
   it('caps the deleted text a note keeps, dropping the oldest first', () => {
     const doc = docWith(`${'a'.repeat(600)}\n${'b'.repeat(600)}\n`)
     const max = 1000
@@ -303,5 +352,44 @@ describe('Clear Authorship', () => {
     edit(b, claude, 'Text. One. Two. Three.\n')
     sync(b, a)
     expect(agentText(a)).toBe(' Two.| Three.')
+  })
+})
+
+describe('Review Changes steps', () => {
+  /** Each step as the text it covers, with a mark where the write deleted text. */
+  const shown = (doc: Y.Doc, only?: ReadonlySet<string>) =>
+    reviewSteps(doc, only).map(
+      (step) => `${body(doc).slice(step.from, step.to)}${step.deleted ? '^' : ''}`,
+    )
+
+  it('gives each write’s inserted runs, deletion points and replacements in document order', () => {
+    const doc = docWith('One two three four.\n')
+    const replaced = edit(doc, claude, 'One 2 three four.\n')
+    const cut = edit(doc, codex, 'One 2 three.\n', 2000)
+    const added = edit(doc, claude, 'Zero. One 2 three.\n', 3000)
+    expect(shown(doc)).toEqual(['Zero. ', '2^', '^'])
+    const steps = reviewSteps(doc)
+    expect(steps.map((s) => s.writeId)).toEqual([added, replaced, cut])
+    expect(steps[2]).toEqual({ writeId: cut, from: 17, to: 17, deleted: true })
+  })
+
+  it('splits a run the owner typed inside, and follows the text as it is now', () => {
+    const doc = docWith('Intro.\n', 1)
+    const agent = loaded(doc, 2)
+    edit(agent, claude, 'Intro.\nAgent paragraph.\n')
+    sync(agent, doc)
+    const text = doc.getText('body')
+    text.insert(0, 'Owner. ')
+    text.insert(body(doc).indexOf('paragraph'), 'long ')
+    expect(shown(doc)).toEqual(['Agent ', 'paragraph.\n'])
+  })
+
+  it('keeps to the writes asked for, and skips one whose writer is unknown', () => {
+    const doc = docWith('A.\n')
+    const first = edit(doc, claude, 'A. B.\n')!
+    edit(doc, codex, 'A. B. C.\n', 2000)
+    expect(shown(doc, new Set([first]))).toEqual([' B.'])
+    doc.getMap(WRITERS).delete(codex.session)
+    expect(shown(doc)).toEqual([' B.'])
   })
 })

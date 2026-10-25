@@ -1351,6 +1351,48 @@ button {
   color: var(--status-mark);
 }
 
+/* A note agents changed since the owner last looked (ADR 0007, agentWrites.ts). */
+.row-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-text-secondary);
+}
+
+/* In a list row it takes the line's room and cuts the name short before it wraps to a line of its own. */
+.row-meta > .row-agent {
+  flex: 1 1 0;
+  min-width: 10em;
+}
+
+/* A writer's name gives way first: the kind beside it stays shown (WriterLabel.tsx). */
+.writer-label {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.writer-label-fixed {
+  flex: none;
+  white-space: pre;
+}
+
+.writer-label-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-agent-mark {
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--radius-capsule);
+  background: var(--color-editor-authorship);
+}
+
 .row-progress {
   display: inline-flex;
   align-items: center;
@@ -4915,4 +4957,54 @@ button.popup:focus-visible {
 .history-overlay-text ins {
   background: var(--color-diff-added);
   text-decoration: none;
+}
+
+/* The review notice above the editor (AuthorshipNotice.tsx), between the note's header and the panes,
+   so the history bar's overlay, which lies over the panes, never covers it. */
+.authorship-notice {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin: 0 var(--space-10) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  padding-inline-start: calc(var(--space-4) + var(--space-1) + var(--space-4));
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+  font-size: var(--font-size-body);
+  animation: bar-in var(--motion-duration-popover) var(--motion-easing-move);
+}
+
+/* Out of the flex line, so the bar spans the notice when its buttons wrap below the text. */
+.authorship-notice::before {
+  content: '';
+  position: absolute;
+  inset-block: var(--space-3);
+  inset-inline-start: var(--space-4);
+  width: var(--space-1);
+  border-radius: var(--radius-capsule);
+  background: var(--color-editor-authorship);
+}
+
+.authorship-notice-text {
+  flex: 1 1 var(--size-notice-text-min-width);
+  min-width: 0;
+  margin: 0;
+}
+
+.authorship-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* The history bar shows a past version: the notice stays, but does not respond until it is gone. */
+.authorship-notice-slot[inert] .authorship-notice-actions {
+  opacity: var(--opacity-disabled);
+}
+
+:root[data-motion='reduced'] .authorship-notice {
+  animation: none;
 }

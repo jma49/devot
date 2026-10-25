@@ -70,6 +70,7 @@ describe('editor settings', () => {
       boardDropped: true,
       activityStrip: true,
       historyBar: false,
+      authorship: true,
       autoDownloadUpdates: true,
       menuBar: false,
       animations: 'always',
@@ -210,6 +211,8 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ autoDownloadUpdates: false }).autoDownloadUpdates).toBe(false)
     expect(parseEditorSettings({ historyBar: true }).historyBar).toBe(true)
     expect(parseEditorSettings({ historyBar: 'yes' }).historyBar).toBe(false)
+    expect(parseEditorSettings({ authorship: false }).authorship).toBe(false)
+    expect(parseEditorSettings({ authorship: 'off' }).authorship).toBe(true)
     expect(parseEditorSettings({ activityStrip: false }).activityStrip).toBe(false)
     expect(parseEditorSettings({ activityStrip: 0 }).activityStrip).toBe(true)
     expect(parseEditorSettings({ autoDownloadUpdates: 'no' }).autoDownloadUpdates).toBe(true)

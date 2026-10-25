@@ -204,6 +204,8 @@ pub struct EditorSettings {
     pub activity_strip: bool,
     /// View > Show History Bar: the open note's versions along the editor's bottom edge.
     pub history_bar: bool,
+    /// View > Show Authorship: marks beside the text agents wrote (ADR 0007).
+    pub authorship: bool,
     pub auto_download_updates: bool,
     /// Keep in Menu Bar (`menu_bar`): the menu bar icon, quick capture's shortcut, and closing the
     /// main window hides it rather than quitting.
@@ -266,6 +268,7 @@ impl Default for EditorSettings {
             board_dropped: true,
             activity_strip: true,
             history_bar: false,
+            authorship: true,
             auto_download_updates: true,
             menu_bar: false,
             animations: Animations::Always,
@@ -401,6 +404,7 @@ impl EditorSettings {
             "boardDropped" => self.board_dropped = flag(value)?,
             "activityStrip" => self.activity_strip = flag(value)?,
             "historyBar" => self.history_bar = flag(value)?,
+            "authorship" => self.authorship = flag(value)?,
             "autoDownloadUpdates" => self.auto_download_updates = flag(value)?,
             "menuBar" => self.menu_bar = flag(value)?,
             "animations" => self.animations = choice(value)?,
@@ -667,6 +671,12 @@ pub fn toggle_history_bar(settings: &EditorSettings) -> Map<String, Value> {
     patch
 }
 
+pub fn toggle_authorship(settings: &EditorSettings) -> Map<String, Value> {
+    let mut patch = Map::new();
+    patch.insert("authorship".into(), Value::Bool(!settings.authorship));
+    patch
+}
+
 pub fn toggle_sync_scroll(settings: &EditorSettings) -> Map<String, Value> {
     let mut patch = Map::new();
     patch.insert("syncScroll".into(), Value::Bool(!settings.sync_scroll));
@@ -738,6 +748,10 @@ mod tests {
         assert_eq!(d.list_dates, ListDates::Relative);
         assert!(d.activity_strip);
         assert!(!d.history_bar, "the history bar is opt-in");
+        assert!(
+            d.authorship,
+            "agents' text is marked unless the owner hides it"
+        );
         assert_eq!(d.animations, Animations::Always);
         assert!(d.sync_scroll);
         assert!(d.auto_download_updates);
@@ -778,13 +792,13 @@ mod tests {
                 "pageRules": false,
             })
         );
-        let history: Map<String, Value> = ["activityStrip", "historyBar"]
+        let history: Map<String, Value> = ["activityStrip", "historyBar", "authorship"]
             .into_iter()
             .filter_map(|k| map.remove(k).map(|v| (k.to_string(), v)))
             .collect();
         assert_eq!(
             Value::Object(history),
-            json!({ "activityStrip": true, "historyBar": false })
+            json!({ "activityStrip": true, "historyBar": false, "authorship": true })
         );
         assert_eq!(
             value,
@@ -1140,6 +1154,7 @@ mod tests {
             json!({ "activityStrip": "off" }),
             json!({ "historyBar": 1 }),
             json!({ "historyBar": null }),
+            json!({ "authorship": "on" }),
             json!({ "animations": "never" }),
             json!({ "animations": "System" }),
             json!({ "animations": false }),
@@ -1498,6 +1513,17 @@ mod tests {
         let on = s.update_from(toggle_sync_scroll).unwrap();
         assert!(on.settings.sync_scroll);
         assert_eq!(on.revision, 2);
+    }
+
+    #[test]
+    fn toggles_authorship_from_the_stored_value() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = store(&dir);
+        let off = s.update_from(toggle_authorship).unwrap();
+        assert!(!off.settings.authorship);
+        assert!(!store(&dir).get().unwrap().settings.authorship);
+        let on = s.update_from(toggle_authorship).unwrap();
+        assert!(on.settings.authorship);
     }
 
     #[test]

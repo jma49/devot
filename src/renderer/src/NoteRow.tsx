@@ -12,11 +12,13 @@ import { matchSegments } from '../../core/search'
 import type { ListDatesStyle } from '../../core/editorSettings'
 import type { StripDay } from '../../core/activity'
 import { ActivityStrip } from './ActivityStrip'
+import { writerLabelParts, type WriterRef } from './authorshipLabels'
 import { fullDate, rowDate } from './format'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
 import { chipClass, TagDot } from './TagEditor'
+import { WriterLabel } from './WriterLabel'
 
 export const STATUS_ICONS: Readonly<Record<NoteStatus, IconName>> = {
   none: 'status.none',
@@ -65,6 +67,24 @@ export function TaskProgress({ done, total }: { done: number; total: number }) {
   )
 }
 
+/** A note agents changed since the owner last looked: a mark, and who changed it last. */
+export function ChangedBy({ writer, compact }: { writer: WriterRef; compact?: boolean }) {
+  const template = t('authorship.changedBy')
+  return (
+    <span
+      className="row-agent"
+      title={compact ? writerLabelParts(writer, template).full : undefined}
+    >
+      <span className="row-agent-mark" aria-hidden="true" />
+      {compact ? (
+        <span className="visually-hidden">{writerLabelParts(writer, template).full}</span>
+      ) : (
+        <WriterLabel writer={writer} template={template} />
+      )}
+    </span>
+  )
+}
+
 export interface RowEvents {
   setRow: (id: string, el: HTMLLIElement | null) => void
   mouseDown: (event: MouseEvent<HTMLLIElement>) => void
@@ -89,6 +109,8 @@ export interface RowProps {
   progress: string | undefined
   /** The note's activity strip; none while it is hidden or not read yet. */
   strip?: readonly StripDay[] | undefined
+  /** The newest writer of the note's unseen agent writes (ADR 0007), as the UI names it. */
+  changedBy?: WriterRef | undefined
   now: number
   locale: string
   dates: ListDatesStyle
@@ -164,6 +186,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
             {c.name}
           </span>
         ))}
+        {props.changedBy ? <ChangedBy writer={props.changedBy} /> : null}
         {props.strip ? (
           <ActivityStrip days={props.strip} now={props.now} locale={props.locale} />
         ) : null}

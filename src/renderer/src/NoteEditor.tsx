@@ -13,7 +13,10 @@ import { flushSync } from 'react-dom'
 import { yCollab, ySyncAnnotation } from 'y-codemirror.next'
 import * as Y from 'yjs'
 import type { ImageSize } from '../../core/images'
+import { readWrites, reviewSteps, type AgentWrite, type ReviewStep } from '../../core/authorship'
 import { BODY } from '../../core/notes'
+import { authorshipMarks } from './editor/authorship'
+import { authorshipUndo, undoneWrites } from './editor/authorshipUndo'
 import { imageFiles, storeImages } from './attachments'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
@@ -134,6 +137,10 @@ const LOCKED = [
     }),
   ),
 ]
+// View > Show Authorship (editor/authorship.ts), set for the replica of the note shown.
+const authorshipSlot = new Compartment()
+const marksFor = (on: boolean, doc: Y.Doc, noteId: string) =>
+  on ? authorshipMarks(doc, noteId) : []
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
 const RESTORE = 'restore'
 
@@ -183,6 +190,10 @@ export interface EditorHandle {
   setImageSize: (source: ImageSource, size: ImageSize) => boolean
   /** Ticks or unticks the task whose mark is at `at` as one change; false when no box is there any more. */
   toggleTask: (at: number) => boolean
+  /** Review Changes: the places the writes in `writeIds` changed, as the replica has them now (reviewSteps). */
+  reviewSteps: (writeIds: ReadonlySet<string>) => ReviewStep[]
+  /** Selects `from`-`to` and scrolls it to the middle, leaving the keyboard where it is. */
+  reveal: (from: number, to: number) => void
 }
 
 async function pastePlain(view: EditorView): Promise<void> {
@@ -587,6 +598,7 @@ function shadowContainer(host: HTMLElement): {
 interface Shown {
   core: Core
   noteId: string
+  doc: Y.Doc
   place: EditorPlace
   handle: EditorHandle
   applyStep: ApplyRestore
@@ -826,6 +838,15 @@ export function NoteEditor({
 
   useEffect(() => {
     const now = editor.current
+    const s = shown.current
+    if (!now || !s || now.settings.authorship === settings.authorship) return
+    now.view.dispatch({
+      effects: authorshipSlot.reconfigure(marksFor(settings.authorship, s.doc, s.noteId)),
+    })
+  }, [settings])
+
+  useEffect(() => {
+    const now = editor.current
     if (!now || now.settings === settings) return
     const effects = reconfigureSetup(now.settings, settings)
     // The note or code font, its size or the line height change the line heights.
@@ -910,12 +931,15 @@ export function NoteEditor({
       // True while a restored version is applied: an undo step of its own,
       // where every other change from the Yjs document is none (editor/undo.ts).
       let restoring = false
+      let writesBefore: readonly AgentWrite[] = []
       const applyStep: ApplyRestore = (update) => {
         restoring = true
+        writesBefore = readWrites(doc, noteId)
         try {
           Y.applyUpdate(doc, update, RESTORE)
         } finally {
           restoring = false
+          writesBefore = []
         }
       }
       const setupFor = latestSettings.current
@@ -1020,9 +1044,14 @@ export function NoteEditor({
             popupSpace(frame),
             pausedSlot.of([]),
             lockedSlot.of(locked.current ? LOCKED : []),
+            authorshipSlot.of(marksFor(setupFor.authorship, doc, noteId)),
             // Undo is CodeMirror's history alone: no Yjs undo manager.
+            authorshipUndo(doc),
             yCollab(text, null, { undoManager: false }),
-            yjsHistory(() => restoring),
+            yjsHistory(
+              () => restoring,
+              () => undoneWrites(writesBefore, doc),
+            ),
             EditorView.contentAttributes.of({
               'aria-label': t('note.bodyLabel'),
             }),
@@ -1075,6 +1104,7 @@ export function NoteEditor({
       const s: Shown = {
         core,
         noteId,
+        doc,
         place,
         applyStep,
         close: (leftWith) => {
@@ -1154,6 +1184,18 @@ export function NoteEditor({
             const change = taskToggle(ready.state, at)
             if (change) ready.dispatch(change)
             return change !== null
+          },
+          reviewSteps: (writeIds) => reviewSteps(doc, writeIds, noteId),
+          reveal: (from, to) => {
+            const length = ready.state.doc.length
+            const anchor = Math.min(from, length)
+            const head = Math.min(to, length)
+            ready.dispatch({
+              selection: { anchor, head },
+              effects: EditorView.scrollIntoView(EditorSelection.range(anchor, head), {
+                y: 'center',
+              }),
+            })
           },
         },
       }

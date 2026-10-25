@@ -427,6 +427,32 @@ export function applyAgentEdit(doc: Y.Doc, edit: AgentEdit): string | null {
   return id
 }
 
+/**
+ * Records what `tr`, a local transaction that has just ended, did to the body as write `id` of
+ * a known session: undoing Undo All puts the writes' text back with new item IDs. Call it from
+ * `afterTransaction`, before garbage collection drops the deleted text. Returns whether it recorded.
+ */
+export function recordTransaction(
+  doc: Y.Doc,
+  tr: Y.Transaction,
+  write: { id: string; session: string; at: number },
+): boolean {
+  if (!readWriters(doc).has(write.session)) return false
+  const { inserted, deleted, removed } = captureWrite(doc.getText(BODY), tr)
+  if (inserted.length === 0 && deleted.length === 0) return false
+  doc.transact(() => {
+    doc.getMap(WRITES).set(write.id, {
+      v: RECORD_VERSION,
+      writer: write.session,
+      at: write.at,
+      ids: packRanges(inserted, deleted),
+      ...(removed ? { removed } : {}),
+    })
+    capRemoved(doc, MAX_REMOVED_BYTES)
+  })
+  return true
+}
+
 export interface AuthoredRun {
   /** UTF-16 offsets in the body as it is now. */
   from: number
@@ -500,6 +526,58 @@ export function attribute(doc: Y.Doc, noteId?: string): AuthoredRun[] {
     else runs.push({ from, to: from + length, writeId })
   })
   return runs
+}
+
+/** One place Review Changes shows: what a write inserted there, where it deleted text, or both side by side. */
+export interface ReviewStep {
+  writeId: string
+  /** UTF-16 offsets in the body as it is now; equal for a deletion point alone. */
+  from: number
+  to: number
+  /** The write deleted text here. */
+  deleted: boolean
+}
+
+/** The steps of the writes in `only` (every write when left out), in document order, from one walk over the body. */
+export function reviewSteps(doc: Y.Doc, only?: ReadonlySet<string>, noteId?: string): ReviewStep[] {
+  const writes = writesWithWriters(doc, noteId)
+    .map(({ write }) => write)
+    .filter((write) => !only || only.has(write.id))
+  if (writes.length === 0) return []
+  const inserted = spansByClient(writes.map((w) => ({ ranges: w.inserted, owner: w.id })))
+  const deleted = spansByClient(writes.map((w) => ({ ranges: w.deleted, owner: w.id })))
+  const steps: ReviewStep[] = []
+  const add = (from: number, to: number, writeId: string, wasDeleted: boolean) => {
+    const last = steps[steps.length - 1]
+    if (last && last.writeId === writeId && from <= last.to) {
+      last.to = Math.max(last.to, to)
+      last.deleted ||= wasDeleted
+    } else steps.push({ writeId, from, to, deleted: wasDeleted })
+  }
+  let at = 0
+  // oxlint-disable-next-line no-underscore-dangle -- Yjs has no public walk over a text's items with their IDs (ADR 0007, risk 5).
+  for (let item = doc.getText(BODY)._start; item; item = item.right) {
+    const live = !item.deleted
+    if (live && !item.countable) continue
+    const spans = (live ? inserted : deleted).get(item.id.client)
+    if (spans) {
+      const { clock } = item.id
+      const end = clock + item.length
+      const owners = new Set<string>()
+      for (let i = firstAfter(spans, clock); i < spans.length && spans[i]![0] < end; i += 1) {
+        const [s, e, owner] = spans[i]!
+        if (!live) {
+          if (!owners.has(owner)) add(at, at, owner, true)
+          owners.add(owner)
+          continue
+        }
+        const a = Math.max(s, clock)
+        add(at + a - clock, at + Math.min(e, end) - clock, owner, false)
+      }
+    }
+    if (live) at += item.length
+  }
+  return steps
 }
 
 /** The parts of `span` no span of `taken` covers; `taken` holds disjoint spans in order. */

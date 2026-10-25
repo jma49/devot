@@ -285,6 +285,12 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     expect(under(4.5, checkedOn(colours, lines))).toEqual([])
   })
 
+  it('draws the authorship mark at 3:1 on the editor, also on the active line and the editor wash', () => {
+    const editor = solid(theme, 'surface.editor')
+    const behind = [editor, over(theme, 'editor.active-line', editor), ...backdrops(theme)]
+    expect(worst(solid(theme, 'editor.authorship'), behind)).toBeGreaterThanOrEqual(3)
+  })
+
   it('draws the inactive selection lighter than the focused one, and its text at 4.5:1', () => {
     const editor = solid(theme, 'surface.editor')
     const focused = solid(theme, 'accent.selection')

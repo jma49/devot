@@ -17,6 +17,9 @@ import { MAX_BOOK_NAME_CHARS, flattenBookTree, type BookNode } from '../../core/
 import type { NoteStatus, TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS, type NoteFilter } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
+import type { AgentSummary } from './agentWrites'
+import { WriterLabel } from './WriterLabel'
+import { countOf } from './format'
 import {
   BOOK_COMMANDS,
   BOOK_MENU,
@@ -169,6 +172,8 @@ interface Props {
   onFilter: (filter: NoteFilter | null) => void
   pinnedCount: number
   statusCounts: ReadonlyMap<NoteStatus, number>
+  /** The Agents section (ADR 0007): the writers of this device's recent agent writes, newest first. */
+  agents?: readonly AgentSummary[]
   tags: readonly TagRecord[]
   tagCounts: ReadonlyMap<string, number>
   onRenameTag: (id: string, name: string) => void
@@ -206,7 +211,8 @@ const sameFilter = (a: NoteFilter | null, b: NoteFilter) =>
   a !== null &&
   a.kind === b.kind &&
   (a.kind !== 'status' || (b.kind === 'status' && a.status === b.status)) &&
-  (a.kind !== 'tag' || (b.kind === 'tag' && a.tagId === b.tagId))
+  (a.kind !== 'tag' || (b.kind === 'tag' && a.tagId === b.tagId)) &&
+  (a.kind !== 'agent' || (b.kind === 'agent' && a.writer === b.writer))
 
 const format = (n: number) => new Intl.NumberFormat(currentLocale()).format(n)
 
@@ -221,7 +227,7 @@ function visibleRows(tree: BookNode[], collapsed: ReadonlySet<string>): BookNode
   return out
 }
 
-/** A row the arrow keys move between; its key is `all`, `pinned`, `book:<id>`, `status:<status>`, `tag:<id>`, `templates` or `trash`. */
+/** A row the arrow keys move between; its key is `all`, `pinned`, `book:<id>`, `status:<status>`, `tag:<id>`, `agent:<writer>`, `templates` or `trash`. */
 interface Row {
   key: string
   shows: { selection: Selection } | { filter: NoteFilter }
@@ -238,8 +244,16 @@ const filterRowOf = (filter: NoteFilter): Row => ({
       ? 'pinned'
       : filter.kind === 'status'
         ? `status:${filter.status}`
-        : `tag:${filter.tagId}`,
+        : filter.kind === 'agent'
+          ? `agent:${filter.writer}`
+          : `tag:${filter.tagId}`,
   shows: { filter },
+})
+
+export const agentFilter = (agent: AgentSummary): NoteFilter => ({
+  kind: 'agent',
+  writer: agent.key,
+  noteIds: agent.noteIds,
 })
 
 function TagGlyph(props: { color: TagColor | null }) {
@@ -430,10 +444,12 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const filterRow = (
     filter: NoteFilter,
     icon: IconName,
-    label: string,
+    label: ReactNode,
     count: number,
     extra?: string,
     tag?: { color: TagColor | null; onMenu: () => void },
+    /** An agent's row counts its unseen changes, and none when there are none. */
+    unseen?: boolean,
   ) => {
     const key = filterRowOf(filter).key
     const { onTagNotes, onSetNotesStatus } = props
@@ -465,7 +481,16 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       >
         {tag ? <TagGlyph color={tag.color} /> : <Icon name={icon} size="md" />}
         <span className="source-label">{label}</span>
-        <span className="source-count">{format(count)}</span>
+        {unseen && count === 0 ? null : (
+          <span className="source-count" aria-hidden={unseen || undefined}>
+            {format(count)}
+          </span>
+        )}
+        {unseen && count > 0 ? (
+          <span className="visually-hidden">
+            {countOf(count, currentLocale(), 'authorship.unseenOne', 'authorship.unseenOther')}
+          </span>
+        ) : null}
       </button>
     )
   }
@@ -487,6 +512,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       : props.tags.flatMap((tag) =>
           tag.id === editingTag ? [] : [filterRowOf({ kind: 'tag', tagId: tag.id })],
         )),
+    ...(folded.has('agents') ? [] : (props.agents ?? []).map((a) => filterRowOf(agentFilter(a)))),
     ...(ws ? [] : [libraryRow({ kind: 'trash' })]),
   ]
   const shownKey = props.filter
@@ -554,7 +580,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       ? 'status'
       : key.startsWith('tag:')
         ? 'tags'
-        : undefined
+        : key.startsWith('agent:')
+          ? 'agents'
+          : undefined
     if (section && event.key === 'ArrowLeft') {
       event.preventDefault()
       toggleSection(section, false)
@@ -1314,6 +1342,33 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                           onMenu: () => void openTagMenu(tag),
                         },
                       )
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : null}
+        {props.agents && props.agents.length > 0 ? (
+          <>
+            {sectionHeader('agents', 'agents-heading', t('sidebar.agents'), 'agents-list', null)}
+            {folded.has('agents') ? null : (
+              <ul
+                id="agents-list"
+                className="sources"
+                aria-labelledby="agents-heading"
+                ref={revealed('section:agents')}
+              >
+                {props.agents.map((agent) => (
+                  <li key={agent.key}>
+                    {filterRow(
+                      agentFilter(agent),
+                      'notebook.ai',
+                      <WriterLabel writer={agent} />,
+                      agent.unseen,
+                      'agent-row',
+                      undefined,
+                      true,
                     )}
                   </li>
                 ))}

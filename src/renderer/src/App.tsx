@@ -227,6 +227,9 @@ import { LivePreview } from './preview/Preview'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { useHistoryBar } from './HistoryBar'
+import { unseenOf, useAgentWrites } from './agentWrites'
+import { AuthorshipNotice } from './AuthorshipNotice'
+import { writerLabel, type WriterRef } from './authorshipLabels'
 import { AiEditSheet } from './AiEditSheet'
 import { aiTransport } from './ai'
 import type { AiEditStart } from './editor/aiMenu'
@@ -236,6 +239,7 @@ import { loadAiSettings } from './settings/aiProviders'
 import { Activity, useActivityMenu } from './Activity'
 import { choicesFromTree, notebookForNewNote, publishNotebooks } from './notebookChoices'
 import {
+  agentFilter,
   Sidebar,
   STATUSES,
   stepSidebarRow,
@@ -249,7 +253,7 @@ import { textStore } from './textStore'
 import { restartNow, useUpdates } from './UpdateNotice'
 import { checkForUpdates } from './updates'
 import { track } from './usage'
-import { HTTP_API_EVENT, httpApiHost } from './httpApiHost'
+import { HTTP_API_DONE_TEST, HTTP_API_EVENT, httpApiHost } from './httpApiHost'
 import { QUICK_CAPTURE_EVENT, answerCapture, readCaptureRequest } from './quickCaptureHost'
 
 const EXPORT_ALL = 'devot:export-all'
@@ -801,10 +805,16 @@ export function App() {
       )),
     [trash],
   )
-  const activeFilter =
-    inTemplates || (filter?.kind === 'tag' && !tags.some((tag) => tag.id === filter.tagId))
-      ? null
-      : filter
+  const agentWrites = useAgentWrites(core, notes)
+  const agents = agentWrites.view.agents
+  // An agent's filter takes the notes it changed from this device's rows as they are now.
+  const activeFilter = useMemo(() => {
+    if (inTemplates) return null
+    if (filter?.kind === 'tag' && !tags.some((tag) => tag.id === filter.tagId)) return null
+    if (filter?.kind !== 'agent') return filter
+    const agent = agents.find((a) => a.key === filter.writer)
+    return agent ? agentFilter(agent) : null
+  }, [inTemplates, filter, tags, agents])
   const listOrder = useListOrder(
     sortView({
       search: searching,
@@ -869,10 +879,17 @@ export function App() {
     () => noteGroups(applyOrder(templates, order, locales)),
     [templates, order, locales],
   )
-  const shownResults = useMemo(
-    () => applyOrder(results?.found ?? [], order, locales),
-    [results, order, locales],
-  )
+  const shownResults = useMemo(() => {
+    const found = results?.found ?? []
+    // Search looks at notes, not at this device's agent rows: an agent's view keeps to its notes here.
+    const agentNotes =
+      results?.search.scope && activeFilter?.kind === 'agent' ? activeFilter.noteIds : undefined
+    return applyOrder(
+      agentNotes ? found.filter((n) => agentNotes.has(n.id)) : found,
+      order,
+      locales,
+    )
+  }, [results, order, locales, activeFilter])
   const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags])
   const sidebarNotes = useMemo(
     () =>
@@ -916,7 +933,12 @@ export function App() {
         ? t('sidebar.pinned')
         : activeFilter.kind === 'status'
           ? t(`status.${activeFilter.status}`)
-          : tags.find((tag) => tag.id === activeFilter.tagId)?.name
+          : activeFilter.kind === 'agent'
+            ? (() => {
+                const agent = agents.find((a) => a.key === activeFilter.writer)
+                return agent ? writerLabel(agent) : undefined
+              })()
+            : tags.find((tag) => tag.id === activeFilter.tagId)?.name
   const selectedNote =
     notes.find((n) => n.id === selected) ?? templates.find((n) => n.id === selected)
   const selectedIsTemplate = selectedNote?.bookId === TEMPLATES_BOOK_ID
@@ -985,7 +1007,10 @@ export function App() {
   })
   const viewBookId = libraryBook?.id ?? null
   const searchScope = useMemo<SearchScope | undefined>(
-    () => (inView ? { bookId: viewBookId, filter: activeFilter } : undefined),
+    () =>
+      inView
+        ? { bookId: viewBookId, filter: activeFilter?.kind === 'agent' ? null : activeFilter }
+        : undefined,
     [inView, viewBookId, activeFilter],
   )
   const resultsQuery = results?.search.query ?? ''
@@ -1473,7 +1498,22 @@ export function App() {
 
   // The local HTTP API: this window's core answers each call Rust checked.
   useEffect(() => {
-    if (!core || DEVOT_UI_TEST) return
+    if (!core) return
+    if (DEVOT_UI_TEST) {
+      // No Rust in the UI tests' build: a test hands a call in as a page event and hears the answer as another.
+      const take = httpApiHost({
+        run: (call) => core.httpApi(call),
+        reply: async (id, result, error) => {
+          window.dispatchEvent(
+            new CustomEvent(HTTP_API_DONE_TEST, { detail: { id, result, error } }),
+          )
+        },
+        wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
+      })
+      const onCall = (e: Event) => void take((e as CustomEvent<unknown>).detail)
+      window.addEventListener(HTTP_API_EVENT, onCall)
+      return () => window.removeEventListener(HTTP_API_EVENT, onCall)
+    }
     let stopped = false
     let unlisten: (() => void) | undefined
     const take = httpApiHost({
@@ -1703,7 +1743,8 @@ export function App() {
         : libraryBook
           ? { kind: 'book', id: libraryBook.id }
           : { kind: 'all' },
-      filter: activeFilter,
+      // An agent's view is of this device's rows as they were: it is not restored.
+      filter: activeFilter?.kind === 'agent' ? null : activeFilter,
       mode,
       ...(note ? { note } : {}),
       ...(workspaceNode ? { workspace: workspaceNode.id } : {}),
@@ -2321,6 +2362,7 @@ export function App() {
     setHistoryFor(undefined)
   }
   const historyBarShown = useEditorSetting('historyBar')
+  const authorshipShown = useEditorSetting('authorship')
   const historyBar = useHistoryBar({
     core,
     noteId: selected,
@@ -2331,6 +2373,81 @@ export function App() {
     onApply: (update) => restoreRef.current?.(update),
     onRestored: () => editorRef.current?.focus(),
   })
+
+  // Authorship (ADR 0007): the open note's unseen agent writes, seen once the owner leaves the
+  // note, closes the window or dismisses the notice.
+  const noticeNote =
+    core && selected !== undefined && !inTrash && multiIds === undefined && !selectedIsTemplate
+      ? selected
+      : undefined
+  const openUnseen = useMemo(
+    () => unseenOf(agentWrites.view, noticeNote),
+    [agentWrites.view, noticeNote],
+  )
+  const shownWrites = useRef<{ noteId: string; ids: Set<string> } | undefined>(undefined)
+  const reloadAgentWrites = agentWrites.reload
+  const markShownSeen = useCallback(() => {
+    const shown = shownWrites.current
+    shownWrites.current = undefined
+    if (!core || !shown || shown.ids.size === 0) return
+    core
+      .markWritesSeen(shown.noteId, [...shown.ids])
+      .then(reloadAgentWrites, (e: unknown) =>
+        console.warn('W_AGENT_WRITES_SEEN_FAILED', shown.noteId, errorCode(e)),
+      )
+  }, [core, reloadAgentWrites])
+  useEffect(() => {
+    if (shownWrites.current && shownWrites.current.noteId !== noticeNote) markShownSeen()
+    if (noticeNote === undefined || openUnseen.length === 0) return
+    shownWrites.current ??= { noteId: noticeNote, ids: new Set() }
+    for (const row of openUnseen) shownWrites.current.ids.add(row.writeId)
+  }, [noticeNote, openUnseen, markShownSeen])
+  useEffect(() => {
+    window.addEventListener('pagehide', markShownSeen)
+    return () => window.removeEventListener('pagehide', markShownSeen)
+  }, [markShownSeen])
+  const [undoDropped, setUndoDropped] = useState(false)
+  /** Undo All for one writer on the note, as an owner edit the editor takes as one undo step. */
+  const undoAgent = async (noteId: string, writer: WriterRef) => {
+    if (!core || !editing) return
+    try {
+      const undone = await core.undoAgentWrites(noteId, writer)
+      if (editorRef.current?.noteId === noteId) restoreRef.current?.(undone.update)
+      if (undone.dropped > 0) setUndoDropped(true)
+      await saveEdits(core)
+      reloadAgentWrites()
+    } catch (e) {
+      console.warn('W_AUTHORSHIP_UNDO_FAILED', noteId, errorCode(e))
+      setChangeNotice(errorCode(e))
+    }
+  }
+  const [clearing, setClearing] = useState<string>()
+  const clearNoteAuthorship = async (noteId: string) => {
+    setClearing(undefined)
+    if (!core || !editing) return
+    try {
+      const update = await core.clearAuthorship(noteId)
+      if (editorRef.current?.noteId === noteId) editorRef.current.takeState(update)
+      await saveEdits(core)
+      reloadAgentWrites()
+    } catch (e) {
+      console.warn('W_AUTHORSHIP_CLEAR_FAILED', noteId, errorCode(e))
+      setChangeNotice(errorCode(e))
+    }
+  }
+  const authorshipNotice =
+    noticeNote !== undefined && openUnseen.length > 0 ? (
+      <AuthorshipNotice
+        key={noticeNote}
+        unseen={openUnseen}
+        written={agentWrites.view.byNote.get(noticeNote) ?? []}
+        editor={editorRef}
+        canReview={mode !== 'preview'}
+        editing={editing}
+        onUndoAll={(writer) => undoAgent(noticeNote, writer)}
+        onDismiss={markShownSeen}
+      />
+    ) : null
   const find = useFind({
     mode,
     noteOpen: !!core && selected !== undefined && !inTrash && !multiIds,
@@ -2397,6 +2514,8 @@ export function App() {
     putTag: putTagOnNotes,
     removeTag: removeTagFromNotes,
     trash: trashNotes,
+    clearAuthorship: editing ? setClearing : undefined,
+    authored: (id) => agentWrites.view.byNote.has(id),
   })
 
   // Back/Forward entries skip deleted notes (the Trash's notes are never entries); templates are entries. The open note is the current entry's or the one a navigation is opening; none in the Trash.
@@ -2669,6 +2788,13 @@ export function App() {
           historyBar: !editorSettings().historyBar,
         }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
       label: historyBarShown ? 'command.hideHistoryBar' : 'command.showHistoryBar',
+    },
+    'view.authorship': {
+      run: () =>
+        changeEditorSettings({
+          authorship: !editorSettings().authorship,
+        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
+      label: authorshipShown ? 'command.hideAuthorship' : 'command.showAuthorship',
     },
     'view.toggleListDates': {
       run: () =>
@@ -3221,9 +3347,11 @@ export function App() {
         ? `status:${activeFilter.status}`
         : activeFilter?.kind === 'pinned'
           ? 'pinned'
-          : shownBookIcon
-            ? `book:${shownBookIcon.icon ?? ''}:${shownBookIcon.iconColor ?? ''}`
-            : ''
+          : activeFilter?.kind === 'agent'
+            ? 'agent'
+            : shownBookIcon
+              ? `book:${shownBookIcon.icon ?? ''}:${shownBookIcon.iconColor ?? ''}`
+              : ''
   const listIcon = useMemo(() => {
     const [kind, a, b] = iconKey.split(':')
     if (kind === 'tag') return <span className={`headline-dot${a ? ` tag-color-${a}` : ''}`} />
@@ -3232,6 +3360,7 @@ export function App() {
       return <Icon name={icon} size="lg" />
     }
     if (kind === 'pinned') return <Icon name="notes.pinned" size="lg" />
+    if (kind === 'agent') return <Icon name="notebook.ai" size="lg" />
     if (kind === 'book')
       return <BookIcon icon={a || null} color={(b || null) as TagColor | null} size="lg" />
     return null
@@ -3288,6 +3417,7 @@ export function App() {
         onFilter={sidebarFilter}
         pinnedCount={pinnedCount}
         statusCounts={statuses}
+        agents={agents}
         tags={sidebarTags}
         tagCounts={sidebarTagged}
         onRenameTag={sidebarRenameTag}
@@ -3332,6 +3462,7 @@ export function App() {
           headlines={loadHeadlines}
           details={loadDetails}
           activity={loadStrips}
+          changedBy={agentWrites.view.changedBy}
           drag={editing ? 'notes' : false}
         />
       ) : inTrash ? (
@@ -3399,6 +3530,7 @@ export function App() {
           notes={boardNotes}
           statuses={boardStatusList}
           tags={tagsById}
+          changedBy={agentWrites.view.changedBy}
           selected={selected}
           opening={switching ? openingId : undefined}
           onSelect={openFromList}
@@ -3448,6 +3580,7 @@ export function App() {
           headlines={loadHeadlines}
           details={loadDetails}
           activity={loadStrips}
+          changedBy={agentWrites.view.changedBy}
           drag={editing ? 'notes' : false}
         />
       )}
@@ -3592,6 +3725,12 @@ export function App() {
               </div>
             )}
             {find.bar}
+            {authorshipNotice ? (
+              // A version the history bar shows lies over the text the notice would select.
+              <div className="authorship-notice-slot" inert={historyBar.overlay !== null}>
+                {authorshipNotice}
+              </div>
+            ) : null}
             <div className={`panes panes-${mode}`} ref={panesRef}>
               <NoteEditor
                 core={core}
@@ -3729,6 +3868,14 @@ export function App() {
         {changeNotice ? (
           <ChangeNotice code={changeNotice} onDismiss={() => setChangeNotice(undefined)} />
         ) : null}
+        {undoDropped ? (
+          <div role="status" className="notice" data-devot-part="notice">
+            <span className="notice-text">{t('authorship.undoDropped')}</span>
+            <button type="button" className="button" onClick={() => setUndoDropped(false)}>
+              {t('notice.dismiss')}
+            </button>
+          </div>
+        ) : null}
         {batchFailed ? (
           <BatchNotice failed={batchFailed} onDismiss={() => setBatchFailed(undefined)} />
         ) : null}
@@ -3810,6 +3957,15 @@ export function App() {
         />
       ) : null}
       {viewing ? <ImageViewer image={viewing} onClose={() => setViewing(null)} /> : null}
+      {clearing !== undefined ? (
+        <ConfirmDialog
+          message={t('authorship.clearMessage')}
+          detail={t('authorship.clearDetail')}
+          confirm={t('authorship.clear')}
+          onConfirm={() => void clearNoteAuthorship(clearing)}
+          onCancel={() => setClearing(undefined)}
+        />
+      ) : null}
       {core && activityOpen ? (
         <Activity core={core} onClose={() => setActivityOpen(false)} />
       ) : null}

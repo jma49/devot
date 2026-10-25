@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { forwardConsole, forwardUncaught, logEntry, type LogEntry } from './log'
+import { forwardConsole, forwardUncaught, logEntry, sanitizeEntry, type LogEntry } from './log'
 
 const NOTE_ID = '01920000-0000-7000-8000-000000000001'
 
@@ -34,6 +34,25 @@ describe('logEntry', () => {
       'E_STORAGE_SCHEMA_TOO_NEW',
     ])
     expect(logEntry('warn', ['W_X', ...Array<string>(6).fill(NOTE_ID)])?.ids).toHaveLength(4)
+  })
+})
+
+describe('authorship lines', () => {
+  it('keep write IDs, kinds and counts, under the authorship codes only', () => {
+    expect(logEntry('info', ['I_AUTHORSHIP_WRITE', NOTE_ID, 'AbC-12_xyz9', 'mcp'])?.ids).toEqual([
+      NOTE_ID,
+      'AbC-12_xyz9',
+      'mcp',
+    ])
+    expect(logEntry('info', ['I_AUTHORSHIP_UNDONE', NOTE_ID, '3'])?.ids).toEqual([NOTE_ID, '3'])
+    const invalid = {
+      level: 'warn',
+      code: 'W_AUTHORSHIP_RECORD_INVALID',
+      ids: [NOTE_ID, 'AbC-12_xyz9'],
+    }
+    expect(sanitizeEntry(invalid)?.ids).toEqual([NOTE_ID, 'AbC-12_xyz9'])
+    expect(logEntry('info', ['I_AUTHORSHIP_WRITE', NOTE_ID, 'Claude Code'])?.ids).toEqual([NOTE_ID])
+    expect(logEntry('warn', ['W_X', 'Hello_World', 'mcp', '3'])?.ids).toEqual([])
   })
 })
 

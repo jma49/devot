@@ -48,6 +48,10 @@ export function useNoteActions(deps: {
   putTag: (ids: readonly string[], tagId: string) => Promise<void>
   removeTag: (ids: readonly string[], tagId: string) => Promise<void>
   trash: (ids: readonly string[]) => Promise<void>
+  /** Asks, then drops the note's authorship records; undefined where there are none to drop. */
+  clearAuthorship?: ((id: string) => void) | undefined
+  /** Whether the note has authorship records (this device's agent_writes rows). */
+  authored?: ((id: string) => boolean) | undefined
   exportNote: (action: ExportAction, id: string) => Promise<void>
   exportNotes: (action: 'exportMarkdown' | 'exportHtml', ids: readonly string[]) => Promise<void>
   copyFailed: (failure: ExportFailure, code: string) => void
@@ -109,6 +113,8 @@ export function useNoteActions(deps: {
       }
       case 'trash':
         return deps.trash(noteIds)
+      case 'clearAuthorship':
+        return many ? undefined : deps.clearAuthorship?.(first.id)
       // Several notes only, and not templates (whose own tags are not used),
       // as the menu offers them; a key set for them does nothing otherwise.
       case 'addTag':
@@ -153,6 +159,8 @@ export function useNoteActions(deps: {
       templates: notes.some((n) => n.bookId === TEMPLATES_BOOK_ID),
       tagged: notes.some((n) => n.tagIds.length > 0),
       board: deps.stepStatus !== undefined,
+      authored:
+        notes.length === 1 && deps.clearAuthorship !== undefined && !!deps.authored?.(notes[0]!.id),
     }
   }
 

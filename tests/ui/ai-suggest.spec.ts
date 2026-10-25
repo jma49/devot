@@ -3,11 +3,12 @@ import { expect, pickMenuItem, test, type TestWindow } from './fixtures'
 
 // Next edit suggestions (ghost text). Rust is faked in the page: `ai_generate` answers what the test queues in
 // `devotAiReplies` (a text, `{ error }`, or `{ hold }`, which waits until the test calls `devotRelease`), and
-// `ai_settings_get` says whether a provider is set up and whether suggestions on a pause are on.
+// `ai_settings_get` says whether a provider is set up and whether suggestions on a pause are on (`devotSuggestOnIdle`).
 
 type Reply = string | { error: string } | { hold: true }
 interface Window {
   devotRelease?: (text: string) => void
+  devotSuggestOnIdle?: boolean
 }
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
@@ -37,12 +38,13 @@ const requests = (page: Page) =>
 
 interface Options {
   key?: 'set' | 'unset'
+  /** Suggestions on a pause, turned on once the note is written and the caret placed. */
   idle?: boolean
 }
 
 async function fakeProvider(page: Page, replies: Reply[], options: Options = {}) {
   await page.addInitScript(
-    ([queued, { key = 'set', idle = false }]) => {
+    ([queued, { key = 'set' }]) => {
       const w = globalThis as unknown as TestWindow & Window
       const provider = (model: string) => ({
         endpoint: 'https://example.test',
@@ -55,7 +57,7 @@ async function fakeProvider(page: Page, replies: Reply[], options: Options = {})
         ...w.devotIpcMocks,
         ai_settings_get: () => ({
           active: 'anthropic',
-          suggestOnIdle: idle,
+          suggestOnIdle: w.devotSuggestOnIdle === true,
           anthropic: provider('claude-sonnet-5-5'),
           openai: provider(''),
         }),
@@ -110,6 +112,12 @@ async function ready(page: Page, replies: Reply[], text: string, options: Option
   await note(page, text)
   await body(page).click()
   await page.keyboard.press('ControlOrMeta+End')
+  // Not before: writing the note is typing too, and on a slow machine its own pause can pass before the caret moves.
+  if (options.idle) {
+    await page.evaluate(() => {
+      ;(globalThis as unknown as Window).devotSuggestOnIdle = true
+    })
+  }
 }
 
 test.beforeEach(async ({ page }) => {

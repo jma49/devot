@@ -8,6 +8,8 @@ import { errorCode } from '../../core/errors'
 import { HTTP_API_WRITES, readHttpApiRequest, type HttpApiCall } from '../../core/httpApi'
 
 export const HTTP_API_EVENT = 'devot://http-api'
+/** The answer to a call, as a page event in the UI tests' build, which has no Rust to take it. */
+export const HTTP_API_DONE_TEST = 'devot:http-api-done'
 
 export interface HttpApiHost {
   run: (call: HttpApiCall) => Promise<unknown>

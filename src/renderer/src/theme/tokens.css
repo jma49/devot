@@ -110,6 +110,7 @@
   --size-focus-ring: 2px;
   --size-drop-indicator: 2px;
   --size-picker-min-width: 220px;
+  --size-notice-text-min-width: 220px;
   --size-picker-min-height: 200px;
   --size-popover-margin: 8px;
   --size-switch-width: 36px;
@@ -218,6 +219,7 @@
   --color-editor-quote-bar: #94a3b8;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
   --color-editor-mark-line: #e7b008;
+  --color-editor-authorship: #0e6b62;
   --color-status-active: #545d69;
   --color-status-active-mark: #438cec;
   --color-status-hold: #7f5305;
@@ -352,6 +354,7 @@
     --color-editor-quote-bar: #94a3b8;
     --color-editor-mark-fill: rgb(231 176 8 / 0.3);
     --color-editor-mark-line: #e7b008;
+    --color-editor-authorship: #63cdbf;
     --color-status-active: #94a3b8;
     --color-status-active-mark: #5b9bff;
     --color-status-hold: #f59f0a;
@@ -487,6 +490,7 @@
   --color-editor-quote-bar: #94a3b8;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
   --color-editor-mark-line: #e7b008;
+  --color-editor-authorship: #63cdbf;
   --color-status-active: #94a3b8;
   --color-status-active-mark: #5b9bff;
   --color-status-hold: #f59f0a;
@@ -621,6 +625,7 @@
   --color-editor-quote-bar: #94a3b8;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
   --color-editor-mark-line: #e7b008;
+  --color-editor-authorship: #0e6b62;
   --color-status-active: #545d69;
   --color-status-active-mark: #438cec;
   --color-status-hold: #7f5305;
@@ -755,6 +760,7 @@
   --color-editor-quote-bar: #a8a69c;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
   --color-editor-mark-line: #e7b008;
+  --color-editor-authorship: #0e6b62;
   --color-status-active: #5e5d59;
   --color-status-active-mark: #438cec;
   --color-status-hold: #5a4815;
@@ -889,6 +895,7 @@
     --color-editor-quote-bar: #8c8a82;
     --color-editor-mark-fill: rgb(231 176 8 / 0.3);
     --color-editor-mark-line: #e7b008;
+    --color-editor-authorship: #63cdbf;
     --color-status-active: #bebcb7;
     --color-status-active-mark: #5b9bff;
     --color-status-hold: #dcb870;
@@ -1024,6 +1031,7 @@
   --color-editor-quote-bar: #8c8a82;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
   --color-editor-mark-line: #e7b008;
+  --color-editor-authorship: #63cdbf;
   --color-status-active: #bebcb7;
   --color-status-active-mark: #5b9bff;
   --color-status-hold: #dcb870;
@@ -1158,6 +1166,7 @@
   --color-editor-quote-bar: #a8a69c;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
   --color-editor-mark-line: #e7b008;
+  --color-editor-authorship: #0e6b62;
   --color-status-active: #5e5d59;
   --color-status-active-mark: #438cec;
   --color-status-hold: #5a4815;
