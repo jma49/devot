@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentWriteSummary } from '../../core/storage'
-import { noticeWriters, stepFrom } from './AuthorshipNotice'
+import { noticeWriters, stepFrom, undoAllLabel } from './AuthorshipNotice'
 
 const row = (
   writeId: string,
   kind: AgentWriteSummary['kind'],
   name: string,
+  seen = false,
 ): AgentWriteSummary => ({
   noteId: 'n',
   writeId,
@@ -13,7 +14,7 @@ const row = (
   name,
   at: 1,
   created: false,
-  seen: false,
+  seen,
 })
 
 describe('the review notice', () => {
@@ -29,6 +30,18 @@ describe('the review notice', () => {
       { kind: 'mcp', name: 'Claude Code' },
       { kind: 'http', name: '' },
     ])
+  })
+
+  it('says how many changes Undo All takes out when the writer made more than the notice counts', () => {
+    const claude = { kind: 'mcp' as const, name: 'Claude Code' }
+    const unseen = [row('b', 'mcp', 'Claude Code')]
+    const written = [...unseen, row('a', 'mcp', 'Claude Code', true), row('c', 'mcp', 'Codex')]
+    expect(undoAllLabel(claude, unseen, written, false)).toBe('Undo All 2 Changes')
+    expect(undoAllLabel(claude, unseen, written, true)).toBe(
+      'Undo All 2 Changes by Claude Code (MCP)',
+    )
+    expect(undoAllLabel(claude, unseen, unseen, false)).toBe('Undo All')
+    expect(undoAllLabel(claude, unseen, unseen, true)).toBe('Undo All by Claude Code (MCP)')
   })
 
   it('steps within the changes there are', () => {

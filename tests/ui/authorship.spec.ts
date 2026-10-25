@@ -40,10 +40,12 @@ interface Seeded {
   title: string
   owner: string
   edits: { writer: Writer; markdown: string }[]
+  /** How many of the first writes this device has seen. */
+  seen?: number
 }
 
 /** A note as devot-mcp leaves it: the owner's text, then each agent's write as its own transaction. */
-function asMcp({ id, title, owner, edits }: Seeded, at: number) {
+function asMcp({ id, title, owner, edits, seen = 0 }: Seeded, at: number) {
   const doc = new Y.Doc()
   doc.getText('body').insert(0, owner)
   edits.forEach((edit, i) => applyAgentEdit(doc, { ...edit, at: at + i * 1000 }))
@@ -65,7 +67,9 @@ function asMcp({ id, title, owner, edits }: Seeded, at: number) {
     deletedAt: null,
     deletedHlc: null,
   }
-  const rows = agentWriteRows(doc, id).map((row) => ({ ...row, noteId: id, seen: false }))
+  const rows = agentWriteRows(doc, id)
+    .sort((a, b) => a.at - b.at)
+    .map((row, i) => ({ ...row, noteId: id, seen: i < seen }))
   return { note, rows }
 }
 
@@ -261,6 +265,81 @@ test('Undo All takes out one writer’s text, keeps the owner’s and the other 
   await page.keyboard.press('ControlOrMeta+z')
   await expect(body(page)).toContainText('Claude adds')
   await expect(body(page)).toContainText('Owner closing.')
+})
+
+test('Undo All says how many changes it takes out when the notice counts fewer', async ({
+  page,
+}) => {
+  await seed(page, [{ ...PLAN_NOTE, seen: 1 }])
+  await noteRow(page, 'Plan').click()
+  await expect(notice(page)).toContainText('1 change by Claude Code (MCP) since you last looked.')
+  await notice(page).getByRole('button', { name: 'Undo All 2 Changes' }).click()
+  await expect(body(page)).not.toContainText('Claude adds')
+  await expect(body(page)).toContainText('Owner intro.')
+  await expect(notice(page)).toHaveCount(0)
+})
+
+test('the keyboard goes back to the editor when the notice’s control goes away', async ({
+  page,
+}) => {
+  await seed(page, [
+    PLAN_NOTE,
+    {
+      id: OTHER,
+      title: 'Other',
+      owner: 'Other text.\n',
+      edits: [{ writer: CODEX, markdown: 'Other text.\nCodex line.\n' }],
+    },
+  ])
+  await noteRow(page, 'Plan').click()
+  const review = notice(page).getByRole('button', { name: 'Review Changes' })
+  await review.focus()
+  await page.keyboard.press('Enter')
+  await expect(notice(page).getByRole('button', { name: 'Next Change' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(body(page)).toBeFocused()
+
+  await review.focus()
+  await page.keyboard.press('Enter')
+  await notice(page).getByRole('button', { name: 'Done' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(body(page)).toBeFocused()
+
+  await notice(page).getByRole('button', { name: 'Undo All' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(body(page)).not.toContainText('Claude adds')
+  await expect(body(page)).toBeFocused()
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(body(page)).toContainText('Claude adds')
+
+  await noteRow(page, 'Other').click()
+  await notice(page).getByRole('button', { name: 'Dismiss' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(notice(page)).toHaveCount(0)
+  await expect(body(page)).toBeFocused()
+})
+
+test('in a narrow Split pane the notice’s buttons wrap below its text, and a mark’s tip stays in the pane', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 700 })
+  await seed(page, [PLAN_NOTE])
+  await noteRow(page, 'Plan').click()
+  await page
+    .getByRole('group', { name: 'View mode' })
+    .getByRole('button', { name: 'Split' })
+    .click()
+  const text = await notice(page).locator('.authorship-notice-text').boundingBox()
+  const actions = await notice(page).locator('.authorship-notice-actions').boundingBox()
+  expect(actions!.y).toBeGreaterThanOrEqual(text!.y + text!.height - 1)
+  expect(text!.height).toBeLessThan(80)
+
+  await marks(page).first().focus()
+  const tip = page.locator('.cm-authorship-tip')
+  await expect(tip).toBeVisible()
+  const tipBox = await tip.boundingBox()
+  const scroller = await page.locator('.cm-scroller').first().boundingBox()
+  expect(tipBox!.x + tipBox!.width).toBeLessThanOrEqual(scroller!.x + scroller!.width)
 })
 
 test('the Agents section lists the writers with their unseen changes and filters to their notes', async ({

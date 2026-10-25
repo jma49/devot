@@ -26,7 +26,7 @@ export interface MarkSegment {
   writeIds: readonly string[]
 }
 
-/** The lines each run touches, as the fewest segments of lines with the same writes. */
+/** The lines each run touches, as the fewest segments of lines with the same writes, in one sweep over the runs. */
 export function markSegments(
   runs: readonly AuthoredRun[],
   lineOf: (pos: number) => number,
@@ -35,15 +35,26 @@ export function markSegments(
     .filter((run) => run.to > run.from)
     .map((run) => ({ from: lineOf(run.from), to: lineOf(run.to - 1), writeId: run.writeId }))
     .sort((a, b) => a.from - b.from)
+  const byEnd = spans.map((_, i) => i).sort((a, b) => spans[a]!.to - spans[b]!.to)
   const bounds = [...new Set(spans.flatMap((s) => [s.from, s.to + 1]))].sort((a, b) => a - b)
+  // Spans join in start order and a Set keeps insertion order, so its writes come in that order too.
+  const active = new Set<number>()
+  let opened = 0
+  let closed = 0
   const segments: MarkSegment[] = []
   for (let i = 0; i < bounds.length - 1; i += 1) {
     const fromLine = bounds[i]!
     const toLine = bounds[i + 1]! - 1
-    const writeIds = [
-      ...new Set(spans.filter((s) => s.from <= fromLine && s.to >= fromLine).map((s) => s.writeId)),
-    ]
-    if (writeIds.length === 0) continue
+    while (opened < spans.length && spans[opened]!.from <= fromLine) {
+      active.add(opened)
+      opened += 1
+    }
+    while (closed < byEnd.length && spans[byEnd[closed]!]!.to < fromLine) {
+      active.delete(byEnd[closed]!)
+      closed += 1
+    }
+    if (active.size === 0) continue
+    const writeIds = [...new Set([...active].map((index) => spans[index]!.writeId))]
     const last = segments[segments.length - 1]
     if (last && last.toLine + 1 === fromLine && sameIds(last.writeIds, writeIds)) {
       last.toLine = toLine
@@ -171,7 +182,9 @@ const theme = EditorView.theme({
   },
   '.cm-authorship-tip': {
     position: 'absolute',
-    whiteSpace: 'nowrap',
+    boxSizing: 'border-box',
+    width: 'max-content',
+    overflowWrap: 'anywhere',
     padding: 'var(--space-1) var(--space-3)',
     borderRadius: 'var(--radius-popover)',
     background: 'var(--color-surface-popover)',
@@ -324,6 +337,10 @@ export function authorshipMarks(ydoc: Y.Doc, noteId: string): Extension {
         this.tipFor = mark
         this.tip.textContent = mark.getAttribute('aria-label')
         this.tip.style.left = `calc(${mark.style.left} + var(--space-2))`
+        // Wraps inside the pane, so a narrow Split pane neither cuts it off nor scrolls sideways.
+        const { scrollLeft, clientWidth } = this.view.scrollDOM
+        const room = scrollLeft + clientWidth - Number.parseFloat(mark.style.left)
+        this.tip.style.maxWidth = `calc(${room}px - var(--space-2) - var(--space-4))`
         this.tip.style.top = mark.style.top
         this.tip.hidden = false
       }

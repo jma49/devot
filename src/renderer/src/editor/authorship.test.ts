@@ -1,5 +1,6 @@
 import { EditorState, Text } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
+import { expectWithinBudget } from '../../../../tests/support/budget'
 import * as Y from 'yjs'
 import { applyAgentEdit, newWriter, readWrites } from '../../../core/authorship'
 import { fullDate } from '../format'
@@ -27,6 +28,33 @@ describe('markSegments', () => {
       { fromLine: 2, toLine: 2, writeIds: ['a', 'b'] },
       { fromLine: 3, toLine: 3, writeIds: ['b'] },
       { fromLine: 5, toLine: 5, writeIds: ['b'] },
+    ])
+  })
+
+  it('keeps a typed key quick in a note with thousands of agent runs', (context) => {
+    const lines = 5_000
+    const long = Text.of(Array.from({ length: lines }, (_, i) => `line ${i}`))
+    const runs = Array.from({ length: lines }, (_, i) => {
+      const line = long.line(i + 1)
+      return { from: line.from, to: line.to, writeId: `w${i % 7}` }
+    })
+    const started = performance.now()
+    const segments = markSegments(runs, (pos) => long.lineAt(pos).number)
+    expectWithinBudget(context, performance.now() - started, 16)
+    expect(segments).toHaveLength(lines)
+  })
+
+  it('names the writes of a segment in the order their runs start, each once', () => {
+    const runs = [
+      { from: at(2), to: at(3, 2), writeId: 'b' },
+      { from: at(1), to: at(3, 2), writeId: 'a' },
+      { from: at(3), to: at(3, 1), writeId: 'b' },
+      { from: at(3), to: at(3, 1), writeId: 'c' },
+    ]
+    expect(markSegments(runs, lineOf)).toEqual([
+      { fromLine: 1, toLine: 1, writeIds: ['a'] },
+      { fromLine: 2, toLine: 2, writeIds: ['a', 'b'] },
+      { fromLine: 3, toLine: 3, writeIds: ['a', 'b', 'c'] },
     ])
   })
 

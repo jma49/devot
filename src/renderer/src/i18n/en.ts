@@ -1019,6 +1019,8 @@ export const en = {
   'authorship.review': 'Review Changes',
   'authorship.undoAll': 'Undo All',
   'authorship.undoAllBy': 'Undo All by {writer}',
+  'authorship.undoAllCount': 'Undo All {count} Changes',
+  'authorship.undoAllCountBy': 'Undo All {count} Changes by {writer}',
   'authorship.dismiss': 'Dismiss',
   'authorship.step': 'Change {index} of {count}: {writer}, {time}',
   'authorship.stepDeletion': 'Change {index} of {count}: {writer} deleted text here, {time}',

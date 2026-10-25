@@ -2440,6 +2440,7 @@ export function App() {
       <AuthorshipNotice
         key={noticeNote}
         unseen={openUnseen}
+        written={agentWrites.view.byNote.get(noticeNote) ?? []}
         editor={editorRef}
         canReview={mode !== 'preview'}
         editing={editing}

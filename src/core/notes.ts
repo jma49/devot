@@ -1658,7 +1658,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     async markWritesSeen(id, writeIds) {
       if (writeIds.length === 0) return
       const note = live.get(id)
-      if (note) await save(note).catch(() => {})
+      if (note) {
+        await save(note).catch((e: unknown) =>
+          console.warn('W_AGENT_WRITES_SEEN_SAVE_FAILED', id, errorCode(e)),
+        )
+      }
       await storage.markAgentWritesSeen(id, writeIds)
     },
 

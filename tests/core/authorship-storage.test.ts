@@ -384,6 +384,24 @@ describe('seen on this device', () => {
     expect((await s.notes.agentWrites(10)).map((w) => w.seen)).toEqual([false, true, true])
   })
 
+  it('saves a held note’s write first, so a write not saved yet is marked seen too', async () => {
+    const path = join(tempDir('devot-authorship-'), 'devot.sqlite')
+    const storage = adapter(path)
+    const notes = createNoteService({
+      storage,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+      saveDelayMs: 60_000,
+    })
+    const id = await notes.create('Plan')
+    notes.hold(id)
+    await notes.open(id)
+    const writeId = await notes.agentWrite(id, { writer: CLAUDE, markdown: 'Agent text.\n' })
+    expect(rows(storage, id)).toEqual([])
+    await notes.markWritesSeen(id, [writeId!])
+    expect(rows(storage, id).map((r) => [r.write_id, r.seen])).toEqual([[writeId, 1]])
+  })
+
   it('starts a duplicate’s rows seen: the owner made the copy, which keeps the authorship', async () => {
     const s = await setup()
     const { id } = await s.claude.ai.create({

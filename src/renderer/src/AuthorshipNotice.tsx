@@ -22,9 +22,32 @@ export function noticeWriters(unseen: readonly AgentWriteSummary[]): WriterRef[]
   return [...seen.values()]
 }
 
+/**
+ * Undo All takes out every write of the writer on the note (ADR 0007), seen ones too, so when it
+ * wrote more than the notice counts, its button says how many.
+ */
+export function undoAllLabel(
+  writer: WriterRef,
+  unseen: readonly AgentWriteSummary[],
+  written: readonly AgentWriteSummary[],
+  named: boolean,
+): string {
+  const key = writerKey(writer)
+  const count = (rows: readonly AgentWriteSummary[]) =>
+    rows.filter((row) => writerKey(row) === key).length
+  const total = count(written)
+  const vars = { writer: writerLabel(writer), count: String(total) }
+  if (total > count(unseen)) {
+    return format(t(named ? 'authorship.undoAllCountBy' : 'authorship.undoAllCount'), vars)
+  }
+  return named ? format(t('authorship.undoAllBy'), vars) : t('authorship.undoAll')
+}
+
 export function AuthorshipNotice(props: {
   /** The open note's unseen writes, newest first. */
   unseen: readonly AgentWriteSummary[]
+  /** All of the open note's writes, seen or not. */
+  written: readonly AgentWriteSummary[]
   editor: RefObject<EditorHandle | null>
   /** The editor shows (Edit or Split), so Review Changes can select in it. */
   canReview: boolean
@@ -40,6 +63,11 @@ export function AuthorshipNotice(props: {
   const writers = noticeWriters(props.unseen)
   const ids = new Set(props.unseen.map((row) => row.writeId))
   const rowOf = new Map(props.unseen.map((row) => [row.writeId, row]))
+  // The control with the keyboard goes away with the review, or with the notice: the editor takes it.
+  const endReview = () => {
+    setStep(undefined)
+    props.editor.current?.focus()
+  }
 
   const show = (index: number) => {
     const steps = props.editor.current?.reviewSteps(ids) ?? []
@@ -56,7 +84,7 @@ export function AuthorshipNotice(props: {
     if (!step || event.metaKey || event.ctrlKey || event.altKey) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowRight') move(1)
     else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') move(-1)
-    else if (event.key === 'Escape') setStep(undefined)
+    else if (event.key === 'Escape') endReview()
     else return
     event.preventDefault()
   }
@@ -105,7 +133,7 @@ export function AuthorshipNotice(props: {
             >
               {t('authorship.next')}
             </button>
-            <button type="button" className="button" onClick={() => setStep(undefined)}>
+            <button type="button" className="button" onClick={endReview}>
               {t('authorship.done')}
             </button>
           </span>
@@ -144,15 +172,23 @@ export function AuthorshipNotice(props: {
                 disabled={busy || !props.editing}
                 onClick={() => {
                   setBusy(true)
-                  void props.onUndoAll(writer).finally(() => setBusy(false))
+                  void props.onUndoAll(writer).finally(() => {
+                    setBusy(false)
+                    props.editor.current?.focus()
+                  })
                 }}
               >
-                {writers.length === 1
-                  ? t('authorship.undoAll')
-                  : format(t('authorship.undoAllBy'), { writer: writerLabel(writer) })}
+                {undoAllLabel(writer, props.unseen, props.written, writers.length > 1)}
               </button>
             ))}
-            <button type="button" className="button" onClick={props.onDismiss}>
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                props.onDismiss()
+                props.editor.current?.focus()
+              }}
+            >
               {t('authorship.dismiss')}
             </button>
           </span>

@@ -4942,28 +4942,33 @@ button.popup:focus-visible {
 /* The review notice above the editor (AuthorshipNotice.tsx), between the note's header and the panes,
    so the history bar's overlay, which lies over the panes, never covers it. */
 .authorship-notice {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3) var(--space-4);
   margin: 0 var(--space-10) var(--space-4);
   padding: var(--space-3) var(--space-4);
+  padding-inline-start: calc(var(--space-4) + var(--space-1) + var(--space-4));
   border-radius: var(--radius-card);
   background: var(--color-fill-track);
   font-size: var(--font-size-body);
   animation: bar-in var(--motion-duration-popover) var(--motion-easing-move);
 }
 
+/* Out of the flex line, so the bar spans the notice when its buttons wrap below the text. */
 .authorship-notice::before {
   content: '';
-  align-self: stretch;
+  position: absolute;
+  inset-block: var(--space-3);
+  inset-inline-start: var(--space-4);
   width: var(--space-1);
   border-radius: var(--radius-capsule);
   background: var(--color-editor-authorship);
 }
 
 .authorship-notice-text {
-  flex: 1;
+  flex: 1 1 var(--size-notice-text-min-width);
   min-width: 0;
   margin: 0;
 }
