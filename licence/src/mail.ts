@@ -110,6 +110,7 @@ const MONO = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'
 const MAIL_DARK =
   `@media (prefers-color-scheme:dark){` +
   `.page{background:${dark['surface-editor']}!important;color:${dark['text-primary']}!important}` +
+  `.text{color:${dark['text-primary']}!important}` +
   `.muted{color:${dark['text-secondary']}!important}` +
   `.key{background:${dark['fill-card']}!important;border-color:${dark['line-separator']}!important;color:${dark['text-primary']}!important}` +
   `.link{color:${dark['accent-text']}!important}` +
@@ -118,7 +119,7 @@ const MAIL_DARK =
 
 function mailHtml(subject: string, intro: string, keys: string[], after: string[]): string {
   const para = (text: string, muted = false) =>
-    `<p class="${muted ? 'muted' : ''}" style="margin:0 0 16px;color:${muted ? light['text-secondary'] : light['text-primary']}">${escapeHtml(text)}</p>`
+    `<p class="${muted ? 'muted' : 'text'}" style="margin:0 0 16px;color:${muted ? light['text-secondary'] : light['text-primary']}">${escapeHtml(text)}</p>`
   const keyBlocks = keys.map(
     (key) =>
       `<p class="muted" style="margin:24px 0 8px;color:${light['text-secondary']};font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase">${escapeHtml(MESSAGES.keyLabel)}</p>` +
