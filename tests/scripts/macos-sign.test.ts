@@ -109,11 +109,127 @@ describe('the signing script', () => {
       'spctl -a -t exec -vv "$app"',
       'xcrun stapler validate "$dmg"',
       'spctl -a -t open --context context:primary-signature -vv "$dmg"',
-      'notary submit "$file" --wait',
-      'notary log "$id"',
     ])
       expect(script).toContain(check)
     expect(script).toMatch(/sign --options runtime "\$app"\n/)
     expect(script).not.toMatch(/--entitlements [^-]|login\.keychain|default-keychain|set -x/)
+  })
+})
+
+describe('the notarization step', () => {
+  const NOTARIZE = 'scripts/release/macos-notarize.sh'
+  const KEY_TEXT = 'api-key-text'
+
+  type Plan = {
+    submitFailures?: number
+    waitFailures?: number
+    finalStatus?: string
+    stuck?: boolean
+  }
+
+  function notarize(plan: Plan, env: Record<string, string> = {}) {
+    const dir = tempDir('devot-notarize-')
+    const bin = join(dir, 'bin')
+    const state = join(dir, 'state')
+    mkdirSync(bin)
+    mkdirSync(state)
+    writeFileSync(join(dir, 'AuthKey.p8'), KEY_TEXT)
+    writeFileSync(join(dir, 'file.zip'), 'zip')
+    const count = (name: string) =>
+      `n=$(cat ${JSON.stringify(state)}/${name} 2>/dev/null || echo 0); n=$((n + 1)); echo $n > ${JSON.stringify(state)}/${name}`
+    writeFileSync(
+      join(bin, 'xcrun'),
+      [
+        '#!/bin/bash',
+        `printf '%s\\n' "$*" >> ${JSON.stringify(state)}/calls`,
+        'case $2 in',
+        `  submit) ${count('submit')}`,
+        `    if [ $n -le ${plan.submitFailures ?? 0} ]; then echo 'Error: network down' >&2; exit 1; fi`,
+        `    echo '{"id" : "sub-1234", "message" : "Successfully uploaded file"}' ;;`,
+        `  wait) ${count('wait')}`,
+        `    if [ $n -le ${plan.waitFailures ?? 0} ] || ${plan.stuck ? 'true' : 'false'}; then`,
+        `      echo '{"message":"Timeout of 1 second(s) was reached"}' >&2; exit 1; fi`,
+        `    touch ${JSON.stringify(state)}/done ;;`,
+        `  info) if [ -e ${JSON.stringify(state)}/done ]; then`,
+        `      echo '{"id" : "sub-1234", "status" : "${plan.finalStatus ?? 'Accepted'}"}'`,
+        `    else echo '{"id" : "sub-1234", "status" : "In Progress"}'; fi ;;`,
+        `  log) echo '{"issues":[{"message":"The binary is invalid."}]}' > "$4" ;;`,
+        'esac',
+      ].join('\n'),
+    )
+    chmodSync(join(bin, 'xcrun'), 0o755)
+    const result = spawnSync(NOTARIZE, [join(dir, 'file.zip'), 'Devot.app'], {
+      env: {
+        PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+        RUNNER_TEMP: dir,
+        NOTARY_KEY_FILE: join(dir, 'AuthKey.p8'),
+        APPLE_API_KEY_ID: 'KEY1234567',
+        APPLE_API_ISSUER_ID: '00000000-0000-0000-0000-000000000000',
+        NOTARY_RETRY_SECONDS: '0',
+        NOTARY_WAIT_SECONDS: '60',
+        ...env,
+      },
+      encoding: 'utf8',
+    })
+    const calls = readFileSync(join(state, 'calls'), 'utf8').trim().split('\n')
+    return { status: result.status, output: result.stdout + result.stderr, calls }
+  }
+
+  const verbs = (calls: string[]) => calls.map((call) => call.split(' ')[1])
+
+  it('submits without waiting, prints the ID, waits again after a timeout, and reads Accepted', () => {
+    const { status, output, calls } = notarize({ waitFailures: 1 })
+    expect(status).toBe(0)
+    expect(output).toContain('Submitted Devot.app as notarization sub-1234')
+    expect(output).toContain('Notarization sub-1234 of Devot.app: Accepted')
+    expect(verbs(calls)).toEqual(['submit', 'wait', 'info', 'wait', 'info'])
+    expect(calls[0]).not.toContain('--wait')
+    expect(calls[1]).toMatch(/^notarytool wait sub-1234 --timeout \d+s /)
+    expect(output).not.toContain(KEY_TEXT)
+  })
+
+  it('submits again up to three times on a transport error, then names the failure', () => {
+    const retried = notarize({ submitFailures: 2 })
+    expect(retried.status).toBe(0)
+    expect(verbs(retried.calls).filter((verb) => verb === 'submit')).toHaveLength(3)
+
+    const failed = notarize({ submitFailures: 3 })
+    expect(failed.status).toBe(1)
+    expect(failed.output).toContain(
+      '::error::E_SIGN_NOTARIZATION_REFUSED: Devot.app was not submitted',
+    )
+    expect(verbs(failed.calls)).toEqual(['submit', 'submit', 'submit'])
+  })
+
+  it('fetches the notary log and fails with the ID when Apple answers Invalid', () => {
+    const { status, output, calls } = notarize({ finalStatus: 'Invalid' })
+    expect(status).toBe(1)
+    expect(output).toContain('The notary log of submission sub-1234:')
+    expect(output).toContain('The binary is invalid.')
+    expect(output).toMatch(
+      /::error::E_SIGN_NOTARIZATION_REFUSED: Devot\.app ended as Invalid \(submission sub-1234\)/,
+    )
+    expect(verbs(calls)).toContain('log')
+    expect(output).not.toContain(KEY_TEXT)
+  })
+
+  it('fails with E_SIGN_NOTARIZATION_TIMEOUT and the ID when the budget runs out', () => {
+    const { status, output, calls } = notarize(
+      { stuck: true },
+      { NOTARY_WAIT_SECONDS: '2', NOTARY_RETRY_SECONDS: '1' },
+    )
+    expect(status).toBe(1)
+    expect(output).toMatch(
+      /::error::E_SIGN_NOTARIZATION_TIMEOUT: .*\(submission sub-1234\).*re-run the failed jobs/,
+    )
+    expect(verbs(calls)).not.toContain('log')
+    expect(calls.filter((call) => call.includes(' submit ')).length).toBe(1)
+    expect(output).not.toContain(KEY_TEXT)
+  })
+
+  it('is called by the signing script for the app and the dmg with a shared budget', () => {
+    const script = readFileSync(SCRIPT, 'utf8')
+    expect(script).toContain('"$script_dir/macos-notarize.sh"')
+    expect(script).toContain('NOTARY_WAIT_MINUTES')
   })
 })

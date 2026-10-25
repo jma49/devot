@@ -168,25 +168,14 @@ if [ $notarize -eq 1 ]; then
   (umask 077 && printf '%s\n' "$APPLE_API_KEY_P8" > "$key_file")
 fi
 
-notary() {
-  xcrun notarytool "$@" --key "$key_file" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID"
-}
+# The wait budget is shared by the app and the dmg; the dmg gets what is left, but at least 20 minutes.
+wait_minutes=${NOTARY_WAIT_MINUTES:-300}
+wait_started=$SECONDS
 
 notarize_file() {
-  local file=$1 label=$2 result status id
-  echo "Notarizing $label (this waits for Apple's answer)"
-  result=$(notary submit "$file" --wait --timeout 40m --output-format json 2> "$work/notarytool.err") || true
-  status=$(plutil -extract status raw -o - - <<< "$result" 2> /dev/null) || status=
-  id=$(plutil -extract id raw -o - - <<< "$result" 2> /dev/null) || id=
-  echo "Notarization of $label: ${status:-no answer}, submission ${id:-none}"
-  if [ "$status" != Accepted ]; then
-    cat "$work/notarytool.err" >&2
-    if [ -n "$id" ] && notary log "$id" "$work/notary-log.json" > /dev/null 2>&1; then
-      echo "The notary log of submission $id:" >&2
-      cat "$work/notary-log.json" >&2
-    fi
-    fail "E_SIGN_NOTARIZATION_REFUSED: $label ended as ${status:-no answer} (submission ${id:-none})"
-  fi
+  local left=$((wait_minutes - (SECONDS - wait_started) / 60))
+  [ "$left" -ge 20 ] || left=20
+  NOTARY_KEY_FILE=$key_file NOTARY_WAIT_MINUTES=$left "$script_dir/macos-notarize.sh" "$1" "$2"
 }
 
 staple() {
