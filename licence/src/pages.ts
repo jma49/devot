@@ -16,11 +16,13 @@ export const PAGE_HEADERS = {
 
 /** How often the waiting page reloads itself, in seconds. */
 export const PENDING_RELOAD_SECONDS = 5
+/** Reloads before the waiting page stops, so a forgotten tab does not poll Stripe for days. */
+export const PENDING_CHECKS = 60
 
 interface PageOptions {
   status?: number
   script?: boolean
-  refreshSeconds?: number
+  refresh?: { seconds: number; url: string }
 }
 
 function page(title: string, body: string, options: PageOptions = {}): Response {
@@ -29,7 +31,9 @@ function page(title: string, body: string, options: PageOptions = {}): Response 
     '<meta name="viewport" content="width=device-width,initial-scale=1">',
     '<meta name="color-scheme" content="light dark">',
     '<meta name="robots" content="noindex">',
-    options.refreshSeconds ? `<meta http-equiv="refresh" content="${options.refreshSeconds}">` : '',
+    options.refresh
+      ? `<meta http-equiv="refresh" content="${options.refresh.seconds};url=${escapeHtml(options.refresh.url)}">`
+      : '',
     `<title>${escapeHtml(title)} - ${escapeHtml(MESSAGES.product)}</title>`,
     `<link rel="stylesheet" href="${ASSETS.style}">`,
     options.script ? `<script src="${ASSETS.copy}" defer></script>` : '',
@@ -71,12 +75,26 @@ export function donePage(key: string): Response {
   )
 }
 
-export function pendingPage(): Response {
+export function pendingPage(sessionId: string, check: number): Response {
+  const done = `/done?session_id=${encodeURIComponent(sessionId)}`
+  const lead = `<p class="lead">${escapeHtml(MESSAGES.pendingBody)}</p>`
+  if (check >= PENDING_CHECKS) {
+    return page(
+      MESSAGES.pendingTitle,
+      lead +
+        `<p class="muted">${escapeHtml(MESSAGES.pendingStopped)} ` +
+        `<a href="${escapeHtml(done)}">${escapeHtml(MESSAGES.pendingCheckAgain)}</a></p>`,
+      { status: 202 },
+    )
+  }
   return page(
     MESSAGES.pendingTitle,
-    `<p class="lead">${escapeHtml(MESSAGES.pendingBody)}</p>` +
+    lead +
       `<p class="wait muted"><span class="spinner" aria-hidden="true"></span>${escapeHtml(MESSAGES.pendingReload)}</p>`,
-    { status: 202, refreshSeconds: PENDING_RELOAD_SECONDS },
+    {
+      status: 202,
+      refresh: { seconds: PENDING_RELOAD_SECONDS, url: `${done}&check=${check + 1}` },
+    },
   )
 }
 

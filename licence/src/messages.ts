@@ -21,6 +21,9 @@ export const MESSAGES = {
   pendingBody:
     'Your licence is issued as soon as the payment goes through, and we email it to you then.',
   pendingReload: 'This page checks again by itself. You can also close it: the key comes by email.',
+  pendingStopped:
+    'This page has stopped checking. The key comes by email as soon as the payment goes through.',
+  pendingCheckAgain: 'Check again',
   resendTitle: 'Send my licence again',
   resendBody:
     'Enter the email address you bought Devot with, and we send every licence bought with it there.',

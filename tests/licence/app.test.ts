@@ -7,6 +7,7 @@ import {
   verifyLicence,
   verifyRevocations,
 } from '../../licence/src/format'
+import { PENDING_CHECKS } from '../../licence/src/pages'
 import { d1Store, type SqlDatabase } from '../../licence/src/store'
 import { signStripePayload } from '../../licence/src/webhook'
 import { d1Database, FakeStripe, rawSession, RecordingMailer, vectors } from './support'
@@ -293,6 +294,17 @@ describe('/done', () => {
     stripe.pay(sessionId, 'buyer@example.com', 'unpaid')
     expect((await get(`/done?session_id=${sessionId}`)).status).toBe(202)
     expect(await licenceCount()).toBe(0)
+    const refresh = 'http-equiv="refresh"'
+    expect(await (await get(`/done?session_id=${sessionId}&check=1`)).text()).toContain(refresh)
+    for (const check of [String(PENDING_CHECKS), '99999999999999999999']) {
+      const waiting = await get(`/done?session_id=${sessionId}&check=${check}`)
+      expect(waiting.status).toBe(202)
+      expect(await waiting.text()).not.toContain(refresh)
+    }
+    for (const check of ['-1', 'x', '', '1e3']) {
+      const waiting = await get(`/done?session_id=${sessionId}&check=${check}`)
+      expect(await waiting.text()).toContain('check=1"')
+    }
     expect((await get('/done?session_id=cs_test_none')).status).toBe(404)
     expect((await get('/done?session_id=<script>')).status).toBe(400)
     expect((await get('/done')).status).toBe(400)

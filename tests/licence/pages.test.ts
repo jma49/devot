@@ -9,6 +9,7 @@ import {
   donePage,
   errorPage,
   pendingPage,
+  PENDING_CHECKS,
   PENDING_RELOAD_SECONDS,
   resendPage,
   resentPage,
@@ -17,10 +18,12 @@ import {
 const KEY = 'devot1.eyJpZCI6IkFBQSJ9.c2lnbmF0dXJl'
 const HOSTILE = `devot1.<script>alert("x")</script>&'+/=?#.sig`
 const CODES = Object.keys(MESSAGES.errors) as LicenceCode[]
+const SESSION = 'cs_test_a1B2'
 
 const pages = (): [string, Response][] => [
   ['done', donePage(KEY)],
-  ['pending', pendingPage()],
+  ['pending', pendingPage(SESSION, 0)],
+  ['pending, stopped', pendingPage(SESSION, PENDING_CHECKS)],
   ['resend', resendPage()],
   ['resent', resentPage()],
   ...CODES.map((code): [string, Response] => [code, errorPage(code, 500)]),
@@ -103,14 +106,30 @@ describe('/done', () => {
   })
 })
 
-it('the waiting page answers 202 and reloads itself, with no key', async () => {
-  const response = pendingPage()
+it('the waiting page answers 202 and reloads itself with the next check count, with no key', async () => {
+  const response = pendingPage(SESSION, 0)
   expect(response.status).toBe(202)
   const html = await response.text()
-  expect(html).toContain(`<meta http-equiv="refresh" content="${PENDING_RELOAD_SECONDS}">`)
+  expect(html).toContain(
+    `<meta http-equiv="refresh" content="${PENDING_RELOAD_SECONDS};url=/done?session_id=${SESSION}&amp;check=1">`,
+  )
   expect(html).toContain(MESSAGES.pendingBody)
   expect(html).toContain(MESSAGES.pendingReload)
   expect(html).not.toMatch(/devot1|<script/)
+})
+
+it('the waiting page stops reloading after a bounded number of checks', async () => {
+  expect(await pendingPage(SESSION, PENDING_CHECKS - 1).text()).toContain(
+    `check=${PENDING_CHECKS}">`,
+  )
+  const html = await pendingPage(SESSION, PENDING_CHECKS).text()
+  expect(pendingPage(SESSION, PENDING_CHECKS).status).toBe(202)
+  expect(html).not.toContain('http-equiv="refresh"')
+  expect(html).not.toContain('class="spinner"')
+  expect(html).not.toContain(MESSAGES.pendingReload)
+  expect(html).toContain(MESSAGES.pendingStopped)
+  expect(html).toContain(`<a href="/done?session_id=${SESSION}">${MESSAGES.pendingCheckAgain}</a>`)
+  expect(await pendingPage(SESSION, 10 ** 9).text()).not.toContain('http-equiv="refresh"')
 })
 
 it('the resend form posts an address, and its answer says nothing about the address', async () => {
