@@ -14,3 +14,7 @@ Devot runs no hosted service. Sync goes through a relay the owner deploys themse
 - A guide and a template deploy the relay to the owner's Cloudflare account (`wrangler deploy`) or run it with Node.
 - The entitlements interface (#5) stays: every feature is available, and a later account source can fill it.
 - `docs/architecture.md`, Product: accounts are not part of phase 2; sync's identity is pairing.
+
+## Amended
+
+ADR 0006 adds one hosted service, the licence Worker, which sells and reissues licences and never sees notes. Sync still needs no account.
