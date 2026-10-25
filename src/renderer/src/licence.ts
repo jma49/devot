@@ -110,18 +110,33 @@ let trialEnd: ReturnType<typeof setTimeout> | undefined
 /** The longest delay a timer takes; a later end is looked at again then. */
 const MAX_DELAY_MS = 2 ** 31 - 1
 
+const notify = () => {
+  for (const listener of listeners) listener()
+}
+
+/** Tells the windows when the trial ends; Rust's own look at the trial comes within a minute. */
+const watchTrialEnd = (endsAt: number) => {
+  const left = endsAt - Date.now()
+  if (left <= 0) return
+  trialEnd = setTimeout(
+    () => {
+      if (left > MAX_DELAY_MS) watchTrialEnd(endsAt)
+      else {
+        snapshot = { ...snapshot }
+        notify()
+      }
+    },
+    Math.min(left, MAX_DELAY_MS),
+  )
+}
+
 const publish = (next: LicenceSnapshot | undefined) => {
   if (!next) return
   snapshot = next
   clearTimeout(trialEnd)
-  const endsAt = next.trial?.state === 'running' ? next.trial.endsAt : null
-  // The windows lock at the end itself; Rust's own look at the trial comes within a minute.
-  if (endsAt !== null)
-    trialEnd = setTimeout(
-      () => publish({ ...snapshot }),
-      Math.min(Math.max(endsAt - Date.now(), 0), MAX_DELAY_MS),
-    )
-  for (const listener of listeners) listener()
+  if (next.trial?.state === 'running' && next.trial.endsAt !== null)
+    watchTrialEnd(next.trial.endsAt)
+  notify()
 }
 
 let started = false
