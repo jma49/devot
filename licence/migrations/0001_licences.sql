@@ -23,6 +23,13 @@ CREATE TABLE purchases (
 CREATE INDEX purchases_payment_intent ON purchases (payment_intent);
 CREATE INDEX purchases_customer ON purchases (customer_id);
 
+-- PaymentIntents refunded in full or lost in a dispute, so a licence whose purchase is recorded
+-- after its refund is issued revoked.
+CREATE TABLE revoked_payments (
+  payment_intent TEXT PRIMARY KEY,
+  revoked_at TEXT NOT NULL
+);
+
 -- /resend's fixed-window counters, keyed by a keyed hash of the address or the IP.
 CREATE TABLE rate_limits (
   key TEXT PRIMARY KEY,

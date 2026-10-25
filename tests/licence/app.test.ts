@@ -40,6 +40,7 @@ beforeEach(async () => {
     db.prepare('DELETE FROM purchases'),
     db.prepare('DELETE FROM licences'),
     db.prepare('DELETE FROM rate_limits'),
+    db.prepare('DELETE FROM revoked_payments'),
   ])
   stripe = new FakeStripe()
   mailer = new RecordingMailer()
@@ -235,6 +236,42 @@ describe('/done', () => {
     expect(keysIn(mailer.sent[0]?.text ?? '')[0]).toBe(key)
   })
 
+  it('mails once when the webhook arrives while /done is still sending', async () => {
+    const session = await buy('buyer@example.com')
+    const release = mailer.hold()
+    expect((await get(`/done?session_id=${session.id}`)).status).toBe(200)
+    // A webhook that also sent would wait on the held mail, so the test would time out.
+    const hooks = [1, 2].map(() => webhook('checkout.session.completed', rawSession(session)))
+    expect((await Promise.all(hooks)).map((r) => r.status)).toEqual([200, 200])
+    release()
+    await settle()
+    expect(mailer.sent).toHaveLength(1)
+  })
+
+  it('leaves the mail to the webhook when the mail from /done fails', async () => {
+    const session = await buy('buyer@example.com')
+    mailer.failing = true
+    await get(`/done?session_id=${session.id}`)
+    await settle()
+    expect(logs).toContain(`E_LICENCE_MAIL ${session.id} E_DELIVERY_FAILED`)
+    mailer.failing = false
+    expect((await webhook('checkout.session.completed', rawSession(session))).status).toBe(200)
+    expect(mailer.sent).toHaveLength(1)
+  })
+
+  it("signs for the session's address when the first customer is gone, and says when no address is left", async () => {
+    const session = await buy('buyer@example.com')
+    await webhook('checkout.session.completed', rawSession(session))
+    const mailed = keysIn(mailer.sent[0]?.text ?? '')[0]
+    stripe.customers.delete(session.customer ?? '')
+    const html = await (await get(`/done?session_id=${session.id}`)).text()
+    expect(keysIn(html)[0]).toBe(mailed)
+    stripe.sessions.set(session.id, { ...session, email: null })
+    const response = await get(`/done?session_id=${session.id}`)
+    expect(response.status).toBe(409)
+    expect(await response.text()).toContain('E_LICENCE_NO_CUSTOMER')
+  })
+
   it('shows the same key again after the webhook issued it', async () => {
     const session = await buy('buyer@example.com')
     await webhook('checkout.session.completed', rawSession(session))
@@ -324,6 +361,25 @@ describe('renewing', () => {
     expect((await get(`/done?session_id=${renewal.id}`)).status).toBe(410)
   })
 
+  it("renews for the renewal's address when the first customer was deleted", async () => {
+    const session = await buy('buyer@example.com')
+    await webhook('checkout.session.completed', rawSession(session))
+    const first = await payload(keysIn(mailer.sent[0]?.text ?? '')[0] ?? '')
+    stripe.customers.delete(session.customer ?? '')
+    const renewal = await buy('new@example.com', `/renew?licence=${first.id}`)
+    expect((await webhook('checkout.session.completed', rawSession(renewal))).status).toBe(200)
+    const renewed = await payload(keysIn(mailer.sent[1]?.text ?? '')[0] ?? '')
+    expect(renewed).toMatchObject({ id: first.id, licensee: 'new@example.com' })
+    expect(mailer.sent[1]?.to).toBe('new@example.com')
+    expect((await get(`/done?session_id=${renewal.id}`)).status).toBe(200)
+    mailer.sent.length = 0
+    await resend('new@example.com')
+    await settle()
+    expect((await payload(keysIn(mailer.sent[0]?.text ?? '')[0] ?? '')).licensee).toBe(
+      'new@example.com',
+    )
+  })
+
   it('counts a late renewal from the day it is paid', async () => {
     const first = await bought()
     clock = new Date('2029-01-15T08:00:00Z')
@@ -393,6 +449,22 @@ describe('revocation', () => {
       payment_intent: { id: renewal.paymentIntent, object: 'payment_intent' },
     })
     expect(await revokedIds()).toEqual([])
+  })
+
+  it('a refund that arrives before the purchase is recorded issues the licence revoked', async () => {
+    const session = await buy('buyer@example.com')
+    const refund = await webhook('charge.refunded', {
+      object: 'charge',
+      refunded: true,
+      payment_intent: session.paymentIntent,
+    })
+    expect(refund.status).toBe(200)
+    expect((await webhook('checkout.session.completed', rawSession(session))).status).toBe(200)
+    expect(await licenceCount()).toBe(1)
+    expect(mailer.sent).toEqual([])
+    const [id] = await revokedIds()
+    expect(logs).toContain(`E_LICENCE_REVOKED ${id} ${session.id}`)
+    expect((await get(`/done?session_id=${session.id}`)).status).toBe(410)
   })
 
   it('a refund of something else changes nothing', async () => {

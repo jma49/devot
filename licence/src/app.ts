@@ -49,6 +49,7 @@ const STATUS: Partial<Record<LicenceCode, number>> = {
   E_LICENCE_CONFIG: 503,
   E_LICENCE_MAIL: 502,
   E_LICENCE_METHOD: 405,
+  E_LICENCE_NO_CUSTOMER: 409,
   E_LICENCE_NOT_FOUND: 404,
   E_LICENCE_REVOKED: 410,
   E_LICENCE_SESSION_UNKNOWN: 404,
@@ -113,14 +114,25 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       return renewed
     }
     const issued = await store.issue({ ...base, licenceId: newLicenceId() })
-    if (issued.created) log(`I_LICENCE_ISSUED ${issued.licence.id} ${session.id}`)
+    if (issued.created && issued.licence.revokedAt) {
+      log(`E_LICENCE_REVOKED ${issued.licence.id} ${session.id}`)
+    } else if (issued.created) {
+      log(`I_LICENCE_ISSUED ${issued.licence.id} ${session.id}`)
+    }
     return issued
   }
 
-  /** The licensee is the email of the Stripe customer who first bought the licence. */
-  async function licensee(licence: Licence, session?: CheckoutSession): Promise<string> {
+  /**
+   * The licensee is the email of the Stripe customer who first bought the licence; once that
+   * customer is deleted or has no address, the one `fallback` gives (the paying session's).
+   */
+  async function licensee(
+    licence: Licence,
+    session?: CheckoutSession,
+    fallback: () => Promise<string | null> = async () => session?.email ?? null,
+  ): Promise<string> {
     if (session?.email && session.customer === licence.customerId) return session.email
-    const email = (await stripe.retrieveCustomer(licence.customerId))?.email
+    const email = (await stripe.retrieveCustomer(licence.customerId))?.email ?? (await fallback())
     if (!email) throw new LicenceError('E_LICENCE_NO_CUSTOMER', licence.id)
     return email
   }
@@ -140,10 +152,17 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     const owner = await licensee(licence, session)
     const key = await keyFor(licence, owner)
     const kind = purchase.kind === 'renewal' ? 'renewed' : 'issued'
-    await mailer.send(
-      licenceMail(session.email ?? owner, kind, [{ key, updatesUntil: licence.updatesUntil }]),
-    )
-    await store.markMailed(purchase.sessionId, instant(now()))
+    const mail = licenceMail(session.email ?? owner, kind, [
+      { key, updatesUntil: licence.updatesUntil },
+    ])
+    // /done and the webhook, or two deliveries of one event, can get here together: one sends.
+    if (!(await store.claimMail(purchase.sessionId, instant(now())))) return
+    try {
+      await mailer.send(mail)
+    } catch (error) {
+      await store.releaseMail(purchase.sessionId)
+      throw error
+    }
     log(`I_LICENCE_MAILED ${licence.id} ${purchase.sessionId}`)
   }
 
@@ -190,7 +209,11 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     const id = typeof paymentIntent === 'string' ? paymentIntent : expandedId(paymentIntent)
     if (!id) return
     const revokedId = await store.revokeByPayment(id, instant(now()))
-    if (revokedId) log(`I_LICENCE_REVOKED ${revokedId} ${reason}`)
+    log(
+      revokedId
+        ? `I_LICENCE_REVOKED ${revokedId} ${reason}`
+        : `I_LICENCE_PAYMENT_REVOKED ${id} ${reason}`,
+    )
   }
 
   async function done(url: URL): Promise<Response> {
@@ -214,7 +237,9 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     const licence = await store.licence(purchase.licenceId)
     if (!licence) return errorPage('E_LICENCE_UNKNOWN', 404)
     if (licence.revokedAt) return errorPage('E_LICENCE_REVOKED', 410)
-    const key = await keyFor(licence, await licensee(licence, session))
+    const paid = async () =>
+      (session ?? (await stripe.retrieveCheckoutSession(sessionId)))?.email ?? null
+    const key = await keyFor(licence, await licensee(licence, session, paid))
     return donePage(key, licence.updatesUntil, purchase.kind === 'renewal')
   }
 
@@ -265,7 +290,9 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     if (licences.length === 0) return
     const keys = []
     for (const licence of licences) {
-      const owner = emails.get(licence.customerId) || (await licensee(licence))
+      const owner =
+        emails.get(licence.customerId) ||
+        (await licensee(licence, undefined, async () => customers[0]?.email ?? null))
       keys.push({ key: await keyFor(licence, owner), updatesUntil: licence.updatesUntil })
     }
     await mailer.send(licenceMail(email, 'resend', keys))

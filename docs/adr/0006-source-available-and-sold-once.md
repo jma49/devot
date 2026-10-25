@@ -47,7 +47,7 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
 
 ## Buying
 
-- **The Worker:** `licence/` is a Cloudflare Worker deployed to the owner's account, with a D1 database. The database holds one row per licence: ID, Stripe Checkout Session ID, Stripe customer ID, issued at, updates until and revoked at. Beside it, one row per paid session (the first purchase and each renewal) keeps the session, customer and PaymentIntent IDs, so a session fulfils once and a refund finds its licence, and `/resend` keeps its rate-limit counters under keyed hashes. It stores no email (Stripe holds it), no key (it signs one again from the row) and no notes.
+- **The Worker:** `licence/` is a Cloudflare Worker deployed to the owner's account, with a D1 database. The database holds one row per licence: ID, Stripe Checkout Session ID, Stripe customer ID, issued at, updates until and revoked at. Beside it, one row per paid session (the first purchase and each renewal) keeps the session, customer and PaymentIntent IDs, so a session fulfils once and a refund finds its licence; a refunded or lost PaymentIntent is kept too, so a refund that arrives before its purchase is recorded still revokes the licence; and `/resend` keeps its rate-limit counters under keyed hashes. It stores no email (Stripe holds it), no key (it signs one again from the row) and no notes.
 - **Routes:**
   - `GET /buy` creates a Checkout Session for the licence's Price and redirects to it.
   - `GET /renew?licence=<id>` does the same for the renewal Price, with the licence ID in the session's metadata.

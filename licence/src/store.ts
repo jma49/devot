@@ -60,8 +60,14 @@ export interface Store {
    * a revoked licence is recorded but not extended. Null for an unknown licence.
    */
   renew(fulfilment: Fulfilment): Promise<Fulfilled | null>
-  markMailed(sessionId: string, at: string): Promise<void>
-  /** Revokes the licence a first purchase paid for; null when none or already revoked. */
+  /** Marks a purchase mailed unless it already is: true when this call claimed the mail. */
+  claimMail(sessionId: string, at: string): Promise<boolean>
+  /** Undoes a claim whose mail failed, so a retry can send it. */
+  releaseMail(sessionId: string): Promise<void>
+  /**
+   * Revokes the licence a first purchase paid for; null when none or already revoked. Remembers the
+   * PaymentIntent either way, so a licence its purchase issues later is issued revoked.
+   */
   revokeByPayment(paymentIntent: string, at: string): Promise<string | null>
   licencesOfCustomers(customerIds: string[]): Promise<Licence[]>
   revokedIds(): Promise<string[]>
@@ -130,11 +136,12 @@ export function d1Store(db: SqlDatabase): Store {
       const results = await db.batch([
         db
           .prepare(
-            `INSERT INTO licences (id, session_id, customer_id, issued_at, updates_until)
-             SELECT ?1, ?2, ?3, ?4, date(?5, '+1 year')
+            `INSERT INTO licences (id, session_id, customer_id, issued_at, updates_until, revoked_at)
+             SELECT ?1, ?2, ?3, ?4, date(?5, '+1 year'),
+               (SELECT revoked_at FROM revoked_payments WHERE payment_intent = ?6)
              WHERE NOT EXISTS (SELECT 1 FROM purchases WHERE session_id = ?2)`,
           )
-          .bind(f.licenceId, f.sessionId, f.customerId, f.at, f.today),
+          .bind(f.licenceId, f.sessionId, f.customerId, f.at, f.today, f.paymentIntent),
         db
           .prepare(
             `INSERT INTO purchases (session_id, licence_id, kind, payment_intent, customer_id, created_at)
@@ -165,24 +172,40 @@ export function d1Store(db: SqlDatabase): Store {
       return fulfilled(f.sessionId, results[1])
     },
 
-    async markMailed(sessionId, at) {
-      await db
+    async claimMail(sessionId, at) {
+      const result = await db
         .prepare('UPDATE purchases SET mailed_at = ? WHERE session_id = ? AND mailed_at IS NULL')
         .bind(at, sessionId)
+        .run()
+      return changes(result) > 0
+    },
+
+    async releaseMail(sessionId) {
+      await db
+        .prepare('UPDATE purchases SET mailed_at = NULL WHERE session_id = ?')
+        .bind(sessionId)
         .run()
     },
 
     async revokeByPayment(paymentIntent, at) {
-      const row = await db
-        .prepare(
-          `UPDATE licences SET revoked_at = ?1
-           WHERE revoked_at IS NULL AND id IN (
-             SELECT licence_id FROM purchases WHERE payment_intent = ?2 AND kind = 'licence')
-           RETURNING id`,
-        )
-        .bind(at, paymentIntent)
-        .first<{ id: string }>()
-      return row?.id ?? null
+      const [, revoked] = await db.batch([
+        db
+          .prepare(
+            `INSERT INTO revoked_payments (payment_intent, revoked_at) VALUES (?1, ?2)
+             ON CONFLICT (payment_intent) DO NOTHING`,
+          )
+          .bind(paymentIntent, at),
+        db
+          .prepare(
+            `UPDATE licences SET revoked_at = ?1
+             WHERE revoked_at IS NULL AND id IN (
+               SELECT licence_id FROM purchases WHERE payment_intent = ?2 AND kind = 'licence')
+             RETURNING id`,
+          )
+          .bind(at, paymentIntent),
+      ])
+      const rows = (revoked as { results?: { id: string }[] } | undefined)?.results
+      return rows?.[0]?.id ?? null
     },
 
     async licencesOfCustomers(customerIds) {

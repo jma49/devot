@@ -18,6 +18,7 @@ beforeEach(async () => {
     db.prepare('DELETE FROM purchases'),
     db.prepare('DELETE FROM licences'),
     db.prepare('DELETE FROM rate_limits'),
+    db.prepare('DELETE FROM revoked_payments'),
   ])
   store = d1Store(db)
 })
@@ -126,14 +127,30 @@ it('finds licences through any of their purchases customers', async () => {
   expect(await store.licencesOfCustomers([])).toEqual([])
 })
 
-it('marks a purchase mailed once', async () => {
+it("claims a purchase's mail once, until the claim is released", async () => {
   const bought = purchase()
   await store.issue(bought)
   expect((await store.purchase(bought.sessionId))?.mailedAt).toBeNull()
-  await store.markMailed(bought.sessionId, '2026-10-24T09:31:00Z')
-  await store.markMailed(bought.sessionId, '2026-10-24T09:32:00Z')
+  expect(await store.claimMail(bought.sessionId, '2026-10-24T09:31:00Z')).toBe(true)
+  expect(await store.claimMail(bought.sessionId, '2026-10-24T09:32:00Z')).toBe(false)
   expect((await store.purchase(bought.sessionId))?.mailedAt).toBe('2026-10-24T09:31:00Z')
+  await store.releaseMail(bought.sessionId)
+  expect((await store.purchase(bought.sessionId))?.mailedAt).toBeNull()
+  expect(await store.claimMail(bought.sessionId, '2026-10-24T09:33:00Z')).toBe(true)
+  expect(await store.claimMail('cs_none', '2026-10-24T09:33:00Z')).toBe(false)
   expect(await store.purchase('cs_none')).toBeNull()
+})
+
+it('issues a licence revoked when its payment was refunded before the purchase was recorded', async () => {
+  const early = purchase()
+  expect(await store.revokeByPayment(early.paymentIntent ?? '', '2026-10-24T09:29:00Z')).toBeNull()
+  const { licence } = await store.issue(early)
+  expect(licence.revokedAt).toBe('2026-10-24T09:29:00Z')
+  expect(await store.revokedIds()).toEqual([licence.id])
+  const other = await store.issue(purchase())
+  expect(other.licence.revokedAt).toBeNull()
+  const unpaid = await store.issue(purchase({ paymentIntent: null }))
+  expect(unpaid.licence.revokedAt).toBeNull()
 })
 
 it('counts hits per key and window and forgets old windows', async () => {

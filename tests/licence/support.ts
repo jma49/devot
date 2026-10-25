@@ -144,9 +144,20 @@ export function rawSession(session: CheckoutSession) {
 export class RecordingMailer implements Mailer {
   readonly sent: Mail[] = []
   failing = false
+  private held: Promise<void> | undefined
+
+  /** Holds every send until the returned function is called. */
+  hold(): () => void {
+    let release = () => {}
+    this.held = new Promise((resolve) => {
+      release = resolve
+    })
+    return release
+  }
 
   async send(mail: Mail) {
     if (this.failing) throw new LicenceError('E_LICENCE_MAIL', 'E_DELIVERY_FAILED')
+    await this.held
     this.sent.push(mail)
   }
 }
