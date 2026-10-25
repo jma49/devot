@@ -1,0 +1,86 @@
+// What the windows say about the trial: one bar that stays while notes are read-only (the trial is
+// over without a licence), and once, in the trial's last day, when it ends.
+import { useEffect, useState } from 'react'
+import { currentLocale, t } from './i18n'
+import { openBuy, openLicenceSettings, useLicence, useTrialOver } from './licence'
+import { reminderDue, reminderText, REMINDER_MS } from './licenceView'
+
+const REMINDED_KEY = 'devot.trial.reminded'
+
+/** The end of the trial whose reminder was dismissed; kept beside the window's other view state. */
+function remindedFor(): number | null {
+  try {
+    const stored = Number(globalThis.localStorage?.getItem(REMINDED_KEY))
+    return Number.isSafeInteger(stored) && stored > 0 ? stored : null
+  } catch {
+    return null
+  }
+}
+
+function remember(endsAt: number) {
+  try {
+    globalThis.localStorage?.setItem(REMINDED_KEY, String(endsAt))
+  } catch {
+    console.warn('W_TRIAL_REMINDER_NOT_KEPT')
+  }
+}
+
+function TrialButtons() {
+  return (
+    <>
+      <button type="button" className="button" onClick={openBuy}>
+        {t('licenceSettings.buy')}
+      </button>
+      <button type="button" className="button" onClick={openLicenceSettings}>
+        {t('licenceSettings.add')}
+      </button>
+    </>
+  )
+}
+
+/** Stays while the trial is over without a licence; nothing dismisses it. */
+export function TrialEndedBar() {
+  if (!useTrialOver()) return null
+  return (
+    <div role="status" className="notice" data-devot-part="notice" data-devot-trial-ended>
+      <span className="notice-text">{t('trial.ended')}</span>
+      <TrialButtons />
+    </div>
+  )
+}
+
+/** Once, when less than a day of the trial is left; dismissed, it never comes back. */
+export function TrialReminder() {
+  const licence = useLicence()
+  const [dismissed, setDismissed] = useState(remindedFor)
+  const [now, setNow] = useState(Date.now)
+  const endsAt = licence.trial?.state === 'running' ? licence.trial.endsAt : null
+
+  // Shown when the last day begins, gone when the trial ends.
+  useEffect(() => {
+    if (endsAt === null) return
+    const at = Date.now()
+    const timers = [endsAt - REMINDER_MS, endsAt]
+      .filter((when) => when > at)
+      .map((when) => setTimeout(() => setNow(Date.now()), Math.min(when - at, 2 ** 31 - 1)))
+    return () => timers.forEach(clearTimeout)
+  }, [endsAt])
+
+  if (endsAt === null || !reminderDue(licence, now, dismissed)) return null
+  return (
+    <div role="alert" className="notice" data-devot-part="notice" data-devot-trial-reminder>
+      <span className="notice-text">{reminderText(endsAt, now, currentLocale())}</span>
+      <TrialButtons />
+      <button
+        type="button"
+        className="button"
+        onClick={() => {
+          remember(endsAt)
+          setDismissed(endsAt)
+        }}
+      >
+        {t('notice.dismiss')}
+      </button>
+    </div>
+  )
+}

@@ -1,6 +1,6 @@
 # Devot is source-available under FSL and sold once, with a licence checked offline
 
-The repository stays public under the Functional Source License 1.1 with MIT as the future licence (FSL-1.1-MIT). Devot is free but for sync and AI. A licence bought once through Stripe unlocks sync and AI on all of the buyer's devices, in every version of Devot, forever. There is no renewal. The licence is a signed key that the app checks offline, so there is still no account (ADR 0004). This amends ADR 0004: Devot runs one small hosted service, the licence Worker, which never sees notes.
+The repository stays public under the Functional Source License 1.1 with MIT as the future licence (FSL-1.1-MIT). Devot works fully for a three-day trial; after it, notes are read-only until a licence is added. A licence bought once through Stripe unlocks everything on all of the buyer's devices, in every version of Devot, forever. There is no renewal. The licence is a signed key that the app checks offline, so there is still no account (ADR 0004). This amends ADR 0004: Devot runs one small hosted service, the licence Worker, which never sees notes.
 
 ## Source licence
 
@@ -14,15 +14,19 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
   - break the update feed (`src-tauri/src/updates.rs` reads this repository's releases) and the relay guide (`docs/sync-relay.md` deploys from a checkout);
   - hide the code that shows the encryption does what ADR 0002 says.
 
-## What is free and what the licence unlocks
+## The trial, and what the licence unlocks
 
-- **Free:** everything else. That covers notes, notebooks, tags, search, history, backups, import and export, templates, several windows, plugins and the local HTTP API and MCP.
-- **Licence:**
+- **The trial:** three days (72 hours) from the first launch of a build that checks licences (one with a production key), so someone updating from a build that checked none gets their three days then. While it runs, everything works, sync and AI included. A valid licence overrides it at any time.
+  - Its start and the latest time seen are kept in the keychain beside the licence, which outlives a reinstall. Setting the clock back more than an hour before the latest time seen ends the trial rather than extending it. Erasing the keychain item gives a new trial: that is accepted, as builds without the check are (Risks).
+  - A build without a production key never starts the clock and gates nothing.
+- **After the trial, without a licence, Devot is read-only:** notes can be read, searched, copied and exported (`localNotes`, always free), but no note, notebook, tag, attachment, template or trash entry can be created, changed or deleted, nothing can be imported, and sync and AI are locked. Settings, window state, the licence itself, backups of existing data, exports and the Markdown mirror keep working. Rust refuses every write of user content (`E_LICENCE_REQUIRED`), and a note being saved as the trial ends is still written for a few minutes, so nothing typed is lost.
+- **The licence unlocks:**
+  - editing (`editing`);
   - sync (`sync`);
   - AI with the user's own provider keys (`aiProviders`), including edit proposals and next edit suggestions;
   - local semantic search once it ships (`semanticSearch`).
 - A licence names a plan (`pro`), not a list of features, so a paid feature added later reaches every licence.
-- There is no trial. A trial needs a record of its start that survives reinstalling, and a device can always reset that record. Revisit this if buyers ask.
+- The devot-mcp CLI writes the database itself and is not covered; it is not shipped.
 
 ## The licence
 
@@ -40,8 +44,8 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
   - valid;
   - revoked;
   - invalid.
-- **Where Rust enforces it:** the sync service refuses to connect and the AI client refuses to send without a valid licence (`E_LICENCE_REQUIRED`). The UI reads the same state through an `EntitlementSource` and shows locked features with Buy.
-- **Offline:** nothing checks a licence online. It works offline forever, so `OFFLINE_GRACE_MS` and `confirmedAt` go; they belonged to an account that does not exist.
+- **Where Rust enforces it:** without a valid licence once the trial is over, the database refuses every write of user content, the sync service refuses to connect and the AI client refuses to send (`E_LICENCE_REQUIRED`). The UI reads the same state, the trial's included, through an `EntitlementSource`, makes notes read-only and shows locked features with Buy.
+- **Offline:** nothing checks a licence or the trial online. A licence works offline forever, so `OFFLINE_GRACE_MS` and `confirmedAt` go; they belonged to an account that does not exist.
 - **Adding a licence:** paste it in Settings > Licence, or open `devot://licence?key=<key>` (from the purchase page or the email). A link always asks before it replaces a licence the device already holds. A key that fails to verify is refused with its code and never logged.
 
 ## Buying
@@ -80,8 +84,8 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
 
 - ADR 0004 now says "one hosted service: the licence Worker". Sync still has no account, and a licence is not an identity for sync.
 - `docs/architecture.md` changes:
-  - Product: source-available under FSL-1.1-MIT, free but for sync and AI, which need a licence;
-  - Billing: the licence source, no grace period;
+  - Product: source-available under FSL-1.1-MIT, a three-day trial, then read-only until a licence is added;
+  - Billing: the licence source and the trial;
   - CI: "free for a public repository" still holds.
 - **Tickets, in order:**
   1. The licence change: `LICENSE`, the three manifests and the docs.
@@ -99,3 +103,5 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
 ## Amended
 
 Issue #360 settled that a licence is bought once and unlocks sync and AI in every version, with no renewal: the key carries no date that ends it, the Worker sells one Price, and the updater offers every update the same way to everyone.
+
+Issue #362 replaced "free but for sync and AI" and "there is no trial" with the three-day trial and the read-only mode after it, described above.

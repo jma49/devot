@@ -11,7 +11,10 @@ export interface ChipMenuTarget {
 }
 
 export const CHIP_MENU: MenuGroups<ChipAction, ChipMenuTarget> = [
-  [commandEntry('settings', 'tag.settings'), { action: 'remove', label: 'note.removeTag' }],
+  [
+    commandEntry('settings', 'tag.settings'),
+    { action: 'remove', label: 'note.removeTag', edits: true },
+  ],
   [commandEntry('filter', 'tag.filter', { checked: (chip) => chip.filtered })],
   [commandEntry('copyId', 'tag.copyId')],
 ]

@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
@@ -7,7 +7,9 @@ use serde_json::{Value, json};
 use super::format::{verify_licence, verify_revocations};
 use super::keys::{PRODUCTION, TEST, decode_key};
 use super::store::MemoryKey;
-use super::testing::{ID, LICENSEE, key, licence_json, sign, sign_raw, test_keys, vectors};
+use super::testing::{
+    ID, LICENSEE, key, licence_json, sign, sign_raw, test_keys, trial_over, vectors,
+};
 use super::*;
 
 fn str_of<'a>(value: &'a Value, field: &str) -> &'a str {
@@ -257,25 +259,65 @@ fn a_revocation_list_needs_its_own_shape() {
 struct Setup {
     licence: Licence,
     store: Arc<MemoryKey>,
+    trial: Arc<MemoryKey>,
+    now: Arc<AtomicI64>,
     emitted: Arc<Mutex<Vec<Snapshot>>>,
     _dir: tempfile::TempDir,
 }
 
-fn setup_in(dir: tempfile::TempDir, gated: bool) -> Setup {
+/// When the tests' clock starts: long after `trial_over`'s trial.
+const START: i64 = 1_790_000_000_000;
+const HOUR: i64 = 3_600_000;
+
+fn setup_with(dir: tempfile::TempDir, gated: bool, trial: Arc<MemoryKey>) -> Setup {
     let store = Arc::new(MemoryKey::default());
     let emitted = Arc::new(Mutex::new(Vec::new()));
     let seen = Arc::clone(&emitted);
+    let now = Arc::new(AtomicI64::new(START));
+    let clock = Arc::clone(&now);
     let licence = Licence::new(
         test_keys(gated),
         Arc::clone(&store) as Arc<dyn KeyStore>,
+        Arc::clone(&trial) as Arc<dyn KeyStore>,
         dir.path(),
         Arc::new(move |s: &Snapshot| seen.lock().expect("emitted").push(s.clone())),
-    );
+    )
+    .with_clock(Arc::new(move || clock.load(Ordering::SeqCst)));
     Setup {
         licence,
         store,
+        trial,
+        now,
         emitted,
         _dir: dir,
+    }
+}
+
+fn setup_in(dir: tempfile::TempDir, gated: bool) -> Setup {
+    setup_with(dir, gated, trial_over())
+}
+
+/// A first launch: nothing in the trial's keychain item yet.
+fn first_launch(gated: bool) -> Setup {
+    setup_with(
+        tempfile::tempdir().expect("temp dir"),
+        gated,
+        Arc::new(MemoryKey::default()),
+    )
+}
+
+impl Setup {
+    fn at(&self, now: i64) {
+        self.now.store(now, Ordering::SeqCst);
+    }
+
+    fn kept_trial(&self) -> Option<trial::Record> {
+        let text = self.trial.key.lock().expect("trial").clone()?;
+        Some(trial::Record::read(&text).expect("record"))
+    }
+
+    fn trial_view(&self) -> TrialView {
+        self.licence.snapshot().trial.expect("gated")
     }
 }
 
@@ -296,7 +338,7 @@ fn a_licence_unlocks_every_version_whatever_dates_it_carries() {
         sent.as_object()
             .map(|o| o.keys().cloned().collect::<Vec<_>>()),
         Some(
-            ["code", "gated", "id", "licensee", "plan", "state"]
+            ["code", "gated", "id", "licensee", "plan", "state", "trial"]
                 .map(String::from)
                 .to_vec()
         )
@@ -430,6 +472,7 @@ fn an_offer_does_not_wait_on_a_keychain_prompt() {
             entered,
             answer: Mutex::new(answered),
         }),
+        trial_over(),
         dir.path(),
         Arc::new(|_: &Snapshot| {}),
     ));
@@ -546,6 +589,7 @@ fn an_offer_reads_the_kept_list_but_not_the_keychain() {
     let again = Licence::new(
         test_keys(true),
         Arc::clone(&fresh.store) as Arc<dyn KeyStore>,
+        trial_over(),
         &path,
         Arc::new(|_: &Snapshot| {}),
     );
@@ -584,6 +628,7 @@ fn the_last_verified_revocation_list_is_kept_in_app_data_and_read_again() {
     let again = Licence::new(
         test_keys(true),
         Arc::new(MemoryKey::default()),
+        trial_over(),
         &path,
         Arc::new(|_: &Snapshot| {}),
     );
@@ -594,6 +639,7 @@ fn the_last_verified_revocation_list_is_kept_in_app_data_and_read_again() {
     let tampered = Licence::new(
         test_keys(true),
         Arc::new(MemoryKey::default()),
+        trial_over(),
         &path,
         Arc::new(|_: &Snapshot| {}),
     );
@@ -624,5 +670,180 @@ fn neither_the_key_nor_the_licensee_reaches_a_log_or_a_debug_line() {
         crate::test_log::lines()
             .iter()
             .any(|l| l.contains(&format!("I_LICENCE_SET licence={ID}")))
+    );
+}
+
+#[test]
+fn the_first_launch_of_a_gated_build_begins_a_three_day_trial_kept_in_the_keychain() {
+    let s = first_launch(true);
+    assert_eq!(
+        s.trial_view(),
+        TrialView {
+            state: trial::TrialState::Running,
+            ends_at: Some(START + 72 * HOUR),
+            code: None,
+        }
+    );
+    assert_eq!(s.kept_trial(), Some(trial::Record::first(START)));
+    assert_eq!(s.licence.require(), Ok(()));
+    for what in [Write::Body, Write::Content, Write::Bookkeeping] {
+        assert_eq!(s.licence.require_write(what), Ok(()));
+    }
+    let sent = serde_json::to_value(s.licence.snapshot()).expect("json");
+    assert_eq!(
+        sent["trial"],
+        json!({ "state": "running", "endsAt": START + 72 * HOUR, "code": null })
+    );
+}
+
+#[test]
+fn a_later_launch_and_a_reinstall_keep_the_trial_begun_first() {
+    let first = first_launch(true);
+    first.licence.snapshot();
+    let item = Arc::clone(&first.trial);
+    let again = setup_with(tempfile::tempdir().expect("dir"), true, item);
+    again.at(START + 24 * HOUR);
+    assert_eq!(again.trial_view().ends_at, Some(START + 72 * HOUR));
+    assert_eq!(again.trial_view().state, trial::TrialState::Running);
+    // Each launch records the latest time seen.
+    assert_eq!(
+        again.kept_trial().map(|r| (r.start, r.seen)),
+        Some((START, START + 24 * HOUR))
+    );
+}
+
+#[test]
+fn once_the_trial_ran_out_user_content_sync_and_ai_are_refused() {
+    let s = first_launch(true);
+    s.licence.snapshot();
+    s.at(START + 72 * HOUR);
+    assert_eq!(s.trial_view().state, trial::TrialState::Ended);
+    assert_eq!(s.licence.require(), Err(REQUIRED));
+    assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    assert_eq!(s.licence.require_write(Write::Bookkeeping), Ok(()));
+}
+
+#[test]
+fn a_note_being_saved_as_the_trial_ends_still_lands_for_a_few_minutes() {
+    let s = first_launch(true);
+    s.licence.snapshot();
+    let end = START + 72 * HOUR;
+    s.at(end + trial::GRACE_MS - 1);
+    assert_eq!(s.licence.require_write(Write::Body), Ok(()));
+    assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    assert_eq!(s.licence.require(), Err(REQUIRED));
+    s.at(end + trial::GRACE_MS);
+    assert_eq!(s.licence.require_write(Write::Body), Err(REQUIRED));
+}
+
+#[test]
+fn setting_the_clock_back_ends_the_trial_and_setting_it_right_does_not_bring_it_back() {
+    let s = first_launch(true);
+    s.licence.snapshot();
+    s.at(START + 10 * HOUR);
+    s.licence.tick();
+    assert_eq!(s.kept_trial().map(|r| r.seen), Some(START + 10 * HOUR));
+    // Within the hour it may be a correction.
+    s.at(START + 9 * HOUR + 1);
+    assert_eq!(s.trial_view().state, trial::TrialState::Running);
+    s.at(START + 9 * HOUR - 1);
+    assert_eq!(s.trial_view().state, trial::TrialState::Ended);
+    assert_eq!(s.licence.require_write(Write::Body), Err(REQUIRED));
+    assert_eq!(s.kept_trial().map(|r| r.ended), Some(true));
+    s.at(START + 11 * HOUR);
+    assert_eq!(s.trial_view().state, trial::TrialState::Ended);
+    assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    // So does the next launch.
+    let again = setup_with(
+        tempfile::tempdir().expect("dir"),
+        true,
+        Arc::clone(&s.trial),
+    );
+    again.at(START + 11 * HOUR);
+    assert_eq!(again.trial_view().state, trial::TrialState::Ended);
+}
+
+#[test]
+fn a_valid_licence_unlocks_everything_whatever_the_trial() {
+    let s = setup(true);
+    assert_eq!(s.trial_view().state, trial::TrialState::Ended);
+    assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    s.licence.set(&key(ID)).expect("set");
+    assert_eq!(s.licence.require(), Ok(()));
+    for what in [Write::Body, Write::Content] {
+        assert_eq!(s.licence.require_write(what), Ok(()));
+    }
+    s.licence
+        .apply_revocations(&list("2026-11-01T00:00:00Z", &[ID]))
+        .expect("list");
+    assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+}
+
+#[test]
+fn an_ungated_build_never_starts_the_trial_clock() {
+    let s = first_launch(false);
+    assert_eq!(s.licence.snapshot().trial, None);
+    s.at(START + 100 * HOUR);
+    s.licence.tick();
+    assert_eq!(s.licence.require(), Ok(()));
+    for what in [Write::Body, Write::Content] {
+        assert_eq!(s.licence.require_write(what), Ok(()));
+    }
+    assert_eq!(s.trial.reads.load(Ordering::SeqCst), 0);
+    assert_eq!(s.kept_trial(), None);
+    assert!(s.emitted.lock().expect("emitted").is_empty());
+}
+
+#[test]
+fn a_trial_the_keychain_cannot_give_counts_as_ended_and_is_read_again_at_the_next_tick() {
+    let s = first_launch(true);
+    s.trial.unreadable.store(true, Ordering::SeqCst);
+    assert_eq!(
+        s.trial_view(),
+        TrialView {
+            state: trial::TrialState::Ended,
+            ends_at: None,
+            code: Some("E_LICENCE_KEYCHAIN"),
+        }
+    );
+    assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    s.licence.snapshot();
+    assert_eq!(s.trial.reads.load(Ordering::SeqCst), 1);
+    s.trial.unreadable.store(false, Ordering::SeqCst);
+    s.licence.tick();
+    assert_eq!(s.trial_view().state, trial::TrialState::Running);
+    assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+
+    // A damaged item does not begin a new trial.
+    let damaged = setup_with(
+        tempfile::tempdir().expect("dir"),
+        true,
+        Arc::new(MemoryKey::holding("{\"start\":")),
+    );
+    assert_eq!(damaged.trial_view().code, Some("E_TRIAL_UNREADABLE"));
+    assert_eq!(damaged.licence.require(), Err(REQUIRED));
+}
+
+#[test]
+fn the_latest_time_seen_is_written_every_ten_minutes_and_the_end_is_announced_once() {
+    let s = first_launch(true);
+    s.licence.tick();
+    assert_eq!(s.emitted.lock().expect("emitted").len(), 1);
+    s.at(START + 9 * 60_000);
+    s.licence.require_write(Write::Body).expect("running");
+    s.licence.tick();
+    assert_eq!(s.kept_trial().map(|r| r.seen), Some(START));
+    s.at(START + 10 * 60_000);
+    s.licence.tick();
+    assert_eq!(s.kept_trial().map(|r| r.seen), Some(START + 10 * 60_000));
+    assert_eq!(s.emitted.lock().expect("emitted").len(), 1);
+    s.at(START + 72 * HOUR);
+    s.licence.tick();
+    s.licence.tick();
+    let emitted = s.emitted.lock().expect("emitted");
+    assert_eq!(emitted.len(), 2);
+    assert_eq!(
+        emitted[1].trial.map(|t| t.state),
+        Some(trial::TrialState::Ended)
     );
 }

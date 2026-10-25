@@ -79,6 +79,7 @@ export const BOOK_MENU: MenuGroups<BookAction, BookMenuTarget> = [
     {
       action: 'import',
       label: 'bookMenu.import',
+      edits: true,
       submenu: [
         entry('importMarkdownFiles', { label: 'bookMenu.importMarkdownFilesItem' }),
         entry('importMarkdownFolder', { label: 'bookMenu.importMarkdownFolderItem' }),

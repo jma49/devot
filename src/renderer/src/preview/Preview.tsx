@@ -83,7 +83,7 @@ interface Props {
    */
   initialScroll?: () => number | undefined
   onScroll?: (top: number) => void
-  onToggleTask?: (at: number) => void
+  onToggleTask?: ((at: number) => void) | undefined
 }
 
 /**

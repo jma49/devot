@@ -1052,3 +1052,45 @@ fn a_new_token_works_at_once_even_when_its_scope_cannot_be_saved() {
     assert_eq!(core.reached(), 1);
     drop(locked);
 }
+
+#[test]
+fn once_the_trial_is_over_writes_are_refused_before_the_window_is_asked() {
+    let dir = tempfile::tempdir().unwrap();
+    let licence = crate::licence::testing::licence(dir.path(), true);
+    let dispatch = Licensed {
+        licence: crate::licence::Gate::of(&licence),
+        inner: Core::default(),
+    };
+    let call = |op| Call {
+        op,
+        note: Some(NOTE.into()),
+        args: Value::Null,
+    };
+    for op in [
+        Op::NotebooksCreate,
+        Op::NotesCreate,
+        Op::NotesUpdate,
+        Op::NotesTrash,
+    ] {
+        assert_eq!(
+            dispatch.dispatch(&call(op)).unwrap_err(),
+            "E_LICENCE_REQUIRED",
+            "{op:?}"
+        );
+    }
+    assert_eq!(dispatch.inner.reached(), 0);
+    for op in [
+        Op::NotebooksList,
+        Op::TagsList,
+        Op::NotesSearch,
+        Op::NotesRead,
+    ] {
+        assert!(dispatch.dispatch(&call(op)).is_ok(), "{op:?}");
+    }
+    assert_eq!(dispatch.inner.reached(), 4);
+    assert_eq!(status_of("E_LICENCE_REQUIRED"), 403);
+    licence
+        .set(&crate::licence::testing::key(crate::licence::testing::ID))
+        .unwrap();
+    assert!(dispatch.dispatch(&call(Op::NotesUpdate)).is_ok());
+}

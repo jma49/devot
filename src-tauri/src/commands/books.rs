@@ -1,5 +1,5 @@
 use super::notes::{valid_hlc, valid_note_id};
-use crate::storage::{BookRecord, Db, TAG_COLORS, notebook_symbol};
+use crate::storage::{BookRecord, Db, TAG_COLORS, Write, notebook_symbol};
 use tauri::State;
 
 const MAX_NAME_CHARS: usize = 200;
@@ -84,7 +84,7 @@ pub async fn books_list(db: State<'_, Db>) -> Result<Vec<BookRecord>, String> {
 #[tauri::command]
 pub async fn book_put(db: State<'_, Db>, book: BookRecord) -> Result<(), String> {
     validate(&book).map_err(String::from)?;
-    db.call(move |store| store.put_book(&book))
+    db.write(Write::Content, move |store| store.put_book(&book))
         .await
         .map_err(|e| e.to_string())
 }

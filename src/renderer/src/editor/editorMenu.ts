@@ -82,18 +82,24 @@ export const EDITOR_MENU: MenuGroups<EditorAction, EditorMenuTarget> = [
     {
       action: 'ai',
       label: 'aiEdit.menu',
+      edits: true,
       shown: (target) => target.canAiEdit,
       submenu: AI_SUBMENU,
     },
   ],
   [
-    { action: 'undo', label: 'editorMenu.undo', accelerator: 'CmdOrCtrl+Z' },
-    { action: 'redo', label: 'editorMenu.redo', accelerator: 'Shift+CmdOrCtrl+Z' },
+    { action: 'undo', label: 'editorMenu.undo', accelerator: 'CmdOrCtrl+Z', edits: true },
+    {
+      action: 'redo',
+      label: 'editorMenu.redo',
+      accelerator: 'Shift+CmdOrCtrl+Z',
+      edits: true,
+    },
   ],
   [
-    { action: 'cut', label: 'editorMenu.cut', predefined: 'Cut' },
+    { action: 'cut', label: 'editorMenu.cut', predefined: 'Cut', edits: true },
     { action: 'copy', label: 'editorMenu.copy', predefined: 'Copy' },
-    { action: 'paste', label: 'editorMenu.paste', predefined: 'Paste' },
+    { action: 'paste', label: 'editorMenu.paste', predefined: 'Paste', edits: true },
     commandEntry('pastePlain', 'edit.pastePlain'),
     { action: 'selectAll', label: 'editorMenu.selectAll', predefined: 'SelectAll' },
   ],

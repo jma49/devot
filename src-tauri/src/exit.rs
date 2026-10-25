@@ -278,7 +278,7 @@ pub fn app_exit_cancel(app: AppHandle, window: tauri::WebviewWindow) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::{Db, NoteRecord, Store};
+    use crate::storage::{Db, NoteRecord, Store, Write};
     use std::ffi::OsString;
     use std::sync::{Arc, mpsc};
     use std::task::{Context, Waker};
@@ -474,11 +474,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("devot.sqlite");
         let db = Db::spawn(&path).unwrap();
-        block_on(
-            db.call(|store| {
-                (0..200).try_for_each(|i| store.put_note(&note(&format!("n{i}")), &[]))
-            }),
-        )
+        block_on(db.write(Write::Body, |store| {
+            (0..200).try_for_each(|i| store.put_note(&note(&format!("n{i}")), &[]))
+        }))
         .unwrap();
 
         let gate = Arc::new(ExitGate::default());
@@ -503,7 +501,8 @@ mod tests {
             std::thread::spawn(move || block_on(crate::commands::search_index::rebuild(&db, stop)))
         };
         rebuild_runs.recv_timeout(Duration::from_secs(10)).unwrap();
-        let mut save = std::pin::pin!(db.call(|store| store.put_note(&note("typed"), &[])));
+        let mut save =
+            std::pin::pin!(db.write(Write::Body, |store| { store.put_note(&note("typed"), &[]) }));
         let mut cx = Context::from_waker(Waker::noop());
         assert!(
             save.as_mut().poll(&mut cx).is_pending(),

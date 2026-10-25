@@ -1,5 +1,5 @@
 use super::notes::{valid_hlc, valid_note_id};
-use crate::storage::{Db, NoteTagRecord, TAG_COLORS, TagRecord};
+use crate::storage::{Db, NoteTagRecord, TAG_COLORS, TagRecord, Write};
 use tauri::State;
 
 const MAX_NAME_CHARS: usize = 100;
@@ -61,7 +61,7 @@ pub async fn tags_list(db: State<'_, Db>) -> Result<Vec<TagRecord>, String> {
 #[tauri::command]
 pub async fn tag_put(db: State<'_, Db>, tag: TagRecord) -> Result<(), String> {
     validate_tag(&tag).map_err(String::from)?;
-    db.call(move |store| store.put_tag(&tag))
+    db.write(Write::Content, move |store| store.put_tag(&tag))
         .await
         .map_err(|e| e.to_string())
 }
@@ -69,7 +69,7 @@ pub async fn tag_put(db: State<'_, Db>, tag: TagRecord) -> Result<(), String> {
 #[tauri::command]
 pub async fn note_tag_put(db: State<'_, Db>, link: NoteTagRecord) -> Result<(), String> {
     validate_link(&link).map_err(String::from)?;
-    db.call(move |store| store.put_note_tag(&link))
+    db.write(Write::Content, move |store| store.put_note_tag(&link))
         .await
         .map_err(|e| e.to_string())
 }

@@ -376,12 +376,14 @@ impl Backups {
         })
         .await
         .map_err(|_| "E_BACKUP_TASK")??;
-        db.call(move |store| store.restore_from(&source))
-            .await
-            .map_err(|e| {
-                log::warn!("W_BACKUP_RESTORE_FAILED {e}");
-                "E_BACKUP_RESTORE_FAILED"
-            })?;
+        db.write(storage::Write::Content, move |store| {
+            store.restore_from(&source)
+        })
+        .await
+        .map_err(|e| {
+            log::warn!("W_BACKUP_RESTORE_FAILED {e}");
+            "E_BACKUP_RESTORE_FAILED"
+        })?;
         log::info!("I_BACKUP_RESTORED");
         Ok(())
     }

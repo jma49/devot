@@ -13,6 +13,7 @@ const OTHER_ID = '3f4lHWhFWnUPeDt7yIa3rw'
 
 type Licence = Record<string, unknown>
 
+/** No licence, the trial over. */
 const none = (gated = true): Licence => ({
   gated,
   state: 'none',
@@ -20,6 +21,12 @@ const none = (gated = true): Licence => ({
   id: null,
   licensee: null,
   plan: null,
+  trial: gated ? { state: 'ended', endsAt: 1_790_000_000_000, code: null } : null,
+})
+
+const inTrial = (): Licence => ({
+  ...none(),
+  trial: { state: 'running', endsAt: Date.now() + 50 * 3_600_000, code: null },
 })
 
 const held = (state: string, id = ID): Licence => ({
@@ -29,6 +36,7 @@ const held = (state: string, id = ID): Licence => ({
   id,
   licensee: 'buyer@example.com',
   plan: 'pro',
+  trial: { state: 'ended', endsAt: 1_790_000_000_000, code: null },
 })
 
 /** `added` is what `licence_set` makes of any key but BAD_KEY. */
@@ -70,8 +78,9 @@ test.describe('Settings > Licence', () => {
     await fakeRust(page, none())
     await openSettings(page, 'Licence')
     const panel = page.getByRole('tabpanel')
-    await expect(panel).toContainText('Sync and AI need a Devot licence')
-    await expect(panel).toContainText('No licence is added. Sync and AI stay locked')
+    await expect(panel).toContainText('Devot works fully for a three-day trial')
+    await expect(panel).toContainText('No licence is added.')
+    await expect(panel).toContainText('The trial has ended, so notes are read-only')
     const field = panel.getByRole('textbox', { name: 'Licence Key' })
     const add = panel.getByRole('button', { name: 'Add Licence' })
     const remove = panel.getByRole('button', { name: 'Remove Licence…' })
@@ -83,7 +92,8 @@ test.describe('Settings > Licence', () => {
     await add.click()
     expect(await calls(page, 'licence_set')).toEqual([{ key: `  ${KEY} ` }])
     await expect(field).toHaveValue('')
-    await expect(panel).toContainText('Sync and AI are unlocked on this device.')
+    await expect(panel).toContainText('Editing, sync and AI are unlocked on this device.')
+    await expect(panel).not.toContainText('The trial has ended')
     await expect(panel).toContainText('buyer@example.com')
     await expect(panel).toContainText(ID)
     await expect(panel).not.toContainText('Updates Until')
@@ -92,7 +102,7 @@ test.describe('Settings > Licence', () => {
 
     await remove.click()
     const dialog = page.getByRole('dialog', { name: 'Remove the licence from this device?' })
-    await expect(dialog).toContainText('Sync and AI stop on this device')
+    await expect(dialog).toContainText('sync and AI stop until you add a licence again')
     await dialog.getByRole('button', { name: 'Cancel' }).click()
     expect(await calls(page, 'licence_remove')).toEqual([])
     await remove.click()
@@ -148,25 +158,38 @@ test.describe('Settings > Licence', () => {
   test('says when this build checks no licence', async ({ page }) => {
     await openSettings(page, 'Licence')
     await expect(page.getByRole('tabpanel')).toContainText(
-      'This build of Devot does not check licences, so sync and AI work without one.',
+      'This build of Devot does not check licences, so everything works without one.',
     )
   })
 })
 
 test.describe('locked sync and AI', () => {
-  test('Settings > Sync and AI say a licence is needed, with Buy', async ({ page }) => {
+  test('Settings > Sync and AI say the trial has ended and a licence is needed, with Buy', async ({
+    page,
+  }) => {
     await fakeRust(page, none())
     await openSettings(page, 'Sync')
     const sync = page.getByRole('tabpanel')
-    await expect(sync).toContainText('Sync needs a Devot licence. Add one in Settings > Licence.')
+    await expect(sync).toContainText(
+      'Your trial has ended, and sync needs a Devot licence. Add one in Settings > Licence.',
+    )
     await sync.getByRole('button', { name: 'Buy a Licence' }).click()
     expect(await calls(page, 'open_external')).toEqual([
       { url: 'https://licence.devot.online/buy' },
     ])
     await page.getByRole('tab', { name: 'AI', exact: true }).click()
     await expect(page.getByRole('tabpanel')).toContainText(
-      'AI needs a Devot licence. Add one in Settings > Licence.',
+      'Your trial has ended, and AI needs a Devot licence. Add one in Settings > Licence.',
     )
+  })
+
+  test('nothing is locked while the trial runs', async ({ page }) => {
+    await fakeRust(page, inTrial())
+    await openSettings(page, 'Sync')
+    await expect(page.getByRole('tabpanel')).toContainText('Relay')
+    await expect(page.getByRole('tabpanel')).not.toContainText('needs a Devot licence')
+    await page.getByRole('tab', { name: 'AI', exact: true }).click()
+    await expect(page.getByRole('tabpanel')).not.toContainText('needs a Devot licence')
   })
 
   test('nothing is locked with a valid licence, or in a build that gates nothing', async ({
@@ -182,8 +205,15 @@ test.describe('locked sync and AI', () => {
     await expect(page.getByRole('tabpanel')).not.toContainText('needs a Devot licence')
   })
 
-  test('Edit with AI says a licence is needed and sends nothing', async ({ page }) => {
-    await fakeRust(page, none())
+  test('Edit with AI says a licence is needed when Rust refuses it', async ({ page }) => {
+    await fakeRust(page, inTrial())
+    await page.addInitScript(() => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        ...w.devotIpcMocks,
+        ai_generate: { error: 'E_LICENCE_REQUIRED' },
+      }
+    })
     await page.goto('/')
     await page.evaluate(() => localStorage.clear())
     await page.reload()
@@ -216,7 +246,6 @@ test.describe('locked sync and AI', () => {
     expect(await calls(page, 'open_external')).toEqual([
       { url: 'https://licence.devot.online/buy' },
     ])
-    expect(await calls(page, 'ai_generate')).toEqual([])
     await expect(sheet.getByRole('button', { name: 'Try Again' })).toHaveCount(0)
   })
 
@@ -237,7 +266,7 @@ test.describe('locked sync and AI', () => {
     })
     await openApp(page)
     const notice = page.getByRole('alert').filter({ hasText: 'Sync has stopped' })
-    await expect(notice).toContainText('it needs a Devot licence')
+    await expect(notice).toContainText('your trial has ended, and sync needs a Devot licence')
     await notice.getByRole('button', { name: 'Buy a Licence' }).click()
     expect(await calls(page, 'open_external')).toEqual([
       { url: 'https://licence.devot.online/buy' },
@@ -277,7 +306,7 @@ test.describe('devot://licence links', () => {
     await open(page)
     await sendLink(page, { kind: 'licence', key: KEY, offer: offer(), code: null })
     await expect(notice(page)).toHaveText(
-      /The licence for buyer@example.com was added. Sync and AI are unlocked./,
+      /The licence for buyer@example.com was added. Editing, sync and AI are unlocked./,
     )
     expect(await calls(page, 'licence_set')).toEqual([{ key: KEY }])
     await expect(page.getByRole('dialog')).toHaveCount(0)

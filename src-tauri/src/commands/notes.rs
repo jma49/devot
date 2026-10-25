@@ -1,5 +1,5 @@
 use crate::storage::{
-    Db, NOTE_STATUSES, NoteBody, NoteQuery, NoteRecord, NoteSummary, SetKind, TrashedNote,
+    Db, NOTE_STATUSES, NoteBody, NoteQuery, NoteRecord, NoteSummary, SetKind, TrashedNote, Write,
 };
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -191,7 +191,7 @@ pub async fn notes_bodies(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<Not
 pub async fn note_put(db: State<'_, Db>, note: NoteDto, links: Vec<String>) -> Result<(), String> {
     let record = note.into_record().map_err(String::from)?;
     validate_links(&links).map_err(String::from)?;
-    db.call(move |store| store.put_note(&record, &links))
+    db.write(Write::Body, move |store| store.put_note(&record, &links))
         .await
         .map_err(|e| e.to_string())
 }
@@ -265,7 +265,7 @@ pub(crate) fn validate_purge(id: &str, at: i64, hlc: &str) -> Result<(), &'stati
 #[tauri::command]
 pub async fn note_purge(db: State<'_, Db>, id: String, at: i64, hlc: String) -> Result<(), String> {
     validate_purge(&id, at, &hlc).map_err(String::from)?;
-    db.call(move |store| store.purge_note(&id, at, &hlc))
+    db.write(Write::Content, move |store| store.purge_note(&id, at, &hlc))
         .await
         .map_err(|e| e.to_string())
 }

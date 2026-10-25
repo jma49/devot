@@ -43,7 +43,7 @@ interface KeyValue {
   setItem(key: string, value: string): void
 }
 
-const isPane = (value: unknown): value is PaneId =>
+export const isPane = (value: unknown): value is PaneId =>
   typeof value === 'string' && (PANES as readonly string[]).includes(value)
 
 /** A pane that was renamed, by the name it was remembered under. */
@@ -68,6 +68,12 @@ export function paneStore(storage: KeyValue | undefined) {
       }
     },
   }
+}
+
+/** The pane `settings.html?pane=<pane>` asks for: Rust opens Settings so for Add Licence. */
+export function paneFromQuery(search: string): PaneId | undefined {
+  const pane = new URLSearchParams(search).get('pane')
+  return isPane(pane) ? pane : undefined
 }
 
 export function currentPaneStore() {

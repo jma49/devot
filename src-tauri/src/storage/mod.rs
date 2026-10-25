@@ -7,7 +7,7 @@ mod sync;
 
 pub use sync::{SYNC_KINDS, SyncEntry, SyncLocal};
 
-pub use db::Db;
+pub use db::{Db, Write};
 
 use rusqlite::backup::{Backup, StepResult};
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
@@ -50,6 +50,8 @@ pub enum StorageError {
     /// Another process wrote the note since its writer read it.
     BodyStale,
     RebuildStopped,
+    /// The write gate's code (`Db::guard`).
+    Refused(&'static str),
 }
 
 /// Never SQLite's message, which can quote a statement or the data it was given.
@@ -74,6 +76,7 @@ impl std::fmt::Display for StorageError {
             Self::SnapshotCheckFailed => f.write_str("E_STORAGE_SNAPSHOT_CHECK_FAILED"),
             Self::BodyStale => f.write_str("E_NOTE_BODY_STALE"),
             Self::RebuildStopped => f.write_str("E_SEARCH_REBUILD_STOPPED"),
+            Self::Refused(code) => f.write_str(code),
         }
     }
 }
@@ -85,7 +88,8 @@ impl std::error::Error for StorageError {
             Self::NewerSchema(_)
             | Self::SnapshotCheckFailed
             | Self::BodyStale
-            | Self::RebuildStopped => None,
+            | Self::RebuildStopped
+            | Self::Refused(_) => None,
         }
     }
 }

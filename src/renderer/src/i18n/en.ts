@@ -381,6 +381,8 @@ export const en = {
   'quickCapture.save': 'Save',
   'quickCapture.cancel': 'Cancel',
   'quickCapture.saveFailed': 'The note could not be saved ({code}). Your text is kept here.',
+  'quickCapture.trialEnded':
+    'Your Devot trial has ended, so no note can be saved. Add a licence in Settings > Licence.',
   'quickCapture.notebookGone': 'That notebook no longer exists ({code}). Choose another one.',
   'quickCapture.noAnswer':
     'Devot did not save the note in time ({code}). Your text is kept here; open Devot and try again.',
@@ -609,21 +611,29 @@ export const en = {
   'sync.notice.stopped': 'Sync has stopped ({code}). Open Settings > Sync to set it up again.',
   'sync.notice.licence':
     'Sync has stopped: it needs a Devot licence. Your notes stay on this device. Add a licence in Settings > Licence.',
+  'sync.notice.licenceTrialEnded':
+    'Sync has stopped: your trial has ended, and sync needs a Devot licence. Your notes stay on this device. Add a licence in Settings > Licence.',
   'sync.notice.tooLargeOne': '{count} note is too large to sync and stays on this device only.',
   'sync.notice.tooLargeOther': '{count} notes are too large to sync and stay on this device only.',
   'licenceSettings.title': 'Licence',
   'licenceSettings.detail':
-    'Sync and AI need a Devot licence; everything else is free. A licence is bought once, checked on this device without going online, and unlocks sync and AI in every version of Devot, with nothing to renew.',
+    'Devot works fully for a three-day trial. After it, notes can still be read, searched, copied and exported, but editing them, sync and AI need a Devot licence. A licence is bought once, checked on this device without going online, and unlocks everything in every version of Devot, with nothing to renew.',
   'licenceSettings.ungated':
-    'This build of Devot does not check licences, so sync and AI work without one.',
+    'This build of Devot does not check licences, so everything works without one.',
   'licenceSettings.status': 'Status',
-  'licenceSettings.state.none': 'No licence is added. Sync and AI stay locked until you add one.',
-  'licenceSettings.state.valid': 'Sync and AI are unlocked on this device.',
-  'licenceSettings.state.revoked':
-    'This licence was revoked after a refund or a lost dispute, so sync and AI are locked.',
+  'licenceSettings.state.none': 'No licence is added.',
+  'licenceSettings.state.valid': 'Editing, sync and AI are unlocked on this device.',
+  'licenceSettings.state.revoked': 'This licence was revoked after a refund or a lost dispute.',
   'licenceSettings.state.invalid':
-    'The licence on this device could not be verified ({code}), so sync and AI are locked. Add the key from your purchase email again.',
+    'The licence on this device could not be verified ({code}). Add the key from your purchase email again.',
   'licenceSettings.state.unreadable': 'The licence could not be read from the keychain ({code}).',
+  'licenceSettings.trial': 'Trial',
+  'licenceSettings.trial.running':
+    'Everything works, sync and AI included, until the trial ends on {date} ({left} left).',
+  'licenceSettings.trial.ended':
+    'The trial has ended, so notes are read-only and sync and AI are locked until you add a licence.',
+  'licenceSettings.trial.unreadable':
+    'The trial could not be read from the keychain ({code}), so notes are read-only until you add a licence.',
   'licenceSettings.licensee': 'Licensed To',
   'licenceSettings.id': 'Licence ID',
   'licenceSettings.key': 'Licence Key',
@@ -635,7 +645,7 @@ export const en = {
   'licenceSettings.remove': 'Remove Licence',
   'licenceSettings.removeConfirm': 'Remove the licence from this device?',
   'licenceSettings.removeDetail':
-    'Sync and AI stop on this device until you add a licence again. You can add the same key again at any time.',
+    'Once the trial is over, notes on this device are read-only and sync and AI stop until you add a licence again. You can add the same key again at any time.',
   'licenceSettings.buy': 'Buy a Licence',
   'licenceSettings.added': 'The licence was added.',
   'licenceSettings.removed': 'The licence was removed.',
@@ -651,6 +661,16 @@ export const en = {
   'licence.reason.other': 'Something went wrong.',
   'licence.locked.sync': 'Sync needs a Devot licence. Add one in Settings > Licence.',
   'licence.locked.ai': 'AI needs a Devot licence. Add one in Settings > Licence.',
+  'licence.locked.syncTrialEnded':
+    'Your trial has ended, and sync needs a Devot licence. Add one in Settings > Licence.',
+  'licence.locked.aiTrialEnded':
+    'Your trial has ended, and AI needs a Devot licence. Add one in Settings > Licence.',
+  'trial.ended':
+    'Your Devot trial has ended, so notes are read-only: you can read, search, copy and export them. Add a licence to edit them again.',
+  'trial.reminder.today':
+    'Your Devot trial ends today at {time}. After that, notes are read-only until you add a licence.',
+  'trial.reminder.tomorrow':
+    'Your Devot trial ends tomorrow at {time}. After that, notes are read-only until you add a licence.',
   'licence.replace.message': 'Replace the licence on this device?',
   'licence.replace.detail':
     'This device holds the licence for {current} ({currentId}). The key in the link is for {licensee} ({id}).',
@@ -827,9 +847,10 @@ export const en = {
   'deepLink.importFailed': 'The Markdown files from the command line could not be imported.',
   'deepLink.licenceInvalid': 'The licence in the link could not be added. {problem}',
   'deepLink.licenceFailed': 'The licence in the link could not be added ({code}).',
-  'deepLink.licenceAdded': 'The licence for {licensee} was added. Sync and AI are unlocked.',
+  'deepLink.licenceAdded':
+    'The licence for {licensee} was added. Editing, sync and AI are unlocked.',
   'deepLink.licenceAddedLocked':
-    'The licence for {licensee} was added, but sync and AI stay locked. Settings > Licence says why.',
+    'The licence for {licensee} was added, but it does not unlock Devot. Settings > Licence says why.',
   'deepLink.licenceSame': 'This licence is already on this device.',
   'change.tagNameTaken': 'Another tag already has that name.',
   'change.tagNameInvalid': 'A tag name is one line of at most {max} characters.',
@@ -1212,6 +1233,8 @@ export const en = {
   'aiEdit.reason.access':
     'AI can only use notes in a notebook with Allow AI Access on. Turn it on in the notebook\u2019s menu.',
   'aiEdit.reason.licence': 'AI needs a Devot licence. Add one in Settings > Licence.',
+  'aiEdit.reason.trialEnded':
+    'Your trial has ended, and AI needs a Devot licence. Add one in Settings > Licence.',
   'aiEdit.reason.noKey': 'No AI provider is set up. Add a key in Settings > AI.',
   'aiEdit.reason.noModel': 'The AI provider has no model set. Choose one in Settings > AI.',
   'aiEdit.reason.auth': 'The AI provider refused the key. Check it in Settings > AI.',

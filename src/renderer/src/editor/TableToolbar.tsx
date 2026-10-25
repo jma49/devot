@@ -175,6 +175,7 @@ function createBar(view: EditorView): TooltipView {
 const barTooltip = showTooltip.compute(
   [toolbarState, toolbarOff, 'selection', 'doc'],
   (state): Tooltip | null => {
+    if (state.readOnly) return null
     const at = tableBarAt(state)
     return at ? { pos: at.pos, above: true, create: createBar } : null
   },

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-settings-open-licence"
+description = "Enables the settings_open_licence command without any pre-configured scope."
+commands.allow = ["settings_open_licence"]
+
+[[permission]]
+identifier = "deny-settings-open-licence"
+description = "Denies the settings_open_licence command without any pre-configured scope."
+commands.deny = ["settings_open_licence"]

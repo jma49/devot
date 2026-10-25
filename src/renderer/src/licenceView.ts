@@ -1,8 +1,9 @@
-// What the windows say about the licence: why a key was refused, the state in a sentence, and what
-// a devot://licence link would change.
+// What the windows say about the licence: why a key was refused, the state in a sentence, the
+// trial's time left and its reminder, and what a devot://licence link would change.
 import type { LicenceState } from '../../core/entitlements'
+import { fullDate } from './format'
 import { format, t, type MessageKey } from './i18n'
-import type { LicenceSnapshot } from './licence'
+import { trialRunning, type LicenceSnapshot } from './licence'
 
 const REASONS: Readonly<Record<string, MessageKey>> = {
   E_LICENCE_MALFORMED: 'licence.reason.malformed',
@@ -64,4 +65,66 @@ export function planLicenceLink(current: LicenceSnapshot, offer: LicenceOffer): 
       id: offer.id,
     }),
   }
+}
+
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+const DAY_MS = 24 * HOUR_MS
+/** The reminder shows once less than this is left of the trial. */
+export const REMINDER_MS = DAY_MS
+
+/** What is left in its largest unit, rounded down ("2 days", "5 hours", "40 minutes"), never under a minute. */
+export function timeLeft(ms: number, locale: string): string {
+  const [count, unit] =
+    ms >= DAY_MS
+      ? [Math.floor(ms / DAY_MS), 'day']
+      : ms >= HOUR_MS
+        ? [Math.floor(ms / HOUR_MS), 'hour']
+        : [Math.max(1, Math.floor(ms / MINUTE_MS)), 'minute']
+  return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'long' }).format(count)
+}
+
+/** Settings > Licence's line on the trial; none with a valid licence or in a build that gates nothing. */
+export function trialSentence(
+  licence: LicenceSnapshot,
+  now: number,
+  locale: string,
+): string | null {
+  const trial = licence.trial
+  if (!licence.gated || licence.state === 'valid' || !trial) return null
+  if (trial.code) return format(t('licenceSettings.trial.unreadable'), { code: trial.code })
+  if (trialRunning(licence, now) && trial.endsAt !== null)
+    return format(t('licenceSettings.trial.running'), {
+      date: fullDate(trial.endsAt, locale),
+      left: timeLeft(trial.endsAt - now, locale),
+    })
+  return t('licenceSettings.trial.ended')
+}
+
+/** The trial ends within a day, and the reminder for this trial was not dismissed. */
+export function reminderDue(
+  licence: LicenceSnapshot,
+  now: number,
+  dismissedFor: number | null,
+): boolean {
+  const endsAt = licence.trial?.endsAt ?? null
+  return (
+    licence.gated &&
+    licence.state !== 'valid' &&
+    trialRunning(licence, now) &&
+    endsAt !== null &&
+    endsAt - now < REMINDER_MS &&
+    dismissedFor !== endsAt
+  )
+}
+
+const dayOf = (at: number) => {
+  const date = new Date(at)
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+}
+
+export function reminderText(endsAt: number, now: number, locale: string): string {
+  const time = new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(new Date(endsAt))
+  const today = dayOf(endsAt) === dayOf(now)
+  return format(t(today ? 'trial.reminder.today' : 'trial.reminder.tomorrow'), { time })
 }

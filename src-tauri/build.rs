@@ -142,6 +142,7 @@ fn main() {
             "mirror_hashes",
             "settings_open_data_folder",
             "settings_show_backups",
+            "settings_open_licence",
             "update_status",
             "update_check",
             "update_download",

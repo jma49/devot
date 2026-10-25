@@ -13,8 +13,22 @@ const PAGE: &str = "settings.html";
 const WIDTH: f64 = 820.0;
 const HEIGHT: f64 = 640.0;
 
+/// Tells an open Settings window which pane to show (`settings_open_licence`).
+pub const PANE_EVENT: &str = "devot://settings-pane";
+const LICENCE_PANE: &str = "licence";
+
 pub fn open(app: &AppHandle) {
+    open_at(app, None);
+}
+
+/// `pane` is one of this module's, never one a page names.
+fn open_at(app: &AppHandle, pane: Option<&'static str>) {
     if let Some(window) = app.get_webview_window(LABEL) {
+        if let Some(pane) = pane
+            && window.emit_to(LABEL, PANE_EVENT, pane).is_err()
+        {
+            log::warn!("W_SETTINGS_PANE_FAILED");
+        }
         if crate::deep_link::unminimize(&window)
             .and(window.set_focus())
             .is_err()
@@ -23,11 +37,12 @@ pub fn open(app: &AppHandle) {
         }
         return;
     }
+    let page = pane.map_or_else(|| PAGE.to_owned(), page_at);
     let theme = app
         .try_state::<std::sync::Arc<crate::editor_settings::EditorSettingsStore>>()
         .and_then(|store| store.get().ok())
         .and_then(|stored| stored.settings.appearance.window_theme());
-    let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(PAGE.into()));
+    let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(page.into()));
     // The same WebKit store as the main window (`data_folder`).
     if let Some(store) = crate::data_folder::this_build_web_data_store() {
         builder = builder.data_store_identifier(store);
@@ -45,6 +60,16 @@ pub fn open(app: &AppHandle) {
         Ok(_) => crate::deep_link::settings_opened(app),
         Err(_) => log::warn!("W_SETTINGS_OPEN_FAILED"),
     }
+}
+
+fn page_at(pane: &str) -> String {
+    format!("{PAGE}?pane={pane}")
+}
+
+/// Add Licence in the windows' trial notices: Settings, at the Licence pane.
+#[tauri::command]
+pub fn settings_open_licence(app: AppHandle) {
+    open_at(&app, Some(LICENCE_PANE));
 }
 
 /// What opens `folder` in Finder. The folder is the app's own, never one
@@ -134,6 +159,11 @@ pub fn settings_mcp_setup(app: AppHandle) -> Result<McpSetup, String> {
 mod tests {
     use super::*;
     use std::ffi::OsStr;
+
+    #[test]
+    fn add_licence_opens_settings_at_the_licence_pane() {
+        assert_eq!(page_at(LICENCE_PANE), "settings.html?pane=licence");
+    }
 
     #[test]
     fn finds_devot_mcp_in_the_checkout_and_names_a_debug_database() {

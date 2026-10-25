@@ -68,6 +68,7 @@ export function RevisionHistory(props: {
   books: BookRecord[]
   onRestore: (update: Uint8Array) => void
   onClose: () => void
+  readOnly?: boolean
 }) {
   const { core, noteId } = props
   const dialog = useRef<HTMLDialogElement>(null)
@@ -258,7 +259,7 @@ export function RevisionHistory(props: {
         <button
           type="button"
           className="button"
-          disabled={busy || !changed}
+          disabled={busy || !changed || props.readOnly}
           onClick={() => void restore()}
         >
           {t('history.restore')}

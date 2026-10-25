@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { BUY_URL, LICENCE_UNKNOWN, readLicence, type LicenceSnapshot } from './licence'
-import { licenceProblem, planLicenceLink, stateSentence } from './licenceView'
+import {
+  BUY_URL,
+  LICENCE_UNKNOWN,
+  readLicence,
+  trialOver,
+  trialRunning,
+  type LicenceSnapshot,
+} from './licence'
+import {
+  licenceProblem,
+  planLicenceLink,
+  reminderDue,
+  reminderText,
+  stateSentence,
+  timeLeft,
+  trialSentence,
+} from './licenceView'
 
 const ID = '5vEvzHainWD0cA2Ht_ljHg'
+const HOUR = 3_600_000
+/** 2026-10-27 14:00 in the test's time zone. */
+const END = new Date(2026, 9, 27, 14, 0).getTime()
 const OTHER_ID = '3f4lHWhFWnUPeDt7yIa3rw'
 const held = (over: Partial<LicenceSnapshot> = {}): LicenceSnapshot => ({
   gated: true,
@@ -11,9 +29,14 @@ const held = (over: Partial<LicenceSnapshot> = {}): LicenceSnapshot => ({
   id: ID,
   licensee: 'buyer@example.com',
   plan: 'pro',
+  trial: { state: 'ended', endsAt: END, code: null },
   ...over,
 })
-const none: LicenceSnapshot = { ...LICENCE_UNKNOWN, gated: true }
+const none: LicenceSnapshot = {
+  ...LICENCE_UNKNOWN,
+  gated: true,
+  trial: { state: 'ended', endsAt: END, code: null },
+}
 const offer = { id: ID, licensee: 'buyer@example.com', state: 'valid' } as const
 
 describe('readLicence', () => {
@@ -43,7 +66,7 @@ describe('what the windows say', () => {
     expect(stateSentence({ ...none, code: 'E_LICENCE_KEYCHAIN' })).toMatch(
       /keychain \(E_LICENCE_KEYCHAIN\)/,
     )
-    expect(stateSentence(held())).toBe('Sync and AI are unlocked on this device.')
+    expect(stateSentence(held())).toBe('Editing, sync and AI are unlocked on this device.')
     expect(stateSentence(held({ state: 'revoked' }))).toMatch(/revoked/)
     expect(stateSentence({ ...none, state: 'invalid', code: 'E_LICENCE_SIGNATURE' })).toMatch(
       /could not be verified \(E_LICENCE_SIGNATURE\)/,
@@ -91,5 +114,73 @@ describe('a devot://licence link', () => {
       kind: 'ask',
       message: 'Replace the licence on this device?',
     })
+  })
+})
+
+describe('the trial', () => {
+  const running = (endsAt: number | null = END): LicenceSnapshot => ({
+    ...none,
+    trial: { state: 'running', endsAt, code: null },
+  })
+
+  it('is read from what Rust sends, and counts as ended when a gating build says nothing of it', () => {
+    expect(readLicence(running())).toEqual(running())
+    const { trial: _, ...withoutTrial } = running()
+    expect(readLicence(withoutTrial)?.trial).toEqual({ state: 'ended', endsAt: null, code: null })
+    expect(readLicence({ ...running(), trial: { state: 'forever' } })?.trial?.state).toBe('ended')
+    expect(readLicence({ ...LICENCE_UNKNOWN, trial: { state: 'running' } })?.trial).toBeNull()
+    expect(
+      readLicence({ ...none, trial: { state: 'ended', endsAt: 'soon', code: 'a title' } })?.trial,
+    ).toEqual({ state: 'ended', endsAt: null, code: null })
+  })
+
+  it('runs until its end, as this window sees the time', () => {
+    expect(trialRunning(running(), END - 1)).toBe(true)
+    expect(trialRunning(running(), END)).toBe(false)
+    expect(trialRunning(none, END - HOUR)).toBe(false)
+    expect(trialOver(running(), END)).toBe(true)
+    expect(trialOver(running(), END - 1)).toBe(false)
+    expect(trialOver(held(), END + HOUR)).toBe(false)
+    expect(trialOver({ ...LICENCE_UNKNOWN }, END)).toBe(false)
+  })
+
+  it('says the time left in its largest unit', () => {
+    expect(timeLeft(2 * 24 * HOUR + 5 * HOUR, 'en')).toBe('2 days')
+    expect(timeLeft(5 * HOUR + 59 * 60_000, 'en')).toBe('5 hours')
+    expect(timeLeft(40 * 60_000 + 30_000, 'en')).toBe('40 minutes')
+    expect(timeLeft(10_000, 'en')).toBe('1 minute')
+  })
+
+  it('has a line in Settings > Licence unless a licence unlocks Devot', () => {
+    expect(trialSentence(running(), END - 30 * HOUR, 'en')).toMatch(
+      /^Everything works, sync and AI included, until the trial ends on .+ \(1 day left\)\.$/,
+    )
+    expect(trialSentence(none, END, 'en')).toMatch(/^The trial has ended, so notes are read-only/)
+    expect(
+      trialSentence(
+        { ...none, trial: { state: 'ended', endsAt: null, code: 'E_LICENCE_KEYCHAIN' } },
+        END,
+        'en',
+      ),
+    ).toMatch(/keychain \(E_LICENCE_KEYCHAIN\)/)
+    expect(trialSentence(held(), END, 'en')).toBeNull()
+    expect(trialSentence(LICENCE_UNKNOWN, END, 'en')).toBeNull()
+  })
+
+  it('reminds once in its last day, until it is dismissed for this trial', () => {
+    expect(reminderDue(running(), END - 25 * HOUR, null)).toBe(false)
+    expect(reminderDue(running(), END - 23 * HOUR, null)).toBe(true)
+    expect(reminderDue(running(), END - 23 * HOUR, END)).toBe(false)
+    expect(reminderDue(running(), END - 23 * HOUR, END - 1)).toBe(true)
+    expect(reminderDue(running(), END, null)).toBe(false)
+    expect(reminderDue({ ...held(), trial: running().trial }, END - HOUR, null)).toBe(false)
+    expect(reminderDue(running(null), END - HOUR, null)).toBe(false)
+  })
+
+  it('says whether it ends today or tomorrow, at what time', () => {
+    expect(reminderText(END, END - 20 * HOUR, 'en')).toMatch(
+      /^Your Devot trial ends tomorrow at 2:00\sPM\. After that, notes are read-only/,
+    )
+    expect(reminderText(END, END - 2 * HOUR, 'en')).toMatch(/ends today at 2:00\sPM/)
   })
 })

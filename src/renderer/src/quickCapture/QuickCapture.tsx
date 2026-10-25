@@ -5,6 +5,7 @@ import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { isImeKey } from '../ime'
 import { invoke } from '../ipc'
+import { LICENCE_REQUIRED, startLicence, useEditing } from '../licence'
 import { readNotebooks, subscribeNotebooks, type NotebookChoice } from '../notebookChoices'
 import { clearDraft, isEmptyCapture, notebookToShow, readDraft, writeDraft } from './draft'
 
@@ -14,6 +15,7 @@ const notebooksJson = () => JSON.stringify(readNotebooks())
 const indented = (name: string, depth: number) => `${'  '.repeat(depth)}${name}`
 
 function failure(code: string): MessageKey {
+  if (code === LICENCE_REQUIRED) return 'quickCapture.trialEnded'
   if (code === 'E_BOOK_NOT_FOUND') return 'quickCapture.notebookGone'
   if (code === 'E_QUICK_CAPTURE_TIMEOUT' || code === 'E_QUICK_CAPTURE_NO_WINDOW')
     return 'quickCapture.noAnswer'
@@ -52,11 +54,14 @@ export function QuickCapture() {
     notebooks.map((n) => n.id),
   )
   const empty = isEmptyCapture({ title, body })
+  // The trial is over without a licence: the draft stays here, and nothing is saved.
+  const editing = useEditing()
+  useEffect(() => startLicence(), [])
 
   useEffect(() => writeDraft({ title, body, bookId }), [title, body, bookId])
 
   const save = async () => {
-    if (empty || saving) return
+    if (empty || saving || !editing) return
     setSaving(true)
     setError(undefined)
     try {
@@ -118,7 +123,11 @@ export function QuickCapture() {
         <p role="alert" className="quick-capture-error">
           {format(t(failure(error)), { code: error })}
         </p>
-      ) : null}
+      ) : editing ? null : (
+        <p role="status" className="quick-capture-error" data-devot-trial-ended>
+          {t('quickCapture.trialEnded')}
+        </p>
+      )}
       <div className="quick-capture-bar">
         <label className="visually-hidden" htmlFor={`${ids}-notebook`}>
           {t('quickCapture.notebook')}
@@ -143,7 +152,7 @@ export function QuickCapture() {
         <button
           type="button"
           className="button button-default"
-          disabled={empty || saving}
+          disabled={empty || saving || !editing}
           onClick={() => void save()}
         >
           {t('quickCapture.save')}

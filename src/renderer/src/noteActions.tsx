@@ -8,7 +8,9 @@ import { noteCount } from './format'
 import { displayTitle, displayTitles, useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { MoveNoteDialog } from './MoveNoteDialog'
+import { editingAllowed } from './licence'
 import {
+  actionChangesNotes,
   EXPORT_ACTIONS,
   SELECTION_EXPORTS,
   noteClipboardText,
@@ -74,6 +76,7 @@ export function useNoteActions(deps: {
     notes.length > 1 && notes.every((n) => n.bookId !== TEMPLATES_BOOK_ID)
 
   const runOn = (action: NoteMenuAction, ids: readonly string[]): void | Promise<unknown> => {
+    if (actionChangesNotes(action) && !editingAllowed()) return
     const notes = listed(ids)
     const first = notes[0]
     if (!first) return

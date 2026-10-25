@@ -67,6 +67,7 @@ export const IMAGE_MENU: MenuGroups<ImageAction, ImageMenuTarget> = [
     {
       action: 'size',
       label: 'imageMenu.size',
+      edits: true,
       shown: (image) => image.source !== null,
       submenu: SIZE_ITEMS,
     },

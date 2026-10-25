@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { errorCode } from '../backups'
 import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
-import { licenceEntitlements, startLicence, useLicence } from '../licence'
+import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
 import {
   changeSync,
@@ -60,6 +60,7 @@ export function SyncSection() {
   useEffect(() => startLicence(), [])
   // Re-renders when the licence changes, which licenceEntitlements reads.
   useLicence()
+  const trialEnded = useTrialOver()
   const locked = !licenceEntitlements.has('sync')
 
   const shownUrl = url ?? snapshot.relayUrl
@@ -107,7 +108,10 @@ export function SyncSection() {
       <SettingsSection icon="settings.sync" title="syncSettings.title">
         <SettingsNote>{t('syncSettings.detail')}</SettingsNote>
         {locked ? (
-          <Setting label="licenceSettings.title" description={t('licence.locked.sync')}>
+          <Setting
+            label="licenceSettings.title"
+            description={t(trialEnded ? 'licence.locked.syncTrialEnded' : 'licence.locked.sync')}
+          >
             <div className="settings-buttons">
               <LicenceButton />
             </div>

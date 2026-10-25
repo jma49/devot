@@ -13,6 +13,7 @@ import { useImageMenu, type SetImageSize } from '../imageMenu'
 import { ImageViewer, type ViewedImage } from '../ImageViewer'
 import { isImeKey } from '../ime'
 import { invoke } from '../ipc'
+import { startLicence, useEditing } from '../licence'
 import { MAX_LINK_NOTES } from '../linkCompletion'
 import { ModeControl, type Mode } from '../ModeControl'
 import { NoteEditor, type EditorHandle } from '../NoteEditor'
@@ -22,6 +23,7 @@ import { LivePreview } from '../preview/Preview'
 import { SaveNotice } from '../SaveNotice'
 import { createQuitGuard, newProblems } from '../saving'
 import { textStore } from '../textStore'
+import { TrialEndedBar } from '../TrialNotices'
 
 export const CLOSE_EVENT = 'devot:note-window-close'
 export const FLUSH_EVENT = 'devot:flush-before-exit'
@@ -76,6 +78,15 @@ export function NoteWindow() {
   const problemsRef = useRef<SaveProblem[]>([])
   const [dismissed, setDismissed] = useState(false)
   const [held, setHeld] = useState<'quit' | 'close' | undefined>()
+  const editing = useEditing()
+  useEffect(() => startLicence(), [])
+  // The trial ended with the note open: what was typed is saved as the window turns read-only.
+  const wasEditing = useRef(editing)
+  useEffect(() => {
+    if (wasEditing.current && !editing && core)
+      void core.flush({ versions: true }).catch(() => console.warn('W_TRIAL_END_SAVE_FAILED'))
+    wasEditing.current = editing
+  }, [editing, core])
   const [quitGuard] = useState(createQuitGuard)
   const [closeGuard] = useState(createQuitGuard)
   const showAlertMenu = useAlertMenu()
@@ -251,6 +262,7 @@ export function NoteWindow() {
               aria-label={t('note.titleLabel')}
               placeholder={t('note.untitled')}
               value={title}
+              readOnly={!editing}
               onChange={(e) => rename(e.target.value)}
               onKeyDown={(e) => {
                 // Return and Down Arrow go on to the body, as in the main window.
@@ -279,6 +291,7 @@ export function NoteWindow() {
                 onOpenImage={setViewing}
                 showImageMenu={showImageMenu}
                 onOpenNote={openNote}
+                readOnly={!editing}
               />
               {mode === 'edit' ? null : (
                 <LivePreview
@@ -287,7 +300,9 @@ export function NoteWindow() {
                   onOpenNote={openNote}
                   onOpenImage={setViewing}
                   onImageMenu={showImageMenu}
-                  onToggleTask={(at) => void editorRef.current?.toggleTask(at)}
+                  onToggleTask={
+                    editing ? (at) => void editorRef.current?.toggleTask(at) : undefined
+                  }
                 />
               )}
             </div>
@@ -295,6 +310,7 @@ export function NoteWindow() {
         ) : null}
       </main>
       <Notices>
+        <TrialEndedBar />
         {problems.length > 0 && !dismissed ? (
           <SaveNotice
             problems={problems}

@@ -359,12 +359,20 @@ pub async fn quick_capture_save(
     app: AppHandle,
     window: WebviewWindow,
     captures: State<'_, Captures>,
+    licence: State<'_, Arc<crate::licence::Licence>>,
     capture: Capture,
 ) -> Result<(), String> {
     if window.label() != QUICK_CAPTURE {
         return Err("E_QUICK_CAPTURE_WINDOW".into());
     }
     check(&capture)?;
+    // The core keeps a note it could not save pending, so a refused one would seem made.
+    let licence = Arc::clone(&licence);
+    tauri::async_runtime::spawn_blocking(move || {
+        licence.require_write(crate::storage::Write::Content)
+    })
+    .await
+    .map_err(|_| "E_QUICK_CAPTURE_FAILED")??;
     let (id, answer) = captures.wait().ok_or("E_QUICK_CAPTURE_FAILED")?;
     let request = CaptureRequest {
         id,

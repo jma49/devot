@@ -156,8 +156,15 @@ describe('Tauri command permissions', () => {
     ])
   })
 
-  it('lets the main and Settings windows read and add a licence, and only Settings remove it', () => {
-    expect(windowsWith('allow-licence-get')).toEqual(['main', 'settings'])
+  it('lets every window that edits read the licence, only the main and Settings windows add one, and only Settings remove it', () => {
+    expect(windowsWith('allow-licence-get')).toEqual([
+      'main',
+      'note-*',
+      'quick-capture',
+      'settings',
+    ])
+    // Add Licence, in the windows that turn read-only once the trial is over.
+    expect(windowsWith('allow-settings-open-licence')).toEqual(['main', 'note-*'])
     // The main window adds the key a devot://licence link brings, once the user agrees.
     expect(windowsWith('allow-licence-set')).toEqual(['main', 'settings'])
     expect(windowsWith('allow-licence-remove')).toEqual(['settings'])
@@ -212,6 +219,7 @@ describe('Tauri command permissions', () => {
       'allow-image-copy',
       'allow-image-save',
       'allow-keyboard-shortcuts-get',
+      'allow-licence-get',
       'allow-link-title',
       'allow-log-write',
       'allow-note-get',
@@ -230,6 +238,7 @@ describe('Tauri command permissions', () => {
       'allow-revision-put',
       'allow-revisions-delete',
       'allow-revisions-list',
+      'allow-settings-open-licence',
       'allow-symbol-png',
       'allow-system-accent',
       'allow-tags-list',
@@ -298,6 +307,7 @@ describe('Tauri command permissions', () => {
     // No notes, no files: the main window's core saves the note.
     expect(quickCapture.flatMap(permissionIds).sort()).toEqual([
       'allow-editor-settings-get',
+      'allow-licence-get',
       'allow-quick-capture-close',
       'allow-quick-capture-save',
       'allow-system-accent',

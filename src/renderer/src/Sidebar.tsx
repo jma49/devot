@@ -18,6 +18,7 @@ import type { NoteStatus, TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS, type NoteFilter } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
 import {
+  BOOK_COMMANDS,
   BOOK_MENU,
   WORKSPACE_MENU,
   bookShortcut,
@@ -26,7 +27,7 @@ import {
   type BookMenuTarget,
   type ImportAction,
 } from './bookMenu'
-import { commandMatches, heldCommandKey } from './commands/registry'
+import { changesNotes, commandMatches, heldCommandKey } from './commands/registry'
 import { useKeymap } from './commands/shortcutSettings'
 import { titleWithKey } from './commands/titles'
 import { useContextMenu, type MenuPoint } from './contextMenu'
@@ -149,6 +150,8 @@ interface Props {
   onSelect: (selection: Selection, options?: { clearFilter?: boolean }) => void
   /** Undefined until the core is ready; the button is disabled until then. */
   onCreateBook: ((parentId: string | null) => void) | undefined
+  /** Nothing is renamed, moved, dropped or deleted: the trial is over without a licence. */
+  readOnly?: boolean
   onRenameBook: (id: string, name: string) => void
   onRenameDone: () => void
   onMoveBook: (id: string, parentId: string | null) => void
@@ -613,6 +616,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   }
 
   const runAction = (action: BookAction, node: PlacedNode) => {
+    if (props.readOnly && action !== 'import' && action !== 'export') {
+      if (changesNotes(BOOK_COMMANDS[action])) return
+    }
     switch (action) {
       case 'copyId':
         return void copyText(node.id).catch(() => console.warn('W_BOOK_COPY_FAILED', node.id))
@@ -659,6 +665,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   }
 
   const runTagAction = (action: TagAction, tag: TagMenuTarget) => {
+    if (props.readOnly && !(action === 'filter' || action === 'copyId')) return
     const color = colorOfAction(action)
     if (color !== undefined) return props.onSetTagColor(tag.id, color)
     switch (action) {
@@ -872,7 +879,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           aria-expanded={node.children.length > 0 ? isOpen : undefined}
           aria-owns={showChildren ? groupId : undefined}
           tabIndex={row.tabIndex}
-          draggable={!editingThis}
+          draggable={!editingThis && !props.readOnly}
           onDragStart={(e) => {
             e.stopPropagation()
             setBookDragData(e.dataTransfer, node)
@@ -895,7 +902,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           <div
             className={`book-row${dropClasses(node, 'row')}${menuTarget === node.id ? ' menu-target' : ''}`}
             data-dragging={draggedBook === node.id || undefined}
-            onDoubleClick={() => setEditing(node.id)}
+            onDoubleClick={() => props.readOnly || setEditing(node.id)}
             onMouseDown={(e) => {
               // A right-click (or Control-click) leaves the keyboard where it
               // was: the keys keep acting on the selected notebook.
@@ -1053,7 +1060,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           onMouseDown={(e) => {
             if (!editingThis) keepFocusOnMenu(e)
           }}
-          onDoubleClick={() => setEditing(book.id)}
+          onDoubleClick={() => props.readOnly || setEditing(book.id)}
           onContextMenu={(e) => {
             // The name field keeps the web view's text menu.
             if (editingThis) return
@@ -1264,7 +1271,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                   <li
                     key={tag.id}
                     data-motion-key={`tag:${tag.id}`}
-                    onDoubleClick={() => setEditingTag(tag.id)}
+                    onDoubleClick={() => props.readOnly || setEditingTag(tag.id)}
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget.firstElementChild) return
                       if (heldCommandKey(e)) return e.preventDefault()

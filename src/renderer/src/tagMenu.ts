@@ -57,7 +57,10 @@ const entry = (
 
 export const TAG_MENU: MenuGroups<TagAction, TagMenuTarget> = [
   // Rename is F2 only: Tag Settings holds the name.
-  [entry('settings'), { action: 'color', label: 'tagMenu.color', submenu: COLOR_ITEMS }],
+  [
+    entry('settings'),
+    { action: 'color', label: 'tagMenu.color', edits: true, submenu: COLOR_ITEMS },
+  ],
   [entry('filter', { checked: (tag) => tag.filtered })],
   [entry('copyId')],
   [entry('delete', { shown: (tag) => !tag.inWorkspace })],

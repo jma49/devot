@@ -9,6 +9,7 @@ import { headingTitle, titleWithKey } from './titles'
 import {
   COMMANDS,
   RESERVED_KEYS,
+  changesNotes,
   command,
   commandKeys,
   commandMatches,
@@ -23,6 +24,8 @@ import {
   tableOf,
   setCommandKeys,
   windowCommand,
+  withoutChanges,
+  type CommandHandlers,
   type CommandId,
   type CommandScope,
 } from './registry'
@@ -634,5 +637,64 @@ describe('the default keys', () => {
     expect(keymap.get('format.bold')).toEqual(['Mod+B'])
     // A user key on a new default key of another command wins over that default.
     expect(effectiveKeymap({ 'format.bold': ['Mod+U'] }).get('format.strikethrough')).toEqual([])
+  })
+})
+
+describe('the commands that change notes', () => {
+  it('are every format, insert and table command and the ones that make, move, tag or delete', () => {
+    const textEdits = COMMANDS.filter(
+      (c) => c.group === 'format' || c.group === 'table' || c.id.startsWith('insert.'),
+    ).map((c) => c.id)
+    expect(textEdits.length).toBeGreaterThan(30)
+    expect(textEdits.filter((id) => !changesNotes(id))).toEqual([])
+    const changing: CommandId[] = [
+      'note.new',
+      'note.trash',
+      'note.pin',
+      'trash.empty',
+      'status.active',
+      'notebook.rename',
+      'notebook.importMarkdownFolder',
+      'tag.delete',
+      'edit.deleteLine',
+      'find.replace',
+    ]
+    expect(changing.filter((id) => !changesNotes(id))).toEqual([])
+  })
+
+  it('leave reading, finding, copying and exporting alone', () => {
+    const reading: CommandId[] = [
+      'palette.open',
+      'note.back',
+      'note.next',
+      'note.copyLink',
+      'note.exportMarkdown',
+      'note.exportPdf',
+      'note.print',
+      'note.history',
+      'note.openInWindow',
+      'find.find',
+      'find.next',
+      'edit.selectLine',
+      'edit.goToLine',
+      'view.togglePreview',
+      'search.all',
+      'app.exportAllMarkdown',
+      'app.backups',
+      'image.copy',
+      'image.save',
+    ]
+    expect(reading.filter(changesNotes)).toEqual([])
+  })
+
+  it('are left out of the handlers while editing is not allowed', () => {
+    const run = () => undefined
+    const handlers: CommandHandlers = {
+      'note.new': { run },
+      'format.bold': { run },
+      'note.copyLink': { run },
+      'find.find': { run },
+    }
+    expect(Object.keys(withoutChanges(handlers)).sort()).toEqual(['find.find', 'note.copyLink'])
   })
 })

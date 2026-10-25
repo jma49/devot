@@ -546,7 +546,7 @@ pub fn on_menu(app: &AppHandle) {
 }
 
 /// The scheduler: the revocation list and the update check, each when due. A build without the
-/// updater's key still fetches revocations, as long as it gates sync and AI.
+/// updater's key still fetches revocations, as long as it gates.
 pub fn start(app: &AppHandle) {
     let updater = app.state::<Updates>().enabled;
     let licence = app

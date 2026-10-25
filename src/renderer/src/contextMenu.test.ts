@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
+  commandEntry,
   createContextMenu,
   shownGroups,
   type MenuGroups,
@@ -7,6 +8,9 @@ import {
   type NativeItem,
   type NativeMenuApi,
 } from './contextMenu'
+
+const licence = vi.hoisted(() => ({ editing: true }))
+vi.mock('./licence', () => ({ editingAllowed: () => licence.editing }))
 
 interface Target {
   name: string
@@ -272,5 +276,31 @@ describe('createContextMenu', () => {
     expect(fake.shown()).toEqual(['Open Home', '---', 'Copy', 'SelectAll'])
     expect(fake.calls.filter((c) => c.startsWith('setText'))).toEqual(['setText Open Home'])
     expect(picked).toEqual([])
+  })
+})
+
+describe('entries that change notes', () => {
+  const groups: MenuGroups<'trash' | 'copy' | 'color', Target> = [
+    [commandEntry('trash', 'note.trash'), commandEntry('copy', 'note.copyLink')],
+    [{ action: 'color', label: 'tagMenu.color', edits: true }],
+  ]
+  const row = { name: 'a', nested: false, flagged: false }
+
+  it('are marked by their command, and hidden while editing is not allowed', () => {
+    expect(commandEntry('trash', 'note.trash').edits).toBe(true)
+    expect(commandEntry('copy', 'note.copyLink').edits).toBeUndefined()
+    licence.editing = true
+    expect(
+      shownGroups(groups, row)
+        .flat()
+        .map((e) => e.action),
+    ).toEqual(['trash', 'copy', 'color'])
+    licence.editing = false
+    expect(
+      shownGroups(groups, row)
+        .flat()
+        .map((e) => e.action),
+    ).toEqual(['copy'])
+    licence.editing = true
   })
 })

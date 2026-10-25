@@ -11,6 +11,8 @@ const backupDate = (ms: number, locale: string) =>
 export function BackupsDialog(props: {
   onRestore: (id: string) => Promise<void>
   onClose: () => void
+  /** Backing up still works; a restore would change the notes, after the trial without a licence. */
+  readOnly?: boolean
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const done = useRef<HTMLButtonElement>(null)
@@ -98,10 +100,10 @@ export function BackupsDialog(props: {
                 <button
                   type="button"
                   className="button"
-                  aria-disabled={busy}
+                  aria-disabled={busy || props.readOnly}
                   aria-label={format(t('backups.restoreLabel'), { date })}
                   onClick={() => {
-                    if (!busy) setConfirm(b)
+                    if (!busy && !props.readOnly) setConfirm(b)
                   }}
                 >
                   {t('backups.restore')}
