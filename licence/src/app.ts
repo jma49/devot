@@ -152,9 +152,12 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     const owner = await licensee(licence, session)
     const key = await keyFor(licence, owner)
     const kind = purchase.kind === 'renewal' ? 'renewed' : 'issued'
-    const mail = licenceMail(session.email ?? owner, kind, [
-      { key, updatesUntil: licence.updatesUntil },
-    ])
+    const mail = licenceMail(
+      session.email ?? owner,
+      kind,
+      [{ key, updatesUntil: licence.updatesUntil }],
+      `${kind}/${purchase.sessionId}`,
+    )
     // /done and the webhook, or two deliveries of one event, can get here together: one sends.
     if (!(await store.claimMail(purchase.sessionId, instant(now())))) return
     try {
@@ -268,7 +271,12 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       store.hit(await rateKey('ip', ip), window),
     ])
     if (byAddress <= LIMITS.resendPerAddress && byIp <= LIMITS.resendPerIp) {
-      deps.defer(mailAll(email).catch((error: unknown) => fail(error)))
+      deps.defer(
+        mailAll(
+          email,
+          `${await rateKey('address', email.toLowerCase())}/${byAddress}/${window}`,
+        ).catch((error: unknown) => fail(error)),
+      )
     } else {
       log('I_LICENCE_RESEND_LIMITED')
     }
@@ -276,7 +284,7 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     return resentPage()
   }
 
-  async function mailAll(email: string): Promise<void> {
+  async function mailAll(email: string, attempt: string): Promise<void> {
     const lower = email.toLowerCase()
     const found = await Promise.all(
       [...new Set([email, lower])].map((e) => stripe.customersByEmail(e)),
@@ -295,7 +303,7 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
         (await licensee(licence, undefined, async () => customers[0]?.email ?? null))
       keys.push({ key: await keyFor(licence, owner), updatesUntil: licence.updatesUntil })
     }
-    await mailer.send(licenceMail(email, 'resend', keys))
+    await mailer.send(licenceMail(email, 'resend', keys, `resend/${attempt}`))
     log(`I_LICENCE_RESENT ${licences.map((l) => l.id).join(' ')}`)
   }
 

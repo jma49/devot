@@ -6,32 +6,58 @@ export interface Mail {
   subject: string
   text: string
   html: string
+  /** Resend drops a repeat of a key for 24 hours, so a retried send mails once. */
+  idempotencyKey?: string | undefined
 }
 
 export interface Mailer {
   send(mail: Mail): Promise<void>
 }
 
-/** The `send_email` binding of Cloudflare Email Service, as far as the Worker uses it. */
-export interface SendEmailBinding {
-  send(message: {
-    from: { email: string; name: string }
-    to: string
-    subject: string
-    text: string
-    html: string
-  }): Promise<unknown>
+const RESEND_URL = 'https://api.resend.com/emails'
+
+type Fetch = (input: string, init: RequestInit) => Promise<Response>
+
+/** Resend's error name when it looks like one; never the message, which can hold an address. */
+async function errorDetail(response: Response): Promise<string> {
+  try {
+    const name = ((await response.json()) as { name?: unknown } | null)?.name
+    if (typeof name === 'string' && /^[a-z_]{1,64}$/.test(name)) return name
+  } catch {
+    // not JSON
+  }
+  return `http_${response.status}`
 }
 
-export function cloudflareMailer(binding: SendEmailBinding, from: string): Mailer {
+export function resendMailer(
+  apiKey: string,
+  from: string,
+  fetcher: Fetch = (input, init) => fetch(input, init),
+): Mailer {
   return {
     async send(mail) {
-      try {
-        await binding.send({ from: { email: from, name: MESSAGES.product }, ...mail })
-      } catch (error) {
-        const code = (error as { code?: unknown } | null)?.code
-        throw new LicenceError('E_LICENCE_MAIL', typeof code === 'string' ? code : undefined)
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       }
+      if (mail.idempotencyKey) headers['Idempotency-Key'] = mail.idempotencyKey
+      let response: Response
+      try {
+        response = await fetcher(RESEND_URL, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            from: `${MESSAGES.product} <${from}>`,
+            to: [mail.to],
+            subject: mail.subject,
+            text: mail.text,
+            html: mail.html,
+          }),
+        })
+      } catch {
+        throw new LicenceError('E_LICENCE_MAIL', 'network')
+      }
+      if (!response.ok) throw new LicenceError('E_LICENCE_MAIL', await errorDetail(response))
     },
   }
 }
@@ -58,6 +84,7 @@ export function licenceMail(
   to: string,
   kind: 'issued' | 'renewed' | 'resend',
   keys: MailedKey[],
+  idempotencyKey?: string,
 ): Mail {
   const m = MESSAGES.mail
   const subject = { issued: m.issuedSubject, renewed: m.renewedSubject, resend: m.resendSubject }[
@@ -85,5 +112,5 @@ export function licenceMail(
     `<p>${escapeHtml(MESSAGES.paste)}</p>`,
     `<p>${escapeHtml(m.keep)}</p>`,
   ].join('\n')
-  return { to, subject, text, html }
+  return { to, subject, text, html, idempotencyKey }
 }

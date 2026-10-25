@@ -57,7 +57,7 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
   - `GET /revoked` returns the signed list of revoked licence IDs.
 - **Tax and disputes:** Checkout uses Stripe Managed Payments, which makes Stripe the merchant of record: it handles sales tax and VAT, fraud and disputes. An account Stripe has not admitted to Managed Payments uses Stripe Tax instead, and the owner registers for tax wherever it is required before selling there. One Worker variable chooses between the two.
 - **Secrets:** the Ed25519 signing key, a restricted Stripe key and the webhook's signing secret are Wrangler secrets that the owner sets. The repository holds only public keys. Prices live in Stripe; the Worker knows their IDs.
-- **Email** goes out through Cloudflare Email Service from the owner's domain.
+- **Email** goes out through Resend's HTTP API from the owner's domain (free plan: 3,000 a month, 100 a day), so the Worker runs on Workers Free.
 - **Selling page:** the website links to `/buy`. Prices, the refund policy and the terms of sale belong to the website and Stripe, not to this repository.
 
 ## Updates a licence covers

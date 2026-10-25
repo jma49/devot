@@ -1,14 +1,13 @@
 import { createApp } from './app.ts'
 import { LicenceError } from './errors.ts'
 import { fromBase64Url, signerFromSeed } from './format.ts'
-import { cloudflareMailer } from './mail.ts'
+import { resendMailer } from './mail.ts'
 import { errorPage } from './pages.ts'
 import { d1Store, type SqlDatabase } from './store.ts'
 import { stripeClient } from './stripe.ts'
 
 export interface Env {
   DB: D1Database
-  EMAIL: SendEmail
   LICENCE_KID?: string
   LICENCE_SIGNING_KEY?: string
   STRIPE_SECRET_KEY?: string
@@ -17,6 +16,7 @@ export interface Env {
   STRIPE_PRICE_RENEWAL?: string
   MANAGED_PAYMENTS?: string
   MAIL_FROM?: string
+  RESEND_API_KEY?: string
   CANCEL_URL?: string
 }
 
@@ -28,6 +28,7 @@ const REQUIRED = [
   'STRIPE_PRICE_LICENCE',
   'STRIPE_PRICE_RENEWAL',
   'MAIL_FROM',
+  'RESEND_API_KEY',
 ] as const
 
 export default {
@@ -42,7 +43,7 @@ export default {
     const app = createApp({
       store: d1Store(env.DB as unknown as SqlDatabase),
       stripe: stripeClient(env.STRIPE_SECRET_KEY ?? ''),
-      mailer: cloudflareMailer(env.EMAIL, env.MAIL_FROM ?? ''),
+      mailer: resendMailer(env.RESEND_API_KEY ?? '', env.MAIL_FROM ?? ''),
       signer: await signerFromSeed(env.LICENCE_KID ?? '', seed),
       config: {
         managedPayments: env.MANAGED_PAYMENTS === 'true',
