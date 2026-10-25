@@ -10,13 +10,13 @@ const mail: Mail = {
   idempotencyKey: 'issued/cs_test_1',
 }
 
-function recording(answer: () => Response) {
+function recording(answer: () => Response, replyTo?: string) {
   const calls: { url: string; init: RequestInit }[] = []
   const fetcher = async (url: string, init: RequestInit) => {
     calls.push({ url, init })
     return answer()
   }
-  return { calls, mailer: resendMailer('re_secret_key', 'licence@devot.test', fetcher) }
+  return { calls, mailer: resendMailer('re_secret_key', 'licence@devot.test', fetcher, replyTo) }
 }
 
 const json = (value: unknown, status: number) =>
@@ -54,6 +54,20 @@ describe('resendMailer', () => {
       text: mail.text,
       html: mail.html,
     })
+  })
+
+  it('sends reply_to when a Reply-To address is set', async () => {
+    const { calls, mailer } = recording(() => json({ id: 'em_1' }, 200), 'owner@example.test')
+    await mailer.send(mail)
+    expect(JSON.parse(String(calls[0]?.init.body)).reply_to).toBe('owner@example.test')
+  })
+
+  it('omits reply_to when no Reply-To address is set or it is empty', async () => {
+    for (const replyTo of [undefined, '', '   ']) {
+      const { calls, mailer } = recording(() => json({ id: 'em_1' }, 200), replyTo)
+      await mailer.send(mail)
+      expect(JSON.parse(String(calls[0]?.init.body))).not.toHaveProperty('reply_to')
+    }
   })
 
   it('omits the idempotency header when the mail has no key', async () => {

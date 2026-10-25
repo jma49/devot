@@ -33,6 +33,7 @@ export function resendMailer(
   apiKey: string,
   from: string,
   fetcher: Fetch = (input, init) => fetch(input, init),
+  replyTo?: string,
 ): Mailer {
   return {
     async send(mail) {
@@ -52,6 +53,7 @@ export function resendMailer(
             subject: mail.subject,
             text: mail.text,
             html: mail.html,
+            ...(replyTo?.trim() ? { reply_to: replyTo.trim() } : {}),
           }),
         })
       } catch {
@@ -87,10 +89,16 @@ export function licenceMail(
   idempotencyKey?: string,
 ): Mail {
   const m = MESSAGES.mail
-  const subject = { issued: m.issuedSubject, renewed: m.renewedSubject, resend: m.resendSubject }[
-    kind
-  ]
-  const intro = { issued: m.issuedIntro, renewed: m.renewedIntro, resend: m.resendIntro }[kind]
+  const subject = {
+    issued: m.issuedSubject,
+    renewed: m.renewedSubject,
+    resend: m.resendSubject,
+  }[kind]
+  const intro = {
+    issued: m.issuedIntro,
+    renewed: m.renewedIntro,
+    resend: m.resendIntro,
+  }[kind]
   const text = [
     intro,
     ...keys.flatMap(({ key, updatesUntil }) => [
