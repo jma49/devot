@@ -77,6 +77,14 @@ Releases are signed with the owner's Developer ID Application certificate, with 
 
 A missing secret or variable, an identity of another form, a signature by another identity or team, or a notarization that does not end `Accepted` fails the run with an annotation that says which (`E_SIGN_…`). On a refused notarization it prints the submission ID and the notary log. No secret is ever printed.
 
+### Waiting for Apple
+
+Notarization is submitted without `--wait`, so the log shows the submission ID at once, and the script then waits for Apple's answer in chunks of at most 30 minutes. `NOTARY_WAIT_MINUTES` (default 300) is the budget for the app and the dmg together: the dmg gets what the app left, but at least 20 minutes. The notarize job's `timeout-minutes` is 360, the hosted-runner maximum, which two full 300-minute waits could not fit.
+
+- `E_SIGN_NOTARIZATION_TIMEOUT`: Apple had not answered within the budget. Look the submission up by its ID with `xcrun notarytool info <id>` (add `--key`, `--key-id` and `--issuer` for the API key). A re-run of the failed jobs submits again; it does not resume the old submission, so a new team's first notarization can take as long again.
+- `E_SIGN_NOTARIZATION_REFUSED`: Apple answered with something other than `Accepted`. The log shows the notary log; fetch it again with `xcrun notarytool log <id>`.
+- A failed submission (a network error) is retried up to 3 times.
+
 ### Credentials
 
 In the `release` environment, as secrets:
