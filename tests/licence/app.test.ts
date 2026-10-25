@@ -154,6 +154,7 @@ describe('buying', () => {
     expect(mailer.sent).toHaveLength(1)
     const [mail] = mailer.sent
     expect(mail?.to).toBe('buyer@example.com')
+    expect(mail?.idempotencyKey).toBe(`issued/${session.id}`)
     const [key] = keysIn(mail?.text ?? '')
     expect(await payload(key ?? '')).toMatchObject({
       kid: 'test',
@@ -338,6 +339,7 @@ describe('renewing', () => {
     await webhook('checkout.session.completed', rawSession(renewal))
     expect(mailer.sent).toHaveLength(2)
     expect(mailer.sent[1]?.subject).toBe('Your renewed Devot licence')
+    expect(mailer.sent[1]?.idempotencyKey).toBe(`renewed/${renewal.id}`)
     const renewed = await payload(keysIn(mailer.sent[1]?.text ?? '')[0] ?? '')
     expect(renewed).toEqual({ ...first, updatesUntil: '2028-10-24' })
     const html = await (await get(`/done?session_id=${renewal.id}`)).text()
@@ -509,6 +511,8 @@ describe('/resend', () => {
     const [mail] = mailer.sent
     expect(mail?.to).toBe('Buyer@Example.com')
     expect(mail?.subject).toBe('Your Devot licences')
+    expect(mail?.idempotencyKey).toMatch(/^resend\/address:[0-9a-f]{32}\/1\/\d+$/)
+    expect(mail?.idempotencyKey).not.toMatch(/buyer/i)
     const keys = await Promise.all(keysIn(mail?.text ?? '').map(payload))
     expect(keys).toHaveLength(2)
     expect(keys.every((k) => k.licensee === 'buyer@example.com')).toBe(true)
@@ -520,6 +524,7 @@ describe('/resend', () => {
     for (let i = 0; i < 4; i++) await resend('buyer@example.com', `198.51.100.${i}`)
     await settle()
     expect(mailer.sent).toHaveLength(LIMITS.resendPerAddress)
+    expect(new Set(mailer.sent.map((m) => m.idempotencyKey)).size).toBe(LIMITS.resendPerAddress)
     for (let i = 0; i < 12; i++) await resend(`n${i}@example.com`, '192.0.2.9')
     clock = new Date(clock.getTime() + LIMITS.resendWindowSeconds * 1000)
     await resend('buyer@example.com', '192.0.2.9')

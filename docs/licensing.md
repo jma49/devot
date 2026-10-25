@@ -20,7 +20,7 @@ The licence Worker sells Devot's licence through Stripe Checkout, signs licence 
 - **The licensee** in a key is the email address of the Stripe Customer of the licence's first purchase. When that Customer is deleted or has no address, it is the address of the session being shown or mailed (a renewal's, or the one `/resend` matched); when there is none either, the answer is `E_LICENCE_NO_CUSTOMER` (409). Ed25519 signatures are deterministic, so the same row, signing key and licensee always give the same key; changing the Customer's address in Stripe changes the key signed from then on, and the old key stays valid.
 - **Revoking.** Each purchase row keeps its PaymentIntent ID. `charge.refunded` with `refunded: true` (a full refund) and `charge.dispute.closed` with `status: lost` revoke the licence whose first purchase that PaymentIntent paid. The PaymentIntent is kept as revoked either way (`revoked_payments`, IDs only), so when the refund arrives before the purchase is recorded, the licence is issued revoked and never mailed (`I_LICENCE_PAYMENT_REVOKED <payment intent>` when the refund matched no licence, then `E_LICENCE_REVOKED <licence> <session>`). A refunded renewal revokes nothing (see Revoking by hand). `/revoked` lists the IDs of every revoked licence.
 - **`/resend`** looks up the Stripe Customers with that address (as typed and in lower case, compared without case), finds every licence any of their purchases paid for or renewed, leaves out revoked ones and mails the keys in one message to the address. It answers at once with the same page whether or not anything was found, and does the lookup after answering. It sends at most 3 times an hour per address and 10 times an hour per IP (`CF-Connecting-IP`); past that it answers the same page and sends nothing. The counters are D1 rows keyed by an HMAC of the address or IP, not the address or IP itself.
-- **Errors** carry a code: `E_LICENCE_BAD_REQUEST`, `E_LICENCE_CONFIG` (a secret or variable is missing; 503), `E_LICENCE_METHOD`, `E_LICENCE_NOT_FOUND`, `E_LICENCE_UNKNOWN`, `E_LICENCE_REVOKED`, `E_LICENCE_SESSION_UNKNOWN`, `E_LICENCE_UNPAID`, `E_LICENCE_NO_CUSTOMER` (409), `E_LICENCE_STRIPE` (Stripe failed or did not answer; 502), `E_LICENCE_MAIL` (with Email Service's own code, such as `E_SENDER_NOT_VERIFIED`), `E_LICENCE_TOO_LARGE`, `E_LICENCE_WEBHOOK_SIGNATURE`, `E_LICENCE_INTERNAL`. Pages show the code; the webhook answers `{"code": …}`.
+- **Errors** carry a code: `E_LICENCE_BAD_REQUEST`, `E_LICENCE_CONFIG` (a secret or variable is missing; 503), `E_LICENCE_METHOD`, `E_LICENCE_NOT_FOUND`, `E_LICENCE_UNKNOWN`, `E_LICENCE_REVOKED`, `E_LICENCE_SESSION_UNKNOWN`, `E_LICENCE_UNPAID`, `E_LICENCE_NO_CUSTOMER` (409), `E_LICENCE_STRIPE` (Stripe failed or did not answer; 502), `E_LICENCE_MAIL` (with Resend's error name, such as `validation_error`, `rate_limit_exceeded` or `daily_quota_exceeded`, or `network` or `http_<status>` when there is none), `E_LICENCE_TOO_LARGE`, `E_LICENCE_WEBHOOK_SIGNATURE`, `E_LICENCE_INTERNAL`. Pages show the code; the webhook answers `{"code": …}`.
 - **Logs** are one line per event, a code and IDs only: `I_LICENCE_ISSUED <licence> <session>`, `I_LICENCE_RENEWED`, `I_LICENCE_MAILED`, `I_LICENCE_REVOKED <licence> refund|dispute`, `I_LICENCE_PAYMENT_REVOKED <payment intent> refund|dispute`, `I_LICENCE_RESENT <licences>`, `I_LICENCE_RESEND_LIMITED` and the error codes. Never an address or a key.
 
 ## Formats
@@ -70,11 +70,11 @@ To check a key:
 
 ## Deploy to the owner's Cloudflare account
 
-You need a Cloudflare account on the **Workers Paid** plan (Email Service sends to arbitrary recipients only there; 3,000 emails a month are included), a domain on Cloudflare to send from, and a Stripe account. Nothing here deploys by itself: run each step yourself.
+You need a Cloudflare account (the **Workers Free** plan is enough: the Worker uses only a D1 database and outbound `fetch` calls, no Durable Objects, Queues or Cron Triggers), a domain on Cloudflare to send from, a [Resend](https://resend.com) account and a Stripe account. Nothing here deploys by itself: run each step yourself.
 
 1. From a checkout of this repository: `pnpm install --filter @devot/licence`, then in `licence/` sign in: `pnpm exec wrangler login`.
 2. Create the database: `pnpm exec wrangler d1 create devot-licence`, and add the `database_id` it prints to the `[[d1_databases]]` block of `licence/wrangler.toml`. Then create its tables: `pnpm exec wrangler d1 migrations apply devot-licence --remote`.
-3. Onboard the sending domain for Email Service (`pnpm exec wrangler email sending enable <your domain>`, or in the dashboard under Email Service), which adds its SPF and DKIM records. Until it is onboarded, mail fails with `E_LICENCE_MAIL E_SENDER_NOT_VERIFIED`. See [Email Service](https://developers.cloudflare.com/email-service/) for its limits (50 recipients and 5 MiB a message; new accounts start with a small daily quota).
+3. Set up Resend (below): add and verify the sending domain, make an API key and store it with `pnpm exec wrangler secret put RESEND_API_KEY`. Until the domain is verified, mail fails with `E_LICENCE_MAIL validation_error`.
 4. Make the signing key: `pnpm keygen`. Store the seed in your password manager and offline, then `pnpm exec wrangler secret put LICENCE_SIGNING_KEY` and paste it. Choose its kid (for example `2026-10`). Add the public key and kid to the app (The app, Adding a signing key) and release it before you sell.
 5. Set up Stripe (below) and set its two secrets: `pnpm exec wrangler secret put STRIPE_SECRET_KEY` and `pnpm exec wrangler secret put STRIPE_WEBHOOK_SECRET`.
 6. Fill in `[vars]` in `licence/wrangler.toml` (none is secret; see the table) and deploy: `pnpm exec wrangler deploy`. It prints the Worker's URL, `https://devot-licence.<your subdomain>.workers.dev`; you may route it to your own domain instead.
@@ -84,22 +84,37 @@ To update, pull the repository, apply any new migration (`pnpm exec wrangler d1 
 
 **Secrets** (`wrangler secret put`; never in a file):
 
-| Secret                  | Value                                                     |
-| ----------------------- | --------------------------------------------------------- |
-| `LICENCE_SIGNING_KEY`   | the Ed25519 seed from `pnpm keygen`                       |
-| `STRIPE_SECRET_KEY`     | a restricted key: Checkout Sessions Write, Customers Read |
-| `STRIPE_WEBHOOK_SECRET` | the webhook endpoint's signing secret (`whsec_…`)         |
+| Secret                  | Value                                                       |
+| ----------------------- | ----------------------------------------------------------- |
+| `LICENCE_SIGNING_KEY`   | the Ed25519 seed from `pnpm keygen`                         |
+| `STRIPE_SECRET_KEY`     | a restricted key: Checkout Sessions Write, Customers Read   |
+| `STRIPE_WEBHOOK_SECRET` | the webhook endpoint's signing secret (`whsec_…`)           |
+| `RESEND_API_KEY`        | a Resend key with sending access to the one domain (`re_…`) |
 
 **Variables** (`[vars]` in `licence/wrangler.toml`):
 
-| Variable               | Value                                                                           |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| `LICENCE_KID`          | the signing key's ID, as the app knows it                                       |
-| `STRIPE_PRICE_LICENCE` | the licence's one-time Price ID (`price_…`)                                     |
-| `STRIPE_PRICE_RENEWAL` | the renewal's one-time Price ID                                                 |
-| `MANAGED_PAYMENTS`     | `true` for Managed Payments (the default), anything else for Stripe Tax         |
-| `MAIL_FROM`            | the sender address, on the onboarded domain (for example `licence@example.com`) |
-| `CANCEL_URL`           | optional: where Checkout's back link goes, such as the website's Buy page       |
+| Variable               | Value                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| `LICENCE_KID`          | the signing key's ID, as the app knows it                                              |
+| `STRIPE_PRICE_LICENCE` | the licence's one-time Price ID (`price_…`)                                            |
+| `STRIPE_PRICE_RENEWAL` | the renewal's one-time Price ID                                                        |
+| `MANAGED_PAYMENTS`     | `true` for Managed Payments (the default), anything else for Stripe Tax                |
+| `MAIL_FROM`            | the sender address, on the verified Resend domain (for example `licence@devot.online`) |
+| `CANCEL_URL`           | optional: where Checkout's back link goes, such as the website's Buy page              |
+
+## Resend
+
+The Worker posts each message to Resend's [Send Email](https://resend.com/docs/api-reference/emails/send-email) endpoint (`https://api.resend.com/emails`) with `fetch`, no SDK, and the key as a bearer token.
+
+1. Create a Resend account and, under Domains, add the domain you send from (for example `devot.online`). Resend shows its DNS records (SPF, DKIM and, if you want it, DMARC). Add them in the Cloudflare dashboard under the domain's DNS, then press Verify. Do not proxy these records.
+2. Under API Keys, create a key with the Sending access permission restricted to that domain, and store it as `RESEND_API_KEY`.
+3. Set `MAIL_FROM` to an address on that domain, such as `licence@devot.online`.
+
+**Plan limits.** The free plan sends 3,000 emails a month, at most 100 a day, from one domain. Past a limit Resend answers 429 (`daily_quota_exceeded` or `monthly_quota_exceeded`) and the Worker logs `E_LICENCE_MAIL <name>`. The buyer loses nothing: the key is on `/done`, the webhook answers 500 so Stripe retries the mail (the daily quota resets, so a retry the next day sends it), and `/resend` mails it again once there is room. Upgrade the Resend plan if sales ever near the limits.
+
+**Idempotency.** Every message carries an `Idempotency-Key` header. Resend keeps a key for 24 hours and answers a repeat of it with the first response without sending again; a key is 1 to 256 characters ([Idempotency Keys](https://resend.com/docs/dashboard/emails/idempotency-keys)). The key is `issued/<session>` or `renewed/<session>` for a purchase, so a retried send of one purchase's mail within 24 hours mails once; `/resend` uses `resend/<keyed hash of the address>/<attempt in the window>/<window>`, which is unique for each allowed request and holds no address. A `409 concurrent_idempotent_requests` is retried later like any other failure. The claim-before-send mark in D1 still comes first and covers retries after the 24 hours.
+
+**Errors.** A failed send throws `E_LICENCE_MAIL <name>`, where the name is Resend's error `name` ([Errors](https://resend.com/docs/api-reference/errors)) if it is a plain lowercase word, else `http_<status>`; a network failure gives `network`. The message, response body, address and key are never logged. Every failure clears the claim and makes the webhook answer 500, so Stripe retries; the same goes for 429 and 5xx.
 
 ## Stripe
 
@@ -190,4 +205,4 @@ The app keeps the last revocation list that verified in `<app data>/licence-revo
 
 ## Tests
 
-`tests/licence/` runs in `pnpm test`, with nothing deployed and no network: `format.test.ts` checks the formats and the test vectors, `webhook.test.ts` the signature scheme against Node's own HMAC, `stripe.test.ts` the Stripe client against a fake `fetch`, `store.test.ts` the SQL on a real D1 database in workerd through Miniflare, `app.test.ts` every route on that database with a fake Stripe and a recording mailer, `issue.test.ts` the complimentary licences `issue` signs, and `worker.test.ts` the bundled Worker in workerd, built from the same entry and settings as `licence/wrangler.toml`, with Stripe answered by the test.
+`tests/licence/` runs in `pnpm test`, with nothing deployed and no network: `mail.test.ts` checks the Resend mailer against a recording `fetch` (request, headers, idempotency key, error mapping), `format.test.ts` checks the formats and the test vectors, `webhook.test.ts` the signature scheme against Node's own HMAC, `stripe.test.ts` the Stripe client against a fake `fetch`, `store.test.ts` the SQL on a real D1 database in workerd through Miniflare, `app.test.ts` every route on that database with a fake Stripe and a recording mailer, `issue.test.ts` the complimentary licences `issue` signs, and `worker.test.ts` the bundled Worker in workerd, built from the same entry and settings as `licence/wrangler.toml`, with Stripe answered by the test.

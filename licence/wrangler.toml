@@ -1,5 +1,5 @@
 # Devot's licence Worker on the owner's Cloudflare account (docs/licensing.md).
-# Secrets (wrangler secret put): LICENCE_SIGNING_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET.
+# Secrets (wrangler secret put): LICENCE_SIGNING_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY.
 name = "devot-licence"
 main = "src/worker.ts"
 compatibility_date = "2026-07-30"
@@ -9,9 +9,6 @@ workers_dev = true
 binding = "DB"
 database_name = "devot-licence"
 migrations_dir = "migrations"
-
-[[send_email]]
-name = "EMAIL"
 
 [vars]
 LICENCE_KID = ""
