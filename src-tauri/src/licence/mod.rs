@@ -358,6 +358,9 @@ impl Licence {
         let record = match self.trial_store.get() {
             Ok(Some(text)) => Record::read(&text).map(|record| {
                 let seen = record.seen_at(now);
+                if seen.ended && !record.ended {
+                    log::warn!("W_TRIAL_CLOCK_SET_BACK");
+                }
                 if self.trial_store.set(&seen.text()).is_err() {
                     log::warn!("W_TRIAL_SEEN_WRITE_FAILED");
                 }
@@ -386,13 +389,13 @@ impl Licence {
         let written = self
             .keychain()
             .and_then(|_keychain| self.trial_store.set(&record.text()));
-        match written {
-            Ok(()) => {
-                if let Ok(Some(trial)) = self.trial_lock().as_deref_mut() {
-                    trial.written = record.seen;
-                }
-            }
-            Err(code) => log::warn!("W_TRIAL_SEEN_WRITE_FAILED {code}"),
+        if let Err(code) = written {
+            log::warn!("W_TRIAL_SEEN_WRITE_FAILED {code}");
+        }
+        // A refused write waits as long as one that landed: each try may bring back the
+        // keychain's prompt.
+        if let Ok(Some(trial)) = self.trial_lock().as_deref_mut() {
+            trial.written = record.seen;
         }
     }
 
@@ -427,8 +430,9 @@ impl Licence {
         }
     }
 
-    /// Writes the latest time seen every `SEEN_EVERY_MS`, reads again a key or a trial that could not
-    /// be read, and tells the windows when what they show changed (the trial ended).
+    /// Writes the latest time seen every `SEEN_EVERY_MS` while no licence is valid, reads again a
+    /// key or a trial that could not be read, and tells the windows when what they show changed
+    /// (the trial ended).
     pub(crate) fn tick(&self) {
         if !self.keys.gated() {
             return;
@@ -448,6 +452,7 @@ impl Licence {
             .and_then(|trial| trial.as_ref().map(|trial| trial.written));
         if let (Ok(record), Some(written)) = (self.trial_at(now), written)
             && now.saturating_sub(written) >= trial::SEEN_EVERY_MS
+            && self.key_snapshot().state != LicenceState::Valid
         {
             self.write_trial(&record);
         }

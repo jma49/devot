@@ -763,6 +763,61 @@ fn setting_the_clock_back_ends_the_trial_and_setting_it_right_does_not_bring_it_
     assert_eq!(again.trial_view().state, trial::TrialState::Ended);
 }
 
+// Each refused write may bring back the keychain's prompt.
+#[test]
+fn a_refused_trial_write_is_tried_again_after_the_full_interval_not_every_tick() {
+    let s = first_launch(true);
+    s.licence.snapshot();
+    s.trial.unwritable.store(true, Ordering::SeqCst);
+    let writes = || s.trial.writes.load(Ordering::SeqCst);
+    let before = writes();
+    for minutes in [10, 11, 12, 15] {
+        s.at(START + minutes * 60_000);
+        s.licence.tick();
+    }
+    assert_eq!(writes() - before, 1);
+    s.at(START + 20 * 60_000);
+    s.licence.tick();
+    assert_eq!(writes() - before, 2);
+}
+
+#[test]
+fn a_valid_licence_never_writes_the_trial_as_time_passes() {
+    let s = first_launch(true);
+    *s.store.key.lock().expect("key") = Some(key(ID));
+    assert_eq!(s.licence.snapshot().state, LicenceState::Valid);
+    let before = s.trial.writes.load(Ordering::SeqCst);
+    for minutes in [10, 20, 30] {
+        s.at(START + minutes * 60_000);
+        s.licence.tick();
+    }
+    assert_eq!(s.trial.writes.load(Ordering::SeqCst), before);
+}
+
+#[test]
+fn a_clock_set_back_while_devot_was_closed_is_logged_as_one() {
+    crate::test_log::capture();
+    let set_back = || {
+        crate::test_log::lines()
+            .iter()
+            .filter(|line| line.as_str() == "WARN W_TRIAL_CLOCK_SET_BACK")
+            .count()
+    };
+    let before = set_back();
+    let seen_later = trial::Record {
+        start: START - 2 * HOUR,
+        seen: START + 2 * HOUR,
+        ended: false,
+    };
+    let s = setup_with(
+        tempfile::tempdir().expect("dir"),
+        true,
+        Arc::new(MemoryKey::holding(&seen_later.text())),
+    );
+    assert_eq!(s.trial_view().state, trial::TrialState::Ended);
+    assert!(set_back() > before);
+}
+
 #[test]
 fn a_valid_licence_unlocks_everything_whatever_the_trial() {
     let s = setup(true);
