@@ -881,6 +881,10 @@ export const en = {
     'Your current notes will be replaced. Devot backs them up first, so you can go back to them.',
   'backups.confirm': 'Restore',
   'backups.failed': 'The backup failed ({code}).',
+  'backups.listFailed': 'The backups could not be listed ({code}).',
+  'backups.restoreFailed': 'The backup could not be restored ({code}).',
+  'backups.restoreWindows':
+    'The backup was not restored: another Devot window did not get ready in time ({code}). Try again.',
   'backups.autoFailed': 'The automatic backup failed ({code}).',
   'backups.show': 'Show Backups',
   'notice.dismiss': 'Dismiss',

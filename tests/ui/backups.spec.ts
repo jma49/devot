@@ -97,7 +97,9 @@ test('a failed restore keeps the dialog open with the code', async ({ page }) =>
     .getByRole('dialog', { name: /Restore the backup/ })
     .getByRole('button', { name: 'Restore' })
     .click()
-  await expect(page.getByRole('alert')).toHaveText('The backup failed (E_BACKUP_RESTORE_FAILED).')
+  await expect(page.getByRole('alert')).toHaveText(
+    'The backup could not be restored (E_BACKUP_RESTORE_FAILED).',
+  )
   expect(await calls(page, 'backup_restore')).toEqual([
     { cmd: 'backup_restore', args: { id: OLD.id } },
   ])
@@ -135,6 +137,28 @@ test('a backup restored from another window: this one saves, writes nothing more
   const reloaded = page.waitForEvent('load')
   await send('devot:restore-done')
   await reloaded
+})
+
+test('a list that cannot be read says so', async ({ page }) => {
+  await open(page, { backups_list: { error: 'E_BACKUP_DIR' } })
+  await showBackups(page)
+  await expect(page.getByRole('dialog', { name: 'Backups' }).getByRole('alert')).toHaveText(
+    'The backups could not be listed (E_BACKUP_DIR).',
+  )
+})
+
+test('a restore another window was not ready for says to try again', async ({ page }) => {
+  await open(page, {
+    backups_list: { backups: [OLD], lastError: null },
+    backup_restore: { error: 'E_BACKUP_RESTORE_WINDOWS' },
+  })
+  await showBackups(page)
+  await page.getByRole('button', { name: /^Restore the backup from/ }).click()
+  await page
+    .getByRole('dialog', { name: /Restore the backup/ })
+    .getByRole('button', { name: 'Restore' })
+    .click()
+  await expect(page.getByRole('alert')).toContainText('did not get ready in time')
 })
 
 test('a failed automatic backup shows a notice that opens the backups', async ({ page }) => {
