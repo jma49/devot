@@ -343,6 +343,27 @@ fn others_with_a_core(caller: &str, labels: impl IntoIterator<Item = String>) ->
         .collect()
 }
 
+/// The other windows as a restore sees them.
+trait Others {
+    fn tell(&self, label: &str, event: &'static str);
+    fn open(&self) -> HashSet<String>;
+}
+
+impl Others for AppHandle {
+    fn tell(&self, label: &str, event: &'static str) {
+        if self
+            .emit_to(EventTarget::webview_window(label), event, ())
+            .is_err()
+        {
+            log::warn!("W_BACKUP_RESTORE_EMIT_FAILED {event}");
+        }
+    }
+
+    fn open(&self) -> HashSet<String> {
+        self.webview_windows().into_keys().collect()
+    }
+}
+
 /// The windows a restore waits for, while one does.
 #[derive(Default)]
 struct Preparing {
@@ -410,23 +431,43 @@ impl Backups {
         Ok(source)
     }
 
-    async fn prepare(&self, app: &AppHandle, asked: &HashSet<String>) -> Result<(), &'static str> {
+    /// Windows asked to stop reload after, whether the restore ran or not. A restore refused because
+    /// another is waiting asked none, so it tells none.
+    async fn restore_with_others_stopped(
+        &self,
+        others: &impl Others,
+        asked: &HashSet<String>,
+        db: &storage::Db,
+        id: &str,
+        now: i64,
+    ) -> Result<(), &'static str> {
+        if !asked.is_empty() {
+            self.preparing.begin(asked.clone())?;
+        }
+        let result = match self.wait_for(others, asked).await {
+            Ok(()) => self.restore(db, id, now).await,
+            Err(code) => Err(code),
+        };
+        for label in asked {
+            others.tell(label, DONE_EVENT);
+        }
+        result
+    }
+
+    async fn wait_for(
+        &self,
+        others: &impl Others,
+        asked: &HashSet<String>,
+    ) -> Result<(), &'static str> {
         if asked.is_empty() {
             return Ok(());
         }
-        self.preparing.begin(asked.clone())?;
         for label in asked {
-            if app
-                .emit_to(EventTarget::webview_window(label), PREPARE_EVENT, ())
-                .is_err()
-            {
-                log::warn!("W_BACKUP_PREPARE_EMIT_FAILED");
-            }
+            others.tell(label, PREPARE_EVENT);
         }
         let deadline = Instant::now() + PREPARE_TIMEOUT;
         loop {
-            let live: HashSet<String> = app.webview_windows().into_keys().collect();
-            if self.preparing.settled(&live) {
+            if self.preparing.settled(&others.open()) {
                 return Ok(());
             }
             if Instant::now() >= deadline {
@@ -568,20 +609,10 @@ pub async fn backup_restore(
     let backups = app.state::<Backups>();
     backups.source(&id)?;
     let asked = others_with_a_core(window.label(), app.webview_windows().into_keys());
-    let result = match backups.prepare(&app, &asked).await {
-        Ok(()) => backups.restore(&db, &id, logs::now_ms()).await,
-        Err(code) => Err(code),
-    };
-    // Their cores are stopped whether the restore ran or not.
-    for label in &asked {
-        if app
-            .emit_to(EventTarget::webview_window(label), DONE_EVENT, ())
-            .is_err()
-        {
-            log::warn!("W_BACKUP_DONE_EMIT_FAILED");
-        }
-    }
-    result.map_err(String::from)
+    backups
+        .restore_with_others_stopped(&app, &asked, &db, &id, logs::now_ms())
+        .await
+        .map_err(String::from)
 }
 
 /// A window has saved and stopped its core for the restore.
@@ -662,6 +693,58 @@ mod tests {
         gate.end();
         gate.ready("main");
         gate.begin(asked).unwrap();
+    }
+
+    #[derive(Default)]
+    struct Told(std::sync::Mutex<Vec<(String, &'static str)>>);
+
+    impl Others for Told {
+        fn tell(&self, label: &str, event: &'static str) {
+            self.0.lock().unwrap().push((label.to_owned(), event));
+        }
+
+        fn open(&self) -> HashSet<String> {
+            HashSet::new()
+        }
+    }
+
+    #[test]
+    fn a_restore_refused_while_another_waits_tells_no_window_to_reload() {
+        let (_dir, backups, db) = app_data();
+        let id = backups.back_up(NOW).unwrap().id;
+        let asked = labels(&["main", "main-2"]);
+        backups.preparing.begin(labels(&["main-2"])).unwrap();
+
+        let told = Told::default();
+        let refused = tauri::async_runtime::block_on(backups.restore_with_others_stopped(
+            &told,
+            &asked,
+            &db,
+            &id,
+            NOW + HOUR,
+        ));
+        assert_eq!(refused, Err("E_BACKUP_RESTORE_BUSY"));
+        assert!(told.0.lock().unwrap().is_empty());
+
+        backups.preparing.end();
+        tauri::async_runtime::block_on(backups.restore_with_others_stopped(
+            &told,
+            &asked,
+            &db,
+            &id,
+            NOW + HOUR,
+        ))
+        .unwrap();
+        let events = told.0.lock().unwrap().clone();
+        let to = |event: &str, from: &[(String, &str)]| -> HashSet<String> {
+            from.iter()
+                .filter(|(_, e)| *e == event)
+                .map(|(label, _)| label.clone())
+                .collect()
+        };
+        let (first, then) = events.split_at(2);
+        assert_eq!(to(PREPARE_EVENT, first), asked, "{events:?}");
+        assert_eq!(to(DONE_EVENT, then), asked, "{events:?}");
     }
 
     fn left_behind(folder: TempDir) -> PathBuf {
