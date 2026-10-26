@@ -1,8 +1,11 @@
-//! Outbound web requests: the one small blocking client every feature that fetches from the web goes through. https only and public hosts only, redirects included (each hop is checked), with a time cap for the whole call and a cap on the bytes read. Errors are codes, never URLs. Call it from a blocking task, never the main thread.
+//! Outbound web requests: the one small blocking client every feature that fetches from the web goes through. https only and public hosts only, redirects included (each hop is checked, by name and by the addresses it resolves to), with a time cap for the whole call and a cap on the bytes read. Errors are codes, never URLs. Call it from a blocking task, never the main thread. Through a proxy set in the environment, the proxy resolves the names it is sent, so only their spelling is checked.
 
 use std::io::Read;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::{Duration, Instant};
 use tauri::Url;
+use ureq::unversioned::resolver::{DefaultResolver, ResolvedSocketAddrs, Resolver};
+use ureq::unversioned::transport::{DefaultConnector, NextTimeout};
 
 pub const MAX_URL_LEN: usize = 2048;
 pub const MAX_REDIRECTS: u32 = 5;
@@ -48,43 +51,53 @@ fn error_code(error: &ureq::Error) -> &'static str {
         ureq::Error::Timeout(_) => "E_NET_TIMEOUT",
         ureq::Error::RequireHttpsOnly(_) => "E_NET_HTTPS_ONLY",
         ureq::Error::TooManyRedirects => "E_NET_TOO_MANY_REDIRECTS",
+        ureq::Error::Io(e) if e.get_ref().is_some_and(|inner| inner.is::<HostRefused>()) => {
+            "E_NET_HOST_REFUSED"
+        }
         _ => "E_NET_FAILED",
     }
 }
 
-fn public_host(url: &Url) -> bool {
-    use std::net::{Ipv4Addr, Ipv6Addr};
-    let v4 = |ip: Ipv4Addr| {
-        let [a, b, ..] = ip.octets();
-        !(ip.is_loopback()
-            || ip.is_private()
-            || ip.is_link_local()
-            || ip.is_unspecified()
-            || ip.is_broadcast()
-            || a == 0
-            // Carrier-grade NAT, 100.64.0.0/10.
-            || (a == 100 && (64..128).contains(&b)))
-    };
-    let v6 = |ip: Ipv6Addr| {
-        let first = ip.segments()[0];
-        match ip.to_ipv4_mapped() {
-            Some(mapped) => v4(mapped),
-            None => {
-                !(ip.is_loopback()
-                    || ip.is_unspecified()
-                    // Unique local fc00::/7 and link-local fe80::/10.
-                    || (first & 0xfe00) == 0xfc00
-                    || (first & 0xffc0) == 0xfe80)
-            }
+fn public_v4(ip: Ipv4Addr) -> bool {
+    let [a, b, ..] = ip.octets();
+    !(ip.is_loopback()
+        || ip.is_private()
+        || ip.is_link_local()
+        || ip.is_unspecified()
+        || ip.is_broadcast()
+        || a == 0
+        // Carrier-grade NAT, 100.64.0.0/10.
+        || (a == 100 && (64..128).contains(&b)))
+}
+
+fn public_v6(ip: Ipv6Addr) -> bool {
+    let first = ip.segments()[0];
+    match ip.to_ipv4_mapped() {
+        Some(mapped) => public_v4(mapped),
+        None => {
+            !(ip.is_loopback()
+                || ip.is_unspecified()
+                // Unique local fc00::/7 and link-local fe80::/10.
+                || (first & 0xfe00) == 0xfc00
+                || (first & 0xffc0) == 0xfe80)
         }
-    };
+    }
+}
+
+fn public_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => public_v4(ip),
+        IpAddr::V6(ip) => public_v6(ip),
+    }
+}
+
+fn public_host(url: &Url) -> bool {
     let Some(host) = url.host_str() else {
         return false;
     };
     let bare = host.trim_start_matches('[').trim_end_matches(']');
-    match bare.parse::<std::net::IpAddr>() {
-        Ok(std::net::IpAddr::V4(ip)) => v4(ip),
-        Ok(std::net::IpAddr::V6(ip)) => v6(ip),
+    match bare.parse::<IpAddr>() {
+        Ok(ip) => public_ip(ip),
         Err(_) => {
             let name = host.trim_end_matches('.').to_ascii_lowercase();
             !(name.is_empty()
@@ -92,6 +105,52 @@ fn public_host(url: &Url) -> bool {
                 || name.ends_with(".localhost")
                 || name.ends_with(".local"))
         }
+    }
+}
+
+fn public_addresses(found: &[SocketAddr]) -> Vec<SocketAddr> {
+    found
+        .iter()
+        .copied()
+        .filter(|address| public_ip(address.ip()))
+        .collect()
+}
+
+#[derive(Debug)]
+struct HostRefused;
+
+impl std::fmt::Display for HostRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("E_NET_HOST_REFUSED")
+    }
+}
+
+impl std::error::Error for HostRefused {}
+
+/// A public name can still resolve to this machine or the local network.
+#[derive(Debug)]
+struct PublicOnly<R>(R);
+
+impl<R: Resolver> Resolver for PublicOnly<R> {
+    fn resolve(
+        &self,
+        uri: &ureq::http::Uri,
+        config: &ureq::config::Config,
+        timeout: NextTimeout,
+    ) -> Result<ResolvedSocketAddrs, ureq::Error> {
+        let found = self.0.resolve(uri, config, timeout)?;
+        // The user's own proxy may well be on this machine.
+        if config.proxy().is_some_and(|proxy| proxy.uri() == uri) {
+            return Ok(found);
+        }
+        let mut kept = self.empty();
+        for address in public_addresses(&found) {
+            kept.push(address);
+        }
+        if kept.is_empty() {
+            return Err(ureq::Error::Io(std::io::Error::other(HostRefused)));
+        }
+        Ok(kept)
     }
 }
 
@@ -124,6 +183,14 @@ pub fn get_local(get: &Get) -> Result<Fetched, &'static str> {
 }
 
 fn fetch(get: &Get, strict: bool) -> Result<Fetched, &'static str> {
+    fetch_with(get, strict, DefaultResolver::default)
+}
+
+fn fetch_with<R: Resolver>(
+    get: &Get,
+    strict: bool,
+    resolver: impl Fn() -> R,
+) -> Result<Fetched, &'static str> {
     let deadline = Instant::now() + get.timeout;
     let mut url = get.url.clone();
     for _ in 0..=MAX_REDIRECTS {
@@ -134,7 +201,7 @@ fn fetch(get: &Get, strict: bool) -> Result<Fetched, &'static str> {
             .checked_duration_since(Instant::now())
             .filter(|d| !d.is_zero())
             .ok_or("E_NET_TIMEOUT")?;
-        let agent: ureq::Agent = ureq::Agent::config_builder()
+        let config = ureq::Agent::config_builder()
             .tls_config(
                 ureq::tls::TlsConfig::builder()
                     .provider(ureq::tls::TlsProvider::NativeTls)
@@ -144,8 +211,12 @@ fn fetch(get: &Get, strict: bool) -> Result<Fetched, &'static str> {
             .max_redirects(0)
             .timeout_global(Some(left))
             .http_status_as_error(false)
-            .build()
-            .into();
+            .build();
+        let agent = if strict {
+            ureq::Agent::with_parts(config, DefaultConnector::default(), PublicOnly(resolver()))
+        } else {
+            ureq::Agent::with_parts(config, DefaultConnector::default(), resolver())
+        };
         let mut request = agent
             .get(url.as_str())
             .header("User-Agent", USER_AGENT)
@@ -290,5 +361,58 @@ mod tests {
             max_bytes: 10,
         });
         assert_eq!(result.unwrap_err(), "E_NET_HTTPS_ONLY");
+    }
+
+    /// Answers every name with `addresses`, as a DNS server might.
+    #[derive(Debug)]
+    struct Answers(Vec<std::net::SocketAddr>);
+
+    impl Resolver for Answers {
+        fn resolve(
+            &self,
+            _uri: &ureq::http::Uri,
+            _config: &ureq::config::Config,
+            _timeout: ureq::unversioned::transport::NextTimeout,
+        ) -> Result<ResolvedSocketAddrs, ureq::Error> {
+            let mut found = self.empty();
+            for address in &self.0 {
+                found.push(*address);
+            }
+            Ok(found)
+        }
+    }
+
+    #[test]
+    fn refuses_a_public_name_that_resolves_to_this_machine_or_the_local_network() {
+        let url = Url::parse("https://looks-public.example/").unwrap();
+        for answer in [
+            "127.0.0.1:443",
+            "10.0.0.5:443",
+            "[::1]:443",
+            "[fd00::1]:443",
+        ] {
+            let result = fetch_with(
+                &Get {
+                    url: &url,
+                    accept: "*/*",
+                    headers: &[],
+                    timeout: Duration::from_secs(1),
+                    max_bytes: 10,
+                },
+                true,
+                || Answers(vec![answer.parse().unwrap()]),
+            );
+            assert_eq!(result.unwrap_err(), "E_NET_HOST_REFUSED", "{answer}");
+        }
+    }
+
+    #[test]
+    fn keeps_only_the_public_addresses_of_a_name() {
+        let private: std::net::SocketAddr = "192.168.1.2:443".parse().unwrap();
+        let public: std::net::SocketAddr = "93.184.215.14:443".parse().unwrap();
+        assert_eq!(
+            public_addresses(&[private, public, "[::1]:443".parse().unwrap()]),
+            vec![public]
+        );
     }
 }
