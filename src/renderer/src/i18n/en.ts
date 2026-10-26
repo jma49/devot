@@ -687,6 +687,8 @@ export const en = {
   'syncSettings.why.keyMistyped': 'Check the key: it does not read as a recovery key.',
   'syncSettings.why.noRelay': 'Enter the relay’s address above first.',
   'syncSettings.why.noVault': 'The relay set above has no such vault. Check its address.',
+  'syncSettings.why.relayInvalid':
+    'A relay’s address starts with https:// (http:// only for a relay on this computer).',
   'sync.notice.revoked':
     'This device was removed from sync, so sync has stopped. Your notes stay on this device.',
   'sync.notice.clock':

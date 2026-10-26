@@ -12,6 +12,7 @@ import {
   linkRelay,
   listDevices,
   openPairing,
+  relayAllowed,
   removeDevice,
   type ShownPairing,
   type SyncDevice,
@@ -108,7 +109,8 @@ export function PairingRow(props: {
   locked: boolean
   /** Moves focus to Show Pairing Code each time it grows. */
   focusRequest: number
-  onPaired: () => void
+  /** A device joined, or may have enrolled without finishing. */
+  onDevicesChanged: () => void
   onAnnounce: (text: string) => void
   failed: Failure
 }) {
@@ -122,7 +124,7 @@ export function PairingRow(props: {
   const open = useRef(false)
   const showButton = useRef<HTMLButtonElement>(null)
   const code = useRef<HTMLParagraphElement>(null)
-  const { onPaired, onAnnounce, failed, focusRequest } = props
+  const { onDevicesChanged, onAnnounce, failed, focusRequest } = props
 
   useEffect(() => {
     if (shown) code.current?.focus()
@@ -153,11 +155,12 @@ export function PairingRow(props: {
           if (state.state === 'paired') {
             end()
             onAnnounce(t('syncSettings.pairDone'))
-            onPaired()
+            onDevicesChanged()
           } else if (state.state === 'expired') {
             end('syncSettings.pairExpired')
           } else if (state.state === 'unconfirmed') {
             end('syncSettings.pairUnconfirmed')
+            onDevicesChanged()
           } else {
             setProgress(state.state)
             timer = setTimeout(check, POLL_MS)
@@ -173,6 +176,8 @@ export function PairingRow(props: {
           end()
           void cancelPairing().catch(() => undefined)
           failed('syncSettings.pairCheckFailed')(e)
+          // The device that took the code may have enrolled before its proof failed.
+          onDevicesChanged()
         },
       )
     }
@@ -183,7 +188,7 @@ export function PairingRow(props: {
       clearTimeout(timer)
       clearInterval(tick)
     }
-  }, [shown, onPaired, onAnnounce, failed])
+  }, [shown, onDevicesChanged, onAnnounce, failed])
 
   // Closing the window ends the code in Rust too (sync::on_window_event); this covers a pane switch.
   useEffect(
@@ -224,24 +229,31 @@ export function PairingRow(props: {
   return (
     <Setting label="syncSettings.pair" description={ended ? t(ended) : t('syncSettings.pairHint')}>
       {shown ? (
-        <div className="pairing">
+        <div
+          className="pairing"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') cancel()
+          }}
+        >
           <QrCode qr={shown.qr} />
-          <p
-            ref={code}
-            tabIndex={-1}
-            className="pairing-code"
-            aria-label={t('syncSettings.pairCode')}
-          >
-            {shown.code}
-          </p>
-          <p className="settings-hint" role="status">
-            {t(progressText)}
-          </p>
-          {shown.expires > now ? (
-            <p className="settings-hint">
-              {format(t('syncSettings.pairExpiresIn'), { time: countdown(shown.expires - now) })}
+          <div className="pairing-text">
+            <p
+              ref={code}
+              tabIndex={-1}
+              className="pairing-code"
+              aria-label={t('syncSettings.pairCode')}
+            >
+              {shown.code}
             </p>
-          ) : null}
+            <p className="settings-hint" role="status">
+              {t(progressText)}
+            </p>
+            {shown.expires > now ? (
+              <p className="settings-hint">
+                {format(t('syncSettings.pairExpiresIn'), { time: countdown(shown.expires - now) })}
+              </p>
+            ) : null}
+          </div>
           <div className="settings-buttons">
             <button type="button" className="button" onClick={cancel}>
               {t('dialog.cancel')}
@@ -298,6 +310,8 @@ export function JoinRows(props: {
     if (text.trim() === '' || joining || props.locked) return
     if (how === 'recovery') return send(() => joinWithRecoveryKey(text))
     const named = props.relayUrl === '' ? linkRelay(text) : undefined
+    if (named && !relayAllowed(named))
+      return failed('syncSettings.joinFailed')('E_SYNC_RELAY_URL_INVALID')
     if (named) return setAskRelay(named)
     send(() => joinWithCode(text))
   }
@@ -376,6 +390,11 @@ export function DevicesRow(props: { onAnnounce: (text: string) => void; failed: 
   const [devices, setDevices] = useState<SyncDevice[]>()
   const [problem, setProblem] = useState<string>()
   const [removing, setRemoving] = useState<SyncDevice>()
+  const [pending, setPending] = useState<ReadonlySet<string>>(new Set())
+  const [removed, setRemoved] = useState(0)
+  const focusNext = useRef<string>(undefined)
+  const list = useRef<HTMLUListElement>(null)
+  const removeButtons = useRef(new Map<string, HTMLButtonElement>())
   const locale = currentLocale()
   const { onAnnounce, failed } = props
 
@@ -396,12 +415,36 @@ export function DevicesRow(props: { onAnnounce: (text: string) => void; failed: 
     }
   }, [])
 
+  // Focus goes to the next device's Remove button, or the list when none is left after it.
+  useEffect(() => {
+    if (removed === 0) return
+    const next = focusNext.current ? removeButtons.current.get(focusNext.current) : undefined
+    ;(next ?? list.current)?.focus()
+  }, [removed])
+
+  const settle = (id: string) =>
+    setPending((ids) => {
+      const left = new Set(ids)
+      left.delete(id)
+      return left
+    })
+
   const remove = (device: SyncDevice) => {
     setRemoving(undefined)
-    removeDevice(device.id).then((left) => {
-      setDevices(left)
-      onAnnounce(t('syncSettings.deviceRemoved'))
-    }, failed('syncSettings.removeFailed'))
+    if (pending.has(device.id)) return
+    setPending((ids) => new Set(ids).add(device.id))
+    removeDevice(device.id)
+      .then((left) => {
+        const index = devices?.findIndex((d) => d.id === device.id) ?? -1
+        const next = devices
+          ?.slice(index + 1)
+          .find((d) => !d.current && left.some((l) => l.id === d.id))
+        focusNext.current = next?.id
+        setDevices(left)
+        setRemoved((n) => n + 1)
+        onAnnounce(t('syncSettings.deviceRemoved'))
+      }, failed('syncSettings.removeFailed'))
+      .finally(() => settle(device.id))
   }
 
   return (
@@ -410,7 +453,12 @@ export function DevicesRow(props: { onAnnounce: (text: string) => void; failed: 
         {null}
       </Setting>
       {devices && devices.length > 0 ? (
-        <ul className="sync-devices" aria-label={t('syncSettings.devicesList')}>
+        <ul
+          ref={list}
+          tabIndex={-1}
+          className="sync-devices"
+          aria-label={t('syncSettings.devicesList')}
+        >
           {devices.map((device) => {
             const added = format(t('syncSettings.deviceAdded'), {
               date: day(device.created, locale),
@@ -425,13 +473,21 @@ export function DevicesRow(props: { onAnnounce: (text: string) => void; failed: 
                 </div>
                 {device.current ? null : (
                   <button
+                    ref={(button) => {
+                      if (button) removeButtons.current.set(device.id, button)
+                      else removeButtons.current.delete(device.id)
+                    }}
                     type="button"
                     className="button"
                     aria-label={format(t('syncSettings.deviceRemoveLabel'), {
                       name: device.label,
                       date: day(device.created, locale),
                     })}
-                    onClick={() => setRemoving(device)}
+                    // Not disabled: focus stays on it while the relay answers.
+                    aria-disabled={pending.has(device.id)}
+                    onClick={() => {
+                      if (!pending.has(device.id)) setRemoving(device)
+                    }}
                   >
                     {t('syncSettings.deviceRemove')}
                   </button>

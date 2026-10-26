@@ -4829,11 +4829,26 @@ button.popup:focus-visible {
 }
 
 /* Settings > Sync: a pairing code on show, the recovery key once, and the vault's devices. */
+.setting:has(> .setting-control > .pairing) {
+  align-items: flex-start;
+}
+
 .pairing {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: var(--space-4);
+}
+
+.pairing-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.pairing-text p {
+  margin: 0;
 }
 
 .pairing-qr {
@@ -4887,6 +4902,10 @@ button.popup:focus-visible {
   gap: var(--space-6);
   padding: var(--space-4) 0;
   border-top: 1px solid var(--color-line-hairline);
+}
+
+.sync-device .setting-label {
+  overflow-wrap: anywhere;
 }
 
 /* View > Show History Bar (HistoryBar.tsx): the open note's versions along the editor's bottom edge. Above the

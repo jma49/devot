@@ -241,6 +241,18 @@ export function linkRelay(text: string): string | undefined {
   }
 }
 
+const LOOPBACK = /^(localhost|127(\.\d{1,3}){3}|\[::1\])$/i
+
+/** Whether Rust takes this as a relay: https, or http to this machine only (RelayUrl::parse). */
+export function relayAllowed(relay: string): boolean {
+  try {
+    const url = new URL(relay)
+    return url.protocol === 'https:' || (url.protocol === 'http:' && LOOPBACK.test(url.hostname))
+  } catch {
+    return false
+  }
+}
+
 /** Joins the vault a pairing code (or the link its QR code holds) hands over. */
 export async function joinWithCode(code: string) {
   const next = readSnapshot(await invoke<unknown>('sync_join_code', { code }))

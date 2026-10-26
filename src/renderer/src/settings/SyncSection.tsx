@@ -59,6 +59,7 @@ const WHY: Readonly<Record<string, MessageKey>> = {
   E_SYNC_RECOVERY_VERSION: 'syncSettings.why.keyMistyped',
   E_SYNC_NO_RELAY: 'syncSettings.why.noRelay',
   E_SYNC_NO_VAULT: 'syncSettings.why.noVault',
+  E_SYNC_RELAY_URL_INVALID: 'syncSettings.why.relayInvalid',
 }
 
 /**
@@ -79,10 +80,12 @@ export function SyncSection() {
   const [recoveryKey, setRecoveryKey] = useState<string>()
   const [keyFocus, setKeyFocus] = useState(false)
   const [firstDevice, setFirstDevice] = useState(false)
+  const [backedOut, setBackedOut] = useState(0)
   const [focusPairing, setFocusPairing] = useState(0)
   const [devicesVersion, setDevicesVersion] = useState(0)
   const alert = useRef<HTMLParagraphElement>(null)
   const secretInput = useRef<HTMLInputElement>(null)
+  const newVaultButton = useRef<HTMLButtonElement>(null)
   const locale = currentLocale()
 
   useEffect(() => startSyncStatus(), [])
@@ -104,7 +107,7 @@ export function SyncSection() {
     setError(undefined)
     setAnnouncement(text)
   }, [])
-  const paired = useCallback(() => setDevicesVersion((v) => v + 1), [])
+  const devicesChanged = useCallback(() => setDevicesVersion((v) => v + 1), [])
   const joined = useCallback(() => {
     announce(t('syncSettings.joined'))
     setFocusPairing((n) => n + 1)
@@ -133,6 +136,16 @@ export function SyncSection() {
   useEffect(() => {
     if (firstDevice) secretInput.current?.focus()
   }, [firstDevice])
+
+  useEffect(() => {
+    if (backedOut > 0) newVaultButton.current?.focus()
+  }, [backedOut])
+
+  const backOut = () => {
+    setSecret('')
+    setFirstDevice(false)
+    setBackedOut((n) => n + 1)
+  }
 
   const saved = () =>
     void recoverySaved().then(() => {
@@ -260,9 +273,15 @@ export function SyncSection() {
               onChange={(e) => setSecret(e.currentTarget.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') create()
+                if (e.key === 'Escape' && !snapshot.vault) backOut()
               }}
             />
             <div className="settings-buttons">
+              {snapshot.vault ? null : (
+                <button type="button" className="button" onClick={backOut}>
+                  {t('dialog.cancel')}
+                </button>
+              )}
               <button
                 type="button"
                 className="button"
@@ -277,6 +296,7 @@ export function SyncSection() {
           <Setting label="syncSettings.newVault" description={t('syncSettings.newVaultHint')}>
             <div className="settings-buttons">
               <button
+                ref={newVaultButton}
                 type="button"
                 className="button"
                 disabled={locked}
@@ -317,11 +337,11 @@ export function SyncSection() {
             <PairingRow
               locked={locked}
               focusRequest={focusPairing}
-              onPaired={paired}
+              onDevicesChanged={devicesChanged}
               onAnnounce={announce}
               failed={failed}
             />
-            {/* Read again when a device joins. */}
+            {/* Read again when a device joins or may have enrolled. */}
             <DevicesRow key={devicesVersion} onAnnounce={announce} failed={failed} />
           </>
         ) : null}

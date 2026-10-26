@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { linkRelay, readDevices, readPairing, runsSync } from './sync'
+import { linkRelay, readDevices, readPairing, relayAllowed, runsSync } from './sync'
 
 describe('runsSync', () => {
   it('runs the engine in the first main window only', () => {
@@ -73,6 +73,28 @@ describe('linkRelay', () => {
       'devot://pair?relay=not%20a%20url&code=0400',
     ]) {
       expect(linkRelay(text)).toBeUndefined()
+    }
+  })
+})
+
+describe('relayAllowed', () => {
+  it('takes https, and http to this machine only, as Rust does', () => {
+    for (const relay of [
+      'https://relay.example.com',
+      'http://localhost:8787',
+      'http://127.0.0.1:8787',
+      'http://[::1]:8787',
+    ]) {
+      expect(relayAllowed(relay)).toBe(true)
+    }
+    for (const relay of [
+      'http://relay.example.com',
+      'http://192.168.1.4:8787',
+      'http://localhost.example.com',
+      'ftp://relay.example.com',
+      'not a url',
+    ]) {
+      expect(relayAllowed(relay)).toBe(false)
     }
   })
 })
