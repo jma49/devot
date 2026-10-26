@@ -3220,7 +3220,7 @@ mod tests {
     use super::*;
 
     // Tests that touch WebKit run on the main thread in
-    // tests/webkit_main_thread.rs; libtest's worker threads crash WebKit.
+    // tests/main_thread.rs; libtest's worker threads crash WebKit.
 
     /// A pasteboard of the test's own, so the user's clipboard is never touched.
     struct OwnPasteboard(objc2::rc::Retained<NSPasteboard>);
