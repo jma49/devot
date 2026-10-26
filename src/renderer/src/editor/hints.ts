@@ -100,7 +100,12 @@ const emptyNote = ViewPlugin.fromClass(
       this.place()
     }
     update(update: ViewUpdate) {
-      if (update.docChanged || update.geometryChanged) this.place()
+      if (
+        update.docChanged ||
+        update.geometryChanged ||
+        update.startState.facet(chooseTemplate) !== update.state.facet(chooseTemplate)
+      )
+        this.place()
     }
     place() {
       const { view, dom } = this

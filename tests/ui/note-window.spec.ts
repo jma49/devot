@@ -99,6 +99,24 @@ test('a note window shows the title, the editor and the preview, and is named af
   await expect(win.getByRole('article', { name: 'Preview' })).toBeVisible()
 })
 
+test('an empty note in its own window offers no Choose a template, which only the main window runs', async ({
+  page,
+  context,
+}) => {
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await title(page).fill('Blank')
+  await expect
+    .poll(() => page.evaluate(storedNotes).then((notes) => notes.find((n) => n.title === 'Blank')))
+    .toMatchObject({ bodyMd: '' })
+  const id = (await page.evaluate(storedNotes)).find((n) => n.title === 'Blank')!.id
+  await expect(page.getByRole('button', { name: /^Choose a template/ })).toBeVisible()
+
+  const win = await openNoteWindow(context, id)
+  await expect(title(win)).toHaveValue('Blank')
+  await expect(win.locator('.cm-empty-hint')).toBeVisible()
+  await expect(win.getByRole('button', { name: /^Choose a template/ })).toBeHidden()
+})
+
 test('typing in either window shows in the other at once, and both are saved', async ({
   page,
   context,

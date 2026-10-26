@@ -123,6 +123,28 @@ test.describe('once the trial is over', () => {
     await expect(bar(page)).toHaveCount(1)
   })
 
+  test('an empty note offers Choose a template only while notes can be changed', async ({
+    page,
+  }) => {
+    await fakeTrial(page, 50 * HOUR)
+    await openApp(page)
+    await page.getByRole('button', { name: 'New Note', exact: true }).click()
+    const hint = page.locator('.cm-empty-hint')
+    const chip = page.getByRole('button', { name: /^Choose a template/ })
+    await expect(hint).toBeVisible()
+    await expect(chip).toBeVisible()
+
+    await changeLicence(page, ended())
+    await expect(bar(page)).toBeVisible()
+    await expect(hint).toBeVisible()
+    await expect(chip).toBeHidden()
+
+    const now = await page.evaluate(() => Date.now())
+    await changeLicence(page, unlicensed({ state: 'running', endsAt: now + 50 * HOUR, code: null }))
+    await expect(bar(page)).toHaveCount(0)
+    await expect(chip).toBeVisible()
+  })
+
   test('the window turns read-only at the end of the trial, without being told', async ({
     page,
   }) => {

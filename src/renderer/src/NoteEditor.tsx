@@ -83,6 +83,7 @@ import { pasteUrlAs, pasteUrls, plainPaste } from './editor/paste'
 import { pasteChooser, showChooser, type PasteFetcher } from './editor/pasteChooser'
 import { editorSetup, reconfigureSetup } from './editor/settings'
 import { editorCompletions } from './editor/completions'
+import { chooseTemplate } from './editor/hints'
 import { taskToggle } from './editor/tasks'
 import { setToolbarFocus } from './editor/toolbarState'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
@@ -140,6 +141,10 @@ const LOCKED = [
 ]
 // View > Show Authorship (editor/authorship.ts), set for the replica of the note shown.
 const authorshipSlot = new Compartment()
+// The empty note's Choose a Template chip: only where the window can run it on a note that may change.
+const templateSlot = new Compartment()
+const templateChip = (offered: boolean, run: { readonly current: (() => void) | undefined }) =>
+  offered ? chooseTemplate.of(() => run.current?.()) : []
 const marksFor = (on: boolean, doc: Y.Doc, noteId: string) =>
   on ? authorshipMarks(doc, noteId) : []
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
@@ -720,6 +725,8 @@ export function NoteEditor({
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
   const chooseTemplateRef = useRef(onChooseTemplate)
+  const templateOffered = onChooseTemplate !== undefined && !readOnly
+  const templateShown = useRef(templateOffered)
   const noteOpener = useRef(onOpenNote)
   const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
   const pickMenuAction = useCallback((action: EditorAction, target: EditorMenuTarget) => {
@@ -830,6 +837,14 @@ export function NoteEditor({
 
   // An imported font face that has loaded changes the text's size: measure again.
   useEffect(() => subscribeFontsLoaded(() => editor.current?.view.requestMeasure()), [])
+
+  useEffect(() => {
+    if (templateShown.current === templateOffered) return
+    templateShown.current = templateOffered
+    editor.current?.view.dispatch({
+      effects: templateSlot.reconfigure(templateChip(templateOffered, chooseTemplateRef)),
+    })
+  }, [templateOffered])
 
   useEffect(() => {
     if (locked.current === readOnly) return
@@ -1011,10 +1026,8 @@ export function NoteEditor({
               preview: (id) => previewsFor(core)(id),
               linked: (id) => linkSources.current.linked(id),
             }),
-            editorCompletions({
-              chooseImageFiles: (target) => imageChooser(target),
-              chooseTemplate: () => chooseTemplateRef.current?.(),
-            }),
+            editorCompletions({ chooseImageFiles: (target) => imageChooser(target) }),
+            templateSlot.of(templateChip(templateShown.current, chooseTemplateRef)),
             ghostText({
               suggest: (context, trigger) =>
                 suggestions.current?.suggest(noteId, context, trigger) ??
