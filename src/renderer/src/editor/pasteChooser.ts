@@ -238,6 +238,15 @@ function close(target: ChooserTarget) {
     target.dispatch(target.state.update({ effects: closeEffect.of(null) }))
 }
 
+/** A picked format whose fetch failed stays picked, its error shown in the URL's place, until Esc, an edit or a caret move. */
+function failPick(target: ChooserTarget, c: Chooser, type: PasteFormatType, message: MessageKey) {
+  target.dispatch(
+    target.state.update({
+      effects: [pickEffect.of({ id: c.id, type }), EditorView.announce.of(t(message))],
+    }),
+  )
+}
+
 /**
  * Starts the fetch format `type` needs, unless it ran already; a pick made
  * meanwhile applies when it ends. Results for a chooser that closed are
@@ -259,7 +268,7 @@ export function fetchFor(
     const now = chooserOf(target.state)
     if (!now?.picked || formatIn(now, now.picked)?.fetch !== kind) return
     if (state.status === 'done') apply(target, now, now.picked, state.text)
-    else if (state.status === 'error') close(target)
+    else if (state.status === 'error') failPick(target, now, now.picked, state.message)
   }
   target.dispatch(
     target.state.update({ effects: fetchEffect.of({ id, kind, state: { status: 'loading' } }) }),
@@ -288,7 +297,7 @@ export function fetchFor(
 
 /**
  * Picks format `type`: swaps it in now, or, when it waits on a fetch, once
- * the fetch ends. A failed fetch keeps the URL.
+ * the fetch ends. A failed fetch keeps the URL and says why.
  */
 export function pickFormat(
   target: ChooserTarget,
@@ -304,7 +313,7 @@ export function pickFormat(
   }
   const fetched = c.fetches.get(format.fetch)
   if (fetched?.status === 'done') apply(target, c, type, fetched.text)
-  else if (fetched?.status === 'error') close(target)
+  else if (fetched?.status === 'error') failPick(target, c, type, fetched.message)
   else {
     target.dispatch(target.state.update({ effects: pickEffect.of({ id: c.id, type }) }))
     fetchFor(target, type, alive)
