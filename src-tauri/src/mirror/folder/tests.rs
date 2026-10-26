@@ -1158,3 +1158,54 @@ fn tells_an_empty_folder_from_one_in_use() {
         [".DS_Store", ".devot-probe.tmp", "notes.txt"]
     );
 }
+
+/// The move went through and the new text did not: the manifest lists the file where it is now,
+/// with what it holds, and is written back, so the next pass rewrites it there rather than taking
+/// it for someone else's file and giving the note a numbered name.
+#[cfg(unix)]
+#[test]
+fn a_move_whose_rewrite_fails_lists_the_file_where_it_went() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let mut manifest = Manifest::default();
+    apply(root, &mut manifest, &put(NOTE, "Work/Plan.md", None, "one"));
+    fs::create_dir(root.join("Home")).unwrap();
+    let home = root.join("Home");
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o555)).unwrap();
+    let ignored = probe_writable(&open(&home)).is_ok();
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
+    // Root ignores permissions: then there is nothing to see.
+    if ignored {
+        return;
+    }
+    // Checked before the move, then again before the rewrite: the second locks the new folder.
+    let locked = home.clone();
+    atomic_file::race::at_check(move || {
+        atomic_file::race::at_check(move || {
+            fs::set_permissions(&locked, fs::Permissions::from_mode(0o555)).unwrap();
+        });
+    });
+    let result = apply(
+        root,
+        &mut manifest,
+        &put(NOTE, "Home/Spec.md", Some("Work/Plan.md"), "two"),
+    );
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(result.code, Some("E_MIRROR_WRITE_FAILED"));
+    assert!(result.moved);
+    assert_eq!(read(root, "Home/Spec.md"), "one");
+    assert!(fs::symlink_metadata(root.join("Work/Plan.md")).is_err());
+    let entry = &manifest.notes[NOTE];
+    assert_eq!(entry.path, "Home/Spec.md");
+    assert_eq!(entry.sha256, sha256_hex(b"one"));
+
+    let again = apply(
+        root,
+        &mut manifest,
+        &put(NOTE, "Home/Spec.md", Some("Home/Spec.md"), "two"),
+    );
+    assert_eq!(again.code, None);
+    assert_eq!(read(root, "Home/Spec.md"), "two");
+    assert_eq!(tree(root), ["Home/", "Home/Spec.md"]);
+}

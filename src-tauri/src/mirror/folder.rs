@@ -355,6 +355,10 @@ pub struct OpResult {
     pub sha256: Option<Option<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kept: Option<String>,
+    /// The note's file moved but its new text could not be written: the manifest lists it where it
+    /// went, with what it holds, and the core reads the manifest again.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub moved: bool,
 }
 
 impl OpResult {
@@ -393,30 +397,45 @@ impl OpResult {
 struct Stop {
     code: &'static str,
     at: Option<Box<(String, Option<String>)>>,
+    moved: bool,
 }
 
 impl Stop {
     fn code(code: &'static str) -> Self {
-        Self { code, at: None }
+        Self {
+            code,
+            at: None,
+            moved: false,
+        }
     }
 
     fn at(code: &'static str, path: &str, state: Option<String>) -> Self {
         Self {
             code,
             at: Some(Box::new((path.to_owned(), state))),
+            moved: false,
+        }
+    }
+
+    fn after_move(self) -> Self {
+        Self {
+            moved: true,
+            ..self
         }
     }
 }
 
 impl From<Stop> for OpResult {
     fn from(stop: Stop) -> Self {
-        match stop.at {
+        let moved = stop.moved;
+        let result = match stop.at {
             Some(at) => {
                 let (path, state) = *at;
                 OpResult::in_the_way(stop.code, &path, state)
             }
             None => OpResult::failed(stop.code),
-        }
+        };
+        OpResult { moved, ..result }
     }
 }
 
@@ -772,7 +791,7 @@ fn note(
             return Err(Stop::at("E_MIRROR_CHANGED", &entry.path, Some(state)));
         }
     }
-    let mut record = |size: u64| {
+    let record = |manifest: &mut Manifest, size: u64| {
         manifest.notes.insert(id.to_owned(), next(size));
         OpResult::sized(size)
     };
@@ -780,14 +799,14 @@ fn note(
         && at.rel == path
     {
         if state == sha256 {
-            return Ok(record(file_size(at)));
+            return Ok(record(manifest, file_size(at)));
         }
         let Some(text) = text else {
             return Err(Stop::at("E_MIRROR_CHANGED", path, Some(state.clone())));
         };
         atomic_file::checked();
         rewrite(root, at, text.as_bytes())?;
-        return Ok(record(text.len() as u64));
+        return Ok(record(manifest, text.len() as u64));
     }
     // A new place: nothing that is not Devot's may be there, unless it is
     // its own file under another case, or exactly what Devot would write.
@@ -823,25 +842,35 @@ fn note(
                 .map_err(|e| Stop::code(io_code(&e, root)))?;
             prune(root, from.rel);
         }
-        return Ok(record(file_size(&to)));
+        return Ok(record(manifest, file_size(&to)));
     }
     let Some((from, state)) = alive else {
         let Some(text) = text else {
             return Err(Stop::at("E_MIRROR_CHANGED", path, None));
         };
         write_new(root, &to, text.as_bytes())?;
-        return Ok(record(text.len() as u64));
+        return Ok(record(manifest, text.len() as u64));
     };
     move_file(root, &from, &to, renamed)?;
     prune(root, from.rel);
     if state == sha256 {
-        return Ok(record(file_size(&to)));
+        return Ok(record(manifest, file_size(&to)));
+    }
+    if let Some(entry) = entry {
+        let moved = NoteEntry {
+            path: path.to_owned(),
+            sha256: state,
+            size: file_size(&to),
+            ..entry
+        };
+        manifest.notes.insert(id.to_owned(), moved);
     }
     let Some(text) = text else {
-        return Err(Stop::at("E_MIRROR_CHANGED", path, None));
+        return Err(Stop::at("E_MIRROR_CHANGED", path, None).after_move());
     };
-    rewrite(root, &to, text.as_bytes())?;
-    Ok(record(text.len() as u64))
+    atomic_file::checked();
+    rewrite(root, &to, text.as_bytes()).map_err(Stop::after_move)?;
+    Ok(record(manifest, text.len() as u64))
 }
 
 fn file(

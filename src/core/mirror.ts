@@ -93,6 +93,8 @@ export interface MirrorResult {
   size?: number
   sha256?: string | null
   kept?: string
+  /** The note's file moved but its new text could not be written: Rust lists it where it went. */
+  moved?: boolean
 }
 
 export function applyResult(manifest: MirrorManifest, op: MirrorOp, result: MirrorResult): void {
@@ -998,6 +1000,8 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
           // Rust stops at a failure that ends the batch; it is the last result.
           if (!result) throw new Error(results.at(-1)?.code ?? 'E_MIRROR_FAILED')
           const { code } = result
+          // The next pass reads the manifest again, which lists the file where it went.
+          if (result.moved) stale = true
           if (code === undefined) {
             applyResult(current, op, result)
             forgetDisk(disk, op)

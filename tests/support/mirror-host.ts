@@ -134,6 +134,8 @@ export interface FolderHost extends MirrorHost {
   setIncludeAttachments(on: boolean): void
   paused(): string | null
   size(): number
+  /** Runs once, right after the next note file moves (a test makes the rewrite fail there). */
+  afterMove?: (() => void) | undefined
 }
 
 export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHost {
@@ -396,9 +398,25 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         log.moved.push([from, op.path])
         prune(from)
         if (fromState === op.sha256) return record(lstat(abs(op.path))!.size)
-        if (op.text === undefined) return { code: 'E_MIRROR_CHANGED', path: op.path, state: null }
+        // Listed where it went, with what it holds, should its new text fail.
+        m.notes[op.id] = {
+          ...entry!,
+          path: op.path,
+          sha256: fromState!,
+          size: lstat(abs(op.path))!.size,
+        }
+        if (op.text === undefined) {
+          return { code: 'E_MIRROR_CHANGED', path: op.path, state: null, moved: true }
+        }
+        const hook = host.afterMove
+        host.afterMove = undefined
+        hook?.()
         // Moved: Devot's own file is there now, and its new text goes over it.
-        writeFile(op.path, op.text, 'replace')
+        try {
+          writeFile(op.path, op.text, 'replace')
+        } catch (error) {
+          throw Object.assign(error as object, { moved: true })
+        }
         log.written.push(op.path)
         return record(Buffer.byteLength(op.text))
       }
@@ -602,16 +620,17 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         try {
           result = runOp(manifest, op)
         } catch (error) {
-          const code = (error as { code?: string }).code
+          const { code, moved } = error as { code?: string; moved?: boolean }
           result = {
             code: !lstat(folder!)
               ? 'E_MIRROR_FOLDER_MISSING'
               : (code === 'EACCES' || code === 'EPERM') && !writable()
                 ? 'E_MIRROR_FOLDER_READ_ONLY'
                 : 'E_MIRROR_WRITE_FAILED',
+            ...(moved ? { moved } : {}),
           }
         }
-        changed ||= result.code === undefined
+        changed ||= result.code === undefined || result.moved === true
         results.push(result)
         if (result.code?.startsWith('E_MIRROR_FOLDER_')) {
           paused = result.code

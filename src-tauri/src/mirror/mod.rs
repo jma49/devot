@@ -597,7 +597,7 @@ impl Mirror {
                     ..OpResult::default()
                 },
             };
-            changed |= result.code.is_none();
+            changed |= result.code.is_none() || result.moved;
             if let Some(kept) = &result.kept {
                 inner.kept_count += 1;
                 if inner.kept.len() < KEPT_NAMED {

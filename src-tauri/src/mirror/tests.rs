@@ -790,3 +790,36 @@ fn takes_an_unnamed_manifest_as_its_own_only_in_the_folder_it_already_uses() {
     fs::write(other.join(MANIFEST), folder::manifest_bytes(&listed)).unwrap();
     assert!(matches!(f.choose(&other), Choice::Confirm { .. }));
 }
+
+#[cfg(unix)]
+#[test]
+fn writes_back_a_move_whose_rewrite_failed() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    f.apply(generation, &[note_op("Work/Plan.md", "# Plan\n")]);
+    let home = folder.join("Home");
+    fs::create_dir(&home).unwrap();
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o555)).unwrap();
+    let ignored = folder::probe_writable(&folder::Root::open(&home).unwrap()).is_ok();
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
+    if ignored {
+        return; // root ignores permissions
+    }
+    let locked = home.clone();
+    crate::atomic_file::race::at_check(move || {
+        crate::atomic_file::race::at_check(move || {
+            fs::set_permissions(&locked, fs::Permissions::from_mode(0o555)).unwrap();
+        });
+    });
+    let mut moved = note_op("Home/Spec.md", "# Spec\n");
+    moved["from"] = json!("Work/Plan.md");
+    let results = f.apply(generation, &[moved]);
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(results[0].code, Some("E_MIRROR_WRITE_FAILED"));
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    assert_eq!(stored.notes[NOTE].path, "Home/Spec.md");
+    assert_eq!(stored.notes[NOTE].sha256, sha256_hex(b"# Plan\n"));
+}
