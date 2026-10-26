@@ -143,6 +143,8 @@ function changedLines(tr: Transaction, scan: MarkerScan, fromB: number, toB: num
   return region
 }
 
+const MAX_SEPARATE_CHANGES = 50
+
 /**
  * A field of gutter line classes that keeps up with edits and with the
  * parser instead of scanning the whole note each time: the markers move with
@@ -165,9 +167,13 @@ export function markerField(scan: MarkerScan): StateField<Markers> {
       if (tr.docChanged) {
         set = set.map(tr.changes)
         covered = tr.changes.mapPos(covered, -1)
-        tr.changes.iterChangedRanges((_a, _b, from, to) => {
-          dirty.push(changedLines(tr, scan, from, to))
-        })
+        const changed: { from: number; to: number }[] = []
+        tr.changes.iterChangedRanges((_a, _b, from, to) => changed.push({ from, to }))
+        // Each range costs a pass over the changes, so a transaction of many (Replace All, a
+        // format over a long selection) is taken as one span from its first change to its last.
+        if (changed.length > MAX_SEPARATE_CHANGES) {
+          dirty.push(changedLines(tr, scan, changed[0]!.from, changed.at(-1)!.to))
+        } else for (const r of changed) dirty.push(changedLines(tr, scan, r.from, r.to))
       }
       // What the parser has reached since is new.
       if (end > covered) dirty.push(widen(state, scan, covered, end))
