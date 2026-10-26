@@ -46,6 +46,7 @@ export const MAX_SYNC_IDS = 100
 export interface SyncStore {
   /** Records written since the engine last looked, by ID after `after`, at most `limit`. */
   syncPending(after: string, limit: number): Promise<string[]>
+  syncPendingCount(): Promise<number>
   syncRead(ids: readonly string[]): Promise<SyncLocal[]>
   /** Inserts or replaces an entry; the stored `edits` stays as it is. */
   syncPut(entry: SyncEntryWrite): Promise<void>

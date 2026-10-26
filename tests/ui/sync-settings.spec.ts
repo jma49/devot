@@ -677,3 +677,50 @@ test('a long device name wraps beside its Remove button', async ({ page }) => {
   const button = await row.getByRole('button').boundingBox()
   expect(name).toBeLessThanOrEqual(button!.x)
 })
+
+test.describe('the relay’s quota cap', () => {
+  test.use({ timezoneId: 'Asia/Tokyo', locale: 'en-US' })
+  const paused = {
+    state: 'paused',
+    lastSync: Date.UTC(2026, 9, 23, 19),
+    code: 'E_SYNC_QUOTA',
+    pausedUntil: Date.UTC(2026, 9, 24),
+    upload: { sent: 20_000, total: 45_000 },
+  }
+
+  test('the main window says until when sync is paused, in local time, and the upload so far', async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 23, 20)))
+    await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true, status: paused })
+    await openApp(page)
+    const notice = page.getByRole('alert').filter({ hasText: 'Sync paused' })
+    await expect(notice).toHaveText(
+      /Sync paused until 9:00\sAM: the relay has reached its quota for today, with 20,000 of 45,000 items uploaded\./,
+    )
+    await sendSnapshot(page, {
+      relayUrl: RELAY,
+      enabled: true,
+      vault: true,
+      enrolled: true,
+      status: { state: 'idle', lastSync: Date.UTC(2026, 9, 24, 0, 1), code: null, tooLarge: 0 },
+    })
+    await expect(notice).toHaveCount(0)
+  })
+
+  test('Settings > Sync shows the pause, the upload and a relay to update', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 23, 20)))
+    await fakeRust(page, {
+      relayUrl: RELAY,
+      enabled: true,
+      enrolled: true,
+      status: { ...paused, relayOutdated: true },
+    })
+    await openSettings(page, 'Sync')
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText(
+      /Sync paused until 9:00\sAM: the relay has reached its quota for today\. 20,000 of 45,000 items uploaded\. Code E_SYNC_QUOTA\./,
+    )
+    await expect(panel).toContainText('Your relay comes from an earlier release')
+  })
+})

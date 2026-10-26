@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { errorCode } from '../backups'
-import { countOf } from '../format'
+import { countOf, untilTime, uploadCounts } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
@@ -31,8 +31,15 @@ const when = (at: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at)
 
 function statusText(snapshot: SyncSnapshot, locale: string): string {
-  const { state, lastSync, code } = snapshot.status
-  const parts = [t(STATES[snapshot.enabled ? state : 'off'])]
+  const { state, lastSync, code, pausedUntil, upload } = snapshot.status
+  const shown = snapshot.enabled ? state : 'off'
+  const parts = [
+    shown === 'paused' && pausedUntil !== null
+      ? format(t('syncSettings.pausedUntil'), { time: untilTime(pausedUntil, Date.now(), locale) })
+      : t(STATES[shown]),
+  ]
+  if (upload && snapshot.enabled)
+    parts.push(format(t('syncSettings.upload'), uploadCounts(upload, locale)))
   if (code && snapshot.enabled && state !== 'idle')
     parts.push(format(t('syncSettings.code'), { code }))
   parts.push(
@@ -66,7 +73,7 @@ const WHY: Readonly<Record<string, MessageKey>> = {
  * Settings > Sync: the relay's URL, joining with a pairing code or the recovery key, or on the
  * first device only creating the vault with the relay's secret (asked once and never kept), the
  * recovery key until it is saved, showing a pairing code, the vault's devices, sync on or off and
- * its status. Attachments come with issue 327 and the relay's quota with 215.
+ * its status. Attachments come with issue 327.
  */
 export function SyncSection() {
   const ids = useId()
@@ -322,6 +329,9 @@ export function SyncSection() {
         <Setting label="syncSettings.status" description={statusText(snapshot, locale)}>
           {null}
         </Setting>
+        {snapshot.enabled && snapshot.status.relayOutdated ? (
+          <SettingsNote>{t('syncSettings.relayOutdated')}</SettingsNote>
+        ) : null}
         {snapshot.status.tooLarge > 0 ? (
           <SettingsNote>
             {countOf(

@@ -12,7 +12,7 @@ use std::time::Duration;
 use serde_json::json;
 use zeroize::Zeroizing;
 
-use super::client::{self, Connection, Event, Pushed, RelayUrl};
+use super::client::{self, Connection, Event, PushReply, RelayUrl};
 use super::service::{SettingsPatch, SyncService};
 use super::settings::{DeviceCredentials, SettingsStore};
 use super::{SecretStore, SyncError, Vault};
@@ -146,8 +146,8 @@ fn creates_enrolls_pushes_and_pulls_sealed_records() {
     let (on_mac, _) = events();
     let (mac_socket, welcome) = Connection::open(&relay.url, &id, &mac.token, on_mac).unwrap();
     assert_eq!(
-        (welcome.epoch.as_str(), welcome.seq),
-        (mac.epoch.as_str(), 0)
+        (welcome.epoch.as_str(), welcome.seq, welcome.quota),
+        (mac.epoch.as_str(), 0, Some("on"))
     );
     assert!((welcome.time - mac.time).abs() < 60_000);
     let (on_phone, phone_events) = events();
@@ -156,7 +156,7 @@ fn creates_enrolls_pushes_and_pulls_sealed_records() {
     let first = b"a note's record, sealed before it leaves".to_vec();
     assert_eq!(
         client::push(&mac_socket, &vault, RECORD, 0, &first),
-        Ok(Pushed::Pushed { version: 1, seq: 1 })
+        Ok(PushReply::Pushed { version: 1, seq: 1 })
     );
     assert_eq!(
         phone_events.recv_timeout(Duration::from_secs(10)),
@@ -164,7 +164,7 @@ fn creates_enrolls_pushes_and_pulls_sealed_records() {
     );
     assert_eq!(
         client::push(&phone_socket, &vault, RECORD, 0, b"based on nothing"),
-        Ok(Pushed::Rejected { version: 1 })
+        Ok(PushReply::Rejected { version: 1 })
     );
     let page = client::pull(&phone_socket, &vault, 0).unwrap();
     assert_eq!((page.next, page.more, page.records.len()), (1, false, 1));

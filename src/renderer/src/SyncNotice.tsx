@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { countOf } from './format'
+import { countOf, untilTime, uploadCounts } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
 import { LICENCE_REQUIRED, licenceSnapshot, trialOver } from './licence'
 import { LicenceButton } from './LicenceLocked'
@@ -13,8 +13,14 @@ const STOPPED: Readonly<Record<string, MessageKey>> = {
 }
 
 function message(snapshot: SyncSnapshot): string | undefined {
-  const { state, code, tooLarge } = snapshot.status
+  const { state, code, tooLarge, pausedUntil, upload } = snapshot.status
   if (!snapshot.enabled) return undefined
+  if (state === 'paused' && pausedUntil !== null) {
+    const locale = currentLocale()
+    const time = untilTime(pausedUntil, Date.now(), locale)
+    if (!upload) return format(t('sync.notice.paused'), { time })
+    return format(t('sync.notice.pausedUpload'), { time, ...uploadCounts(upload, locale) })
+  }
   if (state === 'stopped' && code) {
     if (code === LICENCE_REQUIRED && trialOver(licenceSnapshot(), Date.now()))
       return t('sync.notice.licenceTrialEnded')
@@ -31,7 +37,7 @@ function message(snapshot: SyncSnapshot): string | undefined {
   return undefined
 }
 
-/** Sync stopped until the user acts, or records that stay on this device; dismissed until it says something else. */
+/** Sync stopped until the user acts, paused by the relay's quota, or records that stay on this device; dismissed until it says something else. */
 export function SyncNotice(props: { snapshot: SyncSnapshot }) {
   const text = message(props.snapshot)
   const [dismissed, setDismissed] = useState<string>()

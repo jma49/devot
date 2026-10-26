@@ -189,6 +189,7 @@ export const REVISION_SQL = {
 export const SYNC_SQL = {
   /** Records written since the engine last looked, by ID, from the partial index sync_pending. */
   pending: `SELECT id FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit`,
+  pendingCount: `SELECT COUNT(*) AS n FROM sync_records WHERE edits <> synced`,
   entry: `SELECT id, kind, version, fingerprint, body_hlc AS bodyHlc, body_fp AS bodyFp, edits, synced
      FROM sync_records WHERE id = @id`,
   /** Keeps `edits`, which only storage's triggers move on. */
@@ -601,6 +602,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const syncPending = db.prepare<[{ after: string; limit: number }], { id: string }>(
     SYNC_SQL.pending,
   )
+  const syncPendingCount = db.prepare<[], { n: number }>(SYNC_SQL.pendingCount)
   const syncEntry = db.prepare<[{ id: string }], SyncEntry>(SYNC_SQL.entry)
   const syncPut = db.prepare(SYNC_SQL.put)
   const syncStates = db.prepare<[], { key: string; value: string }>(SYNC_SQL.state)
@@ -875,6 +877,9 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     },
     async syncPending(after, limit) {
       return syncPending.all({ after, limit }).map((row) => row.id)
+    },
+    async syncPendingCount() {
+      return syncPendingCount.get()?.n ?? 0
     },
     async syncRead(ids) {
       return ids.map((id): SyncLocal => {

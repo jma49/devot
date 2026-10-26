@@ -40,6 +40,8 @@ export interface RelayTransportOptions {
   chunkBytes?: number
   /** Called with every push before it goes out: a test can hold one back. */
   beforePush?: (id: string) => Promise<void>
+  /** Changes the relay's welcome: a test can play a relay from an earlier release. */
+  welcome?: (welcome: Welcome) => Welcome
 }
 
 export class RelayTransport implements SyncTransport {
@@ -66,7 +68,8 @@ export class RelayTransport implements SyncTransport {
         const { message, payload } = decodeFrame(event.data as string | ArrayBuffer)
         if (message['type'] === 'welcome') {
           welcomed = true
-          resolve(message as unknown as Welcome)
+          const welcome = message as unknown as Welcome
+          resolve(this.options.welcome ? this.options.welcome(welcome) : welcome)
           return
         }
         const rid = message['rid']
@@ -111,7 +114,9 @@ export class RelayTransport implements SyncTransport {
         await new Promise((resolve) => setTimeout(resolve, Number(answer.message['retryAfter'])))
         continue
       }
-      if (answer.message['type'] === 'error') throw new Error(String(answer.message['code']))
+      const code = answer.message['code']
+      if (code === 'E_SYNC_QUOTA' && 'chunks' in message) return answer
+      if (answer.message['type'] === 'error') throw new Error(String(code))
       return answer
     }
   }
@@ -154,6 +159,10 @@ export class RelayTransport implements SyncTransport {
       { type: 'push', id, base, kind: 'record', chunks: chunks.map((c) => c.length) },
       chunks,
     )
+    if (message['type'] === 'error') {
+      const until = message['until']
+      return { type: 'paused', until: typeof until === 'number' ? until : null }
+    }
     if (message['type'] === 'pushed') {
       return {
         type: 'pushed',

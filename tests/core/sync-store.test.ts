@@ -21,10 +21,12 @@ it('marks every write of a note, its tags, a notebook or a tag pending until loo
   const id = await notes.create('One')
   await notes.flush()
   expect(await storage.syncPending('', 10)).toEqual([id])
+  expect(await storage.syncPendingCount()).toBe(1)
   const [row] = await storage.syncRead([id])
   expect(row?.entry).toMatchObject({ kind: 'note', version: 0, synced: 0 })
   await storage.syncPut({ ...row!.entry!, version: 4, fingerprint: 'f', synced: row!.entry!.edits })
   expect(await storage.syncPending('', 10)).toEqual([])
+  expect(await storage.syncPendingCount()).toBe(0)
   await notes.setPinned(id, true)
   await notes.flush()
   expect(await storage.syncPending('', 10)).toEqual([id])
@@ -59,12 +61,16 @@ it('purges a note from sync keeping its revisions', async () => {
   expect((await storage.listRevisions(id)).map((r) => r.value)).toEqual([MERGE])
 })
 
-it('reads pending records from the partial index', () => {
+it('reads and counts pending records from the partial index', () => {
   const storage = sqlite()
-  const plan = storage.db
-    .prepare(`EXPLAIN QUERY PLAN ${SYNC_SQL.pending}`)
-    .all({ after: '', limit: 1 }) as { detail: string }[]
-  expect(plan.map((p) => p.detail).join('\n')).toMatch(/USING (COVERING )?INDEX sync_pending/)
+  const plan = (sql: string, params: object = {}) =>
+    (storage.db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(params) as { detail: string }[])
+      .map((p) => p.detail)
+      .join('\n')
+  expect(plan(SYNC_SQL.pending, { after: '', limit: 1 })).toMatch(
+    /USING (COVERING )?INDEX sync_pending/,
+  )
+  expect(plan(SYNC_SQL.pendingCount)).toMatch(/USING (COVERING )?INDEX sync_pending/)
 })
 
 it('runs the same statements as the Rust store', () => {
@@ -74,6 +80,7 @@ it('runs the same statements as the Rust store', () => {
   const words = (sql: string) => sql.split(/\s+/).join(' ')
   const names = {
     pending: 'SYNC_PENDING_SQL',
+    pendingCount: 'SYNC_PENDING_COUNT_SQL',
     entry: 'SYNC_ENTRY_SQL',
     put: 'SYNC_PUT_SQL',
     state: 'SYNC_STATE_SQL',

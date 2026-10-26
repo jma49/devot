@@ -34,7 +34,17 @@ export interface SyncSnapshot {
   vault: boolean
   /** This device has a token for the relay and the vault. */
   enrolled: boolean
-  status: { state: SyncStateName; lastSync: number | null; code: string | null; tooLarge: number }
+  status: {
+    state: SyncStateName
+    lastSync: number | null
+    code: string | null
+    tooLarge: number
+    /** Paused by the relay's quota cap until then. */
+    pausedUntil: number | null
+    upload: { sent: number; total: number } | null
+    /** The relay predates the quota cap. */
+    relayOutdated: boolean
+  }
 }
 
 export const SYNC_OFF: SyncSnapshot = {
@@ -42,10 +52,28 @@ export const SYNC_OFF: SyncSnapshot = {
   enabled: false,
   vault: false,
   enrolled: false,
-  status: { state: 'off', lastSync: null, code: null, tooLarge: 0 },
+  status: {
+    state: 'off',
+    lastSync: null,
+    code: null,
+    tooLarge: 0,
+    pausedUntil: null,
+    upload: null,
+    relayOutdated: false,
+  },
 }
 
 const CODE = /^[EWI]_[A-Z0-9_]+$/
+
+const count = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null
+
+function readUpload(value: unknown): SyncSnapshot['status']['upload'] {
+  if (typeof value !== 'object' || value === null) return null
+  const sent = count((value as Record<string, unknown>)['sent'])
+  const total = count((value as Record<string, unknown>)['total'])
+  return sent !== null && total !== null && total > 0 && sent <= total ? { sent, total } : null
+}
 
 export function readSnapshot(value: unknown): SyncSnapshot | undefined {
   if (typeof value !== 'object' || value === null) return undefined
@@ -55,8 +83,7 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
     unknown
   >
   const state = SYNC_STATES.find((name) => name === s['state']) ?? 'off'
-  const last = s['lastSync']
-  const tooLarge = s['tooLarge']
+  const tooLarge = count(s['tooLarge']) ?? 0
   return {
     relayUrl: typeof v['relayUrl'] === 'string' ? v['relayUrl'] : '',
     enabled: v['enabled'] === true,
@@ -64,12 +91,12 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
     enrolled: v['enrolled'] === true,
     status: {
       state,
-      lastSync: typeof last === 'number' && Number.isSafeInteger(last) ? last : null,
+      lastSync: count(s['lastSync']),
       code: typeof s['code'] === 'string' && CODE.test(s['code']) ? s['code'] : null,
-      tooLarge:
-        typeof tooLarge === 'number' && Number.isSafeInteger(tooLarge) && tooLarge > 0
-          ? tooLarge
-          : 0,
+      tooLarge,
+      pausedUntil: state === 'paused' ? count(s['pausedUntil']) : null,
+      upload: readUpload(s['upload']),
+      relayOutdated: s['relayOutdated'] === true,
     },
   }
 }
@@ -298,6 +325,7 @@ export async function removeDevice(device: string): Promise<SyncDevice[]> {
 
 export const tauriSync: WireSync = {
   syncPending: (after, limit) => invoke<string[]>('sync_pending', { after, limit }),
+  syncPendingCount: () => invoke<number>('sync_pending_count'),
   syncRead: (ids) => invoke<WireSyncLocal[]>('sync_read', { ids }),
   syncPut: (entry) => invoke('sync_entry_put', { entry: { ...entry, edits: 0 } }),
   syncState: () => invoke<Record<string, string>>('sync_state_get'),
@@ -319,6 +347,9 @@ const reported = (status: SyncStatus) => ({
   lastSync: status.lastSync,
   code: status.code,
   tooLarge: status.tooLarge.length,
+  pausedUntil: status.pausedUntil,
+  upload: status.upload,
+  relayOutdated: status.relayOutdated,
 })
 
 /**

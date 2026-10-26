@@ -33,6 +33,7 @@
     "allow-sync-disconnect",
     "allow-sync-status-report",
     "allow-sync-pending",
+    "allow-sync-pending-count",
     "allow-sync-read",
     "allow-sync-entry-put",
     "allow-sync-state-get",

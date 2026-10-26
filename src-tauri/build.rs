@@ -89,6 +89,7 @@ fn main() {
             "sync_disconnect",
             "sync_status_report",
             "sync_pending",
+            "sync_pending_count",
             "sync_read",
             "sync_entry_put",
             "sync_state_get",

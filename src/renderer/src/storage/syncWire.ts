@@ -33,6 +33,7 @@ export interface WireTransport {
 export function fromWireSync(wire: WireSync): SyncStore {
   return {
     syncPending: (after, limit) => wire.syncPending(after, limit),
+    syncPendingCount: () => wire.syncPendingCount(),
     async syncRead(ids) {
       const rows = await wire.syncRead(ids)
       return rows.map((row) => ({

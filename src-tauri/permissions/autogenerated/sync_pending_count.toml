@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sync-pending-count"
+description = "Enables the sync_pending_count command without any pre-configured scope."
+commands.allow = ["sync_pending_count"]
+
+[[permission]]
+identifier = "deny-sync-pending-count"
+description = "Denies the sync_pending_count command without any pre-configured scope."
+commands.deny = ["sync_pending_count"]
