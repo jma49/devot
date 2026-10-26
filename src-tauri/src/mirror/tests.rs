@@ -823,3 +823,48 @@ fn writes_back_a_move_whose_rewrite_failed() {
     assert_eq!(stored.notes[NOTE].path, "Home/Spec.md");
     assert_eq!(stored.notes[NOTE].sha256, sha256_hex(b"# Plan\n"));
 }
+
+#[test]
+fn removes_what_a_cut_short_write_left_and_the_folders_it_alone_kept() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    f.apply(generation, &[note_op("Work/Plan.md", "# Plan\n")]);
+    let hour_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(60 * 60);
+    let left = |rel: &str, modified: std::time::SystemTime| {
+        let path = folder.join(rel);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::File::create(&path)
+            .unwrap()
+            .set_modified(modified)
+            .unwrap();
+        path
+    };
+    let temporary = || crate::atomic_file::temporary_name().into_string().unwrap();
+    let stale = [
+        left(&format!("Work/{}", temporary()), hour_ago),
+        left(&format!("attachments/{}", temporary()), hour_ago),
+        left(&format!("Old/Deep/{}", temporary()), hour_ago),
+        left(&temporary(), hour_ago),
+    ];
+    let kept = [
+        left(&temporary(), std::time::SystemTime::now()),
+        left("Work/.devot-mine.tmp", hour_ago),
+    ];
+    let user_folder = folder.join("Empty");
+    fs::create_dir(&user_folder).unwrap();
+
+    let relaunched = Mirror::new(&f.data.join(SETTINGS_FILE), Some(f.data.clone()));
+    relaunched.open(None, &f.notify()).unwrap();
+
+    for path in &stale {
+        assert!(!path.exists(), "{}", path.display());
+    }
+    for path in &kept {
+        assert!(path.exists(), "{}", path.display());
+    }
+    assert!(!folder.join("Old").exists());
+    assert!(folder.join("Work/Plan.md").is_file());
+    assert!(user_folder.is_dir());
+}

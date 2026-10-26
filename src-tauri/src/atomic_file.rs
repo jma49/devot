@@ -315,6 +315,7 @@ pub struct Entry {
     pub kind: Kind,
     pub len: u64,
     id: (u64, u64),
+    modified: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -337,7 +338,16 @@ impl Entry {
             kind,
             len: u64::try_from(stat.st_size).unwrap_or(0),
             id: (stat.st_dev as u64, stat.st_ino as u64),
+            modified: stat.st_mtime as i64,
         }
+    }
+
+    /// Whether it was last changed at least `age` before `now`; one dated after `now` is not.
+    pub fn older_than(&self, age: std::time::Duration, now: std::time::SystemTime) -> bool {
+        now.duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .and_then(|since| i64::try_from(since.as_secs()).ok())
+            .is_some_and(|now| now.saturating_sub(self.modified) >= age.as_secs() as i64)
     }
 
     pub fn is_file(&self) -> bool {

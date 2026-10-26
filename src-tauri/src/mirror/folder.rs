@@ -41,6 +41,9 @@ pub const MAX_NOTE_FILES: usize = 10_000;
 const MAX_SOURCE_LEN: usize = 64;
 pub const MAX_TEXT_BYTES: usize = crate::export::MAX_TEXT_BYTES;
 const MAX_KEEP_TRIES: u32 = 1000;
+/// A write under way keeps its temporary file newer than this.
+const TEMPORARY_STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+const MAX_SWEEP_DEPTH: usize = 128;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -500,6 +503,41 @@ fn prune(root: &Root, rel: &str) {
             return;
         }
     }
+}
+
+/// Removes the temporary files that writes cut short (a quit, a crash) left in the folder, and each
+/// folder that held nothing else, which `prune` could not remove while they were there. Hidden
+/// folders are never mirror paths and are left alone.
+pub fn sweep(root: &Root, now: std::time::SystemTime) {
+    sweep_folder(&root.folder, now, 0);
+}
+
+fn sweep_folder(folder: &Folder, now: std::time::SystemTime, depth: usize) -> bool {
+    let mut removed = false;
+    for name in folder.names().unwrap_or_default() {
+        let (Some(text), Ok(entry)) = (name.to_str(), folder.entry(&name)) else {
+            continue;
+        };
+        if entry.is_file()
+            && atomic_file::is_temporary(text)
+            && entry.older_than(TEMPORARY_STALE_AFTER, now)
+        {
+            if folder.remove_file(&name).is_ok() {
+                removed = true;
+            } else {
+                log::warn!("W_MIRROR_SWEEP_FAILED");
+            }
+        } else if entry.is_folder()
+            && !text.starts_with('.')
+            && depth < MAX_SWEEP_DEPTH
+            && let Ok(inner) = folder.folder(&name)
+            && sweep_folder(&inner, now, depth + 1)
+        {
+            removed = true;
+            let _ = folder.remove_folder(&name);
+        }
+    }
+    removed
 }
 
 pub fn kept_name(name: &str, n: u32) -> String {

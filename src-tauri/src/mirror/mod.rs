@@ -495,6 +495,9 @@ impl Mirror {
                 }
                 Err(_) => return Err(self.pause(&mut inner, "E_MIRROR_FOLDER_READ_ONLY", notify)),
             }
+            if !fresh {
+                folder::sweep(&root, std::time::SystemTime::now());
+            }
             inner.manifest = Some(manifest);
         }
         let resumed = inner.paused.take().is_some();
