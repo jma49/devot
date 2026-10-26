@@ -297,6 +297,43 @@ pub fn write_clipboard_text(text: &str) -> bool {
     .unwrap_or(false)
 }
 
+/// Marker types clipboard managers honour (nspasteboard.org): skip the item, keep no history.
+const CONCEALED_TYPE: &str = "org.nspasteboard.ConcealedType";
+const TRANSIENT_TYPE: &str = "org.nspasteboard.TransientType";
+
+/// Puts a secret on the general pasteboard for this Mac only (no Universal Clipboard), marked
+/// concealed and transient. Returns the pasteboard's change count, for
+/// [`clear_clipboard_if_unchanged`].
+pub fn write_secret_clipboard_text(text: &str) -> Option<isize> {
+    catch_unwind(|| write_secret_text_to(&NSPasteboard::generalPasteboard(), text)).unwrap_or(None)
+}
+
+fn write_secret_text_to(pasteboard: &NSPasteboard, text: &str) -> Option<isize> {
+    pasteboard.prepareForNewContentsWithOptions(
+        objc2_app_kit::NSPasteboardContentsOptions::CurrentHostOnly,
+    );
+    // SAFETY: `NSPasteboardTypeString` is an immutable AppKit constant
+    // (macOS 10.6+), valid for the life of the process.
+    let kind = unsafe { NSPasteboardTypeString };
+    let marked = [CONCEALED_TYPE, TRANSIENT_TYPE].iter().all(|marker| {
+        pasteboard.setData_forType(Some(&NSData::new()), &NSString::from_str(marker))
+    });
+    (marked && pasteboard.setString_forType(&NSString::from_str(text), kind))
+        .then(|| pasteboard.changeCount())
+}
+
+/// Clears the general pasteboard when nothing was put on it since `count`.
+pub fn clear_clipboard_if_unchanged(count: isize) {
+    let _ = catch_unwind(|| clear_if_unchanged(&NSPasteboard::generalPasteboard(), count));
+}
+
+fn clear_if_unchanged(pasteboard: &NSPasteboard, count: isize) -> bool {
+    pasteboard.changeCount() == count && {
+        pasteboard.clearContents();
+        true
+    }
+}
+
 pub struct PasteboardImage {
     pub png: Option<Vec<u8>>,
     pub tiff: Vec<u8>,
@@ -3127,6 +3164,47 @@ mod tests {
 
     // Tests that touch WebKit run on the main thread in
     // tests/webkit_main_thread.rs; libtest's worker threads crash WebKit.
+
+    /// A pasteboard of the test's own, so the user's clipboard is never touched.
+    struct OwnPasteboard(objc2::rc::Retained<NSPasteboard>);
+
+    impl Drop for OwnPasteboard {
+        fn drop(&mut self) {
+            // SAFETY: `releaseGlobally` is public AppKit API (macOS 10.0+) on a live pasteboard
+            // this test made; it takes no arguments and returns nothing.
+            let () = unsafe { msg_send![&*self.0, releaseGlobally] };
+        }
+    }
+
+    #[test]
+    fn a_secret_is_marked_concealed_and_cleared_only_when_nothing_replaced_it() {
+        let own = OwnPasteboard(NSPasteboard::pasteboardWithUniqueName());
+        let pasteboard = &own.0;
+        let count = write_secret_text_to(pasteboard, "secret").expect("written");
+        // SAFETY: an immutable AppKit constant (macOS 10.6+).
+        let kind = unsafe { NSPasteboardTypeString };
+        assert_eq!(
+            pasteboard.stringForType(kind).map(|s| s.to_string()),
+            Some("secret".to_string())
+        );
+        let types: Vec<String> = pasteboard
+            .types()
+            .map(|types| types.iter().map(|t| t.to_string()).collect())
+            .unwrap_or_default();
+        assert!(types.iter().any(|t| t == CONCEALED_TYPE));
+        assert!(types.iter().any(|t| t == TRANSIENT_TYPE));
+
+        assert!(!clear_if_unchanged(pasteboard, count - 1));
+        assert!(pasteboard.stringForType(kind).is_some());
+        assert!(clear_if_unchanged(pasteboard, count));
+        assert!(pasteboard.stringForType(kind).is_none());
+
+        let count = write_secret_text_to(pasteboard, "secret").expect("written");
+        pasteboard.clearContents();
+        pasteboard.setString_forType(&NSString::from_str("the user's copy"), kind);
+        assert!(!clear_if_unchanged(pasteboard, count));
+        assert!(pasteboard.stringForType(kind).is_some());
+    }
 
     #[test]
     fn time_since_boot_runs_forward() {

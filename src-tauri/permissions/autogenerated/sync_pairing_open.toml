@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sync-pairing-open"
+description = "Enables the sync_pairing_open command without any pre-configured scope."
+commands.allow = ["sync_pairing_open"]
+
+[[permission]]
+identifier = "deny-sync-pairing-open"
+description = "Denies the sync_pairing_open command without any pre-configured scope."
+commands.deny = ["sync_pairing_open"]

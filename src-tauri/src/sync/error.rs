@@ -23,6 +23,11 @@ pub(crate) enum SyncError {
     RecoveryFormat,
     RecoveryChecksum,
     RecoveryVersion,
+    PairingFormat,
+    PairingChecksum,
+    PairingVersion,
+    PairingAuth,
+    PairingExpired,
 }
 
 impl SyncError {
@@ -43,6 +48,11 @@ impl SyncError {
             Self::RecoveryFormat => "E_SYNC_RECOVERY_FORMAT",
             Self::RecoveryChecksum => "E_SYNC_RECOVERY_CHECKSUM",
             Self::RecoveryVersion => "E_SYNC_RECOVERY_VERSION",
+            Self::PairingFormat => "E_SYNC_PAIRING_CODE",
+            Self::PairingChecksum => "E_SYNC_PAIRING_CHECKSUM",
+            Self::PairingVersion => "E_SYNC_PAIRING_VERSION",
+            Self::PairingAuth => "E_SYNC_PAIRING_AUTH",
+            Self::PairingExpired => "E_SYNC_PAIRING_EXPIRED",
         }
     }
 }

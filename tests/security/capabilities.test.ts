@@ -106,6 +106,8 @@ describe('Tauri command permissions', () => {
       'allow-cli-tool-install',
       'allow-cli-tool-status',
       'allow-cli-tool-uninstall',
+      // Settings > Sync copies the recovery key as a secret.
+      'allow-clipboard-write-secret',
       // Settings > Integrations copies devot-mcp's configs.
       'allow-clipboard-write-text',
       'allow-editor-settings-get',
@@ -143,7 +145,17 @@ describe('Tauri command permissions', () => {
       'allow-settings-show-backups',
       'allow-symbol-png',
       // Settings > Sync sets the relay and turns sync on or off; the relay's secret goes in, once.
+      // It offers the recovery key until it is saved, pairs and joins devices, lists and removes them.
+      'allow-sync-device-remove',
+      'allow-sync-devices',
       'allow-sync-get',
+      'allow-sync-join-code',
+      'allow-sync-join-recovery',
+      'allow-sync-pairing-cancel',
+      'allow-sync-pairing-check',
+      'allow-sync-pairing-open',
+      'allow-sync-recovery-key',
+      'allow-sync-recovery-saved',
       'allow-sync-set',
       'allow-sync-vault-create',
       'allow-system-accent',

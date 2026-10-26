@@ -3,15 +3,17 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import { type Duplex, Readable } from 'node:stream'
-import type Database from 'better-sqlite3'
+import Database from 'better-sqlite3'
 import { WebSocket, WebSocketServer } from 'ws'
 import { CLOSE, encodeFrame, SUBPROTOCOL } from '../../../src/core/sync/protocol.ts'
 import { errorResponse, handleHttp, isSocketPath, socketTarget } from '../front.ts'
+import { PairingRelay } from '../pairing.ts'
 import { type Outcome, VaultRelay } from '../vault.ts'
 import { openVaultDb, sqliteSql } from './sqlite.ts'
 
 // The Node host: one HTTP server is the front, and each vault is a SQLite file
 // `<data>/<vault ID>.sqlite` (vault IDs are checked against a strict pattern first).
+// Pairings live minutes, so they are kept in memory and a restart ends them.
 
 export interface NodeRelayOptions {
   /** Folder for the vaults' databases. */
@@ -67,6 +69,8 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
   }
 
   const notFound = { status: 404, body: { v: 1, type: 'error', code: 'E_SYNC_NO_VAULT' } }
+  const pairingsDb = new Database(':memory:')
+  const pairings = new PairingRelay(sqliteSql(pairingsDb))
 
   const server: Server = createServer((req, res) => {
     void (async () => {
@@ -78,6 +82,12 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
         },
         async enroll(vault, body) {
           return (await open(vault, false)?.relay.enroll(body)) ?? notFound
+        },
+        async authenticate(vault, device, token) {
+          return (await open(vault, false)?.relay.authenticate(device, token)) ?? 'no-vault'
+        },
+        async pairing(op, id, body, device) {
+          return pairings.handle(op, id, body, device)
         },
       })
       await send(res, response)
@@ -136,6 +146,7 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
       await new Promise<void>((resolve) => server.close(() => resolve()))
       for (const opened of vaults.values()) opened.db.close()
       vaults.clear()
+      pairingsDb.close()
     },
   }
 }

@@ -123,11 +123,177 @@ export async function changeSync(patch: { relayUrl?: string; enabled?: boolean }
   return next
 }
 
-/** The relay secret goes to Rust for the one request that creates the vault; it is never kept. */
-export async function createSyncVault(relaySecret: string) {
-  const next = readSnapshot(await invoke<unknown>('sync_vault_create', { relaySecret }))
+const RECOVERY_KEY = /^[0-9A-Z]{5}(-[0-9A-Z]{1,5})+$/
+
+/**
+ * The relay secret goes to Rust for the one request that creates the vault; it is never kept. The
+ * recovery key comes back while this device has not said it was saved.
+ */
+export async function createSyncVault(
+  relaySecret: string,
+): Promise<{ snapshot: SyncSnapshot | undefined; recoveryKey: string | null }> {
+  const value = await invoke<unknown>('sync_vault_create', { relaySecret })
+  const v = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>
+  const next = readSnapshot(v['snapshot'])
+  publish(next)
+  const key = v['recoveryKey']
+  return { snapshot: next, recoveryKey: readRecoveryKey(key) }
+}
+
+const readRecoveryKey = (key: unknown) =>
+  typeof key === 'string' && RECOVERY_KEY.test(key) ? key : null
+
+/** The recovery key until this device says it was saved (`recoverySaved`), else null. */
+export async function pendingRecoveryKey(): Promise<string | null> {
+  return readRecoveryKey(await invoke<unknown>('sync_recovery_key'))
+}
+
+export async function recoverySaved(): Promise<void> {
+  await invoke('sync_recovery_saved')
+}
+
+/** A pairing code on show (docs/adr/0008-sync-device-pairing.md). */
+export interface ShownPairing {
+  code: string
+  link: string
+  qr: { size: number; modules: string }
+  /** When the code stops working, in ms. */
+  expires: number
+}
+
+const PAIRING_CODE = /^[0-9A-Z]{4}(-[0-9A-Z]{4}){7}$/
+
+export function readPairing(value: unknown): ShownPairing | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const v = value as Record<string, unknown>
+  const qr = (typeof v['qr'] === 'object' && v['qr'] !== null ? v['qr'] : {}) as Record<
+    string,
+    unknown
+  >
+  const size = qr['size']
+  const modules = qr['modules']
+  const { code, link, expires } = v
+  const qrOk =
+    typeof size === 'number' &&
+    Number.isSafeInteger(size) &&
+    size > 0 &&
+    size <= 177 &&
+    typeof modules === 'string' &&
+    modules.length === size * size &&
+    /^[01]*$/.test(modules)
+  if (
+    typeof code !== 'string' ||
+    !PAIRING_CODE.test(code) ||
+    typeof link !== 'string' ||
+    !link.startsWith('devot://pair?') ||
+    typeof expires !== 'number' ||
+    !Number.isSafeInteger(expires) ||
+    !qrOk
+  ) {
+    return undefined
+  }
+  return { code, link, qr: { size, modules }, expires }
+}
+
+/** Shows a new pairing code; the last one stops working. Rejects with Rust's code. */
+export async function openPairing(): Promise<ShownPairing> {
+  const shown = readPairing(await invoke<unknown>('sync_pairing_open'))
+  if (!shown) throw new Error('E_SYNC_PAIRING_INVALID')
+  return shown
+}
+
+export type PairingProgress =
+  | { state: 'waiting' | 'taken' | 'expired' | 'unconfirmed' }
+  | { state: 'paired'; device: string }
+
+/**
+ * How the code on show is going; `paired` once the new device confirmed it holds the vault, and
+ * `unconfirmed` when a device took the code and never confirmed.
+ */
+export async function checkPairing(): Promise<PairingProgress> {
+  const value = await invoke<unknown>('sync_pairing_check')
+  const v = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>
+  const state = v['state']
+  if (state === 'paired' && typeof v['device'] === 'string') return { state, device: v['device'] }
+  if (state === 'waiting' || state === 'taken' || state === 'expired' || state === 'unconfirmed')
+    return { state }
+  throw new Error('E_SYNC_PAIRING_INVALID')
+}
+
+export async function cancelPairing(): Promise<void> {
+  await invoke('sync_pairing_cancel')
+}
+
+/**
+ * The relay a pasted pairing link names, or undefined for a bare code. Rust joins only the relay
+ * set in Settings, so Settings asks before it sets one from a link.
+ */
+export function linkRelay(text: string): string | undefined {
+  const trimmed = text.trim()
+  if (!/^devot:\/\/pair\?/i.test(trimmed)) return undefined
+  const relay = new URLSearchParams(trimmed.slice(trimmed.indexOf('?') + 1)).get('relay')
+  if (!relay) return undefined
+  try {
+    const url = new URL(relay)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? relay : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const LOOPBACK = /^(localhost|127(\.\d{1,3}){3}|\[::1\])$/i
+
+/** Whether Rust takes this as a relay: https, or http to this machine only (RelayUrl::parse). */
+export function relayAllowed(relay: string): boolean {
+  try {
+    const url = new URL(relay)
+    return url.protocol === 'https:' || (url.protocol === 'http:' && LOOPBACK.test(url.hostname))
+  } catch {
+    return false
+  }
+}
+
+/** Joins the vault a pairing code (or the link its QR code holds) hands over. */
+export async function joinWithCode(code: string) {
+  const next = readSnapshot(await invoke<unknown>('sync_join_code', { code }))
   publish(next)
   return next
+}
+
+/** Joins with the recovery key and the relay set in Settings. */
+export async function joinWithRecoveryKey(recoveryKey: string) {
+  const next = readSnapshot(await invoke<unknown>('sync_join_recovery', { recoveryKey }))
+  publish(next)
+  return next
+}
+
+export interface SyncDevice {
+  id: string
+  label: string
+  created: number
+  /** This device. */
+  current: boolean
+}
+
+export function readDevices(value: unknown): SyncDevice[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item: unknown) => {
+    if (typeof item !== 'object' || item === null) return []
+    const d = item as Record<string, unknown>
+    const { id, label, created } = d
+    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) return []
+    if (typeof label !== 'string' || typeof created !== 'number') return []
+    return [{ id, label: label.slice(0, 256), created, current: d['current'] === true }]
+  })
+}
+
+export async function listDevices(): Promise<SyncDevice[]> {
+  return readDevices(await invoke<unknown>('sync_devices'))
+}
+
+/** Removes a device from the vault: the relay revokes its token. Returns the devices left. */
+export async function removeDevice(device: string): Promise<SyncDevice[]> {
+  return readDevices(await invoke<unknown>('sync_device_remove', { device }))
 }
 
 export const tauriSync: WireSync = {

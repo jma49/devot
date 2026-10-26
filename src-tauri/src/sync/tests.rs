@@ -12,7 +12,7 @@ const PIECE: usize = MAX_CHUNK_BYTES - 29;
 const SMALL: usize = 1000;
 
 #[derive(Default)]
-struct MemoryStore(RefCell<HashMap<String, Vec<u8>>>);
+pub(super) struct MemoryStore(RefCell<HashMap<String, Vec<u8>>>);
 
 impl SecretStore for MemoryStore {
     fn read(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, SyncError> {
@@ -49,7 +49,7 @@ impl SecretStore for FailingStore {
     }
 }
 
-fn fixed_vault() -> Vault {
+pub(super) fn fixed_vault() -> Vault {
     let id = VaultId::from_bytes(hex::<16>("0123456789ab4def8123456789abcdef"));
     let mut key = Zeroizing::new([0; 32]);
     for (i, byte) in key.iter_mut().enumerate() {
@@ -66,7 +66,7 @@ fn hex<const N: usize>(text: &str) -> [u8; N] {
     bytes.try_into().unwrap()
 }
 
-fn to_hex(bytes: &[u8]) -> String {
+pub(super) fn to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
@@ -616,4 +616,12 @@ fn the_keychain_keeps_and_removes_a_vault() {
     assert!(Vault::delete(&keychain).unwrap());
     assert!(Vault::load(&keychain).unwrap().is_none());
     assert!(!Vault::delete(&keychain).unwrap());
+}
+
+#[test]
+fn closing_the_settings_window_ends_the_pairing_on_show() {
+    use tauri::WindowEvent;
+    assert!(ends_pairing("settings", &WindowEvent::Destroyed));
+    assert!(!ends_pairing("main", &WindowEvent::Destroyed));
+    assert!(!ends_pairing("settings", &WindowEvent::Focused(false)));
 }

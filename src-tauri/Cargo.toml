@@ -71,6 +71,9 @@ ed25519-dalek = { version = "3", default-features = false, features = ["fast"] }
 # The sync relay's socket (`sync::client`), blocking on a thread of its own, over the system TLS
 # stack as ureq is.
 tungstenite = { version = "0.30", default-features = false, features = ["handshake", "native-tls"] }
+# The pairing code's QR code (`sync::pairing`), as modules the page draws; no image or SVG
+# rendering, so no dependencies of its own.
+qrcode = { version = "0.14", default-features = false }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # Quick capture's shortcut, registered from Rust alone while menu bar mode is

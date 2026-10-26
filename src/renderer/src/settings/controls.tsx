@@ -50,16 +50,19 @@ export function Setting({
   description,
   htmlFor,
   descriptionId,
+  stacked = false,
   children,
 }: {
   label: MessageKey
   description: string
   htmlFor?: string
   descriptionId?: string
+  /** The control goes under the text, full width, for content too wide to sit beside it. */
+  stacked?: boolean
   children: ReactNode
 }) {
   return (
-    <div className="setting">
+    <div className={stacked ? 'setting setting-stacked' : 'setting'}>
       <div className="setting-text">
         {htmlFor === undefined ? (
           <span className="setting-label">{t(label)}</span>

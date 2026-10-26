@@ -145,7 +145,7 @@ fn relay_code(value: &Value) -> Option<&'static str> {
     KNOWN_CODES.iter().copied().find(|known| *known == code)
 }
 
-const KNOWN_CODES: [&str; 17] = [
+const KNOWN_CODES: [&str; 19] = [
     "E_SYNC_BAD_MESSAGE",
     "E_SYNC_PROTOCOL",
     "E_SYNC_TOO_LARGE",
@@ -163,6 +163,8 @@ const KNOWN_CODES: [&str; 17] = [
     "E_RELAY_CONFIG",
     "E_SYNC_RELAY_SECRET",
     "E_SYNC_FORBIDDEN",
+    "E_SYNC_PAIRING_GONE",
+    "E_SYNC_PAIRING_EXISTS",
 ];
 
 fn post(url: &str, body: &Value, bearer: Option<&str>) -> Result<Value, &'static str> {
@@ -268,6 +270,110 @@ pub(crate) fn enroll(
         &body,
         None,
     )?)
+}
+
+const MAX_SEALED_BYTES: usize = 512;
+
+/// A pairing's state on the relay (docs/adr/0008-sync-device-pairing.md).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PairingState {
+    Open,
+    Taken,
+    /// The joining device's sealed confirmation, as the relay keeps it.
+    Confirmed(Vec<u8>),
+}
+
+/// A pairing request. A relay from before pairing has no such route and answers
+/// `E_SYNC_NOT_FOUND`: it needs an update.
+fn pairing_post(
+    relay: &RelayUrl,
+    id: &str,
+    op: &str,
+    body: Value,
+    token: Option<&str>,
+) -> Result<Value, &'static str> {
+    let path = if op == "pair" {
+        String::new()
+    } else {
+        format!("/{op}")
+    };
+    let mut body = object(body);
+    body.insert("v".into(), PROTOCOL_VERSION.into());
+    body.insert("type".into(), op.into());
+    let url = format!("{}/v1/pairings/{id}{path}", relay.as_str());
+    let reply = post(&url, &Value::Object(body), token).map_err(|code| match code {
+        "E_SYNC_NOT_FOUND" => "E_SYNC_RELAY_OUTDATED",
+        "E_SYNC_RELAY_SECRET" => "E_SYNC_UNAUTHORIZED",
+        other => other,
+    })?;
+    if reply.get("type").and_then(Value::as_str) == Some("error") {
+        return Err(relay_code(&reply).unwrap_or("E_SYNC_RELAY_FAILED"));
+    }
+    Ok(reply)
+}
+
+fn sealed_field(reply: &Value, key: &str) -> Result<Vec<u8>, &'static str> {
+    reply
+        .get(key)
+        .and_then(Value::as_str)
+        .filter(|text| text.len() <= MAX_SEALED_BYTES.div_ceil(3) * 4)
+        .and_then(|text| URL_SAFE_NO_PAD.decode(text).ok())
+        .filter(|bytes| !bytes.is_empty())
+        .ok_or("E_SYNC_RELAY_FAILED")
+}
+
+/// Leaves a sealed offer on the relay; returns when it expires, in the relay's time.
+pub(crate) fn pairing_open(
+    relay: &RelayUrl,
+    vault: &str,
+    token: &str,
+    id: &str,
+    offer: &[u8],
+) -> Result<i64, &'static str> {
+    let body = json!({ "vault": vault, "offer": URL_SAFE_NO_PAD.encode(offer) });
+    let reply = pairing_post(relay, id, "pair", body, Some(token))?;
+    reply
+        .get("expires")
+        .and_then(Value::as_i64)
+        .ok_or("E_SYNC_RELAY_FAILED")
+}
+
+/// Takes the sealed offer; the relay hands it out once.
+pub(crate) fn pairing_take(relay: &RelayUrl, id: &str) -> Result<Vec<u8>, &'static str> {
+    sealed_field(&pairing_post(relay, id, "take", json!({}), None)?, "offer")
+}
+
+pub(crate) fn pairing_confirm(
+    relay: &RelayUrl,
+    id: &str,
+    proof: &[u8],
+) -> Result<(), &'static str> {
+    let body = json!({ "proof": URL_SAFE_NO_PAD.encode(proof) });
+    pairing_post(relay, id, "confirm", body, None).map(|_| ())
+}
+
+pub(crate) fn pairing_status(
+    relay: &RelayUrl,
+    vault: &str,
+    token: &str,
+    id: &str,
+) -> Result<PairingState, &'static str> {
+    let reply = pairing_post(relay, id, "status", json!({ "vault": vault }), Some(token))?;
+    match reply.get("state").and_then(Value::as_str) {
+        Some("open") => Ok(PairingState::Open),
+        Some("taken") => Ok(PairingState::Taken),
+        Some("confirmed") => Ok(PairingState::Confirmed(sealed_field(&reply, "proof")?)),
+        _ => Err("E_SYNC_RELAY_FAILED"),
+    }
+}
+
+pub(crate) fn pairing_close(
+    relay: &RelayUrl,
+    vault: &str,
+    token: &str,
+    id: &str,
+) -> Result<(), &'static str> {
+    pairing_post(relay, id, "close", json!({ "vault": vault }), Some(token)).map(|_| ())
 }
 
 /// The relay's greeting on a new socket.
@@ -826,6 +932,65 @@ pub(crate) fn push(
         Some("rejected") => Ok(Pushed::Rejected {
             version: number("version")?,
         }),
+        _ => Err("E_SYNC_PROTOCOL"),
+    }
+}
+
+/// A device of the vault, as the relay lists it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DeviceInfo {
+    pub id: String,
+    pub label: String,
+    pub created: i64,
+    pub current: bool,
+}
+
+pub(crate) fn devices(connection: &Connection) -> Result<Vec<DeviceInfo>, &'static str> {
+    let answer = connection.request(&object(json!({ "type": "devices" })), &[])?;
+    if answer.message.get("type").and_then(Value::as_str) != Some("devices") {
+        return Err("E_SYNC_PROTOCOL");
+    }
+    let list = answer
+        .message
+        .get("devices")
+        .and_then(Value::as_array)
+        .ok_or("E_SYNC_PROTOCOL")?;
+    list.iter()
+        .map(|device| {
+            let id = device
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|id| valid_relay_id(id))
+                .ok_or("E_SYNC_PROTOCOL")?;
+            let label = device
+                .get("label")
+                .and_then(Value::as_str)
+                .ok_or("E_SYNC_PROTOCOL")?;
+            Ok(DeviceInfo {
+                id: id.to_string(),
+                label: clean_label(label)
+                    .chars()
+                    .filter(|c| !c.is_control())
+                    .collect(),
+                created: device
+                    .get("created")
+                    .and_then(Value::as_i64)
+                    .ok_or("E_SYNC_PROTOCOL")?,
+                current: device.get("current").and_then(Value::as_bool) == Some(true),
+            })
+        })
+        .collect()
+}
+
+/// Revokes a device's token; the relay closes its sockets.
+pub(crate) fn revoke(connection: &Connection, device: &str) -> Result<(), &'static str> {
+    if !valid_relay_id(device) {
+        return Err("E_SYNC_DEVICE_INVALID");
+    }
+    let answer = connection.request(&object(json!({ "type": "revoke", "device": device })), &[])?;
+    match answer.message.get("type").and_then(Value::as_str) {
+        Some("revoked") => Ok(()),
         _ => Err("E_SYNC_PROTOCOL"),
     }
 }

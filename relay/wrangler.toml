@@ -1,5 +1,5 @@
 # Devot sync relay on the owner's own Cloudflare account (docs/sync-relay.md).
-# Rename the Worker if you like; keep the binding, the class and the migration.
+# Rename the Worker if you like; keep the bindings, the classes and the migrations.
 name = "devot-relay"
 main = "src/worker.ts"
 compatibility_date = "2026-07-30"
@@ -9,7 +9,16 @@ workers_dev = true
 name = "VAULTS"
 class_name = "VaultObject"
 
+[[durable_objects.bindings]]
+name = "PAIRINGS"
+class_name = "PairingObject"
+
 # SQLite storage: the only Durable Object storage on the Workers Free plan.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["VaultObject"]
+
+# Device pairing (docs/adr/0008-sync-device-pairing.md): one object per pairing.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["PairingObject"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sync-pairing-check"
+description = "Enables the sync_pairing_check command without any pre-configured scope."
+commands.allow = ["sync_pairing_check"]
+
+[[permission]]
+identifier = "deny-sync-pairing-check"
+description = "Denies the sync_pairing_check command without any pre-configured scope."
+commands.deny = ["sync_pairing_check"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sync-join-recovery"
+description = "Enables the sync_join_recovery command without any pre-configured scope."
+commands.allow = ["sync_join_recovery"]
+
+[[permission]]
+identifier = "deny-sync-join-recovery"
+description = "Denies the sync_join_recovery command without any pre-configured scope."
+commands.deny = ["sync_join_recovery"]

@@ -95,6 +95,7 @@ pub fn run() {
             native::system_accent,
             native::clipboard_write_text,
             native::clipboard_read_text,
+            native::clipboard_write_secret,
             native::text_look_up,
             native::text_speak,
             native::editor_menu_popup,
@@ -135,6 +136,15 @@ pub fn run() {
             sync::commands::sync_get,
             sync::commands::sync_set,
             sync::commands::sync_vault_create,
+            sync::commands::sync_recovery_key,
+            sync::commands::sync_recovery_saved,
+            sync::commands::sync_pairing_open,
+            sync::commands::sync_pairing_check,
+            sync::commands::sync_pairing_cancel,
+            sync::commands::sync_join_code,
+            sync::commands::sync_join_recovery,
+            sync::commands::sync_devices,
+            sync::commands::sync_device_remove,
             sync::commands::sync_connect,
             sync::commands::sync_pull,
             sync::commands::sync_push,
@@ -272,6 +282,7 @@ pub fn run() {
             #[cfg(desktop)]
             note_window::on_window_event(window, event);
             deep_link::on_window_event(window, event);
+            sync::on_window_event(window, event);
             #[cfg(desktop)]
             updates::on_window_event(window, event);
         })

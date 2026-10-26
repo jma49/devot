@@ -1,13 +1,16 @@
 import { DurableObject } from 'cloudflare:workers'
 import { CLOSE, encodeFrame, SUBPROTOCOL } from '../../src/core/sync/protocol.ts'
-import { handleHttp, isSocketPath, socketTarget } from './front.ts'
+import { type Access, handleHttp, isSocketPath, socketTarget } from './front.ts'
+import { type PairingOp, PairingRelay } from './pairing.ts'
 import { type Outcome, type Reply, type Sql, type SqlValue, VaultRelay } from './vault.ts'
 
 // The Cloudflare host: the Worker is the front, one Durable Object on SQLite
 // storage per vault keeps the vault, and every socket uses the Hibernation API.
+// Each pairing has a Durable Object of its own, which an alarm empties.
 
 export interface Env {
   VAULTS: DurableObjectNamespace<VaultObject>
+  PAIRINGS: DurableObjectNamespace<PairingObject>
   RELAY_SECRET: string
 }
 
@@ -65,6 +68,10 @@ export class VaultObject extends DurableObject<Env> {
     return this.relayFor(vault).enroll(body)
   }
 
+  async authenticate(vault: string, device: string, token: string): Promise<Access> {
+    return this.relayFor(vault).authenticate(device, token)
+  }
+
   override async fetch(request: Request): Promise<Response> {
     const vault = request.headers.get(VAULT_HEADER) ?? ''
     const device = request.headers.get(DEVICE_HEADER) ?? ''
@@ -119,6 +126,26 @@ export class VaultObject extends DurableObject<Env> {
   }
 }
 
+export class PairingObject extends DurableObject<Env> {
+  async handle(
+    op: PairingOp,
+    id: string,
+    body: Record<string, unknown>,
+    device: string,
+  ): Promise<Reply> {
+    const relay = new PairingRelay(durableSql(this.ctx.storage))
+    const reply = relay.handle(op, id, body, device)
+    const at = relay.deleteAt()
+    if (at === null) await this.ctx.storage.deleteAll()
+    else if (op === 'pair') await this.ctx.storage.setAlarm(at)
+    return reply
+  }
+
+  override async alarm(): Promise<void> {
+    await this.ctx.storage.deleteAll()
+  }
+}
+
 function trySend(ws: WebSocket, data: string | Uint8Array): void {
   try {
     ws.send(data)
@@ -134,6 +161,9 @@ export default {
       return handleHttp(request, env.RELAY_SECRET, {
         create: (vault, body) => vaultFor(vault).create(vault, body),
         enroll: (vault, body) => vaultFor(vault).enroll(vault, body),
+        authenticate: (vault, device, token) => vaultFor(vault).authenticate(vault, device, token),
+        pairing: (op, id, body, device) =>
+          env.PAIRINGS.get(env.PAIRINGS.idFromName(id)).handle(op, id, body, device),
       })
     }
     const target = await socketTarget(request, env.RELAY_SECRET)

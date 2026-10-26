@@ -7,6 +7,26 @@
     }
   },
   "color": {
+    "qr": {
+      "ground": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff"
+        },
+        "$description": "Behind a QR code's modules: light in both appearances, since many scanners read only dark modules on a light ground."
+      },
+      "module": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19"
+        },
+        "$description": "A QR code's dark modules, in both appearances."
+      }
+    },
     "surface": {
       "sidebar": {
         "$type": "color",
