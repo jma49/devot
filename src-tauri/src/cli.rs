@@ -5,6 +5,7 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager, Runtime};
 
@@ -247,35 +248,57 @@ fn bundle_of(exe: &Path) -> Option<&Path> {
         .filter(|app| app.extension().is_some_and(|e| e == "app"))
 }
 
-/// Writes to the socket ourselves instead of spawning a second instance. A running Devot that
-/// does not answer there would ignore `open -a`'s arguments, so that fails instead.
+/// Writes to the socket ourselves instead of spawning a second instance. Devot ignores `open -a`'s
+/// arguments while it runs, even while another call is still launching it, so the files always go
+/// through the socket: a running Devot that does not answer there fails the command, and one this
+/// call launches gets them once it listens.
 fn hand_off(args: &[String]) -> Result<(), &'static str> {
     let exe = std::env::current_exe().map_err(|_| "E_CLI_APP_NOT_FOUND")?;
     let identifier = crate::data_folder::context().config().identifier.clone();
     let cwd = std::env::current_dir().unwrap_or_default();
     let message = handoff_message(&cwd, &exe, args);
+    let send = || single_instance::send(&identifier, message.as_bytes());
     hand_off_with(
-        single_instance::send(&identifier, message.as_bytes()),
+        send(),
         !args.is_empty(),
         || data_folder(&identifier).is_some_and(|dir| startup::folder_held(&dir)),
-        || launch_command(&exe, args),
+        || launch_command(&exe),
+        send,
+        LAUNCH_ANSWER_TIMEOUT,
     )
 }
+
+/// A first launch can wait on the system checking the app before it runs.
+const LAUNCH_ANSWER_TIMEOUT: Duration = Duration::from_secs(30);
+const LAUNCH_POLL: Duration = Duration::from_millis(50);
 
 fn hand_off_with(
     sent: Result<bool, &'static str>,
     has_args: bool,
     running: impl FnOnce() -> bool,
     launch: impl FnOnce() -> Result<(), &'static str>,
+    mut send_again: impl FnMut() -> Result<bool, &'static str>,
+    within: Duration,
 ) -> Result<(), &'static str> {
     if sent? {
         return Ok(());
     }
     // With nothing to hand over, launching just brings a running Devot forward.
-    if has_args && running() {
+    if !has_args {
+        return launch();
+    }
+    if running() {
         return Err("E_CLI_HANDOFF_UNREACHABLE");
     }
-    launch()
+    launch()?;
+    let deadline = Instant::now() + within;
+    while Instant::now() < deadline {
+        std::thread::sleep(LAUNCH_POLL);
+        if send_again()? {
+            return Ok(());
+        }
+    }
+    Err("E_CLI_LAUNCH_UNANSWERED")
 }
 
 /// Where Tauri puts `app_data_dir` on macOS.
@@ -289,20 +312,17 @@ fn data_folder(identifier: &str) -> Option<PathBuf> {
 }
 
 /// A dev build has no bundle: its own process group keeps the terminal's signals away.
-fn launch_command(exe: &Path, args: &[String]) -> Result<(), &'static str> {
+fn launch_command(exe: &Path) -> Result<(), &'static str> {
     use std::os::unix::process::CommandExt;
     let mut command = match bundle_of(exe) {
         Some(bundle) => {
             let mut open = Command::new("/usr/bin/open");
             open.arg("-a").arg(bundle);
-            if !args.is_empty() {
-                open.arg("--args").args(args);
-            }
             open
         }
         None => {
             let mut binary = Command::new(exe);
-            binary.args(args).process_group(0);
+            binary.process_group(0);
             binary
         }
     };
@@ -630,7 +650,14 @@ mod tests {
         let uid = crate::atomic_file::effective_uid();
         let sent = single_instance::send_to(&socket, message, uid);
         assert_eq!(reader.join().unwrap(), message);
-        let launched = hand_off_with(sent, true, || unreachable!(), || unreachable!());
+        let launched = hand_off_with(
+            sent,
+            true,
+            || unreachable!(),
+            || unreachable!(),
+            || unreachable!(),
+            Duration::ZERO,
+        );
         assert_eq!(launched, Err("E_CLI_HANDOFF_REFUSED"));
         assert_eq!(launch_status(launched), 1);
         assert_eq!(launch_status(Ok(())), 0);
@@ -657,7 +684,9 @@ mod tests {
                 || {
                     launched = true;
                     Ok(())
-                }
+                },
+                || Ok(true),
+                Duration::from_secs(1)
             ),
             Err("E_CLI_HANDOFF_UNREACHABLE")
         );
@@ -672,13 +701,22 @@ mod tests {
                 || {
                     launched = true;
                     Ok(())
-                }
+                },
+                || Ok(true),
+                Duration::from_secs(1)
             ),
             Ok(())
         );
         assert!(launched);
         assert_eq!(
-            hand_off_with(Ok(true), true, || unreachable!(), || unreachable!()),
+            hand_off_with(
+                Ok(true),
+                true,
+                || unreachable!(),
+                || unreachable!(),
+                || unreachable!(),
+                Duration::ZERO
+            ),
             Ok(())
         );
         let held = startup::take_folder(&data).unwrap();
@@ -691,7 +729,9 @@ mod tests {
                 || {
                     launched = true;
                     Ok(())
-                }
+                },
+                || Ok(true),
+                Duration::from_secs(1)
             ),
             Ok(())
         );
@@ -702,6 +742,82 @@ mod tests {
                 .map(|d| d.ends_with("Library/Application Support/io.github.jma49.devot")),
             Some(true)
         );
+    }
+
+    #[test]
+    fn launches_devot_without_the_files_and_hands_them_over_once_it_listens() {
+        use std::io::{Read, Write};
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("io.github.jma49.devot.sock");
+        let uid = crate::atomic_file::effective_uid();
+        let message = b"/w\0\0devot\0--devot-open\0--\0/b.md";
+        let mut reader = None;
+        // A Devot another call is still launching binds its socket only after a while.
+        let launch = || {
+            let socket = socket.clone();
+            reader = Some(std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(150));
+                let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut got = vec![0; message.len()];
+                stream.read_exact(&mut got).unwrap();
+                stream.write_all(&[0x06]).unwrap();
+                got
+            }));
+            Ok(())
+        };
+        let launched = hand_off_with(
+            Ok(false),
+            true,
+            || false,
+            launch,
+            || single_instance::send_to(&socket, message, uid),
+            Duration::from_secs(5),
+        );
+        assert_eq!(launched, Ok(()));
+        assert_eq!(reader.unwrap().join().unwrap(), message);
+    }
+
+    #[test]
+    fn a_launched_devot_that_never_listens_fails_the_command() {
+        let mut tries = 0;
+        let launched = hand_off_with(
+            Ok(false),
+            true,
+            || false,
+            || Ok(()),
+            || {
+                tries += 1;
+                Ok(false)
+            },
+            Duration::from_millis(200),
+        );
+        assert_eq!(launched, Err("E_CLI_LAUNCH_UNANSWERED"));
+        assert!(tries > 1, "asks again while it waits");
+        assert_eq!(launch_status(launched), 1);
+        let mut asked = false;
+        let plain = hand_off_with(
+            Ok(false),
+            false,
+            || unreachable!(),
+            || Ok(()),
+            || {
+                asked = true;
+                Ok(false)
+            },
+            Duration::from_millis(200),
+        );
+        assert_eq!(plain, Ok(()));
+        assert!(!asked, "with nothing to hand over it only launches");
+        let refused = hand_off_with(
+            Ok(false),
+            true,
+            || false,
+            || Ok(()),
+            || Err("E_CLI_HANDOFF_REFUSED"),
+            Duration::from_millis(200),
+        );
+        assert_eq!(refused, Err("E_CLI_HANDOFF_REFUSED"));
     }
 
     #[test]
