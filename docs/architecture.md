@@ -112,7 +112,7 @@ The core is plain TypeScript, so the UI worker, `devot-mcp` and the iOS app shar
 
 - Migrations are numbered SQL files in `src-tauri/migrations/`, shared by the Rust app and the TypeScript better-sqlite3 adapter, so both always see the same schema. A released migration is never edited.
 - `PRAGMA user_version` records the applied version. A database from a newer Devot is refused rather than opened.
-- A fixture database is kept for every released schema version and must upgrade cleanly.
+- A fixture database is kept for every released schema version and must upgrade cleanly (`src-tauri/tests/fixtures/schema-v<N>.sqlite`: 18 for v1.0.4, 19 for the v1.0.5 betas, each with live, trashed and purged notes, notebooks, a tag, an attachment, a link and versions, made as `schema-fixtures.sql` there says; v1 from before).
 - Pragmas: WAL, `synchronous = FULL`, `foreign_keys = ON`, a 5 s busy timeout (so devot-mcp and the app can share the file), and `secure_delete = ON` (overflow pages too, unlike `FAST`), so a note deleted for good leaves no readable text in free pages, which every later backup would copy. Pages freed before a version that set it keep theirs until reused.
 - Every write transaction begins `IMMEDIATE` (the Rust store sets it on its connection; the better-sqlite3 adapter uses `.immediate()`): it takes the write lock first, so it waits out the other writer for the busy timeout. A deferred one that read first (an attachment's note, the search index on its first use after launch) would fail at once with `E_STORAGE_BUSY` instead (`tests/core/busy-writes.test.ts` and the Rust store's tests hold the lock from another connection).
 
