@@ -10,6 +10,7 @@ import { useAlertMenu } from '../editor/alertMenu'
 import { useExternalChanges } from '../externalChanges'
 import { t, format } from '../i18n'
 import { useImageMenu, type SetImageSize } from '../imageMenu'
+import { ImageActionNotice } from '../ImageNotice'
 import { ImageViewer, type ViewedImage } from '../ImageViewer'
 import { isImeKey } from '../ime'
 import { invoke } from '../ipc'
@@ -311,6 +312,7 @@ export function NoteWindow() {
       </main>
       <Notices>
         <TrialEndedBar />
+        <ImageActionNotice />
         {problems.length > 0 && !dismissed ? (
           <SaveNotice
             problems={problems}

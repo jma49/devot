@@ -1,4 +1,5 @@
 import { MAX_FILE_BYTES } from '../../core/files'
+import { dismissImageActionFailure, useImageActionFailure } from './imageMenu'
 import { countOf } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
 
@@ -24,6 +25,21 @@ export function ImageNotice(props: { codes: readonly string[]; onDismiss: () => 
     <div role="alert" className="notice" data-devot-part="notice">
       <span className="notice-text">{refusedImagesText(props.codes)}</span>
       <button type="button" className="button" onClick={props.onDismiss}>
+        {t('notice.dismiss')}
+      </button>
+    </div>
+  )
+}
+
+/** A failed Copy Image or Save Image As, in the window that ran it. */
+export function ImageActionNotice() {
+  const failure = useImageActionFailure()
+  if (!failure) return null
+  const text = t(failure.action === 'copy' ? 'images.copyFailed' : 'images.saveFailed')
+  return (
+    <div role="alert" className="notice" data-devot-part="notice">
+      <span className="notice-text">{format(text, { code: failure.code })}</span>
+      <button type="button" className="button" onClick={dismissImageActionFailure}>
         {t('notice.dismiss')}
       </button>
     </div>

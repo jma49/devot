@@ -931,6 +931,8 @@ export const en = {
   'images.reason.type': 'Images can be PNG, JPEG, GIF, WebP, AVIF or HEIC.',
   'images.reason.name': 'Its file name cannot be used.',
   'images.reason.other': 'It could not be stored.',
+  'images.copyFailed': 'The image could not be copied. ({code})',
+  'images.saveFailed': 'The image could not be saved. ({code})',
   'deepLink.noteNotFound': 'The linked note could not be found.',
   'deepLink.commandUnavailable': 'That command can\u2019t run right now.',
   'deepLink.importFailed': 'The Markdown files from the command line could not be imported.',
