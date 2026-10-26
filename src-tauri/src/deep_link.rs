@@ -225,22 +225,39 @@ impl DeepLinks {
         f(&mut inbox)
     }
 
+    fn update<R: Runtime>(&self, app: &AppHandle<R>, f: impl FnOnce(&mut Inbox) -> Vec<Link>) {
+        self.update_with(
+            || main_windows::front_label(app),
+            f,
+            |target, link| {
+                if app.emit_to(target, EVENT, link).is_err() {
+                    log::warn!("W_DEEP_LINK_EMIT_FAILED");
+                }
+            },
+        );
+    }
+
     /// Changes the inbox and sends what it releases, under its lock, so links
     /// reach the page in the order they came, whatever thread they came on.
-    fn update<R: Runtime>(&self, app: &AppHandle<R>, f: impl FnOnce(&mut Inbox) -> Vec<Link>) {
+    /// The front window is asked for first: off the main thread its getters
+    /// wait for the main thread, which may be waiting for this lock.
+    fn update_with(
+        &self,
+        front: impl FnOnce() -> Option<String>,
+        f: impl FnOnce(&mut Inbox) -> Vec<Link>,
+        mut send: impl FnMut(&str, &Link),
+    ) {
+        let front = front();
         self.with(|inbox| {
             let links = f(inbox);
             if links.is_empty() {
                 return;
             }
-            let front = main_windows::front_label(app);
             let Some(target) = inbox.target(front.as_deref()) else {
                 return;
             };
-            for link in links {
-                if app.emit_to(&target, EVENT, &link).is_err() {
-                    log::warn!("W_DEEP_LINK_EMIT_FAILED");
-                }
+            for link in &links {
+                send(&target, link);
             }
         });
     }
@@ -767,6 +784,24 @@ mod tests {
         inbox.page_started("main");
         assert!(inbox.arrive(note()).is_empty());
         assert_eq!(inbox.take("main"), vec![note()]);
+    }
+
+    // Off the main thread, a window's getters wait for the main thread, which may be waiting for
+    // this lock (a page asking for its links).
+    #[test]
+    fn asks_which_window_is_in_front_without_holding_the_inbox() {
+        let links = DeepLinks::default();
+        links.with(|inbox| inbox.take("main"));
+        let mut sent = Vec::new();
+        links.update_with(
+            || {
+                assert!(links.0.try_lock().is_ok(), "the inbox is locked");
+                Some("main".to_owned())
+            },
+            |inbox| inbox.arrive(note()),
+            |target, link| sent.push((target.to_owned(), link.clone())),
+        );
+        assert_eq!(sent, vec![("main".to_owned(), note())]);
     }
 
     #[test]
