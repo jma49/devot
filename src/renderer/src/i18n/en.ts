@@ -574,6 +574,8 @@ export const en = {
     'The mirror is paused: the list of files Devot wrote in its folder (.devot-mirror.json) is missing ({code}). Put it back, or choose the folder again to go on.',
   'mirror.pausedManifestInvalid':
     'The mirror is paused: the list of files Devot wrote in its folder (.devot-mirror.json) cannot be read ({code}). Choose the folder again to go on.',
+  'mirror.pausedManifestForeign':
+    'The mirror is paused: its folder holds the files of another Devot library ({code}). Choose the folder again to go on.',
   'mirror.chooseFailed': 'The folder could not be used ({code}).',
   'mirror.changeFailed': 'The mirror setting could not be saved ({code}).',
   'mirror.confirm': 'Use \u201c{name}\u201d for the Markdown mirror?',

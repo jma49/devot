@@ -96,8 +96,12 @@ fn is_off_by_default_and_turns_on_with_an_empty_folder() {
         Some(folder.to_str().unwrap())
     );
     let opened = f.open().unwrap();
-    assert_eq!(opened.manifest, Some(Manifest::default()));
-    assert!(folder.join(MANIFEST).is_file());
+    let manifest = opened.manifest.unwrap();
+    assert_eq!(manifest.size(), 0);
+    assert_eq!(
+        folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()),
+        Some(manifest)
+    );
     let known = f.mirror.open(Some(opened.generation), &f.notify()).unwrap();
     assert_eq!(known.manifest, None);
 }
@@ -129,12 +133,11 @@ fn asks_before_using_a_folder_that_is_not_empty_and_has_no_manifest() {
     );
     let other = f.folder("Other");
     fs::write(other.join("theirs.md"), "theirs").unwrap();
-    fs::write(
-        other.join(MANIFEST),
-        folder::manifest_bytes(&Manifest::default()),
-    )
-    .unwrap();
-    assert!(matches!(f.choose(&other), Choice::Chosen { .. }));
+    fs::copy(folder.join(MANIFEST), other.join(MANIFEST)).unwrap();
+    assert!(
+        matches!(f.choose(&other), Choice::Chosen { .. }),
+        "a manifest this library wrote is used at once"
+    );
 }
 
 #[test]
@@ -421,7 +424,7 @@ fn pauses_on_a_missing_or_unreadable_manifest() {
         panic!("needs a confirmation");
     };
     f.mirror.confirm(token, &f.notify()).unwrap();
-    assert_eq!(f.open().unwrap().manifest, Some(Manifest::default()));
+    assert_eq!(f.open().unwrap().manifest.unwrap().size(), 0);
 }
 
 #[test]
@@ -724,4 +727,66 @@ fn shows_folders_under_home_with_a_tilde() {
         display(Path::new("/Volumes/Disk/Notes"), Some(home)),
         "/Volumes/Disk/Notes"
     );
+}
+
+/// A folder another library mirrored (app data lost, a second Mac) lists
+/// notes this library does not have: going on from its manifest would
+/// delete them all. It is used only after a confirmation, from an empty
+/// manifest, so its files can be taken back but never removed.
+#[test]
+fn asks_before_using_a_folder_another_library_mirrors_and_removes_none_of_its_files() {
+    let theirs = Fixture::new();
+    let folder = theirs.folder("Notes");
+    theirs.choose(&folder);
+    let opened = theirs.open().unwrap();
+    theirs.apply(opened.generation, &[note_op("Plan.md", "# Plan\n")]);
+
+    let ours = Fixture::new();
+    let Choice::Confirm { token, .. } = ours.choose(&folder) else {
+        panic!("another library's manifest needs a confirmation");
+    };
+    ours.mirror.confirm(token, &ours.notify()).unwrap();
+    let manifest = ours.open().unwrap().manifest.unwrap();
+    assert!(manifest.notes.is_empty());
+    assert_eq!(
+        fs::read_to_string(folder.join("Plan.md")).unwrap(),
+        "# Plan\n"
+    );
+
+    // The library that mirrored it before finds a manifest it did not write.
+    let launched = Mirror::new(&theirs.data.join(SETTINGS_FILE), None);
+    assert_eq!(
+        launched.open(None, &|_| {}),
+        Err("E_MIRROR_MANIFEST_FOREIGN")
+    );
+}
+
+/// A manifest from before manifests named their library: in the folder this
+/// mirror already uses it is its own and gets its name; chosen anew it may
+/// be anyone's.
+#[test]
+fn takes_an_unnamed_manifest_as_its_own_only_in_the_folder_it_already_uses() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let mut listed = Manifest::default();
+    listed.notes.insert(
+        NOTE.into(),
+        folder::NoteEntry {
+            path: "Plan.md".into(),
+            sha256: sha256_hex(b"# Plan\n"),
+            size: 7,
+            source: "s".into(),
+            files: vec![],
+        },
+    );
+    fs::write(folder.join(MANIFEST), folder::manifest_bytes(&listed)).unwrap();
+    let opened = f.open().unwrap();
+    assert_eq!(opened.manifest.unwrap().notes.len(), 1);
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    assert!(stored.library.is_some());
+
+    let other = f.folder("Other");
+    fs::write(other.join(MANIFEST), folder::manifest_bytes(&listed)).unwrap();
+    assert!(matches!(f.choose(&other), Choice::Confirm { .. }));
 }

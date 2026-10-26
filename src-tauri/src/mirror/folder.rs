@@ -62,6 +62,9 @@ pub struct FileEntry {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Manifest {
+    /// The library whose mirror wrote it (`Mirror::library`); none in manifests written before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library: Option<String>,
     #[serde(default)]
     pub notes: BTreeMap<String, NoteEntry>,
     #[serde(default)]
@@ -124,6 +127,9 @@ pub fn parse_manifest(bytes: &[u8]) -> Option<Manifest> {
         return None;
     }
     let mut manifest = file.manifest;
+    if manifest.library.as_deref().is_some_and(|l| !valid_uuid(l)) {
+        return None;
+    }
     let before = manifest.notes.len() + manifest.files.len() + manifest.books.len();
     manifest.notes.retain(|id, e| {
         valid_note_id(id)
