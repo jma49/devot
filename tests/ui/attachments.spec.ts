@@ -184,7 +184,9 @@ test('an SVG, a TIFF and an oversized image are refused with a notice, the rest 
     { name: 'huge.png', type: 'image/png', bytes: PNG, size: 10 * 1024 * 1024 + 1 },
     { name: 'Shot.png', type: 'image/png', bytes: PNG },
   ])
-  await expect(notice).toHaveText(/^2 images could not be added\. .+ \(E_FILE_/)
+  await expect(notice).toHaveText(
+    /^2 images could not be added\. Images can be .+ \(E_FILE_TYPE_REFUSED\) An image can be at most 10 MB, and not empty\. \(E_FILE_SIZE_INVALID\)/,
+  )
   await expect(body(page)).toContainText('![Shot](devot://file/')
   await expect(body(page)).not.toContainText('huge')
   expect((await stored(page)).map((f) => f.mime)).toEqual(['image/png'])

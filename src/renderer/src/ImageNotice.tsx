@@ -9,15 +9,25 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
   E_FILE_NAME_INVALID: 'images.reason.name',
 }
 
-/** Why the first of `codes` was refused, with its code. */
+/** Each reason among `codes` once, in the order first met, with the codes it covers. */
 export function refusedImagesText(codes: readonly string[]): string {
   const locale = currentLocale()
-  const code = codes[0] ?? ''
-  const reason = format(t(REASONS[code] ?? 'images.reason.other'), {
-    size: (MAX_FILE_BYTES / (1024 * 1024)).toLocaleString(locale),
-  })
+  const codesByReason = new Map<MessageKey, string[]>()
+  for (const code of new Set(codes)) {
+    const key = REASONS[code] ?? 'images.reason.other'
+    codesByReason.set(key, [...(codesByReason.get(key) ?? []), code])
+  }
+  const size = (MAX_FILE_BYTES / (1024 * 1024)).toLocaleString(locale)
+  const reasons = [...codesByReason]
+    .map(([key, shared]) =>
+      format(t('images.reasonCodes'), {
+        reason: format(t(key), { size }),
+        codes: shared.join(', '),
+      }),
+    )
+    .join(' ')
   const text = countOf(codes.length, locale, 'images.refusedOne', 'images.refusedOther')
-  return format(text, { reason, code })
+  return format(text, { reasons })
 }
 
 export function ImageNotice(props: { codes: readonly string[]; onDismiss: () => void }) {
