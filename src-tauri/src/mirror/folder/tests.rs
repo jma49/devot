@@ -1209,3 +1209,32 @@ fn a_move_whose_rewrite_fails_lists_the_file_where_it_went() {
     assert_eq!(read(root, "Home/Spec.md"), "two");
     assert_eq!(tree(root), ["Home/", "Home/Spec.md"]);
 }
+
+/// The app stopped after the move and before the manifest was saved: the manifest still lists the
+/// old path, which is gone, and the new one holds what Devot last wrote there. The next pass takes
+/// that file as the note's own and writes the new text over it.
+#[test]
+fn a_move_cut_short_before_the_manifest_was_saved_is_finished_in_place() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let mut manifest = Manifest::default();
+    apply(root, &mut manifest, &put(NOTE, "Work/Plan.md", None, "one"));
+    fs::create_dir(root.join("Home")).unwrap();
+    fs::rename(root.join("Work/Plan.md"), root.join("Home/Spec.md")).unwrap();
+
+    let result = apply(root, &mut manifest, &put(NOTE, "Home/Spec.md", None, "two"));
+    assert_eq!(result.code, None);
+    assert_eq!(read(root, "Home/Spec.md"), "two");
+    assert_eq!(manifest.notes[NOTE].path, "Home/Spec.md");
+
+    // Any other text there is still someone else's.
+    fs::remove_file(root.join("Home/Spec.md")).unwrap();
+    write_text(root, "Home/Other.md", "theirs");
+    let other = apply(
+        root,
+        &mut manifest,
+        &put(NOTE, "Home/Other.md", None, "three"),
+    );
+    assert_eq!(other.code, Some("E_MIRROR_EXISTS"));
+    assert_eq!(read(root, "Home/Other.md"), "theirs");
+}

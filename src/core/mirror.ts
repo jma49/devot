@@ -492,6 +492,14 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
       if (taken.has(folder, name)) return false
       const state = foreign.get(pathKey(path))
       if (state === undefined) return true
+      const entry = note && manifest.notes[note.id]
+      if (entry && entry.sha256 === state) {
+        // A move cut short before the manifest was saved left the note's last text here and
+        // nothing at its old path: Rust finishes the move in place.
+        const old = known(entry.path)
+        if (old === null) return true
+        if (old === undefined) ask(entry.path)
+      }
       // A folder Devot did not make may be shared; a file is the note's only
       // when it holds exactly what Devot would write there for it.
       return note === undefined ? state === DIR : holdsText(note, path, depth, state)

@@ -856,13 +856,18 @@ fn note(
             .zip(found.as_ref())
             .is_some_and(|((from, _), to)| same_file(from, to));
     let mut adopt = false;
+    let mut finish_move = false;
     if let Some(state) = &target
         && !renamed
     {
-        if state != sha256 {
+        if state == sha256 {
+            adopt = true;
+        } else if alive.is_none() && entry.as_ref().is_some_and(|e| e.sha256 == *state) {
+            // A move cut short before the manifest was saved: what Devot last wrote went here.
+            finish_move = true;
+        } else {
             return Err(Stop::at("E_MIRROR_EXISTS", path, target));
         }
-        adopt = true;
     }
     // Without the text, only a file that holds it already can go there:
     // checked before anything on disk changes.
@@ -886,6 +891,10 @@ fn note(
         let Some(text) = text else {
             return Err(Stop::at("E_MIRROR_CHANGED", path, None));
         };
+        if finish_move {
+            rewrite(root, &to, text.as_bytes())?;
+            return Ok(record(manifest, text.len() as u64));
+        }
         write_new(root, &to, text.as_bytes())?;
         return Ok(record(manifest, text.len() as u64));
     };

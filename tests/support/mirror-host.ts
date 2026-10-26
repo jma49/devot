@@ -361,8 +361,11 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         // The same file under another case of its name.
         const renamed = target !== null && from !== null && sameFile(from, op.path)
         let adopt = false
+        let finishMove = false
         if (target !== null && !renamed) {
           if (target === op.sha256) adopt = true
+          // A move cut short before the manifest was saved: what Devot last wrote went here.
+          else if (from === null && entry?.sha256 === target) finishMove = true
           else return { code: 'E_MIRROR_EXISTS', path: op.path, state: target }
         }
         // Without the text only a file that holds it already can go there; checked before anything changes.
@@ -383,7 +386,7 @@ export function folderHost(sqlite: SqliteAdapter, root: string | null): FolderHo
         if (from === null) {
           if (op.text === undefined) return { code: 'E_MIRROR_CHANGED', path: op.path, state: null }
           try {
-            writeFile(op.path, op.text, 'new')
+            writeFile(op.path, op.text, finishMove ? 'replace' : 'new')
           } catch (error) {
             return inTheWayAt(op.path, error)
           }

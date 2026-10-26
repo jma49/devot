@@ -904,6 +904,26 @@ describe('a move whose new text cannot be written', () => {
     expect(walk(lib.root).filter((p) => p.startsWith('Work/Inbox'))).toEqual(['Work/Inbox 2026.md'])
     expect(read(lib, 'Work/Inbox 2026.md')).toContain("title: 'Inbox 2026'")
   })
+
+  it('a move cut short before the manifest was saved is finished where the file went', async () => {
+    const lib = await sample()
+    await mirrorOn(lib)
+    const manifest = readFileSync(join(lib.root, MANIFEST))
+    const before = readFileSync(join(lib.root, 'Work/Inbox.md'))
+    await lib.notes.setTitle(lib.ids.inbox, 'Inbox 2026')
+    await lib.settled()
+    lib.runner.stop()
+    // The process ended after the move, before the rewrite and the manifest listing it.
+    writeFileSync(join(lib.root, 'Work/Inbox 2026.md'), before)
+    writeFileSync(join(lib.root, MANIFEST), manifest)
+    lib.host.setFolder(lib.root)
+    lib.runner.reconcile()
+    await lib.settled()
+    expect(lib.errors).toEqual([])
+    expect(walk(lib.root).filter((p) => p.startsWith('Work/Inbox'))).toEqual(['Work/Inbox 2026.md'])
+    expect(read(lib, 'Work/Inbox 2026.md')).toContain("title: 'Inbox 2026'")
+    expect(lib.host.manifest().notes[lib.ids.inbox]?.path).toBe('Work/Inbox 2026.md')
+  })
 })
 
 async function importFolder(lib: Library, root: string, name: string) {
