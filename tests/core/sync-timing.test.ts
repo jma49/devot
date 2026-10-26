@@ -120,3 +120,46 @@ it('waits out a quota pause until the relay’s reset, without trying again befo
   expect(engine.status()).toMatchObject({ state: 'idle', pausedUntil: null })
   await engine.stop()
 })
+
+it('rechecks a quota pause at least hourly, so a timer that fell behind during sleep still resumes', async () => {
+  vi.setSystemTime(Date.UTC(2026, 9, 23, 18))
+  const reset = Date.UTC(2026, 9, 24)
+  let connects = 0
+  let version = 0
+  const transport: SyncTransport = {
+    connect: async () => {
+      connects += 1
+      return { time: Date.now(), epoch: 'e1', seq: 0, device: 'd', quota: 'on' }
+    },
+    pull: async (since) => ({ records: [], next: since, more: false }),
+    push: async () =>
+      Date.now() < reset
+        ? { type: 'paused', until: reset, limit: 'rowsWritten' }
+        : { type: 'pushed', version: (version += 1), seq: version },
+    close: async () => {},
+  }
+  const clock = createClock('mac')
+  const newId = createIdGenerator()
+  const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
+  await notes.create('Asleep')
+  await notes.flush()
+  const engine = createSyncEngine({
+    storage,
+    sync: storage,
+    transport,
+    clock,
+    newId,
+    random: () => 0.5,
+  })
+  engine.start()
+  await vi.advanceTimersByTimeAsync(0)
+  await engine.idle()
+  expect(engine.status()).toMatchObject({ state: 'paused', pausedUntil: reset })
+  // The machine sleeps through the reset: the wall clock moves on, the timers do not.
+  vi.setSystemTime(reset + 10 * 60_000)
+  await vi.advanceTimersByTimeAsync(62 * 60_000)
+  await engine.idle()
+  expect(connects).toBe(2)
+  expect(engine.status()).toMatchObject({ state: 'idle', pausedUntil: null })
+  await engine.stop()
+})

@@ -4,6 +4,7 @@ import {
   CLOSE,
   decodeFrame,
   encodeFrame,
+  isQuotaLimit,
   LIMITS,
   splitChunks,
   SUBPROTOCOL,
@@ -160,8 +161,12 @@ export class RelayTransport implements SyncTransport {
       chunks,
     )
     if (message['type'] === 'error') {
-      const until = message['until']
-      return { type: 'paused', until: typeof until === 'number' ? until : null }
+      const { until, limit } = message
+      return {
+        type: 'paused',
+        until: typeof until === 'number' ? until : null,
+        limit: isQuotaLimit(limit) ? limit : null,
+      }
     }
     if (message['type'] === 'pushed') {
       return {

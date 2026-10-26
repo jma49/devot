@@ -708,6 +708,29 @@ test.describe('the relay’s quota cap', () => {
     await expect(notice).toHaveCount(0)
   })
 
+  test('a dismissed pause notice comes back with the next pause, even with the same words', async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 23, 20)))
+    const pausedOnly = { ...paused, upload: null }
+    await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true, status: pausedOnly })
+    await openApp(page)
+    const notice = page.getByRole('alert').filter({ hasText: 'Sync paused' })
+    await notice.getByRole('button', { name: 'Dismiss' }).click()
+    await expect(notice).toHaveCount(0)
+    const snapshot = { relayUrl: RELAY, enabled: true, vault: true, enrolled: true }
+    await sendSnapshot(page, {
+      ...snapshot,
+      status: { state: 'idle', lastSync: Date.UTC(2026, 9, 24, 0, 1), code: null, tooLarge: 0 },
+    })
+    await page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 24, 20)))
+    await sendSnapshot(page, {
+      ...snapshot,
+      status: { ...pausedOnly, tooLarge: 0, pausedUntil: Date.UTC(2026, 9, 25) },
+    })
+    await expect(notice).toHaveText(/Sync paused until 9:00\sAM/)
+  })
+
   test('Settings > Sync shows the pause, the upload and a relay to update', async ({ page }) => {
     await page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 23, 20)))
     await fakeRust(page, {

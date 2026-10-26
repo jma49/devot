@@ -47,6 +47,8 @@ const RECONNECT_MAX_MS = 5 * 60_000
 const SKEW_RECHECK_MS = 5 * 60_000
 /** Spreads a vault's devices over the minute after the relay's reset. */
 const QUOTA_JITTER_MS = 60_000
+/** A timer can fall behind the clock while the machine sleeps, so a quota pause checks the time this often. */
+const QUOTA_RECHECK_MS = 60 * 60_000
 /** A backlog this large (a first upload, a new epoch) shows its progress. */
 const UPLOAD_SHOWN_FROM = 100
 const PROGRESS_EVERY_MS = 1_000
@@ -304,6 +306,20 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }, wait)
   }
 
+  /** Reconnects once the relay's clock reaches `until`, after a jitter. */
+  const resumeAt = (until: number) => {
+    if (!running || reconnectTimer) return
+    const wait = until - (now() + relayOffset)
+    if (wait <= 0) return reconnect(quotaJitterMs * (0.5 + random()))
+    reconnectTimer = setTimeout(
+      () => {
+        reconnectTimer = undefined
+        resumeAt(until)
+      },
+      Math.min(wait, QUOTA_RECHECK_MS),
+    )
+  }
+
   async function failed(error: unknown) {
     if (!running) return
     const code = errorCode(error, 'E_SYNC_FAILED')
@@ -321,8 +337,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       const said = error instanceof QuotaPaused ? error.until : null
       const until = said !== null && said > relayNow ? said : quotaResetAt(relayNow)
       set({ state: 'paused', code, pausedUntil: until })
-      const wait = Math.max(0, until - (now() + relayOffset))
-      reconnect(wait + quotaJitterMs * (0.5 + random()))
+      resumeAt(until)
     } else {
       set({ state: 'offline', code })
       reconnect()
@@ -539,11 +554,14 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   async function pushAll() {
     const upload = await trackUpload()
+    let full: QuotaPaused | undefined
     try {
       await pending(async (id) => {
-        if (!parked.has(id)) await pushOne(id)
-        upload?.step()
+        const refused = parked.has(id) ? undefined : await pushOne(id)
+        if (refused) full = refused
+        else upload?.step()
       })
+      if (full) throw full
     } catch (error) {
       upload?.show()
       throw error
@@ -564,18 +582,24 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     })
   }
 
-  async function pushOne(id: string) {
+  /** Returns the refusal when the relay's storage is full: it lasts past 00:00 UTC, and smaller records and purges still fit. */
+  async function pushOne(id: string): Promise<QuotaPaused | undefined> {
     for (let attempt = 0; ; attempt += 1) {
-      if (!connected) return
+      // The socket closed between two pushes: the pass stops, so the upload keeps its place.
+      if (!connected) throw new Error('E_SYNC_OFFLINE')
       const [local] = await sync.syncRead([id])
       const entry: SyncEntry | null | undefined = local?.entry
       if (!local || !entry) return
       const stamped = stamp(local)
       const state = stateOf(local, stamped.bodyHlc)
-      if (!state) return sync.syncPut({ ...entry, synced: entry.edits })
+      if (!state) {
+        await sync.syncPut({ ...entry, synced: entry.edits })
+        return
+      }
       const print = fingerprint(state)
       if (print === entry.fingerprint) {
-        return sync.syncPut({ ...entry, ...stamped, synced: entry.edits })
+        await sync.syncPut({ ...entry, ...stamped, synced: entry.edits })
+        return
       }
       if (stamped.bodyFp !== entry.bodyFp) await sync.syncPut({ ...entry, ...stamped })
       if (tooLarge.get(id) === print) return
@@ -590,10 +614,14 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         set({ tooLarge: [...tooLarge.keys()] })
         return
       }
-      if (result.type === 'paused') throw new QuotaPaused(result.until)
+      if (result.type === 'paused') {
+        const paused = new QuotaPaused(result.until)
+        if (result.limit === 'storedBytes') return paused
+        throw paused
+      }
       if (result.type === 'pushed') {
         if (tooLarge.delete(id)) set({ tooLarge: [...tooLarge.keys()] })
-        return sync.syncPut({
+        await sync.syncPut({
           id,
           kind: entry.kind,
           version: result.version,
@@ -601,6 +629,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
           ...stamped,
           synced: entry.edits,
         })
+        return
       }
       if (attempt >= MAX_PUSH_RETRIES) {
         console.warn('W_SYNC_PUSH_PARKED', id)

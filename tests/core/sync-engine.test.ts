@@ -525,11 +525,11 @@ describe('sync between two devices', () => {
 })
 
 describe('the relay’s quota cap', () => {
-  /** A relay that takes `rowsWritten` rows a day, on a clock the test moves; while `jump` is on, a pause lets the clock run to the reset. */
-  async function cappedPair(start: number, rowsWritten: number) {
+  /** A relay with these caps, on a clock the test moves; while `jump` is on, a pause lets the clock run to the reset. */
+  async function cappedPair(start: number, caps: { rowsWritten?: number; storedBytes?: number }) {
     const time = { now: start, jump: false }
     const now = () => time.now
-    const quota = { rowsWritten, requests: 1e9, storedBytes: 1e12 }
+    const quota = { rowsWritten: 1e9, requests: 1e9, storedBytes: 1e12, ...caps }
     const relay = await startRelay(undefined, { quota, now })
     const vault = await createVault(relay.host, 'mac')
     const phone = await enrolled(relay.host, vault, 'phone')
@@ -544,7 +544,7 @@ describe('the relay’s quota cap', () => {
       },
     })
     const b = await device('phone', relay, vault, phone.token, { now })
-    return { time, a, b }
+    return { time, quota, a, b }
   }
 
   const resumed = (d: Device) =>
@@ -552,7 +552,7 @@ describe('the relay’s quota cap', () => {
 
   it('pauses pushes until 00:00 UTC, says when, and goes on by itself after it', async () => {
     const midnight = Date.UTC(2026, 9, 24)
-    const { time, a, b } = await cappedPair(midnight - 300, 24)
+    const { time, a, b } = await cappedPair(midnight - 300, { rowsWritten: 24 })
     const ids: string[] = []
     for (let i = 0; i < 8; i++) ids.push(await a.notes.create(`Note ${i}`))
     await a.sync()
@@ -572,7 +572,7 @@ describe('the relay’s quota cap', () => {
   })
 
   it('uploads a large vault over several days, with its progress, keeping its place across a restart', async () => {
-    const { time, a, b } = await cappedPair(Date.UTC(2026, 9, 23, 12), 30)
+    const { time, a, b } = await cappedPair(Date.UTC(2026, 9, 23, 12), { rowsWritten: 30 })
     const ids: string[] = []
     for (let i = 0; i < 20; i++) ids.push(await a.notes.create(`Note ${i}`))
     await a.sync()
@@ -602,6 +602,48 @@ describe('the relay’s quota cap', () => {
     expect(a.transport.pushes).toBe(20 + pauses)
     await b.sync()
     for (const id of ids) expect((await b.note(id))?.title).toMatch(/^Note /)
+  })
+
+  it('still sends smaller records and purges when the relay’s storage is full', async () => {
+    const midnight = Date.UTC(2026, 9, 24)
+    const { quota, a, b } = await cappedPair(midnight - 3_600_000, {})
+    const growing = await a.notes.create('Growing')
+    const purged = await a.notes.create('Purged')
+    await a.notes.setBody(purged, 'y'.repeat(2000))
+    await settle(a, b)
+    quota.storedBytes = 1
+    await a.notes.setBody(growing, 'x'.repeat(2000))
+    await a.notes.trash(purged)
+    await a.notes.purge(purged)
+    await a.sync()
+    await a.engine.idle()
+    expect(a.engine.status()).toMatchObject({
+      state: 'paused',
+      code: 'E_SYNC_QUOTA',
+      pausedUntil: midnight,
+    })
+    await b.sync()
+    expect(await b.note(purged)).toBeNull()
+    expect((await b.note(growing))?.bodyMd).toBe('')
+  })
+
+  it('keeps an upload’s place when the connection drops between two pushes', async () => {
+    const { a } = await pair({ a: { engine: { uploadShownFrom: 5 } } })
+    for (let i = 0; i < 10; i++) await a.notes.create(`Note ${i}`)
+    await a.notes.flush()
+    const push = a.transport.push.bind(a.transport)
+    a.transport.push = async (...args) => {
+      const result = await push(...args)
+      if (a.transport.pushes === 3) a.engine.received({ type: 'closed', code: 'E_SYNC_OFFLINE' })
+      return result
+    }
+    await a.engine.syncNow()
+    await a.engine.idle()
+    expect(a.engine.status()).toMatchObject({ state: 'offline', upload: { sent: 3, total: 10 } })
+    expect((await a.storage.syncState())['uploadTotal']).toBe('10')
+    await vi.waitFor(() => expect(a.engine.status().state).toBe('idle'), { timeout: 10_000 })
+    expect(a.engine.status().upload).toBeNull()
+    expect(a.transport.pushes).toBe(10)
   })
 
   it('syncs with a relay from before the cap as before, and says to update it', async () => {

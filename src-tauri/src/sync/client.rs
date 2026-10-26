@@ -826,10 +826,13 @@ pub(crate) enum PushReply {
     /// The relay's quota cap: no pushes until `until` (its next 00:00 UTC), when it said so.
     Paused {
         until: Option<i64>,
+        /// The limit that tripped, when the relay named a known one.
+        limit: Option<&'static str>,
     },
 }
 
 const MAX_SAFE: i64 = 9_007_199_254_740_991;
+const QUOTA_LIMITS: [&str; 3] = ["rowsWritten", "requests", "storedBytes"];
 
 fn pushed(answer: &Answer) -> Result<PushReply, &'static str> {
     let number = |key: &str| {
@@ -842,8 +845,10 @@ fn pushed(answer: &Answer) -> Result<PushReply, &'static str> {
     match error_code(answer) {
         Some("E_SYNC_QUOTA") => {
             let until = answer.message.get("until").and_then(Value::as_i64);
+            let limit = answer.message.get("limit").and_then(Value::as_str);
             return Ok(PushReply::Paused {
                 until: until.filter(|t| (1..=MAX_SAFE).contains(t)),
+                limit: QUOTA_LIMITS.into_iter().find(|known| Some(*known) == limit),
             });
         }
         Some(code) => return Err(code),
@@ -1129,16 +1134,33 @@ mod tests {
                 "limit": "rowsWritten",
                 "until": until,
             }))),
-            Ok(PushReply::Paused { until: Some(until) })
+            Ok(PushReply::Paused {
+                until: Some(until),
+                limit: Some("rowsWritten")
+            })
         );
         for odd in [json!(null), json!(-1), json!("tomorrow"), json!(1e300)] {
             assert_eq!(
                 pushed(&answer(
-                    json!({ "type": "error", "code": "E_SYNC_QUOTA", "until": odd })
+                    json!({ "type": "error", "code": "E_SYNC_QUOTA", "until": odd, "limit": odd })
                 )),
-                Ok(PushReply::Paused { until: None })
+                Ok(PushReply::Paused {
+                    until: None,
+                    limit: None
+                })
             );
         }
+        assert_eq!(
+            pushed(&answer(json!({
+                "type": "error",
+                "code": "E_SYNC_QUOTA",
+                "limit": "storedBytes",
+            }))),
+            Ok(PushReply::Paused {
+                until: None,
+                limit: Some("storedBytes")
+            })
+        );
         assert_eq!(
             pushed(&answer(
                 json!({ "type": "error", "code": "E_SYNC_TOO_LARGE" })

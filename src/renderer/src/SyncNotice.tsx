@@ -41,6 +41,8 @@ function message(snapshot: SyncSnapshot): string | undefined {
 export function SyncNotice(props: { snapshot: SyncSnapshot }) {
   const text = message(props.snapshot)
   const [dismissed, setDismissed] = useState<string>()
+  // A notice that went away is shown again when it comes back, even with the same words (a pause on another day).
+  if (!text && dismissed !== undefined) setDismissed(undefined)
   if (!text || text === dismissed) return null
   const { state, code } = props.snapshot.status
   return (

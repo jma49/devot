@@ -143,9 +143,17 @@ pub(crate) struct PullDto {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub(crate) enum PushDto {
-    Pushed { version: u64, seq: u64 },
-    Rejected { version: u64 },
-    Paused { until: Option<i64> },
+    Pushed {
+        version: u64,
+        seq: u64,
+    },
+    Rejected {
+        version: u64,
+    },
+    Paused {
+        until: Option<i64>,
+        limit: Option<&'static str>,
+    },
 }
 
 /// Turning sync on: the snapshot, and the recovery key the first time this device's vault is
@@ -842,9 +850,13 @@ impl SyncService {
         match client::push(&connection, &vault, id, base, &plaintext) {
             Ok(client::PushReply::Pushed { version, seq }) => Ok(PushDto::Pushed { version, seq }),
             Ok(client::PushReply::Rejected { version }) => Ok(PushDto::Rejected { version }),
-            Ok(client::PushReply::Paused { until }) => {
-                log::info!("I_SYNC_QUOTA_PAUSED until={}", until.unwrap_or(0));
-                Ok(PushDto::Paused { until })
+            Ok(client::PushReply::Paused { until, limit }) => {
+                log::info!(
+                    "I_SYNC_QUOTA_PAUSED until={} limit={}",
+                    until.unwrap_or(0),
+                    limit.unwrap_or("unknown")
+                );
+                Ok(PushDto::Paused { until, limit })
             }
             Err("E_SYNC_TOO_LARGE") => {
                 log::warn!("W_SYNC_TOO_LARGE id={id}");
@@ -877,6 +889,18 @@ impl SyncService {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hands_a_quota_pause_to_the_engine_with_its_reset_and_limit() {
+        let paused = PushDto::Paused {
+            until: Some(1_793_145_600_000),
+            limit: Some("storedBytes"),
+        };
+        assert_eq!(
+            serde_json::to_value(paused).unwrap(),
+            json!({ "type": "paused", "until": 1_793_145_600_000_i64, "limit": "storedBytes" })
+        );
+    }
 
     #[test]
     fn takes_a_status_only_with_a_known_state_and_a_code() {
