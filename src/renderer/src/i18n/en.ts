@@ -1020,6 +1020,8 @@ export const en = {
   'import.reason.folderTooLarge': 'The folder holds too many files to import.',
   'import.reason.folderInvalid': 'This folder cannot be read.',
   'import.reason.foldersUnsupported': 'Folders cannot be imported on this device.',
+  'import.reason.trialEnded':
+    'Your Devot trial has ended, so nothing can be imported. Add a licence in Settings > Licence.',
   'format.toolbar': 'Format',
   'format.heading': 'Heading',
   'format.headingTitle': 'Heading',

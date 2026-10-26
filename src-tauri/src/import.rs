@@ -801,8 +801,18 @@ pub fn import_pick(
     Ok(())
 }
 
+/// Once the trial is over, an import is refused before its panel opens rather than after its scan.
+fn may_pick(licence: Option<&crate::licence::Licence>) -> Result<(), &'static str> {
+    licence.map_or(Ok(()), |l| l.require_write(crate::storage::Write::Content))
+}
+
 /// Asks for the files over the main window `target`, which hears the import's events.
 pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>, target: &str) {
+    let licence = app.try_state::<Arc<crate::licence::Licence>>();
+    if let Err(code) = may_pick(licence.as_deref().map(Arc::as_ref)) {
+        fail(app, target, None, code);
+        return;
+    }
     let title = match pick {
         Pick::MarkdownFiles => strings::IMPORT_MARKDOWN_FILES_TITLE,
         Pick::MarkdownFolders => strings::IMPORT_MARKDOWN_TITLE,
@@ -947,6 +957,16 @@ mod tests {
     use std::fs;
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
+
+    #[test]
+    fn an_import_is_refused_before_its_panel_opens_once_the_trial_is_over() {
+        let dir = tempfile::tempdir().unwrap();
+        let over = crate::licence::testing::licence(dir.path(), true);
+        assert_eq!(may_pick(Some(&over)), Err("E_LICENCE_REQUIRED"));
+        let ungated = crate::licence::testing::licence(dir.path(), false);
+        assert_eq!(may_pick(Some(&ungated)), Ok(()));
+        assert_eq!(may_pick(None), Ok(()));
+    }
 
     fn paths(items: &[Item]) -> Vec<&str> {
         items.iter().map(|i| i.path.as_str()).collect()
