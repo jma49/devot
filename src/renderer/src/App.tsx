@@ -1477,6 +1477,7 @@ export function App() {
       if (!request) return
       void answerCapture(
         request,
+        (id) => invoke('quick_capture_claim', { id }),
         async (r) => {
           await core.capture(r.title, r.body, r.bookId)
         },

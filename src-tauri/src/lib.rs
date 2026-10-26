@@ -206,6 +206,7 @@ pub fn run() {
             #[cfg(desktop)]
             menu_bar::quick_capture_save,
             #[cfg(desktop)]
+            menu_bar::quick_capture_claim,
             menu_bar::quick_capture_done,
             #[cfg(desktop)]
             menu_bar::quick_capture_close,

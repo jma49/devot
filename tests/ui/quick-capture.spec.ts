@@ -99,6 +99,18 @@ test('keeps the text and says why when the note could not be saved', async ({ pa
   await expect(save(page)).toBeEnabled()
 })
 
+test('says a note Devot is still saving will appear, so it is not saved twice', async ({
+  page,
+}) => {
+  await open(page, { save: { error: 'E_QUICK_CAPTURE_LATE' } })
+  await title(page).fill('Slow')
+  await save(page).click()
+  await expect(page.getByRole('alert')).toHaveText(
+    'Devot is still saving this note (E_QUICK_CAPTURE_LATE). It will appear in your notes; check there before saving it again.',
+  )
+  await expect(title(page)).toHaveValue('Slow')
+})
+
 test('keeps a draft when the window closes before saving, and brings it back', async ({ page }) => {
   await open(page)
   await title(page).fill('Call back')

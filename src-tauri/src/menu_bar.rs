@@ -5,7 +5,8 @@
 //! unsaved edit and a quit still runs the save handshake.
 //! Quick capture is a small window of its own (`quick-capture.html`) that writes nothing itself: Rust
 //! hands its note to the frontmost main window's core and waits for the answer (`quick_capture_save`,
-//! `quick_capture_done`), so one core writes the library and the main window's lists stay current.
+//! `quick_capture_claim`, `quick_capture_done`), so one core writes the library and the main
+//! window's lists stay current.
 
 use crate::commands::notes::{MAX_BODY_BYTES, MAX_TITLE_CHARS};
 use crate::editor_settings::{EditorSettingsStore, is_notebook_id};
@@ -39,7 +40,7 @@ const HEIGHT: f64 = 360.0;
 const MIN_WIDTH: f64 = 360.0;
 const MIN_HEIGHT: f64 = 240.0;
 /// A save waits behind an import's file or a busy database; a capture that times out keeps its
-/// text in its window.
+/// text in its window. Only one the main window has not claimed yet is sure not to be written.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(15);
 const CODE_MAX: usize = 80;
 
@@ -307,30 +308,57 @@ fn check(capture: &Capture) -> Result<(), &'static str> {
 
 type Answer = Result<(), String>;
 
+struct Waiting {
+    reply: oneshot::Sender<Answer>,
+    claimed: bool,
+}
+
 /// Captures handed to the main window and not answered yet.
 #[derive(Default)]
 pub struct Captures {
     next: AtomicU64,
-    waiting: Mutex<HashMap<u64, oneshot::Sender<Answer>>>,
+    waiting: Mutex<HashMap<u64, Waiting>>,
 }
 
 impl Captures {
     fn wait(&self) -> Option<(u64, oneshot::Receiver<Answer>)> {
         let id = self.next.fetch_add(1, Ordering::SeqCst) + 1;
         let (reply, answer) = oneshot::channel();
-        self.waiting.lock().ok()?.insert(id, reply);
+        let waiting = Waiting {
+            reply,
+            claimed: false,
+        };
+        self.waiting.lock().ok()?.insert(id, waiting);
         Some((id, answer))
+    }
+
+    /// The main window takes a capture before it writes it; false once Rust has given up on it.
+    fn claim(&self, id: u64) -> bool {
+        let Ok(mut waiting) = self.waiting.lock() else {
+            return false;
+        };
+        waiting.get_mut(&id).map(|w| w.claimed = true).is_some()
     }
 
     /// False for an ID that is not waiting (answered already, timed out, or never asked).
     fn answer(&self, id: u64, answer: Answer) -> bool {
-        let reply = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
-        reply.is_some_and(|reply| reply.send(answer).is_ok())
+        let waiting = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
+        waiting.is_some_and(|w| w.reply.send(answer).is_ok())
     }
 
     fn forget(&self, id: u64) {
         if let Ok(mut waiting) = self.waiting.lock() {
             waiting.remove(&id);
+        }
+    }
+
+    /// Stops waiting, with the code to show: an unclaimed capture is never written, a claimed (or
+    /// just answered) one may still appear, so the window must not offer a plain retry.
+    fn give_up(&self, id: u64) -> &'static str {
+        let waiting = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
+        match waiting {
+            Some(w) if !w.claimed => "E_QUICK_CAPTURE_TIMEOUT",
+            _ => "E_QUICK_CAPTURE_LATE",
         }
     }
 }
@@ -388,10 +416,26 @@ pub async fn quick_capture_save(
         Ok(Ok(answer)) => answer,
         Ok(Err(_)) => Err("E_QUICK_CAPTURE_FAILED".into()),
         Err(_) => {
-            captures.forget(id);
-            log::warn!("W_QUICK_CAPTURE_TIMEOUT {id}");
-            Err("E_QUICK_CAPTURE_TIMEOUT".into())
+            let code = captures.give_up(id);
+            log::warn!("W_QUICK_CAPTURE_TIMEOUT {id} {code}");
+            Err(code.into())
         }
+    }
+}
+
+#[tauri::command]
+pub fn quick_capture_claim(
+    window: WebviewWindow,
+    captures: State<'_, Captures>,
+    id: u64,
+) -> Result<(), String> {
+    if !crate::main_windows::is_main(window.label()) {
+        return Err("E_QUICK_CAPTURE_WINDOW".into());
+    }
+    if captures.claim(id) {
+        Ok(())
+    } else {
+        Err("E_QUICK_CAPTURE_UNKNOWN".into())
     }
 }
 
@@ -526,6 +570,24 @@ mod tests {
         let (id, _answer) = captures.wait().unwrap();
         captures.forget(id);
         assert!(!captures.answer(id, Ok(())));
+    }
+
+    #[test]
+    fn a_capture_timed_out_before_it_is_claimed_can_no_longer_be_written() {
+        let captures = Captures::default();
+        let (id, _answer) = captures.wait().unwrap();
+        assert_eq!(captures.give_up(id), "E_QUICK_CAPTURE_TIMEOUT");
+        assert!(!captures.claim(id), "the main window must not write it");
+    }
+
+    #[test]
+    fn a_claimed_capture_that_times_out_is_reported_as_still_saving() {
+        let captures = Captures::default();
+        let (id, _answer) = captures.wait().unwrap();
+        assert!(captures.claim(id));
+        assert_eq!(captures.give_up(id), "E_QUICK_CAPTURE_LATE");
+        assert!(!captures.answer(id, Ok(())));
+        assert!(!captures.claim(99), "never asked");
     }
 
     #[test]

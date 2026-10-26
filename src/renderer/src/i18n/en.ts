@@ -399,6 +399,8 @@ export const en = {
   'quickCapture.notebookGone': 'That notebook no longer exists ({code}). Choose another one.',
   'quickCapture.noAnswer':
     'Devot did not save the note in time ({code}). Your text is kept here; open Devot and try again.',
+  'quickCapture.stillSaving':
+    'Devot is still saving this note ({code}). It will appear in your notes; check there before saving it again.',
   'generalSettings.autoDownloadUpdates': 'Automatically Download Updates',
   'generalSettings.autoDownloadUpdatesHint':
     'Download new versions in the background, then offer to restart. Off, Devot asks before downloading.',

@@ -331,6 +331,7 @@ describe('Tauri command permissions', () => {
       'core:event:allow-unlisten',
     ])
     expect(windowsWith('allow-quick-capture-done')).toEqual(['main'])
+    expect(windowsWith('allow-quick-capture-claim')).toEqual(['main'])
   })
 
   it('lets only Settings see or replace the HTTP API token, and only the main window answer its calls', () => {
