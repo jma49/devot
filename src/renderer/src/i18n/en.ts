@@ -619,11 +619,17 @@ export const en = {
   'syncSettings.changeFailed': 'Sync could not be turned on or off ({code}).',
   'syncSettings.recovery': 'Recovery Key',
   'syncSettings.recoveryHint':
-    'Keep this key in your password manager, or print it. With it and the relay’s address, a new device joins your vault even when no other device is left. Devot shows it only this once.',
+    'Keep this key in your password manager, or print it. With it and the relay’s address, a new device joins your vault even when no other device is left. Once you say you saved it, Devot does not show it again.',
   'syncSettings.recoveryCopy': 'Copy',
-  'syncSettings.recoveryCopied': 'The recovery key was copied.',
+  'syncSettings.recoveryCopied':
+    'The recovery key was copied. It leaves the clipboard after 90 seconds.',
   'syncSettings.recoverySaved': 'I Saved It',
   'syncSettings.copyFailed': 'The recovery key could not be copied ({code}).',
+  'syncSettings.recoverySaveFailed': 'Devot could not note that the key was saved ({code}).',
+  'syncSettings.newVault': 'New Vault',
+  'syncSettings.newVaultHint':
+    'Only on your first device: makes a new, empty vault on this relay. On any other device, join with a code or the recovery key above, or its notes never meet the others.',
+  'syncSettings.newVaultStart': 'Set Up a New Vault…',
   'syncSettings.pair': 'Add a Device',
   'syncSettings.pairHint':
     'Show a code here, then scan it with the new device’s camera, or type or paste it there under Join With a Code. It works once, for 10 minutes.',
@@ -635,20 +641,27 @@ export const en = {
   'syncSettings.pairTaken': 'A device is joining…',
   'syncSettings.pairDone': 'A new device joined the vault.',
   'syncSettings.pairExpired': 'The code expired. Show a new one to try again.',
+  'syncSettings.pairRetrying': 'Cannot reach the relay. Trying again…',
+  'syncSettings.pairUnconfirmed':
+    'A device took this code but did not finish joining. If that was not one of your devices, someone else may hold this vault’s key and could join later: check Devices and remove any you do not know.',
   'syncSettings.pairFailed': 'The pairing code could not be shown ({code}).',
   'syncSettings.pairCheckFailed': 'The pairing stopped ({code}).',
   'syncSettings.joinCode': 'Join With a Code',
   'syncSettings.joinCodeHint':
-    'The code another of your devices shows under Add a Device. Set the relay above first, unless you paste the whole link.',
+    'The code another of your devices shows under Add a Device, or the link its QR code holds. Set the relay above first, or paste the whole link.',
   'syncSettings.joinRecovery': 'Join With Recovery Key',
   'syncSettings.joinRecoveryHint':
     'The recovery key you saved when you turned sync on, with the relay above.',
   'syncSettings.join': 'Join',
+  'syncSettings.linkRelayConfirm': 'Sync through the relay at {host}?',
+  'syncSettings.linkRelayDetail':
+    'The pasted link names this relay. Your notes will go through it, encrypted, so continue only if it is your own relay.',
+  'syncSettings.linkRelayButton': 'Use This Relay',
   'syncSettings.joined': 'This device joined the vault and sync is on.',
   'syncSettings.joinFailed': 'This device could not join the vault ({code}).',
   'syncSettings.devices': 'Devices',
   'syncSettings.devicesHint':
-    'The devices in this vault. Removing one takes away its access to the relay; its notes stay on it.',
+    'The devices in this vault. Removing one stops it syncing; its notes stay on it.',
   'syncSettings.devicesList': 'Devices in this vault',
   'syncSettings.deviceAdded': 'Added {date}',
   'syncSettings.thisDevice': 'This Device',
@@ -656,7 +669,7 @@ export const en = {
   'syncSettings.deviceRemoveLabel': 'Remove {name}, added {date}',
   'syncSettings.deviceRemoveConfirm': 'Remove this device from sync?',
   'syncSettings.deviceRemoveDetail':
-    'It can no longer reach the relay, and sync stops there. The notes on it stay. To let it back in, pair it again.',
+    'Sync stops there and its notes stay. The device still holds this vault’s key, so whoever has it can join again; Devot cannot change the key yet.',
   'syncSettings.deviceRemoveButton': 'Remove',
   'syncSettings.deviceRemoved': 'The device was removed from sync.',
   'syncSettings.devicesFailed': 'The devices could not be listed ({code}).',
@@ -673,6 +686,7 @@ export const en = {
   'syncSettings.why.otherRelay': 'The code is for another relay than the one set above.',
   'syncSettings.why.keyMistyped': 'Check the key: it does not read as a recovery key.',
   'syncSettings.why.noRelay': 'Enter the relay’s address above first.',
+  'syncSettings.why.noVault': 'The relay set above has no such vault. Check its address.',
   'sync.notice.revoked':
     'This device was removed from sync, so sync has stopped. Your notes stay on this device.',
   'sync.notice.clock':

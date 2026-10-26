@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readDevices, readPairing, runsSync } from './sync'
+import { linkRelay, readDevices, readPairing, runsSync } from './sync'
 
 describe('runsSync', () => {
   it('runs the engine in the first main window only', () => {
@@ -53,5 +53,26 @@ describe('readDevices', () => {
       { id: 'phone', label: 'Devot for iOS', created: 6, current: false },
     ])
     expect(readDevices({})).toEqual([])
+  })
+})
+
+describe('linkRelay', () => {
+  it('reads the relay a pairing link names', () => {
+    expect(
+      linkRelay(' devot://pair?relay=https%3A%2F%2Frelay.example.com&code=0400E3GN3GHJ '),
+    ).toBe('https://relay.example.com')
+  })
+
+  it('finds none in a bare code, another link or a relay that is no web address', () => {
+    for (const text of [
+      '0400-E3GN-3GHJ-MC9R-7X34-TN2V-C9MN-JTDF',
+      'https://relay.example.com',
+      'devot://open?relay=https%3A%2F%2Frelay.example.com',
+      'devot://pair?code=0400E3GN',
+      'devot://pair?relay=javascript%3Aalert(1)&code=0400',
+      'devot://pair?relay=not%20a%20url&code=0400',
+    ]) {
+      expect(linkRelay(text)).toBeUndefined()
+    }
   })
 })

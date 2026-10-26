@@ -127,7 +127,7 @@ const RECOVERY_KEY = /^[0-9A-Z]{5}(-[0-9A-Z]{1,5})+$/
 
 /**
  * The relay secret goes to Rust for the one request that creates the vault; it is never kept. The
- * recovery key comes back the first time the vault is ready, to show once.
+ * recovery key comes back while this device has not said it was saved.
  */
 export async function createSyncVault(
   relaySecret: string,
@@ -137,10 +137,19 @@ export async function createSyncVault(
   const next = readSnapshot(v['snapshot'])
   publish(next)
   const key = v['recoveryKey']
-  return {
-    snapshot: next,
-    recoveryKey: typeof key === 'string' && RECOVERY_KEY.test(key) ? key : null,
-  }
+  return { snapshot: next, recoveryKey: readRecoveryKey(key) }
+}
+
+const readRecoveryKey = (key: unknown) =>
+  typeof key === 'string' && RECOVERY_KEY.test(key) ? key : null
+
+/** The recovery key until this device says it was saved (`recoverySaved`), else null. */
+export async function pendingRecoveryKey(): Promise<string | null> {
+  return readRecoveryKey(await invoke<unknown>('sync_recovery_key'))
+}
+
+export async function recoverySaved(): Promise<void> {
+  await invoke('sync_recovery_saved')
 }
 
 /** A pairing code on show (docs/adr/0008-sync-device-pairing.md). */
@@ -194,21 +203,42 @@ export async function openPairing(): Promise<ShownPairing> {
 }
 
 export type PairingProgress =
-  | { state: 'waiting' | 'taken' | 'expired' }
+  | { state: 'waiting' | 'taken' | 'expired' | 'unconfirmed' }
   | { state: 'paired'; device: string }
 
-/** How the code on show is going; `paired` once the new device confirmed it holds the vault. */
+/**
+ * How the code on show is going; `paired` once the new device confirmed it holds the vault, and
+ * `unconfirmed` when a device took the code and never confirmed.
+ */
 export async function checkPairing(): Promise<PairingProgress> {
   const value = await invoke<unknown>('sync_pairing_check')
   const v = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>
   const state = v['state']
   if (state === 'paired' && typeof v['device'] === 'string') return { state, device: v['device'] }
-  if (state === 'waiting' || state === 'taken' || state === 'expired') return { state }
+  if (state === 'waiting' || state === 'taken' || state === 'expired' || state === 'unconfirmed')
+    return { state }
   throw new Error('E_SYNC_PAIRING_INVALID')
 }
 
 export async function cancelPairing(): Promise<void> {
   await invoke('sync_pairing_cancel')
+}
+
+/**
+ * The relay a pasted pairing link names, or undefined for a bare code. Rust joins only the relay
+ * set in Settings, so Settings asks before it sets one from a link.
+ */
+export function linkRelay(text: string): string | undefined {
+  const trimmed = text.trim()
+  if (!/^devot:\/\/pair\?/i.test(trimmed)) return undefined
+  const relay = new URLSearchParams(trimmed.slice(trimmed.indexOf('?') + 1)).get('relay')
+  if (!relay) return undefined
+  try {
+    const url = new URL(relay)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? relay : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /** Joins the vault a pairing code (or the link its QR code holds) hands over. */

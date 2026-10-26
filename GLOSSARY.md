@@ -14,5 +14,5 @@ Terms the code and the docs use with one meaning each.
 - **Pairing ID:** derived from the pairing secret; the relay files the pairing under it.
 - **Offer:** the vault ID and key, with an expiry, sealed under the key derived from the pairing secret. The relay holds it until the new device takes it, once.
 - **Confirmation:** the new device's device ID, sealed under the same key, which tells the showing device the pairing worked.
-- **Recovery key:** the vault ID and key as 85 characters with a checksum, shown once when the vault is made. With the relay's address, it lets a device join when no other device is at hand.
-- **Joining:** a device takes a vault from a pairing code or the recovery key, keeps it in its keychain and enrolls. A device never replaces a vault it holds with another one.
+- **Recovery key:** the vault ID and key as 85 characters with a checksum, shown when the vault is made until the owner says it was saved. With the relay's address, it lets a device join when no other device is at hand.
+- **Joining:** a device takes a vault from a pairing code or the recovery key, enrolls, and then keeps the vault in its keychain. A device never replaces a vault it holds with another one.

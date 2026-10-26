@@ -617,3 +617,11 @@ fn the_keychain_keeps_and_removes_a_vault() {
     assert!(Vault::load(&keychain).unwrap().is_none());
     assert!(!Vault::delete(&keychain).unwrap());
 }
+
+#[test]
+fn closing_the_settings_window_ends_the_pairing_on_show() {
+    use tauri::WindowEvent;
+    assert!(ends_pairing("settings", &WindowEvent::Destroyed));
+    assert!(!ends_pairing("main", &WindowEvent::Destroyed));
+    assert!(!ends_pairing("settings", &WindowEvent::Focused(false)));
+}

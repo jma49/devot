@@ -43,9 +43,9 @@ Pairing devices (docs/adr/0008-sync-device-pairing.md) needs a relay from this r
 
 ## Connect Devot
 
-In Devot, open Settings > Sync, enter the relay's URL (https, or http to the same machine for a relay you run locally), then the relay's secret once, on the first device: Devot makes the vault key in the keychain, creates the vault on the relay and turns sync on. The secret goes into that one request and is not kept. Devot then shows the recovery key once: keep it in your password manager or print it.
+In Devot, open Settings > Sync, enter the relay's URL (https, or http to the same machine for a relay you run locally), then the relay's secret once, on the first device: Devot makes the vault key in the keychain, creates the vault on the relay and turns sync on. The secret goes into that one request and is not kept. Devot then shows the recovery key until you press I Saved It: keep it in your password manager or print it. On every other device, join instead (below): Set Up a New Vault is for the first device only.
 
-To add another device, choose Show Pairing Code under Add a Device on a device that syncs. On the new device, scan the QR code, or type or paste the code under Join With a Code (with the relay's URL set). The code works once, for 10 minutes. A device can also join with the recovery key and the relay's URL, under Join With Recovery Key, when no other device is at hand. Devices lists the vault's devices; Remove takes one's token away (`revoke`).
+To add another device, choose Show Pairing Code under Add a Device on a device that syncs. On the new device, scan the QR code, or type or paste the code under Join With a Code (with the relay's URL set). The code works once, for 10 minutes. A device can also join with the recovery key and the relay's URL, under Join With Recovery Key, when no other device is at hand. Devices lists the vault's devices; Remove takes one's token away (`revoke`). A removed device still holds the vault key, so whoever has it can enroll it again on purpose; Devot never does so on its own. Until Devot can change a vault's key, treat a lost device that held it as able to read the vault.
 
 ## Protocol
 

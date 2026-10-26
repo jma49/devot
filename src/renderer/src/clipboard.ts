@@ -37,6 +37,14 @@ export async function writeClipboardText(text: string): Promise<void> {
   }
 }
 
+/**
+ * Puts a secret on this Mac's clipboard only, marked so clipboard managers skip it; Rust clears it
+ * after a while unless something else was copied since.
+ */
+export async function writeClipboardSecret(text: string): Promise<void> {
+  await invoke('clipboard_write_secret', { text })
+}
+
 export async function readClipboardText(): Promise<string> {
   const text = await invoke<unknown>('clipboard_read_text')
   return typeof text === 'string' ? text : ''

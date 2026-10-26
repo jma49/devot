@@ -336,6 +336,44 @@ pub async fn clipboard_write_text(app: tauri::AppHandle, text: String) -> Result
     }
 }
 
+/// How long a secret stays on the clipboard when nothing replaces it.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+const SECRET_CLIPBOARD_SECS: u64 = 90;
+
+/// Puts a secret (the sync recovery key) on this Mac's clipboard only, marked so clipboard managers
+/// skip it, and clears it after a while unless something else was copied since.
+#[tauri::command]
+pub async fn clipboard_write_secret(app: tauri::AppHandle, text: String) -> Result<(), String> {
+    let text = zeroize::Zeroizing::new(text);
+    validate_clipboard_text(&text).map_err(String::from)?;
+    #[cfg(target_os = "macos")]
+    {
+        let (reply, answer) = tokio::sync::oneshot::channel();
+        app.run_on_main_thread(move || {
+            let _ = reply.send(macos::write_secret_clipboard_text(&text));
+        })
+        .map_err(|_| String::from("E_NATIVE_MAIN_THREAD_UNAVAILABLE"))?;
+        let Ok(Some(count)) = answer.await else {
+            return Err(String::from("E_CLIPBOARD_WRITE_FAILED"));
+        };
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(SECRET_CLIPBOARD_SECS)).await;
+            if app
+                .run_on_main_thread(move || macos::clear_clipboard_if_unchanged(count))
+                .is_err()
+            {
+                log::warn!("W_CLIPBOARD_SECRET_NOT_CLEARED");
+            }
+        });
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Err(String::from("E_CLIPBOARD_UNSUPPORTED"))
+    }
+}
+
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const MAX_CLIPBOARD_READ_BYTES: usize = crate::commands::notes::MAX_BODY_BYTES;
 

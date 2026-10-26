@@ -1,13 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { errorCode } from '../backups'
-import { writeClipboardText } from '../clipboard'
+import { writeClipboardSecret } from '../clipboard'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import {
   cancelPairing,
+  changeSync,
   checkPairing,
   joinWithCode,
   joinWithRecoveryKey,
+  linkRelay,
   listDevices,
   openPairing,
   removeDevice,
@@ -17,7 +19,7 @@ import {
 import { Setting } from './controls'
 
 // Settings > Sync's pairing, joining and devices (docs/adr/0008-sync-device-pairing.md). Rust holds
-// every key; the page shows a pairing code while it is on show and the recovery key once.
+// every key; the page shows a pairing code while it is on show and the recovery key until saved.
 
 export type Failure = (message: MessageKey) => (e: unknown) => void
 
@@ -56,21 +58,32 @@ export function QrCode({ qr }: { qr: ShownPairing['qr'] }) {
   )
 }
 
-/** The recovery key, shown once after turning sync on made the vault. */
+/** The recovery key, on offer until this device says it was saved. */
 export function RecoveryKeyPanel(props: {
   recoveryKey: string
+  focus: boolean
   onDone: () => void
   onAnnounce: (text: string) => void
   failed: Failure
 }) {
+  const key = useRef<HTMLPreElement>(null)
+  const { focus } = props
+  useEffect(() => {
+    if (focus) key.current?.focus()
+  }, [focus])
   const copy = () =>
-    void writeClipboardText(props.recoveryKey).then(
+    void writeClipboardSecret(props.recoveryKey).then(
       () => props.onAnnounce(t('syncSettings.recoveryCopied')),
       props.failed('syncSettings.copyFailed'),
     )
   return (
-    <Setting label="syncSettings.recovery" description={t('syncSettings.recoveryHint')}>
-      <pre className="integration-config recovery-key" aria-label={t('syncSettings.recovery')}>
+    <Setting label="syncSettings.recovery" description={t('syncSettings.recoveryHint')} stacked>
+      <pre
+        ref={key}
+        tabIndex={-1}
+        className="integration-config recovery-key"
+        aria-label={t('syncSettings.recovery')}
+      >
         <code>{props.recoveryKey}</code>
       </pre>
       <div className="settings-buttons">
@@ -87,20 +100,37 @@ export function RecoveryKeyPanel(props: {
 
 type Progress = 'waiting' | 'taken'
 
+// Polling goes on through these until the code expires; any other failure ends the pairing.
+const TRANSIENT = new Set(['E_SYNC_OFFLINE', 'E_SYNC_RELAY_FAILED'])
+
 /** Add a Device: a pairing code with its QR code and countdown, until a device joins or it ends. */
 export function PairingRow(props: {
   locked: boolean
+  /** Moves focus to Show Pairing Code each time it grows. */
+  focusRequest: number
   onPaired: () => void
   onAnnounce: (text: string) => void
   failed: Failure
 }) {
   const [shown, setShown] = useState<ShownPairing>()
   const [progress, setProgress] = useState<Progress>('waiting')
+  const [unreachable, setUnreachable] = useState(false)
   const [ended, setEnded] = useState<MessageKey>()
   const [now, setNow] = useState(Date.now)
   const [opening, setOpening] = useState(false)
+  const [closed, setClosed] = useState(0)
   const open = useRef(false)
-  const { onPaired, onAnnounce, failed } = props
+  const showButton = useRef<HTMLButtonElement>(null)
+  const code = useRef<HTMLParagraphElement>(null)
+  const { onPaired, onAnnounce, failed, focusRequest } = props
+
+  useEffect(() => {
+    if (shown) code.current?.focus()
+  }, [shown])
+
+  useEffect(() => {
+    if (closed + focusRequest > 0) showButton.current?.focus()
+  }, [closed, focusRequest])
 
   useEffect(() => {
     if (!shown) return
@@ -110,18 +140,24 @@ export function PairingRow(props: {
       stopped = true
       open.current = false
       setShown(undefined)
+      setUnreachable(false)
       setEnded(message)
+      setClosed((n) => n + 1)
+      if (message) onAnnounce(t(message))
     }
     const check = () => {
       checkPairing().then(
         (state) => {
           if (stopped) return
+          setUnreachable(false)
           if (state.state === 'paired') {
             end()
             onAnnounce(t('syncSettings.pairDone'))
             onPaired()
           } else if (state.state === 'expired') {
             end('syncSettings.pairExpired')
+          } else if (state.state === 'unconfirmed') {
+            end('syncSettings.pairUnconfirmed')
           } else {
             setProgress(state.state)
             timer = setTimeout(check, POLL_MS)
@@ -129,7 +165,13 @@ export function PairingRow(props: {
         },
         (e: unknown) => {
           if (stopped) return
+          if (TRANSIENT.has(errorCode(e))) {
+            setUnreachable(true)
+            timer = setTimeout(check, POLL_MS)
+            return
+          }
           end()
+          void cancelPairing().catch(() => undefined)
           failed('syncSettings.pairCheckFailed')(e)
         },
       )
@@ -143,7 +185,7 @@ export function PairingRow(props: {
     }
   }, [shown, onPaired, onAnnounce, failed])
 
-  // A code on show when Settings closes stops working.
+  // Closing the window ends the code in Rust too (sync::on_window_event); this covers a pane switch.
   useEffect(
     () => () => {
       if (open.current) void cancelPairing().catch(() => undefined)
@@ -168,21 +210,38 @@ export function PairingRow(props: {
   const cancel = () => {
     open.current = false
     setShown(undefined)
+    setUnreachable(false)
+    setClosed((n) => n + 1)
     void cancelPairing().catch(() => undefined)
   }
+
+  const progressText = unreachable
+    ? 'syncSettings.pairRetrying'
+    : progress === 'taken'
+      ? 'syncSettings.pairTaken'
+      : 'syncSettings.pairWaiting'
 
   return (
     <Setting label="syncSettings.pair" description={ended ? t(ended) : t('syncSettings.pairHint')}>
       {shown ? (
         <div className="pairing">
           <QrCode qr={shown.qr} />
-          <p className="pairing-code" aria-label={t('syncSettings.pairCode')}>
+          <p
+            ref={code}
+            tabIndex={-1}
+            className="pairing-code"
+            aria-label={t('syncSettings.pairCode')}
+          >
             {shown.code}
           </p>
           <p className="settings-hint" role="status">
-            {t(progress === 'taken' ? 'syncSettings.pairTaken' : 'syncSettings.pairWaiting')}{' '}
-            {format(t('syncSettings.pairExpiresIn'), { time: countdown(shown.expires - now) })}
+            {t(progressText)}
           </p>
+          {shown.expires > now ? (
+            <p className="settings-hint">
+              {format(t('syncSettings.pairExpiresIn'), { time: countdown(shown.expires - now) })}
+            </p>
+          ) : null}
           <div className="settings-buttons">
             <button type="button" className="button" onClick={cancel}>
               {t('dialog.cancel')}
@@ -192,6 +251,7 @@ export function PairingRow(props: {
       ) : (
         <div className="settings-buttons">
           <button
+            ref={showButton}
             type="button"
             className="button"
             disabled={opening || props.locked}
@@ -205,26 +265,46 @@ export function PairingRow(props: {
   )
 }
 
-/** Join With a Code and Join With Recovery Key, for a device that is not in a vault yet. */
-export function JoinRows(props: { locked: boolean; onJoined: () => void; failed: Failure }) {
+/**
+ * Join With a Code and Join With Recovery Key, for a device that is not in a vault yet. A pasted
+ * link that names a relay while none is set is joined only after the person agrees to that relay.
+ */
+export function JoinRows(props: {
+  locked: boolean
+  relayUrl: string
+  onJoined: () => void
+  failed: Failure
+}) {
   const ids = useId()
   const [code, setCode] = useState('')
   const [recovery, setRecovery] = useState('')
   const [joining, setJoining] = useState(false)
+  const [askRelay, setAskRelay] = useState<string>()
   const { onJoined, failed } = props
 
-  const join = (how: 'code' | 'recovery') => {
-    const text = how === 'code' ? code : recovery
-    if (text.trim() === '' || joining || props.locked) return
+  const send = (joined: () => Promise<unknown>) => {
     setJoining(true)
-    const joined = how === 'code' ? joinWithCode(text) : joinWithRecoveryKey(text)
-    joined
+    joined()
       .then(() => {
         setCode('')
         setRecovery('')
         onJoined()
       }, failed('syncSettings.joinFailed'))
       .finally(() => setJoining(false))
+  }
+
+  const join = (how: 'code' | 'recovery') => {
+    const text = how === 'code' ? code : recovery
+    if (text.trim() === '' || joining || props.locked) return
+    if (how === 'recovery') return send(() => joinWithRecoveryKey(text))
+    const named = props.relayUrl === '' ? linkRelay(text) : undefined
+    if (named) return setAskRelay(named)
+    send(() => joinWithCode(text))
+  }
+
+  const joinOnRelay = (relay: string) => {
+    setAskRelay(undefined)
+    send(() => changeSync({ relayUrl: relay }).then(() => joinWithCode(code)))
   }
 
   const row = (
@@ -278,6 +358,15 @@ export function JoinRows(props: { locked: boolean; onJoined: () => void; failed:
         recovery,
         setRecovery,
       )}
+      {askRelay ? (
+        <ConfirmDialog
+          message={format(t('syncSettings.linkRelayConfirm'), { host: new URL(askRelay).host })}
+          detail={t('syncSettings.linkRelayDetail')}
+          confirm={t('syncSettings.linkRelayButton')}
+          onConfirm={() => joinOnRelay(askRelay)}
+          onCancel={() => setAskRelay(undefined)}
+        />
+      ) : null}
     </>
   )
 }

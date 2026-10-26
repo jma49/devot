@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { errorCode } from '../backups'
 import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
@@ -7,6 +7,8 @@ import { LicenceButton } from '../LicenceLocked'
 import {
   changeSync,
   createSyncVault,
+  pendingRecoveryKey,
+  recoverySaved,
   startSyncStatus,
   useSyncSnapshot,
   type SyncSnapshot,
@@ -56,13 +58,14 @@ const WHY: Readonly<Record<string, MessageKey>> = {
   E_SYNC_RECOVERY_CHECKSUM: 'syncSettings.why.keyMistyped',
   E_SYNC_RECOVERY_VERSION: 'syncSettings.why.keyMistyped',
   E_SYNC_NO_RELAY: 'syncSettings.why.noRelay',
+  E_SYNC_NO_VAULT: 'syncSettings.why.noVault',
 }
 
 /**
- * Settings > Sync: the relay's URL, the relay's secret (asked once, on the device that creates the
- * vault, and never kept) and the recovery key shown once then, joining with a pairing code or the
- * recovery key, showing a pairing code, the vault's devices, sync on or off and its status.
- * Attachments come with issue 327 and the relay's quota with 215.
+ * Settings > Sync: the relay's URL, joining with a pairing code or the recovery key, or on the
+ * first device only creating the vault with the relay's secret (asked once and never kept), the
+ * recovery key until it is saved, showing a pairing code, the vault's devices, sync on or off and
+ * its status. Attachments come with issue 327 and the relay's quota with 215.
  */
 export function SyncSection() {
   const ids = useId()
@@ -74,7 +77,12 @@ export function SyncSection() {
   const [creating, setCreating] = useState(false)
   const [announcement, setAnnouncement] = useState('')
   const [recoveryKey, setRecoveryKey] = useState<string>()
+  const [keyFocus, setKeyFocus] = useState(false)
+  const [firstDevice, setFirstDevice] = useState(false)
+  const [focusPairing, setFocusPairing] = useState(0)
   const [devicesVersion, setDevicesVersion] = useState(0)
+  const alert = useRef<HTMLParagraphElement>(null)
+  const secretInput = useRef<HTMLInputElement>(null)
   const locale = currentLocale()
 
   useEffect(() => startSyncStatus(), [])
@@ -97,7 +105,40 @@ export function SyncSection() {
     setAnnouncement(text)
   }, [])
   const paired = useCallback(() => setDevicesVersion((v) => v + 1), [])
-  const joined = useCallback(() => announce(t('syncSettings.joined')), [announce])
+  const joined = useCallback(() => {
+    announce(t('syncSettings.joined'))
+    setFocusPairing((n) => n + 1)
+  }, [announce])
+
+  // The rows that fail sit far below the alert, which a sighted person would not see otherwise.
+  useEffect(() => {
+    if (error) alert.current?.scrollIntoView({ block: 'nearest' })
+  }, [error])
+
+  // Rust keeps the key on offer until Saved, so a pane switch or a closed window does not lose it.
+  useEffect(() => {
+    if (!snapshot.enrolled) return
+    let current = true
+    pendingRecoveryKey().then(
+      (key) => {
+        if (current && key) setRecoveryKey(key)
+      },
+      () => undefined,
+    )
+    return () => {
+      current = false
+    }
+  }, [snapshot.enrolled])
+
+  useEffect(() => {
+    if (firstDevice) secretInput.current?.focus()
+  }, [firstDevice])
+
+  const saved = () =>
+    void recoverySaved().then(() => {
+      setRecoveryKey(undefined)
+      setFocusPairing((n) => n + 1)
+    }, failed('syncSettings.recoverySaveFailed'))
 
   const saveUrl = () => {
     if (url === undefined || url.trim() === snapshot.relayUrl) {
@@ -118,13 +159,19 @@ export function SyncSection() {
       .then((created) => {
         setError(undefined)
         setSecret('')
-        if (created.recoveryKey) setRecoveryKey(created.recoveryKey)
+        setFirstDevice(false)
+        if (created.recoveryKey) {
+          setRecoveryKey(created.recoveryKey)
+          setKeyFocus(true)
+        }
         setAnnouncement(t('syncSettings.vaultReady'))
       }, failed('syncSettings.vaultFailed'))
       .finally(() => setCreating(false))
   }
 
   const needsVault = snapshot.relayUrl !== '' && !snapshot.enrolled
+  // A device that holds no vault joins one; making a new vault there is a separate, first-device step.
+  const asksSecret = needsVault && (snapshot.vault || firstDevice)
   const why = error ? WHY[error.code] : undefined
 
   return (
@@ -133,7 +180,7 @@ export function SyncSection() {
         {t('syncSettings.title')}
       </h2>
       {error ? (
-        <p role="alert" className="settings-error">
+        <p ref={alert} role="alert" className="settings-error">
           {format(t(error.message), { code: error.code })}
           {why ? ` ${t(why)}` : null}
         </p>
@@ -175,7 +222,24 @@ export function SyncSection() {
             }}
           />
         </Setting>
-        {needsVault ? (
+        {recoveryKey ? (
+          <RecoveryKeyPanel
+            recoveryKey={recoveryKey}
+            focus={keyFocus}
+            onDone={saved}
+            onAnnounce={announce}
+            failed={failed}
+          />
+        ) : null}
+        {snapshot.enrolled ? null : (
+          <JoinRows
+            locked={locked}
+            relayUrl={snapshot.relayUrl}
+            onJoined={joined}
+            failed={failed}
+          />
+        )}
+        {asksSecret ? (
           <Setting
             label="syncSettings.secret"
             description={t(
@@ -185,6 +249,7 @@ export function SyncSection() {
             descriptionId={id('secret-hint')}
           >
             <input
+              ref={secretInput}
               id={id('secret')}
               type="password"
               className="settings-number settings-text"
@@ -208,16 +273,20 @@ export function SyncSection() {
               </button>
             </div>
           </Setting>
+        ) : needsVault ? (
+          <Setting label="syncSettings.newVault" description={t('syncSettings.newVaultHint')}>
+            <div className="settings-buttons">
+              <button
+                type="button"
+                className="button"
+                disabled={locked}
+                onClick={() => setFirstDevice(true)}
+              >
+                {t('syncSettings.newVaultStart')}
+              </button>
+            </div>
+          </Setting>
         ) : null}
-        {recoveryKey ? (
-          <RecoveryKeyPanel
-            recoveryKey={recoveryKey}
-            onDone={() => setRecoveryKey(undefined)}
-            onAnnounce={announce}
-            failed={failed}
-          />
-        ) : null}
-        {snapshot.enrolled ? null : <JoinRows locked={locked} onJoined={joined} failed={failed} />}
         <SettingToggle
           label="syncSettings.enabled"
           description="syncSettings.enabledHint"
@@ -245,7 +314,13 @@ export function SyncSection() {
         ) : null}
         {snapshot.enrolled ? (
           <>
-            <PairingRow locked={locked} onPaired={paired} onAnnounce={announce} failed={failed} />
+            <PairingRow
+              locked={locked}
+              focusRequest={focusPairing}
+              onPaired={paired}
+              onAnnounce={announce}
+              failed={failed}
+            />
             {/* Read again when a device joins. */}
             <DevicesRow key={devicesVersion} onAnnounce={announce} failed={failed} />
           </>

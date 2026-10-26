@@ -3,11 +3,11 @@
 //! worker, whose engine (src/core/sync) connects, pulls and pushes through these commands. Keys,
 //! the device token and the socket stay here; plaintext records cross as base64.
 //!
-//! Joining (a pairing code or the recovery key) puts the vault in the keychain and enrolls the
-//! device; a device that holds the vault key and no token for the relay also enrolls on its own
-//! when it connects.
+//! Joining (a pairing code or the recovery key) enrolls the device and then keeps the vault in the
+//! keychain; a device that holds the vault key and no token for the relay also enrolls on its own
+//! when it connects, unless it was removed from that vault.
 
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -159,7 +159,8 @@ impl std::fmt::Debug for PairingView {
 }
 
 /// How the pairing on show is going: `waiting`, `taken` (a device is joining), `paired` with the
-/// new device's ID, or `expired`.
+/// new device's ID, `expired`, or `unconfirmed` (a device took the code and never confirmed: it may
+/// hold the vault key).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PairingCheck {
@@ -183,6 +184,7 @@ struct Hosting {
     vault: String,
     token: Zeroizing<String>,
     expires: i64,
+    taken: AtomicBool,
 }
 
 pub(crate) type Emit = Arc<dyn Fn(&'static str, Value) + Send + Sync>;
@@ -316,16 +318,30 @@ impl SyncService {
         };
         self.keep(&relay, &vault, &enrolled.device, &enrolled.token)?;
         let mut settings = self.settings.get();
-        let vault_id = vault.id().to_string();
-        let show = settings.recovery_shown != vault_id;
         settings.enabled = true;
-        settings.recovery_shown = vault_id;
         self.settings.set(&settings)?;
         log::info!("I_SYNC_VAULT_READY vault={}", vault.id());
         Ok(Created {
             snapshot: self.changed(),
-            recovery_key: show.then(|| vault.recovery_key().to_string()),
+            recovery_key: self.recovery_key()?.map(|key| key.to_string()),
         })
+    }
+
+    /// The recovery key while this device has not said it was saved, once the vault is ready on a
+    /// relay. Kept on offer so a closed window or a lost answer does not lose it.
+    pub(crate) fn recovery_key(&self) -> Result<Option<Zeroizing<String>>, &'static str> {
+        let Some(vault) = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())? else {
+            return Ok(None);
+        };
+        let shown = self.settings.get().recovery_shown == vault.id().to_string();
+        Ok((!shown && self.snapshot().enrolled).then(|| vault.recovery_key()))
+    }
+
+    pub(crate) fn recovery_saved(&self) -> Result<(), &'static str> {
+        let vault = self.held_vault()?;
+        let mut settings = self.settings.get();
+        settings.recovery_shown = vault.id().to_string();
+        self.settings.set(&settings)
     }
 
     /// This device's token for `relay` and `vault`, when it is enrolled and not removed.
@@ -383,6 +399,7 @@ impl SyncService {
             vault: vault_id,
             token,
             expires,
+            taken: AtomicBool::new(false),
         }));
         Ok(view)
     }
@@ -396,9 +413,11 @@ impl SyncService {
             .map_err(|_| "E_SYNC_INTERNAL")?
             .clone()
             .ok_or("E_SYNC_PAIRING_NONE")?;
-        if self.now() > hosting.expires {
+        let now = self.now();
+        // A device that took the code just before expiry may confirm while the relay keeps it.
+        if now > hosting.expires.saturating_add(pairing::GRACE_MS) {
             self.end_pairing(&hosting);
-            return Ok(PairingCheck::is("expired"));
+            return Ok(Self::ended(&hosting));
         }
         let state = client::pairing_status(
             &hosting.relay,
@@ -407,8 +426,15 @@ impl SyncService {
             hosting.pairing.id(),
         );
         match state {
+            Ok(PairingState::Open) if now > hosting.expires => {
+                self.end_pairing(&hosting);
+                Ok(Self::ended(&hosting))
+            }
             Ok(PairingState::Open) => Ok(PairingCheck::is("waiting")),
-            Ok(PairingState::Taken) => Ok(PairingCheck::is("taken")),
+            Ok(PairingState::Taken) => {
+                hosting.taken.store(true, Ordering::Relaxed);
+                Ok(PairingCheck::is("taken"))
+            }
             Ok(PairingState::Confirmed(proof)) => {
                 let opened = hosting.pairing.open_confirmation(&proof);
                 self.end_pairing(&hosting);
@@ -424,9 +450,21 @@ impl SyncService {
             }
             Err("E_SYNC_PAIRING_GONE") => {
                 self.forget_pairing(&hosting);
-                Ok(PairingCheck::is("expired"))
+                Ok(Self::ended(&hosting))
             }
             Err(code) => Err(code),
+        }
+    }
+
+    fn ended(hosting: &Hosting) -> PairingCheck {
+        if hosting.taken.load(Ordering::Relaxed) {
+            log::warn!(
+                "W_SYNC_PAIRING_UNCONFIRMED pairing={}",
+                hosting.pairing.id()
+            );
+            PairingCheck::is("unconfirmed")
+        } else {
+            PairingCheck::is("expired")
         }
     }
 
@@ -466,18 +504,23 @@ impl SyncService {
     }
 
     /// Joins the vault a pairing code (or the link its QR code holds) hands over: takes the offer,
-    /// keeps the vault, enrolls this device and confirms to the device that shows the code.
+    /// enrolls this device, keeps the vault and confirms to the device that shows the code. A link
+    /// must name the relay set in Settings: the page asks before it sets a relay from a link.
     pub(crate) fn join_with_code(&self, text: &str) -> Result<Snapshot, &'static str> {
         self.licence.require()?;
         let entered = pairing::read(text).map_err(|e| e.code())?;
-        let set = self.settings.get().relay_url;
-        let relay = match entered.relay {
-            Some(relay) if set.is_empty() || set == relay.as_str() => relay,
-            Some(_) => return Err("E_SYNC_PAIRING_RELAY"),
-            None => self.relay()?,
-        };
-        if let Some(held) = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())?
-            && self.credentials(&relay, &held).is_ok()
+        let relay = self.relay()?;
+        if entered
+            .relay
+            .is_some_and(|named| named.as_str() != relay.as_str())
+        {
+            return Err("E_SYNC_PAIRING_RELAY");
+        }
+        // Refused before the offer is taken, so the code still works on another device. A device
+        // removed from its vault may hold it and be let back in.
+        let held = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())?;
+        if let Some(held) = &held
+            && !self.revoked_from(held)?
         {
             return Err("E_SYNC_VAULT_EXISTS");
         }
@@ -487,8 +530,10 @@ impl SyncService {
             log::warn!("W_SYNC_PAIRING_OFFER {} pairing={}", e.code(), pairing.id());
             e.code()
         })?;
-        let vault = Vault::join(self.secrets.as_ref(), vault).map_err(|e| e.code())?;
-        let device = self.join(&relay, &vault)?;
+        if held.is_some_and(|held| !held.same(&vault)) {
+            return Err("E_SYNC_VAULT_EXISTS");
+        }
+        let (vault, device) = self.join(&relay, vault)?;
         let confirmed = pairing
             .seal_confirmation(&device)
             .map_err(|e| e.code())
@@ -509,35 +554,43 @@ impl SyncService {
         }
         let relay = self.relay()?;
         let vault = Vault::from_recovery_key(text).map_err(|e| e.code())?;
-        let vault = Vault::join(self.secrets.as_ref(), vault).map_err(|e| e.code())?;
-        if self.credentials(&relay, &vault).is_ok() {
-            return Ok(self.changed());
+        if let Some(held) = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())? {
+            if !held.same(&vault) {
+                return Err("E_SYNC_VAULT_EXISTS");
+            }
+            if self.credentials(&relay, &held).is_ok() {
+                return Ok(self.changed());
+            }
         }
-        let device = self.join(&relay, &vault)?;
+        let (vault, device) = self.join(&relay, vault)?;
         log::info!("I_SYNC_RECOVERED vault={} device={device}", vault.id());
         Ok(self.changed())
     }
 
-    /// Turns sync on for `relay` with the vault this device now holds, and enrolls it. Settings
-    /// change without telling the windows until the token is kept, so the engine does not enroll
-    /// a second time meanwhile.
-    fn join(&self, relay: &RelayUrl, vault: &Vault) -> Result<String, &'static str> {
+    /// Whether this device holds a token for `vault` that the relay revoked, on any relay address.
+    fn revoked_from(&self, vault: &Vault) -> Result<bool, &'static str> {
+        Ok(DeviceCredentials::load(self.secrets.as_ref())
+            .map_err(|e| e.code())?
+            .is_some_and(|c| c.vault == vault.id().to_string() && c.token == REVOKED))
+    }
+
+    /// Enrolls this device in `vault` on `relay`, then keeps the token, the vault and sync on, in
+    /// that order: a refused enrollment keeps nothing, and the engine, which needs the vault, never
+    /// enrolls a second time meanwhile.
+    fn join(&self, relay: &RelayUrl, vault: Vault) -> Result<(Vault, String), &'static str> {
+        let enrolled = client::enroll(relay, &vault, DEVICE_LABEL)?;
+        self.keep(relay, &vault, &enrolled.device, &enrolled.token)?;
+        let vault = Vault::join(self.secrets.as_ref(), vault).map_err(|e| {
+            if DeviceCredentials::forget(self.secrets.as_ref()).is_err() {
+                log::warn!("W_SYNC_TOKEN_FORGET_FAILED");
+            }
+            e.code()
+        })?;
         let mut settings = self.settings.get();
-        if settings.relay_url != relay.as_str() {
-            self.disconnect();
-        }
-        settings.relay_url = relay.as_str().to_string();
         settings.enabled = true;
         settings.recovery_shown = vault.id().to_string();
         self.settings.set(&settings)?;
-        let enrolled = client::enroll(relay, vault, DEVICE_LABEL).and_then(|e| {
-            self.keep(relay, vault, &e.device, &e.token)
-                .map(|()| e.device)
-        });
-        if enrolled.is_err() {
-            self.changed();
-        }
-        enrolled
+        Ok((vault, enrolled.device))
     }
 
     /// Runs `work` on the engine's socket, or on one opened for it when sync is not connected.
@@ -650,14 +703,13 @@ impl SyncService {
             .map_err(|e| e.code())?
             .ok_or("E_SYNC_NO_VAULT_KEY")?;
         let vault_id = vault.id().to_string();
+        // A removed device stays out under any address of the relay: only a join lets it back in.
         let credentials =
             match DeviceCredentials::load(self.secrets.as_ref()).map_err(|e| e.code())? {
-                Some(c) if c.fits(relay.as_str(), &vault_id) => {
-                    if c.token == REVOKED {
-                        return Err("E_SYNC_REVOKED");
-                    }
-                    c
+                Some(c) if c.vault == vault_id && c.token == REVOKED => {
+                    return Err("E_SYNC_REVOKED");
                 }
+                Some(c) if c.fits(relay.as_str(), &vault_id) => c,
                 _ => self.enroll_here(&relay, &vault)?,
             };
         self.disconnect();

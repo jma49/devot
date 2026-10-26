@@ -270,11 +270,9 @@ fn pairs_a_new_device_by_code_and_both_read_the_same_records() {
     );
     assert!(devices.iter().any(|d| d.id == mac.device_id() && d.current));
 
-    // The QR code's link brings the relay to a device that has none set.
-    let tablet = Device::at("");
+    let tablet = Device::at(url);
     let link = mac.service.pairing_open().unwrap().link;
     tablet.service.join_with_code(&link).unwrap();
-    assert_eq!(tablet.service.snapshot().relay_url, url);
     assert_eq!(phone.service.devices().unwrap().len(), 3);
     mac.service.disconnect();
     phone.service.disconnect();
@@ -488,6 +486,7 @@ fn the_recovery_key_restores_access_on_a_fresh_device() {
         .clone()
         .expect("shown the first time it is ready");
     assert!(!format!("{created:?}").contains(&key[..10]));
+    mac.service.recovery_saved().unwrap();
     assert!(
         mac.service
             .create_vault(SECRET)
@@ -672,7 +671,184 @@ fn a_gated_build_pairs_and_joins_only_with_a_licence_but_always_lists_devices() 
 fn settings_keep_no_secret_and_name_the_vault_whose_key_was_shown() {
     let relay = NodeRelay::start();
     let mac = Device::first(relay.url.as_str());
+    mac.service.recovery_saved().unwrap();
     let stored = std::fs::read_to_string(mac._dir.path().join(FILE)).unwrap();
     assert!(stored.contains(&mac.vault().id().to_string()));
     assert!(!stored.contains(&mac.vault().recovery_key().replace('-', "")[..20]));
+}
+
+#[test]
+fn a_failed_enrollment_keeps_nothing_so_the_right_vault_can_still_be_joined() {
+    let relay = NodeRelay::start();
+    let url = relay.url.as_str();
+    let mac = Device::first(url);
+    let key = mac.vault().recovery_key().to_string();
+
+    let phone = Device::at(url);
+    let unknown = Vault::generate().unwrap().recovery_key().to_string();
+    assert_eq!(
+        phone.service.join_with_recovery(&unknown).err(),
+        Some("E_SYNC_NO_VAULT")
+    );
+    assert!(phone.holds_nothing());
+    assert!(!phone.service.snapshot().enabled);
+    phone.service.join_with_recovery(&key).unwrap();
+    assert_eq!(phone.vault().id(), mac.vault().id());
+
+    // The relay refuses the enrollment after the code was taken: nothing is kept either.
+    let proxy = Proxy::start(url);
+    let tablet = Device::at(&proxy.url);
+    proxy.tamper(|path, status, body| {
+        if path.ends_with("/devices") {
+            let refused = json!({ "v": 1, "type": "error", "code": "E_SYNC_FORBIDDEN" });
+            (403, refused)
+        } else {
+            (status, body)
+        }
+    });
+    let code = mac.service.pairing_open().unwrap().code;
+    assert!(tablet.service.join_with_code(&code).is_err());
+    assert!(tablet.holds_nothing());
+    assert!(!tablet.service.snapshot().enabled);
+    proxy.honest();
+    tablet
+        .service
+        .join_with_code(&mac.service.pairing_open().unwrap().code)
+        .unwrap();
+    assert_eq!(tablet.vault().id(), mac.vault().id());
+}
+
+#[test]
+fn a_device_holding_another_vault_is_refused_before_the_code_is_used_up() {
+    let first = NodeRelay::start();
+    let second = NodeRelay::start();
+    let moved = Device::first(first.url.as_str());
+    moved
+        .service
+        .set(SettingsPatch {
+            relay_url: Some(second.url.as_str().to_string()),
+            enabled: None,
+        })
+        .unwrap();
+    let mac = Device::first(second.url.as_str());
+    let code = mac.service.pairing_open().unwrap().code;
+    assert_eq!(
+        moved.service.join_with_code(&code).err(),
+        Some("E_SYNC_VAULT_EXISTS")
+    );
+    assert_eq!(mac.service.pairing_check().unwrap().state, "waiting");
+    Device::at(second.url.as_str())
+        .service
+        .join_with_code(&code)
+        .unwrap();
+}
+
+#[test]
+fn a_link_joins_only_the_relay_set_in_settings() {
+    let relay = NodeRelay::start();
+    let url = relay.url.as_str();
+    let mac = Device::first(url);
+    let link = mac.service.pairing_open().unwrap().link;
+    let blank = Device::at("");
+    assert_eq!(
+        blank.service.join_with_code(&link).err(),
+        Some("E_SYNC_NO_RELAY")
+    );
+    assert!(blank.holds_nothing());
+    assert_eq!(mac.service.pairing_check().unwrap().state, "waiting");
+    let set = Device::at(url);
+    set.service.join_with_code(&link).unwrap();
+    assert_eq!(set.service.snapshot().relay_url, url);
+}
+
+#[test]
+fn a_removed_device_does_not_enroll_again_on_its_own_under_another_address_of_the_relay() {
+    let relay = NodeRelay::start();
+    let url = relay.url.as_str();
+    let mac = Device::first(url);
+    let phone = Device::at(url);
+    phone
+        .service
+        .join_with_code(&mac.service.pairing_open().unwrap().code)
+        .unwrap();
+    phone.service.connect().unwrap();
+    mac.service.remove_device(&phone.device_id()).unwrap();
+    wait_until("the close marks the phone removed", || {
+        !phone.service.snapshot().enrolled
+    });
+    phone.service.disconnect();
+    let alias = url.replace("127.0.0.1", "localhost");
+    assert_ne!(alias, url);
+    phone
+        .service
+        .set(SettingsPatch {
+            relay_url: Some(alias),
+            enabled: None,
+        })
+        .unwrap();
+    assert_eq!(phone.service.connect().err(), Some("E_SYNC_REVOKED"));
+    assert_eq!(mac.service.devices().unwrap().len(), 1);
+}
+
+#[test]
+fn the_showing_device_waits_out_the_relays_grace_for_a_device_that_took_the_code() {
+    let relay = NodeRelay::start();
+    let url = relay.url.as_str();
+    let relay_url = relay.url.clone();
+
+    // Confirmed just after expiry: still paired.
+    let mac = Device::first(url);
+    let code = mac.service.pairing_open().unwrap().code;
+    let phone = Device::at(url);
+    phone.service.join_with_code(&code).unwrap();
+    mac.service.shift_clock(TTL_MS + 1);
+    let check = mac.service.pairing_check().unwrap();
+    assert_eq!(check.state, "paired");
+    assert_eq!(check.device, Some(phone.device_id()));
+
+    // Taken and never confirmed: the showing device says so instead of a plain expiry.
+    let code = mac.service.pairing_open().unwrap().code;
+    let entered = super::pairing::read(&code).unwrap();
+    client::pairing_take(&relay_url, entered.pairing.id()).unwrap();
+    assert_eq!(mac.service.pairing_check().unwrap().state, "taken");
+    mac.service.shift_clock(TTL_MS + 1);
+    assert_eq!(mac.service.pairing_check().unwrap().state, "taken");
+    mac.service.shift_clock(super::pairing::GRACE_MS);
+    assert_eq!(mac.service.pairing_check().unwrap().state, "unconfirmed");
+    assert_eq!(
+        mac.service.pairing_check().err(),
+        Some("E_SYNC_PAIRING_NONE")
+    );
+}
+
+#[test]
+fn the_recovery_key_stays_on_offer_until_this_device_says_it_was_saved() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(relay.url.as_str());
+    let key = mac.vault().recovery_key().to_string();
+    assert_eq!(
+        mac.service.recovery_key().unwrap().map(|k| k.to_string()),
+        Some(key.clone())
+    );
+    assert_eq!(
+        mac.service
+            .create_vault(SECRET)
+            .unwrap()
+            .recovery_key
+            .as_deref(),
+        Some(key.as_str())
+    );
+    mac.service.recovery_saved().unwrap();
+    assert!(mac.service.recovery_key().unwrap().is_none());
+    assert!(
+        mac.service
+            .create_vault(SECRET)
+            .unwrap()
+            .recovery_key
+            .is_none()
+    );
+
+    let phone = Device::at(relay.url.as_str());
+    phone.service.join_with_recovery(&key).unwrap();
+    assert!(phone.service.recovery_key().unwrap().is_none());
 }

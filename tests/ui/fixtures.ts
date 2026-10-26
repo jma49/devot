@@ -157,8 +157,10 @@ export async function mockTauri(page: Page): Promise<void> {
               enrolled: false,
               status: { state: 'off', lastSync: null, code: null, tooLarge: 0 },
             }
+          if (cmd === 'sync_recovery_key') return null
           if (
             cmd === 'clipboard_write_text' ||
+            cmd === 'clipboard_write_secret' ||
             cmd === 'usage_record' ||
             cmd === 'format_menu_set' ||
             cmd === 'sidebar_menu_set' ||

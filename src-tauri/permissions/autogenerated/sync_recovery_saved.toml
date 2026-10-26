@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sync-recovery-saved"
+description = "Enables the sync_recovery_saved command without any pre-configured scope."
+commands.allow = ["sync_recovery_saved"]
+
+[[permission]]
+identifier = "deny-sync-recovery-saved"
+description = "Denies the sync_recovery_saved command without any pre-configured scope."
+commands.deny = ["sync_recovery_saved"]

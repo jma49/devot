@@ -123,10 +123,14 @@ impl Vault {
     /// (a removed device let back in). Another vault is never replaced.
     pub(crate) fn join(store: &dyn SecretStore, vault: Self) -> Result<Self, SyncError> {
         match Self::load(store)? {
-            Some(held) if held.id == vault.id && held.key[..] == vault.key[..] => Ok(held),
+            Some(held) if held.same(&vault) => Ok(held),
             Some(_) => Err(SyncError::VaultExists),
             None => Self::keep_new(store, vault),
         }
+    }
+
+    pub(crate) fn same(&self, other: &Self) -> bool {
+        self.id == other.id && self.key[..] == other.key[..]
     }
 
     pub(crate) fn load(store: &dyn SecretStore) -> Result<Option<Self>, SyncError> {

@@ -21,6 +21,9 @@ use super::{SyncError, Vault};
 
 /// How long an offer can be taken (`PAIRING.ttlMs` in src/core/sync/protocol.ts).
 pub(crate) const TTL_MS: i64 = 10 * 60_000;
+/// How long past its expiry the relay keeps a pairing (`PAIRING.graceMs`), so a device that took
+/// the offer in time can still confirm.
+pub(crate) const GRACE_MS: i64 = 60_000;
 /// The clock difference the engine allows (`E_SYNC_CLOCK_SKEW`), allowed on an offer's expiry too.
 const SKEW_MS: i64 = 5 * 60_000;
 

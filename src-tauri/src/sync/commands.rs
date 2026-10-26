@@ -43,6 +43,22 @@ pub async fn sync_vault_create(
     blocking(&sync, move |sync| sync.create_vault(&secret)).await
 }
 
+/// The recovery key until this device says it was saved; then `null`.
+#[tauri::command]
+pub async fn sync_recovery_key(
+    sync: State<'_, Arc<SyncService>>,
+) -> Result<Option<String>, String> {
+    blocking(&sync, |sync| {
+        Ok(sync.recovery_key()?.map(|key| key.to_string()))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn sync_recovery_saved(sync: State<'_, Arc<SyncService>>) -> Result<(), String> {
+    blocking(&sync, |sync| sync.recovery_saved()).await
+}
+
 #[tauri::command]
 pub async fn sync_pairing_open(sync: State<'_, Arc<SyncService>>) -> Result<PairingView, String> {
     blocking(&sync, |sync| sync.pairing_open()).await

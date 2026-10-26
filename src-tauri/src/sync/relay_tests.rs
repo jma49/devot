@@ -265,6 +265,7 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
     let ready = service.create_vault(SECRET).unwrap();
     assert!(ready.snapshot.vault && ready.snapshot.enrolled && ready.snapshot.enabled);
     assert!(ready.recovery_key.is_some());
+    service.recovery_saved().unwrap();
     let stored = std::fs::read_to_string(dir.path().join(super::settings::FILE)).unwrap();
     assert!(
         !stored.contains(SECRET) && !stored.contains("token"),
