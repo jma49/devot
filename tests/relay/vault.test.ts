@@ -32,10 +32,15 @@ interface VaultAtOptions {
 async function vaultAt(start: number, options: VaultAtOptions = {}) {
   const db = new Database(join(tempDir('devot-relay-vault-'), 'v.sqlite'))
   open.push(db)
-  const clock = { now: start }
+  /** `step` moves the clock on at every read, so a check made from two reads shows. */
+  const clock = { now: start, step: 0 }
   const relay = new VaultRelay(sqliteSql(db), 'vault-0123456789ab', {
     secret,
-    now: () => clock.now,
+    now: () => {
+      const at = clock.now
+      clock.now += clock.step
+      return at
+    },
     limiter: options.limiter ?? new RateLimiter(3, 1),
     log: () => {},
     ...(options.quota === undefined ? {} : { quota: options.quota }),
@@ -143,6 +148,17 @@ describe('quota cap', () => {
     expect(send(...record('late', 0))).toMatchObject({ code: 'E_SYNC_QUOTA', until: midnight })
     clock.now = midnight
     expect(send(...record('late', 0))).toMatchObject({ type: 'pushed' })
+  })
+
+  it('dates a refusal from the moment it checked the counters, even as the clock turns 00:00 UTC', async () => {
+    const { clock, send } = await vaultAt(noon, {
+      quota: { ...NO_CAP, rowsWritten: 12 },
+      limiter: roomy(),
+    })
+    for (let i = 0; i < 10; i++) if (send(...record(`r${i}`, 0))['type'] === 'error') break
+    clock.now = midnight - 2
+    clock.step = 1
+    expect(send(...record('late', 0))).toMatchObject({ code: 'E_SYNC_QUOTA', until: midnight })
   })
 
   it('counts connections against the requests cap on their own', async () => {

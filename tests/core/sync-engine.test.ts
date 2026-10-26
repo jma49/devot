@@ -571,6 +571,22 @@ describe('the relay’s quota cap', () => {
     for (const id of ids) expect((await b.note(id))?.title).toMatch(/^Note /)
   })
 
+  it('keeps the relay’s reset time when the refusal arrives after it, and goes on within a minute', async () => {
+    const midnight = Date.UTC(2026, 9, 24)
+    const { time, a } = await cappedPair(midnight - 300, { rowsWritten: 24 })
+    const push = a.transport.push.bind(a.transport)
+    a.transport.push = async (...args) => {
+      const result = await push(...args)
+      if (result.type === 'paused') time.now = midnight + 50
+      return result
+    }
+    for (let i = 0; i < 8; i++) await a.notes.create(`Note ${i}`)
+    await a.sync()
+    await a.engine.idle()
+    expect(a.statuses.find((s) => s.state === 'paused')?.pausedUntil).toBe(midnight)
+    await resumed(a)
+  })
+
   it('uploads a large vault over several days, with its progress, keeping its place across a restart', async () => {
     const { time, a, b } = await cappedPair(Date.UTC(2026, 9, 23, 12), { rowsWritten: 30 })
     const ids: string[] = []

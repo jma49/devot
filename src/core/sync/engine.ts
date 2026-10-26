@@ -335,7 +335,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     } else if (code === 'E_SYNC_QUOTA') {
       const relayNow = now() + relayOffset
       const said = error instanceof QuotaPaused ? error.until : null
-      const until = said !== null && said > relayNow ? said : quotaResetAt(relayNow)
+      const next = quotaResetAt(relayNow)
+      // A reset already past (the refusal came in after it) resumes after the jitter; one past the next two is not believed.
+      const until = said === null ? next : Math.min(said, quotaResetAt(next))
       set({ state: 'paused', code, pausedUntil: until })
       resumeAt(until)
     } else {

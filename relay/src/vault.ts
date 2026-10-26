@@ -329,9 +329,10 @@ export class VaultRelay {
       if (length > LIMITS.maxChunkBytes) throw new ProtocolError('E_SYNC_TOO_LARGE')
     }
     const chunks = splitChunks(payload, lengths as number[])
+    const at = this.now()
     const result = this.sql.transaction(() => {
       const row = this.sql.all('SELECT version, kind, bytes FROM records WHERE id = ?', id)[0]
-      const limit = this.quotaLimit(payload.length - num(row?.['bytes']))
+      const limit = this.quotaLimit(payload.length - num(row?.['bytes']), at)
       if (limit) {
         this.pending.messages++
         return { quota: limit }
@@ -375,7 +376,7 @@ export class VaultRelay {
       return { version, seq }
     })
     if ('quota' in result) {
-      const until = quotaResetAt(this.now())
+      const until = quotaResetAt(at)
       return {
         reply: encodeFrame({
           type: 'error',
@@ -472,10 +473,10 @@ export class VaultRelay {
   }
 
   /** The limit a push adding `growth` stored bytes would trip; today's counts are 0 until the row's first write today. */
-  private quotaLimit(growth: number) {
+  private quotaLimit(growth: number, at: number) {
     if (!this.quota) return null
     const usage = this.usage()
-    const today = usage.day === day(this.now())
+    const today = usage.day === day(at)
     return trippedLimit(
       {
         rowsWritten: today ? usage.rowsWritten : 0,
