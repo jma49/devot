@@ -378,8 +378,17 @@ pub(crate) fn deliver<R: Runtime>(app: &AppHandle<R>, link: Link) {
 /// Whether files handed over now would be held: the single-instance listener refuses the hand-off
 /// otherwise, so the `devot` command fails instead of losing them.
 pub(crate) fn room_for_import<R: Runtime>(app: &AppHandle<R>) -> bool {
+    let open = app
+        .try_state::<crate::import::Imports>()
+        .map_or(0, |imports| imports.open());
     app.try_state::<DeepLinks>()
-        .is_none_or(|links| links.with(|inbox| inbox.room_for_import()))
+        .is_none_or(|links| links.with(|inbox| import_room(inbox, open)))
+}
+
+/// Files released to the page wait in its queue, which holds as many as Rust does and is not seen
+/// from here; every one of them is an import not yet finished, so those are counted instead.
+fn import_room(inbox: &Inbox, open_imports: usize) -> bool {
+    inbox.room_for_import() && open_imports < MAX_HELD_IMPORTS
 }
 
 /// A phone has no minimized windows.
@@ -895,6 +904,14 @@ mod tests {
         );
         assert_eq!(held.len(), MAX_HELD + MAX_HELD_IMPORTS);
         assert!(inbox.room_for_import());
+    }
+
+    #[test]
+    fn refuses_files_while_the_page_may_already_hold_as_many_imports_as_it_takes() {
+        let mut inbox = Inbox::default();
+        inbox.take("main");
+        assert!(import_room(&inbox, MAX_HELD_IMPORTS - 1));
+        assert!(!import_room(&inbox, MAX_HELD_IMPORTS));
     }
 
     #[test]

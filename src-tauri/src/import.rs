@@ -692,6 +692,17 @@ impl Imports {
         Err("E_IMPORT_PATH_OUTSIDE")
     }
 
+    /// Imports begun and not yet finished: scanning (and not cancelled) or scanned.
+    pub fn open(&self) -> usize {
+        let scanning = self.pending.lock().map_or(0, |pending| {
+            pending
+                .values()
+                .filter(|cancelled| !cancelled.load(Ordering::Relaxed))
+                .count()
+        });
+        scanning + self.sessions.lock().map_or(0, |sessions| sessions.len())
+    }
+
     pub fn finish(&self, id: u64) {
         if let Ok(pending) = self.pending.lock()
             && let Some(flag) = pending.get(&id)
@@ -1490,6 +1501,19 @@ mod tests {
             imports.root_for(scan.id, "Saved/.secret.html", true),
             Err("E_IMPORT_PATH_UNKNOWN")
         );
+    }
+
+    #[test]
+    fn counts_the_sessions_still_open_whether_scanning_or_scanned() {
+        let dir = sample();
+        let found = scan(dir.path()).unwrap();
+        let imports = Imports::default();
+        let (scanning, _) = imports.begin();
+        let scanned = imports.start(found, None).id;
+        assert_eq!(imports.open(), 2);
+        imports.finish(scanning);
+        imports.finish(scanned);
+        assert_eq!(imports.open(), 0);
     }
 
     #[test]

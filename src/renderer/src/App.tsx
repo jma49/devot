@@ -3155,6 +3155,7 @@ export function App() {
       if (!report?.bookId) showLibraryRef.current?.({ kind: 'all' }, { clearFilter: true })
       void select(id)
     } catch {
+      void finishImport(link.scan.id)
       setLinkNotice('importFailed')
     }
   }
