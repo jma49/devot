@@ -12,7 +12,7 @@ const PIECE: usize = MAX_CHUNK_BYTES - 29;
 const SMALL: usize = 1000;
 
 #[derive(Default)]
-struct MemoryStore(RefCell<HashMap<String, Vec<u8>>>);
+pub(super) struct MemoryStore(RefCell<HashMap<String, Vec<u8>>>);
 
 impl SecretStore for MemoryStore {
     fn read(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, SyncError> {
@@ -49,7 +49,7 @@ impl SecretStore for FailingStore {
     }
 }
 
-fn fixed_vault() -> Vault {
+pub(super) fn fixed_vault() -> Vault {
     let id = VaultId::from_bytes(hex::<16>("0123456789ab4def8123456789abcdef"));
     let mut key = Zeroizing::new([0; 32]);
     for (i, byte) in key.iter_mut().enumerate() {
@@ -66,7 +66,7 @@ fn hex<const N: usize>(text: &str) -> [u8; N] {
     bytes.try_into().unwrap()
 }
 
-fn to_hex(bytes: &[u8]) -> String {
+pub(super) fn to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 

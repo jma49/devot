@@ -617,6 +617,62 @@ export const en = {
   'syncSettings.urlFailed': 'The relay address could not be saved ({code}).',
   'syncSettings.vaultFailed': 'The vault could not be created ({code}).',
   'syncSettings.changeFailed': 'Sync could not be turned on or off ({code}).',
+  'syncSettings.recovery': 'Recovery Key',
+  'syncSettings.recoveryHint':
+    'Keep this key in your password manager, or print it. With it and the relay’s address, a new device joins your vault even when no other device is left. Devot shows it only this once.',
+  'syncSettings.recoveryCopy': 'Copy',
+  'syncSettings.recoveryCopied': 'The recovery key was copied.',
+  'syncSettings.recoverySaved': 'I Saved It',
+  'syncSettings.copyFailed': 'The recovery key could not be copied ({code}).',
+  'syncSettings.pair': 'Add a Device',
+  'syncSettings.pairHint':
+    'Show a code here, then scan it with the new device’s camera, or type or paste it there under Join With a Code. It works once, for 10 minutes.',
+  'syncSettings.pairShow': 'Show Pairing Code',
+  'syncSettings.pairQr': 'QR code for pairing a device',
+  'syncSettings.pairCode': 'Pairing code',
+  'syncSettings.pairExpiresIn': 'Expires in {time}.',
+  'syncSettings.pairWaiting': 'Waiting for the other device…',
+  'syncSettings.pairTaken': 'A device is joining…',
+  'syncSettings.pairDone': 'A new device joined the vault.',
+  'syncSettings.pairExpired': 'The code expired. Show a new one to try again.',
+  'syncSettings.pairFailed': 'The pairing code could not be shown ({code}).',
+  'syncSettings.pairCheckFailed': 'The pairing stopped ({code}).',
+  'syncSettings.joinCode': 'Join With a Code',
+  'syncSettings.joinCodeHint':
+    'The code another of your devices shows under Add a Device. Set the relay above first, unless you paste the whole link.',
+  'syncSettings.joinRecovery': 'Join With Recovery Key',
+  'syncSettings.joinRecoveryHint':
+    'The recovery key you saved when you turned sync on, with the relay above.',
+  'syncSettings.join': 'Join',
+  'syncSettings.joined': 'This device joined the vault and sync is on.',
+  'syncSettings.joinFailed': 'This device could not join the vault ({code}).',
+  'syncSettings.devices': 'Devices',
+  'syncSettings.devicesHint':
+    'The devices in this vault. Removing one takes away its access to the relay; its notes stay on it.',
+  'syncSettings.devicesList': 'Devices in this vault',
+  'syncSettings.deviceAdded': 'Added {date}',
+  'syncSettings.thisDevice': 'This Device',
+  'syncSettings.deviceRemove': 'Remove…',
+  'syncSettings.deviceRemoveLabel': 'Remove {name}, added {date}',
+  'syncSettings.deviceRemoveConfirm': 'Remove this device from sync?',
+  'syncSettings.deviceRemoveDetail':
+    'It can no longer reach the relay, and sync stops there. The notes on it stay. To let it back in, pair it again.',
+  'syncSettings.deviceRemoveButton': 'Remove',
+  'syncSettings.deviceRemoved': 'The device was removed from sync.',
+  'syncSettings.devicesFailed': 'The devices could not be listed ({code}).',
+  'syncSettings.removeFailed': 'The device could not be removed ({code}).',
+  'syncSettings.why.outdated':
+    'Your relay is from before pairing: update it (docs/sync-relay.md, Update the relay). The recovery key works with it meanwhile.',
+  'syncSettings.why.otherVault':
+    'This device already holds another vault, which Devot never replaces.',
+  'syncSettings.why.codeGone':
+    'The code was used, cancelled or has expired. Show a new one on the other device.',
+  'syncSettings.why.codeMistyped': 'Check the code: it does not read as a pairing code.',
+  'syncSettings.why.codeRefused':
+    'What the relay handed over does not open with this code, so nothing was kept.',
+  'syncSettings.why.otherRelay': 'The code is for another relay than the one set above.',
+  'syncSettings.why.keyMistyped': 'Check the key: it does not read as a recovery key.',
+  'syncSettings.why.noRelay': 'Enter the relay’s address above first.',
   'sync.notice.revoked':
     'This device was removed from sync, so sync has stopped. Your notes stay on this device.',
   'sync.notice.clock':

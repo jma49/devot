@@ -166,6 +166,8 @@ export const sizes = {
 } as const
 
 export const light = {
+  "color.qr.ground": "#ffffff",
+  "color.qr.module": "#1c1b19",
   "color.surface.sidebar": "rgb(255 255 255 / 0.02)",
   "color.surface.sidebar-opaque": "#f3f4f6",
   "color.surface.list": "#fafaf9",
@@ -300,6 +302,8 @@ export const light = {
 } as const
 
 export const dark = {
+  "color.qr.ground": "#ffffff",
+  "color.qr.module": "#1c1b19",
   "color.surface.sidebar": "rgb(0 0 0 / 0.1)",
   "color.surface.sidebar-opaque": "#171717",
   "color.surface.list": "#111111",
@@ -434,6 +438,8 @@ export const dark = {
 } as const
 
 export const ivoryLight = {
+  "color.qr.ground": "#ffffff",
+  "color.qr.module": "#1c1b19",
   "color.surface.sidebar": "rgb(245 244 237 / 0.02)",
   "color.surface.sidebar-opaque": "#f5f4ed",
   "color.surface.list": "#faf9f5",
@@ -568,6 +574,8 @@ export const ivoryLight = {
 } as const
 
 export const ivoryDark = {
+  "color.qr.ground": "#ffffff",
+  "color.qr.module": "#1c1b19",
   "color.surface.sidebar": "rgb(31 30 29 / 0.1)",
   "color.surface.sidebar-opaque": "#1f1e1d",
   "color.surface.list": "#262624",

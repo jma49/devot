@@ -21,6 +21,10 @@ pub(crate) struct SyncSettings {
     pub relay_url: String,
     #[serde(default)]
     pub enabled: bool,
+    /// The vault whose recovery key this device has shown (or never makes, having joined it), so
+    /// the key is shown once. A vault ID, which is no secret.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub recovery_shown: String,
 }
 
 pub(crate) struct SettingsStore {

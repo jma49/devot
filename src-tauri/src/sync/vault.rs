@@ -83,13 +83,6 @@ impl Vault {
         self.id
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the recovery key's sheet and pairing (#336) are its callers"
-        )
-    )]
     pub(super) fn key(&self) -> &[u8; KEY_BYTES] {
         &self.key
     }
@@ -105,13 +98,6 @@ impl Vault {
     }
 
     /// The vault ID and key as Crockford base32 with a checksum, in groups of five, for printing.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the recovery key's sheet and pairing (#336) are its callers"
-        )
-    )]
     pub(crate) fn recovery_key(&self) -> Zeroizing<String> {
         recovery::encode(&self.id, &self.key)
     }
@@ -123,16 +109,24 @@ impl Vault {
     }
 
     /// Keeps the vault a recovery key holds in `store`, which must hold none yet.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the recovery key's sheet and pairing (#336) are its callers"
-        )
-    )]
+    #[cfg(test)]
     pub(crate) fn restore(store: &dyn SecretStore, recovery_key: &str) -> Result<Self, SyncError> {
+        Self::keep_new(store, Self::from_recovery_key(recovery_key)?)
+    }
+
+    pub(crate) fn from_recovery_key(recovery_key: &str) -> Result<Self, SyncError> {
         let (id, key) = recovery::decode(recovery_key)?;
-        Self::keep_new(store, Self::from_parts(id, key))
+        Ok(Self::from_parts(id, key))
+    }
+
+    /// Keeps a vault this device joins: in a store that holds none, or that holds this same vault
+    /// (a removed device let back in). Another vault is never replaced.
+    pub(crate) fn join(store: &dyn SecretStore, vault: Self) -> Result<Self, SyncError> {
+        match Self::load(store)? {
+            Some(held) if held.id == vault.id && held.key[..] == vault.key[..] => Ok(held),
+            Some(_) => Err(SyncError::VaultExists),
+            None => Self::keep_new(store, vault),
+        }
     }
 
     pub(crate) fn load(store: &dyn SecretStore) -> Result<Option<Self>, SyncError> {
@@ -147,7 +141,7 @@ impl Vault {
         not(test),
         expect(
             dead_code,
-            reason = "the recovery key's sheet and pairing (#336) are its callers"
+            reason = "leaving a vault on purpose, a follow-up of #336, is its caller"
         )
     )]
     pub(crate) fn delete(store: &dyn SecretStore) -> Result<bool, SyncError> {

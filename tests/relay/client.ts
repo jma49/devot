@@ -190,3 +190,19 @@ export async function enrolled(host: RelayHost, vault: TestVault, label = 'secon
 }
 
 export const bytes = (length: number, fill: number) => new Uint8Array(length).fill(fill)
+
+/** A pairing request: `op` is `pair` (the pairing's own path) or a sub-route; `token` a device's. */
+export function pairingRequest(
+  host: RelayHost,
+  id: string,
+  op: 'pair' | 'take' | 'confirm' | 'status' | 'close',
+  body: Record<string, unknown>,
+  token?: string,
+) {
+  const path = op === 'pair' ? '' : `/${op}`
+  return postJson(
+    `${host.url}/v1/pairings/${id}${path}`,
+    { v: 1, type: op, ...body },
+    token ? { authorization: `Bearer ${token}` } : {},
+  )
+}

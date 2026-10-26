@@ -51,6 +51,10 @@ Tags may take one colour from a fixed palette of eight: red, orange, yellow, gre
 
 The Activity sheet shades each day from five theme colours, `color.activity.level-0` (an idle day) to `level-4` (the most writing), in light and dark: a warm neutral, then Devot teal at increasing strength. They are Devot's own teal, not the system accent, so the scale reads the same whatever accent the user picked.
 
+## QR codes
+
+A QR code (Settings > Sync's pairing code) draws its modules in `color.qr.module` on `color.qr.ground`, near black on white in every theme and appearance: many scanners read only dark modules on a light ground, so it does not follow the dark appearance. It keeps a quiet zone of four modules.
+
 ## Contrast
 
 Text meets WCAG AA in both appearances: 4.5:1 for text, 3:1 for graphics such as status dots, the caret and focus rings. `src/renderer/src/theme/contrast.test.ts` computes the ratios from the token values for the pairs the UI draws, so a later edit cannot drop one below it. The palette starts from a set of design values; where one fails its pair it is moved toward black (light) or white (dark) only as far as AA needs, keeping its hue, and the token's `$description` records the design value and how far it moved. Status icons and dots use the `-mark` status colours, which need only 3:1 and so stay vivid; status text keeps the deeper ones. The values in effect:

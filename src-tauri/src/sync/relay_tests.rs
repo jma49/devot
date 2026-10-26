@@ -18,17 +18,17 @@ use super::settings::{DeviceCredentials, SettingsStore};
 use super::{SecretStore, SyncError, Vault};
 use crate::licence::Gate;
 
-const SECRET: &str = "test-relay-secret-0123456789abcdef";
-const RECORD: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789ab";
+pub(super) const SECRET: &str = "test-relay-secret-0123456789abcdef";
+pub(super) const RECORD: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789ab";
 
-struct NodeRelay {
+pub(super) struct NodeRelay {
     child: Child,
-    url: RelayUrl,
+    pub(super) url: RelayUrl,
     _data: tempfile::TempDir,
 }
 
 impl NodeRelay {
-    fn start() -> Self {
+    pub(super) fn start() -> Self {
         Self::spawn(tempfile::tempdir().unwrap(), "0")
     }
 
@@ -79,7 +79,7 @@ impl Drop for NodeRelay {
 }
 
 #[derive(Default)]
-struct Secrets(Mutex<std::collections::HashMap<String, Vec<u8>>>);
+pub(super) struct Secrets(pub(super) Mutex<std::collections::HashMap<String, Vec<u8>>>);
 
 impl SecretStore for Secrets {
     fn read(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, SyncError> {
@@ -106,7 +106,7 @@ impl SecretStore for Secrets {
     }
 }
 
-fn events() -> (Box<dyn Fn(Event) + Send>, mpsc::Receiver<Event>) {
+pub(super) fn events() -> (Box<dyn Fn(Event) + Send>, mpsc::Receiver<Event>) {
     let (send, receive) = mpsc::channel();
     (
         Box::new(move |event| {
@@ -263,7 +263,8 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
         Some("E_SYNC_RELAY_SECRET")
     );
     let ready = service.create_vault(SECRET).unwrap();
-    assert!(ready.vault && ready.enrolled && ready.enabled);
+    assert!(ready.snapshot.vault && ready.snapshot.enrolled && ready.snapshot.enabled);
+    assert!(ready.recovery_key.is_some());
     let stored = std::fs::read_to_string(dir.path().join(super::settings::FILE)).unwrap();
     assert!(
         !stored.contains(SECRET) && !stored.contains("token"),
@@ -283,7 +284,7 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
     assert!(service.connect().is_ok());
     // A new relay secret's tokens: creating again with the same key enrolls on the vault there.
     let again = service.create_vault(SECRET).unwrap();
-    assert!(again.enrolled);
+    assert!(again.snapshot.enrolled && again.recovery_key.is_none());
     assert!(
         emitted
             .lock()
@@ -293,11 +294,11 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
     service.disconnect();
 }
 
-fn service_on(relay: &NodeRelay, dir: &Path, secrets: Arc<Secrets>) -> SyncService {
+pub(super) fn service_on(relay: &NodeRelay, dir: &Path, secrets: Arc<Secrets>) -> SyncService {
     service_with(relay, dir, secrets, Gate::open())
 }
 
-fn service_with(
+pub(super) fn service_with(
     relay: &NodeRelay,
     dir: &Path,
     secrets: Arc<Secrets>,
@@ -332,7 +333,7 @@ fn a_gated_build_creates_no_vault_and_connects_no_device_without_a_licence() {
     );
     assert!(secrets.0.lock().unwrap().is_empty());
     licence.set(&testing::key(testing::ID)).unwrap();
-    assert!(service.create_vault(SECRET).unwrap().enrolled);
+    assert!(service.create_vault(SECRET).unwrap().snapshot.enrolled);
     assert!(service.connect().is_ok());
     // A device that already syncs stops at its next connect.
     licence.remove().unwrap();
@@ -384,7 +385,7 @@ fn a_revoked_device_stays_out_until_the_user_joins_again() {
         "no enrollment on its own"
     );
 
-    assert!(service.create_vault(SECRET).unwrap().enrolled);
+    assert!(service.create_vault(SECRET).unwrap().snapshot.enrolled);
     assert!(service.connect().is_ok());
     assert_eq!(device_count(&phone_socket), devices + 1);
     service.disconnect();
@@ -444,7 +445,7 @@ fn a_relay_that_lost_the_vault_asks_for_its_secret_and_gets_a_new_epoch() {
     );
     assert_eq!(service.connect().err(), Some("E_SYNC_NO_VAULT"));
 
-    assert!(service.create_vault(SECRET).unwrap().enrolled);
+    assert!(service.create_vault(SECRET).unwrap().snapshot.enrolled);
     let after = service.connect().unwrap();
     assert_ne!(after.epoch, before.epoch);
     service.disconnect();

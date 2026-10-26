@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { CLOSE, LIMITS, SUBPROTOCOL, toBase64Url } from '../../src/core/sync/protocol'
+import { CLOSE, LIMITS, PAIRING, SUBPROTOCOL, toBase64Url } from '../../src/core/sync/protocol'
 import {
   bytes,
   connect,
   createVault,
   enroll,
   enrolled,
+  pairingRequest,
   postJson,
   randomId,
   type RelayHost,
@@ -430,6 +431,131 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
         mac.socket.send({ type: 'devices' })
         expect((await mac.socket.expect('devices')).message['devices']).toHaveLength(1)
         mac.socket.close()
+      })
+    })
+
+    describe('pairing', () => {
+      const offer = toBase64Url(bytes(86, 3))
+      const proof = toBase64Url(bytes(40, 4))
+
+      it('hands the sealed offer out once and the confirmation to the vault’s devices', async () => {
+        const vault = await createVault(host, 'mac')
+        const id = randomId()
+        const token = vault.first.token
+        const opened = await pairingRequest(host, id, 'pair', { vault: vault.vault, offer }, token)
+        expect(opened).toMatchObject({ status: 200, body: { type: 'pairing', state: 'open' } })
+        const expires = Number(opened.body['expires'])
+        expect(expires - Number(opened.body['time'])).toBe(PAIRING.ttlMs)
+
+        expect(await pairingRequest(host, id, 'take', {})).toEqual({
+          status: 200,
+          body: { v: 1, type: 'offer', offer },
+        })
+        expect(await pairingRequest(host, id, 'take', {})).toMatchObject({
+          status: 404,
+          body: { code: 'E_SYNC_PAIRING_GONE' },
+        })
+        expect(
+          await pairingRequest(host, id, 'status', { vault: vault.vault }, token),
+        ).toMatchObject({ status: 200, body: { state: 'taken', expires } })
+
+        expect(await pairingRequest(host, id, 'confirm', { proof })).toMatchObject({
+          status: 200,
+          body: { type: 'confirmed' },
+        })
+        expect(await pairingRequest(host, id, 'confirm', { proof })).toMatchObject({
+          status: 404,
+          body: { code: 'E_SYNC_PAIRING_GONE' },
+        })
+        const phone = await enrolled(host, vault, 'phone')
+        expect(
+          await pairingRequest(host, id, 'status', { vault: vault.vault }, phone.token),
+        ).toMatchObject({ status: 200, body: { state: 'confirmed', proof } })
+
+        expect(
+          await pairingRequest(host, id, 'close', { vault: vault.vault }, token),
+        ).toMatchObject({ status: 200, body: { type: 'closed' } })
+        expect(
+          await pairingRequest(host, id, 'status', { vault: vault.vault }, token),
+        ).toMatchObject({ status: 404, body: { code: 'E_SYNC_PAIRING_GONE' } })
+      })
+
+      it('opens a pairing only for a device the vault knows, once per ID', async () => {
+        const vault = await createVault(host, 'mac')
+        const other = await createVault(host, 'stranger')
+        const id = randomId()
+        const body = { vault: vault.vault, offer }
+        expect(await pairingRequest(host, id, 'pair', body)).toMatchObject({
+          status: 401,
+          body: { code: 'E_SYNC_UNAUTHORIZED' },
+        })
+        expect(await pairingRequest(host, id, 'pair', body, other.first.token)).toMatchObject({
+          status: 401,
+        })
+        expect(
+          await pairingRequest(host, id, 'pair', body, `${vault.first.token.slice(0, -2)}AA`),
+        ).toMatchObject({ status: 401 })
+        expect(
+          await pairingRequest(host, id, 'pair', { vault: randomId(), offer }, vault.first.token),
+        ).toMatchObject({ status: 401 })
+
+        const phone = await enrolled(host, vault, 'phone')
+        const { socket } = await connect(host, vault.vault, vault.first.token)
+        socket.send({ type: 'revoke', device: phone.device })
+        await socket.expect('revoked')
+        socket.close()
+        expect(await pairingRequest(host, id, 'pair', body, phone.token)).toMatchObject({
+          status: 401,
+          body: { code: 'E_SYNC_UNAUTHORIZED' },
+        })
+
+        for (const bad of [
+          { vault: vault.vault },
+          { vault: vault.vault, offer: '' },
+          { vault: vault.vault, offer: toBase64Url(bytes(PAIRING.maxOfferBytes + 1, 1)) },
+          { vault: vault.vault, offer: 'not base64!' },
+        ]) {
+          expect((await pairingRequest(host, id, 'pair', bad, vault.first.token)).status).toBe(400)
+        }
+        const wrongType = await postJson(
+          `${host.url}/v1/pairings/${id}`,
+          { v: 1, type: 'take', vault: vault.vault, offer },
+          { authorization: `Bearer ${vault.first.token}` },
+        )
+        expect(wrongType).toMatchObject({ status: 400, body: { code: 'E_SYNC_BAD_MESSAGE' } })
+        expect((await pairingRequest(host, 'short', 'pair', body, vault.first.token)).status).toBe(
+          404,
+        )
+
+        expect((await pairingRequest(host, id, 'pair', body, vault.first.token)).status).toBe(200)
+        expect(await pairingRequest(host, id, 'pair', body, vault.first.token)).toMatchObject({
+          status: 409,
+          body: { code: 'E_SYNC_PAIRING_EXISTS' },
+        })
+        expect(
+          await pairingRequest(host, id, 'status', { vault: other.vault }, other.first.token),
+        ).toMatchObject({ status: 404, body: { code: 'E_SYNC_PAIRING_GONE' } })
+        expect(
+          await pairingRequest(host, id, 'close', { vault: other.vault }, other.first.token),
+        ).toMatchObject({ status: 404 })
+        expect(await pairingRequest(host, id, 'take', {})).toMatchObject({ status: 200 })
+      })
+
+      it('knows no pairing it was not given, and no confirmation before a take', async () => {
+        const vault = await createVault(host)
+        const id = randomId()
+        expect(await pairingRequest(host, randomId(), 'take', {})).toMatchObject({
+          status: 404,
+          body: { code: 'E_SYNC_PAIRING_GONE' },
+        })
+        await pairingRequest(host, id, 'pair', { vault: vault.vault, offer }, vault.first.token)
+        expect(await pairingRequest(host, id, 'confirm', { proof })).toMatchObject({
+          status: 404,
+          body: { code: 'E_SYNC_PAIRING_GONE' },
+        })
+        expect(await pairingRequest(host, id, 'confirm', { proof: '' })).toMatchObject({
+          status: 400,
+        })
       })
     })
 

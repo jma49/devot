@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sync-pairing-cancel"
+description = "Enables the sync_pairing_cancel command without any pre-configured scope."
+commands.allow = ["sync_pairing_cancel"]
+
+[[permission]]
+identifier = "deny-sync-pairing-cancel"
+description = "Denies the sync_pairing_cancel command without any pre-configured scope."
+commands.deny = ["sync_pairing_cancel"]

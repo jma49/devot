@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openApp, openSettings, test, type TestWindow } from './fixtures'
+import { clipboardWrites, expect, openApp, openSettings, test, type TestWindow } from './fixtures'
 
 // Settings > Sync, and the main window's notice. Rust is faked in the page: it keeps the relay's
 // URL and whether sync is on, and says only whether a vault and a token are there, as the real
@@ -15,41 +15,90 @@ interface FakeSync {
   status?: Record<string, unknown>
   /** What the vault's creation fails with. */
   refuse?: string
+  /** What joining fails with. */
+  refuseJoin?: string
 }
 
+const RECOVERY_KEY =
+  '0400Y-2E8Q3-5G2CA-1DPKB-NHGQ0-AAAAA-BBBBB-CCCCC-DDDDD-EEEEE-FFFFF-GGGGG-HHHHH-JJJJJ-KKKKK-MMMMM-N'
+const CODE = '0400-E3GN-3GHJ-MC9R-7X34-TN2V-C9MN-JTDF'
+const NOW = Date.UTC(2026, 9, 26, 12)
+
 async function fakeRust(page: Page, initial: FakeSync = {}) {
-  await page.addInitScript((start: FakeSync) => {
-    const w = globalThis as unknown as TestWindow
-    const state = {
-      relayUrl: start.relayUrl ?? '',
-      enabled: start.enabled ?? false,
-      vault: start.enrolled ?? false,
-      enrolled: start.enrolled ?? false,
-      status: { state: 'off', lastSync: null, code: null, tooLarge: 0, ...start.status },
-    }
-    const copy = () => JSON.parse(JSON.stringify(state))
-    w.devotIpcMocks = {
-      sync_get: () => copy(),
-      sync_set: (args: { patch: { relayUrl?: string; enabled?: boolean } }) => {
-        const { relayUrl, enabled } = args.patch
-        if (relayUrl !== undefined) {
-          if (relayUrl !== '' && !relayUrl.startsWith('https://')) throw 'E_SYNC_RELAY_URL_INVALID'
-          state.relayUrl = relayUrl
-          state.enrolled = false
-        }
-        if (enabled !== undefined) state.enabled = enabled
-        return copy()
-      },
-      sync_vault_create: (args: { relaySecret: string }) => {
-        if (start.refuse) throw start.refuse
-        if (!args.relaySecret) throw 'E_SYNC_RELAY_SECRET_INVALID'
+  await page.addInitScript(
+    ({ start, recoveryKey, code, now }) => {
+      const w = globalThis as unknown as TestWindow & { devotPairing?: string }
+      const state = {
+        relayUrl: start.relayUrl ?? '',
+        enabled: start.enabled ?? false,
+        vault: start.enrolled ?? false,
+        enrolled: start.enrolled ?? false,
+        status: { state: 'off', lastSync: null, code: null, tooLarge: 0, ...start.status },
+      }
+      let devices = [
+        { id: 'mac', label: 'Devot for macOS', created: now - 86_400_000, current: true },
+        { id: 'phone', label: 'Devot for iOS', created: now, current: false },
+      ]
+      const copy = () => JSON.parse(JSON.stringify(state))
+      const joined = () => {
+        if (start.refuseJoin) throw start.refuseJoin
         state.vault = true
         state.enrolled = true
         state.enabled = true
         return copy()
-      },
-    }
-  }, initial)
+      }
+      w.devotPairing = 'waiting'
+      w.devotIpcMocks = {
+        sync_get: () => copy(),
+        sync_set: (args: { patch: { relayUrl?: string; enabled?: boolean } }) => {
+          const { relayUrl, enabled } = args.patch
+          if (relayUrl !== undefined) {
+            if (relayUrl !== '' && !relayUrl.startsWith('https://'))
+              throw 'E_SYNC_RELAY_URL_INVALID'
+            state.relayUrl = relayUrl
+            state.enrolled = false
+          }
+          if (enabled !== undefined) state.enabled = enabled
+          return copy()
+        },
+        sync_vault_create: (args: { relaySecret: string }) => {
+          if (start.refuse) throw start.refuse
+          if (!args.relaySecret) throw 'E_SYNC_RELAY_SECRET_INVALID'
+          const made = !state.vault
+          state.vault = true
+          state.enrolled = true
+          state.enabled = true
+          return { snapshot: copy(), recoveryKey: made ? recoveryKey : null }
+        },
+        sync_join_code: () => joined(),
+        sync_join_recovery: () => joined(),
+        sync_pairing_open: () => ({
+          code,
+          link: `devot://pair?relay=https%3A%2F%2Frelay.example.test&code=${code.replace(/-/g, '')}`,
+          qr: { size: 21, modules: '10'.repeat(220) + '1' },
+          expires: Date.now() + 600_000,
+        }),
+        sync_pairing_check: () => {
+          if (w.devotPairing === 'paired') {
+            devices = [
+              ...devices,
+              { id: 'tablet', label: 'Devot for iOS', created: now, current: false },
+            ]
+            w.devotPairing = 'done'
+            return { state: 'paired', device: 'tablet' }
+          }
+          return { state: w.devotPairing, device: null }
+        },
+        sync_pairing_cancel: () => null,
+        sync_devices: () => devices,
+        sync_device_remove: (args: { device: string }) => {
+          devices = devices.filter((d) => d.id !== args.device)
+          return devices
+        },
+      }
+    },
+    { start: initial, recoveryKey: RECOVERY_KEY, code: CODE, now: NOW },
+  )
 }
 
 const calls = (page: Page, cmd: string) =>
@@ -91,8 +140,17 @@ test('creates the vault with the relay’s secret, asked once and never kept', a
   await expect(create).toBeDisabled()
   await secret.fill(SECRET)
   await create.click()
-  await expect(panel.getByRole('status')).toHaveText('The vault is ready and sync is on.')
+  await expect(panel.getByRole('status').first()).toHaveText('The vault is ready and sync is on.')
   await expect(panel.getByLabel('Relay Secret')).toHaveCount(0)
+  // The recovery key, shown once, with Copy.
+  const key = panel.getByLabel('Recovery Key', { exact: true })
+  await expect(key).toHaveText(RECOVERY_KEY)
+  await expect(panel).toContainText('Devot shows it only this once.')
+  await panel.getByRole('button', { name: 'Copy' }).click()
+  await expect(panel.getByRole('status').first()).toHaveText('The recovery key was copied.')
+  expect(await clipboardWrites(page)).toEqual([RECOVERY_KEY])
+  await panel.getByRole('button', { name: 'I Saved It' }).click()
+  await expect(key).toHaveCount(0)
   await expect(panel.getByRole('switch', { name: 'Sync This Device' })).toBeChecked()
   expect(await calls(page, 'sync_vault_create')).toEqual([{ relaySecret: SECRET }])
   const others = await page.evaluate(
@@ -196,4 +254,141 @@ test('the main window says when this device was removed from sync', async ({ pag
   await expect(page.getByRole('alert').filter({ hasText: 'too large' })).toHaveText(
     /1 note is too large to sync and stays on this device only\./,
   )
+})
+
+test('asks for no recovery key again when the vault was already there', async ({ page }) => {
+  await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  await sendSnapshot(page, {
+    relayUrl: RELAY,
+    enabled: true,
+    vault: true,
+    enrolled: false,
+    status: { state: 'stopped', lastSync: 1, code: 'E_SYNC_NO_VAULT', tooLarge: 0 },
+  })
+  await panel.getByLabel('Relay Secret').fill(SECRET)
+  await panel.getByRole('button', { name: 'Connect' }).click()
+  await expect(panel.getByLabel('Relay Secret')).toHaveCount(0)
+  await expect(panel.getByLabel('Recovery Key', { exact: true })).toHaveCount(0)
+})
+
+test('joins a vault with a pairing code', async ({ page }) => {
+  await fakeRust(page, { relayUrl: RELAY })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  const code = panel.getByRole('textbox', { name: 'Join With a Code' })
+  const join = panel.getByRole('button', { name: 'Join With a Code' })
+  await expect(join).toBeDisabled()
+  await code.fill(CODE.toLowerCase())
+  await join.click()
+  await expect(panel.getByRole('status').first()).toHaveText(
+    'This device joined the vault and sync is on.',
+  )
+  expect(await calls(page, 'sync_join_code')).toEqual([{ code: CODE.toLowerCase() }])
+  await expect(code).toHaveCount(0)
+  await expect(panel.getByRole('switch', { name: 'Sync This Device' })).toBeChecked()
+  await expect(panel.getByRole('button', { name: 'Show Pairing Code' })).toBeEnabled()
+})
+
+test('joins with the recovery key and the relay set above', async ({ page }) => {
+  await fakeRust(page, { relayUrl: RELAY })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  const key = panel.getByRole('textbox', { name: 'Join With Recovery Key' })
+  await key.fill(RECOVERY_KEY)
+  await key.press('Enter')
+  await expect(panel.getByRole('status').first()).toHaveText(
+    'This device joined the vault and sync is on.',
+  )
+  expect(await calls(page, 'sync_join_recovery')).toEqual([{ recoveryKey: RECOVERY_KEY }])
+  await expect(key).toHaveCount(0)
+})
+
+test('says why joining failed, and that an older relay needs an update', async ({ page }) => {
+  await fakeRust(page, { relayUrl: RELAY, refuseJoin: 'E_SYNC_RELAY_OUTDATED' })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  await panel.getByRole('textbox', { name: 'Join With a Code' }).fill(CODE)
+  await panel.getByRole('button', { name: 'Join With a Code' }).click()
+  await expect(panel.getByRole('alert')).toHaveText(
+    'This device could not join the vault (E_SYNC_RELAY_OUTDATED). Your relay is from before pairing: update it (docs/sync-relay.md, Update the relay). The recovery key works with it meanwhile.',
+  )
+  await expect(panel.getByRole('textbox', { name: 'Join With a Code' })).toHaveValue(CODE)
+})
+
+test('shows a pairing code with its QR code and countdown until a device joins', async ({
+  page,
+}) => {
+  await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  await expect(panel.getByRole('textbox', { name: 'Join With a Code' })).toHaveCount(0)
+  const devices = panel.getByRole('list', { name: 'Devices in this vault' })
+  await expect(devices.getByRole('listitem')).toHaveCount(2)
+  await panel.getByRole('button', { name: 'Show Pairing Code' }).click()
+  await expect(panel.getByRole('img', { name: 'QR code for pairing a device' })).toBeVisible()
+  await expect(panel.getByLabel('Pairing code')).toHaveText(CODE)
+  await expect(panel).toContainText(/Waiting for the other device… Expires in (10:00|9:5\d)\./)
+  await page.evaluate(() => {
+    ;(globalThis as unknown as { devotPairing: string }).devotPairing = 'taken'
+  })
+  await expect(panel).toContainText('A device is joining…')
+  await page.evaluate(() => {
+    ;(globalThis as unknown as { devotPairing: string }).devotPairing = 'paired'
+  })
+  await expect(panel.getByRole('status').first()).toHaveText('A new device joined the vault.')
+  await expect(panel.getByLabel('Pairing code')).toHaveCount(0)
+  await expect(devices.getByRole('listitem')).toHaveCount(3)
+})
+
+test('cancels a code on show, and says when it expired', async ({ page }) => {
+  await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'Show Pairing Code' }).click()
+  await panel.getByRole('button', { name: 'Cancel' }).click()
+  await expect(panel.getByLabel('Pairing code')).toHaveCount(0)
+  expect(await calls(page, 'sync_pairing_cancel')).toHaveLength(1)
+
+  await page.evaluate(() => {
+    ;(globalThis as unknown as { devotPairing: string }).devotPairing = 'expired'
+  })
+  await panel.getByRole('button', { name: 'Show Pairing Code' }).click()
+  await expect(panel).toContainText('The code expired. Show a new one to try again.')
+  await expect(panel.getByLabel('Pairing code')).toHaveCount(0)
+})
+
+test('lists the devices with this one marked, and removes another after asking', async ({
+  page,
+}) => {
+  await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  const devices = panel.getByRole('list', { name: 'Devices in this vault' })
+  const items = devices.getByRole('listitem')
+  await expect(items).toHaveCount(2)
+  await expect(items.first()).toContainText('Devot for macOS')
+  await expect(items.first()).toContainText('This Device')
+  await expect(items.first().getByRole('button')).toHaveCount(0)
+  await expect(items.nth(1)).not.toContainText('This Device')
+
+  await items
+    .nth(1)
+    .getByRole('button', { name: /^Remove Devot for iOS, added / })
+    .click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('Remove this device from sync?')
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(items).toHaveCount(2)
+  expect(await calls(page, 'sync_device_remove')).toEqual([])
+
+  await items
+    .nth(1)
+    .getByRole('button', { name: /^Remove / })
+    .click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click()
+  await expect(items).toHaveCount(1)
+  await expect(panel.getByRole('status').first()).toHaveText('The device was removed from sync.')
+  expect(await calls(page, 'sync_device_remove')).toEqual([{ device: 'phone' }])
 })

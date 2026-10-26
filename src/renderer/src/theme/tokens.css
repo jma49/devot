@@ -163,6 +163,8 @@
   --opacity-tag-dot: 0.3;
   --opacity-filter-icon: 0.3;
   --opacity-headline-icon: 0.8;
+  --color-qr-ground: #ffffff;
+  --color-qr-module: #1c1b19;
   --color-surface-sidebar: rgb(255 255 255 / 0.02);
   --color-surface-sidebar-opaque: #f3f4f6;
   --color-surface-list: #fafaf9;
@@ -298,6 +300,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-appearance='light']) {
+    --color-qr-ground: #ffffff;
+    --color-qr-module: #1c1b19;
     --color-surface-sidebar: rgb(0 0 0 / 0.1);
     --color-surface-sidebar-opaque: #171717;
     --color-surface-list: #111111;
@@ -434,6 +438,8 @@
 
 :root[data-appearance='dark'], [data-appearance-preview='dark'] {
   color-scheme: dark;
+  --color-qr-ground: #ffffff;
+  --color-qr-module: #1c1b19;
   --color-surface-sidebar: rgb(0 0 0 / 0.1);
   --color-surface-sidebar-opaque: #171717;
   --color-surface-list: #111111;
@@ -569,6 +575,8 @@
 
 :root[data-appearance='light'], [data-appearance-preview='light'] {
   color-scheme: light;
+  --color-qr-ground: #ffffff;
+  --color-qr-module: #1c1b19;
   --color-surface-sidebar: rgb(255 255 255 / 0.02);
   --color-surface-sidebar-opaque: #f3f4f6;
   --color-surface-list: #fafaf9;
@@ -704,6 +712,8 @@
 
 /* The ivory theme: data-theme='ivory' on the root element. */
 :root[data-theme='ivory'] {
+  --color-qr-ground: #ffffff;
+  --color-qr-module: #1c1b19;
   --color-surface-sidebar: rgb(245 244 237 / 0.02);
   --color-surface-sidebar-opaque: #f5f4ed;
   --color-surface-list: #faf9f5;
@@ -839,6 +849,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme='ivory']:not([data-appearance='light']) {
+    --color-qr-ground: #ffffff;
+    --color-qr-module: #1c1b19;
     --color-surface-sidebar: rgb(31 30 29 / 0.1);
     --color-surface-sidebar-opaque: #1f1e1d;
     --color-surface-list: #262624;
@@ -975,6 +987,8 @@
 
 :root[data-theme='ivory'][data-appearance='dark'], [data-theme-preview='ivory'][data-appearance-preview='dark'] {
   color-scheme: dark;
+  --color-qr-ground: #ffffff;
+  --color-qr-module: #1c1b19;
   --color-surface-sidebar: rgb(31 30 29 / 0.1);
   --color-surface-sidebar-opaque: #1f1e1d;
   --color-surface-list: #262624;
@@ -1110,6 +1124,8 @@
 
 :root[data-theme='ivory'][data-appearance='light'], [data-theme-preview='ivory'][data-appearance-preview='light'] {
   color-scheme: light;
+  --color-qr-ground: #ffffff;
+  --color-qr-module: #1c1b19;
   --color-surface-sidebar: rgb(245 244 237 / 0.02);
   --color-surface-sidebar-opaque: #f5f4ed;
   --color-surface-list: #faf9f5;

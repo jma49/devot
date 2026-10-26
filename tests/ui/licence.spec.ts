@@ -173,6 +173,8 @@ test.describe('locked sync and AI', () => {
     await expect(sync).toContainText(
       'Your trial has ended, and sync needs a Devot licence. Add one in Settings > Licence.',
     )
+    await sync.getByRole('textbox', { name: 'Join With a Code' }).fill('0400')
+    await expect(sync.getByRole('button', { name: 'Join With a Code' })).toBeDisabled()
     await sync.getByRole('button', { name: 'Buy a Licence' }).click()
     expect(await calls(page, 'open_external')).toEqual([
       { url: 'https://licence.devot.online/buy' },

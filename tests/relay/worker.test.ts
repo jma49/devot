@@ -17,6 +17,10 @@ it('wrangler.toml binds the vault object on SQLite storage, as the tests run it'
     /\[\[durable_objects\.bindings\]\]\nname = "VAULTS"\nclass_name = "VaultObject"/,
   )
   expect(wrangler).toMatch(/new_sqlite_classes = \["VaultObject"\]/)
+  expect(wrangler).toMatch(
+    /\[\[durable_objects\.bindings\]\]\nname = "PAIRINGS"\nclass_name = "PairingObject"/,
+  )
+  expect(wrangler).toMatch(/tag = "v2"\nnew_sqlite_classes = \["PairingObject"\]/)
   expect(wrangler).not.toMatch(/new_classes/)
 })
 
@@ -36,7 +40,10 @@ relaySuite('a Durable Object (Miniflare)', async () => {
     modules: true,
     script: bundle.outputFiles[0]?.text ?? '',
     compatibilityDate: setting('compatibility_date') ?? '',
-    durableObjects: { VAULTS: { className: 'VaultObject', useSQLite: true } },
+    durableObjects: {
+      VAULTS: { className: 'VaultObject', useSQLite: true },
+      PAIRINGS: { className: 'PairingObject', useSQLite: true },
+    },
     bindings: { RELAY_SECRET: secret },
     host: '127.0.0.1',
     port: 0,

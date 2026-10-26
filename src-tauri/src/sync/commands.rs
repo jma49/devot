@@ -2,8 +2,11 @@ use std::sync::Arc;
 
 use tauri::State;
 
-use super::client::Welcome;
-use super::service::{PullDto, PushDto, SettingsPatch, Snapshot, StatusView, SyncService};
+use super::client::{DeviceInfo, Welcome};
+use super::service::{
+    Created, PairingCheck, PairingView, PullDto, PushDto, SettingsPatch, Snapshot, StatusView,
+    SyncService,
+};
 
 async fn blocking<T: Send + 'static>(
     sync: &Arc<SyncService>,
@@ -29,14 +32,66 @@ pub async fn sync_set(
     blocking(&sync, move |sync| sync.set(patch)).await
 }
 
-/// The relay secret is used for the one request that creates the vault, never stored.
+/// The relay secret is used for the one request that creates the vault, never stored. The answer
+/// carries the recovery key when this call made the vault, to show once.
 #[tauri::command]
 pub async fn sync_vault_create(
     sync: State<'_, Arc<SyncService>>,
     relay_secret: String,
-) -> Result<Snapshot, String> {
+) -> Result<Created, String> {
     let secret = zeroize::Zeroizing::new(relay_secret);
     blocking(&sync, move |sync| sync.create_vault(&secret)).await
+}
+
+#[tauri::command]
+pub async fn sync_pairing_open(sync: State<'_, Arc<SyncService>>) -> Result<PairingView, String> {
+    blocking(&sync, |sync| sync.pairing_open()).await
+}
+
+#[tauri::command]
+pub async fn sync_pairing_check(sync: State<'_, Arc<SyncService>>) -> Result<PairingCheck, String> {
+    blocking(&sync, |sync| sync.pairing_check()).await
+}
+
+#[tauri::command]
+pub async fn sync_pairing_cancel(sync: State<'_, Arc<SyncService>>) -> Result<(), String> {
+    blocking(&sync, |sync| {
+        sync.pairing_cancel();
+        Ok(())
+    })
+    .await
+}
+
+/// A pairing code as typed or pasted, or the link its QR code holds.
+#[tauri::command]
+pub async fn sync_join_code(
+    sync: State<'_, Arc<SyncService>>,
+    code: String,
+) -> Result<Snapshot, String> {
+    let code = zeroize::Zeroizing::new(code);
+    blocking(&sync, move |sync| sync.join_with_code(&code)).await
+}
+
+#[tauri::command]
+pub async fn sync_join_recovery(
+    sync: State<'_, Arc<SyncService>>,
+    recovery_key: String,
+) -> Result<Snapshot, String> {
+    let key = zeroize::Zeroizing::new(recovery_key);
+    blocking(&sync, move |sync| sync.join_with_recovery(&key)).await
+}
+
+#[tauri::command]
+pub async fn sync_devices(sync: State<'_, Arc<SyncService>>) -> Result<Vec<DeviceInfo>, String> {
+    blocking(&sync, |sync| sync.devices()).await
+}
+
+#[tauri::command]
+pub async fn sync_device_remove(
+    sync: State<'_, Arc<SyncService>>,
+    device: String,
+) -> Result<Vec<DeviceInfo>, String> {
+    blocking(&sync, move |sync| sync.remove_device(&device)).await
 }
 
 #[tauri::command]

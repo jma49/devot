@@ -20,6 +20,18 @@ export const LIMITS = {
   maxHttpBodyBytes: 4096,
 } as const
 
+/** Device pairing (docs/adr/0008-sync-device-pairing.md). */
+export const PAIRING = {
+  /** An offer can be taken for this long after it opens. */
+  ttlMs: 10 * 60_000,
+  /** The rest of a pairing (its state and confirmation) stays this much longer, for the last poll. */
+  graceMs: 60_000,
+  maxOfferBytes: 512,
+  maxProofBytes: 256,
+} as const
+
+export type PairingState = 'open' | 'taken' | 'confirmed'
+
 export const CLOSE = {
   /** The device's token is unknown to the vault (revoked, or from before a relay reset with the vault still there). */
   unauthorized: 4001,
@@ -97,6 +109,24 @@ export interface EnrolledReply {
   token: string
   time: number
 }
+
+/**
+ * Pairing bodies, POSTed to `/v1/pairings/<pairing ID>` (`pair`) and its `/take`, `/confirm`,
+ * `/status` and `/close`. `pair`, `status` and `close` carry the opening device's token as
+ * `Authorization: Bearer`; `offer` and `proof` are base64url of what the devices sealed.
+ */
+export type PairingRequest =
+  | { type: 'pair'; vault: string; offer: string }
+  | { type: 'take' }
+  | { type: 'confirm'; proof: string }
+  | { type: 'status'; vault: string }
+  | { type: 'close'; vault: string }
+
+export type PairingReply =
+  | { type: 'pairing'; state: PairingState; expires: number; time: number; proof?: string }
+  | { type: 'offer'; offer: string }
+  | { type: 'confirmed' }
+  | { type: 'closed' }
 
 export interface Frame<T> {
   message: T
@@ -182,12 +212,16 @@ export function splitChunks(payload: Uint8Array, lengths: readonly number[]): Ui
 }
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/
+const PAIRING_ID = /^[A-Za-z0-9_-]{22}$/
 const VAULT_ID = /^[A-Za-z0-9_-]{16,64}$/
 
 export const isRecordId = (value: unknown): value is string =>
   typeof value === 'string' && ID.test(value)
 export const isVaultId = (value: unknown): value is string =>
   typeof value === 'string' && VAULT_ID.test(value)
+/** base64url of the 16 bytes both devices derive from the pairing code. */
+export const isPairingId = (value: unknown): value is string =>
+  typeof value === 'string' && PAIRING_ID.test(value)
 export const isCount = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 export const isLabel = (value: unknown): value is string =>

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { errorCode } from '../backups'
 import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
@@ -13,6 +13,7 @@ import {
   type SyncStateName,
 } from '../sync'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
+import { DevicesRow, JoinRows, PairingRow, RecoveryKeyPanel } from './SyncDevices'
 
 const STATES: Readonly<Record<SyncStateName, MessageKey>> = {
   off: 'syncSettings.state.off',
@@ -40,10 +41,28 @@ function statusText(snapshot: SyncSnapshot, locale: string): string {
   return parts.join(' ')
 }
 
+// Why a join or a pairing failed, for the codes a person can act on.
+const WHY: Readonly<Record<string, MessageKey>> = {
+  E_SYNC_RELAY_OUTDATED: 'syncSettings.why.outdated',
+  E_SYNC_VAULT_EXISTS: 'syncSettings.why.otherVault',
+  E_SYNC_PAIRING_GONE: 'syncSettings.why.codeGone',
+  E_SYNC_PAIRING_EXPIRED: 'syncSettings.why.codeGone',
+  E_SYNC_PAIRING_CODE: 'syncSettings.why.codeMistyped',
+  E_SYNC_PAIRING_CHECKSUM: 'syncSettings.why.codeMistyped',
+  E_SYNC_PAIRING_VERSION: 'syncSettings.why.codeMistyped',
+  E_SYNC_PAIRING_AUTH: 'syncSettings.why.codeRefused',
+  E_SYNC_PAIRING_RELAY: 'syncSettings.why.otherRelay',
+  E_SYNC_RECOVERY_FORMAT: 'syncSettings.why.keyMistyped',
+  E_SYNC_RECOVERY_CHECKSUM: 'syncSettings.why.keyMistyped',
+  E_SYNC_RECOVERY_VERSION: 'syncSettings.why.keyMistyped',
+  E_SYNC_NO_RELAY: 'syncSettings.why.noRelay',
+}
+
 /**
  * Settings > Sync: the relay's URL, the relay's secret (asked once, on the device that creates the
- * vault, and never kept), sync on or off and its status. Pairing another device, the recovery key
- * and the device list come with issue 336, attachments with 327 and the relay's quota with 215.
+ * vault, and never kept) and the recovery key shown once then, joining with a pairing code or the
+ * recovery key, showing a pairing code, the vault's devices, sync on or off and its status.
+ * Attachments come with issue 327 and the relay's quota with 215.
  */
 export function SyncSection() {
   const ids = useId()
@@ -54,6 +73,8 @@ export function SyncSection() {
   const [error, setError] = useState<{ message: MessageKey; code: string }>()
   const [creating, setCreating] = useState(false)
   const [announcement, setAnnouncement] = useState('')
+  const [recoveryKey, setRecoveryKey] = useState<string>()
+  const [devicesVersion, setDevicesVersion] = useState(0)
   const locale = currentLocale()
 
   useEffect(() => startSyncStatus(), [])
@@ -64,7 +85,19 @@ export function SyncSection() {
   const locked = !licenceEntitlements.has('sync')
 
   const shownUrl = url ?? snapshot.relayUrl
-  const failed = (message: MessageKey) => (e: unknown) => setError({ message, code: errorCode(e) })
+  const failed = useCallback(
+    (message: MessageKey) => (e: unknown) => {
+      setAnnouncement('')
+      setError({ message, code: errorCode(e) })
+    },
+    [],
+  )
+  const announce = useCallback((text: string) => {
+    setError(undefined)
+    setAnnouncement(text)
+  }, [])
+  const paired = useCallback(() => setDevicesVersion((v) => v + 1), [])
+  const joined = useCallback(() => announce(t('syncSettings.joined')), [announce])
 
   const saveUrl = () => {
     if (url === undefined || url.trim() === snapshot.relayUrl) {
@@ -82,15 +115,17 @@ export function SyncSection() {
     setCreating(true)
     const sent = secret
     void createSyncVault(sent)
-      .then(() => {
+      .then((created) => {
         setError(undefined)
         setSecret('')
+        if (created.recoveryKey) setRecoveryKey(created.recoveryKey)
         setAnnouncement(t('syncSettings.vaultReady'))
       }, failed('syncSettings.vaultFailed'))
       .finally(() => setCreating(false))
   }
 
   const needsVault = snapshot.relayUrl !== '' && !snapshot.enrolled
+  const why = error ? WHY[error.code] : undefined
 
   return (
     <section className="settings-section" aria-labelledby="sync-title">
@@ -100,6 +135,7 @@ export function SyncSection() {
       {error ? (
         <p role="alert" className="settings-error">
           {format(t(error.message), { code: error.code })}
+          {why ? ` ${t(why)}` : null}
         </p>
       ) : null}
       <p className="visually-hidden" role="status" aria-live="polite">
@@ -173,6 +209,15 @@ export function SyncSection() {
             </div>
           </Setting>
         ) : null}
+        {recoveryKey ? (
+          <RecoveryKeyPanel
+            recoveryKey={recoveryKey}
+            onDone={() => setRecoveryKey(undefined)}
+            onAnnounce={announce}
+            failed={failed}
+          />
+        ) : null}
+        {snapshot.enrolled ? null : <JoinRows locked={locked} onJoined={joined} failed={failed} />}
         <SettingToggle
           label="syncSettings.enabled"
           description="syncSettings.enabledHint"
@@ -197,6 +242,13 @@ export function SyncSection() {
               'syncSettings.tooLargeOther',
             )}
           </SettingsNote>
+        ) : null}
+        {snapshot.enrolled ? (
+          <>
+            <PairingRow locked={locked} onPaired={paired} onAnnounce={announce} failed={failed} />
+            {/* Read again when a device joins. */}
+            <DevicesRow key={devicesVersion} onAnnounce={announce} failed={failed} />
+          </>
         ) : null}
       </SettingsSection>
     </section>
