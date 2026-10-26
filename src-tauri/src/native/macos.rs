@@ -29,6 +29,19 @@ const SIXTY_FPS_FEATURE: &str = "PreferPageRenderingUpdatesNear60FPSEnabled";
 /// WebRTC, which no content security policy governs: off, so a plugin's frame cannot reach the
 /// network through it (ADR 0005).
 const PEER_CONNECTION_FEATURE: &str = "PeerConnectionEnabled";
+/// A preconnect hint opens a DNS lookup, TCP and TLS the instant the link is inserted, outside any
+/// content security policy and before the runtime guard's observer can remove it.
+const PRECONNECT_FEATURE: &str = "LinkPreconnect";
+/// Resource hints reach the network outside any policy (ADR 0005). Off on every main window, so a
+/// hint the runtime guard has not yet removed starts no connection. Any WebKit does not offer is
+/// skipped; only preconnect, which connects synchronously, must be present.
+const RESOURCE_HINT_FEATURES: &[&str] = &[
+    PRECONNECT_FEATURE,
+    "LinkPreconnectEarlyHintsEnabled",
+    "LinkPreloadEnabled",
+    "LinkPrefetchEnabled",
+    "SpeculationRulesPrefetchEnabled",
+];
 
 /// Per web view: every main window needs it.
 pub fn unlock_high_refresh_rate(window: &tauri::WebviewWindow) {
@@ -50,6 +63,82 @@ pub fn turn_off_peer_connections(window: &tauri::WebviewWindow) {
         "I_NATIVE_PEER_CONNECTION_OFF",
         "W_NATIVE_PEER_CONNECTION_UNAVAILABLE",
     );
+}
+
+/// Per web view: plugins run in every main window.
+pub fn turn_off_resource_hints(window: &tauri::WebviewWindow) {
+    let result = window.with_webview(move |webview| {
+        let off = guarded("W_NATIVE_WEB_FEATURE_FAILED", || {
+            // SAFETY: `inner()` is the live WKWebView owned by this window;
+            // every selector is checked with respondsToSelector: before use.
+            unsafe { set_web_view_hints_off(webview.inner().cast()) }.then_some(())
+        })
+        .is_some();
+        if off {
+            log::info!("I_NATIVE_RESOURCE_HINTS_OFF");
+        } else {
+            log::warn!("W_NATIVE_RESOURCE_HINTS_UNAVAILABLE");
+        }
+    });
+    if result.is_err() {
+        log::warn!("W_NATIVE_WEBVIEW_UNAVAILABLE");
+    }
+}
+
+/// # Safety
+/// `web_view` must point to a live `WKWebView`.
+unsafe fn set_web_view_hints_off(web_view: *mut AnyObject) -> bool {
+    if web_view.is_null() {
+        return false;
+    }
+    // SAFETY: `web_view` is a live WKWebView (caller contract). WKWebView
+    // responds to `configuration`, which responds to `preferences`.
+    let preferences: *mut AnyObject = unsafe {
+        let configuration: *mut AnyObject = msg_send![web_view, configuration];
+        if configuration.is_null() {
+            return false;
+        }
+        msg_send![configuration, preferences]
+    };
+    // SAFETY: `preferences` is null or a live WKPreferences.
+    unsafe { turn_off_hints(preferences) }
+}
+
+/// Turns off every resource hint WebKit offers plus DNS prefetching (a preference, not a feature).
+/// Returns whether preconnect, the only hint that connects synchronously, was turned off.
+///
+/// # Safety
+/// `preferences` must be null or a live `WKPreferences`.
+unsafe fn turn_off_hints(preferences: *mut AnyObject) -> bool {
+    // SAFETY: `preferences` is null or live (caller contract); each call checks
+    // the object and its selector first.
+    unsafe { dns_prefetching_off(preferences) };
+    let mut preconnect_off = false;
+    for key in RESOURCE_HINT_FEATURES {
+        // SAFETY: as above.
+        let off = unsafe { set_feature(preferences, key, false) };
+        if *key == PRECONNECT_FEATURE {
+            preconnect_off = off;
+        }
+    }
+    preconnect_off
+}
+
+/// `<link rel=dns-prefetch>` resolves a name the instant the link is inserted, outside any policy;
+/// this SPI stops it. Returns false when WebKit does not offer it.
+///
+/// # Safety
+/// `preferences` must be null or a live `WKPreferences`.
+unsafe fn dns_prefetching_off(preferences: *mut AnyObject) -> bool {
+    if preferences.is_null()
+        // SAFETY: `preferences` is a non-null WKPreferences (caller contract).
+        || !unsafe { responds(preferences, sel!(_setDNSPrefetchingEnabled:)) }
+    {
+        return false;
+    }
+    // SAFETY: the selector exists (checked above).
+    let _: () = unsafe { msg_send![preferences, _setDNSPrefetchingEnabled: Bool::new(false)] };
+    true
 }
 
 fn set_main_window_feature(
@@ -536,6 +625,35 @@ pub fn self_test_sixty_fps_toggle() -> Result<(), &'static str> {
 #[doc(hidden)]
 pub fn self_test_peer_connection_toggle() -> Result<(), &'static str> {
     self_test_feature_toggle(PEER_CONNECTION_FEATURE)
+}
+
+/// Main thread only, as `self_test_sixty_fps_toggle`.
+#[doc(hidden)]
+pub fn self_test_resource_hints_off() -> Result<(), &'static str> {
+    if objc2::MainThreadMarker::new().is_none() {
+        return Err("E_NATIVE_NOT_MAIN_THREAD");
+    }
+    web_feature(PRECONNECT_FEATURE).ok_or("E_NATIVE_FEATURE_MISSING")?;
+    let class = AnyClass::get(c"WKPreferences").ok_or("E_NATIVE_WEBKIT_MISSING")?;
+    // SAFETY: `+new` returns an owned, live WKPreferences, released below;
+    // the private calls run guarded, as the app runs them.
+    unsafe {
+        let preferences: *mut AnyObject = msg_send![class, new];
+        let result = guarded("W_NATIVE_SELF_TEST_FAILED", || {
+            Some(if !turn_off_hints(preferences) {
+                Err("E_NATIVE_PRECONNECT_NOT_OFF")
+            } else if feature_enabled(preferences, PRECONNECT_FEATURE) != Some(false) {
+                Err("E_NATIVE_PRECONNECT_STILL_ON")
+            } else if !dns_prefetching_off(preferences) {
+                Err("E_NATIVE_DNS_PREFETCH_MISSING")
+            } else {
+                Ok(())
+            })
+        })
+        .unwrap_or(Err("E_NATIVE_HINTS_THREW"));
+        let _: () = msg_send![preferences, release];
+        result
+    }
 }
 
 fn self_test_feature_toggle(key: &str) -> Result<(), &'static str> {
@@ -3299,6 +3417,10 @@ mod tests {
         );
         assert_eq!(
             self_test_peer_connection_toggle(),
+            Err("E_NATIVE_NOT_MAIN_THREAD")
+        );
+        assert_eq!(
+            self_test_resource_hints_off(),
             Err("E_NATIVE_NOT_MAIN_THREAD")
         );
         assert_eq!(

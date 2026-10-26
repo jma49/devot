@@ -18,6 +18,10 @@ fn main() {
             .expect("the WebRTC WebKit preference can be turned off");
         println!("main_thread: WebRTC preference toggles off and on");
 
+        macos::self_test_resource_hints_off()
+            .expect("resource-hint WebKit preferences and DNS prefetching can be turned off");
+        println!("main_thread: preconnect and other resource hints turn off; DNS prefetching too");
+
         macos::self_test_format_menu_keys().expect("the Format menu takes its own keys");
         println!(
             "main_thread: the Format menu takes its keys and no others; menu items lose keys by title"

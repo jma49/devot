@@ -13,7 +13,11 @@
   }
 
   // A frame of the plugin's own (src-less frames skip the policy) would bring a fresh global with WebRTC back, and a resource hint
-  // reaches the network outside the policy. So no frame or hint ever enters the document, by any insertion or HTML-parsing API.
+  // reaches the network outside the policy. This guard keeps both out of the document by every insertion and HTML-parsing API it
+  // can reach. A preconnect hint, though, opens its connection synchronously the moment WebKit sees the link, before the observer
+  // below can remove one that slips past the guard (a `rel` set later, a paste), so hints are the native layer's job: WebKit's
+  // preconnect, preload, prefetch and DNS-prefetch preferences are off on every main window (native/macos.rs), and WebRTC with
+  // them, so even a hint or frame this code misses cannot reach the network. The guard is defence in depth.
   // The plugin's script shares this realm and can change any prototype or global later, so the guard calls only what it keeps
   // here, never a method or getter read off a node or a prototype at the time of the call.
   const { apply, getOwnPropertyDescriptor: describe, defineProperty } = Reflect
@@ -126,6 +130,25 @@
   guard(Range.prototype, 'insertNode', anyNode)
   guard(Range.prototype, 'surroundContents', anyNode)
 
+  // Setters that take an element and put it in the document: `document.body` (a frameset brings a
+  // fresh global with WebRTC) and a table's `caption`, `tHead` and `tFoot` (each may hold a hint).
+  const guardSetter = (proto, name) => {
+    const original = proto && describe(proto, name)
+    if (!original || !original.set) return
+    const set = original.set
+    defineProperty(proto, name, {
+      ...original,
+      set(value) {
+        if (refusedIn(value)) throw blocked()
+        apply(set, this, [value])
+        noFrameIn()
+      },
+    })
+  }
+  guardSetter(Document.prototype, 'body')
+  const tableProto = globalThis.HTMLTableElement?.prototype
+  for (const name of ['caption', 'tHead', 'tFoot']) guardSetter(tableProto, name)
+
   const template = doc.createElement('template')
   const innerHTML = describe(Element.prototype, 'innerHTML')
   const parsesRefused = (html) => {
@@ -155,7 +178,9 @@
       defineProperty(proto, name, {
         ...original,
         set(html) {
-          const text = toText(html)
+          // innerHTML and outerHTML are [LegacyNullToEmptyString]: null clears the element, so it
+          // reaches the native setter unchanged; any other value is made text once (see above).
+          const text = html === null ? null : toText(html)
           apply(run, this, [() => apply(set, this, [text]), text])
         },
       })
@@ -207,7 +232,8 @@
     }
     refuse(proto, 'getSVGDocument')
   }
-  // A change no guard sees (a link's `rel` set later, a paste): removed before the next task, when a hint or frame would start.
+  // A change no guard sees (a link's `rel` set later, a paste): removed at the microtask checkpoint. A frame has not run its
+  // scripts or opened a connection by then; a preconnect hint, which connects synchronously, is already held off natively (above).
   new MutationObserver((records) => {
     for (let i = 0; i < records.length; i += 1) {
       const record = records[i]

@@ -317,6 +317,84 @@ test('cannot make a frame of its own, whose fresh global would bring WebRTC back
   expect(network).toEqual([])
 })
 
+test('cannot slip a frame or a resource hint in through the document.body or table setters', async ({
+  page,
+}) => {
+  const frame = await pluginFrame(page, 'com.example.probe')
+  const outcomes = await frame.evaluate(() => {
+    const out: Record<string, string> = {}
+    const attempt = (name: string, run: () => unknown) => {
+      try {
+        run()
+        out[name] = 'set'
+      } catch (e) {
+        out[name] = e instanceof DOMException ? e.message : 'failed'
+      }
+    }
+    const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html')
+    attempt('body frameset', () => {
+      document.body = document.createElement('frameset')
+    })
+    attempt('body hint', () => {
+      document.body = parse('<body><link rel="preconnect" href="https://leak.example.com/"></body>')
+        .body as HTMLElement
+    })
+    const table = document.createElement('table')
+    const hintIn = (tag: string) =>
+      parse(
+        `<table><${tag}><tr><td><link rel="preconnect" href="https://leak.example.com/"></td></tr></${tag}></table>`,
+      ).querySelector(tag)!
+    attempt('tHead hint', () => {
+      table.tHead = hintIn('thead') as HTMLTableSectionElement
+    })
+    attempt('tFoot hint', () => {
+      table.tFoot = hintIn('tfoot') as HTMLTableSectionElement
+    })
+    attempt('caption hint', () => {
+      const caption = parse('<table><caption><a></a></caption></table>').querySelector('caption')!
+      const link = document.createElementNS('http://www.w3.org/1999/xhtml', 'link')
+      link.setAttribute('rel', 'preconnect')
+      link.setAttribute('href', 'https://leak.example.com/')
+      caption.replaceChildren(link)
+      table.caption = caption as HTMLTableCaptionElement
+    })
+    out['frames'] = String(
+      window.length + document.querySelectorAll('iframe, frame, object').length,
+    )
+    out['hints'] = String(document.querySelectorAll('link[rel="preconnect"]').length)
+    return out
+  })
+  const refused = 'E_PLUGIN_FRAME_BLOCKED'
+  expect(outcomes).toEqual({
+    'body frameset': refused,
+    'body hint': refused,
+    'tHead hint': refused,
+    'tFoot hint': refused,
+    'caption hint': refused,
+    frames: '0',
+    hints: '0',
+  })
+  await page.waitForTimeout(300)
+  expect(network).toEqual([])
+})
+
+test('clears an element with innerHTML = null rather than writing the text "null"', async ({
+  page,
+}) => {
+  const frame = await pluginFrame(page, 'com.example.probe')
+  const result = await frame.evaluate(() => {
+    const div = document.createElement('div')
+    div.append(document.createElement('span'))
+    div.innerHTML = null as unknown as string
+    const outer = document.createElement('div')
+    const inner = document.createElement('p')
+    outer.append(inner)
+    inner.outerHTML = null as unknown as string
+    return { inner: div.innerHTML, childless: div.childNodes.length, outer: outer.innerHTML }
+  })
+  expect(result).toEqual({ inner: '', childless: 0, outer: '' })
+})
+
 test('cannot get a frame past the guard by changing what the guard reads or calls', async ({
   page,
 }) => {
