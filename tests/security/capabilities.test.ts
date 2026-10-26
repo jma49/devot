@@ -319,9 +319,10 @@ describe('Tauri command permissions', () => {
 
   it('lets the quick capture window hand over its note and close, and nothing more', () => {
     const quickCapture = capabilities().filter((c) => c.windows.includes('quick-capture'))
-    // No notes, no files: the main window's core saves the note.
+    // No notes, no files (an imported font only by its ID): the main window's core saves the note.
     expect(quickCapture.flatMap(permissionIds).sort()).toEqual([
       'allow-editor-settings-get',
+      'allow-font-read',
       'allow-licence-get',
       'allow-quick-capture-close',
       'allow-quick-capture-save',
@@ -355,11 +356,11 @@ describe('Tauri command permissions', () => {
     }
   })
 
-  it('lets only the Settings window import and list fonts, and the main, Settings and note windows load one', () => {
+  it('lets only the Settings window import and list fonts, and every window that draws text in the chosen fonts load one', () => {
     for (const command of ['font-import', 'fonts-list', 'fonts-installed']) {
       expect(windowsWith(`allow-${command}`)).toEqual(['settings'])
     }
-    expect(windowsWith('allow-font-read')).toEqual(['main', 'note-*', 'settings'])
+    expect(windowsWith('allow-font-read')).toEqual(['main', 'note-*', 'quick-capture', 'settings'])
   })
 
   it('lets both windows check for updates, and only the main window download and restart', () => {
