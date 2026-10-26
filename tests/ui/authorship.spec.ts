@@ -233,6 +233,24 @@ test('the notice reviews each unseen change, and leaving the note marks them see
   expect(stored.map((row) => row.seen)).toEqual([true, true])
 })
 
+test('a note an agent wrote to while it was away opens with its marks', async ({ page }) => {
+  await seed(page, [PLAN_NOTE, { id: OTHER, title: 'Other', owner: 'Other text.\n', edits: [] }])
+  await noteRow(page, 'Plan').click()
+  await expect(marks(page)).toHaveCount(2)
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+Home')
+  await page.keyboard.type('X')
+  await noteRow(page, 'Other').click()
+  await expect(body(page)).toContainText('Other text.')
+
+  await httpApi(page, 'notes.update', PLAN, {
+    markdown: `XOwner introduction.\n${CLAUDE_TEXT}\nFrom the API, while the note was away.\n`,
+  })
+  await noteRow(page, 'Plan').click()
+  await expect(body(page)).toContainText('From the API, while the note was away.')
+  await expect(marks(page)).toHaveCount(3)
+})
+
 test('Dismiss marks the shown changes seen', async ({ page }) => {
   await seed(page, [PLAN_NOTE])
   await noteRow(page, 'Plan').click()

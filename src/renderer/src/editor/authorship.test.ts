@@ -1,3 +1,4 @@
+import { history } from '@codemirror/commands'
 import { EditorState, Text } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { expectWithinBudget } from '../../../../tests/support/budget'
@@ -5,6 +6,7 @@ import * as Y from 'yjs'
 import { applyAgentEdit, newWriter, readWrites } from '../../../core/authorship'
 import { fullDate } from '../format'
 import { authoredField, markLabel, markSegments, segmentRange, type WriteInfo } from './authorship'
+import { keepUndo, noteState } from './undo'
 
 const doc = Text.of(['one', 'two', 'three', 'four', 'five'])
 const lineOf = (pos: number) => doc.lineAt(pos).number
@@ -104,6 +106,37 @@ describe('the marks’ state', () => {
     expect(state.field(field).segments).toEqual([{ fromLine: 2, toLine: 2, writeIds: [write!.id] }])
     const typed = state.update({ changes: { from: 0, insert: 'Owner.\n' } }).state
     expect(typed.field(field).segments).toEqual([{ fromLine: 3, toLine: 3, writeIds: [write!.id] }])
+  })
+
+  it('reads no runs into a state whose text is not yet the replica’s', () => {
+    const writer = newWriter('mcp', 'Claude Code', 'p')
+    const core = new Y.Doc()
+    core.getText('body').insert(0, 'hello\n')
+    applyAgentEdit(core, { writer, at: 1, markdown: 'hello\nagent line\n' })
+    const left = new Y.Doc()
+    Y.applyUpdate(left, Y.encodeStateAsUpdate(core))
+    const before = EditorState.create({
+      doc: left.getText('body').toString(),
+      extensions: [history(), authoredField(left, 'note')],
+    })
+    const typed = before.update({ changes: { from: 0, insert: 'X' } }).state
+    left.getText('body').insert(0, 'X')
+    keepUndo('note', typed, left)
+    Y.applyUpdate(core, Y.encodeStateAsUpdate(left))
+    const longer = `${core.getText('body').toString()}more agent text here\nand more\n`
+    applyAgentEdit(core, { writer, at: 2, markdown: longer })
+    const replica = new Y.Doc()
+    Y.applyUpdate(replica, Y.encodeStateAsUpdate(core))
+    const field = authoredField(replica, 'note')
+
+    const state = noteState(
+      'note',
+      { doc: replica.getText('body').toString(), extensions: [history(), field] },
+      replica,
+    )
+
+    expect(state.doc.toString()).toBe(longer)
+    expect(state.field(field).runs).toEqual([])
   })
 
   it('reads nothing from a note without records', () => {
