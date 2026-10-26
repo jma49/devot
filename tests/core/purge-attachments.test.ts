@@ -88,17 +88,22 @@ async function purge(notes: NoteService, id: string) {
 }
 
 describe('purging a note', () => {
-  it('leaves no text of the note in the database file, as the app does (secure_delete)', async () => {
+  it('leaves no text of the note in the database file or its search index, as the app does', async () => {
     const s = setup()
-    const marker = 'Confidential-plan-'
-    const id = await noteWith(s.notes, 'Gone', marker.repeat(400))
+    const marker = 'Qxjzvwkpfyb'
+    const id = await noteWith(s.notes, 'Gone', `${marker} `.repeat(400))
     await noteWith(s.notes, 'Kept', 'Stays.\n')
     await purge(s.notes, id)
     await s.notes.flush()
     const path = s.storage.db.name
     open.splice(open.indexOf(s.storage), 1)
     s.storage.close()
-    expect(readFileSync(path).includes(Buffer.from(marker))).toBe(false)
+    const file = readFileSync(path)
+    expect(file.includes(Buffer.from(marker))).toBe(false)
+    // The search index keeps a note's text as trigrams, most of them stored whole.
+    const lower = marker.toLowerCase()
+    const trigrams = [...lower.slice(2)].map((_, i) => lower.slice(i, i + 3))
+    expect(trigrams.filter((t) => file.includes(Buffer.from(t)))).toEqual([])
   })
 
   it('keeps an image whose link was cut into another note, and its bytes', async () => {

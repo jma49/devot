@@ -584,6 +584,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
        purged_at = @at
      WHERE id = @id AND purged_at IS NULL`,
   )
+  // The search index takes a purged note's text out of its pages: same statement as the Rust
+  // store (SEARCH_SECURE_DELETE_SQL, which says why only a purge turns it on). FTS5 refuses a
+  // number that is not bound as an integer.
+  const searchSecureDelete = db.prepare<[bigint]>(
+    "INSERT INTO notes_fts (notes_fts, rank) VALUES ('secure-delete', ?)",
+  )
   const dropLinks = db.prepare('DELETE FROM note_tags WHERE note_id = ?')
   // The link index: same statements as the Rust store (put_note, purge_note).
   const dropNoteLinks = db.prepare('DELETE FROM links WHERE source_id = ?')
@@ -761,6 +767,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const purgeWith = (id: string, at: number, hlc: string, revisions: boolean) =>
     db
       .transaction(() => {
+        searchSecureDelete.run(1n)
         purge.run({ id, at, hlc })
         dropLinks.run(id)
         // Attachments another note still shows pass to it; the rest go.
@@ -769,6 +776,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         dropNoteLinks.run(id)
         dropAgentWrites.run({ noteId: id })
         if (revisions) dropRevisions.run(id)
+        searchSecureDelete.run(0n)
       })
       .immediate()
 

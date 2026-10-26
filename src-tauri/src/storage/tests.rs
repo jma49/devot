@@ -2930,7 +2930,7 @@ fn lists_agent_writes_of_live_notes_and_purging_deletes_them() {
 fn a_purged_note_leaves_no_text_in_the_file() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("devot.sqlite");
-    let secret = "Confidential-plan-".repeat(400);
+    let secret = "Qxjzvwkpfyb ".repeat(400);
     {
         let mut store = Store::open(&path).unwrap();
         let mut gone = note("a", "Gone", 10);
@@ -2944,10 +2944,32 @@ fn a_purged_note_leaves_no_text_in_the_file() {
         store
             .purge_note("a", 30, "0000000000000030-0000-a")
             .unwrap();
+        let secure: i64 = store
+            .conn
+            .query_row(
+                "SELECT v FROM notes_fts_config WHERE k = 'secure-delete'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            secure, 0,
+            "only a purge takes text out of the index's pages"
+        );
     }
     let bytes = std::fs::read(&path).unwrap();
     let found = bytes
-        .windows(b"Confidential-plan-".len())
-        .any(|w| w == b"Confidential-plan-");
+        .windows(b"Qxjzvwkpfyb".len())
+        .any(|w| w == b"Qxjzvwkpfyb");
     assert!(!found, "the purged text is still in the file");
+    // The search index keeps a note's text as trigrams, most of them stored whole.
+    let left: Vec<&[u8]> = b"qxjzvwkpfyb"
+        .windows(3)
+        .filter(|trigram| bytes.windows(3).any(|w| w == *trigram))
+        .collect();
+    assert!(
+        left.is_empty(),
+        "the search index keeps {} trigrams",
+        left.len()
+    );
 }
