@@ -401,10 +401,10 @@ export function DevicesRow(props: { onAnnounce: (text: string) => void; failed: 
   useEffect(() => {
     let current = true
     listDevices().then(
-      (list) => {
+      (found) => {
         if (!current) return
         setProblem(undefined)
-        setDevices(list)
+        setDevices(found)
       },
       (e: unknown) => {
         if (current) setProblem(format(t('syncSettings.devicesFailed'), { code: errorCode(e) }))
