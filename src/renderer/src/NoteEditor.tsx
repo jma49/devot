@@ -84,6 +84,7 @@ import { pasteChooser, showChooser, type PasteFetcher } from './editor/pasteChoo
 import { editorSetup, reconfigureSetup } from './editor/settings'
 import { editorCompletions } from './editor/completions'
 import { taskToggle } from './editor/tasks'
+import { setToolbarFocus } from './editor/toolbarState'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
 import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
 import { setInertFormats } from './commands/formatMenu'
@@ -1092,7 +1093,9 @@ export function NoteEditor({
         const leftState = view.state
         scroller.scrollTop = 0
         view.setState(initial)
-        if (scrollTo) view.dispatch({ effects: scrollTo })
+        // setState keeps the DOM focus but sends no focus change, so the new state is told.
+        const effects = [...(scrollTo ? [scrollTo] : []), setToolbarFocus.of(view.hasFocus)]
+        view.dispatch({ effects })
         before.settings = setupFor
         left?.close(leftState)
       } else {
