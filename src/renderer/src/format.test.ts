@@ -3,6 +3,7 @@ import {
   bookDeleteDetail,
   dayDate,
   fileSize,
+  fullDate,
   listCaption,
   noteCount,
   noteDate,
@@ -57,6 +58,23 @@ describe('noteDate', () => {
 
   it('shows the date for older notes', () => {
     expect(noteDate(new Date(2026, 9, 9, 23, 59).getTime(), now, 'en')).toBe('Oct 9, 2026')
+  })
+
+  it('follows a change of the time zone while the app runs', () => {
+    const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process!
+      .env
+    const was = env['TZ']
+    restore.push(() => {
+      if (was === undefined) delete env['TZ']
+      else env['TZ'] = was
+    })
+    const at = Date.UTC(2026, 0, 15, 12, 0)
+    env['TZ'] = 'Europe/London'
+    expect(noteDate(at, at, 'en-GB')).toBe('12:00')
+    expect(fullDate(at, 'en-GB')).toBe('15 Jan 2026, 12:00')
+    env['TZ'] = 'Asia/Tokyo'
+    expect(noteDate(at, at, 'en-GB')).toBe('21:00')
+    expect(fullDate(at, 'en-GB')).toBe('15 Jan 2026, 21:00')
   })
 
   it('builds a formatter once per locale and style, not once per row', () => {
