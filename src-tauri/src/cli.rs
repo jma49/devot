@@ -380,8 +380,12 @@ fn first_picked(found: &import::Found, file: &Path) -> Option<String> {
 }
 
 /// False when `args` are not a hand-off.
+pub(crate) fn hands_off_files(args: &[String]) -> bool {
+    args.get(1).map(String::as_str) == Some(OPEN_FLAG)
+}
+
 pub(crate) fn receive_open<R: Runtime>(app: &AppHandle<R>, args: &[String]) -> bool {
-    if args.get(1).map(String::as_str) != Some(OPEN_FLAG) {
+    if !hands_off_files(args) {
         return false;
     }
     let Some(open) = parse_handoff(args) else {
