@@ -1558,6 +1558,8 @@ export const en = {
   'editor.emptyNoteHint': 'Just start typing, or',
   'editor.chooseTemplate': 'Choose a template',
   'editor.copyCodeBlock': 'Copy code block',
+  'editor.overwriteOn': 'Overwrite mode on',
+  'editor.overwriteOff': 'Overwrite mode off',
   'plugins.title': 'Plugins',
   'plugins.detail':
     'Plugins add commands, menu items, shortcuts, preview drawings and file formats. Each runs apart from Devot and your notes, with no network access, and can do only what you approve when you install it.',
