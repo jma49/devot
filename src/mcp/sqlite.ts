@@ -515,7 +515,8 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     // The same pragmas as the Rust store: WAL lets the app and devot-mcp
     // share the file; the busy timeout waits out the other's writes. Every
     // write transaction begins IMMEDIATE, as the Rust store's do: one that
-    // read first would fail at once when it then needs to write.
+    // read first would fail at once when it then needs to write. Deleted
+    // text is overwritten (secure_delete), so free pages keep none.
     // The SQL function the Rust store registers too (storage/mod.rs): terms
     // too short for the trigram index are scanned with it, so they ignore
     // case in every script as the index does (SQLite's lower() is ASCII only).
@@ -526,6 +527,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     db.pragma('journal_mode = WAL')
     db.pragma('synchronous = FULL')
     db.pragma('foreign_keys = ON')
+    db.pragma('secure_delete = ON')
 
     const version = db.pragma('user_version', { simple: true }) as number
     if (version > SCHEMA_VERSION) throw new Error('E_STORAGE_SCHEMA_TOO_NEW')

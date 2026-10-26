@@ -88,6 +88,19 @@ async function purge(notes: NoteService, id: string) {
 }
 
 describe('purging a note', () => {
+  it('leaves no text of the note in the database file, as the app does (secure_delete)', async () => {
+    const s = setup()
+    const marker = 'Confidential-plan-'
+    const id = await noteWith(s.notes, 'Gone', marker.repeat(400))
+    await noteWith(s.notes, 'Kept', 'Stays.\n')
+    await purge(s.notes, id)
+    await s.notes.flush()
+    const path = s.storage.db.name
+    open.splice(open.indexOf(s.storage), 1)
+    s.storage.close()
+    expect(readFileSync(path).includes(Buffer.from(marker))).toBe(false)
+  })
+
   it('keeps an image whose link was cut into another note, and its bytes', async () => {
     const s = setup()
     const source = await withImages(s, 'Source', F)

@@ -1034,6 +1034,9 @@ impl Store {
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "FULL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
+        // Deleted text is overwritten, overflow pages too (ON, not FAST): a purged note leaves
+        // nothing readable in free pages, which every later backup would copy.
+        conn.pragma_update(None, "secure_delete", "ON")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         // Every transaction takes the write lock when it begins, so it waits
         // out another writer (devot-mcp) for the busy timeout. A deferred one

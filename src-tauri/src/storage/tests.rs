@@ -2850,3 +2850,31 @@ fn lists_agent_writes_of_live_notes_and_purging_deletes_them() {
         .unwrap();
     assert_eq!(left, 0);
 }
+
+/// A note deleted for good leaves no readable copy of its text in the file's free pages, which
+/// every later backup would copy.
+#[test]
+fn a_purged_note_leaves_no_text_in_the_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    let secret = "Confidential-plan-".repeat(400);
+    {
+        let mut store = Store::open(&path).unwrap();
+        let mut gone = note("a", "Gone", 10);
+        gone.body_md = secret.clone();
+        gone.ydoc = secret.clone().into_bytes();
+        store.put_note(&gone, &[]).unwrap();
+        store
+            .put_revision(&version("r1", "a", 11, secret.as_bytes()))
+            .unwrap();
+        store.put_note(&note("b", "Kept", 10), &[]).unwrap();
+        store
+            .purge_note("a", 30, "0000000000000030-0000-a")
+            .unwrap();
+    }
+    let bytes = std::fs::read(&path).unwrap();
+    let found = bytes
+        .windows(b"Confidential-plan-".len())
+        .any(|w| w == b"Confidential-plan-");
+    assert!(!found, "the purged text is still in the file");
+}
