@@ -729,7 +729,7 @@ fn shows_folders_under_home_with_a_tilde() {
     );
 }
 
-/// A folder another library mirrored (app data lost, a second Mac) lists
+/// A folder another library mirrored (app data lost, a second Mac set up on its own) lists
 /// notes this library does not have: going on from its manifest would
 /// delete them all. It is used only after a confirmation, from an empty
 /// manifest, so its files can be taken back but never removed.
