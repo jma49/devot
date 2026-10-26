@@ -215,9 +215,10 @@ export function copyBlock(state: EditorState): SyntaxNode | null {
 }
 
 /**
- * The decorations of the blocks in `ranges` (the view's visible ranges). A
- * fold or a line gap splits the ranges around a block, so two can share it:
- * each block is decorated once.
+ * The decorations of the lines of blocks in `ranges` (the view's visible
+ * ranges), and no others, so a long block costs only its shown lines. A fold
+ * or a line gap splits the ranges around a block, so two can share a line:
+ * each line is decorated once.
  */
 export function blockDecorations(
   state: EditorState,
@@ -225,11 +226,11 @@ export function blockDecorations(
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>()
   const active = copyBlock(state)
-  const seen = new Set<number>()
+  let done = 0
   for (const { from, to } of ranges) {
+    const shownFirst = state.doc.lineAt(from).number
+    const shownLast = state.doc.lineAt(to).number
     for (const block of fencedBlocks(state, from, to)) {
-      if (seen.has(block.from)) continue
-      seen.add(block.from)
       const { first, last, closed } = blockLines(state, block)
       const marks: { from: number; to: number; deco: Decoration }[] = []
       for (const mark of block.getChildren('CodeMark'))
@@ -237,7 +238,9 @@ export function blockDecorations(
       const info = block.getChild('CodeInfo')
       if (info) marks.push({ from: info.from, to: info.to, deco: infoMark })
       marks.sort((a, b) => a.from - b.from)
-      for (let n = first; n <= last; n++) {
+      const end = Math.min(last, shownLast)
+      for (let n = Math.max(first, shownFirst, done + 1); n <= end; n++) {
+        done = n
         const line = state.doc.line(n)
         builder.add(
           line.from,
