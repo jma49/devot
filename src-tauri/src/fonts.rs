@@ -63,7 +63,7 @@ impl Fonts {
                 Ok(()) => return Ok(entry(id)),
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
                     if self.read(&id).is_ok_and(|stored| stored == bytes) {
-                        return Ok(entry(id));
+                        return Ok(entry(listed_name(&folder, id)));
                     }
                 }
                 Err(_) => return Err(FAILED),
@@ -101,6 +101,22 @@ impl Fonts {
         check_bytes(id, &bytes)?;
         Ok(bytes)
     }
+}
+
+/// The name `list` gives the file found at `id`: a volume that ignores case (APFS by default)
+/// finds `Mono.ttf` at `mono.ttf`.
+fn listed_name(folder: &Folder, id: String) -> String {
+    let Ok(found) = folder.entry(&id) else {
+        return id;
+    };
+    folder
+        .names()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|name| name.into_string().ok())
+        .filter(|name| valid_id(name))
+        .find(|name| folder.entry(name).is_ok_and(|e| e.same_file(&found)))
+        .unwrap_or(id)
 }
 
 fn entry(id: String) -> FontFile {
@@ -317,6 +333,19 @@ mod tests {
         assert_eq!(fonts.read("Mono 2.ttf").unwrap(), changed);
         let long = format!("{}.otf", "x".repeat(STEM_MAX));
         assert!(valid_id(&numbered(&long, 12)));
+    }
+
+    /// On a volume that ignores case (APFS by default) the same font from `mono.ttf` is the one
+    /// stored as `Mono.ttf`: the name that is listed comes back, so Settings finds it.
+    #[test]
+    fn the_same_font_under_another_case_comes_back_as_it_is_listed() {
+        let data = tempfile::tempdir().unwrap();
+        let picked = tempfile::tempdir().unwrap();
+        let fonts = Fonts::new(data.path());
+        fonts.import(&file(&picked, "Mono.ttf", TTF)).unwrap();
+        let again = tempfile::tempdir().unwrap();
+        let font = fonts.import(&file(&again, "mono.ttf", TTF)).unwrap();
+        assert!(fonts.list().contains(&font), "{font:?} is not listed");
     }
 
     #[test]
