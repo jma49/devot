@@ -23,7 +23,7 @@ import {
 } from '../textServices'
 import { aiEditSelection, aiMenuEntries, type AiEditChoice } from './aiMenu'
 import { selectedText } from './extract'
-import { linkAt } from './lineCommands'
+import { linkAt, opensLink } from './lineCommands'
 import { registryKeys } from './registryKeys'
 
 export type EditorAction =
@@ -52,6 +52,7 @@ export interface EditorMenuTarget {
 }
 
 const hasLink = (target: EditorMenuTarget) => target.link !== null
+const opensTargetLink = (target: EditorMenuTarget) => target.link !== null && opensLink(target.link)
 const hasSelection = (target: EditorMenuTarget) => target.selection !== null
 
 const SPEECH: MenuEntry<EditorAction, EditorMenuTarget>[] = [
@@ -64,7 +65,10 @@ const AI_SUBMENU = aiMenuEntries<EditorAction, EditorMenuTarget>((choice) => `ai
 
 export const EDITOR_MENU: MenuGroups<EditorAction, EditorMenuTarget> = [
   [
-    commandEntry('openLink', 'edit.openLink', { label: 'editorMenu.openLink', shown: hasLink }),
+    commandEntry('openLink', 'edit.openLink', {
+      label: 'editorMenu.openLink',
+      shown: opensTargetLink,
+    }),
     { action: 'copyLink', label: 'editorMenu.copyLink', shown: hasLink },
   ],
   [

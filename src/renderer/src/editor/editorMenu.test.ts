@@ -49,6 +49,15 @@ describe('the editor menu', () => {
     ])
   })
 
+  it('on a link the app does not open offers only Copy Link Address', () => {
+    for (const link of ['http://example.com', 'mailto:a@b.c', 'other.md']) {
+      expect(groupsFor({ ...plain, link })[0]).toEqual(['Copy Link Address'])
+    }
+    expect(
+      groupsFor({ ...plain, link: 'devot://note/0192a6f0-0000-7000-8000-000000000001' })[0],
+    ).toEqual(['Open Link', 'Copy Link Address'])
+  })
+
   it('with a selection offers Look Up (the text cut short) and New Note from Selection', () => {
     const target: EditorMenuTarget = { ...plain, selection: 'word', canMakeNote: true }
     expect(groupsFor(target).slice(0, 2)).toEqual([['Look Up “word”'], ['New Note from Selection']])
