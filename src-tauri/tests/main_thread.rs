@@ -14,6 +14,10 @@ fn main() {
         macos::self_test_sixty_fps_toggle().expect("the 60 fps WebKit preference can be toggled");
         println!("main_thread: 60 fps preference toggles off and on");
 
+        macos::self_test_peer_connection_toggle()
+            .expect("the WebRTC WebKit preference can be turned off");
+        println!("main_thread: WebRTC preference toggles off and on");
+
         macos::self_test_format_menu_keys().expect("the Format menu takes its own keys");
         println!(
             "main_thread: the Format menu takes its keys and no others; menu items lose keys by title"

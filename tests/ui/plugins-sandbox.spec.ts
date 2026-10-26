@@ -317,6 +317,116 @@ test('cannot make a frame of its own, whose fresh global would bring WebRTC back
   expect(network).toEqual([])
 })
 
+test('cannot get a frame past the guard by changing what the guard reads or calls', async ({
+  page,
+}) => {
+  const frame = await pluginFrame(page, 'com.example.probe')
+  const outcomes = await frame.evaluate(async () => {
+    const out: Record<string, string> = {}
+    const frames = () =>
+      String(window.length + document.querySelectorAll('iframe, frame, object').length)
+    const attempt = (name: string, run: () => unknown, undo: () => void = () => undefined) => {
+      try {
+        run()
+        out[name] = 'made'
+      } catch (e) {
+        out[name] = e instanceof DOMException ? e.message : 'failed'
+      } finally {
+        undo()
+      }
+    }
+    const patched = <T extends object>(target: T, key: PropertyKey, value: unknown) => {
+      const before = Object.getOwnPropertyDescriptor(target, key)
+      Object.defineProperty(target, key, { value, configurable: true, writable: true })
+      return () => {
+        if (before) Object.defineProperty(target, key, before)
+        else delete (target as Record<PropertyKey, unknown>)[key]
+      }
+    }
+    const iframe = () => document.createElement('iframe')
+
+    let undo = patched(Element.prototype, 'matches', () => false)
+    attempt('matches', () => document.body.appendChild(iframe()), undo)
+
+    attempt('nodeType', () => {
+      const f = iframe()
+      Object.defineProperty(f, 'nodeType', { value: 3 })
+      document.body.appendChild(f)
+    })
+
+    undo = patched(Node, Symbol.hasInstance, () => false)
+    attempt('hasInstance', () => document.body.appendChild(iframe()), undo)
+
+    // A frame inside an element made elsewhere, as no insertion here would take it.
+    const wrapped = () =>
+      new DOMParser().parseFromString('<div><iframe></iframe></div>', 'text/html').body
+        .firstElementChild!
+    const wrapper = wrapped()
+    undo = patched(Element.prototype, 'querySelectorAll', () => [])
+    attempt('querySelectorAll', () => document.body.appendChild(wrapper), undo)
+
+    const more = wrapped()
+    undo = patched(Array.prototype, 'some', () => false)
+    attempt('some', () => document.body.append(more), undo)
+
+    undo = patched(RegExp.prototype, 'exec', () => null)
+    attempt(
+      'hint',
+      () => {
+        const link = document.createElement('link')
+        link.rel = 'preconnect'
+        link.href = 'https://leak.example.com'
+        document.head.append(link)
+      },
+      undo,
+    )
+
+    const leaked: unknown[] = []
+    const { apply, call } = Function.prototype
+    const steal = function (this: unknown) {
+      leaked.push(this)
+      return 'stolen'
+    }
+    const undoApply = patched(Function.prototype, 'apply', steal)
+    const undoCall = patched(Function.prototype, 'call', steal)
+    const undoReflect = patched(Reflect, 'apply', steal)
+    try {
+      document.body.append(document.createElement('p'))
+      document.body.innerHTML = '<p></p>'
+    } catch {
+      // Only what leaked matters.
+    } finally {
+      undoReflect()
+      undoCall()
+      undoApply()
+    }
+    const originals = leaked.filter((fn) => typeof fn === 'function' && fn !== apply && fn !== call)
+    for (const fn of originals) {
+      attempt(`leaked ${originals.indexOf(fn)}`, () =>
+        Reflect.apply(fn as (...a: unknown[]) => unknown, document.body, [iframe()]),
+      )
+    }
+    out['leaked'] = String(originals.length)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    out['frames'] = frames()
+    return out
+  })
+  const refused = 'E_PLUGIN_FRAME_BLOCKED'
+  expect(outcomes).toEqual({
+    matches: refused,
+    nodeType: refused,
+    hasInstance: refused,
+    querySelectorAll: refused,
+    some: refused,
+    hint: refused,
+    leaked: '0',
+    frames: '0',
+  })
+  await page.waitForTimeout(300)
+  expect(network).toEqual([])
+})
+
 test('cannot reach another plugin, its files or its port', async ({ page }) => {
   const frame = await pluginFrame(page, 'com.example.probe')
   await pluginFrame(page, 'com.example.victim')

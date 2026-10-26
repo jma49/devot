@@ -14,28 +14,103 @@
 
   // A frame of the plugin's own (src-less frames skip the policy) would bring a fresh global with WebRTC back, and a resource hint
   // reaches the network outside the policy. So no frame or hint ever enters the document, by any insertion or HTML-parsing API.
+  // The plugin's script shares this realm and can change any prototype or global later, so the guard calls only what it keeps
+  // here, never a method or getter read off a node or a prototype at the time of the call.
+  const { apply, getOwnPropertyDescriptor: describe, defineProperty } = Reflect
+  const getter = (proto, name) => describe(proto, name)?.get
+  const valueOf = (proto, name) => describe(proto, name)?.value
+  const doc = document
+  const Refusal = DOMException
+  const nodeType = getter(Node.prototype, 'nodeType')
+  const parentNode = getter(Node.prototype, 'parentNode')
+  const localName = getter(Element.prototype, 'localName')
+  const matches = valueOf(Element.prototype, 'matches')
+  const getAttribute = valueOf(Element.prototype, 'getAttribute')
+  const remove = valueOf(Element.prototype, 'remove')
+  const elementQuery = valueOf(Element.prototype, 'querySelectorAll')
+  const documentQuery = valueOf(Document.prototype, 'querySelectorAll')
+  const fragmentQuery = valueOf(DocumentFragment.prototype, 'querySelectorAll')
+  const listLength = getter(NodeList.prototype, 'length')
+  const exec = RegExp.prototype.exec
+  const toText = String
+  const templateContent = getter(HTMLTemplateElement.prototype, 'content')
+  const recordType = getter(MutationRecord.prototype, 'type')
+  const recordTarget = getter(MutationRecord.prototype, 'target')
+  const recordAdded = getter(MutationRecord.prototype, 'addedNodes')
+  const windowLength = getter(globalThis, 'length') ?? getter(Window.prototype, 'length')
+
   const FRAMES = 'iframe, frame, frameset, object, embed, portal, fencedframe'
+  const CHECKED = `${FRAMES}, link`
   const HINT = /(?:^|\s)(?:dns-prefetch|preconnect|prefetch|prerender)(?:\s|$)/i
-  const blocked = () => new DOMException('E_PLUGIN_FRAME_BLOCKED', 'NotSupportedError')
+  const ELEMENT = 1
+  const blocked = () => new Refusal('E_PLUGIN_FRAME_BLOCKED', 'NotSupportedError')
+  // 0 for what is not a node: a string to append, or an object that only looks like a node.
+  const typeOf = (value) => {
+    try {
+      return apply(nodeType, value, [])
+    } catch {
+      return 0
+    }
+  }
+  const queryOf = (type) => {
+    if (type === ELEMENT) return elementQuery
+    if (type === 9) return documentQuery
+    return type === 11 ? fragmentQuery : null
+  }
+  const query = (node, selector) => {
+    const run = queryOf(typeOf(node))
+    return run ? apply(run, node, [selector]) : null
+  }
+  const some = (list, test) => {
+    if (!list) return false
+    const length = apply(listLength, list, [])
+    for (let i = 0; i < length; i += 1) if (test(list[i])) return true
+    return false
+  }
   const refused = (el) =>
-    el.matches(FRAMES) || (el.localName === 'link' && HINT.test(el.getAttribute('rel') ?? ''))
+    apply(matches, el, [FRAMES]) ||
+    (apply(localName, el, []) === 'link' &&
+      apply(exec, HINT, [apply(getAttribute, el, ['rel']) ?? '']) !== null)
   const refusedIn = (node) =>
-    node instanceof Node &&
-    ((node.nodeType === Node.ELEMENT_NODE && refused(node)) ||
-      (typeof node.querySelectorAll === 'function' &&
-        Array.from(node.querySelectorAll(`${FRAMES}, link`)).some(refused)))
+    (typeOf(node) === ELEMENT && refused(node)) || some(query(node, CHECKED), refused)
+  const removeRefused = (node) => {
+    if (typeOf(node) !== ELEMENT) return
+    if (refused(node)) apply(remove, node, [])
+    else
+      some(query(node, CHECKED), (el) => {
+        if (refused(el)) apply(remove, el, [])
+        return false
+      })
+  }
+  const removeFrames = () =>
+    some(query(doc, FRAMES), (el) => {
+      apply(remove, el, [])
+      return false
+    })
+  // Should a frame get in by a way no check here foresees, it is taken out before the plugin's next call returns.
+  const noFrameIn = () => {
+    if (!windowLength || apply(windowLength, globalThis, []) === 0) return
+    removeFrames()
+    throw blocked()
+  }
   const guard = (proto, name, check) => {
-    const original = proto && Object.getOwnPropertyDescriptor(proto, name)
+    const original = proto && describe(proto, name)
     if (!original || typeof original.value !== 'function') return
-    Object.defineProperty(proto, name, {
+    const run = original.value
+    defineProperty(proto, name, {
       ...original,
       value: function (...args) {
         if (check(args)) throw blocked()
-        return original.value.apply(this, args)
+        const result = apply(run, this, args)
+        noFrameIn()
+        return result
       },
     })
   }
-  const anyNode = (args) => args.some(refusedIn)
+  const anyNode = (args) => {
+    for (let i = 0; i < args.length; i += 1) if (refusedIn(args[i])) return true
+    return false
+  }
   for (const name of ['appendChild', 'insertBefore', 'replaceChild']) {
     guard(Node.prototype, name, anyNode)
   }
@@ -51,51 +126,58 @@
   guard(Range.prototype, 'insertNode', anyNode)
   guard(Range.prototype, 'surroundContents', anyNode)
 
-  const template = document.createElement('template')
-  const innerHTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML')
+  const template = doc.createElement('template')
+  const innerHTML = describe(Element.prototype, 'innerHTML')
   const parsesRefused = (html) => {
-    innerHTML.set.call(template, String(html))
-    const found = refusedIn(template.content)
-    innerHTML.set.call(template, '')
+    apply(innerHTML.set, template, [html])
+    const found = refusedIn(apply(templateContent, template, []))
+    apply(innerHTML.set, template, [''])
     return found
   }
-  // Parsing in place can differ from parsing in a template, so the result is checked too, before any script can see it.
+  // Parsing in place can differ from parsing in a template, so the result is checked too, before any script can see it. The
+  // HTML is made text once, so a value that changes each time it is read parses the same in both.
   const checkedHtml = (proto, name, scope) => {
-    const original = Object.getOwnPropertyDescriptor(proto, name)
+    const original = describe(proto, name)
     if (!original) return
     const run = function (call, html) {
       if (parsesRefused(html)) throw blocked()
       const area = scope(this)
       const result = call()
       if (area && refusedIn(area)) {
-        for (const el of area.querySelectorAll(`${FRAMES}, link`)) if (refused(el)) el.remove()
+        removeRefused(area)
         throw blocked()
       }
+      noFrameIn()
       return result
     }
     if (original.set) {
-      Object.defineProperty(proto, name, {
+      const set = original.set
+      defineProperty(proto, name, {
         ...original,
         set(html) {
-          run.call(this, () => original.set.call(this, html), html)
+          const text = toText(html)
+          apply(run, this, [() => apply(set, this, [text]), text])
         },
       })
     } else if (typeof original.value === 'function') {
-      Object.defineProperty(proto, name, {
+      const value = original.value
+      defineProperty(proto, name, {
         ...original,
         value: function (...args) {
-          return run.call(this, () => original.value.apply(this, args), args[args.length - 1])
+          if (args.length > 0) args[args.length - 1] = toText(args[args.length - 1])
+          return apply(run, this, [() => apply(value, this, args), args[args.length - 1]])
         },
       })
     }
   }
+  const parentOf = (el) => apply(parentNode, el, [])
   checkedHtml(Element.prototype, 'innerHTML', (el) => el)
-  checkedHtml(Element.prototype, 'outerHTML', (el) => el.parentNode)
-  checkedHtml(Element.prototype, 'insertAdjacentHTML', (el) => el.parentNode ?? el)
+  checkedHtml(Element.prototype, 'outerHTML', parentOf)
+  checkedHtml(Element.prototype, 'insertAdjacentHTML', (el) => parentOf(el) ?? el)
 
   const refuse = (proto, name) => {
     if (proto && Object.hasOwn(proto, name)) {
-      Object.defineProperty(proto, name, {
+      defineProperty(proto, name, {
         configurable: false,
         writable: false,
         value: () => {
@@ -120,22 +202,25 @@
     if (!proto) continue
     for (const name of ['contentWindow', 'contentDocument']) {
       if (Object.hasOwn(proto, name)) {
-        Object.defineProperty(proto, name, { configurable: false, get: () => null })
+        defineProperty(proto, name, { configurable: false, get: () => null })
       }
     }
     refuse(proto, 'getSVGDocument')
   }
   // A change no guard sees (a link's `rel` set later, a paste): removed before the next task, when a hint or frame would start.
   new MutationObserver((records) => {
-    for (const record of records) {
-      const nodes = record.type === 'attributes' ? [record.target] : record.addedNodes
-      for (const node of nodes) {
-        if (node.nodeType !== Node.ELEMENT_NODE) continue
-        if (refused(node)) node.remove()
-        else for (const el of node.querySelectorAll(`${FRAMES}, link`)) if (refused(el)) el.remove()
-      }
+    for (let i = 0; i < records.length; i += 1) {
+      const record = records[i]
+      if (apply(recordType, record, []) === 'attributes')
+        removeRefused(apply(recordTarget, record, []))
+      else
+        some(apply(recordAdded, record, []), (node) => {
+          removeRefused(node)
+          return false
+        })
     }
-  }).observe(document, {
+    if (windowLength && apply(windowLength, globalThis, []) > 0) removeFrames()
+  }).observe(doc, {
     childList: true,
     subtree: true,
     attributes: true,

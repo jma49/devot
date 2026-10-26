@@ -26,20 +26,50 @@ use super::guarded;
 
 /// Paces page rendering updates near 60 fps by default, even on 120 Hz displays.
 const SIXTY_FPS_FEATURE: &str = "PreferPageRenderingUpdatesNear60FPSEnabled";
+/// WebRTC, which no content security policy governs: off, so a plugin's frame cannot reach the
+/// network through it (ADR 0005).
+const PEER_CONNECTION_FEATURE: &str = "PeerConnectionEnabled";
 
 /// Per web view: every main window needs it.
 pub fn unlock_high_refresh_rate(window: &tauri::WebviewWindow) {
-    let result = window.with_webview(|webview| {
-        let unlocked = guarded("W_NATIVE_HIGH_REFRESH_RATE_FAILED", || {
+    set_main_window_feature(
+        window,
+        SIXTY_FPS_FEATURE,
+        false,
+        "I_NATIVE_HIGH_REFRESH_RATE_ON",
+        "W_NATIVE_HIGH_REFRESH_RATE_UNAVAILABLE",
+    );
+}
+
+/// Per web view: plugins run in every main window.
+pub fn turn_off_peer_connections(window: &tauri::WebviewWindow) {
+    set_main_window_feature(
+        window,
+        PEER_CONNECTION_FEATURE,
+        false,
+        "I_NATIVE_PEER_CONNECTION_OFF",
+        "W_NATIVE_PEER_CONNECTION_UNAVAILABLE",
+    );
+}
+
+fn set_main_window_feature(
+    window: &tauri::WebviewWindow,
+    key: &'static str,
+    enabled: bool,
+    done: &'static str,
+    unavailable: &'static str,
+) {
+    let result = window.with_webview(move |webview| {
+        let set = guarded("W_NATIVE_WEB_FEATURE_FAILED", || {
             // SAFETY: `inner()` is the live WKWebView owned by this window;
             // every selector is checked with respondsToSelector: before use.
-            unsafe { disable_sixty_fps_feature(webview.inner().cast()) }.then_some(())
+            unsafe { set_web_view_feature(webview.inner().cast(), key, enabled) }.then_some(())
         })
         .is_some();
-        if unlocked {
-            log::info!("I_NATIVE_HIGH_REFRESH_RATE_ON");
+        if set {
+            log::info!("{done}");
         } else {
-            log::warn!("W_NATIVE_HIGH_REFRESH_RATE_UNAVAILABLE");
+            log::warn!("{unavailable}");
         }
     });
     if result.is_err() {
@@ -49,7 +79,7 @@ pub fn unlock_high_refresh_rate(window: &tauri::WebviewWindow) {
 
 /// # Safety
 /// `web_view` must point to a live `WKWebView`.
-unsafe fn disable_sixty_fps_feature(web_view: *mut AnyObject) -> bool {
+unsafe fn set_web_view_feature(web_view: *mut AnyObject, key: &str, enabled: bool) -> bool {
     if web_view.is_null() {
         return false;
     }
@@ -63,10 +93,10 @@ unsafe fn disable_sixty_fps_feature(web_view: *mut AnyObject) -> bool {
         msg_send![configuration, preferences]
     };
     // SAFETY: `preferences` is null or a live WKPreferences.
-    unsafe { set_sixty_fps_feature(preferences, false) }
+    unsafe { set_feature(preferences, key, enabled) }
 }
 
-fn sixty_fps_feature() -> Option<*mut AnyObject> {
+fn web_feature(key: &str) -> Option<*mut AnyObject> {
     let class = AnyClass::get(c"WKPreferences")?;
     // `_features` is a class method, so ask the class object itself;
     // `AnyClass::responds_to` only answers for instance methods.
@@ -79,7 +109,7 @@ fn sixty_fps_feature() -> Option<*mut AnyObject> {
     // _WKFeature objects.
     unsafe {
         let features: *mut AnyObject = msg_send![class, _features];
-        find_feature(features, SIXTY_FPS_FEATURE)
+        find_feature(features, key)
     }
 }
 
@@ -192,14 +222,14 @@ pub fn self_test_private_api_guards() -> Result<(), &'static str> {
 ///
 /// # Safety
 /// `preferences` must be null or a live `WKPreferences`.
-unsafe fn set_sixty_fps_feature(preferences: *mut AnyObject, enabled: bool) -> bool {
+unsafe fn set_feature(preferences: *mut AnyObject, key: &str, enabled: bool) -> bool {
     if preferences.is_null()
         // SAFETY: `preferences` is a non-null WKPreferences (caller contract).
         || !unsafe { responds(preferences, sel!(_setEnabled:forFeature:)) }
     {
         return false;
     }
-    let Some(feature) = sixty_fps_feature() else {
+    let Some(feature) = web_feature(key) else {
         return false;
     };
     // SAFETY: the selector exists (checked above) and `feature` is a
@@ -483,8 +513,8 @@ pub fn read_clipboard_text() -> Result<Option<String>, &'static str> {
 
 /// # Safety
 /// `preferences` must be a live `WKPreferences`.
-unsafe fn sixty_fps_enabled(preferences: *mut AnyObject) -> Option<bool> {
-    let feature = sixty_fps_feature()?;
+unsafe fn feature_enabled(preferences: *mut AnyObject, key: &str) -> Option<bool> {
+    let feature = web_feature(key)?;
     // SAFETY: `preferences` is live (caller contract); the selector is
     // checked before the call.
     unsafe {
@@ -499,25 +529,35 @@ unsafe fn sixty_fps_enabled(preferences: *mut AnyObject) -> Option<bool> {
 /// WebKit kills the process when this runs off the main thread, so it refuses to.
 #[doc(hidden)]
 pub fn self_test_sixty_fps_toggle() -> Result<(), &'static str> {
+    self_test_feature_toggle(SIXTY_FPS_FEATURE)
+}
+
+/// Main thread only, as `self_test_sixty_fps_toggle`.
+#[doc(hidden)]
+pub fn self_test_peer_connection_toggle() -> Result<(), &'static str> {
+    self_test_feature_toggle(PEER_CONNECTION_FEATURE)
+}
+
+fn self_test_feature_toggle(key: &str) -> Result<(), &'static str> {
     if objc2::MainThreadMarker::new().is_none() {
         return Err("E_NATIVE_NOT_MAIN_THREAD");
     }
     // Regression: `_features` is a class method; checking it as an instance
     // method silently left every window at 60 fps.
-    sixty_fps_feature().ok_or("E_NATIVE_FEATURE_MISSING")?;
+    web_feature(key).ok_or("E_NATIVE_FEATURE_MISSING")?;
     let class = AnyClass::get(c"WKPreferences").ok_or("E_NATIVE_WEBKIT_MISSING")?;
     // SAFETY: `+new` returns an owned, live WKPreferences, released below;
     // the private calls run guarded, as the app runs them.
     unsafe {
         let preferences: *mut AnyObject = msg_send![class, new];
         let result = guarded("W_NATIVE_SELF_TEST_FAILED", || {
-            Some(if !set_sixty_fps_feature(preferences, false) {
+            Some(if !set_feature(preferences, key, false) {
                 Err("E_NATIVE_SET_OFF_FAILED")
-            } else if sixty_fps_enabled(preferences) != Some(false) {
+            } else if feature_enabled(preferences, key) != Some(false) {
                 Err("E_NATIVE_STILL_ON")
-            } else if !set_sixty_fps_feature(preferences, true) {
+            } else if !set_feature(preferences, key, true) {
                 Err("E_NATIVE_SET_ON_FAILED")
-            } else if sixty_fps_enabled(preferences) != Some(true) {
+            } else if feature_enabled(preferences, key) != Some(true) {
                 Err("E_NATIVE_STILL_OFF")
             } else {
                 Ok(())
@@ -3217,13 +3257,17 @@ mod tests {
     #[test]
     fn refuses_a_null_preferences_object() {
         // SAFETY: null is explicitly allowed by the contract.
-        assert!(!unsafe { set_sixty_fps_feature(std::ptr::null_mut(), false) });
+        assert!(!unsafe { set_feature(std::ptr::null_mut(), SIXTY_FPS_FEATURE, false) });
     }
 
     #[test]
     fn self_test_refuses_worker_threads() {
         assert_eq!(
             self_test_sixty_fps_toggle(),
+            Err("E_NATIVE_NOT_MAIN_THREAD")
+        );
+        assert_eq!(
+            self_test_peer_connection_toggle(),
             Err("E_NATIVE_NOT_MAIN_THREAD")
         );
         assert_eq!(
