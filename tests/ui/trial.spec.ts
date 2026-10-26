@@ -106,6 +106,14 @@ test.describe('once the trial is over', () => {
     await page.keyboard.press('Meta+n')
     await expect(rows).toHaveCount(1)
 
+    // Find and Replace's key opens plain Find: nothing may be replaced.
+    await body.click()
+    await page.keyboard.press('Alt+Meta+f')
+    const find = page.getByRole('search', { name: 'Find in Note' })
+    await expect(find.getByRole('textbox', { name: 'Find' })).toBeFocused()
+    await expect(find.getByRole('textbox', { name: 'Replace' })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+
     await bar(page).getByRole('button', { name: 'Buy a Licence' }).click()
     expect(await calls(page, 'open_external')).toEqual([
       { url: 'https://licence.devot.online/buy' },

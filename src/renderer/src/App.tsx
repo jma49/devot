@@ -2451,6 +2451,7 @@ export function App() {
   const find = useFind({
     mode,
     noteOpen: !!core && selected !== undefined && !inTrash && !multiIds,
+    editing,
     editor: editorFind,
     preview: previewFind,
   })
