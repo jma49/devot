@@ -155,4 +155,13 @@ describe('the word the menu offers spelling guesses for', () => {
     expect(spellingWordAt(state('abc123 x', 1), 1)).toBeNull()
     expect(spellingWordAt(state('x'.repeat(101), 1), 1)).toBeNull()
   })
+
+  it('is none in a note that cannot change, where picking a guess would do nothing', () => {
+    const locked = EditorState.create({
+      doc: 'I recieve mail',
+      selection: EditorSelection.cursor(4),
+      extensions: [noteMarkdown, EditorState.readOnly.of(true)],
+    })
+    expect(spellingWordAt(locked, 4)).toBeNull()
+  })
 })

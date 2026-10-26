@@ -145,10 +145,11 @@ export interface WordRange {
 
 /**
  * The word at `pos` the system may offer spelling guesses for: none away
- * from the text, or when a selection is something other than that word.
+ * from the text, when a selection is something other than that word, or in
+ * a read-only note.
  */
 export function spellingWordAt(state: EditorState, pos: number | null): WordRange | null {
-  if (pos === null) return null
+  if (pos === null || state.readOnly) return null
   const word = state.wordAt(pos)
   if (!word) return null
   const { from, to, empty } = state.selection.main
