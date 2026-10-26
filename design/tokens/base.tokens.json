@@ -1332,6 +1332,14 @@
       },
       "$description": "The narrowest the text of a notice above the editor gets; past it, the notice's buttons wrap below the text."
     },
+    "notice-max-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 440,
+        "unit": "px"
+      },
+      "$description": "The widest a notice at the bottom of the window gets; longer text wraps."
+    },
     "picker-min-height": {
       "$type": "dimension",
       "$value": {

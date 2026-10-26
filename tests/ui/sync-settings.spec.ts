@@ -746,4 +746,58 @@ test.describe('the relay’s quota cap', () => {
     )
     await expect(panel).toContainText('Your relay comes from an earlier release')
   })
+
+  test('a long notice stays a bounded toast, clear of both window edges', async ({ page }) => {
+    await page.setViewportSize({ width: 760, height: 800 })
+    await page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 23, 20)))
+    await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true, status: paused })
+    await openApp(page)
+    const notice = page.getByRole('alert').filter({ hasText: 'Sync paused' })
+    await expect(notice).toBeVisible()
+    const box = (await notice.boundingBox())!
+    expect(box.x).toBeGreaterThan(0)
+    expect(box.width).toBeLessThanOrEqual(440)
+    expect(box.x + box.width).toBeLessThan(760)
+    const button = (await notice.getByRole('button', { name: 'Dismiss' }).boundingBox())!
+    expect(button.x + button.width).toBeLessThanOrEqual(box.x + box.width)
+  })
+
+  test('the pause notice also says how many notes are too large to sync', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 23, 20)))
+    await fakeRust(page, {
+      relayUrl: RELAY,
+      enabled: true,
+      enrolled: true,
+      status: { ...paused, upload: undefined, tooLarge: 3 },
+    })
+    await openApp(page)
+    await expect(page.getByRole('alert').filter({ hasText: 'Sync paused' })).toHaveText(
+      /Sync paused until 9:00\sAM: .* 3 notes are too large to sync and stay on this device only\./,
+    )
+  })
+
+  test('once the reset has passed, the notice no longer names a time', async ({ page }) => {
+    await page.clock.install({ time: new Date(Date.UTC(2026, 9, 23, 23, 50)) })
+    await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true, status: paused })
+    await openApp(page)
+    const notice = page.getByRole('alert').filter({ hasText: 'Sync' })
+    await expect(notice).toHaveText(/Sync paused until 9:00\sAM/)
+    await page.clock.fastForward('40:00')
+    await expect(notice).toHaveText(
+      /The relay’s quota for today has reset; sync resumes in a moment, with 20,000 of 45,000 items uploaded so far\./,
+    )
+  })
+
+  test('once the reset has passed, Settings > Sync no longer names a time', async ({ page }) => {
+    await page.clock.install({ time: new Date(Date.UTC(2026, 9, 23, 23, 50)) })
+    await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true, status: paused })
+    await openSettings(page, 'Sync')
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText(/Sync paused until 9:00\sAM/)
+    await page.clock.fastForward('40:00')
+    await expect(panel).toContainText(
+      'The relay’s quota for today has reset; sync resumes in a moment.',
+    )
+    await expect(panel).not.toContainText('Sync paused until')
+  })
 })

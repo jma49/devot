@@ -3567,6 +3567,8 @@ button {
   position: fixed;
   right: var(--space-7);
   bottom: var(--space-7);
+  left: var(--space-7);
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -3575,7 +3577,10 @@ button {
 
 .notice {
   display: flex;
+  box-sizing: border-box;
+  max-width: var(--size-notice-max-width);
   align-items: center;
+  pointer-events: auto;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-6);
   border-radius: var(--radius-card);
@@ -3590,6 +3595,7 @@ button {
 }
 
 .notice-text {
+  min-width: 0;
   margin-right: var(--space-4);
 }
 

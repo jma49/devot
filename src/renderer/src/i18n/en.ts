@@ -616,6 +616,7 @@ export const en = {
     '{count} notes are too large for the relay and stay on this device.',
   'syncSettings.pausedUntil':
     'Sync paused until {time}: the relay has reached its quota for today.',
+  'syncSettings.resuming': 'The relay’s quota for today has reset; sync resumes in a moment.',
   'syncSettings.upload': '{sent} of {total} items uploaded.',
   'syncSettings.relayOutdated':
     'Your relay comes from an earlier release and has no quota cap of its own. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
@@ -707,6 +708,10 @@ export const en = {
     'Sync paused until {time}: the relay has reached its quota for today. Your notes keep working on this device and sync after that.',
   'sync.notice.pausedUpload':
     'Sync paused until {time}: the relay has reached its quota for today, with {sent} of {total} items uploaded. The upload goes on after that; your notes keep working on this device.',
+  'sync.notice.resuming':
+    'The relay’s quota for today has reset; sync resumes in a moment. Your notes keep working on this device.',
+  'sync.notice.resumingUpload':
+    'The relay’s quota for today has reset; sync resumes in a moment, with {sent} of {total} items uploaded so far.',
   'sync.notice.tooLargeOne': '{count} note is too large to sync and stays on this device only.',
   'sync.notice.tooLargeOther': '{count} notes are too large to sync and stay on this device only.',
   'licenceSettings.title': 'Licence',

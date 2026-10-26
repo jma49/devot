@@ -2,7 +2,7 @@
 // device token and the socket; the main window's core worker runs the engine through the commands
 // here. After every change Rust sends `devot://sync-changed` with its snapshot to every window,
 // which re-sends it in the page as `devot:sync-changed` (the UI tests send that one).
-import { useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import * as Comlink from 'comlink'
 import type { SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent, Welcome, PushResult } from '../../core/sync/transport'
@@ -141,6 +141,27 @@ export function useSyncSnapshot(): SyncSnapshot {
     },
     () => snapshot,
   )
+}
+
+// A timer falls behind while the machine sleeps, so a pause is looked at again at least once a minute.
+const PAUSE_RECHECK_MS = 60_000
+
+/** Whether a quota pause's reset time has passed; turns true by itself once it does. */
+export function usePauseOver(until: number | null): boolean {
+  const passed = (at: number | null) => (at !== null && Date.now() >= at ? at : null)
+  const [overAt, setOverAt] = useState(() => passed(until))
+  useEffect(() => {
+    if (until === null) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const check = () => {
+      const left = until - Date.now()
+      if (left <= 0) setOverAt(until)
+      else timer = setTimeout(check, Math.min(left, PAUSE_RECHECK_MS))
+    }
+    check()
+    return () => clearTimeout(timer)
+  }, [until])
+  return until !== null && overAt === until
 }
 
 /** Rejects with Rust's code (E_SYNC_RELAY_URL_INVALID, ...); the snapshot stays as it was. */

@@ -10,6 +10,7 @@ import {
   pendingRecoveryKey,
   recoverySaved,
   startSyncStatus,
+  usePauseOver,
   useSyncSnapshot,
   type SyncSnapshot,
   type SyncStateName,
@@ -30,12 +31,17 @@ const STATES: Readonly<Record<SyncStateName, MessageKey>> = {
 const when = (at: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at)
 
-function statusText(snapshot: SyncSnapshot, locale: string): string {
+function pauseText(pausedUntil: number, pauseOver: boolean, locale: string): string {
+  if (pauseOver) return t('syncSettings.resuming')
+  return format(t('syncSettings.pausedUntil'), { time: untilTime(pausedUntil, Date.now(), locale) })
+}
+
+function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string): string {
   const { state, lastSync, code, pausedUntil, upload } = snapshot.status
   const shown = snapshot.enabled ? state : 'off'
   const parts = [
     shown === 'paused' && pausedUntil !== null
-      ? format(t('syncSettings.pausedUntil'), { time: untilTime(pausedUntil, Date.now(), locale) })
+      ? pauseText(pausedUntil, pauseOver, locale)
       : t(STATES[shown]),
   ]
   if (upload && snapshot.enabled)
@@ -79,6 +85,7 @@ export function SyncSection() {
   const ids = useId()
   const id = (name: string) => `${ids}-${name}`
   const snapshot = useSyncSnapshot()
+  const pauseOver = usePauseOver(snapshot.status.pausedUntil)
   const [url, setUrl] = useState<string>()
   const [secret, setSecret] = useState('')
   const [error, setError] = useState<{ message: MessageKey; code: string }>()
@@ -326,7 +333,7 @@ export function SyncSection() {
             )
           }
         />
-        <Setting label="syncSettings.status" description={statusText(snapshot, locale)}>
+        <Setting label="syncSettings.status" description={statusText(snapshot, pauseOver, locale)}>
           {null}
         </Setting>
         {snapshot.enabled && snapshot.status.relayOutdated ? (
