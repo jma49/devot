@@ -1317,8 +1317,8 @@ fn file_font(bytes: &[u8], size: f64, weight: f64, italic: bool) -> Option<Retai
     }
 }
 
-/// The web view speaks its own selection when it can (the system's Speech actions); otherwise
-/// `text` is spoken by a speech synthesizer. Stopping stops both.
+/// `text`, the selection the page sends, is spoken by a speech synthesizer; without it the web view
+/// speaks its own selection (the system's Speech action). Stopping stops both.
 pub fn speak(
     webview: &tauri::webview::PlatformWebview,
     start: bool,
@@ -1353,15 +1353,32 @@ unsafe fn speak_in(
         stop_synthesizer();
         return Ok(());
     }
-    if services.start_speaking {
-        // SAFETY: the selector was checked; a nil sender is allowed.
-        unsafe {
-            let _: () = msg_send![web_view, startSpeaking: nothing];
+    match speech_source(text, services.start_speaking) {
+        Some(SpeechSource::Text(text)) => speak_with_synthesizer(text),
+        Some(SpeechSource::WebView) => {
+            // SAFETY: the selector was checked; a nil sender is allowed.
+            unsafe {
+                let _: () = msg_send![web_view, startSpeaking: nothing];
+            }
+            Ok(())
         }
-        return Ok(());
+        None => Err("E_SPEECH_NOTHING_TO_SAY"),
     }
-    let text = text.ok_or("E_SPEECH_NOTHING_TO_SAY")?;
-    speak_with_synthesizer(text)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum SpeechSource<'a> {
+    Text(&'a str),
+    WebView,
+}
+
+/// The page's text first: the editor draws only the lines near the view, so the web view's own
+/// selection can hold a fraction of a long one.
+fn speech_source(text: Option<&str>, web_view_speaks: bool) -> Option<SpeechSource<'_>> {
+    match text {
+        Some(text) => Some(SpeechSource::Text(text)),
+        None => web_view_speaks.then_some(SpeechSource::WebView),
+    }
 }
 
 fn stop_synthesizer() {
@@ -3252,6 +3269,20 @@ mod tests {
         let then = time_since_boot().expect("clock");
         assert!(first > std::time::Duration::ZERO);
         assert!(then >= first);
+    }
+
+    #[test]
+    fn speaks_the_text_the_page_sends_and_the_web_views_selection_only_without_it() {
+        assert_eq!(
+            speech_source(Some("a long selection"), true),
+            Some(SpeechSource::Text("a long selection"))
+        );
+        assert_eq!(
+            speech_source(Some("a"), false),
+            Some(SpeechSource::Text("a"))
+        );
+        assert_eq!(speech_source(None, true), Some(SpeechSource::WebView));
+        assert_eq!(speech_source(None, false), None);
     }
 
     #[test]
