@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-backup-restore-ready"
+description = "Enables the backup_restore_ready command without any pre-configured scope."
+commands.allow = ["backup_restore_ready"]
+
+[[permission]]
+identifier = "deny-backup-restore-ready"
+description = "Denies the backup_restore_ready command without any pre-configured scope."
+commands.deny = ["backup_restore_ready"]

@@ -103,6 +103,7 @@ fn main() {
             "search_index_rebuild",
             "backup_now",
             "backup_restore",
+            "backup_restore_ready",
             "import_read",
             "import_attach",
             "import_finish",

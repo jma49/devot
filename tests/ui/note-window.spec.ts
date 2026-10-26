@@ -7,6 +7,8 @@ import { expect, mockTauri, openApp, pickMenuItem, test, type TestWindow } from 
 
 const CLOSE_EVENT = 'devot:note-window-close'
 const FLUSH_EVENT = 'devot:flush-before-exit'
+const RESTORE_PREPARE = 'devot:restore-prepare'
+const RESTORE_DONE = 'devot:restore-done'
 
 const storedNotes = () =>
   JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
@@ -53,6 +55,7 @@ async function openNoteWindow(context: BrowserContext, id: string) {
       note_window_close_cancel: null,
       app_exit_ready: null,
       app_exit_cancel: null,
+      backup_restore_ready: null,
     }
   }, id)
   await win.goto('/note.html')
@@ -145,6 +148,44 @@ test('closing a note window saves its edits first', async ({ page, context }) =>
   await expect.poll(() => calls(win, 'note_window_close_ready')).toHaveLength(1)
   const stored = await win.evaluate(storedNotes)
   expect(stored.find((n) => n.id === id)?.bodyMd).toBe('Start. Typed just before closing.')
+})
+
+const send = (page: Page, name: string) =>
+  page.evaluate((n) => {
+    const w = globalThis as unknown as { dispatchEvent(e: unknown): void }
+    const make = globalThis as unknown as { CustomEvent: new (t: string) => unknown }
+    w.dispatchEvent(new make.CustomEvent(n))
+  }, name)
+
+test('a backup restored from another window: the note window saves, writes nothing more, then reloads', async ({
+  page,
+  context,
+}) => {
+  const id = await noteInMain(page, 'Plan', 'Steps')
+  const win = await openNoteWindow(context, id)
+  await body(win).click()
+  await win.keyboard.press('End')
+  await win.keyboard.type(' typed')
+  await send(win, RESTORE_PREPARE)
+  await expect.poll(() => calls(win, 'backup_restore_ready')).toHaveLength(1)
+  const bodyOf = () =>
+    win.evaluate((noteId) => {
+      const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
+        id: string
+        bodyMd: string
+      }[]
+      return notes.find((n) => n.id === noteId)?.bodyMd
+    }, id)
+  expect(await bodyOf()).toBe('Steps typed')
+  // Whatever this window holds is from before the restore: none of it may reach the library.
+  await body(win).click()
+  await win.keyboard.type(' after')
+  await win.evaluate(() => new Promise((resolve) => setTimeout(resolve, 1000)))
+  expect(await bodyOf()).toBe('Steps typed')
+  const reloaded = win.waitForEvent('load')
+  await send(win, RESTORE_DONE)
+  await reloaded
+  await expect(body(win)).toContainText('Steps typed')
 })
 
 test('a note window that cannot open its note still answers a close and a quit at once', async ({

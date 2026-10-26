@@ -71,6 +71,7 @@
     "allow-search-index-rebuild",
     "allow-backup-now",
     "allow-backup-restore",
+    "allow-backup-restore-ready",
     "allow-import-read",
     "allow-import-attach",
     "allow-import-finish",

@@ -103,6 +103,40 @@ test('a failed restore keeps the dialog open with the code', async ({ page }) =>
   ])
 })
 
+test('a backup restored from another window: this one saves, writes nothing more, then reloads', async ({
+  page,
+}) => {
+  await open(page, { backup_restore_ready: null })
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  const body = page.getByRole('textbox', { name: 'Note body' })
+  await body.click()
+  await page.keyboard.type('Steps')
+  const stored = () =>
+    page.evaluate(() =>
+      (JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as { bodyMd: string }[]).map(
+        (n) => n.bodyMd,
+      ),
+    )
+  const send = (name: string) =>
+    page.evaluate((n) => {
+      const w = globalThis as unknown as {
+        dispatchEvent(e: unknown): void
+        CustomEvent: new (t: string) => unknown
+      }
+      w.dispatchEvent(new w.CustomEvent(n))
+    }, name)
+  await send('devot:restore-prepare')
+  await expect.poll(async () => (await calls(page, 'backup_restore_ready')).length).toBe(1)
+  expect(await stored()).toEqual(['Steps'])
+  await body.click()
+  await page.keyboard.type(' after')
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 1000)))
+  expect(await stored()).toEqual(['Steps'])
+  const reloaded = page.waitForEvent('load')
+  await send('devot:restore-done')
+  await reloaded
+})
+
 test('a failed automatic backup shows a notice that opens the backups', async ({ page }) => {
   await open(page, { backups_list: { backups: [OLD], lastError: 'E_BACKUP_SNAPSHOT_FAILED' } })
   const notice = page.getByRole('alert')

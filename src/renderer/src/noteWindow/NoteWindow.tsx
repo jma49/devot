@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SaveProblem, TakenIn } from '../../../core'
 import { errorCode } from '../../../core/errors'
 import { clipTitle } from '../../../core/noteLimits'
+import { onRestoreElsewhere } from '../backups'
 import { startCore, stopCore, type Core } from '../core-client'
 import { useAlertMenu } from '../editor/alertMenu'
 import { useExternalChanges } from '../externalChanges'
@@ -196,6 +197,20 @@ export function NoteWindow() {
         }),
     )
   }, [quitGuard, closeGuard])
+
+  useEffect(
+    () =>
+      onRestoreElsewhere(async () => {
+        const ready = coreRef.current
+        if (!ready) return
+        try {
+          await saveEdits(ready)
+        } finally {
+          stopCore(ready)
+        }
+      }),
+    [],
+  )
 
   // Another process (devot-mcp) wrote: the note takes it in, and the editor what changed (takeIn).
   useExternalChanges(
