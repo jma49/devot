@@ -89,7 +89,7 @@ test('a selection of whole rows is one block across formats, and a partial row s
     }
     const root = content as unknown as {
       querySelector(s: string): {
-        getBoundingClientRect(): { left: number }
+        getBoundingClientRect(): { left: number; right: number }
         querySelector(s: string): unknown
       }
     }
@@ -124,19 +124,19 @@ test('a selection of whole rows is one block across formats, and a partial row s
   expect(columns.quoteText).toBeGreaterThan(columns.proseText + 2)
 
   await page.keyboard.press('ControlOrMeta+a')
-  let full: Awaited<ReturnType<typeof block>> | null = null
+  const held: { edges: Awaited<ReturnType<typeof block>> | null } = { edges: null }
   await expect
     .poll(async () => {
       const edges = await block(page)
       if (edges.count > 1 && edges.leftSpread < 1 && edges.rightSpread < 1) {
-        full = edges
+        held.edges = edges
         return true
       }
       return false
     })
     .toBe(true)
-  if (!full) throw new Error('missing selection')
-  const blockEdges = full
+  const blockEdges = held.edges
+  if (!blockEdges) throw new Error('missing selection')
   // The tint wraps the code box, and meets the quote bar on the same edge.
   expect(blockEdges.left).toBeLessThanOrEqual(columns.code + 1)
   expect(blockEdges.right).toBeGreaterThanOrEqual(columns.codeRight - 1)
