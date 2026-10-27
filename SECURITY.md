@@ -14,7 +14,7 @@ A fix ships as a new release; installed copies take it through the in-app update
 
 ## Release signing
 
-Releases are published on [GitHub Releases](https://github.com/jma49/devot/releases). Their builds are ad-hoc signed and not notarised, so macOS asks for confirmation the first time you open one (see the README, Download).
+Releases are published on [GitHub Releases](https://github.com/jma49/devot/releases). Releases from 1.0.5-beta2 on are signed with Devot's Developer ID certificate and notarized by Apple, so they open without a Gatekeeper warning. 1.0.4 and earlier were ad-hoc signed and not notarised, so macOS asks for confirmation the first time you open one (see the README, Download).
 
 The updater accepts only bundles signed with Devot's updater key, and only when the signature records the version the update feed announces.
 
