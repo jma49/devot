@@ -145,6 +145,31 @@ test.describe('once the trial is over', () => {
     await expect(chip).toBeVisible()
   })
 
+  test('a template makes no note while notes are read-only', async ({ page }) => {
+    // Wider than the trial bar, which covers the foot of the lists.
+    await page.setViewportSize({ width: 1600, height: 900 })
+    await fakeTrial(page, 50 * HOUR)
+    await openApp(page)
+    await page.getByRole('button', { name: 'New Note', exact: true }).click()
+    await changeLicence(page, ended())
+    await expect(bar(page)).toBeVisible()
+
+    const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
+    await sidebar.getByRole('button', { name: /^Templates \d+$/ }).click()
+    await page
+      .getByRole('group', { name: 'Built-in' })
+      .getByRole('button', { name: 'Planning' })
+      .click()
+    await page
+      .getByRole('region', { name: 'Planning' })
+      .getByRole('button', { name: 'Create' })
+      .click()
+    // Nothing is made: no note opens, and the Templates list stays empty.
+    await page.waitForTimeout(1_000)
+    await expect(page.getByRole('textbox', { name: 'Title' })).toHaveCount(0)
+    await expect(page.getByRole('listbox', { name: 'Notes' }).getByRole('option')).toHaveCount(0)
+  })
+
   test('the window turns read-only at the end of the trial, without being told', async ({
     page,
   }) => {

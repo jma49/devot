@@ -1984,7 +1984,7 @@ export function App() {
   /** Makes a note from a template and opens it (see `showMade`); the template's notebook, if any, wins over the one shown. */
   const createFromTemplate = async (templateId: string) => {
     setPicking(undefined)
-    if (!core) return
+    if (!core || !editing) return
     await saveEdits(core)
     const id = await core
       .applyTemplate(templateId, Date.now(), newNoteBookId())
@@ -2002,7 +2002,7 @@ export function App() {
   /** Fills the open note from a template without making a new one; the open editor takes in the core's writes like another process's. */
   const fillFromTemplate = async (templateId: string, noteId: string) => {
     setPicking(undefined)
-    if (!core) return
+    if (!core || !editing) return
     await saveEdits(core)
     const navigation = opens.current
     const editor = editorRef.current?.noteId === noteId ? editorRef.current : null
@@ -3800,8 +3800,10 @@ export function App() {
                 onNewFromLink={inTrash || !editing ? undefined : () => void noteFromLink(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
-                onChooseTemplate={() =>
-                  setPicking({ recent: recentTemplates.load(), into: selected })
+                onChooseTemplate={
+                  inTrash || !editing
+                    ? undefined
+                    : () => setPicking({ recent: recentTemplates.load(), into: selected })
                 }
                 onOpenNote={(id) => void select(id)}
                 readOnly={!editing}
