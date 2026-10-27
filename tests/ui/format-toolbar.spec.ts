@@ -82,10 +82,18 @@ async function selectWord(page: Page, n: number, word: string) {
   await expect(toolbar(page)).toBeVisible()
   const selected = page.locator('.cm-selectionBackground')
   await expect(selected).toHaveCount(1)
+  // A selection that ends at the row paints out to the column, so the tint is
+  // wider than the word. The word's centre still sits inside it.
   await expect
     .poll(async () => {
       const box = await selected.boundingBox()
-      return !!box && Math.hypot(box.x + box.width / 2 - at.x, box.y + box.height / 2 - at.y) < 3
+      return (
+        !!box &&
+        at.x >= box.x - 1 &&
+        at.x <= box.x + box.width + 1 &&
+        at.y >= box.y - 1 &&
+        at.y <= box.y + box.height + 1
+      )
     }, `the selection covers "${word}"`)
     .toBe(true)
 }
@@ -544,6 +552,34 @@ test('the notch keeps pointing at the selection start when the bar is held back 
       return placed.notch > 20 && Math.abs(placed.left + placed.notch - sel.x) < 2
     })
     .toBe(true)
+})
+
+test('a tooltip on the first button stays inside the editor, its notch on the button', async ({
+  page,
+}) => {
+  await newNote(page, 'alpha beta gamma')
+  await page.keyboard.press('ControlOrMeta+Home')
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Shift+ArrowRight')
+  const heading = button(page, 'Heading')
+  await heading.hover()
+  const tip = page.getByRole('tooltip')
+  await expect(tip).toBeVisible()
+
+  const host = await page.locator('[data-devot-part="editor-body"]').boundingBox()
+  const [tipBox, buttonBox] = await Promise.all([tip.boundingBox(), heading.boundingBox()])
+  if (!host || !tipBox || !buttonBox) throw new Error('missing boxes')
+  expect(tipBox.x).toBeGreaterThanOrEqual(host.x + 3)
+  expect(tipBox.x + tipBox.width).toBeLessThanOrEqual(host.x + host.width - 3)
+
+  const notchLeft = await tip.evaluate((el) => {
+    const view = globalThis as unknown as {
+      getComputedStyle(el: unknown, pseudo?: string): { left: string }
+    }
+    return Number.parseFloat(view.getComputedStyle(el, '::before').left)
+  })
+  // The notch's box is 8px (space-4); its centre is 4px past the reported left.
+  const notchCenter = tipBox.x + notchLeft + 4
+  expect(Math.abs(notchCenter - (buttonBox.x + buttonBox.width / 2))).toBeLessThan(2)
 })
 
 test('a toolbar button tooltip waits, then shows above its button', async ({ page }) => {

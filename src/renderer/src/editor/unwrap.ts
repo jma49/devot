@@ -21,7 +21,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
-import { BOX_HANG } from './boxes'
+import { BOX_PAD } from './boxes'
 
 export const unwrapMode = Facet.define<'all' | 'active' | null, 'all' | 'active' | null>({
   combine: (values) => values[0] ?? null,
@@ -490,7 +490,7 @@ const theme = EditorView.theme({
   // A code block's copy button stays in the corner on screen, not at the far end of a long line.
   '.cm-line.cm-unwrap .cm-codeblock-copy': {
     right: 'auto',
-    left: `calc(var(${VIEW_VAR}, 100%) - var(--space-10) - var(--space-2) + ${BOX_HANG})`,
+    left: `calc(var(${VIEW_VAR}, 100%) - var(--space-10) - var(--space-2) - ${BOX_PAD})`,
   },
 })
 

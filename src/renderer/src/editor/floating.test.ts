@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { floatStyles } from './floating'
+import { floatStyles, placeFloatTip } from './floating'
 
 type Rule = Record<string, string>
 const rule = (selector: string) => floatStyles[selector] as Rule
@@ -84,8 +84,21 @@ describe('floating bar motion and states', () => {
     expect(rule('.cm-float-notch').left).toContain('var(--float-notch-x, 20px)')
   })
 
-  it('gives the tooltip bubble a notch toward its button', () => {
+  it('gives the tooltip bubble a notch toward its button, following the button when the bubble shifts', () => {
     expect(rule('.cm-float-tip[data-side="below"]::before').top).toBeDefined()
     expect(rule('.cm-float-tip[data-side="above"]::before').bottom).toBeDefined()
+    expect(rule('.cm-float-tip::before').left).toBe(
+      'calc(var(--tip-notch, 50%) - var(--space-4) / 2)',
+    )
+  })
+
+  it('shifts a tooltip in from the editor frame and keeps its notch on the button', () => {
+    const room = { left: 0, right: 400 }
+    // Clear of both edges: the bubble stays on the button, the notch at its centre.
+    expect(placeFloatTip(200, 60, room)).toEqual({ left: 200, notch: 30 })
+    // The first button: the bubble's left would be -20, so it moves in to 4px from the frame.
+    expect(placeFloatTip(10, 60, room)).toEqual({ left: 34, notch: 8 })
+    // The last button, the same from the right. The notch stops 8px short of the corner.
+    expect(placeFloatTip(390, 60, room)).toEqual({ left: 366, notch: 52 })
   })
 })

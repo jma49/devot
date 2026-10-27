@@ -5,7 +5,7 @@
 // sheets (they live in the editor's shadow root); positions go through the
 // CSSOM, which the production CSP allows.
 import { EditorView } from '@codemirror/view'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
 import { closingRef } from '../closing'
@@ -19,11 +19,36 @@ export { BAR_GAP, NOTCH_X }
 const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
 
 const TIP_ROOM = 64
+/** Space between a tooltip bubble and the editor's frame when it has to shift. */
+const TIP_EDGE = 4
+/** A notch's half width, and the least room left between it and the bubble's corner. */
+const NOTCH_INSET = 8
+
+/**
+ * Where a tooltip bubble's centre sits, and where its notch is along the
+ * bubble. `x` and `room` are in the bar's coordinates. A bubble centred on a
+ * button at the frame's edge would hang outside the editor; it shifts in, and
+ * the notch stays on the button (kept off the bubble's own corner).
+ */
+export function placeFloatTip(
+  x: number,
+  width: number,
+  room: { left: number; right: number },
+): { left: number; notch: number } {
+  const half = width / 2
+  const min = room.left + TIP_EDGE + half
+  const max = room.right - TIP_EDGE - half
+  const left = max < min ? min : Math.min(Math.max(x, min), max)
+  const notch = Math.min(Math.max(x - left + half, NOTCH_INSET), width - NOTCH_INSET)
+  return { left, notch }
+}
 
 interface ShownTip {
   tip: Tip
   x: number
   below: boolean
+  /** Where the bubble fits, in the bar's coordinates. */
+  room: { left: number; right: number }
 }
 
 function popupSpace(view: EditorView): DOMRect {
@@ -48,10 +73,12 @@ export function useFloatTip(view: EditorView) {
       if (!button.isConnected) return
       const b = button.getBoundingClientRect()
       const box = bar.getBoundingClientRect()
+      const frame = popupSpace(view)
       setShown({
         tip,
         x: b.left + b.width / 2 - box.left,
-        below: b.top - TIP_ROOM < popupSpace(view).top,
+        below: b.top - TIP_ROOM < frame.top,
+        room: { left: frame.left - box.left, right: frame.right - box.left },
       })
     }, SHOW_AFTER_MS)
   }
@@ -61,14 +88,34 @@ export function useFloatTip(view: EditorView) {
 
 const floatTipRef = closingRef('fade', 'cm-float-tip')
 
-function FloatTip({ tip, x, below }: ShownTip) {
+function FloatTip({ tip, x, below, room }: ShownTip) {
+  const ref = useRef<HTMLDivElement>(null)
+  // Both the closing fade (floatTipRef) and the width this measures.
+  const setRef = useCallback((el: HTMLDivElement | null) => {
+    ref.current = el
+    return el ? floatTipRef(el) : undefined
+  }, [])
+  const [left, setLeft] = useState(x)
+  const [notch, setNotch] = useState<number | null>(null)
+  // Kept inside the editor's frame: a bubble over the first button of a bar at
+  // the frame's edge would sit half outside it. Its notch follows its button.
+  useLayoutEffect(() => {
+    const width = ref.current?.getBoundingClientRect().width ?? 0
+    if (!width) return
+    const placed = placeFloatTip(x, width, room)
+    setLeft(placed.left)
+    setNotch(placed.notch)
+  }, [x, room])
   return (
     <div
-      ref={floatTipRef}
+      ref={setRef}
       role="tooltip"
       className="cm-float-tip"
       data-side={below ? 'below' : 'above'}
-      style={{ left: `${x}px` }}
+      style={{
+        left: `${left}px`,
+        ...(notch === null ? {} : { '--tip-notch': `${notch}px` }),
+      }}
     >
       <span className="cm-float-tip-title">{tip.title}</span>
       {tip.key !== undefined && <kbd className="cm-float-kbd">{tip.key}</kbd>}
@@ -243,7 +290,8 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     content: '""',
     position: 'absolute',
     boxSizing: 'border-box',
-    left: `calc(50% - ${notchSize} / 2)`,
+    // The bubble may shift to stay in the frame; the notch stays on its button.
+    left: `calc(var(--tip-notch, 50%) - ${notchSize} / 2)`,
     width: notchSize,
     height: notchSize,
     backgroundColor: 'inherit',
