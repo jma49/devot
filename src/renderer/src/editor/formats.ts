@@ -996,6 +996,12 @@ export function linkTo(state: EditorState, url: string): TransactionSpec | null 
   const segments = linkSegments(cx)
   if (segments.length === 0) return null
   if (segments.some((seg) => URL_ONLY.test(state.sliceDoc(seg.from, seg.to)))) return null
+  return { ...linkSegmentsTo(cx, segments, url), userEvent: 'input.paste' }
+}
+
+/** Makes each segment a link to `url`, the cursor after each. */
+function linkSegmentsTo(cx: Cx, segments: Segment[], url: string): TransactionSpec {
+  const { state } = cx
   const inserts: ChangeSpec[] = []
   for (const seg of segments) {
     inserts.push(...escapeBangBefore(state, seg.from))
@@ -1006,10 +1012,7 @@ export function linkTo(state: EditorState, url: string): TransactionSpec | null 
   }
   const changes = state.changes(inserts)
   const cursors = segments.map((seg) => EditorSelection.cursor(changes.mapPos(seg.to, 1)))
-  return {
-    ...spec(changes, EditorSelection.create(cursors)),
-    userEvent: 'input.paste',
-  }
+  return spec(changes, EditorSelection.create(cursors))
 }
 
 export function selectionHasLink(state: EditorState): boolean {
@@ -1041,10 +1044,17 @@ function linkLabel(text: string): string {
 /**
  * The link dialog's result: `[text](url)` in place of the main selection
  * (the URL as its text when `text` is empty), the cursor after it; one undo
- * step.
+ * step. A selection over several lines or ranges is linked line by line,
+ * after block markers, as the Link command does; `text` cannot name each link.
  */
 export function insertLink(state: EditorState, text: string, url: string): TransactionSpec {
-  const { from, to } = state.selection.main
+  const { ranges, main } = state.selection
+  const { from, to } = main
+  if (ranges.length > 1 || state.doc.lineAt(from).number !== state.doc.lineAt(to).number) {
+    const cx = context(state)
+    const segments = cx ? linkSegments(cx) : []
+    if (cx && segments.length > 0) return linkSegmentsTo(cx, segments, url.trim())
+  }
   const address = linkAddress(url.trim())
   const label = linkLabel(text.trim() === '' ? url.trim() : text)
   const changes = state.changes([

@@ -82,6 +82,28 @@ describe('the link dialog result', () => {
     expect(await previewTexts(typed, 'td')).toEqual(['x|y', 'c'])
   })
 
+  it('links each line of a selection over several lines, after its block markers', () => {
+    const linked = (doc: string) => {
+      const s = state(doc, 0, doc.length)
+      return s.update(insertLink(s, doc, 'https://a.test')).newDoc.toString()
+    }
+    expect(linked('- one\n- two')).toBe('- [one](https://a.test)\n- [two](https://a.test)')
+    expect(linked('# Title\n\nBody text')).toBe(
+      '# [Title](https://a.test)\n\n[Body text](https://a.test)',
+    )
+  })
+
+  it('links every range of a multiple selection', () => {
+    const s = EditorState.create({
+      doc: 'one two',
+      selection: EditorSelection.create([EditorSelection.range(0, 3), EditorSelection.range(4, 7)]),
+      extensions: [EditorState.allowMultipleSelections.of(true), noteMarkdown],
+    })
+    expect(s.update(insertLink(s, 'one', 'https://a.test')).newDoc.toString()).toBe(
+      '[one](https://a.test) [two](https://a.test)',
+    )
+  })
+
   it('knows when the selection is already a link (the button removes it instead)', () => {
     expect(selectionHasLink(state('[a](b) c', 1, 2))).toBe(true)
     expect(selectionHasLink(state('[a](b) c', 7, 8))).toBe(false)
