@@ -347,6 +347,27 @@ describe('taking a quote or list off lines after others of the block', () => {
     expect(outline(strip(quoted))).toBe('Blockquote(BulletList(ListItem(Paragraph)) Paragraph)')
   })
 
+  it('keeps a first sub-item out of its parent item paragraph', async () => {
+    const bullet = list('- a\n  - «b»', 'bullet')
+    expect(bullet).toBe('- a\n\n  «b»')
+    expect(outline(strip(bullet))).toBe('BulletList(ListItem(Paragraph Paragraph))')
+    expect(await previewShape(strip(bullet))).toBe('<ul><li><p>a</p><p>b</p></li></ul>')
+    const task = list('- [ ] a\n  - [ ] «b»', 'task')
+    expect(task).toBe('- [ ] a\n\n  «b»')
+    expect(outline(strip(task))).toBe('BulletList(ListItem(Task Paragraph))')
+    const numbered = list('1. a\n   1. «b»', 'numbered')
+    expect(numbered).toBe('1. a\n\n   «b»')
+    expect(outline(strip(numbered))).toBe('OrderedList(ListItem(Paragraph Paragraph))')
+    const quoted = list('> - a\n>   1. «b»', 'numbered')
+    expect(quoted).toBe('> - a\n>\n>   «b»')
+    expect(outline(strip(quoted))).toBe('Blockquote(BulletList(ListItem(Paragraph Paragraph)))')
+    const followed = list('- a\n  - «b»\n- c', 'bullet')
+    expect(followed).toBe('- a\n\n  «b»\n- c')
+    expect(outline(strip(followed))).toBe(
+      'BulletList(ListItem(Paragraph Paragraph) ListItem(Paragraph))',
+    )
+  })
+
   it('keeps lines that leave together in one paragraph', () => {
     expect(list('«- a\n- b»', 'bullet')).toBe('«a\nb»')
     expect(list('«- a\n  more\n- b»', 'bullet')).toBe('«a\nmore\nb»')

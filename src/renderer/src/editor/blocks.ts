@@ -543,11 +543,21 @@ function paragraphAtEnd(cx: Cx, n: number): SyntaxNode | null {
 /**
  * Whether a line that stops being an item of `list` would continue the
  * paragraph on line `n` above it lazily: that paragraph is in `list`, inside
- * an item that stays (or a quote in one).
+ * an item that stays (or a quote in one), or is the own paragraph of an item
+ * that stays and holds `list` (the line was its first sub-item).
  */
 function continuesInList(cx: Cx, n: number, list: SyntaxNode, changed: Set<number>): boolean {
   const para = paragraphAtEnd(cx, n)
-  if (!para || para.from < list.from || para.to > list.to) return false
+  if (!para) return false
+  const holder = para.parent
+  if (
+    holder?.name === 'ListItem' &&
+    holder.from < list.from &&
+    list.to <= holder.to &&
+    !changed.has(cx.state.doc.lineAt(holder.from).number)
+  )
+    return true
+  if (para.from < list.from || para.to > list.to) return false
   for (let p = para.parent; p && !(p.name === list.name && p.from === list.from); p = p.parent) {
     if (p.name === 'Blockquote') return true
     if (p.name === 'ListItem' && !changed.has(cx.state.doc.lineAt(p.from).number)) return true
