@@ -370,6 +370,45 @@ test('a struck passage can be restored from the keyboard alone', async ({ page }
   await expect.poll(() => savedBody(page, 'Plan')).toBe('keep old new end')
 })
 
+test('the first struck passage, not only the last, can be restored from the keyboard', async ({
+  page,
+}) => {
+  await noteWithHistory(page, 'Plan', 'one two three four five', 'ONE two THREE four FIVE')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  const struck = overlay(page).locator('del')
+  await expect(struck).toHaveText(['one', 'three', 'five'])
+
+  await page.keyboard.press('Shift+Tab')
+  await expect(struck.first()).toBeFocused()
+  // Tab goes on to the bar, not through the other struck passages.
+  await page.keyboard.press('Tab')
+  await expect(slider(page)).toBeFocused()
+  await expect(bar(page).getByRole('button', { name: 'Restore This Passage' })).toBeVisible()
+  // macOS tabs to buttons with Option (or with Full Keyboard Access).
+  await page.keyboard.press('Alt+Tab')
+  await page.keyboard.press('Enter')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('one ONE two THREE four FIVE')
+})
+
+test('the arrow keys move between struck passages, and Enter keeps the one focused', async ({
+  page,
+}) => {
+  await noteWithHistory(page, 'Plan', 'one two three four five', 'ONE two THREE four FIVE')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  const struck = overlay(page).locator('del')
+  await page.keyboard.press('Shift+Tab')
+  await expect(struck.first()).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(struck.nth(1)).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(slider(page)).toBeFocused()
+  await page.keyboard.press('Alt+Tab')
+  await page.keyboard.press('Enter')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('ONE two three THREE four FIVE')
+})
+
 test('the date on the handle stays inside the bar at either end', async ({ page }) => {
   await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
   await changeEditorSettingsElsewhere(page, { historyBar: true })

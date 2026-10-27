@@ -86,7 +86,8 @@ function pointIn(
   return pastOffset(segments, index, within)
 }
 
-// Tab moves through the struck runs and takes each in whole, so Restore This Passage can be reached without a pointer.
+// A struck run takes itself in whole when the keyboard reaches it, so Restore This Passage can be
+// reached without a pointer. Only one run is a Tab stop; the arrow keys move between them.
 function selectFromKeyboard(e: FocusEvent<HTMLElement>) {
   if (e.currentTarget.matches(':focus-visible')) {
     document.getSelection()?.selectAllChildren(e.currentTarget)
@@ -108,6 +109,10 @@ function HistoryOverlay(props: {
   const box = useRef<HTMLDivElement>(null)
   const { onPassage, bar } = props
   const length = props.past.text.length
+  const [focusAt, setFocusAt] = useState<number>()
+  const firstRemoved = segments.findIndex((s) => s.kind === 'removed')
+  const tabAt =
+    focusAt !== undefined && segments[focusAt]?.kind === 'removed' ? focusAt : firstRemoved
 
   useEffect(() => {
     const read = () => {
@@ -160,7 +165,26 @@ function HistoryOverlay(props: {
       <div ref={root} className="history-overlay-text">
         {segments.map((s, i) =>
           s.kind === 'removed' ? (
-            <del key={i} data-segment={i} tabIndex={0} onFocus={selectFromKeyboard}>
+            <del
+              key={i}
+              data-segment={i}
+              tabIndex={i === tabAt ? 0 : -1}
+              onFocus={(e) => {
+                setFocusAt(i)
+                selectFromKeyboard(e)
+              }}
+              onKeyDown={(e) => {
+                const next =
+                  e.key === 'ArrowRight'
+                    ? segments.findIndex((part, j) => j > i && part.kind === 'removed')
+                    : e.key === 'ArrowLeft'
+                      ? segments.findLastIndex((part, j) => j < i && part.kind === 'removed')
+                      : -1
+                if (next === -1) return
+                e.preventDefault()
+                root.current?.querySelector<HTMLElement>(`del[data-segment="${next}"]`)?.focus()
+              }}
+            >
               {s.text}
             </del>
           ) : s.kind === 'added' ? (
