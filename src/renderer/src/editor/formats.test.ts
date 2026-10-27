@@ -16,6 +16,7 @@ import type { EditorView } from '@codemirror/view'
 import { NodeType, Parser, Tree, type PartialParse } from '@lezer/common'
 import { describe, expect, it, vi } from 'vitest'
 import { expectWithinBudget, skipIfOverloaded } from '../../../../tests/support/budget'
+import { previewShape } from '../../../../tests/support/preview-html'
 import {
   FORMAT_COMMANDS,
   cycleHeading,
@@ -576,6 +577,15 @@ describe('a bang before a link', () => {
     expect(show(apply(s, linkTo(s, 'https://example.com')))).toBe(
       'Hi\\![there](https://example.com)|',
     )
+  })
+})
+
+describe('a URL pasted over text that ends in a backslash', () => {
+  it('escapes the backslash, so it does not escape the closing bracket', async () => {
+    const s = state('see «C:\\temp\\» here')
+    const doc = show(apply(s, linkTo(s, 'https://x.y')))
+    expect(doc).toBe('see [C:\\temp\\\\](https://x.y)| here')
+    expect(await previewShape(doc.replace('|', ''))).toBe('<p>see <a>C:\\temp\\</a> here</p>')
   })
 })
 

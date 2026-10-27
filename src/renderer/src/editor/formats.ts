@@ -979,6 +979,9 @@ export function linkAddress(url: string): string {
   return depth === 0 ? piped : piped.replace(/[()]/g, (c) => (c === '(' ? '%28' : '%29'))
 }
 
+/** An odd run of backslashes at the end: the last one would escape a link's closing bracket. */
+const TRAILING_ESCAPE = /(?<!\\)(?:\\\\)*\\$/
+
 /**
  * Makes the selected text a link to `url` (a URL pasted over it), the
  * cursor after each link; one undo step. Null, for the usual paste to
@@ -998,7 +1001,8 @@ export function linkTo(state: EditorState, url: string): TransactionSpec | null 
     inserts.push(...escapeBangBefore(state, seg.from))
     inserts.push({ from: seg.from, insert: '[' })
     for (const at of loneBrackets(cx, seg.from, seg.to)) inserts.push({ from: at, insert: '\\' })
-    inserts.push({ from: seg.to, insert: `](${linkAddress(url)})` })
+    const trailing = TRAILING_ESCAPE.test(state.sliceDoc(seg.from, seg.to)) ? '\\' : ''
+    inserts.push({ from: seg.to, insert: `${trailing}](${linkAddress(url)})` })
   }
   const changes = state.changes(inserts)
   const cursors = segments.map((seg) => EditorSelection.cursor(changes.mapPos(seg.to, 1)))
@@ -1013,8 +1017,25 @@ export function selectionHasLink(state: EditorState): boolean {
   return !!cx && selectedLinks(cx).length > 0
 }
 
+const CODE_SPAN = /(`+)[\s\S]*?(?<!`)\1(?!`)/g
+
+/**
+ * Text as a link's label, on one line. Lone brackets are escaped, and `|` (in
+ * a table it would end the cell), outside code spans, where a backslash would
+ * show; so is a trailing backslash, which would escape the closing bracket.
+ */
 function linkLabel(text: string): string {
-  return text.replace(/\s*\n\s*/g, ' ').replace(/\\?[[\]]/g, (m) => (m.length === 2 ? m : `\\${m}`))
+  const flat = text.replace(/\s*\n\s*/g, ' ')
+  const escape = (plain: string) =>
+    plain.replace(/\\?[[\]|]/g, (m) => (m.length === 2 ? m : `\\${m}`))
+  let label = ''
+  let at = 0
+  for (const span of flat.matchAll(CODE_SPAN)) {
+    label += escape(flat.slice(at, span.index)) + span[0]
+    at = span.index + span[0].length
+  }
+  label += escape(flat.slice(at))
+  return TRAILING_ESCAPE.test(label) ? `${label}\\` : label
 }
 
 /**
