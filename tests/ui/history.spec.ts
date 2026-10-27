@@ -84,6 +84,23 @@ test('compares a version with the note and restores it as one undo step', async 
   await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line\nthird line')
 })
 
+test('keys pressed while the sheet is open do not change the note under it', async ({ page }) => {
+  await createNote(page, 'Plan', 'first line')
+  await reopen(page, 'Plan')
+  await appendText(page, '\nsecond line')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line')
+
+  await pickNoteMore(page, 'Revision History\u2026')
+  await expect(sheet(page)).toBeVisible()
+  await page.keyboard.press('Backspace')
+  await page.keyboard.type('x')
+  await page.keyboard.press('Escape')
+  await expect(sheet(page)).toBeHidden()
+  await expect(body(page)).toHaveText('first linesecond line')
+  await appendText(page, '!')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line!')
+})
+
 test('a restore is an undo step apart from the typing before and after it', async ({ page }) => {
   await createNote(page, 'Plan', 'first line')
   await reopen(page, 'Plan')

@@ -296,6 +296,23 @@ test('the version shown lies exactly over the editor, and over both panes in spl
   await expect(editorPane(page)).not.toHaveAttribute('inert')
 })
 
+test('keys pressed while a version is shown do not change the note under it', async ({ page }) => {
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await showOldest(page)
+  await page.keyboard.press('Backspace')
+  await page.keyboard.type('x')
+  await page.keyboard.press('Escape')
+  await expect(overlay(page)).toHaveCount(0)
+  await expect(body(page)).toHaveText('keep new end')
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.insertText('!')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end!')
+})
+
 test('Escape in the palette closes the palette and leaves the version shown', async ({ page }) => {
   await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
   await changeEditorSettingsElsewhere(page, { historyBar: true })
