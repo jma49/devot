@@ -244,6 +244,56 @@ test.describe('once the trial is over', () => {
   })
 })
 
+test.describe('the trial-ended bar', () => {
+  test('leaves the end of the note list and of the note in view', async ({ page }) => {
+    // The narrowest window: the bar wraps and covers about two rows of the list.
+    await page.setViewportSize({ width: 760, height: 720 })
+    await fakeTrial(page, -HOUR)
+    await page.goto('/')
+    await page.evaluate(() => {
+      const start = Date.now() - 60_000
+      const notes = Array.from({ length: 30 }, (_, i) => ({
+        id: `0192a6f0-0000-7000-8000-${String(i + 1).padStart(12, '0')}`,
+        title: `Note ${i + 1}`,
+        titleHlc: '',
+        bodyMd: i === 0 ? Array.from({ length: 80 }, (_, l) => `line ${l + 1}`).join('\n') : '',
+        ydoc: [0, 0],
+        bookId: null,
+        bookHlc: '',
+        status: 'none',
+        statusHlc: '',
+        pinned: false,
+        pinnedHlc: '',
+        createdAt: start - i * 60_000,
+        updatedAt: start - i * 60_000,
+        deletedAt: null,
+        deletedHlc: null,
+      }))
+      localStorage.clear()
+      localStorage.setItem('devot.test.notes', JSON.stringify(notes))
+    })
+    await reloadApp(page)
+    const list = page.getByRole('listbox', { name: 'Notes' })
+    const rows = list.getByRole('option')
+    await expect(rows).toHaveCount(30)
+
+    await list.evaluate((el) => {
+      el.scrollTop = el.scrollHeight
+    })
+    const lastRow = (await rows.last().boundingBox())!
+    const barTop = (await bar(page).boundingBox())!.y
+    expect(lastRow.y + lastRow.height).toBeLessThanOrEqual(barTop)
+
+    // The note's last line clears it too.
+    await rows.first().click()
+    await page.locator('.editor-scroll').evaluate((el) => {
+      el.scrollTop = el.scrollHeight
+    })
+    const lastLine = (await page.locator('.cm-line').last().boundingBox())!
+    expect(lastLine.y + lastLine.height).toBeLessThanOrEqual(barTop)
+  })
+})
+
 test.describe('the reminder', () => {
   test('says today once midnight has passed', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 9, 26, 22, 30) })

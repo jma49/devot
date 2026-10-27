@@ -1252,7 +1252,8 @@ button {
   overflow: auto;
   list-style: none;
   margin: 0;
-  padding: 0;
+  /* The trial-ended bar's room, while it is up (TrialNotices.tsx). */
+  padding: 0 0 var(--trial-bar-inset, 0px);
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -1573,7 +1574,7 @@ button {
   overflow-y: auto;
   list-style: none;
   margin: 0;
-  padding: 0 var(--space-3) var(--space-3);
+  padding: 0 var(--space-3) calc(var(--space-3) + var(--trial-bar-inset, 0px));
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -2207,7 +2208,8 @@ button {
 
 .panes-split .editor {
   --editor-reading-width: none;
-  --editor-padding: 0 var(--space-4) 0 calc(var(--space-9) - var(--space-3));
+  --editor-padding: 0 var(--space-4) var(--trial-bar-inset, 0px)
+    calc(var(--space-9) - var(--space-3));
 }
 
 .panes-split .preview {
@@ -2219,7 +2221,8 @@ button {
   min-height: 0;
   /* A line pads its text by space-3, the column a box sits on (editor/boxes.ts).
      Leave the title's space-9 minus that, so the column lines up with the title. */
-  --editor-padding: 0 calc(var(--space-9) - var(--space-3)) 0 calc(var(--space-9) - var(--space-3));
+  --editor-padding: 0 calc(var(--space-9) - var(--space-3)) var(--trial-bar-inset, 0px)
+    calc(var(--space-9) - var(--space-3));
 }
 
 .editor[hidden] {
@@ -2229,7 +2232,7 @@ button {
 .preview {
   min-height: 0;
   overflow: auto;
-  padding: var(--space-4) var(--space-9) var(--space-9);
+  padding: var(--space-4) var(--space-9) calc(var(--space-9) + var(--trial-bar-inset, 0px));
   /* The app's font, or the note font once it is not the default (editorSettings.ts).
      Size and line height are set in preview/content.css. */
   font-family: var(--preview-font-family, var(--font-family-ui));
