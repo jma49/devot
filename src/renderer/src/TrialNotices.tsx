@@ -84,11 +84,12 @@ export function TrialReminder() {
   const endsAt = licence.trial?.state === 'running' ? licence.trial.endsAt : null
 
   // Shown when the last day begins, gone when the trial ends; its "today" and "tomorrow" turn over
-  // at midnight too.
+  // at midnight too, and a Mac that slept through it reads the clock again when the window comes back.
   useEffect(() => {
     if (endsAt === null) return
     let timer: ReturnType<typeof setTimeout> | undefined
     const wait = () => {
+      clearTimeout(timer)
       const at = Date.now()
       const when = [endsAt - REMINDER_MS, endsAt, nextMidnight(at)]
         .filter((moment) => moment > at)
@@ -102,8 +103,18 @@ export function TrialReminder() {
         Math.min(when - at, 2 ** 31 - 1),
       )
     }
+    const awake = () => {
+      setNow(Date.now())
+      wait()
+    }
     wait()
-    return () => clearTimeout(timer)
+    window.addEventListener('focus', awake)
+    document.addEventListener('visibilitychange', awake)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('focus', awake)
+      document.removeEventListener('visibilitychange', awake)
+    }
   }, [endsAt])
 
   if (endsAt === null || !reminderDue(licence, now, dismissed)) return null
