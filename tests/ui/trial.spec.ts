@@ -282,6 +282,8 @@ test.describe('the trial-ended bar', () => {
     await list.evaluate((el) => {
       el.scrollTop = el.scrollHeight
     })
+    // Measure the bar where it settles, not mid-slide.
+    await bar(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
     const lastRow = (await rows.last().boundingBox())!
     const barTop = (await bar(page).boundingBox())!.y
     expect(lastRow.y + lastRow.height).toBeLessThanOrEqual(barTop)
@@ -293,6 +295,17 @@ test.describe('the trial-ended bar', () => {
     })
     const lastLine = (await page.locator('.cm-line').last().boundingBox())!
     expect(lastLine.y + lastLine.height).toBeLessThanOrEqual(barTop)
+
+    // A row scrolled into view the way the list does it lands above the bar, not under it.
+    await list.evaluate((el) => {
+      const row = el.querySelectorAll('[role="option"]')[20]!
+      const visible = el.getBoundingClientRect()
+      el.scrollTop += row.getBoundingClientRect().bottom - visible.bottom + 4
+    })
+    await rows.nth(20).evaluate((el) => el.scrollIntoView({ block: 'nearest' }))
+    const reached = (await rows.nth(20).boundingBox())!
+    // Within a pixel: the row's bottom sits on the bar's top edge, and the two are rounded apart.
+    expect(reached.y + reached.height).toBeLessThanOrEqual(barTop + 1)
   })
 })
 
