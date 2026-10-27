@@ -35,6 +35,7 @@ import { EditorView, keymap } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import { noteIdOf } from '../../../core/links'
 import { editorCommandKeys, type CommandId } from '../commands/registry'
+import { editorComposes } from '../ime'
 import { toggleOverwrite } from './overwrite'
 import { registryKeys } from './registryKeys'
 
@@ -218,14 +219,15 @@ export function wrapInBackticks(state: EditorState, text: string): TransactionSp
   )
 }
 
-const backtickWrap = Prec.highest(
-  EditorView.inputHandler.of((view, _from, _to, text) => {
-    const spec = wrapInBackticks(view.state, text)
-    if (!spec) return false
-    view.dispatch(view.state.update(spec, { userEvent: 'input.type', scrollIntoView: true }))
-    return true
-  }),
-)
+export function backtickInput(view: EditorView, _from: number, _to: number, text: string): boolean {
+  if (editorComposes(view) || view.state.readOnly) return false
+  const spec = wrapInBackticks(view.state, text)
+  if (!spec) return false
+  view.dispatch(view.state.update(spec, { userEvent: 'input.type', scrollIntoView: true }))
+  return true
+}
+
+const backtickWrap = Prec.highest(EditorView.inputHandler.of(backtickInput))
 
 /**
  * The next match of the selected text after the last range (from the start
