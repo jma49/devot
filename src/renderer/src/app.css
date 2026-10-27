@@ -4987,20 +4987,23 @@ button.popup:focus-visible {
 
 .history-bar-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
   min-height: var(--size-segment-height);
 }
 
 .history-bar-note {
-  flex: 1;
+  flex: 1 1 var(--size-pane-min-width);
   min-width: 0;
   margin: 0;
 }
 
 .history-bar-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
+  margin-left: auto;
 }
 
 /* Over the editor (and the preview beside it) in the same grid cells; the note under it stays live. */

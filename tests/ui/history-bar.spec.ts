@@ -228,6 +228,23 @@ test('a restore that answers after another note opens leaves that note alone', a
   expect(await savedBody(page, 'Beta')).toBe('keep new end')
 })
 
+test('the restore buttons stay inside the bar in a narrow window with the sidebar shown', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 760, height: 720 })
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  await selectStruck(page)
+  await page.getByRole('button', { name: 'Show Sidebar' }).click()
+  const barBox = await boxOf(bar(page))
+  for (const name of ['Restore This Passage', 'Restore Whole Version']) {
+    const button = await boxOf(bar(page).getByRole('button', { name }))
+    expect(button.x, name).toBeGreaterThanOrEqual(barBox.x)
+    expect(button.x + button.width, name).toBeLessThanOrEqual(barBox.x + barBox.width)
+  }
+})
+
 test('a restore the core refuses says so, and the message goes when another version shows', async ({
   page,
 }) => {
