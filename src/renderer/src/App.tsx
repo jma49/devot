@@ -1971,7 +1971,8 @@ export function App() {
       id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     } catch (e) {
       early.fail()
-      throw e
+      setChangeNotice(errorCode(e))
+      return
     }
     early.claim(id)
     if (!inTemplates) track('note.created', { from: 'new_note' })
@@ -1988,7 +1989,10 @@ export function App() {
     await saveEdits(core)
     const id = await core
       .applyTemplate(templateId, Date.now(), newNoteBookId())
-      .catch(() => undefined)
+      .catch((e: unknown) => {
+        setChangeNotice(errorCode(e))
+        return undefined
+      })
     if (!id) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
     recentTemplates.use(templateId)
     track('note.created', { from: 'template' })
@@ -2009,7 +2013,10 @@ export function App() {
     const done = await core
       .applyTemplateTo(templateId, noteId, Date.now())
       .then(() => true)
-      .catch(() => false)
+      .catch((e: unknown) => {
+        setChangeNotice(errorCode(e))
+        return false
+      })
     if (!done) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
     recentTemplates.use(templateId)
     if (opens.current === navigation && editor && editorRef.current === editor) {
@@ -2055,7 +2062,9 @@ export function App() {
     await saveEdits(core)
     const tagIds = [...notes, ...templates].find((n) => n.id === id)?.tagIds
     const copy = await core.duplicate(id, t('note.copySuffix'), tagIds).catch((e: unknown) => {
-      console.warn('W_NOTE_DUPLICATE_FAILED', id, errorCode(e))
+      const code = errorCode(e)
+      console.warn('W_NOTE_DUPLICATE_FAILED', id, code)
+      setChangeNotice(code)
     })
     if (!copy) return
     if (!templates.some((n) => n.id === id)) track('note.created', { from: 'duplicate' })
@@ -2140,7 +2149,9 @@ export function App() {
   const openNoteWindow = async (id: string) => {
     if (core) await saveEdits(core)
     await invoke('note_window_open', { id }).catch((e: unknown) => {
-      console.warn('W_NOTE_WINDOW_OPEN_FAILED', id, errorCode(e))
+      const code = errorCode(e)
+      console.warn('W_NOTE_WINDOW_OPEN_FAILED', id, code)
+      setChangeNotice(code)
     })
   }
 

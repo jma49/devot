@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test, statusPicker, bookPicker } from './fixtures'
+import { failCoreCalls, slowCore } from './slowCore'
 
 // Window shortcuts take Meta, as the app's registry does on every platform.
 
@@ -321,4 +322,20 @@ test("the empty note's Choose a template fills that note instead of making anoth
   await expect(titleField(page)).toHaveValue('Standup')
   await expect(body(page)).toContainText('Yesterday')
   await expect(body(page)).toContainText('Today')
+})
+
+test('a template the core refuses says why', async ({ page }) => {
+  await slowCore(page, [])
+  await page.reload()
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await newTemplate(page, 'Alpha', 'Alpha body')
+  await allNotesRow(page).click()
+  await failCoreCalls(page, ['applyTemplate'])
+  await page.keyboard.press('Meta+KeyT')
+  await picker(page).getByRole('button', { name: 'Create' }).click()
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'The change could not be made' }),
+  ).toBeVisible()
+  await expect(noteRows(page)).toHaveCount(0)
 })

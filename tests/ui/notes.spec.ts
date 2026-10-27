@@ -1,5 +1,6 @@
 import { MAX_TITLE_CHARS } from '../../src/core/noteLimits'
 import { expect, test } from './fixtures'
+import { failCoreCalls, slowCore } from './slowCore'
 
 const savedNotes = () => localStorage.getItem('devot.test.notes') ?? ''
 
@@ -97,4 +98,27 @@ test('Close Note empties the editor and clears the list selection; the note open
   await expect(page.getByRole('option', { selected: true })).toHaveCount(0)
   await page.getByRole('option', { name: /Closable/ }).click()
   await expect(page.getByRole('textbox', { name: 'Note body' })).toContainText('Kept text')
+})
+
+test('a Duplicate or New Note the core refuses says why', async ({ page }) => {
+  await slowCore(page, [])
+  await page.goto('/')
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Title' }).fill('Plan')
+  const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
+  const notice = page.getByRole('alert').filter({ hasText: 'The change could not be made' })
+
+  await rows.first().click()
+  await failCoreCalls(page, ['duplicate'])
+  await page.keyboard.press('Meta+KeyD')
+  await expect(notice).toBeVisible()
+  await expect(rows).toHaveCount(1)
+  await notice.getByRole('button', { name: 'Dismiss' }).click()
+
+  await failCoreCalls(page, ['create'])
+  await page.keyboard.press('ControlOrMeta+n')
+  await expect(notice).toBeVisible()
+  await expect(rows).toHaveCount(1)
 })
