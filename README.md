@@ -28,7 +28,7 @@ Devot keeps your notes in a SQLite database on your Mac. Every feature works wit
 
 ## Download
 
-1. Download the latest `Devot_<version>_aarch64.dmg` from [Releases](https://github.com/jma49/devot/releases) (the latest stable release is at the top).
+1. Download the latest `Devot_<version>_aarch64.dmg` from the [latest release](https://github.com/jma49/devot/releases/latest) (the one marked Latest).
 2. Open the dmg and drag Devot to Applications.
 3. The first time, right-click Devot in Applications and choose Open, then Open again. Builds are ad-hoc signed and not notarised, so macOS asks once. If it only offers Move to Trash, open System Settings > Privacy & Security and click Open Anyway.
 
