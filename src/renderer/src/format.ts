@@ -23,11 +23,20 @@ function kept<
   return formatter
 }
 
+/**
+ * The local time zone's offsets in winter and summer: a date formatter keeps the zone it was built
+ * in, so one built before the Mac moved to another zone is not used after.
+ */
+function zone(): string {
+  const year = new Date().getFullYear()
+  return `${new Date(year, 0, 1).getTimezoneOffset()}/${new Date(year, 6, 1).getTimezoneOffset()}`
+}
+
 export function noteDate(updatedAt: number, now: number, locale: string): string {
   const date = new Date(updatedAt)
   const today = sameDay(date, new Date(now))
   return kept(
-    `date|${today ? 'time' : 'day'}|${locale}`,
+    `date|${today ? 'time' : 'day'}|${locale}|${zone()}`,
     () => new Intl.DateTimeFormat(locale, today ? { timeStyle: 'short' } : { dateStyle: 'medium' }),
   ).format(date)
 }
@@ -58,7 +67,7 @@ export function rowDate(
 
 export function fullDate(updatedAt: number, locale: string): string {
   return kept(
-    `date|full|${locale}`,
+    `date|full|${locale}|${zone()}`,
     () =>
       new Intl.DateTimeFormat(locale, {
         dateStyle: 'medium',

@@ -26,6 +26,31 @@ function marked(doc: string, className: string): string[] {
     .map((s) => doc.slice(s.from, s.to))
 }
 
+describe('the line styles of a long table or quote', () => {
+  it('cover only the shown lines, and keep the first and last of the whole node', () => {
+    const rows = Array.from({ length: 1000 }, (_, i) => `| ${i} | x |`)
+    const doc = ['| a | b |', '| - | - |', ...rows].join('\n')
+    const { state, styles } = stylesOf(doc)
+    const shown = [{ from: state.doc.line(500).from, to: state.doc.line(501).to }]
+    const classes = (ranges: { from: number; to: number }[]) => {
+      const out: string[] = []
+      decorationsFor(state, styles, ranges).between(0, doc.length, (from, to, deco) => {
+        if (from === to) out.push(`${state.doc.lineAt(from).number} ${deco.spec.class}`)
+      })
+      return out
+    }
+    expect(classes(shown)).toEqual(['500 cm-md-table', '501 cm-md-table'])
+    const ends = [
+      { from: 0, to: 0 },
+      { from: state.doc.length, to: state.doc.length },
+    ]
+    expect(classes(ends)).toEqual([
+      '1 cm-md-table cm-md-table-first',
+      '1002 cm-md-table cm-md-table-last',
+    ])
+  })
+})
+
 describe('editor line styles', () => {
   it('gives heading lines their level', () => {
     const lines = lineClasses('# One\n\n## Two\n\n### Three\n\n#### Four\n\nTitle\n=====\n')

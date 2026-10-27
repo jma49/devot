@@ -33,6 +33,7 @@ import {
 } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
+import { noteIdOf } from '../../../core/links'
 import { editorCommandKeys, type CommandId } from '../commands/registry'
 import { toggleOverwrite } from './overwrite'
 import { registryKeys } from './registryKeys'
@@ -41,6 +42,9 @@ export const linkOpener = Facet.define<
   (href: string) => void,
   ((href: string) => void) | undefined
 >({ combine: (all) => all[0] })
+
+/** The links the app opens: a note, or a web page over https. */
+export const opensLink = (href: string) => noteIdOf(href) !== undefined || /^https:\/\//i.test(href)
 
 export interface SortOptions {
   caseSensitive: boolean
@@ -191,7 +195,7 @@ const addressOf = (text: string) => text.replace(/^<|>$/g, '').trim() || undefin
 export function openLinkAtCaret(view: EditorView): boolean {
   const href = linkAt(view.state, view.state.selection.main.head)?.href
   const open = view.state.facet(linkOpener)
-  if (href === undefined || !open) return false
+  if (href === undefined || !open || !opensLink(href)) return false
   open(href)
   return true
 }

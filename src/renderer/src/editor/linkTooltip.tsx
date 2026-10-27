@@ -15,7 +15,7 @@ import { noteIdOf } from '../../../core/links'
 import { t } from '../i18n'
 import { barsMayShow } from './barRules'
 import { BAR_GAP, barContent, FloatButton, floatTheme, NOTCH_X, useFloatTip } from './floating'
-import { linkAt, openLinkAtCaret } from './lineCommands'
+import { linkAt, openLinkAtCaret, opensLink } from './lineCommands'
 import { inTable } from './tableCommands'
 import { commandTip } from './toolbarButtons'
 import { releaseBarFocus, toolbarState, toolbarStateExtension } from './toolbarState'
@@ -45,8 +45,8 @@ export function linkTipAt(state: EditorState): LinkTip | null {
   if (inImage(state, head)) return null
   const link = linkAt(state, head)
   if (!link) return null
+  if (!opensLink(link.href)) return null
   const note = noteIdOf(link.href) !== undefined
-  if (!note && !/^https:\/\//i.test(link.href)) return null
   return { from: link.from, to: link.to, href: link.href, note, below: inTable(state) }
 }
 

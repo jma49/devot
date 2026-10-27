@@ -57,7 +57,7 @@ import { SearchIndexNotice } from './SearchIndexNotice'
 import { REBUILD_SEARCH_INDEX, rebuildSearchIndex, type RebuildState } from './searchIndex'
 import { ChangeNotice } from './ChangeNotice'
 import { AiSuggestNotice } from './AiSuggestNotice'
-import { ImageNotice } from './ImageNotice'
+import { ImageActionNotice, ImageNotice } from './ImageNotice'
 import { MAX_LINK_NOTES } from './linkCompletion'
 import { useNarrowWindow } from './narrowWindow'
 import { measurePanes, movePanes, type PaneBoxes, shownPanes } from './paneMotion'
@@ -2475,6 +2475,7 @@ export function App() {
   const find = useFind({
     mode,
     noteOpen: !!core && selected !== undefined && !inTrash && !multiIds,
+    editing,
     editor: editorFind,
     preview: previewFind,
   })
@@ -3913,6 +3914,7 @@ export function App() {
         {imageNotice ? (
           <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />
         ) : null}
+        <ImageActionNotice />
         {linkNotice ? (
           <DeepLinkNotice problem={linkNotice} onDismiss={() => setLinkNotice(undefined)} />
         ) : null}

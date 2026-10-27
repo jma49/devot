@@ -179,6 +179,21 @@ test('asks after a pause when the user turned that on, and only then', async ({ 
   await expect.poll(() => savedBody(page)).toBe('We plan to to ship.')
 })
 
+test('Escape then Tab leaves the editor while a pause’s request is on its way, unseen', async ({
+  page,
+}) => {
+  await ready(page, [{ hold: true }], 'We plan', { idle: true })
+  await page.keyboard.type(' to')
+  await expect.poll(async () => (await requests(page)).length, { timeout: 6_000 }).toBe(1)
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Tab')
+  await expect(body(page)).not.toBeFocused()
+  await page.evaluate(() => (globalThis as unknown as Window).devotRelease?.(' late.'))
+  await page.waitForTimeout(300)
+  await expect(ghost(page)).toHaveCount(0)
+  await expect.poll(() => savedBody(page)).toBe('We plan to')
+})
+
 test('sends only the text near the caret', async ({ page }) => {
   const head = 'HEAD-OF-THE-NOTE '
   const filler = `${'lorem ipsum dolor sit amet. '.repeat(120)}`

@@ -1,5 +1,5 @@
 import { EditorSelection, EditorState } from '@codemirror/state'
-import type { EditorView } from '@codemirror/view'
+import { EditorView } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import { overwrite, overwriteMode, overwriteSpec, toggleOverwrite } from './overwrite'
 
@@ -51,6 +51,24 @@ function type(marked: string, text: string, on = true): string | null {
 }
 
 describe('overwrite mode', () => {
+  it('is announced as it turns on and off', () => {
+    let now = state('a|b', false)
+    const said: string[] = []
+    const view = {
+      get state() {
+        return now
+      },
+      dispatch: (spec: Parameters<EditorState['update']>[0]) => {
+        const tr = now.update(spec)
+        for (const e of tr.effects) if (e.is(EditorView.announce)) said.push(e.value)
+        now = tr.state
+      },
+    } as unknown as EditorView
+    toggleOverwrite(view)
+    toggleOverwrite(view)
+    expect(said).toEqual(['Overwrite mode on', 'Overwrite mode off'])
+  })
+
   it('is off at first and toggles', () => {
     const s = state('a|b', false)
     expect(s.field(overwriteMode)).toBe(false)

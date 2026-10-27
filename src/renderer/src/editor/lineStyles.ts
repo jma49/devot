@@ -123,7 +123,12 @@ export function lineStyles(
   return out
 }
 
-export function decorationsFor(state: EditorState, styles: LineStyle[]): DecorationSet {
+/** Line styles cover only the lines in `shown` (the visible ranges), so a long table costs only its shown rows. */
+export function decorationsFor(
+  state: EditorState,
+  styles: LineStyle[],
+  shown: readonly { from: number; to: number }[] = [{ from: 0, to: state.doc.length }],
+): DecorationSet {
   const ranges: Range<Decoration>[] = []
   const lineClasses = new Map<number, string[]>()
   for (const style of styles) {
@@ -131,10 +136,17 @@ export function decorationsFor(state: EditorState, styles: LineStyle[]): Decorat
       ranges.push(Decoration.mark({ class: style.className }).range(style.from, style.to))
       continue
     }
-    const end = state.doc.lineAt(style.to).number
-    for (let n = state.doc.lineAt(style.from).number; n <= end; n++) {
-      const at = state.doc.line(n).from
-      lineClasses.set(at, [...(lineClasses.get(at) ?? []), style.className])
+    for (const range of shown) {
+      const first = state.doc.lineAt(range.from)
+      const last = state.doc.lineAt(range.to)
+      if (last.to < style.from || first.from > style.to) continue
+      const end = Math.min(state.doc.lineAt(style.to).number, last.number)
+      for (let n = Math.max(state.doc.lineAt(style.from).number, first.number); n <= end; n++) {
+        const at = state.doc.line(n).from
+        const classes = lineClasses.get(at)
+        if (!classes) lineClasses.set(at, [style.className])
+        else if (!classes.includes(style.className)) classes.push(style.className)
+      }
     }
   }
   for (const [at, classes] of lineClasses)
@@ -155,7 +167,7 @@ function build(view: EditorView): DecorationSet {
     seen.add(key)
     return true
   })
-  return decorationsFor(view.state, unique)
+  return decorationsFor(view.state, unique, view.visibleRanges)
 }
 
 const plugin = ViewPlugin.fromClass(

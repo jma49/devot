@@ -235,8 +235,23 @@ describe('a block split by a fold or a line gap', () => {
       { from: 0, to: 8 },
       { from: 16, to: doc.length },
     ]
-    expect(lineDecos(doc, fold)).toEqual([3, 9, 11, 13])
+    expect(lineDecos(doc, fold)).toEqual([3, 13])
     expect(lineDecos(doc, [{ from: 0, to: doc.length }])).toEqual([3, 9, 11, 13])
+  })
+
+  it('decorates only the shown lines of a long block, with its own first and last', () => {
+    const doc = `\`\`\`\n${Array.from({ length: 1000 }, (_, i) => `line ${i}`).join('\n')}\n\`\`\``
+    const s = state(doc)
+    const shown = { from: s.doc.line(500).from, to: s.doc.line(502).to }
+    const classes: string[] = []
+    for (let c = blockDecorations(s, [shown]).iter(); c.value; c.next())
+      if (c.from === c.to) classes.push(`${s.doc.lineAt(c.from).number} ${c.value.spec.class}`)
+    expect(classes).toEqual(['500 cm-codeblock', '501 cm-codeblock', '502 cm-codeblock'])
+    const end = { from: s.doc.line(1002).from, to: s.doc.length }
+    const last: string[] = []
+    for (let c = blockDecorations(s, [end]).iter(); c.value; c.next())
+      if (c.from === c.to) last.push(c.value.spec.class as string)
+    expect(last).toEqual(['cm-codeblock cm-codeblock-last cm-codeblock-closing'])
   })
 })
 

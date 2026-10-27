@@ -9,7 +9,9 @@ import {
   joinLines,
   LINE_COMMANDS,
   linkAt,
+  linkOpener,
   lineKeys,
+  openLinkAtCaret,
   runEditCommand,
   skipNextOccurrence,
   linkForNewNote,
@@ -166,6 +168,38 @@ describe('other line commands', () => {
       href: 'https://example.com',
     })
     expect(find('[](https://a|.com)')?.text).toBe('https://a.com')
+  })
+})
+
+describe('opening the link at the caret', () => {
+  const open = (marked: string) => {
+    const opened: string[] = []
+    const at = marked.indexOf('^')
+    const now = EditorState.create({
+      doc: marked.replace('^', ''),
+      selection: EditorSelection.cursor(at),
+      extensions: [noteMarkdown, linkOpener.of((href) => opened.push(href))],
+    })
+    const handled = openLinkAtCaret({ state: now } as unknown as EditorView)
+    return { handled, opened }
+  }
+
+  it('opens a web page or a note', () => {
+    expect(open('[x](https://exa^mple.com)')).toEqual({
+      handled: true,
+      opened: ['https://example.com'],
+    })
+    const note = 'devot://note/0192a6f0-0000-7000-8000-000000000001'
+    expect(open(`[x](${note.replace('note/', 'no^te/')})`)).toEqual({
+      handled: true,
+      opened: [note],
+    })
+  })
+
+  it('leaves a link the app does not open to the key’s usual job', () => {
+    for (const marked of ['[x](http://exa^mple.com)', '[x](mailto:a^@b.c)', '[x](other.m^d)']) {
+      expect(open(marked)).toEqual({ handled: false, opened: [] })
+    }
   })
 })
 

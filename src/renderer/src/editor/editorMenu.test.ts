@@ -49,6 +49,15 @@ describe('the editor menu', () => {
     ])
   })
 
+  it('on a link the app does not open offers only Copy Link Address', () => {
+    for (const link of ['http://example.com', 'mailto:a@b.c', 'other.md']) {
+      expect(groupsFor({ ...plain, link })[0]).toEqual(['Copy Link Address'])
+    }
+    expect(
+      groupsFor({ ...plain, link: 'devot://note/0192a6f0-0000-7000-8000-000000000001' })[0],
+    ).toEqual(['Open Link', 'Copy Link Address'])
+  })
+
   it('with a selection offers Look Up (the text cut short) and New Note from Selection', () => {
     const target: EditorMenuTarget = { ...plain, selection: 'word', canMakeNote: true }
     expect(groupsFor(target).slice(0, 2)).toEqual([['Look Up “word”'], ['New Note from Selection']])
@@ -145,5 +154,14 @@ describe('the word the menu offers spelling guesses for', () => {
     expect(spellingWordAt(state('one two', 0, 7), 1)).toBeNull()
     expect(spellingWordAt(state('abc123 x', 1), 1)).toBeNull()
     expect(spellingWordAt(state('x'.repeat(101), 1), 1)).toBeNull()
+  })
+
+  it('is none in a note that cannot change, where picking a guess would do nothing', () => {
+    const locked = EditorState.create({
+      doc: 'I recieve mail',
+      selection: EditorSelection.cursor(4),
+      extensions: [noteMarkdown, EditorState.readOnly.of(true)],
+    })
+    expect(spellingWordAt(locked, 4)).toBeNull()
   })
 })

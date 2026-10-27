@@ -14,6 +14,7 @@ import {
   type TransactionSpec,
 } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
+import { t } from '../i18n'
 import { editorComposes } from '../ime'
 
 const toggle = StateEffect.define<null>()
@@ -24,7 +25,14 @@ export const overwriteMode = StateField.define<boolean>({
 })
 
 export function toggleOverwrite(view: EditorView): boolean {
-  view.dispatch({ effects: toggle.of(null) })
+  // The block caret is the only other sign of the mode.
+  const on = !view.state.field(overwriteMode, false)
+  view.dispatch({
+    effects: [
+      toggle.of(null),
+      EditorView.announce.of(t(on ? 'editor.overwriteOn' : 'editor.overwriteOff')),
+    ],
+  })
   return true
 }
 

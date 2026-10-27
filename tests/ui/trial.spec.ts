@@ -106,6 +106,14 @@ test.describe('once the trial is over', () => {
     await page.keyboard.press('Meta+n')
     await expect(rows).toHaveCount(1)
 
+    // Find and Replace's key opens plain Find: nothing may be replaced.
+    await body.click()
+    await page.keyboard.press('Alt+Meta+f')
+    const find = page.getByRole('search', { name: 'Find in Note' })
+    await expect(find.getByRole('textbox', { name: 'Find' })).toBeFocused()
+    await expect(find.getByRole('textbox', { name: 'Replace' })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+
     await bar(page).getByRole('button', { name: 'Buy a Licence' }).click()
     expect(await calls(page, 'open_external')).toEqual([
       { url: 'https://licence.devot.online/buy' },
@@ -113,6 +121,28 @@ test.describe('once the trial is over', () => {
     await bar(page).getByRole('button', { name: 'Add Licence' }).click()
     expect(await calls(page, 'settings_open_licence')).toHaveLength(1)
     await expect(bar(page)).toHaveCount(1)
+  })
+
+  test('an empty note offers Choose a template only while notes can be changed', async ({
+    page,
+  }) => {
+    await fakeTrial(page, 50 * HOUR)
+    await openApp(page)
+    await page.getByRole('button', { name: 'New Note', exact: true }).click()
+    const hint = page.locator('.cm-empty-hint')
+    const chip = page.getByRole('button', { name: /^Choose a template/ })
+    await expect(hint).toBeVisible()
+    await expect(chip).toBeVisible()
+
+    await changeLicence(page, ended())
+    await expect(bar(page)).toBeVisible()
+    await expect(hint).toBeVisible()
+    await expect(chip).toBeHidden()
+
+    const now = await page.evaluate(() => Date.now())
+    await changeLicence(page, unlicensed({ state: 'running', endsAt: now + 50 * HOUR, code: null }))
+    await expect(bar(page)).toHaveCount(0)
+    await expect(chip).toBeVisible()
   })
 
   test('the window turns read-only at the end of the trial, without being told', async ({

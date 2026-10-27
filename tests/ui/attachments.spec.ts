@@ -149,12 +149,16 @@ test('images that could not be stored are reported in a notice, with the code', 
   await expect.poll(async () => (await stored(page)).length).toBe(1)
   await expect(body(page)).toContainText('devot://file/')
   const notice = page.getByRole('alert').filter({ hasText: 'could not be added' })
-  await expect(notice).toHaveText(/^An image could not be added \(E_FILE_TYPE_REFUSED\)\./)
+  await expect(notice).toHaveText(
+    /^An image could not be added\. Images can be PNG, JPEG, GIF, WebP, AVIF or HEIC\. \(E_FILE_TYPE_REFUSED\)/,
+  )
   await notice.getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice).toHaveCount(0)
 
   await sendFiles(page, 'drop', [refused('a.png'), refused('b.png')])
-  await expect(notice).toHaveText(/^2 images could not be added \(E_FILE_TYPE_REFUSED\)\./)
+  await expect(notice).toHaveText(
+    /^2 images could not be added\. Images can be .+ \(E_FILE_TYPE_REFUSED\)/,
+  )
 })
 
 test('an SVG, a TIFF and an oversized image are refused with a notice, the rest is added', async ({
@@ -169,7 +173,9 @@ test('an SVG, a TIFF and an oversized image are refused with a notice, the rest 
       bytes: [...new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>')],
     },
   ])
-  await expect(notice).toHaveText(/^An image could not be added \(E_FILE_TYPE_REFUSED\)\./)
+  await expect(notice).toHaveText(
+    /^An image could not be added\. Images can be .+ \(E_FILE_TYPE_REFUSED\)/,
+  )
   await notice.getByRole('button', { name: 'Dismiss' }).click()
 
   await sendFiles(page, 'paste', [
@@ -178,10 +184,20 @@ test('an SVG, a TIFF and an oversized image are refused with a notice, the rest 
     { name: 'huge.png', type: 'image/png', bytes: PNG, size: 10 * 1024 * 1024 + 1 },
     { name: 'Shot.png', type: 'image/png', bytes: PNG },
   ])
-  await expect(notice).toHaveText(/^2 images could not be added \(E_FILE_/)
+  await expect(notice).toHaveText(
+    /^2 images could not be added\. Images can be .+ \(E_FILE_TYPE_REFUSED\) An image can be at most 10 MB, and not empty\. \(E_FILE_SIZE_INVALID\)/,
+  )
   await expect(body(page)).toContainText('![Shot](devot://file/')
   await expect(body(page)).not.toContainText('huge')
   expect((await stored(page)).map((f) => f.mime)).toEqual(['image/png'])
+
+  await notice.getByRole('button', { name: 'Dismiss' }).click()
+  await sendFiles(page, 'drop', [
+    { name: 'huge.png', type: 'image/png', bytes: PNG, size: 10 * 1024 * 1024 + 1 },
+  ])
+  await expect(notice).toHaveText(
+    /^An image could not be added\. An image can be at most 10 MB, and not empty\. \(E_FILE_SIZE_INVALID\)/,
+  )
 })
 
 test('an image lands where it was pasted, however the text changed during the upload', async ({
