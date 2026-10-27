@@ -135,7 +135,7 @@ test.describe('once the trial is over', () => {
     await expect(bar(page)).toHaveCount(1)
   })
 
-  test('an empty note offers Choose a template only while notes can be changed', async ({
+  test('an empty note offers the hint and Choose a template only while notes can be changed', async ({
     page,
   }) => {
     await fakeTrial(page, 50 * HOUR)
@@ -148,12 +148,14 @@ test.describe('once the trial is over', () => {
 
     await changeLicence(page, ended())
     await expect(bar(page)).toBeVisible()
-    await expect(hint).toBeVisible()
+    // Nothing can be typed and no template can be chosen: the hint would offer both.
+    await expect(hint).toBeHidden()
     await expect(chip).toBeHidden()
 
     const now = await page.evaluate(() => Date.now())
     await changeLicence(page, unlicensed({ state: 'running', endsAt: now + 50 * HOUR, code: null }))
     await expect(bar(page)).toHaveCount(0)
+    await expect(hint).toBeVisible()
     await expect(chip).toBeVisible()
   })
 
@@ -256,7 +258,7 @@ test.describe('the trial-ended bar', () => {
         id: `0192a6f0-0000-7000-8000-${String(i + 1).padStart(12, '0')}`,
         title: `Note ${i + 1}`,
         titleHlc: '',
-        bodyMd: i === 0 ? Array.from({ length: 80 }, (_, l) => `line ${l + 1}`).join('\n') : '',
+        bodyMd: i === 0 ? Array.from({ length: 80 }, (_line, l) => `line ${l + 1}`).join('\n') : '',
         ydoc: [0, 0],
         bookId: null,
         bookHlc: '',
