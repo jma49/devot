@@ -615,6 +615,16 @@ describe('code blocks', () => {
     expect(outline(strip(quoted))).toBe('Blockquote(BulletList(ListItem(Paragraph))) FencedCode')
   })
 
+  it('go inside a quote that is inside a list item', () => {
+    const quoted = code('- step\n  > «quoted»')
+    expect(quoted).toBe('- step\n  > ```\n  > «quoted»\n  > ```')
+    expect(outline(strip(quoted))).toBe('BulletList(ListItem(Paragraph Blockquote(FencedCode)))')
+    expect(code('1. step\n   > qu|oted')).toBe('1. step\n   > ```\n   > qu|oted\n   > ```')
+    expect(code('- [ ] task\n  > «note»')).toBe('- [ ] task\n  > ```\n  > «note»\n  > ```')
+    expect(code('- step\n\n  > «quoted»')).toBe('- step\n\n  > ```\n  > «quoted»\n  > ```')
+    expect(code('> - step\n>   > «quoted»')).toBe('> - step\n>   > ```\n>   > «quoted»\n>   > ```')
+  })
+
   it('wrap a mixed selection, code included, in one longer fence', () => {
     expect(code('«a\n```\nx\n```\nb»')).toBe('````\n«a\n```\nx\n```\nb»\n````')
   })

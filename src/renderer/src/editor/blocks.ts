@@ -1010,11 +1010,13 @@ function codeLines(cx: Cx): { line: Line; fence: SyntaxNode | null; blank: boole
 
 /**
  * The column (after `quotes` characters of quote markers) where the text of
- * the list item a line continues starts; null when it continues none.
+ * the list item a line continues starts; null when it continues none, or when
+ * the quote markers already reach past it (a quote inside the item).
  */
 function itemColumn(cx: Cx, line: Line, quotes: number): number | null {
   const item = outerItem(cx, line)
-  return item ? itemTextColumn(cx.state.doc, item) - quotes : null
+  const column = item ? itemTextColumn(cx.state.doc, item) - quotes : -1
+  return column < 0 ? null : column
 }
 
 /**
