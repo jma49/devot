@@ -82,10 +82,18 @@ async function selectWord(page: Page, n: number, word: string) {
   await expect(toolbar(page)).toBeVisible()
   const selected = page.locator('.cm-selectionBackground')
   await expect(selected).toHaveCount(1)
+  // A selection that ends at the row paints out to the column, so the tint is
+  // wider than the word. The word's centre still sits inside it.
   await expect
     .poll(async () => {
       const box = await selected.boundingBox()
-      return !!box && Math.hypot(box.x + box.width / 2 - at.x, box.y + box.height / 2 - at.y) < 3
+      return (
+        !!box &&
+        at.x >= box.x - 1 &&
+        at.x <= box.x + box.width + 1 &&
+        at.y >= box.y - 1 &&
+        at.y <= box.y + box.height + 1
+      )
     }, `the selection covers "${word}"`)
     .toBe(true)
 }
