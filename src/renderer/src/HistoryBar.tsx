@@ -224,6 +224,7 @@ export function useHistoryBar(props: {
   const locale = currentLocale()
   const [steps, setSteps] = useState<{ noteId: string; steps: HistoryStep[] }>()
   const [error, setError] = useState<string>()
+  const [restoreError, setRestoreError] = useState<string>()
   const [shown, setShown] = useState<Shown>()
   const [texts, setTexts] = useState(() => new Map<string, string>())
   const [passage, setPassage] = useState<{ from: number; to: number }>()
@@ -280,17 +281,20 @@ export function useHistoryBar(props: {
     setTexts(new Map())
     setPassage(undefined)
     setShown(undefined)
+    setRestoreError(undefined)
   }
 
   const show = (i: number, mode: Mode) => {
     if (!noteId) return
     const id = list[i]?.id ?? null
     setShown({ noteId, id, mode: id === null ? 'idle' : mode })
+    setRestoreError(undefined)
     if (id !== atNote?.id) setPassage(undefined)
   }
   const back = () => {
     if (noteId) setShown({ noteId, id: null, mode: 'idle' })
     setPassage(undefined)
+    setRestoreError(undefined)
   }
 
   // Only Escape pressed in the bar or the overlay: elsewhere (the palette, a sheet) it is theirs.
@@ -364,7 +368,7 @@ export function useHistoryBar(props: {
       restored.current = true
       setReload((n) => n + 1)
     } catch (e) {
-      setError(errorCode(e))
+      setRestoreError(errorCode(e))
     } finally {
       setBusy(false)
     }
@@ -378,7 +382,7 @@ export function useHistoryBar(props: {
       restored.current = true
       setReload((n) => n + 1)
     } catch (e) {
-      setError(errorCode(e))
+      setRestoreError(errorCode(e))
     } finally {
       setBusy(false)
     }
@@ -386,13 +390,15 @@ export function useHistoryBar(props: {
 
   const note = error
     ? format(t('historyBar.failed'), { code: error })
-    : list.length === 0
-      ? t('history.empty')
-      : showing
-        ? t('historyBar.shownHint')
-        : compactionLimited(list, now)
-          ? t('historyBar.compacted')
-          : t('historyBar.hint')
+    : restoreError
+      ? format(t('history.restoreFailed'), { code: restoreError })
+      : list.length === 0
+        ? t('history.empty')
+        : showing
+          ? t('historyBar.shownHint')
+          : compactionLimited(list, now)
+            ? t('historyBar.compacted')
+            : t('historyBar.hint')
   const handleAt = step ? axisAt(step.at, start, end) : 1
 
   const bar = (

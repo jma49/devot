@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { changeEditorSettingsElsewhere, expect, pickNoteMore, test } from './fixtures'
-import { slowCore } from './slowCore'
+import { failCoreCalls, slowCore } from './slowCore'
 
 interface StoredNote {
   id: string
@@ -226,6 +226,26 @@ test('a restore that answers after another note opens leaves that note alone', a
 
   await expect(body(page)).toHaveText('keep new end')
   expect(await savedBody(page, 'Beta')).toBe('keep new end')
+})
+
+test('a restore the core refuses says so, and the message goes when another version shows', async ({
+  page,
+}) => {
+  await slowCore(page, [])
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  await failCoreCalls(page, ['restoreRevision'])
+  await bar(page).getByRole('button', { name: 'Restore Whole Version' }).click()
+  const said = bar(page).locator('.history-bar-note')
+  await expect(said).toHaveText(/^The version could not be restored \(E_/)
+  await expect(said).not.toHaveText(/could not be loaded/)
+
+  await slider(page).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(said).toHaveText(
+    'Drag the handle to see the note as it was. Click a version to keep it shown.',
+  )
 })
 
 test('a version kept shown is put away when another note opens', async ({ page }) => {
