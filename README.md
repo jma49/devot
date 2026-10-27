@@ -22,9 +22,9 @@
   </picture>
 </p>
 
-Devot keeps your notes in a SQLite database on your Mac. Every feature works without an account or a network connection, and nothing leaves the Mac unless you export it, mirror it or let an MCP client read it.
+Devot keeps your notes in a SQLite database on your Mac. Every feature works without an account or a network connection, and nothing leaves the Mac unless you export it, mirror it, let an MCP client read it, use an AI feature with your own provider key, or sync through your own relay.
 
-**Status:** phase 1, the macOS MVP, is complete, and stable releases are available. Sync, AI edit proposals and the iOS app come in phases 2 and 3 ([milestones](https://github.com/jma49/devot/milestones), `docs/architecture.md`, Phases).
+**Status:** phase 1, the macOS MVP, is complete, and stable releases are available. The v1.0.5 betas add sync through your own relay, AI edit proposals and next edit suggestions with your own provider key, and licences with a three-day trial; the iOS app comes in phase 3 ([milestones](https://github.com/jma49/devot/milestones), `docs/architecture.md`, Phases).
 
 ## Download
 
@@ -226,3 +226,5 @@ Report security problems privately, as [`SECURITY.md`](SECURITY.md) describes.
 ## License
 
 [FSL-1.1-MIT](LICENSE): use, change and share Devot for anything but a competing commercial product. Each release becomes MIT two years after it is published. Versions up to v1.0.4 were published under MIT and stay MIT.
+
+Devot works fully for a three-day trial; after it, notes are read-only (you can read, search, copy and export them) and sync and AI are locked until you add a licence bought once, which unlocks them on all your devices in every version ([ADR 0006](docs/adr/0006-source-available-and-sold-once.md)).
