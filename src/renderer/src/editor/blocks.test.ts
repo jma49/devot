@@ -295,6 +295,16 @@ describe('text that only looks like a list marker', () => {
     expect(list('- 2020 was good|', 'numbered')).toBe('1. 2020 was good|')
     expect(list('«1. a\n2. b»', 'bullet')).toBe('- «a\n- b»')
   })
+
+  it('is escaped when the marker before it is taken off, so it is not renumbered', () => {
+    const timeline = list('«- 1999. Born\n- 2020. Moved»', 'bullet')
+    expect(timeline).toBe('«1999\\. Born\n2020\\. Moved»')
+    expect(outline(strip(timeline))).toBe('Paragraph')
+    expect(list('- 2020. A good year|', 'bullet')).toBe('2020\\. A good year|')
+    expect(list('- [ ] 2020.|', 'task')).toBe('2020\\.|')
+    expect(list('1. 2020. x|', 'numbered')).toBe('2020\\. x|')
+    expect(list('- 3)|', 'bullet')).toBe('3\\)|')
+  })
 })
 
 describe('taking a quote or list off lines after others of the block', () => {

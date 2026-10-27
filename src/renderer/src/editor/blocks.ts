@@ -15,6 +15,7 @@ import {
 } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import type { AlertKind } from '../../../core/preview/registry'
+import { FRONT_MATTER_FENCE } from '../../../core/readable'
 import {
   ALERT_LINE,
   COMMAND_PARSE_MS,
@@ -598,6 +599,30 @@ function escapeMarkerText(doc: Text, at: number, edits: Edits) {
 }
 
 /**
+ * Escapes text that a removed marker leaves at the start of a line (`at`, in
+ * the old document) when it reads as a marker itself (`- 1999. Born`), so it
+ * is not renumbered as a new list. Front matter the change closes is not
+ * Markdown and keeps its text.
+ */
+function escapeUnmarked(old: Text, first: ChangeSet, at: number[]): ChangeSet | null {
+  if (at.length === 0) return null
+  const doc = first.apply(old)
+  const edits = new Edits()
+  for (const pos of at) {
+    const now = first.mapPos(pos, 1)
+    if (!inClosedFrontMatter(doc, now)) escapeMarkerText(doc, now, edits)
+  }
+  return edits.empty ? null : edits.changes(doc)
+}
+
+function inClosedFrontMatter(doc: Text, pos: number): boolean {
+  if (!mayBeFrontMatter(doc, pos)) return false
+  for (let n = doc.lineAt(pos).number + 1; n <= doc.lines; n++)
+    if (FRONT_MATTER_FENCE.test(doc.line(n).text)) return true
+  return false
+}
+
+/**
  * Makes the selected lines items of `kind`; when they all are already, they
  * stop being items. Items of another kind are converted. An item's children
  * move with it when its marker gets wider or narrower, so nesting is kept,
@@ -616,6 +641,7 @@ export function toggleList(state: EditorState, kind: ListKind): TransactionSpec 
   const created = new Set<number>()
   const delims = new Map<string, string | undefined>()
   const losing = new Map<number, SyntaxNode>()
+  const unmarked: number[] = []
   const bullet = state.facet(listBullet)
   for (const l of lines) {
     const key = slot(l)
@@ -630,6 +656,7 @@ export function toggleList(state: EditorState, kind: ListKind): TransactionSpec 
     delims.set(key, remove ? undefined : /[.)](?= $)/.exec(next.text)?.[0])
     edits.add(l.at, l.marker?.textFrom ?? l.at, next.text)
     if (!remove && !l.marker && kind !== 'task') escapeMarkerText(state.doc, l.at, edits)
+    if (remove && l.marker) unmarked.push(l.at)
     changed.add(l.line.number)
     if (!l.item) created.add(l.line.number)
     const list = l.item?.parent
@@ -641,7 +668,9 @@ export function toggleList(state: EditorState, kind: ListKind): TransactionSpec 
   for (const list of losing.values()) restartAfterGaps(state.doc, list, changed, edits, shifts)
   if (remove) setApartFromList(cx, lines, changed, edits)
   shifts.into(edits, state.doc, created)
-  const first = edits.changes(state.doc)
+  const marked = edits.changes(state.doc)
+  const escapes = escapeUnmarked(state.doc, marked, unmarked)
+  const first = escapes ? marked.compose(escapes) : marked
   const second = renumber(cx, first, changed)
   const changes = second ? first.compose(second) : first
   return spec(changes, mapSelection(state, changes))
