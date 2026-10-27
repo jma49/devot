@@ -2207,7 +2207,7 @@ button {
 
 .panes-split .editor {
   --editor-reading-width: none;
-  --editor-padding: 0 var(--space-4) 0 calc(var(--space-9) - var(--space-3) - var(--space-2));
+  --editor-padding: 0 var(--space-4) 0 calc(var(--space-9) - var(--space-3));
 }
 
 .panes-split .preview {
@@ -2217,10 +2217,9 @@ button {
 /* The box inside the shadow root scrolls and takes this padding (NoteEditor.tsx); the host clips nothing, so a popup over the first lines can reach up over the title. */
 .editor {
   min-height: 0;
-  /* The content pads its lines by space-2 (room for boxes, editor/boxes.ts)
-     and a line its text by space-3: the text lines up with the title. */
-  --editor-padding: 0 calc(var(--space-9) - var(--space-2)) 0
-    calc(var(--space-9) - var(--space-3) - var(--space-2));
+  /* A line pads its text by space-3, the column a box sits on (editor/boxes.ts).
+     Leave the title's space-9 minus that, so the column lines up with the title. */
+  --editor-padding: 0 calc(var(--space-9) - var(--space-3)) 0 calc(var(--space-9) - var(--space-3));
 }
 
 .editor[hidden] {
