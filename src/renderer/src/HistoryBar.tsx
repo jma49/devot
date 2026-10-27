@@ -221,6 +221,11 @@ export function useHistoryBar(props: {
   onRestored: () => void
 }): { bar: ReactNode; overlay: ReactNode } {
   const { core, noteId, enabled } = props
+  // The note the bar is on now, for a restore that answers after another note opened.
+  const noteIdNow = useRef(noteId)
+  useEffect(() => {
+    noteIdNow.current = noteId
+  }, [noteId])
   const locale = currentLocale()
   const [steps, setSteps] = useState<{ noteId: string; steps: HistoryStep[] }>()
   const [error, setError] = useState<string>()
@@ -363,12 +368,15 @@ export function useHistoryBar(props: {
     if (!core || !step || !passage) return
     setBusy(true)
     try {
-      props.onApply(noteId, await core.restorePassage(noteId, step.id, passage))
+      const update = await core.restorePassage(noteId, step.id, passage)
+      // Another note opened while the core worked: the update is not for this one.
+      if (noteIdNow.current !== noteId) return
+      props.onApply(noteId, update)
       back()
       restored.current = true
       setReload((n) => n + 1)
     } catch (e) {
-      setRestoreError(errorCode(e))
+      if (noteIdNow.current === noteId) setRestoreError(errorCode(e))
     } finally {
       setBusy(false)
     }
@@ -377,12 +385,14 @@ export function useHistoryBar(props: {
     if (!core || !step) return
     setBusy(true)
     try {
-      props.onApply(noteId, await core.restoreRevision(noteId, step.id))
+      const update = await core.restoreRevision(noteId, step.id)
+      if (noteIdNow.current !== noteId) return
+      props.onApply(noteId, update)
       back()
       restored.current = true
       setReload((n) => n + 1)
     } catch (e) {
-      setRestoreError(errorCode(e))
+      if (noteIdNow.current === noteId) setRestoreError(errorCode(e))
     } finally {
       setBusy(false)
     }
@@ -450,7 +460,7 @@ export function useHistoryBar(props: {
         </div>
       </div>
       <div className="history-bar-row">
-        <p className="history-bar-note" role={error ? 'alert' : undefined}>
+        <p className="history-bar-note" role={error || restoreError ? 'alert' : undefined}>
           {note}
         </p>
         {showing ? (

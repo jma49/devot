@@ -226,6 +226,8 @@ test('a restore that answers after another note opens leaves that note alone', a
 
   await expect(body(page)).toHaveText('keep new end')
   expect(await savedBody(page, 'Beta')).toBe('keep new end')
+  // The late answer does not take the keyboard into the note that opened since.
+  await expect(body(page)).not.toBeFocused()
 })
 
 test('the restore buttons stay inside the bar in a narrow window with the sidebar shown', async ({
@@ -256,6 +258,7 @@ test('a restore the core refuses says so, and the message goes when another vers
   await bar(page).getByRole('button', { name: 'Restore Whole Version' }).click()
   const said = bar(page).locator('.history-bar-note')
   await expect(said).toHaveText(/^The version could not be restored \(E_/)
+  await expect(said).toHaveAttribute('role', 'alert')
   await expect(said).not.toHaveText(/could not be loaded/)
 
   await slider(page).focus()
