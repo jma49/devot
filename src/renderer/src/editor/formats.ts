@@ -25,6 +25,7 @@ import {
   type AlertKind,
   type BlockFormat,
 } from './blocks'
+import { noteParser } from './markdown'
 import { insertRule } from './rule'
 import { Covered, SpanIndex } from './spanIndex'
 import {
@@ -216,7 +217,10 @@ function otherSyntax(cx: Cx, format: Wrap, from: number, to: number): Syntax[] {
     from,
     to,
     enter(node) {
-      if (node.name === own) return true
+      if (node.name === own) {
+        if (format === 'code') found.push(...codeTextSyntax(cx, node.node))
+        return true
+      }
       const markName = NESTING_MARKS[node.name]
       if (markName) {
         const marks = node.node.getChildren(markName)
@@ -254,6 +258,41 @@ function otherSyntax(cx: Cx, format: Wrap, from: number, to: number): Syntax[] {
   })
   if (format !== 'highlight')
     for (const span of markSpans(cx, from, to)) found.push({ ...span, nest: true })
+  return found
+}
+
+/**
+ * The syntax a code span's text has once its markers come off (links, tags,
+ * URLs), which the tree does not show inside code: taking the code off part
+ * of it must not cut through that syntax, so each is taken whole.
+ */
+function codeTextSyntax(cx: Cx, code: SyntaxNode): Syntax[] {
+  const marks = code.getChildren('CodeMark')
+  const from = marks[0]?.to
+  const to = marks.at(-1)?.from
+  if (from === undefined || to === undefined || from >= to) return []
+  const text = cx.state.sliceDoc(from, to)
+  const found: Syntax[] = []
+  const add = (a: number, b: number) =>
+    found.push({ from: from + a, to: from + b, openTo: from + b, closeFrom: from + b, nest: false })
+  const open: number[] = []
+  noteParser.parse(text).iterate({
+    enter(node) {
+      if (node.name === 'Link' || node.name === 'Image') {
+        if (linkOf(node.node)) add(node.from, node.to)
+        return false
+      }
+      if (!ATOMIC.has(node.name)) return true
+      add(node.from, node.to)
+      const tag = text.slice(node.from, node.to)
+      if (node.name === 'HTMLTag' && MARK_OPEN.test(tag)) open.push(node.from)
+      else if (node.name === 'HTMLTag' && MARK_CLOSE.test(tag)) {
+        const start = open.pop()
+        if (start !== undefined) add(start, node.to)
+      }
+      return false
+    },
+  })
   return found
 }
 

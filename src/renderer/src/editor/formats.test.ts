@@ -843,6 +843,20 @@ describe('formats next to other inline syntax', () => {
     expect(inline('`a«b»c`', 'italic')).toBe('*`a«b»c`*')
   })
 
+  it('takes inline code off without cutting a link, tag or URL in it', () => {
+    for (const marked of [
+      'See «[the» docs](https://x.y) now',
+      'Use «<ma»rk>this</mark> now',
+      'go to htt«ps://e»xample.com/page now',
+    ]) {
+      let s = state(marked)
+      s = apply(s, toggleInline(s, 'code'))
+      expect(isInlineActive(s, 'code')).toBe(true)
+      s = apply(s, toggleInline(s, 'code'))
+      expect(s.doc.toString()).toBe(marked.replace(/[«»]/g, ''))
+    }
+  })
+
   it('still formats inside emphasis and link text', () => {
     expect(inline('*a«b»c*', 'bold')).toBe('*a**«b»**c*')
     expect(inline('[a«b»c](u)', 'bold')).toBe('[a**«b»**c](u)')
