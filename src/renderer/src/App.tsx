@@ -3235,7 +3235,7 @@ export function App() {
   })
   const trashKey = useStable((action: TrashAction, id: string) => void trashAction(action, id))
   const askEmptyTrash = useStable(() => {
-    if (trash.length > 0) setConfirm({ kind: 'empty' })
+    if (trash.length > 0 && editing) setConfirm({ kind: 'empty' })
   })
   // aria-disabled, not disabled: a disabled button would drop the keyboard
   // when the Trash is emptied from it.
@@ -3253,13 +3253,13 @@ export function App() {
         type="button"
         className="button"
         data-tauri-drag-region="false"
-        aria-disabled={trash.length === 0}
+        aria-disabled={trash.length === 0 || !editing}
         onClick={askEmptyTrash}
       >
         {t('trash.empty')}
       </button>
     ),
-    [trash.length, askEmptyTrash],
+    [trash.length, editing, askEmptyTrash],
   )
   const sidebarSelect = useStable((next: Selection, options?: { clearFilter?: boolean }) =>
     showLibrary(next, options),

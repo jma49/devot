@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test'
-import { expect, openApp, openSettings, reloadApp, test, type TestWindow } from './fixtures'
+import {
+  expect,
+  openApp,
+  openSettings,
+  pickNoteMore,
+  reloadApp,
+  test,
+  type TestWindow,
+} from './fixtures'
 
 // The three-day trial: while it runs everything works; once it is over without a licence, notes are
 // read-only, one bar says so with Buy and Add Licence, and Settings > Licence says how long is left.
@@ -168,6 +176,26 @@ test.describe('once the trial is over', () => {
     await page.waitForTimeout(1_000)
     await expect(page.getByRole('textbox', { name: 'Title' })).toHaveCount(0)
     await expect(page.getByRole('listbox', { name: 'Notes' }).getByRole('option')).toHaveCount(0)
+  })
+
+  test('Empty Trash is withheld while notes are read-only', async ({ page }) => {
+    await fakeTrial(page, 50 * HOUR)
+    await openApp(page)
+    await page.getByRole('button', { name: 'New Note', exact: true }).click()
+    await page.getByRole('textbox', { name: 'Title' }).fill('Old')
+    await pickNoteMore(page, 'Move to Trash')
+
+    await changeLicence(page, ended())
+    await expect(bar(page)).toBeVisible()
+    const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
+    await sidebar.getByRole('button', { name: /^Trash \d+$/ }).click()
+    const empty = page.getByRole('button', { name: 'Empty Trash' })
+    await expect(empty).toHaveAttribute('aria-disabled', 'true')
+    // A disabled button takes no click; this one is aria-disabled, so click it anyway.
+    await empty.evaluate((el) => (el as HTMLElement).click())
+    await page.waitForTimeout(300)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(sidebar.getByRole('button', { name: /^Trash \d+$/ })).toHaveText(/1$/)
   })
 
   test('the window turns read-only at the end of the trial, without being told', async ({

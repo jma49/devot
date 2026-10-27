@@ -694,7 +694,7 @@ interface Props {
   onNewFromLink?: (() => void) | undefined
   onImagesRefused?: (codes: string[]) => void
   onOpenFailed?: (noteId: string, code: string) => void
-  onChooseTemplate?: () => void
+  onChooseTemplate?: (() => void) | undefined
   onOpenNote?: (noteId: string) => void
   /** Shown but not changed: the trial is over without a licence. */
   readOnly?: boolean
