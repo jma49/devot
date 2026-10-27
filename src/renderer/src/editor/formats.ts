@@ -963,11 +963,14 @@ export function escapeBangBefore(state: EditorState, pos: number): ChangeSpec[] 
 /**
  * A URL as a link's address: as it is, except that `|` is percent-encoded
  * (in a table it would end the cell), and so are `\` (it would escape the
- * next character, a closing parenthesis too) and parentheses that do not
- * pair up (one would end the address early).
+ * next character, a closing parenthesis too), whitespace (it would end the
+ * address) and parentheses that do not pair up (one would end the address early).
  */
 export function linkAddress(url: string): string {
-  const piped = url.replace(/\|/g, '%7C').replace(/\\/g, '%5C')
+  const piped = url
+    .replace(/\|/g, '%7C')
+    .replace(/\\/g, '%5C')
+    .replace(/\s/g, (c) => encodeURIComponent(c))
   let depth = 0
   for (const ch of piped) {
     if (ch === '(') depth++

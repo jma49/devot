@@ -1,6 +1,8 @@
 import { history, undo } from '@codemirror/commands'
 import { EditorSelection, EditorState } from '@codemirror/state'
+import type { Element, Root, RootContent } from 'hast'
 import { describe, expect, it } from 'vitest'
+import { previewTree } from '../../../../tests/support/preview-html'
 import { insertLink, selectionHasLink } from './formats'
 import { noteMarkdown } from './markdown'
 
@@ -10,6 +12,20 @@ const state = (doc: string, from: number, to: number) =>
     selection: EditorSelection.range(from, to),
     extensions: [noteMarkdown, history()],
   })
+
+/** The links the preview makes of `markdown`: each one's address and text. */
+async function links(markdown: string): Promise<{ href: unknown; text: string }[]> {
+  const found: { href: unknown; text: string }[] = []
+  const text = (node: Root | RootContent): string =>
+    node.type === 'text' ? node.value : 'children' in node ? node.children.map(text).join('') : ''
+  const walk = (node: Root | RootContent) => {
+    if (node.type === 'element' && (node as Element).tagName === 'a')
+      found.push({ href: (node as Element).properties.href, text: text(node) })
+    if ('children' in node) node.children.forEach(walk)
+  }
+  walk(await previewTree(markdown))
+  return found
+}
 
 describe('the link dialog result', () => {
   it('replaces the selection with the link in one transaction, the caret after it', () => {
@@ -34,6 +50,15 @@ describe('the link dialog result', () => {
     expect(s.update(insertLink(s, 'x', 'https://a.test/a)b')).newDoc.toString()).toBe(
       '[x](https://a.test/a%29b)',
     )
+  })
+
+  it('encodes whitespace in the address, so the preview reads one link to it', async () => {
+    const s = state('word', 0, 4)
+    const doc = s.update(insertLink(s, 'word', 'https://example.com/a b\tc')).newDoc.toString()
+    expect(doc).toBe('[word](https://example.com/a%20b%09c)')
+    expect(await links(doc)).toEqual([{ href: 'https://example.com/a%20b%09c', text: 'word' }])
+    const path = s.update(insertLink(s, 'plan', '../Notes/My Plan.md')).newDoc.toString()
+    expect(await links(path)).toEqual([{ href: '../Notes/My%20Plan.md', text: 'plan' }])
   })
 
   it('knows when the selection is already a link (the button removes it instead)', () => {
