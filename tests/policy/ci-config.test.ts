@@ -175,6 +175,11 @@ it('changed-code.sh needs no build for documentation and the icon sources', () =
   )
 })
 
+it('changed-code.sh runs both jobs for the bundled welcome Markdown, which the UI tests render', () => {
+  expect(changedCode(['src/renderer/src/welcome/welcome.md'])).toBe('web=true rust=true')
+  expect(changedCode(['src/renderer/src/welcome/markdown-example.md'])).toBe('web=true rust=true')
+})
+
 it('changed-code.sh sends relay changes to the policy job, which checks and tests the relay', () => {
   expect(changedCode(['relay/src/vault.ts', 'relay/wrangler.toml'])).toBe('web=false rust=false')
   expect(changedCode(['relay/src/vault.ts', 'src/core/sync/protocol.ts'])).toBe(
