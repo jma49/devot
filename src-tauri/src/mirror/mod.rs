@@ -56,6 +56,8 @@ const READ_FAILED: &str = "E_MIRROR_SETTINGS_READ_FAILED";
 struct Stored {
     folder: Option<String>,
     include_attachments: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    library: Option<String>,
 }
 
 impl Default for Stored {
@@ -63,6 +65,7 @@ impl Default for Stored {
         Self {
             folder: None,
             include_attachments: true,
+            library: None,
         }
     }
 }
@@ -78,9 +81,15 @@ impl Stored {
             .get("includeAttachments")
             .and_then(Value::as_bool)
             .unwrap_or(true);
+        let library = value
+            .get("library")
+            .and_then(Value::as_str)
+            .filter(|l| folder::valid_uuid(l))
+            .map(String::from);
         Self {
             folder,
             include_attachments,
+            library,
         }
     }
 }
@@ -135,6 +144,9 @@ struct Inner {
     read_failed: bool,
     folder: Option<PathBuf>,
     include_attachments: bool,
+    /// Named in every manifest this mirror writes, so a folder another library mirrors is never
+    /// taken for its own: going on from that manifest would delete the files it lists.
+    library: Option<String>,
     generation: u64,
     revision: u64,
     paused: Option<&'static str>,
@@ -214,6 +226,7 @@ impl Mirror {
             inner.loaded = read.is_some();
             inner.folder = stored.folder.map(PathBuf::from);
             inner.include_attachments = stored.include_attachments;
+            inner.library = stored.library;
             if !inner.loaded {
                 inner.read_failed = true;
             } else if inner.read_failed {
@@ -264,11 +277,26 @@ impl Mirror {
         let stored = Stored {
             folder: folder.map(|f| f.to_string_lossy().into_owned()),
             include_attachments,
+            library: inner.library.clone(),
         };
         let json =
             serde_json::to_vec_pretty(&stored).map_err(|_| "E_MIRROR_SETTINGS_WRITE_FAILED")?;
         crate::atomic_file::write_replacing(&self.settings, &json)
             .map_err(|_| "E_MIRROR_SETTINGS_WRITE_FAILED")
+    }
+
+    fn library(&self, inner: &mut Inner) -> Result<String, &'static str> {
+        if let Some(library) = &inner.library {
+            return Ok(library.clone());
+        }
+        let library = uuid::Uuid::new_v4().hyphenated().to_string();
+        inner.library = Some(library.clone());
+        let folder = inner.folder.clone();
+        if let Err(code) = self.store(inner, folder.as_deref(), inner.include_attachments) {
+            inner.library = None;
+            return Err(code);
+        }
+        Ok(library)
     }
 
     fn pause(&self, inner: &mut Inner, code: &'static str, notify: Notify) -> &'static str {
@@ -352,18 +380,19 @@ impl Mirror {
         let path = std::fs::canonicalize(picked).map_err(|_| "E_MIRROR_FOLDER_INVALID")?;
         let root = Root::open(&path).map_err(|_| "E_MIRROR_FOLDER_INVALID")?;
         probe_writable(&root).map_err(|_| "E_MIRROR_FOLDER_READ_ONLY")?;
-        let usable = match read_manifest(&root) {
-            Ok(bytes) => parse_manifest(&bytes).is_some(),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                !has_entries(&root).map_err(|_| "E_MIRROR_FOLDER_INVALID")?
-            }
-            Err(_) => false,
+        let (empty, owner) = match read_manifest(&root) {
+            Ok(bytes) => (false, parse_manifest(&bytes).and_then(|m| m.library)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (
+                !has_entries(&root).map_err(|_| "E_MIRROR_FOLDER_INVALID")?,
+                None,
+            ),
+            Err(_) => (false, None),
         };
         let mut inner = self.lock(notify)?;
         if !inner.loaded {
             return Err(READ_FAILED);
         }
-        if usable {
+        if empty || (owner.is_some() && owner == inner.library) {
             return Ok(Choice::Chosen {
                 status: self.use_folder(&mut inner, path, notify)?,
             });
@@ -385,7 +414,11 @@ impl Mirror {
             .remove(&token)
             .ok_or("E_MIRROR_CHOICE_UNKNOWN")?;
         let root = Root::open(&path).map_err(|_| "E_MIRROR_FOLDER_MISSING")?;
-        save_manifest(&root, &Manifest::default()).map_err(|_| "E_MIRROR_FOLDER_READ_ONLY")?;
+        let manifest = Manifest {
+            library: Some(self.library(&mut inner)?),
+            ..Manifest::default()
+        };
+        save_manifest(&root, &manifest).map_err(|_| "E_MIRROR_FOLDER_READ_ONLY")?;
         self.use_folder(&mut inner, path, notify)
     }
 
@@ -414,7 +447,7 @@ impl Mirror {
             }
         }
         if inner.manifest.is_none() {
-            let (manifest, fresh) = match read_manifest(&root) {
+            let (mut manifest, fresh) = match read_manifest(&root) {
                 Ok(bytes) => match parse_manifest(&bytes) {
                     Some(manifest) => (manifest, false),
                     None => {
@@ -433,9 +466,22 @@ impl Mirror {
                 }
                 Err(_) => return Err(self.pause(&mut inner, "E_MIRROR_FOLDER_READ_ONLY", notify)),
             };
+            let library = self.library(&mut inner)?;
+            // A manifest written before manifests named their library is this mirror's own: it
+            // is in the folder this mirror already uses.
+            let unnamed = match &manifest.library {
+                None => true,
+                Some(owner) if *owner == library => false,
+                Some(_) => {
+                    return Err(self.pause(&mut inner, "E_MIRROR_MANIFEST_FOREIGN", notify));
+                }
+            };
+            manifest.library = Some(library);
             let written = probe_writable(&root).and_then(|()| {
                 if fresh {
                     create_manifest(&root, &manifest)
+                } else if unnamed {
+                    save_manifest(&root, &manifest)
                 } else {
                     Ok(())
                 }
@@ -448,6 +494,9 @@ impl Mirror {
                     return Err("E_MIRROR_STALE");
                 }
                 Err(_) => return Err(self.pause(&mut inner, "E_MIRROR_FOLDER_READ_ONLY", notify)),
+            }
+            if !fresh {
+                folder::sweep(&root, std::time::SystemTime::now());
             }
             inner.manifest = Some(manifest);
         }
@@ -551,7 +600,7 @@ impl Mirror {
                     ..OpResult::default()
                 },
             };
-            changed |= result.code.is_none();
+            changed |= result.code.is_none() || result.moved;
             if let Some(kept) = &result.kept {
                 inner.kept_count += 1;
                 if inner.kept.len() < KEPT_NAMED {

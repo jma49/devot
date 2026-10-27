@@ -16,6 +16,8 @@ export interface BackupStatus {
 
 export const SHOW_BACKUPS = 'devot:show-backups'
 export const BACKUP_FAILED = 'devot:backup-failed'
+const RESTORE_PREPARE = 'devot:restore-prepare'
+const RESTORE_DONE = 'devot:restore-done'
 
 export const listBackups = () => invoke<BackupStatus>('backups_list')
 export const backupNow = () => invoke<BackupInfo>('backup_now')
@@ -38,6 +40,45 @@ export async function restoreBackup(id: string, compaction?: Compaction) {
   } catch (error) {
     await compaction?.resume()
     throw error
+  }
+}
+
+/**
+ * Another window restores a backup (backups.rs): `prepare` saves this window's edits and stops its
+ * core, so nothing it holds from before the restore is written over it, and Rust hears back even
+ * when that fails; once the restore is over, ran or not, the window reloads. The UI tests send
+ * these as window events.
+ */
+export function onRestoreElsewhere(prepare: () => Promise<void>): () => void {
+  const prepared = () =>
+    void prepare()
+      .catch(() => console.warn('W_RESTORE_PREPARE_FAILED'))
+      .then(() => invoke('backup_restore_ready'))
+      .catch(() => console.warn('W_RESTORE_READY_FAILED'))
+  const done = () => window.location.reload()
+  window.addEventListener(RESTORE_PREPARE, prepared)
+  window.addEventListener(RESTORE_DONE, done)
+  let stopped = false
+  const stops: (() => void)[] = []
+  if (!DEVOT_UI_TEST) {
+    void import('./windowEvents')
+      .then(({ listenHere }) =>
+        Promise.all([
+          listenHere('devot://restore-prepare', prepared),
+          listenHere('devot://restore-done', done),
+        ]),
+      )
+      .then((own) => {
+        if (stopped) own.forEach((stop) => stop())
+        else stops.push(...own)
+      })
+      .catch(() => console.warn('W_RESTORE_LISTEN_FAILED'))
+  }
+  return () => {
+    stopped = true
+    window.removeEventListener(RESTORE_PREPARE, prepared)
+    window.removeEventListener(RESTORE_DONE, done)
+    stops.forEach((stop) => stop())
   }
 }
 

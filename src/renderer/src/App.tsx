@@ -38,7 +38,14 @@ import {
   workspaceParents,
   workspaceTree,
 } from '../../core/workspace'
-import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
+import {
+  BACKUP_FAILED,
+  SHOW_BACKUPS,
+  errorCode,
+  listBackups,
+  onRestoreElsewhere,
+  restoreBackup,
+} from './backups'
 import { BackupNotice } from './BackupNotice'
 import { SyncNotice } from './SyncNotice'
 import { TrialEndedBar, TrialReminder } from './TrialNotices'
@@ -1465,6 +1472,22 @@ export function App() {
     }
     window.location.reload()
   }
+
+  useEffect(
+    () =>
+      onRestoreElsewhere(async () => {
+        if (!core) return
+        try {
+          await core.stopImport()
+          await saveEdits(core)
+          // In `main`: no sweep deletes from the restored notes what it chose from these.
+          await core.holdCompaction()
+        } finally {
+          stopCore(core)
+        }
+      }),
+    [core],
+  )
 
   // Quick capture (menu bar mode): this window's core makes the note the
   // capture window sent, and the list shows it.

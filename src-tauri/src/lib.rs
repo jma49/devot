@@ -171,6 +171,7 @@ pub fn run() {
             backups::backups_list,
             backups::backup_now,
             backups::backup_restore,
+            backups::backup_restore_ready,
             import::import_read,
             import::import_attach,
             import::import_finish,

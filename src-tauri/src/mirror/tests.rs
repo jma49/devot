@@ -96,8 +96,12 @@ fn is_off_by_default_and_turns_on_with_an_empty_folder() {
         Some(folder.to_str().unwrap())
     );
     let opened = f.open().unwrap();
-    assert_eq!(opened.manifest, Some(Manifest::default()));
-    assert!(folder.join(MANIFEST).is_file());
+    let manifest = opened.manifest.unwrap();
+    assert_eq!(manifest.size(), 0);
+    assert_eq!(
+        folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()),
+        Some(manifest)
+    );
     let known = f.mirror.open(Some(opened.generation), &f.notify()).unwrap();
     assert_eq!(known.manifest, None);
 }
@@ -129,12 +133,11 @@ fn asks_before_using_a_folder_that_is_not_empty_and_has_no_manifest() {
     );
     let other = f.folder("Other");
     fs::write(other.join("theirs.md"), "theirs").unwrap();
-    fs::write(
-        other.join(MANIFEST),
-        folder::manifest_bytes(&Manifest::default()),
-    )
-    .unwrap();
-    assert!(matches!(f.choose(&other), Choice::Chosen { .. }));
+    fs::copy(folder.join(MANIFEST), other.join(MANIFEST)).unwrap();
+    assert!(
+        matches!(f.choose(&other), Choice::Chosen { .. }),
+        "a manifest this library wrote is used at once"
+    );
 }
 
 #[test]
@@ -421,7 +424,7 @@ fn pauses_on_a_missing_or_unreadable_manifest() {
         panic!("needs a confirmation");
     };
     f.mirror.confirm(token, &f.notify()).unwrap();
-    assert_eq!(f.open().unwrap().manifest, Some(Manifest::default()));
+    assert_eq!(f.open().unwrap().manifest.unwrap().size(), 0);
 }
 
 #[test]
@@ -724,4 +727,144 @@ fn shows_folders_under_home_with_a_tilde() {
         display(Path::new("/Volumes/Disk/Notes"), Some(home)),
         "/Volumes/Disk/Notes"
     );
+}
+
+/// A folder another library mirrored (app data lost, a second Mac set up on its own) lists
+/// notes this library does not have: going on from its manifest would
+/// delete them all. It is used only after a confirmation, from an empty
+/// manifest, so its files can be taken back but never removed.
+#[test]
+fn asks_before_using_a_folder_another_library_mirrors_and_removes_none_of_its_files() {
+    let theirs = Fixture::new();
+    let folder = theirs.folder("Notes");
+    theirs.choose(&folder);
+    let opened = theirs.open().unwrap();
+    theirs.apply(opened.generation, &[note_op("Plan.md", "# Plan\n")]);
+
+    let ours = Fixture::new();
+    let Choice::Confirm { token, .. } = ours.choose(&folder) else {
+        panic!("another library's manifest needs a confirmation");
+    };
+    ours.mirror.confirm(token, &ours.notify()).unwrap();
+    let manifest = ours.open().unwrap().manifest.unwrap();
+    assert!(manifest.notes.is_empty());
+    assert_eq!(
+        fs::read_to_string(folder.join("Plan.md")).unwrap(),
+        "# Plan\n"
+    );
+
+    // The library that mirrored it before finds a manifest it did not write.
+    let launched = Mirror::new(&theirs.data.join(SETTINGS_FILE), None);
+    assert_eq!(
+        launched.open(None, &|_| {}),
+        Err("E_MIRROR_MANIFEST_FOREIGN")
+    );
+}
+
+/// A manifest from before manifests named their library: in the folder this
+/// mirror already uses it is its own and gets its name; chosen anew it may
+/// be anyone's.
+#[test]
+fn takes_an_unnamed_manifest_as_its_own_only_in_the_folder_it_already_uses() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let mut listed = Manifest::default();
+    listed.notes.insert(
+        NOTE.into(),
+        folder::NoteEntry {
+            path: "Plan.md".into(),
+            sha256: sha256_hex(b"# Plan\n"),
+            size: 7,
+            source: "s".into(),
+            files: vec![],
+        },
+    );
+    fs::write(folder.join(MANIFEST), folder::manifest_bytes(&listed)).unwrap();
+    let opened = f.open().unwrap();
+    assert_eq!(opened.manifest.unwrap().notes.len(), 1);
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    assert!(stored.library.is_some());
+
+    let other = f.folder("Other");
+    fs::write(other.join(MANIFEST), folder::manifest_bytes(&listed)).unwrap();
+    assert!(matches!(f.choose(&other), Choice::Confirm { .. }));
+}
+
+#[cfg(unix)]
+#[test]
+fn writes_back_a_move_whose_rewrite_failed() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    f.apply(generation, &[note_op("Work/Plan.md", "# Plan\n")]);
+    let home = folder.join("Home");
+    fs::create_dir(&home).unwrap();
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o555)).unwrap();
+    let ignored = folder::probe_writable(&folder::Root::open(&home).unwrap()).is_ok();
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
+    if ignored {
+        return; // root ignores permissions
+    }
+    let locked = home.clone();
+    crate::atomic_file::race::at_check(move || {
+        crate::atomic_file::race::at_check(move || {
+            fs::set_permissions(&locked, fs::Permissions::from_mode(0o555)).unwrap();
+        });
+    });
+    let mut moved = note_op("Home/Spec.md", "# Spec\n");
+    moved["from"] = json!("Work/Plan.md");
+    let results = f.apply(generation, &[moved]);
+    fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(results[0].code, Some("E_MIRROR_WRITE_FAILED"));
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    assert_eq!(stored.notes[NOTE].path, "Home/Spec.md");
+    assert_eq!(stored.notes[NOTE].sha256, sha256_hex(b"# Plan\n"));
+}
+
+#[test]
+fn removes_what_a_cut_short_write_left_and_the_folders_it_alone_kept() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    f.apply(generation, &[note_op("Work/Plan.md", "# Plan\n")]);
+    let hour_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(60 * 60);
+    let left = |rel: &str, modified: std::time::SystemTime| {
+        let path = folder.join(rel);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::File::create(&path)
+            .unwrap()
+            .set_modified(modified)
+            .unwrap();
+        path
+    };
+    let temporary = || crate::atomic_file::temporary_name().into_string().unwrap();
+    let stale = [
+        left(&format!("Work/{}", temporary()), hour_ago),
+        left(&format!("attachments/{}", temporary()), hour_ago),
+        left(&format!("Old/Deep/{}", temporary()), hour_ago),
+        left(&temporary(), hour_ago),
+    ];
+    let kept = [
+        left(&temporary(), std::time::SystemTime::now()),
+        left("Work/.devot-mine.tmp", hour_ago),
+    ];
+    let user_folder = folder.join("Empty");
+    fs::create_dir(&user_folder).unwrap();
+
+    let relaunched = Mirror::new(&f.data.join(SETTINGS_FILE), Some(f.data.clone()));
+    relaunched.open(None, &f.notify()).unwrap();
+
+    for path in &stale {
+        assert!(!path.exists(), "{}", path.display());
+    }
+    for path in &kept {
+        assert!(path.exists(), "{}", path.display());
+    }
+    assert!(!folder.join("Old").exists());
+    assert!(folder.join("Work/Plan.md").is_file());
+    assert!(user_folder.is_dir());
 }

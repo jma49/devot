@@ -612,6 +612,26 @@ describe('Markdown folder import', () => {
     expect(titles).toEqual(['Ancient', 'Inbox', 'Plan heading', 'Spec'])
   })
 
+  it('names notes and notebooks after file and folder names composed, as typed text is', async () => {
+    const { sqlite, services } = await setup()
+    // As macOS may give them: decomposed (NFD) Hangul and accents. A CJK compatibility ideograph
+    // stays as it is: composing would turn it into another character.
+    const files = {
+      '\u1112\u1161\u11ab/\u1100\u1173\u11af.md': 'Text\n',
+      'Cafe\u0301/\uf900.md': 'Text\n',
+    }
+    await importMarkdown({
+      ...services,
+      destination: null,
+      scan: scanOf(files),
+      source: sourceFor(sqlite, files).source,
+    })
+    expect((await sqlite.listNotes()).map((n) => n.title).sort()).toEqual(['\uae00', '\uf900'])
+    const books = (await sqlite.listBooks()).map((b) => b.name)
+    expect(books).toContain('\ud55c')
+    expect(books).toContain('Caf\u00e9')
+  })
+
   it('reports files that cannot be read and goes on with the rest', async () => {
     const { sqlite, services } = await setup()
     const files = { 'a.md': '# A\n', 'b.md': '# B\n', 'c.md': '# C\n' }

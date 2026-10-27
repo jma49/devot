@@ -1021,6 +1021,13 @@ fn rebuild_checked(conn: &Connection) -> rusqlite::Result<u32> {
     )
 }
 
+/// FTS5 `secure-delete`: on, the search index takes a note's old text out of its pages instead
+/// of only marking it deleted, so it leaves no trigrams behind. Only a purge turns it on, as it
+/// makes every change of a long note's text many times slower to index. The TypeScript adapter
+/// (src/mcp/sqlite.ts) runs the same statement.
+const SEARCH_SECURE_DELETE_SQL: &str =
+    "INSERT INTO notes_fts (notes_fts, rank) VALUES ('secure-delete', ?1)";
+
 pub struct Store {
     conn: Connection,
 }
@@ -1034,6 +1041,9 @@ impl Store {
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "FULL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
+        // Deleted text is overwritten, overflow pages too (ON, not FAST): a purged note leaves
+        // nothing readable in free pages, which every later backup would copy.
+        conn.pragma_update(None, "secure_delete", "ON")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         // Every transaction takes the write lock when it begins, so it waits
         // out another writer (devot-mcp) for the busy timeout. A deferred one
@@ -1488,6 +1498,7 @@ impl Store {
 
     fn purge(&mut self, id: &str, at: i64, hlc: &str, revisions: bool) -> Result<()> {
         let tx = self.conn.transaction()?;
+        tx.execute(SEARCH_SECURE_DELETE_SQL, [1])?;
         tx.execute(
             "UPDATE notes SET title = '', title_hlc = MAX(title_hlc, ?3), body_md = '', ydoc = x'',
                deleted_at = COALESCE(deleted_at, ?2),
@@ -1506,6 +1517,7 @@ impl Store {
         if revisions {
             tx.execute("DELETE FROM revisions WHERE note_id = ?1", [id])?;
         }
+        tx.execute(SEARCH_SECURE_DELETE_SQL, [0])?;
         tx.commit()?;
         Ok(())
     }

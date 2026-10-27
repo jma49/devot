@@ -489,10 +489,11 @@ describe('names', () => {
       ...changeNote(world, 2, { title: NFD }),
       books: [{ ...cafe, name: NFD }],
     }
-    // On macOS the file is the same one under its new name and already holds the text: renamed, no text goes.
+    // On macOS the file is the same one under its new name: it moves there, never to a numbered
+    // name. Import composes a decomposed file name, so the title now goes in the front matter.
     const sha = world.manifest!.notes[id(2)]!.sha256
     const plan = settle({ ...renamed, disk: { ...renamed.disk, [`${NFD}.md`]: sha } })
-    expect(kinds(plan.ops)).toEqual([`note ${NFC}.md -> ${NFD}.md (record)`])
+    expect(kinds(plan.ops)).toEqual([`note ${NFC}.md -> ${NFD}.md`])
   })
 
   // Names export numbers as one but macOS takes as two (superscript 2 vs 2, full-width letters).

@@ -68,7 +68,14 @@ describe('the mirror notices', () => {
     expect(pausedMessage('E_MIRROR_MANIFEST_INVALID')).toBe(
       'The mirror is paused: the list of files Devot wrote in its folder (.devot-mirror.json) cannot be read (E_MIRROR_MANIFEST_INVALID). Choose the folder again to go on.',
     )
-    for (const code of ['E_MIRROR_MANIFEST_MISSING', 'E_MIRROR_MANIFEST_INVALID']) {
+    expect(pausedMessage('E_MIRROR_MANIFEST_FOREIGN')).toBe(
+      'The mirror is paused: its folder holds the files of another Devot library (E_MIRROR_MANIFEST_FOREIGN). Choose the folder again to go on.',
+    )
+    for (const code of [
+      'E_MIRROR_MANIFEST_MISSING',
+      'E_MIRROR_MANIFEST_INVALID',
+      'E_MIRROR_MANIFEST_FOREIGN',
+    ]) {
       expect(pausedMessage(code)).not.toContain('resumes')
     }
     expect(pausedMessage('E_MIRROR_FOLDER_OTHER')).toBe(

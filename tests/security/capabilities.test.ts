@@ -216,11 +216,13 @@ describe('Tauri command permissions', () => {
   it('lets a note window edit its note, relay its changes and save before it closes, and nothing more', () => {
     const noteWindow = capabilities().filter((c) => c.windows.includes('note-*'))
     // No notebook or tag changes, imports, exports, backups, mirror or settings changes: those
-    // stay in the main window. It reads the notebooks only to make a linked note in one.
+    // stay in the main window. It reads the notebooks only to make a linked note in one, and
+    // answers a restore started elsewhere once it has stopped its core.
     expect(noteWindow.flatMap(permissionIds).sort()).toEqual([
       'allow-agent-writes-seen',
       'allow-app-exit-cancel',
       'allow-app-exit-ready',
+      'allow-backup-restore-ready',
       'allow-books-list',
       'allow-clipboard-read-text',
       'allow-clipboard-write-text',

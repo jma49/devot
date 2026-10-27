@@ -515,7 +515,8 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     // The same pragmas as the Rust store: WAL lets the app and devot-mcp
     // share the file; the busy timeout waits out the other's writes. Every
     // write transaction begins IMMEDIATE, as the Rust store's do: one that
-    // read first would fail at once when it then needs to write.
+    // read first would fail at once when it then needs to write. Deleted
+    // text is overwritten (secure_delete), so free pages keep none.
     // The SQL function the Rust store registers too (storage/mod.rs): terms
     // too short for the trigram index are scanned with it, so they ignore
     // case in every script as the index does (SQLite's lower() is ASCII only).
@@ -526,6 +527,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     db.pragma('journal_mode = WAL')
     db.pragma('synchronous = FULL')
     db.pragma('foreign_keys = ON')
+    db.pragma('secure_delete = ON')
 
     const version = db.pragma('user_version', { simple: true }) as number
     if (version > SCHEMA_VERSION) throw new Error('E_STORAGE_SCHEMA_TOO_NEW')
@@ -581,6 +583,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
        deleted_at = COALESCE(deleted_at, @at), deleted_hlc = MAX(COALESCE(deleted_hlc, ''), @hlc),
        purged_at = @at
      WHERE id = @id AND purged_at IS NULL`,
+  )
+  // The search index takes a purged note's text out of its pages: same statement as the Rust
+  // store (SEARCH_SECURE_DELETE_SQL, which says why only a purge turns it on). FTS5 refuses a
+  // number that is not bound as an integer.
+  const searchSecureDelete = db.prepare<[bigint]>(
+    "INSERT INTO notes_fts (notes_fts, rank) VALUES ('secure-delete', ?)",
   )
   const dropLinks = db.prepare('DELETE FROM note_tags WHERE note_id = ?')
   // The link index: same statements as the Rust store (put_note, purge_note).
@@ -759,6 +767,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const purgeWith = (id: string, at: number, hlc: string, revisions: boolean) =>
     db
       .transaction(() => {
+        searchSecureDelete.run(1n)
         purge.run({ id, at, hlc })
         dropLinks.run(id)
         // Attachments another note still shows pass to it; the rest go.
@@ -767,6 +776,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         dropNoteLinks.run(id)
         dropAgentWrites.run({ noteId: id })
         if (revisions) dropRevisions.run(id)
+        searchSecureDelete.run(0n)
       })
       .immediate()
 

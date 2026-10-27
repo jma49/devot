@@ -41,6 +41,9 @@ pub const MAX_NOTE_FILES: usize = 10_000;
 const MAX_SOURCE_LEN: usize = 64;
 pub const MAX_TEXT_BYTES: usize = crate::export::MAX_TEXT_BYTES;
 const MAX_KEEP_TRIES: u32 = 1000;
+/// A write under way keeps its temporary file newer than this.
+const TEMPORARY_STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+const MAX_SWEEP_DEPTH: usize = 128;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,6 +65,9 @@ pub struct FileEntry {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Manifest {
+    /// The library whose mirror wrote it (`Mirror::library`); none in manifests written before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library: Option<String>,
     #[serde(default)]
     pub notes: BTreeMap<String, NoteEntry>,
     #[serde(default)]
@@ -124,6 +130,9 @@ pub fn parse_manifest(bytes: &[u8]) -> Option<Manifest> {
         return None;
     }
     let mut manifest = file.manifest;
+    if manifest.library.as_deref().is_some_and(|l| !valid_uuid(l)) {
+        return None;
+    }
     let before = manifest.notes.len() + manifest.files.len() + manifest.books.len();
     manifest.notes.retain(|id, e| {
         valid_note_id(id)
@@ -349,6 +358,10 @@ pub struct OpResult {
     pub sha256: Option<Option<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kept: Option<String>,
+    /// The note's file moved but its new text could not be written: the manifest lists it where it
+    /// went, with what it holds, and the core reads the manifest again.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub moved: bool,
 }
 
 impl OpResult {
@@ -387,30 +400,45 @@ impl OpResult {
 struct Stop {
     code: &'static str,
     at: Option<Box<(String, Option<String>)>>,
+    moved: bool,
 }
 
 impl Stop {
     fn code(code: &'static str) -> Self {
-        Self { code, at: None }
+        Self {
+            code,
+            at: None,
+            moved: false,
+        }
     }
 
     fn at(code: &'static str, path: &str, state: Option<String>) -> Self {
         Self {
             code,
             at: Some(Box::new((path.to_owned(), state))),
+            moved: false,
+        }
+    }
+
+    fn after_move(self) -> Self {
+        Self {
+            moved: true,
+            ..self
         }
     }
 }
 
 impl From<Stop> for OpResult {
     fn from(stop: Stop) -> Self {
-        match stop.at {
+        let moved = stop.moved;
+        let result = match stop.at {
             Some(at) => {
                 let (path, state) = *at;
                 OpResult::in_the_way(stop.code, &path, state)
             }
             None => OpResult::failed(stop.code),
-        }
+        };
+        OpResult { moved, ..result }
     }
 }
 
@@ -475,6 +503,41 @@ fn prune(root: &Root, rel: &str) {
             return;
         }
     }
+}
+
+/// Removes the temporary files that writes cut short (a quit, a crash) left in the folder, and each
+/// folder that held nothing else, which `prune` could not remove while they were there. Hidden
+/// folders are never mirror paths and are left alone.
+pub fn sweep(root: &Root, now: std::time::SystemTime) {
+    sweep_folder(&root.folder, now, 0);
+}
+
+fn sweep_folder(folder: &Folder, now: std::time::SystemTime, depth: usize) -> bool {
+    let mut removed = false;
+    for name in folder.names().unwrap_or_default() {
+        let (Some(text), Ok(entry)) = (name.to_str(), folder.entry(&name)) else {
+            continue;
+        };
+        if entry.is_file()
+            && atomic_file::is_temporary(text)
+            && entry.older_than(TEMPORARY_STALE_AFTER, now)
+        {
+            if folder.remove_file(&name).is_ok() {
+                removed = true;
+            } else {
+                log::warn!("W_MIRROR_SWEEP_FAILED");
+            }
+        } else if entry.is_folder()
+            && !text.starts_with('.')
+            && depth < MAX_SWEEP_DEPTH
+            && let Ok(inner) = folder.folder(&name)
+            && sweep_folder(&inner, now, depth + 1)
+        {
+            removed = true;
+            let _ = folder.remove_folder(&name);
+        }
+    }
+    removed
 }
 
 pub fn kept_name(name: &str, n: u32) -> String {
@@ -766,7 +829,7 @@ fn note(
             return Err(Stop::at("E_MIRROR_CHANGED", &entry.path, Some(state)));
         }
     }
-    let mut record = |size: u64| {
+    let record = |manifest: &mut Manifest, size: u64| {
         manifest.notes.insert(id.to_owned(), next(size));
         OpResult::sized(size)
     };
@@ -774,14 +837,14 @@ fn note(
         && at.rel == path
     {
         if state == sha256 {
-            return Ok(record(file_size(at)));
+            return Ok(record(manifest, file_size(at)));
         }
         let Some(text) = text else {
             return Err(Stop::at("E_MIRROR_CHANGED", path, Some(state.clone())));
         };
         atomic_file::checked();
         rewrite(root, at, text.as_bytes())?;
-        return Ok(record(text.len() as u64));
+        return Ok(record(manifest, text.len() as u64));
     }
     // A new place: nothing that is not Devot's may be there, unless it is
     // its own file under another case, or exactly what Devot would write.
@@ -793,13 +856,18 @@ fn note(
             .zip(found.as_ref())
             .is_some_and(|((from, _), to)| same_file(from, to));
     let mut adopt = false;
+    let mut finish_move = false;
     if let Some(state) = &target
         && !renamed
     {
-        if state != sha256 {
+        if state == sha256 {
+            adopt = true;
+        } else if alive.is_none() && entry.as_ref().is_some_and(|e| e.sha256 == *state) {
+            // A move cut short before the manifest was saved: what Devot last wrote went here.
+            finish_move = true;
+        } else {
             return Err(Stop::at("E_MIRROR_EXISTS", path, target));
         }
-        adopt = true;
     }
     // Without the text, only a file that holds it already can go there:
     // checked before anything on disk changes.
@@ -817,25 +885,39 @@ fn note(
                 .map_err(|e| Stop::code(io_code(&e, root)))?;
             prune(root, from.rel);
         }
-        return Ok(record(file_size(&to)));
+        return Ok(record(manifest, file_size(&to)));
     }
     let Some((from, state)) = alive else {
         let Some(text) = text else {
             return Err(Stop::at("E_MIRROR_CHANGED", path, None));
         };
+        if finish_move {
+            rewrite(root, &to, text.as_bytes())?;
+            return Ok(record(manifest, text.len() as u64));
+        }
         write_new(root, &to, text.as_bytes())?;
-        return Ok(record(text.len() as u64));
+        return Ok(record(manifest, text.len() as u64));
     };
     move_file(root, &from, &to, renamed)?;
     prune(root, from.rel);
     if state == sha256 {
-        return Ok(record(file_size(&to)));
+        return Ok(record(manifest, file_size(&to)));
+    }
+    if let Some(entry) = entry {
+        let moved = NoteEntry {
+            path: path.to_owned(),
+            sha256: state,
+            size: file_size(&to),
+            ..entry
+        };
+        manifest.notes.insert(id.to_owned(), moved);
     }
     let Some(text) = text else {
-        return Err(Stop::at("E_MIRROR_CHANGED", path, None));
+        return Err(Stop::at("E_MIRROR_CHANGED", path, None).after_move());
     };
-    rewrite(root, &to, text.as_bytes())?;
-    Ok(record(text.len() as u64))
+    atomic_file::checked();
+    rewrite(root, &to, text.as_bytes()).map_err(Stop::after_move)?;
+    Ok(record(manifest, text.len() as u64))
 }
 
 fn file(
