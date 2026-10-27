@@ -99,6 +99,13 @@ describe('the signing script', () => {
     expect(made.filter((call) => call.startsWith('list-keychains'))).toEqual([])
   })
 
+  it('unlocks the keychain again before signing the dmg, after the notarization wait', () => {
+    const script = readFileSync(SCRIPT, 'utf8')
+    expect(script).toMatch(
+      /macos-dmg\.sh" "\$app" "\$dmg"\n(?:#.*\n)*security unlock-keychain -p "\$keychain_password" "\$keychain"\nsign "\$dmg"/,
+    )
+  })
+
   // Gatekeeper's checks need a notarized build, so the local test cannot run them.
   it('checks the signature, the ticket and Gatekeeper on the app and the dmg', () => {
     const script = readFileSync(SCRIPT, 'utf8')
