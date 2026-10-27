@@ -197,6 +197,17 @@ it('changed-code.sh sends licence Worker changes to the policy job, which checks
   expect(read('pnpm-workspace.yaml')).toMatch(/^ {2}- licence$/m)
 })
 
+it('changed-code.sh sends the licence test vectors to the Rust job, which checks the app accepts them', () => {
+  expect(changedCode(['licence/test-vectors.json'])).toBe('web=false rust=true')
+  expect(changedCode(['licence/src/app.ts'])).toBe('web=false rust=false')
+})
+
+it('changed-code.sh runs both jobs for the plugin sandbox pages, which only the UI tests exercise', () => {
+  expect(
+    changedCode(['src-tauri/plugin-frame/runtime.js', 'src-tauri/plugin-frame/frame.csp']),
+  ).toBe('web=true rust=true')
+})
+
 it('changed-code.sh needs only the Rust job for changes under src-tauri', () => {
   expect(changedCode(['src-tauri/src/lib.rs', 'src-tauri/Cargo.toml'])).toBe('web=false rust=true')
   expect(

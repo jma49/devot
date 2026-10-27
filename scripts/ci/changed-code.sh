@@ -12,6 +12,10 @@
 #   the app imports neither, and the policy job checks both.
 # - src-tauri/tauri.conf.json needs both: the UI tests serve the built UI
 #   under the CSP it declares.
+# - src-tauri/plugin-frame/ needs both: the UI tests run those pages, and Rust
+#   serves them.
+# - licence/test-vectors.json needs the Rust job: the app's licence tests check
+#   that it accepts the keys the vectors hold.
 # - Anything else under src-tauri/ (Rust code, Cargo files, migrations,
 #   capabilities, the app icons the binary embeds) needs the Rust job; the
 #   Vitest tests that read those files run in the `policy` job.
@@ -25,8 +29,13 @@ while IFS= read -r file; do
   [ -n "$file" ] || continue
   seen=true
   case "$file" in
+    licence/test-vectors.json) rust=true ;;
     docs/* | *.md | design/app-icon/* | relay/* | licence/*) ;;
     src-tauri/tauri.conf.json)
+      web=true
+      rust=true
+      ;;
+    src-tauri/plugin-frame/*)
       web=true
       rust=true
       ;;
