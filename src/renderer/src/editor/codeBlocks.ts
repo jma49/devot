@@ -569,6 +569,18 @@ const theme = EditorView.theme({
   // fence stands from the top.
   '.cm-line.cm-codeblock-closing': { paddingBottom: BOX_MARGIN },
   '.cm-line.cm-codeblock-closing::before': { bottom: `calc(${BOX_MARGIN} + var(--space-1))` },
+  // The active line's tint follows the block's shape. On the line itself it
+  // squares off the box's rounded corners and fills the box's margins at the
+  // block's ends, where the line reaches past the box.
+  '.cm-line.cm-codeblock.cm-activeLine': { backgroundColor: 'transparent' },
+  '.cm-line.cm-codeblock.cm-activeLine::before': {
+    background: `linear-gradient(var(--color-editor-active-line), var(--color-editor-active-line)), var(--color-code-block-bg)`,
+  },
+  // A selection has its own tint, and the selection is drawn behind the lines,
+  // so the active line's would lie over it.
+  '&:has(.cm-selectionBackground) .cm-line.cm-codeblock.cm-activeLine::before': {
+    background: 'var(--color-code-block-bg)',
+  },
   '.cm-gutterElement.cm-codeblock-gutter-first': {
     boxSizing: 'border-box',
     paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,
