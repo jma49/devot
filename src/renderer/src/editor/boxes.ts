@@ -1,11 +1,10 @@
-// The note editor's boxed blocks (fenced code and tables) and quote bars
-// reach a little past their lines' sides, so the text inside keeps the
-// note's column. The editor's content leaves that much room on each side
-// (NoteEditor.tsx), so nothing is clipped.
+// A boxed block (fenced code, a table) shares the note's text column: its
+// outer edge is the padding every line has, where prose starts, and the
+// writing inside sits further in. A quote's bar uses that same edge.
 
-/** How far a box or a quote bar reaches past its line's left and right edges. */
-export const BOX_HANG = 'var(--space-2)'
 /** Space between a box and the lines above and below it. */
 export const BOX_MARGIN = 'var(--space-2)'
-/** Space inside a box, between its edge and its first (or last) line. */
+/** The line's padding, which is also where a box's outer edge sits. */
 export const BOX_PAD = 'var(--space-3)'
+/** Space between a box's edge and the text inside it. */
+export const BOX_INSET = 'var(--space-7)'

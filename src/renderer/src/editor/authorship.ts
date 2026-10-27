@@ -158,8 +158,8 @@ const theme = EditorView.theme({
   '.cm-authorship': { position: 'absolute', top: '0', left: '0', zIndex: '200' },
   '.cm-authorship-mark': {
     position: 'absolute',
-    // The content's own padding and the line's before the text (BOX_HANG and CodeMirror's 6px).
-    width: 'var(--space-5)',
+    // The line's padding, the room before the text.
+    width: 'var(--space-3)',
     padding: '0',
     border: 'none',
     background: 'none',

@@ -27,7 +27,7 @@ import { blockUnit, codeStyle, nextLine } from './codeIndent'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
 import { barsMayShow } from './barRules'
 import { markerField, type MarkerScan } from './gutterMarkers'
-import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
+import { BOX_INSET, BOX_MARGIN, BOX_PAD } from './boxes'
 import { buttonIn, motionKeyframes } from './motion'
 import { withLook } from './popupLook'
 import { toolbarStateExtension } from './toolbarState'
@@ -534,16 +534,18 @@ const theme = EditorView.theme({
   '.cm-line.cm-codeblock': {
     position: 'relative',
     zIndex: '0',
+    // Inside the box, past the column its edge shares with the prose.
+    paddingLeft: `calc(${BOX_PAD} + ${BOX_INSET})`,
+    paddingRight: `calc(${BOX_PAD} + ${BOX_INSET})`,
     fontFamily: 'var(--code-font-family, var(--font-family-mono))',
   },
   // The box is drawn behind the text, inset by the margin on the outer lines.
-  // It reaches past the line's sides (as the quote bar does, see lineStyles.ts):
-  // the text keeps the note's column, and its inset from the box's side
-  // matches the one from its top and bottom.
+  // Its sides are the note's column (the line's padding): the prose lines up
+  // with the box, and the text above sits further in.
   '.cm-line.cm-codeblock::before': {
     content: '""',
     position: 'absolute',
-    inset: `0 calc(-1 * ${BOX_HANG})`,
+    inset: `0 ${BOX_PAD}`,
     zIndex: '-1',
     pointerEvents: 'none',
     background: 'var(--color-code-block-bg)',
@@ -591,7 +593,7 @@ const theme = EditorView.theme({
     position: 'absolute',
     // In the box's corner, as far from its top as from its side.
     top: `calc(${BOX_MARGIN} + var(--space-2))`,
-    right: `calc(var(--space-2) - ${BOX_HANG})`,
+    right: `calc(${BOX_PAD} + var(--space-2))`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

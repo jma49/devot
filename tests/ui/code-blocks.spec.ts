@@ -109,9 +109,9 @@ test('front matter shows as properties', async ({ page }) => {
   await expect(props.locator('.frontmatter-chip')).toHaveText(['work', 'q4'])
 })
 
-// A whole-line selection spans the content's width less the line's paddings, and the box hangs
-// past the line; equal paddings keep the fill centred in the box. The active line's tint goes on
-// the box, which stops at its rounded edges, and a selection takes the fill instead.
+// A whole-line selection reaches the code box's outer edges, the same on both sides, so the tint
+// wraps the box. The active line's tint goes on the box, which stops at its rounded edges, and a
+// selection takes the fill instead.
 test('a selection is centred in a code block, and the active line keeps to its box', async ({
   page,
 }) => {
@@ -125,7 +125,7 @@ test('a selection is centred in a code block, and the active line keeps to its b
 
   const first = page.locator('.cm-codeblock-first')
   const line = (await first.boundingBox())!
-  // The box reaches BOX_HANG (4px) past the line's sides.
+  // The box sits in from the line by the shared padding, on the text column.
   const hang = await first.evaluate((el) => {
     const view = globalThis as unknown as {
       getComputedStyle(e: unknown, pseudo?: string): Record<string, string>
@@ -135,22 +135,27 @@ test('a selection is centred in a code block, and the active line keeps to its b
   const boxLeft = line.x + hang
   const boxRight = line.x + line.width - hang
 
-  const rects = await page.locator('.cm-selectionBackground').evaluateAll((els) =>
-    els.map((el) => {
-      const r = (
-        el as unknown as {
-          getBoundingClientRect(): { left: number; width: number; height: number }
-        }
-      ).getBoundingClientRect()
-      return { left: r.left, width: r.width, height: r.height }
-    }),
-  )
+  const gaps = () =>
+    page.locator('.cm-selectionBackground').evaluateAll((els) =>
+      els.map((el) => {
+        const r = (
+          el as unknown as {
+            getBoundingClientRect(): { left: number; width: number; height: number }
+          }
+        ).getBoundingClientRect()
+        return { left: r.left, width: r.width, height: r.height }
+      }),
+    )
   // The tallest rectangle covers the whole lines between the selection's ends.
-  const full = rects.reduce((a, b) => (b.height > a.height ? b : a))
-  const leftGap = full.left - boxLeft
-  const rightGap = boxRight - (full.left + full.width)
-  expect(leftGap).toBeGreaterThan(2)
-  expect(Math.abs(leftGap - rightGap)).toBeLessThan(1)
+  await expect
+    .poll(async () => {
+      const rects = await gaps()
+      const full = rects.reduce((a, b) => (b.height > a.height ? b : a))
+      const leftGap = full.left - boxLeft
+      const rightGap = boxRight - (full.left + full.width)
+      return Math.abs(leftGap) < 1 && Math.abs(rightGap) < 1
+    })
+    .toBe(true)
 
   const tint = () =>
     page.locator('.cm-activeLine').evaluate((el) => {

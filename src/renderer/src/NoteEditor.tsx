@@ -21,7 +21,7 @@ import { imageFiles, storeImages } from './attachments'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
-import { BOX_HANG, BOX_PAD } from './editor/boxes'
+import { BOX_PAD } from './editor/boxes'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys, type CommandId } from './commands/registry'
 import { invoke } from './ipc'
@@ -82,6 +82,7 @@ import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
 import { pasteUrlAs, pasteUrls, plainPaste } from './editor/paste'
 import { pasteChooser, showChooser, type PasteFetcher } from './editor/pasteChooser'
 import { editorSetup, reconfigureSetup } from './editor/settings'
+import { selectionEdges } from './editor/selectionEdges'
 import { editorCompletions } from './editor/completions'
 import { taskToggle } from './editor/tasks'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
@@ -445,9 +446,9 @@ const theme = EditorView.theme({
     lineHeight: 'var(--editor-line-height, 1.5)',
   },
   '&.cm-focused': { outline: 'none' },
-  // Room for the boxes and quote bars that reach past the lines (editor/boxes.ts).
+  // The line's padding is the note's text column, and a box sits on it (editor/boxes.ts).
   '.cm-content': {
-    paddingInline: BOX_HANG,
+    '--box-edge': BOX_PAD,
     fontKerning: 'normal',
     lineBreak: 'strict',
   },
@@ -455,10 +456,9 @@ const theme = EditorView.theme({
     '.cm-content': { textAutospace: 'normal' },
     '.cm-line.cm-codeblock, .cm-md-code': { textAutospace: 'no-autospace' },
   },
-  // CodeMirror pads a line 6px on the start side and 2px on the end; a whole-line
-  // selection spans the content's width minus those paddings, so the unequal sides
-  // push it right. Equal sides centre it in the note's column and in a box
-  // (editor/boxes.ts), which hangs the same amount past both sides of the line.
+  // CodeMirror pads a line 6px on the start side and 2px on the end, and sizes
+  // every full row from the first line's padding. Equal sides keep that row on
+  // the note's column, which is where a box's outer edge sits (editor/boxes.ts).
   '.cm-line': { paddingInline: BOX_PAD },
   '.cm-scroller::-webkit-scrollbar': {
     width: 'var(--size-scrollbar)',
@@ -496,6 +496,36 @@ const theme = EditorView.theme({
   '.cm-selectionBackground': { backgroundColor: 'var(--color-accent-selection-inactive)' },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
     backgroundColor: 'var(--color-accent-selection)',
+  },
+  // A full row is the column. A code or table line's own padding sits inside its
+  // box (editor/selectionEdges.ts), so a side drawn at that padding grows back
+  // out to the column, and the first and last rows the rest of the way from the
+  // caret, so the tint wraps the box.
+  '& > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:not(:first-child):not(:last-child)':
+    {
+      boxSizing: 'content-box',
+      marginLeft: 'calc(-1 * var(--sel-box-left, 0px))',
+      paddingLeft: 'var(--sel-box-left, 0px)',
+      paddingRight: 'var(--sel-box-right, 0px)',
+    },
+  '& > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:first-child:not(:last-child)': {
+    boxSizing: 'content-box',
+    paddingRight: 'var(--sel-box-right, 0px)',
+  },
+  '& > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:last-child:not(:first-child)': {
+    boxSizing: 'content-box',
+    marginLeft: 'calc(-1 * var(--sel-box-left, 0px))',
+    paddingLeft: 'var(--sel-box-left, 0px)',
+  },
+  '&.cm-sel-reach-start > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:first-child':
+    {
+      boxSizing: 'content-box',
+      marginLeft: 'calc(-1 * var(--sel-reach-start, 0px))',
+      paddingLeft: 'var(--sel-reach-start, 0px)',
+    },
+  '&.cm-sel-reach-end > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:last-child': {
+    boxSizing: 'content-box',
+    paddingRight: 'var(--sel-reach-end, 0px)',
   },
   '.cm-selectionMatch': { backgroundColor: 'var(--color-fill-match)' },
   '.cm-foldPlaceholder': {
@@ -974,6 +1004,7 @@ export function NoteEditor({
             // No keymap acts on the keys an input method composes with.
             imeKeys(),
             theme,
+            selectionEdges,
             // Operators in code keep one style each, so code fonts form ligatures.
             noteHighlighting(noteHighlightStyle),
             markdownLineStyles,
