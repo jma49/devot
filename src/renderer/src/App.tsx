@@ -2387,6 +2387,11 @@ export function App() {
   }
   const historyBarShown = useEditorSetting('historyBar')
   const authorshipShown = useEditorSetting('authorship')
+  // A restored version, an accepted AI edit or a plugin write reaches the editor only while it
+  // still shows the note it was made for.
+  const applyToOpenNote = useStable((noteId: string, update: Uint8Array) => {
+    if (editorRef.current?.noteId === noteId) restoreRef.current?.(update)
+  })
   const historyBar = useHistoryBar({
     core,
     noteId: selected,
@@ -2394,7 +2399,7 @@ export function App() {
     text: openText,
     enabled: historyBarShown && !inTrash && multiIds === undefined,
     readOnly: !editing,
-    onApply: (update) => restoreRef.current?.(update),
+    onApply: applyToOpenNote,
     onRestored: () => editorRef.current?.focus(),
   })
 
@@ -2772,7 +2777,7 @@ export function App() {
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
   const plugins = usePlugins(core, {
     openNote: () => openNote,
-    applyUpdate: (update) => restoreRef.current?.(update),
+    applyUpdate: applyToOpenNote,
     importBook: () => libraryBook?.id ?? null,
     imported: () => {
       if (core) void refresh(core)
@@ -3965,7 +3970,7 @@ export function App() {
           title={title}
           books={books}
           onRestore={(update) => {
-            restoreRef.current?.(update)
+            applyToOpenNote(historyFor, update)
             setHistoryFor(undefined)
           }}
           onClose={() => setHistoryFor(undefined)}
@@ -3978,7 +3983,7 @@ export function App() {
           generator={aiGenerator}
           noteId={aiEditing.noteId}
           start={aiEditing.start}
-          onApply={(update) => restoreRef.current?.(update)}
+          onApply={(update) => applyToOpenNote(aiEditing.noteId, update)}
           onClose={() => setAiEditing(undefined)}
           locked={!licenceEntitlements.has('aiProviders')}
         />

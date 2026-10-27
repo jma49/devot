@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import * as Y from 'yjs'
-import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, pickNoteMore, test } from './fixtures'
+import { slowCore } from './slowCore'
 
 interface StoredNote {
   id: string
@@ -202,6 +203,29 @@ test('Restore Whole Version makes the note that version again', async ({ page })
   await expect(page.locator('.cm-content')).toBeFocused()
   await page.keyboard.press('ControlOrMeta+z')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end')
+})
+
+test('a restore that answers after another note opens leaves that note alone', async ({ page }) => {
+  await slowCore(page, ['restoreRevision'])
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await pickNoteMore(page, 'Duplicate')
+  await expect(titleField(page)).toHaveValue('Plan copy')
+  await titleField(page).fill('Beta')
+  await expect(noteRow(page, 'Beta')).toBeVisible()
+
+  await noteRow(page, 'Plan').click()
+  await expect(titleField(page)).toHaveValue('Plan')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  await bar(page).getByRole('button', { name: 'Restore Whole Version' }).click()
+  await noteRow(page, 'Beta').click()
+  await expect(titleField(page)).toHaveValue('Beta')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep old end')
+  // The core answers 500 ms late, and the editor takes the update after that.
+  await page.waitForTimeout(1_000)
+
+  await expect(body(page)).toHaveText('keep new end')
+  expect(await savedBody(page, 'Beta')).toBe('keep new end')
 })
 
 test('a version kept shown is put away when another note opens', async ({ page }) => {

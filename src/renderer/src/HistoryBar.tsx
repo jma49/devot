@@ -192,7 +192,7 @@ export function useHistoryBar(props: {
   text: TextStore
   enabled: boolean
   readOnly: boolean
-  onApply: (update: Uint8Array) => void
+  onApply: (noteId: string, update: Uint8Array) => void
   /** After a restore, once the overlay is gone, so the next undo takes the restore back. */
   onRestored: () => void
 }): { bar: ReactNode; overlay: ReactNode } {
@@ -335,7 +335,7 @@ export function useHistoryBar(props: {
     if (!core || !step || !passage) return
     setBusy(true)
     try {
-      props.onApply(await core.restorePassage(noteId, step.id, passage))
+      props.onApply(noteId, await core.restorePassage(noteId, step.id, passage))
       back()
       restored.current = true
       setReload((n) => n + 1)
@@ -349,7 +349,7 @@ export function useHistoryBar(props: {
     if (!core || !step) return
     setBusy(true)
     try {
-      props.onApply(await core.restoreRevision(noteId, step.id))
+      props.onApply(noteId, await core.restoreRevision(noteId, step.id))
       back()
       restored.current = true
       setReload((n) => n + 1)
