@@ -74,7 +74,7 @@ Stack only changes that depend on each other: the same tokens, the same styleshe
 
 - **Start a layer**: branch from the layer below and open the PR with `gh pr create --base <lower-branch>`. CI runs on every pull request whatever its base.
 - **Merge bottom-up**: squash-merge each layer after its CI is green. Then run `scripts/stack/restack.sh <merged-branch> <next-branch> [<further-branch> ...]`: it rebases the next layer onto `main` without the commits the squash replaced, then each further layer onto its rebased parent, points the next PR at `main` and pushes with `--force-with-lease`. Wait for CI on the rebased layer before merging it. `--dry-run` prints the commands only. If the merged branch was deleted, the script reads its last commit from the PR; `--old-tip <sha>` gives it explicitly.
-- **Conflicts**: the script stops with exit 1 and leaves the rebase in progress. Resolve it, run `git rebase --continue`, push, and run the script again for the layers that are not rebased yet.
+- **Conflicts**: the script stops with exit 1, leaves the rebase in progress and prints the resume command. Resolve the conflict, run `git rebase --continue`, then run `scripts/stack/restack.sh --onto <rebased-branch> <remaining layers...>`: it rebases the remaining layers onto the resolved branch and pushes them, then pushes the resolved branch. With no layers left, push the resolved branch yourself with `--force-with-lease`.
 - **Release**: before a beta, line the release's PRs up as one stack. Build the QA debug app from the top layer and device-check once, merge bottom-up, then tag from `main` (`docs/releasing.md`).
 
 ## Layout

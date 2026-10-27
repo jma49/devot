@@ -6,8 +6,9 @@ name: CI
 # A pull request runs only the jobs its files need (scripts/ci/changed-code.sh):
 # documentation, the icon sources, the sync relay (relay/) and the licence
 # Worker (licence/) need no build, changes under src-tauri/ need the Rust job
-# (tauri.conf.json, whose CSP the UI tests use, needs both), anything else
-# needs both. When the web jobs are not
+# (tauri.conf.json, whose CSP the UI tests use, and plugin-frame/, whose pages
+# only they run, need both; the licence test vectors need the Rust job too),
+# anything else needs both. When the web jobs are not
 # needed, the `policy` job runs the formatting check, lint, the type check and
 # all of Vitest, whose tests also read the documentation, the Rust sources,
 # migrations and capabilities, run the relay on both of its hosts and the

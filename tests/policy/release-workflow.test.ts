@@ -46,6 +46,12 @@ describe('the release workflow', () => {
     )
   })
 
+  it('keeps an older stable release from taking the Latest mark', () => {
+    const publish = step('Publish the release')
+    expect(publish).toMatch(/release\.ts latest "\$TAG" "\$current"/)
+    expect(publish).toMatch(/--latest=false/)
+  })
+
   it('checks the signature against the public key before it publishes anything', () => {
     const verify = workflow.indexOf('release.ts verify-signature')
     expect(verify).toBeGreaterThan(0)
@@ -174,6 +180,9 @@ describe('the release workflow', () => {
     )
     expect(workflow.match(/gh release upload updater/g)?.length).toBe(1)
     expect(feed).toContain('gh release upload updater')
+    expect(step('Update the feeds')).toMatch(
+      /replaces-feed "\$TAG" "current\/\$channel\.json" "out\/\$UPDATER\.sig"/,
+    )
     expect(step('Update the feeds')).toMatch(
       /gh release upload updater "feed\/\$channel\.json" --clobber\n(?:\s+#.*\n)*\s+for attempt in [\d ]+; do\n\s+rm -f "uploaded\/\$channel\.json"\n\s+gh release download updater --pattern "\$channel\.json" --dir uploaded[^\n]*\n\s+cmp -s "feed\/\$channel\.json" "uploaded\/\$channel\.json" && break\n\s+sleep \d+\n\s+done\n\s+if ! cmp -s "feed\/\$channel\.json" "uploaded\/\$channel\.json"/,
     )

@@ -60,7 +60,7 @@ The app reads `https://github.com/jma49/devot/releases/download/updater/beta.jso
 
 A beta install reads `beta.json`, so a stable release also goes there when it is newer than the beta it offers: the beta channel always offers the newest build of either kind (`1.0.0-beta5` is offered `1.0.0`, but `1.0.2-beta1` stays when `1.0.1` ships). A stable install reads only `stable.json` and never gets a beta.
 
-Release builds check 30 seconds after launch and then daily, and on Devot > Check for Updates…. With Settings > General > Automatically Download Updates on (the default), an update downloads in the background; then Devot offers Restart to Update, which installs it and restarts once the notes are saved. A plain quit installs nothing; the next launch finds the update again.
+Release builds check 30 seconds after launch and then daily (hourly on a beta build), and on Devot > Check for Updates…. With Settings > General > Automatically Download Updates on (the default), an update downloads in the background; then Devot offers Restart to Update, which installs it and restarts once the notes are saved. A plain quit installs nothing; the next launch finds the update again.
 
 The same daily schedule fetches the licence Worker's revocation list, also in a build without the updater key (docs/architecture.md, Updates).
 
@@ -131,7 +131,7 @@ The notes of the first signed release carry this line:
 
 ### The first signed release
 
-Once the credentials are in place, release a beta first (the very first notarization of a new team can take hours, so the notarize job may run for most of its 360 minutes; see Waiting for Apple) and, before the stable release, check on a Mac that has an ad-hoc build installed: the downloaded dmg opens without Gatekeeper's warning (`spctl -a -vv /Applications/Devot.app` says `Notarized Developer ID`); the update from the ad-hoc build installs; the keychain prompts appear once and Always Allow keeps the licence, the trial and sync working; a native crash is still reported (`devot --crash-reporter`). Then update the install steps in `README.md` and the Release signing section of `SECURITY.md`, which still describe the ad-hoc build and its first launch.
+Once the credentials are in place, release a beta first (the very first notarization of a new team can take hours, so the notarize job may run for most of its 360 minutes; see Waiting for Apple) and, before the stable release, check on a Mac that has an ad-hoc build installed: the downloaded dmg opens without Gatekeeper's warning (`spctl -a -vv /Applications/Devot.app` says `Notarized Developer ID`); the update from the ad-hoc build installs; the keychain prompts appear once and Always Allow keeps the licence, the trial and sync working; a native crash is still reported (`devot --crash-reporter`). Then check the install steps in `README.md` and the Release signing section of `SECURITY.md` against the build users download.
 
 ## Updater key
 

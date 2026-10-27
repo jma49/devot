@@ -175,6 +175,11 @@ it('changed-code.sh needs no build for documentation and the icon sources', () =
   )
 })
 
+it('changed-code.sh runs both jobs for the bundled welcome Markdown, which the UI tests render', () => {
+  expect(changedCode(['src/renderer/src/welcome/welcome.md'])).toBe('web=true rust=true')
+  expect(changedCode(['src/renderer/src/welcome/markdown-example.md'])).toBe('web=true rust=true')
+})
+
 it('changed-code.sh sends relay changes to the policy job, which checks and tests the relay', () => {
   expect(changedCode(['relay/src/vault.ts', 'relay/wrangler.toml'])).toBe('web=false rust=false')
   expect(changedCode(['relay/src/vault.ts', 'src/core/sync/protocol.ts'])).toBe(
@@ -195,6 +200,17 @@ it('changed-code.sh sends licence Worker changes to the policy job, which checks
   )
   expect(scripts['typecheck']).toContain('licence/tsconfig.json')
   expect(read('pnpm-workspace.yaml')).toMatch(/^ {2}- licence$/m)
+})
+
+it('changed-code.sh sends the licence test vectors to the Rust job, which checks the app accepts them', () => {
+  expect(changedCode(['licence/test-vectors.json'])).toBe('web=false rust=true')
+  expect(changedCode(['licence/src/app.ts'])).toBe('web=false rust=false')
+})
+
+it('changed-code.sh runs both jobs for the plugin sandbox pages, which only the UI tests exercise', () => {
+  expect(
+    changedCode(['src-tauri/plugin-frame/runtime.js', 'src-tauri/plugin-frame/frame.csp']),
+  ).toBe('web=true rust=true')
 })
 
 it('changed-code.sh needs only the Rust job for changes under src-tauri', () => {

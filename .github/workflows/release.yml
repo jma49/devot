@@ -251,6 +251,14 @@ jobs:
           else
             flags=()
             if [ "$CHANNEL" = beta ]; then flags+=(--prerelease); fi
+            # An older stable release finishing after a newer one must not take
+            # GitHub's Latest mark.
+            if [ "$CHANNEL" = stable ]; then
+              current=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
+              if [ "$(node scripts/release/release.ts latest "$TAG" "$current")" = false ]; then
+                flags+=(--latest=false)
+              fi
+            fi
             gh release create "$TAG" out/* --verify-tag --title "Devot $VERSION" --notes-file notes/notes.md "${flags[@]}"
           fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -308,7 +316,8 @@ jobs:
             gh release create updater --prerelease --title "Update feed" \
               --notes "The update feed Devot reads. Do not delete." || gh release view updater > /dev/null
           fi
-          # Only a newer release moves a feed.
+          # Only a newer release, or this run's own version rebuilt with another
+          # signature, moves a feed.
           # Only a missing file means no feed yet: any other failure stops the
           # run, so an older run never takes a feed back.
           mkdir current uploaded
@@ -317,7 +326,7 @@ jobs:
             if grep -qx "$channel.json" <<< "$assets"; then
               gh release download updater --pattern "$channel.json" --dir current
             fi
-            if node scripts/release/release.ts replaces-feed "$TAG" "current/$channel.json" | grep -qx 'replace=true'; then
+            if node scripts/release/release.ts replaces-feed "$TAG" "current/$channel.json" "out/$UPDATER.sig" | grep -qx 'replace=true'; then
               cp feed/release.json "feed/$channel.json"
               gh release upload updater "feed/$channel.json" --clobber
               # Read it back: the feed must now be exactly what this run wrote.

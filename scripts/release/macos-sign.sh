@@ -199,6 +199,8 @@ mkdir -p "$out"
 dmg=$out/${name%.app}.dmg
 echo "Making $(basename "$dmg") from the signed app"
 "$script_dir/macos-dmg.sh" "$app" "$dmg"
+# Notarizing the app can take hours, and the keychain locks after 2 idle hours.
+security unlock-keychain -p "$keychain_password" "$keychain"
 sign "$dmg"
 codesign --verify --strict "$dmg"
 check_signed "$dmg" image
