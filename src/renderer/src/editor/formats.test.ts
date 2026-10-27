@@ -16,7 +16,6 @@ import type { EditorView } from '@codemirror/view'
 import { NodeType, Parser, Tree, type PartialParse } from '@lezer/common'
 import { describe, expect, it, vi } from 'vitest'
 import { expectWithinBudget, skipIfOverloaded } from '../../../../tests/support/budget'
-import { previewShape } from '../../../../tests/support/preview-html'
 import {
   FORMAT_COMMANDS,
   cycleHeading,
@@ -35,7 +34,7 @@ import {
 } from './formats'
 import { TOOLBAR_MAX_LINES } from './formatContext'
 import { noteMarkdown, noteParser } from './markdown'
-import { previewTexts } from '../../../../tests/support/preview-html'
+import { previewShape, previewTexts } from '../../../../tests/support/preview-html'
 
 // Test documents mark the selection inline: `«` is where a range starts and
 // `»` where it ends; `|` is a cursor. Several ranges may appear.
@@ -627,6 +626,34 @@ describe('emphasis next to punctuation', () => {
     })
     return { editor: found, preview: await previewTexts(doc, TAGS[format]) }
   }
+
+  it('moves a backslash escape or an entity at an edge outside the markers whole', async () => {
+    const text = (marked: string, format: InlineFormat) => toggle(marked, format).doc.toString()
+    expect(text('file\\«_name»', 'bold')).toBe('file\\_**name**')
+    expect(text('file«\\_name»', 'bold')).toBe('file\\_**name**')
+    expect(text('file«\\_name»', 'italic')).toBe('file\\_*name*')
+    expect(await previewShape(text('file«\\_name»', 'bold'))).toBe(
+      '<p>file_<strong>name</strong></p>',
+    )
+    expect(text('x«&amp; b»', 'bold')).toBe('x&amp; **b**')
+    expect(text('x«&#20013;»y', 'bold')).toBe('x&#20013;y')
+    // The table is built by hand: `|` marks a cursor in `state`.
+    const table = '| x | y |\n| - | - |\n| a\\|b | c |'
+    const cell = table.indexOf('a\\|b')
+    const inTable = (from: number, to: number, format: InlineFormat) => {
+      const s = EditorState.create({
+        doc: table,
+        selection: EditorSelection.range(from, to),
+        extensions: [noteMarkdown],
+      })
+      return apply(s, toggleInline(s, format)).doc.toString()
+    }
+    const row = inTable(cell, cell + 3, 'bold')
+    expect(row).toBe('| x | y |\n| - | - |\n| **a**\\|b | c |')
+    expect(await previewTexts(row, 'td')).toEqual(['a|b', 'c'])
+    const italicRow = inTable(cell + 1, cell + 4, 'italic')
+    expect(await previewTexts(italicRow, 'td')).toEqual(['a|b', 'c'])
+  })
 
   it('moves punctuation at the edges of the selection outside the markers', async () => {
     for (const format of FORMATS) {

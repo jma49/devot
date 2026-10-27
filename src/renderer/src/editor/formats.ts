@@ -296,6 +296,22 @@ function codeTextSyntax(cx: Cx, code: SyntaxNode): Syntax[] {
   return found
 }
 
+/** The atomic node (an escape, an entity, …) each position from `from` to `to` is in. */
+function atomsIn(cx: Cx, from: number, to: number): Map<number, { from: number; to: number }> {
+  const found = new Map<number, { from: number; to: number }>()
+  cx.tree.iterate({
+    from,
+    to,
+    enter(node) {
+      if (!ATOMIC.has(node.name)) return true
+      const atom = { from: node.from, to: node.to }
+      for (let p = Math.max(from, node.from); p < Math.min(to, node.to); p++) found.set(p, atom)
+      return false
+    },
+  })
+  return found
+}
+
 // Syntax whose characters are text of their own: never escaped, never brackets.
 const LITERAL = new Set([...ATOMIC, 'LinkLabel', 'LinkTitle'])
 
@@ -519,6 +535,7 @@ const canClose = (before: string, after: string) => {
 function rebuild(cx: Cx, format: InlineFormat, region: Region, apply: boolean): Rebuilt {
   const { state } = cx
   const others = syntaxMarks(cx, region.from, region.to)
+  const atoms = atomsIn(cx, region.from, region.to)
   const literal = format === 'code' ? null : literalChars(cx, region.from, region.to, true)
   const spans = new SpanIndex(region.spans)
   const segments = new Covered(region.segments)
@@ -567,11 +584,25 @@ function rebuild(cx: Cx, format: InlineFormat, region: Region, apply: boolean): 
   ): { lead: number; trail: number } | null => {
     let lead = 0
     let trail = 0
-    // Whole characters: a surrogate pair is one.
+    // Whole characters: a surrogate pair is one, and so is an escape or an entity.
     const glyph = (at: number, side: -1 | 1) => {
       const c = core[at]
       const pair = core[at + side]
       if (!c) return { text: '', size: 0 }
+      const atom = atoms.get(c.pos)
+      if (atom) {
+        let text = ''
+        let size = 0
+        for (
+          let k = at, d = core[k];
+          d && d.pos >= atom.from && d.pos < atom.to;
+          d = core[(k += side)]
+        ) {
+          text = side > 0 ? text + d.ch : d.ch + text
+          size++
+        }
+        return { text, size }
+      }
       if (side > 0 && pair && /[\ud800-\udbff]/.test(c.ch) && /[\udc00-\udfff]/.test(pair.ch))
         return { text: c.ch + pair.ch, size: 2 }
       if (side < 0 && pair && /[\udc00-\udfff]/.test(c.ch) && /[\ud800-\udbff]/.test(pair.ch))
