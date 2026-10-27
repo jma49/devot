@@ -78,6 +78,14 @@ function restack(work: string, oldTip: string, ...branches: string[]) {
   })
 }
 
+function resume(work: string, onto: string, ...branches: string[]) {
+  return spawnSync('bash', [SCRIPT, '--onto', onto, ...branches], {
+    cwd: work,
+    encoding: 'utf8',
+    env: gitEnv({ DEVOT_RESTACK_NO_GH: '1' }),
+  })
+}
+
 const subjects = (cwd: string, range: string) =>
   git(cwd, 'log', '--format=%s', range).split('\n').filter(Boolean)
 
@@ -133,5 +141,33 @@ describe('restack.sh', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('conflict')
     expect(git(work, 'status', '--porcelain=v1', '--branch')).toContain('layer2')
+  })
+
+  it('resumes after a conflict, rebasing the rest onto the resolved layer', PROCESSES, () => {
+    const { work, oldTip } = stackedRepo(3)
+    git(work, 'checkout', 'main')
+    writeFileSync(join(work, 'layer2.txt'), 'conflicting\n')
+    git(work, 'add', 'layer2.txt')
+    git(work, 'commit', '-m', 'conflict on main')
+    git(work, 'push', 'origin', 'main')
+
+    const conflicted = restack(work, oldTip, 'layer1', 'layer2', 'layer3')
+    expect(conflicted.status).toBe(1)
+    expect(conflicted.stderr).toContain('--onto layer2 layer3')
+
+    writeFileSync(join(work, 'layer2.txt'), 'resolved\n')
+    git(work, 'add', 'layer2.txt')
+    const continued = spawnSync('git', ['rebase', '--continue'], {
+      cwd: work,
+      encoding: 'utf8',
+      env: gitEnv({ GIT_EDITOR: 'true' }),
+    })
+    expect(continued.status).toBe(0)
+
+    const resumed = resume(work, 'layer2', 'layer3')
+    expect(resumed.status).toBe(0)
+    expect(subjects(work, 'origin/main..layer3')).toEqual(['layer3', 'layer2'])
+    expect(git(work, 'rev-parse', 'origin/layer2')).toBe(git(work, 'rev-parse', 'layer2'))
+    expect(git(work, 'rev-parse', 'origin/layer3')).toBe(git(work, 'rev-parse', 'layer3'))
   })
 })
