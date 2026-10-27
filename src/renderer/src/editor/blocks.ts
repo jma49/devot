@@ -911,6 +911,15 @@ function unquote(cx: Cx, lines: QuoteLine[], selected: Set<number>, edits: Edits
   }
 }
 
+/** Whether an unselected alert starts right below `q`: quoting `q` would join it and lose its alert. */
+function abutsAlert(cx: Cx, q: QuoteLine, selected: Set<number>): boolean {
+  const below = q.line.number + 1
+  if (below > cx.state.doc.lines || selected.has(below) || !quotedLike(cx, q, selected)(below))
+    return false
+  const run = quoteRun(cx, quoteLine(cx, below, selected), selected)
+  return run.first === below && alertOf(cx, run, selected) !== null
+}
+
 /**
  * Quotes the selected lines; when they are all in a plain quote already,
  * takes their quote markers off. Alerts become plain quotes.
@@ -925,7 +934,13 @@ export function toggleQuote(state: EditorState): TransactionSpec | null {
   if (alerts.every((a) => a === null)) unquote(cx, lines.all, lines.selected, edits)
   else {
     const alone = lines.all.length === 1
-    for (const q of linesToQuote(lines)) edits.add(q.base, q.base, quoteInsert(q, alone))
+    for (const q of linesToQuote(lines)) {
+      edits.add(q.base, q.base, quoteInsert(q, alone))
+      if (abutsAlert(cx, q, lines.selected)) {
+        const { text, from, to } = q.line
+        edits.add(to, to, `\n${keptQuotes(text.slice(0, q.base - from))}`)
+      }
+    }
     for (const run of countedRuns(cx, lines.counted, lines.selected))
       if (alertOf(cx, run, lines.selected)) dropAlertLine(cx, run, lines.selected, edits)
   }

@@ -528,6 +528,16 @@ describe('alerts', () => {
     expect(alert('«a»\n\n> [!NOTE]\n> b', 'warning')).toBe('> [!WARNING]\n> «a»\n\n> [!NOTE]\n> b')
   })
 
+  it('keep an alert right below lines that are quoted', () => {
+    const doc = quote('«para»\n> [!NOTE]\n> body')
+    expect(doc).toBe('> «para»\n\n> [!NOTE]\n> body')
+    expect(outline(strip(doc))).toBe('Blockquote(Paragraph) Blockquote(Paragraph)')
+    expect(alertKind(state('> para\n\n> [!NOTE]\n> bo|dy'))).toBe('note')
+    expect(quote('- x\n  «para»\n  > [!TIP]\n  > body')).toBe(
+      '- x\n  > «para»\n\n  > [!TIP]\n  > body',
+    )
+  })
+
   it('read the kind of the selection', () => {
     expect(alertKind(state('> [!Warning]\n> «a»'))).toBe('warning')
     expect(alertKind(state('> «a»'))).toBeNull()
