@@ -21,7 +21,7 @@ import { imageFiles, storeImages } from './attachments'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
-import { BOX_HANG } from './editor/boxes'
+import { BOX_HANG, BOX_PAD } from './editor/boxes'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys, type CommandId } from './commands/registry'
 import { invoke } from './ipc'
@@ -455,6 +455,11 @@ const theme = EditorView.theme({
     '.cm-content': { textAutospace: 'normal' },
     '.cm-line.cm-codeblock, .cm-md-code': { textAutospace: 'no-autospace' },
   },
+  // CodeMirror pads a line 6px on the start side and 2px on the end; a whole-line
+  // selection spans the content's width minus those paddings, so the unequal sides
+  // push it right. Equal sides centre it in the note's column and in a box
+  // (editor/boxes.ts), which hangs the same amount past both sides of the line.
+  '.cm-line': { paddingInline: BOX_PAD },
   '.cm-scroller::-webkit-scrollbar': {
     width: 'var(--size-scrollbar)',
     height: 'var(--size-scrollbar)',
