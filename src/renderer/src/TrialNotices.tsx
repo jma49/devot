@@ -49,6 +49,11 @@ export function TrialEndedBar() {
   )
 }
 
+const nextMidnight = (from: number) => {
+  const date = new Date(from)
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime()
+}
+
 /** Once, when less than a day of the trial is left; dismissed, it never comes back. */
 export function TrialReminder() {
   const licence = useLicence()
@@ -56,14 +61,27 @@ export function TrialReminder() {
   const [now, setNow] = useState(Date.now)
   const endsAt = licence.trial?.state === 'running' ? licence.trial.endsAt : null
 
-  // Shown when the last day begins, gone when the trial ends.
+  // Shown when the last day begins, gone when the trial ends; its "today" and "tomorrow" turn over
+  // at midnight too.
   useEffect(() => {
     if (endsAt === null) return
-    const at = Date.now()
-    const timers = [endsAt - REMINDER_MS, endsAt]
-      .filter((when) => when > at)
-      .map((when) => setTimeout(() => setNow(Date.now()), Math.min(when - at, 2 ** 31 - 1)))
-    return () => timers.forEach(clearTimeout)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const wait = () => {
+      const at = Date.now()
+      const when = [endsAt - REMINDER_MS, endsAt, nextMidnight(at)]
+        .filter((moment) => moment > at)
+        .sort((a, b) => a - b)[0]
+      if (when === undefined) return
+      timer = setTimeout(
+        () => {
+          setNow(Date.now())
+          wait()
+        },
+        Math.min(when - at, 2 ** 31 - 1),
+      )
+    }
+    wait()
+    return () => clearTimeout(timer)
   }, [endsAt])
 
   if (endsAt === null || !reminderDue(licence, now, dismissed)) return null

@@ -30,7 +30,11 @@ const ended = () => unlicensed({ state: 'ended', endsAt: Date.now() - HOUR, code
 
 /** No licence and a trial that ends `endsIn` milliseconds from now (ended, when negative). */
 async function fakeTrial(page: Page, endsIn: number) {
-  await page.addInitScript((endsAt) => {
+  await fakeTrialEndingAt(page, Date.now() + endsIn)
+}
+
+async function fakeTrialEndingAt(page: Page, endsAt: number) {
+  await page.addInitScript((end) => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
@@ -41,12 +45,12 @@ async function fakeTrial(page: Page, endsIn: number) {
         id: null,
         licensee: null,
         plan: null,
-        trial: { state: endsAt > Date.now() ? 'running' : 'ended', endsAt, code: null },
+        trial: { state: end > Date.now() ? 'running' : 'ended', endsAt: end, code: null },
       }),
       open_external: null,
       settings_open_licence: null,
     }
-  }, Date.now() + endsIn)
+  }, endsAt)
 }
 
 const calls = (page: Page, cmd: string) =>
@@ -241,6 +245,18 @@ test.describe('once the trial is over', () => {
 })
 
 test.describe('the reminder', () => {
+  test('says today once midnight has passed', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 26, 22, 30) })
+    await fakeTrialEndingAt(page, new Date(2026, 9, 27, 22, 0).getTime())
+    await openApp(page)
+    await page.evaluate(() => localStorage.clear())
+    await reloadApp(page)
+    const reminder = page.locator('[data-devot-trial-reminder]')
+    await expect(reminder).toHaveText(/ends tomorrow at/)
+    await page.clock.fastForward('02:00:00')
+    await expect(reminder).toHaveText(/ends today at/)
+  })
+
   test('shows once in the last day of the trial, and dismissed it does not come back', async ({
     page,
   }) => {
