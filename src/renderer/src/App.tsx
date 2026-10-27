@@ -1500,6 +1500,7 @@ export function App() {
       if (!request) return
       void answerCapture(
         request,
+        (id) => invoke('quick_capture_claim', { id }),
         async (r) => {
           await core.capture(r.title, r.body, r.bookId)
         },
@@ -3177,6 +3178,7 @@ export function App() {
       if (!report?.bookId) showLibraryRef.current?.({ kind: 'all' }, { clearFilter: true })
       void select(id)
     } catch {
+      void finishImport(link.scan.id)
       setLinkNotice('importFailed')
     }
   }

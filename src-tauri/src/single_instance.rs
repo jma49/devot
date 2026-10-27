@@ -164,12 +164,16 @@ fn read_message(stream: &mut UnixStream) -> Option<(String, Vec<String>)> {
 /// Answers a message `accept` takes before `run` handles it, since bringing Devot forward and
 /// finding the files can take longer than a sender waits; one refused, or unreadable, is closed
 /// unanswered.
-fn serve(listener: &UnixListener, accept: impl Fn() -> bool, run: impl Fn(String, Vec<String>)) {
+fn serve(
+    listener: &UnixListener,
+    accept: impl Fn(&[String]) -> bool,
+    run: impl Fn(String, Vec<String>),
+) {
     for mut stream in listener.incoming().flatten() {
         let Some((cwd, args)) = read_message(&mut stream) else {
             continue;
         };
-        if !accept() {
+        if !accept(&args) {
             continue;
         }
         let _ = stream.write_all(&[TAKEN]);
@@ -231,12 +235,18 @@ fn listen(app: &AppHandle, claimed: Claimed) {
         .spawn(move || {
             serve(
                 &listener,
-                || {
+                |args| {
                     let quitting = crate::exit::quitting(&app);
                     if quitting {
                         log::warn!("W_SINGLE_INSTANCE_QUITTING");
+                        return false;
                     }
-                    !quitting
+                    let full = crate::cli::hands_off_files(args)
+                        && !crate::deep_link::room_for_import(&app);
+                    if full {
+                        log::warn!("W_SINGLE_INSTANCE_IMPORTS_FULL");
+                    }
+                    !full
                 },
                 |cwd, args| crate::deep_link::on_second_instance(&app, args, cwd),
             );
@@ -346,7 +356,7 @@ mod tests {
         std::thread::spawn(move || {
             serve(
                 &listener,
-                || take,
+                |_| take,
                 |cwd, args| {
                     let _ = tx.send((cwd, args));
                 },

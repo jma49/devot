@@ -399,6 +399,8 @@ export const en = {
   'quickCapture.notebookGone': 'That notebook no longer exists ({code}). Choose another one.',
   'quickCapture.noAnswer':
     'Devot did not save the note in time ({code}). Your text is kept here; open Devot and try again.',
+  'quickCapture.stillSaving':
+    'Devot is still saving this note ({code}). It will appear in your notes; check there before saving it again.',
   'generalSettings.autoDownloadUpdates': 'Automatically Download Updates',
   'generalSettings.autoDownloadUpdatesHint':
     'Download new versions in the background, then offer to restart. Off, Devot asks before downloading.',
@@ -1024,6 +1026,8 @@ export const en = {
   'import.reason.folderTooLarge': 'The folder holds too many files to import.',
   'import.reason.folderInvalid': 'This folder cannot be read.',
   'import.reason.foldersUnsupported': 'Folders cannot be imported on this device.',
+  'import.reason.trialEnded':
+    'Your Devot trial has ended, so nothing can be imported. Add a licence in Settings > Licence.',
   'format.toolbar': 'Format',
   'format.heading': 'Heading',
   'format.headingTitle': 'Heading',

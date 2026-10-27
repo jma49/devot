@@ -141,3 +141,31 @@ test('links that came before the window was ready run once it has started', asyn
   await open(page, { deep_link_take: [{ kind: 'command', id: 'view.trash' }] })
   await expect(headline(page)).toHaveText('Trash')
 })
+
+test('files from the command line that cannot be imported end their session', async ({ page }) => {
+  await open(page, { import_finish: null })
+  await sendLink(page, {
+    kind: 'import',
+    scan: {
+      id: 41,
+      name: '',
+      kind: 'files',
+      files: [],
+      images: [],
+      skipped: [],
+      destination: null,
+    },
+    notebook: '   ',
+    first: null,
+  })
+  await expect(notice(page)).toContainText('could not be imported')
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (globalThis as unknown as TestWindow).devotIpcCalls
+          .filter((call) => call.cmd === 'import_finish')
+          .map((call) => call.args['id']),
+      ),
+    )
+    .toEqual([41])
+})

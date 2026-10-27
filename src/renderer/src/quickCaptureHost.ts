@@ -1,7 +1,7 @@
 // The main window's half of quick capture (menu bar mode): the capture
 // window hands its note to Rust, which passes it here as an event
 // (`devot://quick-capture`) and waits for this window's answer
-// (`quick_capture_done`), so this window's core is the one that writes the
+// (`quick_capture_claim`, `quick_capture_done`), so this window's core is the one that writes the
 // library (src-tauri/src/menu_bar.rs).
 import { errorCode } from '../../core/errors'
 
@@ -28,12 +28,22 @@ export function readCaptureRequest(payload: unknown): CaptureRequest | null {
   return { id: id as number, title, body, bookId }
 }
 
-/** Whether the capture was saved; its answer always goes back, a code on failure. */
+/**
+ * Whether the capture was saved. It is claimed first, so one Rust has given up on is never
+ * written; a claimed one is always answered, with a code on failure.
+ */
 export async function answerCapture(
   request: CaptureRequest,
+  claim: (id: number) => Promise<unknown>,
   save: (request: CaptureRequest) => Promise<void>,
   reply: (id: number, error: string | null) => Promise<unknown>,
 ): Promise<boolean> {
+  try {
+    await claim(request.id)
+  } catch (e) {
+    console.warn('W_QUICK_CAPTURE_CLAIM_FAILED', errorCode(e))
+    return false
+  }
   let error: string | null = null
   try {
     await save(request)
@@ -43,7 +53,7 @@ export async function answerCapture(
   try {
     await reply(request.id, error)
   } catch (e) {
-    // Rust gave up waiting: the capture window shows a timeout, the note is made all the same.
+    // Rust gave up waiting after the claim: the capture window says the note may still appear.
     console.warn('W_QUICK_CAPTURE_ANSWER_FAILED', errorCode(e))
   }
   return error === null

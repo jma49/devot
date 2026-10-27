@@ -124,6 +124,24 @@ fn failed(manual: bool, code: &str) -> State {
     }
 }
 
+/// A background check that fails keeps an update already offered, so its Download stays.
+fn check_failed(manual: bool, offered: Option<String>) -> State {
+    match offered {
+        Some(version) if !manual => State::Available { version },
+        _ => failed(manual, "E_UPDATE_CHECK_FAILED"),
+    }
+}
+
+fn fail_check(app: &AppHandle, manual: bool) {
+    let offered = app
+        .state::<Updates>()
+        .lock()
+        .found
+        .as_ref()
+        .map(|update| update.version.clone());
+    change(app, check_failed(manual, offered));
+}
+
 /// `work`'s output, or None once `progress` has not moved for `limit`.
 async fn unless_stalled<T>(
     work: impl Future<Output = T>,
@@ -332,12 +350,13 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
     };
     let Some(found) = unless_stalled(found, &AtomicU64::new(0), STALL_LIMIT).await else {
         log::warn!("W_UPDATE_CHECK_TIMED_OUT");
-        change(&app, failed(manual, "E_UPDATE_CHECK_FAILED"));
+        fail_check(&app, manual);
         return;
     };
     match found {
         Ok(None) => {
             log::info!("I_UPDATE_NONE");
+            updates.lock().found = None;
             change(&app, nothing_found(manual));
         }
         Ok(Some(update)) => {
@@ -359,7 +378,7 @@ async fn check(app: AppHandle, asked_by: Option<String>) {
         }
         Err(error) => {
             log::warn!("W_UPDATE_CHECK_FAILED {error}");
-            change(&app, failed(manual, "E_UPDATE_CHECK_FAILED"));
+            fail_check(&app, manual);
         }
     }
 }
@@ -718,6 +737,24 @@ mod tests {
             }
         );
         assert_eq!(failed(false, "E_UPDATE_CHECK_FAILED"), State::Idle);
+    }
+
+    #[test]
+    fn a_failed_background_check_keeps_the_update_already_offered() {
+        let offered = || Some(String::from("1.0.6"));
+        assert_eq!(
+            check_failed(false, offered()),
+            State::Available {
+                version: "1.0.6".into()
+            }
+        );
+        assert_eq!(check_failed(false, None), State::Idle);
+        assert_eq!(
+            check_failed(true, offered()),
+            State::Failed {
+                code: "E_UPDATE_CHECK_FAILED".into()
+            }
+        );
     }
 
     #[test]

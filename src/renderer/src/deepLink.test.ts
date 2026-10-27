@@ -127,6 +127,7 @@ describe('LinkQueue', () => {
 
   function setup(onRun: (link: DeepLink) => void = () => undefined) {
     const ran: DeepLink[] = []
+    const dropped: DeepLink[] = []
     const state = { blocked: false, watching: false, settling: false, now: 0 }
     let watched: (() => void) | undefined
     let settle: (() => void) | undefined
@@ -151,8 +152,9 @@ describe('LinkQueue', () => {
         }
       },
       () => state.now,
+      (link) => dropped.push(link),
     )
-    return { queue, ran, state, tick: () => watched?.(), timeout: () => settle?.() }
+    return { queue, ran, dropped, state, tick: () => watched?.(), timeout: () => settle?.() }
   }
 
   it('runs a link at once when nothing blocks it', () => {
@@ -242,6 +244,32 @@ describe('LinkQueue', () => {
     q.state.blocked = true
     for (let i = 0; i < 20; i += 1) q.queue.push(note(`n${i}`))
     expect(q.queue.stop()).toHaveLength(16)
+  })
+
+  it('keeps up to 64 handed-over files apart from URLs, and drops the rest so their session ends', () => {
+    const q = setup()
+    q.state.blocked = true
+    const files = (id: number): DeepLink => ({
+      kind: 'import',
+      scan: {
+        id,
+        name: 'a.md',
+        kind: 'files',
+        files: [],
+        images: [],
+        skipped: [],
+        destination: null,
+      },
+      notebook: null,
+      first: null,
+    })
+    for (let i = 0; i < 20; i += 1) q.queue.push(note(`n${i}`))
+    for (let i = 0; i < 70; i += 1) q.queue.push(files(i))
+    const waiting = q.queue.stop()
+    expect(waiting.filter((link) => link.kind === 'import')).toHaveLength(64)
+    expect(waiting).toHaveLength(16 + 64)
+    expect(q.dropped).toHaveLength(4 + 6)
+    expect(q.dropped.slice(4)).toEqual([64, 65, 66, 67, 68, 69].map(files))
   })
 
   it('drops what waits when stopped, and returns it', () => {

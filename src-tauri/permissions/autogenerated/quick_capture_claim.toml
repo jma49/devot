@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-quick-capture-claim"
+description = "Enables the quick_capture_claim command without any pre-configured scope."
+commands.allow = ["quick_capture_claim"]
+
+[[permission]]
+identifier = "deny-quick-capture-claim"
+description = "Denies the quick_capture_claim command without any pre-configured scope."
+commands.deny = ["quick_capture_claim"]

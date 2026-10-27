@@ -10,6 +10,7 @@ import type { ImportItem, ImportProblem, ImportScan } from '../../core'
 import { UUID_V7 } from '../../core/ids'
 import { sheetOpen } from './commands/dispatch'
 import type { CommandId } from './commands/registry'
+import { finishImport } from './importer'
 import { invoke } from './ipc'
 import { isLicenceId, isLicenceState } from './licence'
 import type { LicenceOffer } from './licenceView'
@@ -150,7 +151,22 @@ export function noteTarget(id: string, known: Known): NoteTarget {
 }
 
 const MAX_WAITING = 16
+/** Files from the `devot` command wait apart from URLs, as many as Rust holds (`MAX_HELD_IMPORTS`). */
+const MAX_WAITING_IMPORTS = 64
 const REPEAT_MS = 1000
+
+function hasRoom(waiting: readonly DeepLink[], link: DeepLink): boolean {
+  const imports = waiting.filter((each) => each.kind === 'import').length
+  return link.kind === 'import'
+    ? imports < MAX_WAITING_IMPORTS
+    : waiting.length - imports < MAX_WAITING
+}
+
+/** Nothing else would end the import session of files dropped here. */
+function dropLink(link: DeepLink): void {
+  console.warn('W_DEEP_LINK_DROPPED')
+  if (link.kind === 'import') void finishImport(link.scan.id)
+}
 
 /**
  * Runs links in the order they came, one at a time: after running one it
@@ -174,12 +190,13 @@ export class LinkQueue {
     private readonly watch: (changed: () => void) => () => void,
     private readonly settleLater: (done: () => void) => () => void,
     private readonly now: () => number = Date.now,
+    private readonly dropped: (link: DeepLink) => void = dropLink,
   ) {}
 
   /**
    * Queues `link`, unless it is the one pushed last, again within
-   * `REPEAT_MS`, or `MAX_WAITING` links wait already: a page that opens a
-   * link over and over cannot flood the window.
+   * `REPEAT_MS`, or as many links of its kind wait already: a page that opens
+   * a link over and over cannot flood the window.
    */
   push(link: DeepLink): void {
     if (this.stopped) return
@@ -187,8 +204,12 @@ export class LinkQueue {
     const at = this.now()
     const repeated = this.last?.key === key && at - this.last.at < REPEAT_MS
     this.last = { key, at }
-    if (repeated || this.waiting.length >= MAX_WAITING) {
+    if (repeated) {
       console.warn('W_DEEP_LINK_DROPPED')
+      return
+    }
+    if (!hasRoom(this.waiting, link)) {
+      this.dropped(link)
       return
     }
     this.waiting.push(link)
@@ -272,8 +293,8 @@ export function useDeepLinks(ready: boolean, handle: (link: DeepLink) => void): 
       const link = readDeepLink(value)
       if (!link) console.warn('W_DEEP_LINK_INVALID')
       else if (queueRef.current) queueRef.current.push(link)
-      else if (early.current.length < MAX_WAITING) early.current.push(link)
-      else console.warn('W_DEEP_LINK_DROPPED')
+      else if (hasRoom(early.current, link)) early.current.push(link)
+      else dropLink(link)
     }
     const onEvent = (e: Event) => take(e instanceof CustomEvent ? e.detail : undefined)
     window.addEventListener(OPEN_URL, onEvent)

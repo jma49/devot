@@ -52,12 +52,15 @@ fn is_main_window(ns_window: *const std::ffi::c_void) -> bool {
         .any(|(_, address)| *address == ns_window as usize)
 }
 
-/// A main window exists now: its web view gets the 120 Hz unlock and its keys the Format menu's
-/// priority. Every main window, `main` included, comes through here.
+/// A main window exists now: its web view gets the 120 Hz unlock, WebRTC and resource hints off,
+/// and its keys the
+/// Format menu's priority. Every main window, `main` included, comes through here.
 pub fn main_window_built(window: &tauri::WebviewWindow) {
     #[cfg(target_os = "macos")]
     {
         macos::unlock_high_refresh_rate(window);
+        macos::turn_off_peer_connections(window);
+        macos::turn_off_resource_hints(window);
         match window.ns_window() {
             Ok(address) if !address.is_null() => MAIN_WINDOWS
                 .lock()

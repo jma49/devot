@@ -468,6 +468,15 @@ test('a scan that fails shows why, in the sheet it started', async ({ page }) =>
   await expect(noteRows(page)).toHaveCount(0)
 })
 
+test('an import refused because the trial is over says so', async ({ page }) => {
+  await open(page)
+  await send(page, 'devot:import-failed', { id: null, code: 'E_LICENCE_REQUIRED' })
+  await expect(dialog(page)).toContainText('The import failed (E_LICENCE_REQUIRED).')
+  await expect(dialog(page)).toContainText(
+    'Your Devot trial has ended, so nothing can be imported. Add a licence in Settings > Licence.',
+  )
+})
+
 test('an empty folder says no Markdown files were found', async ({ page }) => {
   await open(page)
   await send(page, 'devot:import-ready', {

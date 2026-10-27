@@ -106,6 +106,9 @@ pub(crate) struct MemoryKey {
     pub reads: std::sync::atomic::AtomicUsize,
     /// Reads fail as a non-UTF-8 or denied item does; writes still succeed.
     pub unreadable: std::sync::atomic::AtomicBool,
+    /// Writes fail as a denied or locked keychain does.
+    pub unwritable: std::sync::atomic::AtomicBool,
+    pub writes: std::sync::atomic::AtomicUsize,
 }
 
 #[cfg(test)]
@@ -129,6 +132,11 @@ impl KeyStore for MemoryKey {
     }
 
     fn set(&self, key: &str) -> Result<(), &'static str> {
+        self.writes
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if self.unwritable.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err("E_LICENCE_KEYCHAIN");
+        }
         *self.key.lock().map_err(|_| "E_LICENCE_KEYCHAIN")? = Some(key.to_owned());
         Ok(())
     }

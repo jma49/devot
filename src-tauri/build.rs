@@ -128,6 +128,7 @@ fn main() {
             "sidebar_menu_set",
             "command_menu_set",
             "quick_capture_save",
+            "quick_capture_claim",
             "quick_capture_done",
             "quick_capture_close",
             "http_api_get",
