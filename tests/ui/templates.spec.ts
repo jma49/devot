@@ -172,6 +172,18 @@ test('the picker lists recently used templates first and previews the one select
   await expect(titleField(page)).toHaveValue('Beta')
 })
 
+test('a template taller than the preview box scrolls from the keyboard', async ({ page }) => {
+  const lines = Array.from({ length: 60 }, (_, i) => `line ${i}`)
+  await newTemplate(page, 'Long', lines.join('\n'))
+  await allNotesRow(page).click()
+  await page.keyboard.press('Meta+KeyT')
+  await expect(preview(page)).toContainText('line 59')
+  await preview(page).focus()
+  await expect(preview(page)).toBeFocused()
+  await page.keyboard.press('PageDown')
+  await expect.poll(() => preview(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+})
+
 test('a note made while search results show opens in a list that shows it', async ({ page }) => {
   await newTemplate(page, 'Plan', 'Plan body')
   await page.getByRole('searchbox', { name: 'Search notes' }).fill('nothing like it')
