@@ -363,6 +363,8 @@ test('keys pressed while a version is shown do not change the note under it', as
   await body(page).click()
   await page.keyboard.press('ControlOrMeta+End')
   await showOldest(page)
+  // First, a key another handler dispatches before the guard would (close brackets, a quote).
+  await page.keyboard.type('("')
   await page.keyboard.press('Backspace')
   await page.keyboard.type('x')
   await page.keyboard.press('Escape')

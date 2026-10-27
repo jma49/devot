@@ -142,8 +142,10 @@ const LOCKED = [
 ]
 // WebKit keeps a contenteditable's selection when focus moves to a sheet or the history bar, and
 // runs Backspace and typing against it even under `inert` or a modal: the note out of sight would
-// change. The change is dropped and the editor draws its own text again.
-const ONLY_WHILE_FOCUSED = EditorView.inputHandler.of((view) => !view.hasFocus)
+// change. The change is dropped and the editor draws its own text again. It comes first among the
+// highest-precedence handlers so no other one (close brackets, backticks, table typing, overwrite)
+// dispatches the change before the check runs.
+const ONLY_WHILE_FOCUSED = Prec.highest(EditorView.inputHandler.of((view) => !view.hasFocus))
 // View > Show Authorship (editor/authorship.ts), set for the replica of the note shown.
 const authorshipSlot = new Compartment()
 // The empty note's Choose a Template chip: only where the window can run it on a note that may change.
@@ -1020,6 +1022,7 @@ export function NoteEditor({
               }
             : {}),
           extensions: [
+            ONLY_WHILE_FOCUSED,
             editorSetup(setupFor),
             // No keymap acts on the keys an input method composes with.
             imeKeys(),
@@ -1098,7 +1101,6 @@ export function NoteEditor({
             popupSpace(frame),
             pausedSlot.of([]),
             lockedSlot.of(locked.current ? LOCKED : []),
-            ONLY_WHILE_FOCUSED,
             authorshipSlot.of(marksFor(setupFor.authorship, doc, noteId)),
             // Undo is CodeMirror's history alone: no Yjs undo manager.
             authorshipUndo(doc),
