@@ -6,9 +6,10 @@
 //     takes the app's version from Cargo. Prints the version and channel as
 //     `version=…` and `channel=…` lines (for $GITHUB_OUTPUT).
 //
-//   node scripts/release/release.ts replaces-feed <tag> <current feed file>
-//     Prints `replace=true` when the release is newer than the feed's (or the
-//     file is empty or missing), `replace=false` otherwise.
+//   node scripts/release/release.ts replaces-feed <tag> <current feed file> [<signature file>]
+//     Prints `replace=true` when the release is newer than the feed's (or the file is empty or
+//     missing), or when it is the feed's own version rebuilt with another signature;
+//     `replace=false` otherwise.
 //
 //   node scripts/release/release.ts feeds <tag>
 //     Prints the channel feeds the release goes in, one per line: `beta` for
@@ -75,16 +76,24 @@ export function compareVersions(a: string, b: string): number {
   return 0
 }
 
-/** Only a newer version replaces the feed, so a release finishing after a newer one never takes it back. */
-export function replacesFeed(version: string, feed: string): boolean {
-  let current: unknown
+/**
+ * Only a newer version replaces the feed, so a release finishing after a newer one never takes it
+ * back. The same version rebuilt with another signature does replace it: a rerun signs a new
+ * bundle, and a feed that kept the old signature would offer an update that never verifies.
+ */
+export function replacesFeed(version: string, feed: string, signature?: string): boolean {
+  let data: { version?: unknown; platforms?: Record<string, { signature?: unknown }> }
   try {
-    current = (JSON.parse(feed) as { version?: unknown }).version
+    data = JSON.parse(feed) as typeof data
   } catch {
     return true
   }
-  if (typeof current !== 'string' || !VERSION.test(current)) return true
-  return compareVersions(version, current) > 0
+  if (typeof data?.version !== 'string' || !VERSION.test(data.version)) return true
+  const order = compareVersions(version, data.version)
+  if (order !== 0) return order > 0
+  if (signature === undefined) return false
+  const kept = data.platforms?.['darwin-aarch64']?.signature
+  return typeof kept !== 'string' || kept.trim() !== signature.trim()
 }
 
 export const channelOf = (version: string): Channel => (version.includes('-') ? 'beta' : 'stable')
@@ -274,14 +283,15 @@ function main(args: string[]) {
     console.log(feedChannels(versionFromTag(tag)).join('\n'))
     return
   }
-  if (command === 'replaces-feed' && tag && rest.length === 1) {
+  if (command === 'replaces-feed' && tag && (rest.length === 1 || rest.length === 2)) {
     let feed = ''
     try {
       feed = readFileSync(rest[0]!, 'utf8')
     } catch {
       // No feed yet.
     }
-    console.log(`replace=${replacesFeed(versionFromTag(tag), feed)}`)
+    const signature = rest[1] === undefined ? undefined : readFileSync(rest[1], 'utf8')
+    console.log(`replace=${replacesFeed(versionFromTag(tag), feed, signature)}`)
     return
   }
   if (command === 'feed' && tag && rest.length === 4) {
@@ -319,7 +329,7 @@ function main(args: string[]) {
     return
   }
   throw new Error(
-    'E_RELEASE_USAGE: set-version <tag> | feeds <tag> | replaces-feed <tag> <feed> | feed <tag> <url> <sig> <notes> <out> | sign <tag> <file> <out> | verify-signature <file> <sig> <pubkey> [<tag>]',
+    'E_RELEASE_USAGE: set-version <tag> | feeds <tag> | replaces-feed <tag> <feed> [<sig>] | feed <tag> <url> <sig> <notes> <out> | sign <tag> <file> <out> | verify-signature <file> <sig> <pubkey> [<tag>]',
   )
 }
 

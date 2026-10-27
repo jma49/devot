@@ -122,6 +122,18 @@ describe('feed order', () => {
     expect(replacesFeed('0.3.0-beta.1', '{"version":"latest"}')).toBe(true)
   })
 
+  it('replaces the feed of its own version rebuilt with another signature', () => {
+    const feed = JSON.stringify({
+      version: '1.0.6',
+      platforms: { 'darwin-aarch64': { signature: 'old', url: 'u' } },
+    })
+    expect(replacesFeed('1.0.6', feed, 'new')).toBe(true)
+    expect(replacesFeed('1.0.6', feed, 'old')).toBe(false)
+    expect(replacesFeed('1.0.6', feed)).toBe(false)
+    expect(replacesFeed('1.0.7', feed, 'old')).toBe(true)
+    expect(replacesFeed('1.0.5', feed, 'new')).toBe(false)
+  })
+
   it('puts a stable release in the beta feed too', () => {
     // A beta install reads beta.json and gets the newest build of either kind; a stable install never gets a beta.
     expect(feedChannels('1.0.0')).toEqual(['stable', 'beta'])

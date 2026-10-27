@@ -175,6 +175,9 @@ describe('the release workflow', () => {
     expect(workflow.match(/gh release upload updater/g)?.length).toBe(1)
     expect(feed).toContain('gh release upload updater')
     expect(step('Update the feeds')).toMatch(
+      /replaces-feed "\$TAG" "current\/\$channel\.json" "out\/\$UPDATER\.sig"/,
+    )
+    expect(step('Update the feeds')).toMatch(
       /gh release upload updater "feed\/\$channel\.json" --clobber\n(?:\s+#.*\n)*\s+for attempt in [\d ]+; do\n\s+rm -f "uploaded\/\$channel\.json"\n\s+gh release download updater --pattern "\$channel\.json" --dir uploaded[^\n]*\n\s+cmp -s "feed\/\$channel\.json" "uploaded\/\$channel\.json" && break\n\s+sleep \d+\n\s+done\n\s+if ! cmp -s "feed\/\$channel\.json" "uploaded\/\$channel\.json"/,
     )
   })
