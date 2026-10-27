@@ -7,6 +7,7 @@ import {
   channelOf,
   compareVersions,
   feedChannels,
+  marksLatest,
   replacesFeed,
   scryptParams,
   signedVersion,
@@ -132,6 +133,14 @@ describe('feed order', () => {
     expect(replacesFeed('1.0.6', feed)).toBe(false)
     expect(replacesFeed('1.0.7', feed, 'old')).toBe(true)
     expect(replacesFeed('1.0.5', feed, 'new')).toBe(false)
+  })
+
+  it('marks only a stable release newer than the one marked Latest', () => {
+    expect(marksLatest('1.0.7', 'v1.0.6')).toBe(true)
+    expect(marksLatest('1.0.6', 'v1.0.7')).toBe(false)
+    expect(marksLatest('1.0.6', 'v1.0.6')).toBe(false)
+    expect(marksLatest('1.0.7')).toBe(true)
+    expect(marksLatest('1.0.7-beta1', 'v1.0.6')).toBe(false)
   })
 
   it('puts a stable release in the beta feed too', () => {

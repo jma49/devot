@@ -46,6 +46,12 @@ describe('the release workflow', () => {
     )
   })
 
+  it('keeps an older stable release from taking the Latest mark', () => {
+    const publish = step('Publish the release')
+    expect(publish).toMatch(/release\.ts latest "\$TAG" "\$current"/)
+    expect(publish).toMatch(/--latest=false/)
+  })
+
   it('checks the signature against the public key before it publishes anything', () => {
     const verify = workflow.indexOf('release.ts verify-signature')
     expect(verify).toBeGreaterThan(0)

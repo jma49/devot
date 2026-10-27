@@ -16,6 +16,10 @@
 //     a beta, `stable` and `beta` for a stable release, so a beta install is
 //     offered the newest build of either kind.
 //
+//   node scripts/release/release.ts latest <tag> [<current latest tag>]
+//     Prints `true` when GitHub should mark the release as Latest: a stable
+//     release newer than the one marked now, `false` otherwise.
+//
 //   node scripts/release/release.ts feed <tag> <url> <signature file> <notes file> <out file>
 //     Writes the update feed for the release: what the app's updater reads
 //     from a channel file in the `updater` release (beta.json until 1.0).
@@ -97,6 +101,20 @@ export function replacesFeed(version: string, feed: string, signature?: string):
 }
 
 export const channelOf = (version: string): Channel => (version.includes('-') ? 'beta' : 'stable')
+
+/**
+ * Whether GitHub should mark this release as Latest. Only a stable release newer than the one
+ * marked now qualifies: an older stable finishing after a newer one must not take the mark.
+ */
+export function marksLatest(version: string, current?: string): boolean {
+  if (channelOf(version) === 'beta') return false
+  if (!current) return true
+  try {
+    return compareVersions(version, versionFromTag(current)) > 0
+  } catch {
+    return true
+  }
+}
 
 /** A stable release goes in the beta feed too, so beta installs get the newest build of either kind. */
 export const feedChannels = (version: string): Channel[] =>
@@ -283,6 +301,10 @@ function main(args: string[]) {
     console.log(feedChannels(versionFromTag(tag)).join('\n'))
     return
   }
+  if (command === 'latest' && tag && rest.length <= 1) {
+    console.log(String(marksLatest(versionFromTag(tag), rest[0])))
+    return
+  }
   if (command === 'replaces-feed' && tag && (rest.length === 1 || rest.length === 2)) {
     let feed = ''
     try {
@@ -329,7 +351,7 @@ function main(args: string[]) {
     return
   }
   throw new Error(
-    'E_RELEASE_USAGE: set-version <tag> | feeds <tag> | replaces-feed <tag> <feed> [<sig>] | feed <tag> <url> <sig> <notes> <out> | sign <tag> <file> <out> | verify-signature <file> <sig> <pubkey> [<tag>]',
+    'E_RELEASE_USAGE: set-version <tag> | feeds <tag> | latest <tag> [<current>] | replaces-feed <tag> <feed> [<sig>] | feed <tag> <url> <sig> <notes> <out> | sign <tag> <file> <out> | verify-signature <file> <sig> <pubkey> [<tag>]',
   )
 }
 
