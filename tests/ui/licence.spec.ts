@@ -296,6 +296,25 @@ test.describe('the read-only library', () => {
   })
 })
 
+test.describe('the read-only library', () => {
+  test('a built-in template cannot be made into a note while the trial is over', async ({
+    page,
+  }) => {
+    await fakeRust(page, none())
+    await openApp(page)
+    const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
+    await sidebar.getByRole('button', { name: /^Templates/ }).click()
+    // The trial-ended notice lies over the list's top; the press still reaches its button.
+    await page
+      .getByRole('group', { name: 'Built-in' })
+      .getByRole('button', { name: 'Planning' })
+      .evaluate((el) => (el as HTMLElement).click())
+    await expect(page.getByRole('region', { name: 'Planning' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Create' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Edit a Copy' })).toBeDisabled()
+  })
+})
+
 test.describe('devot://licence links', () => {
   const offer = (id = ID, licensee = 'buyer@example.com') => ({ id, licensee, state: 'valid' })
 

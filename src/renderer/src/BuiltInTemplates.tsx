@@ -25,6 +25,8 @@ export function BuiltInTemplates(props: {
 
 export function BuiltInTemplate(props: {
   id: string
+  /** Only the preview works: the trial is over without a licence. */
+  readOnly?: boolean
   onUse: (id: string) => void
   onEditCopy: (id: string) => void
 }) {
@@ -38,11 +40,17 @@ export function BuiltInTemplate(props: {
         <button
           type="button"
           className="button button-default"
+          disabled={props.readOnly}
           onClick={() => props.onUse(template.id)}
         >
           {t('templates.create')}
         </button>
-        <button type="button" className="button" onClick={() => props.onEditCopy(template.id)}>
+        <button
+          type="button"
+          className="button"
+          disabled={props.readOnly}
+          onClick={() => props.onEditCopy(template.id)}
+        >
           {t('templates.editCopy')}
         </button>
       </div>

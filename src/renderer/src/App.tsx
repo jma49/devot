@@ -2039,7 +2039,7 @@ export function App() {
   )
 
   const editBuiltInCopy = async (id: string) => {
-    if (!core) return
+    if (!core || !editing) return
     await saveEdits(core)
     const copy = await core.saveTemplate(id, {}).catch(() => undefined)
     if (!copy) return console.warn('W_TEMPLATE_COPY_FAILED', id)
@@ -2048,6 +2048,7 @@ export function App() {
     await select(copy, { keyboard: true })
   }
   const useBuiltIn = (id: string) => {
+    if (!editing) return
     setBuiltIn(undefined)
     return createFromTemplate(id)
   }
@@ -3859,6 +3860,7 @@ export function App() {
         ) : shownBuiltIn ? (
           <BuiltInTemplate
             id={shownBuiltIn}
+            readOnly={!editing}
             onUse={(id) => void useBuiltIn(id)}
             onEditCopy={(id) => void editBuiltInCopy(id)}
           />
