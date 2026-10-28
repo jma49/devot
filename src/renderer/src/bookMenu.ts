@@ -69,8 +69,8 @@ const entry = (action: BookCommand, more: CommandEntryOptions<BookAction, BookMe
  */
 export function bookActionShown(action: BookAction, book: BookMenuTarget): boolean {
   for (const group of BOOK_MENU) {
-    for (const entry of group) {
-      if (entry.action === action) return entry.shown?.(book) ?? true
+    for (const item of group) {
+      if (item.action === action) return item.shown?.(book) ?? true
     }
   }
   return true
