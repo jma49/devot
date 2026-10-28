@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import {
   BODY,
@@ -80,5 +80,25 @@ describe('linkTargets', () => {
         tags: [{ name: 'work', color: null }],
       },
     })
+  })
+
+  it('reads stored targets in batches of bodies, not one full record each', async () => {
+    const { storage, notes } = setup()
+    const target = await notes.create('Plan')
+    await write(notes, target, '- [ ] one\n- [ ] two')
+    await notes.release(target)
+    const getNote = vi.spyOn(storage, 'getNote')
+    const getBodies = vi.spyOn(storage, 'getBodies')
+
+    expect(await notes.linkTargets([target])).toEqual({
+      [target]: {
+        title: 'Plan',
+        status: 'none',
+        tasks: { done: 0, total: 2 },
+        tags: [],
+      },
+    })
+    expect(getBodies).toHaveBeenCalled()
+    expect(getNote).not.toHaveBeenCalled()
   })
 })

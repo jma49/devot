@@ -1496,28 +1496,29 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       if (want.size === 0) return {}
       const [list, tags] = await Promise.all([storage.listNotes(), storage.listTags()])
       const tagById = new Map(tags.filter((t) => t.deletedAt === null).map((t) => [t.id, t]))
+      const targets = list.filter((summary) => want.has(summary.id))
+      // Batched, and from memory where it is held: only the Markdown is needed, not each full record.
+      const bodiesById = new Map(
+        (await bodies(targets.map((summary) => summary.id))).map((body) => [body.id, body.bodyMd]),
+      )
       const found: Record<string, NoteLinkTarget> = {}
       await Promise.all(
-        list
-          .filter((summary) => want.has(summary.id))
-          .map(async (summary) => {
-            const note = live.get(summary.id)
-            const bodyMd = note
-              ? note.doc.getText(BODY).toString()
-              : ((await storage.getNote(summary.id))?.bodyMd ?? '')
-            const title = note ? note.record.title : summary.title
-            found[summary.id] = {
-              title: title || headline(bodyMd),
-              status: note ? note.record.status : summary.status,
-              tasks: taskProgress(bodyMd),
-              tags: summary.tagIds
-                .flatMap((tagId) => {
-                  const tag = tagById.get(tagId)
-                  return tag ? [{ name: tag.name, color: tag.color }] : []
-                })
-                .sort((a, b) => a.name.localeCompare(b.name)),
-            }
-          }),
+        targets.map((summary) => {
+          const note = live.get(summary.id)
+          const bodyMd = bodiesById.get(summary.id) ?? ''
+          const title = note ? note.record.title : summary.title
+          found[summary.id] = {
+            title: title || headline(bodyMd),
+            status: note ? note.record.status : summary.status,
+            tasks: taskProgress(bodyMd),
+            tags: summary.tagIds
+              .flatMap((tagId) => {
+                const tag = tagById.get(tagId)
+                return tag ? [{ name: tag.name, color: tag.color }] : []
+              })
+              .sort((a, b) => a.name.localeCompare(b.name)),
+          }
+        }),
       )
       return found
     },
