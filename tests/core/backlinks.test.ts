@@ -87,7 +87,7 @@ describe('linkTargets', () => {
     const { notes } = setup()
     const target = await notes.create('Plan')
     const before = (await notes.linkTargets([target]))[target]!.updatedAt
-    await notes.setStatus(target, 'done')
+    await notes.setStatus(target, 'active')
     expect((await notes.linkTargets([target]))[target]!.updatedAt).toBeGreaterThan(before)
   })
 })
