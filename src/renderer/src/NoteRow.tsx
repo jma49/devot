@@ -157,7 +157,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
       onContextMenu={props.menu ? (e) => events.contextMenu(id, e) : undefined}
     >
       {n.title ? (
-        <span className="row-title">
+        <span className="row-title" dir="auto">
           <Marked text={n.title} pattern={highlight?.title} />
         </span>
       ) : null}
@@ -181,7 +181,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
         ) : null}
         {progress ? <TaskProgress {...progress} /> : null}
         {chips.map((c) => (
-          <span key={c.id} className={chipClass(c.color)}>
+          <span key={c.id} className={chipClass(c.color)} dir="auto">
             {c.color ? <TagDot color={c.color} /> : null}
             {c.name}
           </span>
@@ -193,13 +193,15 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
       </span>
       {n.title ? (
         excerpt ? (
-          <span className="row-excerpt">
+          <span className="row-excerpt" dir="auto">
             <Marked text={excerpt} pattern={highlight?.body} />
           </span>
         ) : null
       ) : (
-        <span className="row-excerpt">
-          <span className="row-headline">{props.headline ?? t('note.untitled')}</span>
+        <span className="row-excerpt" dir="auto">
+          <span className="row-headline" dir="auto">
+            {props.headline ?? t('note.untitled')}
+          </span>
           {excerpt ? (
             <>
               {' '}

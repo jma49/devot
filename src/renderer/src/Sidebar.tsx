@@ -480,7 +480,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         }}
       >
         {tag ? <TagGlyph color={tag.color} /> : <Icon name={icon} size="md" />}
-        <span className="source-label">{label}</span>
+        <span className="source-label" dir="auto">
+          {label}
+        </span>
         {unseen && count === 0 ? null : (
           <span className="source-count" aria-hidden={unseen || undefined}>
             {format(count)}
@@ -982,7 +984,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                 }}
               />
             ) : (
-              <span className="source-label">{node.name}</span>
+              <span className="source-label" dir="auto">
+                {node.name}
+              </span>
             )}
             {node.aiAccess ? (
               <span
@@ -1186,7 +1190,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             }}
           >
             <Icon name="notes.all" size="md" />
-            <span className="source-label">{t('sidebar.allNotes')}</span>
+            <span className="source-label" dir="auto">
+              {t('sidebar.allNotes')}
+            </span>
             <span className="source-count">{format(props.total)}</span>
           </button>
         </li>
@@ -1209,7 +1215,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                 onClick={() => props.onSelect({ kind: 'templates' })}
               >
                 <Icon name="templates" size="md" />
-                <span className="source-label">{t('sidebar.templates')}</span>
+                <span className="source-label" dir="auto">
+                  {t('sidebar.templates')}
+                </span>
                 <span className="source-count">{format(props.templatesCount)}</span>
               </button>
             </li>
@@ -1394,7 +1402,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
               }}
             >
               <Icon name="trash" size="md" />
-              <span className="source-label">{t('sidebar.trash')}</span>
+              <span className="source-label" dir="auto">
+                {t('sidebar.trash')}
+              </span>
               <span className="source-count">{format(props.trashCount)}</span>
             </button>
           </li>

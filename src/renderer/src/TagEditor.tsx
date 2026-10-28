@@ -123,6 +123,7 @@ export function TagEditor(props: {
         <span
           key={tag.id}
           className={chipClass(tag.color)}
+          dir="auto"
           data-selected={chosenChip === tag.id || undefined}
           data-added={tag.name.toLowerCase() === added || undefined}
           onAnimationEnd={(e) => {

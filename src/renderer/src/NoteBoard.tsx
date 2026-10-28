@@ -719,7 +719,7 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
       onKeyDown={(e) => events.keyDown(id, e)}
       onContextMenu={props.menu ? (e) => events.contextMenu(id, e) : undefined}
     >
-      <span className={n.title ? 'card-title' : 'card-title card-headline'}>
+      <span className={n.title ? 'card-title' : 'card-title card-headline'} dir="auto">
         {n.title || props.headline || t('note.untitled')}
       </span>
       <span className="card-meta">
