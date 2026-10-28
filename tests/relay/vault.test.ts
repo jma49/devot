@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { RateLimiter } from '../../relay/src/limiter'
 import { sqliteSql } from '../../relay/src/node/sqlite'
+import { FREE_CAPS } from '../../relay/src/quota'
 import { VaultRelay } from '../../relay/src/vault'
 import {
   CLOSE,
@@ -10,6 +11,7 @@ import {
   encodeFrame,
   enrollmentVerifier,
   LIMITS,
+  type QuotaCaps,
   toBase64Url,
 } from '../../src/core/sync/protocol'
 import { tempDir } from '../support/temp-dirs'
@@ -22,15 +24,26 @@ afterEach(() => {
   for (const db of open.splice(0)) db.close()
 })
 
-async function vaultAt(start: number) {
+interface VaultAtOptions {
+  quota?: QuotaCaps | null
+  limiter?: RateLimiter
+}
+
+async function vaultAt(start: number, options: VaultAtOptions = {}) {
   const db = new Database(join(tempDir('devot-relay-vault-'), 'v.sqlite'))
   open.push(db)
-  const clock = { now: start }
+  /** `step` moves the clock on at every read, so a check made from two reads shows. */
+  const clock = { now: start, step: 0 }
   const relay = new VaultRelay(sqliteSql(db), 'vault-0123456789ab', {
     secret,
-    now: () => clock.now,
-    limiter: new RateLimiter(3, 1),
+    now: () => {
+      const at = clock.now
+      clock.now += clock.step
+      return at
+    },
+    limiter: options.limiter ?? new RateLimiter(3, 1),
     log: () => {},
+    ...(options.quota === undefined ? {} : { quota: options.quota }),
   })
   const enrollment = new Uint8Array(32).fill(1)
   const verifier = toBase64Url(await enrollmentVerifier(enrollment))
@@ -100,6 +113,103 @@ describe('counters', () => {
     send({ type: 'push', id: 'r', base: 0, kind: 'file', chunks: [10] }, [new Uint8Array(10)])
     send({ type: 'push', id: 'r', base: 1, kind: 'record', chunks: [4] }, [new Uint8Array(4)])
     expect(send({ type: 'usage' })).toMatchObject({ storedBytes: 4, fileBytes: 0 })
+  })
+})
+
+const NO_CAP = { rowsWritten: 1e12, requests: 1e12, storedBytes: 1e15 }
+const roomy = () => new RateLimiter(1e9, 1e9)
+const record = (id: string, base: number, size = 4): [object, Uint8Array[]] => [
+  { type: 'push', id, base, kind: 'record', chunks: [size] },
+  [new Uint8Array(size)],
+]
+
+describe('quota cap', () => {
+  const noon = Date.UTC(2026, 9, 23, 12)
+  const midnight = Date.UTC(2026, 9, 24)
+
+  it('is 80% of the Workers Free limits by default', () => {
+    expect(FREE_CAPS).toEqual({ rowsWritten: 80_000, requests: 80_000, storedBytes: 4e9 })
+  })
+
+  it('refuses pushes once the rows written reach the cap, until 00:00 UTC, and lets pulls through', async () => {
+    const { clock, send } = await vaultAt(noon, {
+      quota: { ...NO_CAP, rowsWritten: 12 },
+      limiter: roomy(),
+    })
+    let refused: Record<string, unknown> | undefined
+    for (let i = 0; i < 10 && !refused; i++) {
+      const reply = send(...record(`r${i}`, 0))
+      if (reply['type'] === 'error') refused = reply
+    }
+    expect(refused).toMatchObject({ code: 'E_SYNC_QUOTA', limit: 'rowsWritten', until: midnight })
+    expect(send({ type: 'pull', since: 0 })).toMatchObject({ type: 'records' })
+    expect(send({ type: 'usage' })).toMatchObject({ caps: { rowsWritten: 12 } })
+    clock.now = midnight - 1
+    expect(send(...record('late', 0))).toMatchObject({ code: 'E_SYNC_QUOTA', until: midnight })
+    clock.now = midnight
+    expect(send(...record('late', 0))).toMatchObject({ type: 'pushed' })
+  })
+
+  it('dates a refusal from the moment it checked the counters, even as the clock turns 00:00 UTC', async () => {
+    const { clock, send } = await vaultAt(noon, {
+      quota: { ...NO_CAP, rowsWritten: 12 },
+      limiter: roomy(),
+    })
+    for (let i = 0; i < 10; i++) if (send(...record(`r${i}`, 0))['type'] === 'error') break
+    clock.now = midnight - 2
+    clock.step = 1
+    expect(send(...record('late', 0))).toMatchObject({ code: 'E_SYNC_QUOTA', until: midnight })
+  })
+
+  it('counts connections against the requests cap on their own', async () => {
+    const { relay, device, send } = await vaultAt(noon, { quota: { ...NO_CAP, requests: 4 } })
+    expect(send(...record('a', 0))).toMatchObject({ type: 'pushed' })
+    for (let i = 0; i < 3; i++) relay.connected(device)
+    expect(send(...record('b', 0))).toMatchObject({ code: 'E_SYNC_QUOTA', limit: 'requests' })
+  })
+
+  it('counts twenty incoming messages as one request', async () => {
+    const { send } = await vaultAt(noon, { quota: { ...NO_CAP, requests: 3 }, limiter: roomy() })
+    // The creation was one request; with the push below, forty messages make two more.
+    for (let i = 0; i < 39; i++) send({ type: 'time' })
+    expect(send(...record('a', 0))).toMatchObject({ type: 'pushed' })
+    expect(send(...record('b', 0))).toMatchObject({ code: 'E_SYNC_QUOTA', limit: 'requests' })
+  })
+
+  it('refuses a push that would take the stored bytes past the cap, and takes one that frees space', async () => {
+    const { clock, send } = await vaultAt(noon, {
+      quota: { ...NO_CAP, storedBytes: 100 },
+      limiter: roomy(),
+    })
+    expect(send(...record('a', 0, 60))).toMatchObject({ type: 'pushed' })
+    expect(send(...record('b', 0, 50))).toMatchObject({
+      code: 'E_SYNC_QUOTA',
+      limit: 'storedBytes',
+      until: midnight,
+    })
+    expect(send(...record('a', 1, 70))).toMatchObject({ type: 'pushed' })
+    expect(send(...record('a', 2, 10))).toMatchObject({ type: 'pushed' })
+    clock.now += 1000
+    expect(send(...record('b', 0, 50))).toMatchObject({ type: 'pushed' })
+  })
+
+  it('writes nothing for a refused push and counts it with the next write', async () => {
+    const { send, db } = await vaultAt(noon, { quota: { ...NO_CAP, rowsWritten: 1 } })
+    const before = countersRow(db)
+    expect(send(...record('a', 0))).toMatchObject({ code: 'E_SYNC_QUOTA' })
+    expect(countersRow(db)).toEqual(before)
+    expect(db.prepare('SELECT COUNT(*) AS n FROM records').get()).toEqual({ n: 0 })
+    expect(Number(send({ type: 'usage' })['messages'])).toBe(2)
+  })
+
+  it('is off when the host turns it off, and the welcome says which', async () => {
+    const off = await vaultAt(noon, { quota: null, limiter: roomy() })
+    for (let i = 0; i < 3; i++)
+      expect(off.send(...record(`r${i}`, 0))).toMatchObject({ type: 'pushed' })
+    expect(off.send({ type: 'usage' })).toMatchObject({ caps: null })
+    expect(decodeFrame(off.relay.connected(off.device)).message).toMatchObject({ quota: 'off' })
+    const on = await vaultAt(noon)
+    expect(decodeFrame(on.relay.connected(on.device)).message).toMatchObject({ quota: 'on' })
   })
 })
 

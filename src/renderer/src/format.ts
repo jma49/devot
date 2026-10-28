@@ -149,3 +149,25 @@ export function dayDate(day: number, locale: string): string {
     () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }),
   ).format(day * 86_400_000)
 }
+
+/** When a sync pause ends: the time today, or with the weekday when that is another day here. */
+export function untilTime(at: number, now: number, locale: string): string {
+  const today = sameDay(new Date(at), new Date(now))
+  return kept(
+    `until|${today ? 'time' : 'weekday'}|${locale}`,
+    () =>
+      new Intl.DateTimeFormat(
+        locale,
+        today ? { timeStyle: 'short' } : { weekday: 'long', hour: 'numeric', minute: '2-digit' },
+      ),
+  ).format(at)
+}
+
+/** A sync upload's progress: `sent` and `total` as numbers of the locale. */
+export function uploadCounts(
+  upload: { sent: number; total: number },
+  locale: string,
+): { sent: string; total: string } {
+  const number = kept(`number|${locale}`, () => new Intl.NumberFormat(locale))
+  return { sent: number.format(upload.sent), total: number.format(upload.total) }
+}

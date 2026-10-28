@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { countOf } from './format'
+import { countOf, untilTime, uploadCounts } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
 import { LICENCE_REQUIRED, licenceSnapshot, trialOver } from './licence'
 import { LicenceButton } from './LicenceLocked'
-import type { SyncSnapshot } from './sync'
+import { usePauseOver, type SyncSnapshot } from './sync'
 
 const STOPPED: Readonly<Record<string, MessageKey>> = {
   E_SYNC_REVOKED: 'sync.notice.revoked',
@@ -12,29 +12,44 @@ const STOPPED: Readonly<Record<string, MessageKey>> = {
   E_LICENCE_REQUIRED: 'sync.notice.licence',
 }
 
-function message(snapshot: SyncSnapshot): string | undefined {
-  const { state, code, tooLarge } = snapshot.status
-  if (!snapshot.enabled) return undefined
+function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | undefined {
+  const { state, code, pausedUntil, upload } = snapshot.status
+  if (state === 'paused' && pausedUntil !== null) {
+    const locale = currentLocale()
+    if (pauseOver) {
+      if (!upload) return t('sync.notice.resuming')
+      return format(t('sync.notice.resumingUpload'), uploadCounts(upload, locale))
+    }
+    const time = untilTime(pausedUntil, Date.now(), locale)
+    if (!upload) return format(t('sync.notice.paused'), { time })
+    return format(t('sync.notice.pausedUpload'), { time, ...uploadCounts(upload, locale) })
+  }
   if (state === 'stopped' && code) {
     if (code === LICENCE_REQUIRED && trialOver(licenceSnapshot(), Date.now()))
       return t('sync.notice.licenceTrialEnded')
     return format(t(STOPPED[code] ?? 'sync.notice.stopped'), { code })
   }
-  if (tooLarge > 0) {
-    return countOf(
-      tooLarge,
-      currentLocale(),
-      'sync.notice.tooLargeOne',
-      'sync.notice.tooLargeOther',
-    )
-  }
   return undefined
 }
 
-/** Sync stopped until the user acts, or records that stay on this device; dismissed until it says something else. */
+function message(snapshot: SyncSnapshot, pauseOver: boolean): string | undefined {
+  if (!snapshot.enabled) return undefined
+  const { tooLarge } = snapshot.status
+  const parts = [
+    stateMessage(snapshot, pauseOver),
+    tooLarge > 0
+      ? countOf(tooLarge, currentLocale(), 'sync.notice.tooLargeOne', 'sync.notice.tooLargeOther')
+      : undefined,
+  ].filter((part) => part !== undefined)
+  return parts.length > 0 ? parts.join(' ') : undefined
+}
+
+/** Sync stopped until the user acts, paused by the relay's quota, or records that stay on this device; dismissed until it says something else. */
 export function SyncNotice(props: { snapshot: SyncSnapshot }) {
-  const text = message(props.snapshot)
+  const text = message(props.snapshot, usePauseOver(props.snapshot.status.pausedUntil))
   const [dismissed, setDismissed] = useState<string>()
+  // A notice that went away is shown again when it comes back, even with the same words (a pause on another day).
+  if (!text && dismissed !== undefined) setDismissed(undefined)
   if (!text || text === dismissed) return null
   const { state, code } = props.snapshot.status
   return (

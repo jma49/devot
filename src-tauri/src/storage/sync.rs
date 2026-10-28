@@ -10,6 +10,7 @@ use super::{BookRecord, NoteRecord, NoteTagRecord, Result, Store, TagRecord};
 
 const SYNC_PENDING_SQL: &str =
     "SELECT id FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit";
+const SYNC_PENDING_COUNT_SQL: &str = "SELECT COUNT(*) AS n FROM sync_records WHERE edits <> synced";
 const SYNC_ENTRY_SQL: &str =
     "SELECT id, kind, version, fingerprint, body_hlc AS bodyHlc, body_fp AS bodyFp, edits, synced
      FROM sync_records WHERE id = @id";
@@ -69,6 +70,11 @@ impl Store {
                 row.get(0)
             })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    pub fn sync_pending_count(&self) -> Result<i64> {
+        let mut statement = self.conn.prepare_cached(SYNC_PENDING_COUNT_SQL)?;
+        Ok(statement.query_row([], |row| row.get(0))?)
     }
 
     pub fn sync_read(&self, ids: &[String]) -> Result<Vec<SyncLocal>> {
@@ -298,6 +304,7 @@ mod tests {
         let (_dir, mut store) = store();
         store.put_note(&note(), &[]).unwrap();
         assert_eq!(store.sync_pending("", 10).unwrap(), vec![NOTE.to_string()]);
+        assert_eq!(store.sync_pending_count().unwrap(), 1);
         let local = store.sync_read(&[NOTE.into()]).unwrap().remove(0);
         let entry = local.entry.unwrap();
         assert_eq!(
@@ -313,6 +320,7 @@ mod tests {
             })
             .unwrap();
         assert!(store.sync_pending("", 10).unwrap().is_empty());
+        assert_eq!(store.sync_pending_count().unwrap(), 0);
         store
             .put_note_tag(&NoteTagRecord {
                 note_id: NOTE.into(),

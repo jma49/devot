@@ -8,14 +8,15 @@
 // It runs one task at a time. Pushes wait for 3 s without writes, and go at least every 10 s while
 // writes go on. It refuses to sync while this device's clock is more than 5 minutes off the relay's,
 // and a new vault epoch (a relay that lost its data, or a new one) means every record is uploaded
-// again. Revoked, unknown or refused devices stop until the user acts; anything else retries with
-// backoff and jitter.
+// again. Revoked, unknown or refused devices stop until the user acts; the relay's quota cap pauses
+// pushes until its next 00:00 UTC; anything else retries with backoff and jitter.
 
 import { errorCode } from '../errors'
 import { receiveStored, type Clock } from '../hlc'
 import { clipTitle } from '../noteLimits'
 import { isNotebookSymbol } from '../notebookIcons'
 import { MERGE, REVISION_EVERY_MS, textLength } from '../revisions'
+import { quotaResetAt } from './protocol'
 import type { BookRecord, NoteRecord, StorageAdapter, TagRecord } from '../storage'
 import { isTagColor } from '../tags'
 import {
@@ -44,13 +45,20 @@ const RETRY_BASE_MS = 250
 const RECONNECT_MIN_MS = 1_000
 const RECONNECT_MAX_MS = 5 * 60_000
 const SKEW_RECHECK_MS = 5 * 60_000
-/** Until the quota UI (#215) knows the relay's reset time. */
+/** Spreads a vault's devices over the minute after the relay's reset. */
+const QUOTA_JITTER_MS = 60_000
+/** A timer can fall behind the clock while the machine sleeps, so a quota pause checks the time this often. */
 const QUOTA_RECHECK_MS = 60 * 60_000
+/** A backlog this large (a first upload, a new epoch) shows its progress. */
+const UPLOAD_SHOWN_FROM = 100
+const PROGRESS_EVERY_MS = 1_000
 /** One record pushed this often within a minute is a loop between devices, not typing (6 a minute at most). */
 const BREAKER_PUSHES = 30
 const BREAKER_WINDOW_MS = 60_000
 const PAGE = 100
 const WRITE_TRIES = 5
+/** The size of the upload under way, in `sync_state`, so its progress survives a restart; '0' when none. */
+const UPLOAD_TOTAL = 'uploadTotal'
 
 export type SyncState = 'off' | 'connecting' | 'syncing' | 'idle' | 'offline' | 'paused' | 'stopped'
 
@@ -61,6 +69,20 @@ export interface SyncStatus {
   code: string | null
   /** Records past the relay's size limit, kept on this device only. */
   tooLarge: string[]
+  /** Paused by the relay's quota cap: when it takes pushes again (00:00 UTC). */
+  pausedUntil: number | null
+  /** A large upload under way, kept across pauses and restarts. */
+  upload: { sent: number; total: number } | null
+  /** The relay predates the quota cap: its owner should update it. */
+  relayOutdated: boolean
+}
+
+class QuotaPaused extends Error {
+  readonly until: number | null
+  constructor(until: number | null) {
+    super('E_SYNC_QUOTA')
+    this.until = until
+  }
 }
 
 /** Codes that stop sync until the user acts (Settings > Sync). */
@@ -88,6 +110,8 @@ export interface SyncEngineOptions {
   idleMs?: number
   everyMs?: number
   retryBaseMs?: number
+  quotaJitterMs?: number
+  uploadShownFrom?: number
   onStatus?: (status: SyncStatus) => void
   /** Records another device changed here, after each page they came in. */
   onApplied?: (ids: string[]) => void
@@ -233,10 +257,22 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   const idleMs = options.idleMs ?? PUSH_IDLE_MS
   const everyMs = options.everyMs ?? PUSH_EVERY_MS
   const retryBaseMs = options.retryBaseMs ?? RETRY_BASE_MS
+  const quotaJitterMs = options.quotaJitterMs ?? QUOTA_JITTER_MS
+  const uploadShownFrom = options.uploadShownFrom ?? UPLOAD_SHOWN_FROM
 
   let running = false
   let connected = false
-  let status: SyncStatus = { state: 'off', lastSync: null, code: null, tooLarge: [] }
+  let status: SyncStatus = {
+    state: 'off',
+    lastSync: null,
+    code: null,
+    tooLarge: [],
+    pausedUntil: null,
+    upload: null,
+    relayOutdated: false,
+  }
+  /** The relay's clock less this device's, from the last welcome. */
+  let relayOffset = 0
   let queue: Promise<void> = Promise.resolve()
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined
   let reconnectDelay = RECONNECT_MIN_MS
@@ -250,6 +286,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   const set = (patch: Partial<SyncStatus>) => {
     status = { ...status, ...patch }
+    if (status.state !== 'paused') status.pausedUntil = null
     options.onStatus?.(status)
   }
 
@@ -269,6 +306,20 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }, wait)
   }
 
+  /** Reconnects once the relay's clock reaches `until`, after a jitter. */
+  const resumeAt = (until: number) => {
+    if (!running || reconnectTimer) return
+    const wait = until - (now() + relayOffset)
+    if (wait <= 0) return reconnect(quotaJitterMs * (0.5 + random()))
+    reconnectTimer = setTimeout(
+      () => {
+        reconnectTimer = undefined
+        resumeAt(until)
+      },
+      Math.min(wait, QUOTA_RECHECK_MS),
+    )
+  }
+
   async function failed(error: unknown) {
     if (!running) return
     const code = errorCode(error, 'E_SYNC_FAILED')
@@ -282,8 +333,13 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       set({ state: 'stopped', code })
       if (code === 'E_SYNC_CLOCK_SKEW') reconnect(SKEW_RECHECK_MS)
     } else if (code === 'E_SYNC_QUOTA') {
-      set({ state: 'paused', code })
-      reconnect(QUOTA_RECHECK_MS)
+      const relayNow = now() + relayOffset
+      const said = error instanceof QuotaPaused ? error.until : null
+      const next = quotaResetAt(relayNow)
+      // A reset already past (the refusal came in after it) resumes after the jitter; one past the next two is not believed.
+      const until = said === null ? next : Math.min(said, quotaResetAt(next))
+      set({ state: 'paused', code, pausedUntil: until })
+      resumeAt(until)
     } else {
       set({ state: 'offline', code })
       reconnect()
@@ -296,11 +352,15 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     if (status.state === 'stopped' && !again) return
     set({ state: 'connecting' })
     const welcome = await transport.connect()
-    if (Math.abs(welcome.time - now()) > MAX_CLOCK_SKEW_MS) throw new Error('E_SYNC_CLOCK_SKEW')
+    relayOffset = welcome.time - now()
+    if (Math.abs(relayOffset) > MAX_CLOCK_SKEW_MS) throw new Error('E_SYNC_CLOCK_SKEW')
+    const relayOutdated = welcome.quota !== 'on' && welcome.quota !== 'off'
+    if (relayOutdated !== status.relayOutdated) set({ relayOutdated })
     const state = await sync.syncState()
     if (state['epoch'] !== welcome.epoch) {
       await sync.syncReset()
       await sync.syncSetState('since', '0')
+      await sync.syncSetState(UPLOAD_TOTAL, '0')
       await sync.syncSetState('epoch', welcome.epoch)
       tooLarge.clear()
       parked.clear()
@@ -471,10 +531,46 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }
   }
 
+  /** Counts the records sent while a large backlog goes out; `step` after each one, `show` to report now. */
+  async function trackUpload() {
+    const remaining = await sync.syncPendingCount()
+    const stored = Number((await sync.syncState())[UPLOAD_TOTAL] ?? '0') || 0
+    if (stored === 0 && remaining < uploadShownFrom) return undefined
+    const total = Math.max(stored, remaining)
+    if (total !== stored) await sync.syncSetState(UPLOAD_TOTAL, String(total))
+    let sent = total - remaining
+    let shown = now()
+    const show = () => {
+      shown = now()
+      set({ upload: { sent, total } })
+    }
+    show()
+    return {
+      step() {
+        sent = Math.min(total, sent + 1)
+        if (now() - shown >= PROGRESS_EVERY_MS) show()
+      },
+      show,
+    }
+  }
+
   async function pushAll() {
-    await pending(async (id) => {
-      if (!parked.has(id)) await pushOne(id)
-    })
+    const upload = await trackUpload()
+    let full: QuotaPaused | undefined
+    try {
+      await pending(async (id) => {
+        const refused = parked.has(id) ? undefined : await pushOne(id)
+        if (refused) full = refused
+        else upload?.step()
+      })
+      if (full) throw full
+    } catch (error) {
+      upload?.show()
+      throw error
+    }
+    if (!upload) return
+    await sync.syncSetState(UPLOAD_TOTAL, '0')
+    set({ upload: null })
   }
 
   /** Offline: the stamps of bodies changed here are taken now, so the Trash orders them right later. */
@@ -488,18 +584,24 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     })
   }
 
-  async function pushOne(id: string) {
+  /** Returns the refusal when the relay's storage is full: it lasts past 00:00 UTC, and smaller records and purges still fit. */
+  async function pushOne(id: string): Promise<QuotaPaused | undefined> {
     for (let attempt = 0; ; attempt += 1) {
-      if (!connected) return
+      // The socket closed between two pushes: the pass stops, so the upload keeps its place.
+      if (!connected) throw new Error('E_SYNC_OFFLINE')
       const [local] = await sync.syncRead([id])
       const entry: SyncEntry | null | undefined = local?.entry
       if (!local || !entry) return
       const stamped = stamp(local)
       const state = stateOf(local, stamped.bodyHlc)
-      if (!state) return sync.syncPut({ ...entry, synced: entry.edits })
+      if (!state) {
+        await sync.syncPut({ ...entry, synced: entry.edits })
+        return
+      }
       const print = fingerprint(state)
       if (print === entry.fingerprint) {
-        return sync.syncPut({ ...entry, ...stamped, synced: entry.edits })
+        await sync.syncPut({ ...entry, ...stamped, synced: entry.edits })
+        return
       }
       if (stamped.bodyFp !== entry.bodyFp) await sync.syncPut({ ...entry, ...stamped })
       if (tooLarge.get(id) === print) return
@@ -514,9 +616,14 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         set({ tooLarge: [...tooLarge.keys()] })
         return
       }
+      if (result.type === 'paused') {
+        const paused = new QuotaPaused(result.until)
+        if (result.limit === 'storedBytes') return paused
+        throw paused
+      }
       if (result.type === 'pushed') {
         if (tooLarge.delete(id)) set({ tooLarge: [...tooLarge.keys()] })
-        return sync.syncPut({
+        await sync.syncPut({
           id,
           kind: entry.kind,
           version: result.version,
@@ -524,6 +631,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
           ...stamped,
           synced: entry.edits,
         })
+        return
       }
       if (attempt >= MAX_PUSH_RETRIES) {
         console.warn('W_SYNC_PUSH_PARKED', id)
@@ -558,7 +666,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       firstTouch = undefined
       await transport.close().catch(() => undefined)
       await queue
-      set({ state: 'off', code: null })
+      set({ state: 'off', code: null, upload: null, relayOutdated: false })
     },
     touch() {
       if (!running) return

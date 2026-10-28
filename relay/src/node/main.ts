@@ -5,11 +5,17 @@ import { startNodeRelay } from './server.ts'
 
 // `node relay/src/node/main.ts`: RELAY_SECRET (required), RELAY_DATA (the
 // vaults' folder, default ./relay-data), PORT (default 8787), HOST (default
-// 127.0.0.1: put a TLS proxy in front, docs/sync-relay.md).
+// 127.0.0.1: put a TLS proxy in front, docs/sync-relay.md), RELAY_QUOTA
+// (`free`, the default, or `off`).
 
 const secret = process.env['RELAY_SECRET']
 if (!validSecret(secret)) {
   console.error('E_RELAY_CONFIG RELAY_SECRET must be at least 32 characters')
+  process.exit(1)
+}
+const quota = process.env['RELAY_QUOTA'] ?? 'free'
+if (quota !== 'free' && quota !== 'off') {
+  console.error('E_RELAY_CONFIG RELAY_QUOTA must be free or off')
   process.exit(1)
 }
 const data = resolve(process.env['RELAY_DATA'] ?? 'relay-data')
@@ -19,6 +25,7 @@ const relay = await startNodeRelay({
   secret,
   port: Number(process.env['PORT'] ?? 8787),
   host: process.env['HOST'] ?? '127.0.0.1',
+  ...(quota === 'off' ? { quota: null } : {}),
 })
 console.log(`I_RELAY_LISTENING ${relay.url}`)
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

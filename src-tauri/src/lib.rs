@@ -152,6 +152,7 @@ pub fn run() {
             sync::commands::sync_disconnect,
             sync::commands::sync_status_report,
             commands::sync::sync_pending,
+            commands::sync::sync_pending_count,
             commands::sync::sync_read,
             commands::sync::sync_entry_put,
             commands::sync::sync_state_get,

@@ -2,7 +2,7 @@
 // and tag services and the sync engine on its own better-sqlite3 database, as the app does with
 // Rust's storage and transport. Every test ends with both devices holding the same notes.
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import {
   attribute,
@@ -19,8 +19,12 @@ import {
   type StorageAdapter,
   type WelcomeContent,
 } from '../../src/core'
-import { createSyncEngine, type SyncStatus } from '../../src/core/sync/engine'
-import { startNodeRelay, type NodeRelay } from '../../relay/src/node/server'
+import {
+  createSyncEngine,
+  type SyncEngineOptions,
+  type SyncStatus,
+} from '../../src/core/sync/engine'
+import { startNodeRelay, type NodeRelay, type NodeRelayOptions } from '../../relay/src/node/server'
 import { createVault, enrolled, type RelayHost, type TestVault } from '../relay/client'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { windowsOn } from '../support/note-windows'
@@ -40,8 +44,11 @@ interface Relay {
   data: string
 }
 
-async function startRelay(data = tempDir('devot-sync-relay-')): Promise<Relay> {
-  const node = await startNodeRelay({ data, secret: SECRET })
+async function startRelay(
+  data = tempDir('devot-sync-relay-'),
+  options: Pick<NodeRelayOptions, 'quota' | 'now'> = {},
+): Promise<Relay> {
+  const node = await startNodeRelay({ data, secret: SECRET, ...options })
   const relay = { host: { ...node, secret: SECRET }, node, data }
   cleanups.push(() => relay.node.close())
   return relay
@@ -56,6 +63,7 @@ interface DeviceOptions {
   engineStorage?: (storage: SqliteAdapter) => StorageAdapter
   /** Notes in a main window, whose core syncs, and a note window, each with a core of its own. */
   windows?: true
+  engine?: Partial<SyncEngineOptions>
 }
 
 async function device(
@@ -84,31 +92,37 @@ async function device(
     ...options.transport,
   })
   const statuses: SyncStatus[] = []
-  const engine = createSyncEngine({
-    storage: options.engineStorage?.(storage) ?? storage,
-    sync: storage,
-    transport,
-    clock,
-    newId,
-    retryBaseMs: 1,
-    idleMs: 10,
-    everyMs: 40,
-    random: () => 0.5,
-    ...(options.now ? { now: options.now } : {}),
-    onStatus: (status) => statuses.push(status),
-  })
-  transport.onEvent = (event) => engine.received(event)
-  engine.start()
-  cleanups.push(() => engine.stop())
-  await engine.idle()
-  return {
+  const startEngine = () => {
+    const engine = createSyncEngine({
+      storage: options.engineStorage?.(storage) ?? storage,
+      sync: storage,
+      transport,
+      clock,
+      newId,
+      retryBaseMs: 1,
+      idleMs: 10,
+      everyMs: 40,
+      random: () => 0.5,
+      ...(options.now ? { now: options.now } : {}),
+      ...options.engine,
+      onStatus: (status) => {
+        statuses.push(status)
+        options.engine?.onStatus?.(status)
+      },
+    })
+    transport.onEvent = (event) => engine.received(event)
+    engine.start()
+    cleanups.push(() => engine.stop())
+    return engine
+  }
+  const self = {
     name,
     storage,
     notes,
     books,
     tags,
     clock,
-    engine,
+    engine: startEngine(),
     transport,
     statuses,
     credentials,
@@ -116,11 +130,19 @@ async function device(
     /** Saves, pulls and pushes, then lets the note service take in what came. */
     async sync() {
       await notes.flush()
-      await engine.syncNow()
+      await self.engine.syncNow()
       await notes.mergeStored()
     },
     note: (id: string) => storage.getNote(id, { trashed: true }),
+    /** Quits and starts again on the same database, as the app does on a relaunch. */
+    async restart() {
+      await self.engine.stop()
+      self.engine = startEngine()
+      await self.engine.idle()
+    },
   }
+  await self.engine.idle()
+  return self
 }
 
 async function pair(options: { a?: DeviceOptions; b?: DeviceOptions } = {}) {
@@ -499,6 +521,156 @@ describe('sync between two devices', () => {
     // Nobody wrote the welcome that gave way: there is no text of the user's to keep.
     const kept = await b.storage.listRevisions('00000000-0000-7000-8000-0000000000c1')
     expect(kept.filter((r) => r.value === MERGE)).toEqual([])
+  })
+})
+
+describe('the relay’s quota cap', () => {
+  /** A relay with these caps, on a clock the test moves; while `jump` is on, a pause lets the clock run to the reset. */
+  async function cappedPair(start: number, caps: { rowsWritten?: number; storedBytes?: number }) {
+    const time = { now: start, jump: false }
+    const now = () => time.now
+    const quota = { rowsWritten: 1e9, requests: 1e9, storedBytes: 1e12, ...caps }
+    const relay = await startRelay(undefined, { quota, now })
+    const vault = await createVault(relay.host, 'mac')
+    const phone = await enrolled(relay.host, vault, 'phone')
+    const a = await device('mac', relay, vault, vault.first.token, {
+      now,
+      engine: {
+        quotaJitterMs: 10,
+        uploadShownFrom: 5,
+        onStatus: (status) => {
+          if (time.jump && status.pausedUntil !== null) time.now = status.pausedUntil
+        },
+      },
+    })
+    const b = await device('phone', relay, vault, phone.token, { now })
+    return { time, quota, a, b }
+  }
+
+  const resumed = (d: Device) =>
+    vi.waitFor(() => expect(d.engine.status().state).toBe('idle'), { timeout: 10_000 })
+
+  it('pauses pushes until 00:00 UTC, says when, and goes on by itself after it', async () => {
+    const midnight = Date.UTC(2026, 9, 24)
+    const { time, a, b } = await cappedPair(midnight - 300, { rowsWritten: 24 })
+    const ids: string[] = []
+    for (let i = 0; i < 8; i++) ids.push(await a.notes.create(`Note ${i}`))
+    await a.sync()
+    await a.engine.idle()
+    expect(a.engine.status()).toMatchObject({
+      state: 'paused',
+      code: 'E_SYNC_QUOTA',
+      pausedUntil: midnight,
+    })
+    const pushes = a.transport.pushes
+    time.now = midnight + 1
+    await resumed(a)
+    expect(a.transport.pushes).toBeGreaterThan(pushes)
+    expect(a.engine.status()).toMatchObject({ code: null, pausedUntil: null, upload: null })
+    await b.sync()
+    for (const id of ids) expect((await b.note(id))?.title).toMatch(/^Note /)
+  })
+
+  it('keeps the relay’s reset time when the refusal arrives after it, and goes on within a minute', async () => {
+    const midnight = Date.UTC(2026, 9, 24)
+    const { time, a } = await cappedPair(midnight - 300, { rowsWritten: 24 })
+    const push = a.transport.push.bind(a.transport)
+    a.transport.push = async (...args) => {
+      const result = await push(...args)
+      if (result.type === 'paused') time.now = midnight + 50
+      return result
+    }
+    for (let i = 0; i < 8; i++) await a.notes.create(`Note ${i}`)
+    await a.sync()
+    await a.engine.idle()
+    expect(a.statuses.find((s) => s.state === 'paused')?.pausedUntil).toBe(midnight)
+    await resumed(a)
+  })
+
+  it('uploads a large vault over several days, with its progress, keeping its place across a restart', async () => {
+    const { time, a, b } = await cappedPair(Date.UTC(2026, 9, 23, 12), { rowsWritten: 30 })
+    const ids: string[] = []
+    for (let i = 0; i < 20; i++) ids.push(await a.notes.create(`Note ${i}`))
+    await a.sync()
+    await a.engine.idle()
+    const paused = a.engine.status()
+    expect(paused).toMatchObject({ state: 'paused', pausedUntil: Date.UTC(2026, 9, 24) })
+    const sent = paused.upload?.sent ?? 0
+    expect(paused.upload?.total).toBe(20)
+    expect(sent).toBeGreaterThan(0)
+    expect(sent).toBeLessThan(20)
+
+    const from = a.statuses.length
+    time.jump = true
+    await a.restart()
+    await resumed(a)
+    const after = a.statuses.slice(from)
+    const shown = after.flatMap((s) => (s.upload ? [s.upload] : []))
+    expect(shown[0]).toEqual({ sent, total: 20 })
+    expect(shown.map((u) => u.sent)).toEqual([...shown.map((u) => u.sent)].sort((x, y) => x - y))
+    const days = new Set(after.flatMap((s) => (s.pausedUntil === null ? [] : [s.pausedUntil])))
+    expect(days.size).toBeGreaterThan(1)
+    expect(a.engine.status()).toMatchObject({ state: 'idle', upload: null })
+    const pauses = a.statuses.filter(
+      (s, i) => s.state === 'paused' && a.statuses[i - 1]?.state !== 'paused',
+    ).length
+    // Each pause cost one refused push; no record went twice.
+    expect(a.transport.pushes).toBe(20 + pauses)
+    await b.sync()
+    for (const id of ids) expect((await b.note(id))?.title).toMatch(/^Note /)
+  })
+
+  it('still sends smaller records and purges when the relay’s storage is full', async () => {
+    const midnight = Date.UTC(2026, 9, 24)
+    const { quota, a, b } = await cappedPair(midnight - 3_600_000, {})
+    const growing = await a.notes.create('Growing')
+    const purged = await a.notes.create('Purged')
+    await a.notes.setBody(purged, 'y'.repeat(2000))
+    await settle(a, b)
+    quota.storedBytes = 1
+    await a.notes.setBody(growing, 'x'.repeat(2000))
+    await a.notes.trash(purged)
+    await a.notes.purge(purged)
+    await a.sync()
+    await a.engine.idle()
+    expect(a.engine.status()).toMatchObject({
+      state: 'paused',
+      code: 'E_SYNC_QUOTA',
+      pausedUntil: midnight,
+    })
+    await b.sync()
+    expect(await b.note(purged)).toBeNull()
+    expect((await b.note(growing))?.bodyMd).toBe('')
+  })
+
+  it('keeps an upload’s place when the connection drops between two pushes', async () => {
+    const { a } = await pair({ a: { engine: { uploadShownFrom: 5 } } })
+    for (let i = 0; i < 10; i++) await a.notes.create(`Note ${i}`)
+    await a.notes.flush()
+    const push = a.transport.push.bind(a.transport)
+    a.transport.push = async (...args) => {
+      const result = await push(...args)
+      if (a.transport.pushes === 3) a.engine.received({ type: 'closed', code: 'E_SYNC_OFFLINE' })
+      return result
+    }
+    await a.engine.syncNow()
+    await a.engine.idle()
+    expect(a.engine.status()).toMatchObject({ state: 'offline', upload: { sent: 3, total: 10 } })
+    expect((await a.storage.syncState())['uploadTotal']).toBe('10')
+    await vi.waitFor(() => expect(a.engine.status().state).toBe('idle'), { timeout: 10_000 })
+    expect(a.engine.status().upload).toBeNull()
+    expect(a.transport.pushes).toBe(10)
+  })
+
+  it('syncs with a relay from before the cap as before, and says to update it', async () => {
+    const { a, b } = await pair({
+      a: { transport: { welcome: (welcome) => ({ ...welcome, quota: null }) } },
+    })
+    const id = await a.notes.create('Older relay')
+    await settle(a, b)
+    expect(a.engine.status()).toMatchObject({ state: 'idle', relayOutdated: true })
+    expect(b.engine.status().relayOutdated).toBe(false)
+    expect((await b.note(id))?.title).toBe('Older relay')
   })
 })
 

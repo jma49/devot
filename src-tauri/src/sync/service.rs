@@ -54,6 +54,22 @@ pub(crate) struct StatusView {
     pub code: Option<String>,
     #[serde(default)]
     pub too_large: u32,
+    /// Paused by the relay's quota cap until then (its next 00:00 UTC).
+    #[serde(default)]
+    pub paused_until: Option<i64>,
+    /// A large upload under way.
+    #[serde(default)]
+    pub upload: Option<UploadView>,
+    /// The relay predates the quota cap: its owner should update it.
+    #[serde(default)]
+    pub relay_outdated: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct UploadView {
+    pub sent: u64,
+    pub total: u64,
 }
 
 impl Default for StatusView {
@@ -63,6 +79,9 @@ impl Default for StatusView {
             last_sync: None,
             code: None,
             too_large: 0,
+            paused_until: None,
+            upload: None,
+            relay_outdated: false,
         }
     }
 }
@@ -70,8 +89,13 @@ impl Default for StatusView {
 impl StatusView {
     fn checked(self) -> Result<Self, &'static str> {
         let code_ok = self.code.as_deref().is_none_or(crate::logs::is_code);
-        let time_ok = self.last_sync.is_none_or(|t| t >= 0);
-        if !STATES.contains(&self.state.as_str()) || !code_ok || !time_ok {
+        let time_ok = [self.last_sync, self.paused_until]
+            .iter()
+            .all(|t| t.is_none_or(|t| t >= 0));
+        let upload_ok = self
+            .upload
+            .is_none_or(|u| u.sent <= u.total && u.total <= MAX_SAFE);
+        if !STATES.contains(&self.state.as_str()) || !code_ok || !time_ok || !upload_ok {
             return Err("E_SYNC_STATUS_INVALID");
         }
         Ok(self)
@@ -119,8 +143,17 @@ pub(crate) struct PullDto {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub(crate) enum PushDto {
-    Pushed { version: u64, seq: u64 },
-    Rejected { version: u64 },
+    Pushed {
+        version: u64,
+        seq: u64,
+    },
+    Rejected {
+        version: u64,
+    },
+    Paused {
+        until: Option<i64>,
+        limit: Option<&'static str>,
+    },
 }
 
 /// Turning sync on: the snapshot, and the recovery key the first time this device's vault is
@@ -815,8 +848,16 @@ impl SyncService {
         }
         let (connection, vault) = self.live()?;
         match client::push(&connection, &vault, id, base, &plaintext) {
-            Ok(client::Pushed::Pushed { version, seq }) => Ok(PushDto::Pushed { version, seq }),
-            Ok(client::Pushed::Rejected { version }) => Ok(PushDto::Rejected { version }),
+            Ok(client::PushReply::Pushed { version, seq }) => Ok(PushDto::Pushed { version, seq }),
+            Ok(client::PushReply::Rejected { version }) => Ok(PushDto::Rejected { version }),
+            Ok(client::PushReply::Paused { until, limit }) => {
+                log::info!(
+                    "I_SYNC_QUOTA_PAUSED until={} limit={}",
+                    until.unwrap_or(0),
+                    limit.unwrap_or("unknown")
+                );
+                Ok(PushDto::Paused { until, limit })
+            }
             Err("E_SYNC_TOO_LARGE") => {
                 log::warn!("W_SYNC_TOO_LARGE id={id}");
                 Err("E_SYNC_TOO_LARGE")
@@ -850,14 +891,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn hands_a_quota_pause_to_the_engine_with_its_reset_and_limit() {
+        let paused = PushDto::Paused {
+            until: Some(1_793_145_600_000),
+            limit: Some("storedBytes"),
+        };
+        assert_eq!(
+            serde_json::to_value(paused).unwrap(),
+            json!({ "type": "paused", "until": 1_793_145_600_000_i64, "limit": "storedBytes" })
+        );
+    }
+
+    #[test]
     fn takes_a_status_only_with_a_known_state_and_a_code() {
         let ok = StatusView {
-            state: "stopped".into(),
+            state: "paused".into(),
             last_sync: Some(5),
-            code: Some("E_SYNC_REVOKED".into()),
+            code: Some("E_SYNC_QUOTA".into()),
             too_large: 1,
+            paused_until: Some(1_793_145_600_000),
+            upload: Some(UploadView { sent: 3, total: 9 }),
+            relay_outdated: true,
         };
         assert!(ok.clone().checked().is_ok());
+        let older: StatusView = serde_json::from_value(json!({
+            "state": "idle", "lastSync": null, "code": null, "tooLarge": 0
+        }))
+        .unwrap();
+        assert_eq!(older.upload, None);
         for bad in [
             StatusView {
                 state: "weird".into(),
@@ -869,6 +930,14 @@ mod tests {
             },
             StatusView {
                 last_sync: Some(-1),
+                ..ok.clone()
+            },
+            StatusView {
+                paused_until: Some(-1),
+                ..ok.clone()
+            },
+            StatusView {
+                upload: Some(UploadView { sent: 10, total: 9 }),
                 ..ok.clone()
             },
         ] {

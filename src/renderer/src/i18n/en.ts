@@ -624,6 +624,12 @@ export const en = {
   'syncSettings.tooLargeOne': '{count} note is too large for the relay and stays on this device.',
   'syncSettings.tooLargeOther':
     '{count} notes are too large for the relay and stay on this device.',
+  'syncSettings.pausedUntil':
+    'Sync paused until {time}: the relay has reached its quota for today.',
+  'syncSettings.resuming': 'The relay’s quota for today has reset; sync resumes in a moment.',
+  'syncSettings.upload': '{sent} of {total} items uploaded.',
+  'syncSettings.relayOutdated':
+    'Your relay comes from an earlier release and has no quota cap of its own. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
   'syncSettings.urlFailed': 'The relay address could not be saved ({code}).',
   'syncSettings.vaultFailed': 'The vault could not be created ({code}).',
   'syncSettings.changeFailed': 'Sync could not be turned on or off ({code}).',
@@ -708,6 +714,14 @@ export const en = {
     'Sync has stopped: it needs a Devot licence. Your notes stay on this device. Add a licence in Settings > Licence.',
   'sync.notice.licenceTrialEnded':
     'Sync has stopped: your trial has ended, and sync needs a Devot licence. Your notes stay on this device. Add a licence in Settings > Licence.',
+  'sync.notice.paused':
+    'Sync paused until {time}: the relay has reached its quota for today. Your notes keep working on this device and sync after that.',
+  'sync.notice.pausedUpload':
+    'Sync paused until {time}: the relay has reached its quota for today, with {sent} of {total} items uploaded. The upload goes on after that; your notes keep working on this device.',
+  'sync.notice.resuming':
+    'The relay’s quota for today has reset; sync resumes in a moment. Your notes keep working on this device.',
+  'sync.notice.resumingUpload':
+    'The relay’s quota for today has reset; sync resumes in a moment, with {sent} of {total} items uploaded so far.',
   'sync.notice.tooLargeOne': '{count} note is too large to sync and stays on this device only.',
   'sync.notice.tooLargeOther': '{count} notes are too large to sync and stay on this device only.',
   'licenceSettings.title': 'Licence',

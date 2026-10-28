@@ -59,6 +59,15 @@ export interface DeviceInfo {
   current: boolean
 }
 
+/** The relay's counted limits a push can trip (docs/sync-relay.md, Quota). */
+export const QUOTA_LIMITS = ['rowsWritten', 'requests', 'storedBytes'] as const
+export type QuotaLimit = (typeof QUOTA_LIMITS)[number]
+
+export const isQuotaLimit = (value: unknown): value is QuotaLimit =>
+  QUOTA_LIMITS.includes(value as QuotaLimit)
+
+export type QuotaCaps = Readonly<Record<QuotaLimit, number>>
+
 export interface Usage {
   /** UTC day (YYYY-MM-DD) the daily counters belong to. */
   day: string
@@ -67,6 +76,14 @@ export interface Usage {
   requests: number
   storedBytes: number
   fileBytes: number
+  /** Null when the host runs without the cap; absent from a relay older than the cap. */
+  caps?: QuotaCaps | null
+}
+
+/** The daily counters reset, and a quota pause ends, at the next 00:00 UTC. */
+export function quotaResetAt(ms: number): number {
+  const at = new Date(ms)
+  return Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate() + 1)
 }
 
 export type ClientMessage =
@@ -78,7 +95,15 @@ export type ClientMessage =
   | { type: 'usage'; rid?: number }
 
 export type RelayMessage =
-  | { type: 'welcome'; time: number; epoch: string; seq: number; device: string }
+  | {
+      type: 'welcome'
+      time: number
+      epoch: string
+      seq: number
+      device: string
+      /** Whether the relay enforces the quota cap; absent from a relay older than the cap. */
+      quota?: 'on' | 'off'
+    }
   | { type: 'records'; rid?: number; records: RecordHead[]; next: number; more: boolean }
   | { type: 'pushed'; rid?: number; id: string; version: number; seq: number }
   | { type: 'rejected'; rid?: number; id: string; version: number }
@@ -87,7 +112,16 @@ export type RelayMessage =
   | { type: 'revoked'; rid?: number; device: string }
   | { type: 'time'; rid?: number; time: number }
   | ({ type: 'usage'; rid?: number } & Usage)
-  | { type: 'error'; rid?: number; code: string; retryAfter?: number }
+  | {
+      type: 'error'
+      rid?: number
+      code: string
+      /** With E_SYNC_RATE: milliseconds to wait. */
+      retryAfter?: number
+      /** With E_SYNC_QUOTA: the limit that tripped and when pushes are taken again (`quotaResetAt`). */
+      limit?: QuotaLimit
+      until?: number
+    }
 
 /** HTTP bodies: vault creation and device enrollment, and the relay's answers. */
 export interface CreateRequest {

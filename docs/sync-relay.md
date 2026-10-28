@@ -31,15 +31,45 @@ RELAY_SECRET="$(openssl rand -base64 32)" RELAY_DATA=/var/lib/devot-relay PORT=8
 | `RELAY_DATA`   | `./relay-data` | Folder for the vaults' databases (`<vault ID>.sqlite`)  |
 | `PORT`         | `8787`         | Port to listen on                                       |
 | `HOST`         | `127.0.0.1`    | Address to listen on; leave it local behind a TLS proxy |
+| `RELAY_QUOTA`  | `free`         | `free`: the quota cap below; `off`: no cap              |
+
+A server of your own has none of the Workers Free limits, but the cap stays on by default: it is one of the cost guards every host keeps (`docs/architecture.md`, Sync and encryption), and it keeps a misbehaving device from filling the disk. Set `RELAY_QUOTA=off` to run without it.
 
 The relay speaks plain HTTP: put a TLS proxy in front, such as Caddy (`devot-relay.example.com { reverse_proxy 127.0.0.1:8787 }`, which passes WebSockets through), and keep it running with your service manager. The relay is not a source of truth: if its folder is lost, devices upload their records again to a new vault. Pairings live in memory: a restart ends the codes on show, and a device shows a new one.
 
 ## Update the relay
 
+Update the relay when Devot's release notes say so, and before you update the apps when you can. Data, `RELAY_SECRET` and device tokens stay as they are, and no device has to enroll again.
+
 Pairing devices (docs/adr/0008-sync-device-pairing.md) needs a relay from this release or later. A relay from before answers a pairing with `E_SYNC_NOT_FOUND`; Devot then says the relay needs an update and changes nothing on either device. Joining with the recovery key works with an older relay too. An updated relay keeps serving devices that run an older Devot: every earlier route and message is unchanged.
 
 - **Cloudflare:** pull the repository, then in `relay/` run `pnpm install --filter @devot/relay` and `pnpm exec wrangler deploy`. The deploy applies the `v2` migration, which adds the `PairingObject` class next to your vaults and leaves them as they are. If you renamed the Worker or edited `wrangler.toml`, add the `PAIRINGS` binding and the `v2` migration from the template first. The secret and the URL stay.
 - **Node:** pull the repository, run `pnpm install --filter @devot/relay`, and restart `node relay/src/node/main.ts` with the same `RELAY_SECRET` and `RELAY_DATA`. The vault files stay as they are.
+
+Mixed versions keep working while you update:
+
+- **A newer app with an older relay** syncs as before, without the quota cap. The relay's `welcome` does not say `quota`, so Settings > Sync tells you to update the relay. A relay older than the cap never refuses a push for quota; on Cloudflare a request past a free limit then fails until 00:00 UTC, which the app treats as being offline and tries again later. Nothing is lost.
+- **An older app (1.0.5-beta2) with a newer relay** syncs as before. It reads `E_SYNC_QUOTA` as a pause and tries again every hour, without the reset time.
+
+## Quota
+
+The relay keeps every vault inside 80% of each Workers Free limit it can count (docs/adr/0002-sync-latest-state-per-record.md, Staying inside the Workers Free plan). On the Free plan an exceeded limit makes requests fail rather than cost money; the cap keeps that from happening and tells the devices when they can go on. The limits are in `relay/src/quota.ts`. Read them again before each release.
+
+| Workers Free limit      | Limit                                                                     | Cap (80%)           | Counted as                                                                        |
+| ----------------------- | ------------------------------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------- |
+| Rows written (SQLite)   | 100,000 a day, deletes included                                           | 80,000 a day        | `rowsWritten`, as the host's SQLite reports them                                  |
+| Durable Object requests | 100,000 a day; a connection or call is 1, 20 incoming messages count as 1 | 80,000 a day        | `requests` + `messages` / 20                                                      |
+| Workers requests        | 100,000 a day                                                             | within the above    | each HTTP call and socket connection is in `requests`, so the cap above covers it |
+| Stored data (SQLite)    | 5 GB in total                                                             | 4,000,000,000 bytes | `storedBytes`, the records' sealed bytes                                          |
+| Rows read (SQLite)      | 5,000,000 a day                                                           | not counted         | see Pulls                                                                         |
+| Duration                | 13,000 GB-s a day                                                         | not counted         | the Hibernation API bills only while a message is handled                         |
+
+- **Pushes:** before it writes, a push checks the counters. When today's rows written or requests are at their cap, or the push would take the stored bytes past theirs, the relay refuses it and writes nothing: `error` with `code: "E_SYNC_QUOTA"`, `limit` (`rowsWritten`, `requests` or `storedBytes`) and `until`, the next 00:00 UTC in milliseconds, when the daily counts reset. A push that does not add stored bytes (a smaller record, a purge) passes the storage cap; the reset does not free storage, so past that cap the app tries again each day until records shrink or are purged. The refused message is counted with the next write, like other refused messages.
+- **Pulls** stay allowed, and so do `devices`, `revoke`, `time`, `usage`, connections and enrollment. A pull is one incoming message (1/20 of a request), writes one row (the counters row) and reads the records it returns and their chunks, about 3 rows a record; it adds no stored bytes. While pushes are refused, nothing new reaches the relay, so an up-to-date device has nothing to pull, and a paused app closes its socket until the reset. The 20% above the cap, 20,000 rows and 20,000 requests a day, lets a device that is still downloading the vault finish: each pull brings up to 100 records. Rows read are not counted: a full download of a 100,000-record vault reads about 300,000 rows, 6% of the daily limit.
+- **The first upload of a large vault** costs at least 4 rows written a record (the record row, a chunk row, the counters row, and the counters row of the other devices' pulls), so about 20,000 records a day fit under the cap. A larger vault goes on over several days: the app shows how many records it has sent of the total, keeps its place across restarts and goes on after each reset.
+- **What the app does:** it stops pushing, closes the socket and shows "Sync paused until <the reset in local time>" in its notice and in Settings > Sync; notes keep working on the device. A refusal for stored bytes does not stop the pass: the app still sends the records that fit (smaller ones, purges) and pauses after it. It connects again after the reset, at a random moment in the next minute, and pushes what waited. It never connects in between; it checks the time at least hourly, so a timer that fell behind while the computer slept still ends the pause.
+- **Per vault:** the counters are per vault, and the Workers Free limits are per account. One vault per account, as the deploy steps above set up, keeps the two the same.
+- **Stored bytes** count the records' sealed bytes, not SQLite's own overhead (row headers, index pages); the 20% left covers it.
 
 ## Connect Devot
 
@@ -95,13 +125,13 @@ Version 1. Every message is an envelope `{"v": 1, "type": …}`; a relay refuses
 | `time`                                                  | `time`: the relay's time in milliseconds                                                         |
 | `usage`                                                 | `usage`: the counters below                                                                      |
 
-- On connecting, the relay sends `welcome`: its `time` (for the client's 5-minute clock check), the vault `epoch`, the current `seq` and the `device`.
+- On connecting, the relay sends `welcome`: its `time` (for the client's 5-minute clock check), the vault `epoch`, the current `seq`, the `device` and `quota` (`on` or `off`, whether it enforces the quota cap; a relay older than the cap leaves it out).
 - **Push** is one SQLite transaction with compare-and-swap: when `base` is the stored version (0 for a new record), the relay replaces the record's chunks, sets the version to `base + 1`, gives it the next vault-wide `seq` and sends `changed`: `seq` to the vault's other connections. Otherwise it rejects with the current version and changes nothing. `kind` is `record` or `file` (an attachment, whose bytes count apart; docs/adr/0003-sync-attachments-as-records.md).
 - **Pull** returns the records with `seq` greater than `since`, in `seq` order, in pages of at most 100 records and 16 MiB of chunks (a larger record comes alone). `next` is the `since` of the next pull; `more` says whether there is one.
 - **Limits:** a chunk is at most 1,900,000 bytes, a push at most 16 chunks (one message stays under the Workers 32 MiB WebSocket limit), a message at most 31 MiB (`E_SYNC_TOO_LARGE`), an HTTP body at most 4 KiB. Each device may send 60 messages at once and 10 a second after that; past it the relay answers `E_SYNC_RATE` with `retryAfter` in milliseconds and does nothing else. Every message counts against the rate, malformed and oversized ones included. A vault holds at most 100 devices.
-- **Errors** are `error`: `code` (`E_SYNC_BAD_MESSAGE`, `E_SYNC_PROTOCOL`, `E_SYNC_TOO_LARGE`, `E_SYNC_RATE`, `E_SYNC_NO_DEVICE`, `E_SYNC_INTERNAL`); a socket stays open after one. A message from a revoked device, on a socket the host has not finished closing, gets `E_SYNC_REVOKED` again and nothing else. HTTP errors are the same envelope with a status.
+- **Errors** are `error`: `code` (`E_SYNC_BAD_MESSAGE`, `E_SYNC_PROTOCOL`, `E_SYNC_TOO_LARGE`, `E_SYNC_RATE`, `E_SYNC_QUOTA` with `limit` and `until`, `E_SYNC_NO_DEVICE`, `E_SYNC_INTERNAL`); a socket stays open after one. A message from a revoked device, on a socket the host has not finished closing, gets `E_SYNC_REVOKED` again and nothing else. HTTP errors are the same envelope with a status.
 
-**Counters.** One row per vault counts, for the current UTC day, the rows written (as the host's SQLite reports them, the counters row's own write included), the incoming messages and the requests (connections, creations and enrollments; refused messages and requests are added with the next write rather than with a write of their own), and in total the stored bytes of all records and of file records. The cap at 80% of the free limits uses them (#215).
+**Counters.** One row per vault counts, for the current UTC day, the rows written (as the host's SQLite reports them, the counters row's own write included), the incoming messages and the requests (connections, creations and enrollments; refused messages and requests are added with the next write rather than with a write of their own), and in total the stored bytes of all records and of file records. A day's counts start from 0 with the first write after 00:00 UTC. `usage` answers with them and with `caps`, the quota cap's values (null when it is off). The quota cap above uses them.
 
 ## Tests
 

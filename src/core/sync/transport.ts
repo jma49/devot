@@ -2,7 +2,7 @@
 // key, and seals and opens records (no key ever reaches the web view); the core hands it plaintext
 // and gets plaintext back. Tests run a transport of their own against the Node relay.
 
-import type { RecordKind } from './protocol'
+import type { QuotaLimit, RecordKind } from './protocol'
 
 export interface Welcome {
   /** The relay's clock, in milliseconds. */
@@ -10,6 +10,8 @@ export interface Welcome {
   epoch: string
   seq: number
   device: string
+  /** Whether the relay enforces the quota cap; absent (or null) from a relay older than the cap. */
+  quota?: 'on' | 'off' | null
 }
 
 export interface PulledRecord {
@@ -31,6 +33,8 @@ export interface PullPage {
 export type PushResult =
   | { type: 'pushed'; version: number; seq: number }
   | { type: 'rejected'; version: number }
+  /** The relay's quota cap (E_SYNC_QUOTA): pushes wait until `until`, the relay's next 00:00 UTC; null when it did not say. */
+  | { type: 'paused'; until: number | null; limit?: QuotaLimit | null }
 
 export type SyncEvent =
   | { type: 'changed'; seq: number }

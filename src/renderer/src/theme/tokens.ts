@@ -111,6 +111,7 @@ export const sizes = {
   "size.drop-indicator": "2px",
   "size.picker-min-width": "220px",
   "size.notice-text-min-width": "220px",
+  "size.notice-max-width": "440px",
   "size.picker-min-height": "200px",
   "size.popover-margin": "8px",
   "size.switch-width": "36px",

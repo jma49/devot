@@ -118,7 +118,7 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
     })
 
     describe('connecting', () => {
-      it('welcomes a device with the relay time, the vault epoch and seq', async () => {
+      it('welcomes a device with the relay time, the vault epoch and seq, and the quota cap on', async () => {
         const vault = await createVault(host)
         const { socket, welcome } = await connect(host, vault.vault, vault.first.token)
         expect(socket.protocol).toBe(SUBPROTOCOL)
@@ -127,6 +127,7 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
           epoch: vault.first.epoch,
           seq: 0,
           device: vault.first.device,
+          quota: 'on',
         })
         expect(Math.abs(Number(welcome['time']) - Date.now())).toBeLessThan(60_000)
         socket.send({ type: 'time', rid: 4 })
@@ -567,6 +568,7 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
         const before = (await socket.expect('usage')).message
         expect(before['day']).toBe(new Date().toISOString().slice(0, 10))
         expect(before).toMatchObject({ storedBytes: 0, fileBytes: 0 })
+        expect(before['caps']).toEqual({ rowsWritten: 80_000, requests: 80_000, storedBytes: 4e9 })
         expect(Number(before['requests'])).toBeGreaterThanOrEqual(2)
 
         socket.send({ type: 'push', id: 'note', base: 0, kind: 'record', chunks: [100, 50] }, [

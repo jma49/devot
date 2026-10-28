@@ -384,6 +384,8 @@ pub(crate) struct Welcome {
     pub epoch: String,
     pub seq: u64,
     pub device: String,
+    /// `on` or `off`; None from a relay older than the quota cap.
+    pub quota: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -437,6 +439,12 @@ fn decode(message: Message) -> Option<Answer> {
     };
     (message.get("v").and_then(Value::as_u64) == Some(PROTOCOL_VERSION))
         .then_some(Answer { message, payload })
+}
+
+fn error_code(answer: &Answer) -> Option<&'static str> {
+    (answer.message.get("type").and_then(Value::as_str) == Some("error")).then(|| {
+        relay_code(&Value::Object(answer.message.clone())).unwrap_or("E_SYNC_RELAY_FAILED")
+    })
 }
 
 fn close_code(code: u16) -> &'static str {
@@ -559,6 +567,11 @@ fn read_welcome(socket: &mut Socket) -> Result<Welcome, &'static str> {
                         .filter(|d| valid_relay_id(d))
                         .ok_or("E_SYNC_PROTOCOL")?
                         .to_string(),
+                    quota: match m.get("quota").and_then(Value::as_str) {
+                        Some("on") => Some("on"),
+                        Some("off") => Some("off"),
+                        _ => None,
+                    },
                 };
                 return Ok(welcome);
             }
@@ -660,15 +673,23 @@ impl Connection {
         message: &Map<String, Value>,
         chunks: &[Vec<u8>],
     ) -> Result<Answer, &'static str> {
+        let answer = self.answer(message, chunks)?;
+        match error_code(&answer) {
+            Some(code) => Err(code),
+            None => Ok(answer),
+        }
+    }
+
+    /// As `request`, but an `error` answer other than the rate limit comes back for the caller to read.
+    fn answer(
+        &self,
+        message: &Map<String, Value>,
+        chunks: &[Vec<u8>],
+    ) -> Result<Answer, &'static str> {
         for _ in 0..MAX_RATE_WAITS {
             let answer = self.send_once(message, chunks)?;
-            if answer.message.get("type").and_then(Value::as_str) != Some("error") {
+            if error_code(&answer) != Some("E_SYNC_RATE") {
                 return Ok(answer);
-            }
-            let code =
-                relay_code(&Value::Object(answer.message.clone())).unwrap_or("E_SYNC_RELAY_FAILED");
-            if code != "E_SYNC_RATE" {
-                return Err(code);
             }
             let wait = answer
                 .message
@@ -794,9 +815,55 @@ pub(crate) struct PullPage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Pushed {
-    Pushed { version: u64, seq: u64 },
-    Rejected { version: u64 },
+pub(crate) enum PushReply {
+    Pushed {
+        version: u64,
+        seq: u64,
+    },
+    Rejected {
+        version: u64,
+    },
+    /// The relay's quota cap: no pushes until `until` (its next 00:00 UTC), when it said so.
+    Paused {
+        until: Option<i64>,
+        /// The limit that tripped, when the relay named a known one.
+        limit: Option<&'static str>,
+    },
+}
+
+const MAX_SAFE: i64 = 9_007_199_254_740_991;
+const QUOTA_LIMITS: [&str; 3] = ["rowsWritten", "requests", "storedBytes"];
+
+fn pushed(answer: &Answer) -> Result<PushReply, &'static str> {
+    let number = |key: &str| {
+        answer
+            .message
+            .get(key)
+            .and_then(Value::as_u64)
+            .ok_or("E_SYNC_PROTOCOL")
+    };
+    match error_code(answer) {
+        Some("E_SYNC_QUOTA") => {
+            let until = answer.message.get("until").and_then(Value::as_i64);
+            let limit = answer.message.get("limit").and_then(Value::as_str);
+            return Ok(PushReply::Paused {
+                until: until.filter(|t| (1..=MAX_SAFE).contains(t)),
+                limit: QUOTA_LIMITS.into_iter().find(|known| Some(*known) == limit),
+            });
+        }
+        Some(code) => return Err(code),
+        None => {}
+    }
+    match answer.message.get("type").and_then(Value::as_str) {
+        Some("pushed") => Ok(PushReply::Pushed {
+            version: number("version")?,
+            seq: number("seq")?,
+        }),
+        Some("rejected") => Ok(PushReply::Rejected {
+            version: number("version")?,
+        }),
+        _ => Err("E_SYNC_PROTOCOL"),
+    }
 }
 
 fn object(value: Value) -> Map<String, Value> {
@@ -894,7 +961,7 @@ pub(crate) fn push(
     id: &str,
     base: u64,
     plaintext: &[u8],
-) -> Result<Pushed, &'static str> {
+) -> Result<PushReply, &'static str> {
     let version = base.checked_add(1).ok_or("E_SYNC_PROTOCOL")?;
     if super::chunk_count(plaintext.len()) > MAX_CHUNKS {
         return Err("E_SYNC_TOO_LARGE");
@@ -916,24 +983,7 @@ pub(crate) fn push(
         "kind": "record",
         "chunks": lengths,
     }));
-    let answer = connection.request(&message, &chunks)?;
-    let number = |key: &str| {
-        answer
-            .message
-            .get(key)
-            .and_then(Value::as_u64)
-            .ok_or("E_SYNC_PROTOCOL")
-    };
-    match answer.message.get("type").and_then(Value::as_str) {
-        Some("pushed") => Ok(Pushed::Pushed {
-            version: number("version")?,
-            seq: number("seq")?,
-        }),
-        Some("rejected") => Ok(Pushed::Rejected {
-            version: number("version")?,
-        }),
-        _ => Err("E_SYNC_PROTOCOL"),
-    }
+    pushed(&connection.answer(&message, &chunks)?)
 }
 
 /// A device of the vault, as the relay lists it.
@@ -1065,6 +1115,66 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    fn answer(message: Value) -> Answer {
+        Answer {
+            message: object(message),
+            payload: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn reads_a_quota_refusal_as_a_pause_until_the_reset() {
+        let until = 1_793_145_600_000_i64;
+        assert_eq!(
+            pushed(&answer(json!({
+                "type": "error",
+                "code": "E_SYNC_QUOTA",
+                "limit": "rowsWritten",
+                "until": until,
+            }))),
+            Ok(PushReply::Paused {
+                until: Some(until),
+                limit: Some("rowsWritten")
+            })
+        );
+        for odd in [json!(null), json!(-1), json!("tomorrow"), json!(1e300)] {
+            assert_eq!(
+                pushed(&answer(
+                    json!({ "type": "error", "code": "E_SYNC_QUOTA", "until": odd, "limit": odd })
+                )),
+                Ok(PushReply::Paused {
+                    until: None,
+                    limit: None
+                })
+            );
+        }
+        assert_eq!(
+            pushed(&answer(json!({
+                "type": "error",
+                "code": "E_SYNC_QUOTA",
+                "limit": "storedBytes",
+            }))),
+            Ok(PushReply::Paused {
+                until: None,
+                limit: Some("storedBytes")
+            })
+        );
+        assert_eq!(
+            pushed(&answer(
+                json!({ "type": "error", "code": "E_SYNC_TOO_LARGE" })
+            )),
+            Err("E_SYNC_TOO_LARGE")
+        );
+        assert_eq!(
+            pushed(&answer(json!({ "type": "error", "code": "a note title" }))),
+            Err("E_SYNC_RELAY_FAILED")
+        );
+        assert_eq!(
+            pushed(&answer(json!({ "type": "pushed", "version": 2, "seq": 9 }))),
+            Ok(PushReply::Pushed { version: 2, seq: 9 })
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { errorCode } from '../backups'
-import { countOf } from '../format'
+import { countOf, untilTime, uploadCounts } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
@@ -10,6 +10,7 @@ import {
   pendingRecoveryKey,
   recoverySaved,
   startSyncStatus,
+  usePauseOver,
   useSyncSnapshot,
   type SyncSnapshot,
   type SyncStateName,
@@ -30,9 +31,21 @@ const STATES: Readonly<Record<SyncStateName, MessageKey>> = {
 const when = (at: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at)
 
-function statusText(snapshot: SyncSnapshot, locale: string): string {
-  const { state, lastSync, code } = snapshot.status
-  const parts = [t(STATES[snapshot.enabled ? state : 'off'])]
+function pauseText(pausedUntil: number, pauseOver: boolean, locale: string): string {
+  if (pauseOver) return t('syncSettings.resuming')
+  return format(t('syncSettings.pausedUntil'), { time: untilTime(pausedUntil, Date.now(), locale) })
+}
+
+function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string): string {
+  const { state, lastSync, code, pausedUntil, upload } = snapshot.status
+  const shown = snapshot.enabled ? state : 'off'
+  const parts = [
+    shown === 'paused' && pausedUntil !== null
+      ? pauseText(pausedUntil, pauseOver, locale)
+      : t(STATES[shown]),
+  ]
+  if (upload && snapshot.enabled)
+    parts.push(format(t('syncSettings.upload'), uploadCounts(upload, locale)))
   if (code && snapshot.enabled && state !== 'idle')
     parts.push(format(t('syncSettings.code'), { code }))
   parts.push(
@@ -66,12 +79,13 @@ const WHY: Readonly<Record<string, MessageKey>> = {
  * Settings > Sync: the relay's URL, joining with a pairing code or the recovery key, or on the
  * first device only creating the vault with the relay's secret (asked once and never kept), the
  * recovery key until it is saved, showing a pairing code, the vault's devices, sync on or off and
- * its status. Attachments come with issue 327 and the relay's quota with 215.
+ * its status. Attachments come with issue 327.
  */
 export function SyncSection() {
   const ids = useId()
   const id = (name: string) => `${ids}-${name}`
   const snapshot = useSyncSnapshot()
+  const pauseOver = usePauseOver(snapshot.status.pausedUntil)
   const [url, setUrl] = useState<string>()
   const [secret, setSecret] = useState('')
   const [error, setError] = useState<{ message: MessageKey; code: string }>()
@@ -319,9 +333,12 @@ export function SyncSection() {
             )
           }
         />
-        <Setting label="syncSettings.status" description={statusText(snapshot, locale)}>
+        <Setting label="syncSettings.status" description={statusText(snapshot, pauseOver, locale)}>
           {null}
         </Setting>
+        {snapshot.enabled && snapshot.status.relayOutdated ? (
+          <SettingsNote>{t('syncSettings.relayOutdated')}</SettingsNote>
+        ) : null}
         {snapshot.status.tooLarge > 0 ? (
           <SettingsNote>
             {countOf(

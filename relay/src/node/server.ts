@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { type Duplex, Readable } from 'node:stream'
 import Database from 'better-sqlite3'
 import { WebSocket, WebSocketServer } from 'ws'
-import { CLOSE, encodeFrame, SUBPROTOCOL } from '../../../src/core/sync/protocol.ts'
+import { CLOSE, encodeFrame, type QuotaCaps, SUBPROTOCOL } from '../../../src/core/sync/protocol.ts'
 import { errorResponse, handleHttp, isSocketPath, socketTarget } from '../front.ts'
 import { PairingRelay } from '../pairing.ts'
 import { type Outcome, VaultRelay } from '../vault.ts'
@@ -21,6 +21,9 @@ export interface NodeRelayOptions {
   secret: string
   port?: number
   host?: string
+  /** The cap on pushes (`VaultOptions.quota`); null runs without one. */
+  quota?: QuotaCaps | null
+  now?: () => number
 }
 
 export interface NodeRelay {
@@ -52,7 +55,11 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
     if (!db) return null
     const opened = {
       db,
-      relay: new VaultRelay(sqliteSql(db), vault, { secret: options.secret }),
+      relay: new VaultRelay(sqliteSql(db), vault, {
+        secret: options.secret,
+        ...(options.quota === undefined ? {} : { quota: options.quota }),
+        ...(options.now ? { now: options.now } : {}),
+      }),
       sockets: new Map(),
     }
     vaults.set(vault, opened)

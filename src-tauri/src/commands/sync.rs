@@ -15,7 +15,7 @@ use crate::storage::{
 /// MAX_SYNC_IDS in src/core/sync/store.ts.
 const MAX_SYNC_IDS: usize = 100;
 const MAX_STATE_VALUE: usize = 128;
-const STATE_KEYS: [&str; 3] = ["since", "epoch", "lastSync"];
+const STATE_KEYS: [&str; 4] = ["since", "epoch", "lastSync", "uploadTotal"];
 const MAX_VERSION: i64 = 9_007_199_254_740_991;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -108,6 +108,13 @@ pub async fn sync_pending(
         return Err("E_SYNC_LIMIT_INVALID".into());
     }
     db.call(move |store| store.sync_pending(&after, limit))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sync_pending_count(db: State<'_, Db>) -> Result<i64, String> {
+    db.call(|store| store.sync_pending_count())
         .await
         .map_err(|e| e.to_string())
 }
@@ -222,6 +229,7 @@ mod tests {
     fn keeps_only_the_engine_s_own_state_keys() {
         assert_eq!(validate_state("since", "12"), Ok(()));
         assert_eq!(validate_state("epoch", "AbC-123_x"), Ok(()));
+        assert_eq!(validate_state("uploadTotal", "45000"), Ok(()));
         assert!(validate_state("token", "x").is_err());
         assert!(validate_state("since", &"9".repeat(200)).is_err());
         assert!(validate_state("since", "a b").is_err());

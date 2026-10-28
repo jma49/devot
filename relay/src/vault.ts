@@ -10,11 +10,14 @@ import {
   isRecordId,
   LIMITS,
   ProtocolError,
+  type QuotaCaps,
+  quotaResetAt,
   type RecordHead,
   type RecordKind,
   splitChunks,
 } from '../../src/core/sync/protocol.ts'
 import { RateLimiter } from './limiter.ts'
+import { FREE_CAPS, trippedLimit } from './quota.ts'
 import { issueToken, randomId, sameBytes, sha256 } from './tokens.ts'
 
 // One vault's relay logic (docs/adr/0002-sync-latest-state-per-record.md,
@@ -51,6 +54,8 @@ export interface VaultOptions {
   now?: () => number
   limiter?: RateLimiter
   log?: (line: string) => void
+  /** The cap on pushes; null runs without one. Defaults to 80% of the Workers Free limits. */
+  quota?: QuotaCaps | null
 }
 
 const SCHEMA = [
@@ -144,6 +149,7 @@ export class VaultRelay {
   private readonly now: () => number
   private readonly limiter: RateLimiter
   private readonly log: (line: string) => void
+  private readonly quota: QuotaCaps | null
   // Counted without a write of their own (refused messages and enrollments), added to the next one.
   private pending = { messages: 0, requests: 0 }
 
@@ -154,6 +160,7 @@ export class VaultRelay {
     this.now = options.now ?? Date.now
     this.limiter = options.limiter ?? new RateLimiter()
     this.log = options.log ?? ((line) => console.error(line))
+    this.quota = options.quota === undefined ? FREE_CAPS : options.quota
   }
 
   exists(): boolean {
@@ -234,7 +241,15 @@ export class VaultRelay {
   connected(device: string): Outgoing {
     this.count({ requests: 1 })
     const epoch = String(this.sql.all('SELECT epoch FROM vault WHERE id = 1')[0]?.['epoch'])
-    return encodeFrame({ type: 'welcome', time: this.now(), epoch, seq: this.head(), device })
+    const quota = this.quota ? 'on' : 'off'
+    return encodeFrame({
+      type: 'welcome',
+      time: this.now(),
+      epoch,
+      seq: this.head(),
+      device,
+      quota,
+    })
   }
 
   /** Messages refused before dispatch (rate, revoked device, malformed) cost no write of their own. */
@@ -314,8 +329,14 @@ export class VaultRelay {
       if (length > LIMITS.maxChunkBytes) throw new ProtocolError('E_SYNC_TOO_LARGE')
     }
     const chunks = splitChunks(payload, lengths as number[])
+    const at = this.now()
     const result = this.sql.transaction(() => {
       const row = this.sql.all('SELECT version, kind, bytes FROM records WHERE id = ?', id)[0]
+      const limit = this.quotaLimit(payload.length - num(row?.['bytes']), at)
+      if (limit) {
+        this.pending.messages++
+        return { quota: limit }
+      }
       const current = num(row?.['version'])
       if (base !== current) {
         this.count({ messages: 1 })
@@ -354,6 +375,18 @@ export class VaultRelay {
       })
       return { version, seq }
     })
+    if ('quota' in result) {
+      const until = quotaResetAt(at)
+      return {
+        reply: encodeFrame({
+          type: 'error',
+          rid,
+          code: 'E_SYNC_QUOTA',
+          limit: result.quota,
+          until,
+        }),
+      }
+    }
     if ('rejected' in result) {
       return { reply: encodeFrame({ type: 'rejected', rid, id, version: result.rejected }) }
     }
@@ -435,7 +468,25 @@ export class VaultRelay {
       requests: num(row['requests']),
       storedBytes: num(row['stored_bytes']),
       fileBytes: num(row['file_bytes']),
+      caps: this.quota,
     }
+  }
+
+  /** The limit a push adding `growth` stored bytes would trip; today's counts are 0 until the row's first write today. */
+  private quotaLimit(growth: number, at: number) {
+    if (!this.quota) return null
+    const usage = this.usage()
+    const today = usage.day === day(at)
+    return trippedLimit(
+      {
+        rowsWritten: today ? usage.rowsWritten : 0,
+        messages: (today ? usage.messages : 0) + this.pending.messages,
+        requests: (today ? usage.requests : 0) + this.pending.requests,
+        storedBytes: usage.storedBytes,
+      },
+      this.quota,
+      growth,
+    )
   }
 
   private head(): number {
