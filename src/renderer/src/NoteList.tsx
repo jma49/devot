@@ -94,6 +94,8 @@ interface Props {
   editing?: boolean
   /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
   changedBy?: ReadonlyMap<string, WriterRef> | undefined
+  /** More matched than the rows shown (a capped search), so the count says so. */
+  capped?: boolean | undefined
 }
 
 const MINUTE = 60_000
@@ -711,6 +713,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         title={title}
         scope={scope}
         count={notes.length}
+        capped={props.capped}
         icon={props.icon}
         onTitleMenu={props.onTitleMenu}
         leading={props.leading}

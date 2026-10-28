@@ -251,6 +251,7 @@ export const en = {
   'noteList.countOne': '{count} note',
   'noteList.countOther': '{count} notes',
   'noteList.scopedCount': '{scope} \u00b7 {notes}',
+  'noteList.capped': 'More than {count} notes',
   'toolbar.label': 'Toolbar',
   'note.untitled': 'Untitled',
   'time.fewSeconds': 'a few seconds',

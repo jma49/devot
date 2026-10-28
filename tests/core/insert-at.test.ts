@@ -95,7 +95,7 @@ describe('lookups for the link popup', () => {
     // Waiting for its save: storage still holds the empty body.
     expect((await storage.getNote(id))?.bodyMd).toBe('')
 
-    expect(await notes.search('Findable', undefined, { flush: false })).toHaveLength(1)
+    expect((await notes.search('Findable', undefined, { flush: false })).found).toHaveLength(1)
     expect((await storage.getNote(id))?.bodyMd).toBe('')
 
     await notes.search('Findable')

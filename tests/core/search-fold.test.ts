@@ -67,7 +67,7 @@ describe('short search terms', () => {
     const id = await notes.create('Émile and the ÉCOLE', null)
     await notes.setBody(id, 'Ünal АБ Ångström')
     await notes.flush()
-    const found = async (query: string) => (await notes.search(query)).map((n) => n.id)
+    const found = async (query: string) => (await notes.search(query)).found.map((n) => n.id)
     for (const term of [
       'ém',
       'ÉM',

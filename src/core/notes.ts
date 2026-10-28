@@ -138,6 +138,12 @@ export interface NoteServiceOptions {
 /** An agent's write (ADR 0007), timed by the service. */
 export type AgentNoteWrite = Omit<AgentEdit, 'at' | 'maxRemovedBytes'>
 
+/** Search hits, and whether more matched than the SEARCH_LIMIT returned. */
+export interface SearchResult {
+  found: NoteSummary[]
+  capped: boolean
+}
+
 export interface NoteService {
   list(limit?: number): Promise<NoteSummary[]>
   create(title?: string, bookId?: string | null): Promise<string>
@@ -193,7 +199,7 @@ export interface NoteService {
   holdCompaction(): Promise<void>
   resumeCompaction(): void
   /** Templates are never found. `flush: false` (the `[[` popup runs on every key) searches as stored and writes nothing. */
-  search(query: string, scope?: SearchScope, options?: { flush?: boolean }): Promise<NoteSummary[]>
+  search(query: string, scope?: SearchScope, options?: { flush?: boolean }): Promise<SearchResult>
   /** Pending edits are saved first; when the write fails it rejects and the note stays where it was. */
   trash(id: string): Promise<void>
   restore(id: string): Promise<void>
@@ -1408,7 +1414,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
     async search(query, scope, lookup) {
       const clauses = parseSearch(query)
-      if (clauses.length === 0) return []
+      if (clauses.length === 0) return { found: [], capped: false }
       if (lookup?.flush !== false) await saveAll()
       const needs = (...fields: SearchClause['field'][]) =>
         clauses.some((c) => fields.includes(c.field))
@@ -1419,12 +1425,13 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       // `book:` and `bookId:` never name Templates.
       const nameable = books.filter((b) => b.id !== TEMPLATES_BOOK_ID)
       const resolved = resolveSearch(clauses, { books, tags, scope, nameable })
-      if (!resolved) return []
-      const found = await storage.searchNotes(excludeTemplates(resolved), SEARCH_LIMIT)
-      return found.map(({ excerpt, ...note }) => {
+      if (!resolved) return { found: [], capped: false }
+      const hits = await storage.searchNotes(excludeTemplates(resolved), SEARCH_LIMIT + 1)
+      const found = hits.slice(0, SEARCH_LIMIT).map(({ excerpt, ...note }) => {
         const tidy = excerpt ? tidyExcerpt(excerpt) : ''
         return tidy ? { ...note, excerpt: tidy } : note
       })
+      return { found, capped: hits.length > SEARCH_LIMIT }
     },
 
     async trash(id) {

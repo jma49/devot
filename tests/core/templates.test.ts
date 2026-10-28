@@ -176,7 +176,7 @@ describe('templates stay out of the library', () => {
   it('never finds a template by search, with or without qualifiers', async () => {
     const { d, plain, loose, work } = await library()
     const ids = async (query: string, scope?: Parameters<typeof d.notes.search>[1]) =>
-      (await d.notes.search(query, scope)).map((n) => n.id).sort()
+      (await d.notes.search(query, scope)).found.map((n) => n.id).sort()
     expect(await ids('kiwi')).toEqual([plain, loose].sort())
     expect(await ids('title:template')).toEqual([])
     expect(await ids('tag:fruit')).toEqual([plain])

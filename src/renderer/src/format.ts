@@ -101,8 +101,17 @@ export function stampDate(at: number): string {
 export const noteCount = (count: number, locale: string) =>
   countOf(count, locale, 'noteList.countOne', 'noteList.countOther')
 
-export function listCaption(count: number, scope: string | undefined, locale: string): string {
-  const notes = noteCount(count, locale)
+export function listCaption(
+  count: number,
+  scope: string | undefined,
+  locale: string,
+  capped = false,
+): string {
+  const notes = capped
+    ? format(t('noteList.capped'), {
+        count: kept(`number|${locale}`, () => new Intl.NumberFormat(locale)).format(count),
+      })
+    : noteCount(count, locale)
   return scope ? format(t('noteList.scopedCount'), { scope, notes }) : notes
 }
 

@@ -290,7 +290,7 @@ describe('notes listed from SQLite', () => {
       'Zulu 2',
     ])
 
-    const found = await notes.search('Zulu')
+    const { found } = await notes.search('Zulu')
     expect(found.map((n) => n.createdAt)).toEqual([1_000])
   })
 })

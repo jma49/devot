@@ -343,7 +343,7 @@ describe('search on SQLite', () => {
                   inView(n) && parsed.every((c) => matches(n, c) !== c.negate) ? [ids[i]!] : [],
                 )
                 .sort()
-              const found = await notes.search(query, {
+              const { found } = await notes.search(query, {
                 bookId: view.book === null ? null : bookIds[view.book]!,
                 filter,
               })

@@ -9,6 +9,8 @@ export interface ListHeaderProps {
   title: string
   scope?: string | undefined
   count: number
+  /** More matched than `count` (a capped search). */
+  capped?: boolean | undefined
   icon?: ReactNode
   onTitleMenu?: ((at: MenuPoint) => void) | undefined
   leading?: ReactNode
@@ -29,7 +31,7 @@ const STATUS_DELAY_MS = 500
 /** The note list's toolbar (the view's name, New Note) and the filter row under it, for the list and the board alike. */
 export function ListHeader(props: ListHeaderProps) {
   const { title, sortButtonRef } = props
-  const caption = listCaption(props.count, props.scope, currentLocale())
+  const caption = listCaption(props.count, props.scope, currentLocale(), props.capped)
   const [spoken, setSpoken] = useState(caption)
   useEffect(() => {
     const timer = setTimeout(() => setSpoken(caption), STATUS_DELAY_MS)
