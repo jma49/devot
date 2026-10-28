@@ -1409,6 +1409,7 @@ export const en = {
     'Proposed by {model}. Review the changes, then accept them or discard the proposal.',
   'aiEdit.changes': 'Proposed changes',
   'aiEdit.takeChange': 'Apply this change',
+  'aiEdit.takeChangeOf': 'Apply change {index} of {count}',
   'aiEdit.noChanges': 'The proposal leaves the selection as it is.',
   'aiEdit.accept': 'Accept',
   'aiEdit.acceptSome': 'Accept Selected',

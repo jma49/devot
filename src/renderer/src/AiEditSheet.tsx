@@ -120,6 +120,14 @@ export function AiEditSheet(props: {
   const changes = proposal?.parts.flatMap((p, i) => (p.kind === 'change' ? [i] : [])) ?? []
   const taken = changes.filter((i) => !rejected.has(i)).length
   const failure = phase.kind === 'failed' ? aiEditFailure(phase.code) : undefined
+  const rows = proposal ? proposalRows(proposal.parts) : []
+  // The lines of each change, for a check box to describe the change it takes.
+  const changeLines = new Map<number, string[]>()
+  rows.forEach((row, i) => {
+    if (row.kind === 'removed' || row.kind === 'added') {
+      changeLines.set(row.part, [...(changeLines.get(row.part) ?? []), `ai-edit-line-${i}`])
+    }
+  })
 
   return (
     <dialog
@@ -178,7 +186,7 @@ export function AiEditSheet(props: {
             <p className="sheet-detail">{t('aiEdit.noChanges')}</p>
           ) : (
             <section className="ai-edit-diff diff" aria-label={t('aiEdit.changes')} tabIndex={0}>
-              {proposalRows(proposal.parts).map((row, i) =>
+              {rows.map((row, i) =>
                 row.kind === 'skipped' ? (
                   <div key={i} className="diff-skipped">
                     {countOf(row.count, locale, 'history.skippedOne', 'history.skippedOther')}
@@ -188,6 +196,11 @@ export function AiEditSheet(props: {
                     <input
                       type="checkbox"
                       checked={!rejected.has(row.part)}
+                      aria-label={format(t('aiEdit.takeChangeOf'), {
+                        index: String(changes.indexOf(row.part) + 1),
+                        count: String(changes.length),
+                      })}
+                      aria-describedby={changeLines.get(row.part)?.join(' ')}
                       onChange={(e) => {
                         const next = new Set(rejected)
                         if (e.target.checked) next.delete(row.part)
@@ -200,6 +213,7 @@ export function AiEditSheet(props: {
                 ) : (
                   <div
                     key={i}
+                    id={`ai-edit-line-${i}`}
                     className={`diff-line diff-${row.kind}`}
                     data-rejected={rejected.has(row.part) || undefined}
                   >
