@@ -296,3 +296,19 @@ test('a suggestion picked from two tags of one name goes on by ID', async ({ pag
     )
     .toEqual([first.id, second.id].sort())
 })
+
+test('a Copy Tag ID that fails says so, with its code', async ({ page }) => {
+  await setUp(page)
+  await page.evaluate(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      clipboard_write_text: { error: 'E_CLIPBOARD_WRITE_FAILED' },
+    }
+  })
+  await openMenu(page, 'idea')
+  await pickMenuItem(page, 'Copy Tag ID')
+  await expect(page.getByRole('alert')).toContainText(
+    'The ID could not be copied (E_CLIPBOARD_WRITE_FAILED).',
+  )
+})

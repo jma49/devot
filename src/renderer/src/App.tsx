@@ -3350,7 +3350,11 @@ export function App() {
       case 'filter':
         return sidebarFilter(chip.filtered ? null : { kind: 'tag', tagId: chip.tagId })
       case 'copyId':
-        return void copyText(chip.tagId).catch(() => console.warn('W_TAG_COPY_FAILED', chip.tagId))
+        return void copyText(chip.tagId).catch((e: unknown) => {
+          const code = errorCode(e)
+          console.warn('W_TAG_COPY_FAILED', chip.tagId, code)
+          setExportNotice({ failure: 'copyId', code })
+        })
     }
   })
   const showChipMenu = useContextMenu('noteTag', CHIP_MENU, runChipAction)
@@ -3359,9 +3363,11 @@ export function App() {
       case 'open':
         return sidebarSelect({ kind: 'book', id: book.bookId })
       case 'copyId':
-        return void copyText(book.bookId).catch(() =>
-          console.warn('W_BOOK_COPY_FAILED', book.bookId),
-        )
+        return void copyText(book.bookId).catch((e: unknown) => {
+          const code = errorCode(e)
+          console.warn('W_BOOK_COPY_FAILED', book.bookId, code)
+          setExportNotice({ failure: 'copyId', code })
+        })
     }
   })
   const showNotebookMenu = useContextMenu('noteBook', NOTEBOOK_MENU, runNotebookAction)
@@ -3473,6 +3479,7 @@ export function App() {
         onSearchBooks={sidebarSearchBooks}
         onSearchTags={sidebarSearchTags}
         onEmptyTrash={askEmptyTrash}
+        onCopyFailed={(failure, code) => setExportNotice({ failure, code })}
         onNewNote={core && editing ? sidebarNewNote : undefined}
         readOnly={!editing}
         workspace={sidebarWorkspace}

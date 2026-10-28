@@ -133,3 +133,31 @@ test('a note without a notebook has no notebook menu', async ({ page }) => {
   await page.waitForTimeout(200)
   expect(await popups(page)).toBe(before)
 })
+
+test('a Copy Notebook ID that fails says so, with its code', async ({ page }) => {
+  await page.getByRole('button', { name: 'New Notebook' }).click()
+  const bookName = page.getByRole('textbox', { name: 'Notebook name' })
+  await bookName.fill('Work')
+  await bookName.press('Enter')
+  await page
+    .getByRole('tree', { name: 'Notebooks' })
+    .getByRole('treeitem', { name: /^Work\b/ })
+    .locator('> .book-row')
+    .click()
+  await newNote(page, 'In work')
+  await sidebar(page)
+    .getByRole('button', { name: /^All Notes/ })
+    .click()
+  await page.evaluate(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      clipboard_write_text: { error: 'E_CLIPBOARD_WRITE_FAILED' },
+    }
+  })
+  await page.getByRole('button', { name: /^Notebook\b/ }).click({ button: 'right' })
+  await pickMenuItem(page, 'Copy Notebook ID')
+  await expect(page.getByRole('alert')).toContainText(
+    'The ID could not be copied (E_CLIPBOARD_WRITE_FAILED).',
+  )
+})

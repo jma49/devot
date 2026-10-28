@@ -32,6 +32,8 @@ import {
   type ImportAction,
 } from './bookMenu'
 import { changesNotes, commandMatches, heldCommandKey } from './commands/registry'
+import type { ExportFailure } from './ExportNotice'
+import { errorCode } from '../../core/errors'
 import { useKeymap } from './commands/shortcutSettings'
 import { titleWithKey } from './commands/titles'
 import { useContextMenu, type MenuPoint } from './contextMenu'
@@ -187,6 +189,8 @@ interface Props {
   menus?: Ref<SidebarMenus> | undefined
   onSearchTags: () => void
   onEmptyTrash: () => void
+  /** Shows a copy that failed, with its code, as the note copy actions do. */
+  onCopyFailed?: (failure: ExportFailure, code: string) => void
   /** Makes a new note (the All Notes row's menu); absent while the library is not open. */
   onNewNote?: (() => void) | undefined
   /** Where the collapsed sections are kept; this window's local storage by default. */
@@ -652,7 +656,11 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
     switch (action) {
       case 'copyId':
-        return void copyText(node.id).catch(() => console.warn('W_BOOK_COPY_FAILED', node.id))
+        return void copyText(node.id).catch((e: unknown) => {
+          const code = errorCode(e)
+          console.warn('W_BOOK_COPY_FAILED', node.id, code)
+          props.onCopyFailed?.('copyId', code)
+        })
       case 'move':
         return setMovingBook(node)
       case 'newInside':
@@ -707,7 +715,11 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       case 'filter':
         return props.onFilter(tag.filtered ? null : { kind: 'tag', tagId: tag.id })
       case 'copyId':
-        return void copyText(tag.id).catch(() => console.warn('W_TAG_COPY_FAILED', tag.id))
+        return void copyText(tag.id).catch((e: unknown) => {
+          const code = errorCode(e)
+          console.warn('W_TAG_COPY_FAILED', tag.id, code)
+          props.onCopyFailed?.('copyId', code)
+        })
       case 'delete':
         return props.onDeleteTag(tag.id)
     }

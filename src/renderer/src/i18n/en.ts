@@ -968,6 +968,7 @@ export const en = {
   'export.copyFailed': 'The note could not be copied ({code}).',
   'export.copyLinkFailed': 'The note link could not be copied ({code}).',
   'export.copyLinksFailed': 'The note links could not be copied ({code}).',
+  'export.copyIdFailed': 'The ID could not be copied ({code}).',
   'links.newNote': 'New Note \u201c{title}\u201d',
   'links.newUntitled': 'New Note',
   'import.title': 'Import Markdown Folder',
