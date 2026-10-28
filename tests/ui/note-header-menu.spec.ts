@@ -119,7 +119,7 @@ test('the notebook label has Open Notebook and Copy Notebook ID', async ({ page 
   await expect(book).toHaveAttribute('aria-selected', 'false')
 
   const before = await popups(page)
-  await page.getByRole('button', { name: 'Notebook', exact: true }).click({ button: 'right' })
+  await page.getByRole('button', { name: /^Notebook\b/ }).click({ button: 'right' })
   await expect.poll(() => popups(page)).toBe(before + 1)
   expect(await shownMenu(page)).toEqual(['Open Notebook', '---', 'Copy Notebook ID'])
   await pickMenuItem(page, 'Open Notebook')
@@ -129,7 +129,7 @@ test('the notebook label has Open Notebook and Copy Notebook ID', async ({ page 
 test('a note without a notebook has no notebook menu', async ({ page }) => {
   await newNote(page, 'Loose')
   const before = await popups(page)
-  await page.getByRole('button', { name: 'Notebook', exact: true }).click({ button: 'right' })
+  await page.getByRole('button', { name: /^Notebook\b/ }).click({ button: 'right' })
   await page.waitForTimeout(200)
   expect(await popups(page)).toBe(before)
 })

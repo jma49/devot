@@ -3,6 +3,7 @@ import { seedNotes } from './renders'
 import {
   pickBook,
   pickStatus,
+  statusPicker,
   changeEditorSettingsElsewhere,
   expect,
   openNoteMore,
@@ -96,16 +97,19 @@ test('the notebook, status and tags share one compact line, worked by click and 
 
   const book = bookPicker(page)
   await expect(meta.locator('.book-popup .popup-value')).toHaveText('Inbox')
+  await expect(book).toHaveAccessibleName('Notebook: Inbox')
   await expect(meta.locator('.book-popup .popup-value')).toHaveCSS('font-weight', '700')
   await book.focus()
   await expect(book).toBeFocused()
   await pickBook(page, 'No Notebook')
   await expect(meta.locator('.book-popup .popup-value')).toHaveText('No Notebook')
+  await expect(book).toHaveAccessibleName('Notebook: No Notebook')
   await expect(book).toBeFocused()
 
   await expect(meta.locator('.status-none .popup-value')).toHaveText('Status')
   await pickStatus(page, 'Active')
   await expect(meta.locator('.status-active .popup-value')).toHaveText('Active')
+  await expect(statusPicker(page)).toHaveAccessibleName('Status: Active')
 
   const add = page.getByRole('combobox', { name: 'Add Tag' })
   await expect(add).toHaveAttribute('placeholder', 'Add Tags')

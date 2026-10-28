@@ -3,7 +3,7 @@ import type { BookNode } from '../../core/books'
 import type { TagColor } from '../../core/storage'
 import { BookIcon } from './BookIcon'
 import type { MenuPoint } from './contextMenu'
-import { t } from './i18n'
+import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { PickerList, usePickerOpen, type PickerOption } from './Picker'
 
@@ -141,7 +141,7 @@ export function BookPicker(props: {
         ref={button}
         type="button"
         className="popup book-popup"
-        aria-label={t('note.bookLabel')}
+        aria-label={format(t('note.bookValue'), { book: current })}
         data-value={value}
         aria-haspopup="listbox"
         aria-expanded={open}
