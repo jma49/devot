@@ -179,7 +179,19 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       }),
     [columns, windows],
   )
-  const headlines = useHeadlines(props.headlines, rendered)
+  // The cards that show, and the selected notes: a drag of the selection names
+  // notes whose cards are outside the rendered part too.
+  const headlineCards = useMemo(() => {
+    if (!selection) return rendered
+    const seen = new Set(rendered.map((n) => n.id))
+    const more = selection.ids.flatMap((id) => {
+      if (seen.has(id)) return []
+      const note = byId.get(id)
+      return note ? [note] : []
+    })
+    return more.length > 0 ? [...rendered, ...more] : rendered
+  }, [rendered, selection, byId])
+  const headlines = useHeadlines(props.headlines, headlineCards)
   const now = useNow()
   const locale = currentLocale()
   const dates = useEditorSetting('listDates')

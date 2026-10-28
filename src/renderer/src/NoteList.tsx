@@ -220,7 +220,19 @@ export const NoteList = memo(function NoteList(props: Props) {
       ),
     [runs, entries],
   )
-  const headlines = useHeadlines(props.headlines, rendered)
+  // The rows that show, and the selected notes: a drag of the selection names
+  // notes whose rows are outside the rendered part too.
+  const headlineNotes = useMemo(() => {
+    if (!selection) return rendered
+    const seen = new Set(rendered.map((n) => n.id))
+    const more = selection.ids.flatMap((id) => {
+      if (seen.has(id)) return []
+      const note = notes[indexOf.get(id) ?? -1]
+      return note ? [note] : []
+    })
+    return more.length > 0 ? [...rendered, ...more] : rendered
+  }, [rendered, selection, notes, indexOf])
+  const headlines = useHeadlines(props.headlines, headlineNotes)
   const rowInfo = useMemo(
     () => withStrips(props.details, props.activity),
     [props.details, props.activity],
