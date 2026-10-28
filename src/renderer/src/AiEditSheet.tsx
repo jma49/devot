@@ -129,6 +129,12 @@ export function AiEditSheet(props: {
     }
   })
 
+  const diff = useRef<HTMLElement>(null)
+  // The Cancel button that had focus unmounts with the proposal; focus the diff so it is read out.
+  useEffect(() => {
+    if (phase.kind === 'review' && changes.length > 0) diff.current?.focus()
+  }, [phase.kind, changes.length])
+
   return (
     <dialog
       ref={dialog}
@@ -181,11 +187,18 @@ export function AiEditSheet(props: {
         </p>
       ) : proposal ? (
         <>
-          <p className="sheet-detail">{format(t('aiEdit.review'), { model: proposal.model })}</p>
+          <p className="sheet-detail" role="status">
+            {format(t('aiEdit.review'), { model: proposal.model })}
+          </p>
           {changes.length === 0 ? (
             <p className="sheet-detail">{t('aiEdit.noChanges')}</p>
           ) : (
-            <section className="ai-edit-diff diff" aria-label={t('aiEdit.changes')} tabIndex={0}>
+            <section
+              ref={diff}
+              className="ai-edit-diff diff"
+              aria-label={t('aiEdit.changes')}
+              tabIndex={0}
+            >
               {rows.map((row, i) =>
                 row.kind === 'skipped' ? (
                   <div key={i} className="diff-skipped">

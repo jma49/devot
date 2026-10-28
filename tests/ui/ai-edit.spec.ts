@@ -179,6 +179,22 @@ test('takes only the changes left checked', async ({ page }) => {
   await expect.poll(() => savedBody(page)).toBe('one\nkeep\nTwo.')
 })
 
+test('moves focus to the proposal when it arrives, so it is announced and usable', async ({
+  page,
+}) => {
+  await fakeProvider(page, ['One.\nkeep\nTwo.'])
+  await page.reload()
+  await notebook(page, 'Work', true)
+  await note(page, 'one\nkeep\ntwo')
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+a')
+
+  await fromToolbar(page, 'Improve Writing')
+  const diff = sheet(page).getByRole('region', { name: 'Proposed changes' })
+  await expect(diff).toBeFocused()
+  await expect(sheet(page).getByRole('status')).toContainText('Proposed by')
+})
+
 test('the editor menu asks with a custom instruction, and Discard leaves the note', async ({
   page,
 }) => {
