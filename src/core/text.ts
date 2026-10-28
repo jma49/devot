@@ -1,9 +1,9 @@
 // Plain-text helpers: replacing ranges, the smallest single replacement between two texts (applied to Yjs documents as operations), whitespace and code point
 // counts as Rust reads them, and filling `{name}` placeholders.
 
-/** The editor counts a CRLF as one character and the Yjs text as two, so a body must never hold `\r` or edits would land in the wrong place. */
+/** The editor counts a CRLF as one character and the Yjs text as two, so a body must never hold `\r` or edits would land in the wrong place. A lone surrogate is dropped too: storage refuses to parse one (see wellFormed). */
 export function lineFeeds(text: string): string {
-  return text.replace(/\r\n?/g, '\n')
+  return wellFormed(text.replace(/\r\n?/g, '\n'))
 }
 
 export interface TextEdit {
@@ -22,6 +22,22 @@ export function replaceRanges(text: string, edits: readonly TextEdit[]): string 
 
 const isHigh = (code: number) => code >= 0xd800 && code <= 0xdbff
 const isLow = (code: number) => code >= 0xdc00 && code <= 0xdfff
+
+/** A lone surrogate becomes U+FFFD, as the UTF-8 encoding storage uses would, so a body is always valid JSON and every save is taken. */
+export function wellFormed(text: string): string {
+  if (!/[\uD800-\uDFFF]/.test(text)) return text
+  let out = ''
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i)
+    if (isHigh(code)) {
+      if (isLow(text.charCodeAt(i + 1))) {
+        out += text.slice(i, i + 2)
+        i += 1
+      } else out += '�'
+    } else out += isLow(code) ? '�' : text[i]
+  }
+  return out
+}
 
 /** Never splits a surrogate pair. */
 export function textDiff(
