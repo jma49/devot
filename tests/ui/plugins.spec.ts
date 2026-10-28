@@ -275,6 +275,8 @@ test('a read-only licence keeps plugin commands and imports from changing notes'
   await expect(entries.filter({ hasText: 'Import Shout Files…' })).toHaveCount(0)
   await expect(entries.filter({ hasText: 'Export Note as Shout…' })).toHaveCount(1)
   await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toBeHidden()
 
   // A path that still reaches the action (a menu item Rust has not disabled) changes nothing.
   await pickPluginMenu(page, { kind: 'command', plugin: 'com.example.tools', id: 'upper' })
