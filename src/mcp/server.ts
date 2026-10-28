@@ -65,6 +65,8 @@ const HINTS: Record<string, string> = {
   E_STORAGE_SCHEMA_TOO_NEW: 'The database is from a newer Devot. Update devot-mcp.',
   E_STORAGE_BUSY: 'Devot is busy writing. Try again.',
   E_STORAGE_OPEN_FAILED: 'The Devot database could not be opened. Check the --db path.',
+  E_STORAGE_MODULE_FAILED:
+    'The Devot database module could not load with this Node. Run devot-mcp with the Node that installed it, or reinstall it.',
 }
 
 const CODE = /^E_[A-Z0-9_]+$/

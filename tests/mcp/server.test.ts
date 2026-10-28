@@ -17,7 +17,7 @@ import {
   WRITERS,
 } from '../../src/core'
 import { clientWriter, createServer, errorCode } from '../../src/mcp/server'
-import { openSqliteAdapter } from '../../src/mcp/sqlite'
+import { openSqliteAdapter, openFailureCode } from '../../src/mcp/sqlite'
 import { HIDDEN, makeWorld } from './support'
 import { tempDir } from '../support/temp-dirs'
 
@@ -390,6 +390,13 @@ describe('opening without migrating', () => {
     expect(existsSync(join(dir, 'none.sqlite'))).toBe(false)
     // A folder where the file should be.
     expect(() => openSqliteAdapter(dir, { migrate: false })).toThrow(/^E_STORAGE_OPEN_FAILED$/)
+  })
+
+  it('tells a module this Node cannot load apart from a bad path', () => {
+    const path = join(tempDir('devot-mcp-'), 'devot.sqlite')
+    const dlopen = Object.assign(new Error('dlopen failed'), { code: 'ERR_DLOPEN_FAILED' })
+    expect(openFailureCode(dlopen, path, false)).toBe('E_STORAGE_MODULE_FAILED')
+    expect(openFailureCode(new Error('SQLITE_CANTOPEN'), path, false)).toBe('E_STORAGE_NOT_FOUND')
   })
 })
 
