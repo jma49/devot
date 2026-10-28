@@ -48,7 +48,7 @@ test('a note row drags out as a Markdown link and an anchor', async ({ page }) =
   await newNote(page, 'Plan <1> & "two"')
   await expect(noteRows(page).first()).toContainText('Plan')
   const data = await dragStart(noteRows(page).first())
-  expect(data.plain).toBe(`[Plan <1> & "two"](devot://note/${data.ids})`)
+  expect(data.plain).toBe(`[Plan \\<1\\> \\& "two"](devot://note/${data.ids})`)
   expect(data.html).toBe(
     `<a href="devot://note/${data.ids}">Plan &lt;1&gt; &amp; &quot;two&quot;</a>`,
   )

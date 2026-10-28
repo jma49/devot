@@ -9,6 +9,7 @@ import { ySyncAnnotation, ySyncFacet } from 'y-codemirror.next'
 import type * as Y from 'yjs'
 import {
   newAuthorshipId,
+  readWrites,
   recordTransaction,
   WRITES,
   type AgentWrite,
@@ -28,8 +29,8 @@ const writesBack = StateEffect.define<PutBack>()
  * (readWrites): none unless the change dropped some.
  */
 export function undoneWrites(before: readonly AgentWrite[], doc: Y.Doc): StateEffect<PutBack>[] {
-  const writes = doc.getMap(WRITES)
-  const newest = before.findLast((write) => !writes.has(write.id))
+  const live = new Set(readWrites(doc).map((write) => write.id))
+  const newest = before.findLast((write) => !live.has(write.id))
   return newest
     ? [writesUndone.of({ id: newAuthorshipId(), session: newest.session, at: newest.at })]
     : []
