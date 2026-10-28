@@ -85,6 +85,7 @@ export function TagEditor(props: {
   const [open, setOpen] = useState(false)
   const [chosenChip, setChosenChip] = useState<string>()
   const [added, setAdded] = useState<string>()
+  const [announced, setAnnounced] = useState('')
   const ownField = useRef<HTMLInputElement>(null)
   const field = props.inputRef ?? ownField
   const listId = useId()
@@ -110,6 +111,10 @@ export function TagEditor(props: {
     if (row?.kind === 'tag' && props.onPut) props.onPut(row.tag.id)
     else props.onAdd(name)
     close()
+  }
+  const choose = (tag: TagRecord | undefined) => {
+    setChosenChip(tag?.id)
+    if (tag) setAnnounced(format(t('note.tagChosen'), { name: tag.name }))
   }
   const optionId = (i: number) => `${listId}-${i}`
   return (
@@ -197,17 +202,18 @@ export function TagEditor(props: {
               const chosen = onNote[at]
               if (chosen) {
                 setChosenChip(undefined)
+                setAnnounced(format(t('note.tagRemoved'), { name: chosen.name }))
                 return props.onRemove(chosen.id)
               }
-              return setChosenChip(onNote.at(-1)?.id)
+              return choose(onNote.at(-1))
             }
             if (e.key === 'ArrowLeft') {
               e.preventDefault()
-              return setChosenChip(onNote[at < 0 ? onNote.length - 1 : Math.max(0, at - 1)]?.id)
+              return choose(onNote[at < 0 ? onNote.length - 1 : Math.max(0, at - 1)])
             }
             if (e.key === 'ArrowRight' && at >= 0) {
               e.preventDefault()
-              return setChosenChip(onNote[at + 1]?.id)
+              return choose(onNote[at + 1])
             }
           }}
         />
@@ -243,6 +249,9 @@ export function TagEditor(props: {
           </ul>
         ) : null}
       </span>
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {announced}
+      </p>
     </div>
   )
 }

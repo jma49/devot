@@ -120,8 +120,14 @@ test('the notebook, status and tags share one compact line, worked by click and 
   await expect(chip).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await add.press('Backspace')
   await expect(chip).toHaveAttribute('data-selected', 'true')
+  await expect(meta.getByRole('group', { name: 'Tags' }).getByRole('status')).toHaveText(
+    'Tag work selected. Press Backspace to remove it.',
+  )
   await add.press('Backspace')
   await expect(chip).toHaveCount(0)
+  await expect(meta.getByRole('group', { name: 'Tags' }).getByRole('status')).toHaveText(
+    'Tag work removed.',
+  )
 
   await expect(page.locator('.title')).toHaveCSS('font-size', '24px')
   const toolbarBox = await toolbar(page).boundingBox()

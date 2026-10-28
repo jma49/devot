@@ -276,6 +276,8 @@ export const en = {
   'sidebar.resize': 'Resize Sidebar',
   'note.createTag': 'Create \u201c{name}\u201d',
   'note.tagSuggestions': 'Tag suggestions',
+  'note.tagChosen': 'Tag {name} selected. Press Backspace to remove it.',
+  'note.tagRemoved': 'Tag {name} removed.',
   'note.searchBooks': 'Search notebooks\u2026',
   'note.noBooksFound': 'No notebooks found',
   'status.pickNone': 'None',
