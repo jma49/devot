@@ -114,7 +114,9 @@ export function TagEditor(props: {
   }
   const choose = (tag: TagRecord | undefined) => {
     setChosenChip(tag?.id)
-    if (tag) setAnnounced(format(t('note.tagChosen'), { name: tag.name }))
+    // A live region speaks only a change: the message goes with the choice, so
+    // choosing the same chip again after leaving it is announced again.
+    setAnnounced(tag ? format(t('note.tagChosen'), { name: tag.name }) : '')
   }
   const optionId = (i: number) => `${listId}-${i}`
   return (
@@ -193,6 +195,7 @@ export function TagEditor(props: {
               e.preventDefault()
               e.stopPropagation()
               setChosenChip(undefined)
+              setAnnounced('')
               return close()
             }
             if (draft !== '' || several || onNote.length === 0) return

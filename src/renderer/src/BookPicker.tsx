@@ -145,7 +145,6 @@ export function BookPicker(props: {
         data-value={value}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={current}
         onClick={() => toggle(!open)}
         onContextMenu={(e) => {
           if (value === NO_BOOK || !props.onMenu) return
@@ -159,7 +158,9 @@ export function BookPicker(props: {
         }}
       >
         <BookIcon icon={chosen?.icon ?? null} color={chosen?.iconColor ?? null} size="sm" />
-        <span className="popup-value">{current}</span>
+        <span className="popup-value" title={current}>
+          {current}
+        </span>
         <Icon name="popup.chevron" size="xs" />
       </button>
       {open ? (

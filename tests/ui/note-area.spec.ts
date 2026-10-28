@@ -120,14 +120,19 @@ test('the notebook, status and tags share one compact line, worked by click and 
   await expect(chip).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await add.press('Backspace')
   await expect(chip).toHaveAttribute('data-selected', 'true')
-  await expect(meta.getByRole('group', { name: 'Tags' }).getByRole('status')).toHaveText(
-    'Tag work selected. Press Backspace to remove it.',
-  )
+  const status = meta.getByRole('group', { name: 'Tags' }).getByRole('status')
+  await expect(status).toHaveText('Tag work selected. Press Backspace to remove it.')
+  // Leaving the chip clears the message, so choosing it again is a change the
+  // live region speaks.
+  await add.press('ArrowRight')
+  await expect(chip).not.toHaveAttribute('data-selected', 'true')
+  await expect(status).toHaveText('')
+  await add.press('ArrowLeft')
+  await expect(chip).toHaveAttribute('data-selected', 'true')
+  await expect(status).toHaveText('Tag work selected. Press Backspace to remove it.')
   await add.press('Backspace')
   await expect(chip).toHaveCount(0)
-  await expect(meta.getByRole('group', { name: 'Tags' }).getByRole('status')).toHaveText(
-    'Tag work removed.',
-  )
+  await expect(status).toHaveText('Tag work removed.')
 
   await expect(page.locator('.title')).toHaveCSS('font-size', '24px')
   const toolbarBox = await toolbar(page).boundingBox()

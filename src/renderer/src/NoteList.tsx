@@ -512,9 +512,9 @@ export const NoteList = memo(function NoteList(props: Props) {
   }
 
   /** Opens a row's menu from the keyboard, under the row as a notebook row's menu opens. */
-  const rowMenu = (id: string): boolean => {
+  const rowMenu = (id: string, at = id): boolean => {
     if (!props.onMenu) return false
-    const box = rows.current.get(id)?.getBoundingClientRect()
+    const box = rows.current.get(at)?.getBoundingClientRect()
     props.onMenu(id, box ? { x: box.left, y: box.bottom } : undefined)
     return true
   }
@@ -555,11 +555,14 @@ export const NoteList = memo(function NoteList(props: Props) {
     if (selectionKey(event)) return
     // Shortcuts act on the row that has the focus, never on an open note the
     // focus has left (a right-click focuses its row; a filter may hide the
-    // open note). With several notes selected they act on the selection, whose
-    // rows are all drawn selected. Every key here comes from the registry.
+    // open note). With several notes selected they act on the selection: a
+    // Cmd-click can take the focused row out of it before the open note
+    // follows. Every key here comes from the registry.
     const live = latest()
-    const target = keyTarget(live.selection, live.selected, notes[index]?.id)
-    if (target && commandMatches('list.rowMenu', event) && rowMenu(target)) {
+    const focused = notes[index]?.id
+    const target = keyTarget(live.selection, live.selected, focused)
+    // The menu opens under the focused row, whatever the selection it acts on.
+    if (target && commandMatches('list.rowMenu', event) && rowMenu(target, focused)) {
       event.preventDefault()
       return
     }
