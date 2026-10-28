@@ -403,7 +403,8 @@ pub struct AgentWriteSummary {
 
 /// The same statements as the TypeScript adapter's (src/mcp/sqlite.ts, AGENT_WRITES_SQL; a test
 /// compares them). A note's rows are replaced with each write that carries them, keeping `seen` of
-/// the rows it still has.
+/// the rows it still has. The list keeps every unseen row, however old: a note whose writes are all
+/// older than the newest `limit` still shows its mark, its unseen count and its notice.
 const AGENT_WRITES_KEEP_SQL: &str = "DELETE FROM agent_writes
      WHERE note_id = @noteId AND write_id NOT IN (SELECT value FROM json_each(@ids))";
 const AGENT_WRITES_PUT_SQL: &str =
@@ -415,7 +416,11 @@ const AGENT_WRITES_LIST_SQL: &str =
     "SELECT w.note_id AS noteId, w.write_id AS writeId, w.kind, w.name, w.at, w.created, w.seen
      FROM agent_writes w JOIN notes n ON n.id = w.note_id
      WHERE n.deleted_at IS NULL AND n.purged_at IS NULL
-     ORDER BY w.at DESC, w.note_id, w.write_id LIMIT @limit";
+       AND (w.seen = 0 OR (w.at, w.note_id, w.write_id) IN (
+         SELECT x.at, x.note_id, x.write_id FROM agent_writes x JOIN notes m ON m.id = x.note_id
+         WHERE m.deleted_at IS NULL AND m.purged_at IS NULL
+         ORDER BY x.at DESC, x.note_id, x.write_id LIMIT @limit))
+     ORDER BY w.at DESC, w.note_id, w.write_id";
 const AGENT_WRITES_SEEN_SQL: &str = "UPDATE agent_writes SET seen = 1
      WHERE note_id = @noteId AND seen = 0 AND write_id IN (SELECT value FROM json_each(@ids))";
 const AGENT_WRITES_PURGE_SQL: &str = "DELETE FROM agent_writes WHERE note_id = @noteId";
@@ -1646,7 +1651,7 @@ impl Store {
         self.put_note_with_writes(note, links, None)
     }
 
-    /// Rows of notes not in the Trash, newest first.
+    /// Rows of notes not in the Trash, newest first: the newest `limit`, and every unseen row older than those.
     pub fn list_agent_writes(&self, limit: u32) -> Result<Vec<AgentWriteSummary>> {
         let mut statement = self.conn.prepare_cached(AGENT_WRITES_LIST_SQL)?;
         let rows = statement.query_map(rusqlite::named_params! { "@limit": limit }, |row| {

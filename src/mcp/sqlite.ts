@@ -128,7 +128,9 @@ export const ACTIVITY_SQL = {
  * The agent_writes index (docs/adr/0007-authorship-by-yjs-item-ids.md), the
  * same statements as the Rust store's (storage/mod.rs; a test compares them).
  * A note's rows are replaced with each write that carries them, keeping
- * `seen` of the rows it still has.
+ * `seen` of the rows it still has. The list keeps every unseen row, however
+ * old, so a note whose writes are all older than the newest `limit` still
+ * shows its mark, its unseen count and its notice.
  */
 export const AGENT_WRITES_SQL = {
   keep: `DELETE FROM agent_writes
@@ -140,7 +142,11 @@ export const AGENT_WRITES_SQL = {
   list: `SELECT w.note_id AS noteId, w.write_id AS writeId, w.kind, w.name, w.at, w.created, w.seen
      FROM agent_writes w JOIN notes n ON n.id = w.note_id
      WHERE n.deleted_at IS NULL AND n.purged_at IS NULL
-     ORDER BY w.at DESC, w.note_id, w.write_id LIMIT @limit`,
+       AND (w.seen = 0 OR (w.at, w.note_id, w.write_id) IN (
+         SELECT x.at, x.note_id, x.write_id FROM agent_writes x JOIN notes m ON m.id = x.note_id
+         WHERE m.deleted_at IS NULL AND m.purged_at IS NULL
+         ORDER BY x.at DESC, x.note_id, x.write_id LIMIT @limit))
+     ORDER BY w.at DESC, w.note_id, w.write_id`,
   seen: `UPDATE agent_writes SET seen = 1
      WHERE note_id = @noteId AND seen = 0 AND write_id IN (SELECT value FROM json_each(@ids))`,
   purge: `DELETE FROM agent_writes WHERE note_id = @noteId`,

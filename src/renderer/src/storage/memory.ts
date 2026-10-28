@@ -411,10 +411,12 @@ export const memoryStorage: StorageAdapter = {
         .map((n) => n.id),
     )
     const key = (w: AgentWriteSummary) => `${w.noteId} ${w.writeId}`
-    return read<AgentWriteSummary>(AGENT_WRITES)
+    const sorted = read<AgentWriteSummary>(AGENT_WRITES)
       .filter((w) => live.has(w.noteId))
       .sort((a, b) => b.at - a.at || (key(a) < key(b) ? -1 : 1))
-      .slice(0, limit)
+    // As in SQL: the newest `limit`, and every unseen row older than those.
+    const newest = new Set(sorted.slice(0, limit).map(key))
+    return sorted.filter((w) => !w.seen || newest.has(key(w)))
   },
   async markAgentWritesSeen(noteId, writeIds) {
     const ids = new Set(writeIds)

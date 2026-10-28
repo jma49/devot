@@ -2895,6 +2895,46 @@ fn replaces_a_notes_agent_writes_with_each_write_that_carries_them_keeping_seen(
 }
 
 #[test]
+fn lists_unseen_agent_writes_older_than_the_newest_limit() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "A", 10), &[]).unwrap();
+    let rows = [
+        agent_write("AAAAAAAAAAA", "mcp", 1),
+        agent_write("BBBBBBBBBBB", "mcp", 2),
+        agent_write("CCCCCCCCCCC", "mcp", 3),
+        agent_write("DDDDDDDDDDD", "mcp", 4),
+    ];
+    store
+        .put_note_with_writes(&based_on(1, note("a", "A", 11)), &[], Some(&rows))
+        .unwrap();
+    // The oldest is seen, then one unseen; the two newest are seen.
+    store
+        .mark_agent_writes_seen(
+            "a",
+            &[
+                "AAAAAAAAAAA".into(),
+                "CCCCCCCCCCC".into(),
+                "DDDDDDDDDDD".into(),
+            ],
+        )
+        .unwrap();
+    let listed: Vec<(String, bool)> = store
+        .list_agent_writes(2)
+        .unwrap()
+        .into_iter()
+        .map(|w| (w.write_id, w.seen))
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            ("DDDDDDDDDDD".into(), true),
+            ("CCCCCCCCCCC".into(), true),
+            ("BBBBBBBBBBB".into(), false),
+        ]
+    );
+}
+
+#[test]
 fn lists_agent_writes_of_live_notes_and_purging_deletes_them() {
     let (_dir, mut store) = temp_store();
     let rows = [agent_write("AAAAAAAAAAA", "mcp", 5)];
