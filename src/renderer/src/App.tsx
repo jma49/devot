@@ -1446,6 +1446,8 @@ export function App() {
           await saveEdits(core)
           void core.mirrorTouch()
           await refresh(core)
+          // Seen writes change no note: the other windows' marks need this read too.
+          agentWrites.reload()
         }
       : undefined,
   )
@@ -2039,7 +2041,7 @@ export function App() {
   )
 
   const editBuiltInCopy = async (id: string) => {
-    if (!core) return
+    if (!core || !editing) return
     await saveEdits(core)
     const copy = await core.saveTemplate(id, {}).catch(() => undefined)
     if (!copy) return console.warn('W_TEMPLATE_COPY_FAILED', id)
@@ -2048,6 +2050,7 @@ export function App() {
     await select(copy, { keyboard: true })
   }
   const useBuiltIn = (id: string) => {
+    if (!editing) return
     setBuiltIn(undefined)
     return createFromTemplate(id)
   }
@@ -2556,7 +2559,7 @@ export function App() {
     removeTag: removeTagFromNotes,
     trash: trashNotes,
     clearAuthorship: editing ? setClearing : undefined,
-    authored: (id) => agentWrites.view.byNote.has(id),
+    authored: (id) => agentWrites.view.authored.has(id),
   })
 
   // Back/Forward entries skip deleted notes (the Trash's notes are never entries); templates are entries. The open note is the current entry's or the one a navigation is opening; none in the Trash.
@@ -3167,7 +3170,7 @@ export function App() {
   const openFromList = useStable((id: string) => void select(id))
   const createFromList = useStable(() => void create())
   const runNoteAction = useStable((action: NoteAction, id: string) => noteActions.run(action, id))
-  const showNoteMenu = useStable((id: string) => noteActions.menu(id))
+  const showNoteMenu = useStable((id: string, at?: MenuPoint) => noteActions.menu(id, at))
   const findInView = useStable(() => startSearch('view'))
   const findEverywhere = useStable(() => startSearch('all'))
   const findAgain = useStable(() => startSearch(searchIn))
@@ -3272,6 +3275,10 @@ export function App() {
     ),
     [trash.length, editing, askEmptyTrash],
   )
+  // Stable, so a Copy ID that fails does not render the Sidebar with every save.
+  const sidebarCopyFailed = useStable((failure: ExportFailure, code: string) =>
+    setExportNotice({ failure, code }),
+  )
   const sidebarSelect = useStable((next: Selection, options?: { clearFilter?: boolean }) =>
     showLibrary(next, options),
   )
@@ -3347,7 +3354,11 @@ export function App() {
       case 'filter':
         return sidebarFilter(chip.filtered ? null : { kind: 'tag', tagId: chip.tagId })
       case 'copyId':
-        return void copyText(chip.tagId).catch(() => console.warn('W_TAG_COPY_FAILED', chip.tagId))
+        return void copyText(chip.tagId).catch((e: unknown) => {
+          const code = errorCode(e)
+          console.warn('W_TAG_COPY_FAILED', chip.tagId, code)
+          setExportNotice({ failure: 'copyId', code })
+        })
     }
   })
   const showChipMenu = useContextMenu('noteTag', CHIP_MENU, runChipAction)
@@ -3356,9 +3367,11 @@ export function App() {
       case 'open':
         return sidebarSelect({ kind: 'book', id: book.bookId })
       case 'copyId':
-        return void copyText(book.bookId).catch(() =>
-          console.warn('W_BOOK_COPY_FAILED', book.bookId),
-        )
+        return void copyText(book.bookId).catch((e: unknown) => {
+          const code = errorCode(e)
+          console.warn('W_BOOK_COPY_FAILED', book.bookId, code)
+          setExportNotice({ failure: 'copyId', code })
+        })
     }
   })
   const showNotebookMenu = useContextMenu('noteBook', NOTEBOOK_MENU, runNotebookAction)
@@ -3470,6 +3483,7 @@ export function App() {
         onSearchBooks={sidebarSearchBooks}
         onSearchTags={sidebarSearchTags}
         onEmptyTrash={askEmptyTrash}
+        onCopyFailed={sidebarCopyFailed}
         onNewNote={core && editing ? sidebarNewNote : undefined}
         readOnly={!editing}
         workspace={sidebarWorkspace}
@@ -3479,6 +3493,7 @@ export function App() {
       />
       {searching ? (
         <NoteList
+          editing={editing}
           view={listView}
           title={t('search.results')}
           filter={filterField}
@@ -3509,6 +3524,7 @@ export function App() {
         />
       ) : inTrash ? (
         <NoteList
+          editing={editing}
           view={listView}
           title={t('sidebar.trash')}
           icon={<Icon name="trash" size="lg" />}
@@ -3533,6 +3549,7 @@ export function App() {
         />
       ) : inTemplates ? (
         <NoteList
+          editing={editing}
           view={listView}
           title={t('sidebar.templates')}
           icon={<Icon name="templates" size="lg" />}
@@ -3562,6 +3579,7 @@ export function App() {
         />
       ) : boardShown ? (
         <NoteBoard
+          editing={editing}
           view={listView}
           title={filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes')}
           icon={listIcon}
@@ -3595,6 +3613,7 @@ export function App() {
         />
       ) : (
         <NoteList
+          editing={editing}
           view={listView}
           title={filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes')}
           icon={listIcon}
@@ -3689,6 +3708,7 @@ export function App() {
             onPin={(pinned) => void setNotesPinned(multiIds, pinned)}
             onStatus={(status) => void setNotesStatus(multiIds, status)}
             onAddTag={(name) => void addTagToNotes(multiIds, name)}
+            onPutTag={(tagId) => void putTagOnNotes(multiIds, tagId)}
             onRemoveTag={(tagId) => void removeTagFromNotes(multiIds, tagId)}
             onCopyLinks={() => void noteActions.runOn('copyLink', multiIds)}
             onTrash={() => void trashNotes(multiIds)}
@@ -3753,6 +3773,7 @@ export function App() {
                   tags={tags}
                   value={selectedNote?.tagIds ?? []}
                   onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}
+                  onPut={(tagId) => void putTagOnNotes([selected], tagId)}
                   onRemove={(tagId) => void changeBooks((c) => c.removeTag(selected, tagId))}
                   onChipMenu={(tagId, at) =>
                     void showChipMenu(
@@ -3852,6 +3873,7 @@ export function App() {
         ) : shownBuiltIn ? (
           <BuiltInTemplate
             id={shownBuiltIn}
+            readOnly={!editing}
             onUse={(id) => void useBuiltIn(id)}
             onEditCopy={(id) => void editBuiltInCopy(id)}
           />

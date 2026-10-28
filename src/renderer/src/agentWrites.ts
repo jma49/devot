@@ -25,13 +25,18 @@ export interface AgentWritesView {
   changedBy: ReadonlyMap<string, WriterRef>
   /** The MCP clients and the HTTP API, newest first; Edit with AI is the owner's own. */
   agents: readonly AgentSummary[]
+  /** Notes with any agent write, seen or not: the ones Clear Authorship applies to. */
+  authored: ReadonlySet<string>
 }
 
 /** How many agents the sidebar lists at most. */
 export const MAX_AGENTS_LISTED = 8
 
-/** `rows` as listAgentWrites gives them: newest first. */
-export function agentWritesView(rows: readonly AgentWriteSummary[]): AgentWritesView {
+/** `rows` as listAgentWrites gives them (newest first), and the notes with any row at all. */
+export function agentWritesView(
+  rows: readonly AgentWriteSummary[],
+  authored: Iterable<string> = [],
+): AgentWritesView {
   const byNote = new Map<string, AgentWriteSummary[]>()
   const changedBy = new Map<string, WriterRef>()
   const agents = new Map<string, AgentSummary & { noteIds: Set<string> }>()
@@ -58,7 +63,12 @@ export function agentWritesView(rows: readonly AgentWriteSummary[]): AgentWrites
       })
     }
   }
-  return { byNote, changedBy, agents: [...agents.values()].slice(0, MAX_AGENTS_LISTED) }
+  return {
+    byNote,
+    changedBy,
+    agents: [...agents.values()].slice(0, MAX_AGENTS_LISTED),
+    authored: new Set(authored),
+  }
 }
 
 /** The open note's unseen writes, newest first. */
@@ -66,6 +76,10 @@ export const unseenOf = (view: AgentWritesView, noteId: string | undefined) =>
   noteId === undefined ? [] : (view.byNote.get(noteId) ?? []).filter((row) => !row.seen)
 
 const EMPTY = agentWritesView([])
+
+/** Whether two reads name the same notes, whatever their order. */
+const sameNotes = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && a.every((id) => b.includes(id))
 
 export const sameSummaries = (
   a: readonly AgentWriteSummary[],
@@ -93,15 +107,18 @@ export function useAgentWrites(core: Core | undefined, when: unknown) {
   const [view, setView] = useState<AgentWritesView>(EMPTY)
   const asked = useRef(0)
   const shown = useRef<readonly AgentWriteSummary[]>([])
+  const shownAuthored = useRef<readonly string[]>([])
   const reload = useCallback(() => {
     if (!core) return
     const ask = (asked.current += 1)
-    core.agentWrites(MAX_AGENT_WRITES_LISTED).then(
-      (rows) => {
+    Promise.all([core.agentWrites(MAX_AGENT_WRITES_LISTED), core.authoredNotes()]).then(
+      ([rows, authored]) => {
         // Each save reads again; the same rows keep the same view, so typing renders neither the window nor the sidebar.
-        if (ask !== asked.current || sameSummaries(shown.current, rows)) return
+        if (ask !== asked.current) return
+        if (sameSummaries(shown.current, rows) && sameNotes(shownAuthored.current, authored)) return
         shown.current = rows
-        setView(agentWritesView(rows))
+        shownAuthored.current = authored
+        setView(agentWritesView(rows, authored))
       },
       (e: unknown) => console.warn('W_AGENT_WRITES_LIST_FAILED', e),
     )

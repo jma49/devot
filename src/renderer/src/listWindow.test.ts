@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { entryOffsets, spacerHeight, windowRuns } from './listWindow'
+import { entryOffsets, jumpIndex, spacerHeight, windowRuns } from './listWindow'
 
 describe('entryOffsets', () => {
   it('puts each entry after the ones before it and their gaps', () => {
@@ -63,5 +63,19 @@ describe('windowRuns', () => {
     expect(windowRuns(gapped, 5, { top: 32, height: 12 }, 0, [])).toEqual([[2, 3]])
     // [41, 46) falls in the gap after entry 2 and before entry 3 ([45, 55)).
     expect(windowRuns(gapped, 5, { top: 41, height: 5 }, 0, [])).toEqual([[3, 4]])
+  })
+})
+
+describe('jumpIndex', () => {
+  it('goes to the first or last entry, or about a screen away', () => {
+    expect(jumpIndex('Home', 5, 10, 3)).toBe(0)
+    expect(jumpIndex('End', 5, 10, 3)).toBe(9)
+    expect(jumpIndex('PageDown', 5, 10, 3)).toBe(8)
+    expect(jumpIndex('PageUp', 5, 10, 3)).toBe(2)
+    expect(jumpIndex('PageDown', 9, 10, 3)).toBe(9)
+    expect(jumpIndex('PageUp', 1, 10, 3)).toBe(0)
+    expect(jumpIndex('PageDown', -1, 10, 3)).toBe(3)
+    expect(jumpIndex('Home', 0, 0, 3)).toBeUndefined()
+    expect(jumpIndex('ArrowDown', 5, 10, 3)).toBeUndefined()
   })
 })

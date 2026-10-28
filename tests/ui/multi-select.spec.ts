@@ -12,6 +12,7 @@ import {
   statusPicker,
 } from './fixtures'
 import { seedNotes } from './renders'
+import { slowCore } from './slowCore'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
@@ -206,6 +207,32 @@ test('Shift+arrows extend the selection, Cmd+A selects all, Escape goes back to 
   await page.keyboard.insertText('replaced')
   await expect(body(page)).toHaveText('replaced')
   expect(await selectedTitles(page)).toEqual(['Alpha'])
+})
+
+test('a key right after Cmd-click takes the open note out acts on the remaining selection', async ({
+  page,
+}) => {
+  await fourNotes(page)
+  // Every title saved before the reload, the last one included.
+  await expect
+    .poll(async () => Object.keys(await stored(page)).sort())
+    .toEqual(['Alpha', 'Beta', 'Delta', 'Gamma'])
+  // The note that replaces the one clicked out loads slowly, as on a busy machine.
+  await slowCore(page, ['title'])
+  await page.reload()
+  await noteRow(page, 'Delta').click()
+  await expect(titleField(page)).toHaveValue('Delta')
+  await noteRow(page, 'Beta').click({ modifiers: ['Meta'] })
+  await noteRow(page, 'Gamma').click({ modifiers: ['Meta'] })
+  await expect(summary(page).getByRole('heading')).toHaveText('3 Notes Selected')
+  // Delta stays open until Gamma, the selection's anchor, has loaded.
+  await noteRow(page, 'Delta').click({ modifiers: ['Meta'] })
+  await page.keyboard.press('Meta+Backspace')
+  // The key took the selection, not the note that was open a moment before.
+  await expect
+    .poll(() => noteRows(page).locator('.row-title').allTextContents())
+    .toEqual(['Delta', 'Alpha'])
+  await expect(sourceRow(page, 'Trash')).toHaveText(/2$/)
 })
 
 test('keys and clicks faster than the list renders build on each other (#249)', async ({
@@ -441,6 +468,7 @@ test('the context menu of a selected row acts on the whole selection', async ({ 
   ])
   await pickMenuItem(page, 'Completed', 'Status')
   await expect(sourceRow(page, 'Completed')).toHaveText(/3$/)
+  await expect(statusPicker(summary(page))).toHaveAccessibleName('Status: Completed')
   await openMenu(page, 'Beta')
   expect(await shownMenu(page)).toContain('  Completed Ctrl+CmdOrCtrl+4 [x]')
   expect(await shownMenu(page)).toContain('  No Status Ctrl+CmdOrCtrl+1 [ ]')

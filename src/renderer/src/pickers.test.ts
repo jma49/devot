@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { BookNode } from '../../core/books'
 import type { TagRecord } from '../../core/storage'
-import { bookOptions, filterBooks } from './BookPicker'
+import { bookOptions, filterBooks, firstBookMatch, NO_BOOK } from './BookPicker'
 import { fieldStep, pickerStep } from './Picker'
 import { tagRows } from './TagEditor'
+import { matchingTags } from './TagPickDialog'
 import { SHOW_AFTER_MS, splitTip } from './ToolTips'
 
 function tag(id: string, name: string): TagRecord {
@@ -38,6 +39,13 @@ describe('tagRows', () => {
     expect(tagRows(tags, ['t1'], 'Work')).toEqual([{ kind: 'tag', tag: tags[1] }])
     expect(tagRows(tags, [], '  ')).toEqual([])
   })
+
+  it('has no Create row for a name the core counts as the same, as kana and width variants', () => {
+    const same = [tag('k', '\u30bf\u30b0'), tag('f', '\uff34\uff2f\uff24\uff2f'), tag('c', 'café')]
+    expect(tagRows(same, [], '\u305f\u3050')).toEqual([])
+    expect(tagRows(same, [], 'TODO')).toEqual([])
+    expect(tagRows(same, [], 'café')).toEqual([])
+  })
 })
 
 describe('filterBooks', () => {
@@ -52,6 +60,44 @@ describe('filterBooks', () => {
     expect(filterBooks(list, 'meet').map((o) => o.id)).toEqual(['a', 'a1'])
     expect(filterBooks(list, 'HOME').map((o) => o.id)).toEqual(['b'])
     expect(filterBooks(list, 'zzz')).toEqual([])
+  })
+})
+
+describe('firstBookMatch', () => {
+  const noBook = {
+    id: NO_BOOK,
+    name: 'No Notebook',
+    depth: 0,
+    ancestors: [],
+    icon: null,
+    iconColor: null,
+  }
+  const tree = [book('a', 'Projects', 0, [book('a1', 'Devot', 1)]), book('b', 'Notes', 0)]
+  const all = [noBook, ...bookOptions(tree)]
+
+  it('chooses the notebook whose own name matches, not a parent kept as context', () => {
+    const left = filterBooks(all, 'devot')
+    expect(left.map((o) => o.id)).toEqual(['a', 'a1'])
+    expect(firstBookMatch(left, 'devot')?.id).toBe('a1')
+  })
+
+  it('does not choose No Notebook just because its name holds the query', () => {
+    expect(firstBookMatch(filterBooks(all, 'note'), 'note')?.id).toBe('b')
+    // "No Notebook" holds "book" as well as a notebook named Notebooks does.
+    const books = [noBook, ...bookOptions([book('n', 'Notebooks', 0)])]
+    expect(firstBookMatch(filterBooks(books, 'book'), 'book')?.id).toBe('n')
+  })
+
+  it('prefers an exact name, then a name it starts', () => {
+    const list = bookOptions([
+      book('w', 'Workshop', 0),
+      book('x', 'Work', 0),
+      book('y', 'Paperwork', 0),
+    ])
+    expect(firstBookMatch(list, 'work')?.id).toBe('x')
+    expect(firstBookMatch(list, 'works')?.id).toBe('w')
+    expect(firstBookMatch(list, 'paper')?.id).toBe('y')
+    expect(firstBookMatch(list, '')?.id).toBe('w')
   })
 })
 
@@ -92,5 +138,22 @@ describe('splitTip', () => {
   it('splits a tooltip into the name and its key', () => {
     expect(splitTip('New Note (⌘N)')).toEqual({ name: 'New Note', key: '⌘N' })
     expect(splitTip('More')).toEqual({ name: 'More', key: undefined })
+  })
+})
+
+describe('matchingTags', () => {
+  const tags = [
+    tag('k', '\u30bf\u30b0'),
+    tag('f', '\uff34\uff2f\uff24\uff2f'),
+    tag('c', 'café'),
+    tag('x', 'work'),
+  ]
+
+  it('lists a tag the core counts as the typed name, though the text differs', () => {
+    expect(matchingTags(tags, '\u305f\u3050').map((t) => t.id)).toEqual(['k'])
+    expect(matchingTags(tags, 'TODO').map((t) => t.id)).toEqual(['f'])
+    expect(matchingTags(tags, 'café').map((t) => t.id)).toEqual(['c'])
+    expect(matchingTags(tags, 'wor').map((t) => t.id)).toEqual(['x'])
+    expect(matchingTags(tags, '').map((t) => t.id)).toEqual(['k', 'f', 'c', 'x'])
   })
 })

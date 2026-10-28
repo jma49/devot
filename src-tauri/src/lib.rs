@@ -116,6 +116,7 @@ pub fn run() {
             commands::activity::activity_list,
             commands::activity::activity_notes_list,
             commands::authorship::agent_writes_list,
+            commands::authorship::agent_writes_authored,
             commands::authorship::agent_writes_seen,
             commands::files::file_put,
             commands::files::files_copy,

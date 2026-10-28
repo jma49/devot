@@ -61,7 +61,9 @@ export const tauriWire: WireStorage = {
   listNoteActivity: (ids, since) =>
     invoke<ActivityRevision[]>('activity_notes_list', { ids, since }),
   listAgentWrites: (limit) => invoke<AgentWriteSummary[]>('agent_writes_list', { limit }),
-  markAgentWritesSeen: (noteId, writeIds) => invoke('agent_writes_seen', { noteId, writeIds }),
+  authoredNotes: () => invoke<string[]>('agent_writes_authored'),
+  markAgentWritesSeen: (noteId, writeIds) =>
+    invoke<number>('agent_writes_seen', { noteId, writeIds }),
 }
 
 export const tauriStorage: StorageAdapter = fromWire(tauriWire)

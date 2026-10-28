@@ -3,7 +3,7 @@ import type { BookNode } from '../../core/books'
 import type { TagColor } from '../../core/storage'
 import { BookIcon } from './BookIcon'
 import type { MenuPoint } from './contextMenu'
-import { t } from './i18n'
+import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { PickerList, usePickerOpen, type PickerOption } from './Picker'
 
@@ -49,6 +49,30 @@ export function filterBooks(list: readonly BookOption[], query: string): BookOpt
     for (const id of o.ancestors) keep.add(id)
   }
   return list.filter((o) => keep.has(o.id))
+}
+
+/**
+ * The notebook a typed query starts on: the best of those whose own name holds
+ * it (an exact name first, then a name it starts, then any), in list order.
+ * A notebook kept only because a match is nested in it is context, never the
+ * choice.
+ */
+export function firstBookMatch(list: readonly BookOption[], query: string): BookOption | undefined {
+  const want = query.trim().toLocaleLowerCase()
+  if (!want) return list[0]
+  const rank = (o: BookOption) => {
+    const name = o.name.toLocaleLowerCase()
+    const byName = name === want ? 0 : name.startsWith(want) ? 1 : 2
+    // A notebook named for the query beats No Notebook however the two match:
+    // taking the note out of its notebook is the last thing typing it means.
+    return o.id === NO_BOOK ? byName + 3 : byName
+  }
+  let best: BookOption | undefined
+  for (const o of list) {
+    if (!o.name.toLocaleLowerCase().includes(want)) continue
+    if (!best || rank(o) < rank(best)) best = o
+  }
+  return best
 }
 
 export const NO_BOOK = ''
@@ -120,11 +144,10 @@ export function BookPicker(props: {
         ref={button}
         type="button"
         className="popup book-popup"
-        aria-label={t('note.bookLabel')}
+        aria-label={format(t('note.bookValue'), { book: current })}
         data-value={value}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={current}
         onClick={() => toggle(!open)}
         onContextMenu={(e) => {
           if (value === NO_BOOK || !props.onMenu) return
@@ -138,7 +161,9 @@ export function BookPicker(props: {
         }}
       >
         <BookIcon icon={chosen?.icon ?? null} color={chosen?.iconColor ?? null} size="sm" />
-        <span className="popup-value">{current}</span>
+        <span className="popup-value" title={current}>
+          {current}
+        </span>
         <Icon name="popup.chevron" size="xs" />
       </button>
       {open ? (
@@ -151,7 +176,29 @@ export function BookPicker(props: {
             close()
             if (id !== value) props.onChange(id === NO_BOOK ? null : id)
           }}
-          search={{ placeholder: t('note.searchBooks'), query, onQuery: setQuery }}
+          search={{
+            placeholder: t('note.searchBooks'),
+            query,
+            onQuery: setQuery,
+            pick: (next) =>
+              firstBookMatch(
+                filterBooks(
+                  [
+                    {
+                      id: NO_BOOK,
+                      name: noBook,
+                      depth: 0,
+                      ancestors: [],
+                      icon: null,
+                      iconColor: null,
+                    },
+                    ...list,
+                  ],
+                  next,
+                ),
+                next,
+              )?.id,
+          }}
           empty={t('note.noBooksFound')}
         />
       ) : null}

@@ -45,6 +45,12 @@ describe('agentWritesView', () => {
     expect(unseenOf(view, undefined)).toEqual([])
   })
 
+  it('names every note with an agent write, seen or not, past the rows it lists', () => {
+    const view = agentWritesView([row('a', 50, 'mcp', 'Claude Code', true)], ['a', 'old'])
+    expect([...view.authored]).toEqual(['a', 'old'])
+    expect(view.byNote.has('old')).toBe(false)
+  })
+
   it('lists a bounded number of agents', () => {
     const many = Array.from({ length: MAX_AGENTS_LISTED + 3 }, (_, i) =>
       row('n', 100 - i, 'mcp', `Client ${i}`),

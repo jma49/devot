@@ -624,11 +624,11 @@ export async function openNotePinned(page: Page): Promise<boolean> {
 }
 
 export function statusPicker(scope: Page | Locator): Locator {
-  return scope.getByRole('button', { name: 'Status', exact: true })
+  return scope.getByRole('button', { name: /^Status\b/ })
 }
 
 export function bookPicker(scope: Page | Locator): Locator {
-  return scope.getByRole('button', { name: 'Notebook', exact: true })
+  return scope.getByRole('button', { name: /^Notebook\b/ })
 }
 
 export async function pickStatus(scope: Page | Locator, label: string): Promise<void> {

@@ -91,11 +91,18 @@ pub async fn agent_writes_list(
 }
 
 #[tauri::command]
+pub async fn agent_writes_authored(db: State<'_, Db>) -> Result<Vec<String>, String> {
+    db.call(|store| store.authored_notes())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn agent_writes_seen(
     db: State<'_, Db>,
     note_id: String,
     write_ids: Vec<String>,
-) -> Result<(), String> {
+) -> Result<usize, String> {
     validate_seen(&note_id, &write_ids).map_err(String::from)?;
     db.write(Write::Bookkeeping, move |store| {
         store.mark_agent_writes_seen(&note_id, &write_ids)

@@ -174,10 +174,16 @@ test.describe('once the trial is over', () => {
       .getByRole('group', { name: 'Built-in' })
       .getByRole('button', { name: 'Planning' })
       .click()
-    await page
+    const create = page
       .getByRole('region', { name: 'Planning' })
       .getByRole('button', { name: 'Create' })
-      .click()
+    // Off, and still focusable so the keyboard can reach it and hear why.
+    await expect(create).toHaveAttribute('aria-disabled', 'true')
+    await expect(
+      page.getByRole('region', { name: 'Planning' }).getByRole('button', { name: 'Edit a Copy' }),
+    ).toHaveAttribute('aria-disabled', 'true')
+    // A disabled button takes no click; this one is aria-disabled, so click it anyway.
+    await create.evaluate((el) => (el as HTMLElement).click())
     // Nothing is made: no note opens, and the Templates list stays empty.
     await page.waitForTimeout(1_000)
     await expect(page.getByRole('textbox', { name: 'Title' })).toHaveCount(0)

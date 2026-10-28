@@ -31,6 +31,15 @@ export function reportingWrites(storage: WireStorage, onWrote: () => void): Wire
       await write(...args)
       onWrote()
     }
+  // A write that changed no row, another window having got there first, has
+  // nothing to tell the others about.
+  const afterChange =
+    <A extends unknown[]>(write: (...args: A) => Promise<number>) =>
+    async (...args: A) => {
+      const changed = await write(...args)
+      if (changed > 0) onWrote()
+      return changed
+    }
   return {
     ...storage,
     purgeNote: after((id, at, hlc) => storage.purgeNote(id, at, hlc)),
@@ -40,6 +49,9 @@ export function reportingWrites(storage: WireStorage, onWrote: () => void): Wire
     putBook: after((book) => storage.putBook(book)),
     putTag: after((tag) => storage.putTag(tag)),
     putNoteTag: after((link) => storage.putNoteTag(link)),
+    markAgentWritesSeen: afterChange((noteId, writeIds) =>
+      storage.markAgentWritesSeen(noteId, writeIds),
+    ),
   }
 }
 

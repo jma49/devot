@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { NOTE_STATUSES, type NoteStatus } from '../../core/storage'
 import { shortcutLabel } from './commands/keys'
 import { commandKeys } from './commands/registry'
-import { t } from './i18n'
+import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { STATUS_ICONS } from './NoteRow'
 import { PickerList, usePickerOpen, type PickerOption } from './Picker'
@@ -40,6 +40,11 @@ export function StatusPicker(props: {
   const button = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = usePickerOpen(box)
   const shown = props.mixed ? 'none' : props.value
+  const value = props.mixed
+    ? t('status.mixed')
+    : props.value === 'none'
+      ? t('note.statusLabel')
+      : t(`status.${props.value}`)
   const close = () => {
     setOpen(false)
     button.current?.focus()
@@ -50,7 +55,11 @@ export function StatusPicker(props: {
         ref={button}
         type="button"
         className={`popup status-${shown}`}
-        aria-label={t('note.statusLabel')}
+        aria-label={
+          props.mixed || props.value !== 'none'
+            ? format(t('note.statusValue'), { status: value })
+            : value
+        }
         data-value={props.mixed ? '' : props.value}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -62,13 +71,7 @@ export function StatusPicker(props: {
         }}
       >
         {shown === 'none' ? null : <Icon name={STATUS_ICONS[shown]} size="sm" />}
-        <span className="popup-value">
-          {props.mixed
-            ? t('status.mixed')
-            : props.value === 'none'
-              ? t('note.statusLabel')
-              : t(`status.${props.value}`)}
-        </span>
+        <span className="popup-value">{value}</span>
         <Icon name="popup.chevron" size="xs" />
       </button>
       {open ? (

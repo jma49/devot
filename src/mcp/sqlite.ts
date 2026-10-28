@@ -128,7 +128,9 @@ export const ACTIVITY_SQL = {
  * The agent_writes index (docs/adr/0007-authorship-by-yjs-item-ids.md), the
  * same statements as the Rust store's (storage/mod.rs; a test compares them).
  * A note's rows are replaced with each write that carries them, keeping
- * `seen` of the rows it still has.
+ * `seen` of the rows it still has. The list keeps every unseen row, however
+ * old, so a note whose writes are all older than the newest `limit` still
+ * shows its mark, its unseen count and its notice.
  */
 export const AGENT_WRITES_SQL = {
   keep: `DELETE FROM agent_writes
@@ -139,8 +141,18 @@ export const AGENT_WRITES_SQL = {
        kind = excluded.kind, name = excluded.name, at = excluded.at, created = excluded.created`,
   list: `SELECT w.note_id AS noteId, w.write_id AS writeId, w.kind, w.name, w.at, w.created, w.seen
      FROM agent_writes w JOIN notes n ON n.id = w.note_id
-     WHERE n.deleted_at IS NULL AND n.purged_at IS NULL
-     ORDER BY w.at DESC, w.note_id, w.write_id LIMIT @limit`,
+     WHERE w.seen = 0 AND n.deleted_at IS NULL AND n.purged_at IS NULL
+     UNION ALL
+     SELECT w.note_id, w.write_id, w.kind, w.name, w.at, w.created, w.seen
+     FROM (SELECT x.at, x.note_id, x.write_id FROM agent_writes x JOIN notes m ON m.id = x.note_id
+       WHERE m.deleted_at IS NULL AND m.purged_at IS NULL
+       ORDER BY x.at DESC, x.note_id, x.write_id LIMIT @limit) t
+     JOIN agent_writes w ON w.note_id = t.note_id AND w.write_id = t.write_id AND w.seen = 1
+     JOIN notes n ON n.id = w.note_id AND n.deleted_at IS NULL AND n.purged_at IS NULL
+     ORDER BY at DESC, noteId, writeId`,
+  authored: `SELECT DISTINCT w.note_id FROM agent_writes w
+     JOIN notes n ON n.id = w.note_id
+     WHERE n.deleted_at IS NULL AND n.purged_at IS NULL`,
   seen: `UPDATE agent_writes SET seen = 1
      WHERE note_id = @noteId AND seen = 0 AND write_id IN (SELECT value FROM json_each(@ids))`,
   purge: `DELETE FROM agent_writes WHERE note_id = @noteId`,
@@ -604,6 +616,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     [{ limit: number }],
     Omit<AgentWriteSummary, 'created' | 'seen'> & { created: number; seen: number }
   >(AGENT_WRITES_SQL.list)
+  const authoredAgentWrites = db.prepare<[], { note_id: string }>(AGENT_WRITES_SQL.authored)
   const seenAgentWrites = db.prepare(AGENT_WRITES_SQL.seen)
   const dropAgentWrites = db.prepare(AGENT_WRITES_SQL.purge)
   const syncPending = db.prepare<[{ after: string; limit: number }], { id: string }>(
@@ -969,8 +982,11 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         created: row.created === 1,
         seen: row.seen === 1,
       })),
+    async authoredNotes() {
+      return authoredAgentWrites.all().map((row) => row.note_id)
+    },
     async markAgentWritesSeen(noteId, writeIds) {
-      seenAgentWrites.run({ noteId, ids: JSON.stringify(writeIds) })
+      return seenAgentWrites.run({ noteId, ids: JSON.stringify(writeIds) }).changes
     },
     listBooks: async () => books.all().map((row) => toBook(row)),
     async putBook(book) {

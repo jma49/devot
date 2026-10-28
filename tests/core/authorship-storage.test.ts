@@ -312,7 +312,10 @@ describe('the agent_writes index', () => {
       notebook: s.shared,
     })
     const [first] = await s.storage.listAgentWrites(10)
-    await s.storage.markAgentWritesSeen(id, [first!.writeId, 'unknown0000'])
+    // The unknown ID is skipped; the row it knows is the one it changed.
+    expect(await s.storage.markAgentWritesSeen(id, [first!.writeId, 'unknown0000'])).toBe(1)
+    // Nothing left to change: the other windows hear of no write.
+    expect(await s.storage.markAgentWritesSeen(id, [first!.writeId])).toBe(0)
     await s.claude.ai.update({ id, body: { markdown: 'Draft text, longer.\n' } })
     await s.notes.applyAiEdit(id, { from: 0, original: 'Draft', replacement: 'Final' })
     await s.notes.flush()
@@ -322,7 +325,8 @@ describe('the agent_writes index', () => {
       ['mcp', 'Claude Code', false],
       ['mcp', 'Claude Code', true],
     ])
-    expect(await s.storage.listAgentWrites(1)).toHaveLength(1)
+    // The newest row, and the unseen row older than it.
+    expect((await s.storage.listAgentWrites(1)).map((w) => w.seen)).toEqual([true, false])
     const doc = await stored(s.storage, id)
     const aiEdit = readWrites(doc).find((w) => w.id === listed[0]!.writeId)
     const writers = doc.getMap(WRITERS).toJSON()
@@ -343,6 +347,43 @@ describe('the agent_writes index', () => {
     await s.notes.trash(id)
     await s.notes.purge(id)
     expect(rows(s.storage, id)).toEqual([])
+  })
+
+  it('lists unseen rows older than the newest limit, so an old note keeps its mark', async () => {
+    const s = await setup()
+    const id = await s.notes.create('Old')
+    const put = s.storage.db.prepare(
+      `INSERT INTO agent_writes (note_id, write_id, kind, name, at, created, seen)
+       VALUES (?, ?, 'mcp', 'Claude Code', ?, 0, ?)`,
+    )
+    // Oldest seen, then unseen; the two newest are seen.
+    put.run(id, 'AAAAAAAAAAA', 1, 1)
+    put.run(id, 'BBBBBBBBBBB', 2, 0)
+    put.run(id, 'CCCCCCCCCCC', 3, 1)
+    put.run(id, 'DDDDDDDDDDD', 4, 1)
+    const ids = async (limit: number) =>
+      (await s.storage.listAgentWrites(limit)).map((row) => row.writeId)
+    // The newest two, and the unseen row older than them; the seen oldest stays out.
+    expect(await ids(2)).toEqual(['DDDDDDDDDDD', 'CCCCCCCCCCC', 'BBBBBBBBBBB'])
+    await s.storage.markAgentWritesSeen(id, ['BBBBBBBBBBB'])
+    expect(await ids(2)).toEqual(['DDDDDDDDDDD', 'CCCCCCCCCCC'])
+  })
+
+  it('names every authored note, seen or not, past the rows the list keeps', async () => {
+    const s = await setup()
+    const old = await s.notes.create('Old')
+    const fresh = await s.notes.create('New')
+    const put = s.storage.db.prepare(
+      `INSERT INTO agent_writes (note_id, write_id, kind, name, at, created, seen)
+       VALUES (?, ?, 'mcp', 'Claude Code', ?, 0, 1)`,
+    )
+    put.run(old, 'AAAAAAAAAAA', 1)
+    put.run(fresh, 'BBBBBBBBBBB', 2)
+    // The list keeps the newest row only; the old note is authored all the same.
+    expect((await s.storage.listAgentWrites(1)).map((row) => row.noteId)).toEqual([fresh])
+    expect((await s.storage.authoredNotes()).sort()).toEqual([old, fresh].sort())
+    await s.notes.trash(fresh)
+    expect(await s.storage.authoredNotes()).toEqual([old])
   })
 
   it('refuses rows note_put would refuse', async () => {
@@ -473,6 +514,7 @@ describe('the statements', () => {
       keep: 'AGENT_WRITES_KEEP_SQL',
       put: 'AGENT_WRITES_PUT_SQL',
       list: 'AGENT_WRITES_LIST_SQL',
+      authored: 'AGENT_WRITES_AUTHORED_SQL',
       seen: 'AGENT_WRITES_SEEN_SQL',
       purge: 'AGENT_WRITES_PURGE_SQL',
     }
@@ -491,6 +533,8 @@ describe('the statements', () => {
       .map((p) => p.detail)
       .join('\n')
     expect(plan).toMatch(/agent_writes_newest/)
+    // The unseen half is the rows the list returns whole: it reads its own index.
+    expect(plan).toMatch(/agent_writes_unseen/)
     expect(plan).not.toMatch(/TEMP B-TREE/)
   })
 })

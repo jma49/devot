@@ -204,7 +204,8 @@ for (const width of [1280, 800]) {
     await detailsStayTight()
 
     await pickBook(page, name)
-    await expect(picker).toHaveAttribute('title', name)
+    // The tooltip sits on the name, not on the button: the button's name says the value once.
+    await expect(picker.locator('.popup-value')).toHaveAttribute('title', name)
     await detailsStayTight()
 
     await book(page, 'W{200}').click()

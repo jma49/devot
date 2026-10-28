@@ -1,7 +1,7 @@
 import { format, t, type MessageKey } from './i18n'
 import type { ExportAction } from './noteMenu'
 
-export type ExportFailure = 'export' | 'print' | 'copy' | 'copyLink' | 'copyLinks'
+export type ExportFailure = 'export' | 'print' | 'copy' | 'copyLink' | 'copyLinks' | 'copyId'
 
 export function failureOf(action: ExportAction): ExportFailure {
   if (action === 'print') return 'print'
@@ -15,6 +15,7 @@ const MESSAGES: Record<ExportFailure, MessageKey> = {
   copy: 'export.copyFailed',
   copyLink: 'export.copyLinkFailed',
   copyLinks: 'export.copyLinksFailed',
+  copyId: 'export.copyIdFailed',
 }
 
 export function ExportNotice(props: {

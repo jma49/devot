@@ -20,6 +20,27 @@ export function spacerHeight(offsets: Float64Array, from: number, to: number, ga
   return Math.max(0, offsets[to]! - offsets[from]! - gap)
 }
 
+/**
+ * The entry Home, End, Page Up or Page Down moves to from entry `at`: the
+ * first or last, or about `page` entries away. Undefined for other keys and
+ * for an empty list.
+ */
+export function jumpIndex(
+  key: string,
+  at: number,
+  count: number,
+  page: number,
+): number | undefined {
+  if (count === 0) return undefined
+  if (key === 'Home') return 0
+  if (key === 'End') return count - 1
+  const by = Math.max(1, page)
+  const from = at < 0 ? 0 : at
+  if (key === 'PageDown') return Math.min(count - 1, from + by)
+  if (key === 'PageUp') return Math.max(0, from - by)
+  return undefined
+}
+
 function firstWhere(lo: number, hi: number, test: (i: number) => boolean): number {
   while (lo < hi) {
     const mid = (lo + hi) >>> 1

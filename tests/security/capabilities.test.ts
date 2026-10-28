@@ -296,6 +296,7 @@ describe('Tauri command permissions', () => {
     const mainOnly = [
       'activity_list',
       'activity_notes_list',
+      'agent_writes_authored',
       'agent_writes_list',
       'book_put',
       'files_copy',

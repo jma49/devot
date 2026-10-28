@@ -49,6 +49,7 @@ fn main() {
             "activity_list",
             "activity_notes_list",
             "agent_writes_list",
+            "agent_writes_authored",
             "agent_writes_seen",
             "books_list",
             "book_put",

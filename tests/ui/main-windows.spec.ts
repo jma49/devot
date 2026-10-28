@@ -5,6 +5,7 @@ import {
   openApp,
   pickNoteMore,
   pickStatus,
+  reloadApp,
   statusPicker,
   test,
   type TestWindow,
@@ -219,4 +220,36 @@ test('the first window never answers a window close: Rust hides it or quits', as
   })
   await page.waitForTimeout(200)
   expect(await calls(page, 'note_window_close_ready')).toEqual([])
+})
+
+test('writes marked seen in one window leave the other window’s mark at once', async ({
+  page,
+  context,
+}) => {
+  const id = await noteIn(page, 'Plan', 'Owner text.')
+  await noteIn(page, 'Other', 'Other text.')
+  // An agent's unseen write on Plan, as devot-mcp leaves it.
+  await page.evaluate((noteId) => {
+    const at = Date.now()
+    localStorage.setItem(
+      'devot.test.agentWrites',
+      JSON.stringify([
+        { noteId, writeId: 'w1', kind: 'mcp', name: 'Claude Code', at, created: at, seen: false },
+      ]),
+    )
+  }, id)
+  await reloadApp(page)
+  const plan = (win: Page) => rows(win).filter({ hasText: 'Plan' })
+  await expect(plan(page)).toContainText('changed by')
+
+  const win = await openSecondWindow(context)
+  await expect(plan(win)).toContainText('changed by')
+
+  await plan(page).click()
+  const notice = page.getByRole('region', { name: 'Agent changes' })
+  await expect(notice).toBeVisible()
+  await notice.getByRole('button', { name: 'Dismiss' }).click()
+  await expect(plan(page)).not.toContainText('changed by')
+  // The other window hears of the write and reads its rows again.
+  await expect(plan(win)).not.toContainText('changed by')
 })

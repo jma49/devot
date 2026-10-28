@@ -276,6 +276,45 @@ test.describe('locked sync and AI', () => {
   })
 })
 
+test.describe('the read-only library', () => {
+  test('an empty list says notes are read-only, not to create one with a disabled button', async ({
+    page,
+  }) => {
+    await fakeRust(page, none())
+    await openApp(page)
+    await expect(page.getByText('No Notes Yet')).toBeVisible()
+    await expect(page.getByText('Notes are read-only until you add a licence.')).toBeVisible()
+    await expect(page.getByText('Create a note with the New Note button.')).toHaveCount(0)
+
+    await page
+      .getByRole('navigation', { name: 'Sidebar' })
+      .getByRole('button', { name: /^Templates/ })
+      .click()
+    await expect(page.getByText('No Templates Yet')).toBeVisible()
+    await expect(page.getByText('Templates are read-only until you add a licence.')).toBeVisible()
+    await expect(page.getByText('Create one with the New Template button.')).toHaveCount(0)
+  })
+})
+
+test.describe('the read-only library', () => {
+  test('a built-in template cannot be made into a note while the trial is over', async ({
+    page,
+  }) => {
+    await fakeRust(page, none())
+    await openApp(page)
+    const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
+    await sidebar.getByRole('button', { name: /^Templates/ }).click()
+    // The trial-ended notice lies over the list's top; the press still reaches its button.
+    await page
+      .getByRole('group', { name: 'Built-in' })
+      .getByRole('button', { name: 'Planning' })
+      .evaluate((el) => (el as HTMLElement).click())
+    await expect(page.getByRole('region', { name: 'Planning' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Create' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Edit a Copy' })).toBeDisabled()
+  })
+})
+
 test.describe('devot://licence links', () => {
   const offer = (id = ID, licensee = 'buyer@example.com') => ({ id, licensee, state: 'valid' })
 
