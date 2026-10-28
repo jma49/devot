@@ -63,6 +63,19 @@ export const BOOK_COMMANDS: Readonly<Record<BookCommand, CommandId>> = {
 const entry = (action: BookCommand, more: CommandEntryOptions<BookAction, BookMenuTarget> = {}) =>
   commandEntry<BookAction, BookMenuTarget>(action, BOOK_COMMANDS[action], more)
 
+/**
+ * Whether `action` applies to `book`: a key bound to an action the menu hides
+ * for that notebook (Move to Top Level on a top-level one) does nothing.
+ */
+export function bookActionShown(action: BookAction, book: BookMenuTarget): boolean {
+  for (const group of BOOK_MENU) {
+    for (const entry of group) {
+      if (entry.action === action) return entry.shown?.(book) ?? true
+    }
+  }
+  return true
+}
+
 export const BOOK_MENU: MenuGroups<BookAction, BookMenuTarget> = [
   [entry('copyId'), entry('newInside')],
   [entry('openWorkspace')],

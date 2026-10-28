@@ -3,6 +3,7 @@ import {
   BOOK_MENU,
   IMPORT_PICKS,
   WORKSPACE_MENU,
+  bookActionShown,
   bookShortcut,
   workspaceShortcut,
   type BookCommand,
@@ -25,6 +26,14 @@ const top = { id: 'a', parentId: null, aiAccess: false, previousId: null, nextId
 const nested = { id: 'b', parentId: 'a', aiAccess: true, previousId: null, nextId: null }
 const actions = (book: BookMenuTarget) =>
   shownGroups(BOOK_MENU, book).map((group) => group.map((entry) => entry.action))
+
+describe('bookActionShown', () => {
+  it('runs a key only where the menu shows its action', () => {
+    expect(bookActionShown('moveToTop', top)).toBe(false)
+    expect(bookActionShown('moveToTop', nested)).toBe(true)
+    expect(bookActionShown('copyId', top)).toBe(true)
+  })
+})
 
 describe('BOOK_MENU', () => {
   it('groups the actions; Move to Top Level only for a nested notebook', () => {

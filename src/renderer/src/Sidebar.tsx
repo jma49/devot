@@ -24,6 +24,7 @@ import {
   BOOK_COMMANDS,
   BOOK_MENU,
   WORKSPACE_MENU,
+  bookActionShown,
   bookShortcut,
   workspaceShortcut,
   type BookAction,
@@ -803,7 +804,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     const action = bookShortcut(event)
     if (action) {
       event.preventDefault()
-      runAction(action, placed(node))
+      const target = placed(node)
+      if (bookActionShown(action, target)) runAction(action, target)
     }
   }
 
