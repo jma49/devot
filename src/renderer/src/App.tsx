@@ -3167,7 +3167,7 @@ export function App() {
   const openFromList = useStable((id: string) => void select(id))
   const createFromList = useStable(() => void create())
   const runNoteAction = useStable((action: NoteAction, id: string) => noteActions.run(action, id))
-  const showNoteMenu = useStable((id: string) => noteActions.menu(id))
+  const showNoteMenu = useStable((id: string, at?: MenuPoint) => noteActions.menu(id, at))
   const findInView = useStable(() => startSearch('view'))
   const findEverywhere = useStable(() => startSearch('all'))
   const findAgain = useStable(() => startSearch(searchIn))

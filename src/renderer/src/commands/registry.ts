@@ -278,6 +278,15 @@ export const COMMANDS = [
     keys: ['Shift+ArrowDown'],
     palette: false,
   },
+  // Opens the focused note's menu from the keyboard, as a notebook row's does (the same keys).
+  {
+    id: 'list.rowMenu',
+    label: 'command.rowMenu',
+    group: 'note',
+    scope: 'list',
+    keys: ['Shift+F10', 'ContextMenu', 'Ctrl+Enter'],
+    palette: false,
+  },
   {
     id: 'trash.restore',
     label: 'command.restoreFromTrash',

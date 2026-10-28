@@ -65,7 +65,7 @@ interface Props {
   after?: ReactNode
   onAction?: (action: NoteAction, id: string) => void
   onTrashAction?: (action: TrashAction, id: string) => void
-  onMenu?: (id: string) => void
+  onMenu?: (id: string, at?: MenuPoint) => void
   sort?: { label: string; chip: string; onOpen: (anchor: HTMLElement) => void }
   sortButtonRef?: Ref<HTMLButtonElement>
   /** The List / Board control, for the views that can show a board. */
@@ -476,10 +476,27 @@ export const NoteList = memo(function NoteList(props: Props) {
     return true
   }
 
+  /** Opens a row's menu from the keyboard, under the row as a notebook row's menu opens. */
+  const rowMenu = (id: string): boolean => {
+    if (!props.onMenu) return false
+    const box = rows.current.get(id)?.getBoundingClientRect()
+    props.onMenu(id, box ? { x: box.left, y: box.bottom } : undefined)
+    return true
+  }
+
   const listKey = (event: KeyboardEvent) => {
     if (event.target !== event.currentTarget) return
     if (heldKey(event)) return
     if (selectionKey(event)) return
+    if (
+      selected !== undefined &&
+      indexOf.has(selected) &&
+      commandMatches('list.rowMenu', event) &&
+      rowMenu(selected)
+    ) {
+      event.preventDefault()
+      return
+    }
     if (props.onFind && commandMatches('search.fromList', event)) {
       event.preventDefault()
       return props.onFind()
@@ -505,6 +522,10 @@ export const NoteList = memo(function NoteList(props: Props) {
     // open note). With several notes selected they act on the selection, whose
     // rows are all drawn selected. Every key here comes from the registry.
     const target = chosen ? (selected ?? notes[index]?.id) : notes[index]?.id
+    if (target && commandMatches('list.rowMenu', event) && rowMenu(target)) {
+      event.preventDefault()
+      return
+    }
     const action = target && props.onAction ? noteShortcut(event) : undefined
     if (target && action) {
       event.preventDefault()

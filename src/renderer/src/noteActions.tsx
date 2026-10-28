@@ -178,7 +178,7 @@ export function useNoteActions(deps: {
   return {
     run: (action: NoteAction, id: string) => runOn(action, idsFor(id)),
     runOn,
-    menu: (id: string) => void showMenu(menuTarget(idsFor(id))),
+    menu: (id: string, at?: MenuPoint) => void showMenu(menuTarget(idsFor(id)), at),
     menuAt: (id: string, at: MenuPoint) => void showMenu(menuTarget([id]), at),
     dialog: (
       <>

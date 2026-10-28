@@ -68,7 +68,7 @@ interface Props {
   opening?: string | undefined
   onSelect: (id: string) => void
   onAction?: (action: NoteAction, id: string) => void
-  onMenu?: (id: string) => void
+  onMenu?: (id: string, at?: MenuPoint) => void
   onFind?: () => void
   onEdit?: (part: 'title' | 'body', id: string) => void
   selection: ListSelection | undefined
@@ -376,6 +376,12 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       return
     }
     if (selectionKey(event) || undoKey(event)) return
+    const target = chosen ? (selected ?? id) : id
+    if (props.onMenu && commandMatches('list.rowMenu', event)) {
+      event.preventDefault()
+      const box = cards.current.get(id)?.getBoundingClientRect()
+      return props.onMenu(target, box ? { x: box.left, y: box.bottom } : undefined)
+    }
     const by = commandMatches('status.next', event)
       ? 1
       : commandMatches('status.previous', event)
@@ -386,7 +392,6 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       if (!event.repeat) props.onStep?.(idsFor(id), by)
       return
     }
-    const target = chosen ? (selected ?? id) : id
     const action = props.onAction ? noteShortcut(event) : undefined
     if (action) {
       event.preventDefault()
