@@ -118,7 +118,8 @@ test('a Duplicate or New Note the core refuses says why', async ({ page }) => {
   await notice.getByRole('button', { name: 'Dismiss' }).click()
 
   await failCoreCalls(page, ['create'])
-  await page.keyboard.press('ControlOrMeta+n')
+  // Mod is the Command key here, whatever the host: Ctrl+N is another key.
+  await page.keyboard.press('Meta+n')
   await expect(notice).toBeVisible()
   await expect(rows).toHaveCount(1)
 })
