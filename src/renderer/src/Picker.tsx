@@ -84,7 +84,13 @@ export function PickerList(props: {
   const { options, value } = props
   const listId = useId()
   const start = options.findIndex((o) => o.id === value)
-  const [active, setActive] = useState(start >= 0 ? start : options.length > 0 ? 0 : -1)
+  // Held as an id: a query change rebuilds the rows, and the row picked for
+  // the new query is the one to keep active, whatever index it lands on.
+  const [activeOption, setActiveOption] = useState<string | undefined>(
+    options[start >= 0 ? start : 0]?.id,
+  )
+  const found = options.findIndex((o) => o.id === activeOption)
+  const shownActive = found >= 0 ? found : options.length > 0 ? 0 : -1
   const list = useRef<HTMLUListElement>(null)
   const field = useRef<HTMLInputElement>(null)
   useEffect(() => {
@@ -110,7 +116,6 @@ export function PickerList(props: {
     panel.style.left = `${p.shift}px`
     panel.style.setProperty('--picker-room', `${p.room}px`)
   }, [])
-  const shownActive = active >= options.length ? options.length - 1 : active
   useEffect(() => {
     if (shownActive < 0) return
     list.current
@@ -135,7 +140,7 @@ export function PickerList(props: {
     const next = (props.search ? fieldStep : pickerStep)(e.key, shownActive, options.length)
     if (next === undefined) return
     e.preventDefault()
-    setActive(next)
+    setActiveOption(options[next]?.id)
   }
   const optionId = (i: number) => `${listId}-${i}`
   const activeId = shownActive >= 0 ? optionId(shownActive) : undefined
@@ -160,15 +165,7 @@ export function PickerList(props: {
           onChange={(e) => {
             const next = e.target.value
             props.search?.onQuery(next)
-            const pick = props.search?.pick?.(next)
-            setActive(
-              pick === undefined
-                ? 0
-                : Math.max(
-                    0,
-                    options.findIndex((o) => o.id === pick),
-                  ),
-            )
+            setActiveOption(props.search?.pick?.(next))
           }}
         />
       ) : null}

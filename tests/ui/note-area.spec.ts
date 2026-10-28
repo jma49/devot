@@ -147,6 +147,28 @@ test('the notebook, status and tags share one compact line, worked by click and 
   expect(Math.abs(lineText.x - titleX)).toBeLessThan(2)
 })
 
+test('the notebook pop-up takes the notebook the query picks, not the row that moved into its place', async ({
+  page,
+}) => {
+  for (const name of ['Wander', 'Work', 'Workshop']) {
+    await page.getByRole('button', { name: 'New Notebook' }).click()
+    await page.getByRole('textbox', { name: 'Notebook name' }).fill(name)
+    await page.getByRole('textbox', { name: 'Notebook name' }).press('Enter')
+  }
+  await openNote(page)
+  await bookPicker(page).click()
+  // The notebooks that start with it stay, in that order; No Notebook drops
+  // out, so every row after it moves up one.
+  await page.getByRole('combobox', { name: 'Search notebooks…' }).fill('w')
+  const list = page.getByRole('listbox', { name: 'Notebook' })
+  await expect(list.getByRole('option', { name: 'Wander' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await page.keyboard.press('Enter')
+  await expect(bookPicker(page)).toHaveAccessibleName('Notebook: Wander')
+})
+
 for (const scheme of ['light', 'dark'] as const) {
   test(`the Markdown source is highlighted (${scheme})`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme })
