@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type RefObject } from 'react'
 import type { TagColor, TagRecord } from '../../core/storage'
-import { MAX_TAG_NAME_CHARS } from '../../core/tags'
+import { MAX_TAG_NAME_CHARS, sameName } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
 import { closingRef } from './closing'
 import type { MenuPoint } from './contextMenu'
@@ -52,7 +52,7 @@ export function tagRows(
     )
     .slice(0, MAX_SUGGESTIONS)
   const rows: TagRow[] = found.map((tag) => ({ kind: 'tag', tag }))
-  const exists = tags.some((tag) => tag.name.toLocaleLowerCase() === want)
+  const exists = tags.some((tag) => sameName(tag.name, text))
   if (!exists) rows.push({ kind: 'create', name: text })
   return rows
 }
@@ -72,6 +72,8 @@ export function TagEditor(props: {
   value: readonly string[]
   common?: readonly string[]
   onAdd: (name: string) => void
+  /** A tag picked from the suggestions, by ID: two tags may share a name. */
+  onPut?: (tagId: string) => void
   onRemove: (tagId: string) => void
   onChipMenu?: (tagId: string, at: MenuPoint) => void
   inputRef?: RefObject<HTMLInputElement | null>
@@ -105,7 +107,8 @@ export function TagEditor(props: {
     if (!trimWhitespace(name)) return
     const key = trimWhitespace(name).toLowerCase()
     if (!onNote.some((tag) => tag.name.toLowerCase() === key)) setAdded(key)
-    props.onAdd(name)
+    if (row?.kind === 'tag' && props.onPut) props.onPut(row.tag.id)
+    else props.onAdd(name)
     close()
   }
   const optionId = (i: number) => `${listId}-${i}`

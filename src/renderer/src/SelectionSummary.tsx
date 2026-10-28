@@ -24,6 +24,7 @@ export function SelectionSummary(props: {
   onPin: (pinned: boolean) => void
   onStatus: (status: NoteStatus) => void
   onAddTag: (name: string) => void
+  onPutTag: (tagId: string) => void
   onRemoveTag: (tagId: string) => void
   onCopyLinks: () => void
   onTrash: () => void
@@ -101,6 +102,7 @@ export function SelectionSummary(props: {
                 value={tagIds}
                 common={common}
                 onAdd={props.onAddTag}
+                onPut={props.onPutTag}
                 onRemove={props.onRemoveTag}
               />
             </div>

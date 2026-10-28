@@ -38,6 +38,13 @@ describe('tagRows', () => {
     expect(tagRows(tags, ['t1'], 'Work')).toEqual([{ kind: 'tag', tag: tags[1] }])
     expect(tagRows(tags, [], '  ')).toEqual([])
   })
+
+  it('has no Create row for a name the core counts as the same, as kana and width variants', () => {
+    const same = [tag('k', 'タグ'), tag('f', 'ＴＯＤＯ'), tag('c', 'café')]
+    expect(tagRows(same, [], 'たぐ')).toEqual([])
+    expect(tagRows(same, [], 'TODO')).toEqual([])
+    expect(tagRows(same, [], 'café')).toEqual([])
+  })
 })
 
 describe('filterBooks', () => {

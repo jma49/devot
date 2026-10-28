@@ -3689,6 +3689,7 @@ export function App() {
             onPin={(pinned) => void setNotesPinned(multiIds, pinned)}
             onStatus={(status) => void setNotesStatus(multiIds, status)}
             onAddTag={(name) => void addTagToNotes(multiIds, name)}
+            onPutTag={(tagId) => void putTagOnNotes(multiIds, tagId)}
             onRemoveTag={(tagId) => void removeTagFromNotes(multiIds, tagId)}
             onCopyLinks={() => void noteActions.runOn('copyLink', multiIds)}
             onTrash={() => void trashNotes(multiIds)}
@@ -3753,6 +3754,7 @@ export function App() {
                   tags={tags}
                   value={selectedNote?.tagIds ?? []}
                   onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}
+                  onPut={(tagId) => void putTagOnNotes([selected], tagId)}
                   onRemove={(tagId) => void changeBooks((c) => c.removeTag(selected, tagId))}
                   onChipMenu={(tagId, at) =>
                     void showChipMenu(
