@@ -430,6 +430,39 @@ describe('applying a template to a note', () => {
     expect((await d.storage.listNotes()).filter((n) => n.id !== t).map((n) => n.id)).toEqual([note])
   })
 
+  it('fills the note even when another note in memory cannot be saved', async () => {
+    const storage = openSqliteAdapter(freshPath())
+    open.push(storage)
+    const clock = createClock('mac1')
+    const newId = createIdGenerator()
+    const failing = new Set<string>()
+    const wrapped = {
+      ...storage,
+      atomically: storage.atomically.bind(storage),
+      putNote: (record: Parameters<typeof storage.putNote>[0]) =>
+        failing.has(record.id)
+          ? Promise.reject(new Error('E_STORAGE_WRITE_FAILED'))
+          : storage.putNote(record),
+    }
+    const notes = createNoteService({ storage: wrapped, clock, newId, saveDelayMs: 5 })
+    services.push(notes)
+    const books = createBookService({ storage: wrapped, clock, newId })
+    const tags = createTagService({ storage: wrapped, clock, newId })
+    const templates = createTemplateService({ storage: wrapped, notes, books, tags, clock, newId })
+    const t = await templates.create('T')
+    await notes.setBody(t, 'From template\n')
+    await notes.flush()
+    const broken = await notes.create('Broken', null)
+    failing.add(broken)
+    await notes.setBody(broken, 'This save is refused')
+    const note = await notes.create('Mine', null)
+    await notes.setBody(note, 'Own text')
+
+    await templates.applyTo(t, note, CLOCK)
+    expect((await notes.read(note)).bodyMd).toBe('Own text\n\nFrom template\n')
+    failing.clear()
+  })
+
   it('names a titled note in {{title}}, not the template', async () => {
     const d = device(freshPath())
     const t = await template(d, 'Brainstorming', '# {{title}}\n\nIdeas\n')

@@ -313,7 +313,8 @@ export function createTemplateService(options: TemplateServiceOptions): Template
     async applyTo(id, noteId, at) {
       const note = await notes.read(noteId)
       const made = await draft(id, at, null, note.title)
-      await notes.flush()
+      // Another note whose save fails must not stop the template; this note's own pending edits still save.
+      await notes.flush().catch(() => {})
       const status = (await storage.listNotes()).find((n) => n.id === noteId)?.status ?? 'none'
       const copies = newFileCopies(made.body, newId)
       if (copies.length > 0) await storage.copyFiles(noteId, copies)
