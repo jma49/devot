@@ -591,17 +591,17 @@ function rebuild(cx: Cx, format: InlineFormat, region: Region, apply: boolean): 
       if (!c) return { text: '', size: 0 }
       const atom = atoms.get(c.pos)
       if (atom) {
-        let text = ''
+        let whole = ''
         let size = 0
         for (
           let k = at, d = core[k];
           d && d.pos >= atom.from && d.pos < atom.to;
           d = core[(k += side)]
         ) {
-          text = side > 0 ? text + d.ch : d.ch + text
+          whole = side > 0 ? whole + d.ch : d.ch + whole
           size++
         }
-        return { text, size }
+        return { text: whole, size }
       }
       if (side > 0 && pair && /[\ud800-\udbff]/.test(c.ch) && /[\udc00-\udfff]/.test(pair.ch))
         return { text: c.ch + pair.ch, size: 2 }
