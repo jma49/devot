@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BookNode } from '../../core/books'
 import type { TagRecord } from '../../core/storage'
-import { bookOptions, filterBooks } from './BookPicker'
+import { bookOptions, filterBooks, firstBookMatch, NO_BOOK } from './BookPicker'
 import { fieldStep, pickerStep } from './Picker'
 import { tagRows } from './TagEditor'
 import { SHOW_AFTER_MS, splitTip } from './ToolTips'
@@ -52,6 +52,41 @@ describe('filterBooks', () => {
     expect(filterBooks(list, 'meet').map((o) => o.id)).toEqual(['a', 'a1'])
     expect(filterBooks(list, 'HOME').map((o) => o.id)).toEqual(['b'])
     expect(filterBooks(list, 'zzz')).toEqual([])
+  })
+})
+
+describe('firstBookMatch', () => {
+  const noBook = {
+    id: NO_BOOK,
+    name: 'No Notebook',
+    depth: 0,
+    ancestors: [],
+    icon: null,
+    iconColor: null,
+  }
+  const tree = [book('a', 'Projects', 0, [book('a1', 'Devot', 1)]), book('b', 'Notes', 0)]
+  const all = [noBook, ...bookOptions(tree)]
+
+  it('chooses the notebook whose own name matches, not a parent kept as context', () => {
+    const left = filterBooks(all, 'devot')
+    expect(left.map((o) => o.id)).toEqual(['a', 'a1'])
+    expect(firstBookMatch(left, 'devot')?.id).toBe('a1')
+  })
+
+  it('does not choose No Notebook just because its name holds the query', () => {
+    expect(firstBookMatch(filterBooks(all, 'note'), 'note')?.id).toBe('b')
+  })
+
+  it('prefers an exact name, then a name it starts', () => {
+    const list = bookOptions([
+      book('w', 'Workshop', 0),
+      book('x', 'Work', 0),
+      book('y', 'Paperwork', 0),
+    ])
+    expect(firstBookMatch(list, 'work')?.id).toBe('x')
+    expect(firstBookMatch(list, 'works')?.id).toBe('w')
+    expect(firstBookMatch(list, 'paper')?.id).toBe('y')
+    expect(firstBookMatch(list, '')?.id).toBe('w')
   })
 })
 

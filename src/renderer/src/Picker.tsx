@@ -76,6 +76,8 @@ export function PickerList(props: {
     placeholder: string
     query: string
     onQuery: (query: string) => void
+    /** The option to make active for a query (the first one otherwise). */
+    pick?: (query: string) => string | undefined
   }
   empty?: string
 }) {
@@ -156,8 +158,17 @@ export function PickerList(props: {
           placeholder={props.search.placeholder}
           value={props.search.query}
           onChange={(e) => {
-            props.search?.onQuery(e.target.value)
-            setActive(0)
+            const next = e.target.value
+            props.search?.onQuery(next)
+            const pick = props.search?.pick?.(next)
+            setActive(
+              pick === undefined
+                ? 0
+                : Math.max(
+                    0,
+                    options.findIndex((o) => o.id === pick),
+                  ),
+            )
           }}
         />
       ) : null}

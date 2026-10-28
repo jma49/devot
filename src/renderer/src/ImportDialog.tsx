@@ -13,7 +13,7 @@ import type { ImportKind, ImportProblem, ImportReport, ImportScan } from '../../
 // pull in the Markdown pipeline.
 import { importTree, isHtmlFile, type ImportFolder } from '../../core/importTree'
 import type { BookNode } from '../../core/books'
-import { bookOptions, filterBooks, NO_BOOK, type BookOption } from './BookPicker'
+import { bookOptions, filterBooks, firstBookMatch, NO_BOOK, type BookOption } from './BookPicker'
 import { countOf, fileSize, noteCount } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
 import { Icon } from './icons/Icon'
@@ -203,9 +203,10 @@ function Destination(props: {
         value={query}
         onChange={(e) => {
           props.onQuery(e.target.value)
-          // The choice stays while it matches; else the first match is chosen.
+          // The choice stays while it matches; else the best match of the typed name is chosen.
           const left = filterBooks(all, e.target.value)
-          if (left[0] && !left.some((o) => o.id === props.value)) props.onChange(left[0].id)
+          const first = firstBookMatch(left, e.target.value)
+          if (first && !left.some((o) => o.id === props.value)) props.onChange(first.id)
         }}
         onKeyDown={onKeyDown}
       />

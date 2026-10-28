@@ -51,6 +51,27 @@ export function filterBooks(list: readonly BookOption[], query: string): BookOpt
   return list.filter((o) => keep.has(o.id))
 }
 
+/**
+ * The notebook a typed query starts on: the best of those whose own name holds
+ * it (an exact name first, then a name it starts, then any), in list order.
+ * A notebook kept only because a match is nested in it is context, never the
+ * choice.
+ */
+export function firstBookMatch(list: readonly BookOption[], query: string): BookOption | undefined {
+  const want = query.trim().toLocaleLowerCase()
+  if (!want) return list[0]
+  const rank = (o: BookOption) => {
+    const name = o.name.toLocaleLowerCase()
+    return name === want ? 0 : name.startsWith(want) ? 1 : 2
+  }
+  let best: BookOption | undefined
+  for (const o of list) {
+    if (!o.name.toLocaleLowerCase().includes(want)) continue
+    if (!best || rank(o) < rank(best)) best = o
+  }
+  return best
+}
+
 export const NO_BOOK = ''
 
 export function currentBookOption(list: BookOption[], value: string | null): string {
@@ -151,7 +172,29 @@ export function BookPicker(props: {
             close()
             if (id !== value) props.onChange(id === NO_BOOK ? null : id)
           }}
-          search={{ placeholder: t('note.searchBooks'), query, onQuery: setQuery }}
+          search={{
+            placeholder: t('note.searchBooks'),
+            query,
+            onQuery: setQuery,
+            pick: (next) =>
+              firstBookMatch(
+                filterBooks(
+                  [
+                    {
+                      id: NO_BOOK,
+                      name: noBook,
+                      depth: 0,
+                      ancestors: [],
+                      icon: null,
+                      iconColor: null,
+                    },
+                    ...list,
+                  ],
+                  next,
+                ),
+                next,
+              )?.id,
+          }}
           empty={t('note.noBooksFound')}
         />
       ) : null}
