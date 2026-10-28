@@ -466,9 +466,9 @@ test('the context menu of a selected row acts on the whole selection', async ({ 
     '---',
     'Move Selected Notes to Trash CmdOrCtrl+Backspace',
   ])
-  await expect(statusPicker(summary(page))).toHaveAccessibleName('Status: Mixed')
   await pickMenuItem(page, 'Completed', 'Status')
   await expect(sourceRow(page, 'Completed')).toHaveText(/3$/)
+  await expect(statusPicker(summary(page))).toHaveAccessibleName('Status: Completed')
   await openMenu(page, 'Beta')
   expect(await shownMenu(page)).toContain('  Completed Ctrl+CmdOrCtrl+4 [x]')
   expect(await shownMenu(page)).toContain('  No Status Ctrl+CmdOrCtrl+1 [ ]')
