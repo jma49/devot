@@ -534,6 +534,13 @@ button {
   box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
 }
 
+/* A row with the keyboard draws a ring of its own: the open note's bar stays the open note's, so a
+   focused row that is not the open one is still visible (the list may filter the open note out). */
+.row:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
 .sidebar:focus-within
   :is(
     .source.filter[aria-pressed='true'],
@@ -2145,6 +2152,11 @@ button {
 }
 
 .window[data-focus] .content > .panes-split {
+  width: min(var(--size-reading-width) * 2, 100% - var(--space-10) * 2);
+}
+
+/* With Split, the title and metadata line up with the two panes, not the single reading column. */
+.window[data-focus] .content:has(> .panes-split) > :is(.title, .note-meta) {
   width: min(var(--size-reading-width) * 2, 100% - var(--space-10) * 2);
 }
 
@@ -3939,6 +3951,11 @@ button {
 
 .settings-number:disabled {
   opacity: var(--opacity-disabled);
+}
+
+/* A five-digit port (up to 65535) fits beside the spinner. */
+.settings-number.settings-port {
+  width: calc(var(--space-10) * 2 + var(--space-4) * 2);
 }
 
 .settings-text {

@@ -21,6 +21,7 @@ import {
 } from '../../core/books'
 import { noteLink } from '../../core/links'
 import { clipTitle } from '../../core/noteLimits'
+import { compareNames } from '../../core/sort'
 import {
   EMPTY_TRAIL,
   adjacentNote,
@@ -163,6 +164,8 @@ import {
 } from './focus'
 import { coalesced, listsLink, openMainWindow } from './mainWindows'
 import { listenHere } from './windowEvents'
+import { listenExitCancelled } from './exitCancelled'
+import { resumeMirrorAfterCancelledQuit } from './mirror'
 import { useFocusRescue } from './focusRescue'
 import {
   currentLastStateStore,
@@ -234,7 +237,7 @@ import { LivePreview } from './preview/Preview'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { useHistoryBar } from './HistoryBar'
-import { unseenOf, useAgentWrites } from './agentWrites'
+import { inNotes, markSeen, unseenOf, useAgentWrites } from './agentWrites'
 import { AuthorshipNotice } from './AuthorshipNotice'
 import { writerLabel, type WriterRef } from './authorshipLabels'
 import { AiEditSheet } from './AiEditSheet'
@@ -624,6 +627,11 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteScope, setPaletteScope] = useState<PaletteSource | undefined>()
   const [paletteText, setPaletteText] = useState('')
+  // Read once per text change: the outline of a long note need not be rebuilt on every render.
+  const paletteOutline = useMemo(
+    () => (paletteOpen ? outlineEntries(paletteText) : []),
+    [paletteOpen, paletteText],
+  )
   const [paletteLines, setPaletteLines] = useState(0)
   const [paletteInTable, setPaletteInTable] = useState(false)
   const [paletteSelection, setPaletteSelection] = useState(false)
@@ -650,7 +658,7 @@ export function App() {
     setTemplates((prev) => keepUnchanged(prev, listed.templates))
     setNotes((prev) => keepUnchanged(prev, nextNotes))
     setBooks(nextBooks)
-    setTags(nextTags.sort((a, b) => a.name.localeCompare(b.name)))
+    setTags(nextTags.sort((a, b) => compareNames(a.name, b.name, navigator.languages)))
     // Results follow edits, renames, trash and restore.
     if (latestSearch.current.query.trim()) runSearch.current?.(latestSearch.current)
     return { notes: nextNotes, templates: listed.templates, books: nextBooks }
@@ -813,7 +821,23 @@ export function App() {
     [trash],
   )
   const agentWrites = useAgentWrites(core, notes)
-  const agents = agentWrites.view.agents
+  // In a workspace the Agents section counts only its notes, and choosing an agent lists only those.
+  const workspaceNoteIds = useMemo(
+    () =>
+      workspaceNode && workspaceIds
+        ? new Set(
+            notes.filter((n) => n.bookId !== null && workspaceIds.has(n.bookId)).map((n) => n.id),
+          )
+        : undefined,
+    [notes, workspaceNode, workspaceIds],
+  )
+  const agents = useMemo(
+    () =>
+      workspaceNoteIds
+        ? inNotes(agentWrites.view, workspaceNoteIds).agents
+        : agentWrites.view.agents,
+    [agentWrites.view, workspaceNoteIds],
+  )
   // An agent's filter takes the notes it changed from this device's rows as they are now.
   const activeFilter = useMemo(() => {
     if (inTemplates) return null
@@ -822,6 +846,13 @@ export function App() {
     const agent = agents.find((a) => a.key === filter.writer)
     return agent ? agentFilter(agent) : null
   }, [inTemplates, filter, tags, agents])
+  // An agent filter whose agent is gone (its notes were trashed, or a workspace holds none of
+  // them) is cleared, not only hidden: it must not turn back on by itself when the agent writes
+  // again. Adjusted while rendering (React's rule for state that a change of inputs made stale),
+  // so the list and the sidebar both see no filter at once.
+  if (filter?.kind === 'agent' && !agents.some((agent) => agent.key === filter.writer)) {
+    setFilter(null)
+  }
   const listOrder = useListOrder(
     sortView({
       search: searching,
@@ -1557,6 +1588,17 @@ export function App() {
     }
   }, [core])
 
+  const shownWrites = useRef<{ noteId: string; ids: Set<string> } | undefined>(undefined)
+  const reloadAgentWrites = agentWrites.reload
+  const markShownSeen = useCallback(
+    (options?: { reload?: boolean }) => {
+      const shown = shownWrites.current
+      shownWrites.current = undefined
+      return core ? markSeen(core, reloadAgentWrites, shown, options) : Promise.resolve()
+    },
+    [core, reloadAgentWrites],
+  )
+
   useEffect(() => {
     if (!core) return
     const flush = () => void saveEdits(core)
@@ -1567,9 +1609,11 @@ export function App() {
     // instead: the window stays with the changes and the notice says so
     // (saving.ts); quitting again goes on without them.
     let unlisten: (() => void) | undefined
+    let unlistenCancel: (() => void) | undefined
+    let stopped = false
     if (!DEVOT_UI_TEST) {
       void import('@tauri-apps/api/event').then(async ({ listen }) => {
-        unlisten = await listen('devot://flush-before-exit', async () => {
+        const stop = await listen('devot://flush-before-exit', async () => {
           saveNow.current?.()
           // A running import stops after the file it is on, so no note
           // is left half made (unless that file outlasts the quit timeout).
@@ -1580,19 +1624,30 @@ export function App() {
             await invoke('app_exit_cancel')
             return
           }
+          // The notice's writes are seen before the app goes, so they do not come back on the next launch.
+          await markShownSeen({ reload: false })
           // A mirror pass ends after the batch it is in, so its manifest
           // lists every file it wrote; the next launch catches up.
           await core.mirrorStop()
           await invoke('app_exit_ready')
         })
+        if (stopped) stop()
+        else unlisten = stop
+      })
+      // Another window called the quit off after this one had stopped its mirror: start it again.
+      void listenExitCancelled(() => resumeMirrorAfterCancelledQuit(core)).then((stop) => {
+        if (stopped) stop()
+        else unlistenCancel = stop
       })
     }
     return () => {
+      stopped = true
       window.removeEventListener('pagehide', flush)
       document.removeEventListener('visibilitychange', flush)
       unlisten?.()
+      unlistenCancel?.()
     }
-  }, [core, quitGuard])
+  }, [core, quitGuard, markShownSeen])
 
   // The trial ended with notes open: what was typed is saved (Rust still takes a note's text for a
   // few minutes) as the window turns read-only.
@@ -1615,7 +1670,9 @@ export function App() {
         ? closeGuard.answer(ready.stopImport().then(() => ready.flush({ versions: true })))
         : Promise.resolve('exit' as const)
       void saved.then((answer) => {
-        if (answer === 'exit') return invoke('note_window_close_ready')
+        if (answer === 'exit')
+          // Seen before the window goes, as for a quit.
+          return markShownSeen({ reload: false }).then(() => invoke('note_window_close_ready'))
         setCloseHeld(true)
         setSaveNoticeDismissed(false)
         return invoke('note_window_close_cancel')
@@ -1636,7 +1693,7 @@ export function App() {
       window.removeEventListener(CLOSE_EVENT, closed)
       unlisten?.()
     }
-  }, [primary, closeGuard])
+  }, [primary, closeGuard, markShownSeen])
 
   // The other main windows wrote to the library: this one loads its lists and the notes it holds again, as for a change from another process.
   useEffect(() => {
@@ -2261,7 +2318,19 @@ export function App() {
       setRenamingBook(id)
     })
 
-  const deleteBook = (id: string) => changeBooks((c) => c.removeBook(id))
+  const deleteBook = (id: string) => {
+    const family = bookWithDescendants(books, id)
+    const showsGone = library.kind === 'book' && family.has(library.id)
+    const workspaceGone = workspace !== null && family.has(workspace)
+    return changeBooks(async (c) => {
+      await c.removeBook(id)
+      if (!showsGone) return
+      // The notebook the view showed went: inside a workspace the view falls back to its All Notes,
+      // and only the workspace's own notebook going leaves it.
+      if (workspaceNode && !workspaceGone) showLibrary({ kind: 'book', id: workspaceNode.id })
+      else showLibrary({ kind: 'all' })
+    })
+  }
 
   const moveNote = (noteId: string, bookId: string | null) =>
     changeBooks((c) => c.setBook(noteId, bookId))
@@ -2276,11 +2345,16 @@ export function App() {
     return changeBooks((c) => c.setStatus(noteId, status))
   }
 
-  /** One change to several notes, note by note (each its own write); failures are logged by code and counted in a notice, the rest keep their change. Resolves to the notes whose write failed. */
-  const batchFailures = async (ids: readonly string[], change: BatchChange): Promise<string[]> => {
+  /** One change to several notes, note by note (each its own write); failures are logged by code and counted in a notice, the rest keep their change. Resolves to the notes whose write failed. `notice` false leaves the notice to the caller, so a move over several statuses counts all its failures once. */
+  const batchFailures = async (
+    ids: readonly string[],
+    change: BatchChange,
+    options?: { notice?: boolean },
+  ): Promise<string[]> => {
     if (!core) return [...ids]
     if (ids.length === 0) return []
-    setBatchFailed(undefined)
+    const notice = options?.notice !== false
+    if (notice) setBatchFailed(undefined)
     reloadsPending.current += 1
     try {
       await saveEdits(core)
@@ -2290,7 +2364,7 @@ export function App() {
       }))
       if (result.failed.length > 0) {
         console.warn('W_BATCH_FAILED', change.kind, result.failed.length, result.failed[0]?.code)
-        setBatchFailed(result.failed.length)
+        if (notice) setBatchFailed(result.failed.length)
       }
       await saveEdits(core)
       await refresh(core)
@@ -2319,8 +2393,10 @@ export function App() {
     const failed: string[] = []
     try {
       for (const [status, ids] of changesByStatus(changes)) {
-        failed.push(...(await batchFailures(ids, { kind: 'status', status })))
+        failed.push(...(await batchFailures(ids, { kind: 'status', status }, { notice: false })))
       }
+      // One notice for the whole move, with every card whose write failed.
+      if (failed.length > 0) setBatchFailed(failed.length)
       return appliedChanges(changes, failed)
     } catch (e) {
       console.warn('W_BOARD_MOVE_FAILED', errorCode(e))
@@ -2427,18 +2503,6 @@ export function App() {
     () => unseenOf(agentWrites.view, noticeNote),
     [agentWrites.view, noticeNote],
   )
-  const shownWrites = useRef<{ noteId: string; ids: Set<string> } | undefined>(undefined)
-  const reloadAgentWrites = agentWrites.reload
-  const markShownSeen = useCallback(() => {
-    const shown = shownWrites.current
-    shownWrites.current = undefined
-    if (!core || !shown || shown.ids.size === 0) return
-    core
-      .markWritesSeen(shown.noteId, [...shown.ids])
-      .then(reloadAgentWrites, (e: unknown) =>
-        console.warn('W_AGENT_WRITES_SEEN_FAILED', shown.noteId, errorCode(e)),
-      )
-  }, [core, reloadAgentWrites])
   useEffect(() => {
     if (shownWrites.current && shownWrites.current.noteId !== noticeNote) markShownSeen()
     if (noticeNote === undefined || openUnseen.length === 0) return
@@ -2446,8 +2510,9 @@ export function App() {
     for (const row of openUnseen) shownWrites.current.ids.add(row.writeId)
   }, [noticeNote, openUnseen, markShownSeen])
   useEffect(() => {
-    window.addEventListener('pagehide', markShownSeen)
-    return () => window.removeEventListener('pagehide', markShownSeen)
+    const seen = () => void markShownSeen()
+    window.addEventListener('pagehide', seen)
+    return () => window.removeEventListener('pagehide', seen)
   }, [markShownSeen])
   const [undoDropped, setUndoDropped] = useState(false)
   /** Undo All for one writer on the note, as an owner edit the editor takes as one undo step. */
@@ -2524,7 +2589,12 @@ export function App() {
     const { action, id } = pageSetupFor
     setPageSetupFor(undefined)
     void runExport(failureOf(action), async (exporter) => {
-      await changeEditorSettings(setup).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED'))
+      // Rust lays the page out by the settings it holds: when the setup cannot be saved, printing
+      // would use the old one, so the export stops and its notice names the code.
+      await changeEditorSettings(setup).catch((e: unknown) => {
+        console.warn('W_EDITOR_SETTINGS_SAVE_FAILED', errorCode(e))
+        throw e
+      })
       await exporter.runNoteExport(core!, action, id)
     })
   }
@@ -3180,14 +3250,19 @@ export function App() {
     setMulti(undefined)
     setSelected(id)
   })
-  const importHandedOver = async (link: Extract<DeepLink, { kind: 'import' }>) => {
+  // Hand-offs that arrive close together run one after another, so the second finds the notebook the
+  // first made instead of making another with the same name.
+  const handoffWork = useRef<Promise<void>>(Promise.resolve())
+  const runHandoff = async (link: Extract<DeepLink, { kind: 'import' }>) => {
     const c = coreRef.current
     if (!c) {
       void finishImport(link.scan.id)
       return
     }
     try {
-      const to = openDestination(link.notebook, books, editorSettings().defaultNotebook)
+      // The notebooks as storage has them now, not as the last render showed them.
+      const listed = await c.listBooks()
+      const to = openDestination(link.notebook, listed, editorSettings().defaultNotebook)
       const destination = to.kind === 'create' ? await c.createBook(to.name, null) : to.id
       const report = await startImport(link.scan, destination, () => {})
       const id = report ? firstImported(report.noteIds, link.scan.files, link.first) : undefined
@@ -3201,6 +3276,10 @@ export function App() {
       void finishImport(link.scan.id)
       setLinkNotice('importFailed')
     }
+  }
+  const importHandedOver = (link: Extract<DeepLink, { kind: 'import' }>) => {
+    handoffWork.current = handoffWork.current.then(() => runHandoff(link))
+    return handoffWork.current
   }
   // Links other apps open (devot://note/<id>, devot://command/<id>), once the window has restored its view; sheets hold them back.
   useDeepLinks(restored && core !== undefined, (link) => {
@@ -3988,7 +4067,7 @@ export function App() {
           entries={{
             command: [...commandEntries(commands, t), ...plugins.entries(openNote !== undefined)],
             source: sourceEntries(t),
-            outline: outlineEntries(paletteText),
+            outline: paletteOutline,
             line: [],
             ...(paletteLibrary ?? NO_LIBRARY),
           }}

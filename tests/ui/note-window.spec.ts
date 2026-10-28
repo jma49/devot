@@ -270,3 +270,31 @@ test('Open in New Window that fails says why', async ({ page }) => {
   await pickMenuItem(page, 'Open in New Window')
   await expect(page.getByRole('alert').filter({ hasText: 'E_TEST_WINDOW_FAILED' })).toBeVisible()
 })
+
+test('a note trashed and then purged in the main window turns its window read-only, saying why', async ({
+  page,
+  context,
+}) => {
+  const id = await noteInMain(page, 'Doomed', 'Text')
+  const win = await openNoteWindow(context, id)
+  await expect(body(win)).toContainText('Text')
+
+  // Move to Trash in the main window: the note window keeps the text, read-only (A037).
+  await rows(page).first().click({ button: 'right' })
+  await pickMenuItem(page, 'Move to Trash')
+  await expect(win.getByRole('alert')).toContainText('This note is in the Trash')
+  await expect(title(win)).toHaveAttribute('readonly', '')
+  await body(win).click()
+  await win.keyboard.type(' more')
+  await expect(body(win)).toHaveText('Text')
+
+  // Empty Trash: the window is still read-only, and says the note is gone for good (A061).
+  await page
+    .getByRole('navigation', { name: 'Sidebar' })
+    .getByRole('button', { name: /^Trash \d+$/ })
+    .click()
+  await page.getByRole('button', { name: 'Empty Trash' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Empty Trash' }).click()
+  await expect(win.getByRole('alert')).toContainText('This note was deleted for good')
+  await expect(body(win)).toContainText('Text')
+})

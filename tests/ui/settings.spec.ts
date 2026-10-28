@@ -317,7 +317,10 @@ test('Integrations still offers configs, with a path to replace, when Rust canno
   })
   await openSettings(page, 'Integrations')
   const pane = page.getByRole('tabpanel')
-  await expect(pane.getByRole('alert')).toContainText('E_DATA_FOLDER_UNAVAILABLE')
+  // The sentence reads as a sentence: it says what could not be found, with the code in brackets (A159).
+  await expect(pane.getByRole('alert')).toHaveText(
+    'Devot could not find devot-mcp (E_DATA_FOLDER_UNAVAILABLE).',
+  )
   await expect(pane).toContainText('pnpm mcp:build')
   const claude = page.getByRole('region', { name: 'Claude Code' })
   await expect(claude.locator('code')).toContainText('/path/to/devot/dist-mcp/devot-mcp.mjs')

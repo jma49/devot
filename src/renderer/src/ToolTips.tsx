@@ -65,7 +65,9 @@ export function ToolTips() {
       clearTimeout(timer)
       timer = undefined
       if (target?.dataset['tip'] !== undefined) {
-        target.setAttribute('title', target.dataset['tip'])
+        // React may have set a new title while the bubble showed (a toggle's label): keep it, and
+        // drop the old one rather than writing it back.
+        if (!target.hasAttribute('title')) target.setAttribute('title', target.dataset['tip'])
         delete target.dataset['tip']
       }
       target = undefined

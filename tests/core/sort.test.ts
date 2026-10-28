@@ -12,6 +12,7 @@ import {
   sortNotes,
   type NoteSort,
 } from '../../src/core'
+import { compareNames } from '../../src/core/sort'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -191,6 +192,19 @@ describe('title collation', () => {
   it('falls back to the default locale for an unknown locale tag', () => {
     const notes = [row('b', 1, 1), row('a', 2, 2)]
     expect(titles(sortNotes(notes, sort('title', 'asc'), 'not a locale!'))).toEqual(['a', 'b'])
+  })
+})
+
+describe('compareNames', () => {
+  // The order the sidebar's tags and the tag suggestions use, so `tag10` follows `tag4` (A156).
+  it('compares numbers by value and treats case and accents as equal', () => {
+    expect(['tag10', 'tag4', 'tag2'].sort((a, b) => compareNames(a, b, 'en'))).toEqual([
+      'tag2',
+      'tag4',
+      'tag10',
+    ])
+    expect(compareNames('cafe', 'Caf\u00e9', 'en')).toBe(0)
+    expect(compareNames('Caf\u00e9', 'Cafe\u0301', 'en')).toBe(0)
   })
 })
 

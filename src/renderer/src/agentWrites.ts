@@ -3,6 +3,7 @@
 // derived from each note's records, local and never synced; `seen` is this device's.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { WriterKind } from '../../core/authorship'
+import { errorCode } from '../../core/errors'
 import { MAX_AGENT_WRITES_LISTED, type AgentWriteSummary } from '../../core/storage'
 import { writerKey, type WriterRef } from './authorshipLabels'
 import type { Core } from './core-client'
@@ -46,22 +47,7 @@ export function agentWritesView(
     else byNote.set(row.noteId, [row])
     if (!row.seen && !changedBy.has(row.noteId))
       changedBy.set(row.noteId, { kind: row.kind, name: row.name })
-    if (row.kind === 'aiEdit') continue
-    const key = writerKey(row)
-    const agent = agents.get(key)
-    if (agent) {
-      agent.noteIds.add(row.noteId)
-      if (!row.seen) agent.unseen += 1
-    } else {
-      agents.set(key, {
-        key,
-        kind: row.kind,
-        name: row.name,
-        at: row.at,
-        unseen: row.seen ? 0 : 1,
-        noteIds: new Set([row.noteId]),
-      })
-    }
+    addAgent(agents, row)
   }
   return {
     byNote,
@@ -74,6 +60,77 @@ export function agentWritesView(
 /** The open note's unseen writes, newest first. */
 export const unseenOf = (view: AgentWritesView, noteId: string | undefined) =>
   noteId === undefined ? [] : (view.byNote.get(noteId) ?? []).filter((row) => !row.seen)
+
+/**
+ * `view` kept to `noteIds` (a workspace's notes): each agent's notes and unseen count are its own
+ * there, and an agent with none of its notes there drops out.
+ */
+export function inNotes(view: AgentWritesView, noteIds: ReadonlySet<string>): AgentWritesView {
+  const byNote = new Map<string, readonly AgentWriteSummary[]>()
+  const changedBy = new Map<string, WriterRef>()
+  const agents = new Map<string, AgentSummary & { noteIds: Set<string> }>()
+  for (const [id, rows] of view.byNote) {
+    if (!noteIds.has(id)) continue
+    byNote.set(id, rows)
+    const changed = changedByOf(rows)
+    if (changed) changedBy.set(id, changed)
+    for (const row of rows) addAgent(agents, row)
+  }
+  return {
+    byNote,
+    changedBy,
+    agents: [...agents.values()].slice(0, MAX_AGENTS_LISTED),
+    authored: new Set([...view.authored].filter((id) => noteIds.has(id))),
+  }
+}
+
+/** The writer of a note's newest unseen row, as the UI names it. */
+function changedByOf(rows: readonly AgentWriteSummary[]): WriterRef | undefined {
+  const row = rows.find((r) => !r.seen)
+  return row ? { kind: row.kind, name: row.name } : undefined
+}
+
+function addAgent(
+  agents: Map<string, AgentSummary & { noteIds: Set<string> }>,
+  row: AgentWriteSummary,
+): void {
+  if (row.kind === 'aiEdit') return
+  const key = writerKey(row)
+  const agent = agents.get(key)
+  if (agent) {
+    agent.noteIds.add(row.noteId)
+    if (!row.seen) agent.unseen += 1
+    agent.at = Math.max(agent.at, row.at)
+  } else {
+    agents.set(key, {
+      key,
+      kind: row.kind,
+      name: row.name,
+      at: row.at,
+      unseen: row.seen ? 0 : 1,
+      noteIds: new Set([row.noteId]),
+    })
+  }
+}
+
+/**
+ * Marks `shown`'s rows seen. A promise, so a quit can wait for it; `reload` false when the app is
+ * leaving, since nothing reads the rows again.
+ */
+export function markSeen(
+  core: Pick<Core, 'markWritesSeen'>,
+  reload: () => void,
+  shown: { noteId: string; ids: ReadonlySet<string> } | undefined,
+  options?: { reload?: boolean },
+): Promise<void> {
+  if (!shown || shown.ids.size === 0) return Promise.resolve()
+  return core.markWritesSeen(shown.noteId, [...shown.ids]).then(
+    () => {
+      if (options?.reload !== false) reload()
+    },
+    (e: unknown) => console.warn('W_AGENT_WRITES_SEEN_FAILED', shown.noteId, errorCode(e)),
+  )
+}
 
 const EMPTY = agentWritesView([])
 

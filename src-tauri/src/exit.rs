@@ -20,6 +20,9 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Env, Manager, RunEvent, Window, WindowEvent};
 
 pub const FLUSH_EVENT: &str = "devot://flush-before-exit";
+/// A held quit was called off: windows that already stopped what they had running (the Markdown
+/// mirror) start it again.
+pub const EXIT_CANCELLED_EVENT: &str = "devot://exit-cancelled";
 const FLUSH_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Default)]
@@ -265,6 +268,10 @@ pub fn app_exit_ready(app: AppHandle, window: tauri::WebviewWindow) {
 pub fn app_exit_cancel(app: AppHandle, window: tauri::WebviewWindow) {
     log::warn!("W_EXIT_CALLED_OFF");
     app.state::<ExitGate>().call_off();
+    // A window that had already answered may have stopped its mirror: every window starts its own again.
+    if app.emit(EXIT_CANCELLED_EVENT, ()).is_err() {
+        log::warn!("W_EXIT_CANCELLED_EMIT_FAILED");
+    }
     #[cfg(desktop)]
     {
         // The notice that says why lives in the window that could not save, hidden in menu bar mode.

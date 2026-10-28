@@ -103,7 +103,11 @@ export function updateNotice(status: UpdateStatus, window: string): UpdateNotice
   switch (status.state) {
     case 'available':
       return {
-        key: `available:${status.version}`,
+        // A check this window asked for is a new thing to say, even for the same version: it may
+        // follow a Later, and the notice is the only place with Download.
+        key: mine
+          ? `available:${status.version}:${status.revision}`
+          : `available:${status.version}`,
         text: format(t('updates.available'), { version: status.version }),
         action: 'download',
       }

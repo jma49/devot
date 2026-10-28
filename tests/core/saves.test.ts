@@ -33,6 +33,7 @@ function setup({
   open.push(sqlite)
   const writes: NoteRecord[] = []
   let refuse: (record: NoteRecord) => boolean = () => false
+  let refusal = 'E_TEST_WRITE'
   let gate: Promise<void> | undefined
   const storage: StorageAdapter = Object.assign(Object.create(sqlite) as SqliteAdapter, {
     async putNote(record: NoteRecord) {
@@ -40,7 +41,7 @@ function setup({
       const wait = gate
       gate = undefined
       if (wait) await wait
-      if (refuse(record)) throw new Error('E_TEST_WRITE')
+      if (refuse(record)) throw new Error(refusal)
       await sqlite.putNote(record)
     },
   })
@@ -65,8 +66,9 @@ function setup({
     reports,
     problems: () => reports.at(-1) ?? [],
     stored: (id: string) => sqlite.getNote(id, { trashed: true }),
-    failWrites(when: (record: NoteRecord) => boolean = () => true) {
+    failWrites(when: (record: NoteRecord) => boolean = () => true, code = 'E_TEST_WRITE') {
       refuse = when
+      refusal = code
     },
     allowWrites,
     holdNextWrite() {
@@ -78,6 +80,19 @@ function setup({
 }
 
 describe('a save that fails', () => {
+  it('reports a purged note once and never retries its write', async () => {
+    const s = setup({ retryDelayMs: 5 })
+    const id = await s.notes.create()
+    s.failWrites(() => true, 'E_NOTE_PURGED')
+    await s.notes.setBody(id, 'typed after the purge')
+    await vi.waitFor(() => expect(s.problems()).toEqual([{ id, code: 'E_NOTE_PURGED' }]))
+    const tried = s.writes.length
+    // A write to a note deleted for good cannot go through: retrying would only repeat it.
+    await sleep(40)
+    expect(s.writes.length).toBe(tried)
+    expect(s.problems()).toEqual([{ id, code: 'E_NOTE_PURGED' }])
+  })
+
   it('keeps its changes: the quit flush writes them', async () => {
     const s = setup()
     const id = await s.notes.create()

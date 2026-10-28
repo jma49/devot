@@ -50,6 +50,8 @@ pub enum StorageError {
     SnapshotCheckFailed,
     /// Another process wrote the note since its writer read it.
     BodyStale,
+    /// The note was deleted for good: nothing is written, and its writer is told.
+    Purged,
     RebuildStopped,
     /// The write gate's code (`Db::guard`).
     Refused(&'static str),
@@ -76,6 +78,7 @@ impl std::fmt::Display for StorageError {
             Self::NewerSchema(found) => write!(f, "E_STORAGE_SCHEMA_TOO_NEW v{found}"),
             Self::SnapshotCheckFailed => f.write_str("E_STORAGE_SNAPSHOT_CHECK_FAILED"),
             Self::BodyStale => f.write_str("E_NOTE_BODY_STALE"),
+            Self::Purged => f.write_str("E_NOTE_PURGED"),
             Self::RebuildStopped => f.write_str("E_SEARCH_REBUILD_STOPPED"),
             Self::Refused(code) => f.write_str(code),
         }
@@ -89,6 +92,7 @@ impl std::error::Error for StorageError {
             Self::NewerSchema(_)
             | Self::SnapshotCheckFailed
             | Self::BodyStale
+            | Self::Purged
             | Self::RebuildStopped
             | Self::Refused(_) => None,
         }
@@ -1218,7 +1222,8 @@ impl Store {
     /// `note.body_version`, the version its writer last saw, and its body moves on to the next one.
     /// A write based on another version, which would go over a body another process wrote since, is
     /// refused with `StorageError::BodyStale` and changes nothing; its writer takes the stored body
-    /// in and writes again. A purged note is left alone, whatever the version.
+    /// in and writes again. A purged note is left alone, whatever the version, and the write is
+    /// refused with `StorageError::Purged` so its writer hears it is gone rather than a false success.
     /// With `writes`, the note's agent_writes rows are replaced in the same transaction, each
     /// keeping whether it was seen; `None` leaves them as they are.
     pub fn put_note_with_writes(
@@ -1283,9 +1288,10 @@ impl Store {
                 [&note.id],
                 |row| row.get(0),
             )?;
-            if !purged {
-                return Err(StorageError::BodyStale);
+            if purged {
+                return Err(StorageError::Purged);
             }
+            return Err(StorageError::BodyStale);
         }
         if written > 0 {
             tx.execute("DELETE FROM links WHERE source_id = ?1", [&note.id])?;

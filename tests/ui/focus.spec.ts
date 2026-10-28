@@ -36,6 +36,29 @@ test('the toolbar button enters and leaves focus mode', async ({ page }) => {
   await expect(list).toBeVisible()
 })
 
+test('in focus mode with Split, the title and metadata line up with the two panes', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await freshStart(page)
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Title' }).fill('Wide')
+  await focusButton(page).click()
+  await page
+    .getByRole('group', { name: 'View mode' })
+    .getByRole('button', { name: 'Split' })
+    .click()
+  const panes = page.locator('.content > .panes-split')
+  await expect(panes).toBeVisible()
+  const split = (await panes.boundingBox())!
+  // The header follows the two panes' width, not the single reading column (A155).
+  for (const part of ['.content > .title', '.content > .note-meta']) {
+    const box = (await page.locator(part).boundingBox())!
+    expect(Math.abs(box.x - split.x)).toBeLessThanOrEqual(1)
+    expect(Math.abs(box.width - split.width)).toBeLessThanOrEqual(1)
+  }
+})
+
 test('Shift+Cmd+D toggles focus mode, and the window remembers it', async ({ page }) => {
   await freshStart(page)
   const sidebar = page.getByRole('navigation', { name: 'Sidebar' })

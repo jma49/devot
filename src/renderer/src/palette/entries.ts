@@ -92,7 +92,16 @@ export function sourceEntries(label: (key: MessageKey) => string): PaletteEntry[
   })
 }
 
-const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/
+// Linear: an end-anchored whitespace run in the old pattern backtracked quadratically on a heading
+// with a long trailing run, freezing the window when the palette read its outline.
+const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*)$/
+
+/** A heading's text: trailing whitespace, and a closing #-sequence that whitespace sets off, trimmed. */
+function headingText(raw: string): string {
+  const trimmed = raw.trim()
+  const closing = /[ \t]#+$/.exec(trimmed)
+  return (closing ? trimmed.slice(0, closing.index) : trimmed).trim()
+}
 const TASK = /^([ \t]*)(?:[-*+]|\d+[.)])[ \t]+\[([ xX])\][ \t]+(.*\S)\s*$/
 const FENCE = /^ {0,3}(`{3,}|~{3,})/
 
@@ -124,7 +133,7 @@ export function outlineEntries(markdown: string): PaletteEntry[] {
     const heading = HEADING.exec(line)
     if (heading) {
       level = (heading[1] ?? '#').length
-      const text = (heading[2] ?? '').trim()
+      const text = headingText(heading[2] ?? '')
       if (text === '') continue
       out.push({
         kind: 'outline',

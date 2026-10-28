@@ -812,7 +812,7 @@ export const en = {
     'These configs run devot-mcp from the Devot checkout this app was built from.',
   'integrations.noScript':
     'Build devot-mcp in a Devot checkout (pnpm install, then pnpm mcp:build), and put the path of its dist-mcp/devot-mcp.mjs in place of the one below.',
-  'integrations.setupFailed': 'Where devot-mcp is could not be found out ({code}).',
+  'integrations.setupFailed': 'Devot could not find devot-mcp ({code}).',
   'integrations.claudeCode': 'Claude Code',
   'integrations.claudeCodeHint': 'Run this command in Terminal.',
   'integrations.codex': 'Codex',
@@ -922,6 +922,10 @@ export const en = {
   'save.closeHeldOther':
     'The window did not close: changes to {count} notes could not be saved ({code}). Devot keeps trying; close it again to close it without them.',
   'noteWindow.unavailable': 'This note cannot be opened ({code}). It may have been deleted.',
+  'noteWindow.trashed':
+    'This note is in the Trash, so this window cannot save changes. Restore it in Devot to edit it again.',
+  'noteWindow.purged':
+    'This note was deleted for good, so this window cannot save changes. Its text stays here, read-only.',
   'save.retry': 'Try Again',
   'start.failed': 'Devot could not load your notes.',
   'start.detail':

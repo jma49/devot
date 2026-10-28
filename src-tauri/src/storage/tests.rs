@@ -447,7 +447,7 @@ fn moves_the_body_version_on_with_each_write_based_on_it() {
 }
 
 #[test]
-fn refuses_a_write_based_on_another_body_version_and_leaves_a_purged_note_alone() {
+fn refuses_a_write_based_on_another_body_version_and_one_to_a_purged_note() {
     let (_dir, mut store) = temp_store();
     store.put_note(&note("a", "A", 10), &["b".into()]).unwrap();
     store
@@ -469,15 +469,22 @@ fn refuses_a_write_based_on_another_body_version_and_leaves_a_purged_note_alone(
     assert_eq!(store.get_note("a", false).unwrap(), Some(before));
     assert_eq!(link_rows(&store), [("a".to_string(), "b".to_string())]);
 
-    // A purge is final: a write to a purged note is left alone, whatever its version.
+    // A purge is final: a write to a purged note is left alone, whatever its version, and its
+    // writer is told the note is gone rather than that the write went through.
     store
         .purge_note("a", 20, "0000000000000020-0000-test")
         .unwrap();
     for version in [0, 2, 3] {
-        store
+        let refused = store
             .put_note(&based_on(version, note("a", "Revived", 30)), &[])
-            .unwrap();
+            .unwrap_err();
+        assert_eq!(refused.to_string(), "E_NOTE_PURGED");
     }
+    // The same with the agent writes a note's own save carries.
+    let refused = store
+        .put_note_with_writes(&based_on(3, note("a", "Revived", 30)), &[], Some(&[]))
+        .unwrap_err();
+    assert_eq!(refused.to_string(), "E_NOTE_PURGED");
     assert_eq!(store.get_note("a", true).unwrap(), None);
 }
 
@@ -1063,9 +1070,13 @@ fn lists_the_trash_and_purges_for_good() {
         .unwrap();
     assert!(store.list_trash().unwrap().is_empty());
     assert!(store.get_note("a", true).unwrap().is_none());
+    // A purge is final: the write is refused with a code, not taken as one that changed nothing.
     let mut stale = note("a", "Revived", 40);
     stale.title_hlc = "9999999999999999-0000-z".into();
-    store.put_note(&stale, &[]).unwrap();
+    assert!(matches!(
+        store.put_note(&stale, &[]),
+        Err(StorageError::Purged)
+    ));
     assert!(store.get_note("a", true).unwrap().is_none());
     assert_eq!(store.list_notes().unwrap().len(), 1);
 }
@@ -2191,7 +2202,11 @@ fn keeps_each_notes_link_rows_with_its_latest_body() {
         .purge_note("b", 13, "0000000000000013-0000-a")
         .unwrap();
     assert_eq!(link_rows(&store), [pair("a", "d")]);
-    store.put_note(&note("b", "B", 14), &["a".into()]).unwrap();
+    // A write to the purged note is refused, and leaves the links as they were.
+    assert!(matches!(
+        store.put_note(&note("b", "B", 14), &["a".into()]),
+        Err(StorageError::Purged)
+    ));
     assert_eq!(link_rows(&store), [pair("a", "d")]);
 }
 

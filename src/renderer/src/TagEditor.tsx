@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type RefObject } from 'react'
 import type { TagColor, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS, sameName } from '../../core/tags'
+import { compareNames } from '../../core/sort'
 import { trimWhitespace } from '../../core/text'
 import { closingRef } from './closing'
 import type { MenuPoint } from './contextMenu'
@@ -48,7 +49,8 @@ export function tagRows(
     .sort(
       (a, b) =>
         Number(!a.name.toLocaleLowerCase().startsWith(want)) -
-          Number(!b.name.toLocaleLowerCase().startsWith(want)) || a.name.localeCompare(b.name),
+          Number(!b.name.toLocaleLowerCase().startsWith(want)) ||
+        compareNames(a.name, b.name, navigator.languages),
     )
     .slice(0, MAX_SUGGESTIONS)
   const rows: TagRow[] = found.map((tag) => ({ kind: 'tag', tag }))

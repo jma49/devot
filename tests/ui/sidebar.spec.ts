@@ -136,6 +136,9 @@ test('the footer shows when the last note was saved', async ({ page }) => {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Saved')
   await expect(sidebar(page)).toContainText(/Saved at \d\d:\d\d:\d\d/)
+  // The visible save time is part of the button's name, not replaced by it (A174).
+  const toggle = sidebar(page).locator('.footer-toggle')
+  await expect(toggle).toHaveAccessibleName(/Backup and mirror status: Saved at \d\d:\d\d:\d\d/)
   await sidebar(page).getByRole('button', { name: 'Backup and mirror status' }).click()
   await expect(sidebar(page).getByRole('group', { name: 'Backup and mirror status' })).toBeVisible()
 })
