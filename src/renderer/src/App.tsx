@@ -3275,6 +3275,10 @@ export function App() {
     ),
     [trash.length, editing, askEmptyTrash],
   )
+  // Stable, so a Copy ID that fails does not render the Sidebar with every save.
+  const sidebarCopyFailed = useStable((failure: ExportFailure, code: string) =>
+    setExportNotice({ failure, code }),
+  )
   const sidebarSelect = useStable((next: Selection, options?: { clearFilter?: boolean }) =>
     showLibrary(next, options),
   )
@@ -3479,7 +3483,7 @@ export function App() {
         onSearchBooks={sidebarSearchBooks}
         onSearchTags={sidebarSearchTags}
         onEmptyTrash={askEmptyTrash}
-        onCopyFailed={(failure, code) => setExportNotice({ failure, code })}
+        onCopyFailed={sidebarCopyFailed}
         onNewNote={core && editing ? sidebarNewNote : undefined}
         readOnly={!editing}
         workspace={sidebarWorkspace}
