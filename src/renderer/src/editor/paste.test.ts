@@ -254,6 +254,23 @@ describe('pasting lines into a list item or quote', () => {
     expect(topBlocks(paste('> x|', 'a\n\nb') ?? '')).toEqual(['Blockquote'])
   })
 
+  it('keeps the rest of the caret line in the container when the paste ends with a newline', () => {
+    const inItem = paste('- item\n  ```\n  co|de\n  ```', 'l1\nl2\n')
+    expect(inItem).toBe('- item\n  ```\n  col1\n  l2\n  |de\n  ```')
+    expect(topBlocks(inItem ?? '')).toEqual(['BulletList'])
+  })
+
+  it('gives the prefix to a pasted block that would otherwise end the container', () => {
+    const fenced = paste('- item|', 'x\n```\ncode\n```')
+    expect(fenced).toBe('- itemx\n  ```\n  code\n  ```|')
+    expect(topBlocks(fenced ?? '')).toEqual(['BulletList'])
+    const heading = paste('> q|', 'a\n# h')
+    expect(heading).toBe('> qa\n> # h|')
+    expect(topBlocks(heading ?? '')).toEqual(['Blockquote'])
+    const quotedList = paste('> q|', 'a\n- b')
+    expect(topBlocks(quotedList ?? '')).toEqual(['Blockquote'])
+  })
+
   it('leaves text at the top level, and one line, to the usual paste', () => {
     expect(paste('|', 'a\nb')).toBeNull()
     expect(paste('- x|', 'a')).toBeNull()

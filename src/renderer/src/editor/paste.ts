@@ -159,10 +159,20 @@ function containerPrefix(cx: Cx, pos: number): { prefix: string; code: boolean }
 }
 
 /**
+ * A pasted line that starts a block of its own: it cannot continue a paragraph
+ * lazily, so at the container's column it would end the list item or quote.
+ */
+const BLOCK_START =
+  /^ {0,3}(?:[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|#{1,6}(?:\s|$)|>|`{3,}|~{3,}|<|\||[-*_](?:\s*[-*_]){2,}\s*$)/
+/** A fence opens a code block, whose lines are not lazy continuations either. */
+const FENCE = /^ {0,3}(?:`{3,}|~{3,})/
+
+/**
  * Pasted lines that would otherwise leave the list item or quote they go
- * into, and end it: every line of a code block after the first, and in other
- * text the lines from a blank one on. They get the container's prefix. Null,
- * for the usual paste, when no line needs it or there are several ranges.
+ * into, and end it: every line of a code block after the first, in other text
+ * the lines from a blank one on, and any line that starts a block. They get
+ * the container's prefix. Null, for the usual paste, when no line needs it or
+ * there are several ranges.
  */
 function containedPaste(state: EditorState, text: string): TransactionSpec | null {
   const lines = text.split(/\r\n?|\n/)
@@ -174,13 +184,17 @@ function containedPaste(state: EditorState, text: string): TransactionSpec | nul
   const { prefix, code } = container
   let inside = code
   let changed = false
+  const last = lines.length - 1
   const insert = lines
     .map((line, i) => {
       if (i === 0) return line
-      if (line.trim() === '') inside = true
-      if (!inside) return line
+      const blank = line.trim() === ''
+      if (blank || FENCE.test(line)) inside = true
+      if (!inside && !BLOCK_START.test(line)) return line
       changed = true
-      return line.trim() === '' ? prefix.trimEnd() : prefix + line
+      // The last part is the rest of the caret line, which keeps the full prefix so the text after it stays in.
+      if (i === last) return prefix + line
+      return blank ? prefix.trimEnd() : prefix + line
     })
     .join('\n')
   if (!changed) return null
