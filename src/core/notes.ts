@@ -184,14 +184,12 @@ export interface NoteService {
   setTitle(id: string, title: string): Promise<void>
   setBook(id: string, bookId: string | null): Promise<void>
   setStatus(id: string, status: NoteStatus): Promise<void>
-  /** Both dates take one new HLC so the change wins over older writes (schema v17). */
-  /** Throws E_NOTE_TIME_INVALID for a date that is not a whole, non-negative millisecond time, or an update before the creation. */
+  /** Both dates take one new HLC so the change wins over older writes (schema v17). Throws E_NOTE_TIME_INVALID for a date that is not a whole, non-negative millisecond time, or an update before the creation. */
   setDates(id: string, dates: { createdAt?: number; updatedAt?: number }): Promise<void>
   setPinned(id: string, pinned: boolean): Promise<void>
   /** Writes now (a batch writes each note before the next). On failure it rejects and the field reverts unless changed again meanwhile. A note not in memory is not loaded: its stored record is rewritten with the field changed. `bookChecked`: the caller already ran checkBook. */
   writeMeta(id: string, change: MetaChange, options?: { bookChecked?: boolean }): Promise<void>
-  /** Templates count as a notebook; null always passes. */
-  /** Throws E_BOOK_NOT_FOUND unless notes can go in `bookId`: a live notebook or Templates. */
+  /** Throws E_BOOK_NOT_FOUND unless notes can go in `bookId`: a live notebook or Templates (which count as one); null always passes. */
   checkBook(bookId: string | null): Promise<void>
   /** With `versions` (quitting), unversioned typing also becomes a version. Rejects with E_NOTE_SAVE_FAILED and the IDs once the rest are saved. */
   flush(options?: { versions?: boolean }): Promise<void>
@@ -279,8 +277,8 @@ export interface NoteService {
   /**
    * Takes in what another process wrote (devot-mcp, or a writer on another connection; see `devot://db-changed`), so the next write keeps the other's changes.
    * Every note in memory merges the stored state, and another window that may hold a note this core does not is relayed its stored state. Returns the notes whose title the other process changed.
+   * A note deleted for good meanwhile is let go; the others stay in memory (letting one go could lose an edit that has just loaded it). A note that cannot be read is left as it was.
    */
-  /** A note deleted for good meanwhile is let go; the others stay in memory (letting one go could lose an edit that has just loaded it). A note that cannot be read is left as it was. */
   mergeStored(): Promise<{ id: string; title: string }[]>
   /**
    * Takes in what another window's core relayed. A note not in memory ignores it: it is read from storage when used, and asks then for what
@@ -681,8 +679,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
   const dirty = (note: Live) =>
     note.edits !== note.savedEdits || META_HLCS.some((key) => note.record[key] !== note.saved[key])
 
-  /** Serialises writes of a note so they never overlap and land in order. */
-  // Serialises the note's writes: they never overlap and land in the order asked for.
+  /** Serialises writes of a note so they never overlap and land in the order asked for. */
   const exclusive = <T>(note: Live, work: () => Promise<T>): Promise<T> => {
     note.writes += 1
     const run = note.queue.then(work)
