@@ -183,11 +183,22 @@ describe('createPieceRenderer', () => {
     expect(kept[1]!.key).not.toBe(first[1]!.key)
   })
 
-  it('forgets the oldest pieces past its capacity', async () => {
+  it('forgets the pieces the note no longer shows, oldest first, past its capacity', async () => {
     const render = createPieceRenderer({ capacity: 2, pieceLength: 1 })
     const first = await render('A.\n\nB.\n\nC.', options)
+    await render('D.', options)
     const again = await render('A.\n\nB.\n\nC.', options)
     expect(again[0]!.key).not.toBe(first[0]!.key)
     expect(again[2]!.key).not.toBe(first[2]!.key)
+  })
+
+  it('keeps every piece of a note larger than its capacity, so only an edited piece is sent again', async () => {
+    const render = createPieceRenderer({ capacity: 20, pieceLength: 1 })
+    const note = (edit: string) =>
+      [...Array(20).keys()].map((i) => `Piece ${i}${edit}.`).join('\n\n')
+    const first = await render(note(''), options)
+    const shown = first.map((p) => p.key)
+    const edited = await render(note('').replace('Piece 7.', 'Piece 7 edited.'), options, shown)
+    expect(edited.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([15])
   })
 })

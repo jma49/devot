@@ -11,6 +11,7 @@ import {
   createMathRenderer,
 } from '../../src/core'
 import { setImageMarkdownSize } from '../../src/core/images'
+import { fragmentId } from '../../src/core/preview/headingIds'
 
 const labels: PreviewLabels = {
   alerts: {
@@ -81,6 +82,16 @@ describe('Markdown dialect', () => {
     expect(tags(tree, 'del')).toHaveLength(1)
     expect(tags(tree, 'a').some((a) => a.properties['href'] === 'https://example.com')).toBe(true)
     expect(byClass(tree, 'footnotes')).toHaveLength(1)
+  })
+
+  it('gives every footnote link the id of the footnote it points to', async () => {
+    const tree = await render('Claim.[^1]\n\n[^1]: Source.\n')
+    const given = elements(tree).map((e) => e.properties['id'])
+    const links = tags(tree, 'a')
+      .map((a) => a.properties['href'])
+      .filter((href): href is string => typeof href === 'string' && href.startsWith('#'))
+    expect(links).toHaveLength(2)
+    for (const href of links) expect(given).toContain(fragmentId(href.slice(1)))
   })
 
   it('finds task marks in nested, ordered and quoted lists, and leaves raw HTML boxes disabled', async () => {

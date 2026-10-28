@@ -280,12 +280,25 @@ export function createPieceRenderer({
   const keyOf = (text: string, first: boolean, copy: number, optionsKey: string) =>
     `${first ? 1 : 0} ${copy} ${optionsKey}\u0000${text}`
 
+  /**
+   * Drops the oldest pieces the note does not show right now, until the cache
+   * fits. A piece it shows is never dropped, or a note larger than the cache
+   * would render whole again on every keystroke.
+   */
+  const trim = (shown: ReadonlySet<string>) => {
+    for (const [key, { length }] of cache) {
+      if (cached <= capacity) return
+      if (shown.has(key)) continue
+      cache.delete(key)
+      cached -= length
+    }
+  }
+
   const piece = async (
     key: string,
     text: string,
     first: boolean,
     options: PreviewOptions,
-    used: ReadonlySet<string>,
   ): Promise<Rendered> => {
     const found = cache.get(key)
     if (found) {
@@ -306,21 +319,6 @@ export function createPieceRenderer({
     const rendered = { id: (ids += 1), nodes: tree.children, headings, length: text.length }
     cache.set(key, rendered)
     cached += text.length
-    while (cached > capacity && cache.size > 1) {
-      // The oldest piece the note does not show right now: a piece it shows is
-      // never dropped, or a note larger than the cache would render whole
-      // again on every keystroke.
-      let victim: string | undefined
-      for (const oldest of cache.keys()) {
-        if (!used.has(oldest)) {
-          victim = oldest
-          break
-        }
-      }
-      if (victim === undefined) break
-      cached -= cache.get(victim)!.length
-      cache.delete(victim)
-    }
     return rendered
   }
 
@@ -334,11 +332,13 @@ export function createPieceRenderer({
       copies.set(block.text, copy + 1)
       return keyOf(block.text, i === 0, copy, optionsKey)
     })
-    // Every piece this call shows, so none is evicted before its turn.
-    const used = new Set(keys)
     const rendered: Rendered[] = []
-    for (const [i, block] of blocks.entries()) {
-      rendered.push(await piece(keys[i]!, block.text, i === 0, options, used))
+    try {
+      for (const [i, block] of blocks.entries()) {
+        rendered.push(await piece(keys[i]!, block.text, i === 0, options))
+      }
+    } finally {
+      trim(new Set(keys))
     }
     const have = new Set(known)
     const next = names ? createSlugger() : undefined

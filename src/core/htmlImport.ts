@@ -158,24 +158,18 @@ interface Prepared {
 
 const ALERT_KINDS = new Set(['note', 'tip', 'important', 'warning', 'caution'])
 
-/** An alert the preview drew back as the blockquote whose marker made it (`> [!NOTE]`). */
-function alertQuote(node: Element, kind: string): Element {
+/** An alert the preview drew back as the blockquote whose marker made it (`> [!NOTE]`); `restore` writes the marker, which the Markdown writer would escape as text. */
+function alertQuote(node: Element, kind: string, marker: string): Element {
   const body = node.children.filter(
     (child) => !(child.type === 'element' && classes(child).includes('alert-title')),
   )
-  const marker = `[!${kind.toUpperCase()}]`
-  const first = body[0]
-  if (first?.type === 'element' && first.tagName === 'p') {
-    first.children.unshift({ type: 'text', value: marker })
-  } else {
-    body.unshift({
-      type: 'element',
-      tagName: 'p',
-      properties: {},
-      children: [{ type: 'text', value: marker }],
-    })
+  const lead: Element = {
+    type: 'element',
+    tagName: 'p',
+    properties: {},
+    children: [{ type: 'text', value: `${marker}a${kind}e` }],
   }
-  return { type: 'element', tagName: 'blockquote', properties: {}, children: body }
+  return { type: 'element', tagName: 'blockquote', properties: {}, children: [lead, ...body] }
 }
 
 /** Takes out of `root` (before it is sanitized) what the sanitizer would lose: embedded images and MathML with TeX become placeholders. */
@@ -227,7 +221,7 @@ function prepare(root: Root, marker: string, newId?: () => string): Prepared {
           .map((name) => /^alert-(.+)$/.exec(name)?.[1])
           .find((k) => k && ALERT_KINDS.has(k))
         if (kind) {
-          const quote = alertQuote(child, kind)
+          const quote = alertQuote(child, kind, marker)
           walk(quote)
           return [quote]
         }
@@ -270,6 +264,7 @@ function restore(tree: MdRoot, marker: string, prepared: Prepared): Set<string> 
   const imageAt = new RegExp(`^${marker}i(\\d+)$`)
   const mathAt = new RegExp(`${marker}m(\\d+)e`, 'g')
   const mathAlone = new RegExp(`^\\s*${marker}m(\\d+)e\\s*$`)
+  const alertAlone = new RegExp(`^${marker}a([a-z]+)e$`)
   // A placeholder `prepare` did not make (the page cannot spell the
   // marker, but nothing breaks if it did) stays as written.
   const mathOf = (index: string) => prepared.math[Number(index)]
@@ -313,6 +308,15 @@ function restore(tree: MdRoot, marker: string, prepared: Prepared): Set<string> 
       if (child.type === 'text' && child.value.includes(marker)) {
         next.push(...phrasing(child.value))
         continue
+      }
+      if (child.type === 'paragraph') {
+        const lead = child.children.length === 1 ? child.children[0] : undefined
+        const kind = lead?.type === 'text' ? alertAlone.exec(lead.value)?.[1] : undefined
+        if (kind) {
+          child.children = [{ type: 'html', value: `[!${kind.toUpperCase()}]` }]
+          next.push(child)
+          continue
+        }
       }
       // Display math alone in its paragraph is a math block.
       if (child.type === 'paragraph') {
