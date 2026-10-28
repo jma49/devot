@@ -30,7 +30,6 @@ const target = (over: Partial<NoteLinkTarget> = {}): NoteLinkTarget => ({
   status: 'none',
   tasks: { done: 0, total: 0 },
   tags: [],
-  updatedAt: 1,
   ...over,
 })
 

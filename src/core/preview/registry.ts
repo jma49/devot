@@ -29,8 +29,6 @@ export interface NoteLinkTarget {
   status: NoteStatus
   tasks: TaskProgress
   tags: { name: string; color: TagColor | null }[]
-  /** Changes with any edit to the note, so a chip's preview is rendered again. */
-  updatedAt: number
 }
 
 export interface PreviewOptions {

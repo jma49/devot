@@ -1501,7 +1501,6 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
               title: title || headline(bodyMd),
               status: note ? note.record.status : summary.status,
               tasks: taskProgress(bodyMd),
-              updatedAt: note ? note.record.updatedAt : summary.updatedAt,
               tags: summary.tagIds
                 .flatMap((tagId) => {
                   const tag = tagById.get(tagId)

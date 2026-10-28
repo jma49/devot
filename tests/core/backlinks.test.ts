@@ -78,16 +78,7 @@ describe('linkTargets', () => {
         status: 'active',
         tasks: { done: 1, total: 2 },
         tags: [{ name: 'work', color: null }],
-        updatedAt: expect.any(Number),
       },
     })
-  })
-
-  it('gives a target a new updatedAt with each change to it, so its chip is drawn again', async () => {
-    const { notes } = setup()
-    const target = await notes.create('Plan')
-    const before = (await notes.linkTargets([target]))[target]!.updatedAt
-    await notes.setStatus(target, 'active')
-    expect((await notes.linkTargets([target]))[target]!.updatedAt).toBeGreaterThan(before)
   })
 })
