@@ -221,6 +221,41 @@ test('a plugin shows its panel while its command runs; Close hides it and tells 
   await expect.poll(() => inner.evaluate(() => (globalThis as { hidden?: number }).hidden)).toBe(1)
 })
 
+test('a read-only licence keeps plugin commands and imports from changing notes', async ({
+  page,
+}) => {
+  await noteWith(page, 'hello world')
+  // The trial is over and no licence is added, as Rust tells the window.
+  await page.evaluate(() => {
+    window.dispatchEvent(
+      new CustomEvent('devot:licence-changed', {
+        detail: {
+          gated: true,
+          state: 'none',
+          code: null,
+          id: null,
+          licensee: null,
+          plan: null,
+          trial: { state: 'ended', endsAt: Date.now() - 3_600_000, code: null },
+        },
+      }),
+    )
+  })
+  await page.keyboard.press('Meta+KeyK')
+  await palette(page).getByRole('combobox', { name: 'Command Palette' }).fill('> ')
+  const entries = palette(page).getByRole('option')
+  await expect(entries.filter({ hasText: 'Upper Case' })).toHaveCount(0)
+  await expect(entries.filter({ hasText: 'Import Shout Files…' })).toHaveCount(0)
+  await expect(entries.filter({ hasText: 'Export Note as Shout…' })).toHaveCount(1)
+  await page.keyboard.press('Escape')
+
+  // A path that still reaches the action (a menu item Rust has not disabled) changes nothing.
+  await pickPluginMenu(page, { kind: 'command', plugin: 'com.example.tools', id: 'upper' })
+  await expect(page.getByRole('alert')).toContainText('E_LICENCE_REQUIRED')
+  await expect(body(page)).toHaveText('hello world')
+  await expect.poll(async () => (await savedNotes(page))[0]?.bodyMd).toBe('hello world')
+})
+
 test('a failing plugin shows a notice with its code, never its text', async ({ page }) => {
   await noteWith(page, 'x')
   const frame = await pluginFrame(page, 'com.example.tools')

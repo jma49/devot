@@ -11,6 +11,7 @@ import { COMMANDS, commandKeys, RESERVED_KEYS } from '../commands/registry'
 import type { Core } from '../core-client'
 import { format, t } from '../i18n'
 import { isImeKey } from '../ime'
+import { editingAllowed } from '../licence'
 import type { PaletteEntry } from '../palette/results'
 import {
   listPlugins,
@@ -83,6 +84,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
         const { core: c, app: w } = latest.current
         const open = w.openNote()
         if (!c || !open) throw new Error('E_PLUGIN_NO_NOTE')
+        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
         w.applyUpdate(open.id, await c.applyPluginEdit(open.id, edit))
       },
       showUi: (plugin, height) => setPanel({ plugin, height }),
@@ -152,17 +154,21 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
       const { core: c, app: w } = latest.current
       if (!host) return
       try {
+        // A command or an import changes notes, so it is refused like the app's own changes are.
+        if (action.kind !== 'export' && !editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
         if (action.kind === 'command') {
           await host.run(action.plugin, action.id)
         } else if (action.kind === 'import') {
           if (!c) return
           const files = await pickImportFiles(action.plugin, action.id)
           if (!files) return
+          let made = 0
           for (const file of files) {
             const note = await host.convertImport(action.plugin, action.id, file)
             await c.capture(note.title, note.markdown, w.importBook())
+            made += 1
           }
-          w.imported()
+          if (made > 0) w.imported()
         } else {
           const open = w.openNote()
           if (!c || !open) return
@@ -182,7 +188,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.repeat || isImeKey(e) || sheetOpen()) return
+      if (e.defaultPrevented || e.repeat || isImeKey(e) || sheetOpen() || !editingAllowed()) return
       // A key the user has given an app command since stays the app's.
       const found = keys.find((k) => keyMatches(k.key, e) && !takenByApp(k.key))
       if (!found) return
@@ -217,10 +223,11 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
 
   const items = useMemo(() => pluginItems(plugins), [plugins])
 
-  /** The palette's entries for plugins' commands and formats; exports only while a note is open. */
+  /** The palette's entries for plugins' commands and formats; exports only while a note is open, and nothing that changes notes while editing is locked. */
   const entries = (noteOpen: boolean): PaletteEntry[] =>
     items.flatMap((item): PaletteEntry[] => {
       if (item.kind === 'export' && !noteOpen) return []
+      if (item.kind !== 'export' && !editingAllowed()) return []
       const label =
         item.kind === 'command'
           ? item.title

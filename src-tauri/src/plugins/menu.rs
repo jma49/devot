@@ -41,10 +41,12 @@ pub struct Planned {
     pub place: Place,
     pub text: String,
     pub action: Action,
+    /// Commands and imports change notes, so they are off while the licence blocks writes.
+    pub enabled: bool,
 }
 
 /// What enabled plugins put in the menus, by what their user granted, in plugin ID order.
-pub fn plan(plugins: &[Installed]) -> Vec<Planned> {
+pub fn plan(plugins: &[Installed], editing: bool) -> Vec<Planned> {
     let mut out = Vec::new();
     for p in plugins.iter().filter(|p| p.enabled) {
         let m = &p.manifest;
@@ -63,6 +65,7 @@ pub fn plan(plugins: &[Installed]) -> Vec<Planned> {
                     place: Place::Plugins,
                     text: command.title.clone(),
                     action: action(Kind::Command, &command.id),
+                    enabled: editing,
                 });
             }
         }
@@ -72,6 +75,7 @@ pub fn plan(plugins: &[Installed]) -> Vec<Planned> {
                     place: Place::Import,
                     text: format!("{}…", format.title),
                     action: action(Kind::Import, &format.id),
+                    enabled: editing,
                 });
             }
         }
@@ -81,6 +85,7 @@ pub fn plan(plugins: &[Installed]) -> Vec<Planned> {
                     place: Place::Export,
                     text: strings::PLUGIN_EXPORT_NOTE.replace("{title}", &format.title),
                     action: action(Kind::Export, &format.id),
+                    enabled: true,
                 });
             }
         }
@@ -124,7 +129,14 @@ pub fn refresh(app: &AppHandle) {
     ) else {
         return;
     };
-    let planned = plan(&plugins.list());
+    let editing = app
+        .try_state::<Arc<crate::licence::Licence>>()
+        .map_or(true, |licence| {
+            licence
+                .require_write(crate::storage::Write::Content)
+                .is_ok()
+        });
+    let planned = plan(&plugins.list(), editing);
     let mut added = menus.added.lock().unwrap_or_else(|e| e.into_inner());
     let mut actions = menus.actions.lock().unwrap_or_else(|e| e.into_inner());
     for (place, item) in added.drain(..) {
@@ -136,7 +148,7 @@ pub fn refresh(app: &AppHandle) {
     let mut in_plugins = 0;
     for (n, item) in planned.into_iter().enumerate() {
         let id = format!("{ITEM_PREFIX}{n}");
-        let Ok(built) = MenuItem::with_id(app, &id, &item.text, true, None::<&str>) else {
+        let Ok(built) = MenuItem::with_id(app, &id, &item.text, item.enabled, None::<&str>) else {
             log::warn!("W_PLUGIN_MENU_FAILED");
             continue;
         };
@@ -205,7 +217,7 @@ mod tests {
     #[test]
     fn plans_menu_items_from_what_was_granted() {
         let all = ["commands", "menus", "import", "export"];
-        let planned = plan(&[installed(EVERYTHING, true, &all)]);
+        let planned = plan(&[installed(EVERYTHING, true, &all)], true);
         let shown: Vec<_> = planned
             .iter()
             .map(|p| (p.place, p.text.as_str(), p.action.id.as_str()))
@@ -225,10 +237,28 @@ mod tests {
     #[test]
     fn leaves_out_disabled_plugins_and_what_was_not_granted() {
         let all = ["commands", "menus", "import", "export"];
-        assert!(plan(&[installed(EVERYTHING, false, &all)]).is_empty());
-        let planned = plan(&[installed(EVERYTHING, true, &["commands", "export"])]);
+        assert!(plan(&[installed(EVERYTHING, false, &all)], true).is_empty());
+        let planned = plan(
+            &[installed(EVERYTHING, true, &["commands", "export"])],
+            true,
+        );
         assert_eq!(planned.len(), 1);
         assert_eq!(planned[0].place, Place::Export);
+    }
+
+    #[test]
+    fn disables_commands_and_imports_while_editing_is_locked() {
+        let all = ["commands", "menus", "import", "export"];
+        let planned = plan(&[installed(EVERYTHING, true, &all)], false);
+        let shown: Vec<_> = planned.iter().map(|p| (p.place, p.enabled)).collect();
+        assert_eq!(
+            shown,
+            [
+                (Place::Plugins, false),
+                (Place::Import, false),
+                (Place::Export, true),
+            ]
+        );
     }
 
     #[test]
