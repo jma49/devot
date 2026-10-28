@@ -312,7 +312,10 @@ describe('the agent_writes index', () => {
       notebook: s.shared,
     })
     const [first] = await s.storage.listAgentWrites(10)
-    await s.storage.markAgentWritesSeen(id, [first!.writeId, 'unknown0000'])
+    // The unknown ID is skipped; the row it knows is the one it changed.
+    expect(await s.storage.markAgentWritesSeen(id, [first!.writeId, 'unknown0000'])).toBe(1)
+    // Nothing left to change: the other windows hear of no write.
+    expect(await s.storage.markAgentWritesSeen(id, [first!.writeId])).toBe(0)
     await s.claude.ai.update({ id, body: { markdown: 'Draft text, longer.\n' } })
     await s.notes.applyAiEdit(id, { from: 0, original: 'Draft', replacement: 'Final' })
     await s.notes.flush()
@@ -364,6 +367,23 @@ describe('the agent_writes index', () => {
     expect(await ids(2)).toEqual(['DDDDDDDDDDD', 'CCCCCCCCCCC', 'BBBBBBBBBBB'])
     await s.storage.markAgentWritesSeen(id, ['BBBBBBBBBBB'])
     expect(await ids(2)).toEqual(['DDDDDDDDDDD', 'CCCCCCCCCCC'])
+  })
+
+  it('names every authored note, seen or not, past the rows the list keeps', async () => {
+    const s = await setup()
+    const old = await s.notes.create('Old')
+    const fresh = await s.notes.create('New')
+    const put = s.storage.db.prepare(
+      `INSERT INTO agent_writes (note_id, write_id, kind, name, at, created, seen)
+       VALUES (?, ?, 'mcp', 'Claude Code', ?, 0, 1)`,
+    )
+    put.run(old, 'AAAAAAAAAAA', 1)
+    put.run(fresh, 'BBBBBBBBBBB', 2)
+    // The list keeps the newest row only; the old note is authored all the same.
+    expect((await s.storage.listAgentWrites(1)).map((row) => row.noteId)).toEqual([fresh])
+    expect((await s.storage.authoredNotes()).sort()).toEqual([old, fresh].sort())
+    await s.notes.trash(fresh)
+    expect(await s.storage.authoredNotes()).toEqual([old])
   })
 
   it('refuses rows note_put would refuse', async () => {
@@ -494,6 +514,7 @@ describe('the statements', () => {
       keep: 'AGENT_WRITES_KEEP_SQL',
       put: 'AGENT_WRITES_PUT_SQL',
       list: 'AGENT_WRITES_LIST_SQL',
+      authored: 'AGENT_WRITES_AUTHORED_SQL',
       seen: 'AGENT_WRITES_SEEN_SQL',
       purge: 'AGENT_WRITES_PURGE_SQL',
     }
@@ -512,6 +533,8 @@ describe('the statements', () => {
       .map((p) => p.detail)
       .join('\n')
     expect(plan).toMatch(/agent_writes_newest/)
+    // The unseen half is the rows the list returns whole: it reads its own index.
+    expect(plan).toMatch(/agent_writes_unseen/)
     expect(plan).not.toMatch(/TEMP B-TREE/)
   })
 })

@@ -2935,6 +2935,34 @@ fn lists_unseen_agent_writes_older_than_the_newest_limit() {
 }
 
 #[test]
+fn names_every_authored_note_past_the_rows_the_list_keeps() {
+    let (_dir, mut store) = temp_store();
+    let rows = [agent_write("AAAAAAAAAAA", "mcp", 1)];
+    store
+        .put_note_with_writes(&note("a", "A", 10), &[], Some(&rows))
+        .unwrap();
+    let newer = [agent_write("BBBBBBBBBBB", "mcp", 2)];
+    store
+        .put_note_with_writes(&note("b", "B", 10), &[], Some(&newer))
+        .unwrap();
+    store
+        .mark_agent_writes_seen("a", &["AAAAAAAAAAA".into()])
+        .unwrap();
+    store
+        .mark_agent_writes_seen("b", &["BBBBBBBBBBB".into()])
+        .unwrap();
+    // The list keeps the newest row only; the older note is authored all the same.
+    assert_eq!(store.list_agent_writes(1).unwrap().len(), 1);
+    let mut authored = store.authored_notes().unwrap();
+    authored.sort();
+    assert_eq!(authored, ["a".to_string(), "b".to_string()]);
+    store
+        .put_note(&in_trash(based_on(1, note("b", "B", 11)), 11), &[])
+        .unwrap();
+    assert_eq!(store.authored_notes().unwrap(), ["a".to_string()]);
+}
+
+#[test]
 fn lists_agent_writes_of_live_notes_and_purging_deletes_them() {
     let (_dir, mut store) = temp_store();
     let rows = [agent_write("AAAAAAAAAAA", "mcp", 5)];
