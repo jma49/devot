@@ -40,6 +40,7 @@ export function reportingWrites(storage: WireStorage, onWrote: () => void): Wire
     putBook: after((book) => storage.putBook(book)),
     putTag: after((tag) => storage.putTag(tag)),
     putNoteTag: after((link) => storage.putNoteTag(link)),
+    markAgentWritesSeen: after((noteId, writeIds) => storage.markAgentWritesSeen(noteId, writeIds)),
   }
 }
 

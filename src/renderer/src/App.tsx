@@ -1446,6 +1446,8 @@ export function App() {
           await saveEdits(core)
           void core.mirrorTouch()
           await refresh(core)
+          // Seen writes change no note: the other windows' marks need this read too.
+          agentWrites.reload()
         }
       : undefined,
   )
