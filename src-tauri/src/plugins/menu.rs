@@ -131,7 +131,7 @@ pub fn refresh(app: &AppHandle) {
     };
     let editing = app
         .try_state::<Arc<crate::licence::Licence>>()
-        .map_or(true, |licence| {
+        .is_none_or(|licence| {
             licence
                 .require_write(crate::storage::Write::Content)
                 .is_ok()
