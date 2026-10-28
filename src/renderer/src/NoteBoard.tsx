@@ -90,6 +90,8 @@ interface Props {
   onRedo?: (() => void) | undefined
   /** What the board says when the view has no notes. */
   empty?: ListEmptyKind | undefined
+  /** Whether notes can be made and changed; an empty board says it is read-only when they cannot. */
+  editing?: boolean
 }
 
 /** Boards with more cards than this render only the cards near the part of each column that shows (`columnWindow`), like a long list. */
@@ -592,7 +594,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
   }
   const emptyText =
     props.empty && notes.length === 0
-      ? listEmpty(props.empty)
+      ? listEmpty(props.empty, props.editing)
       : notes.length > 0 && order.length === 0
         ? DROPPED_HIDDEN
         : undefined

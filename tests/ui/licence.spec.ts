@@ -276,6 +276,26 @@ test.describe('locked sync and AI', () => {
   })
 })
 
+test.describe('the read-only library', () => {
+  test('an empty list says notes are read-only, not to create one with a disabled button', async ({
+    page,
+  }) => {
+    await fakeRust(page, none())
+    await openApp(page)
+    await expect(page.getByText('No Notes Yet')).toBeVisible()
+    await expect(page.getByText('Notes are read-only until you add a licence.')).toBeVisible()
+    await expect(page.getByText('Create a note with the New Note button.')).toHaveCount(0)
+
+    await page
+      .getByRole('navigation', { name: 'Sidebar' })
+      .getByRole('button', { name: /^Templates/ })
+      .click()
+    await expect(page.getByText('No Templates Yet')).toBeVisible()
+    await expect(page.getByText('Templates are read-only until you add a licence.')).toBeVisible()
+    await expect(page.getByText('Create one with the New Template button.')).toHaveCount(0)
+  })
+})
+
 test.describe('devot://licence links', () => {
   const offer = (id = ID, licensee = 'buyer@example.com') => ({ id, licensee, state: 'valid' })
 

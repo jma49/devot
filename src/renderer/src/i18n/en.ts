@@ -265,6 +265,8 @@ export const en = {
   'noteList.empty.createTip': 'Create a note with the New Note button.',
   'noteList.empty.searchTip': 'Try other words, or search all notes.',
   'noteList.empty.templatesTip': 'Create one with the New Template button.',
+  'noteList.empty.readOnly': 'Notes are read-only until you add a licence.',
+  'noteList.empty.templatesReadOnly': 'Templates are read-only until you add a licence.',
   'noteList.resize': 'Resize Note List',
   'board.resize': 'Resize Board',
   'board.cardTags': 'Tags: {tags}',

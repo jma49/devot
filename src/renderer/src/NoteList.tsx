@@ -90,6 +90,8 @@ interface Props {
   /** Looks up each row's activity strip; without it rows show none (Settings can hide them). */
   activity?: HeadlineLoader<StripDay[]> | undefined
   empty?: ListEmptyKind | undefined
+  /** Whether notes can be made and changed; an empty list says it is read-only when they cannot. */
+  editing?: boolean
   /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
   changedBy?: ReadonlyMap<string, WriterRef> | undefined
 }
@@ -765,7 +767,9 @@ export const NoteList = memo(function NoteList(props: Props) {
           }
           return out
         })}
-        {entries.length === 0 && props.empty ? <EmptyList kind={props.empty} /> : null}
+        {entries.length === 0 && props.empty ? (
+          <EmptyList kind={props.empty} editing={props.editing} />
+        ) : null}
       </ul>
       {props.after}
       <div className="list-resize" aria-label={t('noteList.resize')} {...edge} />
@@ -773,8 +777,8 @@ export const NoteList = memo(function NoteList(props: Props) {
   )
 })
 
-function EmptyList({ kind }: { kind: ListEmptyKind }) {
-  const { message, tip } = listEmpty(kind)
+function EmptyList({ kind, editing }: { kind: ListEmptyKind; editing?: boolean }) {
+  const { message, tip } = listEmpty(kind, editing)
   return (
     <li className="list-empty" role="presentation">
       <span className="list-empty-message">{t(message)}</span>

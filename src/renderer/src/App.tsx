@@ -3479,6 +3479,7 @@ export function App() {
       />
       {searching ? (
         <NoteList
+          editing={editing}
           view={listView}
           title={t('search.results')}
           filter={filterField}
@@ -3509,6 +3510,7 @@ export function App() {
         />
       ) : inTrash ? (
         <NoteList
+          editing={editing}
           view={listView}
           title={t('sidebar.trash')}
           icon={<Icon name="trash" size="lg" />}
@@ -3533,6 +3535,7 @@ export function App() {
         />
       ) : inTemplates ? (
         <NoteList
+          editing={editing}
           view={listView}
           title={t('sidebar.templates')}
           icon={<Icon name="templates" size="lg" />}
@@ -3562,6 +3565,7 @@ export function App() {
         />
       ) : boardShown ? (
         <NoteBoard
+          editing={editing}
           view={listView}
           title={filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes')}
           icon={listIcon}
@@ -3595,6 +3599,7 @@ export function App() {
         />
       ) : (
         <NoteList
+          editing={editing}
           view={listView}
           title={filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes')}
           icon={listIcon}
