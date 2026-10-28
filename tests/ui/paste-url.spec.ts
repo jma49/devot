@@ -209,3 +209,13 @@ test('Paste URL As… opens the chooser for the clipboard URL', async ({ page })
   await page.keyboard.press('Enter')
   await expect(line(page, 0)).toHaveText('go <https://a.example/>')
 })
+
+test('lines pasted into a code block in a list item stay in the item', async ({ page }) => {
+  await newNote(page, '- item\n  ```\n  \n  ```\n- next')
+  await line(page, 2).click()
+  await page.keyboard.press('End')
+  await paste(page, 'line1\nline2')
+  await expect
+    .poll(() => lines(page))
+    .toEqual(['- item', '  ```', '  line1', '  line2', '  ```', '- next'])
+})
