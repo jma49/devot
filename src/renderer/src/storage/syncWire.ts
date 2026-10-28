@@ -1,7 +1,7 @@
 // Sync between the core worker and the page: the engine's store and its transport cross to the
 // page, which alone reaches Tauri commands. A note's Yjs state and a record's plaintext cross as
 // base64, coded here in the worker (as in wire.ts), so the page hands them on without reading them.
-import type { SyncLocal, SyncStore } from '../../../core/sync/store'
+import type { SyncFileMeta, SyncLocal, SyncStore } from '../../../core/sync/store'
 import type { PullPage, PushResult, SyncTransport, Welcome } from '../../../core/sync/transport'
 import type { RecordKind } from '../../../core/sync/protocol'
 import { fromBase64, toBase64, type WireNote } from './wire'
@@ -10,8 +10,11 @@ export type WireSyncLocal = Omit<SyncLocal, 'note'> & {
   note: { note: WireNote; purged: boolean; tags: NonNullable<SyncLocal['note']>['tags'] } | null
 }
 
-export interface WireSync extends Omit<SyncStore, 'syncRead'> {
+export interface WireSync extends Omit<SyncStore, 'syncRead' | 'syncFileData' | 'syncFilePut'> {
   syncRead(ids: readonly string[]): Promise<WireSyncLocal[]>
+  /** The bytes as base64. */
+  syncFileData(id: string): Promise<string | null>
+  syncFilePut(file: SyncFileMeta, data: string): Promise<void>
 }
 
 export interface WirePulled {
@@ -26,7 +29,7 @@ export interface WirePulled {
 export interface WireTransport {
   connect(): Promise<Welcome>
   pull(since: number): Promise<{ records: WirePulled[]; next: number; more: boolean }>
-  push(id: string, base: number, data: string): Promise<PushResult>
+  push(id: string, base: number, data: string, kind: RecordKind): Promise<PushResult>
   close(): Promise<void>
 }
 
@@ -49,6 +52,12 @@ export function fromWireSync(wire: WireSync): SyncStore {
     syncSetState: (key, value) => wire.syncSetState(key, value),
     syncReset: () => wire.syncReset(),
     syncPurge: (id, at, hlc) => wire.syncPurge(id, at, hlc),
+    async syncFileData(id) {
+      const data = await wire.syncFileData(id)
+      return data === null ? null : fromBase64(data)
+    },
+    syncFilePut: (file, data) => wire.syncFilePut(file, toBase64(data)),
+    syncFileDelete: (id) => wire.syncFileDelete(id),
   }
 }
 
@@ -69,7 +78,7 @@ export function fromWireTransport(wire: WireTransport): SyncTransport {
         })),
       }
     },
-    push: (id, base, plaintext) => wire.push(id, base, toBase64(plaintext)),
+    push: (id, base, plaintext, kind = 'record') => wire.push(id, base, toBase64(plaintext), kind),
     close: () => wire.close(),
   }
 }

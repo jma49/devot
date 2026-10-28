@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import {
   changeEditorSettingsElsewhere,
   changeShortcutsElsewhere,
@@ -76,6 +76,48 @@ test.beforeEach(async ({ page }) => {
   await page.evaluate(() => {
     ;(globalThis as unknown as TestWindow).devotIpcMocks = { image_copy: null, image_save: true }
   })
+})
+
+test('a link whose image has not arrived shows a placeholder at the inline image height and tries again when the database changes', async ({
+  page,
+}) => {
+  await newNote(page, `Look:\n\n![Shot](${FILE})\n`)
+  await showMode(page, 'Split')
+  const inline = page.locator('.cm-inline-image')
+  await expect(inline).toHaveClass(/image-missing/)
+  const height = (await inlineImages(page).boundingBox())!.height
+  expect(height).toBe(160)
+  const placeholder = (await inline.boundingBox())!
+  expect(placeholder.height).toBeGreaterThan(100)
+  expect(placeholder.width / placeholder.height).toBeCloseTo(4 / 3, 1)
+  await expect(inline).toHaveAttribute('alt', '')
+  const shown = preview(page).locator('img')
+  await expect(shown).toHaveClass(/image-missing/)
+  expect((await shown.boundingBox())!.height).toBe(160)
+
+  // The image arrives with a database change: both look again, and mark it again while it is not here.
+  const unmarked = (img: Locator) =>
+    img.evaluate((el) => {
+      const seen = { count: 0 }
+      new MutationObserver((records) => {
+        for (const r of records)
+          if (!(r.target as Element).classList.contains('image-missing')) seen.count += 1
+      }).observe(el, { attributes: true, attributeFilter: ['class'] })
+      ;(el as unknown as { unmarked: { count: number } }).unmarked = seen
+    })
+  await unmarked(inline)
+  await unmarked(shown)
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('devot:db-changed')))
+  for (const img of [inline, shown]) {
+    await expect
+      .poll(() =>
+        img.evaluate((el) => (el as unknown as { unmarked: { count: number } }).unmarked.count),
+      )
+      .toBeGreaterThan(0)
+  }
+  await expect(inline).toHaveClass(/image-missing/)
+  await expect(shown).toHaveClass(/image-missing/)
+  expect((await inlineImages(page).boundingBox())!.height).toBe(height)
 })
 
 test('double-clicking a preview image opens the viewer, fitted to the window', async ({ page }) => {

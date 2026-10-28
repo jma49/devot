@@ -5,7 +5,7 @@ mod db;
 mod readable;
 mod sync;
 
-pub use sync::{SYNC_KINDS, SyncEntry, SyncLocal};
+pub use sync::{SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal};
 
 pub use db::{Db, Write};
 
@@ -39,6 +39,8 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0018_book_icons.sql"),
     include_str!("../../migrations/0019_sync.sql"),
     include_str!("../../migrations/0020_agent_writes.sql"),
+    include_str!("../../migrations/0021_agent_writes_unseen.sql"),
+    include_str!("../../migrations/0022_sync_files.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -473,8 +475,9 @@ const NOTE_ACTIVITY_SQL: &str = "SELECT r.note_id AS noteId, r.kind, r.at, r.len
 /// old duplicate) and its image must stay. The search index finds those notes (a phrase match, so
 /// no note is read whole); it ignores case, so `instr` checks the address as written. The same
 /// statement as the TypeScript adapter's (src/mcp/sqlite.ts, HAND_OVER_FILES_SQL; a test compares
-/// them).
-const HAND_OVER_FILES_SQL: &str = r#"UPDATE files SET note_id = COALESCE((
+/// them). `@hlc` is the purge's clock: it dates the new owner, so a device that hears of the same
+/// purge settles on the same note (docs/adr/0003-sync-attachments-as-records.md, risk 5).
+const HAND_OVER_FILES_SQL: &str = r#"UPDATE files SET note_hlc = MAX(note_hlc, @hlc), note_id = COALESCE((
        SELECT n.id FROM notes_fts JOIN notes n ON n.rowid = notes_fts.rowid
         WHERE notes_fts MATCH 'body_md : "devot://file/' || replace(files.id, '"', '""') || '"'
           AND n.purged_at IS NULL AND n.id <> files.note_id
@@ -1526,7 +1529,10 @@ impl Store {
             params![id, at, hlc],
         )?;
         tx.execute("DELETE FROM note_tags WHERE note_id = ?1", [id])?;
-        tx.execute(HAND_OVER_FILES_SQL, rusqlite::named_params! { "@id": id })?;
+        tx.execute(
+            HAND_OVER_FILES_SQL,
+            rusqlite::named_params! { "@id": id, "@hlc": hlc },
+        )?;
         tx.execute("DELETE FROM files WHERE note_id = ?1", [id])?;
         tx.execute("DELETE FROM links WHERE source_id = ?1", [id])?;
         tx.execute(

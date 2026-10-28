@@ -87,6 +87,10 @@ it('runs the same statements as the Rust store', () => {
     setState: 'SYNC_SET_STATE_SQL',
     reset: 'SYNC_RESET_SQL',
     noteTags: 'SYNC_NOTE_TAGS_SQL',
+    file: 'SYNC_FILE_SQL',
+    fileData: 'SYNC_FILE_DATA_SQL',
+    filePut: 'SYNC_FILE_PUT_SQL',
+    fileDelete: 'SYNC_FILE_DELETE_SQL',
   } as const
   const keys = Object.keys(names) as (keyof typeof names)[]
   const rust = Object.fromEntries(keys.map((k) => [k, words(statement(names[k]))]))

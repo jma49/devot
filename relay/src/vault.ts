@@ -1,4 +1,5 @@
 import {
+  ATTACHMENTS_FULL,
   CLOSE,
   type DeviceInfo,
   decodeFrame,
@@ -100,6 +101,8 @@ const SCHEMA = [
 ]
 const SCHEMA_VERSION = 1
 const MAX_DEVICES = 100
+/** Sealed file records up to this size (a purge's tombstone) are never refused for the attachment share. */
+const TOMBSTONE_BYTES = 1024
 
 const encoder = new TextEncoder()
 const day = (ms: number) => new Date(ms).toISOString().slice(0, 10)
@@ -242,6 +245,7 @@ export class VaultRelay {
     this.count({ requests: 1 })
     const epoch = String(this.sql.all('SELECT epoch FROM vault WHERE id = 1')[0]?.['epoch'])
     const quota = this.quota ? 'on' : 'off'
+    const attachments = this.quota?.fileBytes === undefined ? 'off' : 'on'
     return encodeFrame({
       type: 'welcome',
       time: this.now(),
@@ -249,6 +253,7 @@ export class VaultRelay {
       seq: this.head(),
       device,
       quota,
+      attachments,
     })
   }
 
@@ -328,11 +333,21 @@ export class VaultRelay {
       if (!isCount(length) || length === 0) throw new ProtocolError('E_SYNC_BAD_MESSAGE')
       if (length > LIMITS.maxChunkBytes) throw new ProtocolError('E_SYNC_TOO_LARGE')
     }
+    if (kind === 'file' && payload.length > LIMITS.maxFileRecordBytes) {
+      throw new ProtocolError('E_SYNC_TOO_LARGE')
+    }
     const chunks = splitChunks(payload, lengths as number[])
     const at = this.now()
     const result = this.sql.transaction(() => {
       const row = this.sql.all('SELECT version, kind, bytes FROM records WHERE id = ?', id)[0]
-      const limit = this.quotaLimit(payload.length - num(row?.['bytes']), at)
+      const oldBytes = num(row?.['bytes'])
+      const growth = payload.length - oldBytes
+      // A purge's tombstone (a few hundred bytes) must always go in: it is what frees the share.
+      const fileGrowth =
+        kind === 'file' && payload.length > TOMBSTONE_BYTES
+          ? payload.length - (row?.['kind'] === 'file' ? oldBytes : 0)
+          : 0
+      const limit = this.quotaLimit(growth, fileGrowth, at)
       if (limit) {
         this.pending.messages++
         return { quota: limit }
@@ -376,6 +391,9 @@ export class VaultRelay {
       return { version, seq }
     })
     if ('quota' in result) {
+      if (result.quota === 'fileBytes') {
+        return { reply: encodeFrame({ type: 'error', rid, code: ATTACHMENTS_FULL }) }
+      }
       const until = quotaResetAt(at)
       return {
         reply: encodeFrame({
@@ -473,7 +491,7 @@ export class VaultRelay {
   }
 
   /** The limit a push adding `growth` stored bytes would trip; today's counts are 0 until the row's first write today. */
-  private quotaLimit(growth: number, at: number) {
+  private quotaLimit(growth: number, fileGrowth: number, at: number) {
     if (!this.quota) return null
     const usage = this.usage()
     const today = usage.day === day(at)
@@ -483,9 +501,11 @@ export class VaultRelay {
         messages: (today ? usage.messages : 0) + this.pending.messages,
         requests: (today ? usage.requests : 0) + this.pending.requests,
         storedBytes: usage.storedBytes,
+        fileBytes: usage.fileBytes,
       },
       this.quota,
       growth,
+      fileGrowth,
     )
   }
 

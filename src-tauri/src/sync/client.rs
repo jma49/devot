@@ -145,7 +145,7 @@ fn relay_code(value: &Value) -> Option<&'static str> {
     KNOWN_CODES.iter().copied().find(|known| *known == code)
 }
 
-const KNOWN_CODES: [&str; 19] = [
+const KNOWN_CODES: [&str; 20] = [
     "E_SYNC_BAD_MESSAGE",
     "E_SYNC_PROTOCOL",
     "E_SYNC_TOO_LARGE",
@@ -160,6 +160,7 @@ const KNOWN_CODES: [&str; 19] = [
     "E_SYNC_TOO_MANY_DEVICES",
     "E_SYNC_NOT_FOUND",
     "E_SYNC_QUOTA",
+    "E_SYNC_ATTACHMENTS_FULL",
     "E_RELAY_CONFIG",
     "E_SYNC_RELAY_SECRET",
     "E_SYNC_FORBIDDEN",
@@ -386,6 +387,8 @@ pub(crate) struct Welcome {
     pub device: String,
     /// `on` or `off`; None from a relay older than the quota cap.
     pub quota: Option<&'static str>,
+    /// `on` or `off`, whether the relay holds attachments within a share; None from a relay older than that.
+    pub attachments: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -568,6 +571,11 @@ fn read_welcome(socket: &mut Socket) -> Result<Welcome, &'static str> {
                         .ok_or("E_SYNC_PROTOCOL")?
                         .to_string(),
                     quota: match m.get("quota").and_then(Value::as_str) {
+                        Some("on") => Some("on"),
+                        Some("off") => Some("off"),
+                        _ => None,
+                    },
+                    attachments: match m.get("attachments").and_then(Value::as_str) {
                         Some("on") => Some("on"),
                         Some("off") => Some("off"),
                         _ => None,
@@ -823,6 +831,8 @@ pub(crate) enum PushReply {
     Rejected {
         version: u64,
     },
+    /// The relay's share for attachments is used up (`E_SYNC_ATTACHMENTS_FULL`): notes still go in.
+    Full,
     /// The relay's quota cap: no pushes until `until` (its next 00:00 UTC), when it said so.
     Paused {
         until: Option<i64>,
@@ -851,6 +861,7 @@ fn pushed(answer: &Answer) -> Result<PushReply, &'static str> {
                 limit: QUOTA_LIMITS.into_iter().find(|known| Some(*known) == limit),
             });
         }
+        Some("E_SYNC_ATTACHMENTS_FULL") => return Ok(PushReply::Full),
         Some(code) => return Err(code),
         None => {}
     }
@@ -919,7 +930,7 @@ pub(crate) fn pull(
             chunks.push(answer.payload.get(at..end).ok_or("E_SYNC_PROTOCOL")?);
             at = end;
         }
-        let plaintext = if kind == "record" {
+        let plaintext = if kind == "record" || kind == "file" {
             vault
                 .decrypt_record(id, version, &chunks)
                 .map_err(|error| error.code())
@@ -952,15 +963,16 @@ pub(crate) fn pull(
     })
 }
 
-/// Seals `plaintext` as version `base + 1` of record `id` and offers it to the relay, which takes
-/// it only while it still holds version `base`. A record the relay could not take stays here:
-/// `E_SYNC_TOO_LARGE`, found before anything is sent.
+/// Seals `plaintext` as version `base + 1` of record `id` (of `kind`: `record`, or `file` for an
+/// attachment) and offers it to the relay, which takes it only while it still holds version `base`.
+/// A record the relay could not take stays here: `E_SYNC_TOO_LARGE`, found before anything is sent.
 pub(crate) fn push(
     connection: &Connection,
     vault: &Vault,
     id: &str,
     base: u64,
     plaintext: &[u8],
+    kind: &str,
 ) -> Result<PushReply, &'static str> {
     let version = base.checked_add(1).ok_or("E_SYNC_PROTOCOL")?;
     if super::chunk_count(plaintext.len()) > MAX_CHUNKS {
@@ -980,7 +992,7 @@ pub(crate) fn push(
         "type": "push",
         "id": id,
         "base": base,
-        "kind": "record",
+        "kind": kind,
         "chunks": lengths,
     }));
     pushed(&connection.answer(&message, &chunks)?)
@@ -1166,6 +1178,12 @@ mod tests {
                 json!({ "type": "error", "code": "E_SYNC_TOO_LARGE" })
             )),
             Err("E_SYNC_TOO_LARGE")
+        );
+        assert_eq!(
+            pushed(&answer(
+                json!({ "type": "error", "code": "E_SYNC_ATTACHMENTS_FULL" })
+            )),
+            Ok(PushReply::Full)
         );
         assert_eq!(
             pushed(&answer(json!({ "type": "error", "code": "a note title" }))),

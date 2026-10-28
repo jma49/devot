@@ -12,6 +12,7 @@
 // pushes until its next 00:00 UTC; anything else retries with backoff and jitter.
 
 import { errorCode } from '../errors'
+import { fileLinks } from '../files'
 import { receiveStored, type Clock } from '../hlc'
 import { clipTitle } from '../noteLimits'
 import { isNotebookSymbol } from '../notebookIcons'
@@ -28,13 +29,21 @@ import {
   stampsOf,
   bodyFacts,
   tombstone,
+  tombstoneFile,
   type BookState,
+  type FileState,
   type MergedNote,
   type NoteState,
   type SyncRecord,
   type TagState,
 } from './records'
-import type { SyncEntry, SyncLocal, SyncStore } from './store'
+import {
+  MAX_SYNC_IDS,
+  type SyncEntry,
+  type SyncFileMeta,
+  type SyncLocal,
+  type SyncStore,
+} from './store'
 import type { PulledRecord, SyncEvent, SyncTransport } from './transport'
 
 export const PUSH_IDLE_MS = 3_000
@@ -56,6 +65,8 @@ const PROGRESS_EVERY_MS = 1_000
 const BREAKER_PUSHES = 30
 const BREAKER_WINDOW_MS = 60_000
 const PAGE = 100
+/** A note that shows more attachments than this has the rest sent in their turn. */
+const MAX_SHOWN_FILES = 500
 const WRITE_TRIES = 5
 /** The size of the upload under way, in `sync_state`, so its progress survives a restart; '0' when none. */
 const UPLOAD_TOTAL = 'uploadTotal'
@@ -73,9 +84,15 @@ export interface SyncStatus {
   pausedUntil: number | null
   /** A large upload under way, kept across pauses and restarts. */
   upload: { sent: number; total: number } | null
-  /** The relay predates the quota cap: its owner should update it. */
+  /** The relay predates the quota cap or the attachment share: its owner should update it. */
   relayOutdated: boolean
+  /** Images kept on this device only, and why: E_SYNC_ATTACHMENTS_FULL, or E_SYNC_RELAY_OUTDATED (a relay that cannot hold them). */
+  unsyncedFiles: { count: number; code: string } | null
 }
+
+/** Why attachments stay local; the relay's refusal is retried after a purge frees space and on the next launch. */
+const FILES_FULL = 'E_SYNC_ATTACHMENTS_FULL'
+const FILES_UNSUPPORTED = 'E_SYNC_RELAY_OUTDATED'
 
 class QuotaPaused extends Error {
   readonly until: number | null
@@ -191,10 +208,26 @@ const tagStateOf = (tag: TagRecord): TagState => ({
   colorHlc: tag.colorHlc,
 })
 
+const fileStateOf = (file: SyncFileMeta): FileState => ({
+  kind: 'file',
+  id: file.id,
+  purged: false,
+  noteId: file.noteId,
+  noteHlc: file.noteHlc,
+  name: file.name,
+  mime: file.mime,
+  size: file.size,
+  createdAt: file.createdAt,
+  data: new Uint8Array(0),
+})
+
 function stateOf(local: SyncLocal | undefined, bodyHlc: string): SyncRecord | null {
   if (local?.note) return noteStateOf(local.note, bodyHlc)
   if (local?.book) return bookStateOf(local.book)
   if (local?.tag) return tagStateOf(local.tag)
+  if (local?.file) return fileStateOf(local.file)
+  // An attachment with an entry and no row was purged: the entry is its tombstone.
+  if (local?.entry?.kind === 'file') return tombstoneFile(local.id)
   return null
 }
 
@@ -270,6 +303,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     pausedUntil: null,
     upload: null,
     relayOutdated: false,
+    unsyncedFiles: null,
   }
   /** The relay's clock less this device's, from the last welcome. */
   let relayOffset = 0
@@ -283,6 +317,28 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   /** Past the retry cap: left until the next `changed`. */
   const parked = new Set<string>()
   const pushTimes = new Map<string, number[]>()
+  /** Attachment ID to why it stays local: the relay refused it (or cannot hold it), or it would be refused as a larger one was. */
+  const unsynced = new Map<string, { print: string; code: string }>()
+  /** Whether the relay said (in its welcome) that it holds attachments within a share. */
+  let filesSupported = true
+  /** The smallest attachment the relay refused for lack of room; larger ones are not sent until room is made. */
+  let fullAt: number | undefined
+  /** Room was made (a purge was pushed or pulled): refused attachments are tried again. */
+  let roomMade = false
+
+  const reportUnsynced = () => {
+    const codes = new Set([...unsynced.values()].map((u) => u.code))
+    const code = codes.has(FILES_UNSUPPORTED) ? FILES_UNSUPPORTED : FILES_FULL
+    set({ unsyncedFiles: unsynced.size > 0 ? { count: unsynced.size, code } : null })
+  }
+
+  const makeRoom = () => {
+    if (unsynced.size === 0 && fullAt === undefined) return
+    roomMade = true
+    fullAt = undefined
+    for (const [id, u] of [...unsynced]) if (u.code === FILES_FULL) unsynced.delete(id)
+    reportUnsynced()
+  }
 
   const set = (patch: Partial<SyncStatus>) => {
     status = { ...status, ...patch }
@@ -354,8 +410,16 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const welcome = await transport.connect()
     relayOffset = welcome.time - now()
     if (Math.abs(relayOffset) > MAX_CLOCK_SKEW_MS) throw new Error('E_SYNC_CLOCK_SKEW')
-    const relayOutdated = welcome.quota !== 'on' && welcome.quota !== 'off'
+    const known = (value: unknown) => value === 'on' || value === 'off'
+    const relayOutdated = !known(welcome.quota) || !known(welcome.attachments)
     if (relayOutdated !== status.relayOutdated) set({ relayOutdated })
+    // A relay that does not say it holds attachments within a share is not sent any: they could
+    // take the room notes need. They go once the owner has updated it.
+    filesSupported = known(welcome.attachments)
+    if (filesSupported) {
+      for (const [id, u] of [...unsynced]) if (u.code === FILES_UNSUPPORTED) unsynced.delete(id)
+      reportUnsynced()
+    }
     const state = await sync.syncState()
     if (state['epoch'] !== welcome.epoch) {
       await sync.syncReset()
@@ -364,6 +428,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       await sync.syncSetState('epoch', welcome.epoch)
       tooLarge.clear()
       parked.clear()
+      unsynced.clear()
+      fullAt = undefined
+      reportUnsynced()
     }
     connected = true
     reconnectDelay = RECONNECT_MIN_MS
@@ -410,7 +477,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   }
 
   async function applyPulled(pulled: PulledRecord): Promise<boolean> {
-    if (pulled.kind !== 'record') return false
+    if (pulled.kind !== 'record' && pulled.kind !== 'file') return false
     if (!pulled.plaintext) {
       console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, pulled.error ?? 'E_SYNC_RECORD_EMPTY')
       return false
@@ -420,6 +487,10 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       remote = decodeRecord(pulled.id, pulled.plaintext)
     } catch (error) {
       console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, errorCode(error))
+      return false
+    }
+    if ((remote.kind === 'file') !== (pulled.kind === 'file')) {
+      console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, 'E_SYNC_RECORD_KIND')
       return false
     }
     receiveStored(clock, stampsOf(remote))
@@ -444,6 +515,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     remote: SyncRecord,
     version: number,
   ): Promise<boolean> {
+    if (remote.kind === 'file' && remote.purged) makeRoom()
     const stamped = local ? stamp(local) : { bodyHlc: '', bodyFp: '' }
     const mine = stateOf(local, stamped.bodyHlc)
     if (mine && mine.kind !== remote.kind) {
@@ -452,8 +524,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }
     const merged = mine
       ? mergeRecord(mine, remote)
-      : { record: remote, localNews: false, remoteNews: !(remote.kind === 'note' && remote.purged) }
-    if (merged.remoteNews) await write(local, merged.record, merged as MergedNote)
+      : { record: remote, localNews: false, remoteNews: !('purged' in remote && remote.purged) }
+    if (merged.remoteNews) await write(local, merged.record, merged as MergedNote, remote)
     const [after] = merged.remoteNews ? await sync.syncRead([remote.id]) : [local]
     const bodyHlc = merged.record.kind === 'note' ? merged.record.bodyHlc : ''
     const state = stateOf(after, bodyHlc) ?? merged.record
@@ -491,7 +563,32 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     })
   }
 
-  async function write(local: SyncLocal | undefined, record: SyncRecord, merged: MergedNote) {
+  async function writeFile(local: SyncLocal | undefined, record: FileState, remote: FileState) {
+    if (record.purged) {
+      if (local?.file) await sync.syncFileDelete(record.id)
+      return
+    }
+    await sync.syncFilePut(
+      {
+        id: record.id,
+        noteId: record.noteId,
+        noteHlc: record.noteHlc,
+        name: record.name,
+        mime: record.mime,
+        size: record.size,
+        createdAt: record.createdAt,
+      },
+      remote.data,
+    )
+  }
+
+  async function write(
+    local: SyncLocal | undefined,
+    record: SyncRecord,
+    merged: MergedNote,
+    remote: SyncRecord,
+  ) {
+    if (record.kind === 'file') return writeFile(local, record, remote as FileState)
     if (record.kind === 'book') return storage.putBook(bookRecordOf(record))
     if (record.kind === 'tag') return storage.putTag(tagRecordOf(record))
     const row = local?.note
@@ -558,11 +655,15 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const upload = await trackUpload()
     let full: QuotaPaused | undefined
     try {
-      await pending(async (id) => {
-        const refused = parked.has(id) ? undefined : await pushOne(id)
-        if (refused) full = refused
-        else upload?.step()
-      })
+      do {
+        roomMade = false
+        await pending(async (id) => {
+          const refused = parked.has(id) ? undefined : await pushOne(id)
+          if (refused) full = refused
+          else upload?.step()
+        })
+        // A purge pushed in this pass made room: the attachments it passed over are tried again.
+      } while (roomMade && !full)
       if (full) throw full
     } catch (error) {
       upload?.show()
@@ -584,6 +685,27 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     })
   }
 
+  /** Sends the attachments a note shows before the note: another device then rarely sees a link before its image. */
+  async function pushShownFiles(state: NoteState, bodyMd: string) {
+    if (state.purged) return
+    const ids = fileLinks(bodyMd).slice(0, MAX_SHOWN_FILES)
+    for (let at = 0; at < ids.length; at += MAX_SYNC_IDS) {
+      const rows = await sync.syncRead(ids.slice(at, at + MAX_SYNC_IDS))
+      for (const row of rows) {
+        const entry = row.entry
+        if (!row.file || !entry || entry.kind !== 'file' || entry.edits === entry.synced) continue
+        const refused = await pushOne(row.id)
+        if (refused) throw refused
+      }
+    }
+  }
+
+  /** What the relay says to an attachment it cannot take, kept apart from a note's: notes still sync. */
+  function keepLocal(id: string, print: string, code: string) {
+    unsynced.set(id, { print, code })
+    reportUnsynced()
+  }
+
   /** Returns the refusal when the relay's storage is full: it lasts past 00:00 UTC, and smaller records and purges still fit. */
   async function pushOne(id: string): Promise<QuotaPaused | undefined> {
     for (let attempt = 0; ; attempt += 1) {
@@ -600,25 +722,70 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       }
       const print = fingerprint(state)
       if (print === entry.fingerprint) {
+        if (unsynced.delete(id)) reportUnsynced()
         await sync.syncPut({ ...entry, ...stamped, synced: entry.edits })
         return
       }
       if (stamped.bodyFp !== entry.bodyFp) await sync.syncPut({ ...entry, ...stamped })
       if (tooLarge.get(id) === print) return
+      const kept = unsynced.get(id)
+      if (kept && kept.print === print) return
+      if (kept) unsynced.delete(id)
+      if (state.kind === 'file' && !filesSupported) {
+        console.warn('W_SYNC_RELAY_FILES_UNSUPPORTED', id)
+        keepLocal(id, print, FILES_UNSUPPORTED)
+        return
+      }
+      if (state.kind === 'file' && !state.purged && fullAt !== undefined && state.size >= fullAt) {
+        keepLocal(id, print, FILES_FULL)
+        return
+      }
+      if (state.kind === 'note' && local.note) await pushShownFiles(state, local.note.note.bodyMd)
       breaker(id)
+      let plaintext: Uint8Array
+      if (state.kind === 'file' && !state.purged) {
+        const data = await sync.syncFileData(id)
+        // Purged between the read and now: the next look finds the tombstone.
+        if (!data) continue
+        plaintext = encodeRecord({ ...state, data })
+      } else {
+        plaintext = encodeRecord(state)
+      }
       let result
       try {
-        result = await transport.push(id, entry.version, encodeRecord(state))
+        result = await transport.push(
+          id,
+          entry.version,
+          plaintext,
+          state.kind === 'file' ? 'file' : 'record',
+        )
       } catch (error) {
-        if (errorCode(error) !== 'E_SYNC_TOO_LARGE') throw error
+        const code = errorCode(error)
+        if (state.kind === 'file' && code === 'E_SYNC_BAD_MESSAGE') {
+          // A relay that does not know attachments: the image stays here and the owner is told to update.
+          console.warn('W_SYNC_RELAY_FILES_UNSUPPORTED', id)
+          keepLocal(id, print, FILES_UNSUPPORTED)
+          set({ relayOutdated: true })
+          return
+        }
+        if (code !== 'E_SYNC_TOO_LARGE') throw error
         console.warn('W_SYNC_TOO_LARGE', id)
         tooLarge.set(id, print)
         set({ tooLarge: [...tooLarge.keys()] })
         return
       }
+      if (result.type === 'full') {
+        console.warn('W_SYNC_ATTACHMENTS_FULL', id)
+        if (state.kind === 'file') fullAt = Math.min(fullAt ?? state.size, state.size)
+        keepLocal(id, print, FILES_FULL)
+        return
+      }
       if (result.type === 'paused') {
         const paused = new QuotaPaused(result.until)
-        if (result.limit === 'storedBytes') return paused
+        if (result.limit === 'storedBytes') {
+          if (state.kind === 'file' && !state.purged) keepLocal(id, print, FILES_FULL)
+          return paused
+        }
         throw paused
       }
       if (result.type === 'pushed') {
@@ -631,6 +798,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
           ...stamped,
           synced: entry.edits,
         })
+        if (state.kind === 'file' && state.purged) makeRoom()
         return
       }
       if (attempt >= MAX_PUSH_RETRIES) {
@@ -666,7 +834,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       firstTouch = undefined
       await transport.close().catch(() => undefined)
       await queue
-      set({ state: 'off', code: null, upload: null, relayOutdated: false })
+      unsynced.clear()
+      fullAt = undefined
+      set({ state: 'off', code: null, upload: null, relayOutdated: false, unsyncedFiles: null })
     },
     touch() {
       if (!running) return

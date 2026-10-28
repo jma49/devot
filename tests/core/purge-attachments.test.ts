@@ -273,13 +273,13 @@ describe('the statement that hands images over', () => {
   it('finds the notes that show an image through the search index, never by reading every note', () => {
     const storage = sqlite()
     const plan = (
-      storage.db.prepare(`EXPLAIN QUERY PLAN ${HAND_OVER_FILES_SQL}`).all({ id: F }) as {
+      storage.db.prepare(`EXPLAIN QUERY PLAN ${HAND_OVER_FILES_SQL}`).all({ id: F, hlc: '' }) as {
         detail: string
       }[]
     )
       .map((p) => p.detail)
       .join('\n')
-    expect(plan).toMatch(/SEARCH files USING INDEX files_by_note \(note_id=\?\)/)
+    expect(plan).toMatch(/SEARCH files USING (COVERING )?INDEX files_by_note \(note_id=\?\)/)
     expect(plan).toMatch(/SCAN notes_fts VIRTUAL TABLE INDEX \d+:M/)
     expect(plan).toMatch(/SEARCH n USING INTEGER PRIMARY KEY \(rowid=\?\)/)
     expect(plan).not.toMatch(/SCAN (n|notes)\b/)

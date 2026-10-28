@@ -15,6 +15,7 @@ import {
   type ImageSize,
 } from '../../../core/images'
 import type { MenuPoint } from '../contextMenu'
+import { isMissingImage, MISSING_IMAGE, watchMissingImages } from '../missingImages'
 import { sizes } from '../theme/tokens'
 
 export interface EditorImage {
@@ -162,6 +163,8 @@ export function imageLines(state: EditorState): ImageLine[] {
 
 const HEIGHT = Number.parseFloat(sizes['size.inline-image-height'])
 
+const stops = new WeakMap<HTMLElement, () => void>()
+
 /** The images under one line. Only their URLs and alt texts matter for redrawing. */
 class ImagesWidget extends WidgetType {
   constructor(readonly images: readonly { url: string; alt: string }[]) {
@@ -189,7 +192,9 @@ class ImagesWidget extends WidgetType {
       img.className = 'cm-inline-image'
       img.alt = alt
       img.draggable = false
-      img.addEventListener('error', () => img.classList.add('cm-inline-image-failed'))
+      img.addEventListener('error', () => {
+        if (!isMissingImage(img)) img.classList.add('cm-inline-image-failed')
+      })
       img.src = url
       box.appendChild(img)
     }
@@ -213,7 +218,13 @@ class ImagesWidget extends WidgetType {
       event.preventDefault()
       view.state.facet(imageActions)?.menu(hit.image, { x: event.clientX, y: event.clientY })
     })
+    stops.set(box, watchMissingImages(box))
     return box
+  }
+
+  override destroy(dom: HTMLElement): void {
+    stops.get(dom)?.()
+    stops.delete(dom)
   }
 
   /** The editor leaves pointer events to the images; drops still go to the editor. */
@@ -262,6 +273,13 @@ const theme = EditorView.theme({
     cursor: 'zoom-in',
   },
   '.cm-inline-image-failed': { visibility: 'hidden' },
+  // An attachment that has not arrived: a box where the image will be.
+  [`.cm-inline-image.${MISSING_IMAGE}`]: {
+    height: '100%',
+    aspectRatio: '4 / 3',
+    background: 'var(--color-fill-track)',
+    cursor: 'default',
+  },
 })
 
 export const inlineImages = [inlineImageField, theme]

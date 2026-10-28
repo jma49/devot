@@ -12,6 +12,8 @@ export interface Welcome {
   device: string
   /** Whether the relay enforces the quota cap; absent (or null) from a relay older than the cap. */
   quota?: 'on' | 'off' | null
+  /** Whether the relay enforces the attachment share; absent (or null) from a relay older than it. */
+  attachments?: 'on' | 'off' | null
 }
 
 export interface PulledRecord {
@@ -35,6 +37,8 @@ export type PushResult =
   | { type: 'rejected'; version: number }
   /** The relay's quota cap (E_SYNC_QUOTA): pushes wait until `until`, the relay's next 00:00 UTC; null when it did not say. */
   | { type: 'paused'; until: number | null; limit?: QuotaLimit | null }
+  /** The relay's share for attachments is used up (E_SYNC_ATTACHMENTS_FULL): notes still go in. */
+  | { type: 'full' }
 
 export type SyncEvent =
   | { type: 'changed'; seq: number }
@@ -45,7 +49,7 @@ export type SyncEvent =
 export interface SyncTransport {
   connect(): Promise<Welcome>
   pull(since: number): Promise<PullPage>
-  /** Seals `plaintext` as version `base + 1` of record `id` and offers it to the relay. */
-  push(id: string, base: number, plaintext: Uint8Array): Promise<PushResult>
+  /** Seals `plaintext` as version `base + 1` of record `id` (of `kind`, `record` unless it is an attachment) and offers it to the relay. */
+  push(id: string, base: number, plaintext: Uint8Array, kind?: RecordKind): Promise<PushResult>
   close(): Promise<void>
 }

@@ -128,7 +128,12 @@ describe('quota cap', () => {
   const midnight = Date.UTC(2026, 9, 24)
 
   it('is 80% of the Workers Free limits by default', () => {
-    expect(FREE_CAPS).toEqual({ rowsWritten: 80_000, requests: 80_000, storedBytes: 4e9 })
+    expect(FREE_CAPS).toEqual({
+      rowsWritten: 80_000,
+      requests: 80_000,
+      storedBytes: 4e9,
+      fileBytes: 3e9,
+    })
   })
 
   it('refuses pushes once the rows written reach the cap, until 00:00 UTC, and lets pulls through', async () => {
@@ -200,6 +205,104 @@ describe('quota cap', () => {
     expect(countersRow(db)).toEqual(before)
     expect(db.prepare('SELECT COUNT(*) AS n FROM records').get()).toEqual({ n: 0 })
     expect(Number(send({ type: 'usage' })['messages'])).toBe(2)
+  })
+
+  describe('attachment share', () => {
+    const KB = 1000
+    const file = (id: string, base: number, size: number): [object, Uint8Array[]] => [
+      { type: 'push', id, base, kind: 'file', chunks: [size] },
+      [new Uint8Array(size)],
+    ]
+
+    it('refuses a file past its share with E_SYNC_ATTACHMENTS_FULL while records keep going in', async () => {
+      const { send, db } = await vaultAt(noon, {
+        quota: { ...NO_CAP, storedBytes: 1000 * KB, fileBytes: 100 * KB },
+        limiter: roomy(),
+      })
+      expect(send(...file('a', 0, 60 * KB))).toMatchObject({ type: 'pushed' })
+      const before = countersRow(db)
+      const full = send(...file('b', 0, 50 * KB))
+      expect(full).toMatchObject({ type: 'error', code: 'E_SYNC_ATTACHMENTS_FULL' })
+      expect(full).not.toHaveProperty('until')
+      expect(db.prepare('SELECT COUNT(*) AS n FROM records').get()).toEqual({ n: 1 })
+      expect(countersRow(db)).toEqual(before)
+      expect(send(...record('n', 0, 500 * KB))).toMatchObject({ type: 'pushed' })
+      expect(send(...file('b', 0, 40 * KB))).toMatchObject({ type: 'pushed' })
+      expect(send({ type: 'usage' })).toMatchObject({
+        storedBytes: 600 * KB,
+        fileBytes: 100 * KB,
+      })
+    })
+
+    it('frees the share when a purge replaces the file with a tombstone', async () => {
+      const { send, db } = await vaultAt(noon, {
+        quota: { ...NO_CAP, fileBytes: 100 * KB },
+        limiter: roomy(),
+      })
+      expect(send(...file('a', 0, 90 * KB))).toMatchObject({ type: 'pushed' })
+      expect(send(...file('b', 0, 20 * KB))).toMatchObject({ code: 'E_SYNC_ATTACHMENTS_FULL' })
+      expect(send(...file('a', 1, 300))).toMatchObject({ type: 'pushed', version: 2 })
+      expect(db.prepare('SELECT SUM(LENGTH(bytes)) AS n FROM chunks').get()).toEqual({ n: 300 })
+      expect(send({ type: 'usage' })).toMatchObject({ fileBytes: 300, storedBytes: 300 })
+      expect(send(...file('b', 0, 20 * KB))).toMatchObject({ type: 'pushed' })
+    })
+
+    it('lets a file be pushed again at its size, and refuses one that grows past the share', async () => {
+      const { send } = await vaultAt(noon, {
+        quota: { ...NO_CAP, fileBytes: 100 * KB },
+        limiter: roomy(),
+      })
+      expect(send(...file('a', 0, 100 * KB))).toMatchObject({ type: 'pushed' })
+      expect(send(...file('a', 1, 100 * KB))).toMatchObject({ type: 'pushed' })
+      expect(send(...file('a', 2, 101 * KB))).toMatchObject({ code: 'E_SYNC_ATTACHMENTS_FULL' })
+    })
+
+    it('lets the daily limits and the total storage speak first', async () => {
+      const rows = await vaultAt(noon, {
+        quota: { ...NO_CAP, rowsWritten: 1, fileBytes: 1 },
+        limiter: roomy(),
+      })
+      expect(rows.send(...file('a', 0, 5 * KB))).toMatchObject({
+        code: 'E_SYNC_QUOTA',
+        limit: 'rowsWritten',
+      })
+      const total = await vaultAt(noon, {
+        quota: { ...NO_CAP, storedBytes: 10 * KB, fileBytes: 100 * KB },
+        limiter: roomy(),
+      })
+      expect(total.send(...file('a', 0, 20 * KB))).toMatchObject({
+        code: 'E_SYNC_QUOTA',
+        limit: 'storedBytes',
+      })
+    })
+
+    it('always takes a tombstone-sized file record, so a purge can free a full share', async () => {
+      const { send } = await vaultAt(noon, {
+        quota: { ...NO_CAP, fileBytes: 100 * KB },
+        limiter: roomy(),
+      })
+      expect(send(...file('a', 0, 100 * KB))).toMatchObject({ type: 'pushed' })
+      expect(send(...file('b', 0, 3 * KB))).toMatchObject({ code: 'E_SYNC_ATTACHMENTS_FULL' })
+      expect(send(...file('gone', 0, 300))).toMatchObject({ type: 'pushed' })
+      expect(send(...file('a', 1, 300))).toMatchObject({ type: 'pushed' })
+    })
+
+    it('has no share when the host runs without the cap', async () => {
+      const { send } = await vaultAt(noon, { quota: null, limiter: roomy() })
+      expect(send(...file('a', 0, 5000))).toMatchObject({ type: 'pushed' })
+    })
+
+    it('refuses a file record larger than an image and its envelope can be', async () => {
+      const { send, db } = await vaultAt(noon, { quota: null, limiter: roomy() })
+      const chunk = LIMITS.maxChunkBytes
+      const sizes = Array(Math.ceil(LIMITS.maxFileRecordBytes / chunk) + 1).fill(chunk) as number[]
+      const reply = send(
+        { type: 'push', id: 'big', base: 0, kind: 'file', chunks: sizes },
+        sizes.map((n) => new Uint8Array(n)),
+      )
+      expect(reply).toMatchObject({ code: 'E_SYNC_TOO_LARGE' })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM records').get()).toEqual({ n: 0 })
+    })
   })
 
   it('is off when the host turns it off, and the welcome says which', async () => {

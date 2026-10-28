@@ -126,8 +126,12 @@ pub async fn sync_push(
     id: String,
     base: u64,
     data: String,
+    kind: Option<String>,
 ) -> Result<PushDto, String> {
-    blocking(&sync, move |sync| sync.push(&id, base, &data)).await
+    blocking(&sync, move |sync| {
+        sync.push(&id, base, &data, kind.as_deref().unwrap_or("record"))
+    })
+    .await
 }
 
 #[tauri::command]

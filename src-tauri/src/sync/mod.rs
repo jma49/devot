@@ -10,6 +10,7 @@ pub(crate) mod client;
 pub(crate) mod commands;
 mod crockford;
 mod error;
+pub(crate) mod file_record;
 mod keychain;
 mod pairing;
 mod record;
@@ -42,6 +43,8 @@ fn ends_pairing(label: &str, event: &tauri::WindowEvent) -> bool {
     label == crate::settings::LABEL && matches!(event, tauri::WindowEvent::Destroyed)
 }
 
+#[cfg(test)]
+mod attachment_relay_tests;
 #[cfg(test)]
 mod pairing_relay_tests;
 #[cfg(test)]

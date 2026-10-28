@@ -18,6 +18,7 @@ use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
 use super::client::{self, Connection, DeviceInfo, Event, PairingState, RelayUrl, Welcome};
+use super::file_record;
 use super::pairing::{self, Pairing, Qr};
 use super::settings::{DeviceCredentials, SettingsStore};
 use super::{MAX_RECORD_BYTES, SecretStore, Vault};
@@ -60,9 +61,12 @@ pub(crate) struct StatusView {
     /// A large upload under way.
     #[serde(default)]
     pub upload: Option<UploadView>,
-    /// The relay predates the quota cap: its owner should update it.
+    /// The relay predates the quota cap or the attachment share: its owner should update it.
     #[serde(default)]
     pub relay_outdated: bool,
+    /// Images kept on this device only, and why (`E_SYNC_ATTACHMENTS_FULL`, `E_SYNC_RELAY_OUTDATED`).
+    #[serde(default)]
+    pub unsynced_files: Option<UnsyncedView>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,6 +74,13 @@ pub(crate) struct StatusView {
 pub(crate) struct UploadView {
     pub sent: u64,
     pub total: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct UnsyncedView {
+    pub count: u64,
+    pub code: String,
 }
 
 impl Default for StatusView {
@@ -82,6 +93,7 @@ impl Default for StatusView {
             paused_until: None,
             upload: None,
             relay_outdated: false,
+            unsynced_files: None,
         }
     }
 }
@@ -95,7 +107,16 @@ impl StatusView {
         let upload_ok = self
             .upload
             .is_none_or(|u| u.sent <= u.total && u.total <= MAX_SAFE);
-        if !STATES.contains(&self.state.as_str()) || !code_ok || !time_ok || !upload_ok {
+        let unsynced_ok = self
+            .unsynced_files
+            .as_ref()
+            .is_none_or(|u| u.count <= MAX_SAFE && crate::logs::is_code(&u.code));
+        if !STATES.contains(&self.state.as_str())
+            || !code_ok
+            || !time_ok
+            || !upload_ok
+            || !unsynced_ok
+        {
             return Err("E_SYNC_STATUS_INVALID");
         }
         Ok(self)
@@ -154,6 +175,8 @@ pub(crate) enum PushDto {
         until: Option<i64>,
         limit: Option<&'static str>,
     },
+    /// The relay's share for attachments is used up.
+    Full,
 }
 
 /// Turning sync on: the snapshot, and the recovery key the first time this device's vault is
@@ -804,11 +827,20 @@ impl SyncService {
                 .records
                 .into_iter()
                 .map(|record| {
-                    let (data, error) = match record.plaintext {
+                    let opened = record.plaintext.and_then(|bytes| {
+                        // An attachment is checked as a paste is, before the web view sees it.
+                        if record.kind == "file" {
+                            file_record::check(&record.id, &bytes)?;
+                        }
+                        Ok(bytes)
+                    });
+                    let (data, error) = match opened {
                         Ok(bytes) => (Some(STANDARD.encode(bytes.as_slice())), None),
                         Err(code) => {
                             if record.kind == "record" {
                                 log::warn!("W_SYNC_RECORD_UNREADABLE {code} id={}", record.id);
+                            } else if record.kind == "file" {
+                                log::warn!("W_SYNC_FILE_REFUSED {code} id={}", record.id);
                             }
                             (None, Some(code))
                         }
@@ -828,7 +860,16 @@ impl SyncService {
         })
     }
 
-    pub(crate) fn push(&self, id: &str, base: u64, data: &str) -> Result<PushDto, &'static str> {
+    pub(crate) fn push(
+        &self,
+        id: &str,
+        base: u64,
+        data: &str,
+        kind: &str,
+    ) -> Result<PushDto, &'static str> {
+        if !matches!(kind, "record" | "file") {
+            return Err("E_SYNC_KIND_INVALID");
+        }
         if !crate::commands::notes::valid_note_id(id) {
             return Err("E_SYNC_ID_INVALID");
         }
@@ -846,10 +887,19 @@ impl SyncService {
         if plaintext.is_empty() {
             return Err("E_SYNC_RECORD_INVALID");
         }
+        if kind == "file" {
+            file_record::check(id, &plaintext).inspect_err(|code| {
+                log::warn!("W_SYNC_FILE_REFUSED {code} id={id}");
+            })?;
+        }
         let (connection, vault) = self.live()?;
-        match client::push(&connection, &vault, id, base, &plaintext) {
+        match client::push(&connection, &vault, id, base, &plaintext, kind) {
             Ok(client::PushReply::Pushed { version, seq }) => Ok(PushDto::Pushed { version, seq }),
             Ok(client::PushReply::Rejected { version }) => Ok(PushDto::Rejected { version }),
+            Ok(client::PushReply::Full) => {
+                log::info!("I_SYNC_ATTACHMENTS_FULL id={id}");
+                Ok(PushDto::Full)
+            }
             Ok(client::PushReply::Paused { until, limit }) => {
                 log::info!(
                     "I_SYNC_QUOTA_PAUSED until={} limit={}",
@@ -912,6 +962,10 @@ mod tests {
             paused_until: Some(1_793_145_600_000),
             upload: Some(UploadView { sent: 3, total: 9 }),
             relay_outdated: true,
+            unsynced_files: Some(UnsyncedView {
+                count: 2,
+                code: "E_SYNC_ATTACHMENTS_FULL".into(),
+            }),
         };
         assert!(ok.clone().checked().is_ok());
         let older: StatusView = serde_json::from_value(json!({
@@ -938,6 +992,13 @@ mod tests {
             },
             StatusView {
                 upload: Some(UploadView { sent: 10, total: 9 }),
+                ..ok.clone()
+            },
+            StatusView {
+                unsynced_files: Some(UnsyncedView {
+                    count: 1,
+                    code: "a note title".into(),
+                }),
                 ..ok.clone()
             },
         ] {

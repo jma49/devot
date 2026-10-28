@@ -4,13 +4,17 @@
 
 use std::collections::BTreeMap;
 
-use serde::Serialize;
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::notes::{NoteDto, valid_hlc, valid_note_id, validate_purge};
 use crate::storage::{
-    BookRecord, Db, NoteTagRecord, SYNC_KINDS, SyncEntry, SyncLocal, TagRecord, Write,
+    BookRecord, Db, NoteTagRecord, SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal,
+    TagRecord, Write,
 };
+use crate::sync::file_record::{self, Fields};
 
 /// MAX_SYNC_IDS in src/core/sync/store.ts.
 const MAX_SYNC_IDS: usize = 100;
@@ -34,6 +38,7 @@ pub struct SyncLocalDto {
     pub note: Option<SyncNoteDto>,
     pub book: Option<BookRecord>,
     pub tag: Option<TagRecord>,
+    pub file: Option<SyncFile>,
 }
 
 impl From<SyncLocal> for SyncLocalDto {
@@ -48,6 +53,7 @@ impl From<SyncLocal> for SyncLocalDto {
             }),
             book: local.book,
             tag: local.tag,
+            file: local.file,
         }
     }
 }
@@ -161,6 +167,84 @@ pub async fn sync_reset(db: State<'_, Db>) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// The bytes of an attachment as base64, read when it is pushed; None once it is gone.
+#[tauri::command]
+pub async fn sync_file_data(db: State<'_, Db>, id: String) -> Result<Option<String>, String> {
+    validate_ids(std::slice::from_ref(&id)).map_err(String::from)?;
+    db.call(move |store| store.sync_file_data(&id))
+        .await
+        .map(|data| data.map(|bytes| STANDARD.encode(bytes)))
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SyncFileDto {
+    pub id: String,
+    pub note_id: String,
+    pub note_hlc: String,
+    pub name: String,
+    pub mime: String,
+    pub size: i64,
+    pub created_at: i64,
+}
+
+/// An attachment another device wrote, checked here as a paste is checked: the bytes must be a
+/// known raster image of at most 10 MiB, and the fields must describe them.
+fn checked_file(file: SyncFileDto, data: &str) -> Result<SyncFileWrite, &'static str> {
+    let bytes = STANDARD
+        .decode(data.as_bytes())
+        .map_err(|_| "E_SYNC_RECORD_INVALID")?;
+    let size = u64::try_from(file.size).map_err(|_| "E_SYNC_RECORD_INVALID")?;
+    file_record::check_file(
+        &Fields {
+            id: &file.id,
+            note_id: &file.note_id,
+            note_hlc: &file.note_hlc,
+            name: &file.name,
+            mime: &file.mime,
+            size,
+            created_at: file.created_at,
+        },
+        &bytes,
+    )?;
+    Ok(SyncFileWrite {
+        file: SyncFile {
+            id: file.id,
+            note_id: file.note_id,
+            note_hlc: file.note_hlc,
+            name: file.name,
+            mime: file.mime,
+            size: file.size,
+            created_at: file.created_at,
+        },
+        data: bytes,
+    })
+}
+
+#[tauri::command]
+pub async fn sync_file_put(
+    db: State<'_, Db>,
+    file: SyncFileDto,
+    data: String,
+) -> Result<(), String> {
+    let id = file.id.clone();
+    let write = checked_file(file, &data).inspect_err(|code| {
+        log::warn!("W_SYNC_FILE_REFUSED {code} id={id}");
+    })?;
+    db.write(Write::Content, move |store| store.sync_file_put(&write))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sync_file_delete(db: State<'_, Db>, id: String) -> Result<(), String> {
+    validate_ids(std::slice::from_ref(&id)).map_err(String::from)?;
+    db.write(Write::Content, move |store| store.sync_file_delete(&id))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn sync_note_purge(
     db: State<'_, Db>,
@@ -200,7 +284,7 @@ mod tests {
                 ..entry()
             },
             SyncEntry {
-                kind: "file".into(),
+                kind: "folder".into(),
                 ..entry()
             },
             SyncEntry {

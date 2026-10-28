@@ -339,6 +339,23 @@ export function SyncSection() {
         {snapshot.enabled && snapshot.status.relayOutdated ? (
           <SettingsNote>{t('syncSettings.relayOutdated')}</SettingsNote>
         ) : null}
+        {snapshot.enabled && snapshot.status.unsyncedFiles ? (
+          <SettingsNote>
+            {snapshot.status.unsyncedFiles.code === 'E_SYNC_RELAY_OUTDATED'
+              ? countOf(
+                  snapshot.status.unsyncedFiles.count,
+                  locale,
+                  'syncSettings.filesOutdatedOne',
+                  'syncSettings.filesOutdatedOther',
+                )
+              : countOf(
+                  snapshot.status.unsyncedFiles.count,
+                  locale,
+                  'syncSettings.filesFullOne',
+                  'syncSettings.filesFullOther',
+                )}
+          </SettingsNote>
+        ) : null}
         {snapshot.status.tooLarge > 0 ? (
           <SettingsNote>
             {countOf(

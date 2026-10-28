@@ -21,6 +21,7 @@ import {
 import { imageMenuHasItems, type ImageMenuTarget } from '../imageMenu'
 import type { ViewedImage } from '../ImageViewer'
 import type { Core } from '../core-client'
+import { watchMissingImages } from '../missingImages'
 import { previewsFor } from '../notePreview'
 import { NoteHover } from './NoteHover'
 import { useText, type TextStore } from '../textStore'
@@ -284,6 +285,8 @@ export function Preview({
     appearanceNow.current = appearance
     if (host.current) mounter.mount(host.current, { appearance }, () => scroll.current?.changed())
   }, [appearance, mounter])
+
+  useEffect(() => (host.current ? watchMissingImages(host.current) : undefined), [])
 
   // Leaving the preview frees what its diagrams hold (their stylesheets).
   useEffect(() => () => mounter.dispose(), [mounter])

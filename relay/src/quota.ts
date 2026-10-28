@@ -14,12 +14,15 @@ export const FREE_PLAN: QuotaCaps = {
 }
 
 export const QUOTA_SHARE = 0.8
+/** Attachments may take this much of the stored bytes (docs/adr/0003-sync-attachments-as-records.md). */
+export const FILE_SHARE_BYTES = 3_000_000_000
 export const MESSAGES_PER_REQUEST = 20
 
 export const FREE_CAPS: QuotaCaps = {
   rowsWritten: FREE_PLAN.rowsWritten * QUOTA_SHARE,
   requests: FREE_PLAN.requests * QUOTA_SHARE,
   storedBytes: FREE_PLAN.storedBytes * QUOTA_SHARE,
+  fileBytes: FILE_SHARE_BYTES,
 }
 
 export interface Used {
@@ -29,12 +32,32 @@ export interface Used {
   requests: number
   /** In total. */
   storedBytes: number
+  fileBytes: number
 }
 
-/** The limit a push adding `growth` stored bytes would go past, or null when it may go ahead. */
-export function trippedLimit(used: Used, caps: QuotaCaps, growth: number): QuotaLimit | null {
+/** What a push can run into: a counted limit, or the share of file records. */
+export type Tripped = QuotaLimit | 'fileBytes'
+
+/**
+ * The limit a push adding `growth` stored bytes (`fileGrowth` of them file records) would go past,
+ * or null when it may go ahead. The daily limits come first (they pause every push), then the
+ * attachment share (it refuses files only), then the total.
+ */
+export function trippedLimit(
+  used: Used,
+  caps: QuotaCaps,
+  growth: number,
+  fileGrowth = 0,
+): Tripped | null {
   if (used.rowsWritten >= caps.rowsWritten) return 'rowsWritten'
   if (used.requests + used.messages / MESSAGES_PER_REQUEST >= caps.requests) return 'requests'
+  if (
+    fileGrowth > 0 &&
+    caps.fileBytes !== undefined &&
+    used.fileBytes + fileGrowth > caps.fileBytes
+  ) {
+    return 'fileBytes'
+  }
   if (growth > 0 && used.storedBytes + growth > caps.storedBytes) return 'storedBytes'
   return null
 }
