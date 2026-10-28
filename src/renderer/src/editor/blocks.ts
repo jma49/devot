@@ -676,6 +676,64 @@ export function toggleList(state: EditorState, kind: ListKind): TransactionSpec 
   return spec(changes, mapSelection(state, changes))
 }
 
+const siblingItem = (item: SyntaxNode, side: -1 | 1, skip?: Set<number>): SyntaxNode | null => {
+  let p = side < 0 ? item.prevSibling : item.nextSibling
+  while (p && (p.name !== 'ListItem' || skip?.has(p.from)))
+    p = side < 0 ? p.prevSibling : p.nextSibling
+  return p
+}
+
+/**
+ * Tab (`dir` 1) and Shift+Tab (-1) on the selected list items. An item moves
+ * in under the text of the item above it, as far as CommonMark needs to nest
+ * it (`1. ` is three columns wide, `10. ` four), or out to the marker of the
+ * item it is in; its other lines move with it. Numbered lists it joins or
+ * leaves are renumbered, a new one from 1. Null when no item can move: the
+ * first of a list going in, or one at the top level going out.
+ */
+export function indentListItems(state: EditorState, dir: 1 | -1): TransactionSpec | null {
+  const cx = commandContext(state)
+  if (!cx) return null
+  const { doc } = state
+  const items: (ListLine & { item: SyntaxNode })[] = []
+  for (const n of selectedLines(state)) {
+    const role = listRole(cx, n)
+    if (role !== 'skip' && role.item && role.marker) items.push({ ...role, item: role.item })
+  }
+  const outer = items.filter(
+    (l) => !items.some((o) => o.item.from < l.item.from && l.item.to <= o.item.to),
+  )
+  const moving = new Set(outer.map((l) => l.item.from))
+  const shifts = new Shifts()
+  const changed = new Set<number>()
+  for (const l of outer) {
+    const column = l.at - l.line.from
+    let target: number | null = null
+    if (dir > 0) {
+      const above = siblingItem(l.item, -1, moving)
+      if (above) target = itemTextColumn(doc, above)
+    } else {
+      const parent = l.item.parent?.parent
+      if (parent?.name === 'ListItem') target = parent.from - doc.lineAt(parent.from).from
+    }
+    if (target === null || (target - column) * dir <= 0) continue
+    const delta = target - column
+    shifts.add(l.line.number, l.line.from + quotePrefix(l.line.text, l.quotes).length, delta)
+    shifts.children(doc, l.item, l.quotes, delta)
+    changed.add(l.line.number)
+    // The item after it starts a list of its own when this one goes out, and moves up a number when it goes in.
+    const next = siblingItem(l.item, 1)
+    if (next) changed.add(doc.lineAt(next.from).number)
+  }
+  if (changed.size === 0) return null
+  const edits = new Edits()
+  shifts.into(edits, doc)
+  const first = edits.changes(doc)
+  const second = renumber(cx, first, changed)
+  const changes = second ? first.compose(second) : first
+  return { ...spec(changes, mapSelection(state, changes)), userEvent: 'input.indent' }
+}
+
 /**
  * Where a line's quote marker is (or goes) and what it belongs to. A line
  * that continues a list item, or is an item nested in one, is quoted inside

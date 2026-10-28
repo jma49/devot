@@ -36,6 +36,7 @@ import type { SyntaxNode } from '@lezer/common'
 import { noteIdOf } from '../../../core/links'
 import { editorCommandKeys, type CommandId } from '../commands/registry'
 import { editorComposes } from '../ime'
+import { indentListItems } from './blocks'
 import { toggleOverwrite } from './overwrite'
 import { registryKeys } from './registryKeys'
 
@@ -455,6 +456,20 @@ export const lineCommandKeys: () => Extension = registryKeys(() =>
   ),
 )
 
+const listTab = (dir: 1 | -1) => (view: EditorView) => {
+  const spec = view.state.readOnly ? null : indentListItems(view.state, dir)
+  if (spec) view.dispatch(spec)
+  return spec !== null
+}
+
+// Ahead of the usual indent (settings.ts), which moves an item too little to nest it.
+const listTabKeys = Prec.high(
+  keymap.of([
+    { key: 'Tab', run: listTab(1) },
+    { key: 'Shift-Tab', run: listTab(-1) },
+  ]),
+)
+
 export function lineCommands(opener: (href: string) => void): Extension {
-  return [lineCommandKeys(), backtickWrap, linkOpener.of(opener)]
+  return [lineCommandKeys(), listTabKeys, backtickWrap, linkOpener.of(opener)]
 }

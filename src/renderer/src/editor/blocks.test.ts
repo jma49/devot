@@ -15,6 +15,7 @@ import {
   ALERT_KINDS,
   alertKind,
   blockState,
+  indentListItems,
   listBullet,
   toggleAlert,
   toggleCodeBlock,
@@ -841,4 +842,50 @@ describe('lists at the end of a note', () => {
       }
     },
   )
+})
+
+describe('Tab and Shift+Tab on list items', () => {
+  const tab = (marked: string, dir: 1 | -1 = 1) => run(marked, (s) => indentListItems(s, dir))
+
+  it('nest a numbered item under the text of the item above, from 1', () => {
+    const nested = tab('1. first\n2. chi|ld')
+    expect(nested).toBe('1. first\n   1. chi|ld')
+    expect(outline(strip(nested))).toBe(
+      'OrderedList(ListItem(Paragraph OrderedList(ListItem(Paragraph))))',
+    )
+    const wide = tab('10. a\n11. b|')
+    expect(wide).toBe('10. a\n    1. b|')
+    expect(outline(strip(wide))).toBe(
+      'OrderedList(ListItem(Paragraph OrderedList(ListItem(Paragraph))))',
+    )
+    expect(tab('- a\n- b|')).toBe('- a\n  - b|')
+    expect(tab('> 1. a\n> 2. b|')).toBe('> 1. a\n>    1. b|')
+  })
+
+  it('renumber the list the item leaves and the one it joins', () => {
+    expect(tab('1. a\n2. b|\n3. c')).toBe('1. a\n   1. b|\n2. c')
+    expect(tab('1. a\n   1. x\n2. b|')).toBe('1. a\n   1. x\n   2. b|')
+    expect(tab('1. a\n2. «b\n3. c»')).toBe('1. a\n   1. «b\n   2. c»')
+  })
+
+  it('move the item lines with it', () => {
+    const moved = tab('1. a\n2. b|\n   - kid')
+    expect(moved).toBe('1. a\n   1. b|\n      - kid')
+    expect(outline(strip(moved))).toBe(
+      'OrderedList(ListItem(Paragraph OrderedList(ListItem(Paragraph BulletList(ListItem(Paragraph))))))',
+    )
+  })
+
+  it('move an item out to the marker of the item it is in with Shift+Tab', () => {
+    expect(tab('1. first\n   1. chi|ld', -1)).toBe('1. first\n2. chi|ld')
+    expect(tab('1. a\n   1. b|\n2. c', -1)).toBe('1. a\n2. b|\n3. c')
+    expect(tab('- a\n  - b|', -1)).toBe('- a\n- b|')
+  })
+
+  it('leave an item that cannot move to the usual indent', () => {
+    expect(indentListItems(state('1. a|'), 1)).toBeNull()
+    expect(indentListItems(state('- a\n  - b|'), 1)).toBeNull()
+    expect(indentListItems(state('1. a\n2. b|'), -1)).toBeNull()
+    expect(indentListItems(state('plain|'), 1)).toBeNull()
+  })
 })
