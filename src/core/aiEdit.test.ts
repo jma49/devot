@@ -67,6 +67,13 @@ describe('the reply', () => {
     expect(cleanAiReply(reply, selection, preset('improve'))).toBe(reply)
   })
 
+  it('takes off a markdown fence that wraps a reply holding a code block', () => {
+    const reply = '```markdown\nSetup:\n```bash\nnpm i\n```\nthen run\n```'
+    expect(cleanAiReply(reply, 'Setup: npm i then run', preset('improve'))).toBe(
+      'Setup:\n```bash\nnpm i\n```\nthen run',
+    )
+  })
+
   it('keeps a fence when the selection was one, and a code block inside the reply', () => {
     const code = '```js\nlet a = 1\n```'
     expect(cleanAiReply('```js\nconst a = 1\n```', code, { prompt: 'const' })).toBe(

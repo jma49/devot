@@ -84,7 +84,7 @@ export function aiEditInput(ask: AiEditAsk, selection: string): AiGenerateInput 
 
 const WHOLE_FENCE = /^(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n([\s\S]*?)\n?\1[ \t]*$/
 
-/** Whether `body` holds a fence line with `marker`'s character, so an outer fence around it is not the whole reply. */
+/** Whether `body` holds a fence line with `marker`'s character, so an unlabelled outer fence around it is not the whole reply. */
 const holdsFence = (body: string, marker: string) =>
   new RegExp(`^[ \\t]*${marker[0]}{${marker.length},}`, 'm').test(body)
 
@@ -99,7 +99,7 @@ export function cleanAiReply(reply: string, original: string, ask: AiEditAsk): s
   } else if (
     fenced &&
     /^(markdown|md)?$/i.test(fenced[2] ?? '') &&
-    !holdsFence(fenced[3] ?? '', fenced[1] ?? '')
+    (fenced[2] !== '' || !holdsFence(fenced[3] ?? '', fenced[1] ?? ''))
   ) {
     // A fenced block selected stays one.
     if (!WHOLE_FENCE.test(original.trim())) text = (fenced[3] ?? '').trim()
