@@ -345,9 +345,10 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       if (selected !== undefined) focusCard(selected)
       return true
     }
-    const by = commandMatches('list.extendDown', event)
+    // A held Shift+Down keeps extending the selection, as the key repeats.
+    const by = commandMatches('list.extendDown', event, true)
       ? 1
-      : commandMatches('list.extendUp', event)
+      : commandMatches('list.extendUp', event, true)
         ? -1
         : 0
     if (!by) return false

@@ -82,6 +82,31 @@ const pressTwiceAtOnce = (page: Page, code: 'BracketLeft' | 'BracketRight', shif
     { code, shift },
   )
 
+/** A held key's auto-repeat: keydowns with `repeat` set, as the browser sends while the key stays down. */
+const holdKey = (page: Page, key: string, times: number, shift = true) =>
+  page.evaluate(
+    (press) => {
+      const w = globalThis as unknown as {
+        document: { activeElement: unknown; body: { dispatchEvent(e: unknown): void } }
+        KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown
+      }
+      const init = {
+        key: press.key,
+        code: press.key,
+        shiftKey: press.shift,
+        repeat: true,
+        bubbles: true,
+        cancelable: true,
+      }
+      const target = (w.document.activeElement ?? w.document.body) as {
+        dispatchEvent(e: unknown): void
+      }
+      for (let i = 0; i < press.times; i += 1)
+        target.dispatchEvent(new w.KeyboardEvent('keydown', init))
+    },
+    { key, times, shift },
+  )
+
 /** View > Hide Sidebar from the menu bar; the page receives it as this event. */
 const pickViewHideSidebar = (page: Page) =>
   page.evaluate(() => {
@@ -238,6 +263,22 @@ test('Shift+Cmd+] and Shift+Cmd+[ open the next and previous note in the list', 
   await expect(noteRow(page, 'Beta')).toHaveAttribute('aria-selected', 'true')
   await page.keyboard.press('Meta+BracketLeft')
   await expect(titleField(page)).toHaveValue('Gamma')
+})
+
+test('a held Shift+Down keeps extending the selection instead of opening notes', async ({
+  page,
+}) => {
+  for (const title of ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon']) await createNote(page, title)
+  await noteRow(page, 'Epsilon').click()
+  await expect(noteRow(page, 'Epsilon')).toBeFocused()
+  const selected = page.getByRole('region', { name: 'Selected Notes' })
+  await page.keyboard.press('Shift+ArrowDown')
+  await expect(selected).toContainText('2 Notes Selected')
+  await holdKey(page, 'ArrowDown', 2)
+  await expect(selected).toContainText('4 Notes Selected')
+  await expect(noteRow(page, 'Beta')).toHaveAttribute('aria-selected', 'true')
+  // The repeated key extends the selection; it opens no note and takes the selection away.
+  await expect(selected).toBeVisible()
 })
 
 test('Return on a row edits the title, Cmd+Return the body', async ({ page }) => {

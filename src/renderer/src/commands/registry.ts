@@ -1636,8 +1636,9 @@ export function defaultKeys(id: CommandId): readonly string[] {
   return command(id).keys
 }
 
-export function commandMatches(id: CommandId, e: KeyPress): boolean {
-  return commandKeys(id).some((key) => keyMatches(key, e))
+/** Whether a press is this command's key. Auto-repeat never matches, unless `repeats` (a held key that keeps acting, such as Shift+Down extending a selection). */
+export function commandMatches(id: CommandId, e: KeyPress, repeats = false): boolean {
+  return commandKeys(id).some((key) => keyMatches(key, e, repeats))
 }
 
 /**

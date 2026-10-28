@@ -461,9 +461,10 @@ export const NoteList = memo(function NoteList(props: Props) {
       if (selected !== undefined) focusRow(selected)
       return true
     }
-    const by = commandMatches('list.extendDown', event)
+    // A held Shift+Down keeps extending the selection, as the key repeats.
+    const by = commandMatches('list.extendDown', event, true)
       ? 1
-      : commandMatches('list.extendUp', event)
+      : commandMatches('list.extendUp', event, true)
         ? -1
         : 0
     if (!by) return false
@@ -484,10 +485,12 @@ export const NoteList = memo(function NoteList(props: Props) {
       return props.onFind()
     }
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
+    // A bare arrow moves; with a modifier held it is another key (Shift+Down extends the selection).
+    if (!step || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
     const to =
       (selected !== undefined && indexOf.has(selected) ? selected : undefined) ??
       notes[step < 0 ? notes.length - 1 : 0]?.id
-    if (!step || to === undefined) return
+    if (to === undefined) return
     event.preventDefault()
     focusRow(to)
     navigate(to)
@@ -526,8 +529,10 @@ export const NoteList = memo(function NoteList(props: Props) {
       return props.onEdit(part, target)
     }
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
+    // A bare arrow moves; with a modifier held it is another key (Shift+Down extends the selection).
+    if (!step || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
     const next = notes[index + step]
-    if (!step || !next) return
+    if (!next) return
     event.preventDefault()
     focusRow(next.id)
     navigate(next.id)
