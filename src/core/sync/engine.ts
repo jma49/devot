@@ -325,6 +325,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   let fullAt: number | undefined
   /** Room was made (a purge was pushed or pulled): refused attachments are tried again. */
   let roomMade = false
+  /** The refusal of an image a note shows, held to the end of the pass so the note still goes. */
+  let shownRefused: QuotaPaused | undefined
 
   const reportUnsynced = () => {
     const codes = new Set([...unsynced.values()].map((u) => u.code))
@@ -657,11 +659,13 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     try {
       do {
         roomMade = false
+        shownRefused = undefined
         await pending(async (id) => {
           const refused = parked.has(id) ? undefined : await pushOne(id)
           if (refused) full = refused
           else upload?.step()
         })
+        full ??= shownRefused
         // A purge pushed in this pass made room: the attachments it passed over are tried again.
       } while (roomMade && !full)
       if (full) throw full
@@ -694,8 +698,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       for (const row of rows) {
         const entry = row.entry
         if (!row.file || !entry || entry.kind !== 'file' || entry.edits === entry.synced) continue
-        const refused = await pushOne(row.id)
-        if (refused) throw refused
+        // A refused image stays here (pushOne kept it) and the note goes on: notes and purges still fit.
+        shownRefused ??= await pushOne(row.id)
       }
     }
   }

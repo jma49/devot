@@ -792,18 +792,21 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   // Bodies are read for the notes returned only, never for every match.
   const bodyOf = (id: string) => bodyMd.get(id)?.body_md ?? ''
 
-  const purgeWith = (id: string, at: number, hlc: string, revisions: boolean) =>
+  const purgeWith = (id: string, at: number, hlc: string, here: boolean) =>
     db
       .transaction(() => {
         searchSecureDelete.run(1n)
         purge.run({ id, at, hlc })
         dropLinks.run(id)
-        // Attachments another note still shows pass to it; the rest go.
-        handOverFiles.run({ id, hlc })
-        dropFiles.run(id)
+        // Attachments another note still shows pass to it; the rest go. A purge from sync leaves
+        // them: the other device's file records decide, and its heir's link may not be here yet.
+        if (here) {
+          handOverFiles.run({ id, hlc })
+          dropFiles.run(id)
+        }
         dropNoteLinks.run(id)
         dropAgentWrites.run({ noteId: id })
-        if (revisions) dropRevisions.run(id)
+        if (here) dropRevisions.run(id)
         searchSecureDelete.run(0n)
       })
       .immediate()

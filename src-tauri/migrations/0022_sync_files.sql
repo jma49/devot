@@ -5,6 +5,10 @@
 -- tombstone the engine pushes and keeps.
 ALTER TABLE files ADD COLUMN note_hlc TEXT NOT NULL DEFAULT '';
 
+-- A release that skipped file records still moved its pull cursor past them: pulling again from
+-- the start brings the images in (the records already held are skipped by version).
+DELETE FROM sync_state WHERE key = 'since';
+
 -- sync_records takes a fourth kind, which a CHECK cannot be altered into: the table is made again.
 DROP TRIGGER sync_note_insert;
 DROP TRIGGER sync_note_update;

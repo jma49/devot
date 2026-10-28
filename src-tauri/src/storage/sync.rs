@@ -350,7 +350,8 @@ impl Store {
     }
 
     /// A purge another device made: as `purge_note`, but the note's revisions stay, the copy the
-    /// engine kept just before among them.
+    /// engine kept just before among them, and so do its attachments, which the file records of
+    /// that device settle (a purge that arrives before the heir note's link would delete them).
     pub fn sync_purge(&mut self, id: &str, at: i64, hlc: &str) -> Result<()> {
         self.purge(id, at, hlc, false)
     }
@@ -572,6 +573,25 @@ mod tests {
                 .contains(&FILE.to_string())
         );
         assert_eq!(store.sync_file_data(FILE).unwrap(), None);
+    }
+
+    #[test]
+    fn keeps_attachments_when_the_purge_comes_from_sync() {
+        let (_dir, mut store) = store();
+        store.put_note(&note(), &[]).unwrap();
+        store.put_file(&attachment(FILE, NOTE)).unwrap();
+        let seen = looked_at(&mut store, FILE);
+        store
+            .sync_purge(NOTE, 9, "0001728000000009-0000-mac")
+            .unwrap();
+        let kept = store.sync_read(&[FILE.into()]).unwrap().remove(0);
+        assert_eq!(kept.file.unwrap().note_id, NOTE);
+        assert_eq!(
+            kept.entry.unwrap().edits,
+            seen.edits,
+            "no tombstone to push"
+        );
+        assert_eq!(store.sync_file_data(FILE).unwrap().as_deref(), Some(PNG));
     }
 
     #[test]

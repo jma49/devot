@@ -21,7 +21,7 @@ import {
 import { imageMenuHasItems, type ImageMenuTarget } from '../imageMenu'
 import type { ViewedImage } from '../ImageViewer'
 import type { Core } from '../core-client'
-import { watchMissingImages } from '../missingImages'
+import { isMissingImage, watchMissingImages } from '../missingImages'
 import { previewsFor } from '../notePreview'
 import { NoteHover } from './NoteHover'
 import { useText, type TextStore } from '../textStore'
@@ -353,7 +353,7 @@ export function Preview({
   }
   const onDoubleClick = (event: MouseEvent) => {
     const img = imageUnder(event)
-    if (!img || !onOpenImage) return
+    if (!img || !onOpenImage || isMissingImage(img)) return
     event.preventDefault()
     onOpenImage({ src: img.currentSrc || img.src, alt: img.alt })
   }

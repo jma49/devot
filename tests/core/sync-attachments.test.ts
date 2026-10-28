@@ -31,7 +31,12 @@ function image(size: number, seed = 1): Uint8Array {
 }
 
 type Quota = { -readonly [K in keyof QuotaCaps]: QuotaCaps[K] }
-const ROOMY: Quota = { rowsWritten: 1e9, requests: 1e9, storedBytes: 1e12, fileBytes: 3e9 }
+const ROOMY: Quota = {
+  rowsWritten: 1e9,
+  requests: 1e9,
+  storedBytes: 1e12,
+  fileBytes: 3e9,
+}
 
 interface Relay {
   host: RelayHost
@@ -70,7 +75,12 @@ async function device(
   cleanups.push(() => storage.close())
   const clock = createClock(name)
   const newId = createIdGenerator()
-  const notes: NoteService = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
+  const notes: NoteService = createNoteService({
+    storage,
+    clock,
+    newId,
+    saveDelayMs: 5,
+  })
   const transport = new RelayTransport({
     url: () => relay.host.url,
     vault: vault.vault,
@@ -141,7 +151,10 @@ async function settle(...devices: Device[]) {
 
 const usage = async (d: Device) => {
   const reply = await d.transport.send({ type: 'usage' })
-  return { stored: Number(reply['storedBytes']), files: Number(reply['fileBytes']) }
+  return {
+    stored: Number(reply['storedBytes']),
+    files: Number(reply['fileBytes']),
+  }
 }
 
 const FILE_1 = '0192a6f0-0000-7000-8000-00000000f001'
@@ -156,7 +169,13 @@ describe('an image added on one device', () => {
     await settle(a, b)
     expect(await b.bytes(FILE_1)).toEqual(data)
     expect(await b.file(FILE_1)).toMatchObject({
-      file: { id: FILE_1, noteId: note, name: 'f001.png', mime: 'image/png', size: data.length },
+      file: {
+        id: FILE_1,
+        noteId: note,
+        name: 'f001.png',
+        mime: 'image/png',
+        size: data.length,
+      },
     })
     expect((await b.storage.getNote(note))?.bodyMd).toContain(`devot://file/${FILE_1}`)
     expect(a.transport.pushed.indexOf(FILE_1)).toBeGreaterThanOrEqual(0)
@@ -207,7 +226,10 @@ describe('an image added on one device', () => {
 describe('the note an image belongs to', () => {
   it('goes to the higher HLC when two devices pass the image to different notes', async () => {
     const { a, b } = await pair()
-    const first = await a.noteWith('First', { id: FILE_1, data: image(2 * KB) })
+    const first = await a.noteWith('First', {
+      id: FILE_1,
+      data: image(2 * KB),
+    })
     const second = await a.notes.create('Second')
     const third = await a.notes.create('Third')
     await settle(a, b)
@@ -230,7 +252,10 @@ describe('the note an image belongs to', () => {
 
   it('moves to the note that still shows the image when its note is purged on one device', async () => {
     const { a, b } = await pair()
-    const owner = await a.noteWith('Owner', { id: FILE_1, data: image(2 * KB) })
+    const owner = await a.noteWith('Owner', {
+      id: FILE_1,
+      data: image(2 * KB),
+    })
     const heir = await a.notes.create('Heir')
     await a.notes.setBody(heir, `![copy](devot://file/${FILE_1})\n`)
     await settle(a, b)
@@ -242,6 +267,23 @@ describe('the note an image belongs to', () => {
       expect(row?.file?.noteId).toBe(heir)
       expect(row?.file?.noteHlc).not.toBe('')
       expect(await d.bytes(FILE_1)).toEqual(image(2 * KB))
+    }
+  })
+
+  it('keeps the image when the purge reaches a device before the heir note and the image sorts after the purged note', async () => {
+    const { a, b } = await pair()
+    const late = 'ffffffff-0000-7000-8000-00000000f001'
+    const owner = await a.noteWith('Owner', { id: late, data: image(2 * KB) })
+    await settle(a, b)
+    const heir = await a.notes.create('Heir')
+    await a.notes.setBody(heir, `![copy](devot://file/${late})\n`)
+    await a.notes.flush()
+    await a.notes.trash(owner)
+    await a.notes.purge(owner)
+    await settle(a, b)
+    for (const d of [a, b]) {
+      expect((await d.file(late))?.file?.noteId).toBe(heir)
+      expect(await d.bytes(late)).toEqual(image(2 * KB))
     }
   })
 })
@@ -278,7 +320,10 @@ describe('purging an image', () => {
 
   it('leaves a device that was offline with no image once it comes back', async () => {
     const { a, b } = await pair()
-    const note = await a.noteWith('Offline', { id: FILE_1, data: image(2 * KB) })
+    const note = await a.noteWith('Offline', {
+      id: FILE_1,
+      data: image(2 * KB),
+    })
     await settle(a, b)
     await a.notes.trash(note)
     await a.notes.purge(note)
@@ -306,11 +351,19 @@ describe('what is refused', () => {
         transport: tampered((plaintext) => {
           const record = decodeRecord(FILE_1, plaintext)
           if (record.kind !== 'file') return plaintext
-          return encodeRecord({ ...record, mime: 'image/svg+xml', size: svg.length, data: svg })
+          return encodeRecord({
+            ...record,
+            mime: 'image/svg+xml',
+            size: svg.length,
+            data: svg,
+          })
         }),
       },
     })
-    const note = await a.noteWith('Tampered', { id: FILE_1, data: image(2 * KB) })
+    const note = await a.noteWith('Tampered', {
+      id: FILE_1,
+      data: image(2 * KB),
+    })
     await settle(a, b)
     expect(await b.bytes(FILE_1)).toBeNull()
     expect((await b.storage.getNote(note))?.title).toBe('Tampered')
@@ -362,7 +415,11 @@ describe('an upload that is interrupted', () => {
   it('resumes when the connection drops before the relay got the image', async () => {
     let cut = true
     const { a, b } = await pair({
-      a: { transport: { cut: (id, kind) => (kind === 'file' && cut ? 'before' : undefined) } },
+      a: {
+        transport: {
+          cut: (id, kind) => (kind === 'file' && cut ? 'before' : undefined),
+        },
+      },
     })
     const data = image(30 * KB)
     const note = await a.noteWith('Resume', { id: FILE_1, data })
@@ -375,7 +432,10 @@ describe('an upload that is interrupted', () => {
     cut = false
     await a.engine.syncNow()
     await settle(b, a)
-    expect(a.engine.status()).toMatchObject({ state: 'idle', unsyncedFiles: null })
+    expect(a.engine.status()).toMatchObject({
+      state: 'idle',
+      unsyncedFiles: null,
+    })
     expect(await b.bytes(FILE_1)).toEqual(data)
     expect((await b.storage.getNote(note))?.title).toBe('Resume')
   })
@@ -383,7 +443,11 @@ describe('an upload that is interrupted', () => {
   it('resumes when the relay took the image and the answer was lost, without storing it twice', async () => {
     let cut = true
     const { a, b } = await pair({
-      a: { transport: { cut: (id, kind) => (kind === 'file' && cut ? 'after' : undefined) } },
+      a: {
+        transport: {
+          cut: (id, kind) => (kind === 'file' && cut ? 'after' : undefined),
+        },
+      },
     })
     const data = image(30 * KB)
     await a.noteWith('Lost answer', { id: FILE_1, data })
@@ -397,7 +461,10 @@ describe('an upload that is interrupted', () => {
     await a.engine.syncNow()
     await settle(b, a)
     expect((await usage(b)).files).toBe(stored.files)
-    expect(a.engine.status()).toMatchObject({ state: 'idle', unsyncedFiles: null })
+    expect(a.engine.status()).toMatchObject({
+      state: 'idle',
+      unsyncedFiles: null,
+    })
     expect(await b.bytes(FILE_1)).toEqual(data)
     const [row] = await a.storage.syncRead([FILE_1])
     expect(row?.entry?.version).toBe(1)
@@ -411,8 +478,14 @@ describe('the attachment share', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const { a, b } = await pair({ quota: limits(120 * KB) })
     const one = await a.noteWith('One', { id: FILE_1, data: image(50 * KB) })
-    const two = await a.noteWith('Two', { id: FILE_2, data: image(50 * KB, 2) })
-    const three = await a.noteWith('Three', { id: FILE_3, data: image(50 * KB, 3) })
+    const two = await a.noteWith('Two', {
+      id: FILE_2,
+      data: image(50 * KB, 2),
+    })
+    const three = await a.noteWith('Three', {
+      id: FILE_3,
+      data: image(50 * KB, 3),
+    })
     await settle(a, b)
     expect(a.engine.status()).toMatchObject({
       state: 'idle',
@@ -469,10 +542,44 @@ describe('the attachment share', () => {
     await a.noteWith('Small', { id: FILE_2, data: image(20 * KB, 2) })
     await a.noteWith('Large', { id: FILE_3, data: image(70 * KB, 3) })
     await settle(a, b)
-    expect(a.engine.status().unsyncedFiles).toEqual({ count: 2, code: 'E_SYNC_ATTACHMENTS_FULL' })
+    expect(a.engine.status().unsyncedFiles).toEqual({
+      count: 2,
+      code: 'E_SYNC_ATTACHMENTS_FULL',
+    })
     const sent = a.transport.pushed.filter((id) => id === FILE_3).length
     // FILE_3 is bigger than FILE_2, which the relay already refused: only FILE_2 went out and came back.
     expect(sent).toBe(0)
+  })
+
+  it('goes on to a purge after a note whose image the relay’s storage refuses', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const quota = { ...ROOMY }
+    // Only the explicit sync below pushes, so the pass that meets the refused image is the one checked.
+    const { a, b } = await pair({
+      quota,
+      a: { engine: { idleMs: 60_000, everyMs: 60_000 } },
+    })
+    // Sorts after the notes, so the note meets the image before the pass reaches it.
+    const late = 'ffffffff-0000-7000-8000-00000000f001'
+    const shows = await a.notes.create('Shows')
+    const gone = await a.notes.create('Gone')
+    await a.notes.setBody(gone, 'y'.repeat(2000))
+    await settle(a, b)
+    quota.storedBytes = 1
+    await a.storage.putFile({ id: late, noteId: shows, name: 'one.png' }, image(10 * KB))
+    await a.notes.setBody(shows, `![shot](devot://file/${late})\n`)
+    await a.notes.trash(gone)
+    await a.notes.purge(gone)
+    await a.sync()
+    await a.engine.idle()
+    expect(a.engine.status()).toMatchObject({
+      state: 'paused',
+      code: 'E_SYNC_QUOTA',
+      unsyncedFiles: { count: 1, code: 'E_SYNC_ATTACHMENTS_FULL' },
+    })
+    await b.sync()
+    expect((await b.storage.syncRead([gone]))[0]?.note?.purged).toBe(true)
+    expect(await b.bytes(late)).toBeNull()
   })
 
   it('does not pause sync, and the daily quota still does', async () => {
@@ -482,7 +589,9 @@ describe('the attachment share', () => {
       () => time.now,
     )
     const vault = await createVault(relay.host, 'mac')
-    const a = await device('mac', relay, vault, vault.first.token, { now: () => time.now })
+    const a = await device('mac', relay, vault, vault.first.token, {
+      now: () => time.now,
+    })
     await a.noteWith('Image', { id: FILE_1, data: image(50 * KB) })
     await a.sync()
     expect(a.engine.status()).toMatchObject({
@@ -492,7 +601,10 @@ describe('the attachment share', () => {
     for (let i = 0; i < 8; i++) await a.notes.create(`Note ${i}`)
     await a.sync()
     await a.engine.idle()
-    expect(a.engine.status()).toMatchObject({ state: 'paused', code: 'E_SYNC_QUOTA' })
+    expect(a.engine.status()).toMatchObject({
+      state: 'paused',
+      code: 'E_SYNC_QUOTA',
+    })
     // The share is not what paused it, and the image is still counted as local only.
     expect(a.engine.status().unsyncedFiles?.count).toBe(1)
   })
@@ -514,7 +626,10 @@ describe('a relay from before attachments', () => {
         },
       },
     })
-    const note = await a.noteWith('Older relay', { id: FILE_1, data: image(2 * KB) })
+    const note = await a.noteWith('Older relay', {
+      id: FILE_1,
+      data: image(2 * KB),
+    })
     await settle(a, b)
     expect(a.engine.status()).toMatchObject({
       state: 'idle',
@@ -525,7 +640,9 @@ describe('a relay from before attachments', () => {
     expect((await b.storage.getNote(note))?.title).toBe('Older relay')
     expect(await b.bytes(FILE_1)).toBeNull()
     expect(await a.bytes(FILE_1)).toEqual(image(2 * KB))
-    expect((await a.storage.syncRead([FILE_1]))[0]?.entry).toMatchObject({ version: 0 })
+    expect((await a.storage.syncRead([FILE_1]))[0]?.entry).toMatchObject({
+      version: 0,
+    })
   })
 
   it('sends no image to a relay that does not say it holds them, and sends them once it is updated', async () => {
@@ -542,7 +659,10 @@ describe('a relay from before attachments', () => {
         },
       },
     })
-    const note = await a.noteWith('No share', { id: FILE_1, data: image(2 * KB) })
+    const note = await a.noteWith('No share', {
+      id: FILE_1,
+      data: image(2 * KB),
+    })
     await settle(a, b)
     expect(a.engine.status()).toMatchObject({
       state: 'idle',
@@ -557,7 +677,10 @@ describe('a relay from before attachments', () => {
     await a.engine.stop()
     a.engine.start()
     await settle(a, b)
-    expect(a.engine.status()).toMatchObject({ relayOutdated: false, unsyncedFiles: null })
+    expect(a.engine.status()).toMatchObject({
+      relayOutdated: false,
+      unsyncedFiles: null,
+    })
     expect(await b.bytes(FILE_1)).toEqual(image(2 * KB))
   })
 

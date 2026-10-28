@@ -1518,7 +1518,9 @@ impl Store {
         self.purge(id, at, hlc, true)
     }
 
-    fn purge(&mut self, id: &str, at: i64, hlc: &str, revisions: bool) -> Result<()> {
+    /// `here` is false for a purge another device made: its revisions and attachments stay as they
+    /// are, because that device's file records (a new owner or a tombstone) decide the attachments.
+    fn purge(&mut self, id: &str, at: i64, hlc: &str, here: bool) -> Result<()> {
         let tx = self.conn.transaction()?;
         tx.execute(SEARCH_SECURE_DELETE_SQL, [1])?;
         tx.execute(
@@ -1529,17 +1531,19 @@ impl Store {
             params![id, at, hlc],
         )?;
         tx.execute("DELETE FROM note_tags WHERE note_id = ?1", [id])?;
-        tx.execute(
-            HAND_OVER_FILES_SQL,
-            rusqlite::named_params! { "@id": id, "@hlc": hlc },
-        )?;
-        tx.execute("DELETE FROM files WHERE note_id = ?1", [id])?;
+        if here {
+            tx.execute(
+                HAND_OVER_FILES_SQL,
+                rusqlite::named_params! { "@id": id, "@hlc": hlc },
+            )?;
+            tx.execute("DELETE FROM files WHERE note_id = ?1", [id])?;
+        }
         tx.execute("DELETE FROM links WHERE source_id = ?1", [id])?;
         tx.execute(
             AGENT_WRITES_PURGE_SQL,
             rusqlite::named_params! { "@noteId": id },
         )?;
-        if revisions {
+        if here {
             tx.execute("DELETE FROM revisions WHERE note_id = ?1", [id])?;
         }
         tx.execute(SEARCH_SECURE_DELETE_SQL, [0])?;

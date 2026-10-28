@@ -208,7 +208,7 @@ class ImagesWidget extends WidgetType {
     }
     box.addEventListener('dblclick', (event) => {
       const hit = target(event)
-      if (!hit) return
+      if (!hit || isMissingImage(hit.img)) return
       event.preventDefault()
       view.state.facet(imageActions)?.open({ src: hit.img.src, alt: hit.img.alt })
     })
