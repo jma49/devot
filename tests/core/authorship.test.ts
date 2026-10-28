@@ -354,6 +354,28 @@ describe('Undo All', () => {
   })
 })
 
+describe('the deleted text of an undone write', () => {
+  it('is dropped, so it does not push a live writer’s text out of the cap', () => {
+    const doc = docWith(`${'a'.repeat(600)}\n${'b'.repeat(600)}\n`)
+    const max = 1300
+    applyAgentEdit(doc, {
+      writer: codex,
+      at: 1,
+      markdown: `${'b'.repeat(600)}\n`,
+      maxRemovedBytes: max,
+    })
+    applyAgentEdit(doc, { writer: claude, at: 2, markdown: '', maxRemovedBytes: max })
+    reverseWrites(doc, { kind: 'mcp', name: 'Claude Code' })
+    const undone = [...doc.getMap(WRITES).values()].filter(
+      (raw) => (raw as { reversed?: boolean }).reversed,
+    )
+    expect(undone).toHaveLength(1)
+    expect(undone[0]).not.toHaveProperty('removed')
+    applyAgentEdit(doc, { writer: codex, at: 3, markdown: '', maxRemovedBytes: max })
+    expect(readWrites(doc)[0]!.removed).toBe(`${'a'.repeat(600)}\n`)
+  })
+})
+
 describe('Clear Authorship', () => {
   it('deletes every record, and the merge keeps a write the clear had not seen', () => {
     const a = docWith('Text.\n')

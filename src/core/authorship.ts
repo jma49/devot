@@ -779,7 +779,11 @@ export function reverseWrites(
     }
     for (const write of targets) {
       const raw = writes.get(write.id)
-      if (isRecord(raw)) writes.set(write.id, { ...raw, reversed: true })
+      // The deleted text is of no use once undone, and would count against the cap and push a live writer's out.
+      if (isRecord(raw)) {
+        const { removed: _removed, ...kept } = raw
+        writes.set(write.id, { ...kept, reversed: true })
+      }
     }
   })
   return { writes: targets.length, dropped }
