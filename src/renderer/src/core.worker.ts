@@ -52,6 +52,7 @@ import type { SyncEvent } from '../../core/sync/transport'
 import { preparerOffThread } from './importWorker'
 import { fromWireRelay, toWireRelay, type RelayOut, type WireRelay } from './noteRelayWire'
 import type { SaveProblemsMessage } from './saving'
+import { starterTemplates } from './starterTemplates'
 import {
   fromWireSync,
   fromWireTransport,
@@ -148,7 +149,15 @@ export const coreApi = {
     })
     books = createBookService({ storage, clock, newId: ids })
     tags = createTagService({ storage, clock, newId: ids })
-    templates = createTemplateService({ storage, notes: service, books, tags, clock, newId: ids })
+    templates = createTemplateService({
+      storage,
+      notes: service,
+      books,
+      tags,
+      clock,
+      newId: ids,
+      starters: starterTemplates,
+    })
     // Its own note service, as devot-mcp's: its writes reach the notes held
     // here as changes from outside (the page merges them, see httpApiHost).
     // One writer for each start of the core, which answers the HTTP API for as long as the app runs.

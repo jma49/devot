@@ -1,12 +1,12 @@
 import { fieldStep } from './Picker'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { BookRecord, NoteSummary, TemplateDraft } from '../../core'
-import { STARTER_TEMPLATES } from '../../core/starterTemplates'
 import { headline } from '../../core/extract'
 import type { Core } from './core-client'
 import { displayTitle, useHeadlines, type HeadlineLoader } from './headlines'
 import { format, t } from './i18n'
 import { isImeKey } from './ime'
+import { starterTemplates } from './starterTemplates'
 import { templateGroups } from './templates'
 
 const optionId = (i: number) => `template-option-${i}`
@@ -53,7 +53,7 @@ export function TemplatePicker(props: {
   )
   const builtIn = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase()
-    return STARTER_TEMPLATES.filter((s) => !needle || s.title.toLocaleLowerCase().includes(needle))
+    return starterTemplates().filter((s) => !needle || s.title.toLocaleLowerCase().includes(needle))
   }, [query])
   const options: { id: string; title: string }[] = [...groups.recent, ...groups.others, ...builtIn]
   const index = Math.min(active, options.length - 1)

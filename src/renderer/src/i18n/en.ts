@@ -164,6 +164,117 @@ export const en = {
   'templates.recent': 'Recently Used',
   'templates.builtIn': 'Built-in',
   'templates.builtInHint': 'Built-in templates are read-only. Edit a copy to make one of your own.',
+  'templates.starter.brainstorming.title': 'Brainstorming',
+  'templates.starter.brainstorming.body': `> # !Instructions
+> Write the topic under Goal, then list every idea without judging it.
+> Group the ideas, pick the best few and give each a next step.
+
+# {{title}}
+
+## Goal
+
+## Ideas
+
+- 
+
+## Groups
+
+## Next steps
+
+- [ ] 
+`,
+  'templates.starter.debugging.title': 'Debugging',
+  'templates.starter.debugging.body': `> # !Instructions
+> Describe what you expected and what happened, then record each attempt
+> and what it showed. Finish with the cause and the fix.
+
+# {{title}}
+
+## Expected behaviour
+
+## Actual behaviour
+
+## Steps to reproduce
+
+1. 
+
+## Attempts
+
+- 
+
+## Cause
+
+## Fix
+
+- [ ] 
+`,
+  'templates.starter.learning.title': 'Learning',
+  'templates.starter.learning.body': `> # !Instructions
+> Note the source and what you want to learn. Write the key points in your
+> own words, then questions, then a short summary you could teach from.
+
+# {{title}}
+
+## Source
+
+## What I want to learn
+
+## Key points
+
+- 
+
+## Questions
+
+- 
+
+## Summary
+`,
+  'templates.starter.planning.title': 'Planning',
+  'templates.starter.planning.body': `> # !Instructions
+> State the outcome and why it matters. Break it into tasks with owners and
+> dates, and list what could go wrong.
+
+# {{title}}
+
+## Outcome
+
+## Why it matters
+
+## Tasks
+
+- [ ] 
+
+## Timeline
+
+## Risks
+`,
+  'templates.starter.daily-report.title': 'Daily Report',
+  'templates.starter.daily-report.body': `---
+title: Daily Report {{date}}
+---
+
+> # !Instructions
+> Fill this in at the end of the day. {{date}} is replaced with today's date
+> in each note made from this template.
+
+# {{title}}
+
+## Done today
+
+- 
+
+## In progress
+
+- 
+
+## Blockers
+
+- 
+
+## Plan for tomorrow
+
+- [ ] 
+`,
   'templates.editCopy': 'Edit a Copy',
   'templates.noMatches': 'No templates match.',
   'templates.create': 'Create',

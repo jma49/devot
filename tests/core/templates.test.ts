@@ -19,6 +19,7 @@ import {
   type NoteService,
   type OffsetAt,
 } from '../../src/core'
+import { starterTemplates } from '../../src/renderer/src/starterTemplates'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -41,7 +42,15 @@ function device(path: string, node = 'mac1') {
   services.push(notes)
   const books = createBookService({ storage, clock, newId })
   const tags = createTagService({ storage, clock, newId })
-  const templates = createTemplateService({ storage, notes, books, tags, clock, newId })
+  const templates = createTemplateService({
+    storage,
+    notes,
+    books,
+    tags,
+    clock,
+    newId,
+    starters: starterTemplates,
+  })
   return { storage, clock, notes, books, tags, templates }
 }
 

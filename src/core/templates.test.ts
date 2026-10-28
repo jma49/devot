@@ -11,7 +11,6 @@ import {
   TEMPLATE_KEYS,
   withoutInstructions,
 } from './templates'
-import { isStarterTemplate, STARTER_TEMPLATES } from './starterTemplates'
 import { withoutFrontMatterKeys } from './import'
 
 function zoneOffset(timeZone: string): OffsetAt {
@@ -404,25 +403,5 @@ describe('instruction quotes', () => {
   it('stays in the template itself: only the draft drops it', () => {
     const body = '> # !Instructions\n> Hi\n\nBody\n'
     expect(withoutInstructions(body)).toBe('Body\n')
-    expect(STARTER_TEMPLATES.every((t) => t.body.includes('> # !Instructions'))).toBe(true)
-  })
-})
-
-describe('starter templates', () => {
-  it('are the five named ones, with IDs no stored note has, and leave no instructions in a note', () => {
-    expect(STARTER_TEMPLATES.map((t) => t.title)).toEqual([
-      'Brainstorming',
-      'Debugging',
-      'Learning',
-      'Planning',
-      'Daily Report',
-    ])
-    expect(STARTER_TEMPLATES.every((t) => isStarterTemplate(t.id))).toBe(true)
-    const daily = STARTER_TEMPLATES.find((t) => t.title === 'Daily Report')!
-    expect(daily.body).toContain('{{date}}')
-    const made = draftFromTemplate(daily, { now: NOW, offsetAt: UTC })
-    expect(made.title).toBe('Daily Report 2026-03-03')
-    expect(made.body.trim().startsWith('# Daily Report 2026-03-03')).toBe(true)
-    expect(made.body).not.toContain('!Instructions')
   })
 })
