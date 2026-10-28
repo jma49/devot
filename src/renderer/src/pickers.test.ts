@@ -4,6 +4,7 @@ import type { TagRecord } from '../../core/storage'
 import { bookOptions, filterBooks, firstBookMatch, NO_BOOK } from './BookPicker'
 import { fieldStep, pickerStep } from './Picker'
 import { tagRows } from './TagEditor'
+import { matchingTags } from './TagPickDialog'
 import { SHOW_AFTER_MS, splitTip } from './ToolTips'
 
 function tag(id: string, name: string): TagRecord {
@@ -134,5 +135,17 @@ describe('splitTip', () => {
   it('splits a tooltip into the name and its key', () => {
     expect(splitTip('New Note (⌘N)')).toEqual({ name: 'New Note', key: '⌘N' })
     expect(splitTip('More')).toEqual({ name: 'More', key: undefined })
+  })
+})
+
+describe('matchingTags', () => {
+  const tags = [tag('k', 'タグ'), tag('f', 'ＴＯＤＯ'), tag('c', 'café'), tag('x', 'work')]
+
+  it('lists a tag the core counts as the typed name, though the text differs', () => {
+    expect(matchingTags(tags, 'たぐ').map((t) => t.id)).toEqual(['k'])
+    expect(matchingTags(tags, 'TODO').map((t) => t.id)).toEqual(['f'])
+    expect(matchingTags(tags, 'café').map((t) => t.id)).toEqual(['c'])
+    expect(matchingTags(tags, 'wor').map((t) => t.id)).toEqual(['x'])
+    expect(matchingTags(tags, '').map((t) => t.id)).toEqual(['k', 'f', 'c', 'x'])
   })
 })

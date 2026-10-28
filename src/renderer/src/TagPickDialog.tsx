@@ -16,6 +16,14 @@ export interface TagPick {
   name: string
 }
 
+/** The tags a typed name lists: those it holds, and those the core counts as the same name. */
+export function matchingTags(tags: readonly TagRecord[], typed: string): TagRecord[] {
+  const needle = typed.toLocaleLowerCase()
+  return tags.filter(
+    (tag) => !needle || sameName(tag.name, typed) || tag.name.toLocaleLowerCase().includes(needle),
+  )
+}
+
 export function TagPickDialog(props: {
   mode: 'add' | 'remove'
   tags: readonly TagRecord[]
@@ -38,10 +46,10 @@ export function TagPickDialog(props: {
     setActive(0)
   })
   const typed = trimWhitespace(query)
-  const needle = typed.toLocaleLowerCase()
-  const found: TagPick[] = props.tags
-    .filter((tag) => !needle || tag.name.toLocaleLowerCase().includes(needle))
-    .map((tag) => ({ tagId: tag.id, name: tag.name }))
+  const found: TagPick[] = matchingTags(props.tags, typed).map((tag) => ({
+    tagId: tag.id,
+    name: tag.name,
+  }))
   const fresh =
     props.mode === 'add' && typed !== '' && !props.tags.some((tag) => sameName(tag.name, typed))
   const options: TagPick[] = fresh ? [{ tagId: null, name: typed }, ...found] : found
