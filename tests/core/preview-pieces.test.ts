@@ -134,6 +134,17 @@ describe('createPieceRenderer', () => {
     expect(splitBlocks(CASES['footnotes']!)).toHaveLength(1)
   })
 
+  it('still tells a tag that closes itself from one that stays open', () => {
+    expect(splitBlocks('<foo a="1" />\n\nx', 1)).toHaveLength(2)
+    expect(splitBlocks('<foo a="1">\n\nx', 1)).toHaveLength(1)
+    expect(splitBlocks('<foo a="1"\n\nx\n\n<bar />', 1)).toHaveLength(1)
+  })
+
+  it('counts every tag of a line that never closes one', () => {
+    expect(splitBlocks('<a <a </a\n\nx', 1)).toHaveLength(1)
+    expect(splitBlocks('<a <a </a </a\n\nx', 1)).toHaveLength(2)
+  })
+
   it('sends only the pieces the caller does not have', async () => {
     const render = small()
     const before = 'One.\n\nTwo.\n\nThree.'

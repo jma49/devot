@@ -71,12 +71,11 @@ function tagsIn(text: string): number {
       continue
     }
     if (VOID.has(name)) continue
-    if (close < match.index) {
-      if (noCloseFrom >= 0 && match.index >= noCloseFrom) continue
+    if (close < match.index && (noCloseFrom < 0 || match.index < noCloseFrom)) {
       close = text.indexOf('>', match.index)
       if (close < 0) noCloseFrom = match.index
     }
-    if (close > 0 && text[close - 1] === '/') continue
+    if (close > match.index && text[close - 1] === '/') continue
     change += 1
   }
   return change
