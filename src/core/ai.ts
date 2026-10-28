@@ -70,10 +70,14 @@ export function aiStorageOver(storage: StorageAdapter): AiStorage {
   return {
     async searchNotesInBooks(query, bookIds, limit) {
       if (bookIds.length === 0) return []
-      const found = await storage.searchNotes(
-        { ...query, sets: [...query.sets, { kind: 'book', ids: [...bookIds], negate: false }] },
-        limit,
-      )
+      const asked = Math.max(0, Math.floor(limit) || 0)
+      if (asked === 0) return []
+      const found = (
+        await storage.searchNotes(
+          { ...query, sets: [...query.sets, { kind: 'book', ids: [...bookIds], negate: false }] },
+          asked,
+        )
+      ).slice(0, asked)
       const bodies = new Map<string, string>()
       for (let at = 0; at < found.length; at += MAX_BODY_IDS) {
         const ids = found.slice(at, at + MAX_BODY_IDS).map((n) => n.id)
@@ -374,6 +378,7 @@ export function createAiService(options: AiServiceOptions): AiService {
       const found = await aiStorage.searchNotesInBooks(resolved, [...books.keys()], count)
       const hits: AiSearchHit[] = []
       for (const summary of found) {
+        if (hits.length >= count) break
         const book = summary.bookId === null ? undefined : books.get(summary.bookId)
         if (!book) continue
         hits.push({

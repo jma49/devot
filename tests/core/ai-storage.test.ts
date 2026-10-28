@@ -67,3 +67,31 @@ it('answers every AI query as the SQL does', async () => {
   }
   expect(await over.searchNotesInBooks(query, [], 10)).toEqual([])
 })
+
+it('cuts results to the limit even when the adapter ignores it', async () => {
+  const storage = openSqliteAdapter(join(tempDir('devot-ai-storage-'), 'devot.sqlite'))
+  open.push(storage)
+  const clock = createClock('mac1')
+  const newId = createIdGenerator()
+  const books = createBookService({ storage, clock, newId })
+  const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
+  const book = await books.create('A', null, { aiAccess: true })
+  for (let i = 0; i < 3; i += 1) {
+    const id = await notes.create(`Note ${i} kiwi`, book)
+    await notes.setBody(id, `Body ${i}: kiwi\n`)
+  }
+  await notes.flush()
+
+  // The Rust store and the worker's wire adapter both apply their own cap and drop the asked one.
+  const ignoring = {
+    ...storage,
+    searchNotes: (query: Parameters<typeof storage.searchNotes>[0]) =>
+      storage.searchNotes(query, 200),
+  }
+  const over = aiStorageOver(ignoring)
+  const query = resolveSearch(parseSearch('kiwi'), {
+    books: await storage.listBooks(),
+    tags: await storage.listTags(),
+  })!
+  expect(await over.searchNotesInBooks(query, [book], 1)).toHaveLength(1)
+})
