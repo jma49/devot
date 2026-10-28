@@ -251,6 +251,21 @@ describe('HTML pages', () => {
     }
   })
 
+  it("leaves an image given by a path as a link, as the page's CSP loads no file", async () => {
+    const tree = await renderPreview(
+      '![A photo](photo.jpg) [![in](a/b.png)](https://x.example)\n',
+      {
+        labels,
+        loadedEmbeds: [],
+      },
+    )
+    const { html } = pageBody(tree, { nonce: NONCE })
+    expect(html).not.toContain('<img')
+    expect(html).toContain('<a href="photo.jpg">A photo</a>')
+    expect(html).toContain('<a href="https://x.example">in</a>')
+    expect(pageBody(tree, { nonce: NONCE, simple: true }).html).toContain('<img src="photo.jpg"')
+  })
+
   it('copies a numbered code block as its code alone', async () => {
     const tree = await renderPreview('```py line=10\na = 1\nb = 2\n```\n', {
       labels,

@@ -40,6 +40,8 @@ export interface PageBody {
 const NOTE_URL = /^devot:\/\/note\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 const NONCE = /^[0-9a-f]{32}$/
 const WEB_URL = /^https?:/i
+/** A path or URL the page's own CSP would refuse as an image: not `data:`, a web URL or an attachment. */
+const LOCAL_SRC = /^(?!data:|https?:|devot:)/i
 const HEADING = /^h[1-6]$/
 
 const DROPPED_SVG = new Set(['script', 'foreignObject', 'iframe', 'image', 'use'])
@@ -129,9 +131,15 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
       const src = node.properties['dataEmbedSrc']
       return typeof src === 'string' ? [link(src)] : []
     }
-    if (print && node.tagName === 'img') {
+    if (!simple && node.tagName === 'img') {
       const src = node.properties['src']
-      if (typeof src === 'string' && WEB_URL.test(src)) {
+      // The page's CSP loads no file: a path stays a link beside the page, and
+      // a web image prints as one.
+      if (
+        typeof src === 'string' &&
+        src !== '' &&
+        (LOCAL_SRC.test(src) || (print && WEB_URL.test(src)))
+      ) {
         const alt = node.properties['alt']
         const text = txt(typeof alt === 'string' && alt.trim() !== '' ? alt : src)
         return inLink ? [text] : [el('a', { href: src }, [text])]

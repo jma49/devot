@@ -6,6 +6,7 @@ describe('isFrameMessage', () => {
     expect(isFrameMessage({ type: 'rendered', id: 1, svg: '<svg/>' })).toBe(true)
     expect(isFrameMessage({ type: 'failed', id: 2, reason: 'parse' })).toBe(true)
     expect(isFrameMessage({ type: 'failed', id: 3, reason: 'render' })).toBe(true)
+    expect(isFrameMessage({ type: 'failed', id: 8, reason: 'layout' })).toBe(true)
   })
 
   it('refuses a failure without a reason the frame can give', () => {
