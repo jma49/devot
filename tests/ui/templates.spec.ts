@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test, statusPicker, bookPicker } from './fixtures'
+import { failCoreCalls, slowCore } from './slowCore'
 
 // Window shortcuts take Meta, as the app's registry does on every platform.
 
@@ -172,6 +173,18 @@ test('the picker lists recently used templates first and previews the one select
   await expect(titleField(page)).toHaveValue('Beta')
 })
 
+test('a template taller than the preview box scrolls from the keyboard', async ({ page }) => {
+  const lines = Array.from({ length: 60 }, (_, i) => `line ${i}`)
+  await newTemplate(page, 'Long', lines.join('\n'))
+  await allNotesRow(page).click()
+  await page.keyboard.press('Meta+KeyT')
+  await expect(preview(page)).toContainText('line 59')
+  await preview(page).focus()
+  await expect(preview(page)).toBeFocused()
+  await page.keyboard.press('PageDown')
+  await expect.poll(() => preview(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+})
+
 test('a note made while search results show opens in a list that shows it', async ({ page }) => {
   await newTemplate(page, 'Plan', 'Plan body')
   await page.getByRole('searchbox', { name: 'Search notes' }).fill('nothing like it')
@@ -309,4 +322,20 @@ test("the empty note's Choose a template fills that note instead of making anoth
   await expect(titleField(page)).toHaveValue('Standup')
   await expect(body(page)).toContainText('Yesterday')
   await expect(body(page)).toContainText('Today')
+})
+
+test('a template the core refuses says why', async ({ page }) => {
+  await slowCore(page, [])
+  await page.reload()
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await newTemplate(page, 'Alpha', 'Alpha body')
+  await allNotesRow(page).click()
+  await failCoreCalls(page, ['applyTemplate'])
+  await page.keyboard.press('Meta+KeyT')
+  await picker(page).getByRole('button', { name: 'Create' }).click()
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'The change could not be made' }),
+  ).toBeVisible()
+  await expect(noteRows(page)).toHaveCount(0)
 })

@@ -187,3 +187,30 @@ test('a format key the editor ran is not run again by the menu', async ({ page }
   await pick(page, 'format.bold')
   await expect(body(page)).toHaveText('***word***')
 })
+
+test('the menu is off while notes are read-only', async ({ page }) => {
+  await newNote(page, 'word')
+  await expect.poll(() => lastMenuState(page)).toMatchObject({ enabled: true })
+  await page.evaluate(() => {
+    const w = globalThis as unknown as {
+      dispatchEvent(e: unknown): void
+      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
+    }
+    w.dispatchEvent(
+      new w.CustomEvent('devot:licence-changed', {
+        detail: {
+          gated: true,
+          state: 'none',
+          code: null,
+          id: null,
+          licensee: null,
+          plan: null,
+          trial: { state: 'ended', endsAt: Date.now() - 3_600_000, code: null },
+        },
+      }),
+    )
+  })
+  await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeDisabled()
+  // The editor keeps the keyboard, but no format would change a read-only note.
+  await expect.poll(() => lastMenuState(page)).toEqual({ enabled: false, keys: {} })
+})

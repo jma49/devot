@@ -177,7 +177,7 @@ export function AiEditSheet(props: {
           {changes.length === 0 ? (
             <p className="sheet-detail">{t('aiEdit.noChanges')}</p>
           ) : (
-            <section className="ai-edit-diff diff" aria-label={t('aiEdit.changes')}>
+            <section className="ai-edit-diff diff" aria-label={t('aiEdit.changes')} tabIndex={0}>
               {proposalRows(proposal.parts).map((row, i) =>
                 row.kind === 'skipped' ? (
                   <div key={i} className="diff-skipped">

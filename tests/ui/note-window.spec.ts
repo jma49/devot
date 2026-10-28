@@ -259,3 +259,14 @@ test('a note window turns read-only once the trial is over, with the bar to add 
   await bar.getByRole('button', { name: 'Add Licence' }).click()
   expect(await calls(win, 'settings_open_licence')).toHaveLength(1)
 })
+
+test('Open in New Window that fails says why', async ({ page }) => {
+  await noteInMain(page, 'Plan', 'Steps')
+  await page.evaluate(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { ...w.devotIpcMocks, note_window_open: { error: 'E_TEST_WINDOW_FAILED' } }
+  })
+  await rows(page).first().click({ button: 'right' })
+  await pickMenuItem(page, 'Open in New Window')
+  await expect(page.getByRole('alert').filter({ hasText: 'E_TEST_WINDOW_FAILED' })).toBeVisible()
+})

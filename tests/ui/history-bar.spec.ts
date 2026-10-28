@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import * as Y from 'yjs'
-import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, pickNoteMore, test } from './fixtures'
+import { failCoreCalls, slowCore } from './slowCore'
 
 interface StoredNote {
   id: string
@@ -204,6 +205,69 @@ test('Restore Whole Version makes the note that version again', async ({ page })
   await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end')
 })
 
+test('a restore that answers after another note opens leaves that note alone', async ({ page }) => {
+  await slowCore(page, ['restoreRevision'])
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await pickNoteMore(page, 'Duplicate')
+  await expect(titleField(page)).toHaveValue('Plan copy')
+  await titleField(page).fill('Beta')
+  await expect(noteRow(page, 'Beta')).toBeVisible()
+
+  await noteRow(page, 'Plan').click()
+  await expect(titleField(page)).toHaveValue('Plan')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  await bar(page).getByRole('button', { name: 'Restore Whole Version' }).click()
+  await noteRow(page, 'Beta').click()
+  await expect(titleField(page)).toHaveValue('Beta')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep old end')
+  // The core answers 500 ms late, and the editor takes the update after that.
+  await page.waitForTimeout(1_000)
+
+  await expect(body(page)).toHaveText('keep new end')
+  expect(await savedBody(page, 'Beta')).toBe('keep new end')
+  // The late answer does not take the keyboard into the note that opened since.
+  await expect(body(page)).not.toBeFocused()
+})
+
+test('the restore buttons stay inside the bar in a narrow window with the sidebar shown', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 760, height: 720 })
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  await selectStruck(page)
+  await page.getByRole('button', { name: 'Show Sidebar' }).click()
+  const barBox = await boxOf(bar(page))
+  for (const name of ['Restore This Passage', 'Restore Whole Version']) {
+    const button = await boxOf(bar(page).getByRole('button', { name }))
+    expect(button.x, name).toBeGreaterThanOrEqual(barBox.x)
+    expect(button.x + button.width, name).toBeLessThanOrEqual(barBox.x + barBox.width)
+  }
+})
+
+test('a restore the core refuses says so, and the message goes when another version shows', async ({
+  page,
+}) => {
+  await slowCore(page, [])
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  await failCoreCalls(page, ['restoreRevision'])
+  await bar(page).getByRole('button', { name: 'Restore Whole Version' }).click()
+  const said = bar(page).locator('.history-bar-note')
+  await expect(said).toHaveText(/^The version could not be restored \(E_/)
+  await expect(said).toHaveAttribute('role', 'alert')
+  await expect(said).not.toHaveText(/could not be loaded/)
+
+  await slider(page).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(said).toHaveText(
+    'Drag the handle to see the note as it was. Click a version to keep it shown.',
+  )
+})
+
 test('a version kept shown is put away when another note opens', async ({ page }) => {
   await createNote(page, 'Other', 'other text')
   await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
@@ -296,6 +360,25 @@ test('the version shown lies exactly over the editor, and over both panes in spl
   await expect(editorPane(page)).not.toHaveAttribute('inert')
 })
 
+test('keys pressed while a version is shown do not change the note under it', async ({ page }) => {
+  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await showOldest(page)
+  // First, a key another handler dispatches before the guard would (close brackets, a quote).
+  await page.keyboard.type('("')
+  await page.keyboard.press('Backspace')
+  await page.keyboard.type('x')
+  await page.keyboard.press('Escape')
+  await expect(overlay(page)).toHaveCount(0)
+  await expect(body(page)).toHaveText('keep new end')
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.insertText('!')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end!')
+})
+
 test('Escape in the palette closes the palette and leaves the version shown', async ({ page }) => {
   await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
   await changeEditorSettingsElsewhere(page, { historyBar: true })
@@ -327,6 +410,45 @@ test('a struck passage can be restored from the keyboard alone', async ({ page }
   await expect(restorePassage).toBeFocused()
   await page.keyboard.press('Enter')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('keep old new end')
+})
+
+test('the first struck passage, not only the last, can be restored from the keyboard', async ({
+  page,
+}) => {
+  await noteWithHistory(page, 'Plan', 'one two three four five', 'ONE two THREE four FIVE')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  const struck = overlay(page).locator('del')
+  await expect(struck).toHaveText(['one', 'three', 'five'])
+
+  await page.keyboard.press('Shift+Tab')
+  await expect(struck.first()).toBeFocused()
+  // Tab goes on to the bar, not through the other struck passages.
+  await page.keyboard.press('Tab')
+  await expect(slider(page)).toBeFocused()
+  await expect(bar(page).getByRole('button', { name: 'Restore This Passage' })).toBeVisible()
+  // macOS tabs to buttons with Option (or with Full Keyboard Access).
+  await page.keyboard.press('Alt+Tab')
+  await page.keyboard.press('Enter')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('one ONE two THREE four FIVE')
+})
+
+test('the arrow keys move between struck passages, and Enter keeps the one focused', async ({
+  page,
+}) => {
+  await noteWithHistory(page, 'Plan', 'one two three four five', 'ONE two THREE four FIVE')
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await showOldest(page)
+  const struck = overlay(page).locator('del')
+  await page.keyboard.press('Shift+Tab')
+  await expect(struck.first()).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(struck.nth(1)).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(slider(page)).toBeFocused()
+  await page.keyboard.press('Alt+Tab')
+  await page.keyboard.press('Enter')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('ONE two three THREE four FIVE')
 })
 
 test('the date on the handle stays inside the bar at either end', async ({ page }) => {

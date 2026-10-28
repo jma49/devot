@@ -21,7 +21,7 @@ import {
 } from '@codemirror/search'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, type Command } from '@codemirror/view'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_EDITOR_SETTINGS, type EditorSettings } from '../../../core/editorSettings'
 import { shortcutCodeMirror } from '../commands/keys'
 import { COMMANDS, setCommandKeys } from '../commands/registry'
@@ -140,6 +140,11 @@ describe('editor setup from the settings', () => {
     expect(
       margins(make({ ...DEFAULT_EDITOR_SETTINGS, cursorScrollMargin: 120, scrollPastEnd: false })),
     ).toEqual([{ top: 120, bottom: 120 }])
+    // The trial-ended bar's room is read when the margin is, so it follows the bar appearing.
+    vi.stubGlobal('document', { documentElement: {} })
+    vi.stubGlobal('getComputedStyle', () => ({ getPropertyValue: () => '40px' }))
+    expect(margins(on)).toEqual([{ top: 0, bottom: 118 }])
+    vi.unstubAllGlobals()
     const decorated = (settings: EditorSettings) =>
       make(settings).facet(EditorView.decorations).length
     const base = decorated(DEFAULT_EDITOR_SETTINGS)

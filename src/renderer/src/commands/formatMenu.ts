@@ -88,7 +88,9 @@ export function useFormatMenu(handlers: CommandHandlers) {
   // on the next change of focus or render.
   const sent = useRef<string | undefined>(undefined)
   const sync = useRef((active: boolean) => {
-    const args = { enabled: active, keys: active ? formatMenuKeys(inert) : {} }
+    // Read-only notes have no format commands: the menu's items would do nothing, so it is off with them.
+    const on = active && Object.keys(latest.current).some(isFormatMenuCommand)
+    const args = { enabled: on, keys: on ? formatMenuKeys(inert) : {} }
     const said = JSON.stringify(args)
     if (sent.current === said) return
     sent.current = said

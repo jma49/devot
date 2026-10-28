@@ -1,6 +1,6 @@
 // What the windows say about the trial: one bar that stays while notes are read-only (the trial is
 // over without a licence), and once, in the trial's last day, when it ends.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { currentLocale, t } from './i18n'
 import { openBuy, openLicenceSettings, useLicence, useTrialOver } from './licence'
 import { reminderDue, reminderText, REMINDER_MS } from './licenceView'
@@ -40,13 +40,40 @@ function TrialButtons() {
 
 /** Stays while the trial is over without a licence; nothing dismisses it. */
 export function TrialEndedBar() {
-  if (!useTrialOver()) return null
+  const over = useTrialOver()
+  const bar = useRef<HTMLDivElement>(null)
+  // It floats over the foot of the panes for the whole read-only period, so the panes keep that much room
+  // free and their last row or line can be seen and clicked.
+  useEffect(() => {
+    const el = bar.current
+    if (!over || !el) return
+    const root = document.documentElement
+    const reserve = () => {
+      // Layout, not the rect: the bar enters with a translate, and the stack holds it above the window's edge.
+      const stack = el.parentElement
+      const gap = Number.parseFloat(stack ? getComputedStyle(stack).bottom : '')
+      root.style.setProperty('--trial-bar-inset', `${el.offsetHeight + (gap || 0)}px`)
+    }
+    reserve()
+    const observer = new ResizeObserver(reserve)
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      root.style.removeProperty('--trial-bar-inset')
+    }
+  }, [over])
+  if (!over) return null
   return (
-    <div role="status" className="notice" data-devot-part="notice" data-devot-trial-ended>
+    <div ref={bar} role="status" className="notice" data-devot-part="notice" data-devot-trial-ended>
       <span className="notice-text">{t('trial.ended')}</span>
       <TrialButtons />
     </div>
   )
+}
+
+const nextMidnight = (from: number) => {
+  const date = new Date(from)
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime()
 }
 
 /** Once, when less than a day of the trial is left; dismissed, it never comes back. */
@@ -56,14 +83,38 @@ export function TrialReminder() {
   const [now, setNow] = useState(Date.now)
   const endsAt = licence.trial?.state === 'running' ? licence.trial.endsAt : null
 
-  // Shown when the last day begins, gone when the trial ends.
+  // Shown when the last day begins, gone when the trial ends; its "today" and "tomorrow" turn over
+  // at midnight too, and a Mac that slept through it reads the clock again when the window comes back.
   useEffect(() => {
     if (endsAt === null) return
-    const at = Date.now()
-    const timers = [endsAt - REMINDER_MS, endsAt]
-      .filter((when) => when > at)
-      .map((when) => setTimeout(() => setNow(Date.now()), Math.min(when - at, 2 ** 31 - 1)))
-    return () => timers.forEach(clearTimeout)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const wait = () => {
+      clearTimeout(timer)
+      const at = Date.now()
+      const when = [endsAt - REMINDER_MS, endsAt, nextMidnight(at)]
+        .filter((moment) => moment > at)
+        .sort((a, b) => a - b)[0]
+      if (when === undefined) return
+      timer = setTimeout(
+        () => {
+          setNow(Date.now())
+          wait()
+        },
+        Math.min(when - at, 2 ** 31 - 1),
+      )
+    }
+    const awake = () => {
+      setNow(Date.now())
+      wait()
+    }
+    wait()
+    window.addEventListener('focus', awake)
+    document.addEventListener('visibilitychange', awake)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('focus', awake)
+      document.removeEventListener('visibilitychange', awake)
+    }
   }, [endsAt])
 
   if (endsAt === null || !reminderDue(licence, now, dismissed)) return null

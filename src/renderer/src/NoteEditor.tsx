@@ -140,6 +140,12 @@ const LOCKED = [
     }),
   ),
 ]
+// WebKit keeps a contenteditable's selection when focus moves to a sheet or the history bar, and
+// runs Backspace and typing against it even under `inert` or a modal: the note out of sight would
+// change. The change is dropped and the editor draws its own text again. It comes first among the
+// highest-precedence handlers so no other one (close brackets, backticks, table typing, overwrite)
+// dispatches the change before the check runs.
+const ONLY_WHILE_FOCUSED = Prec.highest(EditorView.inputHandler.of((view) => !view.hasFocus))
 // View > Show Authorship (editor/authorship.ts), set for the replica of the note shown.
 const authorshipSlot = new Compartment()
 // The empty note's Choose a Template chip: only where the window can run it on a note that may change.
@@ -690,7 +696,7 @@ interface Props {
   onNewFromLink?: (() => void) | undefined
   onImagesRefused?: (codes: string[]) => void
   onOpenFailed?: (noteId: string, code: string) => void
-  onChooseTemplate?: () => void
+  onChooseTemplate?: (() => void) | undefined
   onOpenNote?: (noteId: string) => void
   /** Shown but not changed: the trial is over without a licence. */
   readOnly?: boolean
@@ -1016,6 +1022,7 @@ export function NoteEditor({
               }
             : {}),
           extensions: [
+            ONLY_WHILE_FOCUSED,
             editorSetup(setupFor),
             // No keymap acts on the keys an input method composes with.
             imeKeys(),

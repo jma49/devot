@@ -1971,7 +1971,8 @@ export function App() {
       id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     } catch (e) {
       early.fail()
-      throw e
+      setChangeNotice(errorCode(e))
+      return
     }
     early.claim(id)
     if (!inTemplates) track('note.created', { from: 'new_note' })
@@ -1984,11 +1985,14 @@ export function App() {
   /** Makes a note from a template and opens it (see `showMade`); the template's notebook, if any, wins over the one shown. */
   const createFromTemplate = async (templateId: string) => {
     setPicking(undefined)
-    if (!core) return
+    if (!core || !editing) return
     await saveEdits(core)
     const id = await core
       .applyTemplate(templateId, Date.now(), newNoteBookId())
-      .catch(() => undefined)
+      .catch((e: unknown) => {
+        setChangeNotice(errorCode(e))
+        return undefined
+      })
     if (!id) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
     recentTemplates.use(templateId)
     track('note.created', { from: 'template' })
@@ -2002,14 +2006,17 @@ export function App() {
   /** Fills the open note from a template without making a new one; the open editor takes in the core's writes like another process's. */
   const fillFromTemplate = async (templateId: string, noteId: string) => {
     setPicking(undefined)
-    if (!core) return
+    if (!core || !editing) return
     await saveEdits(core)
     const navigation = opens.current
     const editor = editorRef.current?.noteId === noteId ? editorRef.current : null
     const done = await core
       .applyTemplateTo(templateId, noteId, Date.now())
       .then(() => true)
-      .catch(() => false)
+      .catch((e: unknown) => {
+        setChangeNotice(errorCode(e))
+        return false
+      })
     if (!done) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
     recentTemplates.use(templateId)
     if (opens.current === navigation && editor && editorRef.current === editor) {
@@ -2055,7 +2062,9 @@ export function App() {
     await saveEdits(core)
     const tagIds = [...notes, ...templates].find((n) => n.id === id)?.tagIds
     const copy = await core.duplicate(id, t('note.copySuffix'), tagIds).catch((e: unknown) => {
-      console.warn('W_NOTE_DUPLICATE_FAILED', id, errorCode(e))
+      const code = errorCode(e)
+      console.warn('W_NOTE_DUPLICATE_FAILED', id, code)
+      setChangeNotice(code)
     })
     if (!copy) return
     if (!templates.some((n) => n.id === id)) track('note.created', { from: 'duplicate' })
@@ -2140,7 +2149,9 @@ export function App() {
   const openNoteWindow = async (id: string) => {
     if (core) await saveEdits(core)
     await invoke('note_window_open', { id }).catch((e: unknown) => {
-      console.warn('W_NOTE_WINDOW_OPEN_FAILED', id, errorCode(e))
+      const code = errorCode(e)
+      console.warn('W_NOTE_WINDOW_OPEN_FAILED', id, code)
+      setChangeNotice(code)
     })
   }
 
@@ -2387,6 +2398,11 @@ export function App() {
   }
   const historyBarShown = useEditorSetting('historyBar')
   const authorshipShown = useEditorSetting('authorship')
+  // A restored version, an accepted AI edit or a plugin write reaches the editor only while it
+  // still shows the note it was made for.
+  const applyToOpenNote = useStable((noteId: string, update: Uint8Array) => {
+    if (editorRef.current?.noteId === noteId) restoreRef.current?.(update)
+  })
   const historyBar = useHistoryBar({
     core,
     noteId: selected,
@@ -2394,7 +2410,7 @@ export function App() {
     text: openText,
     enabled: historyBarShown && !inTrash && multiIds === undefined,
     readOnly: !editing,
-    onApply: (update) => restoreRef.current?.(update),
+    onApply: applyToOpenNote,
     onRestored: () => editorRef.current?.focus(),
   })
 
@@ -2772,7 +2788,7 @@ export function App() {
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
   const plugins = usePlugins(core, {
     openNote: () => openNote,
-    applyUpdate: (update) => restoreRef.current?.(update),
+    applyUpdate: applyToOpenNote,
     importBook: () => libraryBook?.id ?? null,
     imported: () => {
       if (core) void refresh(core)
@@ -3230,7 +3246,7 @@ export function App() {
   })
   const trashKey = useStable((action: TrashAction, id: string) => void trashAction(action, id))
   const askEmptyTrash = useStable(() => {
-    if (trash.length > 0) setConfirm({ kind: 'empty' })
+    if (trash.length > 0 && editing) setConfirm({ kind: 'empty' })
   })
   // aria-disabled, not disabled: a disabled button would drop the keyboard
   // when the Trash is emptied from it.
@@ -3248,13 +3264,13 @@ export function App() {
         type="button"
         className="button"
         data-tauri-drag-region="false"
-        aria-disabled={trash.length === 0}
+        aria-disabled={trash.length === 0 || !editing}
         onClick={askEmptyTrash}
       >
         {t('trash.empty')}
       </button>
     ),
-    [trash.length, askEmptyTrash],
+    [trash.length, editing, askEmptyTrash],
   )
   const sidebarSelect = useStable((next: Selection, options?: { clearFilter?: boolean }) =>
     showLibrary(next, options),
@@ -3795,8 +3811,10 @@ export function App() {
                 onNewFromLink={inTrash || !editing ? undefined : () => void noteFromLink(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
-                onChooseTemplate={() =>
-                  setPicking({ recent: recentTemplates.load(), into: selected })
+                onChooseTemplate={
+                  inTrash || !editing
+                    ? undefined
+                    : () => setPicking({ recent: recentTemplates.load(), into: selected })
                 }
                 onOpenNote={(id) => void select(id)}
                 readOnly={!editing}
@@ -3965,7 +3983,7 @@ export function App() {
           title={title}
           books={books}
           onRestore={(update) => {
-            restoreRef.current?.(update)
+            applyToOpenNote(historyFor, update)
             setHistoryFor(undefined)
           }}
           onClose={() => setHistoryFor(undefined)}
@@ -3978,7 +3996,7 @@ export function App() {
           generator={aiGenerator}
           noteId={aiEditing.noteId}
           start={aiEditing.start}
-          onApply={(update) => restoreRef.current?.(update)}
+          onApply={(update) => applyToOpenNote(aiEditing.noteId, update)}
           onClose={() => setAiEditing(undefined)}
           locked={!licenceEntitlements.has('aiProviders')}
         />
