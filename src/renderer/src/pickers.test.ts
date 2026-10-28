@@ -41,8 +41,8 @@ describe('tagRows', () => {
   })
 
   it('has no Create row for a name the core counts as the same, as kana and width variants', () => {
-    const same = [tag('k', 'タグ'), tag('f', 'ＴＯＤＯ'), tag('c', 'café')]
-    expect(tagRows(same, [], 'たぐ')).toEqual([])
+    const same = [tag('k', '\u30bf\u30b0'), tag('f', '\uff34\uff2f\uff24\uff2f'), tag('c', 'café')]
+    expect(tagRows(same, [], '\u305f\u3050')).toEqual([])
     expect(tagRows(same, [], 'TODO')).toEqual([])
     expect(tagRows(same, [], 'café')).toEqual([])
   })
@@ -139,10 +139,15 @@ describe('splitTip', () => {
 })
 
 describe('matchingTags', () => {
-  const tags = [tag('k', 'タグ'), tag('f', 'ＴＯＤＯ'), tag('c', 'café'), tag('x', 'work')]
+  const tags = [
+    tag('k', '\u30bf\u30b0'),
+    tag('f', '\uff34\uff2f\uff24\uff2f'),
+    tag('c', 'café'),
+    tag('x', 'work'),
+  ]
 
   it('lists a tag the core counts as the typed name, though the text differs', () => {
-    expect(matchingTags(tags, 'たぐ').map((t) => t.id)).toEqual(['k'])
+    expect(matchingTags(tags, '\u305f\u3050').map((t) => t.id)).toEqual(['k'])
     expect(matchingTags(tags, 'TODO').map((t) => t.id)).toEqual(['f'])
     expect(matchingTags(tags, 'café').map((t) => t.id)).toEqual(['c'])
     expect(matchingTags(tags, 'wor').map((t) => t.id)).toEqual(['x'])

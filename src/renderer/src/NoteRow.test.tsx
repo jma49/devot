@@ -70,15 +70,15 @@ describe('NoteRow', () => {
 
   it('shows the title, the time since the change and one line of body', () => {
     const html = row({ preview: 'tomato rows and beans' })
-    expect(html).toContain('<span class="row-title">Garden plan</span>')
+    expect(html).toContain('<span class="row-title" dir="auto">Garden plan</span>')
     expect(html).toContain('7 minutes</time>')
-    expect(html).toContain('<span class="row-excerpt">tomato rows and beans</span>')
+    expect(html).toContain('<span class="row-excerpt" dir="auto">tomato rows and beans</span>')
   })
 
   it('has no title node for a note without a title: its first line leads the excerpt', () => {
     const html = row({ note: note({ title: '' }), headline: 'Shopping list', preview: 'milk' })
     expect(html).not.toContain('row-title')
-    expect(html).toContain('<span class="row-headline">Shopping list</span> milk')
+    expect(html).toContain('<span class="row-headline" dir="auto">Shopping list</span> milk')
   })
 
   it('shows task progress as "1 of 4" with a bar, only when the note has tasks', () => {
@@ -98,8 +98,8 @@ describe('NoteRow', () => {
       ['t2', tag('t2', null)],
     ])
     const html = row({ note: note({ tagIds: ['t1', 't2'] }), tags })
-    expect(html).toContain('<span class="chip tag-chip tag-color-green">')
-    expect(html).toMatch(/<span class="chip">t2<\/span>/)
+    expect(html).toContain('<span class="chip tag-chip tag-color-green" dir="auto">')
+    expect(html).toMatch(/<span class="chip" dir="auto">t2<\/span>/)
   })
 
   it('dims a row while it is being dragged', () => {
