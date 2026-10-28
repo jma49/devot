@@ -398,7 +398,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       return
     }
     if (selectionKey(event) || undoKey(event)) return
-    const target = keyTarget(selection, selected, id)
+    const target = keyTarget(selection, selected, id) ?? id
     if (props.onMenu && commandMatches('list.rowMenu', event)) {
       event.preventDefault()
       const box = cards.current.get(id)?.getBoundingClientRect()

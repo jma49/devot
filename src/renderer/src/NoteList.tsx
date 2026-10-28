@@ -777,7 +777,7 @@ export const NoteList = memo(function NoteList(props: Props) {
   )
 })
 
-function EmptyList({ kind, editing }: { kind: ListEmptyKind; editing?: boolean }) {
+function EmptyList({ kind, editing }: { kind: ListEmptyKind; editing?: boolean | undefined }) {
   const { message, tip } = listEmpty(kind, editing)
   return (
     <li className="list-empty" role="presentation">
