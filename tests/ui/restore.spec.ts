@@ -283,6 +283,10 @@ test('a note shorter than its stored scroll position still reports and saves typ
 }) => {
   await createNote(page, 'Short')
   await writeBody(page, 'abc')
+  // The body reaches storage on its own save; the reload below must not race it.
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('devot.test.notes') ?? ''))
+    .toContain('abc')
   const saved = await storedState(
     page,
     (s) => (openNoteState(s)['selection'] as { head?: number } | undefined)?.head === 3,

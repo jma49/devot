@@ -333,7 +333,10 @@ test('Move to Notebook takes the typed notebook, not a parent or No Notebook', a
   )
   await page.keyboard.press('Enter')
   await expect(picker(page)).toHaveCount(0)
-  expect(await bookIdOf('Loose')).toBe((await books()).find((b) => b.name === 'Devot')?.id)
+  // The move is written by the core after the picker closes, so wait for the write.
+  await expect
+    .poll(async () => bookIdOf('Loose'))
+    .toBe((await books()).find((b) => b.name === 'Devot')?.id)
 
   // "No Notebook" holds the query too; the notebook named for it wins.
   await openMenu(page, 'Loose')
@@ -346,7 +349,9 @@ test('Move to Notebook takes the typed notebook, not a parent or No Notebook', a
   )
   await page.keyboard.press('Enter')
   await expect(picker(page)).toHaveCount(0)
-  expect(await bookIdOf('Loose')).toBe((await books()).find((b) => b.name === 'Notes')?.id)
+  await expect
+    .poll(async () => bookIdOf('Loose'))
+    .toBe((await books()).find((b) => b.name === 'Notes')?.id)
 })
 
 test('Cmd+Delete moves the selected note to the trash', async ({ page }) => {
