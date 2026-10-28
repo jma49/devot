@@ -83,6 +83,9 @@ describe('firstBookMatch', () => {
 
   it('does not choose No Notebook just because its name holds the query', () => {
     expect(firstBookMatch(filterBooks(all, 'note'), 'note')?.id).toBe('b')
+    // "No Notebook" holds "book" as well as a notebook named Notebooks does.
+    const books = [noBook, ...bookOptions([book('n', 'Notebooks', 0)])]
+    expect(firstBookMatch(filterBooks(books, 'book'), 'book')?.id).toBe('n')
   })
 
   it('prefers an exact name, then a name it starts', () => {

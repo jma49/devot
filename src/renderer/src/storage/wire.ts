@@ -123,6 +123,7 @@ export function fromWire(wire: WireStorage): StorageAdapter {
     listActivity: (since) => wire.listActivity(since),
     listNoteActivity: (ids, since) => wire.listNoteActivity(ids, since),
     listAgentWrites: (limit) => wire.listAgentWrites(limit),
+    authoredNotes: () => wire.authoredNotes(),
     markAgentWritesSeen: (noteId, writeIds) => wire.markAgentWritesSeen(noteId, writeIds),
   }
 }

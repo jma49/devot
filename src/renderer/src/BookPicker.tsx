@@ -62,7 +62,10 @@ export function firstBookMatch(list: readonly BookOption[], query: string): Book
   if (!want) return list[0]
   const rank = (o: BookOption) => {
     const name = o.name.toLocaleLowerCase()
-    return name === want ? 0 : name.startsWith(want) ? 1 : 2
+    const byName = name === want ? 0 : name.startsWith(want) ? 1 : 2
+    // A notebook named for the query beats No Notebook however the two match:
+    // taking the note out of its notebook is the last thing typing it means.
+    return o.id === NO_BOOK ? byName + 3 : byName
   }
   let best: BookOption | undefined
   for (const o of list) {

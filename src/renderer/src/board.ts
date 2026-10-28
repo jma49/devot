@@ -83,6 +83,29 @@ export function boardJump(
   return undefined
 }
 
+/**
+ * The card Home, End, Page Up or Page Down moves to from a column that has the
+ * keyboard while no card does: a page away from that column, not from the
+ * board's first one. Undefined for other keys and at the board's edge.
+ */
+export function columnJump(
+  columns: readonly BoardColumn<Card>[],
+  status: NoteStatus,
+  key: string,
+): string | undefined {
+  const order = boardOrder(columns)
+  if (key === 'Home') return order[0]
+  if (key === 'End') return order.at(-1)
+  const by = key === 'PageDown' ? 1 : key === 'PageUp' ? -1 : 0
+  if (!by) return undefined
+  const at = columns.findIndex((c) => c.status === status)
+  for (let i = at + by; i >= 0 && i < columns.length; i += by) {
+    const cards = columns[i]!.notes
+    if (cards.length > 0) return cards[0]!.id
+  }
+  return undefined
+}
+
 /** The status of the column next to `from`'s, if there is one. */
 export function statusStep(
   statuses: readonly NoteStatus[],

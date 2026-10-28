@@ -9,6 +9,7 @@ import {
   boardStatuses,
   cardStep,
   changesByStatus,
+  columnJump,
   columnWindow,
   createBoardHistories,
   createMoveHistory,
@@ -286,6 +287,19 @@ describe('the default board width', () => {
       (columns - 1) * px('space.4') +
       2 * px('space.6')
     expect(px('size.board-default-width')).toBeGreaterThanOrEqual(needed)
+  })
+})
+
+describe('columnJump', () => {
+  it('pages from the column that has the keyboard, even an empty one', () => {
+    const columns = boardColumns(notes, boardStatuses(true))
+    expect(columnJump(columns, 'on_hold', 'PageDown')).toBe('d')
+    expect(columnJump(columns, 'on_hold', 'PageUp')).toBe('a')
+    expect(columnJump(columns, 'on_hold', 'Home')).toBe('b')
+    expect(columnJump(columns, 'on_hold', 'End')).toBe('e')
+    expect(columnJump(columns, 'dropped', 'PageDown')).toBeUndefined()
+    expect(columnJump(columns, 'none', 'PageUp')).toBeUndefined()
+    expect(columnJump(columns, 'none', 'ArrowDown')).toBeUndefined()
   })
 })
 

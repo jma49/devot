@@ -250,6 +250,8 @@ export interface StorageAdapter {
    * starts unseen, an `aiEdit` row seen.
    */
   listAgentWrites(limit: number): Promise<AgentWriteSummary[]>
-  /** IDs the note has no row for are skipped. */
-  markAgentWritesSeen(noteId: string, writeIds: readonly string[]): Promise<void>
+  /** IDs of the notes not in the Trash with any agent_writes row, seen or not. */
+  authoredNotes(): Promise<string[]>
+  /** IDs the note has no row for are skipped. Answers how many rows it changed. */
+  markAgentWritesSeen(noteId: string, writeIds: readonly string[]): Promise<number>
 }

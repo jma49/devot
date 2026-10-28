@@ -22,6 +22,7 @@ import {
   boardJump,
   boardOrder,
   cardStep,
+  columnJump,
   columnWindow,
   type BoardColumn,
 } from './board'
@@ -456,8 +457,12 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
     }
     const first = order[0]
     if (first === undefined) return
+    const status = event.currentTarget.dataset['status'] as NoteStatus | undefined
     if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
-      const jumped = boardJump(columns, first, event.key)
+      const jumped =
+        status === undefined
+          ? boardJump(columns, first, event.key)
+          : columnJump(columns, status, event.key)
       if (jumped !== undefined) {
         event.preventDefault()
         return open(jumped)

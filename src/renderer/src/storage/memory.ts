@@ -418,12 +418,26 @@ export const memoryStorage: StorageAdapter = {
     const newest = new Set(sorted.slice(0, limit).map(key))
     return sorted.filter((w) => !w.seen || newest.has(key(w)))
   },
+  async authoredNotes() {
+    const live = new Set(
+      read<Stored>(NOTES)
+        .filter((n) => n.deletedAt === null && n.purgedAt === undefined)
+        .map((n) => n.id),
+    )
+    return [...new Set(read<AgentWriteSummary>(AGENT_WRITES).map((w) => w.noteId))].filter((id) =>
+      live.has(id),
+    )
+  },
   async markAgentWritesSeen(noteId, writeIds) {
     const ids = new Set(writeIds)
-    const rows = read<AgentWriteSummary>(AGENT_WRITES).map((w) =>
-      w.noteId === noteId && ids.has(w.writeId) ? { ...w, seen: true } : w,
-    )
+    let changed = 0
+    const rows = read<AgentWriteSummary>(AGENT_WRITES).map((w) => {
+      if (w.noteId !== noteId || !ids.has(w.writeId) || w.seen) return w
+      changed += 1
+      return { ...w, seen: true }
+    })
     localStorage.setItem(AGENT_WRITES, JSON.stringify(rows))
+    return changed
   },
   async listBooks() {
     return (

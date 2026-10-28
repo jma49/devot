@@ -2559,7 +2559,7 @@ export function App() {
     removeTag: removeTagFromNotes,
     trash: trashNotes,
     clearAuthorship: editing ? setClearing : undefined,
-    authored: (id) => agentWrites.view.byNote.has(id),
+    authored: (id) => agentWrites.view.authored.has(id),
   })
 
   // Back/Forward entries skip deleted notes (the Trash's notes are never entries); templates are entries. The open note is the current entry's or the one a navigation is opening; none in the Trash.

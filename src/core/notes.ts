@@ -258,6 +258,8 @@ export interface NoteService {
   clearAuthorship(id: string): Promise<Uint8Array>
   /** The agent_writes rows of notes not in the Trash, newest first (StorageAdapter.listAgentWrites). */
   agentWrites(limit: number): Promise<AgentWriteSummary[]>
+  /** IDs of the notes with any agent_writes row, seen or not (StorageAdapter.authoredNotes). */
+  authoredNotes(): Promise<string[]>
   /** Marks writes of the note seen on this device, once its pending edits are saved, so a write it holds has its row. */
   markWritesSeen(id: string, writeIds: readonly string[]): Promise<void>
   /** Pending edits are saved and unversioned typing becomes a version, so it counts. */
@@ -1654,6 +1656,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       }),
 
     agentWrites: (limit) => storage.listAgentWrites(limit),
+    authoredNotes: () => storage.authoredNotes(),
 
     async markWritesSeen(id, writeIds) {
       if (writeIds.length === 0) return
