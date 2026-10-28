@@ -80,6 +80,9 @@ describe('the link dialog result', () => {
     expect(await previewTexts(empty, 'td')).toEqual(['http://x.com/a|b', 'c'])
     const typed = s.update(insertLink(s, 'x|y', 'https://u.test')).newDoc.toString()
     expect(await previewTexts(typed, 'td')).toEqual(['x|y', 'c'])
+    // GFM splits a cell on a pipe even inside a code span.
+    const code = s.update(insertLink(s, '`a|b`', 'https://u.test')).newDoc.toString()
+    expect(await previewTexts(code, 'td')).toEqual(['a|b', 'c'])
   })
 
   it('links each line of a selection over several lines, after its block markers', () => {

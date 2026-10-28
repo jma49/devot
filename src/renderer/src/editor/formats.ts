@@ -1097,14 +1097,16 @@ const CODE_SPAN = /(`+)[\s\S]*?(?<!`)\1(?!`)/g
  * a table it would end the cell), outside code spans, where a backslash would
  * show; so is a trailing backslash, which would escape the closing bracket.
  */
-function linkLabel(text: string): string {
+function linkLabel(text: string, inTable = false): string {
   const flat = text.replace(/\s*\n\s*/g, ' ')
   const escape = (plain: string) =>
     plain.replace(/\\?[[\]|]/g, (m) => (m.length === 2 ? m : `\\${m}`))
+  // A table splits a cell on a pipe even inside a code span, where the escape shows as the pipe.
+  const inCode = (code: string) => (inTable ? code.replace(/(?<!\\)\|/g, '\\|') : code)
   let label = ''
   let at = 0
   for (const span of flat.matchAll(CODE_SPAN)) {
-    label += escape(flat.slice(at, span.index)) + span[0]
+    label += escape(flat.slice(at, span.index)) + inCode(span[0])
     at = span.index + span[0].length
   }
   label += escape(flat.slice(at))
@@ -1120,13 +1122,14 @@ function linkLabel(text: string): string {
 export function insertLink(state: EditorState, text: string, url: string): TransactionSpec {
   const { ranges, main } = state.selection
   const { from, to } = main
+  const cx = context(state)
   if (ranges.length > 1 || state.doc.lineAt(from).number !== state.doc.lineAt(to).number) {
-    const cx = context(state)
     const segments = cx ? linkSegments(cx) : []
     if (cx && segments.length > 0) return linkSegmentsTo(cx, segments, url.trim())
   }
   const address = linkAddress(url.trim())
-  const label = linkLabel(text.trim() === '' ? url.trim() : text)
+  const inTable = cx !== null && lineBlock(cx, state.doc.lineAt(from)).kind === 'table'
+  const label = linkLabel(text.trim() === '' ? url.trim() : text, inTable)
   const changes = state.changes([
     ...escapeBangBefore(state, from),
     { from, to, insert: `[${label}](${address})` },
