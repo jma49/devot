@@ -20,6 +20,7 @@ import { Icon } from './icons/Icon'
 import type { MenuPoint } from './contextMenu'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import {
+  keyTarget,
   openAfter,
   selectAll,
   selectRange,
@@ -525,7 +526,8 @@ export const NoteList = memo(function NoteList(props: Props) {
     // focus has left (a right-click focuses its row; a filter may hide the
     // open note). With several notes selected they act on the selection, whose
     // rows are all drawn selected. Every key here comes from the registry.
-    const target = chosen ? (selected ?? notes[index]?.id) : notes[index]?.id
+    const live = latest()
+    const target = keyTarget(live.selection, live.selected, notes[index]?.id)
     if (target && commandMatches('list.rowMenu', event) && rowMenu(target)) {
       event.preventDefault()
       return

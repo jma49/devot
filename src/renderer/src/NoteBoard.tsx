@@ -31,6 +31,7 @@ import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
 import { ListHeader } from './ListHeader'
 import {
+  keyTarget,
   selectAll,
   selectRange,
   selectStep,
@@ -376,7 +377,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       return
     }
     if (selectionKey(event) || undoKey(event)) return
-    const target = chosen ? (selected ?? id) : id
+    const target = keyTarget(selection, selected, id)
     if (props.onMenu && commandMatches('list.rowMenu', event)) {
       event.preventDefault()
       const box = cards.current.get(id)?.getBoundingClientRect()
