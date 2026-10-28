@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, LIMITS } from '../../licence/src/app'
 import {
   fromBase64Url,
@@ -52,12 +52,12 @@ beforeEach(async () => {
   app = await build()
 })
 
-async function build() {
+async function build(kid = 'test') {
   return createApp({
     store: d1Store(db),
     stripe,
     mailer,
-    signer: await signerFromSeed('test', seed),
+    signer: await signerFromSeed(kid, seed),
     config: {
       managedPayments,
       priceLicence: 'price_licence',
@@ -193,6 +193,20 @@ describe('buying', () => {
     expect(mailer.sent).toEqual([])
   })
 
+  it('refuses a test-mode session signed under a production kid, and takes a live one', async () => {
+    app = await build('2026-10')
+    const test = await buy('buyer@example.com')
+    expect((await webhook('checkout.session.completed', rawSession(test))).status).toBe(200)
+    expect(await licenceCount()).toBe(0)
+    expect((await get(`/done?session_id=${test.id}`)).status).toBe(404)
+    stripe.livemode = true
+    const live = await buy('buyer@example.com')
+    expect((await webhook('checkout.session.completed', rawSession(live))).status).toBe(200)
+    expect(await licenceCount()).toBe(1)
+    await settle()
+    expect(mailer.sent).toHaveLength(1)
+  })
+
   it('refuses a webhook with a bad signature', async () => {
     const session = await buy('buyer@example.com')
     const response = await webhook('checkout.session.completed', rawSession(session), 'whsec_x')
@@ -245,15 +259,32 @@ describe('/done', () => {
     expect(keysIn(mailer.sent[0]?.text ?? '')[0]).toBe(key)
   })
 
-  it('mails once when the webhook arrives while /done is still sending', async () => {
+  it('asks Stripe to retry while /done holds the mail claim, then mails once', async () => {
     const session = await buy('buyer@example.com')
     const release = mailer.hold()
     expect((await get(`/done?session_id=${session.id}`)).status).toBe(200)
-    // A webhook that also sent would wait on the held mail, so the test would time out.
+    await vi.waitFor(() => expect(mailer.sending).toBe(true))
+    // The claim is taken but the send is not confirmed: a webhook must not answer 200.
     const hooks = [1, 2].map(() => webhook('checkout.session.completed', rawSession(session)))
-    expect((await Promise.all(hooks)).map((r) => r.status)).toEqual([200, 200])
+    expect((await Promise.all(hooks)).map((r) => r.status)).toEqual([500, 500])
     release()
     await settle()
+    expect(mailer.sent).toHaveLength(1)
+    expect((await webhook('checkout.session.completed', rawSession(session))).status).toBe(200)
+    expect(mailer.sent).toHaveLength(1)
+  })
+
+  it('sends the mail a webhook saw in flight after its sender failed', async () => {
+    const session = await buy('buyer@example.com')
+    const release = mailer.hold(true)
+    expect((await get(`/done?session_id=${session.id}`)).status).toBe(200)
+    await vi.waitFor(() => expect(mailer.sending).toBe(true))
+    // The webhook finds the claim unconfirmed, so it answers 500 and Stripe retries.
+    expect((await webhook('checkout.session.completed', rawSession(session))).status).toBe(500)
+    release()
+    await settle()
+    expect(mailer.sent).toHaveLength(0)
+    expect((await webhook('checkout.session.completed', rawSession(session))).status).toBe(200)
     expect(mailer.sent).toHaveLength(1)
   })
 
@@ -310,6 +341,22 @@ describe('/done', () => {
     expect((await get('/done?session_id=cs_test_none')).status).toBe(404)
     expect((await get('/done?session_id=<script>')).status).toBe(400)
     expect((await get('/done')).status).toBe(400)
+  })
+
+  it('says a delayed payment failed instead of keeping the buyer waiting', async () => {
+    const response = await get('/buy')
+    const sessionId = response.headers.get('Location')?.split('/').pop() ?? ''
+    const unpaid = stripe.pay(sessionId, 'buyer@example.com', 'unpaid')
+    expect((await get(`/done?session_id=${sessionId}`)).status).toBe(202)
+    stripe.failPayment(unpaid.paymentIntent ?? '')
+    const failed = await get(`/done?session_id=${sessionId}`)
+    expect(failed.status).toBe(402)
+    expect(await failed.text()).toContain('E_LICENCE_UNPAID')
+    expect(
+      (await webhook('checkout.session.async_payment_failed', rawSession(unpaid))).status,
+    ).toBe(200)
+    expect(logs).toContain(`E_LICENCE_UNPAID ${sessionId}`)
+    expect(await licenceCount()).toBe(0)
   })
 
   it('reports a Stripe outage with its code', async () => {
@@ -444,6 +491,67 @@ describe('/resend', () => {
     expect(mailer.sent).toHaveLength(LIMITS.resendPerAddress + 1)
     const { results } = await db.prepare('SELECT key FROM rate_limits').all<{ key: string }>()
     expect(results.some((r) => r.key.includes('example') || r.key.includes('192.0'))).toBe(false)
+  })
+
+  it('sends at most six a day per address', async () => {
+    await webhook('checkout.session.completed', rawSession(await buy('buyer@example.com')))
+    mailer.sent.length = 0
+    for (let i = 0; i < LIMITS.resendPerAddress; i++) {
+      await resend('buyer@example.com', `198.51.100.${i + 1}`)
+    }
+    clock = new Date(clock.getTime() + LIMITS.resendWindowSeconds * 1000)
+    for (let i = 0; i < LIMITS.resendPerAddressPerDay - LIMITS.resendPerAddress; i++) {
+      await resend('buyer@example.com', `198.51.101.${i + 1}`)
+    }
+    clock = new Date(clock.getTime() + LIMITS.resendWindowSeconds * 1000)
+    await resend('buyer@example.com', '198.51.102.1')
+    await settle()
+    expect(mailer.sent).toHaveLength(LIMITS.resendPerAddressPerDay)
+  })
+
+  it('sends at most 25 a day in all, leaving room for purchase mails', async () => {
+    await webhook('checkout.session.completed', rawSession(await buy('buyer@example.com')))
+    mailer.sent.length = 0
+    // Unrelated addresses use most of the day's allowance; they bought nothing, so none is mailed.
+    const filler = (i: number) =>
+      resend(`filler${i}@example.com`, `203.0.${Math.floor(i / 250)}.${(i % 250) + 1}`)
+    for (let i = 0; i < LIMITS.resendAllPerDay - 1; i++) await filler(i)
+    await resend('buyer@example.com', '198.51.100.1')
+    await settle()
+    expect(mailer.sent.map((m) => m.to)).toEqual(['buyer@example.com'])
+    // The last request fills the day: the buyer's own asks now go nowhere, however often they ask.
+    await filler(LIMITS.resendAllPerDay - 1)
+    for (let i = 0; i < LIMITS.resendPerAddress; i++) {
+      await resend('buyer@example.com', `198.51.101.${i + 1}`)
+    }
+    await settle()
+    expect(mailer.sent).toHaveLength(1)
+  })
+
+  it("an over-limit IP does not spend a buyer's recovery allowance", async () => {
+    await webhook('checkout.session.completed', rawSession(await buy('buyer@example.com')))
+    mailer.sent.length = 0
+    for (let i = 0; i < LIMITS.resendPerIp; i++) {
+      await resend(`filler${i}@example.com`, '192.0.2.9')
+    }
+    // Over the IP's limit: these must not count against the buyer's address.
+    for (let i = 0; i < LIMITS.resendPerAddress + 1; i++) {
+      await resend('buyer@example.com', '192.0.2.9')
+    }
+    await resend('buyer@example.com', '198.51.100.7')
+    await settle()
+    expect(mailer.sent).toHaveLength(1)
+  })
+
+  it('finds a buyer whose Stripe address has capitals', async () => {
+    await webhook('checkout.session.completed', rawSession(await buy('Jane.Doe@Example.com')))
+    mailer.sent.length = 0
+    await resend('jane.doe@example.com')
+    await settle()
+    expect(mailer.sent).toHaveLength(1)
+    expect(mailer.sent[0]?.to).toBe('jane.doe@example.com')
+    const [key] = keysIn(mailer.sent[0]?.text ?? '')
+    expect((await payload(key ?? '')).licensee).toBe('Jane.Doe@Example.com')
   })
 
   it('refuses something that is not an address, and shows its form', async () => {

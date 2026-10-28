@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { LicenceError } from '../../licence/src/errors'
 import { DOVE } from '../../licence/src/brand'
-import { licenceMail, resendMailer, type Mail } from '../../licence/src/mail'
+import { licenceMail, MAIL_TIMEOUT_MS, resendMailer, type Mail } from '../../licence/src/mail'
 import { MESSAGES } from '../../licence/src/messages'
 
 const mail: Mail = {
@@ -56,6 +56,13 @@ describe('resendMailer', () => {
       text: mail.text,
       html: mail.html,
     })
+  })
+
+  it('gives Resend ten seconds before giving up, inside the waitUntil budget', async () => {
+    const { calls, mailer } = recording(() => json({ id: 'em_1' }, 200))
+    await mailer.send(mail)
+    expect(calls[0]?.init.signal).toBeInstanceOf(AbortSignal)
+    expect(MAIL_TIMEOUT_MS).toBe(10_000)
   })
 
   it('sends reply_to when a Reply-To address is set', async () => {

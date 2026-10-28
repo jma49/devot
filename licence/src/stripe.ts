@@ -9,6 +9,8 @@ export interface CheckoutSession {
   url: string | null
   mode: string
   paymentStatus: string
+  /** True for a live-mode purchase, false for a test-mode one (docs/licensing.md, Stripe). */
+  livemode: boolean
   customer: string | null
   paymentIntent: string | null
   email: string | null
@@ -20,10 +22,15 @@ export interface Customer {
   email: string | null
 }
 
+export interface PaymentIntent {
+  status: string
+}
+
 /** The few Stripe calls the Worker makes; tests give it a fake. */
 export interface StripeClient {
   createCheckoutSession(params: Record<string, string>): Promise<{ id: string; url: string }>
   retrieveCheckoutSession(id: string): Promise<CheckoutSession | null>
+  retrievePaymentIntent(id: string): Promise<PaymentIntent | null>
   customersByEmail(email: string): Promise<Customer[]>
   retrieveCustomer(id: string): Promise<Customer | null>
 }
@@ -74,6 +81,9 @@ export function stripeClient(apiKey: string, fetcher: Fetch = (i, init) => fetch
     async retrieveCheckoutSession(id) {
       return toSession(await call('GET', `/v1/checkout/sessions/${encodeURIComponent(id)}`))
     },
+    async retrievePaymentIntent(id) {
+      return toPaymentIntent(await call('GET', `/v1/payment_intents/${encodeURIComponent(id)}`))
+    },
     async customersByEmail(email) {
       const list = await call('GET', '/v1/customers', { email, limit: '100' })
       const data = Array.isArray(list?.['data']) ? list['data'] : []
@@ -108,6 +118,7 @@ export function toSession(value: unknown): CheckoutSession | null {
     url: text(value['url']),
     mode: text(value['mode']) ?? '',
     paymentStatus: text(value['payment_status']) ?? '',
+    livemode: value['livemode'] === true,
     customer: ref(value['customer']),
     paymentIntent: ref(value['payment_intent']),
     email: isRecord(details) ? text(details['email']) : null,
@@ -121,4 +132,11 @@ function toCustomer(value: unknown): Customer | null {
   if (!isRecord(value) || value['object'] !== 'customer' || value['deleted'] === true) return null
   const id = text(value['id'])
   return id ? { id, email: text(value['email']) } : null
+}
+
+/** A PaymentIntent: only its status, which says whether a delayed payment failed. */
+function toPaymentIntent(value: unknown): PaymentIntent | null {
+  if (!isRecord(value) || value['object'] !== 'payment_intent') return null
+  const status = text(value['status'])
+  return status ? { status } : null
 }

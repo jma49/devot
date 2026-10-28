@@ -90,7 +90,8 @@ export function pendingPage(sessionId: string, check: number): Response {
   return page(
     MESSAGES.pendingTitle,
     lead +
-      `<p class="wait muted"><span class="spinner" aria-hidden="true"></span>${escapeHtml(MESSAGES.pendingReload)}</p>`,
+      `<p class="wait muted"><span class="spinner" aria-hidden="true"></span>${escapeHtml(MESSAGES.pendingReload)}</p>` +
+      `<p class="muted"><a href="${escapeHtml(`${done}&check=${PENDING_CHECKS}`)}">${escapeHtml(MESSAGES.pendingStop)}</a></p>`,
     {
       status: 202,
       refresh: { seconds: PENDING_RELOAD_SECONDS, url: `${done}&check=${check + 1}` },

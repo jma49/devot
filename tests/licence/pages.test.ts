@@ -115,6 +115,10 @@ it('the waiting page answers 202 and reloads itself with the next check count, w
   )
   expect(html).toContain(MESSAGES.pendingBody)
   expect(html).toContain(MESSAGES.pendingReload)
+  // WCAG 2.2.1 (F41): the reload has a control that stops it.
+  expect(html).toContain(
+    `<a href="/done?session_id=${SESSION}&amp;check=${PENDING_CHECKS}">${MESSAGES.pendingStop}</a>`,
+  )
   expect(html).not.toMatch(/devot1|<script/)
 })
 
