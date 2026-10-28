@@ -182,7 +182,8 @@ test.describe('once the trial is over', () => {
     await expect(
       page.getByRole('region', { name: 'Planning' }).getByRole('button', { name: 'Edit a Copy' }),
     ).toHaveAttribute('aria-disabled', 'true')
-    await create.click()
+    // A disabled button takes no click; this one is aria-disabled, so click it anyway.
+    await create.evaluate((el) => (el as HTMLElement).click())
     // Nothing is made: no note opens, and the Templates list stays empty.
     await page.waitForTimeout(1_000)
     await expect(page.getByRole('textbox', { name: 'Title' })).toHaveCount(0)
