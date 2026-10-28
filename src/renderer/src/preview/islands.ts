@@ -90,6 +90,7 @@ export function createIslandMounter(
   let frame: number | undefined
   let sizes: ResizeObserver | undefined
   let retryTimer: ReturnType<typeof setTimeout> | undefined
+  let retryDue = 0
   let lastContext: IslandContext | undefined
 
   const release = (slot: Slot) => {
@@ -136,7 +137,6 @@ export function createIslandMounter(
 
   /** Waits out the shortest backoff of a failure that may pass, then mounts again. */
   const arm = () => {
-    if (retryTimer !== undefined) return
     const now = Date.now()
     let soonest = Number.POSITIVE_INFINITY
     for (const [el, slot] of slots) {
@@ -144,6 +144,11 @@ export function createIslandMounter(
       soonest = Math.min(soonest, slot.retryAt)
     }
     if (soonest === Number.POSITIVE_INFINITY) return
+    if (retryTimer !== undefined) {
+      if (retryDue <= soonest) return
+      clearTimeout(retryTimer)
+    }
+    retryDue = soonest
     retryTimer = setTimeout(
       () => {
         retryTimer = undefined

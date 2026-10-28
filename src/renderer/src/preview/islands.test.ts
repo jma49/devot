@@ -215,6 +215,27 @@ describe('createIslandMounter', () => {
       mounter.dispose()
     })
 
+    it('tries a new failure at its own time, not after the long backoff already waiting', async () => {
+      const { island, requests } = testIsland()
+      const mounter = createIslandMounter(createIslandRegistry([island]))
+      const a = islandElement('a')
+      mounter.mount(hostOf([a]), { appearance: 'light' })
+      for (const wait of [600, 1100]) {
+        requests.at(-1)!.land({ retry: true })
+        await vi.advanceTimersByTimeAsync(wait)
+      }
+      requests.at(-1)!.land({ retry: true })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(requests).toHaveLength(3)
+
+      mounter.mount(hostOf([a, islandElement('b')]), { appearance: 'light' })
+      expect(requests).toHaveLength(4)
+      requests[3]!.land({ retry: true })
+      await vi.advanceTimersByTimeAsync(600)
+      expect(requests).toHaveLength(5)
+      mounter.dispose()
+    })
+
     it('starts over at once when the source changes', async () => {
       const { island, requests } = testIsland()
       const mounter = createIslandMounter(createIslandRegistry([island]))

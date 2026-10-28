@@ -59,8 +59,7 @@ function htmlAfter(line: string, depth: number): { depth: number; until: string 
 
 function tagsIn(text: string): number {
   let change = 0
-  // One forward-only search for the next `>`: a line of unclosed tags used to
-  // scan to its end for each of them.
+  // Search forward only for the next `>`: a rescan per unclosed tag is quadratic on a long line.
   let close = -1
   let noCloseFrom = -1
   for (const match of text.matchAll(TAG)) {

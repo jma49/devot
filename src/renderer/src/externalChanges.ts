@@ -7,8 +7,8 @@ import { useEffect, useRef } from 'react'
 import { listenHere } from './windowEvents'
 
 export const DB_CHANGED = 'devot:db-changed'
-/** Sent once the notes the core holds are merged and the lists reloaded after a `DB_CHANGED`. */
-export const DB_RELOADED = 'devot:db-reloaded'
+/** Sent each time the app has reloaded its lists, whatever changed the notes. */
+export const NOTES_LOADED = 'devot:notes-loaded'
 
 export function useExternalChanges(onChange: (() => Promise<void>) | undefined) {
   const latest = useRef(onChange)
@@ -36,9 +36,6 @@ export function useExternalChanges(onChange: (() => Promise<void>) | undefined) 
         return
       }
       running = run()
-        .then(() => {
-          window.dispatchEvent(new CustomEvent(DB_RELOADED))
-        })
         .catch(() => console.warn('W_EXTERNAL_RELOAD_FAILED'))
         .finally(() => {
           running = undefined

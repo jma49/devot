@@ -1,6 +1,6 @@
 // Markdown to a sanitized HTML tree (hast) for the preview. Note content is untrusted (import, sync and AI write it too): raw HTML is parsed, then sanitized by an
 // allowlist, and only then do preview renderers add Devot's own structure. The tree is plain data, so it crosses the worker boundary.
-import type { Element, ElementContent, Root as HastRoot, RootContent } from 'hast'
+import type { Comment, Element, ElementContent, Root as HastRoot, RootContent } from 'hast'
 import type { Root as MdastRoot } from 'mdast'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema, type Options as Schema } from 'rehype-sanitize'
@@ -116,25 +116,30 @@ function outsidePluginBlocks(renderer: PreviewRenderer): PreviewRenderer {
     id: renderer.id,
     apiVersion: renderer.apiVersion,
     async transform(tree, context) {
-      const held: [HastRoot | Element, number, Element][] = []
+      // A placeholder keeps the block's place through a renderer that moves, rebuilds or prepends nodes around it.
+      const held = new Map<Comment, Element>()
       const take = (parent: HastRoot | Element) => {
-        for (let at = parent.children.length - 1; at >= 0; at -= 1) {
-          const child = parent.children[at]!
-          if (child.type !== 'element') continue
-          if (isPluginBlock(child)) {
-            held.push([parent, at, child])
-            parent.children.splice(at, 1)
-          } else take(child)
-        }
+        parent.children.forEach((child, at) => {
+          if (child.type !== 'element') return
+          if (!isPluginBlock(child)) return take(child)
+          const placeholder: Comment = { type: 'comment', value: 'plugin-block' }
+          held.set(placeholder, child)
+          ;(parent as { children: ElementContent[] }).children[at] = placeholder
+        })
+      }
+      const restore = (parent: HastRoot | Element) => {
+        parent.children.forEach((child, at) => {
+          if (child.type === 'comment') {
+            const node = held.get(child)
+            if (node) (parent as { children: ElementContent[] }).children[at] = node
+          } else if (child.type === 'element') restore(child)
+        })
       }
       take(tree)
       try {
         await renderer.transform(tree, context)
       } finally {
-        // Back in the order they were: lowest index first within a parent.
-        for (const [parent, at, node] of held.reverse()) {
-          ;(parent as { children: ElementContent[] }).children.splice(at, 0, node)
-        }
+        restore(tree)
       }
     },
   }

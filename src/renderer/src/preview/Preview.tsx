@@ -1,7 +1,7 @@
 import { invoke } from '../ipc'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import type { NoteLinkTarget, PreviewLabels } from '../../../core'
-import { DB_RELOADED } from '../externalChanges'
+import { NOTES_LOADED } from '../externalChanges'
 import { noteLinks } from '../../../core/links'
 import { taskProgress } from '../../../core/tasks'
 import { fragmentId } from '../../../core/preview/headingIds'
@@ -295,15 +295,14 @@ export function Preview({
     input.current = { markdown, loadedEmbeds }
   })
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
-  // A note a chip shows changed (in another window, or from another process;
-  // the core has merged the change): its chip is drawn again with the new title, status and progress.
+  // The lists were reloaded (a note a chip shows was renamed, moved, trashed, or changed from another process): its chip is drawn again with the new title, status and progress.
   useEffect(() => {
     const changed = () => {
       knownLinks.current = undefined
       render.current?.(input.current)
     }
-    window.addEventListener(DB_RELOADED, changed)
-    return () => window.removeEventListener(DB_RELOADED, changed)
+    window.addEventListener(NOTES_LOADED, changed)
+    return () => window.removeEventListener(NOTES_LOADED, changed)
   }, [])
 
   const tasks = useMemo(() => taskProgress(markdown), [markdown])

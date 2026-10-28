@@ -293,6 +293,7 @@ test('an exported page keeps a diagram on a light surface in the dark, and a hei
 
   const view = await context.newPage()
   await view.emulateMedia({ colorScheme: 'dark' })
+  await view.setViewportSize({ width: 160, height: 600 })
   await view.setContent(html, { waitUntil: 'load' })
   type Style = Record<string, string>
   const computed = (selector: string) =>
@@ -312,6 +313,14 @@ test('an exported page keeps a diagram on a light surface in the dark, and a hei
   const diagram = await computed('.island svg')
   expect(Math.min(...channels(diagram.background))).toBeGreaterThan(200)
   expect((await computed('img')).height).toBeCloseTo(200, 0)
+  const overflow = await view
+    .locator('.island')
+    .first()
+    .evaluate((el) => {
+      const box = el as unknown as { scrollWidth: number; clientWidth: number }
+      return box.scrollWidth - box.clientWidth
+    })
+  expect(overflow).toBeLessThanOrEqual(0)
   await view.close()
 })
 

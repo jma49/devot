@@ -111,7 +111,7 @@ import {
   type SetImageSize,
 } from './imageMenu'
 import { ImageViewer, type ViewedImage } from './ImageViewer'
-import { DB_CHANGED, useExternalChanges } from './externalChanges'
+import { DB_CHANGED, NOTES_LOADED, useExternalChanges } from './externalChanges'
 import { useMarkdownMirror } from './MarkdownMirror'
 import { latestOnly } from './preview/latest'
 import { SearchField } from './SearchField'
@@ -663,6 +663,7 @@ export function App() {
     setTags(nextTags.sort((a, b) => compareNames(a.name, b.name, navigator.languages)))
     // Results follow edits, renames, trash and restore.
     if (latestSearch.current.query.trim()) runSearch.current?.(latestSearch.current)
+    window.dispatchEvent(new CustomEvent(NOTES_LOADED))
     return { notes: nextNotes, templates: listed.templates, books: nextBooks }
   }, [])
 

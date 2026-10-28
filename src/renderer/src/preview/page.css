@@ -29,6 +29,7 @@ body {
    its dark lines vanish into the page. */
 @media screen and (prefers-color-scheme: dark) {
   .island svg {
+    box-sizing: border-box;
     padding: var(--space-6);
     border-radius: var(--radius-card);
     background: var(--island-surface);

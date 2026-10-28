@@ -81,6 +81,20 @@ describe('plugin preview renderers', () => {
     expect(out.match(/class="code-header/g)).toHaveLength(1)
   })
 
+  it('keeps a plugin block inside an alert a built-in renderer rebuilds', async () => {
+    const out = await html('> [!NOTE]\n> ```chart\n> x\n> ```', async () => 'drawn')
+    expect(out).toMatch(
+      /<div class="alert alert-note"[^>]*>[\s\S]*<div class="plugin-block"[\s\S]*drawn/,
+    )
+  })
+
+  it('keeps front matter first when a plugin block opens the body', async () => {
+    const out = await html('---\ntitle: a\n---\n\n```chart\nx\n```\n\nAfter', async () => 'drawn')
+    expect(out.indexOf('class="frontmatter"')).toBeGreaterThan(-1)
+    expect(out.indexOf('class="frontmatter"')).toBeLessThan(out.indexOf('class="plugin-block"'))
+    expect(out.indexOf('class="plugin-block"')).toBeLessThan(out.indexOf('After'))
+  })
+
   it('leaves the answer no offsets into the note: its task boxes are disabled and its images carry no range', async () => {
     const tree = await renderPreview(
       '- [ ] real task\n\n```chart\nx\n```\n\n![a](devot://file/00000000-0000-4000-8000-000000000001)\n',
