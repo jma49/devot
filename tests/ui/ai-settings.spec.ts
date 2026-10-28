@@ -6,9 +6,9 @@ import { expect, openSettings, test, type TestWindow } from './fixtures'
 
 const SECRET = 'sk-test-0123456789'
 
-async function fakeRust(page: Page, failing?: string, storedKey = 'unset') {
+async function fakeRust(page: Page, failing?: string, storedKey = 'unset', keyFailing?: string) {
   await page.addInitScript(
-    ([failure, initial]) => {
+    ([failure, initial, keyFailure]) => {
       const w = globalThis as unknown as TestWindow
       const provider = (endpoint: string, model: string, defaultModel: string) => ({
         endpoint,
@@ -37,6 +37,7 @@ async function fakeRust(page: Page, failing?: string, storedKey = 'unset') {
           return copy()
         },
         ai_key_set: (args: { provider: string }) => {
+          if (keyFailure) throw keyFailure
           state[args.provider].key = 'set'
           return copy()
         },
@@ -46,7 +47,7 @@ async function fakeRust(page: Page, failing?: string, storedKey = 'unset') {
         },
       }
     },
-    [failing, storedKey] as const,
+    [failing, storedKey, keyFailing ?? null] as const,
   )
 }
 
@@ -185,4 +186,37 @@ test('suggestions on a pause are off until turned on, and say what they send', a
     .toMatchObject({
       settings: { suggestOnIdle: true },
     })
+})
+
+test('a refused key is reported beside its own field', async ({ page }) => {
+  await fakeRust(page, undefined, 'unset', 'E_AI_KEY_INVALID')
+  await openSettings(page, 'AI')
+  const claude = page.getByRole('region', { name: 'Claude (Anthropic)' })
+  const field = claude.getByLabel('API key for Claude (Anthropic)')
+  await field.fill('not a key')
+  await claude.getByRole('button', { name: 'Save Key' }).click()
+  // The pane may be scrolled to the provider: the error belongs beside the field (A122).
+  const error = claude.getByRole('alert')
+  await expect(error).toHaveText('The key could not be changed (E_AI_KEY_INVALID).')
+  await expect(field).toHaveAccessibleDescription(/E_AI_KEY_INVALID/)
+  // Typing a new key clears it.
+  await field.fill('another')
+  await expect(error).toHaveCount(0)
+})
+
+test('saving a key leaves the keyboard on Save Key when the field empties', async ({ page }) => {
+  await fakeRust(page)
+  await openSettings(page, 'AI')
+  const claude = page.getByRole('region', { name: 'Claude (Anthropic)' })
+  const field = claude.getByLabel('API key for Claude (Anthropic)')
+  const save = claude.getByRole('button', { name: 'Save Key' })
+  await field.fill(SECRET)
+  // As the keyboard reaches it: focused, then Enter (WebKit does not focus on a click).
+  await save.focus()
+  await expect(save).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(claude).toContainText('A key is stored in the Keychain.')
+  // aria-disabled, not disabled: the button stays under the keyboard (A121).
+  await expect(save).toBeDisabled()
+  await expect(save).toBeFocused()
 })

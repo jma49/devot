@@ -145,6 +145,14 @@ describe('outlineEntries', () => {
     ])
   })
 
+  it('drops a closing #-sequence and trailing whitespace, and takes no text-less heading', () => {
+    expect(outlineEntries('# A #\n## B ##   \n### C\t#\t\n####\n# ').map((e) => e.label)).toEqual([
+      'A',
+      'B',
+      'C',
+    ])
+  })
+
   it('is empty for a note without headings or tasks', () => {
     expect(outlineEntries('just text\n\nmore')).toEqual([])
   })

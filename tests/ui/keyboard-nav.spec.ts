@@ -281,6 +281,26 @@ test('a held Shift+Down keeps extending the selection instead of opening notes',
   await expect(selected).toBeVisible()
 })
 
+test('a row the keyboard reaches shows a ring even when the open note is not listed', async ({
+  page,
+}) => {
+  await createNote(page, 'Alpha')
+  await createNote(page, 'Beta')
+  await noteRow(page, 'Alpha').click()
+  await expect(noteRow(page, 'Alpha')).toBeFocused()
+  const search = page.getByRole('searchbox', { name: 'Search notes' })
+  await search.fill('Beta')
+  await expect(noteRows(page)).toHaveCount(1)
+  // The open note is Alpha, which the search filters out: no open-note bar marks Beta's row.
+  await expect(titleField(page)).toHaveValue('Alpha')
+  await expect(noteRow(page, 'Beta')).not.toHaveAttribute('data-open')
+
+  // Return in the field hands the keyboard to the list; the row must show where it is (A026).
+  await search.press('Enter')
+  await expect(noteRow(page, 'Beta')).toBeFocused()
+  await expect(noteRow(page, 'Beta')).toHaveCSS('outline-style', 'solid')
+})
+
 test('Return on a row edits the title, Cmd+Return the body', async ({ page }) => {
   await createNote(page, 'Alpha')
   await createNote(page, 'Beta')

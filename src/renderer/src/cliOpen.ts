@@ -5,7 +5,7 @@ export type OpenDestination =
   | { readonly kind: 'book'; readonly id: string | null }
   | { readonly kind: 'create'; readonly name: string }
 
-/** An exact name wins over one differing only in case; a missing one is made. */
+/** An exact name wins over one differing only in case; a missing one is made. Names compare after NFC normalisation, so an NFD spelling finds the notebook it looks like. */
 export function openDestination(
   name: string | null,
   books: readonly { readonly id: string; readonly name: string }[],
@@ -19,9 +19,11 @@ export function openDestination(
     )
     return { kind: 'book', id }
   }
-  const folded = name.toLocaleLowerCase()
+  const wanted = name.normalize('NFC')
+  const folded = wanted.toLocaleLowerCase()
   const found =
-    books.find((b) => b.name === name) ?? books.find((b) => b.name.toLocaleLowerCase() === folded)
+    books.find((b) => b.name.normalize('NFC') === wanted) ??
+    books.find((b) => b.name.normalize('NFC').toLocaleLowerCase() === folded)
   return found ? { kind: 'book', id: found.id } : { kind: 'create', name }
 }
 

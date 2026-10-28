@@ -573,3 +573,15 @@ test('Export Selected Notes writes the selected notes side by side', async ({ pa
   )
   expect([...written].sort()).toEqual(['One.md', 'Two.md'])
 })
+
+test('a page setup that cannot be saved stops the print and names the code', async ({ page }) => {
+  await createNote(page, 'Plan', BODY)
+  await mockExport(page, { editor_settings_set: { error: 'E_EDITOR_SETTINGS_WRITE_FAILED' } })
+  await pickFromNoteMenu(page, 'Plan', 'Print…')
+  await confirmPageSetup(page, 'Print…')
+  // Rust lays the page out by the setup it holds: printing with the old one silently is worse (A114).
+  await expect(page.getByRole('alert')).toContainText(
+    'The note could not be printed (E_EDITOR_SETTINGS_WRITE_FAILED).',
+  )
+  expect(await calls(page, 'note_print')).toHaveLength(0)
+})

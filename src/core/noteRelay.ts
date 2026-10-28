@@ -11,6 +11,8 @@ export type NoteRelayMessage =
   | { kind: 'title'; noteId: string; title: string; hlc: string }
   /** A write of the note was stored, dated `updatedAt` (for the lists). */
   | { kind: 'saved'; noteId: string; updatedAt: number }
+  /** The note went to the Trash (`purged` false) or was deleted for good: its window turns read-only. */
+  | { kind: 'gone'; noteId: string; purged: boolean }
 
 /** What a note in memory took in that its own window did not make, for the editor and title field that show it. */
 export type TakenIn =

@@ -109,6 +109,18 @@ export function startMirrorStatus(): void {
 
 export const mirrorStatus = (): MirrorStatus => store.current()
 
+/**
+ * After a quit was called off: a window that had already answered may have stopped its mirror. A
+ * full pass (the stop forgot what it reconciled) starts it again, unless no folder is set.
+ */
+export function resumeMirrorAfterCancelledQuit(
+  core: { mirrorReconcile: (generation?: number) => void },
+  status: MirrorStatus = mirrorStatus(),
+): void {
+  if (status.folder === null) return
+  void core.mirrorReconcile(status.generation)
+}
+
 export function useMirrorStatus(): MirrorStatus {
   return useSyncExternalStore(store.subscribe, store.current)
 }

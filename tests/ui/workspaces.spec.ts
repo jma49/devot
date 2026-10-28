@@ -176,3 +176,85 @@ test('Up from All Notes reaches the title, where Return renames the notebook', a
   await nameField(page).press('Enter')
   await expect(workspace(page, 'Job')).toBeVisible()
 })
+
+const storedNotes = () =>
+  JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as { id: string; title: string }[]
+
+/** The id of the note `title`, as the storage holds it. */
+async function noteId(page: Page, title: string) {
+  const found = (await page.evaluate(storedNotes)).find((n) => n.title === title)
+  if (!found) throw new Error(`no note titled ${title}`)
+  return found.id
+}
+
+/** A local HTTP API call, handed to the window as Rust hands it, as authorship.spec.ts does. */
+const httpApi = (page: Page, op: string, note: string, args: Record<string, unknown>) =>
+  page.evaluate(
+    (call) => {
+      const w = globalThis as unknown as {
+        addEventListener(type: string, on: (e: { detail: { id: number } }) => void): void
+        removeEventListener(type: string, on: (e: { detail: { id: number } }) => void): void
+        dispatchEvent(e: unknown): void
+        CustomEvent: new (t: string, init: { detail: unknown }) => unknown
+      }
+      const id = Math.floor(Math.random() * 1e9)
+      return new Promise<unknown>((resolve) => {
+        const on = (e: { detail: { id: number } }) => {
+          if (e.detail.id !== id) return
+          w.removeEventListener('devot:http-api-done', on)
+          resolve(e.detail)
+        }
+        w.addEventListener('devot:http-api-done', on)
+        w.dispatchEvent(new w.CustomEvent('devot://http-api', { detail: { id, ...call } }))
+      })
+    },
+    { op, note, args },
+  )
+
+test('in a workspace the Agents section counts only its notes, and filtering shows them', async ({
+  page,
+}) => {
+  await setUp(page)
+  // One write in a note the workspace holds (Memo) and one outside it (Chores).
+  // The HTTP API writes only to notebooks shared with AI, so both are opened to it first.
+  for (const name of ['Home', 'Work']) {
+    await row(page, name).click({ button: 'right' })
+    await pickMenuItem(page, 'Allow AI Access')
+    await expect(book(page, name).getByRole('img', { name: 'AI access on' })).toBeVisible()
+  }
+  await openFromMenu(page, 'Work')
+  await httpApi(page, 'notes.update', await noteId(page, 'Memo'), {
+    markdown: 'Memo.\nFrom the API.\n',
+  })
+  await httpApi(page, 'notes.update', await noteId(page, 'Chores'), {
+    markdown: 'Chores.\nFrom the API.\n',
+  })
+  // Only Memo is in the workspace, so the agent counts one unseen change, not the library's two (A055).
+  const agent = sidebar(page).getByRole('button', { name: /^HTTP API/ })
+  await expect(agent).toHaveAccessibleName('HTTP API 1 unseen change')
+  await agent.click()
+  await expect(noteRows(page)).toHaveText([/Memo/])
+})
+
+test('deleting the sub-notebook the workspace shows falls back to the workspace’s All Notes', async ({
+  page,
+}) => {
+  await setUp(page)
+  await openFromMenu(page, 'Work')
+  await row(page, 'Devot').click()
+  await expect(header(page)).toHaveText('Devot')
+  await expect(noteRows(page)).toHaveText([/Plan/])
+
+  await row(page, 'Devot').click({ button: 'right' })
+  await pickMenuItem(page, 'Delete Notebook')
+  await page
+    .getByRole('dialog', { name: 'Delete the notebook \u201cDevot\u201d?' })
+    .getByRole('button', { name: 'Delete Notebook' })
+    .click()
+  await expect(book(page, 'Devot')).toHaveCount(0)
+  // The workspace stays: its own All Notes shows instead of dropping into the global library (A056).
+  await expect(workspace(page, 'Work')).toBeVisible()
+  await expect(header(page)).toHaveText('Work')
+  await expect(allNotes(page)).toHaveAttribute('aria-current', 'true')
+  await expect(noteRows(page)).toHaveText([/Memo/])
+})

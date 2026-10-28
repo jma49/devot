@@ -53,3 +53,17 @@ test('keyboard focus shows the bubble too, and leaving the button hides it', asy
   await button.evaluate((el) => el.blur())
   await expect(tip).toBeHidden()
 })
+
+test('a title React changes while the bubble shows is kept, not written back', async ({ page }) => {
+  await openApp(page)
+  const toggle = page.locator('.sidebar-toggle')
+  await toggle.hover()
+  await expect(page.getByRole('tooltip')).toBeVisible()
+  // The shortcut hides the sidebar while the pointer stays on the button: React sets its other title.
+  await page.keyboard.press('Meta+/')
+  await expect(toggle).toHaveAttribute('aria-label', 'Show Sidebar')
+  await page.mouse.move(400, 400)
+  await expect(page.getByRole('tooltip')).toBeHidden()
+  // Hiding the bubble must not put the old title back over the new one (A118).
+  await expect(toggle).toHaveAttribute('title', /^Show Sidebar/)
+})

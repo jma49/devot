@@ -89,7 +89,10 @@ test.describe('Settings > Licence', () => {
 
     // Rust drops the spaces a mail client wrapped the key in.
     await field.fill(`  ${KEY} `)
-    await add.click()
+    // As the keyboard reaches it: focused, then Enter.
+    await add.focus()
+    await expect(add).toBeFocused()
+    await page.keyboard.press('Enter')
     expect(await calls(page, 'licence_set')).toEqual([{ key: `  ${KEY} ` }])
     await expect(field).toHaveValue('')
     await expect(panel).toContainText('Editing, sync and AI are unlocked on this device.')
@@ -99,6 +102,11 @@ test.describe('Settings > Licence', () => {
     await expect(panel).not.toContainText('Updates Until')
     await expect(panel.getByRole('button', { name: 'Replace Licence' })).toBeVisible()
     await expect(panel.getByRole('button', { name: 'Buy a Licence' })).toHaveCount(0)
+
+    // The field emptied, so the button (now Replace) is disabled; the keyboard stays on it (A121).
+    const replace = panel.getByRole('button', { name: 'Replace Licence' })
+    await expect(replace).toBeDisabled()
+    await expect(replace).toBeFocused()
 
     await remove.click()
     const dialog = page.getByRole('dialog', { name: 'Remove the licence from this device?' })

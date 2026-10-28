@@ -11,10 +11,27 @@ const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palett
 
 const MISSING = '01890a5d-ac96-774b-bcce-b302099a8057'
 
-async function open(page: Page, mocks: Record<string, unknown> = {}) {
-  await page.addInitScript((m) => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = m
-  }, mocks)
+async function open(
+  page: Page,
+  mocks: Record<string, unknown> = {},
+  options: { holdFirstImport?: boolean } = {},
+) {
+  await page.addInitScript(
+    ([m, hold]) => {
+      const w = globalThis as unknown as TestWindow & { devotReleaseImport?: () => void }
+      if (hold) {
+        let release = () => {}
+        const held = new Promise<void>((resolve) => (release = resolve))
+        w.devotReleaseImport = () => release()
+        ;(m as Record<string, unknown>)['import_read'] = async (args: { id: number }) => {
+          if (args.id === 1) await held
+          return '# One\n'
+        }
+      }
+      w.devotIpcMocks = m
+    },
+    [mocks, options.holdFirstImport ?? false] as const,
+  )
   await openApp(page)
   await expect
     .poll(() =>
@@ -169,3 +186,37 @@ test('files from the command line that cannot be imported end their session', as
     )
     .toEqual([41])
 })
+
+test('two hand-offs naming the same new notebook make one notebook', async ({ page }) => {
+  // The first import waits for the test, so the second arrives while it is still running.
+  await open(page, { import_attach: null, import_finish: null }, { holdFirstImport: true })
+  const handed = (id: number, path: string) => ({
+    kind: 'import',
+    scan: { id, name: '', kind: 'files', files: [{ path, bytes: 8 }], images: [], skipped: [] },
+    notebook: 'Projects',
+    first: null,
+  })
+  await sendLink(page, handed(1, 'one.md'))
+  await sendLink(page, handed(2, 'two.md'))
+  // The queue settles on the next render or after a pause, not when the import ends (A070), so the
+  // second is handed over while the first is still importing. It must wait for the first.
+  await page.waitForTimeout(400)
+  expect(await importReads(page)).toEqual([1])
+
+  await page.evaluate(() =>
+    (globalThis as unknown as { devotReleaseImport(): void }).devotReleaseImport(),
+  )
+  await expect(
+    page.getByRole('tree', { name: 'Notebooks' }).getByRole('treeitem', { name: /^Projects\b/ }),
+  ).toHaveCount(1)
+  await expect(noteRows(page)).toHaveCount(2)
+  expect(await importReads(page)).toEqual([1, 2])
+})
+
+/** The sessions whose files were read, in order. */
+const importReads = (page: Page) =>
+  page.evaluate(() =>
+    (globalThis as unknown as TestWindow).devotIpcCalls
+      .filter((call) => call.cmd === 'import_read')
+      .map((call) => call.args['id'] as number),
+  )

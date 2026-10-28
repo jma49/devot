@@ -123,3 +123,21 @@ test('Later on an available update stays until a newer one', async ({ page }) =>
   await sendStatus(page, { ...IDLE, revision: 5, state: 'available', version: '0.4.0-beta.2' })
   await expect(notice).toContainText('Devot 0.4.0-beta.2 is available.')
 })
+
+test('a check this window asks for shows the same update again after Later', async ({ page }) => {
+  await open(page, { update_status: IDLE })
+  const notice = page.locator('[data-devot-update]')
+  await sendStatus(page, { ...IDLE, revision: 1, state: 'available', version: '0.4.0-beta.1' })
+  await notice.getByRole('button', { name: 'Later' }).click()
+  await expect(notice).toHaveCount(0)
+  // Check Now asks from this window: its answer is a new thing to say, with Download (A058).
+  await sendStatus(page, {
+    ...IDLE,
+    revision: 7,
+    askedBy: 'main',
+    state: 'available',
+    version: '0.4.0-beta.1',
+  })
+  await expect(notice).toContainText('Devot 0.4.0-beta.1 is available.')
+  await expect(notice.getByRole('button', { name: 'Download' })).toBeVisible()
+})

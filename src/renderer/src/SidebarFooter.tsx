@@ -96,9 +96,10 @@ export function SidebarFooter() {
         className="footer-toggle"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        aria-label={t('sidebar.statusLabel')}
         onClick={() => setOpen((now) => !now)}
       >
+        {/* The visible save time is part of the name: an aria-label would replace it. */}
+        <span className="visually-hidden">{t('sidebar.statusLabel')}: </span>
         <span className="footer-saved">
           {at === null ? '' : format(t('sidebar.savedAt'), { time: clockTime(at) })}
         </span>

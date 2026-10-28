@@ -80,6 +80,8 @@ export function NoteWindow() {
   const problemsRef = useRef<SaveProblem[]>([])
   const [dismissed, setDismissed] = useState(false)
   const [held, setHeld] = useState<'quit' | 'close' | undefined>()
+  // The note went to the Trash, or was purged, while this window showed it: read-only from then on.
+  const [gone, setGone] = useState<'trashed' | 'purged'>()
   const editing = useEditing()
   useEffect(() => startLicence(), [])
   // The trial ended with the note open: what was typed is saved as the window turns read-only.
@@ -132,6 +134,11 @@ export function NoteWindow() {
       const c = started
       if (!alive) return stopCore(c)
       const listening = link.listen((message) => {
+        // A note trashed or purged in another window: this one keeps its text, read-only, and says why.
+        if (message.kind === 'gone') {
+          setGone(message.purged ? 'purged' : 'trashed')
+          return
+        }
         void c.relayIn(message).catch((e: unknown) => {
           console.warn('W_NOTE_RELAY_IN_FAILED', message.noteId, errorCode(e))
         })
@@ -278,7 +285,7 @@ export function NoteWindow() {
               aria-label={t('note.titleLabel')}
               placeholder={t('note.untitled')}
               value={title}
-              readOnly={!editing}
+              readOnly={!editing || gone !== undefined}
               onChange={(e) => rename(e.target.value)}
               onKeyDown={(e) => {
                 // Return and Down Arrow go on to the body, as in the main window.
@@ -307,7 +314,7 @@ export function NoteWindow() {
                 onOpenImage={setViewing}
                 showImageMenu={showImageMenu}
                 onOpenNote={openNote}
-                readOnly={!editing}
+                readOnly={!editing || gone !== undefined}
               />
               {mode === 'edit' ? null : (
                 <LivePreview
@@ -327,6 +334,13 @@ export function NoteWindow() {
       </main>
       <Notices>
         <TrialEndedBar />
+        {gone ? (
+          <div role="alert" className="notice" data-devot-part="notice">
+            <span className="notice-text">
+              {t(gone === 'purged' ? 'noteWindow.purged' : 'noteWindow.trashed')}
+            </span>
+          </div>
+        ) : null}
         <ImageActionNotice />
         {problems.length > 0 && !dismissed ? (
           <SaveNotice

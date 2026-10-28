@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   AI_PROVIDERS,
   type AiProviderId,
@@ -40,7 +40,8 @@ export function AiSection() {
   const [keys, setKeys] = useState<Record<AiProviderId, string>>({ anthropic: '', openai: '' })
   const [loadError, setLoadError] = useState<string>()
   const [saveError, setSaveError] = useState<string>()
-  const [keyError, setKeyError] = useState<string>()
+  // The provider whose key change was refused, so the error sits beside that key field.
+  const [keyError, setKeyError] = useState<{ provider: AiProviderId; code: string }>()
   const [announcement, setAnnouncement] = useState('')
   // Re-renders when the licence changes, which licenceEntitlements reads.
   useLicence()
@@ -129,15 +130,19 @@ export function AiSection() {
       },
       (e: unknown) => {
         setAnnouncement('')
-        setKeyError(errorCode(e))
+        setKeyError({ provider, code: errorCode(e) })
       },
     )
 
   const errors = [
     loadError && format(t('aiSettings.loadFailed'), { code: loadError }),
     saveError && format(t('aiSettings.saveFailed'), { code: saveError }),
-    keyError && format(t('aiSettings.keyFailed'), { code: keyError }),
   ].filter(Boolean)
+  // An error above a long pane may be out of sight: bring it into view when it appears.
+  const errorsRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (loadError || saveError) errorsRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [loadError, saveError])
 
   return (
     <section className="settings-section" aria-labelledby="ai-title">
@@ -145,11 +150,13 @@ export function AiSection() {
         {t('aiSettings.title')}
       </h2>
       <p>{t('aiSettings.detail')}</p>
-      {errors.map((text) => (
-        <p key={text} role="alert" className="settings-error">
-          {text}
-        </p>
-      ))}
+      <div ref={errorsRef}>
+        {errors.map((text) => (
+          <p key={text} role="alert" className="settings-error">
+            {text}
+          </p>
+        ))}
+      </div>
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
@@ -204,6 +211,9 @@ export function AiSection() {
             const shown = view[provider]
             const name = t(NAMES[provider])
             const field = (part: string) => id(`${provider}-${part}`)
+            const ownKeyError = keyError?.provider === provider ? keyError.code : undefined
+            const canSave = keys[provider].trim() !== '' && shown.key !== 'unavailable'
+            const canRemove = shown.key === 'set' || shown.key === 'unknown'
             const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
               if (e.key === 'Enter') commit()
             }
@@ -264,36 +274,48 @@ export function AiSection() {
                     spellCheck={false}
                     autoComplete="off"
                     aria-label={format(t('aiSettings.keyLabel'), { provider: name })}
-                    aria-describedby={field('key-hint')}
+                    aria-describedby={
+                      ownKeyError ? `${field('key-hint')} ${field('key-error')}` : field('key-hint')
+                    }
                     disabled={shown.key === 'unavailable'}
                     value={keys[provider]}
                     onChange={(e) => {
                       const value = e.currentTarget.value
                       setKeys((now) => ({ ...now, [provider]: value }))
+                      if (ownKeyError) setKeyError(undefined)
                     }}
                   />
+                  {/* The refused key is reported beside the field it belongs to, not only above the pane. */}
+                  {ownKeyError ? (
+                    <p id={field('key-error')} role="alert" className="settings-error">
+                      {format(t('aiSettings.keyFailed'), { code: ownKeyError })}
+                    </p>
+                  ) : null}
                   <div className="settings-buttons">
+                    {/* aria-disabled, not disabled: a disabled button would drop the keyboard when it turns. */}
                     <button
                       type="button"
                       className="button"
-                      disabled={keys[provider].trim() === '' || shown.key === 'unavailable'}
-                      onClick={() =>
-                        void changeKey(
-                          provider,
-                          saveAiKey(provider, keys[provider]),
-                          'aiSettings.keySaved',
-                        )
-                      }
+                      aria-disabled={!canSave}
+                      onClick={() => {
+                        if (canSave)
+                          void changeKey(
+                            provider,
+                            saveAiKey(provider, keys[provider]),
+                            'aiSettings.keySaved',
+                          )
+                      }}
                     >
                       {t('aiSettings.saveKey')}
                     </button>
                     <button
                       type="button"
                       className="button"
-                      disabled={shown.key !== 'set' && shown.key !== 'unknown'}
-                      onClick={() =>
-                        void changeKey(provider, removeAiKey(provider), 'aiSettings.keyRemoved')
-                      }
+                      aria-disabled={!canRemove}
+                      onClick={() => {
+                        if (canRemove)
+                          void changeKey(provider, removeAiKey(provider), 'aiSettings.keyRemoved')
+                      }}
                     >
                       {t('aiSettings.removeKey')}
                     </button>

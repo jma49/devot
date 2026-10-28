@@ -8,9 +8,12 @@ import { expect, openSettings, test, type TestWindow } from './fixtures'
 const FIRST = 'dvt_first0000000000000000000000000000000000000'
 const SECOND = 'dvt_second000000000000000000000000000000000000'
 
-async function fakeRust(page: Page, options: { problem?: string; token?: string } = {}) {
+async function fakeRust(
+  page: Page,
+  options: { problem?: string; token?: string; holdFirstSet?: boolean } = {},
+) {
   await page.addInitScript(
-    ([first, second, problem, initialToken]) => {
+    ([first, second, problem, initialToken, holdFirstSet]) => {
       const w = globalThis as unknown as TestWindow
       const state: Record<string, any> = {
         enabled: false,
@@ -23,9 +26,18 @@ async function fakeRust(page: Page, options: { problem?: string; token?: string 
       let secret: string | null = null
       const tokens = [first, second]
       const view = () => ({ ...state })
+      // A held answer, so a test can change both controls before the first save comes back.
+      let release: (() => void) | undefined
+      const held = holdFirstSet ? new Promise<void>((resolve) => (release = resolve)) : null
+      let firstSet = true
+      ;(w as unknown as { devotReleaseHttpApi: () => void }).devotReleaseHttpApi = () => release?.()
       w.devotIpcMocks = {
         http_api_get: () => view(),
-        http_api_set: (args: { enabled: boolean; port: number }) => {
+        http_api_set: async (args: { enabled: boolean; port: number }) => {
+          if (held && firstSet) {
+            firstSet = false
+            await held
+          }
           state['enabled'] = args.enabled
           state['port'] = args.port
           if (args.enabled && secret === null) {
@@ -48,7 +60,13 @@ async function fakeRust(page: Page, options: { problem?: string; token?: string 
         },
       }
     },
-    [FIRST, SECOND, options.problem ?? null, options.token ?? null] as const,
+    [
+      FIRST,
+      SECOND,
+      options.problem ?? null,
+      options.token ?? null,
+      options.holdFirstSet ?? false,
+    ] as const,
   )
 }
 
@@ -97,6 +115,43 @@ test('changes the port once typing pauses', async ({ page }) => {
   await port.fill('80')
   await port.blur()
   await expect(port).toHaveValue('40123')
+  expect(await calls(page, 'http_api_set')).toEqual([
+    { enabled: true, port: 27484 },
+    { enabled: true, port: 40123 },
+  ])
+})
+
+test('the port field is wide enough for five digits', async ({ page }) => {
+  await fakeRust(page)
+  await openSettings(page, 'Integrations')
+  const port = section(page).getByRole('spinbutton', { name: 'Port' })
+  await expect(port).toHaveValue('27484')
+  // 65535 is the widest port, with the spinner beside it (A157).
+  const width = await port.evaluate((el) => el.getBoundingClientRect().width)
+  expect(width).toBeGreaterThanOrEqual(80)
+  expect(await port.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+})
+
+test('the switch and the port are saved in turn, each with the other’s change', async ({
+  page,
+}) => {
+  // The first save waits for the test, so the port is changed before it comes back (A184).
+  await fakeRust(page, { holdFirstSet: true })
+  await openSettings(page, 'Integrations')
+  const api = section(page)
+  const port = api.getByRole('spinbutton', { name: 'Port' })
+  await api.getByRole('switch', { name: 'Allow Local HTTP API' }).click()
+  await expect.poll(async () => (await calls(page, 'http_api_set')).length).toBe(1)
+  await port.fill('40123')
+  // Its typing pause passes while the first save is still out.
+  await page.waitForTimeout(600)
+  expect(await calls(page, 'http_api_set')).toEqual([{ enabled: true, port: 27484 }])
+
+  await page.evaluate(() =>
+    (globalThis as unknown as { devotReleaseHttpApi(): void }).devotReleaseHttpApi(),
+  )
+  await expect(api).toContainText('Listening on 127.0.0.1:40123.')
+  // The second save carries the port and the switch that was turned on, not a stale `enabled`.
   expect(await calls(page, 'http_api_set')).toEqual([
     { enabled: true, port: 27484 },
     { enabled: true, port: 40123 },

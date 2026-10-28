@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { errorCode } from '../backups'
 import { writeClipboardText } from '../clipboard'
 import { format, t, type MessageKey } from '../i18n'
@@ -29,12 +29,19 @@ export function HttpApiSection() {
   const [shown, setShown] = useState<string>()
   const [failure, setFailure] = useState<{ message: MessageKey; code: string }>()
   const [announcement, setAnnouncement] = useState('')
+  // The pair asked for, each control changing only its own field, and the saves one after another:
+  // the switch and the port each send the whole pair, so building it from a stale view (or letting
+  // two saves race) would undo the other.
+  const wanted = useRef<{ enabled: boolean; port: number } | null>(null)
+  const saving = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     let live = true
     loadHttpApi().then(
       (loaded) => {
-        if (live) setView(loaded)
+        if (!live) return
+        setView(loaded)
+        wanted.current = { enabled: loaded.enabled, port: loaded.port }
       },
       (e: unknown) => {
         if (live) setFailure({ message: 'httpApi.loadFailed', code: errorCode(e) })
@@ -51,20 +58,37 @@ export function HttpApiSection() {
         setView(next)
         setFailure(undefined)
         if (done) setAnnouncement(t(done))
+        return next
       },
       (e: unknown) => {
         setAnnouncement('')
         setFailure({ message: failed, code: errorCode(e) })
+        return undefined
       },
     )
+
+  /** Changes one field of the pair and saves it once the save before has answered. */
+  const change = (patch: Partial<{ enabled: boolean; port: number }>) => {
+    const current = wanted.current
+    if (!current) return
+    const asked = { ...current, ...patch }
+    wanted.current = asked
+    saving.current = saving.current.then(async () => {
+      // Built at send time, so a change made while another save was in flight is in this one too.
+      const sent = wanted.current
+      if (!sent) return
+      const next = await settle(saveHttpApi(sent.enabled, sent.port), 'httpApi.saveFailed')
+      // Rust's answer is what it holds: take it in unless a newer change came meanwhile.
+      if (next && wanted.current === sent)
+        wanted.current = { enabled: next.enabled, port: next.port }
+    })
+  }
 
   const port = useTypedNumber({
     stored: view?.port ?? HTTP_API_MIN_PORT,
     min: HTTP_API_MIN_PORT,
     max: HTTP_API_MAX_PORT,
-    store: (next) => {
-      if (view) void settle(saveHttpApi(view.enabled, next), 'httpApi.saveFailed')
-    },
+    store: (next) => change({ port: next }),
   })
 
   const rotate = (scope: HttpApiScope) => {
@@ -128,7 +152,7 @@ export function HttpApiSection() {
             note={noKeychain ? 'httpApi.noKeychain' : undefined}
             checked={view.enabled}
             disabled={noKeychain}
-            onChange={(on) => void settle(saveHttpApi(on, view.port), 'httpApi.saveFailed')}
+            onChange={(on) => change({ enabled: on })}
           />
           <Setting
             label="httpApi.port"
@@ -139,7 +163,7 @@ export function HttpApiSection() {
             <input
               id={id('port')}
               type="number"
-              className="settings-number"
+              className="settings-number settings-port"
               min={HTTP_API_MIN_PORT}
               max={HTTP_API_MAX_PORT}
               step={1}

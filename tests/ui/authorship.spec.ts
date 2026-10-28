@@ -11,6 +11,7 @@ import {
   expect,
   openNoteMore,
   pickMenuItem,
+  pickNoteMore,
   reloadApp,
   shownMenu,
   test,
@@ -27,6 +28,7 @@ const LONG = newWriter(
 const BOOK = '0192a6f0-0000-7000-8000-0000000b0001'
 const PLAN = '0192a6f0-0000-7000-8000-0000000a0001'
 const OTHER = '0192a6f0-0000-7000-8000-0000000a0002'
+const THIRD = '0192a6f0-0000-7000-8000-0000000a0003'
 const OWNER = 'Owner intro.\n'
 const CLAUDE_TEXT = 'Claude adds this paragraph.\n'
 
@@ -541,6 +543,34 @@ test('the Agents section lists the writers with their unseen changes and filters
   await page.getByRole('group', { name: 'Layout' }).getByRole('button', { name: 'Board' }).click()
   const card = page.locator('.board').getByRole('option').filter({ hasText: 'Plan' })
   await expect(card.locator('.row-agent')).toHaveAttribute('title', 'changed by Claude Code (MCP)')
+})
+
+test('an agent filter that clears when its notes leave the library stays off when the agent writes again', async ({
+  page,
+}) => {
+  await seed(page, [
+    PLAN_NOTE,
+    { id: OTHER, title: 'Other', owner: 'Other text.\n', edits: [] },
+    { id: THIRD, title: 'Third', owner: 'Third text.\n', edits: [] },
+  ])
+  await httpApi(page, 'notes.update', OTHER, { markdown: 'Other text.\nFrom the API.\n' })
+  await expect(noteRow(page, 'Other')).toContainText('changed by HTTP API')
+
+  await agentRow(page, 'HTTP API').click()
+  await expect(noteRows(page)).toHaveCount(1)
+  // The only note the agent changed goes to the Trash, so the filter has nothing left to show and
+  // is cleared: every live note comes back (A173).
+  await noteRow(page, 'Other').click()
+  await pickNoteMore(page, 'Move to Trash')
+  await expect(noteRows(page)).toHaveCount(2)
+  await expect(noteRow(page, 'Plan')).toBeVisible()
+  await expect(noteRow(page, 'Third')).toBeVisible()
+
+  // A new write from that agent brings its row back, and the list must not turn filtered again.
+  await httpApi(page, 'notes.update', PLAN, { markdown: 'Plan, as the API leaves it.\n' })
+  await expect(noteRow(page, 'Plan')).toContainText('changed by HTTP API')
+  await expect(noteRows(page)).toHaveCount(2)
+  await expect(agentRow(page, 'HTTP API')).toHaveAttribute('aria-pressed', 'false')
 })
 
 test('Clear Authorship asks first, then drops the marks, the notice and the rows', async ({

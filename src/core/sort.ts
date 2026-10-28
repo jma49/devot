@@ -52,6 +52,15 @@ function collator(locales: string | readonly string[]): Intl.Collator {
 
 export type SortableNote = Pick<NoteSummary, 'id' | 'title' | 'createdAt' | 'updatedAt'>
 
+/** The core's name order: numbers by value, case and accents aside, in `locales`. */
+export function compareNames(
+  a: string,
+  b: string,
+  locales: string | readonly string[] = [],
+): number {
+  return collator(locales).compare(a, b)
+}
+
 /** Equal titles put the newest updated first, and untitled notes come last either way. Equal dates fall back to the ID (UUIDv7, so creation order) in the same direction. */
 export function sortNotes<T extends SortableNote>(
   notes: readonly T[],

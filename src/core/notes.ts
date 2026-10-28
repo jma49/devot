@@ -703,14 +703,17 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     if (live.get(id) !== note) return
     note.failures += 1
     clearTimeout(note.retry)
-    note.retry = setTimeout(
-      () => {
-        note.retry = undefined
-        save(note).catch(() => {})
-      },
-      Math.min(retryDelayMs * 2 ** (note.failures - 1), MAX_RETRY_MS),
-    )
+    note.retry = undefined
     const code = codeOf(error)
+    // A purged note is never written again: reported, but not retried.
+    if (code !== 'E_NOTE_PURGED')
+      note.retry = setTimeout(
+        () => {
+          note.retry = undefined
+          save(note).catch(() => {})
+        },
+        Math.min(retryDelayMs * 2 ** (note.failures - 1), MAX_RETRY_MS),
+      )
     if (failing.get(id) === code) return
     failing.set(id, code)
     report()
@@ -1452,6 +1455,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           drop(note)
         })
       })
+      relay({ kind: 'gone', noteId: id, purged: false })
       await revisionWork
     },
 
@@ -1517,12 +1521,15 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       await storage.purgeNote(id, now(), clock.tick())
       const note = live.get(id)
       if (note) drop(note)
+      relay({ kind: 'gone', noteId: id, purged: true })
     },
 
     async emptyTrash() {
       await Promise.all([...live.values()].map(save))
       const all = await storage.listTrash()
       for (const note of all) await storage.purgeNote(note.id, now(), clock.tick())
+      // Each window that shows one of them hears it is gone, as for a single purge.
+      for (const note of all) relay({ kind: 'gone', noteId: note.id, purged: true })
       return all.length
     },
 
@@ -1735,7 +1742,8 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     async receive(message) {
       const { noteId: id } = message
       if (!heard.has(id)) heard.set(id, undefined)
-      if (message.kind === 'saved') return
+      // The note window turns read-only on a `gone` itself (NoteWindow.tsx): nothing to take in here.
+      if (message.kind === 'saved' || message.kind === 'gone') return
       const note = await inMemory(id)
       if (!note) return
       try {

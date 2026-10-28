@@ -217,6 +217,27 @@ test('a write that fails leaves no undo step behind', async ({ page }) => {
   expect((await storedStatus(page))['Bravo']).toBe('none')
 })
 
+test('a move over several statuses counts every failed card in its notice', async ({ page }) => {
+  await layout(page, 'Board').click()
+  // Alpha is in No Status and Charlie in Active: one step moves them into two different columns.
+  await card(page, 'Alpha').click()
+  await card(page, 'Charlie').click({ modifiers: ['Meta'] })
+  await expect(board(page).locator('.card[aria-selected="true"]')).toHaveCount(2)
+
+  await page.evaluate(() => localStorage.setItem('devot.test.failNoteWrites', 'E_TEST'))
+  await card(page, 'Charlie').focus()
+  await page.keyboard.press('Meta+Control+ArrowRight')
+  // Both writes failed, so the notice counts both, not just the last column's (A093).
+  await expect(page.getByText('Could not change 2 notes.')).toBeVisible()
+  await expect
+    .poll(async () => (await cardsIn(page, 'No Status')).sort())
+    .toEqual(['Alpha', 'Bravo'])
+  await expect
+    .poll(async () => (await cardsIn(page, 'Active')).sort())
+    .toEqual(['Charlie', 'Delta'])
+  await page.evaluate(() => localStorage.removeItem('devot.test.failNoteWrites'))
+})
+
 test('an undo history is kept per board, across a visit to another view', async ({ page }) => {
   await layout(page, 'Board').click()
   await card(page, 'Alpha').dragTo(column(page, 'On Hold'))

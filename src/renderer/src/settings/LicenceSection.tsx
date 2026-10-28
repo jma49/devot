@@ -134,10 +134,11 @@ export function LicenceSection() {
             }}
           />
           <div className="settings-buttons">
+            {/* aria-disabled, not disabled: a disabled button would drop the keyboard when the key clears. */}
             <button
               type="button"
               className="button"
-              disabled={key.trim() === '' || adding}
+              aria-disabled={key.trim() === '' || adding}
               onClick={add}
             >
               {t(held ? 'licenceSettings.replace' : 'licenceSettings.add')}
@@ -145,8 +146,10 @@ export function LicenceSection() {
             <button
               type="button"
               className="button"
-              disabled={!held}
-              onClick={() => setConfirming(true)}
+              aria-disabled={!held}
+              onClick={() => {
+                if (held) setConfirming(true)
+              }}
             >
               {t('licenceSettings.removeAsk')}
             </button>
