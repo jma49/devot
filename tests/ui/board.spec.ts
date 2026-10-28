@@ -377,3 +377,23 @@ test('a board whose notes are all in the hidden Dropped column says so', async (
   await changeEditorSettingsElsewhere(page, { boardDropped: true })
   await expect(card(page, 'Alpha')).toBeVisible()
 })
+
+test('Home, End and the Page keys move the keyboard across the board', async ({ page }) => {
+  const titleField = page.getByRole('textbox', { name: 'Title' })
+  await layout(page, 'Board').click()
+  await card(page, 'Alpha').click()
+  await expect(titleField).toHaveValue('Alpha')
+  await page.keyboard.press('End')
+  await expect(card(page, 'Foxtrot')).toBeFocused()
+  await expect(titleField).toHaveValue('Foxtrot')
+  await page.keyboard.press('Home')
+  await expect(card(page, 'Alpha')).toBeFocused()
+  await expect(titleField).toHaveValue('Alpha')
+  // A page is the first card of the next column with cards.
+  await page.keyboard.press('PageDown')
+  await expect(card(page, 'Delta')).toBeFocused()
+  await page.keyboard.press('PageDown')
+  await expect(card(page, 'Echo')).toBeFocused()
+  await page.keyboard.press('PageUp')
+  await expect(card(page, 'Delta')).toBeFocused()
+})

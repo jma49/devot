@@ -60,6 +60,29 @@ export function cardStep(
   return undefined
 }
 
+/**
+ * The card Home, End, Page Up or Page Down moves to from `from`: the first or
+ * last, or the first card of the nearest column a page away. Undefined for
+ * other keys and at the board's edge.
+ */
+export function boardJump(
+  columns: readonly BoardColumn<Card>[],
+  from: string,
+  key: string,
+): string | undefined {
+  const order = boardOrder(columns)
+  if (key === 'Home') return order[0]
+  if (key === 'End') return order.at(-1)
+  const by = key === 'PageDown' ? 1 : key === 'PageUp' ? -1 : 0
+  if (!by) return undefined
+  const at = columns.findIndex((c) => c.notes.some((n) => n.id === from))
+  for (let i = at + by; i >= 0 && i < columns.length; i += by) {
+    const cards = columns[i]!.notes
+    if (cards.length > 0) return cards[0]!.id
+  }
+  return undefined
+}
+
 /** The status of the column next to `from`'s, if there is one. */
 export function statusStep(
   statuses: readonly NoteStatus[],

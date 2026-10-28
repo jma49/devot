@@ -33,7 +33,7 @@ import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
 import { usePaneResize } from './paneResize'
 import { LIST_PANE } from './paneWidth'
-import { entryOffsets, spacerHeight, windowRuns } from './listWindow'
+import { entryOffsets, jumpIndex, spacerHeight, windowRuns } from './listWindow'
 import { noteShortcut, trashShortcut, type NoteAction, type TrashAction } from './noteMenu'
 import { DRAG_TEMPLATE, setNoteDragData } from './dragData'
 import { useStable } from './stable'
@@ -343,6 +343,22 @@ export const NoteList = memo(function NoteList(props: Props) {
     onSelect(id)
   }
 
+  /** Home, End and Page Up/Page Down: to the first or last row, or about a screen away. */
+  const jump = (event: KeyboardEvent, from: string | undefined): boolean => {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false
+    const row = from === undefined ? undefined : rows.current.get(from)
+    const height = row?.getBoundingClientRect().height ?? 0
+    const page = height > 0 ? Math.floor((list.current?.clientHeight ?? 0) / height) : 0
+    const at = from === undefined ? -1 : order.indexOf(from)
+    const to = jumpIndex(event.key, at, order.length, page)
+    const id = to === undefined ? undefined : order[to]
+    if (id === undefined) return false
+    event.preventDefault()
+    focusRow(id)
+    navigate(id)
+    return true
+  }
+
   // The row that has the keyboard, remembered until the keyboard goes
   // somewhere else on purpose, and the rows of the last render. When that
   // row leaves the list within one view (Move to Trash, Delete Permanently,
@@ -506,6 +522,7 @@ export const NoteList = memo(function NoteList(props: Props) {
       event.preventDefault()
       return props.onFind()
     }
+    if (jump(event, latest().selected)) return
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
     // A bare arrow moves; with a modifier held it is another key (Shift+Down extends the selection).
     if (!step || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
@@ -555,6 +572,7 @@ export const NoteList = memo(function NoteList(props: Props) {
       event.preventDefault()
       return props.onEdit(part, target)
     }
+    if (jump(event, notes[index]?.id)) return
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
     // A bare arrow moves; with a modifier held it is another key (Shift+Down extends the selection).
     if (!step || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return

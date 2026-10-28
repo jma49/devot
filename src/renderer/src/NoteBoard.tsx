@@ -17,7 +17,14 @@ import {
 import type { NoteSummary, TagRecord } from '../../core'
 import type { NoteStatus } from '../../core/storage'
 import type { ListDatesStyle } from '../../core/editorSettings'
-import { boardColumns, boardOrder, cardStep, columnWindow, type BoardColumn } from './board'
+import {
+  boardColumns,
+  boardJump,
+  boardOrder,
+  cardStep,
+  columnWindow,
+  type BoardColumn,
+} from './board'
 import { keyMatches } from './commands/keys'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
@@ -411,6 +418,13 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       event.preventDefault()
       return props.onEdit(part, target)
     }
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+      const jumped = boardJump(columns, id, event.key)
+      if (jumped !== undefined) {
+        event.preventDefault()
+        return open(jumped)
+      }
+    }
     const direction = ARROWS[event.key]
     if (!direction || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
     event.preventDefault()
@@ -427,7 +441,15 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       return props.onFind()
     }
     const first = order[0]
-    if (!ARROWS[event.key] || first === undefined) return
+    if (first === undefined) return
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+      const jumped = boardJump(columns, first, event.key)
+      if (jumped !== undefined) {
+        event.preventDefault()
+        return open(jumped)
+      }
+    }
+    if (!ARROWS[event.key]) return
     event.preventDefault()
     open(first)
   }

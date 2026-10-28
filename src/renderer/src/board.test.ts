@@ -4,6 +4,7 @@ import { sizes } from './theme/tokens'
 import {
   appliedChanges,
   boardColumns,
+  boardJump,
   boardOrder,
   boardStatuses,
   cardStep,
@@ -285,5 +286,18 @@ describe('the default board width', () => {
       (columns - 1) * px('space.4') +
       2 * px('space.6')
     expect(px('size.board-default-width')).toBeGreaterThanOrEqual(needed)
+  })
+})
+
+describe('boardJump', () => {
+  it('goes to the first or last card, or the first card of the column a page away', () => {
+    const columns = boardColumns(notes, boardStatuses(true))
+    expect(boardJump(columns, 'a', 'Home')).toBe('b')
+    expect(boardJump(columns, 'a', 'End')).toBe('e')
+    expect(boardJump(columns, 'a', 'PageDown')).toBe('d')
+    expect(boardJump(columns, 'd', 'PageUp')).toBe('a')
+    expect(boardJump(columns, 'e', 'PageDown')).toBeUndefined()
+    expect(boardJump(columns, 'b', 'PageUp')).toBeUndefined()
+    expect(boardJump(columns, 'a', 'ArrowDown')).toBeUndefined()
   })
 })

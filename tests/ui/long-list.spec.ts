@@ -112,3 +112,26 @@ test('Select All and Shift+Down select across the whole list', async ({ page }) 
   await expect(row(page, 'Note 61')).toBeFocused()
   await expect(row(page, 'Note 61')).toHaveAttribute('aria-selected', 'true')
 })
+
+test('Home, End and the Page keys move the keyboard through the whole list', async ({ page }) => {
+  await row(page, 'Note 1').click()
+  await expect(titleField(page)).toHaveValue('Note 1')
+  await page.keyboard.press('End')
+  await expect(titleField(page)).toHaveValue(`Note ${NOTES}`)
+  await expect(row(page, `Note ${NOTES}`)).toBeFocused()
+  await expect(row(page, `Note ${NOTES}`)).toBeInViewport()
+  await page.keyboard.press('Home')
+  await expect(titleField(page)).toHaveValue('Note 1')
+  await expect(row(page, 'Note 1')).toBeFocused()
+
+  await page.keyboard.press('PageDown')
+  await expect.poll(() => titleField(page).inputValue()).not.toBe('Note 1')
+  const focused = await page.evaluate(() =>
+    Number(document.activeElement?.getAttribute('aria-posinset')),
+  )
+  expect(focused).toBeGreaterThan(1)
+  await expect(row(page, `Note ${focused}`)).toBeFocused()
+  await expect(row(page, `Note ${focused}`)).toBeInViewport()
+  await page.keyboard.press('PageUp')
+  await expect(titleField(page)).toHaveValue('Note 1')
+})
