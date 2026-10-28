@@ -41,9 +41,10 @@ async function draw(request: RenderRequest): Promise<void> {
     reply({ type: 'rendered', id: request.id, svg })
   } catch {
     // Only a drawing that failed is checked for an error in its source, so a
-    // diagram that draws is parsed once.
+    // diagram that draws is parsed once. A source that parses but cannot be
+    // laid out fails the same way every time: it is not asked again.
     const parsed = await mermaid.parse(request.source, { suppressErrors: true }).catch(() => false)
-    reply({ type: 'failed', id: request.id, reason: parsed ? 'render' : 'parse' })
+    reply({ type: 'failed', id: request.id, reason: parsed ? 'layout' : 'parse' })
   } finally {
     container.remove()
   }

@@ -140,11 +140,14 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
     if (print && node.tagName === 'source') return []
     if (simple && (names.includes('frontmatter') || names.includes('swatch'))) return []
     if (simple && names.includes('code-block')) {
-      // The code alone: no header, no highlighting.
+      // The code alone: no header, no line numbers, no highlighting.
       const pre = node.children.find(
         (c): c is Element => c.type === 'element' && c.tagName === 'pre',
       )
-      return pre ? [el('pre', {}, [el('code', {}, [txt(pre.children.map(textOf).join(''))])])] : []
+      const code = pre?.children.find(
+        (c): c is Element => c.type === 'element' && c.tagName === 'code',
+      )
+      return code ? [el('pre', {}, [el('code', {}, [txt(textOf(code))])])] : []
     }
     // Icons are drawings; simple HTML keeps the words.
     if (simple && names.includes('glyph')) return []

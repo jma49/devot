@@ -22,6 +22,13 @@
   line-break: strict;
 }
 
+/* Each block reads in the direction of its own first strong character, so a
+   right-to-left paragraph is right-to-left whatever the app or the block
+   before it uses. */
+.preview :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, dt, dd, td, th, summary, figcaption) {
+  unicode-bidi: plaintext;
+}
+
 @supports (text-autospace: normal) {
   .preview {
     text-autospace: normal;
@@ -342,6 +349,12 @@
 
 .preview img {
   max-width: 100%;
+}
+
+/* The attributes give the ratio (`w:640 h:480`); a height of its own would
+   stretch the drawing. A height alone is kept. */
+.preview img[width] {
+  height: auto;
 }
 
 .preview img.image-block {

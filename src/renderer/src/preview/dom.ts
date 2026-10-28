@@ -3,6 +3,7 @@
 // Nodes are built with DOM APIs, never through HTML strings.
 import type { Element as HastElement, ElementContent, RootContent } from 'hast'
 import { find, html } from 'property-information'
+import { ISLAND_ATTRIBUTE } from './islands'
 
 type HastChild = RootContent | ElementContent
 
@@ -53,8 +54,12 @@ function applySwatch(el: Element): void {
 
 function syncAttributes(el: Element, node: HastElement): void {
   const next = attributes(node)
+  // What the page itself changed stays: an opened details is still open (a
+  // box's tick is kept by hand below, for the same reason).
+  const keepsOpen = el instanceof HTMLDetailsElement && !next.has('open')
   for (const name of el.getAttributeNames()) {
-    if (name !== 'style' && !next.has(name)) el.removeAttribute(name)
+    if (name !== 'style' && !(keepsOpen && name === 'open') && !next.has(name))
+      el.removeAttribute(name)
   }
   for (const [name, value] of next) {
     if (el.getAttribute(name) !== value) el.setAttribute(name, value)
@@ -77,14 +82,21 @@ function create(node: HastChild, parentNs: string | null): Node | null {
 
 function sameKind(dom: Node, node: HastChild, parentNs: string | null): boolean {
   if (node.type === 'text') return dom.nodeType === Node.TEXT_NODE
-  return (
-    node.type === 'element' &&
-    dom instanceof Element &&
-    dom.localName === node.tagName &&
-    dom.namespaceURI === namespaceFor(node.tagName, parentNs) &&
-    // A different embed is a new frame, not a navigation of the old one.
-    (node.tagName !== 'iframe' || dom.getAttribute('src') === node.properties['src'])
-  )
+  if (node.type !== 'element' || !(dom instanceof Element)) return false
+  if (
+    dom.localName !== node.tagName ||
+    dom.namespaceURI !== namespaceFor(node.tagName, parentNs) ||
+    // An island is not a plain element of its tag (or another island): the
+    // mounter holds a slot for the one it rendered, and a reused div would
+    // show that drawing in a place that is not a diagram.
+    isIsland(node) !== dom.hasAttribute(ISLAND_ATTRIBUTE) ||
+    (isIsland(node) &&
+      dom.getAttribute(ISLAND_ATTRIBUTE) !== String(node.properties['dataDevotIsland']))
+  ) {
+    return false
+  }
+  // A different embed is a new frame, not a navigation of the old one.
+  return node.tagName !== 'iframe' || dom.getAttribute('src') === node.properties['src']
 }
 
 /**

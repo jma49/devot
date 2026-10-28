@@ -1,6 +1,7 @@
 import { invoke } from '../ipc'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import type { NoteLinkTarget, PreviewLabels } from '../../../core'
+import { DB_CHANGED } from '../externalChanges'
 import { noteLinks } from '../../../core/links'
 import { taskProgress } from '../../../core/tasks'
 import { fragmentId } from '../../../core/preview/headingIds'
@@ -24,7 +25,7 @@ import { previewsFor } from '../notePreview'
 import { NoteHover } from './NoteHover'
 import { useText, type TextStore } from '../textStore'
 import type { FindTarget } from '../find/target'
-import { t } from '../i18n'
+import { format, t } from '../i18n'
 import { useAppearance } from '../icons/Icon'
 import { patchPieces, type ShownPiece } from './dom'
 import { previewFindTarget } from './find'
@@ -147,6 +148,8 @@ export function Preview({
   const pane = useRef<HTMLElement>(null)
   const host = useRef<HTMLDivElement>(null)
   const [loadedEmbeds, setLoadedEmbeds] = useState<string[]>([])
+  /** A link the preview will not open (http:, mailto:), shown with what it was. */
+  const [refusedLink, setRefusedLink] = useState<string>()
   const appearance = useAppearance()
   const appearanceNow = useRef(appearance)
   const scroll = useRef<PreviewScrollPane | null>(null)
@@ -164,6 +167,10 @@ export function Preview({
   const scrollAsked = useRef(initialScroll)
   const scrolled = useRef(onScroll)
   const noteNow = useRef(info?.noteId)
+  /** The link targets the chips were rendered from (see `targetsFor`). */
+  const knownLinks = useRef<
+    { key: string; targets: Promise<Record<string, NoteLinkTarget>> } | undefined
+  >(undefined)
   useEffect(() => {
     noteNow.current = info?.noteId
     findHandle.current = onFind
@@ -209,20 +216,20 @@ export function Preview({
 
   useEffect(() => {
     const islandRendered = () => scroll.current?.changed()
-    // What the note links to, for its chips: asked again only when another
-    // note opens or the set of linked notes changes.
-    let known: { key: string; targets: Promise<Record<string, NoteLinkTarget>> } | undefined
+    // What the note links to, for its chips: asked again when another
+    // note opens, the set of linked notes changes, or one of them changes.
     const targetsFor = (text: string) => {
       const ids = noteLinks(text)
       if (ids.length === 0) return Promise.resolve({})
       const key = `${noteNow.current ?? ''} ${ids.join(' ')}`
+      const known = knownLinks.current
       if (known?.key !== key) {
         const targets = core.linkTargets(ids).catch(() => {
           console.warn('W_LINK_TARGETS_FAILED')
-          known = undefined
+          knownLinks.current = undefined
           return undefined
         })
-        known = { key, targets: targets.then((found) => found ?? {}) }
+        knownLinks.current = { key, targets: targets.then((found) => found ?? {}) }
         return targets
       }
       return known.targets
@@ -288,6 +295,16 @@ export function Preview({
     input.current = { markdown, loadedEmbeds }
   })
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
+  // A note a chip shows changed (here, in another window, or from another
+  // process): its chip is drawn again with the new title, status and progress.
+  useEffect(() => {
+    const changed = () => {
+      knownLinks.current = undefined
+      render.current?.(input.current)
+    }
+    window.addEventListener(DB_CHANGED, changed)
+    return () => window.removeEventListener(DB_CHANGED, changed)
+  }, [])
 
   const tasks = useMemo(() => taskProgress(markdown), [markdown])
 
@@ -320,6 +337,10 @@ export function Preview({
     if (note?.[1]) onOpenNote(note[1])
     else if (/^https:\/\//i.test(href)) {
       invoke('open_external', { url: href }).catch(() => console.warn('W_OPEN_EXTERNAL_FAILED'))
+    } else if (href !== '') {
+      // Only https links leave Devot; an http: or mailto: link says so
+      // rather than doing nothing at all.
+      setRefusedLink(href)
     }
   }
 
@@ -421,6 +442,25 @@ export function Preview({
           />
         ) : null}
         <div ref={host} className="preview-body" />
+        {refusedLink ? (
+          <div className="notice preview-notice" data-devot-part="notice">
+            <span className="notice-text" role="status">
+              {format(t('preview.linkRefused'), { href: refusedLink })}
+            </span>
+            <button
+              type="button"
+              className="button"
+              onClick={() =>
+                void copyText(refusedLink).catch(() => console.warn('W_LINK_COPY_FAILED'))
+              }
+            >
+              {t('preview.copyLink')}
+            </button>
+            <button type="button" className="button" onClick={() => setRefusedLink(undefined)}>
+              {t('notice.dismiss')}
+            </button>
+          </div>
+        ) : null}
       </article>
       <CodeCopyButtons blocks={codes} />
       <NoteHover pane={pane} load={previewsFor(core)} />

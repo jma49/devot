@@ -2260,6 +2260,13 @@ button {
   outline: none;
 }
 
+/* A link the preview will not open stays in view while the note scrolls. */
+.preview-notice {
+  position: sticky;
+  bottom: 0;
+  margin: var(--space-6) auto 0;
+}
+
 .preview:focus-visible {
   box-shadow: inset 0 0 0 2px var(--color-accent-fill);
 }

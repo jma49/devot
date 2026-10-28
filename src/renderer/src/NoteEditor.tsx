@@ -1032,6 +1032,9 @@ export function NoteEditor({
             noteHighlighting(noteHighlightStyle),
             markdownLineStyles,
             noteMarkdown,
+            // A line of right-to-left text reads right to left on its own,
+            // as it does in the preview (content.css, unicode-bidi).
+            EditorView.perLineTextDirection.of(true),
             images.extension,
             pasteUrls,
             pasteChooser(linkFetcher),

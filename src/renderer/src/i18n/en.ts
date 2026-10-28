@@ -305,6 +305,8 @@ export const en = {
   'preview.codeLine': 'Line {n}',
   'preview.codeRef': 'in {ref}',
   'preview.codeSource': 'Open source',
+  'preview.linkRefused': 'Only https links open from the preview: {href}',
+  'preview.copyLink': 'Copy Link',
   'noteInfo.label': 'Note info',
   'noteInfo.progress': 'Progress',
   'noteInfo.tasksOne': '{done} of {count} task',

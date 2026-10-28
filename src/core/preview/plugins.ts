@@ -37,6 +37,12 @@ function makeInert(node: RootContent): void {
   if (node.type === 'element') {
     for (const name of PIECE_OFFSET_PROPERTIES) delete node.properties[name]
     if (node.tagName === 'input') node.properties['disabled'] = true
+    // An answer may link to notes, never to the web: the page opens an https
+    // link outside Devot, and a plugin has no network permission.
+    const href = node.properties['href']
+    if (node.tagName === 'a' && typeof href === 'string' && !href.startsWith('devot:')) {
+      delete node.properties['href']
+    }
   }
   if ('children' in node) node.children.forEach(makeInert)
 }

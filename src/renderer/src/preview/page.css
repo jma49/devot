@@ -21,8 +21,18 @@ body {
   padding: var(--space-10) var(--space-9);
 }
 
-.preview img {
+.preview img[width] {
   height: auto;
+}
+
+/* A diagram is drawn for a light surface; on a dark page it keeps one, or
+   its dark lines vanish into the page. */
+@media screen and (prefers-color-scheme: dark) {
+  .island svg {
+    padding: var(--space-6);
+    border-radius: var(--radius-card);
+    background: var(--island-surface);
+  }
 }
 
 @media print {

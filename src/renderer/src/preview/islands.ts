@@ -5,6 +5,9 @@
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import type { Appearance } from '../icons/symbols'
 
+/** The attribute a worker-side renderer puts on an element the page draws (preview/index.ts). */
+export const ISLAND_ATTRIBUTE = 'data-devot-island'
+
 export interface IslandContext {
   appearance: Appearance
   /** Aborted once a newer render for the same element starts, or the element goes. */
@@ -54,6 +57,9 @@ interface Slot {
   pending?: AbortController | undefined
   shown?: IslandContent | undefined
   retry: boolean
+  /** Failures so far, and when the next try may start: a failure that may pass is not retried on every patch. */
+  attempts: number
+  retryAt: number
 }
 
 export interface IslandMounter {
@@ -83,6 +89,8 @@ export function createIslandMounter(
   let watched: HTMLElement | undefined
   let frame: number | undefined
   let sizes: ResizeObserver | undefined
+  let retryTimer: ReturnType<typeof setTimeout> | undefined
+  let lastContext: IslandContext | undefined
 
   const release = (slot: Slot) => {
     slot.pending?.abort()
@@ -126,6 +134,33 @@ export function createIslandMounter(
     watched = undefined
   }
 
+  /** Waits out the shortest backoff of a failure that may pass, then mounts again. */
+  const arm = () => {
+    if (retryTimer !== undefined) return
+    const now = Date.now()
+    let soonest = Number.POSITIVE_INFINITY
+    for (const [el, slot] of slots) {
+      if (!slot.retry || !el.isConnected) continue
+      soonest = Math.min(soonest, slot.retryAt)
+    }
+    if (soonest === Number.POSITIVE_INFINITY) return
+    retryTimer = setTimeout(
+      () => {
+        retryTimer = undefined
+        if (lastHost && lastContext) mount(lastHost, lastContext, onRendered)
+      },
+      Math.max(0, soonest - now),
+    )
+  }
+
+  /** A failure that may pass is tried again later, each try waiting longer. */
+  const failed = (slot: Slot) => {
+    slot.retry = true
+    slot.attempts += 1
+    slot.retryAt = Date.now() + Math.min(30_000, 500 * 2 ** (slot.attempts - 1))
+    arm()
+  }
+
   const render = (
     el: Element,
     slot: Slot,
@@ -143,60 +178,79 @@ export function createIslandMounter(
         slot.pending = undefined
         slot.shown?.dispose?.()
         slot.shown = content
-        slot.retry = content.retry === true
         el.replaceChildren(content.node)
+        if (content.retry === true) failed(slot)
+        else {
+          slot.retry = false
+          slot.attempts = 0
+          slot.retryAt = 0
+        }
         onRendered?.()
         schedule()
       },
       () => {
         if (current()) {
           slot.pending = undefined
-          slot.retry = true
+          failed(slot)
         }
         console.warn('W_PREVIEW_ISLAND_FAILED', island.kind)
       },
     )
   }
 
-  return {
-    mount(host, context, rendered) {
-      onRendered = rendered
-      lastHost = host
-      for (const [el, slot] of slots) {
-        if (!el.isConnected) {
-          release(slot)
-          slots.delete(el)
-          waiting.delete(el)
-        }
+  const mount = (host: Element, context: IslandContext, rendered?: () => void) => {
+    onRendered = rendered
+    lastHost = host
+    lastContext = context
+    for (const [el, slot] of slots) {
+      // An element that is no island any more (its block became a plain
+      // div) gives its slot up: its drawing must not stay there.
+      if (!el.isConnected || !el.hasAttribute(ISLAND_ATTRIBUTE)) {
+        release(slot)
+        slots.delete(el)
+        waiting.delete(el)
       }
-      for (const el of host.querySelectorAll('[data-devot-island]')) {
-        const kind = el.getAttribute('data-devot-island') ?? ''
-        const source = el.getAttribute('data-island-source') ?? ''
-        const key = `${context.appearance}\n${source}`
-        const known = slots.get(el)
-        if (known?.key === key && !known.retry) continue
-        const island = registry.get(kind)
-        if (!island) continue
-        const slot: Slot = known ?? { key, retry: false }
-        slots.set(el, slot)
+    }
+    for (const el of host.querySelectorAll(`[${ISLAND_ATTRIBUTE}]`)) {
+      const kind = el.getAttribute(ISLAND_ATTRIBUTE) ?? ''
+      const source = el.getAttribute('data-island-source') ?? ''
+      const key = `${context.appearance}\n${source}`
+      const known = slots.get(el)
+      // A failure that may pass waits out its backoff; a source that changed
+      // starts over at once.
+      if (known?.key === key && (!known.retry || known.retryAt > Date.now())) continue
+      const island = registry.get(kind)
+      if (!island) continue
+      const slot: Slot = known ?? { key, retry: false, attempts: 0, retryAt: 0 }
+      if (slot.key !== key) {
         slot.key = key
-        slot.retry = false
-        slot.pending?.abort()
-        slot.pending = new AbortController()
-        if (scroller) waiting.set(el, () => render(el, slot, island, source, context))
-        else render(el, slot, island, source, context)
+        slot.attempts = 0
+        slot.retryAt = 0
       }
-      if (scroller) {
-        watch()
-        schedule()
-      }
-    },
+      slots.set(el, slot)
+      slot.retry = false
+      slot.pending?.abort()
+      slot.pending = new AbortController()
+      if (scroller) waiting.set(el, () => render(el, slot, island, source, context))
+      else render(el, slot, island, source, context)
+    }
+    if (scroller) {
+      watch()
+      schedule()
+    }
+    arm()
+  }
+
+  return {
+    mount,
     dispose() {
       for (const slot of slots.values()) release(slot)
       slots.clear()
       waiting.clear()
       if (frame !== undefined) cancelAnimationFrame(frame)
       frame = undefined
+      if (retryTimer !== undefined) clearTimeout(retryTimer)
+      retryTimer = undefined
       unwatch()
     },
   }

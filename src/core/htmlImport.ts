@@ -156,6 +156,28 @@ interface Prepared {
   dropped: Set<string>
 }
 
+const ALERT_KINDS = new Set(['note', 'tip', 'important', 'warning', 'caution'])
+
+/** An alert the preview drew back as the blockquote whose marker made it (`> [!NOTE]`). */
+function alertQuote(node: Element, kind: string): Element {
+  const body = node.children.filter(
+    (child) => !(child.type === 'element' && classes(child).includes('alert-title')),
+  )
+  const marker = `[!${kind.toUpperCase()}]`
+  const first = body[0]
+  if (first?.type === 'element' && first.tagName === 'p') {
+    first.children.unshift({ type: 'text', value: marker })
+  } else {
+    body.unshift({
+      type: 'element',
+      tagName: 'p',
+      properties: {},
+      children: [{ type: 'text', value: marker }],
+    })
+  }
+  return { type: 'element', tagName: 'blockquote', properties: {}, children: body }
+}
+
 /** Takes out of `root` (before it is sanitized) what the sanitizer would lose: embedded images and MathML with TeX become placeholders. */
 function prepare(root: Root, marker: string, newId?: () => string): Prepared {
   const out: Prepared = { images: [], imageIds: [], math: [], dropped: new Set() }
@@ -196,9 +218,23 @@ function prepare(root: Root, marker: string, newId?: () => string): Prepared {
   const walk = (parent: Root | Element) => {
     parent.children = parent.children.flatMap((child): ElementContent[] => {
       if (child.type !== 'element') return child.type === 'doctype' ? [] : [child]
+      const names = classes(child)
+      // The preview's own furniture, which is no text of the note: a code
+      // block's header and line numbers, an alert's title.
+      if (names.includes('code-gutter') || names.includes('code-header')) return []
+      if (names.includes('alert')) {
+        const kind = names
+          .map((name) => /^alert-(.+)$/.exec(name)?.[1])
+          .find((k) => k && ALERT_KINDS.has(k))
+        if (kind) {
+          const quote = alertQuote(child, kind)
+          walk(quote)
+          return [quote]
+        }
+      }
       // A KaTeX page draws its math as HTML beside the MathML: once that
       // MathML's TeX is restored, the drawing is no text of the note.
-      if (classes(child).includes('katex') && hasTexMath(child)) {
+      if (names.includes('katex') && hasTexMath(child)) {
         child.children = child.children.filter(
           (c) => !(c.type === 'element' && classes(c).includes('katex-html')),
         )
@@ -210,7 +246,11 @@ function prepare(root: Root, marker: string, newId?: () => string): Prepared {
           return [{ type: 'text', value: `${marker}m${index}e` }]
         }
       }
-      if (DROPPED.has(child.tagName)) drop(`<${child.tagName}>`)
+      // Devot's own drawings go with the rest of the SVG, but they are not
+      // content the page lost.
+      const own =
+        child.tagName === 'svg' && (names.includes('glyph') || names.includes('code-lang-icon'))
+      if (DROPPED.has(child.tagName) && !own) drop(`<${child.tagName}>`)
       // Gone with its content: nothing in it is the page's to keep.
       if (STRIP.includes(child.tagName)) return [child]
       if (child.tagName === 'img' && !keepImage(child)) return []
