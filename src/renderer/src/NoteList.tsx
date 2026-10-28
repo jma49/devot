@@ -237,8 +237,12 @@ export const NoteList = memo(function NoteList(props: Props) {
             const gap = parseFloat(style.rowGap) || 0
             const padding = parseFloat(style.paddingTop) || 0
             setMetrics((m) => (m.gap === gap && m.padding === padding ? m : { gap, padding }))
+            // Compared with the top too: a list that comes back from a short view has kept a stale
+            // top while its scroll went to 0, and no scroll event fires to correct it.
             setViewport((v) =>
-              v.height === el.clientHeight ? v : { top: el.scrollTop, height: el.clientHeight },
+              v.height === el.clientHeight && v.top === el.scrollTop
+                ? v
+                : { top: el.scrollTop, height: el.clientHeight },
             )
             continue
           }
