@@ -2,7 +2,7 @@ import { history, undo } from '@codemirror/commands'
 import { EditorSelection, EditorState, type TransactionSpec } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import type { PasteUrlStyle } from '../../../core/editorSettings'
-import { noteMarkdown } from './markdown'
+import { noteMarkdown, noteParser } from './markdown'
 import { pasteTransaction, pastedUrl, plainPaste } from './paste'
 
 // `|` marks a cursor, `«` and `»` a selected range.
@@ -214,5 +214,66 @@ describe('plainPaste', () => {
     let undone = pasted
     undo({ state: pasted, dispatch: (tr) => (undone = tr.state) })
     expect(show(undone)).toBe('x|')
+  })
+
+  it('keeps lines pasted into a list item or quote in it', () => {
+    const s = state('- item\n  ```\n  |\n  ```\n- next')
+    const pasted = show(after(s, plainPaste(s, 'line1\nline2')))
+    expect(pasted).toBe('- item\n  ```\n  line1\n  line2|\n  ```\n- next')
+    expect(topBlocks(pasted)).toEqual(['BulletList'])
+  })
+})
+
+/** The top-level blocks the editor's parser reads in a marked document. */
+const topBlocks = (marked: string) => {
+  const names: string[] = []
+  for (
+    let n = noteParser.parse(marked.replace(/[«»|]/g, '')).topNode.firstChild;
+    n;
+    n = n.nextSibling
+  )
+    names.push(n.name)
+  return names
+}
+
+describe('pasting lines into a list item or quote', () => {
+  it('gives each line of a code block the container prefix', () => {
+    const inItem = paste('- item\n  ```\n  |\n  ```\n- next', 'line1\nline2')
+    expect(inItem).toBe('- item\n  ```\n  line1\n  line2|\n  ```\n- next')
+    expect(topBlocks(inItem ?? '')).toEqual(['BulletList'])
+    const quoted = paste('> ```\n> |\n> ```\nafter', 'a\n\nb')
+    expect(quoted).toBe('> ```\n> a\n>\n> b|\n> ```\nafter')
+    expect(topBlocks(quoted ?? '')).toEqual(['Blockquote', 'Paragraph'])
+    const numbered = paste('1. step\n   ```\n   |\n   ```', 'a\nb')
+    expect(numbered).toBe('1. step\n   ```\n   a\n   b|\n   ```')
+  })
+
+  it('keeps lines after a blank line in the item or quote', () => {
+    expect(paste('- x|', 'a\n\nb')).toBe('- xa\n\n  b|')
+    expect(paste('> x|', 'a\n\nb\nc')).toBe('> xa\n>\n> b\n> c|')
+    expect(topBlocks(paste('> x|', 'a\n\nb') ?? '')).toEqual(['Blockquote'])
+  })
+
+  it('keeps the rest of the caret line in the container when the paste ends with a newline', () => {
+    const inItem = paste('- item\n  ```\n  co|de\n  ```', 'l1\nl2\n')
+    expect(inItem).toBe('- item\n  ```\n  col1\n  l2\n  |de\n  ```')
+    expect(topBlocks(inItem ?? '')).toEqual(['BulletList'])
+  })
+
+  it('gives the prefix to a pasted block that would otherwise end the container', () => {
+    const fenced = paste('- item|', 'x\n```\ncode\n```')
+    expect(fenced).toBe('- itemx\n  ```\n  code\n  ```|')
+    expect(topBlocks(fenced ?? '')).toEqual(['BulletList'])
+    const heading = paste('> q|', 'a\n# h')
+    expect(heading).toBe('> qa\n> # h|')
+    expect(topBlocks(heading ?? '')).toEqual(['Blockquote'])
+    const quotedList = paste('> q|', 'a\n- b')
+    expect(topBlocks(quotedList ?? '')).toEqual(['Blockquote'])
+  })
+
+  it('leaves text at the top level, and one line, to the usual paste', () => {
+    expect(paste('|', 'a\nb')).toBeNull()
+    expect(paste('- x|', 'a')).toBeNull()
+    expect(paste('- x|', 'a\nb')).toBeNull()
   })
 })

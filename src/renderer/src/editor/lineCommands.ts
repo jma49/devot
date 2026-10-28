@@ -35,6 +35,8 @@ import { EditorView, keymap } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import { noteIdOf } from '../../../core/links'
 import { editorCommandKeys, type CommandId } from '../commands/registry'
+import { editorComposes } from '../ime'
+import { indentListItems } from './blocks'
 import { toggleOverwrite } from './overwrite'
 import { registryKeys } from './registryKeys'
 
@@ -218,14 +220,15 @@ export function wrapInBackticks(state: EditorState, text: string): TransactionSp
   )
 }
 
-const backtickWrap = Prec.highest(
-  EditorView.inputHandler.of((view, _from, _to, text) => {
-    const spec = wrapInBackticks(view.state, text)
-    if (!spec) return false
-    view.dispatch(view.state.update(spec, { userEvent: 'input.type', scrollIntoView: true }))
-    return true
-  }),
-)
+export function backtickInput(view: EditorView, _from: number, _to: number, text: string): boolean {
+  if (editorComposes(view) || view.state.readOnly) return false
+  const spec = wrapInBackticks(view.state, text)
+  if (!spec) return false
+  view.dispatch(view.state.update(spec, { userEvent: 'input.type', scrollIntoView: true }))
+  return true
+}
+
+const backtickWrap = Prec.highest(EditorView.inputHandler.of(backtickInput))
 
 /**
  * The next match of the selected text after the last range (from the start
@@ -453,6 +456,20 @@ export const lineCommandKeys: () => Extension = registryKeys(() =>
   ),
 )
 
+const listTab = (dir: 1 | -1) => (view: EditorView) => {
+  const spec = view.state.readOnly ? null : indentListItems(view.state, dir)
+  if (spec) view.dispatch(spec)
+  return spec !== null
+}
+
+// Ahead of the usual indent (settings.ts), which moves an item too little to nest it.
+const listTabKeys = Prec.high(
+  keymap.of([
+    { key: 'Tab', run: listTab(1) },
+    { key: 'Shift-Tab', run: listTab(-1) },
+  ]),
+)
+
 export function lineCommands(opener: (href: string) => void): Extension {
-  return [lineCommandKeys(), backtickWrap, linkOpener.of(opener)]
+  return [lineCommandKeys(), listTabKeys, backtickWrap, linkOpener.of(opener)]
 }

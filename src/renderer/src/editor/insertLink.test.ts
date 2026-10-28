@@ -1,6 +1,8 @@
 import { history, undo } from '@codemirror/commands'
 import { EditorSelection, EditorState } from '@codemirror/state'
+import type { Element, Root, RootContent } from 'hast'
 import { describe, expect, it } from 'vitest'
+import { previewTexts, previewTree } from '../../../../tests/support/preview-html'
 import { insertLink, selectionHasLink } from './formats'
 import { noteMarkdown } from './markdown'
 
@@ -10,6 +12,20 @@ const state = (doc: string, from: number, to: number) =>
     selection: EditorSelection.range(from, to),
     extensions: [noteMarkdown, history()],
   })
+
+/** The links the preview makes of `markdown`: each one's address and text. */
+async function links(markdown: string): Promise<{ href: unknown; text: string }[]> {
+  const found: { href: unknown; text: string }[] = []
+  const text = (node: Root | RootContent): string =>
+    node.type === 'text' ? node.value : 'children' in node ? node.children.map(text).join('') : ''
+  const walk = (node: Root | RootContent) => {
+    if (node.type === 'element' && (node as Element).tagName === 'a')
+      found.push({ href: (node as Element).properties.href, text: text(node) })
+    if ('children' in node) node.children.forEach(walk)
+  }
+  walk(await previewTree(markdown))
+  return found
+}
 
 describe('the link dialog result', () => {
   it('replaces the selection with the link in one transaction, the caret after it', () => {
@@ -33,6 +49,61 @@ describe('the link dialog result', () => {
     )
     expect(s.update(insertLink(s, 'x', 'https://a.test/a)b')).newDoc.toString()).toBe(
       '[x](https://a.test/a%29b)',
+    )
+  })
+
+  it('encodes whitespace in the address, so the preview reads one link to it', async () => {
+    const s = state('word', 0, 4)
+    const doc = s.update(insertLink(s, 'word', 'https://example.com/a b\tc')).newDoc.toString()
+    expect(doc).toBe('[word](https://example.com/a%20b%09c)')
+    expect(await links(doc)).toEqual([{ href: 'https://example.com/a%20b%09c', text: 'word' }])
+    const path = s.update(insertLink(s, 'plan', '../Notes/My Plan.md')).newDoc.toString()
+    expect(await links(path)).toEqual([{ href: '../Notes/My%20Plan.md', text: 'plan' }])
+  })
+
+  it('escapes a trailing backslash and a pipe in the text, leaving code spans as they are', async () => {
+    const s = state('x', 0, 1)
+    const label = async (text: string) =>
+      links(s.update(insertLink(s, text, 'https://u.test')).newDoc.toString())
+    expect(await label('back\\')).toEqual([{ href: 'https://u.test', text: 'back\\' }])
+    expect(await label('C:\\temp\\')).toEqual([{ href: 'https://u.test', text: 'C:\\temp\\' }])
+    expect(await label('even\\\\')).toEqual([{ href: 'https://u.test', text: 'even\\' }])
+    expect(await label('x|y')).toEqual([{ href: 'https://u.test', text: 'x|y' }])
+    expect(await label('a `[b]|` c')).toEqual([{ href: 'https://u.test', text: 'a [b]| c' }])
+  })
+
+  it('keeps a table row whole when the link text has a pipe', async () => {
+    const doc = '| a | b |\n| --- | --- |\n|  | c |'
+    const cell = doc.lastIndexOf('|  |') + 2
+    const s = state(doc, cell, cell)
+    const empty = s.update(insertLink(s, '', 'http://x.com/a|b')).newDoc.toString()
+    expect(await previewTexts(empty, 'td')).toEqual(['http://x.com/a|b', 'c'])
+    const typed = s.update(insertLink(s, 'x|y', 'https://u.test')).newDoc.toString()
+    expect(await previewTexts(typed, 'td')).toEqual(['x|y', 'c'])
+    // GFM splits a cell on a pipe even inside a code span.
+    const code = s.update(insertLink(s, '`a|b`', 'https://u.test')).newDoc.toString()
+    expect(await previewTexts(code, 'td')).toEqual(['a|b', 'c'])
+  })
+
+  it('links each line of a selection over several lines, after its block markers', () => {
+    const linked = (doc: string) => {
+      const s = state(doc, 0, doc.length)
+      return s.update(insertLink(s, doc, 'https://a.test')).newDoc.toString()
+    }
+    expect(linked('- one\n- two')).toBe('- [one](https://a.test)\n- [two](https://a.test)')
+    expect(linked('# Title\n\nBody text')).toBe(
+      '# [Title](https://a.test)\n\n[Body text](https://a.test)',
+    )
+  })
+
+  it('links every range of a multiple selection', () => {
+    const s = EditorState.create({
+      doc: 'one two',
+      selection: EditorSelection.create([EditorSelection.range(0, 3), EditorSelection.range(4, 7)]),
+      extensions: [EditorState.allowMultipleSelections.of(true), noteMarkdown],
+    })
+    expect(s.update(insertLink(s, 'one', 'https://a.test')).newDoc.toString()).toBe(
+      '[one](https://a.test) [two](https://a.test)',
     )
   })
 

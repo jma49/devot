@@ -4,6 +4,7 @@ import type { EditorView } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import { noteMarkdown } from './markdown'
 import {
+  backtickInput,
   changeCase,
   insertLineAbove,
   joinLines,
@@ -62,6 +63,26 @@ describe('typing a backtick over a selection', () => {
   it('leaves a caret and other characters to the editor', () => {
     expect(wrapInBackticks(state('a ^ b'), '`')).toBeNull()
     expect(wrapInBackticks(state('a [word] b'), '*')).toBeNull()
+  })
+
+  it('leaves a backtick to the input method while it composes (a dead key)', () => {
+    const view = (composing: boolean) => {
+      const dispatched: unknown[] = []
+      const s = state('a [word] b')
+      const v = {
+        state: s,
+        composing,
+        compositionStarted: composing,
+        dispatch: (spec: unknown) => dispatched.push(spec),
+      } as unknown as EditorView
+      return { v, dispatched, from: s.selection.main.from, to: s.selection.main.to }
+    }
+    const composing = view(true)
+    expect(backtickInput(composing.v, composing.from, composing.to, '`')).toBe(false)
+    expect(composing.dispatched).toEqual([])
+    const typed = view(false)
+    expect(backtickInput(typed.v, typed.from, typed.to, '`')).toBe(true)
+    expect(typed.dispatched).toHaveLength(1)
   })
 })
 

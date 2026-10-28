@@ -34,7 +34,7 @@ import {
 } from './formats'
 import { TOOLBAR_MAX_LINES } from './formatContext'
 import { noteMarkdown, noteParser } from './markdown'
-import { previewTexts } from '../../../../tests/support/preview-html'
+import { previewShape, previewTexts } from '../../../../tests/support/preview-html'
 
 // Test documents mark the selection inline: `«` is where a range starts and
 // `»` where it ends; `|` is a cursor. Several ranges may appear.
@@ -579,6 +579,15 @@ describe('a bang before a link', () => {
   })
 })
 
+describe('a URL pasted over text that ends in a backslash', () => {
+  it('escapes the backslash, so it does not escape the closing bracket', async () => {
+    const s = state('see «C:\\temp\\» here')
+    const doc = show(apply(s, linkTo(s, 'https://x.y')))
+    expect(doc).toBe('see [C:\\temp\\\\](https://x.y)| here')
+    expect(await previewShape(doc.replace('|', ''))).toBe('<p>see <a>C:\\temp\\</a> here</p>')
+  })
+})
+
 // Characters are built from code points, so this file stays ASCII.
 const cp = (...points: number[]) => String.fromCodePoint(...points)
 const X = cp(0x4e2d)
@@ -617,6 +626,34 @@ describe('emphasis next to punctuation', () => {
     })
     return { editor: found, preview: await previewTexts(doc, TAGS[format]) }
   }
+
+  it('moves a backslash escape or an entity at an edge outside the markers whole', async () => {
+    const text = (marked: string, format: InlineFormat) => toggle(marked, format).doc.toString()
+    expect(text('file\\«_name»', 'bold')).toBe('file\\_**name**')
+    expect(text('file«\\_name»', 'bold')).toBe('file\\_**name**')
+    expect(text('file«\\_name»', 'italic')).toBe('file\\_*name*')
+    expect(await previewShape(text('file«\\_name»', 'bold'))).toBe(
+      '<p>file_<strong>name</strong></p>',
+    )
+    expect(text('x«&amp; b»', 'bold')).toBe('x&amp; **b**')
+    expect(text('x«&#20013;»y', 'bold')).toBe('x&#20013;y')
+    // The table is built by hand: `|` marks a cursor in `state`.
+    const table = '| x | y |\n| - | - |\n| a\\|b | c |'
+    const cell = table.indexOf('a\\|b')
+    const inTable = (from: number, to: number, format: InlineFormat) => {
+      const s = EditorState.create({
+        doc: table,
+        selection: EditorSelection.range(from, to),
+        extensions: [noteMarkdown],
+      })
+      return apply(s, toggleInline(s, format)).doc.toString()
+    }
+    const row = inTable(cell, cell + 3, 'bold')
+    expect(row).toBe('| x | y |\n| - | - |\n| **a**\\|b | c |')
+    expect(await previewTexts(row, 'td')).toEqual(['a|b', 'c'])
+    const italicRow = inTable(cell + 1, cell + 4, 'italic')
+    expect(await previewTexts(italicRow, 'td')).toEqual(['a|b', 'c'])
+  })
 
   it('moves punctuation at the edges of the selection outside the markers', async () => {
     for (const format of FORMATS) {
@@ -831,6 +868,20 @@ describe('formats next to other inline syntax', () => {
     expect(inline('*a«b* c»d', 'bold')).toBe('***a«b* c»**d')
     expect(inline('`a«b` c»d', 'bold')).toBe('**`a«b` c»**d')
     expect(inline('`a«b»c`', 'italic')).toBe('*`a«b»c`*')
+  })
+
+  it('takes inline code off without cutting a link, tag or URL in it', () => {
+    for (const marked of [
+      'See «[the» docs](https://x.y) now',
+      'Use «<ma»rk>this</mark> now',
+      'go to htt«ps://e»xample.com/page now',
+    ]) {
+      let s = state(marked)
+      s = apply(s, toggleInline(s, 'code'))
+      expect(isInlineActive(s, 'code')).toBe(true)
+      s = apply(s, toggleInline(s, 'code'))
+      expect(s.doc.toString()).toBe(marked.replace(/[«»]/g, ''))
+    }
   })
 
   it('still formats inside emphasis and link text', () => {
