@@ -178,6 +178,15 @@ describe('replacing a body', () => {
     expect((await storage.getNote(id))!.bodyMd).toBe('Howdy wo!rld')
   })
 
+  it('stores a captured body without carriage returns, so later edits land right', async () => {
+    const { notes, storage } = service(freshPath())
+    const id = await notes.create()
+    await notes.setBody(id, 'one\r\ntwo\rthree\n')
+    expect((await notes.read(id)).bodyMd).toBe('one\ntwo\nthree\n')
+    await notes.flush()
+    expect((await storage.getNote(id))!.bodyMd).toBe('one\ntwo\nthree\n')
+  })
+
   it('does nothing when the body is already the same', async () => {
     const { notes, storage } = service(freshPath())
     const id = await notes.create()

@@ -1275,17 +1275,17 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         schedule(note)
       }),
 
-    setBody: (id, markdown) => using(id, (note) => replaceBody(note, markdown)),
+    setBody: (id, markdown) => using(id, (note) => replaceBody(note, lineFeeds(markdown))),
 
     fill: (id, { title, markdown }) =>
       using(id, (note) => {
         if (note.record.title === '' && title !== '') retitle(note, title)
         const text = note.doc.getText(BODY)
         const own = text.toString()
-        if (own.trim() === '') return replaceBody(note, markdown)
+        if (own.trim() === '') return replaceBody(note, lineFeeds(markdown))
         const breaks = /\n*$/.exec(own)?.[0].length ?? 0
         editBody(note, () =>
-          text.insert(text.length, `${'\n'.repeat(Math.max(0, 2 - breaks))}${markdown}`),
+          text.insert(text.length, `${'\n'.repeat(Math.max(0, 2 - breaks))}${lineFeeds(markdown)}`),
         )
         schedule(note)
       }),
@@ -1295,7 +1295,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         const text = note.doc.getText(BODY)
         const index = anchoredIndex(note.doc, text, anchor)
         if (!markdown) return
-        editBody(note, () => text.insert(index, markdown))
+        editBody(note, () => text.insert(index, lineFeeds(markdown)))
         schedule(note)
       }),
 
