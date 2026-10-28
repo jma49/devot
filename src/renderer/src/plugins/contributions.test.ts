@@ -7,6 +7,7 @@ import {
   pluginKeys,
   rendererOfKey,
   rendererSpecs,
+  stopsImport,
 } from './contributions'
 
 const ALL: PluginPermission[] = ['commands', 'menus', 'keymaps', 'preview', 'import', 'export']
@@ -99,5 +100,14 @@ describe('plugin contributions', () => {
       { key: 'com.c/r', language: 'csv' },
     ])
     expect(rendererOfKey('com.a/r')).toEqual({ plugin: 'com.a', renderer: 'r' })
+  })
+})
+
+describe('stopsImport', () => {
+  it('stops on a plugin that timed out or stopped, not on one file it could not convert', () => {
+    expect(stopsImport(new Error('E_PLUGIN_TIMEOUT'))).toBe(true)
+    expect(stopsImport(new Error('E_PLUGIN_STOPPED'))).toBe(true)
+    expect(stopsImport(new Error('E_PLUGIN_FAILED'))).toBe(false)
+    expect(stopsImport('odd')).toBe(false)
   })
 })

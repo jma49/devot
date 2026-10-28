@@ -248,9 +248,7 @@ test('an import that fails partway keeps the notes it made, tries the rest and s
   await expect(page.getByRole('alert')).toContainText('E_PLUGIN_FAILED')
 })
 
-test('a read-only licence keeps plugin commands and imports from changing notes', async ({
-  page,
-}) => {
+test('a read-only licence keeps plugin imports and edits from changing notes', async ({ page }) => {
   await noteWith(page, 'hello world')
   // The trial is over and no licence is added, as Rust tells the window.
   await page.evaluate(() => {
@@ -271,14 +269,14 @@ test('a read-only licence keeps plugin commands and imports from changing notes'
   await page.keyboard.press('Meta+KeyK')
   await palette(page).getByRole('combobox', { name: 'Command Palette' }).fill('> ')
   const entries = palette(page).getByRole('option')
-  await expect(entries.filter({ hasText: 'Upper Case' })).toHaveCount(0)
+  await expect(entries.filter({ hasText: 'Upper Case' })).toHaveCount(1)
   await expect(entries.filter({ hasText: 'Import Shout Files…' })).toHaveCount(0)
   await expect(entries.filter({ hasText: 'Export Note as Shout…' })).toHaveCount(1)
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(palette(page)).toBeHidden()
 
-  // A path that still reaches the action (a menu item Rust has not disabled) changes nothing.
+  // A command is not hidden, but its edit is refused; an import that still arrives (a menu item Rust has not disabled) is too.
   await pickPluginMenu(page, { kind: 'command', plugin: 'com.example.tools', id: 'upper' })
   await expect(page.getByRole('alert')).toContainText('E_LICENCE_REQUIRED')
   await expect(body(page)).toHaveText('hello world')

@@ -1,5 +1,6 @@
 // What enabled plugins contribute to the window (ADR 0005), each only with the permission the user granted: palette entries for
 // their commands and formats, their keys, their preview renderers. The menu bar's items are Rust's (src-tauri/src/plugins/menu.rs).
+import { errorCode } from '../../../core/errors'
 import { effectivePermissions, type InstalledPlugin } from '../../../core/plugins'
 import type { PluginRendererSpec } from '../../../core/preview'
 import { isShortcut, normalizeShortcut, parseShortcut } from '../commands/keys'
@@ -55,6 +56,10 @@ export function pluginItems(plugins: readonly InstalledPlugin[]): PluginItem[] {
   }
   return out
 }
+
+/** Whether a failed import file means the plugin hangs or is gone, so the files after it would each fail the same slow way. */
+export const stopsImport = (error: unknown) =>
+  ['E_PLUGIN_TIMEOUT', 'E_PLUGIN_STOPPED'].includes(errorCode(error, ''))
 
 export interface PluginKey {
   key: string

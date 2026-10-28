@@ -41,7 +41,7 @@ pub struct Planned {
     pub place: Place,
     pub text: String,
     pub action: Action,
-    /// Commands and imports change notes, so they are off while the licence blocks writes.
+    /// Imports make notes, so they are off while the licence blocks writes.
     pub enabled: bool,
 }
 
@@ -65,7 +65,7 @@ pub fn plan(plugins: &[Installed], editing: bool) -> Vec<Planned> {
                     place: Place::Plugins,
                     text: command.title.clone(),
                     action: action(Kind::Command, &command.id),
-                    enabled: editing,
+                    enabled: true,
                 });
             }
         }
@@ -247,14 +247,14 @@ mod tests {
     }
 
     #[test]
-    fn disables_commands_and_imports_while_editing_is_locked() {
+    fn disables_imports_while_editing_is_locked() {
         let all = ["commands", "menus", "import", "export"];
         let planned = plan(&[installed(EVERYTHING, true, &all)], false);
         let shown: Vec<_> = planned.iter().map(|p| (p.place, p.enabled)).collect();
         assert_eq!(
             shown,
             [
-                (Place::Plugins, false),
+                (Place::Plugins, true),
                 (Place::Import, false),
                 (Place::Export, true),
             ]

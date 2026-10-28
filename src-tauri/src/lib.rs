@@ -332,7 +332,7 @@ fn sync_emitter(app: tauri::AppHandle) -> sync::service::Emit {
 }
 
 /// The licence's state goes to every window; the main window's sync and AI follow it, and the
-/// plugin menus enable or disable what changes notes.
+/// plugin menus enable or disable their imports.
 fn licence_emitter(app: tauri::AppHandle) -> licence::Emit {
     std::sync::Arc::new(move |snapshot| {
         if app.emit(licence::CHANGED_EVENT, snapshot).is_err() {

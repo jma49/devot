@@ -27,6 +27,7 @@ import {
   pluginKeys,
   rendererOfKey,
   rendererSpecs,
+  stopsImport,
   type PluginAction,
 } from './contributions'
 import { frameConnector, showFrame } from './frames'
@@ -154,8 +155,8 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
       const { core: c, app: w } = latest.current
       if (!host) return
       try {
-        // A command or an import changes notes, so it is refused like the app's own changes are.
-        if (action.kind !== 'export' && !editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
+        // An import makes notes, so it is refused like the app's own changes are; a command's edit is refused in replaceNote.
+        if (action.kind === 'import' && !editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
         if (action.kind === 'command') {
           await host.run(action.plugin, action.id)
         } else if (action.kind === 'import') {
@@ -170,8 +171,9 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
                 await c.capture(note.title, note.markdown, w.importBook())
                 made += 1
               } catch (error) {
-                // One file the plugin could not convert does not stop the rest.
                 fail(action.plugin, error)
+                // A plugin that hangs or stopped would cost every remaining file its own wait.
+                if (stopsImport(error)) break
               }
             }
           } finally {
@@ -196,7 +198,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.repeat || isImeKey(e) || sheetOpen() || !editingAllowed()) return
+      if (e.defaultPrevented || e.repeat || isImeKey(e) || sheetOpen()) return
       // A key the user has given an app command since stays the app's.
       const found = keys.find((k) => keyMatches(k.key, e) && !takenByApp(k.key))
       if (!found) return
@@ -231,11 +233,11 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
 
   const items = useMemo(() => pluginItems(plugins), [plugins])
 
-  /** The palette's entries for plugins' commands and formats; exports only while a note is open, and nothing that changes notes while editing is locked. */
+  /** The palette's entries for plugins' commands and formats; exports only while a note is open, and imports only while editing is allowed. */
   const entries = (noteOpen: boolean): PaletteEntry[] =>
     items.flatMap((item): PaletteEntry[] => {
       if (item.kind === 'export' && !noteOpen) return []
-      if (item.kind !== 'export' && !editingAllowed()) return []
+      if (item.kind === 'import' && !editingAllowed()) return []
       const label =
         item.kind === 'command'
           ? item.title
