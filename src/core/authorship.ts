@@ -772,7 +772,8 @@ export function reverseWrites(
     const writes = doc.getMap(WRITES)
     for (const [id, ranges] of extended) {
       const raw = writes.get(id)
-      const write = isRecord(raw) ? readWrite(id, raw) : null
+      if (!isRecord(raw)) continue
+      const write = readWrite(id, raw)
       if (write)
         writes.set(id, { ...raw, ids: packRanges([...write.inserted, ...ranges], write.deleted) })
     }
